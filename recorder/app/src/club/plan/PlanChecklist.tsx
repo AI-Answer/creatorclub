@@ -1,0 +1,86 @@
+import type {ReactNode} from 'react';
+import {Check,ChevronDown} from 'lucide-react';
+import {PLAN_STEPS,type PlanStep,type Video} from '../../../shared/club';
+import {ErrorLine} from '../ErrorLine';
+import type {JobRun} from '../useJobRun';
+import type {Plan} from '../usePlan';
+import {Button,Spinner,cn} from '../ui';
+import {PLAN_COPY,WRITE_SCRIPT,changedSceneLine} from '../video-plan';
+import {OutlineEditor,ScriptEditor} from './OutlineEditor';
+import {PackageForm} from './PackageForm';
+import {ResearchBoard} from './ResearchBoard';
+
+const STARTING='Starting…';
+
+/** A running AI step's latest line, or its one-sentence failure with `Try again`. Nothing when it is idle or done. */
+function JobLine({state,onRetry}:{state:JobRun;onRetry():void}){
+ if(state.phase==='running')return <p role="status" className="flex items-center gap-2 text-base text-muted"><Spinner size={14} label="Working"/>{state.line??STARTING}</p>;
+ if(state.phase==='failed')return <ErrorLine message={state.message} onRetry={onRetry}/>;
+ return null;
+}
+
+function Step({index,step,done,open,summary,help,onOpen,children}:{index:number;step:PlanStep;done:boolean;open:boolean;summary?:string;help?:string;onOpen():void;children:ReactNode}){
+ const {title}=PLAN_COPY[step];
+ return <section aria-label={title} className="rounded-lg border border-line bg-card">
+  <button type="button" aria-expanded={open} onClick={onOpen} className="flex w-full items-center gap-3 rounded-lg px-5 py-4 text-left focus-visible:outline-2 focus-visible:outline-accent">
+   <span aria-hidden className={cn('flex size-7 shrink-0 items-center justify-center rounded-full text-sm font-semibold',done?'bg-success-soft text-success':open?'bg-accent text-accent-ink':'bg-subtle text-muted')}>{done?<Check size={15} strokeWidth={2.5}/>:index+1}</span>
+   <span className="flex min-w-0 flex-1 flex-col">
+    <span className="text-lg font-semibold text-ink">{title}{done&&<span className="sr-only"> (done)</span>}</span>
+    {!open&&summary&&<span className="truncate text-sm text-muted">{summary}</span>}
+   </span>
+   <ChevronDown aria-hidden size={16} className={cn('shrink-0 text-muted transition-transform',open&&'rotate-180')}/>
+  </button>
+  {open&&<div className="flex flex-col gap-4 border-t border-line px-5 py-4">
+   {help&&<p className="text-base text-muted">{help}</p>}
+   {children}
+  </div>}
+ </section>;
+}
+
+/**
+ * The Plan step: Research, Package and Create outline as a checklist, one open at a time, with PLAN.md's copy.
+ * Only one primary button shows: Package it or Create outline while there is nothing yet, else the bottom bar's Continue.
+ */
+export function PlanChecklist({video,plan}:{video:Video;plan:Plan}){
+ if(plan.load.status==='loading')return <div className="flex flex-1 items-center justify-center py-16"><Spinner label="Loading the plan" size={20}/></div>;
+ if(plan.load.status==='error')return <div className="mx-auto w-full max-w-3xl px-6 py-8"><ErrorLine message={plan.load.message} onRetry={plan.reload}/></div>;
+ const {pkg,outline}=plan;
+ const done:Record<PlanStep,boolean>={research:video.planning.research,package:video.planning.package,outline:video.planning.outline||!!video.recorderProjectId};
+ const help=(step:PlanStep)=>plan.helpSeen&&!plan.helpSeen.includes(step)?PLAN_COPY[step].help:undefined;
+ const summaries:Record<PlanStep,string|undefined>={
+  research:undefined,
+  package:pkg?.titles[0]||undefined,
+  outline:outline?`${outline.scenes.length} ${outline.scenes.length===1?'scene':'scenes'}${outline.fullScript?' · full script':''}`:undefined,
+ };
+ const packaging=plan.packageJob.phase==='running',outlining=plan.outlineJob.phase==='running',scripting=plan.scriptJob.phase==='running';
+ const body:Record<PlanStep,ReactNode>={
+  research:<ResearchBoard videoId={video.id}/>,
+  package:<>
+   <JobLine state={plan.packageJob} onRetry={plan.packageIt}/>
+   {pkg?<>
+    <PackageForm value={pkg} onChange={plan.editPackage} disabled={packaging}/>
+    <Button className="self-start" disabled={packaging} onClick={plan.packageIt}>{PLAN_COPY.package.action}</Button>
+   </>:!packaging&&plan.packageJob.phase!=='failed'&&<Button variant="primary" className="self-start" onClick={plan.packageIt}>{PLAN_COPY.package.action}</Button>}
+  </>,
+  outline:<>
+   <JobLine state={plan.outlineJob} onRetry={plan.createOutline}/>
+   {outline?<>
+    {outline.fullScript!==undefined?<ScriptEditor value={outline.fullScript} onChange={plan.editScript} disabled={scripting}/>:<OutlineEditor value={outline} onChange={plan.editOutline} disabled={outlining||scripting}/>}
+    <JobLine state={plan.scriptJob} onRetry={plan.writeScript}/>
+    {plan.scriptError&&<ErrorLine message={plan.scriptError} onRetry={plan.backToTalkingPoints}/>}
+    <div className="flex flex-wrap gap-2">
+     <Button disabled={outlining||scripting} onClick={plan.createOutline}>{PLAN_COPY.outline.action}</Button>
+     {outline.fullScript!==undefined?<Button variant="ghost" disabled={scripting} onClick={plan.backToTalkingPoints}>Use talking points</Button>
+      :<Button variant="ghost" disabled={outlining||scripting} onClick={plan.writeScript}>{WRITE_SCRIPT}</Button>}
+    </div>
+   </>:!outlining&&plan.outlineJob.phase!=='failed'&&<Button variant="primary" className="self-start" onClick={plan.createOutline}>{PLAN_COPY.outline.action}</Button>}
+  </>,
+ };
+ return <div className="mx-auto flex w-full max-w-3xl flex-col gap-3 px-6 py-6">
+  {plan.changedScene!==undefined&&<p role="status" className="rounded-lg bg-band-amber-soft px-4 py-3 text-base text-band-amber">{changedSceneLine(plan.changedScene)}</p>}
+  {plan.continueError&&<ErrorLine message={plan.continueError} onRetry={()=>plan.continueAction?.run()}/>}
+  {plan.saveError&&<ErrorLine message={plan.saveError} onRetry={plan.retrySave}/>}
+  {PLAN_STEPS.map((step,index)=><Step key={step} index={index} step={step} done={done[step]} open={plan.open===step} summary={summaries[step]} help={help(step)} onOpen={()=>plan.setOpen(step)}>{body[step]}</Step>)}
+ </div>;
+}
+

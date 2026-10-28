@@ -1,7 +1,7 @@
 import express, { Router, type NextFunction, type Request, type Response } from 'express';
 import multer from 'multer';
 import { z } from 'zod';
-import { TILE_KINDS, VIDEO_STAGES, type Workspace } from '../../shared/club.js';
+import { PLAN_STEPS, TILE_KINDS, VIDEO_STAGES, type Workspace } from '../../shared/club.js';
 import { aiStatus } from './ai.js';
 import { startConnect, type ConnectOptions } from './connect.js';
 import { ClubError, GENERIC_FAILURE, notFound } from './errors.js';
@@ -12,6 +12,9 @@ import { cancelJob, getJob, snapshot, startJob, watchJob } from './jobs.js';
 import { parseChannelInput } from './channel.js';
 import { FILE_TOO_BIG, MAX_FILE_BYTES, detectSource } from './source.js';
 import { addChannel, rebuildVoice } from './onboard.js';
+import { readOutline, readPackage, runOutline, runPackage, runScript, saveOutline, savePackage, saveScript, type PlanOptions } from './planning.js';
+import { continueToRecording, outlineChangedScene } from './recorder.js';
+import { readTranscript, startTileRead } from './research.js';
 import * as store from './store.js';
 import type { ToolOptions } from './tools.js';
 
@@ -63,7 +66,11 @@ const voiceBody = z.object({
 }).strict();
 const workspacePatchBody = z.object(workspaceFields).partial().strict();
 
-const tileMeta = z.object({ views: z.number(), channel: z.string(), multiplier: z.number(), thumbnail: z.string() }).partial().strict();
+const tileMeta = z
+  .object({ views: z.number(), channel: z.string(), multiplier: z.number(), thumbnail: z.string(), likes: z.number(), comments: z.number(), ageDays: z.number(), platform: z.enum(['youtube', 'instagram']) })
+  .partial()
+  .strict();
+const scriptBody = z.object({ script: z.string().max(200_000).nullable() }).strict();
 // Multipart fields arrive as strings, so meta may be a JSON string.
 const newTileBody = z.object({
   kind: z.enum(TILE_KINDS),
@@ -114,9 +121,12 @@ export interface ClubRouterOptions {
   ai?: ConnectOptions & ToolOptions;
   /** Turns a video file with no captions into text. Defaults to SceneForge's local transcription. */
   transcribe?: Transcriber;
+  /** Runs the Plan step's prompts. Tests pass a stand-in so no model is called. */
+  runAI?: PlanOptions['runAI'];
 }
 
-export function clubRouter({ ai = {}, transcribe }: ClubRouterOptions = {}): Router {
+export function clubRouter({ ai = {}, transcribe, runAI }: ClubRouterOptions = {}): Router {
+  const plan: PlanOptions = { extraDirs: ai.extraDirs, runAI };
   const router = Router();
   router.use(express.json({ limit: '5mb' }));
 
@@ -128,7 +138,17 @@ export function clubRouter({ ai = {}, transcribe }: ClubRouterOptions = {}): Rou
   }));
 
   // ---- settings
-  router.get('/settings', handler(async (_req, res) => res.json({ defaultAi: (await store.defaultAi()) ?? null, welcomed: await store.welcomed(), geminiKey: await store.maskedGeminiKey() })));
+  router.get('/settings', handler(async (_req, res) => {
+    const slug = await store.currentWorkspace();
+    res.json({ defaultAi: (await store.defaultAi()) ?? null, welcomed: await store.welcomed(), geminiKey: await store.maskedGeminiKey(), helpSeen: slug ? await store.helpSeen(slug) : [] });
+  }));
+  // A Plan step was completed once in this channel: its help line stops showing.
+  router.post('/settings/help/:step', handler(async (req, res) => {
+    const slug = await requireWorkspace();
+    const step = z.enum(PLAN_STEPS).parse(param(req, 'step'));
+    await store.markHelpSeen(slug, step);
+    res.json({ helpSeen: await store.helpSeen(slug) });
+  }));
   router.put('/settings', handler(async (req, res) => {
     await store.setDefaultAi(settingsBody.parse(req.body).defaultAi);
     res.json({ defaultAi: await store.defaultAi() });
@@ -262,10 +282,55 @@ export function clubRouter({ ai = {}, transcribe }: ClubRouterOptions = {}): Rou
     if (!file) throw notFound('file');
     res.sendFile(file, { dotfiles: 'allow' });
   }));
+  // A YouTube or Instagram tile's details, outlier chip and transcript are read in the background.
+  router.post('/videos/:id/research/:tileId/read', handler(async (req, res) => {
+    const slug = await requireWorkspace();
+    const tile = await store.readTile(slug, param(req, 'id'), param(req, 'tileId'));
+    if (tile.kind !== 'video' || !tile.url) throw new ClubError('Only video tiles can be read.');
+    detectSource(tile.url);
+    res.status(202).json(startTileRead(slug, param(req, 'id'), tile.id, ai));
+  }));
+  router.get('/videos/:id/research/:tileId/transcript', handler(async (req, res) => {
+    res.json(await readTranscript(await requireWorkspace(), param(req, 'id'), param(req, 'tileId')));
+  }));
   router.delete('/videos/:id/research/:tileId', handler(async (req, res) => {
     await store.deleteTile(await requireWorkspace(), param(req, 'id'), param(req, 'tileId'));
     res.status(204).end();
   }));
+
+  // ---- planning: package, outline, full script, and the hand-off to the recorder
+  router.get('/videos/:id/plan', handler(async (req, res) => {
+    const slug = await requireWorkspace();
+    const id = param(req, 'id');
+    const video = await store.readVideo(slug, id);
+    const [pkg, outline] = await Promise.all([readPackage(slug, id), readOutline(slug, id)]);
+    const changedScene = await outlineChangedScene(video, outline);
+    res.json({ package: pkg, outline, ...(changedScene ? { changedScene } : {}) });
+  }));
+  router.put('/videos/:id/package', handler(async (req, res) => res.json(await savePackage(await requireWorkspace(), param(req, 'id'), req.body))));
+  router.post('/videos/:id/package', handler(async (req, res) => {
+    const slug = await requireWorkspace();
+    const id = param(req, 'id');
+    await store.readVideo(slug, id);
+    res.status(202).json(startJob('package', (context) => runPackage(slug, id, context, plan)));
+  }));
+  router.put('/videos/:id/outline', handler(async (req, res) => res.json(await saveOutline(await requireWorkspace(), param(req, 'id'), req.body))));
+  router.post('/videos/:id/outline', handler(async (req, res) => {
+    const slug = await requireWorkspace();
+    const id = param(req, 'id');
+    await store.readVideo(slug, id);
+    res.status(202).json(startJob('outline', (context) => runOutline(slug, id, context, plan)));
+  }));
+  router.put('/videos/:id/script', handler(async (req, res) => {
+    res.json({ outline: await saveScript(await requireWorkspace(), param(req, 'id'), scriptBody.parse(req.body).script) });
+  }));
+  router.post('/videos/:id/script', handler(async (req, res) => {
+    const slug = await requireWorkspace();
+    const id = param(req, 'id');
+    if (!(await readOutline(slug, id))) throw new ClubError('Create the outline first.');
+    res.status(202).json(startJob('script', (context) => runScript(slug, id, context, plan)));
+  }));
+  router.post('/videos/:id/recorder', handler(async (req, res) => res.json(await continueToRecording(await requireWorkspace(), param(req, 'id')))));
 
   // ---- breakdowns
   // JSON {url} for a link, or a multipart upload with a video `file`. Either starts a job whose result is the breakdown.

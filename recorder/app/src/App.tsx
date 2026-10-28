@@ -42,7 +42,8 @@ const roundTime=(time:number)=>Math.round(time*1000)/1000;
 function PlayheadField({playhead,duration,onSeek}:{playhead:Playhead;duration:number;onSeek:(time:number)=>void}){const value=usePlayheadSelector(playhead,roundTime);return <input aria-label="Playhead time in seconds" type="number" min={0} max={duration||3600} step={1/30} value={value} onChange={e=>onSeek(Number(e.target.value))}/>;}
 function Toasts({bind}:{bind:{current:(message:string)=>void}}){const [toast,setToast]=useState('');useLayoutEffect(()=>{bind.current=setToast;},[bind]);useEffect(()=>{if(!toast)return;const t=setTimeout(()=>setToast(''),4200);return()=>clearTimeout(t);},[toast]);return toast?<div className="toast" role="status"><Check size={16}/>{toast}</div>:null;}
 /** CreatorClub shows one recording project inside its video page: it opens that project, forces the mode and hides SceneForge's own Home and navigation. */
-export type EmbeddedRecorder={projectId:string;mode:'Record'|'Edit';onBack():void};
+/** `onMode` receives SceneForge's own moves between recording and editing (the embed never switches by itself); `onOpenFailed` fires when the project cannot be opened. */
+export type EmbeddedRecorder={projectId:string;mode:'Record'|'Edit';onBack():void;onMode?(mode:'Record'|'Edit'):void;onOpenFailed?():void};
 export default function App({embedded}:{embedded?:EmbeddedRecorder}={}){
  const studio=useStudio(),p=studio.project,change:Change=studio.change;
  useEffect(()=>{if(embedded&&studio.project?.id!==embedded.projectId)void studio.open(embedded.projectId);},[embedded?.projectId]);
@@ -57,15 +58,20 @@ export default function App({embedded}:{embedded?:EmbeddedRecorder}={}){
  const [scriptSceneId,setScriptSceneId]=useState<string|undefined>();
  const openSceneAction=useEvent((sceneId:string,kind:'auto-cut'|'visualize')=>{setQuickSceneId(sceneId);openModal(kind);});
  const automation=useProjectAutomation(p?.id,p?.updatedAt),automaticTranscription=useAutomaticTranscription();
- const [mode,setMode]=useState<'Script'|'Record'|'Edit'>('Edit'),[panel,setPanel]=useState<Panel|null>(null),[modal,setModal]=useState<string|null>(()=>!embedded&&needsSetup()?'setup':null),[selected,setSelected]=useState<string|null>(null),[playing,setPlaying]=useState(false),[zoom,setZoom]=useState(55),[showTranscript,setShowTranscript]=useState(false),[showLibrary,setShowLibrary]=useState(false),[newName,setNewName]=useState(''),[importPaths,setImportPaths]=useState(''),[importBusy,setImportBusy]=useState(false),[importTrack,setImportTrack]=useState<TrackKind|undefined>(),[aiKind,setAIKind]=useState('transcribe');
+ const [mode,setModeState]=useState<'Script'|'Record'|'Edit'>('Edit'),[panel,setPanel]=useState<Panel|null>(null),[modal,setModal]=useState<string|null>(()=>!embedded&&needsSetup()?'setup':null),[selected,setSelected]=useState<string|null>(null),[playing,setPlaying]=useState(false),[zoom,setZoom]=useState(55),[showTranscript,setShowTranscript]=useState(false),[showLibrary,setShowLibrary]=useState(false),[newName,setNewName]=useState(''),[importPaths,setImportPaths]=useState(''),[importBusy,setImportBusy]=useState(false),[importTrack,setImportTrack]=useState<TrackKind|undefined>(),[aiKind,setAIKind]=useState('transcribe');
+ // Embedded, the club owns the mode: SceneForge's own moves to recording or editing are handed to it instead.
+ const setMode=useEvent((next:'Script'|'Record'|'Edit')=>{if(embedded&&next!==embedded.mode){if(next!=='Script')embedded.onMode?.(next);return;}setModeState(next);});
  const [tool,setTool]=useState<'select'|'blade'>('select'),[scrubbing,setScrubbing]=useState(false),[selectedIds,setSelectedIds]=useState<Set<string>>(new Set()),[playbackRate,setPlaybackRate]=useState(1),[shortcutOverrides,setShortcutOverrides]=useState(loadShortcutOverrides);
  const [selectedRange,setSelectedRange]=useState<{start:number;end:number}|null>(null),[chatOpen,setChatOpen]=useState(()=>localStorage.getItem('sceneforge.agent-chat.open')==='true');
  useEffect(()=>{localStorage.setItem('sceneforge.agent-chat.open',String(chatOpen));},[chatOpen]);
  const clipboard=useRef<TimelineClipboard|null>(null),initialProjectMode=useRef<{id:string;mode:'Record'|'Edit'}|null>(null);
  // Pick a newly opened project's workspace in the same render, so the previous mode's workspace never mounts for it. The project effect clears the ref.
  const [modeFor,setModeFor]=useState<string>();
- if(p?.id!==modeFor){setModeFor(p?.id);if(p)setMode(embedded?embedded.mode:initialProjectMode.current?.id===p.id?initialProjectMode.current.mode:p.clips.length?'Edit':'Script');}
- else if(embedded&&mode!==embedded.mode)setMode(embedded.mode);
+ if(p?.id!==modeFor){setModeFor(p?.id);if(p)setModeState(embedded?embedded.mode:initialProjectMode.current?.id===p.id?initialProjectMode.current.mode:p.clips.length?'Edit':'Script');}
+ else if(embedded&&mode!==embedded.mode)setModeState(embedded.mode);
+ // An embedded project that cannot be opened is reported to the club, which shows one sentence and Try again.
+ const openFailed=Boolean(embedded&&studio.error&&(!p||p.id!==embedded.projectId));
+ useEffect(()=>{if(openFailed)embedded?.onOpenFailed?.();},[openFailed]);
  const leaveProject=()=>{setPlaying(false);if(embedded)void studio.flush().then(()=>embedded.onBack(),e=>studio.setError(e.message));else void studio.close();};
  // The recorder sends people straight to the capture-access step; other entry points start at the welcome.
  const [setupStep,setSetupStep]=useState(0);
@@ -157,7 +163,7 @@ export default function App({embedded}:{embedded?:EmbeddedRecorder}={}){
   {(modal==='auto-cut'||modal==='visualize')&&p&&<QuickActionDialog key={`${p.id}:${modal}:${quickSceneId??'project'}`} project={p} kind={modal} sceneId={quickSceneId} jobs={automation.jobs} merge={automation.merge} flush={studio.flush} reload={automation.reload} onClose={()=>setModal(null)}/>}
   {modal==='teleprompter'&&p&&<Teleprompter project={p} change={studio.change} onClose={()=>setModal(null)}/>}
   {modal==='import-notices'&&p&&<Modal title="Import details" subtitle="Supported edits were converted into a new independent project." onClose={()=>setModal(null)} wide><div className="import-notices-list">{p.importWarnings?.map((w,i)=><p key={i}>{w}</p>)}</div></Modal>}
-  {studio.error&&<div className="error-toast" role="alert"><span><b>Something needs your attention</b>{studio.error}</span><button className="icon-button" aria-label="Dismiss error" onClick={()=>studio.setError('')}><X size={17}/></button></div>}
+  {studio.error&&!openFailed&&<div className="error-toast" role="alert"><span><b>Something needs your attention</b>{studio.error}</span><button className="icon-button" aria-label="Dismiss error" onClick={()=>studio.setError('')}><X size={17}/></button></div>}
   <Toasts bind={toastRef}/>
  </div>;
 }

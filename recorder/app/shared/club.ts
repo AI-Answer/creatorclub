@@ -59,6 +59,18 @@ export interface Video {
   hidden?: 'later' | 'skipped';
   /** Set on videos imported from the old board. */
   idea?: IdeaNotes;
+  /**
+   * What Continue to recording put in each recorder scene, in outline order: the scene's id in the recording project,
+   * the text it was given, and when that text last changed. Used to tell when the outline changed after a scene was recorded.
+   */
+  recorderScenes?: RecorderScene[];
+}
+
+export interface RecorderScene {
+  sceneId: string;
+  /** The scene's name, script and notes as pushed, joined, so a change in any of them counts. */
+  text: string;
+  changedAt: string;
 }
 
 export const TILE_KINDS = ['link', 'video', 'text', 'image', 'note'] as const;
@@ -69,6 +81,20 @@ export interface TileMeta {
   channel?: string;
   multiplier?: number;
   thumbnail?: string;
+  likes?: number;
+  comments?: number;
+  ageDays?: number;
+  platform?: 'youtube' | 'instagram';
+  /** True once the video's transcript is saved with the tile. */
+  transcript?: boolean;
+}
+
+/** A video tile's transcript, split into the video's own chapters (one untitled chapter when it has none). */
+export interface TranscriptChapter {
+  title: string;
+  /** Seconds from the start of the video. */
+  start: number;
+  text: string;
 }
 
 export interface ResearchTile {
@@ -103,6 +129,18 @@ export interface OutlineScene {
 export interface Outline {
   scenes: OutlineScene[];
   fullScript?: string;
+}
+
+/** The three Plan steps, in order. Each shows its help line until it is first completed in the channel. */
+export const PLAN_STEPS = ['research', 'package', 'outline'] as const;
+export type PlanStep = (typeof PLAN_STEPS)[number];
+
+/** What the Plan step loads for a video. */
+export interface PlanData {
+  package: Package | null;
+  outline: Outline | null;
+  /** The first scene (1-based) whose takes were recorded before the outline changed. */
+  changedScene?: number;
 }
 
 export interface BreakdownVideoMeta {
@@ -168,6 +206,8 @@ export interface ClubSettings {
   welcomed: boolean;
   /** The saved Gemini API key, masked ("••••1234"), or null. The full key never leaves the server. */
   geminiKey: string | null;
+  /** Plan steps already completed once in the current channel, whose help lines no longer show. */
+  helpSeen: PlanStep[];
 }
 
 /** Progress events of a connect job. `line` is one cleaned-up line of installer output. */

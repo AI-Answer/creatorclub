@@ -33,7 +33,7 @@ function VideoRoute({id,step,onStep,onBoard}:{id:string;step:VideoStep;onStep(st
  },[id]);
  if(video===undefined)return <div className="flex flex-1 items-center justify-center"><Spinner label="Loading the video" size={20}/></div>;
  if(video===null)return <EmptyState className="flex-1" title="Video not found" description="It may have been removed from the board." action={<Button onClick={onBoard}>Open board</Button>}/>;
- return <VideoScreen video={video} step={step} onStep={onStep} onBoard={onBoard}/>;
+ return <VideoScreen key={video.id} video={video} step={step} onStep={onStep} onBoard={onBoard} onVideo={setVideo}/>;
 }
 
 /** CreatorClub's root: sidebar plus the current route. The video page and first launch use the whole window. */

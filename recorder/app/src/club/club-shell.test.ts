@@ -23,6 +23,8 @@ test('the shell routes through board, video steps and settings, and keeps the pl
   if(call.path==='/settings')return {body:{defaultAi:'claude',welcomed:true}};
   if(call.path==='/videos/v1')return {body:stored};
   if(call.path==='/videos/v1/opened')return {status:204};
+  if(call.path==='/videos/v1/plan')return {body:{package:null,outline:null}};
+  if(call.path==='/videos/v1/research')return {body:[]};
  });
  const ui=await mountUI(createElement(ClubApp));
  try{
@@ -34,7 +36,8 @@ test('the shell routes through board, video steps and settings, and keeps the pl
   assert.match(ui.container.querySelector('[aria-label="Breadcrumb"]')!.textContent||'',/Hidden features in Claude Code/);
   assert.ok(server.calls.some(call=>call.path==='/videos/v1/opened'&&call.method==='POST'),'opening a video is noted for Recent videos');
   assert.equal(ui.container.querySelector('[aria-current="step"]')!.textContent,'1Plan');
-  await act(async()=>button(ui.container,'Continue to recording').click());
+  assert.ok([...ui.container.querySelectorAll('button')].some(b=>b.textContent==='Package it'),'Plan opens on the first step not done yet');
+  await act(async()=>button(ui.container,'2Record').click());
   assert.equal(window.location.hash,'#/video/v1/record');
   await act(async()=>button(ui.container,'Back to plan').click());
   await act(async()=>button(ui.container,'4Publish').click());

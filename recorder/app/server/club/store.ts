@@ -5,8 +5,10 @@ import { randomBytes } from 'node:crypto';
 import { ClubError, notFound } from './errors.js';
 import { arrangeColumn } from '../../shared/club-board.js';
 import {
+  PLAN_STEPS,
   VIDEO_STAGES,
   type AiProvider,
+  type PlanStep,
   type ResearchTile,
   type TileKind,
   type TileMeta,
@@ -77,6 +79,8 @@ interface Settings {
   recent?: Record<string, string[]>;
   /** The person's own Gemini API key. Only ever sent to Google; the screen gets it masked. */
   geminiKey?: string;
+  /** Plan steps completed at least once, per channel. Their help lines stop showing. */
+  helpSeen?: Record<string, PlanStep[]>;
 }
 const settingsFile = () => path.join(rootDir(), 'settings.json');
 
@@ -141,6 +145,22 @@ export async function welcomed(): Promise<boolean> {
 
 export async function setWelcomed() {
   await updateSettings((settings) => ({ ...settings, welcomed: true }));
+}
+
+/** Plan steps whose help line no longer shows in this channel. */
+export async function helpSeen(slug: string): Promise<PlanStep[]> {
+  const seen = (await readJSON<Settings>(settingsFile()))?.helpSeen?.[assertSlug(slug)] ?? [];
+  return PLAN_STEPS.filter((step) => seen.includes(step));
+}
+
+/** Records that a Plan step was completed once in this channel. */
+export async function markHelpSeen(slug: string, step: PlanStep) {
+  if (!PLAN_STEPS.includes(step)) throw new ClubError('That step does not exist.');
+  assertSlug(slug);
+  await updateSettings((settings) => {
+    const seen = settings.helpSeen?.[slug] ?? [];
+    return seen.includes(step) ? settings : { ...settings, helpSeen: { ...settings.helpSeen, [slug]: [...seen, step] } };
+  });
 }
 
 const RECENT_LIMIT = 8;
@@ -399,6 +419,16 @@ export async function addTile(slug: string, videoId: string, input: NewTile): Pr
   return tile;
 }
 
+/** Merges new details into a tile, one change at a time per tile. */
+export function updateTile(slug: string, videoId: string, tileId: string, patch: Partial<Pick<ResearchTile, 'title' | 'text' | 'file' | 'meta'>>): Promise<ResearchTile> {
+  return withLock(`tile:${tileFile(slug, videoId, tileId)}`, async () => {
+    const tile = await readTile(slug, videoId, tileId);
+    const updated: ResearchTile = { ...tile, ...patch, meta: { ...tile.meta, ...patch.meta } };
+    await writeJSON(tileFile(slug, videoId, tileId), updated);
+    return updated;
+  });
+}
+
 export const tileFilePath = (slug: string, videoId: string, tile: ResearchTile) =>
   tile.file ? path.join(researchDir(slug, videoId), path.basename(tile.file)) : undefined;
 
@@ -406,5 +436,6 @@ export async function deleteTile(slug: string, videoId: string, tileId: string) 
   const tile = await readTile(slug, videoId, tileId);
   const file = tileFilePath(slug, videoId, tile);
   if (file) await fs.rm(file, { force: true });
+  await fs.rm(path.join(researchDir(slug, videoId), 'transcripts', `${tileId}.json`), { force: true });
   await fs.rm(tileFile(slug, videoId, tileId), { force: true });
 }
