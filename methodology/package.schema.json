@@ -1,0 +1,118 @@
+{
+  "title": "Package",
+  "description": "What the model returns for Package it.",
+  "type": "object",
+  "properties": {
+    "demand": {
+      "type": "object",
+      "properties": {
+        "level": {
+          "type": "string",
+          "enum": [
+            "high",
+            "mid",
+            "low"
+          ]
+        },
+        "note": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "level",
+        "note"
+      ],
+      "additionalProperties": false
+    },
+    "gap": {
+      "type": "object",
+      "properties": {
+        "level": {
+          "type": "string",
+          "enum": [
+            "high",
+            "mid",
+            "low"
+          ]
+        },
+        "note": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "level",
+        "note"
+      ],
+      "additionalProperties": false
+    },
+    "show": {
+      "type": "object",
+      "properties": {
+        "level": {
+          "type": "string",
+          "enum": [
+            "high",
+            "mid",
+            "low"
+          ]
+        },
+        "note": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "level",
+        "note"
+      ],
+      "additionalProperties": false
+    },
+    "angle": {
+      "type": "string"
+    },
+    "twist": {
+      "type": "string"
+    },
+    "titles": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 3,
+      "maxItems": 3
+    },
+    "thumbnailText": {
+      "type": "string"
+    },
+    "hook": {
+      "type": "object",
+      "properties": {
+        "visual": {
+          "type": "string"
+        },
+        "spoken": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "visual",
+        "spoken",
+        "text"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "demand",
+    "gap",
+    "show",
+    "angle",
+    "twist",
+    "titles",
+    "thumbnailText",
+    "hook"
+  ],
+  "additionalProperties": false
+}

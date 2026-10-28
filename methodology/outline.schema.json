@@ -1,0 +1,45 @@
+{
+  "title": "Outline",
+  "description": "What the model returns for Create outline. fullScript is added later by the script step.",
+  "type": "object",
+  "properties": {
+    "scenes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "talkingPoints": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 2,
+            "maxItems": 6
+          },
+          "show": {
+            "type": "string"
+          },
+          "seconds": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "title",
+          "talkingPoints",
+          "show",
+          "seconds"
+        ],
+        "additionalProperties": false
+      },
+      "minItems": 4,
+      "maxItems": 7
+    }
+  },
+  "required": [
+    "scenes"
+  ],
+  "additionalProperties": false
+}

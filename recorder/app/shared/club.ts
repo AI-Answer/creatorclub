@@ -88,9 +88,9 @@ export interface ResearchTile {
 }
 
 export interface Package {
-  demand: string;
-  gap: string;
-  show: string;
+  demand: ConceptRating;
+  gap: ConceptRating;
+  show: ConceptRating;
   angle: string;
   twist: string;
   titles: [string, string, string];
@@ -141,12 +141,15 @@ export interface Breakdown {
     angle: string;
     twist: string;
     hook: string;
-    demand: string;
-    gap: string;
-    show: string;
+    demand: ConceptRating;
+    gap: ConceptRating;
+    show: ConceptRating;
     why: string;
   }[];
 }
+
+/** What the Break down prompt returns. The app adds the rest (id, url, platform, video, createdAt). */
+export type BreakdownResult = Pick<Breakdown, 'whyItWorked' | 'reusableOutline' | 'viewerQuestions' | 'concepts'>;
 
 /** The two command line tools that can run a prompt. */
 export type AiProvider = 'claude' | 'codex';

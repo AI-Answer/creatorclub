@@ -4,6 +4,7 @@ import type { AiProvider, VoiceAnswers } from '../../shared/club.js';
 import { runAI, type Lookup } from './ai.js';
 import { transcriptsDir, type Transcript } from './channel.js';
 import { ClubError } from './errors.js';
+import { buildVoicePrompt } from './prompts.js';
 import { defaultAi, workspaceDir, writeFileAtomic } from './store.js';
 
 /** Fewer usable transcripts than this and the voice guide is built from the three questions instead (the board's rule). */
@@ -13,26 +14,6 @@ const VOICE_BUDGET_USD = 1.5;
 
 export const voiceFile = (slug: string) => path.join(workspaceDir(slug), 'voice.md');
 
-/** The prompt files live in `methodology/` at the repo root, or next to the bundled server in the packaged app. */
-export async function methodologyFile(name: string): Promise<string> {
-  const here = import.meta.dirname;
-  const candidates = [path.resolve(here, '../../../../methodology', name), path.resolve(here, 'methodology', name)];
-  for (const candidate of candidates) {
-    try {
-      return await fs.readFile(candidate, 'utf8');
-    } catch {
-      // try the next place
-    }
-  }
-  throw new ClubError("Couldn't find the voice guide instructions.", 500);
-}
-
-/** Fills the board's voice prompt: `{name}` everywhere, then `{transcripts}` as `### [id]` blocks. */
-export function assembleVoicePrompt(template: string, name: string, transcripts: Transcript[]): string {
-  const joined = transcripts.map((transcript) => `### [${transcript.id}]\n${transcript.text}`).join('\n\n');
-  return template.split('{name}').join(name).split('{transcripts}').join(joined);
-}
-
 export interface VoiceContext extends Lookup {
   signal?: AbortSignal;
   say?: (message: string) => void;
@@ -40,7 +21,7 @@ export interface VoiceContext extends Lookup {
 
 /** Asks the AI for the voice guide and saves it as `voice.md`. Nothing is saved when the answer is empty or too short. */
 export async function buildVoiceGuide(slug: string, name: string, transcripts: Transcript[], context: VoiceContext = {}): Promise<void> {
-  const prompt = assembleVoicePrompt(await methodologyFile('voice.md'), name, transcripts);
+  const { prompt } = await buildVoicePrompt(name, transcripts);
   context.say?.('Writing your voice guide…');
   const provider: AiProvider = (await defaultAi()) ?? 'claude';
   const { text } = await runAI({ ...context, provider, prompt, model: provider === 'claude' ? 'sonnet' : undefined, budgetUsd: VOICE_BUDGET_USD, timeoutMs: 15 * 60_000 });

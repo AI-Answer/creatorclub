@@ -13,7 +13,7 @@ after(async () => {
 });
 const { parseChannelInput, pickCaptionLanguage, deriveTopics, json3ToText, usableTranscript, sameChannelUrl } = await import('./channel.js');
 const { ensureYtDlp, localBinDir } = await import('./tools.js');
-const { assembleVoicePrompt } = await import('./voice.js');
+const { assembleVoicePrompt } = await import('./prompts.js');
 
 test('handles are normalised from what people paste', () => {
   const want = { handle: '@SaminYasar_', url: 'https://www.youtube.com/@SaminYasar_' };

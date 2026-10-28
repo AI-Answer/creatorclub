@@ -8,6 +8,7 @@ Rules
 - Everything must come from the transcripts. Quotes must be verbatim (captions may contain errors; keep them) and short. Do not give counts or percentages: you cannot count reliably, so say "often", "sometimes" or "once".
 - Say which video each quote comes from using its id in square brackets.
 - Plain words. No praise.
+- Leave out any call to join a club, community, course or product. When you describe how videos end, describe a pointer to another video, or the kind of sign-off, and nothing else.
 
 Write markdown with these sections:
 
