@@ -95,6 +95,7 @@ test('migrating a board workspace: profile, files, status mapping, outlines and 
 
   const videos = await store.listVideos('samin');
   const byId = Object.fromEntries(videos.map((v) => [v.id, v]));
+  assert.ok(videos.every((v) => !('views' in v) && !('viewsCheckedAt' in v)), 'the old board kept no view counts of its own videos, so none are invented');
   assert.equal(byId['agent-safety'].stage, 'ideas');
   assert.equal(byId['hidden-features'].stage, 'planning');
   assert.equal(byId['idea-1a179c8273f-2'].stage, 'planning');

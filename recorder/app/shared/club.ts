@@ -56,6 +56,10 @@ export interface Video {
   publishDate?: string;
   youtubeUrl?: string;
   publishedAt?: string;
+  /** Views of the published video on YouTube. Unset until they are known. */
+  views?: number;
+  /** ISO time `views` was last read. */
+  viewsCheckedAt?: string;
   hidden?: 'later' | 'skipped';
   /** Set on videos imported from the old board. */
   idea?: IdeaNotes;

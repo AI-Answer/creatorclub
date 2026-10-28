@@ -1,11 +1,11 @@
 import type {Video} from '../../shared/club';
-import {STAGE_LABEL,formatDay,inBoardOrder,videoDayKey,type ProjectProgress} from './board';
+import {STAGE_LABEL,formatDay,formatViews,inBoardOrder,videoDayKey,type ProjectProgress} from './board';
 import {Card} from './ui';
 
 const head='px-4 py-2.5 text-left text-sm font-medium text-muted';
 const cell='px-4 py-3 text-base text-ink';
 
-/** One row per video. Views stay empty until a published video's views are known. */
+/** One row per video. Views show once they are known and a dash before that. */
 export function TableView({videos,progress,onOpen}:{videos:readonly Video[];progress:Record<string,ProjectProgress>;onOpen(id:string):void}){
  return <Card className="overflow-x-auto">
   <table className="w-full min-w-[640px]">
@@ -21,7 +21,7 @@ export function TableView({videos,progress,onOpen}:{videos:readonly Video[];prog
       <td className={cell}>{STAGE_LABEL[video.stage]}{video.hidden&&<span className="text-muted"> · {video.hidden==='later'?'Later':'Skipped'}</span>}</td>
       <td className={cell}>{project&&project.scenes>0?`${project.recorded} of ${project.scenes}`:<span className="text-muted">—</span>}</td>
       <td className={cell}>{day?formatDay(day):<span className="text-muted">—</span>}</td>
-      <td className={cell}><span className="text-muted">—</span></td>
+      <td className={cell}>{video.views===undefined?<span className="text-muted">—</span>:formatViews(video.views)}</td>
      </tr>;
     })}
    </tbody>

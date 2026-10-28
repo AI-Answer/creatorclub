@@ -111,6 +111,11 @@ export const dayKey=(date:Date)=>`${date.getFullYear()}-${pad(date.getMonth()+1)
 /** The local date for a day key, at midday so daylight-saving shifts never change the day. */
 export const parseDay=(key:string)=>{const [y,m,d]=key.split('-').map(Number);return new Date(y,m-1,d,12);};
 
+const compact=new Intl.NumberFormat('en-US',{notation:'compact',maximumFractionDigits:1});
+
+/** 842, 12.4K, 1.2M. */
+export const formatViews=(views:number)=>compact.format(views);
+
 /** Oct 26 */
 export const formatDay=(key:string)=>shortDate.format(parseDay(key));
 

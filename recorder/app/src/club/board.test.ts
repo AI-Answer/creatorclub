@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type {Video} from '../../shared/club';
-import {applyMove,inBoardOrder,dayKey,dropIndex,groupByStage,hiddenCounts,isSamePlace,monthGrid,monthTitle,nextInStage,recentVideos,shiftMonth,statusLine,stepForStage,thumbnailUrl,unscheduled,videoDayKey,videosByDay,visibleVideos,youtubeId} from './board';
+import {applyMove,formatViews,inBoardOrder,dayKey,dropIndex,groupByStage,hiddenCounts,isSamePlace,monthGrid,monthTitle,nextInStage,recentVideos,shiftMonth,statusLine,stepForStage,thumbnailUrl,unscheduled,videoDayKey,videosByDay,visibleVideos,youtubeId} from './board';
 
 let n=0;
 const video=(over:Partial<Video>={}):Video=>({id:`v${++n}`,title:`Video ${n}`,stage:'ideas',order:0,createdAt:`2026-10-${String(10+n).padStart(2,'0')}T00:00:00.000Z`,updatedAt:'2026-10-20T00:00:00.000Z',stageDates:{},planning:{research:false,package:false,outline:false},...over});
@@ -114,4 +114,8 @@ test('the month grid is whole weeks starting on Monday',()=>{
 test('unscheduled lists videos past the idea stage with no day, furthest along first',()=>{
  const idea=video({id:'i'}),editing=video({id:'e',stage:'editing'}),planning=video({id:'g',stage:'planning'}),dated=video({id:'d',stage:'planning',publishDate:'2026-11-03'}),done=video({id:'p',stage:'published'});
  assert.deepEqual(ids(unscheduled([idea,editing,dated,done,planning])),['e','g']);
+});
+
+test('views show short: 842, 12.4K, 1.2M',()=>{
+ assert.deepEqual([0,842,999,1000,12400,100000,1234567].map(formatViews),['0','842','999','1K','12.4K','100K','1.2M']);
 });

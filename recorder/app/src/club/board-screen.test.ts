@@ -14,7 +14,7 @@ const base=():Video[]=>[
  mk('a',{title:'Alpha',order:0}),mk('b',{title:'Bravo',order:1}),mk('c',{title:'Charlie',order:2,hidden:'later'}),mk('d',{title:'Delta',order:3,hidden:'skipped'}),
  mk('p',{title:'Planned',stage:'planning',planning:{research:true,package:true,outline:false}}),
  mk('r',{title:'Recorded',stage:'recording',recorderProjectId:'proj1'}),
- mk('x',{title:'Live',stage:'published',youtubeUrl:'https://youtu.be/dQw4w9WgXcQ',publishedAt:'2026-10-14'}),
+ mk('x',{title:'Live',stage:'published',youtubeUrl:'https://youtu.be/dQw4w9WgXcQ',publishedAt:'2026-10-14',views:12400,viewsCheckedAt:'2026-10-20T00:00:00.000Z'}),
 ];
 const projects=[{id:'proj1',name:'n',updatedAt:'',duration:0,mediaCount:0,sceneCount:5,takeCount:3,recordedSceneCount:2,thumbnailMediaId:'media1'}];
 
@@ -144,7 +144,7 @@ test('Table lists title, stage, scenes recorded, publish date and views; a row o
   assert.deepEqual([...c.querySelectorAll('th')].map(th=>th.textContent),['Title','Stage','Scenes recorded','Publish date','Views']);
   const rows=[...c.querySelectorAll('tbody tr')].map(tr=>[...tr.children].map(td=>td.textContent));
   assert.deepEqual(rows.find(r=>r[0]==='Recorded'),['Recorded','Recording','2 of 5','—','—']);
-  assert.deepEqual(rows.find(r=>r[0]==='Live'),['Live','Published','—','Oct 14','—']);
+  assert.deepEqual(rows.find(r=>r[0]==='Live'),['Live','Published','—','Oct 14','12.4K']);
   assert.equal(rows.some(r=>r[0]==='Charlie'),false);
   await press(c.querySelector('tbody tr')!);assert.equal(opened.length,1);
   assert.equal(localStorage.getItem('creatorclub.boardView'),'table','the view is remembered');

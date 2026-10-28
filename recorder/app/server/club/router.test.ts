@@ -87,6 +87,10 @@ test('board routes: place a video before another, recent videos and the first-vi
   assert.ok(restored.body.stageDates.planning);
   assert.equal((await call('POST', `/videos/${made[1].id}/move`, { stage: 'ideas', stageDates: { bogus: 'x' } })).status, 400);
 
+  const counted = await call('PUT', `/videos/${made[0].id}`, { views: 12400, viewsCheckedAt: '2026-10-20T00:00:00.000Z' });
+  assert.deepEqual([counted.body.views, counted.body.viewsCheckedAt], [12400, '2026-10-20T00:00:00.000Z']);
+  assert.equal((await call('PUT', `/videos/${made[0].id}`, { views: -1 })).status, 400);
+  assert.ok(!('views' in (await call('PUT', `/videos/${made[0].id}`, { views: null })).body));
   assert.equal((await call('POST', `/videos/${made[1].id}/opened`)).status, 204);
   assert.equal((await call('POST', `/videos/${made[0].id}/opened`)).status, 204);
   assert.deepEqual((await call('GET', '/recent')).body, [made[0].id, made[1].id]);

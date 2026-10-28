@@ -39,6 +39,8 @@ const videoPatchBody = z.object({
   publishDate: z.string().nullable(),
   youtubeUrl: z.string().nullable(),
   publishedAt: z.string().nullable(),
+  views: z.number().int().nonnegative().nullable(),
+  viewsCheckedAt: z.string().nullable(),
   hidden: hidden.nullable(),
 }).partial().strict();
 
