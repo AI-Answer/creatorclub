@@ -1,5 +1,7 @@
 import {useCallback,useMemo,useRef,useState} from 'react';
 import {errorMessage} from '../api';
+import {BreakdownDialog} from '../BreakdownDialog';
+import type {BreakdownSource} from '../breakdown';
 import {hiddenCounts,isSamePlace,noHidden,recentVideos,stepForStage,visibleVideos,type HiddenFilter} from '../board';
 import type {VideoStep} from '../routes';
 import {BoardView} from '../BoardView';
@@ -20,7 +22,8 @@ const saveView=(view:View)=>{try{localStorage.setItem(VIEW_KEY,view);}catch{/* t
 
 /** The home screen: every video as a card moving from idea to published, as a board, a table or a calendar. */
 export function BoardScreen({onOpenVideo}:{onOpenVideo(id:string,step:VideoStep):void}){
- const {state,reload,move,schedule,add}=useBoard();
+ const {state,reload,move,schedule,add,receive}=useBoard();
+ const [breakdown,setBreakdown]=useState<{source:BreakdownSource;key:number}|null>(null);
  const [view,setView]=useState(savedView),[adding,setAdding]=useState(false),[show,setShow]=useState<HiddenFilter>(noHidden);
  const [toast,setToast]=useState<ToastMessage|null>(null),toastId=useRef(0);
  const videos=state.status==='ready'?state.videos:[];
@@ -65,10 +68,12 @@ export function BoardScreen({onOpenVideo}:{onOpenVideo(id:string,step:VideoStep)
      </button>)}
    </div>}
    {view==='board'&&<BoardView videos={shown} progress={state.progress} onOpen={open} onMove={(id,stage,beforeId)=>{if(!isSamePlace(shown,id,stage,beforeId))run(()=>move(id,stage,beforeId));}}
-    ideasTop={<IdeaBox adding={adding} onAddingChange={setAdding} onAdd={async title=>{try{await add(title);}catch(reason){failed(reason);throw reason;}}}/>}/>}
+    ideasTop={<IdeaBox adding={adding} onAddingChange={setAdding} onAdd={async title=>{try{await add(title);}catch(reason){failed(reason);throw reason;}}}
+     onBreakDown={url=>setBreakdown(current=>({source:{kind:'link',url},key:(current?.key??0)+1}))} onBreakDownFile={file=>setBreakdown(current=>({source:{kind:'file',file},key:(current?.key??0)+1}))}/>}/>}
    {view==='table'&&<TableView videos={shown} progress={state.progress} onOpen={open}/>}
    {view==='calendar'&&<CalendarView videos={shown} onOpen={open} onSchedule={(id,day)=>run(()=>schedule(id,day))}/>}
   </div>
+  {breakdown&&<BreakdownDialog key={breakdown.key} source={breakdown.source} onClose={()=>setBreakdown(null)} onAdded={receive}/>}
   <UndoToast toast={toast} onDone={dismiss}/>
  </>;
 }

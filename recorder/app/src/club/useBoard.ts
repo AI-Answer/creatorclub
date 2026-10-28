@@ -89,5 +89,8 @@ export function useBoard(){
   return created;
  },[setVideos]);
 
- return {state,reload,move,schedule,add};
+ /** Shows a video that was created elsewhere (a concept added from Break down). */
+ const receive=useCallback((video:Video)=>setVideos(videos=>videos.some(v=>v.id===video.id)?videos:[...videos,video]),[setVideos]);
+
+ return {state,reload,move,schedule,add,receive};
 }

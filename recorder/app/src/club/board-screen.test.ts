@@ -71,7 +71,7 @@ test('the board shows the channel, six columns, cards with status lines, recent 
   const recent=c.querySelector('section[aria-label="Recent videos"]')!;
   assert.deepEqual([...recent.querySelectorAll('[data-card]')].map(el=>el.getAttribute('data-card-id')),['p','r']);
   const link=c.querySelector<HTMLInputElement>('input[aria-label="Paste a YouTube or Instagram link"]')!;
-  assert.equal(link.disabled,true);assert.equal(button(c,'Break down').disabled,true);assert.match(text(c),/Break down is coming soon\./);
+  assert.equal(link.disabled,false);assert.equal(button(c,'Break down').disabled,true,'needs a link first');assert.match(text(c),/Or drop a video file here\./);
   const toggles=[...c.querySelectorAll('[aria-pressed]')];assert.deepEqual(toggles.map(t=>text(t)),['Later 1','Skipped 1']);
   await press(toggles[0]);
   assert.deepEqual([...column(c,'ideas').querySelectorAll('[data-card]')].map(el=>el.getAttribute('data-card-id')),['a','b','c']);

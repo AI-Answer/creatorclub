@@ -373,3 +373,68 @@ export async function runAI(options: RunAIOptions): Promise<RunAIResult> {
     await invocation.cleanup?.();
   }
 }
+
+// ---------------------------------------------------------------- watching a video with Gemini
+
+export interface WatchOptions extends Lookup {
+  prompt: string;
+  system?: string;
+  jsonSchema: object;
+  /** The video file. The Gemini CLI reads it from its own folder, named in the prompt with `@`. */
+  videoPath: string;
+  signal?: AbortSignal;
+  timeoutMs?: number;
+}
+
+/** True when the Gemini CLI is installed and its Google sign-in is there. */
+export async function geminiReady(lookup: Lookup = {}): Promise<boolean> {
+  const status = await providerStatus('gemini', lookup);
+  return status.installed && status.signedIn;
+}
+
+/**
+ * Asks the Gemini CLI to watch a whole video and answer in JSON. The CLI's video input could not be checked while building
+ * (it was not installed), so every failure is an AiError and the caller falls back to Claude with frames.
+ */
+export async function runGeminiWatch(options: WatchOptions): Promise<RunAIResult> {
+  const file = await findBinary('gemini', options);
+  if (!file) throw new AiError('not-installed', 'Gemini is not installed on this Mac.');
+  if (options.signal?.aborted) throw new AiError('cancelled', 'That was stopped.');
+  const prompt = [
+    options.system ?? DEFAULT_SYSTEM,
+    options.prompt,
+    `The full video is attached: @${path.basename(options.videoPath)}`,
+    `Answer with only JSON that matches this JSON Schema:\n${JSON.stringify(options.jsonSchema)}`,
+  ].join('\n\n');
+  const run = await new Promise<Finished & { interrupted?: 'timeout' | 'abort' | 'spawn' }>((resolve) => {
+    const child = spawn(file, ['-p', prompt], { cwd: path.dirname(path.resolve(options.videoPath)), env: childEnv(options), stdio: ['ignore', 'pipe', 'pipe'] });
+    let stdout = '';
+    let stderr = '';
+    let interrupted: 'timeout' | 'abort' | 'spawn' | undefined;
+    const stop = (reason: 'timeout' | 'abort') => {
+      interrupted = reason;
+      child.kill('SIGTERM');
+      setTimeout(() => child.kill('SIGKILL'), 3000).unref();
+    };
+    const timer = setTimeout(() => stop('timeout'), options.timeoutMs ?? 10 * 60_000);
+    const onAbort = () => stop('abort');
+    options.signal?.addEventListener('abort', onAbort, { once: true });
+    child.stdout.setEncoding('utf8');
+    child.stderr.setEncoding('utf8');
+    child.stdout.on('data', (chunk) => (stdout += chunk));
+    child.stderr.on('data', (chunk) => (stderr = (stderr + chunk).slice(-4000)));
+    child.on('error', () => (interrupted = 'spawn'));
+    child.on('close', (code) => {
+      clearTimeout(timer);
+      options.signal?.removeEventListener('abort', onAbort);
+      resolve({ code, stdout, stderr, interrupted });
+    });
+  });
+  if (run.interrupted === 'abort') throw new AiError('cancelled', 'That was stopped.');
+  if (run.interrupted === 'timeout') throw new AiError('failed', 'Gemini took too long to answer.', run.stderr);
+  if (run.interrupted === 'spawn') throw new AiError('not-installed', 'Gemini could not be started.', run.stderr);
+  if (run.code !== 0) throw new AiError('failed', 'Gemini could not finish that.', run.stderr);
+  const json = parseJSONLoose(run.stdout);
+  if (json === undefined) throw new AiError('bad-answer', 'Gemini answered in a shape we could not read.', run.stdout);
+  return { text: run.stdout, json };
+}

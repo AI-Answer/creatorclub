@@ -227,7 +227,7 @@ export async function listVideos(slug: string): Promise<Video[]> {
   return videos.filter((v): v is Video => !!v).sort(byStageThenOrder);
 }
 
-export type NewVideo = Pick<Video, 'title'> & Partial<Pick<Video, 'stage' | 'source' | 'concept' | 'hidden' | 'publishDate' | 'planning'>>;
+export type NewVideo = Pick<Video, 'title'> & Partial<Pick<Video, 'stage' | 'source' | 'concept' | 'idea' | 'hidden' | 'publishDate' | 'planning'>>;
 
 const nextOrder = (videos: Video[], stage: VideoStage) => Math.max(-1, ...videos.filter((v) => v.stage === stage).map((v) => v.order)) + 1;
 

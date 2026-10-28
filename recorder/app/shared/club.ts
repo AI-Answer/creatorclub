@@ -126,6 +126,8 @@ export interface Breakdown {
   platform: string;
   video: BreakdownVideoMeta;
   createdAt: string;
+  /** Set to 'gemini' when Gemini watched the whole video. Absent when Claude worked from the frames. */
+  watchedWith?: 'gemini';
   whyItWorked: {
     titlePackaging: string;
     hookSpeed: string;

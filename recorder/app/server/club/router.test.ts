@@ -31,6 +31,7 @@ test('video routes need a channel first, with one plain sentence', async () => {
   const res = await call('GET', '/videos');
   assert.equal(res.status, 409);
   assert.equal(res.body.error, 'Set up a channel first.');
+  assert.equal((await call('POST', '/breakdowns', { url: 'https://youtu.be/dQw4w9WgXcQ' })).status, 409, 'Break down needs a channel too');
 });
 
 test('workspace create, read, update and switch', async () => {

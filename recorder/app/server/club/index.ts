@@ -5,8 +5,12 @@ import { TILE_KINDS, VIDEO_STAGES, type Workspace } from '../../shared/club.js';
 import { aiStatus } from './ai.js';
 import { startConnect, type ConnectOptions } from './connect.js';
 import { ClubError, GENERIC_FAILURE, notFound } from './errors.js';
+import { promises as fs } from 'node:fs';
+import path from 'node:path';
+import { addConceptToBoard, breakdownDir, framesDir, newBreakdownId, readBreakdown, runBreakdown, type Transcriber } from './breakdown.js';
 import { cancelJob, getJob, snapshot, startJob, watchJob } from './jobs.js';
 import { parseChannelInput } from './channel.js';
+import { detectSource } from './source.js';
 import { addChannel, rebuildVoice } from './onboard.js';
 import * as store from './store.js';
 import type { ToolOptions } from './tools.js';
@@ -75,6 +79,23 @@ const newTileBody = z.object({
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { files: 1, fileSize: 50 * 1024 * 1024 } });
 
+const VIDEO_EXTENSIONS = new Set(['.mp4', '.mov', '.m4v', '.webm', '.mkv', '.avi']);
+const NOT_A_FILE = 'Drop a video file, like an mp4 or a mov.';
+type BreakdownRequest = Request & { breakdown?: { slug: string; id: string; dir: string } };
+const breakdownBody = z.object({ url: z.string().trim().min(1).max(2000) }).strict();
+// A dropped video goes straight into its breakdown's folder, so it is never held in memory.
+const videoUpload = multer({
+  storage: multer.diskStorage({
+    destination: (req, _file, done) => {
+      const dir = (req as BreakdownRequest).breakdown?.dir;
+      done(dir ? null : new Error('no breakdown folder'), dir ?? '');
+    },
+    filename: (_req, file, done) => done(null, `video${path.extname(file.originalname).toLowerCase()}`),
+  }),
+  fileFilter: (_req, file, done) => done(null, VIDEO_EXTENSIONS.has(path.extname(file.originalname).toLowerCase())),
+  limits: { files: 1, fileSize: 4 * 1024 ** 3 },
+});
+
 const handler = (fn: (req: Request, res: Response) => Promise<unknown> | unknown) => (req: Request, res: Response, next: NextFunction) =>
   Promise.resolve(fn(req, res)).catch(next);
 const param = (req: Request, name: string) => String(req.params[name]);
@@ -94,9 +115,11 @@ const settingsBody = z.object({ defaultAi: z.enum(['claude', 'codex']) }).strict
 export interface ClubRouterOptions {
   /** Where to look for the AI command line tools and yt-dlp, and how fast to poll them. Tests point these at fake tools. */
   ai?: ConnectOptions & ToolOptions;
+  /** Turns a video file with no captions into text. Defaults to SceneForge's local transcription. */
+  transcribe?: Transcriber;
 }
 
-export function clubRouter({ ai = {} }: ClubRouterOptions = {}): Router {
+export function clubRouter({ ai = {}, transcribe }: ClubRouterOptions = {}): Router {
   const router = Router();
   router.use(express.json({ limit: '5mb' }));
 
@@ -235,6 +258,44 @@ export function clubRouter({ ai = {} }: ClubRouterOptions = {}): Router {
   router.delete('/videos/:id/research/:tileId', handler(async (req, res) => {
     await store.deleteTile(await requireWorkspace(), param(req, 'id'), param(req, 'tileId'));
     res.status(204).end();
+  }));
+
+  // ---- breakdowns
+  // JSON {url} for a link, or a multipart upload with a video `file`. Either starts a job whose result is the breakdown.
+  router.post('/breakdowns', (req: BreakdownRequest, res, next) => {
+    requireWorkspace().then(async (slug) => {
+      const id = newBreakdownId();
+      req.breakdown = { slug, id, dir: breakdownDir(slug, id) };
+      if (req.is('multipart/form-data')) await fs.mkdir(req.breakdown.dir, { recursive: true });
+      next();
+    }, next);
+  }, videoUpload.single('file'), handler(async (req: BreakdownRequest, res) => {
+    const { slug, id } = req.breakdown!;
+    const work = { ...ai, transcribe };
+    if (req.is('multipart/form-data')) {
+      if (!req.file) throw new ClubError(NOT_A_FILE);
+      res.status(202).json(startJob('breakdown', (context) => runBreakdown({ slug, id, file: { path: req.file!.path, name: req.file!.originalname } }, context, work)));
+      return;
+    }
+    const { url } = breakdownBody.parse(req.body);
+    detectSource(url);
+    res.status(202).json(startJob('breakdown', (context) => runBreakdown({ slug, id, url }, context, work)));
+  }));
+
+  router.get('/breakdowns/:id', handler(async (req, res) => res.json(await readBreakdown(await requireWorkspace(), param(req, 'id')))));
+  router.get('/breakdowns/:id/frames/:name', handler(async (req, res) => {
+    const slug = await requireWorkspace();
+    const name = param(req, 'name');
+    if (!/^frame-\d{2}\.jpg$/.test(name)) throw notFound('frame');
+    await readBreakdown(slug, param(req, 'id'));
+    res.sendFile(path.join(framesDir(slug, param(req, 'id')), name), { dotfiles: 'allow' }, (error) => {
+      if (error && !res.headersSent) res.status(404).json({ error: notFound('frame').message });
+    });
+  }));
+  router.post('/breakdowns/:id/concepts/:index/add', handler(async (req, res) => {
+    const index = Number(param(req, 'index'));
+    if (!Number.isInteger(index) || index < 0) throw notFound('concept');
+    res.status(201).json(await addConceptToBoard(await requireWorkspace(), param(req, 'id'), index));
   }));
 
   router.use((error: Error & { status?: number }, _req: Request, res: Response, next: NextFunction) => {

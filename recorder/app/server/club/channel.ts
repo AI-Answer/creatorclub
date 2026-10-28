@@ -210,9 +210,9 @@ export function pickCaptionLanguage(info: Pick<Info, 'language' | 'automatic_cap
 }
 
 /** Runs yt-dlp in `work` with the default player client, then with `mweb`, which YouTube sometimes allows when the default is refused. */
-async function ytdlpTwice(args: string[], work: string, context: ChannelContext, succeeded: (files: string[]) => boolean): Promise<string[]> {
+export async function ytdlpTwice(args: string[], work: string, context: ChannelContext, succeeded: (files: string[]) => boolean, clients: (string | undefined)[] = [undefined, 'mweb']): Promise<string[]> {
   let files: string[] = [];
-  for (const client of [undefined, 'mweb']) {
+  for (const client of clients) {
     aborted(context);
     await runTool(context.ytdlp, [...args, ...(client ? ['--extractor-args', `youtube:player_client=${client}`] : [])], { env: toolEnv(context), signal: context.signal });
     aborted(context);

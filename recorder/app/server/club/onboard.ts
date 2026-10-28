@@ -2,15 +2,12 @@ import type { AddChannelResult, VoiceAnswers, VoiceResult } from '../../shared/c
 import { channelFile, parseChannelInput, readChannel, sameChannelUrl, savedTranscripts, type ChannelRead } from './channel.js';
 import type { JobContext } from './jobs.js';
 import * as store from './store.js';
-import { ensureYtDlp, findYtDlp, type ToolOptions } from './tools.js';
+import { prepareYtDlp, type ToolOptions } from './tools.js';
 import { buildVoiceGuide, hasVoiceGuide, MIN_TRANSCRIPTS, saveTranscripts, writeVoiceFromAnswers } from './voice.js';
 
 const say = (context: JobContext) => (message: string) => context.emit({ message });
 
-async function yt(context: JobContext, options: ToolOptions) {
-  if (!(await findYtDlp(options))) context.emit({ message: 'Setting up the YouTube reader…' });
-  return ensureYtDlp(options);
-}
+const yt = (context: JobContext, options: ToolOptions) => prepareYtDlp(say(context), options);
 
 async function saveChannel(slug: string, read: ChannelRead) {
   await store.writeJSON(channelFile(slug), read.data);

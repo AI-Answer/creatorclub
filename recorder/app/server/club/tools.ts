@@ -57,6 +57,12 @@ export async function ensureYtDlp(options: ToolOptions = {}): Promise<string> {
   }
 }
 
+/** `ensureYtDlp`, telling the screen first when it has to be downloaded. */
+export async function prepareYtDlp(say: (message: string) => void, options: ToolOptions = {}): Promise<string> {
+  if (!(await findYtDlp(options))) say('Setting up the YouTube reader…');
+  return ensureYtDlp(options);
+}
+
 export interface RunResult {
   code: number | null;
   stdout: string;
