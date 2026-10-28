@@ -66,7 +66,8 @@ These words go away: Brief, Lane, Picked, This week, Outline ready, Make this, C
 - **Left sidebar:** channel switcher, `Board`, `Settings`.
 - **Top: Recent videos.** Up to 4 recently opened videos as thumbnails, like Borumi's "Recent projects". Each shows where it is: "Recording · 2 of 5 scenes".
 - **Main area:** the board, with view tabs `Board` · `Table` · `Calendar`.
-- **Board columns:** `Ideas` → `Planning` → `Recording` → `Editing` → `Publishing` → `Published`. Cards are moved by hand (drag). Each card shows its title, thumbnail and a progress line ("Planning · 2 of 3").
+- **Board columns:** `Ideas` → `Planning` → `Recording` → `Editing` → `Publishing` → `Published`. Cards can be dragged by hand. Each card shows its title, thumbnail and a progress line ("Planning · 2 of 3").
+- **First visit:** a dialog titled "How CreatorClub works" (Eden's pattern), with three numbered steps and a small picture each: **1 Find the idea**, **2 Plan it**, **3 Record, edit, publish**. One button: `Start`. It comes back only from `?` in the sidebar.
 - **Table:** one row per video, with columns title, stage, scenes recorded, publish date and views.
 - **Calendar:** videos placed on their planned or actual publish date, set from the card.
 - **Above the Ideas column:** the box "Paste a YouTube or Instagram link" and `Add idea`.
@@ -107,7 +108,10 @@ Each stage below lists: what you see, the one button, what happens, what's saved
 - Prompt: the board's `video-ideas` prompt, with JSON schema.
 - Cost: about $0.10, 30–60 s.
 - Result:
-  - **Why it worked** (2–4 points)
+  - A stat row: the **outlier chip** ("2.84× usual views"), using Eden's method and colours (see `docs/reference/eden.md`), plus views, likes, comments and age. The channel's last 30 uploads come free from yt-dlp.
+  - **Why it worked:** title and packaging, how fast the opening hooks, the structure beat by beat, what keeps people watching, and the payoff
+  - **Reusable outline:** the video's shape, beat by beat
+  - **Why it worked** in short (2–4 points)
   - **What viewers asked** (up to 6)
   - **3 concepts with your twist**, each with title, angle, twist, hook, demand, gap and easy-to-show
   - Each concept has `Add to board`. Nothing is added automatically.
@@ -120,6 +124,7 @@ Each stage below lists: what you see, the one button, what happens, what's saved
 **1. Research**
 - Line: "Collect anything that helps: links, videos, notes, screenshots."
 - Research board: drop or paste links, YouTube or Instagram videos, text, images and notes. Each becomes a tile with a preview. There's no drawing.
+- Video tiles look like Eden's: thumbnail, title, channel, views and the outlier chip. Opening one shows the stat row and the transcript split into chapters.
 - Button: `Continue to packaging`.
 - Saved: `videos/<id>/research/` (files) plus `research.json` (tiles).
 
@@ -141,6 +146,7 @@ Each stage below lists: what you see, the one button, what happens, what's saved
 - Line: "Turn this into scenes. You'll talk through each one when you record."
 - Button: `Create outline`. Claude writes 4–7 scenes. Each has a title, talking points, what to show and a time budget, and the outline includes an honest-limitations beat.
 - Option: `Write full script instead` (the board's script, expand and revise steps; about $0.14).
+- If the video came from a break down, it follows that video's reusable outline: the structure, never the words (Eden's "Write my version").
 - Prompts: the board's `outline.md` plus the CRS `outlines` honest-limitations beat.
 - Cost: about $0.10, 40 s.
 - Saved: `videos/<id>/outline.md`.
@@ -234,9 +240,9 @@ breakdowns/
 
 ## Open before building
 
-1. **Eden study.** Claude in Chrome wasn't connected, so `app.eden.so` hasn't been looked at yet. Reconnect the extension and I'll do it before the board UI.
+1. **Eden study.** Done (see `docs/reference/eden.md`). It's folded into Ideas, the board and Planning below.
 2. **Borumi layout.** Done (see `docs/reference/borumi.md`). The video page now uses its bottom bar.
-3. **Card moves.** You chose moving cards by hand. Proposal: the `Continue to …` buttons also move the card, since pressing one is your own choice. Dragging still works. Otherwise the board falls behind what you've actually done.
+3. **Card moves.** Eden's planner moves the item for you when the work is done ("the item moves itself"). So the proposal is that the `Continue to …` buttons also move the card. Dragging still works. Needs your yes.
 4. **Gemini video.** Check during the build that the Gemini CLI accepts a video file. If it doesn't, Google becomes "paste an OpenRouter key" in Settings.
 5. **First test video:** to be picked later.
 
