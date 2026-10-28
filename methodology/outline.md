@@ -35,7 +35,7 @@ Scenes
 - title: what {first} does in the scene, in a few words, for example "Level 1: first test".
 - talkingPoints: 2 to 6 short notes of what to say, the gist and not finished sentences. If the scene introduces a concept, one note gives the everyday comparison to use. Where {first} has a real choice, give two or three ways to do that beat in one note that starts with "Your call:" and say what each is good for. Only do this where it matters.
 - show: what is on screen, and what to look for or check once {first} has tried it (the cost, the result, the thing to compare). Describe the kind of thing, not exact prompts or test items, unless the idea already has them.
-- seconds: the time budget for the scene, a whole number of seconds spoken at 140 words a minute. The seconds of all scenes add up to the video's length. Openings run 30 to 90 seconds and endings 30 to 60. Other scenes run about 2 to 4 minutes, and a live demo 3 to 7.
+- seconds: the time budget for the scene, a whole number of seconds spoken at 140 words a minute. Split the video's length across the scenes in proportion to how much each one has to show or explain. The opening runs 90 seconds or less and the ending 60 seconds or less. The seconds of all scenes add up to the video's length, give or take 10%.
 
 Rules
 - The opening scene uses the package's hook: its spoken line, what is on screen and the text. If the package is empty, choose an opening from the hook library, write its first line as a talking point, and add one different alternate as a "Your call:" note.

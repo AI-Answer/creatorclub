@@ -343,7 +343,7 @@ test('title, package and outline checks catch what models get wrong', () => {
   assert.deepEqual(p.packageProblems(bad), ['Title 2 is a question.', 'The thumbnail text has 7 words, and it needs 2 to 5.', 'The hook has no visual part.']);
 
   assert.deepEqual(p.outlineProblems(outline), []);
-  assert.deepEqual(p.outlineProblems({ scenes: outline.scenes.slice(0, 2) }), ['The outline has 2 scenes, and it needs 4 to 7.']);
+  assert.deepEqual(p.outlineProblems({ scenes: outline.scenes.slice(0, 3).slice(1) }).slice(0, 1), ['The outline has 2 scenes, and it needs 4 to 7.']);
   assert.deepEqual(p.outlineProblems({ scenes: outline.scenes.map((scene, i) => (i === 0 ? { ...scene, talkingPoints: [' '], seconds: 0 } : scene)) }), ['Scene 1 has no talking points.', 'Scene 1 has no time budget.']);
 });
 
@@ -352,4 +352,90 @@ test('spoken words ignore cues, and scene budgets use 140 words a minute', () =>
   assert.equal(p.sceneWords(60), 140);
   assert.equal(p.sceneWords(90), 210);
   assert.equal(p.outlineSeconds(outline), 360);
+});
+
+// Section 9 and two other lines are copied word for word from the real Samin voice guide (board workspaces/samin/voice.md).
+const SAMIN_SECTION_9 = `## 9. Community, links and sponsors
+- **Claude Club:** named in 6 of 9 in the last ~5% of the words; mid-video in 0Vgh (6% in), _Zeh (5%), caj4 (16%) and XqnY (60%). Never in 4TbW, BTVp, cTFg. Typical: "join my Claude Club where we can do this and we'll have some fun." (lH5w); "I'm there helping people set these up" (_Zeh); "if you're already part of Cloud Club, I'll help you set it up" (XqnY).
+- **Gifts to members:** "I even gave it to my community" (1LWP), plus "classroom" and "skills vault" mentions (0Vgh, lH5w, caj4).
+- **Course teases:** "I'm actually putting together a full course" (lH5w); "It's going to be a pretty long course." (XqnY).
+- **Links and codes:** "in the description" 17 hits in 8 of 9. Affiliate-style offers appear in _Zeh (Hostinger link and a coupon: "here's a little hack"), cTFg (a referral code for a creator-payout campaign: "a little bit of secret") and BTVp (a free-account link). The captions never say "sponsored" (0 hits for "sponsor"), so do not call them sponsor reads.
+- **Like and subscribe:** almost absent. The only ask is "stay subscribed for that" (lH5w); 0 hits for "like and subscribe".
+`;
+const SAMIN_VOICE = [
+  '# Samin Yasar: Voice Guide',
+  '## 1. Summary',
+  'A hands-on, upbeat tutor for beginners.',
+  '## 2. Structure',
+  `- **Ending:** a pointer to another video in 8 of 9 ("watch this video right here", 4TbW and cTFg; 1LWP is the only one without). 6 of 9 also close with a Claude Club mention in the last ~5% of the words (0Vgh, 1LWP, XqnY, _Zeh, caj4, lH5w). Short sign-off: "Have fun." (1LWP). Two captions cut off mid-sentence (0Vgh, _Zeh), so their final words are lost.`,
+  '## 3. Sentence and word habits',
+  'HABITS-MARKER "right?" check-ins.',
+  SAMIN_SECTION_9,
+  '## 10. What he avoids',
+  '- Begging for likes or subscribes.',
+  '## 12. Write like this (10 items)',
+  '9. Say what a run cost.',
+  `10. End with a pointer to a related video and one plain line about Claude Club, if it fits. Keep it low-key.`,
+].join('\n');
+const PITCH = /claude club|cloud club|community|classroom|skills vault|course|hostinger|coupon|referral|affiliate|sponsor|in the description|skool/i;
+
+test('pitches in the real Samin voice guide (club, community, course teases, coupons, referral codes) never reach the script, outline or package prompts', async () => {
+  const samin = { ...ctx, voice: SAMIN_VOICE };
+  const guide = p.stripPromotions(SAMIN_VOICE);
+  assert.doesNotMatch(guide, PITCH);
+  assert.match(guide, /pointer to another video in 8 of 9/, 'the habit is kept, only the pitch goes');
+  assert.match(guide, /Short sign-off: "Have fun\."/);
+  assert.match(guide, /HABITS-MARKER/);
+  assert.match(guide, /Say what a run cost\./);
+  assert.doesNotMatch(guide, /^## 9\./m, 'the section about the community, links and sponsors goes whole');
+  assert.match(guide, /## 10\. What he avoids/, 'the next section stays');
+  assert.match(p.stripPromotions('Of course it works.\nA full course is coming.'), /^Of course it works\.$/, 'of course is not a course');
+
+  const block = (prompt: string, tag: string) => prompt.match(new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`))?.[1] ?? assert.fail(`${tag} missing`);
+  const script = await p.buildScriptPrompt(samin, { title: 't', idea: { title: 'x' }, outline });
+  const expand = await p.buildExpandPrompt(samin, { outline, script: '# T', heading: 'Opening', section: 'Hi.', want: 100 });
+  const outlinePrompt = await p.buildOutlinePrompt(samin, { idea: { title: 'x' } });
+  const packagePrompt = await p.buildPackagePrompt(samin, { idea: { title: 'x' }, research: [] });
+  const breakdownPrompt = await p.buildBreakdownPrompt(samin, { title: 't', channel: 'c', transcript: 'some words', comments: [], existingTitles: [] });
+  assert.doesNotMatch(block(script.prompt, 'voice_guide'), PITCH);
+  assert.match(block(script.prompt, 'voice_guide'), /HABITS-MARKER/);
+  assert.doesNotMatch(block(expand.prompt, 'voice_guide'), PITCH);
+  for (const built of [outlinePrompt, packagePrompt, breakdownPrompt]) assert.doesNotMatch(block(built.prompt, 'voice_summary'), PITCH);
+});
+
+test('criteria, structure and about are stripped of pitches too', async () => {
+  const dirty = {
+    ...ctx,
+    workspace: { ...ctx.workspace, about: 'Practical AI. Join the Skool community for more.' },
+    criteria: 'An idea needs a title of 7 words or fewer.\nPromote the paid course when it fits.',
+    structure: 'Shape 1: bold claim, then three levels.\n## Community plugs\nAlways mention the club.\n## Other\nKeep it short.',
+  };
+  const built = await p.buildPackagePrompt(dirty, { idea: { title: 'x' }, research: [] });
+  assert.match(built.prompt, /Practical AI\./);
+  assert.match(built.prompt, /7 words or fewer/);
+  assert.match(built.prompt, /Shape 1: bold claim/);
+  assert.match(built.prompt, /Keep it short\./);
+  assert.doesNotMatch(built.prompt, /Skool|paid course|Community plugs|mention the club/);
+});
+
+test('outline time budgets: no fixed per-scene minutes, a share of the length, opening 90 s or less, ending 60 s or less, total within 10%', async () => {
+  const built = await p.buildOutlinePrompt(ctx, { idea: { title: 'x' }, minutes: 20 });
+  assert.doesNotMatch(built.prompt, /2 to 4 minutes|3 to 7|30 to 90|30 to 60/);
+  assert.match(built.prompt, /in proportion to how much each one has to show or explain/);
+  assert.match(built.prompt, /opening runs 90 seconds or less and the ending 60 seconds or less/);
+  assert.match(built.prompt, /20 minutes spoken[\s\S]*1200, give or take 10%/);
+  assert.match((await p.buildOutlinePrompt(ctx, { idea: { title: 'x' } })).prompt, /give or take 10%/);
+
+  // 360 seconds in all.
+  assert.deepEqual(p.outlineProblems(outline, 6), []);
+  assert.deepEqual(p.outlineProblems(outline, 6.3), [], '378 s asked for, 360 s is within 10%');
+  assert.deepEqual(p.outlineProblems(outline, 8), ['The scenes add up to 360 seconds, and the 8 minutes asked for is 480 seconds, give or take 10%.']);
+  assert.deepEqual(p.outlineProblems(outline, 4), ['The scenes add up to 360 seconds, and the 4 minutes asked for is 240 seconds, give or take 10%.']);
+  assert.deepEqual(p.outlineProblems(outline), [], 'no length asked for, no total to check');
+  const long = outline.scenes.map((scene, i) => (i === 0 ? { ...scene, seconds: 120 } : i === 3 ? { ...scene, seconds: 75 } : scene));
+  assert.deepEqual(p.outlineProblems({ scenes: long }), ['The opening runs 120 seconds, and 90 is the most.', 'The ending runs 75 seconds, and 60 is the most.']);
+  // A 25-minute video in 7 scenes passes: the middle scenes are long, as they have to be.
+  const big = (seconds: number, title: string) => ({ title, talkingPoints: ['a', 'b'], show: 's', seconds });
+  const twentyFive = { scenes: [big(90, 'Open'), big(300, 'A'), big(300, 'B'), big(300, 'C'), big(300, 'D'), big(150, 'Where this falls short'), big(60, 'End')] };
+  assert.deepEqual(p.outlineProblems(twentyFive, 25), []);
 });

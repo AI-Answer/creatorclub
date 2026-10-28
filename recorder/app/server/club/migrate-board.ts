@@ -3,6 +3,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { VIDEO_STAGES, type ConceptRating, type IdeaNotes, type Video, type VideoStage } from '../../shared/club.js';
 import { ClubError } from './errors.js';
+import { stripPromotions } from './prompts.js';
 import * as store from './store.js';
 
 /*
@@ -35,11 +36,10 @@ const DATE_KEY: Record<string, VideoStage> = { new: 'ideas', picked: 'planning',
 
 // ---------------------------------------------------------------- clean-up
 
-/** Drops every line that mentions "Claude Club" (the profile says no club in the call to action). */
+/** Takes the club, community, course and affiliate pitches out of the voice guide (the profile says no club in the call to action). Same rule the prompts apply. */
 export function cleanVoice(text: string): { text: string; dropped: number } {
-  const lines = text.split('\n');
-  const kept = lines.filter((line) => !/claude club/i.test(line));
-  return { text: kept.join('\n'), dropped: lines.length - kept.length };
+  const cleaned = stripPromotions(text);
+  return { text: cleaned, dropped: text.split('\n').length - cleaned.split('\n').length };
 }
 
 const NAME = /\b(?:Jake|Ed)\b/;

@@ -73,12 +73,26 @@ export function fill(template: string, values: Record<string, string | number>):
 
 const firstName = (name: string) => name.trim().split(/\s+/)[0] || name;
 
-const PROMOTION = /\b(claude club|skool|club|community|membership)\b/i;
+// Pitches for the creator's own club, community, course or offers, and affiliate-style links. "Of course" is not one.
+const PROMOTION = /\b(?:claude club|cloud club|skool|club|community|communities|membership|classroom|skills vault|(?<!of )courses?|coupons?|discount|promo code|referral|affiliate|sponsors?|sponsored)\b|in the description/i;
 
-/** Drops every sentence that mentions a club, community or membership, so a voice guide can describe habits without passing on a pitch. */
+const headingLevel = (line: string) => /^(#{1,6})\s/.exec(line)?.[1].length ?? 0;
+
+/**
+ * Takes the pitches out of a guide, a criteria file or a structure file: a section whose heading is about a club, community
+ * or sponsors goes whole, and in any other line each sentence that mentions one goes (a line left empty goes too).
+ */
 export function stripPromotions(text: string): string {
   const kept: string[] = [];
+  let skipping = 0;
   for (const line of text.split('\n')) {
+    const level = headingLevel(line);
+    if (skipping && level && level <= skipping) skipping = 0;
+    if (skipping) continue;
+    if (level && PROMOTION.test(line)) {
+      skipping = level;
+      continue;
+    }
     if (!PROMOTION.test(line)) {
       kept.push(line);
       continue;
@@ -100,11 +114,15 @@ const fullVoice = (voice: string) => stripPromotions(voice).trim() || '(none yet
 
 const criteriaText = ({ workspace, criteria }: ChannelContext) => {
   const lines = [];
-  if (workspace.about.trim()) lines.push(`About the channel: ${workspace.about.trim()}`);
+  const about = stripPromotions(workspace.about).trim();
+  if (about) lines.push(`About the channel: ${about}`);
   if (workspace.topics.length) lines.push(`Topics: ${workspace.topics.join(', ')}`);
-  if (criteria?.trim()) lines.push(criteria.trim());
+  const rules = stripPromotions(criteria ?? '').trim();
+  if (rules) lines.push(rules);
   return lines.join('\n\n') || '(none: use your judgment)';
 };
+
+const structureText = (structure: string | undefined) => stripPromotions(structure ?? '').trim() || '(none: use a plain hook, body and ending)';
 
 const ctaRule = (workspace: ChannelContext['workspace']) => workspace.cta.trim() || DEFAULT_CTA;
 
@@ -220,16 +238,32 @@ export function packageProblems(pkg: Package): string[] {
   return problems;
 }
 
-/** Everything wrong with an outline, as short sentences. An empty list means it passes. */
-export function outlineProblems(outline: Outline): string[] {
+export const OPENING_MAX_SECONDS = 90;
+export const ENDING_MAX_SECONDS = 60;
+const LENGTH_TOLERANCE = 0.1;
+
+/**
+ * Everything wrong with an outline, as short sentences. An empty list means it passes.
+ * With `minutes` (the length asked for), the scenes' seconds must add up to it within 10%.
+ */
+export function outlineProblems(outline: Outline, minutes?: number): string[] {
   const problems: string[] = [];
-  const count = outline.scenes.length;
-  if (count < 4 || count > 7) problems.push(`The outline has ${count} scenes, and it needs 4 to 7.`);
-  outline.scenes.forEach((scene, index) => {
+  const { scenes } = outline;
+  if (scenes.length < 4 || scenes.length > 7) problems.push(`The outline has ${scenes.length} scenes, and it needs 4 to 7.`);
+  scenes.forEach((scene, index) => {
     if (!scene.title.trim()) problems.push(`Scene ${index + 1} has no title.`);
     if (!scene.talkingPoints.some((point) => point.trim())) problems.push(`Scene ${index + 1} has no talking points.`);
     if (!Number.isInteger(scene.seconds) || scene.seconds <= 0) problems.push(`Scene ${index + 1} has no time budget.`);
   });
+  const opening = scenes[0];
+  const ending = scenes[scenes.length - 1];
+  if (opening && opening.seconds > OPENING_MAX_SECONDS) problems.push(`The opening runs ${opening.seconds} seconds, and ${OPENING_MAX_SECONDS} is the most.`);
+  if (ending && scenes.length > 1 && ending.seconds > ENDING_MAX_SECONDS) problems.push(`The ending runs ${ending.seconds} seconds, and ${ENDING_MAX_SECONDS} is the most.`);
+  if (minutes) {
+    const wanted = minutes * 60;
+    const total = outlineSeconds(outline);
+    if (Math.abs(total - wanted) > wanted * LENGTH_TOLERANCE) problems.push(`The scenes add up to ${total} seconds, and the ${minutes} minutes asked for is ${wanted} seconds, give or take 10%.`);
+  }
   return problems;
 }
 
@@ -315,7 +349,7 @@ export async function buildPackagePrompt(ctx: ChannelContext, input: PackageInpu
       research: researchText(input.research),
       criteria: criteriaText(ctx),
       voice_summary: voiceSummary(ctx.voice),
-      structure: ctx.structure?.trim() || '(none: use a plain hook, body and ending)',
+      structure: structureText(ctx.structure),
       recent_titles: bullets(input.recentTitles),
       hook_library: hookLibrary,
     }),
@@ -339,8 +373,8 @@ export interface OutlineInput {
 
 const lengthText = (minutes: number | undefined) =>
   minutes
-    ? `${minutes} minutes spoken, about ${minutes * WORDS_PER_MINUTE} words at ${WORDS_PER_MINUTE} words a minute. The seconds of your scenes add up to about ${minutes * 60}.`
-    : `Choose it yourself: a whole number of minutes from 3 to 60, at ${WORDS_PER_MINUTE} words a minute, and let the seconds of your scenes add up to it. Set it from how much there really is to show: count the separate things to build or demonstrate, and how much explaining each needs for this viewer. One simple thing is short (5 to 12 minutes). A few steps with some explaining is medium (12 to 25). Several connected builds, each needing a concept explained first, is long (25 to 45). Never go past 45 unless the idea clearly has that many parts, and never pick a length just to be long or to match an average.`;
+    ? `${minutes} minutes spoken, about ${minutes * WORDS_PER_MINUTE} words at ${WORDS_PER_MINUTE} words a minute. The seconds of your scenes add up to ${minutes * 60}, give or take 10%.`
+    : `Choose it yourself: a whole number of minutes from 3 to 60, at ${WORDS_PER_MINUTE} words a minute, and let the seconds of your scenes add up to it, give or take 10%. Set it from how much there really is to show: count the separate things to build or demonstrate, and how much explaining each needs for this viewer. One simple thing is short (5 to 12 minutes). A few steps with some explaining is medium (12 to 25). Several connected builds, each needing a concept explained first, is long (25 to 45). Never go past 45 unless the idea clearly has that many parts, and never pick a length just to be long or to match an average.`;
 
 export async function buildOutlinePrompt(ctx: ChannelContext, input: OutlineInput): Promise<JsonPrompt> {
   const [template, hookLibrary, schema] = await Promise.all([methodologyFile('outline.md'), methodologyFile('ref/hook-library.md'), methodologySchema('outline')]);
@@ -354,7 +388,7 @@ export async function buildOutlinePrompt(ctx: ChannelContext, input: OutlineInpu
       direction: input.direction?.trim() || '(none: use your judgment)',
       criteria: criteriaText(ctx),
       voice_summary: voiceSummary(ctx.voice),
-      structure: ctx.structure?.trim() || '(none: use a plain hook, body and ending)',
+      structure: structureText(ctx.structure),
       hook_library: hookLibrary,
       reusable_outline: shape,
       length: lengthText(input.minutes),
@@ -403,7 +437,7 @@ export async function buildScriptPrompt(ctx: ChannelContext, input: ScriptInput)
       voice: fullVoice(ctx.voice),
       rhythm: input.rhythm?.trim() || NO_RHYTHM,
       budgets: input.outline.scenes.map((scene) => `- ${scene.title}: about ${sceneWords(scene.seconds)} spoken words`).join('\n'),
-      structure: ctx.structure?.trim() || '(none: use a plain hook, body and ending)',
+      structure: structureText(ctx.structure),
       hook_library: hookLibrary,
       cta_patterns: ctaPatterns,
       mode_instructions: modeInstructions,
@@ -437,7 +471,7 @@ export async function buildExpandPrompt(ctx: ChannelContext, input: ExpandInput)
       first: firstName(ctx.workspace.name),
       voice: fullVoice(ctx.voice),
       rhythm: input.rhythm?.trim() || NO_RHYTHM,
-      structure: ctx.structure?.trim() || '(none: use a plain hook, body and ending)',
+      structure: structureText(ctx.structure),
       outline: outlineText(input.outline),
       script: input.script,
       heading: input.heading,
