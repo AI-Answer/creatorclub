@@ -376,8 +376,9 @@ const SAMIN_VOICE = [
   '## 12. Write like this (10 items)',
   '9. Say what a run cost.',
   `10. End with a pointer to a related video and one plain line about Claude Club, if it fits. Keep it low-key.`,
+  `**Do NOT:** invent his results, follower or revenue numbers, or anecdotes; call his link offers sponsors; add emojis; use stacked jargon; promise income without a caveat; or claim ideas he credits to others (an OpenAI engineer's tweet, Karpathy's LLM council).`,
 ].join('\n');
-const PITCH = /claude club|cloud club|community|classroom|skills vault|course|hostinger|coupon|referral|affiliate|sponsor|in the description|skool/i;
+const PITCH = /claude club|cloud club|community|classroom|skills vault|course|hostinger|coupon|referral|affiliate|in the description|skool/i;
 
 test('pitches in the real Samin voice guide (club, community, course teases, coupons, referral codes) never reach the script, outline or package prompts', async () => {
   const samin = { ...ctx, voice: SAMIN_VOICE };
@@ -387,6 +388,16 @@ test('pitches in the real Samin voice guide (club, community, course teases, cou
   assert.match(guide, /Short sign-off: "Have fun\."/);
   assert.match(guide, /HABITS-MARKER/);
   assert.match(guide, /Say what a run cost\./);
+  // Prohibitions are guidance, not pitches: the real "Do NOT" rule names "sponsors" and keeps every other rule.
+  for (const rule of ['invent his results, follower or revenue numbers, or anecdotes', 'call his link offers sponsors', 'add emojis', 'use stacked jargon', 'promise income without a caveat', 'claim ideas he credits to others'])
+    assert.ok(guide.includes(rule), rule);
+  assert.ok(guide.includes('**Do NOT:**'));
+  assert.equal(guide.match(/sponsor/gi)?.length, 1, 'the only sponsor mention left is the prohibition');
+  // Item 10 keeps its pointer instruction without the list number being taken for a sentence end, and loses only the club line.
+  assert.match(guide, /^10\. End with a pointer to a related video\. Keep it low-key\.$/m);
+  assert.doesNotMatch(guide, /^10\. Keep it low-key/m);
+  assert.doesNotMatch(guide, /Prompts\.$/m, 'no scrap is left of a dropped clause');
+  assert.doesNotMatch(guide, /,\./, 'no stray comma is left before a full stop');
   assert.doesNotMatch(guide, /^## 9\./m, 'the section about the community, links and sponsors goes whole');
   assert.match(guide, /## 10\. What he avoids/, 'the next section stays');
   assert.match(p.stripPromotions('Of course it works.\nA full course is coming.'), /^Of course it works\.$/, 'of course is not a course');
@@ -438,4 +449,15 @@ test('outline time budgets: no fixed per-scene minutes, a share of the length, o
   const big = (seconds: number, title: string) => ({ title, talkingPoints: ['a', 'b'], show: 's', seconds });
   const twentyFive = { scenes: [big(90, 'Open'), big(300, 'A'), big(300, 'B'), big(300, 'C'), big(300, 'D'), big(150, 'Where this falls short'), big(60, 'End')] };
   assert.deepEqual(p.outlineProblems(twentyFive, 25), []);
+});
+
+test('stripPromotions keeps prohibitions and list numbers, and cuts only the pitching clause', () => {
+  const strip = p.stripPromotions;
+  assert.equal(strip('- Do not mention the club or the course.'), '- Do not mention the club or the course.');
+  assert.equal(strip('Never promote a community. Join my club today.'), 'Never promote a community.');
+  assert.equal(strip("- Avoid sponsors and coupons; don't tease a course."), "- Avoid sponsors and coupons; don't tease a course.");
+  assert.equal(strip('3. Close with a recap and a plug for the Skool community, if it fits.'), '3. Close with a recap.');
+  assert.equal(strip('Show the result (first try and second try) and ask people to join the community.'), 'Show the result (first try and second try).');
+  assert.equal(strip('Join the club.'), '');
+  assert.equal(strip('- Prompts and the community link.'), '', 'a scrap of fewer than three words is dropped');
 });

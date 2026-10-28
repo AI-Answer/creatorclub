@@ -78,9 +78,38 @@ const PROMOTION = /\b(?:claude club|cloud club|skool|club|community|communities|
 
 const headingLevel = (line: string) => /^(#{1,6})\s/.exec(line)?.[1].length ?? 0;
 
+/** A sentence that forbids or warns against something is guidance, not a pitch, even when it names one. */
+const PROHIBITION = /\b(?:do not|don't|never|avoid|avoids)\b/i;
+
+/** `;` and " and " inside brackets must not split a clause. */
+const MASK = { ';': '\u0001', ' and ': '\u0002' } as const;
+const mask = (text: string) => text.replace(/\([^)]*\)/g, (group) => group.replace(/;/g, MASK[';']).replace(/ and /g, MASK[' and ']));
+const unmask = (text: string) => text.replaceAll(MASK[';'], ';').replaceAll(MASK[' and '], ' and ');
+
+/** Removes the clauses of one sentence that pitch (split on ";" and " and "), and an "if …" clause that hung on one. */
+function stripClauses(sentence: string): string {
+  const trimmed = sentence.trimEnd();
+  const end = /[.!?]$/.exec(trimmed)?.[0] ?? '';
+  const parts = mask(end ? trimmed.slice(0, -1) : trimmed).split(/(;\s*| and )/);
+  let kept = '';
+  let dropped: boolean = false;
+  for (let i = 0; i < parts.length; i += 2) {
+    const clause = parts[i];
+    const drop: boolean = PROMOTION.test(unmask(clause)) || (dropped && /^if\b/i.test(clause.trim()));
+    dropped = drop;
+    if (drop) continue;
+    kept += (kept && i > 0 ? parts[i - 1] : '') + clause;
+  }
+  const rest = unmask(kept).replace(/[,:\s]+$/, '');
+  // A scrap of a few words is not guidance: drop the sentence.
+  return rest.split(/\s+/).filter(Boolean).length >= 3 ? rest + end : '';
+}
+
 /**
  * Takes the pitches out of a guide, a criteria file or a structure file: a section whose heading is about a club, community
- * or sponsors goes whole, and in any other line each sentence that mentions one goes (a line left empty goes too).
+ * or sponsors goes whole; in any other line a sentence that only pitches goes, and in a sentence that also says something
+ * useful (three words or more) only the pitching clause goes. Sentences that forbid or warn ("do not", "never", "avoid") are kept as they are.
+ * List numbers ("10.") are not sentence ends. A line left empty goes too.
  */
 export function stripPromotions(text: string): string {
   const kept: string[] = [];
@@ -97,8 +126,13 @@ export function stripPromotions(text: string): string {
       kept.push(line);
       continue;
     }
-    const sentences = line.split(/(?<=[.!?])\s+/).filter((sentence) => !PROMOTION.test(sentence));
-    if (sentences.length) kept.push(sentences.join(' '));
+    const prefix = /^\s*(?:[-*]\s+|\d+\.\s+)?/.exec(line)?.[0] ?? '';
+    const sentences = line
+      .slice(prefix.length)
+      .split(/(?<=[.!?])\s+/)
+      .map((sentence) => (PROMOTION.test(sentence) && !PROHIBITION.test(sentence) ? stripClauses(sentence) : sentence))
+      .filter(Boolean);
+    if (sentences.length) kept.push(prefix + sentences.join(' '));
   }
   return kept.join('\n');
 }
