@@ -8,6 +8,8 @@ export interface Workspace {
   topics: string[];
   about: string;
   cta: string;
+  /** Teaching playbooks to apply to this channel. Always empty in v1. */
+  knowledge?: string[];
   createdAt: string;
 }
 
@@ -22,6 +24,21 @@ export interface ConceptRating {
 export const CONCEPT_KEYS = ['angle', 'twist', 'hook', 'demand', 'gap', 'show'] as const;
 export type ConceptKey = (typeof CONCEPT_KEYS)[number];
 export type Concept = Record<ConceptKey, ConceptRating>;
+
+/** What the old board kept about an idea, carried over unchanged by the migration. */
+export interface IdeaNotes {
+  lane?: string;
+  why?: string;
+  demand?: ConceptRating;
+  gap?: ConceptRating;
+  show?: ConceptRating;
+  angle?: string;
+  twist?: string;
+  hook?: string;
+  sources?: { label: string; url?: string }[];
+  note?: string;
+  dropReason?: string;
+}
 
 export interface Video {
   id: string;
@@ -40,6 +57,8 @@ export interface Video {
   youtubeUrl?: string;
   publishedAt?: string;
   hidden?: 'later' | 'skipped';
+  /** Set on videos imported from the old board. */
+  idea?: IdeaNotes;
 }
 
 export const TILE_KINDS = ['link', 'video', 'text', 'image', 'note'] as const;
@@ -163,4 +182,22 @@ export interface JobSnapshot {
   result?: unknown;
   /** One user-safe sentence when the job failed. */
   error?: string;
+}
+
+/** The three Voice DNA questions, asked when a channel has too few captions to learn from. */
+export const VOICE_QUESTIONS = [
+  { key: 'voice', label: 'In one or two sentences, how would you describe your voice?', required: true },
+  { key: 'audience', label: 'Who is your audience and what do you teach them?', required: true },
+  { key: 'moves', label: 'Any signature moves?', help: 'Recurring analogies, phrases you always or never use, a standard closing line.', required: false },
+] as const;
+export type VoiceAnswers = Record<(typeof VOICE_QUESTIONS)[number]['key'], string>;
+
+/** Result of the job behind `POST /workspaces {channelUrl}`. */
+export interface AddChannelResult {
+  workspace: Workspace;
+  voice: 'built' | 'needs-answers';
+}
+/** Result of the job behind `POST /workspaces/:slug/voice`. */
+export interface VoiceResult {
+  voice: 'built' | 'needs-answers';
 }

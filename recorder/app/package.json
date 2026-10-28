@@ -14,6 +14,7 @@
     "desktop": "electron desktop/main.cjs",
     "desktop:app": "node scripts/dev-app.mjs --open",
     "mcp": "tsx server/mcp.ts",
+    "club:migrate": "tsx server/club/migrate-board.ts",
     "build:server": "node scripts/bundle-server.mjs",
     "build:all": "npm run build && npm run build:server",
     "package": "node scripts/package.mjs"

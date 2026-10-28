@@ -220,6 +220,17 @@ export function createVideo(slug: string, input: NewVideo): Promise<Video> {
   });
 }
 
+/** Adds a video that already has its id, dates and stage (the board migration). Refuses to replace an existing video. */
+export function importVideo(slug: string, video: Video): Promise<Video> {
+  return workspaceLock(slug, () =>
+    videoLock(slug, video.id, async () => {
+      if (await readJSON(videoFile(slug, video.id))) throw new ClubError('That video is already in this channel.', 409);
+      await writeVideo(slug, video);
+      return video;
+    }),
+  );
+}
+
 export type VideoPatch = Partial<Omit<Video, 'id' | 'stage' | 'createdAt' | 'updatedAt' | 'stageDates'>>;
 
 /** Merges a patch; a null value clears an optional field. */

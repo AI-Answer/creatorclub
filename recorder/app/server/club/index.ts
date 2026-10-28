@@ -2,11 +2,14 @@ import express, { Router, type NextFunction, type Request, type Response } from 
 import multer from 'multer';
 import { z } from 'zod';
 import { TILE_KINDS, VIDEO_STAGES, type Workspace } from '../../shared/club.js';
-import { aiStatus, type Lookup } from './ai.js';
+import { aiStatus } from './ai.js';
 import { startConnect, type ConnectOptions } from './connect.js';
 import { ClubError, GENERIC_FAILURE, notFound } from './errors.js';
-import { cancelJob, getJob, snapshot, watchJob } from './jobs.js';
+import { cancelJob, getJob, snapshot, startJob, watchJob } from './jobs.js';
+import { parseChannelInput } from './channel.js';
+import { addChannel, rebuildVoice } from './onboard.js';
 import * as store from './store.js';
+import type { ToolOptions } from './tools.js';
 
 const rating = z.object({ level: z.enum(['high', 'mid', 'low']), note: z.string() }).strict();
 const concept = z.object({ angle: rating, twist: rating, hook: rating, demand: rating, gap: rating, show: rating }).strict();
@@ -48,6 +51,14 @@ const workspaceFields = {
   cta: z.string().default(''),
 };
 const newWorkspaceBody = z.object({ ...workspaceFields, slug: z.string().optional() }).strict();
+const addChannelBody = z.object({ channelUrl: z.string().trim().min(1).max(500) }).strict();
+const voiceBody = z.object({
+  answers: z.object({
+    voice: z.string().trim().min(1).max(2000),
+    audience: z.string().trim().min(1).max(2000),
+    moves: z.string().trim().max(2000).default(''),
+  }).strict().optional(),
+}).strict();
 const workspacePatchBody = z.object(workspaceFields).partial().strict();
 
 const tileMeta = z.object({ views: z.number(), channel: z.string(), multiplier: z.number(), thumbnail: z.string() }).partial().strict();
@@ -77,8 +88,8 @@ const connectBody = z.object({ provider: z.enum(['claude', 'codex', 'gemini']), 
 const settingsBody = z.object({ defaultAi: z.enum(['claude', 'codex']) }).strict();
 
 export interface ClubRouterOptions {
-  /** Where to look for the AI command line tools, and how fast to poll them. Tests point these at fake tools. */
-  ai?: ConnectOptions & Lookup;
+  /** Where to look for the AI command line tools and yt-dlp, and how fast to poll them. Tests point these at fake tools. */
+  ai?: ConnectOptions & ToolOptions;
 }
 
 export function clubRouter({ ai = {} }: ClubRouterOptions = {}): Router {
@@ -144,6 +155,13 @@ export function clubRouter({ ai = {} }: ClubRouterOptions = {}): Router {
     res.json({ current: (await store.currentWorkspace()) ?? null, workspaces: await store.listWorkspaces() });
   }));
   router.post('/workspaces', handler(async (req, res) => {
+    // A channel link starts a job that reads the channel; a bare name creates an empty channel at once.
+    if (req.body && typeof req.body === 'object' && 'channelUrl' in req.body) {
+      const { channelUrl } = addChannelBody.parse(req.body);
+      parseChannelInput(channelUrl);
+      res.status(202).json(startJob('add-channel', (context) => addChannel(channelUrl, context, ai)));
+      return;
+    }
     const workspace = await store.createWorkspace(newWorkspaceBody.parse(req.body));
     if (!(await store.currentWorkspace())) await store.setCurrentWorkspace(workspace.slug);
     res.status(201).json(workspace);
@@ -154,6 +172,12 @@ export function clubRouter({ ai = {} }: ClubRouterOptions = {}): Router {
     const updated: Workspace = { ...existing, ...workspacePatchBody.parse(req.body), slug: existing.slug, createdAt: existing.createdAt };
     await store.writeWorkspace(updated);
     res.json(updated);
+  }));
+  router.post('/workspaces/:slug/voice', handler(async (req, res) => {
+    const slug = param(req, 'slug');
+    await store.readWorkspace(slug);
+    const { answers } = voiceBody.parse(req.body ?? {});
+    res.status(202).json(startJob('voice', (context) => rebuildVoice(slug, answers, context, ai)));
   }));
   router.post('/workspaces/:slug/current', handler(async (req, res) => {
     await store.setCurrentWorkspace(param(req, 'slug'));

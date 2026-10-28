@@ -26,6 +26,8 @@ const markWelcomed=()=>{try{localStorage.setItem(WELCOMED,'1');}catch{/* the dia
 /** CreatorClub's root: sidebar plus the current route. The video page and first launch use the whole window. */
 export default function ClubApp(){
  const [route,navigate]=useHashRoute(),[helpOpen,setHelpOpen]=useState(false);
+ // Bumped when you switch channels, so the screen beside the sidebar loads that channel afresh.
+ const [channelEpoch,setChannelEpoch]=useState(0);
  const openBoard=useCallback(()=>navigate({name:'board'}),[navigate]);
  // After the first launch the board opens with the first-visit dialog (a placeholder until the board task builds its own).
  const finishOnboarding=useCallback(()=>{navigate({name:'board'});if(!wasWelcomed()){markWelcomed();setHelpOpen(true);}},[navigate]);
@@ -51,8 +53,8 @@ export default function ClubApp(){
  else screen=<BoardScreen onOpenExample={()=>navigate({name:'video',id:exampleVideo.id,step:'plan'})}/>;
  return <div className={cn('club-root',window.sceneForge&&'club-desktop')}>
   <div className="flex h-full min-h-0">
-   {withSidebar&&<Sidebar route={route} navigate={navigate} onHelp={()=>setHelpOpen(true)}/>}
-   <main className="flex min-w-0 flex-1 flex-col">{screen}</main>
+   {withSidebar&&<Sidebar route={route} navigate={navigate} onHelp={()=>setHelpOpen(true)} onSwitch={()=>setChannelEpoch(n=>n+1)}/>}
+   <main key={channelEpoch} className="flex min-w-0 flex-1 flex-col">{screen}</main>
   </div>
   <HowItWorksDialog open={helpOpen} onClose={()=>setHelpOpen(false)}/>
  </div>;

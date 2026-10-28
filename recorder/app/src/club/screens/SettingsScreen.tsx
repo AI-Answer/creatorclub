@@ -6,6 +6,7 @@ import {ConnectStatus} from '../ConnectStatus';
 import {ErrorLine} from '../ErrorLine';
 import {connectLabel,useConnect} from '../useConnect';
 import {useJobRun} from '../useJobRun';
+import {VoiceQuestions,voiceNeedsAnswers} from '../VoiceQuestions';
 import {Badge,Button,Card,Input,Progress,Spinner,Tabs,Textarea,type Tab} from '../ui';
 import {ScreenHeader} from './ScreenHeader';
 
@@ -130,6 +131,7 @@ function ChannelForm({workspace,onSaved}:{workspace:Workspace;onSaved(workspace:
  const [name,setName]=useState(workspace.name),[handle,setHandle]=useState(workspace.handle),[topics,setTopics]=useState(topicsText(workspace.topics)),[about,setAbout]=useState(workspace.about);
  const [saving,setSaving]=useState(false),[saved,setSaved]=useState(false),[error,setError]=useState('');
  const voice=useJobRun();
+ const [answered,setAnswered]=useState(false);
  const dirty=name!==workspace.name||handle!==workspace.handle||topics!==topicsText(workspace.topics)||about!==workspace.about;
  const edit=(set:(value:string)=>void)=>(value:string)=>{set(value);setSaved(false);};
  const save=useCallback(async()=>{
@@ -141,7 +143,8 @@ function ChannelForm({workspace,onSaved}:{workspace:Workspace;onSaved(workspace:
   }catch(reason){setError(errorMessage(reason));}
   finally{setSaving(false);}
  },[workspace.slug,name,handle,topics,about,onSaved]);
- const rebuild=()=>void voice.run(()=>clubFetch(`/workspaces/${encodeURIComponent(workspace.slug)}/voice`,{method:'POST',body:{}}));
+ const rebuild=()=>{setAnswered(false);void voice.run(()=>clubFetch(`/workspaces/${encodeURIComponent(workspace.slug)}/voice`,{method:'POST',body:{}}));};
+ const answers=()=>{setAnswered(true);clubFetch<Workspace>(`/workspaces/${encodeURIComponent(workspace.slug)}`).then(updated=>{setAbout(updated.about);onSaved(updated);},()=>{});};
  return <div className="flex flex-col gap-5">
   <Card className="flex flex-col gap-4 p-4">
    <Field label="Name"><Input value={name} onChange={event=>edit(setName)(event.target.value)}/></Field>
@@ -157,7 +160,7 @@ function ChannelForm({workspace,onSaved}:{workspace:Workspace;onSaved(workspace:
   <div className="flex flex-col gap-2">
    <div className="flex items-center gap-3">
     <Button disabled={voice.state.phase==='running'} onClick={rebuild}>Rebuild voice guide</Button>
-    {voice.state.phase==='done'&&<p role="status" className="text-sm text-muted">Rebuilt your voice guide</p>}
+    {voice.state.phase==='done'&&(!voiceNeedsAnswers(voice.state.result)||answered)&&<p role="status" className="text-sm text-muted">{answered?'Saved your voice guide':'Rebuilt your voice guide'}</p>}
    </div>
    <p className="text-sm text-muted">Learns how you talk again from your latest videos.</p>
    {voice.state.phase==='running'&&<div className="flex flex-col gap-2" aria-live="polite">
@@ -165,6 +168,10 @@ function ChannelForm({workspace,onSaved}:{workspace:Workspace;onSaved(workspace:
     <Progress label="Rebuilding your voice guide"/>
    </div>}
    {voice.state.phase==='failed'&&<ErrorLine message={voice.state.message} onRetry={rebuild}/>}
+   {voice.state.phase==='done'&&voiceNeedsAnswers(voice.state.result)&&!answered&&<Card className="flex flex-col gap-3 p-4">
+    <p className="text-base text-muted">We couldn't read enough of your videos. Answer three questions instead.</p>
+    <VoiceQuestions slug={workspace.slug} onDone={answers}/>
+   </Card>}
   </div>
  </div>;
 }

@@ -5,6 +5,7 @@ import {ConnectStatus} from '../ConnectStatus';
 import {ErrorLine} from '../ErrorLine';
 import {useConnect} from '../useConnect';
 import {useJobRun} from '../useJobRun';
+import {VoiceQuestions,resultSlug,voiceNeedsAnswers} from '../VoiceQuestions';
 import {Button,Card,Input,Progress,Spinner} from '../ui';
 
 type Step='loading'|'ai'|'channel';
@@ -52,13 +53,25 @@ function ConnectYourAi({onNext}:{onNext():void}){
 
 function AddYourChannel({hasChannel,onBoard,onDone}:{hasChannel:boolean;onBoard():void;onDone():void}){
  const [url,setUrl]=useState('');
+ // Set when the channel had too few captions: the voice guide then comes from three questions.
+ const [ask,setAsk]=useState<string|null>(null);
  const {state,run}=useJobRun();
  const add=useCallback(()=>{
   const channelUrl=url.trim();if(!channelUrl)return;
-  void run(()=>clubFetch('/workspaces',{body:{channelUrl}}),onDone);
+  void run(()=>clubFetch('/workspaces',{body:{channelUrl}}),result=>{
+   const slug=voiceNeedsAnswers(result)?resultSlug(result):undefined;
+   if(slug)setAsk(slug);else onDone();
+  });
  },[url,run,onDone]);
  const submit=(event:FormEvent)=>{event.preventDefault();add();};
  const working=state.phase==='running';
+ if(ask)return <>
+  <div className="flex flex-col gap-1.5">
+   <h1 className="text-xl font-semibold tracking-tight">How do you talk?</h1>
+   <p className="text-base text-muted">We couldn't read enough of your videos. Answer three questions instead.</p>
+  </div>
+  <VoiceQuestions slug={ask} onDone={onDone}/>
+ </>;
  return <>
   <div className="flex flex-col gap-1.5">
    <h1 className="text-xl font-semibold tracking-tight">Add your channel</h1>
