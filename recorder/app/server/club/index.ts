@@ -14,6 +14,7 @@ import { FILE_TOO_BIG, MAX_FILE_BYTES, detectSource } from './source.js';
 import { addChannel, rebuildVoice } from './onboard.js';
 import { heldResults, readOutline, readPackage, runningPlanJobs, saveOutline, savePackage, saveScript, startPlanJob, undoReplace, useHeld, type PlanOptions } from './planning.js';
 import { continueToRecording, outlineChangedScene } from './recorder.js';
+import { recordingsDiskSpace } from './disk.js';
 import { readTranscript, startTileRead } from './research.js';
 import * as store from './store.js';
 import type { ToolOptions } from './tools.js';
@@ -130,6 +131,9 @@ export function clubRouter({ ai = {}, transcribe, runAI }: ClubRouterOptions = {
   const plan: PlanOptions = { extraDirs: ai.extraDirs, runAI };
   const router = Router();
   router.use(express.json({ limit: '5mb' }));
+
+  // ---- Recorder: free space where takes are saved, for the low-disk warning.
+  router.get('/disk', handler(async (_req, res) => res.json(await recordingsDiskSpace())));
 
   // ---- AI
   router.get('/ai/status', handler(async (_req, res) => res.json(await aiStatus(ai))));

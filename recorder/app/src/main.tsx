@@ -8,6 +8,7 @@ import './original-theme.css';
 import './timeline-interactions.css';
 import './interaction-theme.css';
 import './club/club.css';
+import './recording-club.css';
 import {initializeAppearance} from './appearance';
 initializeAppearance();
 

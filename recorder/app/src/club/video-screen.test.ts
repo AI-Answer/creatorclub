@@ -221,16 +221,18 @@ test('a recording that cannot be opened shows one sentence and Try again',async(
 });
 
 test("SceneForge's own move to the editor goes through the club",async()=>{
- const p=createProject('Hidden features'),originalFetch=globalThis.fetch,modes:string[]=[];
+ // Inside the club the "Edit & export" banner is gone (the bottom bar leads to editing); the take preview's "Use and edit" is SceneForge's own move.
+ const p=createProject('Hidden features'),originalFetch=globalThis.fetch,originalFrame=globalThis.requestAnimationFrame,modes:string[]=[];
  const media={id:'m1',name:'cam',path:'/tmp/cam.mov',kind:'video' as const,duration:3,width:10,height:10};
- p.media=[media];
- p.clips=[{id:'c1',mediaId:'m1',name:'cam',track:'camera',start:0,sourceIn:0,sourceOut:3,speed:1,gain:1,muted:false,transform:defaultTransform(),effects:defaultEffects(),recordingTakeId:'take1'}];
  p.recordedTakes=[{id:'take1',createdAt:'2026-10-02T00:00:00.000Z',sceneId:p.scenes[0].id,media:[media],tracks:['camera'],offsets:[0],clipIds:['c1']}];
  localStorage.clear();
  class Source extends EventTarget{close(){}}Object.assign(globalThis,{EventSource:Source});
  Object.defineProperty(navigator,'permissions',{value:{query:async()=>({state:'prompt'})},configurable:true});
- globalThis.fetch=async(input)=>{
+ // The take preview plays on open; its animation frames are not needed here.
+ globalThis.requestAnimationFrame=()=>0;
+ globalThis.fetch=async(input,init)=>{
   const url=String(input);if(url==='/api/projects')return Response.json([p]);
+  if(url===`/api/projects/${p.id}`&&init?.method==='PUT'){const body=JSON.parse(String(init.body));return Response.json({minimal:true,id:body.id,updatedAt:body.updatedAt},{headers:{ETag:'"t2"','Preference-Applied':'return=minimal'}});}
   if(url===`/api/projects/${p.id}`)return Response.json(p,{headers:{ETag:'"t"'}});
   if(url==='/api/health')return Response.json({ffmpeg:true,ffprobe:true,transcription:{local:true,providers:[]},mcp:{},version:'test'});
   if(url==='/api/automation/settings')return Response.json({automaticTranscription:false});
@@ -240,10 +242,13 @@ test("SceneForge's own move to the editor goes through the club",async()=>{
  try{
   await flush();
   assert.ok(ui.container.querySelector('#recording-presets-slot'),'Record mode');
-  await act(async()=>button(ui.container,'Edit & export').click());
+  assert.ok(!hasText(ui.container,'Edit & export'),'no second way to editing beside the bottom bar');
+  await act(async()=>ui.container.querySelector<HTMLButtonElement>('button[aria-label="Take options"]')!.click());
+  await act(async()=>[...ui.container.querySelectorAll<HTMLButtonElement>('[role=menuitem]')].find(item=>item.textContent?.startsWith('Use and edit'))!.click());
+  await flush();await flush();
   assert.deepEqual(modes,['Edit'],'the move to the editor is handed to the club');
   assert.ok(ui.container.querySelector('#recording-presets-slot'),'the embed stays in Record until the club changes the step');
   await ui.render(createElement(ClubRecorder,{projectId:p.id,mode:'Edit',onBack:()=>{},onMode:mode=>modes.push(mode)}));
   assert.ok(ui.container.querySelector('.edit-workspace'),'the club changes the step, and the editor opens');
- }finally{globalThis.fetch=originalFetch;await ui.close();}
+ }finally{await ui.close();globalThis.fetch=originalFetch;globalThis.requestAnimationFrame=originalFrame;}
 });

@@ -1,4 +1,4 @@
-import {useCallback,useState} from 'react';
+import {useCallback,useEffect,useState} from 'react';
 import {ChevronRight,FileText,Scissors,Upload} from 'lucide-react';
 import type {Video} from '../../../shared/club';
 import {clubFetch,errorMessage} from '../api';
@@ -35,6 +35,10 @@ export function VideoScreen({video,step,onStep,onBoard,onVideo}:{video:Video;ste
   }catch(reason){setMoveError(errorMessage(reason,"Couldn't move the video."));}
   finally{setMoving(false);}
  },[video.id,video.stage,onVideo,onStep]);
+ // Record keeps its own primary (the scene's Record button) until every scene has a take; then Continue to editing becomes the primary.
+ const [allRecorded,setAllRecorded]=useState(false);
+ useEffect(()=>setAllRecorded(false),[video.recorderProjectId]);
+ const onProgress=useCallback(({recorded,total}:{recorded:number;total:number})=>setAllRecorded(total>0&&recorded>=total),[]);
  // SceneForge's own "go to the editor" (and back) runs through the same steps as the bottom bar.
  const onMode=useCallback((mode:'Record'|'Edit')=>{if(mode==='Edit')void advance('record');else onStep('record');},[advance,onStep]);
 
@@ -69,18 +73,19 @@ export function VideoScreen({video,step,onStep,onBoard,onVideo}:{video:Video;ste
     </ol>
    </aside>}
    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-auto">
-    <StepContent video={video} step={step} plan={plan} onBoard={onBoard} onMode={onMode}/>
+    <StepContent video={video} step={step} plan={plan} onBoard={onBoard} onMode={onMode} onProgress={onProgress}/>
    </div>
   </div>
   <VideoBottomBar steps={videoStepList} current={step} done={doneSteps(video)} onStep={onStep}
    backLabel={backLabel(step)} onBack={back}
-   continueLabel={bar.label} onContinue={bar.run} continueDisabled={bar.disabled}/>
+   continueLabel={bar.label} onContinue={bar.run} continueDisabled={bar.disabled}
+   continuePrimary={!(step==='record'&&video.recorderProjectId&&!allRecorded)}/>
  </div>;
 }
 
-function StepContent({video,step,plan,onBoard,onMode}:{video:Video;step:VideoStep;plan:ReturnType<typeof usePlan>;onBoard():void;onMode(mode:'Record'|'Edit'):void}){
+function StepContent({video,step,plan,onBoard,onMode,onProgress}:{video:Video;step:VideoStep;plan:ReturnType<typeof usePlan>;onBoard():void;onMode(mode:'Record'|'Edit'):void;onProgress(progress:{recorded:number;total:number}):void}){
  if(step==='plan')return <PlanChecklist video={video} plan={plan}/>;
- if((step==='record'||step==='edit')&&video.recorderProjectId)return <ClubRecorder projectId={video.recorderProjectId} mode={step==='record'?'Record':'Edit'} onBack={onBoard} onMode={onMode}/>;
+ if((step==='record'||step==='edit')&&video.recorderProjectId)return <ClubRecorder projectId={video.recorderProjectId} mode={step==='record'?'Record':'Edit'} onBack={onBoard} onMode={onMode} onProgress={onProgress}/>;
  if(step==='record')return <EmptyState icon={<FileText/>} title="No scenes yet" description="Create the outline first. Each scene is recorded on its own."/>;
  if(step==='edit')return <EmptyState icon={<Scissors/>} title="Nothing to edit yet" description="Record a scene first."/>;
  return <EmptyState icon={<Upload/>} title="Publish" description="Upload to YouTube, then paste the link here."/>;

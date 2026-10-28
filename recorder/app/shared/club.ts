@@ -269,3 +269,9 @@ export interface AddChannelResult {
 export interface VoiceResult {
   voice: 'built' | 'needs-answers';
 }
+
+/** `GET /api/club/disk`: free space where takes are saved. `low` is true under 10 GB. */
+export interface DiskSpace {
+  freeBytes: number;
+  low: boolean;
+}

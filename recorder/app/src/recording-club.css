@@ -1,0 +1,110 @@
+/*
+  CreatorClub's look for SceneForge's Record screen, used only when the recorder is embedded in the video page.
+  Every rule starts with `.club-embed .app-shell[data-mode=Record]`, so standalone SceneForge and the embedded editor keep their own styles.
+  SceneForge's variables are pointed at the club tokens (from `.club-root`), then the parts that hard-code sizes or colours are calmed down:
+  no text under 12px, 12px card radius, hairline borders, black primary, one blue accent for selection.
+  Imported from main.tsx after club.css.
+*/
+.club-embed .app-shell[data-mode=Record]{
+  --background:var(--cc-card);--foreground:var(--cc-ink);--surface:var(--cc-card);
+  --primary:var(--cc-primary);--primary-foreground:var(--cc-primary-ink);
+  --secondary:var(--cc-subtle);--input:var(--cc-subtle);--line:var(--cc-line);--muted:var(--cc-muted);
+  --accent:var(--cc-primary);--accent-soft:var(--cc-subtle);--danger:var(--cc-danger);
+  font-family:var(--font-sans);font-size:14px;color:var(--cc-ink);background:var(--cc-page);
+}
+.club-embed .app-shell[data-mode=Record] .recording-workspace{--recording-canvas:var(--cc-page);background:var(--cc-page)}
+
+/* Chrome: the video's name is already in the breadcrumb, and exporting belongs to Edit. */
+.club-embed .app-shell[data-mode=Record] .titlebar{display:none}
+.club-embed .app-shell[data-mode=Record] .export-button{display:none}
+.club-embed .app-shell[data-mode=Record]{position:relative;padding-bottom:0}
+.club-embed .app-shell[data-mode=Record] .project-header{background:var(--cc-card);border-color:var(--cc-line);min-height:48px;height:48px}
+/* Teleprompter and Import share the header row instead of a row of their own. */
+.club-embed .app-shell[data-mode=Record] .workspace-nav{position:absolute;top:0;left:auto;right:136px;bottom:auto;z-index:10;height:48px;padding:0;border:0;background:transparent}
+.club-embed .app-shell[data-mode=Record] .workspace-nav .workspace-back:empty{display:none}
+.club-embed .app-shell[data-mode=Record] .workspace-nav .button,
+.club-embed .app-shell[data-mode=Record] .recording-presets-trigger{font-size:13px;color:var(--cc-ink)}
+.club-embed .app-shell[data-mode=Record] .recording-presets-menu{border-color:var(--cc-line);border-radius:12px;font-size:13px}
+.club-embed .app-shell[data-mode=Record] .recording-presets-menu :is(small,.preset-description,.button,input,label,button){font-size:12px}
+.club-embed .app-shell[data-mode=Record] .recording-presets-menu>strong{font-size:14px}
+
+/* Sources column: white, one hairline between sources, calm labels. */
+.club-embed .app-shell[data-mode=Record] .recording-source-panel{background:var(--cc-card);border-right:1px solid var(--cc-line)}
+.club-embed .app-shell[data-mode=Record] .recording-source-panel .capture-source{padding:16px;border-bottom:1px solid var(--cc-line)}
+.club-embed .app-shell[data-mode=Record] .recording-source-panel .capture-source>header>strong{font-size:14px;font-weight:600;color:var(--cc-ink)}
+.club-embed .app-shell[data-mode=Record] .recording-source-panel .capture-source:not(.enabled)>header>strong{opacity:1;color:var(--cc-muted)}
+.club-embed .app-shell[data-mode=Record] .recording-source-panel :is(.capture-device select,.capture-screen-choice,.capture-system-label){font-size:13px;color:var(--cc-muted)}
+.club-embed .app-shell[data-mode=Record] .recording-source-panel .capture-settings-button{border-radius:8px;color:var(--cc-muted)}
+.club-embed .app-shell[data-mode=Record] .recording-source-panel .capture-settings-button:hover,
+.club-embed .app-shell[data-mode=Record] .recording-source-panel .capture-settings-button.selected{background:var(--cc-subtle);color:var(--cc-ink)}
+.club-embed .app-shell[data-mode=Record] .capture-switch{width:32px;height:18px;background:var(--cc-line)}
+.club-embed .app-shell[data-mode=Record] .capture-switch>span{width:14px;height:14px}
+.club-embed .app-shell[data-mode=Record] .capture-switch[aria-checked=true]{background:var(--cc-accent)}
+.club-embed .app-shell[data-mode=Record] .capture-switch[aria-checked=true]>span{transform:translateX(14px)}
+.club-embed .app-shell[data-mode=Record] .source-readiness{font-size:12px;color:var(--cc-muted)}
+.club-embed .app-shell[data-mode=Record] .capture-media{border-radius:12px}
+.club-embed .app-shell[data-mode=Record] :is(.capture-preview-empty>span,.capture-preview-empty.compact>span,.capture-resolution,.capture-source-hint,.capture-inline-action,.capture-audio-only,.capture-row-note){font-size:12px}
+.club-embed .app-shell[data-mode=Record] .capture-preview-empty>.button{font-size:13px;min-height:32px;border-radius:8px}
+.club-embed .app-shell[data-mode=Record] .recording-source-panel .capture-flatline{background:var(--cc-accent)}
+.club-embed .app-shell[data-mode=Record] :is(.capture-settings,.capture-area-controls,.capture-source-picker){border-color:var(--cc-line);border-radius:12px;background:var(--cc-page);font-size:13px}
+.club-embed .app-shell[data-mode=Record] :is(.capture-settings,.capture-area-controls,.capture-source-picker) :is(select,small,p,.button,label){font-size:12px}
+.club-embed .app-shell[data-mode=Record] :is(.capture-settings,.capture-area-controls) select{border-color:var(--cc-line);border-radius:6px;background:var(--cc-card)}
+.club-embed .app-shell[data-mode=Record] .capture-check input{accent-color:var(--cc-accent)}
+/* The problem itself is in the warnings card; only the way to fix it stays under Screen. */
+.club-embed .app-shell[data-mode=Record] .capture-source-error{padding:0;border:0;background:transparent}
+.club-embed .app-shell[data-mode=Record] .capture-source-error .button{font-size:13px}
+
+/* Scene list: white cards with a 12px radius on the warm page; the selected scene has the blue ring. */
+.club-embed .app-shell[data-mode=Record] .recording-main{background:var(--cc-page)}
+.club-embed .app-shell[data-mode=Record] .recording-scene-cards{background:var(--cc-page);color:var(--cc-ink);padding:24px}
+.club-embed .app-shell[data-mode=Record] .rsc-scene{border-color:var(--cc-line);border-radius:12px;background:var(--cc-card);padding:20px}
+.club-embed .app-shell[data-mode=Record] .rsc-scene.is-selected{border-color:transparent;box-shadow:0 0 0 2px var(--cc-accent)}
+.club-embed .app-shell[data-mode=Record] .rsc-scene-name{font-size:14px!important;font-weight:600}
+.club-embed .app-shell[data-mode=Record] .rsc-status{background:var(--cc-line)}
+.club-embed .app-shell[data-mode=Record] .rsc-status.is-complete{background:var(--cc-success)}
+.club-embed .app-shell[data-mode=Record] .rsc-script{color:var(--cc-muted);max-height:120px;overflow:auto}
+/* One primary per screen: only the selected scene's Record is black. */
+.club-embed .app-shell[data-mode=Record] .rsc-record-button{border-radius:8px;background:var(--cc-card);border-color:var(--cc-line);color:var(--cc-ink)!important}
+.club-embed .app-shell[data-mode=Record] .rsc-scene.is-selected .rsc-record-button{background:var(--cc-primary);border-color:var(--cc-primary);color:var(--cc-primary-ink)!important}
+.club-embed .app-shell[data-mode=Record] .rsc-record-button>span{background:var(--cc-danger)}
+.club-embed .app-shell[data-mode=Record] .rsc-import,.club-embed .app-shell[data-mode=Record] .rsc-add-between,.club-embed .app-shell[data-mode=Record] .rsc-archive-toggle{font-size:13px!important}
+.club-embed .app-shell[data-mode=Record] .rsc-record-tile{border-radius:8px;border-color:var(--cc-line);font-size:13px!important}
+.club-embed .app-shell[data-mode=Record] :is(.rsc-take,.rsc-take-preview){border-radius:8px}
+.club-embed .app-shell[data-mode=Record] .rsc-take{border-color:var(--cc-line);background:var(--cc-subtle)}
+.club-embed .app-shell[data-mode=Record] .rsc-take{width:144px;height:81px;flex-basis:144px}
+.club-embed .app-shell[data-mode=Record] .rsc-take-badge{font-size:12px;line-height:16px}
+.club-embed .app-shell[data-mode=Record] .rsc-menu{border-color:var(--cc-line);border-radius:12px;background:var(--cc-card)}
+.club-embed .app-shell[data-mode=Record] .rsc-menu>button{font-size:13px!important;border-radius:6px}
+.club-embed .app-shell[data-mode=Record] .rsc-menu>button.rsc-danger{color:var(--cc-danger)}
+.club-embed .app-shell[data-mode=Record] .rsc-menu-label,.club-embed .app-shell[data-mode=Record] .rsc-legacy-note{font-size:12px}
+.club-embed .app-shell[data-mode=Record] .rsc-error{border-color:var(--cc-danger);border-radius:12px;font-size:13px}
+.club-embed .app-shell[data-mode=Record] .recording-card-options{font-size:13px;color:var(--cc-muted)}
+.club-embed .app-shell[data-mode=Record] .recording-card-options input{accent-color:var(--cc-accent)}
+.club-embed .app-shell[data-mode=Record] :is(.recording-capture-notice,.recording-storage-note){font-size:12px}
+
+/* While a take records: calm status and clock. */
+.club-embed .app-shell[data-mode=Record] .recording-status{font-size:14px}
+.club-embed .app-shell[data-mode=Record] .recording-status.is-recording>i{background:var(--cc-danger)}
+.club-embed .app-shell[data-mode=Record] .recording-active-note{font-size:13px}
+.club-embed .app-shell[data-mode=Record] .recording-script>span{font-size:12px;letter-spacing:0}
+.club-embed .app-shell[data-mode=Record] .recording-controls .button{border-radius:8px}
+
+/* Take preview: the take on the warm page, its name and badge on top, three choices at the bottom. */
+.club-embed .app-shell[data-mode=Record] .take-review{background:var(--cc-page);color:var(--cc-ink);font-family:var(--font-sans)}
+.club-embed .app-shell[data-mode=Record] .take-review>header{padding:20px 24px 16px}
+.club-embed .app-shell[data-mode=Record] .take-review>header span{font-size:13px;font-weight:400;letter-spacing:0;color:var(--cc-muted)}
+.club-embed .app-shell[data-mode=Record] .take-review>header .take-title-row{gap:10px}
+.club-embed .app-shell[data-mode=Record] .take-review>header .take-title-row h1{margin:2px 0 0;font-size:20px;line-height:28px;font-weight:600}
+.club-embed .app-shell[data-mode=Record] .take-review>header .take-title-row>span{color:inherit;font-size:12px;font-weight:500}
+.club-embed .app-shell[data-mode=Record] .take-review-sources{padding-inline:24px}
+.club-embed .app-shell[data-mode=Record] .take-source{border-color:var(--cc-line);border-radius:12px;background:#111110}
+.club-embed .app-shell[data-mode=Record] .take-source.take-audio{background:var(--cc-card)}
+.club-embed .app-shell[data-mode=Record] .take-source.take-audio svg{fill:var(--cc-accent)}
+.club-embed .app-shell[data-mode=Record] .take-source-label{font-size:12px}
+.club-embed .app-shell[data-mode=Record] .take-review-transport{padding:16px 24px}
+.club-embed .app-shell[data-mode=Record] .take-review-transport>div{font-size:12px}
+.club-embed .app-shell[data-mode=Record] .take-review-transport select{font-size:12px}
+.club-embed .app-shell[data-mode=Record] .take-review-note{margin:0 24px 12px;border-color:var(--cc-line);border-radius:12px;background:var(--cc-card)}
+.club-embed .app-shell[data-mode=Record] .take-review>footer.club-take-footer{padding:16px 24px;gap:12px;border-top:1px solid var(--cc-line);background:var(--cc-card);flex-wrap:nowrap}
+.club-embed .app-shell[data-mode=Record] .take-settings{border-color:var(--cc-line);border-radius:12px;background:var(--cc-card)}
+.club-embed .app-shell[data-mode=Record] .take-settings :is(p,label,small){font-size:13px}

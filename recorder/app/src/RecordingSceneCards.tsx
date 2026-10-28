@@ -5,11 +5,14 @@ import type {SavedTake} from './recorded-takes';
 import {sceneCardData,type ListedTake} from './recording-scene-data';
 import {AudioLines,ChevronDown,FolderOpen,GripVertical,Play,Plus,Scissors,Settings2,Trash2,Upload,WandSparkles} from './Icons';
 import './recording-scene-cards.css';
+import {takeThumbnailLabel} from './club/recorder/recorder-checks';
 export {listSceneTakes} from './recording-scene-data';
 
 type ActionResult=void|Promise<void>;
 export interface RecordingSceneCardsProps {
  project:Project;selectedSceneId:string;disabled:boolean;takes:SavedTake[];
+ /** Inside CreatorClub: take thumbnails read "Take 1 (00:07)". */
+ club?:boolean;
  onSelectScene:(id:string)=>ActionResult;
  onRecord:(sceneId:string,mode:'replace-matching'|'record-over')=>ActionResult;
  onImport:(sceneId:string)=>ActionResult;
@@ -67,7 +70,7 @@ export const RecordingSceneCards=memo(function RecordingSceneCards(props:Recordi
  const menuButton=(id:string,label:string)=> <button type="button" className="rsc-gear" aria-label={label} aria-expanded={menu===id} aria-haspopup="menu" disabled={locked} onClick={e=>{e.stopPropagation();setMenu(menu===id?null:id);}}><Settings2 size={17}/></button>;
  const menuItem=(label:string,action:()=>ActionResult,options:{disabled?:boolean;danger?:boolean;icon?:ReactNode}={})=><button type="button" role="menuitem" disabled={locked||options.disabled} className={options.danger?'rsc-danger':undefined} onClick={()=>invoke(action)}>{options.icon}{label}</button>;
  const renderTake=(item:ListedTake,sceneId:string)=>{const {take,active,number,duration}=item,label=take.name||`Take ${number}`,key=`take:${take.id}`;return <div key={take.id} className="rsc-take" data-take-id={take.id} data-active={active} draggable={!locked} onDragStart={e=>startDrag(e,{projectId:project.id,kind:'take',id:take.id})} onDragEnd={endDrag} onContextMenu={e=>{e.preventDefault();e.stopPropagation();if(!locked)setMenu(key);}}>
-  <button type="button" className="rsc-take-preview" aria-label={`Preview ${label}`} disabled={locked} onClick={()=>invoke(()=>props.onPreview(take.id))}><TakeImage take={take}/><span className="rsc-play"><Play size={17}/></span><span className="rsc-take-badge">{label}<small>({durationLabel(duration)})</small></span></button>
+  <button type="button" className="rsc-take-preview" aria-label={`Preview ${label}`} disabled={locked} onClick={()=>invoke(()=>props.onPreview(take.id))}><TakeImage take={take}/><span className="rsc-play"><Play size={17}/></span><span className="rsc-take-badge">{props.club?takeThumbnailLabel(label,duration):<>{label}<small>({durationLabel(duration)})</small></>}</span></button>
   <span className="rsc-drag-handle" aria-hidden="true"><GripVertical size={15}/></span>
   <div className="rsc-take-menu-anchor" data-rsc-menu>{menuButton(key,`Options for ${label}`)}{menu===key&&<CardMenu label={`${label} actions`}>
    {menuItem('Play take',()=>props.onPreview(take.id),{icon:<Play size={15}/>})}

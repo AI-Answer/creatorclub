@@ -9,7 +9,8 @@ export type BottomBarStep<T extends string=string>={id:T;label:string};
  * - `steps`: shown in the centre, in order, separated by `›`. Every step can be clicked (`onStep(id)`).
  * - `current`: the highlighted step. `done`: steps shown with a tick.
  * - `backLabel` + `onBack`: the quiet `‹ Back to …` link on the left. Left empty when either is missing.
- * - `continueLabel` + `onContinue`: the one primary `Continue to … ›` button on the right. Left empty when either is missing.
+ * - `continueLabel` + `onContinue`: the `Continue to … ›` button on the right. Left empty when either is missing.
+ *   It is the screen's one primary button, unless `continuePrimary` is false because the screen has its own primary (Record, before the last scene).
  */
 export type VideoBottomBarProps<T extends string=string>={
  steps:readonly BottomBarStep<T>[];
@@ -21,9 +22,10 @@ export type VideoBottomBarProps<T extends string=string>={
  continueLabel?:string;
  onContinue?():void;
  continueDisabled?:boolean;
+ continuePrimary?:boolean;
 };
 
-export function VideoBottomBar<T extends string>({steps,current,done=[],onStep,backLabel,onBack,continueLabel,onContinue,continueDisabled}:VideoBottomBarProps<T>){
+export function VideoBottomBar<T extends string>({steps,current,done=[],onStep,backLabel,onBack,continueLabel,onContinue,continueDisabled,continuePrimary=true}:VideoBottomBarProps<T>){
  return <footer className="grid h-16 shrink-0 grid-cols-[1fr_auto_1fr] items-center gap-4 border-t border-line bg-card px-4">
   <div className="flex min-w-0 justify-start">
    {backLabel&&onBack&&<Button variant="ghost" size="md" className="px-2 text-muted hover:text-ink" onClick={onBack}><ChevronLeft aria-hidden/>{backLabel}</Button>}
@@ -39,7 +41,7 @@ export function VideoBottomBar<T extends string>({steps,current,done=[],onStep,b
    </Fragment>;})}
   </nav>
   <div className="flex min-w-0 justify-end">
-   {continueLabel&&onContinue&&<Button variant="primary" size="md" disabled={continueDisabled} onClick={onContinue}>{continueLabel}<ChevronRight aria-hidden/></Button>}
+   {continueLabel&&onContinue&&<Button variant={continuePrimary?'primary':'secondary'} size="md" disabled={continueDisabled} onClick={onContinue}>{continueLabel}<ChevronRight aria-hidden/></Button>}
   </div>
  </footer>;
 }
