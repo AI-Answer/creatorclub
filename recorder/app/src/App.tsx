@@ -46,6 +46,8 @@ export type EmbeddedRecorder={projectId:string;mode:'Record'|'Edit';onBack():voi
 export default function App({embedded}:{embedded?:EmbeddedRecorder}={}){
  const studio=useStudio(),p=studio.project,change:Change=studio.change;
  useEffect(()=>{if(embedded&&studio.project?.id!==embedded.projectId)void studio.open(embedded.projectId);},[embedded?.projectId]);
+ // The club unmounts an embedded editor when you change step; save what the autosave debounce has not written yet.
+ useEffect(()=>embedded?()=>{void studio.flush().catch(e=>console.error(e));}:undefined,[Boolean(embedded),studio.flush]);
  // Playback time lives outside React state: a tick re-renders only the components that read the playhead.
  const [playhead]=useState(createPlayhead);
  const [recoveryRefresh,setRecoveryRefresh]=useState(0);
