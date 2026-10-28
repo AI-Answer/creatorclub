@@ -29,4 +29,41 @@ Source: the UI bundle of Borumi 0.32.1 installed at `/Applications/Borumi.app` (
 4. Pre-flight check before the first recording (camera, microphone, screen), with a single sentence telling you what to fix.
 5. A "Quick recording" escape hatch: record now, plan later.
 
-Open: visual layout (spacing, panel positions, recorder overlay) still needs a look at the running app.
+## Layout, from the running app (2026-10-28)
+
+Dark UI, near-black background, white primary buttons, one blue for selection. Very few controls per screen.
+
+- **Home ("How would you like to start?")**
+  - Two big cards. **Structured video**: "Prepare your script, record the scenes and edit them." **Quick recording**: "Start recording right away, and edit the video if necessary."
+  - Below them, **Recent projects**: a list of rows with thumbnail, name, folder path and "20 hours ago", plus **View all**.
+  - On launch it shows two pop-up cards, top right: **Connect to ChatGPT?** and **Connect to Claude?** ("Would you like to connect Claude to Borumi to edit your projects with AI?"), each with `Don't ask again` and `Connect`.
+- **Every project screen** shares one frame:
+  - **Top:** project tabs (like a browser), the project name centred with an "Edited" state, and undo, redo and history on the right.
+  - **Bottom bar:**
+    - left: `‹ Back to <previous step>`
+    - centre: the step bar `Script › Record › Edit`, where the current step's icon sits in a white circle
+    - right: one white primary button `Continue to <next step> ›`
+- **Script:** an empty canvas with "Scene 1" and a text cursor, then `+ Add scene`. Nothing else.
+- **Record:**
+  - **Left column:** `Recording presets` menu, then Camera, Microphone and Screen. Each has an on/off switch, a device picker, a gear and a live preview.
+  - **Warnings:** shown as one coloured card at the top of that column, e.g. "Your disk is almost full… We recommend freeing up at least 9 GB."
+  - **Main area:** one card per scene. Each card has `+ Record` followed by its take thumbnails ("Take 1 (00:07)"). `+ Add scene` sits under the cards.
+- **Take preview** (click a take):
+  - **Header:** `Take 1`, a green `CONFIRMED` badge and a gear.
+  - **Preview:** the main source large, with the other sources (camera, microphone waveform) stacked on the right. Below it, scrubber, play, ±5 s and speed.
+  - **Bottom:** `Delete take` (red) on the left; `↺ Record another take` and `Continue` (white primary) on the right.
+- **Edit:**
+  - **Left rail:** labelled icons Canvas, Layout, Clip, Zoom, Elements, Music, Captions, Cursor and an AI wand.
+  - **Centre:** preview. **Right:** the transcript, per scene, with the spoken word highlighted as it plays.
+  - **Below:** transport, plus a small tool group: select, blade, snap, ripple, align and zoom.
+  - **Timeline:** one row per source (SCREEN, CAMERA). Words sit on top of the camera waveform. Scene markers run across the top.
+  - **Export:** a white button top right with a format dropdown.
+
+What we copy:
+1. The bottom bar: back on the left, steps in the centre, one "Continue to" button on the right.
+2. The take preview with only three choices.
+3. Scene cards with takes as thumbnails.
+4. Warnings as one coloured card, not as scattered errors.
+5. Words shown on the waveform.
+
+Our own steps add **Plan** before Script (which becomes the outline) and **Publish** after Edit.

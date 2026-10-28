@@ -71,21 +71,24 @@ These words go away: Brief, Lane, Picked, This week, Outline ready, Make this, C
 - **Calendar:** videos placed on their planned or actual publish date, set from the card.
 - **Above the Ideas column:** the box "Paste a YouTube or Instagram link" and `Add idea`.
 
-### 3. A video's page (same frame for every step)
+### 3. A video's page (same frame for every step, Borumi's layout)
 
 ```
-Board › Hidden features in Claude Code
-[✓ Plan]  [● Record]  [ Edit ]  [ Publish ]
-┌ scenes ┐ ┌──────────── step content ───────────┐
-│ 1 Hook │ │                                     │
-│ 2 …    │ │                                     │
-└────────┘ └──────────────────── [Primary →] ────┘
+Board › Hidden features in Claude Code                   ↶ ↷
+┌ scenes ┐ ┌──────────── step content ───────────────────┐
+│ 1 Hook │ │                                             │
+│ 2 …    │ │                                             │
+└────────┘ └─────────────────────────────────────────────┘
+‹ Back to plan      Plan › Record › Edit › Publish      [Continue to editing ›]
 ```
 
-- The breadcrumb is always one click from the board.
-- The step bar shows done steps ticked and the current step outlined. Any step can be clicked.
-- There is one primary button, bottom right. Everything else is quieter.
-- Going back never deletes later work. It flags it instead: "Your outline changed after you recorded scene 3."
+- Breadcrumb on top: always one click from the board.
+- Bottom bar, as in Borumi:
+  - left: `‹ Back to <previous step>`
+  - centre: the steps, with the current one highlighted and done ones ticked; each can be clicked
+  - right: one primary button, `Continue to <next step> ›`
+- Everything else on the page is quieter.
+- Going back never deletes later work; it flags it ("Your outline changed after you recorded scene 3.").
 
 ## The pipeline
 
@@ -148,7 +151,8 @@ Each stage below lists: what you see, the one button, what happens, what's saved
 - First time only: a check of camera, microphone and screen, with one line on what to fix ("Fix the camera above before recording").
 - Left: scenes. Middle: talking points as a teleprompter. One big `Record scene 2`.
 - Countdown → `Stop`.
-- After a take: `Confirm take` (primary) · `Record another take` · `Delete take`. Archive, sync and replace options move into a `More` menu.
+- Scene cards show takes as thumbnails, as in Borumi. Clicking a take opens its preview with three choices: `Delete take` · `Record another take` · `Continue` (primary). Archive, sync and replace options move behind the gear.
+- Problems (disk almost full, camera missing) show as one coloured card above the sources, as in Borumi.
 - After the last scene: `Continue to editing`.
 
 ### Editing (`Edit` step)
@@ -231,7 +235,7 @@ breakdowns/
 ## Open before building
 
 1. **Eden study.** Claude in Chrome wasn't connected, so `app.eden.so` hasn't been looked at yet. Reconnect the extension and I'll do it before the board UI.
-2. **Borumi layout.** Screen control was declined, so `docs/reference/borumi.md` covers wording and flow only. I can work from wording alone, or you can allow a quick look.
+2. **Borumi layout.** Done (see `docs/reference/borumi.md`). The video page now uses its bottom bar.
 3. **Card moves.** You chose moving cards by hand. Proposal: the `Continue to …` buttons also move the card, since pressing one is your own choice. Dragging still works. Otherwise the board falls behind what you've actually done.
 4. **Gemini video.** Check during the build that the Gemini CLI accepts a video file. If it doesn't, Google becomes "paste an OpenRouter key" in Settings.
 5. **First test video:** to be picked later.
