@@ -84,7 +84,7 @@ function ConnectedAi({status,onChanged}:{status:AiStatus;onChanged():void}){
 }
 
 function AiCard({provider,note,optional,status,onChanged}:{provider:ConnectProvider;note?:string;optional?:boolean;status:AiStatus[ConnectProvider];onChanged():void}){
- const {state,start}=useConnect(onChanged);
+ const {state,start,cancel}=useConnect(onChanged);
  const name=connectLabel[provider];
  const busy=state.phase==='installing'||state.phase==='signing-in';
  return <div className="flex flex-col gap-3 px-4 py-3">
@@ -99,7 +99,7 @@ function AiCard({provider,note,optional,status,onChanged}:{provider:ConnectProvi
    </div>
    {!busy&&<Button size="sm" aria-label={`${status.signedIn?'Reconnect':'Connect'} ${name}`} onClick={()=>start(provider,status.signedIn)}>{status.signedIn?'Reconnect':'Connect'}</Button>}
   </div>
-  {state.phase!=='idle'&&state.phase!=='connected'&&<ConnectStatus state={state} provider={provider} onRetry={()=>start(provider,status.signedIn)}/>}
+  {state.phase!=='idle'&&state.phase!=='connected'&&<ConnectStatus state={state} provider={provider} onRetry={()=>start(provider,status.signedIn)} onCancel={cancel}/>}
  </div>;
 }
 

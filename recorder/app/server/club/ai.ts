@@ -119,9 +119,11 @@ export function parseCodexAuth(code: number | null, output: string): Pick<AiProv
  * The Gemini CLI has no status command. It counts as signed in when its Google sign-in file exists.
  * Only the file's existence is checked; its contents are never read.
  */
-async function geminiSignedIn({ geminiDir = path.join(os.homedir(), '.gemini') }: Lookup): Promise<boolean> {
+export const geminiSignInFile = ({ geminiDir = path.join(os.homedir(), '.gemini') }: Lookup) => path.join(geminiDir, 'oauth_creds.json');
+
+async function geminiSignedIn(lookup: Lookup): Promise<boolean> {
   try {
-    return (await fs.stat(path.join(geminiDir, 'oauth_creds.json'))).isFile();
+    return (await fs.stat(geminiSignInFile(lookup))).isFile();
   } catch {
     return false;
   }

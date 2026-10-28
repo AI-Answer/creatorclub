@@ -35,7 +35,7 @@ function Steps({initial,hasChannel,onBoard,onDone}:{initial:Step;hasChannel:bool
 }
 
 function ConnectYourAi({onNext}:{onNext():void}){
- const {state,provider,start}=useConnect();
+ const {state,provider,start,cancel}=useConnect();
  return <>
   <div className="flex flex-col gap-1.5">
    <h1 className="text-xl font-semibold tracking-tight">Connect your AI</h1>
@@ -45,7 +45,7 @@ function ConnectYourAi({onNext}:{onNext():void}){
    <Button variant="primary" onClick={()=>start('claude')}>Connect Claude</Button>
    <Button onClick={()=>start('codex')}>Connect ChatGPT</Button>
   </div>}
-  {provider&&<ConnectStatus state={state} provider={provider} onRetry={()=>start(provider)} primaryRetry/>}
+  {provider&&<ConnectStatus state={state} provider={provider} onRetry={()=>start(provider)} onCancel={cancel} primaryRetry/>}
   {state.phase==='connected'&&<div><Button variant="primary" onClick={onNext}>Add your channel</Button></div>}
  </>;
 }

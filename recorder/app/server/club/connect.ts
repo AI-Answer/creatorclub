@@ -1,6 +1,7 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import type { AiProvider, ConnectProgress, ConnectProvider, ConnectResult, JobSnapshot } from '../../shared/club.js';
-import { AiError, childEnv, findBinary, findExecutable, providerStatus, type Lookup } from './ai.js';
+import { promises as fs } from 'node:fs';
+import { AiError, childEnv, findBinary, findExecutable, geminiSignInFile, providerStatus, type Lookup } from './ai.js';
 import { getJob, snapshot, startJob, type JobContext } from './jobs.js';
 import * as store from './store.js';
 
@@ -93,7 +94,22 @@ const sleep = (ms: number, signal: AbortSignal) =>
     signal.addEventListener('abort', onAbort, { once: true });
   });
 
+/**
+ * Gemini has no status command, so a sign-in shows up as its sign-in file being created or rewritten.
+ * Only the file's modified time and identity are looked at, never its contents.
+ * `null` means there is no file.
+ */
+async function geminiMarker(options: Lookup): Promise<string | null> {
+  try {
+    const stat = await fs.stat(geminiSignInFile(options));
+    return stat.isFile() ? `${stat.mtimeMs}:${stat.ino}` : null;
+  } catch {
+    return null;
+  }
+}
+
 async function install(provider: ConnectProvider, context: JobContext, options: ConnectOptions) {
+  if (context.signal.aborted) throw cancelled();
   const label = LABEL[provider];
   const { file, args } = INSTALL[provider];
   const resolved = file.startsWith('/') ? file : await findExecutable(file, options);
@@ -117,12 +133,16 @@ async function install(provider: ConnectProvider, context: JobContext, options: 
 
 /** Runs the tool's sign-in and checks its status until it reports signed in. */
 async function signIn(provider: ConnectProvider, file: string, context: JobContext, options: ConnectOptions, wasSignedIn: boolean): Promise<ConnectResult> {
+  if (context.signal.aborted) throw cancelled();
   const label = LABEL[provider];
   const pollMs = options.pollMs ?? 2000;
   const deadline = Date.now() + (options.loginTimeoutMs ?? 5 * 60_000);
-  // Gemini keeps running after sign-in, so its exit cannot be waited for.
+  // Gemini keeps running after sign-in, so its exit cannot be waited for; its sign-in file is watched instead.
   const waitForExit = options.reconnect === true && wasSignedIn && provider !== 'gemini';
 
+  // Recorded before gemini starts. A sign-in that already exists (Reconnect) only counts as redone once the file changes.
+  const markerBefore = provider === 'gemini' ? await geminiMarker(options) : null;
+  if (context.signal.aborted) throw cancelled();
   context.emit({ phase: 'signing-in' } satisfies ConnectProgress);
   const { child, done } = run(file, LOGIN[provider], childEnv(options), () => {});
   let exit = undefined as { code: number | null; failedToStart: boolean } | undefined;
@@ -133,9 +153,11 @@ async function signIn(provider: ConnectProvider, file: string, context: JobConte
       if (context.signal.aborted) throw cancelled();
       const exitedBeforeCheck = exit;
       const status = await providerStatus(provider, options);
+      const markerNow = provider === 'gemini' ? await geminiMarker(options) : null;
       if (context.signal.aborted) throw cancelled();
       const finished = exitedBeforeCheck !== undefined;
-      if (status.signedIn && (!waitForExit || (finished && exitedBeforeCheck.code === 0))) {
+      const signedIn = provider === 'gemini' ? markerNow !== null && markerNow !== markerBefore : status.signedIn;
+      if (signedIn && (!waitForExit || (finished && exitedBeforeCheck.code === 0))) {
         return { provider, ...(status.account ? { account: status.account } : {}) };
       }
       if (finished) throw new AiError('not-signed-in', `Couldn't sign in to ${label}.`);

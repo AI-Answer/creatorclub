@@ -22,16 +22,23 @@ export function useConnect(onConnected?:(result:ConnectResult)=>void){
  const [provider,setProvider]=useState<ConnectProvider|null>(null);
  const stop=useRef<()=>void>(()=>{});
  const alive=useRef(true);
+ // Each start or cancel moves `attempt` on, so a reply that arrives after a cancel is recognised and its job cancelled too.
+ const attempt=useRef(0);
+ const jobId=useRef<string|null>(null);
  const done=useRef(onConnected);done.current=onConnected;
  useEffect(()=>{alive.current=true;return()=>{alive.current=false;stop.current();};},[]);
  const start=useCallback(async(next:ConnectProvider,reconnect=false)=>{
-  stop.current();
-  const set=(value:ConnectState)=>{if(alive.current)setState(value);};
+  stop.current();jobId.current=null;
+  const mine=++attempt.current;
+  const set=(value:ConnectState)=>{if(alive.current&&attempt.current===mine)setState(value);};
   setProvider(next);set({phase:'signing-in'});
   let job:JobSnapshot;
   try{job=await clubFetch<JobSnapshot>('/ai/connect',{body:{provider:next,...(reconnect?{reconnect:true}:{})}});}
   catch(error){set({phase:'failed',message:errorMessage(error)});return;}
+  if(attempt.current!==mine){void clubFetch(`/jobs/${encodeURIComponent(job.id)}`,{method:'DELETE'}).catch(()=>{});return;}
+  jobId.current=job.id;
   stop.current=watchJob(job.id,event=>{
+   if(attempt.current!==mine)return;
    if(event.type==='progress'){
     const progress=event.data as ConnectProgress;
     if(progress.phase==='installing')setState(current=>{
@@ -47,5 +54,12 @@ export function useConnect(onConnected?:(result:ConnectResult)=>void){
    else set({phase:'idle'});
   });
  },[]);
- return {state,provider,start};
+ /** Stops a sign-in that is stuck: the server ends its login process, and the screen goes back to where it was. */
+ const cancel=useCallback(()=>{
+  attempt.current++;stop.current();
+  const id=jobId.current;jobId.current=null;
+  if(id)void clubFetch(`/jobs/${encodeURIComponent(id)}`,{method:'DELETE'}).catch(()=>{});
+  if(alive.current)setState({phase:'idle'});
+ },[]);
+ return {state,provider,start,cancel};
 }

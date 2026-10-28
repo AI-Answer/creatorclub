@@ -348,3 +348,78 @@ test('copy rules: no please, successfully, exclamation marks, or banned words on
   }
  });
 });
+
+test('Cancel in the signing-in state ends the job, goes back to the buttons, and the next Connect starts a new job',async()=>{
+ let jobs=0;
+ await withServer(call=>{
+  if(call.path==='/ai/status')return {body:signedOut};
+  if(call.path==='/workspaces'&&call.method==='GET')return {body:none};
+  if(call.path==='/ai/connect')return {status:202,body:{id:`j_${++jobs}`,kind:'connect-claude',status:'running',createdAt:''}};
+  if(call.method==='DELETE')return {body:{status:'cancelled'}};
+ },async calls=>{
+  const ui=await mountUI(createElement(OnboardingScreen,{onBoard(){},onDone(){}}));
+  try{
+   await flush();const c=ui.container;
+   await click(c,'Connect Claude');
+   await emit('progress',{phase:'signing-in'});
+   assert.deepEqual(labels(c),['Cancel']);
+   assert.ok(button(c,'Cancel').className.includes('bg-transparent'),'a quiet ghost button, not a second primary');
+   assert.equal(c.querySelectorAll('button.bg-primary').length,0);
+   const first=FakeEventSource.last();
+   await click(c,'Cancel');
+   assert.deepEqual(calls.filter(call=>call.method==='DELETE').map(call=>call.path),['/jobs/j_1']);
+   assert.equal(first.closed,true);
+   assert.deepEqual(labels(c),['Connect Claude','Connect ChatGPT'],'back to where it started');
+   await click(c,'Connect Claude');
+   assert.equal(calls.filter(call=>call.path==='/ai/connect').length,2);
+   assert.equal(FakeEventSource.last().url,'/api/club/jobs/j_2/events');
+   await emit('progress',{phase:'signing-in'});
+   first.emit('done',{provider:'claude',account:'old@example.com'});
+   assert.doesNotMatch(text(c),/old@example\.com/,'the cancelled job is ignored');
+  }finally{await ui.close();}
+ });
+});
+
+test('Cancel pressed before the server has answered still ends the job once it exists',async()=>{
+ let release=()=>{};const gate=new Promise<void>(resolve=>{release=resolve;});
+ await withServer(async call=>{
+  if(call.path==='/ai/status')return {body:signedOut};
+  if(call.path==='/workspaces'&&call.method==='GET')return {body:none};
+  if(call.path==='/ai/connect'){await gate;return {status:202,body:{id:'j_late',kind:'connect-claude',status:'running',createdAt:''}};}
+  if(call.method==='DELETE')return {body:{status:'cancelled'}};
+ },async calls=>{
+  const ui=await mountUI(createElement(OnboardingScreen,{onBoard(){},onDone(){}}));
+  try{
+   await flush();const c=ui.container;
+   await click(c,'Connect Claude');
+   await click(c,'Cancel');
+   assert.deepEqual(labels(c),['Connect Claude','Connect ChatGPT']);
+   release();await flush();
+   assert.deepEqual(calls.filter(call=>call.method==='DELETE').map(call=>call.path),['/jobs/j_late']);
+   assert.equal(FakeEventSource.all.length,0,'never starts following a cancelled job');
+   assert.deepEqual(labels(c),['Connect Claude','Connect ChatGPT']);
+  }finally{await ui.close();}
+ });
+});
+
+test('Settings: Cancel on a card returns it to Connect',async()=>{
+ await withServer(call=>{
+  if(call.path==='/ai/status')return {body:signedOut};
+  if(call.path==='/settings')return {body:{defaultAi:null}};
+  if(call.path==='/workspaces'&&call.method==='GET')return {body:none};
+  if(call.path==='/ai/connect')return {status:202,body:{id:'j_s',kind:'connect-gemini',status:'running',createdAt:''}};
+  if(call.method==='DELETE')return {body:{status:'cancelled'}};
+ },async calls=>{
+  const ui=await mountUI(createElement(SettingsScreen,{onAddChannel(){}}));
+  try{
+   await flush();const c=ui.container;
+   await act(async()=>c.querySelector<HTMLButtonElement>('button[aria-label="Connect Google"]')!.click());await flush();
+   await emit('progress',{phase:'signing-in'});
+   assert.equal(c.querySelector('button[aria-label="Connect Google"]'),null);
+   await click(c,'Cancel');
+   assert.deepEqual(calls.filter(call=>call.method==='DELETE').map(call=>call.path),['/jobs/j_s']);
+   assert.ok(c.querySelector('button[aria-label="Connect Google"]'));
+   assert.doesNotMatch(text(c),/Finish signing in/);
+  }finally{await ui.close();}
+ });
+});

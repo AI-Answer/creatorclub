@@ -1,7 +1,7 @@
 import { test, after, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import express from 'express';
-import { mkdtemp, rm, writeFile, chmod, readFile, mkdir } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile, chmod, readFile, mkdir, utimes } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import type { AddressInfo } from 'node:net';
 import os from 'node:os';
@@ -68,9 +68,12 @@ const geminiBody = `
 if [ "$1" = "--version" ]; then echo "0.9.0"; exit 0; fi
 echo "gemini $*" >> "$S/gemini-calls"
 echo $$ > "$S/gemini-pid"
-sleep 0.2
-echo '{"not":"read"}' > ${JSON.stringify(path.join(geminiDir, 'oauth_creds.json'))}
-sleep 30
+CREDS=${JSON.stringify(path.join(geminiDir, 'oauth_creds.json'))}
+case "$mode" in
+  stale) sleep 30;;
+  refresh) sleep 0.6; touch "$CREDS"; sleep 30;;
+  *) sleep 0.2; echo '{"not":"read"}' > "$CREDS"; sleep 30;;
+esac
 `;
 
 // The official installer is piped into bash, so the fake curl prints a script. It "installs" by copying the stashed tool into bin.
@@ -271,6 +274,36 @@ test('Google: installs the Gemini CLI with npm, runs gemini once, and is connect
   assert.ok(isGone(pid), 'gemini is stopped once connected');
 });
 
+const OLD = new Date('2020-01-01T00:00:00Z');
+const existingGoogleSignIn = async () => {
+  await install('gemini');
+  const creds = path.join(geminiDir, 'oauth_creds.json');
+  await writeFile(creds, 'not even json');
+  await utimes(creds, OLD, OLD);
+};
+
+test('Google reconnect with an existing sign-in file keeps waiting until the file is rewritten', async () => {
+  await existingGoogleSignIn();
+  await setMode('refresh');
+  const started = Date.now();
+  const result = await connectProvider('gemini', harness().context, { ...options, reconnect: true });
+  assert.deepEqual(result, { provider: 'gemini' });
+  assert.ok(Date.now() - started >= 550, 'the stale file did not count as connected');
+  assert.deepEqual(await calls('gemini-calls'), ['gemini']);
+  const pid = Number(await readFile(path.join(state, 'gemini-pid'), 'utf8'));
+  await until(() => isGone(pid));
+  assert.ok(isGone(pid));
+});
+
+test('Google reconnect where the person never signs in does not report connected, and gemini is stopped', async () => {
+  await existingGoogleSignIn();
+  await setMode('stale');
+  await rejects(connectProvider('gemini', harness().context, { ...options, reconnect: true, loginTimeoutMs: 400 }), 'Signing in to Google took too long.');
+  const pid = Number(await readFile(path.join(state, 'gemini-pid'), 'utf8'));
+  await until(() => isGone(pid));
+  assert.ok(isGone(pid));
+});
+
 test('status: Google is signed in when oauth_creds.json exists, and the file is never read', async () => {
   assert.deepEqual((await aiStatus(options)).gemini, { installed: false, version: null, signedIn: false });
   await install('gemini');
@@ -337,4 +370,28 @@ test('settings: default AI is saved, validated and starts empty', async () => {
   assert.deepEqual((await call('PUT', '/settings', { defaultAi: 'codex' })).body, { defaultAi: 'codex' });
   assert.equal((await call('PUT', '/settings', { defaultAi: 'gemini' })).status, 400);
   assert.deepEqual((await call('GET', '/settings')).body, { defaultAi: 'codex' });
+});
+
+test('cancel over HTTP stops the login process, and the next Connect starts a new job with a new login', async () => {
+  await install('claude');
+  await setMode('hang');
+  const pidFile = path.join(state, 'claude-login-pid');
+  const first = await call('POST', '/ai/connect', { provider: 'claude' });
+  await until(() => existsSync(pidFile));
+  const firstPid = Number(await readFile(pidFile, 'utf8'));
+
+  const cancelled = await call('DELETE', `/jobs/${first.body.id}`);
+  assert.equal(cancelled.body.status, 'cancelled');
+  await until(() => isGone(firstPid));
+  assert.ok(isGone(firstPid), 'the login process was killed');
+
+  await rm(pidFile);
+  const second = await call('POST', '/ai/connect', { provider: 'claude' });
+  assert.notEqual(second.body.id, first.body.id, 'a cancelled job is not rejoined');
+  await until(() => existsSync(pidFile));
+  const secondPid = Number(await readFile(pidFile, 'utf8'));
+  assert.notEqual(secondPid, firstPid);
+  assert.equal((await call('DELETE', `/jobs/${second.body.id}`)).body.status, 'cancelled');
+  await until(() => isGone(secondPid));
+  assert.ok(isGone(secondPid));
 });
