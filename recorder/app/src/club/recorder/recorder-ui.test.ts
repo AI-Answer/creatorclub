@@ -1,17 +1,20 @@
 import {mountUI,button} from '../../test-dom';
-import test from 'node:test';
+import test,{after} from 'node:test';
 import assert from 'node:assert/strict';
 import {act,createElement} from 'react';
 import type {Media,Project} from '../../../shared/types';
 import {createProject} from '../../../shared/types';
 import type {SavedTake} from '../../recorded-takes';
+import {defaultRecordingSettings,loadRecordingPreferences,saveRecordingPreferences} from '../../recording-presets';
 const {TakeReview}=await import('../../TakeReview');
 const {Recording}=await import('../../Recording');
 const {ClubRecorder}=await import('../ClubRecorder');
 const {VideoScreen}=await import('../screens/VideoScreen');
 
 // The take preview starts playing on open with a requestAnimationFrame loop; these tests check its choices, not playback.
+const realFrame=globalThis.requestAnimationFrame;
 globalThis.requestAnimationFrame=()=>0;
+after(()=>{globalThis.requestAnimationFrame=realFrame;});
 const flush=()=>act(async()=>{await new Promise(resolve=>setTimeout(resolve,0));});
 const click=(element:Element)=>act(async()=>{element.dispatchEvent(new MouseEvent('click',{bubbles:true}));});
 const camera:Media={id:'m1',name:'cam',path:'/tmp/cam.mov',kind:'video',duration:7.4,width:10,height:10};
@@ -218,4 +221,77 @@ test('the bottom bar makes Continue to editing the primary only once every scene
   assert.ok(button(done.container,'Continue to editing').className.includes('bg-primary'),'after the last scene, Continue to editing is the primary');
   assert.equal([...done.container.querySelectorAll('button')].filter(b=>b.className.includes('bg-primary')).length,1,'and the only one');
  }finally{globalThis.fetch=original2;all.restore();await done.close();}
+});
+
+type Selection={camera:boolean;microphone:boolean;screen:boolean;systemAudio:boolean};
+const only=(kind:keyof Selection):Selection=>({camera:false,microphone:false,screen:false,systemAudio:false,[kind]:true});
+const cardLines=(root:Element)=>[...root.querySelectorAll('.club-recorder-warnings li')].map(li=>({text:li.querySelector('span')?.textContent,button:li.querySelector('button')?.textContent??null}));
+/** The club recorder with the given sources switched on and macOS answering `access` for every source. */
+async function mountClubRecording(selection:Selection,access:'granted'|'denied',extra:Record<string,unknown>={}){
+ localStorage.clear();
+ saveRecordingPreferences({...loadRecordingPreferences(),current:{...defaultRecordingSettings(),selection}});
+ const originalFetch=globalThis.fetch;
+ globalThis.fetch=async(input)=>String(input)==='/api/club/disk'?Response.json({freeBytes:500*1024**3,low:false}):Response.json([]);
+ Object.defineProperty(navigator,'permissions',{value:{query:async()=>({state:access==='granted'?'granted':'denied'})},configurable:true});
+ (window as unknown as {sceneForge?:unknown}).sceneForge={getMediaPermissions:async()=>({platform:'darwin',camera:access,microphone:access,screen:access,systemAudio:'unknown'})};
+ const setups:string[]=[];
+ const ui=await mountUI(createElement(Recording,{project:createProject(),change:()=>{},onRecorded:()=>{},onError:()=>{},onSetup:()=>setups.push('setup'),club:true,...extra}));
+ await flush();await flush();
+ return {ui,setups,close:async()=>{await ui.close();globalThis.fetch=originalFetch;delete (window as unknown as {sceneForge?:unknown}).sceneForge;}};
+}
+const sourceNames={camera:'camera',microphone:'microphone',screen:'screen',systemAudio:'computer audio'} as const;
+
+test('a permission problem on any source shows its sentence and one Open Mac setup button, which opens the recording setup',async()=>{
+ for(const kind of ['camera','microphone','screen','systemAudio'] as const){
+  const {ui,setups,close}=await mountClubRecording(only(kind),'denied');
+  try{
+   assert.deepEqual(cardLines(ui.container),[{text:`macOS isn't allowing the ${sourceNames[kind]}: open Mac setup to allow it.`,button:'Open Mac setup'}],kind);
+   assert.equal(ui.container.querySelector('.club-recorder-warnings')?.getAttribute('data-tone'),'danger');
+   await click(button(ui.container,'Open Mac setup'));
+   assert.deepEqual(setups,['setup'],`${kind}: the button opens the existing recording-access setup`);
+  }finally{await close();}
+ }
+});
+
+test('several blocked sources keep one sentence each and a single Open Mac setup button',async()=>{
+ const {ui,close}=await mountClubRecording({camera:true,microphone:true,screen:true,systemAudio:true},'denied');
+ try{
+  assert.deepEqual(cardLines(ui.container).map(line=>line.text),['camera','microphone','screen','computer audio'].map(name=>`macOS isn't allowing the ${name}: open Mac setup to allow it.`));
+  assert.equal([...ui.container.querySelectorAll('.club-recorder-warnings button')].length,1);
+ }finally{await close();}
+});
+
+test('a source that fails for another reason says so in plain words, with no raw error, and offers its one fix',async()=>{
+ // Allowed by macOS, but there is no capture device here, so the camera fails when it opens.
+ const camera=await mountClubRecording(only('camera'),'granted');
+ try{
+  assert.deepEqual(cardLines(camera.ui.container),[{text:"The camera can't start: check that it's connected and not in use by another app.",button:'Try again'}]);
+  await click(button(camera.ui.container,'Try again'));await flush();
+  assert.equal(cardLines(camera.ui.container).length,1,'still one line after trying again');
+ }finally{await camera.close();}
+ // Computer audio alone (Screen off): choosing where the sound comes from fails. It used to show only buttons, with no card.
+ const audio=await mountClubRecording(only('systemAudio'),'granted');
+ try{
+  assert.deepEqual(cardLines(audio.ui.container),[],'nothing chosen yet is not an error');
+  assert.equal(audio.ui.container.querySelector('.club-recorder-preflight')?.textContent,'Fix the computer audio above before recording');
+  await click(button(audio.ui.container,'Choose source'));await flush();
+  assert.deepEqual(cardLines(audio.ui.container),[{text:"The computer audio can't be captured: choose the screen or window again.",button:'Choose source'}]);
+  assert.equal(Boolean(audio.ui.container.querySelector('.capture-source-error')),false,'no unexplained buttons under the source');
+ }finally{await audio.close();}
+ // Screen on: a failed choice names the screen and, if computer audio is on too, computer audio, with one Choose source button.
+ const screen=await mountClubRecording({camera:false,microphone:false,screen:true,systemAudio:true},'granted');
+ try{
+  await click(button(screen.ui.container,'Choose a screen'));await flush();
+  assert.deepEqual(cardLines(screen.ui.container),[{text:"The screen can't be captured: choose the screen or window again.",button:'Choose source'},{text:"The computer audio can't be captured: choose the screen or window again.",button:null}]);
+ }finally{await screen.close();}
+});
+
+test('a source that is switched off never shows in the card, even after it failed',async()=>{
+ const {ui,close}=await mountClubRecording(only('systemAudio'),'granted');
+ try{
+  await click(button(ui.container,'Choose source'));await flush();
+  assert.equal(cardLines(ui.container).length,1);
+  await click(ui.container.querySelector('[role="switch"][aria-label="Computer audio"]')!);await flush();
+  assert.equal(Boolean(ui.container.querySelector('.club-recorder-warnings')),false,'switching the source off clears its warning');
+ }finally{await close();}
 });

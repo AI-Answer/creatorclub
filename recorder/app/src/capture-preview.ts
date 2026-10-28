@@ -20,9 +20,11 @@ function waitForCapture<T>(promise:Promise<T>,signal:AbortSignal,releaseLate:(va
  });
 }
 export const streamIsLive = (stream:MediaStream|null,kind:'audio'|'video') => Boolean(stream?.getTracks().some(track=>track.kind===kind&&track.readyState==='live'));
+/** The preview error when access was not granted; CreatorClub's warnings card reads it as a permission problem. */
+export const ACCESS_NOT_GRANTED='Access was not granted. Enable this source to try again, or review its macOS privacy permission.';
 export function captureError(error:unknown):string {
  const e=error as {name?:string;message?:string};
- if(e.name==='NotAllowedError'||e.name==='PermissionDeniedError')return 'Access was not granted. Enable this source to try again, or review its macOS privacy permission.';
+ if(e.name==='NotAllowedError'||e.name==='PermissionDeniedError')return ACCESS_NOT_GRANTED;
  if(e.name==='NotFoundError'||e.name==='DevicesNotFoundError')return 'No matching device was found. Connect a device and choose it again.';
  if(e.name==='NotReadableError'||e.name==='TrackStartError')return 'This source could not start. It may be in use by another application.';
  if(e.name==='OverconstrainedError')return 'This device does not support the selected settings. Choose another device or resolution.';
