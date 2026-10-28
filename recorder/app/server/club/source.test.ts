@@ -13,7 +13,6 @@ import {
   subtitleArgs,
   topComments,
   usualViews,
-  videoArgs,
   viewsArgs,
 } from './source.js';
 
@@ -66,20 +65,26 @@ test('anything that is not one video on YouTube or Instagram is refused with one
   ]) assert.throws(() => detectSource(bad), { message: NOT_A_VIDEO }, JSON.stringify(bad));
 });
 
-test('the yt-dlp commands: info with the top 40 comments, one caption track, 480p video, and the Instagram variant', () => {
+test('the yt-dlp commands read details, comments, one caption track and the thumbnail, and never a video or audio stream', () => {
   assert.equal(COMMENT_ARGS, 'youtube:max_comments=40,all,0,0;comment_sort=top');
   assert.deepEqual(infoArgs(yt() as never, '/w/media.%(ext)s'), [
-    '--skip-download', '--no-warnings', '--no-playlist', '--write-info-json', '--write-comments', '--extractor-args', COMMENT_ARGS, '-o', '/w/media.%(ext)s', `https://www.youtube.com/watch?v=${ID}`,
+    '--skip-download', '--no-warnings', '--no-playlist', '--write-info-json', '--write-thumbnail', '--write-comments', '--extractor-args', COMMENT_ARGS, '-o', '/w/media.%(ext)s', `https://www.youtube.com/watch?v=${ID}`,
   ]);
   const ig = { platform: 'instagram', url: 'https://www.instagram.com/reel/abcde/', id: 'abcde' } as const;
-  assert.ok(!infoArgs(ig, '/w/m').includes('--write-comments'), 'comments are a YouTube thing');
+  const igArgs = infoArgs(ig, '/w/m');
+  assert.ok(!igArgs.includes('--write-comments'), 'comments are a YouTube thing');
+  assert.ok(igArgs.includes('--skip-download') && igArgs.includes('--write-thumbnail'));
   assert.deepEqual(subtitleArgs(yt().url, 'en-orig', '/w/m'), [
     '--skip-download', '--no-warnings', '--no-playlist', '--write-auto-subs', '--write-subs', '--sub-langs', 'en-orig', '--sub-format', 'json3', '-o', '/w/m', yt().url,
   ]);
-  const video = videoArgs(yt() as never, '/w/m');
-  assert.deepEqual(video.slice(video.indexOf('-f'), video.indexOf('-f') + 4), ['-f', 'bv*+ba/b', '-S', 'res:480'], '480 on the short side, so vertical video works too');
-  assert.ok(video.includes('--merge-output-format') && video.includes('mp4') && !video.includes('--write-info-json'));
-  assert.ok(videoArgs(ig, '/w/m').includes('--write-info-json'), 'Instagram info comes with the download');
+  for (const args of [infoArgs(yt() as never, 'o'), igArgs, subtitleArgs(yt().url, 'en', 'o'), listingArgs('https://www.youtube.com/channel/UCabc', false, 30), viewsArgs(['a'])]) {
+    assert.ok(args.includes('--skip-download') || args.includes('--flat-playlist'), 'nothing is downloaded');
+    assert.ok(!args.some((a) => a === '-f' || a === '-x' || a === '--extract-audio' || a === '--merge-output-format'), 'no format is chosen, so no stream is fetched');
+  }
+});
+
+test('input that looks like a yt-dlp option is never a link', () => {
+  for (const bad of ['--exec=touch x', '-o x', '--write-pages', '-- https://youtu.be/dQw4w9WgXcQ', 'https://-x/watch?v=dQw4w9WgXcQ']) assert.throws(() => detectSource(bad), { message: NOT_A_VIDEO }, bad);
 });
 
 test('the channel listing and view commands', () => {
@@ -135,7 +140,7 @@ test('comments: top level only, best first, at most 40', () => {
 test('video facts from the info file, with the age counted from the upload date', () => {
   const now = Date.UTC(2026, 9, 28, 12);
   const info = parseInfo({ title: ' Hello ', channel: 'Chan', channel_url: 'https://www.youtube.com/channel/UCx', view_count: 7_600_000, like_count: 140_000, comment_count: 12_000, upload_date: '20261025', duration: 47, comments: [{ text: 'hi', like_count: 3, parent: 'root' }] }, yt() as never, now);
-  assert.deepEqual(info, { title: 'Hello', channel: 'Chan', channelUrl: 'https://www.youtube.com/channel/UCx', views: 7_600_000, likes: 140_000, commentCount: 12_000, ageDays: 3, duration: 47, thumbnail: `https://i.ytimg.com/vi/${ID}/hqdefault.jpg`, comments: [{ likes: 3, text: 'hi' }] });
+  assert.deepEqual(info, { title: 'Hello', channel: 'Chan', channelUrl: 'https://www.youtube.com/channel/UCx', views: 7_600_000, likes: 140_000, commentCount: 12_000, ageDays: 3, duration: 47, thumbnail: `https://i.ytimg.com/vi/${ID}/hqdefault.jpg`, description: '', comments: [{ likes: 3, text: 'hi' }] });
   assert.equal(parseInfo({ timestamp: Date.UTC(2026, 9, 27, 0) / 1000 }, yt() as never, now).ageDays, 1);
   assert.equal(parseInfo({ upload_date: '20300101' }, yt() as never, now).ageDays, 0, 'never negative');
   const ig = parseInfo({ description: 'First line of the caption\nsecond', uploader: 'maker', like_count: 5 }, { platform: 'instagram', url: 'u', id: 'abcde' }, now);
@@ -144,4 +149,5 @@ test('video facts from the info file, with the age counted from the upload date'
   assert.equal(ig.thumbnail, '');
   assert.equal(ig.views, 0);
   assert.equal(parseInfo(null, yt() as never).title, '');
+  assert.equal(ig.description, 'First line of the caption\nsecond', 'the caption is kept whole');
 });

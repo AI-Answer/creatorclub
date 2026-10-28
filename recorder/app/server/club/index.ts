@@ -7,16 +7,14 @@ import { startConnect, type ConnectOptions } from './connect.js';
 import { ClubError, GENERIC_FAILURE, notFound } from './errors.js';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
-import { addConceptToBoard, breakdownDir, framesDir, newBreakdownId, readBreakdown, runBreakdown, type Transcriber } from './breakdown.js';
+import { addConceptToBoard, breakdownDir, newBreakdownId, readBreakdown, runBreakdown, thumbnailFile, type Transcriber } from './breakdown.js';
 import { cancelJob, getJob, snapshot, startJob, watchJob } from './jobs.js';
 import { parseChannelInput } from './channel.js';
-import { detectSource } from './source.js';
+import { FILE_TOO_BIG, MAX_FILE_BYTES, detectSource } from './source.js';
 import { addChannel, rebuildVoice } from './onboard.js';
 import * as store from './store.js';
 import type { ToolOptions } from './tools.js';
 
-const rating = z.object({ level: z.enum(['high', 'mid', 'low']), note: z.string() }).strict();
-const concept = z.object({ angle: rating, twist: rating, hook: rating, demand: rating, gap: rating, show: rating }).strict();
 const source = z.object({ kind: z.enum(['breakdown', 'manual']), breakdownId: z.string().optional() }).strict();
 const planning = z.object({ research: z.boolean(), package: z.boolean(), outline: z.boolean() }).strict();
 const stage = z.enum(VIDEO_STAGES);
@@ -26,7 +24,6 @@ const newVideoBody = z.object({
   title: z.string().trim().min(1).max(300),
   stage: stage.optional(),
   source: source.optional(),
-  concept: concept.optional(),
   hidden: hidden.optional(),
   publishDate: z.string().optional(),
   planning: planning.optional(),
@@ -37,7 +34,6 @@ const videoPatchBody = z.object({
   title: z.string().trim().min(1).max(300),
   order: z.number().int(),
   source: source.nullable(),
-  concept: concept.nullable(),
   planning,
   recorderProjectId: z.string().nullable(),
   publishDate: z.string().nullable(),
@@ -93,7 +89,7 @@ const videoUpload = multer({
     filename: (_req, file, done) => done(null, `video${path.extname(file.originalname).toLowerCase()}`),
   }),
   fileFilter: (_req, file, done) => done(null, VIDEO_EXTENSIONS.has(path.extname(file.originalname).toLowerCase())),
-  limits: { files: 1, fileSize: 4 * 1024 ** 3 },
+  limits: { files: 1, fileSize: MAX_FILE_BYTES },
 });
 
 const handler = (fn: (req: Request, res: Response) => Promise<unknown> | unknown) => (req: Request, res: Response, next: NextFunction) =>
@@ -107,9 +103,10 @@ async function requireWorkspace(): Promise<string> {
   return slug;
 }
 
-const connectBody = z.object({ provider: z.enum(['claude', 'codex', 'gemini']), reconnect: z.boolean().optional() }).strict();
+const connectBody = z.object({ provider: z.enum(['claude', 'codex']), reconnect: z.boolean().optional() }).strict();
 const stageDates = z.record(stage, z.string()).refine((dates) => Object.keys(dates).length > 0);
 const moveBody = z.object({ stage, beforeId: z.string().nullable().optional(), stageDates: stageDates.optional() }).strict();
+const geminiKeyBody = z.object({ key: z.string().trim().min(20).max(200).regex(/^[\w-]+$/) }).strict();
 const settingsBody = z.object({ defaultAi: z.enum(['claude', 'codex']) }).strict();
 
 export interface ClubRouterOptions {
@@ -131,10 +128,20 @@ export function clubRouter({ ai = {}, transcribe }: ClubRouterOptions = {}): Rou
   }));
 
   // ---- settings
-  router.get('/settings', handler(async (_req, res) => res.json({ defaultAi: (await store.defaultAi()) ?? null, welcomed: await store.welcomed() })));
+  router.get('/settings', handler(async (_req, res) => res.json({ defaultAi: (await store.defaultAi()) ?? null, welcomed: await store.welcomed(), geminiKey: await store.maskedGeminiKey() })));
   router.put('/settings', handler(async (req, res) => {
     await store.setDefaultAi(settingsBody.parse(req.body).defaultAi);
     res.json({ defaultAi: await store.defaultAi() });
+  }));
+
+  // The Gemini API key lets Break down watch YouTube videos. It is saved locally and only ever returned masked.
+  router.put('/settings/gemini-key', handler(async (req, res) => {
+    await store.setGeminiKey(geminiKeyBody.parse(req.body).key);
+    res.json({ geminiKey: await store.maskedGeminiKey() });
+  }));
+  router.delete('/settings/gemini-key', handler(async (_req, res) => {
+    await store.removeGeminiKey();
+    res.json({ geminiKey: null });
   }));
 
   router.post('/settings/welcomed', handler(async (_req, res) => {
@@ -262,35 +269,55 @@ export function clubRouter({ ai = {}, transcribe }: ClubRouterOptions = {}): Rou
 
   // ---- breakdowns
   // JSON {url} for a link, or a multipart upload with a video `file`. Either starts a job whose result is the breakdown.
-  router.post('/breakdowns', (req: BreakdownRequest, res, next) => {
+  // A request that is refused, fails or is dropped halfway leaves no folder behind, and an upload that is dropped starts no job.
+  const forget = (req: BreakdownRequest) => (req.breakdown ? fs.rm(req.breakdown.dir, { recursive: true, force: true }).catch(() => {}) : Promise.resolve());
+  router.post('/breakdowns', (req: BreakdownRequest, _res, next) => {
     requireWorkspace().then(async (slug) => {
       const id = newBreakdownId();
       req.breakdown = { slug, id, dir: breakdownDir(slug, id) };
       if (req.is('multipart/form-data')) await fs.mkdir(req.breakdown.dir, { recursive: true });
       next();
     }, next);
-  }, videoUpload.single('file'), handler(async (req: BreakdownRequest, res) => {
+  }, (req: BreakdownRequest, res, next) => {
+    videoUpload.single('file')(req, res, (error?: unknown) => {
+      if (!error) return next();
+      void forget(req).then(() => next(error instanceof multer.MulterError && error.code === 'LIMIT_FILE_SIZE' ? new ClubError(FILE_TOO_BIG, 413) : error));
+    });
+  }, handler(async (req: BreakdownRequest, res) => {
     const { slug, id } = req.breakdown!;
     const work = { ...ai, transcribe };
+    const start = (input: Parameters<typeof runBreakdown>[0]) => {
+      // The person may have left while the upload ran. Nothing starts for a request that is already gone.
+      if (!req.complete || res.socket?.destroyed) {
+        void forget(req);
+        return;
+      }
+      const job = startJob('breakdown', (context) => runBreakdown(input, context, work));
+      // If the answer never reaches them, the job is stopped: it removes its own files.
+      res.once('close', () => {
+        if (!res.writableFinished) cancelJob(job.id);
+      });
+      res.status(202).json(job);
+    };
     if (req.is('multipart/form-data')) {
-      if (!req.file) throw new ClubError(NOT_A_FILE);
-      res.status(202).json(startJob('breakdown', (context) => runBreakdown({ slug, id, file: { path: req.file!.path, name: req.file!.originalname } }, context, work)));
+      if (!req.file) {
+        await forget(req);
+        throw new ClubError(NOT_A_FILE);
+      }
+      start({ slug, id, file: { path: req.file.path, name: req.file.originalname } });
       return;
     }
     const { url } = breakdownBody.parse(req.body);
     detectSource(url);
-    res.status(202).json(startJob('breakdown', (context) => runBreakdown({ slug, id, url }, context, work)));
+    start({ slug, id, url });
   }));
 
   router.get('/breakdowns/:id', handler(async (req, res) => res.json(await readBreakdown(await requireWorkspace(), param(req, 'id')))));
-  router.get('/breakdowns/:id/frames/:name', handler(async (req, res) => {
+  router.get('/breakdowns/:id/thumbnail', handler(async (req, res) => {
     const slug = await requireWorkspace();
-    const name = param(req, 'name');
-    if (!/^frame-\d{2}\.jpg$/.test(name)) throw notFound('frame');
-    await readBreakdown(slug, param(req, 'id'));
-    res.sendFile(path.join(framesDir(slug, param(req, 'id')), name), { dotfiles: 'allow' }, (error) => {
-      if (error && !res.headersSent) res.status(404).json({ error: notFound('frame').message });
-    });
+    const file = await thumbnailFile(slug, param(req, 'id'));
+    if (!file) throw notFound('thumbnail');
+    res.sendFile(file, { dotfiles: 'allow' });
   }));
   router.post('/breakdowns/:id/concepts/:index/add', handler(async (req, res) => {
     const index = Number(param(req, 'index'));

@@ -34,17 +34,18 @@ const text=(el:Element)=>(el.textContent??'').replace(/\s+/g,' ');
 const emit=(type:string,data?:unknown)=>act(async()=>{FakeEventSource.last().emit(type,data);});
 const dropOn=async(el:Element,file:File)=>act(async()=>{el.dispatchEvent(Object.assign(new Event('drop',{bubbles:true,cancelable:true}),{dataTransfer:{types:['Files'],files:[file]}}));});
 
-type Posted={path:string;form?:FormData;body?:unknown};
+type Posted={path:string;form?:FormData;body?:unknown;signal?:AbortSignal|null};
+let hold:Promise<void>|null=null;
 async function withBoard(run:(ui:Awaited<ReturnType<typeof mountUI>>,posted:Posted[],calls:FakeCall[])=>Promise<void>){
  FakeEventSource.install();
  const videos:Video[]=[],posted:Posted[]=[];
  let jobs=0;
- const fake=installFetch((call):FakeReply=>{
+ const fake=installFetch(async(call):Promise<FakeReply>=>{
   if(call.path==='/workspaces')return {body:{current:'samin',workspaces:[ws]}};
   if(call.path==='/videos')return {body:videos};
   if(call.path==='/recent')return {body:[]};
   if(call.path==='/api/projects')return {body:[]};
-  if(call.path==='/breakdowns'&&call.method==='POST')return {status:202,body:{id:`j${++jobs}`,status:'running'}};
+  if(call.path==='/breakdowns'&&call.method==='POST'){if(hold)await hold;return {status:202,body:{id:`j${++jobs}`,status:'running'}};}
   const add=call.path.match(/^\/breakdowns\/bd_aaaaaaaaaaaa\/concepts\/(\d)\/add$/);
   if(add){
    if(add[1]==='2')return {status:409,body:{error:'That concept is already on the board.'}};
@@ -55,10 +56,11 @@ async function withBoard(run:(ui:Awaited<ReturnType<typeof mountUI>>,posted:Post
  });
  // The fake keeps no uploads, so they are noted here.
  const inner=globalThis.fetch;
- globalThis.fetch=(async(input:RequestInfo|URL,init?:RequestInit)=>{if(init?.body instanceof FormData)posted.push({path:String(input).replace(/^\/api\/club/,''),form:init.body});return inner(input,init);}) as typeof fetch;
+ globalThis.fetch=(async(input:RequestInfo|URL,init?:RequestInit)=>{if(String(input)==='/api/club/breakdowns')posted.push({path:'/breakdowns',form:init?.body instanceof FormData?init.body:undefined,signal:init?.signal});return inner(input,init);}) as typeof fetch;
  const ui=await mountUI(createElement(BoardScreen,{onOpenVideo:()=>{}}));
  try{await flush();await run(ui,posted,fake.calls);}finally{await ui.close();globalThis.fetch=inner;fake.restore();}
 }
+const uploads=(posted:Posted[])=>posted.filter(entry=>entry.form);
 const dialog=(c:Element)=>c.querySelector('dialog[open]');
 const link=(c:Element)=>c.querySelector<HTMLInputElement>('input[aria-label="Paste a YouTube or Instagram link"]')!;
 
@@ -163,19 +165,19 @@ test('Break down: a failure is one sentence and Try again; after it a video file
 
   await dropOn(d.querySelector('[role="alert"]')!,new File(['x'],'notes.txt'));
   assert.match(text(d.querySelector('[role="alert"]')!),/Drop a video file, like an mp4 or a mov\./);
-  assert.equal(posted.length,0);
+  assert.equal(uploads(posted).length,0);
 
   const clip=new File(['video bytes'],'reel.mp4',{type:'video/mp4'});
   await dropOn(d.querySelector('[role="alert"]')!,clip);
-  assert.equal(posted.length,1);
-  assert.equal(posted[0].path,'/breakdowns');
-  assert.equal((posted[0].form!.get('file') as File).name,'reel.mp4');
+  assert.equal(uploads(posted).length,1);
+  assert.equal(uploads(posted)[0].path,'/breakdowns');
+  assert.equal((uploads(posted)[0].form!.get('file') as File).name,'reel.mp4');
   assert.match(text(dialog(c)!),/Getting ready/);
   assert.equal(FakeEventSource.last().url,'/api/club/jobs/j2/events');
 
   await emit('failed',{message:'That did not work.'});
   await press(button(dialog(c)!,'Try again'));
-  assert.equal(posted.length,2,'Try again sends the dropped file again');
+  assert.equal(uploads(posted).length,2,'Try again sends the dropped file again');
   assert.equal(FakeEventSource.last().url,'/api/club/jobs/j3/events');
  });
 });
@@ -188,9 +190,43 @@ test('Break down: dropping a video file on the box starts a breakdown; other fil
   assert.match(text(box),/Drop a video file, like an mp4 or a mov\./);
   await dropOn(box,new File(['video'],'My clip.mov',{type:'video/quicktime'}));
   assert.ok(dialog(c));
-  assert.equal(posted.length,1);
-  assert.equal((posted[0].form!.get('file') as File).name,'My clip.mov');
+  assert.equal(uploads(posted).length,1);
+  assert.equal((uploads(posted)[0].form!.get('file') as File).name,'My clip.mov');
   await press(dialog(c)!.querySelector('button[aria-label="Close"]')!);
   assert.equal(dialog(c),null);
+ });
+});
+
+test('Break down: closing the dialog before the job id arrives aborts the request and stops the job when its id does arrive',async()=>{
+ await withBoard(async(ui,posted,calls)=>{
+  const c=ui.container;
+  let release=()=>{};hold=new Promise<void>(resolve=>{release=resolve;});
+  try{
+   await dropOn(c.querySelector('[data-dropzone]')!,new File(['video bytes'],'clip.mp4',{type:'video/mp4'}));
+   assert.equal(posted.length,1);
+   assert.equal(posted[0].signal?.aborted,false,'the upload is under way');
+   await press(dialog(c)!.querySelector('button[aria-label="Close"]')!);
+   assert.equal(dialog(c),null);
+   assert.equal(posted[0].signal?.aborted,true,'closing aborts the request');
+   assert.equal(calls.filter(call=>call.method==='DELETE').length,0,'there is no job to stop yet');
+   release();await flush();await flush();
+   assert.deepEqual(calls.filter(call=>call.method==='DELETE').map(call=>call.path),['/jobs/j1'],'the job that was started is stopped');
+   assert.equal(FakeEventSource.all.length,0,'nothing follows it');
+  }finally{release();hold=null;}
+ });
+});
+
+test('Break down: a request that fails outright shows one sentence, and Try again sends it again',async()=>{
+ await withBoard(async(ui,posted)=>{
+  const c=ui.container;
+  await type(link(c),'https://youtu.be/dQw4w9WgXcQ');
+  await press(button(c,'Break down'));
+  assert.equal(posted.length,1);
+  assert.equal(posted[0].signal?.aborted,false);
+  await emit('failed',{message:"Couldn't read that video from YouTube."});
+  assert.equal(text(dialog(c)!.querySelector('[role="alert"]')!),"Couldn't read that video from YouTube.Try again");
+  await press(button(dialog(c)!,'Try again'));
+  assert.equal(posted.length,2);
+  assert.equal(posted[0].signal?.aborted,true,'the earlier attempt is left behind');
  });
 });

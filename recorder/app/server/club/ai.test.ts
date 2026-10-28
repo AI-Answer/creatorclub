@@ -195,18 +195,17 @@ test('codex: uses exec --json, passes the schema as a file and images with -i', 
 
 test('aiStatus reads versions and sign-in state from claude auth status and codex login status', async () => {
   withFake('ok');
-  assert.deepEqual(await aiStatus({ extraDirs: [], geminiDir: emptyBin }), {
+  assert.deepEqual(await aiStatus({ extraDirs: [] }), {
     claude: { installed: true, version: '9.9.9', signedIn: true, account: 'dani@example.com' },
     codex: { installed: true, version: '8.8.8', signedIn: true, account: 'ChatGPT' },
-    gemini: { installed: false, version: null, signedIn: false },
   });
   withFake('signed-out');
-  const out = await aiStatus({ extraDirs: [], geminiDir: emptyBin });
+  const out = await aiStatus({ extraDirs: [] });
   assert.equal(out.claude.signedIn, false);
   assert.equal(out.codex.signedIn, false);
   assert.equal(out.codex.account, undefined);
   process.env.PATH = emptyBin;
-  assert.deepEqual((await aiStatus({ extraDirs: [], geminiDir: emptyBin })).claude, { installed: false, version: null, signedIn: false });
+  assert.deepEqual((await aiStatus({ extraDirs: [] })).claude, { installed: false, version: null, signedIn: false });
 });
 
 test('parsers handle the real output shapes', () => {
@@ -218,4 +217,41 @@ test('parsers handle the real output shapes', () => {
   assert.deepEqual(parseCodexAuth(1, 'Not logged in'), { signedIn: false });
   assert.deepEqual(parseJSONLoose('text {"a":1} more'), { a: 1 });
   assert.equal(parseJSONLoose('no json'), undefined);
+});
+
+test('watchWithGemini sends the link and schema with the key in a header, reads the model_output text, and fails in sentences without the key', async () => {
+  const { watchWithGemini, GEMINI_ENDPOINT, GEMINI_MODEL } = await import('./ai.js');
+  const key = 'AIzaSyExampleKeyForTestingOnly1234';
+  const seen: { url: string; init: RequestInit }[] = [];
+  const reply = (status: number, body: unknown) => (async (url: string, init: RequestInit) => {
+    seen.push({ url, init });
+    return new Response(typeof body === 'string' ? body : JSON.stringify(body), { status });
+  }) as unknown as typeof fetch;
+  const options = { apiKey: key, videoUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', prompt: 'P', jsonSchema: { title: 'T', description: 'D', type: 'object', properties: { a: { type: 'string' } } } };
+
+  const ok = await watchWithGemini({ ...options, fetch: reply(200, { steps: [{ type: 'model_output', content: [{ type: 'text', text: '{"a":' }, { type: 'text', text: '"b"}' }] }] }) });
+  assert.deepEqual(ok.json, { a: 'b' });
+  assert.equal(seen[0].url, GEMINI_ENDPOINT);
+  assert.equal((seen[0].init.headers as Record<string, string>)['x-goog-api-key'], key);
+  assert.ok(!String(seen[0].url).includes(key) && !String(seen[0].init.body).includes(key), 'the key travels in the header only');
+  const body = JSON.parse(String(seen[0].init.body));
+  assert.equal(body.model, GEMINI_MODEL);
+  assert.deepEqual(body.input[1], { type: 'video', uri: options.videoUrl });
+  assert.deepEqual(body.response_format, { type: 'text', mime_type: 'application/json', schema: { type: 'object', properties: { a: { type: 'string' } } } });
+
+  const fails = async (fetchImpl: typeof fetch, message: string | RegExp) => {
+    await assert.rejects(watchWithGemini({ ...options, fetch: fetchImpl }), (error: Error) => {
+      assert.ok(!error.message.includes(key) && !String((error as { detail?: string }).detail ?? '').includes(key));
+      return typeof message === 'string' ? error.message === message : message.test(error.message);
+    });
+  };
+  await fails(reply(400, { error: { message: 'private' } }), 'Gemini could not read that video with your key.');
+  await fails(reply(403, {}), 'Gemini could not read that video with your key.');
+  await fails(reply(429, {}), 'Gemini could not finish that.');
+  await fails(reply(200, { steps: [] }), 'Gemini answered in a shape we could not read.');
+  await fails(reply(200, 'not json'), 'Gemini answered in a shape we could not read.');
+  await fails((async () => { throw new TypeError('offline'); }) as unknown as typeof fetch, "Couldn't reach Gemini.");
+  const stopped = new AbortController();
+  stopped.abort();
+  await assert.rejects(watchWithGemini({ ...options, signal: stopped.signal, fetch: reply(200, {}) }), { message: 'That was stopped.' });
 });

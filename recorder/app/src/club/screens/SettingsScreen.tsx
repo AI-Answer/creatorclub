@@ -1,4 +1,4 @@
-import {useCallback,useEffect,useState,type ReactNode} from 'react';
+import {useCallback,useEffect,useState,type FormEvent,type ReactNode} from 'react';
 import type {AiProvider,AiStatus,ClubSettings,ConnectProvider,Workspace} from '../../../shared/club';
 import {getAppearance,setAppearance,type Appearance} from '../../appearance';
 import {clubFetch,errorMessage} from '../api';
@@ -43,7 +43,7 @@ export function SettingsScreen({onAddChannel}:{onAddChannel():void}){
      :!data?<div className="flex justify-center py-12"><Spinner label="Loading settings"/></div>
      :<>
       <Section title="Connected AI" description="CreatorClub uses your own accounts. Nothing to paste.">
-       <ConnectedAi status={data.status} onChanged={refreshStatus}/>
+       <ConnectedAi status={data.status} geminiKey={data.settings.geminiKey} onChanged={refreshStatus} onKeyChanged={geminiKey=>setData({...data,settings:{...data.settings,geminiKey}})}/>
       </Section>
       <Section title="Default AI" description="The AI that does the writing and thinking.">
        <DefaultAi status={data.status} saved={data.settings.defaultAi} onSaved={defaultAi=>setData({...data,settings:{...data.settings,defaultAi}})}/>
@@ -72,19 +72,47 @@ function Section({title,description,children}:{title:string;description?:string;
 
 // ---------------------------------------------------------------- connected AI
 
-const cards:{provider:ConnectProvider;note?:string;optional?:boolean}[]=[
- {provider:'claude'},
- {provider:'codex'},
- {provider:'gemini',optional:true,note:'Lets CreatorClub watch videos with sound and motion.'},
-];
+const cards:{provider:ConnectProvider}[]=[{provider:'claude'},{provider:'codex'}];
 
-function ConnectedAi({status,onChanged}:{status:AiStatus;onChanged():void}){
+function ConnectedAi({status,geminiKey,onChanged,onKeyChanged}:{status:AiStatus;geminiKey:string|null;onChanged():void;onKeyChanged(masked:string|null):void}){
  return <Card className="divide-y divide-line">
   {cards.map(card=><AiCard key={card.provider} {...card} status={status[card.provider]} onChanged={onChanged}/>)}
+  <GeminiKeyCard saved={geminiKey} onChanged={onKeyChanged}/>
  </Card>;
 }
 
-function AiCard({provider,note,optional,status,onChanged}:{provider:ConnectProvider;note?:string;optional?:boolean;status:AiStatus[ConnectProvider];onChanged():void}){
+/** Google is optional and takes the person's own Gemini API key, saved on this Mac. It only lets Break down watch YouTube videos. */
+function GeminiKeyCard({saved,onChanged}:{saved:string|null;onChanged(masked:string|null):void}){
+ const [key,setKey]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState('');
+ const save=async()=>{
+  const value=key.trim();if(!value||busy)return;
+  setBusy(true);setError('');
+  try{const result=await clubFetch<{geminiKey:string|null}>('/settings/gemini-key',{method:'PUT',body:{key:value}});setKey('');onChanged(result.geminiKey);}
+  catch(reason){setError(errorMessage(reason,"Couldn't save that key."));}
+  finally{setBusy(false);}
+ };
+ const remove=async()=>{
+  setBusy(true);setError('');
+  try{await clubFetch('/settings/gemini-key',{method:'DELETE'});setKey('');onChanged(null);}
+  catch(reason){setError(errorMessage(reason,"Couldn't remove that key."));}
+  finally{setBusy(false);}
+ };
+ return <div className="flex flex-col gap-3 px-4 py-3">
+  <div className="min-w-0">
+   <div className="flex items-center gap-2"><p className="text-base font-medium">Google</p><Badge>Optional</Badge></div>
+   <p className="text-sm text-muted">{saved?`Key saved ${saved}`:'No key saved'}</p>
+   <p className="text-sm text-muted">Lets CreatorClub watch YouTube videos with sound and motion.</p>
+  </div>
+  <form onSubmit={(event:FormEvent)=>{event.preventDefault();void save();}} className="flex items-center gap-2">
+   <Input type="password" aria-label="Gemini API key" placeholder="Gemini API key" autoComplete="off" spellCheck={false} value={key} onChange={event=>{setKey(event.target.value);setError('');}}/>
+   <Button type="submit" size="sm" disabled={!key.trim()||busy}>Save key</Button>
+   {saved&&<Button size="sm" variant="ghost" disabled={busy} onClick={remove}>Remove key</Button>}
+  </form>
+  {error&&<ErrorLine message={error} onRetry={()=>{if(key.trim())void save();else setError('');}}/>}
+ </div>;
+}
+
+function AiCard({provider,status,onChanged}:{provider:ConnectProvider;status:AiStatus[ConnectProvider];onChanged():void}){
  const {state,start,cancel}=useConnect(onChanged);
  const name=connectLabel[provider];
  const busy=state.phase==='installing'||state.phase==='signing-in';
@@ -93,10 +121,8 @@ function AiCard({provider,note,optional,status,onChanged}:{provider:ConnectProvi
    <div className="min-w-0 flex-1">
     <div className="flex items-center gap-2">
      <p className="text-base font-medium">{name}</p>
-     {optional&&<Badge>Optional</Badge>}
     </div>
     <p className="text-sm text-muted">{status.signedIn?(status.account?`Connected as ${status.account}`:'Connected'):'Not connected'}</p>
-    {note&&<p className="text-sm text-muted">{note}</p>}
    </div>
    {!busy&&<Button size="sm" aria-label={`${status.signedIn?'Reconnect':'Connect'} ${name}`} onClick={()=>start(provider,status.signedIn)}>{status.signedIn?'Reconnect':'Connect'}</Button>}
   </div>

@@ -201,6 +201,10 @@ test('break down: sections, facts, top 40 comments by likes, transcript cut at 1
   assert.deepEqual(Object.keys((built.schema as Schema).properties ?? {}), ['whyItWorked', 'reusableOutline', 'viewerQuestions', 'concepts']);
 
   await assert.rejects(p.buildBreakdownPrompt(ctx, { title: 't', channel: 'c', comments: [], existingTitles: [] }), { message: 'There was no transcript and no comments to work from for this video.' });
+  const thumbnailOnly = await p.buildBreakdownPrompt(ctx, { title: 't', channel: 'c', comments: [], existingTitles: [], thumbnail: true });
+  assert.match(thumbnailOnly.prompt, /One image is attached: the video's thumbnail/);
+  assert.doesNotMatch(thumbnailOnly.prompt, /still frames sampled/);
+  assert.doesNotMatch((await p.buildBreakdownPrompt(ctx, { title: 't', channel: 'c', comments: [{ likes: 1, text: 'hi' }], existingTitles: [] })).prompt, /One image is attached/);
   const noTranscript = await p.buildBreakdownPrompt(ctx, { title: 't', channel: 'c', comments: [{ likes: 1, text: 'hi' }], existingTitles: [] });
   assert.match(noTranscript.prompt, /TRANSCRIPT \(not available\)/);
 });

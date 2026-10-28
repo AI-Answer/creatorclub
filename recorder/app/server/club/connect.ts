@@ -1,7 +1,6 @@
 import { spawn, type ChildProcess } from 'node:child_process';
-import type { AiProvider, ConnectProgress, ConnectProvider, ConnectResult, JobSnapshot } from '../../shared/club.js';
-import { promises as fs } from 'node:fs';
-import { AiError, childEnv, findBinary, findExecutable, geminiSignInFile, providerStatus, type Lookup } from './ai.js';
+import type { ConnectProgress, ConnectProvider, ConnectResult, JobSnapshot } from '../../shared/club.js';
+import { AiError, childEnv, findBinary, findExecutable, providerStatus, type Lookup } from './ai.js';
 import { getJob, snapshot, startJob, type JobContext } from './jobs.js';
 import * as store from './store.js';
 
@@ -11,17 +10,16 @@ import * as store from './store.js';
  * No key or token is ever asked for, read or stored. Runs as a job so the screen can stream progress.
  */
 
-const LABEL: Record<ConnectProvider, string> = { claude: 'Claude', codex: 'ChatGPT', gemini: 'Google' };
+const LABEL: Record<ConnectProvider, string> = { claude: 'Claude', codex: 'ChatGPT' };
 
 /** How each tool is installed. The Claude installer is the official one from claude.ai. */
 const INSTALL: Record<ConnectProvider, { file: string; args: string[] }> = {
   claude: { file: '/bin/bash', args: ['-c', 'set -o pipefail; curl -fsSL https://claude.ai/install.sh | bash'] },
   codex: { file: 'npm', args: ['install', '-g', '@openai/codex'] },
-  gemini: { file: 'npm', args: ['install', '-g', '@google/gemini-cli'] },
 };
 
-/** The tool's own sign-in command. Gemini has none: running it once opens its Google sign-in. */
-const LOGIN: Record<ConnectProvider, string[]> = { claude: ['auth', 'login'], codex: ['login'], gemini: [] };
+/** The tool's own sign-in command. */
+const LOGIN: Record<ConnectProvider, string[]> = { claude: ['auth', 'login'], codex: ['login'] };
 
 export interface ConnectOptions extends Lookup {
   /** Sign in again even though the tool already reports being signed in. */
@@ -94,20 +92,6 @@ const sleep = (ms: number, signal: AbortSignal) =>
     signal.addEventListener('abort', onAbort, { once: true });
   });
 
-/**
- * Gemini has no status command, so a sign-in shows up as its sign-in file being created or rewritten.
- * Only the file's modified time and identity are looked at, never its contents.
- * `null` means there is no file.
- */
-async function geminiMarker(options: Lookup): Promise<string | null> {
-  try {
-    const stat = await fs.stat(geminiSignInFile(options));
-    return stat.isFile() ? `${stat.mtimeMs}:${stat.ino}` : null;
-  } catch {
-    return null;
-  }
-}
-
 async function install(provider: ConnectProvider, context: JobContext, options: ConnectOptions) {
   if (context.signal.aborted) throw cancelled();
   const label = LABEL[provider];
@@ -137,12 +121,8 @@ async function signIn(provider: ConnectProvider, file: string, context: JobConte
   const label = LABEL[provider];
   const pollMs = options.pollMs ?? 2000;
   const deadline = Date.now() + (options.loginTimeoutMs ?? 5 * 60_000);
-  // Gemini keeps running after sign-in, so its exit cannot be waited for; its sign-in file is watched instead.
-  const waitForExit = options.reconnect === true && wasSignedIn && provider !== 'gemini';
-
-  // Recorded before gemini starts. A sign-in that already exists (Reconnect) only counts as redone once the file changes.
-  const markerBefore = provider === 'gemini' ? await geminiMarker(options) : null;
-  if (context.signal.aborted) throw cancelled();
+  // A sign-in that already exists (Reconnect) only counts as redone once the tool's own login has finished.
+  const waitForExit = options.reconnect === true && wasSignedIn;
   context.emit({ phase: 'signing-in' } satisfies ConnectProgress);
   const { child, done } = run(file, LOGIN[provider], childEnv(options), () => {});
   let exit = undefined as { code: number | null; failedToStart: boolean } | undefined;
@@ -153,10 +133,9 @@ async function signIn(provider: ConnectProvider, file: string, context: JobConte
       if (context.signal.aborted) throw cancelled();
       const exitedBeforeCheck = exit;
       const status = await providerStatus(provider, options);
-      const markerNow = provider === 'gemini' ? await geminiMarker(options) : null;
       if (context.signal.aborted) throw cancelled();
       const finished = exitedBeforeCheck !== undefined;
-      const signedIn = provider === 'gemini' ? markerNow !== null && markerNow !== markerBefore : status.signedIn;
+      const signedIn = status.signedIn;
       if (signedIn && (!waitForExit || (finished && exitedBeforeCheck.code === 0))) {
         return { provider, ...(status.account ? { account: status.account } : {}) };
       }
@@ -183,7 +162,7 @@ export async function connectProvider(provider: ConnectProvider, context: JobCon
 
 /** The first of Claude or ChatGPT to connect becomes the default AI. */
 async function finished(provider: ConnectProvider, account: string | undefined, context: JobContext): Promise<ConnectResult> {
-  if (provider !== 'gemini') await store.setDefaultAiIfUnset(provider as AiProvider);
+  await store.setDefaultAiIfUnset(provider);
   context.emit({ phase: 'connected', ...(account ? { account } : {}) } satisfies ConnectProgress);
   return { provider, ...(account ? { account } : {}) };
 }

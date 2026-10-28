@@ -21,11 +21,8 @@ export interface ConceptRating {
   level: ConceptLevel;
   note: string;
 }
-export const CONCEPT_KEYS = ['angle', 'twist', 'hook', 'demand', 'gap', 'show'] as const;
-export type ConceptKey = (typeof CONCEPT_KEYS)[number];
-export type Concept = Record<ConceptKey, ConceptRating>;
 
-/** What the old board kept about an idea, carried over unchanged by the migration. */
+/** What an idea keeps beyond its title: the old board's notes (carried over by the migration), or the angle, twist, hook and ratings of a concept added from Break down. */
 export interface IdeaNotes {
   lane?: string;
   why?: string;
@@ -50,7 +47,6 @@ export interface Video {
   /** ISO time the video entered each stage. */
   stageDates: Partial<Record<VideoStage, string>>;
   source?: { kind: 'breakdown' | 'manual'; breakdownId?: string };
-  concept?: Concept;
   planning: { research: boolean; package: boolean; outline: boolean };
   recorderProjectId?: string;
   publishDate?: string;
@@ -126,7 +122,7 @@ export interface Breakdown {
   platform: string;
   video: BreakdownVideoMeta;
   createdAt: string;
-  /** Set to 'gemini' when Gemini watched the whole video. Absent when Claude worked from the frames. */
+  /** Set to 'gemini' when Gemini watched the video from its link. Absent when Claude worked from the transcript, comments and thumbnail. */
   watchedWith?: 'gemini';
   whyItWorked: {
     titlePackaging: string;
@@ -155,8 +151,8 @@ export type BreakdownResult = Pick<Breakdown, 'whyItWorked' | 'reusableOutline' 
 
 /** The two command line tools that can run a prompt. */
 export type AiProvider = 'claude' | 'codex';
-/** Everything Settings can connect. Google (the Gemini CLI) is for watching video later and never runs prompts. */
-export type ConnectProvider = AiProvider | 'gemini';
+/** Everything Settings can connect with a sign-in. Google is not one: it takes an optional Gemini API key instead. */
+export type ConnectProvider = AiProvider;
 export interface AiProviderStatus {
   installed: boolean;
   version: string | null;
@@ -170,6 +166,8 @@ export interface ClubSettings {
   defaultAi: AiProvider | null;
   /** True once the first-visit "How CreatorClub works" dialog has been closed. */
   welcomed: boolean;
+  /** The saved Gemini API key, masked ("••••1234"), or null. The full key never leaves the server. */
+  geminiKey: string | null;
 }
 
 /** Progress events of a connect job. `line` is one cleaned-up line of installer output. */

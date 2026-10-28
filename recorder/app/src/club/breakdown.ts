@@ -18,7 +18,7 @@ export function formatAge(days:number):string{
 export const NOT_A_VIDEO='Paste a YouTube or Instagram link, or drop a video file.';
 export const NOT_A_FILE='Drop a video file, like an mp4 or a mov.';
 
-const LINK_HOSTS=new Set(['youtube.com','www.youtube.com','m.youtube.com','music.youtube.com','youtu.be','www.youtu.be','instagram.com','www.instagram.com','m.instagram.com','instagr.am']);
+const LINK_HOSTS=new Set(['youtube.com','www.youtube.com','m.youtube.com','music.youtube.com','youtu.be','www.youtu.be','youtube-nocookie.com','www.youtube-nocookie.com','instagram.com','www.instagram.com','m.instagram.com','instagr.am','www.instagr.am']);
 
 /** A quick look before anything starts. The server checks the link properly. */
 export function looksLikeVideoLink(input:string):boolean{

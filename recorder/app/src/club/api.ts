@@ -4,13 +4,13 @@ export class ClubApiError extends Error{constructor(message:string,readonly stat
 export const CANT_REACH="Couldn't reach CreatorClub.";
 const GENERIC='That did not work.';
 
-export async function clubFetch<T=unknown>(path:string,init:{method?:string;body?:unknown}={}):Promise<T>{
- return send<T>(path,{method:init.method??(init.body===undefined?'GET':'POST'),headers:init.body===undefined?undefined:{'content-type':'application/json'},body:init.body===undefined?undefined:JSON.stringify(init.body)});
+export async function clubFetch<T=unknown>(path:string,init:{method?:string;body?:unknown;signal?:AbortSignal}={}):Promise<T>{
+ return send<T>(path,{signal:init.signal,method:init.method??(init.body===undefined?'GET':'POST'),headers:init.body===undefined?undefined:{'content-type':'application/json'},body:init.body===undefined?undefined:JSON.stringify(init.body)});
 }
 
 /** Sends a file (or other form data) as a multipart upload. */
-export function clubUpload<T=unknown>(path:string,form:FormData):Promise<T>{
- return send<T>(path,{method:'POST',body:form});
+export function clubUpload<T=unknown>(path:string,form:FormData,signal?:AbortSignal):Promise<T>{
+ return send<T>(path,{method:'POST',body:form,signal});
 }
 
 async function send<T>(path:string,init:RequestInit):Promise<T>{

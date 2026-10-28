@@ -1,7 +1,7 @@
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import express from 'express';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rm, readFile, stat } from 'node:fs/promises';
 import type { AddressInfo } from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
@@ -154,8 +154,30 @@ test('a listener connected while the job runs gets events live and the stream cl
   assert.match(text, /event: done\ndata: "ok"/);
 });
 
-test('ai status route answers for Claude, ChatGPT and Google', async () => {
+test('ai status route answers for Claude and ChatGPT', async () => {
   const res = await call('GET', '/ai/status');
   assert.equal(res.status, 200);
-  assert.deepEqual(Object.keys(res.body).sort(), ['claude', 'codex', 'gemini']);
+  assert.deepEqual(Object.keys(res.body).sort(), ['claude', 'codex']);
+});
+
+test('the Gemini API key is saved owner-only, only ever returned masked, and can be removed', async () => {
+  const key = 'AIzaSyExampleKeyForTestingOnly1234';
+  assert.equal((await call('GET', '/settings')).body.geminiKey, null);
+  for (const bad of ['', 'short', 'has spaces in it and is long enough', key + '!', 'x'.repeat(300)]) assert.equal((await call('PUT', '/settings/gemini-key', { key: bad })).status, 400, bad.slice(0, 20));
+  assert.equal((await call('PUT', '/settings/gemini-key', { key, extra: 1 })).status, 400);
+  const saved = await call('PUT', '/settings/gemini-key', { key: `  ${key}  ` });
+  assert.deepEqual(saved.body, { geminiKey: '••••1234' });
+  const settings = await call('GET', '/settings');
+  assert.equal(settings.body.geminiKey, '••••1234');
+  assert.ok(!JSON.stringify(settings.body).includes('AIzaSy'));
+  const file = path.join(temp, 'settings.json');
+  assert.equal((await stat(file)).mode & 0o777, 0o600, 'settings.json is owner-only');
+  assert.equal(JSON.parse(await readFile(file, 'utf8')).geminiKey, key);
+  // Other settings changes keep the key and the mode.
+  await call('PUT', '/settings', { defaultAi: 'claude' });
+  assert.equal((await call('GET', '/settings')).body.geminiKey, '••••1234');
+  assert.equal((await stat(file)).mode & 0o777, 0o600);
+  assert.deepEqual((await call('DELETE', '/settings/gemini-key')).body, { geminiKey: null });
+  assert.equal((await call('GET', '/settings')).body.geminiKey, null);
+  assert.ok(!(await readFile(file, 'utf8')).includes('geminiKey'));
 });

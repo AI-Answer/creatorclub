@@ -11,7 +11,7 @@ import type { AiProvider, AiProviderStatus, AiStatus, ConnectProvider } from '..
  * gives the child an allow-listed environment, so ANTHROPIC_API_KEY and other keys or provider switches never reach it.
  */
 
-const BINARY: Record<ConnectProvider, string> = { claude: 'claude', codex: 'codex', gemini: 'gemini' };
+const BINARY: Record<ConnectProvider, string> = { claude: 'claude', codex: 'codex' };
 const LABEL: Record<AiProvider, string> = { claude: 'Claude', codex: 'Codex' };
 
 /** Apps opened from the Dock get a minimal PATH, so look in the usual install places too. */
@@ -33,8 +33,6 @@ export class AiError extends ClubError {
 export interface Lookup {
   /** Extra directories to search after PATH. Defaults to the common install locations. */
   extraDirs?: string[];
-  /** Where the Gemini CLI keeps its sign-in. Defaults to `~/.gemini`. Only the existence of one file is checked. */
-  geminiDir?: string;
 }
 
 /** Finds a command on PATH, then in the common install places. */
@@ -115,28 +113,10 @@ export function parseCodexAuth(code: number | null, output: string): Pick<AiProv
   return { signedIn, ...(signedIn && /chatgpt/i.test(output) ? { account: 'ChatGPT' } : {}) };
 }
 
-/**
- * The Gemini CLI has no status command. It counts as signed in when its Google sign-in file exists.
- * Only the file's existence is checked; its contents are never read.
- */
-export const geminiSignInFile = ({ geminiDir = path.join(os.homedir(), '.gemini') }: Lookup) => path.join(geminiDir, 'oauth_creds.json');
-
-async function geminiSignedIn(lookup: Lookup): Promise<boolean> {
-  try {
-    return (await fs.stat(geminiSignInFile(lookup))).isFile();
-  } catch {
-    return false;
-  }
-}
-
 export async function providerStatus(provider: ConnectProvider, lookup: Lookup = {}): Promise<AiProviderStatus> {
   const file = await findBinary(provider, lookup);
   if (!file) return { installed: false, version: null, signedIn: false };
   const env = childEnv(lookup);
-  if (provider === 'gemini') {
-    const [version, signedIn] = await Promise.all([runQuick(file, ['--version'], env), geminiSignedIn(lookup)]);
-    return { installed: true, version: parseVersion(version.stdout || version.stderr), signedIn };
-  }
   const [version, auth] = await Promise.all([
     runQuick(file, ['--version'], env),
     provider === 'claude' ? runQuick(file, ['auth', 'status'], env) : runQuick(file, ['login', 'status'], env),
@@ -146,8 +126,8 @@ export async function providerStatus(provider: ConnectProvider, lookup: Lookup =
 }
 
 export async function aiStatus(lookup: Lookup = {}): Promise<AiStatus> {
-  const [claude, codex, gemini] = await Promise.all([providerStatus('claude', lookup), providerStatus('codex', lookup), providerStatus('gemini', lookup)]);
-  return { claude, codex, gemini };
+  const [claude, codex] = await Promise.all([providerStatus('claude', lookup), providerStatus('codex', lookup)]);
+  return { claude, codex };
 }
 
 // ---------------------------------------------------------------- running a prompt
@@ -374,67 +354,80 @@ export async function runAI(options: RunAIOptions): Promise<RunAIResult> {
   }
 }
 
-// ---------------------------------------------------------------- watching a video with Gemini
+// ---------------------------------------------------------------- watching a YouTube video with Gemini
 
-export interface WatchOptions extends Lookup {
+/** Google's documented endpoint for video understanding by link (the Interactions API). */
+export const GEMINI_ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/interactions';
+/** The model the Gemini docs use for YouTube links. Change it here when Google moves on. */
+export const GEMINI_MODEL = 'gemini-3.8-flash';
+
+export interface WatchOptions {
+  /** The person's own Gemini API key. Sent to Google and nowhere else; never logged. */
+  apiKey: string;
+  /** A public YouTube link. Google reads the video itself, so nothing is downloaded. */
+  videoUrl: string;
   prompt: string;
   system?: string;
   jsonSchema: object;
-  /** The video file. The Gemini CLI reads it from its own folder, named in the prompt with `@`. */
-  videoPath: string;
   signal?: AbortSignal;
   timeoutMs?: number;
+  /** Tests pass a stand-in for the network. */
+  fetch?: typeof fetch;
 }
 
-/** True when the Gemini CLI is installed and its Google sign-in is there. */
-export async function geminiReady(lookup: Lookup = {}): Promise<boolean> {
-  const status = await providerStatus('gemini', lookup);
-  return status.installed && status.signedIn;
+/** The text of a finished interaction: the `model_output` steps' text parts. */
+function geminiText(body: unknown): string {
+  const data = (typeof body === 'object' && body !== null ? body : {}) as { steps?: unknown; outputs?: unknown };
+  const parts: string[] = [];
+  const read = (content: unknown) => {
+    for (const part of Array.isArray(content) ? content : []) if (part && typeof part === 'object' && typeof (part as { text?: unknown }).text === 'string') parts.push((part as { text: string }).text);
+  };
+  for (const step of Array.isArray(data.steps) ? data.steps : []) if (step && typeof step === 'object' && (step as { type?: unknown }).type === 'model_output') read((step as { content?: unknown }).content);
+  if (!parts.length) read(data.outputs);
+  return parts.join('');
 }
 
 /**
- * Asks the Gemini CLI to watch a whole video and answer in JSON. The CLI's video input could not be checked while building
- * (it was not installed), so every failure is an AiError and the caller falls back to Claude with frames.
+ * Asks Gemini to watch a public YouTube video from its link and answer in JSON. Every failure is an AiError with a
+ * sentence safe to show and no key in it, so the caller can fall back to Claude.
  */
-export async function runGeminiWatch(options: WatchOptions): Promise<RunAIResult> {
-  const file = await findBinary('gemini', options);
-  if (!file) throw new AiError('not-installed', 'Gemini is not installed on this Mac.');
+export async function watchWithGemini(options: WatchOptions): Promise<RunAIResult> {
   if (options.signal?.aborted) throw new AiError('cancelled', 'That was stopped.');
-  const prompt = [
-    options.system ?? DEFAULT_SYSTEM,
-    options.prompt,
-    `The full video is attached: @${path.basename(options.videoPath)}`,
-    `Answer with only JSON that matches this JSON Schema:\n${JSON.stringify(options.jsonSchema)}`,
-  ].join('\n\n');
-  const run = await new Promise<Finished & { interrupted?: 'timeout' | 'abort' | 'spawn' }>((resolve) => {
-    const child = spawn(file, ['-p', prompt], { cwd: path.dirname(path.resolve(options.videoPath)), env: childEnv(options), stdio: ['ignore', 'pipe', 'pipe'] });
-    let stdout = '';
-    let stderr = '';
-    let interrupted: 'timeout' | 'abort' | 'spawn' | undefined;
-    const stop = (reason: 'timeout' | 'abort') => {
-      interrupted = reason;
-      child.kill('SIGTERM');
-      setTimeout(() => child.kill('SIGKILL'), 3000).unref();
-    };
-    const timer = setTimeout(() => stop('timeout'), options.timeoutMs ?? 10 * 60_000);
-    const onAbort = () => stop('abort');
-    options.signal?.addEventListener('abort', onAbort, { once: true });
-    child.stdout.setEncoding('utf8');
-    child.stderr.setEncoding('utf8');
-    child.stdout.on('data', (chunk) => (stdout += chunk));
-    child.stderr.on('data', (chunk) => (stderr = (stderr + chunk).slice(-4000)));
-    child.on('error', () => (interrupted = 'spawn'));
-    child.on('close', (code) => {
-      clearTimeout(timer);
-      options.signal?.removeEventListener('abort', onAbort);
-      resolve({ code, stdout, stderr, interrupted });
+  const { title: _title, description: _description, ...schema } = options.jsonSchema as Record<string, unknown>;
+  const body = {
+    model: GEMINI_MODEL,
+    input: [
+      { type: 'text', text: [options.system ?? DEFAULT_SYSTEM, options.prompt].join('\n\n') },
+      { type: 'video', uri: options.videoUrl },
+    ],
+    response_format: { type: 'text', mime_type: 'application/json', schema },
+  };
+  const timeout = AbortSignal.timeout(options.timeoutMs ?? 5 * 60_000);
+  let response: Response;
+  try {
+    response = await (options.fetch ?? fetch)(GEMINI_ENDPOINT, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-goog-api-key': options.apiKey },
+      body: JSON.stringify(body),
+      signal: options.signal ? AbortSignal.any([options.signal, timeout]) : timeout,
     });
-  });
-  if (run.interrupted === 'abort') throw new AiError('cancelled', 'That was stopped.');
-  if (run.interrupted === 'timeout') throw new AiError('failed', 'Gemini took too long to answer.', run.stderr);
-  if (run.interrupted === 'spawn') throw new AiError('not-installed', 'Gemini could not be started.', run.stderr);
-  if (run.code !== 0) throw new AiError('failed', 'Gemini could not finish that.', run.stderr);
-  const json = parseJSONLoose(run.stdout);
-  if (json === undefined) throw new AiError('bad-answer', 'Gemini answered in a shape we could not read.', run.stdout);
-  return { text: run.stdout, json };
+  } catch {
+    if (options.signal?.aborted) throw new AiError('cancelled', 'That was stopped.');
+    throw new AiError('failed', timeout.aborted ? 'Gemini took too long to answer.' : "Couldn't reach Gemini.");
+  }
+  const raw = await response.text().catch(() => '');
+  let parsed: unknown;
+  try {
+    parsed = raw ? JSON.parse(raw) : undefined;
+  } catch {
+    parsed = undefined;
+  }
+  if (!response.ok) {
+    const sign = response.status === 400 || response.status === 401 || response.status === 403;
+    throw new AiError('failed', sign ? 'Gemini could not read that video with your key.' : 'Gemini could not finish that.', `HTTP ${response.status}`);
+  }
+  const text = geminiText(parsed);
+  const json = text ? parseJSONLoose(text) : undefined;
+  if (json === undefined) throw new AiError('bad-answer', 'Gemini answered in a shape we could not read.');
+  return { text, json };
 }

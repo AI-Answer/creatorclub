@@ -1,7 +1,7 @@
 import { test, after, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import express from 'express';
-import { mkdtemp, rm, writeFile, chmod, readFile, mkdir, utimes } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile, chmod, readFile, mkdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import type { AddressInfo } from 'node:net';
 import os from 'node:os';
@@ -13,8 +13,7 @@ process.env.CREATORCLUB_DIR = path.join(temp, 'data');
 const bin = path.join(temp, 'bin');
 const stash = path.join(temp, 'stash');
 const state = path.join(temp, 'state');
-const geminiDir = path.join(temp, 'gemini-home');
-await Promise.all([bin, stash, state, geminiDir].map((dir) => mkdir(dir, { recursive: true })));
+await Promise.all([bin, stash, state].map((dir) => mkdir(dir, { recursive: true })));
 
 const { connectProvider, startConnect } = await import('./connect.js');
 const { clubRouter } = await import('./index.js');
@@ -64,18 +63,6 @@ case "$1" in
 esac
 `;
 
-const geminiBody = `
-if [ "$1" = "--version" ]; then echo "0.9.0"; exit 0; fi
-echo "gemini $*" >> "$S/gemini-calls"
-echo $$ > "$S/gemini-pid"
-CREDS=${JSON.stringify(path.join(geminiDir, 'oauth_creds.json'))}
-case "$mode" in
-  stale) sleep 30;;
-  refresh) sleep 0.6; touch "$CREDS"; sleep 30;;
-  *) sleep 0.2; echo '{"not":"read"}' > "$CREDS"; sleep 30;;
-esac
-`;
-
 // The official installer is piped into bash, so the fake curl prints a script. It "installs" by copying the stashed tool into bin.
 const curlBody = `
 echo "$*" > "$S/curl-args"
@@ -95,7 +82,6 @@ const put = async (dir: string, name: string, body: string) => {
 await Promise.all([
   put(stash, 'claude', claudeBody('claude')),
   put(stash, 'codex', claudeBody('codex')),
-  put(stash, 'gemini', geminiBody),
   put(bin, 'curl', curlBody),
 ]);
 // npm installs whichever tool its argument names.
@@ -103,13 +89,12 @@ await put(bin, 'npm', `
 echo "$*" >> "$S/npm-calls"
 if [ "$mode" = "npm-fail" ]; then echo "npm ERR! EACCES permission denied" >&2; exit 1; fi
 echo "added 1 package"
-tool="$3"; tool="\${tool##*/}"; tool="\${tool/gemini-cli/gemini}"
-cp "${stash}/$tool" "${bin}/$tool"; chmod +x "${bin}/$tool"
+tool="$3"; tool="\${tool##*/}"; cp "${stash}/$tool" "${bin}/$tool"; chmod +x "${bin}/$tool"
 `);
 
 const setMode = (mode: string) => writeFile(path.join(state, 'mode'), mode);
 const calls = async (file: string) => (existsSync(path.join(state, file)) ? (await readFile(path.join(state, file), 'utf8')).trim().split('\n') : []);
-const install = async (name: 'claude' | 'codex' | 'gemini') => {
+const install = async (name: 'claude' | 'codex') => {
   await writeFile(path.join(bin, name), await readFile(path.join(stash, name)));
   await chmod(path.join(bin, name), 0o755);
 };
@@ -127,16 +112,15 @@ const isGone = (pid: number) => {
 const signedIn = (name: 'claude' | 'codex') => writeFile(path.join(state, `${name}-signed-in`), '');
 
 beforeEach(async () => {
-  for (const name of ['claude', 'codex', 'gemini']) await rm(path.join(bin, name), { force: true });
+  for (const name of ['claude', 'codex']) await rm(path.join(bin, name), { force: true });
   await rm(state, { recursive: true, force: true });
   await mkdir(state);
-  await rm(path.join(geminiDir, 'oauth_creds.json'), { force: true });
   await rm(path.join(temp, 'data'), { recursive: true, force: true });
   process.env.PATH = `${bin}${path.delimiter}/usr/bin${path.delimiter}/bin`;
   delete process.env.ANTHROPIC_API_KEY;
 });
 
-const options = { extraDirs: [] as string[], geminiDir, pollMs: 40 };
+const options = { extraDirs: [] as string[], pollMs: 40 };
 const harness = () => {
   const events: ConnectProgress[] = [];
   const abort = new AbortController();
@@ -261,57 +245,6 @@ test('reconnect signs in again and only finishes when the login process has ende
   assert.deepEqual(await calls('claude-calls'), ['login auth login']);
 });
 
-test('Google: installs the Gemini CLI with npm, runs gemini once, and is connected when its sign-in file appears', async () => {
-  const { context, events } = harness();
-  const result = await connectProvider('gemini', context, options);
-  assert.deepEqual(result, { provider: 'gemini' });
-  assert.deepEqual(await calls('npm-calls'), ['install -g @google/gemini-cli']);
-  assert.deepEqual(await calls('gemini-calls'), ['gemini']);
-  assert.deepEqual(phases(events).filter((p) => !p.startsWith('line:')), ['installing', 'signing-in', 'connected']);
-  assert.equal(await store.defaultAi(), undefined, 'Google never becomes the AI that runs prompts');
-  const pid = Number(await readFile(path.join(state, 'gemini-pid'), 'utf8'));
-  await until(() => isGone(pid));
-  assert.ok(isGone(pid), 'gemini is stopped once connected');
-});
-
-const OLD = new Date('2020-01-01T00:00:00Z');
-const existingGoogleSignIn = async () => {
-  await install('gemini');
-  const creds = path.join(geminiDir, 'oauth_creds.json');
-  await writeFile(creds, 'not even json');
-  await utimes(creds, OLD, OLD);
-};
-
-test('Google reconnect with an existing sign-in file keeps waiting until the file is rewritten', async () => {
-  await existingGoogleSignIn();
-  await setMode('refresh');
-  const started = Date.now();
-  const result = await connectProvider('gemini', harness().context, { ...options, reconnect: true });
-  assert.deepEqual(result, { provider: 'gemini' });
-  assert.ok(Date.now() - started >= 550, 'the stale file did not count as connected');
-  assert.deepEqual(await calls('gemini-calls'), ['gemini']);
-  const pid = Number(await readFile(path.join(state, 'gemini-pid'), 'utf8'));
-  await until(() => isGone(pid));
-  assert.ok(isGone(pid));
-});
-
-test('Google reconnect where the person never signs in does not report connected, and gemini is stopped', async () => {
-  await existingGoogleSignIn();
-  await setMode('stale');
-  await rejects(connectProvider('gemini', harness().context, { ...options, reconnect: true, loginTimeoutMs: 400 }), 'Signing in to Google took too long.');
-  const pid = Number(await readFile(path.join(state, 'gemini-pid'), 'utf8'));
-  await until(() => isGone(pid));
-  assert.ok(isGone(pid));
-});
-
-test('status: Google is signed in when oauth_creds.json exists, and the file is never read', async () => {
-  assert.deepEqual((await aiStatus(options)).gemini, { installed: false, version: null, signedIn: false });
-  await install('gemini');
-  assert.deepEqual((await aiStatus(options)).gemini, { installed: true, version: '0.9.0', signedIn: false });
-  await writeFile(path.join(geminiDir, 'oauth_creds.json'), 'not even json');
-  assert.deepEqual((await aiStatus(options)).gemini, { installed: true, version: '0.9.0', signedIn: true });
-});
-
 test('a second request while a sign-in is running joins it instead of opening another', async () => {
   await install('claude');
   await setMode('hang');
@@ -353,7 +286,7 @@ test('POST /ai/connect validates the provider, starts a job, and its event strea
   assert.match(stream, /event: done\ndata: \{"provider":"claude","account":"dani@example.com"\}/);
   const status = await call('GET', '/ai/status');
   assert.equal(status.body.claude.signedIn, true);
-  assert.deepEqual(Object.keys(status.body).sort(), ['claude', 'codex', 'gemini']);
+  assert.deepEqual(Object.keys(status.body).sort(), ['claude', 'codex']);
 });
 
 test('a failed connect reaches the stream as one safe sentence', async () => {
@@ -366,10 +299,11 @@ test('a failed connect reaches the stream as one safe sentence', async () => {
 });
 
 test('settings: default AI is saved, validated and starts empty', async () => {
-  assert.deepEqual((await call('GET', '/settings')).body, { defaultAi: null, welcomed: false });
+  assert.deepEqual((await call('GET', '/settings')).body, { defaultAi: null, welcomed: false, geminiKey: null });
   assert.deepEqual((await call('PUT', '/settings', { defaultAi: 'codex' })).body, { defaultAi: 'codex' });
   assert.equal((await call('PUT', '/settings', { defaultAi: 'gemini' })).status, 400);
-  assert.deepEqual((await call('GET', '/settings')).body, { defaultAi: 'codex', welcomed: false });
+  assert.equal((await call('POST', '/ai/connect', { provider: 'gemini' })).status, 400, 'Google has no sign-in');
+  assert.deepEqual((await call('GET', '/settings')).body, { defaultAi: 'codex', welcomed: false, geminiKey: null });
 });
 
 test('cancel over HTTP stops the login process, and the next Connect starts a new job with a new login', async () => {

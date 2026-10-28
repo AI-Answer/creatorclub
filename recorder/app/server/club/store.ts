@@ -52,11 +52,11 @@ export async function readJSON<T>(file: string): Promise<T | undefined> {
 }
 
 /** Writes to a temp file next to the target, then renames, so readers never see a partial file. */
-export async function writeFileAtomic(file: string, data: string | Buffer) {
+export async function writeFileAtomic(file: string, data: string | Buffer, mode?: number) {
   await fs.mkdir(path.dirname(file), { recursive: true });
   const temp = path.join(path.dirname(file), `.${path.basename(file)}.${randomBytes(4).toString('hex')}.tmp`);
   try {
-    await fs.writeFile(temp, data);
+    await fs.writeFile(temp, data, mode === undefined ? undefined : { mode });
     await fs.rename(temp, file);
   } catch (error) {
     await fs.rm(temp, { force: true });
@@ -75,12 +75,16 @@ interface Settings {
   welcomed?: boolean;
   /** Video ids per channel, most recently opened first. */
   recent?: Record<string, string[]>;
+  /** The person's own Gemini API key. Only ever sent to Google; the screen gets it masked. */
+  geminiKey?: string;
 }
 const settingsFile = () => path.join(rootDir(), 'settings.json');
 
 /** Read-modify-write on settings.json, one at a time, so two changes never undo each other. */
 const updateSettings = (change: (settings: Settings) => Settings) =>
-  withLock(`settings:${settingsFile()}`, async () => writeJSON(settingsFile(), change((await readJSON<Settings>(settingsFile())) ?? {})));
+  withLock(`settings:${settingsFile()}`, async () =>
+    // Owner-only: the file can hold the Gemini API key.
+    writeFileAtomic(settingsFile(), JSON.stringify(change((await readJSON<Settings>(settingsFile())) ?? {}), null, 2) + '\n', 0o600));
 
 /** The current workspace slug, or undefined when none is chosen or its folder is gone. */
 export async function currentWorkspace(): Promise<string | undefined> {
@@ -107,6 +111,28 @@ export async function setDefaultAi(provider: AiProvider) {
 /** Sets the default AI only when none is set yet. */
 export async function setDefaultAiIfUnset(provider: AiProvider): Promise<void> {
   await updateSettings((settings) => (settings.defaultAi === 'claude' || settings.defaultAi === 'codex' ? settings : { ...settings, defaultAi: provider }));
+}
+
+/** The saved Gemini API key, for the one place that calls Google with it. Never send this to the screen. */
+export async function geminiKey(): Promise<string | undefined> {
+  const value = (await readJSON<Settings>(settingsFile()))?.geminiKey;
+  return typeof value === 'string' && value ? value : undefined;
+}
+
+/** "••••1234": the last four characters, so the person can tell which key is saved. */
+export const maskKey = (key: string) => `••••${key.slice(-4)}`;
+
+export async function maskedGeminiKey(): Promise<string | null> {
+  const key = await geminiKey();
+  return key ? maskKey(key) : null;
+}
+
+export async function setGeminiKey(key: string) {
+  await updateSettings((settings) => ({ ...settings, geminiKey: key }));
+}
+
+export async function removeGeminiKey() {
+  await updateSettings(({ geminiKey: _removed, ...settings }) => settings);
 }
 
 export async function welcomed(): Promise<boolean> {
@@ -227,7 +253,7 @@ export async function listVideos(slug: string): Promise<Video[]> {
   return videos.filter((v): v is Video => !!v).sort(byStageThenOrder);
 }
 
-export type NewVideo = Pick<Video, 'title'> & Partial<Pick<Video, 'stage' | 'source' | 'concept' | 'idea' | 'hidden' | 'publishDate' | 'planning'>>;
+export type NewVideo = Pick<Video, 'title'> & Partial<Pick<Video, 'stage' | 'source' | 'idea' | 'hidden' | 'publishDate' | 'planning'>>;
 
 const nextOrder = (videos: Video[], stage: VideoStage) => Math.max(-1, ...videos.filter((v) => v.stage === stage).map((v) => v.order)) + 1;
 

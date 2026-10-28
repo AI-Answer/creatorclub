@@ -320,6 +320,8 @@ export interface BreakdownSource {
   existingTitles: string[];
   /** How many still frames are attached to the call. */
   frames?: number;
+  /** One image is attached: the video's thumbnail (for a dropped file, a still from the video). */
+  thumbnail?: boolean;
 }
 
 const count = (value: number) => value.toLocaleString('en-US');
@@ -333,7 +335,7 @@ export async function buildBreakdownPrompt(ctx: ChannelContext, source: Breakdow
     .filter((comment) => comment.text)
     .sort((a, b) => b.likes - a.likes)
     .slice(0, COMMENTS_KEPT);
-  if (!transcript && !comments.length && !source.frames) throw new ClubError('There was no transcript and no comments to work from for this video.', 422);
+  if (!transcript && !comments.length && !source.frames && !source.thumbnail) throw new ClubError('There was no transcript and no comments to work from for this video.', 422);
 
   const facts = [`Title: ${source.title}`, `Channel: ${source.channel}`];
   if (source.views) facts.push(`Views: ${count(source.views)}${source.ageDays !== undefined ? ` in ${source.ageDays} days` : ''}`);
@@ -342,6 +344,9 @@ export async function buildBreakdownPrompt(ctx: ChannelContext, source: Breakdow
   if (source.commentCount) facts.push(`Comments: ${count(source.commentCount)}`);
   if (source.usualViews) facts.push(`${first}'s usual views per video: ${count(source.usualViews)}`);
 
+  const image = source.thumbnail
+    ? `\n<frames>\nOne image is attached: the video's thumbnail (for a video file, a still from it). Use it for what the thumbnail promises, its on-screen text and visuals. Describe only what you can see in it.\n</frames>\n`
+    : '';
   const frames = source.frames
     ? `\n<frames>\n${source.frames} still frames sampled across the video are attached, in order. Use them for how the thumbnail and the opening look, on-screen text and visuals. Describe only what you can see in them.\n</frames>\n`
     : '';
@@ -356,7 +361,7 @@ export async function buildBreakdownPrompt(ctx: ChannelContext, source: Breakdow
       transcript_note: transcript ? '' : ' (not available)',
       transcript,
       comments: comments.map((comment) => `- (${comment.likes}) ${comment.text}`).join('\n') || '(none)',
-      frames,
+      frames: frames || image,
       existing: bullets(source.existingTitles),
     }),
     system: SYSTEM_JSON,

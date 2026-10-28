@@ -9,7 +9,7 @@ const {SettingsScreen}=await import('./screens/SettingsScreen');
 
 const ws=(slug:string,name:string)=>({slug,name,handle:`@${slug}`,channelUrl:`https://www.youtube.com/@${slug}`,topics:['ai'],about:'',cta:'',createdAt:'2026-01-01T00:00:00.000Z'});
 const two={current:'samin',workspaces:[ws('samin','Samin Yasar'),ws('ana','Ana')]};
-const claudeIn={claude:{installed:true,version:'2.1.0',signedIn:true,account:'dani@example.com'},codex:{installed:false,version:null,signedIn:false},gemini:{installed:false,version:null,signedIn:false}};
+const claudeIn={claude:{installed:true,version:'2.1.0',signedIn:true,account:'dani@example.com'},codex:{installed:false,version:null,signedIn:false}};
 
 const flush=()=>act(async()=>{await new Promise(resolve=>setTimeout(resolve,0));});
 const press=async(element:Element)=>{await act(async()=>(element as HTMLElement).click());await flush();};

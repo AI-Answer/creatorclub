@@ -38,7 +38,7 @@ function serve(server:Server){
   if(path==='/api/projects')return {body:projects};
   if(path==='/settings'&&method==='GET')return {body:{defaultAi:'claude',welcomed:server.welcomed}};
   if(path==='/settings/welcomed')return {body:{welcomed:true}};
-  if(path==='/ai/status')return {body:{claude:{installed:true,version:'2',signedIn:true},codex:{installed:false,version:null,signedIn:false},gemini:{installed:false,version:null,signedIn:false}}};
+  if(path==='/ai/status')return {body:{claude:{installed:true,version:'2',signedIn:true},codex:{installed:false,version:null,signedIn:false}}};
   if(path==='/videos'&&method==='POST'){const created=mk('new',{title:(call.body as {title:string}).title,order:9});return {status:201,body:created};}
   const move=path.match(/^\/videos\/(\w+)\/move$/);
   if(move){if(server.failMove)return {status:500,body:{error:"Couldn't save that."}};const body=call.body as {stage:Video['stage'];beforeId:string|null},column=arrangeColumn(server.videos,move[1],body.stage,body.beforeId);

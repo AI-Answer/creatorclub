@@ -10,7 +10,7 @@ export type ConnectState=
  |{phase:'connected';account?:string}
  |{phase:'failed';message:string};
 
-export const connectLabel:Record<ConnectProvider,string>={claude:'Claude',codex:'ChatGPT',gemini:'Google'};
+export const connectLabel:Record<ConnectProvider,string>={claude:'Claude',codex:'ChatGPT'};
 const KEEP_LINES=3;
 
 /**

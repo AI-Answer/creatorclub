@@ -3,22 +3,25 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { z } from 'zod';
 import type { AiProvider, Breakdown, BreakdownResult, Video } from '../../shared/club.js';
-import { AiError, geminiReady, runAI, runGeminiWatch } from './ai.js';
+import { AiError, runAI, watchWithGemini } from './ai.js';
 import { json3ToText, pickCaptionLanguage, ytdlpTwice, type ChannelData } from './channel.js';
 import { loadChannelContext } from './context.js';
 import { ClubError, notFound } from './errors.js';
 import type { JobContext } from './jobs.js';
 import { buildBreakdownPrompt, type BreakdownSource } from './prompts.js';
 import {
-  FRAME_COUNT,
+  FILE_TOO_BIG,
+  FILE_TOO_LONG,
   INSTAGRAM_BLOCKED,
+  INSTAGRAM_NO_TEXT,
+  MAX_FILE_BYTES,
+  MAX_FILE_MINUTES,
   detectSource,
   infoArgs,
   outlierMultiplier,
   parseInfo,
   subtitleArgs,
   usualViews,
-  videoArgs,
   type SourceInfo,
   type SourceRef,
 } from './source.js';
@@ -33,12 +36,12 @@ import { channelUsualViews } from './uploads.js';
 
 export const BREAKDOWN_BUDGET_USD = 1;
 const BAD_ID = /^bd_[a-f0-9]{12}$/;
-const VIDEO_FILE = /^media\.(mp4|mkv|webm|mov|m4v)$/;
-const YOUTUBE_PROBLEM = "Couldn't read that video from YouTube. Check the link and try again.";
+const THUMBNAIL_FILE = /^media\.(jpg|jpeg|png|webp)$/;
+const YOUTUBE_PROBLEM = "Couldn't read that video from YouTube.";
 const STOPPED = 'That was stopped.';
 
-/** Turns a video file into text. Returns '' when it cannot (no speech model set up, no audio). Tests pass a fake. */
-export type Transcriber = (videoPath: string, workDir: string, signal?: AbortSignal) => Promise<string>;
+/** Turns an audio file (taken from a dropped video) into text. Returns '' when it cannot (no speech model set up, no audio). Tests pass a fake. */
+export type Transcriber = (audioPath: string, workDir: string, signal?: AbortSignal) => Promise<string>;
 
 export interface BreakdownOptions extends ToolOptions {
   transcribe?: Transcriber;
@@ -53,7 +56,13 @@ export function breakdownDir(slug: string, id: string): string {
   return path.join(store.breakdownsDir(slug), id);
 }
 export const breakdownFile = (slug: string, id: string) => path.join(breakdownDir(slug, id), 'breakdown.json');
-export const framesDir = (slug: string, id: string) => path.join(breakdownDir(slug, id), 'frames');
+/** The one image kept with a breakdown: the video's thumbnail, or a still from a dropped file. */
+export const thumbnailDir = (slug: string, id: string) => path.join(breakdownDir(slug, id), 'thumbnail');
+export async function thumbnailFile(slug: string, id: string): Promise<string | undefined> {
+  const dir = thumbnailDir(slug, id);
+  const name = (await fs.readdir(dir).catch(() => [] as string[])).find((entry) => /^thumbnail\.(jpg|jpeg|png|webp)$/.test(entry));
+  return name ? path.join(dir, name) : undefined;
+}
 
 export async function readBreakdown(slug: string, id: string): Promise<Breakdown> {
   const found = await store.readJSON<Breakdown>(breakdownFile(slug, id));
@@ -90,8 +99,7 @@ export function parseBreakdownResult(json: unknown, who = 'The AI'): BreakdownRe
 
 // ---------------------------------------------------------------- reading the video
 
-const SCALE = 'scale=w=if(gt(iw\\,ih)\\,640\\,-2):h=if(gt(iw\\,ih)\\,-2\\,640)';
-
+/** Only a dropped file is ever processed here, and it is already on this Mac. Nothing is downloaded. */
 async function videoDuration(ffmpeg: string, video: string, context: ToolOptions & { signal?: AbortSignal }): Promise<number | undefined> {
   const result = await runTool(ffmpeg, ['-hide_banner', '-nostdin', '-i', video], { env: toolEnv(context), signal: context.signal });
   const match = /Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)/.exec(result.stderr);
@@ -100,30 +108,37 @@ async function videoDuration(ffmpeg: string, video: string, context: ToolOptions
   return seconds > 0 ? seconds : undefined;
 }
 
-/** 20 frames, evenly spread, each taken from the middle of its slice of the video. Returns their paths in order. */
-export async function sampleFrames(ffmpeg: string, video: string, duration: number | undefined, dir: string, context: ToolOptions & { signal?: AbortSignal }): Promise<string[]> {
-  await fs.mkdir(dir, { recursive: true });
-  const interval = duration ? duration / FRAME_COUNT : 5;
-  const args = ['-hide_banner', '-loglevel', 'error', '-nostdin', '-y'];
-  if (duration) args.push('-ss', interval / 2 < 0.05 ? '0' : (interval / 2).toFixed(3));
-  args.push('-i', video, '-vf', `fps=${(1 / interval).toFixed(6)},${SCALE}`, '-frames:v', String(FRAME_COUNT), '-q:v', '4', path.join(dir, 'frame-%02d.jpg'));
-  await runTool(ffmpeg, args, { env: toolEnv(context), signal: context.signal, timeoutMs: 300_000 });
-  return (await fs.readdir(dir)).filter((name) => /^frame-\d{2}\.jpg$/.test(name)).sort().map((name) => path.join(dir, name));
+type MediaContext = ToolOptions & { signal?: AbortSignal };
+const quiet = ['-hide_banner', '-loglevel', 'error', '-nostdin', '-y'];
+
+/** The sound of a video file as 16 kHz mono WAV, the form the speech model reads. Undefined when there is no sound. */
+export async function extractAudio(ffmpeg: string, video: string, out: string, context: MediaContext): Promise<string | undefined> {
+  const result = await runTool(ffmpeg, [...quiet, '-i', video, '-vn', '-ac', '1', '-ar', '16000', '-c:a', 'pcm_s16le', out], { env: toolEnv(context), signal: context.signal, timeoutMs: 600_000 });
+  return result.code === 0 && (await fs.stat(out).then((s) => s.size > 0, () => false)) ? out : undefined;
 }
 
-const defaultTranscribe: Transcriber = async (videoPath, workDir, signal) => {
+/** One still from the middle of the video, 640 on the long side. Undefined when it cannot be made. */
+export async function posterFrame(ffmpeg: string, video: string, duration: number | undefined, out: string, context: MediaContext): Promise<string | undefined> {
+  const scale = 'scale=w=if(gt(iw\\,ih)\\,640\\,-2):h=if(gt(iw\\,ih)\\,-2\\,640)';
+  const at = duration ? (duration / 2).toFixed(3) : '0';
+  const result = await runTool(ffmpeg, [...quiet, '-ss', at, '-i', video, '-frames:v', '1', '-vf', scale, '-q:v', '3', out], { env: toolEnv(context), signal: context.signal, timeoutMs: 120_000 });
+  return result.code === 0 && (await fs.stat(out).then((s) => s.size > 0, () => false)) ? out : undefined;
+}
+
+const defaultTranscribe: Transcriber = async (audioPath, workDir, signal) => {
   // SceneForge's own local transcription. Always the local speech model, so the audio never leaves this Mac.
   const [{ transcribe }, { readAISettings }] = await Promise.all([import('../ai.js'), import('../storage.js')]);
   const saved = await readAISettings();
   const settings = { ...saved, provider: 'local' as const, model: saved.provider === 'local' ? saved.model : '' };
-  const media = { id: 'breakdown', name: path.basename(videoPath), path: videoPath, kind: 'video' as const, duration: 0, width: 0, height: 0 };
+  const media = { id: 'breakdown', name: path.basename(audioPath), path: audioPath, kind: 'audio' as const, duration: 0, width: 0, height: 0 };
   const { captions } = await transcribe(media, settings, workDir, { signal });
   return captions.map((caption) => caption.text).join(' ').replace(/\s+/g, ' ').trim();
 };
 
 interface Fetched {
   info: SourceInfo;
-  videoPath?: string;
+  /** The thumbnail as yt-dlp (or ffmpeg) left it in the work folder. */
+  thumbnail?: string;
   transcript: string;
   /** Resolves to the channel's usual views once they are read. Never rejects. */
   usual?: Promise<number | undefined>;
@@ -135,26 +150,30 @@ interface Run {
   context: JobContext;
   say: (message: string) => void;
   check: () => void;
+  /** Aborted when the job ends, so the channel lookup never outlives it. */
+  background: AbortSignal;
 }
 
 const readJson = (file: string) => fs.readFile(file, 'utf8').then((raw) => JSON.parse(raw) as unknown, () => undefined);
+const listing = (dir: string) => fs.readdir(dir).catch(() => [] as string[]);
 
+/** A link: yt-dlp reads the details, captions, comments and thumbnail. No video or audio is fetched. */
 async function fetchRemote(ref: SourceRef, run: Run): Promise<Fetched> {
   const { work, options, context, say, check } = run;
   const ytdlp = await prepareYtDlp(say, options);
   const ytContext = { ...options, ytdlp, signal: context.signal, say };
   const out = path.join(work, 'media.%(ext)s');
-  const hasVideo = (names: string[]) => names.some((name) => VIDEO_FILE.test(name));
-  say('Getting the video…');
+  say('Reading the video details…');
 
   if (ref.platform === 'instagram') {
-    // Instagram keeps no comments or captions that yt-dlp can reach; the video and its numbers come in one call.
-    const names = await ytdlpTwice(videoArgs(ref, out), work, ytContext, hasVideo, [undefined]);
+    // Instagram offers a caption, numbers and a thumbnail. One try: a second client changes nothing there.
+    await ytdlpTwice(infoArgs(ref, out), work, ytContext, (found) => found.includes('media.info.json'), [undefined]);
     check();
-    const video = names.find((name) => VIDEO_FILE.test(name));
-    if (!video) throw new ClubError(INSTAGRAM_BLOCKED, 502);
-    const info = parseInfo(await readJson(path.join(work, 'media.info.json')), ref);
-    return { info: { ...info, title: info.title || 'Instagram video' }, videoPath: path.join(work, video), transcript: '' };
+    const raw = await readJson(path.join(work, 'media.info.json'));
+    if (!raw) throw new ClubError(INSTAGRAM_BLOCKED, 502);
+    const info = parseInfo(raw, ref);
+    if (!info.description) throw new ClubError(INSTAGRAM_NO_TEXT, 422);
+    return { info: { ...info, title: info.title || 'Instagram video' }, thumbnail: (await listing(work)).find((name) => THUMBNAIL_FILE.test(name)), transcript: info.description };
   }
 
   await ytdlpTwice(infoArgs(ref, out), work, ytContext, (found) => found.includes('media.info.json'));
@@ -162,11 +181,10 @@ async function fetchRemote(ref: SourceRef, run: Run): Promise<Fetched> {
   const raw = await readJson(path.join(work, 'media.info.json'));
   if (!raw) throw new ClubError(YOUTUBE_PROBLEM, 502);
   const info = parseInfo(raw, ref);
-  await fs.rm(path.join(work, 'media.info.json'), { force: true });
   if (!info.title) throw new ClubError(YOUTUBE_PROBLEM, 502);
 
-  // The channel's last 30 uploads are read while the rest downloads.
-  const usual = info.channelUrl ? channelUsualViews(info.channelUrl, ref.short === true, { ...options, ytdlp, signal: context.signal }) : undefined;
+  // The channel's last 30 uploads are read while the captions come in.
+  const usual = info.channelUrl?.startsWith('https://www.youtube.com/') ? channelUsualViews(info.channelUrl, ref.short === true, { ...options, ytdlp, signal: run.background }) : undefined;
 
   let transcript = '';
   const language = pickCaptionLanguage(raw as Parameters<typeof pickCaptionLanguage>[0]);
@@ -176,17 +194,36 @@ async function fetchRemote(ref: SourceRef, run: Run): Promise<Fetched> {
     check();
     if (found.includes(caption)) transcript = json3ToText(await fs.readFile(path.join(work, caption), 'utf8'));
   }
-
-  // A video that will not download still has its captions and comments to work from.
-  const downloaded = await ytdlpTwice(videoArgs(ref, out), work, ytContext, hasVideo);
-  check();
-  const video = downloaded.find((name) => VIDEO_FILE.test(name));
-  return { info, videoPath: video ? path.join(work, video) : undefined, transcript, usual };
+  return { info, thumbnail: (await listing(work)).find((name) => THUMBNAIL_FILE.test(name)), transcript, usual };
 }
 
-function fileInfo(name: string): SourceInfo {
-  const title = path.basename(name, path.extname(name)).replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim() || 'Video';
-  return { title, channel: '', views: 0, likes: 0, commentCount: 0, ageDays: 0, thumbnail: '', comments: [] };
+/** A dropped file: its sound is transcribed and one still becomes the thumbnail. The file itself is removed afterwards. */
+async function readDroppedFile(file: { path: string; name: string }, run: Run): Promise<Fetched> {
+  const { work, options, context, say, check } = run;
+  const ffmpeg = await findFfmpeg(options);
+  if (!ffmpeg) throw new ClubError("Couldn't find FFmpeg on this Mac, which is needed to read a video file.", 502);
+  if ((await fs.stat(file.path)).size > MAX_FILE_BYTES) throw new ClubError(FILE_TOO_BIG, 413);
+  const media = { ...options, signal: context.signal };
+  const duration = await videoDuration(ffmpeg, file.path, media);
+  check();
+  if (duration && duration > MAX_FILE_MINUTES * 60) throw new ClubError(FILE_TOO_LONG, 413);
+  const title = path.basename(file.name, path.extname(file.name)).replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim() || 'Video';
+  const info: SourceInfo = { title, channel: '', views: 0, likes: 0, commentCount: 0, ageDays: 0, thumbnail: '', description: '', comments: [], ...(duration ? { duration } : {}) };
+
+  say('Transcribing the audio…');
+  const audio = await extractAudio(ffmpeg, file.path, path.join(work, 'audio.wav'), media);
+  check();
+  let transcript = '';
+  if (audio) {
+    transcript = await (options.transcribe ?? defaultTranscribe)(audio, work, context.signal).catch((error) => {
+      if (context.signal.aborted) throw error;
+      console.error('[club] transcription failed:', error instanceof Error ? error.message : error);
+      return '';
+    });
+    check();
+  }
+  const poster = await posterFrame(ffmpeg, file.path, duration, path.join(work, 'media.jpg'), media);
+  return { info, thumbnail: poster ? path.basename(poster) : undefined, transcript };
 }
 
 // ---------------------------------------------------------------- the job
@@ -197,6 +234,11 @@ async function ownUsualViews(slug: string): Promise<number | undefined> {
   return usualViews((channel?.uploads ?? []).map((upload) => upload.views));
 }
 
+/**
+ * Reads the video and asks the AI about it. A YouTube link with a saved Gemini key is watched by Gemini from the link;
+ * everything else (and any Gemini failure) goes to Claude with the transcript, comments, numbers and thumbnail.
+ * A run that does not finish removes its own folder. A finished one keeps only breakdown.json, the thumbnail and the transcript.
+ */
 export async function runBreakdown(input: BreakdownInput, context: JobContext, options: BreakdownOptions = {}): Promise<Breakdown> {
   const { slug, id } = input;
   const dir = breakdownDir(slug, id);
@@ -205,31 +247,25 @@ export async function runBreakdown(input: BreakdownInput, context: JobContext, o
   const check = () => {
     if (context.signal.aborted) throw new ClubError(STOPPED);
   };
-  await fs.mkdir(work, { recursive: true });
+  const background = new AbortController();
+  context.signal.addEventListener('abort', () => background.abort(), { once: true });
+  let finished = false;
   try {
+    await fs.mkdir(work, { recursive: true });
+    check();
     const ref = 'url' in input ? detectSource(input.url) : undefined;
-    const run: Run = { work, options, context, say, check };
-    const fetched: Fetched = 'file' in input ? { info: fileInfo(input.file.name), videoPath: input.file.path, transcript: '' } : await fetchRemote(ref!, run);
+    const run: Run = { work, options, context, say, check, background: background.signal };
+    const fetched: Fetched = 'file' in input ? await readDroppedFile(input.file, run) : await fetchRemote(ref!, run);
     check();
     const { info } = fetched;
     const platform = ref?.platform ?? 'file';
 
-    // Keep the video next to the breakdown; the rest of the downloaded files stay in .work.
-    let videoPath = fetched.videoPath;
-    if (ref && videoPath) {
-      const kept = path.join(dir, `video${path.extname(videoPath)}`);
-      await fs.rename(videoPath, kept);
-      videoPath = kept;
-    }
-
-    const ffmpeg = await findFfmpeg(options);
-    if (!ffmpeg && !ref) throw new ClubError("Couldn't find FFmpeg on this Mac, which is needed to read a video file.", 502);
-    let frames: string[] = [];
-    if (ffmpeg && videoPath) {
-      const duration = (await videoDuration(ffmpeg, videoPath, { ...options, signal: context.signal })) ?? info.duration;
-      frames = await sampleFrames(ffmpeg, videoPath, duration, path.join(dir, 'frames'), { ...options, signal: context.signal });
-      check();
-      if (frames.length) say(`Looking at ${frames.length} frames…`);
+    // The one image kept: the thumbnail, in a folder of its own so the AI can read it and nothing else.
+    let thumbnail: string | undefined;
+    if (fetched.thumbnail) {
+      thumbnail = path.join(dir, 'thumbnail', `thumbnail${path.extname(fetched.thumbnail).toLowerCase()}`);
+      await fs.mkdir(path.dirname(thumbnail), { recursive: true });
+      await fs.rename(path.join(work, fetched.thumbnail), thumbnail);
     }
 
     let usual: number | undefined;
@@ -240,28 +276,15 @@ export async function runBreakdown(input: BreakdownInput, context: JobContext, o
     }
     const multiplier = outlierMultiplier(info.views, usual);
 
-    let transcript = fetched.transcript.trim();
-    if (!transcript && videoPath) {
-      say('Transcribing the audio…');
-      transcript = await (options.transcribe ?? defaultTranscribe)(videoPath, work, context.signal).catch((error) => {
-        if (context.signal.aborted) throw error;
-        console.error('[club] transcription failed:', error instanceof Error ? error.message : error);
-        return '';
-      });
-      check();
-    }
+    const transcript = fetched.transcript.trim();
     if (transcript) {
-      say('Reading the transcript…');
+      say(platform === 'instagram' ? 'Reading the caption…' : 'Reading the transcript…');
       await store.writeFileAtomic(path.join(dir, 'transcript.txt'), transcript + '\n');
     }
-    if (info.comments.length) {
-      say(`Reading ${info.comments.length} ${info.comments.length === 1 ? 'comment' : 'comments'}…`);
-      await store.writeJSON(path.join(dir, 'comments.json'), info.comments);
-    }
+    if (info.comments.length) say(`Reading ${info.comments.length} ${info.comments.length === 1 ? 'comment' : 'comments'}…`);
 
     say('Finding what made it work…');
     const channelContext = await loadChannelContext(slug);
-    const existingTitles = (await store.listVideos(slug)).map((video) => video.title);
     const source: BreakdownSource = {
       title: info.title,
       channel: info.channel || 'not given',
@@ -273,25 +296,26 @@ export async function runBreakdown(input: BreakdownInput, context: JobContext, o
       usualViews: await ownUsualViews(slug),
       transcript,
       comments: info.comments,
-      existingTitles,
+      existingTitles: (await store.listVideos(slug)).map((video) => video.title),
     };
 
     let result: BreakdownResult | undefined;
     let watchedWith: Breakdown['watchedWith'];
-    if (videoPath && (await geminiReady(options))) {
+    const key = ref?.platform === 'youtube' ? await store.geminiKey() : undefined;
+    if (key && ref) {
       try {
         const built = await buildBreakdownPrompt(channelContext, source);
-        const answer = await runGeminiWatch({ ...options, prompt: built.prompt, system: built.system, jsonSchema: built.schema, videoPath, signal: context.signal });
+        const answer = await watchWithGemini({ apiKey: key, videoUrl: ref.url, prompt: built.prompt, system: built.system, jsonSchema: built.schema, signal: context.signal, fetch: options.fetch });
         result = parseBreakdownResult(answer.json, 'Gemini');
         watchedWith = 'gemini';
       } catch (error) {
         if (context.signal.aborted) throw error;
-        // Gemini is an extra. Claude with the frames is the way that always works.
+        // A private or unlisted video, a quota or a bad answer: Claude with the transcript and thumbnail takes over, with no Gemini tag.
         console.error('[club] Gemini could not watch the video:', error instanceof Error ? error.message : error);
       }
     }
     if (!result) {
-      const built = await buildBreakdownPrompt(channelContext, { ...source, frames: frames.length });
+      const built = await buildBreakdownPrompt(channelContext, { ...source, ...(thumbnail ? { thumbnail: true } : {}) });
       const provider: AiProvider = (await store.defaultAi()) ?? 'claude';
       const answer = await runAI({
         ...options,
@@ -301,7 +325,7 @@ export async function runBreakdown(input: BreakdownInput, context: JobContext, o
         jsonSchema: built.schema,
         model: provider === 'claude' ? 'sonnet' : undefined,
         budgetUsd: BREAKDOWN_BUDGET_USD,
-        images: frames.length ? frames : undefined,
+        images: thumbnail ? [thumbnail] : undefined,
         signal: context.signal,
       });
       result = parseBreakdownResult(answer.json, provider === 'claude' ? 'Claude' : 'Codex');
@@ -319,7 +343,7 @@ export async function runBreakdown(input: BreakdownInput, context: JobContext, o
         likes: info.likes,
         comments: info.commentCount,
         ageDays: info.ageDays,
-        thumbnail: info.thumbnail || (frames.length ? `/api/club/breakdowns/${id}/frames/${path.basename(frames[0])}` : ''),
+        thumbnail: thumbnail ? `/api/club/breakdowns/${id}/thumbnail` : info.thumbnail,
         ...(multiplier !== undefined ? { multiplier } : {}),
       },
       createdAt: new Date().toISOString(),
@@ -327,9 +351,17 @@ export async function runBreakdown(input: BreakdownInput, context: JobContext, o
       ...result,
     };
     await store.writeJSON(breakdownFile(slug, id), breakdown);
+    finished = true;
     return breakdown;
   } finally {
-    await fs.rm(work, { recursive: true, force: true });
+    background.abort();
+    if (finished) {
+      // Keep breakdown.json, the thumbnail and the transcript. A dropped video is not kept.
+      await fs.rm(work, { recursive: true, force: true });
+      if ('file' in input) await fs.rm(input.file.path, { force: true });
+    } else {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
   }
 }
 

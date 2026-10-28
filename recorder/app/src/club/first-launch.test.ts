@@ -8,7 +8,7 @@ const {default:ClubApp}=await import('./ClubApp');
 const {OnboardingScreen}=await import('./screens/OnboardingScreen');
 const {SettingsScreen}=await import('./screens/SettingsScreen');
 
-const signedOut:AiStatus={claude:{installed:false,version:null,signedIn:false},codex:{installed:false,version:null,signedIn:false},gemini:{installed:false,version:null,signedIn:false}};
+const signedOut:AiStatus={claude:{installed:false,version:null,signedIn:false},codex:{installed:false,version:null,signedIn:false}};
 const claudeIn:AiStatus={...signedOut,claude:{installed:true,version:'2.1.0',signedIn:true,account:'dani@example.com'}};
 const workspace={slug:'samin',name:'Samin',handle:'@samin',channelUrl:'https://youtube.com/@samin',topics:['ai','claude'],about:'Teaches Claude',cta:'',createdAt:'2026-01-01T00:00:00.000Z'};
 const none={current:null,workspaces:[]};
@@ -195,8 +195,8 @@ test('Add your channel also accepts a created workspace, and shows one sentence 
  });
 });
 
-test('Settings: Claude, ChatGPT and Google with their status, Connect or Reconnect, and the Google note',async()=>{
- const status:AiStatus={...claudeIn,gemini:{installed:true,version:'0.9.0',signedIn:false}};
+test('Settings: Claude and ChatGPT with their status and Connect or Reconnect, and the optional Google key card',async()=>{
+ const status:AiStatus={...claudeIn};
  await withServer(call=>{
   if(call.path==='/ai/status')return {body:status};
   if(call.path==='/settings'&&call.method==='GET')return {body:{defaultAi:null}};
@@ -208,11 +208,13 @@ test('Settings: Claude, ChatGPT and Google with their status, Connect or Reconne
    await flush();const c=ui.container;
    assert.deepEqual([...c.querySelectorAll('h2')].map(h=>h.textContent),['Connected AI','Default AI','Channel','Appearance']);
    const buttonsByName=[...c.querySelectorAll('button[aria-label]')].map(b=>b.getAttribute('aria-label')).filter(l=>/Connect|Reconnect/.test(l!));
-   assert.deepEqual(buttonsByName,['Reconnect Claude','Connect ChatGPT','Connect Google']);
+   assert.deepEqual(buttonsByName,['Reconnect Claude','Connect ChatGPT'],'Google has no sign-in');
    assert.match(text(c),/Connected as dani@example\.com/);
    assert.match(text(c),/Not connected/);
    assert.match(text(c),/Optional/);
-   assert.match(text(c),/Lets CreatorClub watch videos with sound and motion\./);
+   assert.match(text(c),/Lets CreatorClub watch YouTube videos with sound and motion\./);
+   assert.match(text(c),/No key saved/);
+   assert.deepEqual([...c.querySelectorAll('button')].map(b=>b.textContent).filter(t=>/key/i.test(t!)),['Save key'],'nothing to remove yet');
    const defaultTabs=c.querySelector('[aria-label="Default AI"]')!;
    assert.equal(defaultTabs.querySelector('[aria-selected="true"]')!.textContent,'Claude','falls back to the connected AI');
    const appearance=c.querySelector('[aria-label="Appearance"]')!;
@@ -222,27 +224,32 @@ test('Settings: Claude, ChatGPT and Google with their status, Connect or Reconne
  });
 });
 
-test('Settings: connecting Google runs its job and the card turns to Connected after a refresh',async()=>{
- let status:AiStatus={...signedOut};
+test('Settings: the Gemini key is saved, shown masked, replaced and removed, and the full key is never shown',async()=>{
+ let saved:string|null=null;
  await withServer(call=>{
-  if(call.path==='/ai/status')return {body:status};
-  if(call.path==='/settings'&&call.method==='GET')return {body:{defaultAi:null}};
+  if(call.path==='/ai/status')return {body:signedOut};
+  if(call.path==='/settings'&&call.method==='GET')return {body:{defaultAi:null,geminiKey:saved}};
   if(call.path==='/workspaces'&&call.method==='GET')return {body:none};
-  if(call.path==='/ai/connect')return {status:202,body:{id:'j_g',kind:'connect-gemini',status:'running',createdAt:''}};
+  if(call.path==='/settings/gemini-key'&&call.method==='PUT'){const key=(call.body as {key:string}).key;if(key.length<20)return {status:400,body:{error:'Some details were not valid.'}};saved=`••••${key.slice(-4)}`;return {body:{geminiKey:saved}};}
+  if(call.path==='/settings/gemini-key'&&call.method==='DELETE'){saved=null;return {body:{geminiKey:null}};}
  },async calls=>{
   const ui=await mountUI(createElement(SettingsScreen,{onAddChannel(){}}));
   try{
    await flush();const c=ui.container;
-   await act(async()=>c.querySelector<HTMLButtonElement>('button[aria-label="Connect Google"]')!.click());await flush();
-   assert.deepEqual(calls.find(call=>call.path==='/ai/connect')?.body,{provider:'gemini'});
-   await emit('progress',{phase:'installing',line:'added 1 package'});
-   assert.match(text(c),/Installing Google/);assert.match(text(c),/added 1 package/);
-   assert.equal(c.querySelector('button[aria-label="Connect Google"]'),null,'the button waits while it works');
-   status={...signedOut,gemini:{installed:true,version:'0.9.0',signedIn:true}};
-   await emit('done',{provider:'gemini'});await flush();
-   assert.ok(c.querySelector('button[aria-label="Reconnect Google"]'));
-   assert.equal(calls.some(call=>call.path==='/workspaces/samin'),false);
-   assert.match(text(c),/No channel yet\./);
+   const field=c.querySelector<HTMLInputElement>('input[aria-label="Gemini API key"]')!;
+   assert.equal(field.type,'password');
+   assert.equal(button(c,'Save key').disabled,true,'nothing to save yet');
+   await type(field,'too short');await click(c,'Save key');
+   assert.match(text(c),/Some details were not valid\./);
+   await type(field,'AIzaSyExampleKeyForTestingOnly1234');await click(c,'Save key');
+   assert.deepEqual(calls.filter(call=>call.path==='/settings/gemini-key'&&call.method==='PUT').pop()?.body,{key:'AIzaSyExampleKeyForTestingOnly1234'});
+   assert.match(text(c),/Key saved ••••1234/);
+   assert.equal(text(c).includes('AIzaSy'),false,'only the masked key is shown');
+   assert.equal(c.querySelector<HTMLInputElement>('input[aria-label="Gemini API key"]')!.value,'','the field is cleared');
+   await click(c,'Remove key');
+   assert.equal(calls.filter(call=>call.method==='DELETE').length,1);
+   assert.match(text(c),/No key saved/);
+   assert.ok(![...c.querySelectorAll('button')].some(b=>b.textContent==='Remove key'));
   }finally{await ui.close();}
  });
 });
@@ -300,7 +307,7 @@ test('Settings: channel details save, and Rebuild voice guide follows its job or
   const ui=await mountUI(createElement(SettingsScreen,{onAddChannel(){}}));
   try{
    await flush();const c=ui.container;
-   const inputs=[...c.querySelectorAll<HTMLInputElement>('section input')];
+   const inputs=[...c.querySelectorAll<HTMLInputElement>('section input')].filter(i=>i.type==='text');
    assert.deepEqual(inputs.map(i=>i.value),['Samin','@samin','ai, claude']);
    assert.equal((button(c,'Save changes') as HTMLButtonElement).disabled,true,'nothing to save yet');
    await type(inputs[0],'Samin Yasar');await type(inputs[2],'ai, claude, trading , ');
@@ -407,18 +414,18 @@ test('Settings: Cancel on a card returns it to Connect',async()=>{
   if(call.path==='/ai/status')return {body:signedOut};
   if(call.path==='/settings')return {body:{defaultAi:null}};
   if(call.path==='/workspaces'&&call.method==='GET')return {body:none};
-  if(call.path==='/ai/connect')return {status:202,body:{id:'j_s',kind:'connect-gemini',status:'running',createdAt:''}};
+  if(call.path==='/ai/connect')return {status:202,body:{id:'j_s',kind:'connect-codex',status:'running',createdAt:''}};
   if(call.method==='DELETE')return {body:{status:'cancelled'}};
  },async calls=>{
   const ui=await mountUI(createElement(SettingsScreen,{onAddChannel(){}}));
   try{
    await flush();const c=ui.container;
-   await act(async()=>c.querySelector<HTMLButtonElement>('button[aria-label="Connect Google"]')!.click());await flush();
+   await act(async()=>c.querySelector<HTMLButtonElement>('button[aria-label="Connect ChatGPT"]')!.click());await flush();
    await emit('progress',{phase:'signing-in'});
-   assert.equal(c.querySelector('button[aria-label="Connect Google"]'),null);
+   assert.equal(c.querySelector('button[aria-label="Connect ChatGPT"]'),null);
    await click(c,'Cancel');
    assert.deepEqual(calls.filter(call=>call.method==='DELETE').map(call=>call.path),['/jobs/j_s']);
-   assert.ok(c.querySelector('button[aria-label="Connect Google"]'));
+   assert.ok(c.querySelector('button[aria-label="Connect ChatGPT"]'));
    assert.doesNotMatch(text(c),/Finish signing in/);
   }finally{await ui.close();}
  });

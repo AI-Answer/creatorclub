@@ -15,27 +15,36 @@ function BreakdownRun({initial,onClose,onAdded}:{initial:BreakdownSource;onClose
  const {state,run}=useJobRun();
  const [source,setSource]=useState(initial),[attempt,setAttempt]=useState(0),[over,setOver]=useState(false),[dropError,setDropError]=useState('');
  const [added,setAdded]=useState<ReadonlySet<number>>(new Set());
- const jobId=useRef<string>(undefined),started=useRef(-1),finished=useRef(false);
+ const jobId=useRef<string>(undefined),finished=useRef(false);
  finished.current=state.phase==='done'||state.phase==='failed';
 
+ // One effect run is one attempt. Leaving (or a new attempt) aborts a request that is still on its way and stops the job
+ // that was started, even when its id only arrives after the dialog has gone, so nothing keeps working unseen.
  useEffect(()=>{
-  // Strict mode runs effects twice in development; one attempt starts one job.
-  if(started.current===attempt)return;
-  started.current=attempt;
+  const controller=new AbortController(),mine={gone:false};
+  const cancel=(id:string)=>{clubFetch(`/jobs/${encodeURIComponent(id)}`,{method:'DELETE'}).catch(()=>{});};
   run(async()=>{
    let job:unknown;
-   if(source.kind==='link')job=await clubFetch('/breakdowns',{body:{url:source.url}});
-   else{const form=new FormData();form.append('file',source.file,source.file.name);job=await clubUpload('/breakdowns',form);}
-   jobId.current=isStartedJob(job)?job.id:undefined;
+   try{
+    if(source.kind==='link')job=await clubFetch('/breakdowns',{body:{url:source.url},signal:controller.signal});
+    else{const form=new FormData();form.append('file',source.file,source.file.name);job=await clubUpload('/breakdowns',form,controller.signal);}
+   }catch(reason){
+    // An aborted attempt has nothing to report.
+    if(controller.signal.aborted)return new Promise<never>(()=>{});
+    throw reason;
+   }
+   if(isStartedJob(job)){
+    if(mine.gone){cancel(job.id);return new Promise<never>(()=>{});}
+    jobId.current=job.id;
+   }
    return job;
   });
+  return()=>{
+   mine.gone=true;controller.abort();
+   const id=jobId.current;jobId.current=undefined;
+   if(id&&!finished.current)cancel(id);
+  };
  },[attempt,source,run]);
-
- // Closing while it runs stops the job, so nothing keeps working (and spending) unseen.
- useEffect(()=>()=>{
-  const id=jobId.current;
-  if(id&&!finished.current)clubFetch(`/jobs/${encodeURIComponent(id)}`,{method:'DELETE'}).catch(()=>{});
- },[]);
 
  const add=useCallback(async(breakdown:Breakdown,index:number)=>{
   try{

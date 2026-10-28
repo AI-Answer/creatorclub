@@ -70,13 +70,22 @@ export function detectSource(input: string): SourceRef {
 
 /** Top 40 comments, no replies. yt-dlp sorts by newest unless told `top`. */
 export const COMMENT_ARGS = 'youtube:max_comments=40,all,0,0;comment_sort=top';
-export const FRAME_COUNT = 20;
 export const MAX_COMMENTS = 40;
 export const INSTAGRAM_BLOCKED = 'Instagram blocked the download. Drop the video file here instead.';
+export const INSTAGRAM_NO_TEXT = 'That reel has no caption to read. Drop the video file here instead.';
 
-/** Everything but the video itself: yt-dlp writes `<out>.info.json`, with the top comments inside it for YouTube. */
+/** A dropped video file: the most that is read. Nothing else is ever downloaded. */
+export const MAX_FILE_BYTES = 500 * 1024 * 1024;
+export const MAX_FILE_MINUTES = 30;
+export const FILE_TOO_BIG = 'That file is larger than 500 MB, which is the most Break down reads.';
+export const FILE_TOO_LONG = 'That video is longer than 30 minutes, which is the most Break down reads.';
+
+/**
+ * Everything but the video: yt-dlp writes `<out>.info.json` (with the top comments inside it for YouTube) and the thumbnail
+ * image. No video or audio is ever fetched.
+ */
 export function infoArgs(ref: SourceRef, out: string): string[] {
-  const args = ['--skip-download', '--no-warnings', '--no-playlist', '--write-info-json'];
+  const args = ['--skip-download', '--no-warnings', '--no-playlist', '--write-info-json', '--write-thumbnail'];
   if (ref.platform === 'youtube') args.push('--write-comments', '--extractor-args', COMMENT_ARGS);
   return [...args, '-o', out, ref.url];
 }
@@ -84,16 +93,6 @@ export function infoArgs(ref: SourceRef, out: string): string[] {
 /** One caption track as `<out>.<lang>.json3`. */
 export function subtitleArgs(url: string, language: string, out: string): string[] {
   return ['--skip-download', '--no-warnings', '--no-playlist', '--write-auto-subs', '--write-subs', '--sub-langs', language, '--sub-format', 'json3', '-o', out, url];
-}
-
-/**
- * The video at 480p as `<out>.mp4`. `res:480` is the short side, so a vertical video also comes down to 480 wide
- * (`height<=480` would find nothing for it). Instagram's info is written in the same call.
- */
-export function videoArgs(ref: SourceRef, out: string): string[] {
-  const args = ['--no-warnings', '--no-playlist', '--no-progress', '-f', 'bv*+ba/b', '-S', 'res:480', '--merge-output-format', 'mp4'];
-  if (ref.platform === 'instagram') args.push('--write-info-json');
-  return [...args, '-o', out, ref.url];
 }
 
 /** The channel's recent uploads, without opening each video. */
@@ -157,6 +156,8 @@ export interface SourceInfo {
   ageDays: number;
   duration?: number;
   thumbnail: string;
+  /** The poster's own text: an Instagram reel's caption. */
+  description: string;
   comments: SourceComment[];
 }
 
@@ -196,6 +197,7 @@ export function parseInfo(raw: unknown, ref: SourceRef, now = Date.now()): Sourc
     ageDays: posted === undefined ? 0 : Math.max(0, Math.floor((now - posted) / 86_400_000)),
     ...(typeof info.duration === 'number' && info.duration > 0 ? { duration: info.duration } : {}),
     thumbnail: ref.platform === 'youtube' ? `https://i.ytimg.com/vi/${ref.id}/hqdefault.jpg` : '',
+    description: text(info.description),
     comments: topComments(info.comments),
   };
 }

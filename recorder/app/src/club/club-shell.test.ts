@@ -16,7 +16,7 @@ const flush=()=>act(async()=>{await new Promise(resolve=>setTimeout(resolve,0));
 test('the shell routes through board, video steps and settings, and keeps the place in the hash',async()=>{
  window.location.hash='';
  const server=installFetch(call=>{
-  if(call.path==='/ai/status')return {body:{claude:{installed:true,version:'2',signedIn:true},codex:{installed:false,version:null,signedIn:false},gemini:{installed:false,version:null,signedIn:false}}};
+  if(call.path==='/ai/status')return {body:{claude:{installed:true,version:'2',signedIn:true},codex:{installed:false,version:null,signedIn:false}}};
   if(call.path==='/workspaces')return {body:{current:'samin',workspaces:[ws]}};
   if(call.path==='/videos')return {body:[stored]};
   if(call.path==='/recent')return {body:[]};
