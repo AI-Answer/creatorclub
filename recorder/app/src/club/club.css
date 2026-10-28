@@ -1,0 +1,218 @@
+/*
+  CreatorClub design system: tokens, a scoped preflight and Tailwind utilities.
+
+  SceneForge's stylesheets are global and unscoped, so everything here stays inside `.club-root`:
+  - The preflight only touches elements under `.club-root`, and never the embedded SceneForge app (`.club-embed`).
+  - Utilities are generated only from `src/club/**` and only match under `.club-root`.
+  - Sizes are in px, because SceneForge sets the root font size and would otherwise rescale every rem.
+  Import this file after SceneForge's CSS so equal-specificity preflight rules win.
+*/
+@import "tailwindcss/theme.css" layer(theme);
+
+@custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));
+
+@theme {
+  --font-sans: "Inter Variable", "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+
+  --spacing: 4px;
+
+  --text-*: initial;
+  --text-xs: 12px;
+  --text-xs--line-height: 16px;
+  --text-sm: 13px;
+  --text-sm--line-height: 20px;
+  --text-base: 14px;
+  --text-base--line-height: 22px;
+  --text-lg: 16px;
+  --text-lg--line-height: 24px;
+  --text-xl: 20px;
+  --text-xl--line-height: 28px;
+  --text-2xl: 24px;
+  --text-2xl--line-height: 32px;
+  --text-3xl: 30px;
+  --text-3xl--line-height: 36px;
+
+  --radius-*: initial;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+
+  --container-xs: 320px;
+  --container-sm: 384px;
+  --container-md: 448px;
+  --container-lg: 512px;
+  --container-xl: 576px;
+  --container-2xl: 672px;
+}
+
+/* Tailwind colour utilities read the club tokens, so `[data-theme=dark]` switches them without a `dark:` variant. */
+@theme inline {
+  --color-*: initial;
+  --color-page: var(--cc-page);
+  --color-card: var(--cc-card);
+  --color-subtle: var(--cc-subtle);
+  --color-line: var(--cc-line);
+  --color-ink: var(--cc-ink);
+  --color-muted: var(--cc-muted);
+  --color-primary: var(--cc-primary);
+  --color-primary-ink: var(--cc-primary-ink);
+  --color-accent: var(--cc-accent);
+  --color-accent-soft: var(--cc-accent-soft);
+  --color-accent-ink: var(--cc-accent-ink);
+  --color-success: var(--cc-success);
+  --color-success-soft: var(--cc-success-soft);
+  --color-danger: var(--cc-danger);
+  --color-danger-soft: var(--cc-danger-soft);
+  --color-scrim: var(--cc-scrim);
+  --color-band-grey: var(--cc-band-grey);
+  --color-band-grey-soft: var(--cc-band-grey-soft);
+  --color-band-blue: var(--cc-band-blue);
+  --color-band-blue-soft: var(--cc-band-blue-soft);
+  --color-band-green: var(--cc-band-green);
+  --color-band-green-soft: var(--cc-band-green-soft);
+  --color-band-amber: var(--cc-band-amber);
+  --color-band-amber-soft: var(--cc-band-amber-soft);
+  --color-band-orange: var(--cc-band-orange);
+  --color-band-orange-soft: var(--cc-band-orange-soft);
+  --color-band-red: var(--cc-band-red);
+  --color-band-red-soft: var(--cc-band-red-soft);
+}
+
+/* Tokens. Light by default; dark when `data-theme="dark"` is set on the document or an ancestor. */
+.club-root {
+  --cc-page: #FAFAF8;
+  --cc-card: #FFFFFF;
+  --cc-subtle: #F2F1EE;
+  --cc-line: #E7E5E0;
+  --cc-ink: #171716;
+  --cc-muted: #6B6A66;
+  --cc-primary: #111110;
+  --cc-primary-ink: #FFFFFF;
+  --cc-accent: #2F6FEB;
+  --cc-accent-soft: #EAF1FE;
+  --cc-accent-ink: #FFFFFF;
+  --cc-success: #1B7A3D;
+  --cc-success-soft: #E3F4E8;
+  --cc-danger: #B42318;
+  --cc-danger-soft: #FCE8E6;
+  --cc-scrim: rgb(17 17 16 / 0.32);
+  /* Outlier bands, Eden's colours: grey <1, blue 1–3, green 3–5, amber 5–10, orange 10–50, red 50+. */
+  --cc-band-grey: #5F5E5A;
+  --cc-band-grey-soft: #EFEEEB;
+  --cc-band-blue: #1F57C8;
+  --cc-band-blue-soft: #E6EEFD;
+  --cc-band-green: #1B7A3D;
+  --cc-band-green-soft: #E3F4E8;
+  --cc-band-amber: #8F5F00;
+  --cc-band-amber-soft: #FBF0D9;
+  --cc-band-orange: #B4480D;
+  --cc-band-orange-soft: #FDE8DA;
+  --cc-band-red: #B42318;
+  --cc-band-red-soft: #FCE3E1;
+}
+
+:where([data-theme=dark]) .club-root,
+.club-root:where([data-theme=dark]) {
+  --cc-page: #121211;
+  --cc-card: #1A1A19;
+  --cc-subtle: #242422;
+  --cc-line: #2E2D2B;
+  --cc-ink: #F2F1EE;
+  --cc-muted: #A3A29D;
+  --cc-primary: #F2F1EE;
+  --cc-primary-ink: #121211;
+  --cc-accent: #2F6FEB;
+  --cc-accent-soft: rgb(47 111 235 / 0.2);
+  --cc-success: #6FD08F;
+  --cc-success-soft: rgb(111 208 143 / 0.14);
+  --cc-danger: #F0857D;
+  --cc-danger-soft: rgb(240 133 125 / 0.14);
+  --cc-scrim: rgb(0 0 0 / 0.56);
+  --cc-band-grey: #B4B3AE;
+  --cc-band-grey-soft: rgb(180 179 174 / 0.14);
+  --cc-band-blue: #8DB1FF;
+  --cc-band-blue-soft: rgb(47 111 235 / 0.22);
+  --cc-band-green: #6FD08F;
+  --cc-band-green-soft: rgb(111 208 143 / 0.16);
+  --cc-band-amber: #F2C25B;
+  --cc-band-amber-soft: rgb(242 194 91 / 0.16);
+  --cc-band-orange: #FF9A5C;
+  --cc-band-orange-soft: rgb(255 154 92 / 0.16);
+  --cc-band-red: #FF8077;
+  --cc-band-red-soft: rgb(255 128 119 / 0.16);
+}
+
+.club-root {
+  height: 100dvh;
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  line-height: 1.5;
+  font-feature-settings: "cv11", "ss01";
+  -webkit-font-smoothing: antialiased;
+  -webkit-text-size-adjust: 100%;
+  tab-size: 4;
+  color: var(--cc-ink);
+  background: var(--cc-page);
+}
+
+/* Desktop window (hidden title bar): top strips drag the window, controls in them stay clickable, and nothing sits under the traffic lights. */
+.club-desktop .club-drag { -webkit-app-region: drag; }
+.club-desktop .club-drag :is(button, a, input, select, textarea) { -webkit-app-region: no-drag; }
+.club-desktop .club-window-top { height: 44px; }
+.club-desktop .club-traffic { padding-left: 84px; }
+
+/*
+  Scoped preflight, after Tailwind's. Element selectors keep element specificity: any utility class wins,
+  and these still beat SceneForge's bare element rules (`button{…}`, `input{…}`) by coming later.
+  `:where(:not(.club-embed *))` leaves the embedded SceneForge app on its own styles.
+*/
+:where(.club-root) *:where(:not(.club-embed, .club-embed *)),
+:where(.club-root) *:where(:not(.club-embed, .club-embed *))::before,
+:where(.club-root) *:where(:not(.club-embed, .club-embed *))::after,
+:where(.club-root) *:where(:not(.club-embed, .club-embed *))::backdrop {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  border: 0 solid;
+}
+:where(.club-root) :is(h1, h2, h3, h4, h5, h6):where(:not(.club-embed *)) { margin: 0; font-size: inherit; font-weight: inherit; letter-spacing: inherit; }
+:where(.club-root) p:where(:not(.club-embed *)) { margin: 0; line-height: inherit; }
+:where(.club-root) a:where(:not(.club-embed *)) { color: inherit; text-decoration: inherit; }
+:where(.club-root) :is(b, strong):where(:not(.club-embed *)) { font-weight: bolder; }
+:where(.club-root) :is(ol, ul, menu):where(:not(.club-embed *)) { list-style: none; }
+:where(.club-root) :is(img, svg, video, canvas, audio, iframe):where(:not(.club-embed *)) { display: block; vertical-align: middle; }
+:where(.club-root) :is(img, video):where(:not(.club-embed *)) { max-width: 100%; height: auto; }
+:where(.club-root) table:where(:not(.club-embed *)) { text-indent: 0; border-color: inherit; border-collapse: collapse; }
+:where(.club-root) :is(button, input, select, optgroup, textarea):where(:not(.club-embed *)) {
+  margin: 0;
+  padding: 0;
+  border: 0 solid;
+  border-radius: 0;
+  font: inherit;
+  font-feature-settings: inherit;
+  letter-spacing: inherit;
+  color: inherit;
+  background: transparent;
+  opacity: 1;
+  min-width: 0;
+  transition: none;
+  outline-offset: 0;
+}
+:where(.club-root) button:where(:not(.club-embed *)) { cursor: pointer; }
+:where(.club-root) button:where(:disabled):where(:not(.club-embed *)) { cursor: default; }
+:where(.club-root) :is(input, textarea):where(:not(.club-embed *))::placeholder { opacity: 1; color: var(--cc-muted); }
+:where(.club-root) textarea:where(:not(.club-embed *)) { resize: vertical; line-height: inherit; }
+:where(.club-root) dialog:where(:not(.club-embed *)) { color: inherit; }
+:where(.club-root) [hidden]:where(:not([hidden=until-found], .club-embed *)) { display: none !important; }
+
+/* The embedded SceneForge app fills the video page instead of the window. */
+.club-embed { height: 100%; min-height: 0; }
+.club-embed .app-shell { height: 100%; min-width: 0; }
+.club-embed .workspace-nav { position: relative; left: auto; right: auto; bottom: auto; }
+
+/* Utilities from club files only, matching only inside the club shell. */
+:where(.club-root) {
+  @tailwind utilities source(none);
+}
+@source "./";

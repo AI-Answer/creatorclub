@@ -10,7 +10,7 @@
     "dev:web": "vite --host 127.0.0.1",
     "build": "tsc --noEmit && vite build",
     "start": "tsx server/index.ts",
-    "test": "tsx --test server/*.test.ts src/*.test.ts scripts/*.test.mjs",
+    "test": "tsx --test server/*.test.ts src/*.test.ts src/club/*.test.ts scripts/*.test.mjs",
     "desktop": "electron desktop/main.cjs",
     "desktop:app": "node scripts/dev-app.mjs --open",
     "mcp": "tsx server/mcp.ts",
@@ -19,6 +19,7 @@
     "package": "node scripts/package.mjs"
   },
   "dependencies": {
+    "@fontsource-variable/inter": "^5.3.0",
     "@modelcontextprotocol/sdk": "^1.0.0",
     "express": "^5.0.0",
     "iconoir-react": "^7.11.0",
@@ -32,6 +33,7 @@
   "devDependencies": {
     "@electron/osx-sign": "2.7.1",
     "@electron/packager": "^20.3.0",
+    "@tailwindcss/vite": "^4.3.3",
     "@types/express": "^5.0.0",
     "@types/multer": "^2.0.0",
     "@types/node": "^24.0.0",
@@ -42,6 +44,7 @@
     "electron": "^44.7.1",
     "esbuild": "^0.28.2",
     "happy-dom": "^21.0.1",
+    "tailwindcss": "^4.3.3",
     "tsx": "^4.0.0",
     "typescript": "latest",
     "vite": "latest"
