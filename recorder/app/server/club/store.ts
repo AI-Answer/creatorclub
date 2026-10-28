@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { ClubError, notFound } from './errors.js';
+import { arrangeColumn } from '../../shared/club-board.js';
 import {
   VIDEO_STAGES,
   type AiProvider,
@@ -70,6 +71,10 @@ export const writeJSON = (file: string, value: unknown) => writeFileAtomic(file,
 interface Settings {
   currentWorkspace?: string;
   defaultAi?: AiProvider;
+  /** Set once the first-visit "How CreatorClub works" dialog has been closed. */
+  welcomed?: boolean;
+  /** Video ids per channel, most recently opened first. */
+  recent?: Record<string, string[]>;
 }
 const settingsFile = () => path.join(rootDir(), 'settings.json');
 
@@ -102,6 +107,31 @@ export async function setDefaultAi(provider: AiProvider) {
 /** Sets the default AI only when none is set yet. */
 export async function setDefaultAiIfUnset(provider: AiProvider): Promise<void> {
   await updateSettings((settings) => (settings.defaultAi === 'claude' || settings.defaultAi === 'codex' ? settings : { ...settings, defaultAi: provider }));
+}
+
+export async function welcomed(): Promise<boolean> {
+  return (await readJSON<Settings>(settingsFile()))?.welcomed === true;
+}
+
+export async function setWelcomed() {
+  await updateSettings((settings) => ({ ...settings, welcomed: true }));
+}
+
+const RECENT_LIMIT = 8;
+
+/** Videos opened lately in a channel, newest first. Videos that no longer exist are left out. */
+export async function recentVideoIds(slug: string): Promise<string[]> {
+  const ids = (await readJSON<Settings>(settingsFile()))?.recent?.[assertSlug(slug)] ?? [];
+  const exists = await Promise.all(ids.map((id) => readJSON(videoFile(slug, id)).then((v) => !!v, () => false)));
+  return ids.filter((_, i) => exists[i]);
+}
+
+export async function markOpened(slug: string, id: string) {
+  await readVideo(slug, id);
+  await updateSettings((settings) => {
+    const others = (settings.recent?.[slug] ?? []).filter((other) => other !== id);
+    return { ...settings, recent: { ...settings.recent, [slug]: [id, ...others].slice(0, RECENT_LIMIT) } };
+  });
 }
 
 // ---------------------------------------------------------------- workspaces
@@ -247,25 +277,42 @@ export function updateVideo(slug: string, id: string, patch: { [K in keyof Video
   });
 }
 
-/** Moves a video to the end of another stage and records when it got there. */
-export async function moveVideo(slug: string, id: string, stage: VideoStage): Promise<Video> {
+export interface MoveOptions {
+  /** Put the video just before this one in the stage. Without it, or when it is not in that stage, the video goes last. */
+  beforeId?: string | null;
+  /** Put these stage dates back instead of recording a new one (Undo). */
+  stageDates?: Video['stageDates'];
+}
+
+/** Moves a video to a stage and a place in it, records when it got there, and renumbers that stage. */
+export async function moveVideo(slug: string, id: string, stage: VideoStage, options: MoveOptions = {}): Promise<Video> {
   if (!VIDEO_STAGES.includes(stage)) throw new ClubError('That stage does not exist.');
-  return workspaceLock(slug, () =>
-    videoLock(slug, id, async () => {
-      const video = await readVideo(slug, id);
-      if (video.stage === stage) return video;
-      const at = now();
-      const moved: Video = {
-        ...video,
-        stage,
-        order: nextOrder(await listVideos(slug), stage),
-        updatedAt: at,
-        stageDates: { ...video.stageDates, [stage]: at },
-      };
-      await writeVideo(slug, moved);
-      return moved;
-    }),
-  );
+  return workspaceLock(slug, async () => {
+    const videos = await listVideos(slug);
+    const video = videos.find((v) => v.id === id);
+    if (!video) throw notFound('video');
+    const column = arrangeColumn(videos, id, stage, options.beforeId);
+    const at = now();
+    let result = video;
+    for (const [order, columnId] of column.entries()) {
+      const moving = columnId === id;
+      if (!moving && videos.find((v) => v.id === columnId)?.order === order) continue;
+      if (moving && video.stage === stage && video.order === order && !options.stageDates) continue;
+      const written = await videoLock(slug, columnId, async () => {
+        const current = await readVideo(slug, columnId);
+        const next: Video = { ...current, order };
+        if (moving) {
+          next.stage = stage;
+          next.updatedAt = at;
+          next.stageDates = options.stageDates ?? (current.stage === stage ? current.stageDates : { ...current.stageDates, [stage]: at });
+        }
+        await writeVideo(slug, next);
+        return next;
+      });
+      if (moving) result = written;
+    }
+    return result;
+  });
 }
 
 /** Removes the video's folder inside the workspace (its package, outline and research). Recordings live in SceneForge. */

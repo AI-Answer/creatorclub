@@ -85,6 +85,8 @@ async function requireWorkspace(): Promise<string> {
 }
 
 const connectBody = z.object({ provider: z.enum(['claude', 'codex', 'gemini']), reconnect: z.boolean().optional() }).strict();
+const stageDates = z.record(stage, z.string()).refine((dates) => Object.keys(dates).length > 0);
+const moveBody = z.object({ stage, beforeId: z.string().nullable().optional(), stageDates: stageDates.optional() }).strict();
 const settingsBody = z.object({ defaultAi: z.enum(['claude', 'codex']) }).strict();
 
 export interface ClubRouterOptions {
@@ -104,10 +106,15 @@ export function clubRouter({ ai = {} }: ClubRouterOptions = {}): Router {
   }));
 
   // ---- settings
-  router.get('/settings', handler(async (_req, res) => res.json({ defaultAi: (await store.defaultAi()) ?? null })));
+  router.get('/settings', handler(async (_req, res) => res.json({ defaultAi: (await store.defaultAi()) ?? null, welcomed: await store.welcomed() })));
   router.put('/settings', handler(async (req, res) => {
     await store.setDefaultAi(settingsBody.parse(req.body).defaultAi);
     res.json({ defaultAi: await store.defaultAi() });
+  }));
+
+  router.post('/settings/welcomed', handler(async (_req, res) => {
+    await store.setWelcomed();
+    res.json({ welcomed: true });
   }));
 
   // ---- jobs
@@ -189,6 +196,7 @@ export function clubRouter({ ai = {} }: ClubRouterOptions = {}): Router {
   router.post('/videos', handler(async (req, res) => {
     res.status(201).json(await store.createVideo(await requireWorkspace(), newVideoBody.parse(req.body)));
   }));
+  router.get('/recent', handler(async (_req, res) => res.json(await store.recentVideoIds(await requireWorkspace()))));
   router.get('/videos/:id', handler(async (req, res) => res.json(await store.readVideo(await requireWorkspace(), param(req, 'id')))));
   router.put('/videos/:id', handler(async (req, res) => {
     res.json(await store.updateVideo(await requireWorkspace(), param(req, 'id'), videoPatchBody.parse(req.body)));
@@ -198,8 +206,12 @@ export function clubRouter({ ai = {} }: ClubRouterOptions = {}): Router {
     res.status(204).end();
   }));
   router.post('/videos/:id/move', handler(async (req, res) => {
-    const { stage: target } = z.object({ stage }).strict().parse(req.body);
-    res.json(await store.moveVideo(await requireWorkspace(), param(req, 'id'), target));
+    const { stage: target, ...options } = moveBody.parse(req.body);
+    res.json(await store.moveVideo(await requireWorkspace(), param(req, 'id'), target, options));
+  }));
+  router.post('/videos/:id/opened', handler(async (req, res) => {
+    await store.markOpened(await requireWorkspace(), param(req, 'id'));
+    res.status(204).end();
   }));
 
   // ---- research tiles

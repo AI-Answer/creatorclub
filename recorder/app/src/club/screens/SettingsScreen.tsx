@@ -46,7 +46,7 @@ export function SettingsScreen({onAddChannel}:{onAddChannel():void}){
        <ConnectedAi status={data.status} onChanged={refreshStatus}/>
       </Section>
       <Section title="Default AI" description="The AI that does the writing and thinking.">
-       <DefaultAi status={data.status} saved={data.settings.defaultAi} onSaved={defaultAi=>setData({...data,settings:{defaultAi}})}/>
+       <DefaultAi status={data.status} saved={data.settings.defaultAi} onSaved={defaultAi=>setData({...data,settings:{...data.settings,defaultAi}})}/>
       </Section>
       <Section title="Channel" description="What CreatorClub knows about you.">
        {data.workspace?<ChannelForm key={data.workspace.slug} workspace={data.workspace} onSaved={workspace=>setData({...data,workspace})}/>

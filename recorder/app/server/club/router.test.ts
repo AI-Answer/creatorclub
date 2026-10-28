@@ -73,6 +73,30 @@ test('video lifecycle: create, update, move, list, delete', async () => {
   assert.equal((await call('GET', `/videos/${id}`)).status, 404);
 });
 
+test('board routes: place a video before another, recent videos and the first-visit flag', async () => {
+  const made = [];
+  for (const title of ['One', 'Two', 'Three']) made.push((await call('POST', '/videos', { title })).body);
+  const ids = async () => (await call('GET', '/videos')).body.filter((v: { title: string }) => ['One', 'Two', 'Three'].includes(v.title)).map((v: { title: string }) => v.title);
+  assert.equal((await call('POST', `/videos/${made[2].id}/move`, { stage: 'ideas', beforeId: made[0].id })).status, 200);
+  assert.deepEqual(await ids(), ['Three', 'One', 'Two']);
+  assert.equal((await call('POST', `/videos/${made[0].id}/move`, { stage: 'ideas', beforeId: null })).body.order, 2);
+  assert.equal((await call('POST', `/videos/${made[0].id}/move`, { stage: 'ideas', extra: 1 })).status, 400);
+  const restored = await call('POST', `/videos/${made[1].id}/move`, { stage: 'planning' });
+  const undone = await call('POST', `/videos/${made[1].id}/move`, { stage: 'ideas', stageDates: { ideas: made[1].stageDates.ideas } });
+  assert.deepEqual(undone.body.stageDates, made[1].stageDates);
+  assert.ok(restored.body.stageDates.planning);
+  assert.equal((await call('POST', `/videos/${made[1].id}/move`, { stage: 'ideas', stageDates: { bogus: 'x' } })).status, 400);
+
+  assert.equal((await call('POST', `/videos/${made[1].id}/opened`)).status, 204);
+  assert.equal((await call('POST', `/videos/${made[0].id}/opened`)).status, 204);
+  assert.deepEqual((await call('GET', '/recent')).body, [made[0].id, made[1].id]);
+  assert.equal((await call('POST', '/videos/nope/opened')).status, 404);
+
+  assert.equal((await call('GET', '/settings')).body.welcomed, false);
+  assert.deepEqual((await call('POST', '/settings/welcomed')).body, { welcomed: true });
+  assert.equal((await call('GET', '/settings')).body.welcomed, true);
+});
+
 test('research tiles: json tiles, file uploads, file download, delete', async () => {
   const { body: video } = await call('POST', '/videos', { title: 'Research' });
   const note = await call('POST', `/videos/${video.id}/research`, { kind: 'note', text: 'Remember this', meta: { views: 5 } });

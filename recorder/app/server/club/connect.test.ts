@@ -366,10 +366,10 @@ test('a failed connect reaches the stream as one safe sentence', async () => {
 });
 
 test('settings: default AI is saved, validated and starts empty', async () => {
-  assert.deepEqual((await call('GET', '/settings')).body, { defaultAi: null });
+  assert.deepEqual((await call('GET', '/settings')).body, { defaultAi: null, welcomed: false });
   assert.deepEqual((await call('PUT', '/settings', { defaultAi: 'codex' })).body, { defaultAi: 'codex' });
   assert.equal((await call('PUT', '/settings', { defaultAi: 'gemini' })).status, 400);
-  assert.deepEqual((await call('GET', '/settings')).body, { defaultAi: 'codex' });
+  assert.deepEqual((await call('GET', '/settings')).body, { defaultAi: 'codex', welcomed: false });
 });
 
 test('cancel over HTTP stops the login process, and the next Connect starts a new job with a new login', async () => {

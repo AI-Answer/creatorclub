@@ -90,3 +90,51 @@ test('concurrent writes to one video keep every update, and parallel creates get
   const moved = await Promise.all(many.slice(0, 10).map((v) => store.moveVideo('samin-yasar', v.id, 'publishing')));
   assert.deepEqual(moved.map((v) => v.order).sort((a, b) => a - b), Array.from({ length: 10 }, (_, i) => i));
 });
+
+test('moving a video places it among its neighbours, renumbers the stage and can put the old dates back', async () => {
+  const ws = (await store.createWorkspace({ ...channel, name: 'Board order' })).slug;
+  const made = [];
+  for (const title of ['A', 'B', 'C', 'D']) made.push(await store.createVideo(ws, { title }));
+  const [va, vb, vc, vd] = made;
+  const titles = async (stage: string) => (await store.listVideos(ws)).filter((v) => v.stage === stage).map((v) => v.title);
+
+  const moved = await store.moveVideo(ws, vd.id, 'ideas', { beforeId: va.id });
+  assert.deepEqual(await titles('ideas'), ['D', 'A', 'B', 'C']);
+  assert.equal(moved.order, 0);
+  assert.deepEqual(moved.stageDates, vd.stageDates, 'a move inside a stage keeps its dates');
+
+  await store.moveVideo(ws, vb.id, 'ideas', { beforeId: null });
+  assert.deepEqual(await titles('ideas'), ['D', 'A', 'C', 'B']);
+  await store.moveVideo(ws, vb.id, 'ideas', { beforeId: 'missing' });
+  assert.deepEqual(await titles('ideas'), ['D', 'A', 'C', 'B'], 'a neighbour that is not there means last');
+
+  const into = await store.moveVideo(ws, vc.id, 'recording');
+  const second = await store.moveVideo(ws, va.id, 'recording', { beforeId: vc.id });
+  assert.deepEqual(await titles('recording'), ['A', 'C']);
+  assert.equal(second.order, 0);
+  assert.equal((await store.readVideo(ws, vc.id)).order, 1);
+  assert.equal(into.stageDates.recording !== undefined, true);
+
+  const back = await store.moveVideo(ws, va.id, 'ideas', { beforeId: vd.id, stageDates: va.stageDates });
+  assert.deepEqual(back.stageDates, va.stageDates, 'Undo puts the stage dates back');
+  assert.deepEqual(await titles('ideas'), ['A', 'D', 'B']);
+  await assert.rejects(store.moveVideo(ws, 'nope', 'ideas'), /not found/);
+});
+
+test('the first-visit flag and the recent videos live in settings.json', async () => {
+  const ws = (await store.createWorkspace({ ...channel, name: 'Recent' })).slug;
+  assert.equal(await store.welcomed(), false);
+  await store.setWelcomed();
+  assert.equal(await store.welcomed(), true);
+
+  const [a, b, c] = [await store.createVideo(ws, { title: 'A' }), await store.createVideo(ws, { title: 'B' }), await store.createVideo(ws, { title: 'C' })];
+  assert.deepEqual(await store.recentVideoIds(ws), []);
+  for (const video of [a, b, c, a]) await store.markOpened(ws, video.id);
+  assert.deepEqual(await store.recentVideoIds(ws), [a.id, c.id, b.id]);
+  await store.deleteVideo(ws, c.id);
+  assert.deepEqual(await store.recentVideoIds(ws), [a.id, b.id], 'deleted videos drop out');
+  await assert.rejects(store.markOpened(ws, 'nope'), /not found/);
+  const settings = JSON.parse(await readFile(path.join(temp, 'settings.json'), 'utf8'));
+  assert.equal(settings.welcomed, true);
+  assert.ok(settings.currentWorkspace, 'other settings are kept');
+});

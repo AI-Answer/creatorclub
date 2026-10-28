@@ -159,6 +159,8 @@ export type AiStatus = Record<ConnectProvider, AiProviderStatus>;
 export interface ClubSettings {
   /** The AI that runs prompts. Null until one is chosen or the first one connects. */
   defaultAi: AiProvider | null;
+  /** True once the first-visit "How CreatorClub works" dialog has been closed. */
+  welcomed: boolean;
 }
 
 /** Progress events of a connect job. `line` is one cleaned-up line of installer output. */
