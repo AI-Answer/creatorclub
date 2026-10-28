@@ -1,6 +1,7 @@
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, rm, writeFile, chmod, readFile, mkdir } from 'node:fs/promises';
+import { writeFileSync, existsSync, rmSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { aiStatus, runAI, parseClaudeAuth, parseCodexAuth, parseJSONLoose, AiError, type AIEvent } from './ai.js';
@@ -13,11 +14,11 @@ await mkdir(bin);
 await mkdir(emptyBin);
 
 const originalPath = process.env.PATH;
-const originalKey = process.env.ANTHROPIC_API_KEY;
+const originalEnv = { ...process.env };
 after(async () => {
   process.env.PATH = originalPath;
-  if (originalKey === undefined) delete process.env.ANTHROPIC_API_KEY;
-  else process.env.ANTHROPIC_API_KEY = originalKey;
+  for (const key of Object.keys(SECRETS)) delete process.env[key];
+  Object.assign(process.env, originalEnv);
   await rm(temp, { recursive: true, force: true });
 });
 
@@ -25,7 +26,8 @@ after(async () => {
 const fakeTool = (name: 'claude' | 'codex') => `#!/usr/bin/env node
 const fs = require('node:fs');
 const args = process.argv.slice(2);
-const mode = process.env.FAKE_MODE || 'ok';
+// The mode comes from a file next to the script, because the child environment is an allow-list.
+const mode = (() => { try { return fs.readFileSync(__dirname + '/mode', 'utf8'); } catch { return 'ok'; } })();
 const line = (o) => process.stdout.write(JSON.stringify(o) + '\\n');
 if (args[0] === '--version') { console.log(${name === 'claude' ? "'9.9.9 (Claude Code)'" : "'codex-cli 8.8.8'"}); process.exit(0); }
 if (args[0] === 'auth' && args[1] === 'status') {
@@ -36,10 +38,11 @@ if (args[0] === 'login' && args[1] === 'status') {
   if (mode === 'signed-out') { console.error('Not logged in'); process.exit(1); }
   console.error('Logged in using ChatGPT'); process.exit(0);
 }
+const WATCHED = ['ANTHROPIC_API_KEY','ANTHROPIC_AUTH_TOKEN','ANTHROPIC_BASE_URL','CLAUDE_CODE_USE_BEDROCK','CLAUDE_CODE_USE_VERTEX','OPENAI_API_KEY','CODEX_API_KEY','CREATORCLUB_SECRET','HOME','HTTPS_PROXY'];
 let stdin = '';
 process.stdin.on('data', (c) => (stdin += c));
 process.stdin.on('end', () => {
-  fs.writeFileSync(${JSON.stringify(log)}, JSON.stringify({ args, stdin, apiKey: process.env.ANTHROPIC_API_KEY ?? null, cwd: process.cwd() }));
+  fs.writeFileSync(${JSON.stringify(log)}, JSON.stringify({ args, stdin, cwd: process.cwd(), env: Object.fromEntries(WATCHED.map((k) => [k, process.env[k] ?? null])) }));
   if (mode === 'hang') { setInterval(() => {}, 1000); return; }
   if (${name === 'claude'}) {
     line({ type: 'system', subtype: 'init' });
@@ -61,12 +64,23 @@ for (const name of ['claude', 'codex'] as const) {
   await chmod(path.join(bin, name), 0o755);
 }
 
+const SECRETS = {
+  ANTHROPIC_API_KEY: 'sk-ant-must-not-reach-child',
+  ANTHROPIC_AUTH_TOKEN: 'token-must-not-reach-child',
+  ANTHROPIC_BASE_URL: 'https://proxy.invalid',
+  CLAUDE_CODE_USE_BEDROCK: '1',
+  CLAUDE_CODE_USE_VERTEX: '1',
+  OPENAI_API_KEY: 'sk-openai-must-not-reach-child',
+  CODEX_API_KEY: 'codex-must-not-reach-child',
+  CREATORCLUB_SECRET: 'anything-not-allow-listed',
+};
 const withFake = (mode: string) => {
   process.env.PATH = `${bin}${path.delimiter}${originalPath}`;
-  process.env.FAKE_MODE = mode;
-  process.env.ANTHROPIC_API_KEY = 'sk-must-not-reach-child';
+  writeFileSync(path.join(bin, 'mode'), mode);
+  Object.assign(process.env, SECRETS, { HTTPS_PROXY: 'http://proxy.invalid:8080' });
 };
-const invocation = async () => JSON.parse(await readFile(log, 'utf8')) as { args: string[]; stdin: string; apiKey: string | null; cwd: string };
+const invocation = async () =>
+  JSON.parse(await readFile(log, 'utf8')) as { args: string[]; stdin: string; cwd: string; env: Record<string, string | null> };
 const base = { extraDirs: [] as string[], budgetUsd: 0.5 };
 
 test('claude: builds the agreed command, sends the prompt on stdin, strips ANTHROPIC_API_KEY, streams events', async () => {
@@ -78,15 +92,29 @@ test('claude: builds the agreed command, sends the prompt on stdin, strips ANTHR
   assert.deepEqual(events, [{ type: 'started' }, { type: 'text', text: 'Thinking out loud' }]);
 
   const call = await invocation();
-  assert.equal(call.apiKey, null, 'ANTHROPIC_API_KEY must be removed from the child environment');
+  for (const key of Object.keys(SECRETS)) assert.equal(call.env[key], null, `${key} must not reach the child`);
+  assert.equal(call.env.HTTPS_PROXY, 'http://proxy.invalid:8080', 'proxy settings are passed on');
+  assert.equal(call.env.HOME, os.homedir());
   assert.equal(call.stdin, 'Say hi');
   const { args } = call;
   assert.deepEqual(args.slice(0, 8), ['-p', '--output-format', 'stream-json', '--verbose', '--model', 'sonnet', '--max-budget-usd', '0.5']);
   assert.equal(args[args.indexOf('--json-schema') + 1], '{"type":"object"}');
   assert.equal(args[args.indexOf('--system-prompt') + 1], 'Be brief');
   assert.equal(args[args.indexOf('--tools') + 1], '', 'all tools are off without images');
+  // Isolation from the user's own Claude Code setup (CLAUDE.md, hooks, skills, MCP servers, plugins).
+  assert.ok(args.includes('--strict-mcp-config'));
+  assert.ok(args.includes('--disable-slash-commands'));
+  assert.equal(args[args.indexOf('--setting-sources') + 1], '');
+  assert.ok(args.includes('--no-session-persistence'));
   assert.ok(!args.includes('--add-dir'));
   assert.ok(!call.cwd.includes('recorder'), 'runs in a neutral directory');
+});
+
+test('claude: a default system prompt is always set, so the stock one is never used', async () => {
+  withFake('ok');
+  await runAI({ ...base, prompt: 'p' });
+  const { args } = await invocation();
+  assert.match(args[args.indexOf('--system-prompt') + 1], /precise assistant/);
 });
 
 test('claude: without a schema there is no --json-schema and no json', async () => {
@@ -133,6 +161,23 @@ test('cancelling stops the child process', async () => {
   const pending = runAI({ ...base, prompt: 'p', signal: controller.signal });
   setTimeout(() => controller.abort(), 400);
   await assert.rejects(pending, (e: AiError) => e.code === 'cancelled');
+});
+
+test('abort before the call, or during its setup, never starts the child', async () => {
+  withFake('hang');
+  rmSync(log, { force: true });
+  const early = new AbortController();
+  early.abort();
+  await assert.rejects(runAI({ ...base, prompt: 'p', signal: early.signal }), (e: AiError) => e.code === 'cancelled');
+
+  // Aborted while runAI is still awaiting its setup (binary lookup, working directory, schema file).
+  for (const provider of ['claude', 'codex'] as const) {
+    const racing = new AbortController();
+    const pending = runAI({ ...base, provider, prompt: 'p', jsonSchema: {}, signal: racing.signal });
+    racing.abort();
+    await assert.rejects(pending, (e: AiError) => e.code === 'cancelled');
+  }
+  assert.ok(!existsSync(log), 'no child was started');
 });
 
 test('codex: uses exec --json, passes the schema as a file and images with -i', async () => {

@@ -8,7 +8,7 @@ import type { AiProvider, AiProviderStatus, AiStatus } from '../../shared/club.j
 /*
  * The only module that talks to an AI. It starts the user's own `claude` or `codex` command line tool
  * and lets that tool handle sign-in. It never reads tokens, the Keychain or credential files, and it
- * removes ANTHROPIC_API_KEY from the child environment so a stray key is never billed.
+ * gives the child an allow-listed environment, so ANTHROPIC_API_KEY and other keys or provider switches never reach it.
  */
 
 const BINARY: Record<AiProvider, string> = { claude: 'claude', codex: 'codex' };
@@ -51,9 +51,12 @@ export async function findBinary(provider: AiProvider, { extraDirs = commonBinDi
   return undefined;
 }
 
+/** The only variables a child CLI receives. Everything else (API keys, tokens, base URLs, cloud-provider switches) stays behind. */
+const ENV_ALLOW = /^(PATH|HOME|USER|LOGNAME|TMPDIR|LANG|LC_[A-Z_]+|SHELL|TERM|(http|https|no|all)_proxy|(HTTP|HTTPS|NO|ALL)_PROXY)$/;
+
 function childEnv({ extraDirs = commonBinDirs() }: Lookup = {}): NodeJS.ProcessEnv {
-  const env = { ...process.env };
-  delete env.ANTHROPIC_API_KEY;
+  const env: NodeJS.ProcessEnv = {};
+  for (const [key, value] of Object.entries(process.env)) if (ENV_ALLOW.test(key) && value !== undefined) env[key] = value;
   env.PATH = [...(env.PATH ?? '').split(path.delimiter), ...extraDirs].filter(Boolean).join(path.delimiter);
   return env;
 }
@@ -174,11 +177,15 @@ interface Invocation {
   cleanup?: () => Promise<void>;
 }
 
+const DEFAULT_SYSTEM = 'You are a precise assistant. Follow the instructions you are given and answer only in the format requested.';
+
 async function claudeInvocation(o: RunAIOptions): Promise<Invocation> {
   const args = ['-p', '--output-format', 'stream-json', '--verbose', '--model', o.model ?? 'sonnet', '--max-budget-usd', String(o.budgetUsd)];
   if (o.jsonSchema) args.push('--json-schema', JSON.stringify(o.jsonSchema));
-  if (o.system) args.push('--system-prompt', o.system);
-  args.push('--no-session-persistence', '--strict-mcp-config');
+  // Isolation: no MCP servers, skills, user/project settings (hooks, plugins) and a replaced system prompt, so the
+  // user's own Claude Code setup (CLAUDE.md, brain hooks) is not loaded into every call. Verified with a real call.
+  args.push('--system-prompt', o.system ?? DEFAULT_SYSTEM);
+  args.push('--no-session-persistence', '--strict-mcp-config', '--disable-slash-commands', '--setting-sources', '');
   let prompt = o.prompt;
   if (o.images?.length) {
     const dirs = [...new Set(o.images.map((image) => path.dirname(path.resolve(image))))];
@@ -271,6 +278,9 @@ export async function runAI(options: RunAIOptions): Promise<RunAIResult> {
   const readLine = provider === 'claude' ? readClaudeLine : readCodexLine;
 
   try {
+    // Setup above awaited, so an abort may already have fired with no listener to hear it. No await sits between this
+    // check and the listener registered inside the promise below, so no abort can slip through.
+    if (options.signal?.aborted) throw new AiError('cancelled', 'That was stopped.');
     const { code, stderr, interrupted } = await new Promise<{ code: number | null; stderr: string; interrupted?: 'timeout' | 'abort' | 'spawn' }>((resolve) => {
       const child = spawn(file, invocation.args, { cwd, env: childEnv(options), stdio: ['pipe', 'pipe', 'pipe'] });
       let stderr = '';

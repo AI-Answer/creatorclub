@@ -137,6 +137,19 @@ export async function createWorkspace(input: Omit<Workspace, 'slug' | 'createdAt
 
 // ---------------------------------------------------------------- videos
 
+/** Runs `fn` after every earlier call with the same key, so read-modify-write cycles never overlap. */
+const lockTails = new Map<string, Promise<unknown>>();
+function withLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
+  const run = (lockTails.get(key) ?? Promise.resolve()).then(fn);
+  const tail = run.catch(() => {});
+  lockTails.set(key, tail);
+  void tail.then(() => lockTails.get(key) === tail && lockTails.delete(key));
+  return run;
+}
+// Lock order is always workspace first, then video, so the two never deadlock.
+const workspaceLock = <T>(slug: string, fn: () => Promise<T>) => withLock(`ws:${workspaceDir(slug)}`, fn);
+const videoLock = <T>(slug: string, id: string, fn: () => Promise<T>) => withLock(`video:${videoFile(slug, id)}`, fn);
+
 const videoFile = (slug: string, id: string) => path.join(videoDir(slug, id), 'video.json');
 
 export async function readVideo(slug: string, id: string): Promise<Video> {
@@ -168,58 +181,68 @@ export type NewVideo = Pick<Video, 'title'> & Partial<Pick<Video, 'stage' | 'sou
 
 const nextOrder = (videos: Video[], stage: VideoStage) => Math.max(-1, ...videos.filter((v) => v.stage === stage).map((v) => v.order)) + 1;
 
-export async function createVideo(slug: string, input: NewVideo): Promise<Video> {
-  const stage = input.stage ?? 'ideas';
-  const at = now();
-  const video: Video = {
-    ...input,
-    id: newId('v'),
-    stage,
-    order: nextOrder(await listVideos(slug), stage),
-    createdAt: at,
-    updatedAt: at,
-    stageDates: { [stage]: at },
-    planning: input.planning ?? { research: false, package: false, outline: false },
-  };
-  await writeVideo(slug, video);
-  return video;
+export function createVideo(slug: string, input: NewVideo): Promise<Video> {
+  return workspaceLock(slug, async () => {
+    const stage = input.stage ?? 'ideas';
+    const at = now();
+    const video: Video = {
+      ...input,
+      id: newId('v'),
+      stage,
+      order: nextOrder(await listVideos(slug), stage),
+      createdAt: at,
+      updatedAt: at,
+      stageDates: { [stage]: at },
+      planning: input.planning ?? { research: false, package: false, outline: false },
+    };
+    await writeVideo(slug, video);
+    return video;
+  });
 }
 
 export type VideoPatch = Partial<Omit<Video, 'id' | 'stage' | 'createdAt' | 'updatedAt' | 'stageDates'>>;
 
 /** Merges a patch; a null value clears an optional field. */
-export async function updateVideo(slug: string, id: string, patch: { [K in keyof VideoPatch]: VideoPatch[K] | null }): Promise<Video> {
-  const video: Record<string, unknown> = { ...(await readVideo(slug, id)) };
-  for (const [key, value] of Object.entries(patch)) {
-    if (value === null) delete video[key];
-    else if (value !== undefined) video[key] = value;
-  }
-  const updated = { ...video, updatedAt: now() } as unknown as Video;
-  await writeVideo(slug, updated);
-  return updated;
+export function updateVideo(slug: string, id: string, patch: { [K in keyof VideoPatch]: VideoPatch[K] | null }): Promise<Video> {
+  return videoLock(slug, id, async () => {
+    const video: Record<string, unknown> = { ...(await readVideo(slug, id)) };
+    for (const [key, value] of Object.entries(patch)) {
+      if (value === null) delete video[key];
+      else if (value !== undefined) video[key] = value;
+    }
+    const updated = { ...video, updatedAt: now() } as unknown as Video;
+    await writeVideo(slug, updated);
+    return updated;
+  });
 }
 
 /** Moves a video to the end of another stage and records when it got there. */
 export async function moveVideo(slug: string, id: string, stage: VideoStage): Promise<Video> {
   if (!VIDEO_STAGES.includes(stage)) throw new ClubError('That stage does not exist.');
-  const video = await readVideo(slug, id);
-  if (video.stage === stage) return video;
-  const at = now();
-  const moved: Video = {
-    ...video,
-    stage,
-    order: nextOrder(await listVideos(slug), stage),
-    updatedAt: at,
-    stageDates: { ...video.stageDates, [stage]: at },
-  };
-  await writeVideo(slug, moved);
-  return moved;
+  return workspaceLock(slug, () =>
+    videoLock(slug, id, async () => {
+      const video = await readVideo(slug, id);
+      if (video.stage === stage) return video;
+      const at = now();
+      const moved: Video = {
+        ...video,
+        stage,
+        order: nextOrder(await listVideos(slug), stage),
+        updatedAt: at,
+        stageDates: { ...video.stageDates, [stage]: at },
+      };
+      await writeVideo(slug, moved);
+      return moved;
+    }),
+  );
 }
 
 /** Removes the video's folder inside the workspace (its package, outline and research). Recordings live in SceneForge. */
-export async function deleteVideo(slug: string, id: string) {
-  await readVideo(slug, id);
-  await fs.rm(videoDir(slug, id), { recursive: true, force: true });
+export function deleteVideo(slug: string, id: string): Promise<void> {
+  return videoLock(slug, id, async () => {
+    await readVideo(slug, id);
+    await fs.rm(videoDir(slug, id), { recursive: true, force: true });
+  });
 }
 
 // ---------------------------------------------------------------- research tiles
