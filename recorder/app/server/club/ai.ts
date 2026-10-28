@@ -3,7 +3,7 @@ import { promises as fs, constants as fsConstants } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { ClubError } from './errors.js';
-import type { AiProvider, AiProviderStatus, AiStatus } from '../../shared/club.js';
+import type { AiProvider, AiProviderStatus, AiStatus, ConnectProvider } from '../../shared/club.js';
 
 /*
  * The only module that talks to an AI. It starts the user's own `claude` or `codex` command line tool
@@ -11,7 +11,7 @@ import type { AiProvider, AiProviderStatus, AiStatus } from '../../shared/club.j
  * gives the child an allow-listed environment, so ANTHROPIC_API_KEY and other keys or provider switches never reach it.
  */
 
-const BINARY: Record<AiProvider, string> = { claude: 'claude', codex: 'codex' };
+const BINARY: Record<ConnectProvider, string> = { claude: 'claude', codex: 'codex', gemini: 'gemini' };
 const LABEL: Record<AiProvider, string> = { claude: 'Claude', codex: 'Codex' };
 
 /** Apps opened from the Dock get a minimal PATH, so look in the usual install places too. */
@@ -30,15 +30,18 @@ export class AiError extends ClubError {
   }
 }
 
-interface Lookup {
+export interface Lookup {
   /** Extra directories to search after PATH. Defaults to the common install locations. */
   extraDirs?: string[];
+  /** Where the Gemini CLI keeps its sign-in. Defaults to `~/.gemini`. Only the existence of one file is checked. */
+  geminiDir?: string;
 }
 
-export async function findBinary(provider: AiProvider, { extraDirs = commonBinDirs() }: Lookup = {}): Promise<string | undefined> {
+/** Finds a command on PATH, then in the common install places. */
+export async function findExecutable(name: string, { extraDirs = commonBinDirs() }: Lookup = {}): Promise<string | undefined> {
   const dirs = [...(process.env.PATH ?? '').split(path.delimiter), ...extraDirs].filter(Boolean);
   for (const dir of dirs) {
-    const candidate = path.join(dir, BINARY[provider]);
+    const candidate = path.join(dir, name);
     try {
       if ((await fs.stat(candidate)).isFile()) {
         await fs.access(candidate, fsConstants.X_OK);
@@ -51,10 +54,12 @@ export async function findBinary(provider: AiProvider, { extraDirs = commonBinDi
   return undefined;
 }
 
+export const findBinary = (provider: ConnectProvider, lookup: Lookup = {}) => findExecutable(BINARY[provider], lookup);
+
 /** The only variables a child CLI receives. Everything else (API keys, tokens, base URLs, cloud-provider switches) stays behind. */
 const ENV_ALLOW = /^(PATH|HOME|USER|LOGNAME|TMPDIR|LANG|LC_[A-Z_]+|SHELL|TERM|(http|https|no|all)_proxy|(HTTP|HTTPS|NO|ALL)_PROXY)$/;
 
-function childEnv({ extraDirs = commonBinDirs() }: Lookup = {}): NodeJS.ProcessEnv {
+export function childEnv({ extraDirs = commonBinDirs() }: Lookup = {}): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = {};
   for (const [key, value] of Object.entries(process.env)) if (ENV_ALLOW.test(key) && value !== undefined) env[key] = value;
   env.PATH = [...(env.PATH ?? '').split(path.delimiter), ...extraDirs].filter(Boolean).join(path.delimiter);
@@ -74,7 +79,7 @@ interface Finished {
   stderr: string;
 }
 
-function runQuick(file: string, args: string[], env: NodeJS.ProcessEnv, timeoutMs = 15_000): Promise<Finished> {
+export function runQuick(file: string, args: string[], env: NodeJS.ProcessEnv, timeoutMs = 15_000): Promise<Finished> {
   return new Promise((resolve) => {
     let stdout = '';
     let stderr = '';
@@ -110,10 +115,26 @@ export function parseCodexAuth(code: number | null, output: string): Pick<AiProv
   return { signedIn, ...(signedIn && /chatgpt/i.test(output) ? { account: 'ChatGPT' } : {}) };
 }
 
-async function providerStatus(provider: AiProvider, lookup: Lookup): Promise<AiProviderStatus> {
+/**
+ * The Gemini CLI has no status command. It counts as signed in when its Google sign-in file exists.
+ * Only the file's existence is checked; its contents are never read.
+ */
+async function geminiSignedIn({ geminiDir = path.join(os.homedir(), '.gemini') }: Lookup): Promise<boolean> {
+  try {
+    return (await fs.stat(path.join(geminiDir, 'oauth_creds.json'))).isFile();
+  } catch {
+    return false;
+  }
+}
+
+export async function providerStatus(provider: ConnectProvider, lookup: Lookup = {}): Promise<AiProviderStatus> {
   const file = await findBinary(provider, lookup);
   if (!file) return { installed: false, version: null, signedIn: false };
   const env = childEnv(lookup);
+  if (provider === 'gemini') {
+    const [version, signedIn] = await Promise.all([runQuick(file, ['--version'], env), geminiSignedIn(lookup)]);
+    return { installed: true, version: parseVersion(version.stdout || version.stderr), signedIn };
+  }
   const [version, auth] = await Promise.all([
     runQuick(file, ['--version'], env),
     provider === 'claude' ? runQuick(file, ['auth', 'status'], env) : runQuick(file, ['login', 'status'], env),
@@ -123,8 +144,8 @@ async function providerStatus(provider: AiProvider, lookup: Lookup): Promise<AiP
 }
 
 export async function aiStatus(lookup: Lookup = {}): Promise<AiStatus> {
-  const [claude, codex] = await Promise.all([providerStatus('claude', lookup), providerStatus('codex', lookup)]);
-  return { claude, codex };
+  const [claude, codex, gemini] = await Promise.all([providerStatus('claude', lookup), providerStatus('codex', lookup), providerStatus('gemini', lookup)]);
+  return { claude, codex, gemini };
 }
 
 // ---------------------------------------------------------------- running a prompt

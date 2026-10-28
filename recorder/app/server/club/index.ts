@@ -2,7 +2,8 @@ import express, { Router, type NextFunction, type Request, type Response } from 
 import multer from 'multer';
 import { z } from 'zod';
 import { TILE_KINDS, VIDEO_STAGES, type Workspace } from '../../shared/club.js';
-import { aiStatus } from './ai.js';
+import { aiStatus, type Lookup } from './ai.js';
+import { startConnect, type ConnectOptions } from './connect.js';
 import { ClubError, GENERIC_FAILURE, notFound } from './errors.js';
 import { cancelJob, getJob, snapshot, watchJob } from './jobs.js';
 import * as store from './store.js';
@@ -72,12 +73,31 @@ async function requireWorkspace(): Promise<string> {
   return slug;
 }
 
-export function clubRouter(): Router {
+const connectBody = z.object({ provider: z.enum(['claude', 'codex', 'gemini']), reconnect: z.boolean().optional() }).strict();
+const settingsBody = z.object({ defaultAi: z.enum(['claude', 'codex']) }).strict();
+
+export interface ClubRouterOptions {
+  /** Where to look for the AI command line tools, and how fast to poll them. Tests point these at fake tools. */
+  ai?: ConnectOptions & Lookup;
+}
+
+export function clubRouter({ ai = {} }: ClubRouterOptions = {}): Router {
   const router = Router();
   router.use(express.json({ limit: '5mb' }));
 
   // ---- AI
-  router.get('/ai/status', handler(async (_req, res) => res.json(await aiStatus())));
+  router.get('/ai/status', handler(async (_req, res) => res.json(await aiStatus(ai))));
+  router.post('/ai/connect', handler((req, res) => {
+    const { provider, reconnect } = connectBody.parse(req.body);
+    res.status(202).json(startConnect(provider, { ...ai, reconnect }));
+  }));
+
+  // ---- settings
+  router.get('/settings', handler(async (_req, res) => res.json({ defaultAi: (await store.defaultAi()) ?? null })));
+  router.put('/settings', handler(async (req, res) => {
+    await store.setDefaultAi(settingsBody.parse(req.body).defaultAi);
+    res.json({ defaultAi: await store.defaultAi() });
+  }));
 
   // ---- jobs
   router.get('/jobs/:id', handler((req, res) => {

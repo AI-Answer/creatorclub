@@ -125,14 +125,34 @@ export interface Breakdown {
   }[];
 }
 
+/** The two command line tools that can run a prompt. */
 export type AiProvider = 'claude' | 'codex';
+/** Everything Settings can connect. Google (the Gemini CLI) is for watching video later and never runs prompts. */
+export type ConnectProvider = AiProvider | 'gemini';
 export interface AiProviderStatus {
   installed: boolean;
   version: string | null;
   signedIn: boolean;
   account?: string;
 }
-export type AiStatus = Record<AiProvider, AiProviderStatus>;
+export type AiStatus = Record<ConnectProvider, AiProviderStatus>;
+
+export interface ClubSettings {
+  /** The AI that runs prompts. Null until one is chosen or the first one connects. */
+  defaultAi: AiProvider | null;
+}
+
+/** Progress events of a connect job. `line` is one cleaned-up line of installer output. */
+export interface ConnectProgress {
+  phase: 'installing' | 'signing-in' | 'connected';
+  line?: string;
+  account?: string;
+}
+/** The result of a connect job. */
+export interface ConnectResult {
+  provider: ConnectProvider;
+  account?: string;
+}
 
 export type JobStatus = 'running' | 'done' | 'failed' | 'cancelled';
 export interface JobSnapshot {

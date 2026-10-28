@@ -195,17 +195,18 @@ test('codex: uses exec --json, passes the schema as a file and images with -i', 
 
 test('aiStatus reads versions and sign-in state from claude auth status and codex login status', async () => {
   withFake('ok');
-  assert.deepEqual(await aiStatus({ extraDirs: [] }), {
+  assert.deepEqual(await aiStatus({ extraDirs: [], geminiDir: emptyBin }), {
     claude: { installed: true, version: '9.9.9', signedIn: true, account: 'dani@example.com' },
     codex: { installed: true, version: '8.8.8', signedIn: true, account: 'ChatGPT' },
+    gemini: { installed: false, version: null, signedIn: false },
   });
   withFake('signed-out');
-  const out = await aiStatus({ extraDirs: [] });
+  const out = await aiStatus({ extraDirs: [], geminiDir: emptyBin });
   assert.equal(out.claude.signedIn, false);
   assert.equal(out.codex.signedIn, false);
   assert.equal(out.codex.account, undefined);
   process.env.PATH = emptyBin;
-  assert.deepEqual((await aiStatus({ extraDirs: [] })).claude, { installed: false, version: null, signedIn: false });
+  assert.deepEqual((await aiStatus({ extraDirs: [], geminiDir: emptyBin })).claude, { installed: false, version: null, signedIn: false });
 });
 
 test('parsers handle the real output shapes', () => {

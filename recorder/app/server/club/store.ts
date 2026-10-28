@@ -5,6 +5,7 @@ import { randomBytes } from 'node:crypto';
 import { ClubError, notFound } from './errors.js';
 import {
   VIDEO_STAGES,
+  type AiProvider,
   type ResearchTile,
   type TileKind,
   type TileMeta,
@@ -68,8 +69,13 @@ export const writeJSON = (file: string, value: unknown) => writeFileAtomic(file,
 
 interface Settings {
   currentWorkspace?: string;
+  defaultAi?: AiProvider;
 }
 const settingsFile = () => path.join(rootDir(), 'settings.json');
+
+/** Read-modify-write on settings.json, one at a time, so two changes never undo each other. */
+const updateSettings = (change: (settings: Settings) => Settings) =>
+  withLock(`settings:${settingsFile()}`, async () => writeJSON(settingsFile(), change((await readJSON<Settings>(settingsFile())) ?? {})));
 
 /** The current workspace slug, or undefined when none is chosen or its folder is gone. */
 export async function currentWorkspace(): Promise<string | undefined> {
@@ -80,8 +86,22 @@ export async function currentWorkspace(): Promise<string | undefined> {
 
 export async function setCurrentWorkspace(slug: string) {
   await readWorkspace(assertSlug(slug));
-  const settings = (await readJSON<Settings>(settingsFile())) ?? {};
-  await writeJSON(settingsFile(), { ...settings, currentWorkspace: slug });
+  await updateSettings((settings) => ({ ...settings, currentWorkspace: slug }));
+}
+
+/** The AI that runs prompts, or undefined until one is chosen or the first one connects. */
+export async function defaultAi(): Promise<AiProvider | undefined> {
+  const value = (await readJSON<Settings>(settingsFile()))?.defaultAi;
+  return value === 'claude' || value === 'codex' ? value : undefined;
+}
+
+export async function setDefaultAi(provider: AiProvider) {
+  await updateSettings((settings) => ({ ...settings, defaultAi: provider }));
+}
+
+/** Sets the default AI only when none is set yet. */
+export async function setDefaultAiIfUnset(provider: AiProvider): Promise<void> {
+  await updateSettings((settings) => (settings.defaultAi === 'claude' || settings.defaultAi === 'codex' ? settings : { ...settings, defaultAi: provider }));
 }
 
 // ---------------------------------------------------------------- workspaces

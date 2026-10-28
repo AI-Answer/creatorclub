@@ -6,5 +6,6 @@ export {Dialog} from './Dialog';
 export {EmptyState} from './EmptyState';
 export {Input,Textarea} from './Input';
 export {OutlierChip} from './OutlierChip';
+export {Progress} from './Progress';
 export {Spinner} from './Spinner';
 export {Tabs,type Tab} from './Tabs';

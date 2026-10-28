@@ -1,7 +1,6 @@
 import {Window} from 'happy-dom';
 import {registerHooks} from 'node:module';
 import {act,type ReactNode} from 'react';
-import {createRoot} from 'react-dom/client';
 
 registerHooks({resolve:(specifier,context,next)=>specifier.endsWith('.css')?{url:'data:text/javascript,',shortCircuit:true}:next(specifier,context)});
 const browser=new Window({url:'http://localhost/'});
@@ -9,6 +8,8 @@ for(const key of ['window','document','navigator','HTMLElement','Element','HTMLI
  const value=browser[key as keyof Window];Object.defineProperty(globalThis,key,{value:typeof value==='function'&&['getComputedStyle','requestAnimationFrame','cancelAnimationFrame','ResizeObserver'].includes(key)?value.bind(browser):value,configurable:true,writable:true});
 }
 Object.assign(globalThis,{IS_REACT_ACT_ENVIRONMENT:true});
+// react-dom decides at load time whether it runs in a browser (it needs this for onChange), so it loads after the globals above exist.
+const {createRoot}=await import('react-dom/client');
 export async function mountUI(element:ReactNode){
  const container=document.createElement('div');document.body.append(container);const root=createRoot(container);
  await act(async()=>{root.render(element);});

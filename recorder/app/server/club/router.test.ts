@@ -125,8 +125,8 @@ test('a listener connected while the job runs gets events live and the stream cl
   assert.match(text, /event: done\ndata: "ok"/);
 });
 
-test('ai status route answers with both providers', async () => {
+test('ai status route answers for Claude, ChatGPT and Google', async () => {
   const res = await call('GET', '/ai/status');
   assert.equal(res.status, 200);
-  assert.deepEqual(Object.keys(res.body).sort(), ['claude', 'codex']);
+  assert.deepEqual(Object.keys(res.body).sort(), ['claude', 'codex', 'gemini']);
 });
