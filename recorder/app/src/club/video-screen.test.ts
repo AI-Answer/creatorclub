@@ -72,7 +72,7 @@ test('a video walks from Ideas through Research, Package and Create outline into
   await act(async()=>button(c,'Package it').click());await flush();
   await act(async()=>FakeEventSource.last().emit('progress',{message:'Writing the package…'}));
   assert.ok(hasText(c,'Writing the package…'),'progress streams in');
-  await act(async()=>FakeEventSource.last().emit('done',pkg));
+  await act(async()=>FakeEventSource.last().emit('done',{value:pkg}));
   const firstTitle=c.querySelector<HTMLInputElement>('input[value="Claude Code features you missed"]');
   assert.ok(firstTitle,'the package fills editable fields');
   await type(firstTitle!,'Claude Code features nobody uses');
@@ -85,7 +85,7 @@ test('a video walks from Ideas through Research, Package and Create outline into
   assert.ok(hasText(c,"Turn this into scenes. You'll talk through each one when you record."));
   assert.deepEqual(primaries(c),['Create outline']);
   await act(async()=>button(c,'Create outline').click());await flush();
-  await act(async()=>FakeEventSource.last().emit('done',outline));
+  await act(async()=>FakeEventSource.last().emit('done',{value:outline}));
   assert.equal(c.querySelectorAll('[aria-label="Scenes"] li').length,8,'four scene cards and four scenes on the left');
   assert.ok(button(c,'Write full script instead'));
   await type(c.querySelector('input[aria-label="Scene 2 title"]')!,'Level 1: settings');
@@ -96,6 +96,64 @@ test('a video walks from Ideas through Research, Package and Create outline into
   assert.deepEqual(steps,['record'],'Record opens');
   assert.equal(state.video.stage,'recording');
   assert.equal(state.video.recorderProjectId,'p1');
+ }finally{await ui.close();server.restore();}
+});
+
+test('an AI step can be stopped, a page opened mid-run follows it, and a replaced outline can be undone',async()=>{
+ FakeEventSource.install();
+ const planned:Video={...idea,stage:'planning',planning:{research:true,package:true,outline:false}};
+ const edited:Outline={scenes:outline.scenes.map((s,i)=>({...s,id:`s_0000000${i}`,...(i===0?{title:'My own opening'}:{})}))};
+ const state={outline:edited as Outline|null,undone:0};
+ const server=installFetch(({method,path,body})=>{
+  if(path==='/videos/v1/plan')return {body:{package:pkg,outline:state.outline,running:{outline:'j-running'},ready:{}}};
+  if(path==='/settings')return {body:{helpSeen:['research','package','outline']}};
+  if(path==='/jobs/j-running'&&method==='DELETE')return {body:{id:'j-running',status:'cancelled'}};
+  if(path==='/videos/v1/outline'&&method==='POST')return {status:202,body:{id:'j-again',status:'running'}};
+  if(path==='/videos/v1/outline/undo'){state.undone++;assert.deepEqual(body,{token:'2026-10-29T10-00-00-000Z'});return {body:{package:pkg,outline:edited}};}
+ });
+ const ui=await mountUI(createElement(Harness,{initial:planned,steps:[]}));
+ try{
+  await flush();
+  const c=ui.container;
+  assert.ok(FakeEventSource.all.some(source=>source.url.includes('/jobs/j-running/events')),'the page follows the run already going');
+  assert.ok(hasText(c,'Starting…'));assert.ok(c.querySelector('fieldset[disabled]'),'the scenes are locked while it runs');
+  await act(async()=>button(c,'Stop').click());await flush();
+  assert.ok(server.calls.some(call=>call.method==='DELETE'&&call.path==='/jobs/j-running'),'Stop cancels the job on the server');
+  await act(async()=>FakeEventSource.last().emit('cancelled',{}));
+  assert.ok(!hasText(c,'Starting…'));
+  assert.equal(c.querySelector<HTMLInputElement>('input[aria-label="Scene 1 title"]')!.value,'My own opening');
+
+  await act(async()=>button(c,'Create outline').click());await flush();
+  const replaced={scenes:outline.scenes.map((s,i)=>({...s,id:`s_0000000${i}`}))};
+  await act(async()=>FakeEventSource.last().emit('done',{value:replaced,replaced:'2026-10-29T10-00-00-000Z'}));
+  assert.equal(c.querySelector<HTMLInputElement>('input[aria-label="Scene 1 title"]')!.value,'Opening');
+  assert.ok(hasText(c,'Replaced the outline'));
+  await act(async()=>button(c,'Undo').click());await flush();
+  assert.equal(state.undone,1);
+  assert.equal(c.querySelector<HTMLInputElement>('input[aria-label="Scene 1 title"]')!.value,'My own opening','Undo brings the edits back');
+  assert.ok(!hasText(c,'Replaced the outline'));
+ }finally{await ui.close();server.restore();}
+});
+
+test('a result that finished after the step was edited is offered, not written',async()=>{
+ FakeEventSource.install();
+ const planned:Video={...idea,stage:'planning',planning:{research:true,package:true,outline:false}};
+ const mine:Outline={scenes:outline.scenes.map((s,i)=>({...s,id:`s_1000000${i}`,...(i===0?{title:'Mine'}:{})}))};
+ const theirs:Outline={scenes:outline.scenes.map((s,i)=>({...s,id:`s_1000000${i}`}))};
+ const server=installFetch(({path,body})=>{
+  if(path==='/videos/v1/plan')return {body:{package:pkg,outline:mine,running:{},ready:{outline:'2026-10-29T11-00-00-000Z'}}};
+  if(path==='/settings')return {body:{helpSeen:['research','package','outline']}};
+  if(path==='/videos/v1/outline/use'){assert.deepEqual(body,{token:'2026-10-29T11-00-00-000Z'});return {body:{package:pkg,outline:theirs}};}
+ });
+ const ui=await mountUI(createElement(Harness,{initial:planned,steps:[]}));
+ try{
+  await flush();
+  const c=ui.container;
+  assert.ok(hasText(c,'New outline ready'));
+  assert.equal(c.querySelector<HTMLInputElement>('input[aria-label="Scene 1 title"]')!.value,'Mine','the edited outline stays until Use it');
+  await act(async()=>button(c,'Use it').click());await flush();
+  assert.equal(c.querySelector<HTMLInputElement>('input[aria-label="Scene 1 title"]')!.value,'Opening');
+  assert.ok(!hasText(c,'New outline ready'));
  }finally{await ui.close();server.restore();}
 });
 

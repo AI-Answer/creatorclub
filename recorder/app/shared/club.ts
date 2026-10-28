@@ -67,6 +67,8 @@ export interface Video {
 }
 
 export interface RecorderScene {
+  /** The outline scene's id. An entry stays after its outline scene is removed, so its takes are still flagged. */
+  outlineId: string;
   sceneId: string;
   /** The scene's name, script and notes as pushed, joined, so a change in any of them counts. */
   text: string;
@@ -121,6 +123,8 @@ export interface Package {
 }
 
 export interface OutlineScene {
+  /** Stable for the scene's whole life: kept through edits, reorders and re-runs that keep its title. Links it to its recorder scene. */
+  id?: string;
   title: string;
   talkingPoints: string[];
   show: string;
@@ -139,8 +143,23 @@ export type PlanStep = (typeof PLAN_STEPS)[number];
 export interface PlanData {
   package: Package | null;
   outline: Outline | null;
-  /** The first scene (1-based) whose takes were recorded before the outline changed. */
+  /** The first scene (1-based, in the recorder's order) whose takes were recorded before the outline changed. */
   changedScene?: number;
+  /** AI steps still running for this video, by step, so a page opened mid-run follows them. */
+  running: Partial<Record<PlanJobKind, string>>;
+  /** Results that finished after the step was edited, held instead of written: their token, by step. */
+  ready: Partial<Record<PlanJobKind, string>>;
+}
+
+/** The AI steps of Plan. Each runs at most once at a time per video. */
+export const PLAN_JOB_KINDS = ['package', 'outline', 'script'] as const;
+export type PlanJobKind = (typeof PLAN_JOB_KINDS)[number];
+
+/** What a finished AI step returns: the new version, plus `replaced` (Undo puts the earlier one back) or `held` (it was kept aside, because the step changed while it ran). */
+export interface PlanJobResult<T> {
+  value: T;
+  replaced?: string;
+  held?: string;
 }
 
 export interface BreakdownVideoMeta {

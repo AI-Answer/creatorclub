@@ -1,7 +1,7 @@
 import express, { Router, type NextFunction, type Request, type Response } from 'express';
 import multer from 'multer';
 import { z } from 'zod';
-import { PLAN_STEPS, TILE_KINDS, VIDEO_STAGES, type Workspace } from '../../shared/club.js';
+import { PLAN_JOB_KINDS, PLAN_STEPS, TILE_KINDS, VIDEO_STAGES, type Workspace } from '../../shared/club.js';
 import { aiStatus } from './ai.js';
 import { startConnect, type ConnectOptions } from './connect.js';
 import { ClubError, GENERIC_FAILURE, notFound } from './errors.js';
@@ -12,7 +12,7 @@ import { cancelJob, getJob, snapshot, startJob, watchJob } from './jobs.js';
 import { parseChannelInput } from './channel.js';
 import { FILE_TOO_BIG, MAX_FILE_BYTES, detectSource } from './source.js';
 import { addChannel, rebuildVoice } from './onboard.js';
-import { readOutline, readPackage, runOutline, runPackage, runScript, saveOutline, savePackage, saveScript, type PlanOptions } from './planning.js';
+import { heldResults, readOutline, readPackage, runningPlanJobs, saveOutline, savePackage, saveScript, startPlanJob, undoReplace, useHeld, type PlanOptions } from './planning.js';
 import { continueToRecording, outlineChangedScene } from './recorder.js';
 import { readTranscript, startTileRead } from './research.js';
 import * as store from './store.js';
@@ -71,6 +71,7 @@ const tileMeta = z
   .partial()
   .strict();
 const scriptBody = z.object({ script: z.string().max(200_000).nullable() }).strict();
+const versionBody = z.object({ token: z.string().max(64) }).strict();
 // Multipart fields arrive as strings, so meta may be a JSON string.
 const newTileBody = z.object({
   kind: z.enum(TILE_KINDS),
@@ -303,33 +304,36 @@ export function clubRouter({ ai = {}, transcribe, runAI }: ClubRouterOptions = {
     const slug = await requireWorkspace();
     const id = param(req, 'id');
     const video = await store.readVideo(slug, id);
-    const [pkg, outline] = await Promise.all([readPackage(slug, id), readOutline(slug, id)]);
+    const [pkg, outline, ready] = await Promise.all([readPackage(slug, id), readOutline(slug, id), heldResults(slug, id)]);
     const changedScene = await outlineChangedScene(video, outline);
-    res.json({ package: pkg, outline, ...(changedScene ? { changedScene } : {}) });
+    res.json({ package: pkg, outline, ...(changedScene ? { changedScene } : {}), running: runningPlanJobs(slug, id), ready });
   }));
   router.put('/videos/:id/package', handler(async (req, res) => res.json(await savePackage(await requireWorkspace(), param(req, 'id'), req.body))));
-  router.post('/videos/:id/package', handler(async (req, res) => {
-    const slug = await requireWorkspace();
-    const id = param(req, 'id');
-    await store.readVideo(slug, id);
-    res.status(202).json(startJob('package', (context) => runPackage(slug, id, context, plan)));
-  }));
   router.put('/videos/:id/outline', handler(async (req, res) => res.json(await saveOutline(await requireWorkspace(), param(req, 'id'), req.body))));
-  router.post('/videos/:id/outline', handler(async (req, res) => {
-    const slug = await requireWorkspace();
-    const id = param(req, 'id');
-    await store.readVideo(slug, id);
-    res.status(202).json(startJob('outline', (context) => runOutline(slug, id, context, plan)));
-  }));
   router.put('/videos/:id/script', handler(async (req, res) => {
     res.json({ outline: await saveScript(await requireWorkspace(), param(req, 'id'), scriptBody.parse(req.body).script) });
   }));
-  router.post('/videos/:id/script', handler(async (req, res) => {
-    const slug = await requireWorkspace();
-    const id = param(req, 'id');
-    if (!(await readOutline(slug, id))) throw new ClubError('Create the outline first.');
-    res.status(202).json(startJob('script', (context) => runScript(slug, id, context, plan)));
-  }));
+  for (const kind of PLAN_JOB_KINDS) {
+    // Package it, Create outline and Write full script instead. A second start while one runs gets the running one.
+    router.post(`/videos/:id/${kind}`, handler(async (req, res) => {
+      const slug = await requireWorkspace();
+      const id = param(req, 'id');
+      await store.readVideo(slug, id);
+      if (kind === 'script' && !(await readOutline(slug, id))) throw new ClubError('Create the outline first.');
+      res.status(202).json(startPlanJob(slug, id, kind, plan));
+    }));
+    // "Replaced the outline · Undo" puts back what a run replaced; "New outline ready · Use it" takes a result that was held.
+    for (const action of ['undo', 'use'] as const) {
+      router.post(`/videos/:id/${kind}/${action}`, handler(async (req, res) => {
+        const slug = await requireWorkspace();
+        const id = param(req, 'id');
+        const { token } = versionBody.parse(req.body);
+        await (action === 'undo' ? undoReplace(slug, id, kind, token) : useHeld(slug, id, kind, token));
+        const [pkg, outline] = await Promise.all([readPackage(slug, id), readOutline(slug, id)]);
+        res.json({ package: pkg, outline });
+      }));
+    }
+  }
   router.post('/videos/:id/recorder', handler(async (req, res) => res.json(await continueToRecording(await requireWorkspace(), param(req, 'id')))));
 
   // ---- breakdowns

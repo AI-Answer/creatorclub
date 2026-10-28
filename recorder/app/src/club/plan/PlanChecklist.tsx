@@ -1,9 +1,9 @@
 import type {ReactNode} from 'react';
 import {Check,ChevronDown} from 'lucide-react';
-import {PLAN_STEPS,type PlanStep,type Video} from '../../../shared/club';
+import {PLAN_JOB_KINDS,PLAN_STEPS,type PlanJobKind,type PlanStep,type Video} from '../../../shared/club';
 import {ErrorLine} from '../ErrorLine';
 import type {JobRun} from '../useJobRun';
-import type {Plan} from '../usePlan';
+import type {Notice,Plan} from '../usePlan';
 import {Button,Spinner,cn} from '../ui';
 import {PLAN_COPY,WRITE_SCRIPT,changedSceneLine} from '../video-plan';
 import {OutlineEditor,ScriptEditor} from './OutlineEditor';
@@ -12,11 +12,27 @@ import {ResearchBoard} from './ResearchBoard';
 
 const STARTING='Starting…';
 
-/** A running AI step's latest line, or its one-sentence failure with `Try again`. Nothing when it is idle or done. */
-function JobLine({state,onRetry}:{state:JobRun;onRetry():void}){
- if(state.phase==='running')return <p role="status" className="flex items-center gap-2 text-base text-muted"><Spinner size={14} label="Working"/>{state.line??STARTING}</p>;
+/** A running AI step's latest line with a quiet `Stop`, or its one-sentence failure with `Try again`. Nothing when it is idle or done. */
+function JobLine({state,onRetry,onStop}:{state:JobRun;onRetry():void;onStop():void}){
+ if(state.phase==='running')return <div className="flex items-center gap-3">
+  <p role="status" className="flex items-center gap-2 text-base text-muted"><Spinner size={14} label="Working"/>{state.line??STARTING}</p>
+  <Button variant="ghost" size="sm" onClick={onStop}>Stop</Button>
+ </div>;
  if(state.phase==='failed')return <ErrorLine message={state.message} onRetry={onRetry}/>;
  return null;
+}
+
+const NOTICE_WHAT:Record<PlanJobKind,string>={package:'package',outline:'outline',script:'full script'};
+
+/** "Replaced the outline · Undo" after a run replaced earlier work; "New outline ready · Use it" when a run finished after the step was edited. */
+function NoticeLine({kind,notice,onAct}:{kind:PlanJobKind;notice?:Notice;onAct(kind:PlanJobKind):void}){
+ if(!notice)return null;
+ const replaced=notice.type==='replaced';
+ return <p role="status" className="flex items-center gap-1 text-base text-muted">
+  {replaced?`Replaced the ${NOTICE_WHAT[kind]}`:`New ${NOTICE_WHAT[kind]} ready`}
+  <span aria-hidden>·</span>
+  <button type="button" onClick={()=>onAct(kind)} className="rounded-sm px-1 font-medium text-accent hover:underline focus-visible:outline-2 focus-visible:outline-accent">{replaced?'Undo':'Use it'}</button>
+ </p>;
 }
 
 function Step({index,step,done,open,summary,help,onOpen,children}:{index:number;step:PlanStep;done:boolean;open:boolean;summary?:string;help?:string;onOpen():void;children:ReactNode}){
@@ -56,17 +72,20 @@ export function PlanChecklist({video,plan}:{video:Video;plan:Plan}){
  const body:Record<PlanStep,ReactNode>={
   research:<ResearchBoard videoId={video.id}/>,
   package:<>
-   <JobLine state={plan.packageJob} onRetry={plan.packageIt}/>
+   <JobLine state={plan.packageJob} onRetry={plan.packageIt} onStop={()=>plan.stop('package')}/>
+   <NoticeLine kind="package" notice={plan.notices.package} onAct={plan.resolveNotice}/>
    {pkg?<>
     <PackageForm value={pkg} onChange={plan.editPackage} disabled={packaging}/>
     <Button className="self-start" disabled={packaging} onClick={plan.packageIt}>{PLAN_COPY.package.action}</Button>
    </>:!packaging&&plan.packageJob.phase!=='failed'&&<Button variant="primary" className="self-start" onClick={plan.packageIt}>{PLAN_COPY.package.action}</Button>}
   </>,
   outline:<>
-   <JobLine state={plan.outlineJob} onRetry={plan.createOutline}/>
+   <JobLine state={plan.outlineJob} onRetry={plan.createOutline} onStop={()=>plan.stop('outline')}/>
+   <NoticeLine kind="outline" notice={plan.notices.outline} onAct={plan.resolveNotice}/>
+   <NoticeLine kind="script" notice={plan.notices.script} onAct={plan.resolveNotice}/>
    {outline?<>
     {outline.fullScript!==undefined?<ScriptEditor value={outline.fullScript} onChange={plan.editScript} disabled={scripting}/>:<OutlineEditor value={outline} onChange={plan.editOutline} disabled={outlining||scripting}/>}
-    <JobLine state={plan.scriptJob} onRetry={plan.writeScript}/>
+    <JobLine state={plan.scriptJob} onRetry={plan.writeScript} onStop={()=>plan.stop('script')}/>
     {plan.scriptError&&<ErrorLine message={plan.scriptError} onRetry={plan.backToTalkingPoints}/>}
     <div className="flex flex-wrap gap-2">
      <Button disabled={outlining||scripting} onClick={plan.createOutline}>{PLAN_COPY.outline.action}</Button>
@@ -80,6 +99,7 @@ export function PlanChecklist({video,plan}:{video:Video;plan:Plan}){
   {plan.changedScene!==undefined&&<p role="status" className="rounded-lg bg-band-amber-soft px-4 py-3 text-base text-band-amber">{changedSceneLine(plan.changedScene)}</p>}
   {plan.continueError&&<ErrorLine message={plan.continueError} onRetry={()=>plan.continueAction?.run()}/>}
   {plan.saveError&&<ErrorLine message={plan.saveError} onRetry={plan.retrySave}/>}
+  {plan.noticeError&&<ErrorLine message={plan.noticeError} onRetry={()=>{for(const kind of PLAN_JOB_KINDS)if(plan.notices[kind]){void plan.resolveNotice(kind);break;}}}/>}
   {PLAN_STEPS.map((step,index)=><Step key={step} index={index} step={step} done={done[step]} open={plan.open===step} summary={summaries[step]} help={help(step)} onOpen={()=>plan.setOpen(step)}>{body[step]}</Step>)}
  </div>;
 }

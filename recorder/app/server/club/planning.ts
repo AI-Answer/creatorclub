@@ -1,13 +1,14 @@
+import { randomBytes } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { z } from 'zod';
-import type { AiProvider, Outline, OutlineScene, Package, Video } from '../../shared/club.js';
+import { PLAN_JOB_KINDS, type AiProvider, type JobSnapshot, type Outline, type OutlineScene, type Package, type PlanData, type PlanJobKind, type PlanJobResult, type Video } from '../../shared/club.js';
 import { AiError, runAI, type RunAIOptions } from './ai.js';
 import { readBreakdown } from './breakdown.js';
 import type { ChannelData } from './channel.js';
 import { loadChannelContext } from './context.js';
 import { ClubError } from './errors.js';
-import type { JobContext } from './jobs.js';
+import { getJob, snapshot, startJob, type JobContext } from './jobs.js';
 import {
   buildExpandPrompt,
   buildOutlinePrompt,
@@ -62,10 +63,13 @@ export const packageShape = z
   })
   .strict();
 
+export const SCENE_ID = /^[A-Za-z0-9_-]{1,40}$/;
+
 const sceneShape = z
   .object({
+    id: z.string().regex(SCENE_ID).optional(),
     title: text(300),
-    talkingPoints: z.array(text(2000)).max(30),
+    talkingPoints: z.array(text(2000)).max(60),
     show: text(4000),
     seconds: z.number().int().min(0).max(36_000),
   })
@@ -89,13 +93,20 @@ const MARKER = '<!-- CreatorClub outline -->';
 const clock = (seconds: number) => `${Math.floor(seconds / 60)}:${String(Math.round(seconds % 60)).padStart(2, '0')}`;
 const squash = (value: string) => value.replace(/\s+/g, ' ').trim();
 
-/** The outline as markdown: one `###` heading per scene with its time span, the talking points as bullets, then `Show:`. */
+/** A new scene id. */
+export const newSceneId = () => `s_${randomBytes(4).toString('hex')}`;
+
+/**
+ * The outline as markdown: one `###` heading per scene with its time span and its id (an HTML comment), the talking points
+ * as bullets, then `Show:`.
+ */
 export function formatOutline(outline: Pick<Outline, 'scenes'>): string {
   let at = 0;
   const scenes = outline.scenes.map((scene, index) => {
     const start = at;
     at += scene.seconds;
-    const lines = [`### ${index + 1}. ${squash(scene.title) || 'Untitled'} (${clock(start)}–${clock(at)})`];
+    const id = scene.id ? ` <!-- id:${scene.id} -->` : '';
+    const lines = [`### ${index + 1}. ${squash(scene.title) || 'Untitled'} (${clock(start)}–${clock(at)})${id}`];
     for (const point of scene.talkingPoints) if (squash(point)) lines.push(`- ${squash(point)}`);
     if (squash(scene.show)) lines.push(`Show: ${squash(scene.show)}`);
     return lines.join('\n');
@@ -104,26 +115,29 @@ export function formatOutline(outline: Pick<Outline, 'scenes'>): string {
 }
 
 const HEADING = /^###\s+(?:\d+[.)]\s+)?(.*?)\s*(?:\((\d+):(\d{1,2})\s*[–—-]\s*(\d+):(\d{1,2})\))?\s*$/;
+const HEADING_ID = /\s*<!--\s*id:([A-Za-z0-9_-]{1,40})\s*-->\s*$/;
 const toSeconds = (minutes: string, seconds: string) => Number(minutes) * 60 + Number(seconds);
 
 /**
- * Reads an outline back from markdown. Every `###` heading is a scene; its bullets are talking points ("Say:" is dropped),
- * and a `Show:` line or bullet is what to show. Also reads the old board's outlines, whose scenes are `###` sections.
+ * Reads an outline back from markdown. Every `###` heading is a scene (with its id when it has one); its bullets are talking
+ * points ("Say:" is dropped), and a `Show:` line or bullet is what to show. Also reads the old board's outlines.
  */
 export function parseOutline(markdown: string): Outline {
   const scenes: OutlineScene[] = [];
   let scene: OutlineScene | undefined;
   for (const raw of markdown.split('\n')) {
-    const line = raw.trim();
+    let line = raw.trim();
     if (/^#{1,2}\s/.test(line)) {
       scene = undefined;
       continue;
     }
+    const id = /^###\s/.test(line) ? HEADING_ID.exec(line)?.[1] : undefined;
+    if (id) line = line.replace(HEADING_ID, '');
     const heading = HEADING.exec(line);
     if (heading) {
       const [, title, m1, s1, m2, s2] = heading;
       const seconds = m1 !== undefined ? Math.max(0, toSeconds(m2, s2) - toSeconds(m1, s1)) : 0;
-      scene = { title: title.trim(), talkingPoints: [], show: '', seconds };
+      scene = { ...(id ? { id } : {}), title: title.trim(), talkingPoints: [], show: '', seconds };
       scenes.push(scene);
       continue;
     }
@@ -145,6 +159,29 @@ export function parseOutline(markdown: string): Outline {
   return { scenes };
 }
 
+const titleKey = (title: string) => squash(title).toLowerCase();
+
+/**
+ * Gives every scene an id. A scene keeps the id it has (unless another scene already took it); a scene without one takes
+ * the id of an earlier scene with the same title that no other scene kept, so an AI re-run keeps the scenes it only rewrote.
+ * Anything else is a new scene and gets a new id.
+ */
+export function adoptSceneIds(scenes: OutlineScene[], previous: OutlineScene[] = []): OutlineScene[] {
+  const taken = new Set<string>();
+  const kept = scenes.map((scene) => (scene.id && !taken.has(scene.id) ? (taken.add(scene.id), scene.id) : undefined));
+  const free = previous.filter((scene) => scene.id && !taken.has(scene.id));
+  return scenes.map((scene, index) => {
+    let id = kept[index];
+    if (!id) {
+      const match = free.find((old) => old.id && !taken.has(old.id) && titleKey(old.title) === titleKey(scene.title));
+      id = match?.id ?? newSceneId();
+      while (taken.has(id)) id = newSceneId();
+      taken.add(id);
+    }
+    return { ...scene, id };
+  });
+}
+
 // ---------------------------------------------------------------- reading and saving
 
 export async function readPackage(slug: string, id: string): Promise<Package | null> {
@@ -164,35 +201,51 @@ export async function savePackage(slug: string, id: string, pkg: unknown): Promi
 
 const readText = (file: string) => fs.readFile(file, 'utf8').catch((error: NodeJS.ErrnoException) => (error.code === 'ENOENT' ? undefined : Promise.reject(error)));
 
-/** The outline and, when one was written, the full script. Null when there is no outline or it has no scenes. */
+/**
+ * The outline and, when one was written, the full script. Null when there is no outline or it has no scenes.
+ * Scenes of an outline written before ids existed (the old board's) get ids from their place, the same on every read,
+ * until the outline is first saved.
+ */
 export async function readOutline(slug: string, id: string): Promise<Outline | null> {
   await store.readVideo(slug, id);
   const markdown = await readText(outlineFile(slug, id));
   if (markdown === undefined) return null;
-  const outline = parseOutline(markdown);
-  if (!outline.scenes.length) return null;
+  const parsed = parseOutline(markdown);
+  if (!parsed.scenes.length) return null;
+  const used = new Set(parsed.scenes.map((scene) => scene.id).filter(Boolean));
+  const scenes = parsed.scenes.map((scene, index) => (scene.id ? scene : { ...scene, id: used.has(`s_${index + 1}`) ? newSceneId() : `s_${index + 1}` }));
   const script = await readText(scriptFile(slug, id));
-  return script?.trim() ? { ...outline, fullScript: script } : outline;
+  return script?.trim() ? { scenes, fullScript: script } : { scenes };
 }
 
+/** "2026-10-28T22-50-18-485Z": names the versions set aside by one run, and is the token Undo and Use it take. */
 const stamp = () => new Date().toISOString().replace(/[:.]/g, '-');
-
-/** Moves a file aside under a dated name, so nothing the person wrote is ever lost. */
-async function setAside(file: string, label: string) {
+export const VERSION_TOKEN = /^\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z$/;
+const versionFile = (file: string, label: string, token: string) => {
   const parsed = path.parse(file);
-  await fs.rename(file, path.join(parsed.dir, `${parsed.name}-${label}-${stamp()}${parsed.ext}`)).catch((error: NodeJS.ErrnoException) => {
-    if (error.code !== 'ENOENT') throw error;
-  });
+  return path.join(parsed.dir, `${parsed.name}-${label}-${token}${parsed.ext}`);
+};
+
+/** Moves a file aside under a dated name, so nothing the person wrote is ever lost. True when there was a file. */
+async function setAside(file: string, label: string, token = stamp()): Promise<boolean> {
+  return fs.rename(file, versionFile(file, label, token)).then(
+    () => true,
+    (error: NodeJS.ErrnoException) => {
+      if (error.code !== 'ENOENT') throw error;
+      return false;
+    },
+  );
 }
 
-/** Saves the scenes. An outline carried over from the old board is kept next to it the first time it is replaced. */
+/** Saves the scenes, giving each an id. An outline carried over from the old board is kept next to it the first time it is replaced. */
 export async function saveOutline(slug: string, id: string, outline: unknown): Promise<Outline> {
   await store.readVideo(slug, id);
   const parsed = outlineShape.parse(outline);
   const file = outlineFile(slug, id);
   const existing = await readText(file);
+  const previous = (await readOutline(slug, id))?.scenes ?? [];
   if (existing !== undefined && !existing.startsWith(MARKER)) await setAside(file, 'board');
-  await store.writeFileAtomic(file, formatOutline(parsed));
+  await store.writeFileAtomic(file, formatOutline({ scenes: adoptSceneIds(parsed.scenes, previous) }));
   return (await readOutline(slug, id)) ?? parsed;
 }
 
@@ -202,6 +255,124 @@ export async function saveScript(slug: string, id: string, script: string | null
   if (script === null || !script.trim()) await setAside(scriptFile(slug, id), 'unused');
   else await store.writeFileAtomic(scriptFile(slug, id), script.trimEnd() + '\n');
   return readOutline(slug, id);
+}
+
+// ---------------------------------------------------------------- versions: replace with Undo, or hold a late result
+
+const FILES: Record<PlanJobKind, (slug: string, id: string) => string> = { package: packageFile, outline: outlineFile, script: scriptFile };
+/** The files a step's result depends on: when any of them changes while the step runs, its result is held, not written. */
+const WATCHED: Record<PlanJobKind, PlanJobKind[]> = { package: ['package'], outline: ['outline', 'script'], script: ['outline', 'script'] };
+
+/** The current contents of a step's files, to tell whether the person changed them while the step ran. */
+async function snapshotOf(slug: string, id: string, kind: PlanJobKind): Promise<string> {
+  const parts = await Promise.all(WATCHED[kind].map((watched) => readText(FILES[watched](slug, id))));
+  return JSON.stringify(parts);
+}
+
+/**
+ * Writes a finished step's result. If the person changed the step while it ran, the result is kept aside as
+ * `<file>-new-<token>` and nothing is overwritten (`held`). Otherwise the earlier version is set aside as
+ * `<file>-earlier-<token>` (`replaced`, which Undo takes); Create outline sets the full script aside with it.
+ */
+async function commitResult(slug: string, id: string, kind: PlanJobKind, before: string, content: string): Promise<{ replaced?: string; held?: string }> {
+  const token = stamp();
+  const file = FILES[kind](slug, id);
+  if ((await snapshotOf(slug, id, kind)) !== before) {
+    await store.writeFileAtomic(versionFile(file, 'new', token), content);
+    return { held: token };
+  }
+  let replaced = await setAside(file, 'earlier', token);
+  if (kind === 'outline') replaced = (await setAside(scriptFile(slug, id), 'earlier', token)) || replaced;
+  await store.writeFileAtomic(file, content);
+  return replaced ? { replaced: token } : {};
+}
+
+const checkToken = (token: string) => {
+  if (!VERSION_TOKEN.test(token)) throw new ClubError('That version was not found.', 404);
+  return token;
+};
+const exists = (file: string) => fs.access(file).then(() => true, () => false);
+
+/** Undo after a replace: the versions set aside by that run come back; what replaced them is set aside in turn. */
+export async function undoReplace(slug: string, id: string, kind: PlanJobKind, token: string): Promise<void> {
+  await store.readVideo(slug, id);
+  checkToken(token);
+  const kinds: PlanJobKind[] = kind === 'outline' ? ['outline', 'script'] : [kind];
+  const back = kinds.map((each) => ({ file: FILES[each](slug, id), earlier: versionFile(FILES[each](slug, id), 'earlier', checkToken(token)) }));
+  const found = await Promise.all(back.map((item) => exists(item.earlier)));
+  if (!found[0]) throw new ClubError('That version was not found.', 404);
+  const now = stamp();
+  for (const [index, item] of back.entries()) {
+    await setAside(item.file, 'undone', now);
+    if (found[index]) await fs.rename(item.earlier, item.file);
+  }
+}
+
+/** Use it: a held result becomes the current version; the current one is set aside. */
+export async function useHeld(slug: string, id: string, kind: PlanJobKind, token: string): Promise<void> {
+  await store.readVideo(slug, id);
+  const file = FILES[kind](slug, id);
+  const held = versionFile(file, 'new', checkToken(token));
+  if (!(await exists(held))) throw new ClubError('That version was not found.', 404);
+  const content = await fs.readFile(held, 'utf8');
+  const now = stamp();
+  if (kind === 'outline') {
+    const previous = (await readOutline(slug, id))?.scenes ?? [];
+    await setAside(file, 'earlier', now);
+    await setAside(scriptFile(slug, id), 'earlier', now);
+    await store.writeFileAtomic(file, formatOutline({ scenes: adoptSceneIds(parseOutline(content).scenes, previous) }));
+  } else {
+    await setAside(file, 'earlier', now);
+    await store.writeFileAtomic(file, content);
+  }
+  await setAside(held, 'used', now);
+}
+
+/** Held results newer than the step's current file, by step: the newest token of each. */
+export async function heldResults(slug: string, id: string): Promise<PlanData['ready']> {
+  const dir = store.videoDir(slug, id);
+  const names = await fs.readdir(dir).catch(() => [] as string[]);
+  const ready: PlanData['ready'] = {};
+  for (const kind of PLAN_JOB_KINDS) {
+    const file = FILES[kind](slug, id);
+    const { name, ext } = path.parse(file);
+    const tokens = names
+      .map((entry) => new RegExp(`^${name}-new-(.+)\\${ext}$`).exec(entry)?.[1])
+      .filter((token): token is string => !!token && VERSION_TOKEN.test(token))
+      .sort();
+    const newest = tokens.at(-1);
+    if (!newest) continue;
+    const [heldAt, currentAt] = await Promise.all([fs.stat(versionFile(file, 'new', newest)).then((s) => s.mtimeMs), fs.stat(file).then((s) => s.mtimeMs, () => 0)]);
+    if (heldAt > currentAt) ready[kind] = newest;
+  }
+  return ready;
+}
+
+// ---------------------------------------------------------------- one run per video and step
+
+const runningJobs = new Map<string, string>();
+const jobKey = (slug: string, id: string, kind: PlanJobKind) => `${slug}/${id}/${kind}`;
+
+/** Starts a Plan step for a video, or returns the run of that step already going, so a second click never pays twice. */
+export function startPlanJob(slug: string, id: string, kind: PlanJobKind, options: PlanOptions = {}): JobSnapshot {
+  const key = jobKey(slug, id, kind);
+  const running = runningJobs.get(key);
+  const job = running ? getJob(running) : undefined;
+  if (job?.status === 'running') return snapshot(job);
+  const run = { package: runPackage, outline: runOutline, script: runScript }[kind];
+  const started = startJob(kind, (context) => (run(slug, id, context, options) as Promise<unknown>).finally(() => runningJobs.get(key) === started.id && runningJobs.delete(key)));
+  runningJobs.set(key, started.id);
+  return started;
+}
+
+/** The runs still going for a video, by step. */
+export function runningPlanJobs(slug: string, id: string): PlanData['running'] {
+  const found: PlanData['running'] = {};
+  for (const kind of PLAN_JOB_KINDS) {
+    const jobId = runningJobs.get(jobKey(slug, id, kind));
+    if (jobId && getJob(jobId)?.status === 'running') found[kind] = jobId;
+  }
+  return found;
 }
 
 // ---------------------------------------------------------------- the full script, scene by scene
@@ -281,9 +452,10 @@ const repair = (built: JsonPrompt, answer: unknown, problems: string[]): JsonPro
 });
 
 /** Package it: reads the idea and the research board and fills in the package. Fixes the titles once if they break the rules. */
-export async function runPackage(slug: string, id: string, context: JobContext, options: PlanOptions = {}): Promise<Package> {
+export async function runPackage(slug: string, id: string, context: JobContext, options: PlanOptions = {}): Promise<PlanJobResult<Package>> {
   const say = (message: string) => context.emit({ message });
   const video = await store.readVideo(slug, id);
+  const before = await snapshotOf(slug, id, 'package');
   say('Reading the idea and the research board…');
   const [channel, research, titles] = await Promise.all([loadChannelContext(slug), store.listTiles(slug, id), recentTitles(slug)]);
   const built = await buildPackagePrompt(channel, { idea: ideaFor(video), research, recentTitles: titles });
@@ -298,7 +470,9 @@ export async function runPackage(slug: string, id: string, context: JobContext, 
     stopped(context);
     if (packageProblems(second).length <= problems.length) pkg = second;
   }
-  return savePackage(slug, id, pkg);
+  stopped(context);
+  const value = packageShape.parse(pkg);
+  return { value, ...(await commitResult(slug, id, 'package', before, JSON.stringify(value, null, 2) + '\n')) };
 }
 
 /** The reusable outline of the video this one came from, when it came from a break down that still exists. */
@@ -312,9 +486,11 @@ async function reusableOutline(slug: string, video: Video): Promise<string[] | u
  * Create outline: 4 to 7 scenes from the idea and the package, following the break down's reusable outline when there is one.
  * The answer is checked with `outlineProblems` and repaired once. A full script written for an earlier outline is set aside.
  */
-export async function runOutline(slug: string, id: string, context: JobContext, options: PlanOptions = {}): Promise<Outline> {
+export async function runOutline(slug: string, id: string, context: JobContext, options: PlanOptions = {}): Promise<PlanJobResult<Outline>> {
   const say = (message: string) => context.emit({ message });
   const video = await store.readVideo(slug, id);
+  const before = await snapshotOf(slug, id, 'outline');
+  const previous = (await readOutline(slug, id))?.scenes ?? [];
   const [channel, pkg, shape] = await Promise.all([loadChannelContext(slug), readPackage(slug, id), reusableOutline(slug, video)]);
   const built = await buildOutlinePrompt(channel, { idea: ideaFor(video), pkg: pkg ?? undefined, reusableOutline: shape });
   const ai = await asker(context, options);
@@ -328,16 +504,20 @@ export async function runOutline(slug: string, id: string, context: JobContext, 
     stopped(context);
     if (outlineProblems(second).length <= problems.length) outline = second;
   }
-  await setAside(scriptFile(slug, id), 'earlier');
-  return saveOutline(slug, id, outline);
+  stopped(context);
+  // The current outline's ids carry over to scenes with the same title, so their recorder scenes and takes stay with them.
+  const value = { scenes: adoptSceneIds(outline.scenes, previous) };
+  const result = await commitResult(slug, id, 'outline', before, formatOutline(value));
+  return { value: result.held ? value : ((await readOutline(slug, id)) ?? value), ...result };
 }
 
 const stripFence = (value: string) => value.trim().replace(/^```(?:markdown|md)?\s*\n([\s\S]*?)\n```$/i, '$1').trim();
 
 /** Write full script instead: the script in the creator's voice, then each scene under 80% of its word budget lengthened once. */
-export async function runScript(slug: string, id: string, context: JobContext, options: PlanOptions = {}): Promise<Outline> {
+export async function runScript(slug: string, id: string, context: JobContext, options: PlanOptions = {}): Promise<PlanJobResult<Outline>> {
   const say = (message: string) => context.emit({ message });
   const video = await store.readVideo(slug, id);
+  const before = await snapshotOf(slug, id, 'script');
   const outline = await readOutline(slug, id);
   if (!outline) throw new ClubError('Create the outline first.');
   const [channel, pkg] = await Promise.all([loadChannelContext(slug), readPackage(slug, id)]);
@@ -366,5 +546,7 @@ export async function runScript(slug: string, id: string, context: JobContext, o
     }
     script = joinScript(title, sections);
   }
-  return (await saveScript(slug, id, script)) ?? outline;
+  stopped(context);
+  const result = await commitResult(slug, id, 'script', before, script.trimEnd() + '\n');
+  return { value: result.held ? { ...outline, fullScript: script } : ((await readOutline(slug, id)) ?? outline), ...result };
 }

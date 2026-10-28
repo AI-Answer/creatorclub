@@ -1,5 +1,9 @@
 import {useCallback,useEffect,useRef,useState} from 'react';
-import type {ClubSettings,Outline,Package,PlanData,PlanStep,Video} from '../../shared/club';
+import type {ClubSettings,Outline,Package,PlanData,PlanJobKind,PlanJobResult,PlanStep,Video} from '../../shared/club';
+
+/** A status line under a step: "Replaced the outline · Undo" or "New outline ready · Use it". */
+export type Notice={type:'replaced'|'held';token:string};
+type Notices=Partial<Record<PlanJobKind,Notice>>;
 import {clubFetch,errorMessage} from './api';
 import {useJobRun} from './useJobRun';
 import {movesForward,nextPlanStep,openPlanStep} from './video-plan';
@@ -42,11 +46,17 @@ export function usePlan(video:Video,{onVideo,onRecord}:{onVideo(video:Video):voi
  const [helpSeen,setHelpSeen]=useState<PlanStep[]|null>(null);
  const [open,setOpen]=useState<PlanStep>(()=>openPlanStep(video.planning));
  const [continuing,setContinuing]=useState(false),[continueError,setContinueError]=useState('');
+ const [notices,setNotices]=useState<Notices>({});
  const videoRef=useRef(video);videoRef.current=video;
 
  const reload=useCallback(()=>{
   setLoad({status:'loading'});
-  clubFetch<PlanData>(`/videos/${id}/plan`).then(data=>{setPkg(data.package);setOutline(data.outline);setChangedScene(data.changedScene);setLoad({status:'ready'});},
+  clubFetch<PlanData>(`/videos/${id}/plan`).then(data=>{
+   setPkg(data.package);setOutline(data.outline);setChangedScene(data.changedScene);setLoad({status:'ready'});
+   // Results held while this page was away are offered again; runs still going are followed.
+   setNotices(Object.fromEntries(Object.entries(data.ready??{}).map(([kind,token])=>[kind,{type:'held',token}])));
+   for(const [kind,jobId] of Object.entries(data.running??{}))if(jobId)attachRef.current(kind as PlanJobKind,jobId);
+  },
    reason=>setLoad({status:'error',message:errorMessage(reason,"Couldn't load this video's plan.")}));
   clubFetch<ClubSettings>('/settings').then(settings=>setHelpSeen(settings.helpSeen??[]),()=>setHelpSeen([]));
  },[id]);
@@ -58,14 +68,46 @@ export function usePlan(video:Video,{onVideo,onRecord}:{onVideo(video:Video):voi
  const outlineSaver=useSaver((value:Outline)=>clubFetch(`/videos/${id}/outline`,{method:'PUT',body:{scenes:value.scenes}}),refreshChanged);
  const scriptSaver=useSaver((script:string)=>clubFetch(`/videos/${id}/script`,{method:'PUT',body:{script}}),refreshChanged);
 
- const editPackage=useCallback((next:Package)=>{setPkg(next);packageSaver.queue(next);},[packageSaver.queue]);
- const editOutline=useCallback((next:Outline)=>{setOutline(next);outlineSaver.queue(next);},[outlineSaver.queue]);
- const editScript=useCallback((script:string)=>{setOutline(current=>current&&{...current,fullScript:script});scriptSaver.queue(script);},[scriptSaver.queue]);
+ // Typing after a replace keeps the new version: its Undo line goes away. A held result stays on offer.
+ const dropReplaced=useCallback((...kinds:PlanJobKind[])=>setNotices(current=>{const next={...current};for(const kind of kinds)if(next[kind]?.type==='replaced')delete next[kind];return next;}),[]);
+ const editPackage=useCallback((next:Package)=>{setPkg(next);packageSaver.queue(next);dropReplaced('package');},[packageSaver.queue,dropReplaced]);
+ const editOutline=useCallback((next:Outline)=>{setOutline(next);outlineSaver.queue(next);dropReplaced('outline','script');},[outlineSaver.queue,dropReplaced]);
+ const editScript=useCallback((script:string)=>{setOutline(current=>current&&{...current,fullScript:script});scriptSaver.queue(script);dropReplaced('outline','script');},[scriptSaver.queue,dropReplaced]);
 
  const packageJob=useJobRun(),outlineJob=useJobRun(),scriptJob=useJobRun();
- const packageIt=useCallback(()=>{packageSaver.cancel();void packageJob.run(()=>clubFetch(`/videos/${id}/package`,{method:'POST'}),result=>setPkg(result as Package));},[id,packageJob.run,packageSaver.cancel]);
- const createOutline=useCallback(()=>{outlineSaver.cancel();scriptSaver.cancel();void outlineJob.run(()=>clubFetch(`/videos/${id}/outline`,{method:'POST'}),result=>{setOutline(result as Outline);refreshChanged();});},[id,outlineJob.run,outlineSaver.cancel,scriptSaver.cancel,refreshChanged]);
- const writeScript=useCallback(()=>{void (async()=>{try{await outlineSaver.flush();}catch{return;}void scriptJob.run(()=>clubFetch(`/videos/${id}/script`,{method:'POST'}),result=>{setOutline(result as Outline);refreshChanged();});})();},[id,scriptJob.run,outlineSaver.flush,refreshChanged]);
+ const jobs={package:packageJob,outline:outlineJob,script:scriptJob};
+ /** A finished run: shown at once, with Undo when it replaced something; held behind "Use it" when the step changed while it ran. */
+ const finished=useCallback((kind:PlanJobKind,raw:unknown)=>{
+  const result=raw as PlanJobResult<Package|Outline>;
+  if(result.held){setNotices(current=>({...current,[kind]:{type:'held',token:result.held!}}));return;}
+  if(kind==='package')setPkg(result.value as Package);else{setOutline(result.value as Outline);refreshChanged();}
+  setNotices(current=>{const {[kind]:_old,...rest}=current;return result.replaced?{...rest,[kind]:{type:'replaced',token:result.replaced}}:rest;});
+ },[refreshChanged]);
+ const attachRef=useRef<(kind:PlanJobKind,jobId:string)=>void>(()=>{});
+ attachRef.current=(kind,jobId)=>{void jobs[kind].attach(jobId,result=>finished(kind,result));};
+ /** Saves what is waiting first, so the run starts from what is on screen, then runs the step (the server reuses a run already going). */
+ const start=useCallback(async(kind:PlanJobKind,flush:()=>Promise<void>)=>{
+  try{await flush();}catch{return;}
+  setNotices(({[kind]:_old,...rest})=>rest);
+  void jobs[kind].run(()=>clubFetch(`/videos/${id}/${kind}`,{method:'POST'}),result=>finished(kind,result));
+ },[id,finished,packageJob.run,outlineJob.run,scriptJob.run]);
+ const packageIt=useCallback(()=>{void start('package',packageSaver.flush);},[start,packageSaver.flush]);
+ const createOutline=useCallback(()=>{void start('outline',async()=>{await outlineSaver.flush();await scriptSaver.flush();});},[start,outlineSaver.flush,scriptSaver.flush]);
+ const writeScript=useCallback(()=>{void start('script',async()=>{await outlineSaver.flush();await scriptSaver.flush();});},[start,outlineSaver.flush,scriptSaver.flush]);
+ const stop=useCallback((kind:PlanJobKind)=>{void jobs[kind].cancel();},[packageJob.cancel,outlineJob.cancel,scriptJob.cancel]);
+
+ /** Undo after a replace, or Use it for a held result. Both bring back the saved package and outline as the server now has them. */
+ const [noticeError,setNoticeError]=useState('');
+ const resolveNotice=useCallback(async(kind:PlanJobKind)=>{
+  const notice=notices[kind];if(!notice)return;
+  setNoticeError('');
+  if(kind==='package')packageSaver.cancel();else{outlineSaver.cancel();scriptSaver.cancel();}
+  try{
+   const result=await clubFetch<{package:Package|null;outline:Outline|null}>(`/videos/${id}/${kind}/${notice.type==='replaced'?'undo':'use'}`,{body:{token:notice.token}});
+   setPkg(result.package);setOutline(result.outline);refreshChanged();
+   setNotices(({[kind]:_done,...rest})=>rest);
+  }catch(reason){setNoticeError(errorMessage(reason,notice.type==='replaced'?"Couldn't undo that.":"Couldn't use that version."));}
+ },[id,notices,refreshChanged,packageSaver.cancel,outlineSaver.cancel,scriptSaver.cancel]);
  const [scriptError,setScriptError]=useState('');
  const backToTalkingPoints=useCallback(()=>{
   scriptSaver.cancel();setScriptError('');
@@ -108,7 +150,7 @@ export function usePlan(video:Video,{onVideo,onRecord}:{onVideo(video:Video):voi
 
  return {
   load,reload,pkg,outline,changedScene,helpSeen,open,setOpen,
-  editPackage,editOutline,editScript,packageIt,createOutline,writeScript,backToTalkingPoints,scriptError,
+  editPackage,editOutline,editScript,packageIt,createOutline,writeScript,backToTalkingPoints,scriptError,stop,notices,resolveNotice,noticeError,
   packageJob:packageJob.state,outlineJob:outlineJob.state,scriptJob:scriptJob.state,
   saveError:packageSaver.error||outlineSaver.error||scriptSaver.error,
   retrySave:()=>{void Promise.all([packageSaver.flush(),outlineSaver.flush(),scriptSaver.flush()]).catch(()=>{});},
