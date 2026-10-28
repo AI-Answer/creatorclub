@@ -108,6 +108,7 @@ async function finish(jobId: string) {
 const { adoptSceneIds, formatOutline, parseOutline, scriptSections } = await import('./planning.js');
 const { changedSceneNumber, recorderScenes, syncProject } = await import('./recorder.js');
 const { chapterize, timedCaptions } = await import('./research.js');
+const { validateScenes } = await import('../../src/recording-scenes.js');
 
 await call('POST', '/workspaces', { name: 'Samin', handle: '@s', topics: ['ai'] });
 
@@ -199,22 +200,41 @@ test('reordering, inserting and removing scenes after recording keeps every take
   const edited = { scenes: [sc, ided(scene('D', 10)).scenes[0], sb] };
   const synced = syncProject('V', recorded, first.mapping, recorderScenes(edited), '2026-10-02T00:00:00.000Z');
   assert.deepEqual(content(synced.project), [
+    ['A', 'A point one', 1],
+    ['B', 'B point one', 1],
     ['C', 'C point one', 1],
     ['D', 'D point one', 0],
-    ['B', 'B point one', 1],
-    ['A', 'A point one', 1],
-  ], 'the outline order, then the removed scene at the end with its take and its own content');
-  assert.equal(synced.project.scenes[0].id, c.id);
-  assert.equal(synced.project.scenes[2].id, b.id);
-  assert.equal(synced.project.scenes[3].id, a.id);
-  assert.equal(changedSceneNumber(synced.project, synced.mapping, recorderScenes(edited)), 4, 'the removed scene is flagged by its place in the recorder');
+  ], 'recorded scenes stay where they are with their own content and takes; the new scene is added at the end');
+  assert.deepEqual(synced.project.scenes.slice(0, 3).map((s) => s.id), [a.id, b.id, c.id]);
+  assert.equal(changedSceneNumber(synced.project, synced.mapping, recorderScenes(edited)), 1, 'the removed scene is flagged by its place in the recorder');
   assert.ok(synced.mapping.some((m) => m.outlineId === 'id-a'), 'the removed scene stays mapped');
 
-  // A new scene called A: names stay unique, and the old A keeps its take.
+  // A new scene called A: names stay unique, and the old A keeps its name and take.
   const again = { scenes: [...edited.scenes, { ...scene('A', 10), id: 's_newa0000' }] };
   const named = syncProject('V', synced.project, synced.mapping, recorderScenes(again));
-  assert.deepEqual(named.project.scenes.map((s) => s.name), ['C', 'D', 'B', 'A', 'A (2)']);
-  assert.equal(named.project.scenes.find((s) => s.name === 'A (2)')!.id, a.id, 'the recorded A keeps its id and take');
+  assert.deepEqual(named.project.scenes.map((s) => s.name), ['A', 'B', 'C', 'D', 'A (2)']);
+  assert.equal(named.project.scenes[0].id, a.id, 'the recorded A keeps its id and take');
+});
+
+test("a sync after real recordings keeps SceneForge's scene timeline valid", () => {
+  const outline = ided(scene('A', 10), scene('B', 10), scene('C', 10));
+  const first = syncProject('V', undefined, undefined, recorderScenes(outline), '2026-10-01T00:00:00.000Z');
+  // Recorded: A runs 0–12 s, B 12–30 s, C 30–41.5 s, as SceneForge leaves them after confirming takes.
+  const timed: Project = structuredClone(first.project);
+  [[0, 12], [12, 18], [30, 11.5]].forEach(([start, duration], index) => Object.assign(timed.scenes[index], { start, duration }));
+  timed.recordedTakes = timed.scenes.map((s, i) => take(s.id, `2026-10-01T1${i}:00:00.000Z`));
+  validateScenes(timed);
+
+  // Reorder (C before B), insert D in the middle, remove A, and edit B.
+  const [, sb, sc] = outline.scenes;
+  const edited = { scenes: [sc, ided(scene('D', 10)).scenes[0], { ...sb, talkingPoints: ['B again'] }] };
+  const synced = syncProject('V', timed, first.mapping, recorderScenes(edited), '2026-10-02T00:00:00.000Z');
+  assert.doesNotThrow(() => validateScenes(synced.project), 'no overlapping or out-of-order scenes');
+  assert.deepEqual(synced.project.scenes.map((s) => [s.name, s.start, s.duration]), [['A', 0, 12], ['B', 12, 18], ['C', 30, 11.5], ['D', 41.5, 0]], 'existing scenes keep their place on the timeline; D starts where the last one ends');
+  assert.equal(synced.project.scenes[1].script, 'B again', 'edited in place');
+  const later = syncProject('V', synced.project, synced.mapping, recorderScenes({ scenes: [...edited.scenes, ided(scene('E', 10)).scenes[0]] }));
+  assert.doesNotThrow(() => validateScenes(later.project));
+  assert.deepEqual(later.project.scenes.at(-1)!.start, 41.5);
 });
 
 test('the changed-scene warning names the first scene recorded before its outline changed', () => {
@@ -466,11 +486,23 @@ test('Continue to recording creates the recording project and moves the video to
   const again = (await call('POST', `/videos/${video.id}/recorder`)).body as Video;
   assert.equal(again.recorderProjectId, saved.recorderProjectId, 'the same project is kept');
   const updated = JSON.parse(await readFile(projectFile, 'utf8')) as Project;
-  assert.deepEqual(updated.scenes.map((s) => s.name), ['Opening', 'Where this falls short', 'Ending', 'Level 1']);
-  assert.equal(updated.scenes[3].id, project.scenes[1].id, 'the recorded scene moved with its take');
-  assert.equal(updated.scenes[3].script, 'A new point');
+  assert.deepEqual(updated.scenes.map((s) => s.name), ['Opening', 'Level 1', 'Where this falls short', 'Ending'], 'recorder scenes are never moved');
+  assert.equal(updated.scenes[1].id, project.scenes[1].id, 'the recorded scene keeps its take');
+  assert.equal(updated.scenes[1].script, 'A new point');
   assert.equal(updated.recordedTakes?.length, 1, 'the take is kept');
-  assert.equal((await call('GET', `/videos/${video.id}/plan`)).body.changedScene, 4, 'still recorded before the change');
+  assert.equal((await call('GET', `/videos/${video.id}/plan`)).body.changedScene, 2, 'still recorded before the change');
+
+  // Mapping entries saved before scenes had ids are matched by place: a recorded, unchanged scene is not flagged.
+  const latest = (await call('GET', `/videos/${video.id}/plan`)).body.outline as Outline;
+  const order = latest.scenes.map((s) => s.id);
+  const oldStyle = order.map((outlineId) => {
+    const entry = (again.recorderScenes ?? []).find((m) => m.outlineId === outlineId)!;
+    return { sceneId: entry.sceneId, text: entry.text, changedAt: '2000-01-01T00:00:00.000Z' };
+  });
+  const videoFile = path.join(process.env.CREATORCLUB_DIR!, 'samin', 'videos', video.id, 'video.json');
+  const stored = JSON.parse(await readFile(videoFile, 'utf8')) as Video;
+  await writeFile(videoFile, JSON.stringify({ ...stored, recorderScenes: oldStyle }));
+  assert.equal((await call('GET', `/videos/${video.id}/plan`)).body.changedScene, undefined, 'old entries are not all flagged');
 });
 
 test('a video further along is not moved back, and Continue needs an outline', async () => {

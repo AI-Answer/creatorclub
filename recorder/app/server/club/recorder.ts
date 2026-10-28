@@ -49,38 +49,41 @@ function uniqueNames(scenes: Project['scenes']) {
 
 /**
  * Builds a new recording project, or brings an existing one up to date with the outline, matching scenes by the outline
- * scene's id, never by position:
- * - a scene whose content changed gets the new name, script and notes and a new `changedAt`; its takes stay with it;
- * - a scene new to the outline is added;
- * - the recorder's scenes follow the outline's order, and scenes the outline no longer has stay, untouched, at the end
- *   (their mapping is kept so their takes are still flagged).
+ * scene's id, never by position. The recorder's scenes are timeline blocks in order, so existing scenes are never moved:
+ * - a scene whose content changed gets the new name, script and notes in place and a new `changedAt`; its takes stay with it;
+ * - a scene new to the outline is added after the last scene, at the end of the timeline, in outline order;
+ * - scenes the outline no longer has stay where they are, untouched, and stay mapped so their takes are still flagged.
  */
 export function syncProject(title: string, project: Project | undefined, mapping: RecorderScene[] | undefined, wanted: SceneContent[], now = new Date().toISOString()): { project: Project; mapping: RecorderScene[] } {
   const next = project ? structuredClone(project) : { ...createProject(title), scenes: [] };
   const known = new Map((mapping ?? []).map((entry) => [entry.outlineId, entry]));
   const result: RecorderScene[] = [];
-  const ordered: Project['scenes'] = [];
+  const matched = new Set<string>();
   for (const content of wanted) {
     const { outlineId, ...fields } = content;
     const key = contentKey(content);
     const entry = known.get(outlineId);
-    const scene = entry && next.scenes.find((candidate) => candidate.id === entry.sceneId);
-    if (scene && !ordered.includes(scene)) {
+    const scene = entry && !matched.has(entry.sceneId) ? next.scenes.find((candidate) => candidate.id === entry.sceneId) : undefined;
+    if (scene && entry) {
+      matched.add(scene.id);
       if (entry.text !== key) Object.assign(scene, fields);
       result.push(entry.text === key ? entry : { outlineId, sceneId: scene.id, text: key, changedAt: now });
-      ordered.push(scene);
       continue;
     }
     const added = { id: makeId(), ...fields, start: projectDuration(next), duration: 0 };
-    ordered.push(added);
+    next.scenes.push(added);
+    matched.add(added.id);
     result.push({ outlineId, sceneId: added.id, text: key, changedAt: now });
   }
   const outlineIds = new Set(wanted.map((content) => content.outlineId));
-  for (const entry of mapping ?? []) if (!outlineIds.has(entry.outlineId) && next.scenes.some((scene) => scene.id === entry.sceneId)) result.push(entry);
-  next.scenes = [...ordered, ...next.scenes.filter((scene) => !ordered.includes(scene))];
+  for (const entry of mapping ?? []) if (!outlineIds.has(entry.outlineId) && !matched.has(entry.sceneId) && next.scenes.some((scene) => scene.id === entry.sceneId)) result.push(entry);
   uniqueNames(next.scenes);
   return { project: next, mapping: result };
 }
+
+/** Mapping entries saved before outline scenes had ids were in outline order: they take the id of the scene in their place. */
+export const migrateMapping = (entries: RecorderScene[] | undefined, wanted: SceneContent[]) =>
+  entries?.map((entry, index) => (entry.outlineId ? entry : { ...entry, outlineId: wanted[index]?.outlineId ?? `old_${index}` }));
 
 /**
  * The first scene (1-based, in the recorder's order) whose takes were recorded before its outline content changed: the
@@ -133,7 +136,9 @@ export async function outlineChangedScene(video: Video, outline: Outline | null)
   if (!outline || !video.recorderProjectId) return undefined;
   try {
     const project = await readProjectIfThere(video.recorderProjectId);
-    return project ? changedSceneNumber(project, video.recorderScenes, recorderScenes(outline)) : undefined;
+    if (!project) return undefined;
+    const wanted = recorderScenes(outline);
+    return changedSceneNumber(project, migrateMapping(video.recorderScenes, wanted), wanted);
   } catch {
     return undefined;
   }
@@ -156,8 +161,7 @@ export function continueToRecording(slug: string, id: string): Promise<Video> {
     const { saveProject } = await sceneforge();
     const existing = await readProjectIfThere(video.recorderProjectId);
     const wanted = recorderScenes(outline);
-    // Entries saved before scenes had ids were in outline order.
-    const saved = existing ? video.recorderScenes?.map((entry, index) => (entry.outlineId ? entry : { ...entry, outlineId: wanted[index]?.outlineId ?? `old_${index}` })) : undefined;
+    const saved = existing ? migrateMapping(video.recorderScenes, wanted) : undefined;
     const { project, mapping } = syncProject(video.title, existing, saved, wanted);
     const written = await saveProject(project);
     await store.updateVideo(slug, id, { recorderProjectId: written.id, recorderScenes: mapping, planning: { ...video.planning, outline: true } });
