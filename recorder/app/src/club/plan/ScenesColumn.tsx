@@ -51,9 +51,9 @@ export function ScenesColumn({target,onTarget,hasRecording,outline,known,focusId
  };
 
  return <section className="scn" aria-label="Scenes">
-  <div className="doc-h"><Icon name="Layers" size={18}/><h2>Scenes</h2>{scenes.length>0&&<span className="chip">{scenes.length}</span>}
+  <div className="doc-h"><Icon name="scenes" size={18}/><h2>Scenes</h2>{scenes.length>0&&<span className="chip">{scenes.length}</span>}
    <span className="grow"/>
-   {scenes.length>0&&<Button size="sm" className="ai" disabled={scripting||drafting} onClick={onWriteFull}>{scripting&&!scriptingScene?<span className="spin" role="status" aria-label="Writing the script"/>:<Icon name="FileText" size={14}/>}Write full script</Button>}
+   {scenes.length>0&&<Button size="sm" className="ai" disabled={scripting||drafting} onClick={onWriteFull}>{scripting&&!scriptingScene?<span className="spin" role="status" aria-label="Writing the script"/>:<Icon name="script" size={14}/>}Write full script</Button>}
   </div>
   <div className="row" style={{marginBottom:18,gap:14}}>
    <span className="doc-sub" style={{margin:0,whiteSpace:'nowrap'}}>Talk through each one when you record.</span><span className="grow"/>
@@ -66,9 +66,9 @@ export function ScenesColumn({target,onTarget,hasRecording,outline,known,focusId
   {!scenes.length
    ?<div className="card">{drafting
     ?<div style={{padding:16,display:'flex',flexDirection:'column',gap:10}} role="status" aria-label={draftLine??'Drafting scenes'}>{[0,1,2,3].map(i=><div key={i} className="shimmer" style={{height:74}}/>)}{draftLine&&<span className="faint small">{draftLine}</span>}</div>
-    :<div className="empty"><div className="ic"><Icon name="Layers" size={20}/></div><h3>No scenes yet</h3>
+    :<div className="empty"><div className="ic"><Icon name="scenes" size={20}/></div><h3>No scenes yet</h3>
       <p>Claude reads the board and the package, then writes 4 to 7 scenes with talking points. You can edit every word.</p>
-      <Button variant="primary" onClick={onDraft}><Icon name="Wand2" size={15}/>Draft scenes from board</Button></div>}</div>
+      <Button variant="primary" onClick={onDraft}><Icon name="draft" size={15}/>Draft scenes from board</Button></div>}</div>
    :scenes.map((scene,i)=>{
     const id=scene.id??String(i);
     const progress=knownById.get(id);
@@ -80,29 +80,29 @@ export function ScenesColumn({target,onTarget,hasRecording,outline,known,focusId
        onKeyDown={event=>{
         if(event.key==='ArrowUp'&&i>0){event.preventDefault();move(i,i-1);}
         if(event.key==='ArrowDown'&&i<scenes.length-1){event.preventDefault();move(i,i+2);}
-       }}><Icon name="GripVertical" size={15}/></button>
+       }}><Icon name="drag" size={15}/></button>
       <span className="n">{i+1}</span>
       <Ed className="t" value={scene.title} ph="Scene title" onChange={title=>setScene(i,{title})}/>
       {progress&&<SceneStatus scene={toProgress([progress])[0]}/>}
       <input className="dur" key={`${id}-${scene.seconds}`} defaultValue={clockTime(scene.seconds)} aria-label="Scene length" onClick={event=>event.stopPropagation()}
        onBlur={event=>{const seconds=parseClock(event.target.value);if(seconds)setScene(i,{seconds});else event.target.value=clockTime(scene.seconds);}} onKeyDown={event=>event.key==='Enter'&&event.currentTarget.blur()}/>
-      <span onClick={event=>event.stopPropagation()}><Menu align="right" label="Scene options" button={toggle=><Button variant="ghost" size="sm" className="icon-only" onClick={toggle} aria-label="Scene options"><Icon name="MoreHorizontal" size={15}/></Button>}
+      <span onClick={event=>event.stopPropagation()}><Menu align="right" label="Scene options" button={toggle=><Button variant="ghost" size="sm" className="icon-only" onClick={toggle} aria-label="Scene options"><Icon name="more" size={15}/></Button>}
        items={[
-        {label:scene.script?'Write the script again':'Write script for this scene',icon:'FileText',fn:()=>onWriteScene(id)},
-        {label:'Add scene before',icon:'ArrowUp',fn:()=>add(i)},
-        {label:'Add scene after',icon:'ArrowDown',fn:()=>add(i+1)},
-        ...(hasRecording?[{label:'Record this scene',icon:'Mic' as const,fn:()=>onRecord(id)}]:[]),
+        {label:scene.script?'Write the script again':'Write script for this scene',icon:'script',fn:()=>onWriteScene(id)},
+        {label:'Add scene before',icon:'move-up',fn:()=>add(i)},
+        {label:'Add scene after',icon:'move-down',fn:()=>add(i+1)},
+        ...(hasRecording?[{label:'Record this scene',icon:'microphone' as const,fn:()=>onRecord(id)}]:[]),
         '-',
-        {label:'Delete scene',icon:'Trash2',danger:true,fn:()=>remove(i)},
+        {label:'Delete scene',icon:'delete',danger:true,fn:()=>remove(i)},
        ]}/></span>
      </div>
      <ul className="pts">{scene.talkingPoints.map((point,k)=><li key={k}><Ed value={point} ph="Talking point" autoFocus={point===''&&added===id}
       onChange={text=>setScene(i,{talkingPoints:editPoint(scene.talkingPoints,k,text)})}
       onEnter={()=>{const points=[...scene.talkingPoints];points.splice(k+1,0,'');setScene(i,{talkingPoints:points});}}/></li>)}</ul>
-     <div className="scene-show"><Icon name="Monitor" size={14}/><span className="faint" style={{flex:'none'}}>Show</span><Ed value={scene.show} ph="What's on screen" onChange={show=>setScene(i,{show})} style={{flex:1}}/></div>
+     <div className="scene-show"><Icon name="screen" size={14}/><span className="faint" style={{flex:'none'}}>Show</span><Ed value={scene.show} ph="What's on screen" onChange={show=>setScene(i,{show})} style={{flex:1}}/></div>
      {(scene.script||writing)&&<div className="script">{writing?<div className="shimmer" style={{height:44}}/>:<Ed multiline value={scene.script} ph="Script" onChange={text=>onSceneScript(id,text)}/>}</div>}
     </div>;
    })}
-  {scenes.length>0&&<button type="button" className="addscene" style={dragIndex!==null&&overIndex===scenes.length?{boxShadow:'0 -3px 0 0 var(--cc-accent)'}:undefined} onClick={()=>add(scenes.length)}><Icon name="Plus" size={15}/>Add scene</button>}
+  {scenes.length>0&&<button type="button" className="addscene" style={dragIndex!==null&&overIndex===scenes.length?{boxShadow:'0 -3px 0 0 var(--cc-accent)'}:undefined} onClick={()=>add(scenes.length)}><Icon name="add" size={15}/>Add scene</button>}
  </section>;
 }

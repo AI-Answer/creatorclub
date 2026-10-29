@@ -1,5 +1,5 @@
 import {createContext,useCallback,useContext,useEffect,useMemo,useRef,useState,type ReactNode} from 'react';
-import {Icon} from './Icon';
+import {Icon} from './icons';
 
 export type ToastOptions={
  /** Adds an Undo button that runs this. */
@@ -37,7 +37,7 @@ export function ToastProvider({children}:{children:ReactNode}){
   {children}
   <div className="cc-toasts" role="status" aria-live="polite">
    {toasts.map(toast=><div key={toast.id} className="cc-toast">
-    <Icon name="Check" size={15} className="ok"/>{toast.message}
+    <Icon name="check" size={15} className="ok"/>{toast.message}
     {toast.options.undo&&<button type="button" onClick={()=>{toast.options.undo?.();dismiss(toast.id);}}>Undo</button>}
     {toast.options.action&&<button type="button" onClick={()=>{toast.options.action?.fn();dismiss(toast.id);}}>{toast.options.action.label}</button>}
    </div>)}

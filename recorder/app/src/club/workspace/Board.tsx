@@ -163,34 +163,34 @@ export function Board({video,scenes,onDrafted,refreshKey=0}:{video:Video;scenes:
    </div>
   </div>}
   <div className="board-actions">
-   <button type="button" className="btn ghost icon-only" aria-label="How the board works" title="How the board works" onClick={()=>setTip('again')}><Icon name="CircleHelp" size={15}/></button>
+   <button type="button" className="btn ghost icon-only" aria-label="How the board works" title="How the board works" onClick={()=>setTip('again')}><Icon name="help" size={15}/></button>
    <button type="button" className={cn('btn',scenes&&scenes.length?'':'primary')} disabled={draft.running} onClick={draft.request}>
-    {draft.running?<><span className="spin"/>{draft.line}</>:<><Icon name="Wand2" size={15}/>Draft scenes from board</>}
+    {draft.running?<><span className="spin"/>{draft.line}</>:<><Icon name="draft" size={15}/>Draft scenes from board</>}
    </button>
   </div>
   {draft.failed&&<div className="board-actions" style={{top:'auto',bottom:70,right:18}}><ErrorLine message={draft.failed} onRetry={draft.start}/></div>}
   <div className="btoolbar">
-   <Menu label="Add to the board" button={(toggle,open)=><button type="button" className="btn sm" aria-haspopup="menu" aria-expanded={open} onClick={toggle}><Icon name="Plus" size={15}/>Add</button>} items={[
-    {label:'Note',icon:'StickyNote',fn:()=>void addNote()},
-    {label:'Link',icon:'Link',fn:()=>setLinkOpen(true)},
-    {label:'Image or Markdown file',icon:'Image',fn:()=>fileInput.current?.click()},
+   <Menu label="Add to the board" button={(toggle,open)=><button type="button" className="btn sm" aria-haspopup="menu" aria-expanded={open} onClick={toggle}><Icon name="add" size={15}/>Add</button>} items={[
+    {label:'Note',icon:'note',fn:()=>void addNote()},
+    {label:'Link',icon:'link',fn:()=>setLinkOpen(true)},
+    {label:'Image or Markdown file',icon:'image',fn:()=>fileInput.current?.click()},
     '-',
-    {label:'Notes folder',icon:'Folder',fn:()=>setFolderOpen(true)},
-    ...(files?.folder.hidden?[{label:`Show hidden files (${files.folder.hidden})`,icon:'Eye' as const,fn:()=>void showHidden()}]:[]),
+    {label:'Notes folder',icon:'folder',fn:()=>setFolderOpen(true)},
+    ...(files?.folder.hidden?[{label:`Show hidden files (${files.folder.hidden})`,icon:'preview' as const,fn:()=>void showHidden()}]:[]),
    ]}/>
    <input ref={fileInput} type="file" accept="image/*,.md,.markdown,.txt" multiple hidden aria-label="Choose files to add" onChange={event=>{takeFiles([...event.target.files??[]]);event.target.value='';}}/>
    <span className="sep"></span>
-   <button type="button" className="btn ghost sm icon-only" aria-label="Zoom out" title="Zoom out" onClick={()=>setZoom(current=>clampZoom(current-ZOOM.step))}><Icon name="ZoomOut" size={15}/></button>
+   <button type="button" className="btn ghost sm icon-only" aria-label="Zoom out" title="Zoom out" onClick={()=>setZoom(current=>clampZoom(current-ZOOM.step))}><Icon name="zoom-out" size={15}/></button>
    <span className="zoom">{Math.round(zoom*100)}%</span>
-   <button type="button" className="btn ghost sm icon-only" aria-label="Zoom in" title="Zoom in" onClick={()=>setZoom(current=>clampZoom(current+ZOOM.step))}><Icon name="ZoomIn" size={15}/></button>
-   <button type="button" className="btn ghost sm" onClick={scrollTop}><Icon name="Maximize2" size={14}/>Fit</button>
+   <button type="button" className="btn ghost sm icon-only" aria-label="Zoom in" title="Zoom in" onClick={()=>setZoom(current=>clampZoom(current+ZOOM.step))}><Icon name="zoom-in" size={15}/></button>
+   <button type="button" className="btn ghost sm" onClick={scrollTop}><Icon name="fit" size={14}/>Fit</button>
   </div>
   {linkOpen&&<form className="menu board-link" onSubmit={event=>void submitLink(event)}>
    <input className="input" autoFocus value={link} onChange={event=>setLink(event.target.value)} placeholder="YouTube, Instagram, X or any link" style={{height:32}} onKeyDown={event=>{if(event.key==='Escape')setLinkOpen(false);}} aria-label="Link to add"/>
    <button className="btn sm primary" type="submit" style={{height:32}}>Add</button></form>}
   {files&&<div className="board-folder" role="group" aria-label="This video's folder">
-   <Icon name="FolderOpen" size={14}/><span className="ellipsis" title={files.folder.path}>{folderLabel(files.folder)}</span>
-   <button type="button" className="btn ghost sm icon-only" aria-label="Copy the folder path" title="Copy the folder path" onClick={()=>copyPath(files.folder.path,'Copied the folder path')}><Icon name="Copy" size={13}/></button>
+   <Icon name="folder-open" size={14}/><span className="ellipsis" title={files.folder.path}>{folderLabel(files.folder)}</span>
+   <button type="button" className="btn ghost sm icon-only" aria-label="Copy the folder path" title="Copy the folder path" onClick={()=>copyPath(files.folder.path,'Copied the folder path')}><Icon name="copy" size={13}/></button>
   </div>}
   {draft.confirm&&<ReplaceScenes scenes={scenes??[]} action="Drafting again" undoLine="You can undo it from the message that follows." onKeep={()=>draft.setConfirm(false)} onReplace={draft.start}/>}
   {noteOpen&&<NotePanel key={noteOpen.id} tile={noteOpen} save={(text,base)=>board.saveNote(noteOpen.id,text,base)} isNew={madeNote===noteOpen.id} onClose={discard=>{setOpenNote(null);setMadeNote(null);if(discard)void clubFetch(`/videos/${encodeURIComponent(video.id)}/research/${encodeURIComponent(noteOpen.id)}`,{method:'DELETE'}).then(()=>board.refresh(),()=>{});}} onCopyPath={name=>copyPath(name,'Copied the file name')}/>}

@@ -8,15 +8,15 @@ import {Icon,type IconName} from '../ui';
 type Option={label:string;route?:Route;icon:IconName;kind:string};
 
 const PAGES:ReadonlyArray<Option>=[
- {label:'New video',icon:'Plus',kind:'Action'},
- {label:'Overview',route:{name:'overview'},icon:'House',kind:'Page'},
- {label:'Ideas',route:{name:'ideas'},icon:'Lightbulb',kind:'Page'},
- {label:'Working now',route:{name:'trending'},icon:'TrendingUp',kind:'Page'},
- {label:'Signals',route:{name:'signals'},icon:'MessagesSquare',kind:'Page'},
- {label:'Production',route:{name:'production',view:'board'},icon:'SquareKanban',kind:'Page'},
- {label:'Production calendar',route:{name:'production',view:'calendar'},icon:'Calendar',kind:'Page'},
- {label:'Settings',route:{name:'settings'},icon:'Settings',kind:'Page'},
- {label:'First launch setup',route:{name:'welcome'},icon:'Sparkles',kind:'Page'},
+ {label:'New video',icon:'add',kind:'Action'},
+ {label:'Overview',route:{name:'overview'},icon:'home',kind:'Page'},
+ {label:'Ideas',route:{name:'ideas'},icon:'idea',kind:'Page'},
+ {label:'Working now',route:{name:'trending'},icon:'trending',kind:'Page'},
+ {label:'Signals',route:{name:'signals'},icon:'signals',kind:'Page'},
+ {label:'Production',route:{name:'production',view:'board'},icon:'production',kind:'Page'},
+ {label:'Production calendar',route:{name:'production',view:'calendar'},icon:'calendar',kind:'Page'},
+ {label:'Settings',route:{name:'settings'},icon:'settings',kind:'Page'},
+ {label:'First launch setup',route:{name:'welcome'},icon:'ai',kind:'Page'},
 ];
 
 /** Pages first, then every video: an idea opens in Ideas, any other video on the tab for its stage. */
@@ -40,7 +40,7 @@ export function Palette({videos,onClose,onOpen,onNewVideo}:{videos:readonly Vide
   <div className="scrim" onClick={onClose}/>
   <div className="palette" role="dialog" aria-modal="true" aria-label="Search">
    <div className="pi">
-    <Icon name="Search" size={17} className="faint"/>
+    <Icon name="search" size={17} className="faint"/>
     <input autoFocus value={query} onChange={event=>{setQuery(event.target.value);setIndex(0);}} placeholder="Search videos, ideas and pages" aria-label="Search"
      onKeyDown={event=>{
       if(event.key==='ArrowDown'){event.preventDefault();setIndex(Math.min(options.length-1,index+1));}

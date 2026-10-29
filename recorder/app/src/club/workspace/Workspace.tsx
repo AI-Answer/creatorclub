@@ -156,12 +156,12 @@ export function Workspace({video,tab,back,navigate,onVideo}:{video:Video;tab:Vid
       sceneId={tab==='record'?recorderSceneFor(video,focusId)??undefined:undefined} sceneNonce={pickN} onSceneChange={tab==='record'?recorderScene:undefined} onChanged={reloadScenes}/></div>
      {prompting&&<Teleprompter index={prompting.index} scene={prompting.scene}/>}
     </div>
-    :tab==='edit'?<EmptyState icon={<Icon name="Scissors"/>} title="Nothing recorded yet" description="Record a scene first. Then you can edit it here."
+    :tab==='edit'?<EmptyState icon={<Icon name="cut"/>} title="Nothing recorded yet" description="Record a scene first. Then you can edit it here."
       action={<Button variant="primary" size="md" onClick={()=>navigate(tabRoute('record'))}>Open record</Button>}/>
     :list===undefined?<div className="flex flex-1 items-center justify-center"><Spinner label="Loading the scenes" size={20}/></div>
-    :!hasScenes?<EmptyState icon={<Icon name="FileText"/>} title="Plan the scenes first" description="Each scene is recorded on its own, so the scenes come first."
+    :!hasScenes?<EmptyState icon={<Icon name="script"/>} title="Plan the scenes first" description="Each scene is recorded on its own, so the scenes come first."
       action={<Button variant="primary" size="md" onClick={()=>navigate(tabRoute('plan'))}>Open plan</Button>}/>
-    :<EmptyState icon={<Icon name="Video"/>} title="Ready to record" description="Start the recording for these scenes."
+    :<EmptyState icon={<Icon name="camera"/>} title="Ready to record" description="Start the recording for these scenes."
       action={<Button variant="primary" size="md" disabled={!plan.continueAction||plan.continueAction.disabled} onClick={()=>plan.continueAction?.run()}>Start recording</Button>}/>)}
    {tab==='publish'&&<Publish video={video} pkg={plan.pkg} scenes={list} onVideo={onVideo} onGoTo={target=>navigate(tabRoute(target))}
     saveError={plan.saveError} onRetry={plan.retrySave} onDescription={description=>plan.editPackage({...(pkgNow.current??EMPTY_PACKAGE),description})}/>}

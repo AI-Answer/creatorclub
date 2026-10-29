@@ -122,9 +122,9 @@ export function Publish({video,pkg,scenes,onVideo,onDescription,onGoTo,saveError
   }catch(reason){setRun({phase:'failed',message:errorMessage(reason),progress:null});}
  };
 
- if(!published&&scenes&&!scenes.some(scene=>scene.takes.length))return <div className="page"><div className="card"><EmptyState icon={<Icon name="Upload"/>} title="Nothing to publish yet"
+ if(!published&&scenes&&!scenes.some(scene=>scene.takes.length))return <div className="page"><div className="card"><EmptyState icon={<Icon name="upload"/>} title="Nothing to publish yet"
   description={scenes.length?`Publishing starts once the scenes are recorded and edited. This video has ${scenes.length} ${scenes.length===1?'scene':'scenes'} waiting to be recorded.`:'Publishing starts once the scenes are recorded and edited. Draft the scenes first.'}
-  action={<Button variant="primary" size="md" onClick={()=>onGoTo(scenes.length?'record':'plan')}><Icon name={scenes.length?'Mic':'Layers'} size={15}/>{scenes.length?'Open record':'Open plan'}</Button>}/></div></div>;
+  action={<Button variant="primary" size="md" onClick={()=>onGoTo(scenes.length?'record':'plan')}><Icon name={scenes.length?'microphone':'scenes'} size={15}/>{scenes.length?'Open record':'Open plan'}</Button>}/></div></div>;
 
  const scheduledDate=schedule&&'date' in schedule?schedule.date:null;
  const summary=<PackageSummary video={video} thumbnailText={pkg?.thumbnailText} thumbnailUrl={thumbnail} channel={publishing.state?.postiz.channel?.name} visibility={visibility} when={scheduledDate} title={title} description={description} tags={tags}/>;
@@ -145,7 +145,7 @@ export function Publish({video,pkg,scenes,onVideo,onDescription,onGoTo,saveError
   </ResultCard></div>{summary}</div></div>;
 
  const exportLine=file===undefined?<Spinner label="Looking for the exported video"/>:file
-  ?<div className="row"><span className="club-export-done"><Icon name="Check" size={15}/>Video exported</span><span className="faint small">{exportFileName(file)}</span>
+  ?<div className="row"><span className="club-export-done"><Icon name="check" size={15}/>Video exported</span><span className="faint small">{exportFileName(file)}</span>
    {stale&&project&&<><span className="small pubx-warn">You edited it after this export.</span><ClubExport quiet project={project} flush={async()=>project} onExported={now=>{if(now)setReread(n=>n+1);}}/></>}
    {!stale&&file.outputPath&&window.sceneForge?.reveal&&<button type="button" className="linkish" onClick={()=>void window.sceneForge!.reveal(file.outputPath!).catch(()=>{})}>Show in Finder</button>}</div>
   :project?<div className="row"><ClubExport project={project} flush={async()=>project} onExported={now=>{if(now)setReread(n=>n+1);}}/><span className="small muted">Publishing sends the exported video.</span></div>
@@ -177,7 +177,7 @@ export function Publish({video,pkg,scenes,onVideo,onDescription,onGoTo,saveError
    </Card>
    <div className="pubx-foot">
     <div className="fi">{problem?<span className="pubx-warn" role={tried?'alert':undefined}>{problem}</span>:<span>The exported video goes to Postiz, then to YouTube.</span>}</div>
-    <Button variant="primary" size="md" onClick={()=>void submit()}><Icon name={when==='now'?'Upload':'Calendar'} size={15}/>{when==='now'?'Publish now':`Schedule for ${scheduledDate?whenText(scheduledDate):'later'}`}</Button>
+    <Button variant="primary" size="md" onClick={()=>void submit()}><Icon name={when==='now'?'upload':'calendar'} size={15}/>{when==='now'?'Publish now':`Schedule for ${scheduledDate?whenText(scheduledDate):'later'}`}</Button>
    </div>
    <div className="pubx-alt">{showLink?<PasteLinkForm video={video} published={false} onVideo={onVideo}/>:<button type="button" className="linkish" onClick={()=>setShowLink(true)}>Already uploaded it? Paste the link</button>}</div>
   </div>{summary}</div>

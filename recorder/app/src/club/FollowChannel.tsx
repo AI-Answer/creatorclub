@@ -15,7 +15,7 @@ export function FollowChannel({item}:{item:Pick<TrendingEntry,'kind'|'channel'|'
  const target=followTarget(item);
  const [state,setState]=useState<'idle'|'busy'|'done'|'failed'>('idle');
  if(!target)return null;
- if(state==='done')return <span className="small muted follow-channel" role="status"><Icon name="Check" size={12}/> Following {item.channel}</span>;
+ if(state==='done')return <span className="small muted follow-channel" role="status"><Icon name="check" size={12}/> Following {item.channel}</span>;
  const click=(event:{stopPropagation():void})=>{
   event.stopPropagation();
   setState('busy');

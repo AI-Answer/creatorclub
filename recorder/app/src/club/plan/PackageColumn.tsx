@@ -6,9 +6,9 @@ import {EMPTY_PACKAGE,chosenTitle,hasEmptyPlace,packageIsEmpty,titleTooLong,word
 const LEVELS:{value:ConceptLevel;label:string}[]=[{value:'high',label:'High'},{value:'mid',label:'Mid'},{value:'low',label:'Low'}];
 const WHY:{key:'demand'|'gap'|'show';label:string}[]=[{key:'demand',label:'Demand'},{key:'gap',label:'Gap'},{key:'show',label:'Easy to show'}];
 const HOOK:{key:keyof Package['hook'];label:string;icon:IconName;ph:string}[]=[
- {key:'visual',label:'Visual',icon:'Eye',ph:'What they see first'},
- {key:'spoken',label:'Spoken',icon:'Mic',ph:'The first line you say'},
- {key:'text',label:'On-screen',icon:'Type',ph:'Text on screen'},
+ {key:'visual',label:'Visual',icon:'preview',ph:'What they see first'},
+ {key:'spoken',label:'Spoken',icon:'microphone',ph:'The first line you say'},
+ {key:'text',label:'On-screen',icon:'text',ph:'Text on screen'},
 ];
 
 /**
@@ -32,11 +32,11 @@ export function PackageColumn({videoId,videoTitle,pkg,running,onEdit,onWrite,onP
  const setRating=(key:'demand'|'gap'|'show',next:ConceptRating)=>onEdit({...value,[key]:next});
 
  return <section className="pkg" aria-label="Package">
-  <div className="doc-h"><Icon name="Package" size={18}/><h2>Package</h2></div>
+  <div className="doc-h"><Icon name="package" size={18}/><h2>Package</h2></div>
   <div className="doc-sub">Decide why this video gets clicked. Everything here is editable. Click to change it.</div>
 
   <div className="blk"><div className="blk-h"><h4>Title</h4><span className="faint small">Pick one · 7 words or fewer</span>
-   <Button size="sm" className="ai" disabled={running} onClick={()=>write('titles')}>{spin('titles')?<span className="spin" aria-label="Working" role="status"/>:<Icon name="Sparkles" size={14}/>}Write titles</Button></div>
+   <Button size="sm" className="ai" disabled={running} onClick={()=>write('titles')}>{spin('titles')?<span className="spin" aria-label="Working" role="status"/>:<Icon name="ai" size={14}/>}Write titles</Button></div>
    {value.titles.map((title,i)=><div key={i} className={cn('topt',chosen===i&&'on')} role="radio" aria-checked={chosen===i} tabIndex={0}
      onClick={()=>title.trim()&&onPickTitle(title.trim())} onKeyDown={event=>{if(event.target===event.currentTarget&&(event.key===' '||event.key==='Enter')){event.preventDefault();if(title.trim())onPickTitle(title.trim());}}}>
     <span className="radio"/>
@@ -53,7 +53,7 @@ export function PackageColumn({videoId,videoTitle,pkg,running,onEdit,onWrite,onP
    </div></div>
 
   <div className="blk"><div className="blk-h"><h4>Hook</h4><span className="faint small">The first 10 seconds</span>
-   <Button size="sm" className="ai" disabled={running} onClick={()=>write('hook')}>{spin('hook')?<span className="spin" aria-label="Working" role="status"/>:<Icon name="Sparkles" size={14}/>}Write hooks</Button></div>
+   <Button size="sm" className="ai" disabled={running} onClick={()=>write('hook')}>{spin('hook')?<span className="spin" aria-label="Working" role="status"/>:<Icon name="ai" size={14}/>}Write hooks</Button></div>
    {HOOK.map(({key,label,icon,ph})=><div key={key} className="hook-row"><span className="k"><Icon name={icon} size={14}/>{label}</span>
     {spin('hook')&&!value.hook[key]?<div className="shimmer" style={{height:20}}/>:<Ed multiline value={value.hook[key]} ph={ph} onChange={text=>set('hook',{...value.hook,[key]:text})}/>}</div>)}
   </div>

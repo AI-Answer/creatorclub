@@ -15,7 +15,7 @@ export function TagEditor({label,values,placeholder,disabled,autoFocus,show=valu
   </li>)}</ul>}
   <div className="row">
    <Input aria-label={label} autoFocus={autoFocus} value={text} disabled={disabled} autoComplete="off" spellCheck={false} placeholder={placeholder} style={{maxWidth:340}} onChange={event=>setText(event.target.value)} onKeyDown={event=>{if(event.key==='Enter'){event.preventDefault();add();}}}/>
-   <Button size="sm" disabled={disabled||!text.trim()} onClick={add}><Icon name="Plus" size={14}/>Add</Button>
+   <Button size="sm" disabled={disabled||!text.trim()} onClick={add}><Icon name="add" size={14}/>Add</Button>
   </div>
  </div>;
 }

@@ -88,10 +88,12 @@ export function hashOf(text:string):number{
  return Math.abs(hash);
 }
 
-const AVATAR_COLORS=['#2563eb','#7c3aed','#db2777','#ea580c','#16a34a','#0891b2','#4f46e5','#b45309','#be123c','#0f766e','#57534e'];
-/** The background of an avatar for a name. */
+/** Avatars are neutral (the colour rule allows no extra hues): four greys from `ui/tokens.css`, told apart by their initials. */
+const AVATAR_COLORS=[1,2,3,4].map(n=>`var(--cc-avatar-${n})`);
+/** The background of an avatar for a name: the same name always gets the same token. */
 export const avatarColor=(name:string)=>AVATAR_COLORS[hashOf(name)%AVATAR_COLORS.length];
 
-const THUMB_GRADIENTS:ReadonlyArray<readonly [string,string]>=[['#1e3a8a','#3b82f6'],['#7c2d12','#f97316'],['#14532d','#22c55e'],['#4c1d95','#a78bfa'],['#831843','#ec4899'],['#111827','#4b5563'],['#713f12','#eab308'],['#164e63','#06b6d4']];
-/** The two colours of a draft thumbnail for a seed (a video id). */
+/** Draft thumbnails use four token gradients (neutral, and one in the accent). */
+const THUMB_GRADIENTS:ReadonlyArray<readonly [string,string]>=[1,2,3,4].map(n=>[`var(--cc-thumb-${n}-from)`,`var(--cc-thumb-${n}-to)`] as const);
+/** The two colours of a draft thumbnail for a seed (a video id), as token references. */
 export const thumbGradient=(seed:string)=>THUMB_GRADIENTS[hashOf(seed)%THUMB_GRADIENTS.length];

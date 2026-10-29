@@ -44,7 +44,7 @@ export function ProgressCard({progress,failure,scheduled,onRetry}:{progress:Publ
  const rows=progressRows(progress,Boolean(failure),scheduled);
  return <Card className={`pubx-prog${failure?' fail':''}`} role="status" aria-live="polite">
   {rows.map(row=><div key={row.label} className={`pstep2 ${row.state}`}>
-   <span className="pi">{row.state==='done'?<Icon name="Check" size={12} stroke={3}/>:row.state==='fail'?<Icon name="X" size={12} stroke={3}/>:row.state==='on'?<Spinner size={14} label="Working"/>:null}</span>
+   <span className="pi">{row.state==='done'?<Icon name="check" size={12} stroke={3}/>:row.state==='fail'?<Icon name="X" size={12} stroke={3}/>:row.state==='on'?<Spinner size={14} label="Working"/>:null}</span>
    <span>{row.label}</span>
    {row.state==='on'&&row.percent!==undefined&&row.percent<100&&<div className="pbar"><i style={{width:`${row.percent}%`}}/></div>}
   </div>)}
@@ -61,7 +61,7 @@ export function ResultCard({record,video,onCheck,onForget,children}:{record:Resu
  const [reminder,setReminder]=useState(()=>!reminderSeen());
  useEffect(()=>{if(record.state==='published'&&record.postizUrl)markReminderSeen();},[record.state,record.postizUrl]);
  return <Card className="pubx-ok">
-  <span className={`chip ${words.done?'b-green':'outline'}`}>{words.done&&<Icon name="Check" size={12}/>}{record.unconfirmed?'Not confirmed':record.state==='published'?'Published':record.scheduledFor?'Scheduled':'Sent to Postiz'}</span>
+  <span className={`chip ${words.done?'b-green':'outline'}`}>{words.done&&<Icon name="check" size={12}/>}{record.unconfirmed?'Not confirmed':record.state==='published'?'Published':record.scheduledFor?'Scheduled':'Sent to Postiz'}</span>
   <h2>{words.title}</h2>
   <p>{words.line}</p>
   {link&&<p><a style={{color:'var(--cc-accent-text)',fontWeight:550}} href={link} target="_blank" rel="noreferrer">{shortLink(link)}</a></p>}
@@ -69,7 +69,7 @@ export function ResultCard({record,video,onCheck,onForget,children}:{record:Resu
    {video.views!==undefined?<><span className="bignum">{video.views.toLocaleString()}</span><span className="muted">views since {fmtDate(video.publishedAt??video.updatedAt)}</span></>:<span className="small muted">Views show here once YouTube reports them.</span>}
   </div>}
   <div className="row">
-   {record.postizUrl&&<a className="btn" href={record.postizUrl} target="_blank" rel="noreferrer">Open in Postiz<Icon name="ArrowUpRight" size={14}/></a>}
+   {record.postizUrl&&<a className="btn" href={record.postizUrl} target="_blank" rel="noreferrer">Open in Postiz<Icon name="open-external" size={14}/></a>}
    {record.state==='queued'&&onCheck&&<Button disabled={checking} onClick={()=>{setChecking(true);void onCheck().finally(()=>setChecking(false));}}>Check again</Button>}
   </div>
   {record.state!=='published'&&<p className="small muted" style={{margin:0}}>Already on YouTube? Paste its link to finish.</p>}

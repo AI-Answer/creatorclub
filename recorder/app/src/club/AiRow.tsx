@@ -4,8 +4,8 @@ import {connectLabel,useConnect} from './useConnect';
 import {Button,Icon,type IconName} from './ui';
 
 const LOGO:Record<ConnectProvider,{icon:IconName;className:string}>={
- claude:{icon:'Sparkles',className:'logo-claude'},
- codex:{icon:'Bot',className:'logo-codex'},
+ claude:{icon:'ai',className:'logo-claude'},
+ codex:{icon:'assistant',className:'logo-codex'},
 };
 
 /**
@@ -27,7 +27,7 @@ export function AiRow({provider,status,description,primary=false,settings=false,
     :description}</div>
   </div>
   {!busy&&(connected&&!settings
-   ?<span className="chip b-green"><Icon name="Check" size={12}/>Connected</span>
+   ?<span className="chip b-green"><Icon name="check" size={12}/>Connected</span>
    :<Button size={settings?'sm':'md'} variant={primary&&!connected?'primary':'secondary'} aria-label={`${reconnect?'Reconnect':'Connect'} ${name}`} onClick={()=>start(provider,reconnect)}>{settings?(reconnect?'Reconnect':'Connect'):`Connect ${name}`}</Button>)}
   {state.phase!=='idle'&&state.phase!=='connected'&&<div style={{flexBasis:'100%'}}><ConnectStatus state={state} provider={provider} onRetry={()=>start(provider,reconnect)} onCancel={cancel}/></div>}
  </div>;

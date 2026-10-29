@@ -8,7 +8,7 @@ export function SubredditChips({topics,have,disabled,center,onAdd}:{topics:reado
  return <div style={{marginTop:10}}>
   <div className="small muted" style={{marginBottom:6}}>Suggested for your topics</div>
   <div className="row" style={{flexWrap:'wrap',gap:6,...(center&&{justifyContent:'center'})}}>{names.map(name=>
-   <button key={name} type="button" className="chip" disabled={disabled} aria-label={`Add r/${name}`} onClick={()=>onAdd(name)} style={{cursor:'pointer'}}><Icon name="Plus" size={12}/>r/{name}</button>)}
+   <button key={name} type="button" className="chip" disabled={disabled} aria-label={`Add r/${name}`} onClick={()=>onAdd(name)} style={{cursor:'pointer'}}><Icon name="add" size={12}/>r/{name}</button>)}
   </div>
  </div>;
 }

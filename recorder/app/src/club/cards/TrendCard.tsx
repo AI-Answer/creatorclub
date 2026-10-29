@@ -13,16 +13,16 @@ export function TrendCard({item,rank,isNew,reason,hasBreakdown,inIdeas,onBreak,o
   <Thumb videoId={item.videoId} seed={item.videoId} chip={<MultChip m={item.mult} who={who} onThumb dash/>}>
    {isNew&&<span className="chip solid br">New</span>}
   </Thumb>
-  <div className="meta"><span className="rank" title={`Number ${rank} of the list`}>{rank}</span><Avatar name={item.channel} size="xs"/><span className="ellipsis grow">{item.channel}</span>{inIdeas?<span className="faint small row" style={{gap:4}}><Icon name="Check" size={12} style={{color:'var(--cc-ok)'}}/>In ideas</span>:item.kind==='followed'&&<span className="faint small">Followed</span>}</div>
+  <div className="meta"><span className="rank" title={`Number ${rank} of the list`}>{rank}</span><Avatar name={item.channel} size="xs"/><span className="ellipsis grow">{item.channel}</span>{inIdeas?<span className="faint small row" style={{gap:4}}><Icon name="check" size={12} style={{color:'var(--cc-ok)'}}/>In ideas</span>:item.kind==='followed'&&<span className="faint small">Followed</span>}</div>
   <div className="tt clamp2">{item.title}</div>
-  <div className="stats"><span title="Total views"><Icon name="Eye" size={13}/><b>{fmtNum(item.views)}</b></span><span title="Views per day since it went up"><Icon name="TrendingUp" size={13}/><b>{fmtNum(item.vpd)}</b>/day</span><span><Icon name="Clock" size={13}/>{fmtDays(item.ageDays)}</span></div>
+  <div className="stats"><span title="Total views"><Icon name="preview" size={13}/><b>{fmtNum(item.views)}</b></span><span title="Views per day since it went up"><Icon name="trending" size={13}/><b>{fmtNum(item.vpd)}</b>/day</span><span><Icon name="duration" size={13}/>{fmtDays(item.ageDays)}</span></div>
   {reason&&<div className="reason">{reason}</div>}
   <FollowChannel item={item}/>
   <div className="foot" onClick={event=>event.stopPropagation()}>
-   <button type="button" className="btn sm" onClick={()=>onBreak(item)}><Icon name={hasBreakdown?'FileText':'Sparkles'} size={14}/>{hasBreakdown?'Open breakdown':'Break down'}</button>
+   <button type="button" className="btn sm" onClick={()=>onBreak(item)}><Icon name={hasBreakdown?'script':'ai'} size={14}/>{hasBreakdown?'Open breakdown':'Break down'}</button>
   </div>
   <button type="button" className="btn sm icon-only idea-pin" onClick={event=>{event.stopPropagation();onIdea(item);}} aria-label={inIdeas?'In your ideas':'Make it an idea'} title={inIdeas?'In your ideas. Open it':'Make it an idea'}>
-   <Icon name={inIdeas?'Check':'Lightbulb'} size={15}/>
+   <Icon name={inIdeas?'check':'idea'} size={15}/>
   </button>
  </div>;
 }
