@@ -4,7 +4,7 @@ const { pathToFileURL } = require('node:url');
 const { randomUUID } = require('node:crypto');
 const { captureDisplay, sourceMetadata, normalizedRect, buildSelection, sameDisplay, CaptureSelectionStore } = require('./capture-geometry.cjs');
 
-function createCaptureManager({ BrowserWindow, desktopCapturer, screen, ipcMain, session, systemPreferences, getMainWindow, origin, inventoryTimeoutMs = 15000, listReuseMs = 10000, now = Date.now }) {
+function createCaptureManager({ BrowserWindow, desktopCapturer, screen, ipcMain, session, systemPreferences, getMainWindow, origin, appName = 'SceneForge', inventoryTimeoutMs = 15000, listReuseMs = 10000, now = Date.now }) {
  const store = new CaptureSelectionStore();
  let epoch = 0, popup = null, disposed = false, listed = null;
  let lifetime = new AbortController();
@@ -23,7 +23,7 @@ function createCaptureManager({ BrowserWindow, desktopCapturer, screen, ipcMain,
    const finish = (error, value) => { if (settled) return; settled = true; clearTimeout(timer); signal.removeEventListener('abort', abort); if (error) reject(error); else resolve(value); };
    const abort = () => finish(Object.assign(new Error('Capture selection was cancelled.'), { name: 'AbortError' }));
    signal.addEventListener('abort', abort, { once: true }); if (signal.aborted) abort();
-   if (!settled && bounded) timer = setTimeout(() => finish(Object.assign(new Error('The screen and window list did not respond. Try again, or quit and reopen SceneForge.'), { name: 'TimeoutError' })), inventoryTimeoutMs);
+   if (!settled && bounded) timer = setTimeout(() => finish(Object.assign(new Error(`The screen and window list did not respond. Try again, or quit and reopen ${appName}.`), { name: 'TimeoutError' })), inventoryTimeoutMs);
    // Electron does not expose cancellation for getSources; ignore any late result.
    promise.then(value => finish(null, value), error => finish(error));
   });
@@ -38,14 +38,14 @@ function createCaptureManager({ BrowserWindow, desktopCapturer, screen, ipcMain,
    if (cause?.name === 'AbortError' || cause?.name === 'TimeoutError') throw cause;
    const status = screenPermission();
    const message = status === 'denied'
-    ? 'Screen recording access is off for this build. Open Mac setup, allow SceneForge in Screen & System Audio Recording, then quit and reopen SceneForge.'
+    ? `Screen recording is off for ${appName}. Open Mac setup, turn on ${appName} in Screen & System Audio Recording, then quit and reopen ${appName}.`
     : status === 'restricted'
      ? 'Screen recording is restricted on this Mac. Open Mac setup to review access; a device administrator may need to allow it.'
      : status === 'not-determined'
       ? 'Screen recording permission has not been granted yet. Open Mac setup to review access and respond to the macOS request, then try again.'
       : status === 'granted'
-       ? 'macOS reports screen access is allowed, but the screen and window list could not load. Quit and reopen SceneForge, then try again. Open Mac setup if access still fails.'
-       : 'The screen and window list could not load. Open Mac setup to check screen recording access, then quit and reopen SceneForge and try again.';
+       ? `macOS reports screen access is allowed, but the screen and window list could not load. Quit and reopen ${appName}, then try again. Open Mac setup if access still fails.`
+       : `The screen and window list could not load. Open Mac setup to check screen recording access, then quit and reopen ${appName} and try again.`;
    throw new Error(message, { cause });
   }
   return { displays, raw, sources: raw.map(source => sourceMetadata(source, displays)).filter(Boolean) };

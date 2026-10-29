@@ -6,6 +6,8 @@ const fs=require('node:fs');
  * SceneForge's standalone defaults (port 4174, ~/Library/Application Support/SceneForge) stay with the standalone server.
  */
 const CREATORCLUB=Object.freeze({name:'CreatorClub',port:4184});
+/** The name macOS lists in Privacy & Security: the app bundle that runs this process ("CreatorClub Dev", "CreatorClub"), else CreatorClub. */
+const privacyAppName=(execPath=process.execPath)=>/([^/]+)\.app\/Contents\/MacOS\/[^/]+$/.exec(execPath)?.[1]||CREATORCLUB.name;
 function creatorClubPaths({appData,env=process.env}){
  const userData=path.join(appData,CREATORCLUB.name);
  return {userData,studio:env.SCENEFORGE_DATA_DIR||path.join(userData,'studio')};
@@ -34,4 +36,4 @@ function runtimeEnvironment({root,data,port,env=process.env}){
   ...(methodology?{CREATORCLUB_METHODOLOGY_DIR:methodology}:{}),
  };
 }
-module.exports={CREATORCLUB,creatorClubPaths,isCreatorClubService,methodologyDir,runtimeEnvironment};
+module.exports={CREATORCLUB,creatorClubPaths,privacyAppName,isCreatorClubService,methodologyDir,runtimeEnvironment};

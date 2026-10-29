@@ -2,6 +2,8 @@ import type {DesktopMediaAccessStatus,DesktopMediaPermissions,SceneForgeDesktopB
 import {requestDisplayMedia,requestUserMedia} from './media-access';
 
 export type CapturePermission='camera'|'microphone'|'screen';
+/** The name to turn on in macOS Privacy & Security: the running app's own, else SceneForge (the standalone app). */
+export const privacyAppName=()=>(typeof window==='undefined'?undefined:window.sceneForge?.appName)||'SceneForge';
 export const permissionLabels:Record<DesktopMediaAccessStatus,string>={
  'not-determined':'Not requested',granted:'Allowed',denied:'Not allowed',restricted:'Restricted',unknown:'Not verified',unsupported:'Not available',
 };
@@ -29,6 +31,6 @@ export function capturePermissionError(error:unknown):string{
  if(name==='NotFoundError'||name==='DevicesNotFoundError')return 'No matching device was found. Connect a camera or microphone, then try again.';
  if(name==='NotReadableError'||name==='TrackStartError')return 'The device could not start. It may be in use by another app; close that app and try again.';
  // Chromium's wording when the desktop handler has no screen to share, which on macOS means screen recording is not allowed yet.
- if(error instanceof Error&&/invalid capture constraints/i.test(error.message))return 'macOS has not allowed screen recording for SceneForge yet. Turn it on in Privacy & Security → Screen & System Audio Recording, then quit and reopen SceneForge.';
+ if(error instanceof Error&&/invalid capture constraints/i.test(error.message)){const app=privacyAppName();return `Screen recording is off for ${app}. Turn on ${app} in Privacy & Security → Screen & System Audio Recording, then quit and reopen ${app}.`;}
  return error instanceof Error?error.message:'The check did not finish. Please try again.';
 }

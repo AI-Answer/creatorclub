@@ -7,7 +7,7 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const {CREATORCLUB, creatorClubPaths, isCreatorClubService, methodologyDir, runtimeEnvironment} = createRequire(import.meta.url)('../desktop/runtime.cjs');
+const {CREATORCLUB, creatorClubPaths, isCreatorClubService, methodologyDir, privacyAppName, runtimeEnvironment} = createRequire(import.meta.url)('../desktop/runtime.cjs');
 const main = await readFile(path.join(root, 'desktop/main.cjs'), 'utf8');
 const mcp = await readFile(path.join(root, 'desktop/mcp-entry.mjs'), 'utf8');
 const pack = await readFile(path.join(root, 'scripts/package.mjs'), 'utf8');
@@ -73,4 +73,10 @@ test('the service finds methodology/ at the repo root (dev app), next to the bun
  } finally {
   await rm(dir, {recursive: true, force: true});
  }
+});
+
+test('the privacy name is the running app bundle, so setup names what macOS lists', () => {
+ assert.equal(privacyAppName('/Users/me/Applications/CreatorClub Dev.app/Contents/MacOS/Electron'), 'CreatorClub Dev');
+ assert.equal(privacyAppName('/Applications/CreatorClub.app/Contents/MacOS/CreatorClub'), 'CreatorClub');
+ assert.equal(privacyAppName('/usr/local/bin/electron'), CREATORCLUB.name);
 });
