@@ -8,7 +8,7 @@ import {clubFetch,clubUpload,errorMessage,notifyVideosChanged} from '../api';
 import {ErrorLine} from '../ErrorLine';
 import {watchJob,failureMessage} from '../jobs';
 import {PostizSetup} from '../publishing/PostizSetup';
-import {TITLE_MAX,VISIBILITY_OPTIONS,defaultSchedule,progressOf,publishProblem,scheduleTime,whenText} from '../publishing/publish-logic';
+import {TITLE_MAX,VISIBILITY_OPTIONS,defaultSchedule,progressOf,publishProblem,scheduleTime,whenText,type ResultInfo} from '../publishing/publish-logic';
 import {usePublishing} from '../publishing/usePublishing';
 import {exportFileName,latestVideoExport} from '../recorder/edit-steps';
 import {clockTime} from '../video-plan';
@@ -61,7 +61,7 @@ export function Publish({video,pkg,scenes,onVideo,onDescription,onGoTo,saveError
  },[video.id,published,onVideo]);
  useEffect(()=>{void loadRecord().catch(()=>setRecord(null));},[video.id]);// eslint-disable-line react-hooks/exhaustive-deps
  // A video scheduled for later is not asked about until its time has come.
- const waiting=record?.state==='queued'&&!(record.scheduledFor&&new Date(record.scheduledFor).getTime()>Date.now());
+ const waiting=record?.state==='queued'&&(Boolean(record.unconfirmed)||!(record.scheduledFor&&new Date(record.scheduledFor).getTime()>Date.now()));
  useEffect(()=>{if(!waiting)return;const timer=setInterval(()=>void loadRecord().catch(()=>{}),RECHECK_MS);return()=>clearInterval(timer);},[waiting,loadRecord]);
 
  // ---- the form
@@ -112,7 +112,12 @@ export function Publish({video,pkg,scenes,onVideo,onDescription,onGoTo,saveError
      setRun({phase:'idle'});setRecord(done);
      void clubFetch<Video>(`/videos/${encodeURIComponent(video.id)}`).then(next=>{onVideo(next);notifyVideosChanged();},()=>{});
     }
-    else setRun(now=>({phase:'failed',message:event.type==='failed'?failureMessage(event.data):'That was stopped.',progress:now.phase==='idle'?null:now.progress}));
+    else{
+     const message=event.type==='failed'?failureMessage(event.data):'That was stopped.';
+     // Postiz may have the post after all. Then the screen says so and offers Check again, never a second send.
+     const failed=()=>setRun(was=>({phase:'failed',message,progress:was.phase==='idle'?null:was.progress}));
+     void clubFetch<PublishRecord|null>(`/videos/${encodeURIComponent(video.id)}/postiz`).then(now=>{if(now&&now.state!=='failed'){setRecord(now);setRun({phase:'idle'});}else failed();},failed);
+    }
    });
   }catch(reason){setRun({phase:'failed',message:errorMessage(reason),progress:null});}
  };
@@ -123,7 +128,9 @@ export function Publish({video,pkg,scenes,onVideo,onDescription,onGoTo,saveError
 
  const scheduledDate=schedule&&'date' in schedule?schedule.date:null;
  const summary=<PackageSummary video={video} thumbnailText={pkg?.thumbnailText} thumbnailUrl={thumbnail} channel={publishing.state?.postiz.channel?.name} visibility={visibility} when={scheduledDate} title={title} description={description} tags={tags}/>;
- const result:{info:Parameters<typeof ResultCard>[0]['record']}|null=record&&record.state!=='failed'?{info:record}:published?{info:{state:'published',visibility:'public',url:video.youtubeUrl}}:null;
+ // Green "on YouTube" only when the video really is Published. Postiz saying so is not enough until it has moved.
+ const result:{info:ResultInfo}|null=published?{info:{state:'published',visibility:record?.visibility??'public',url:video.youtubeUrl,postizUrl:record?.postizUrl}}
+  :record&&record.state!=='failed'?{info:{...record,state:record.state==='published'?'queued':record.state}}:null;
  const head=<><div className="doc-h"><h2>Publish</h2></div><div className="doc-sub">{PUBLISH_LINE}</div></>;
 
  if(run.phase!=='idle')return <div className="pubx">{head}<div className="pubx-grid"><div>
@@ -133,7 +140,7 @@ export function Publish({video,pkg,scenes,onVideo,onDescription,onGoTo,saveError
 
  if(result)return <div className="pubx">{head}<div className="pubx-grid"><div>
   <ResultCard record={result.info} video={video} onCheck={record&&waiting?()=>loadRecord().catch(()=>{}):undefined}>
-   {published&&<PasteLinkForm video={video} published onVideo={onVideo}/>}
+   <PasteLinkForm video={video} published={published} onVideo={onVideo}/>
   </ResultCard></div>{summary}</div></div>;
 
  const exportLine=file===undefined?<Spinner label="Looking for the exported video"/>:file
@@ -147,7 +154,7 @@ export function Publish({video,pkg,scenes,onVideo,onDescription,onGoTo,saveError
   <div className="pubx-grid"><div>
    <div className="pubx-export">{exportLine}</div>
    <Card className="pubx-route">
-    <div className="rh"><span className="logo" style={{background:'#612bd3'}}>P</span><div><div className="rt">Publish with Postiz</div><div className="rd">Schedules the upload for you. A paid service, from $29 a month.</div></div></div>
+    <div className="rh"><span className="logo logo-postiz">P</span><div><div className="rt">Publish with Postiz</div><div className="rd">Schedules the upload for you. A paid service, from $29 a month.</div></div></div>
     {publishing.error?<ErrorLine message={publishing.error} onRetry={publishing.reload}/>:publishing.state?<PostizSetup state={publishing.state} onState={publishing.setState}/>:<Spinner label="Loading"/>}
    </Card>
    <Card className="pubx-form">
@@ -157,7 +164,7 @@ export function Publish({video,pkg,scenes,onVideo,onDescription,onGoTo,saveError
      {saveError&&<ErrorLine message="Couldn't save the description." onRetry={onRetry}/>}</div>
     <div className="full"><label className="field" htmlFor="pub-tags">Tags</label><TagsField tags={tags} onChange={setTags}/></div>
     <div className="full"><div className="field">Thumbnail</div><div className="small muted">{thumbnail?'Your own image. ':'YouTube picks a frame unless you add one. '}
-     <label className="linkish" style={{cursor:'pointer'}}>{thumbnail?'Use another image':'Upload an image'}<input type="file" className="sr-only" accept="image/png,image/jpeg" onChange={event=>{void pick(event.target.files?.[0]);event.target.value='';}}/></label>
+     <label className="linkish" style={{cursor:'pointer'}}>{thumbnail?'Use another image':'Upload an image'}<input type="file" className="sr-only" accept="image/png,image/jpeg,image/webp" onChange={event=>{void pick(event.target.files?.[0]);event.target.value='';}}/></label>
      {thumbnail&&<> <button type="button" className="linkish" onClick={dropThumbnail}>Remove image</button></>}</div>
      {thumbError&&<p role="alert" className="small pz-err">{thumbError}</p>}</div>
     <div><label className="field" htmlFor="pub-vis">Who can watch</label><select id="pub-vis" className="select" value={visibility} onChange={event=>setChosen(event.target.value as PublishVisibility)}>{VISIBILITY_OPTIONS.map(option=><option key={option.value} value={option.value}>{option.label}</option>)}</select></div>

@@ -845,55 +845,55 @@
 :where(.club-root) .playhead:where(:not(.club-embed *)) { position: absolute; top: -4px; bottom: -4px; width: 2px; background: var(--cc-rec); z-index: 3; pointer-events: none; }
 :where(.club-root) .playhead:where(:not(.club-embed *))::before { content: ""; position: absolute; top: 0; left: -5px; width: 12px; height: 10px; background: var(--cc-rec); clip-path: polygon(0 0, 100% 0, 100% 50%, 50% 100%, 0 50%); }
 /* publish */
-.club-root .pubx { max-width: 1060px; margin: 0 auto; padding: 32px 28px 80px; }
-.club-root .pubx-grid { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 26px; align-items: start; }
-@media (max-width: 1000px) { .club-root .pubx-grid { grid-template-columns: minmax(0, 1fr); } }
-.club-root .pubx-grid > div { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
-.club-root .pubx-export { min-height: 36px; display: flex; align-items: center; }
-.club-root .club-export-done { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; font-size: 13.5px; color: var(--cc-ok); }
-.club-root .pubx-route { padding: 16px; display: flex; flex-direction: column; gap: 12px; }
-.club-root .pubx-route .rh { display: flex; align-items: center; gap: 10px; }
-.club-root .pubx-route .logo { width: 34px; height: 34px; border-radius: 9px; display: grid; place-items: center; flex: none; color: #fff; font-weight: 800; font-size: 14px; }
-.club-root .pubx-route .rt { font-weight: 650; font-size: 14.5px; }
-.club-root .pubx-route .rd { font-size: 12.5px; color: var(--cc-text-3); }
-.club-root .pz .row { gap: 10px; }
-.club-root .pz .row > .input { flex: 1; min-width: 0; }
-.club-root .pz-err { color: var(--cc-rec); margin: 8px 0 0; font-weight: 550; }
-.club-root .pz-hint { margin: 8px 0 0; }
-.club-root .pubx-form { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 16px; padding: 18px; }
-.club-root .pubx-form .full { grid-column: 1 / -1; }
-@media (max-width: 760px) { .club-root .pubx-form { grid-template-columns: 1fr; } }
-.club-root .pubx-form .select { width: 100%; height: 36px; }
-.club-root .radios { display: flex; gap: 8px; }
-.club-root .radios .rad { flex: 1; display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 12px; border: 1px solid var(--cc-line-strong); border-radius: var(--cc-r); cursor: pointer; font-size: 13.5px; background: var(--cc-surface); }
-.club-root .radios .rad:has(input:checked) { border-color: var(--cc-text); box-shadow: 0 0 0 1px var(--cc-text); }
-.club-root .has-err .radios .rad { border-color: var(--cc-rec); }
-.club-root .tagsbox { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; min-height: 36px; border: 1px solid var(--cc-line-strong); border-radius: var(--cc-r); padding: 4px 8px; background: var(--cc-surface); }
-.club-root .tagsbox:focus-within { border-color: var(--cc-accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--cc-accent) 18%, transparent); }
-.club-root .tagsbox input { border: 0; outline: none; flex: 1; min-width: 120px; background: none; font-size: 13.5px; height: 26px; }
-.club-root .tagsbox .chip button { border: 0; background: none; padding: 0; cursor: pointer; display: inline-flex; color: var(--cc-text-3); }
-.club-root .pubx-foot { display: flex; align-items: center; gap: 16px; }
-.club-root .pubx-foot .fi { flex: 1; font-size: 13.5px; color: var(--cc-text-2); }
-.club-root .pubx-warn { color: var(--cc-warn); font-weight: 550; }
-.club-root .pubx-alt { font-size: 13px; }
-.club-root .pubx-alt .row { gap: 10px; }
-.club-root .pubx aside .sec-h h2 { font-size: 13px; margin: 0 0 8px; color: var(--cc-text-2); font-weight: 650; }
-.club-root .pubx-yt { padding: 14px; display: flex; flex-direction: column; gap: 10px; }
-.club-root .pubx-yt .yt-t { font-weight: 650; font-size: 14.5px; line-height: 1.3; overflow-wrap: anywhere; }
-.club-root .pubx-yt .yt-m { font-size: 12.5px; color: var(--cc-text-3); }
-.club-root .pubx-yt .yt-d { font-size: 12.5px; color: var(--cc-text-2); white-space: pre-wrap; max-height: 74px; overflow: hidden; }
-.club-root .pubx-prog { padding: 18px; display: flex; flex-direction: column; gap: 14px; }
-.club-root .pstep2 { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; font-size: 14px; }
-.club-root .pstep2 .pi { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; flex: none; background: var(--cc-bg-sunk); color: var(--cc-text-3); }
-.club-root .pstep2.done .pi { background: var(--cc-ok); color: #fff; }
-.club-root .pstep2.fail .pi { background: var(--cc-rec); color: #fff; }
-.club-root .pstep2.todo { color: var(--cc-text-3); }
-.club-root .pstep2 .pbar { flex-basis: 100%; height: 8px; border-radius: 6px; background: var(--cc-bg-sunk); overflow: hidden; margin-left: 32px; }
-.club-root .pstep2 .pbar i { display: block; height: 100%; background: var(--cc-accent); border-radius: 6px; transition: width .2s linear; }
-.club-root .pubx-prog.fail { border-color: color-mix(in srgb, var(--cc-rec) 40%, var(--cc-line)); }
-.club-root .pubx-ok { padding: 22px; display: flex; flex-direction: column; gap: 12px; align-items: flex-start; }
-.club-root .pubx-ok h2 { margin: 0; font-size: 20px; letter-spacing: -0.02em; }
-.club-root .pubx-ok p { margin: 0; color: var(--cc-text-2); font-size: 14.5px; line-height: 1.5; }
+:where(.club-root) .pubx:where(:not(.club-embed *)) { max-width: 1060px; margin: 0 auto; padding: 32px 28px 80px; }
+:where(.club-root) .pubx-grid:where(:not(.club-embed *)) { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 26px; align-items: start; }
+@media (max-width: 1000px) { :where(.club-root) .pubx-grid:where(:not(.club-embed *)) { grid-template-columns: minmax(0, 1fr); } }
+:where(.club-root) .pubx-grid > div:where(:not(.club-embed *)) { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+:where(.club-root) .pubx-export:where(:not(.club-embed *)) { min-height: 36px; display: flex; align-items: center; }
+:where(.club-root) .club-export-done:where(:not(.club-embed *)) { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; font-size: 13.5px; color: var(--cc-ok); }
+:where(.club-root) .pubx-route:where(:not(.club-embed *)) { padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+:where(.club-root) .pubx-route .rh:where(:not(.club-embed *)) { display: flex; align-items: center; gap: 10px; }
+:where(.club-root) .pubx-route .logo:where(:not(.club-embed *)) { width: 34px; height: 34px; border-radius: 9px; display: grid; place-items: center; flex: none; font-weight: 800; font-size: 14px; }
+:where(.club-root) .pubx-route .rt:where(:not(.club-embed *)) { font-weight: 650; font-size: 14.5px; }
+:where(.club-root) .pubx-route .rd:where(:not(.club-embed *)) { font-size: 12.5px; color: var(--cc-text-3); }
+:where(.club-root) .pz .row:where(:not(.club-embed *)) { gap: 10px; }
+:where(.club-root) .pz .row > .input:where(:not(.club-embed *)) { flex: 1; min-width: 0; }
+:where(.club-root) .pz-err:where(:not(.club-embed *)) { color: var(--cc-rec); margin: 8px 0 0; font-weight: 550; }
+:where(.club-root) .pz-hint:where(:not(.club-embed *)) { margin: 8px 0 0; }
+:where(.club-root) .pubx-form:where(:not(.club-embed *)) { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 16px; padding: 18px; }
+:where(.club-root) .pubx-form .full:where(:not(.club-embed *)) { grid-column: 1 / -1; }
+@media (max-width: 760px) { :where(.club-root) .pubx-form:where(:not(.club-embed *)) { grid-template-columns: 1fr; } }
+:where(.club-root) .pubx-form .select:where(:not(.club-embed *)) { width: 100%; height: 36px; }
+:where(.club-root) .radios:where(:not(.club-embed *)) { display: flex; gap: 8px; }
+:where(.club-root) .radios .rad:where(:not(.club-embed *)) { flex: 1; display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 12px; border: 1px solid var(--cc-line-strong); border-radius: var(--cc-r); cursor: pointer; font-size: 13.5px; background: var(--cc-surface); }
+:where(.club-root) .radios .rad:has(input:checked):where(:not(.club-embed *)) { border-color: var(--cc-text); box-shadow: 0 0 0 1px var(--cc-text); }
+:where(.club-root) .has-err .radios .rad:where(:not(.club-embed *)) { border-color: var(--cc-rec); }
+:where(.club-root) .tagsbox:where(:not(.club-embed *)) { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; min-height: 36px; border: 1px solid var(--cc-line-strong); border-radius: var(--cc-r); padding: 4px 8px; background: var(--cc-surface); }
+:where(.club-root) .tagsbox:focus-within:where(:not(.club-embed *)) { border-color: var(--cc-accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--cc-accent) 18%, transparent); }
+:where(.club-root) .tagsbox input:where(:not(.club-embed *)) { border: 0; outline: none; flex: 1; min-width: 120px; background: none; font-size: 13.5px; height: 26px; }
+:where(.club-root) .tagsbox .chip button:where(:not(.club-embed *)) { border: 0; background: none; padding: 0; cursor: pointer; display: inline-flex; color: var(--cc-text-3); }
+:where(.club-root) .pubx-foot:where(:not(.club-embed *)) { display: flex; align-items: center; gap: 16px; }
+:where(.club-root) .pubx-foot .fi:where(:not(.club-embed *)) { flex: 1; font-size: 13.5px; color: var(--cc-text-2); }
+:where(.club-root) .pubx-warn:where(:not(.club-embed *)) { color: var(--cc-warn); font-weight: 550; }
+:where(.club-root) .pubx-alt:where(:not(.club-embed *)) { font-size: 13px; }
+:where(.club-root) .pubx-alt .row:where(:not(.club-embed *)) { gap: 10px; }
+:where(.club-root) .pubx aside .sec-h h2:where(:not(.club-embed *)) { font-size: 13px; margin: 0 0 8px; color: var(--cc-text-2); font-weight: 650; }
+:where(.club-root) .pubx-yt:where(:not(.club-embed *)) { padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+:where(.club-root) .pubx-yt .yt-t:where(:not(.club-embed *)) { font-weight: 650; font-size: 14.5px; line-height: 1.3; overflow-wrap: anywhere; }
+:where(.club-root) .pubx-yt .yt-m:where(:not(.club-embed *)) { font-size: 12.5px; color: var(--cc-text-3); }
+:where(.club-root) .pubx-yt .yt-d:where(:not(.club-embed *)) { font-size: 12.5px; color: var(--cc-text-2); white-space: pre-wrap; max-height: 74px; overflow: hidden; }
+:where(.club-root) .pubx-prog:where(:not(.club-embed *)) { padding: 18px; display: flex; flex-direction: column; gap: 14px; }
+:where(.club-root) .pstep2:where(:not(.club-embed *)) { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; font-size: 14px; }
+:where(.club-root) .pstep2 .pi:where(:not(.club-embed *)) { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; flex: none; background: var(--cc-bg-sunk); color: var(--cc-text-3); }
+:where(.club-root) .pstep2.done .pi:where(:not(.club-embed *)) { background: var(--cc-ok); color: var(--cc-on-primary); }
+:where(.club-root) .pstep2.fail .pi:where(:not(.club-embed *)) { background: var(--cc-rec); color: var(--cc-on-primary); }
+:where(.club-root) .pstep2.todo:where(:not(.club-embed *)) { color: var(--cc-text-3); }
+:where(.club-root) .pstep2 .pbar:where(:not(.club-embed *)) { flex-basis: 100%; height: 8px; border-radius: 6px; background: var(--cc-bg-sunk); overflow: hidden; margin-left: 32px; }
+:where(.club-root) .pstep2 .pbar i:where(:not(.club-embed *)) { display: block; height: 100%; background: var(--cc-accent); border-radius: 6px; transition: width .2s linear; }
+:where(.club-root) .pubx-prog.fail:where(:not(.club-embed *)) { border-color: color-mix(in srgb, var(--cc-rec) 40%, var(--cc-line)); }
+:where(.club-root) .pubx-ok:where(:not(.club-embed *)) { padding: 22px; display: flex; flex-direction: column; gap: 12px; align-items: flex-start; }
+:where(.club-root) .pubx-ok h2:where(:not(.club-embed *)) { margin: 0; font-size: 20px; letter-spacing: -0.02em; }
+:where(.club-root) .pubx-ok p:where(:not(.club-embed *)) { margin: 0; color: var(--cc-text-2); font-size: 14.5px; line-height: 1.5; }
 :where(.club-root) .progress:where(:not(.club-embed *)) { height: 8px; border-radius: 6px; background: var(--cc-bg-sunk); overflow: hidden; }
 :where(.club-root) .progress i:where(:not(.club-embed *)) { display: block; height: 100%; background: var(--cc-accent); border-radius: 6px; transition: width .2s linear; }
 :where(.club-root) .views-chart:where(:not(.club-embed *)) { display: flex; align-items: flex-end; gap: 4px; height: 120px; padding-top: 10px; }
@@ -902,21 +902,22 @@
 /* settings */
 :where(.club-root) .srow:where(:not(.club-embed *)) { display: flex; align-items: center; gap: 14px; padding: 16px; border-bottom: 1px solid var(--cc-line); }
 :where(.club-root) .srow:last-child:where(:not(.club-embed *)) { border-bottom: 0; }
-.club-root .set-group { margin-bottom: 30px; }
-.club-root .set-group > h2 { font-size: 17px; letter-spacing: -0.015em; margin: 0 0 4px; }
-.club-root .set-group > p { margin: 0 0 14px; color: var(--cc-text-2); font-size: 13.5px; }
-.club-root .srow2 { display: flex; align-items: center; gap: 14px; padding: 14px 16px; border-bottom: 1px solid var(--cc-line); }
-.club-root .srow2:last-child, .club-root .fold:last-child > .srow2:only-child { border-bottom: 0; }
-.club-root .srow2 .logo { width: 36px; height: 36px; color: #fff; font-weight: 800; }
-.club-root .srow2 .st { font-weight: 600; font-size: 14px; }
-.club-root .srow2 .sd { font-size: 12.5px; color: var(--cc-text-3); margin-top: 1px; }
-.club-root .srow2 .sv { margin-left: auto; display: flex; align-items: center; gap: 10px; flex: none; }
-.club-root .srow2 .select { width: 200px; }
-.club-root .fold { border-bottom: 1px solid var(--cc-line); }
-.club-root .fold:last-child { border-bottom: 0; }
-.club-root .fold > .srow2 { border-bottom: 0; }
-.club-root .fold-body { border-top: 1px solid var(--cc-line); background: var(--cc-bg-sunk); }
-.club-root .fold-pad { padding: 16px; }
+:where(.club-root) .set-group:where(:not(.club-embed *)) { margin-bottom: 30px; }
+:where(.club-root) .set-group > h2:where(:not(.club-embed *)) { font-size: 17px; letter-spacing: -0.015em; margin: 0 0 4px; }
+:where(.club-root) .set-group > p:where(:not(.club-embed *)) { margin: 0 0 14px; color: var(--cc-text-2); font-size: 13.5px; }
+:where(.club-root) .srow2:where(:not(.club-embed *)) { display: flex; align-items: center; gap: 14px; padding: 14px 16px; border-bottom: 1px solid var(--cc-line); }
+:where(.club-root) .srow2:last-child:where(:not(.club-embed *)), :where(.club-root) .fold:last-child > .srow2:only-child:where(:not(.club-embed *)) { border-bottom: 0; }
+:where(.club-root) .srow2 .logo:where(:not(.club-embed *)) { width: 36px; height: 36px; font-weight: 800; }
+:where(.club-root) .logo-postiz:where(:not(.club-embed *)) { background: var(--cc-text); color: var(--cc-surface); }
+:where(.club-root) .srow2 .st:where(:not(.club-embed *)) { font-weight: 600; font-size: 14px; }
+:where(.club-root) .srow2 .sd:where(:not(.club-embed *)) { font-size: 12.5px; color: var(--cc-text-3); margin-top: 1px; }
+:where(.club-root) .srow2 .sv:where(:not(.club-embed *)) { margin-left: auto; display: flex; align-items: center; gap: 10px; flex: none; }
+:where(.club-root) .srow2 .select:where(:not(.club-embed *)) { width: 200px; }
+:where(.club-root) .fold:where(:not(.club-embed *)) { border-bottom: 1px solid var(--cc-line); }
+:where(.club-root) .fold:last-child:where(:not(.club-embed *)) { border-bottom: 0; }
+:where(.club-root) .fold > .srow2:where(:not(.club-embed *)) { border-bottom: 0; }
+:where(.club-root) .fold-body:where(:not(.club-embed *)) { border-top: 1px solid var(--cc-line); background: var(--cc-bg-sunk); }
+:where(.club-root) .fold-pad:where(:not(.club-embed *)) { padding: 16px; }
 :where(.club-root) .logo:where(:not(.club-embed *)) { width: 38px; height: 38px; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex: none; }
 :where(.club-root) .logo-claude:where(:not(.club-embed *)) { background: #f4e9e1; color: #c15f3c; }
 :where(.club-root) .logo-codex:where(:not(.club-embed *)) { background: var(--cc-bg-sunk); color: var(--cc-text); }
@@ -1001,7 +1002,7 @@
 .club-embed .workspace-nav { position: relative; left: auto; right: auto; bottom: auto; }
 
 /* A line under the tabs that says what is waiting, with the one action. */
-.club-root .ws-notice { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 12px; border: 1px solid var(--cc-line-strong); border-radius: 10px; background: var(--cc-bg-sunk); color: var(--cc-text); font-size: 13px; }
+:where(.club-root) .ws-notice:where(:not(.club-embed *)) { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 12px; border: 1px solid var(--cc-line-strong); border-radius: 10px; background: var(--cc-bg-sunk); color: var(--cc-text); font-size: 13px; }
 
 /* Utilities from club files only, matching only inside the club shell. */
 :where(.club-root) {

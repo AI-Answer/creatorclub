@@ -18,24 +18,52 @@ export const POSTIZ_CLOUD_APP = 'https://platform.postiz.com';
 export const MAX_VIDEO_BYTES = 1024 ** 3;
 export const POSTS_PER_HOUR = 90;
 
-export const BAD_ADDRESS = 'That does not look like a web address. Use one like https://postiz.example.com.';
+export const BAD_ADDRESS = 'Use a web address like https://postiz.example.com, without a username or password. Plain http only works for this computer or your own network.';
 export const BAD_KEY = "Postiz didn't accept that key. Copy it again from Postiz, Settings, Public API.";
-export const CANT_REACH_POSTIZ = "Couldn't reach Postiz. Check your connection and try again.";
-const POSTIZ_DOWN = 'Postiz had a problem on its side. Try again in a few minutes.';
-const POST_REJECTED = 'Postiz rejected the post. Check the title, tags and time, then try again.';
-const NOT_PROCESSED = "Postiz couldn't process the video. Try again.";
+export const CANT_REACH_POSTIZ = "Couldn't reach Postiz. Check your connection.";
+const POSTIZ_DOWN = 'Postiz had a problem on its side.';
+const POST_REJECTED = 'Postiz rejected the post. Check the title, tags and time.';
+const NOT_PROCESSED = "Postiz couldn't process the video.";
 const TOO_BIG = 'Postiz takes videos up to 1 GB.';
+export const UNCONFIRMED = "Postiz didn't confirm the post, so it may or may not be there.";
 
-/** The API address for a Postiz: Cloud when none is given, or the person's own server (`https://host`, or the full `/public/v1` address). */
-export function postizApiBase(address?: string | null): string {
-  if (!address?.trim()) return POSTIZ_CLOUD_API;
+/** Postiz answered the post without saying it was made. The post may exist, so nothing may be sent again until it is known. */
+export class UnconfirmedPostError extends PublisherError {
+  constructor(readonly date: Date) {
+    super(UNCONFIRMED);
+    this.name = 'UnconfirmedPostError';
+  }
+}
+
+/** This computer, or a host on the person's own network: the only places plain http is accepted. */
+export function isPrivateHost(hostname: string): boolean {
+  const host = hostname.toLowerCase().replace(/^\[|\]$/g, '');
+  if (host === 'localhost' || host.endsWith('.localhost') || host.endsWith('.local')) return true;
+  const v4 = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (v4) {
+    const [a, b] = [Number(v4[1]), Number(v4[2])];
+    return a === 127 || a === 10 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 169 && b === 254);
+  }
+  return host === '::1' || /^f[cd][0-9a-f]{2}:/.test(host) || /^fe80:/.test(host);
+}
+
+/** The person's own Postiz as a clean URL (no credentials, query or fragment), or the sentence that says what is wrong with it. */
+function parseAddress(address: string): URL {
   let url: URL;
   try {
     url = new URL(address.trim());
   } catch {
     throw new PublisherError(BAD_ADDRESS, 400);
   }
-  if (url.protocol !== 'http:' && url.protocol !== 'https:') throw new PublisherError(BAD_ADDRESS, 400);
+  if (url.username || url.password) throw new PublisherError(BAD_ADDRESS, 400);
+  if (url.protocol === 'https:' || (url.protocol === 'http:' && isPrivateHost(url.hostname))) return url;
+  throw new PublisherError(BAD_ADDRESS, 400);
+}
+
+/** The API address for a Postiz: Cloud when none is given, or the person's own server (`https://host`, or the full `/public/v1` address). */
+export function postizApiBase(address?: string | null): string {
+  if (!address?.trim()) return POSTIZ_CLOUD_API;
+  const url = parseAddress(address);
   const path = url.pathname.replace(/\/+$/, '');
   if (path.endsWith('/public/v1')) return url.origin + path;
   return `${url.origin}${path.endsWith('/api') ? path : `${path}/api`}/public/v1`;
@@ -43,14 +71,14 @@ export function postizApiBase(address?: string | null): string {
 
 /** Where the person sees their posts in Postiz. */
 export function postizAppUrl(address?: string | null): string {
-  return address?.trim() ? `${new URL(postizApiBase(address)).origin}/launches` : `${POSTIZ_CLOUD_APP}/launches`;
+  return address?.trim() ? `${parseAddress(address).origin}/launches` : `${POSTIZ_CLOUD_APP}/launches`;
 }
 
-/** The address as the person typed it, without a trailing slash, or null for Cloud. Throws the sentence for one that is not a web address. */
+/** What is saved for an address: its origin and path only, never what was typed. Null for Cloud. Throws the sentence for one that is not accepted. */
 export function normalizeAddress(address?: string | null): string | null {
   if (!address?.trim()) return null;
-  postizApiBase(address);
-  return address.trim().replace(/\/+$/, '');
+  const url = parseAddress(address);
+  return url.origin + url.pathname.replace(/\/+$/, '');
 }
 
 // ---- the 90 posts an hour, counted here so a refused post is explained before a big upload is wasted
@@ -215,9 +243,9 @@ export class PostizPublisher implements Publisher {
     });
     const first = Array.isArray(answer) ? answer[0] : answer;
     const postId = first?.postId ?? first?.id;
-    if (typeof postId !== 'string' || !postId) throw new PublisherError("Postiz didn't confirm the post. Check Postiz before trying again.");
     sent.push(Date.now());
-    return { postId, date };
+    if (typeof postId !== 'string' || !postId) throw new UnconfirmedPostError(date);
+    return { postId, date, channelId: request.channelId };
   }
 
   async status(post: SentPost, signal?: AbortSignal): Promise<PostStatus> {
@@ -225,11 +253,17 @@ export class PostizPublisher implements Publisher {
     const query = new URLSearchParams({ startDate: new Date(post.date.getTime() - day).toISOString(), endDate: new Date(post.date.getTime() + day).toISOString() });
     const answer = (await this.request(`/posts?${query}`, { signal })) as { posts?: unknown } | unknown[] | null;
     const list = Array.isArray(answer) ? answer : Array.isArray(answer?.posts) ? answer.posts : [];
-    const found = list.find((item): item is { id: string; state?: string; releaseURL?: string } => (item as { id?: unknown })?.id === post.postId);
+    type Item = { id: string; state?: string; releaseURL?: string; publishDate?: string; integration?: { id?: string } };
+    const items = list as Item[];
+    // A post whose id was never confirmed is looked for by its channel and the time it was sent for.
+    const found = post.postId
+      ? items.find((item) => item?.id === post.postId)
+      : items.find((item) => item?.integration?.id === post.channelId && Math.abs(new Date(item.publishDate ?? 0).getTime() - post.date.getTime()) < 120_000);
     const state = String(found?.state ?? '').toUpperCase();
-    if (state === 'PUBLISHED') return { state: 'published', ...(typeof found?.releaseURL === 'string' && found.releaseURL ? { url: found.releaseURL } : {}) };
-    if (state === 'ERROR') return { state: 'failed' };
-    return { state: 'queued' };
+    const id = found && !post.postId && typeof found.id === 'string' ? { postId: found.id } : {};
+    if (state === 'PUBLISHED') return { state: 'published', ...id, ...(typeof found?.releaseURL === 'string' && found.releaseURL ? { url: found.releaseURL } : {}) };
+    if (state === 'ERROR') return { state: 'failed', ...id };
+    return { state: 'queued', ...id };
   }
 }
 

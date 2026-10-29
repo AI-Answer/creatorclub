@@ -58,7 +58,7 @@ export function ResultCard({record,video,onCheck,children}:{record:ResultInfo;vi
  const link=record.url??video.youtubeUrl;
  const [checking,setChecking]=useState(false);
  return <Card className="pubx-ok">
-  <span className={`chip ${words.done?'b-green':'outline'}`}>{words.done&&<Icon name="Check" size={12}/>}{record.state==='published'?'Published':record.scheduledFor?'Scheduled':'Sent to Postiz'}</span>
+  <span className={`chip ${words.done?'b-green':'outline'}`}>{words.done&&<Icon name="Check" size={12}/>}{record.unconfirmed?'Not confirmed':record.state==='published'?'Published':record.scheduledFor?'Scheduled':'Sent to Postiz'}</span>
   <h2>{words.title}</h2>
   <p>{words.line}</p>
   {link&&<p><a style={{color:'var(--cc-accent-text)',fontWeight:550}} href={link} target="_blank" rel="noreferrer">{shortLink(link)}</a></p>}
@@ -68,8 +68,10 @@ export function ResultCard({record,video,onCheck,children}:{record:ResultInfo;vi
   <div className="row">
    {record.postizUrl&&<a className="btn" href={record.postizUrl} target="_blank" rel="noreferrer">Open in Postiz<Icon name="ArrowUpRight" size={14}/></a>}
    {record.state==='queued'&&onCheck&&<Button disabled={checking} onClick={()=>{setChecking(true);void onCheck().finally(()=>setChecking(false));}}>Check again</Button>}
-   {children}
   </div>
+  {record.state!=='published'&&<p className="small muted" style={{margin:0}}>Already on YouTube? Paste its link to finish.</p>}
+  {children&&<div className="row" style={{width:'100%'}}>{children}</div>}
+  {record.postizUrl&&<p className="small muted" style={{margin:0}}>Postiz publishing is new here. Open the video on YouTube once and check that the made-for-kids answer and the thumbnail are as you set them.</p>}
  </Card>;
 }
 

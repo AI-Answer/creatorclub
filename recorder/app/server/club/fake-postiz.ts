@@ -21,6 +21,10 @@ export interface FakePostiz {
   fail: Partial<Record<'integrations' | 'upload' | 'posts' | 'status', { status: number; headers?: Record<string, string>; body?: unknown; sticky?: boolean }>>;
   /** What the upload answers when it works, to simulate a video Postiz could not process. */
   uploadAnswer?: unknown;
+  /** What the next post answers when it works, to simulate an answer with no post id (the post is still made). Used once. */
+  postAnswer?: unknown;
+  /** The YouTube link a post reports once published. Undefined for a post that reports none. */
+  releaseURL?: string;
   /** The state a new post takes. Tests move it later with `finish`. */
   newState: 'QUEUE' | 'PUBLISHED' | 'ERROR';
   finish(id: string, state: 'PUBLISHED' | 'ERROR', releaseURL?: string): void;
@@ -40,6 +44,7 @@ export async function startFakePostiz(options: { key?: string; port?: number; ch
     log: [],
     fail: {},
     newState: 'QUEUE',
+    releaseURL: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
     finish(id, state, releaseURL) {
       const post = fake.posts.find((item) => item.id === id);
       if (post) Object.assign(post, { state, releaseURL });
@@ -96,8 +101,10 @@ export async function startFakePostiz(options: { key?: string; port?: number; ch
       return;
     }
     const id = `post_${fake.posts.length + 1}`;
-    fake.posts.push({ id, body, state: fake.newState, ...(fake.newState === 'PUBLISHED' ? { releaseURL: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ' } : {}) });
-    res.json([{ postId: id, integration: post.integration.id }]);
+    fake.posts.push({ id, body, state: fake.newState, ...(fake.newState === 'PUBLISHED' && fake.releaseURL ? { releaseURL: fake.releaseURL } : {}) });
+    const answer = fake.postAnswer;
+    fake.postAnswer = undefined;
+    res.json(answer ?? [{ postId: id, integration: post.integration.id }]);
   });
   api.get('/posts', (req, res) => {
     if (take('status', res)) return;

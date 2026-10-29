@@ -1,12 +1,13 @@
 import type { NextFunction, Request, Response, Router } from 'express';
 import multer from 'multer';
+import { createHash } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { z } from 'zod';
 import { PUBLISH_VISIBILITIES, type PublishChannel, type PublishingState, type PublishRecord, type PublishVisibility } from '../../shared/club.js';
 import { ClubError } from './errors.js';
-import { startJobOnce } from './jobs.js';
-import { normalizeAddress, postizAppUrl, PostizPublisher, MAX_VIDEO_BYTES } from './postiz.js';
+import { runningOnce, startJobOnce } from './jobs.js';
+import { normalizeAddress, postizAppUrl, PostizPublisher, MAX_VIDEO_BYTES, UnconfirmedPostError, UNCONFIRMED } from './postiz.js';
 import { PublisherError, type LocalFile, type Publisher } from './publisher.js';
 import { publishVideo, type ViewsReader } from './publish.js';
 import * as store from './store.js';
@@ -47,11 +48,25 @@ const startBody = z
   .strict();
 
 const THUMBNAIL_MAX = 2 * 1024 * 1024;
-const THUMBNAIL_TYPES: Record<string, string> = { 'image/png': 'png', 'image/jpeg': 'jpg' };
-const NOT_AN_IMAGE = 'Use a PNG or JPG image, up to 2 MB.';
+const THUMBNAIL_EXTENSIONS = ['png', 'jpg', 'webp'] as const;
+const THUMBNAIL_TYPE: Record<(typeof THUMBNAIL_EXTENSIONS)[number], string> = { png: 'image/png', jpg: 'image/jpeg', webp: 'image/webp' };
+const NOT_AN_IMAGE = 'Use a PNG, JPG or WebP image, up to 2 MB.';
+
+/** What the bytes are, whatever the client called them: PNG, JPEG or WebP by their first bytes. */
+export function imageKind(bytes: Buffer): (typeof THUMBNAIL_EXTENSIONS)[number] | undefined {
+  if (bytes.length >= 8 && bytes.subarray(0, 8).equals(Buffer.from('89504e470d0a1a0a', 'hex'))) return 'png';
+  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return 'jpg';
+  if (bytes.length >= 12 && bytes.subarray(0, 4).toString('latin1') === 'RIFF' && bytes.subarray(8, 12).toString('latin1') === 'WEBP') return 'webp';
+  return undefined;
+}
 const thumbnailUpload = multer({ storage: multer.memoryStorage(), limits: { files: 1, fileSize: THUMBNAIL_MAX } });
 const NEEDS_EXPORT = 'Export the video again, then publish.';
 const WAITING = 'Postiz is uploading it to YouTube.';
+export const ALREADY_SENT = 'Postiz already has this video. Check again to see where it is.';
+export const ALREADY_UNCONFIRMED = 'Postiz may already have this video. Check again to see whether it is there.';
+/** An unconfirmed post that Postiz still does not list after this long is taken as not made, so it can be sent again. */
+const UNCONFIRMED_GIVE_UP_MS = 10 * 60 * 1000;
+export const NOT_THERE = "Postiz doesn't have it. You can send it again.";
 
 const sleep = (ms: number, signal: AbortSignal) =>
   new Promise<void>((resolve) => {
@@ -60,11 +75,15 @@ const sleep = (ms: number, signal: AbortSignal) =>
   });
 
 const recordFile = (slug: string, id: string) => path.join(store.videoDir(slug, id), 'postiz.json');
-const thumbnailFiles = (slug: string, id: string) => Object.values(THUMBNAIL_TYPES).map((ext) => path.join(store.videoDir(slug, id), `thumbnail.${ext}`));
+const thumbnailFiles = (slug: string, id: string) => THUMBNAIL_EXTENSIONS.map((ext) => path.join(store.videoDir(slug, id), `thumbnail.${ext}`));
 async function thumbnailOf(slug: string, id: string): Promise<LocalFile | undefined> {
   for (const file of thumbnailFiles(slug, id)) {
     const stat = await fs.stat(file).catch(() => undefined);
-    if (stat) return { path: file, name: path.basename(file), size: stat.size, type: file.endsWith('.png') ? 'image/png' : 'image/jpeg' };
+    if (stat) {
+      // The content hash keeps an upload that was kept from being reused for a different image.
+      const version = createHash('sha256').update(await fs.readFile(file)).digest('hex');
+      return { path: file, name: path.basename(file), size: stat.size, type: THUMBNAIL_TYPE[path.extname(file).slice(1) as (typeof THUMBNAIL_EXTENSIONS)[number]], version };
+    }
   }
   return undefined;
 }
@@ -72,13 +91,26 @@ async function thumbnailOf(slug: string, id: string): Promise<LocalFile | undefi
 export async function publishingState(): Promise<PublishingState> {
   const settings = await store.publishingSettings();
   return {
-    postiz: { connected: Boolean(await store.postizKey()), address: settings.address ?? null, channel: settings.channel ?? null },
+    postiz: { connected: Boolean(await store.postizKey()), address: savedAddress(settings), channel: settings.channel ?? null },
     defaultVisibility: settings.defaultVisibility ?? 'public',
   };
 }
 
-/** The address in use: the person's own, then CREATORCLUB_POSTIZ_URL (for walking through with a stand-in Postiz), else Postiz Cloud. */
-const effectiveAddress = (settings: store.PublishingSettings) => settings.address ?? (process.env.CREATORCLUB_POSTIZ_URL || null);
+/** A saved address that is not accepted any more (or was edited by hand) is ignored, so Postiz Cloud is used. */
+function savedAddress(settings: store.PublishingSettings): string | null {
+  try {
+    return normalizeAddress(settings.address);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The address in use: the person's own, else Postiz Cloud. CREATORCLUB_POSTIZ_URL only points a test or a walkthrough at a stand-in
+ * Postiz, and is ignored unless NODE_ENV is test or CREATORCLUB_TEST is 1, so it can never redirect a real install.
+ */
+export const effectiveAddress = (settings: store.PublishingSettings) =>
+  savedAddress(settings) ?? ((process.env.NODE_ENV === 'test' || process.env.CREATORCLUB_TEST === '1') && process.env.CREATORCLUB_POSTIZ_URL ? process.env.CREATORCLUB_POSTIZ_URL : null);
 
 async function connectedPublisher(options: PublishingOptions): Promise<{ publisher: Publisher; address: string | null }> {
   const apiKey = await store.postizKey();
@@ -130,7 +162,7 @@ export function publishingRoutes(router: Router, deps: { handler: (fn: (req: Req
     const slug = await requireWorkspace();
     const id = param(req, 'id');
     await store.readVideo(slug, id);
-    const ext = req.file ? THUMBNAIL_TYPES[req.file.mimetype] : undefined;
+    const ext = req.file ? imageKind(req.file.buffer) : undefined;
     if (!req.file || !ext) throw new ClubError(NOT_AN_IMAGE);
     for (const file of thumbnailFiles(slug, id)) await fs.rm(file, { force: true });
     await store.writeFileAtomic(path.join(store.videoDir(slug, id), `thumbnail.${ext}`), req.file.buffer);
@@ -161,8 +193,7 @@ export function publishingRoutes(router: Router, deps: { handler: (fn: (req: Req
     if (record.state === 'queued') {
       try {
         const { publisher } = await connectedPublisher(options);
-        const next = await settle(slug, id, record, await publisher.status({ postId: record.postId, date: new Date(record.scheduledFor ?? record.sentAt) }), options.readViews);
-        return res.json(next);
+        return res.json(await refresh(slug, id, record, publisher, options.readViews));
       } catch {
         // Nothing to add: the saved record is still right.
       }
@@ -175,6 +206,11 @@ export function publishingRoutes(router: Router, deps: { handler: (fn: (req: Req
     const id = param(req, 'id');
     const body = startBody.parse(req.body);
     const video = await store.readVideo(slug, id);
+    // Pressing Publish again while it runs follows the same job. Once Postiz has (or may have) the video, a second post is never made.
+    const running = runningOnce(`postiz:${slug}:${id}`);
+    if (running) return res.status(202).json(running);
+    const prior = await store.readJSON<PublishRecord>(recordFile(slug, id));
+    if (prior && prior.state !== 'failed') throw new ClubError(prior.unconfirmed ? ALREADY_UNCONFIRMED : ALREADY_SENT, 409);
     const scheduledFor = body.scheduledFor ? new Date(body.scheduledFor) : undefined;
     if (scheduledFor && scheduledFor.getTime() < Date.now() + 60_000) throw new ClubError('Pick a time in the future.');
     const settings = await store.publishingSettings();
@@ -187,16 +223,16 @@ export function publishingRoutes(router: Router, deps: { handler: (fn: (req: Req
     const channelId = settings.channel.id;
     res.status(202).json(startJobOnce(`postiz:${slug}:${id}`, 'publish', async ({ emit, signal }) => {
       emit({ step: 'check', message: 'Checking the exported video' });
-      const sent = await publisher.publish({ channelId, title: body.title, description: body.description, tags: body.tags, visibility: body.visibility, madeForKids: body.madeForKids, scheduledFor, video: file, thumbnail: await thumbnailOf(slug, id) }, emit, signal);
-      let record: PublishRecord = {
-        postId: sent.postId,
-        title: body.title,
-        visibility: body.visibility,
-        sentAt: new Date().toISOString(),
-        ...(scheduledFor ? { scheduledFor: scheduledFor.toISOString() } : {}),
-        state: 'queued',
-        postizUrl: postizAppUrl(address),
-      };
+      const base = { title: body.title, visibility: body.visibility, channelId, ...(scheduledFor ? { scheduledFor: scheduledFor.toISOString() } : {}), state: 'queued' as const, postizUrl: postizAppUrl(address) };
+      let sent;
+      try {
+        sent = await publisher.publish({ channelId, title: body.title, description: body.description, tags: body.tags, visibility: body.visibility, madeForKids: body.madeForKids, scheduledFor, video: file, thumbnail: await thumbnailOf(slug, id) }, emit, signal);
+      } catch (error) {
+        // The post may exist. Keep what is needed to look for it, so nothing is sent twice.
+        if (error instanceof UnconfirmedPostError) await store.writeJSON(recordFile(slug, id), { ...base, postId: '', unconfirmed: true, sentAt: error.date.toISOString(), message: UNCONFIRMED } satisfies PublishRecord);
+        throw error;
+      }
+      let record: PublishRecord = { ...base, postId: sent.postId, sentAt: new Date().toISOString() };
       await store.writeJSON(recordFile(slug, id), record);
       if (scheduledFor) await store.updateVideo(slug, id, { publishDate: scheduledFor.toISOString() });
       else {
@@ -218,19 +254,41 @@ export function publishingRoutes(router: Router, deps: { handler: (fn: (req: Req
 
 export const POSTIZ_FAILED = "Postiz couldn't post it to YouTube. Open Postiz to see why.";
 
-/** Applies what Postiz says to the saved record. A published video with its link moves to Published. */
+/** Asks Postiz where a saved record stands and applies it. */
+async function refresh(slug: string, id: string, record: PublishRecord, publisher: Publisher, readViews: ViewsReader): Promise<PublishRecord> {
+  const status = await publisher.status({ postId: record.postId, date: new Date(record.scheduledFor ?? record.sentAt), channelId: record.channelId });
+  if (record.unconfirmed) {
+    if (status.postId) {
+      // Found by its channel and time: from here it is an ordinary post.
+      const { unconfirmed: _found, message: _none, ...known } = record;
+      record = { ...known, postId: status.postId };
+      await store.writeJSON(recordFile(slug, id), record);
+    } else if (Date.now() - new Date(record.sentAt).getTime() > UNCONFIRMED_GIVE_UP_MS) {
+      const gone: PublishRecord = { ...record, state: 'failed', message: NOT_THERE };
+      await store.writeJSON(recordFile(slug, id), gone);
+      return gone;
+    } else return record;
+  }
+  return settle(slug, id, record, status, readViews);
+}
+
+/**
+ * Applies what Postiz says to the saved record. It is `published` only once the video has really moved to Published, which needs a
+ * YouTube link; Postiz saying published without a usable link leaves the record queued, and the screen offers pasting the link.
+ */
 async function settle(slug: string, id: string, record: PublishRecord, status: { state: PublishRecord['state']; url?: string }, readViews: ViewsReader): Promise<PublishRecord> {
   if (status.state === 'queued') return record;
-  let next: PublishRecord = status.state === 'failed' ? { ...record, state: 'failed', message: POSTIZ_FAILED } : { ...record, state: 'published', ...(status.url ? { url: status.url } : {}) };
-  if (status.state === 'published' && status.url) {
+  let next: PublishRecord;
+  if (status.state === 'failed') next = { ...record, state: 'failed', message: POSTIZ_FAILED };
+  else {
+    if (!status.url) return record;
     try {
       const { video } = await publishVideo(slug, id, status.url, readViews);
-      next = { ...next, url: video.youtubeUrl ?? status.url };
+      next = { ...record, state: 'published', url: video.youtubeUrl ?? status.url };
     } catch {
-      // The link was not a YouTube one: the record keeps it as Postiz gave it, and the card stays where it is.
+      return record;
     }
   }
   await store.writeJSON(recordFile(slug, id), next);
   return next;
 }
-

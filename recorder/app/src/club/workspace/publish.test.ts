@@ -1,7 +1,7 @@
 import {mountUI,button} from '../../test-dom';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {act,createElement} from 'react';
+import {act,createElement,useState} from 'react';
 import type {Package,Video,VideoScene} from '../../../shared/club';
 import type {ExportRecord} from '../../../shared/export-history';
 const {Publish,PUBLISH_LINE}=await import('./Publish');
@@ -45,7 +45,9 @@ async function withPublish(options:{state?:object;record?:object|null;reply?:Par
   if(call.path==='/videos/v1/thumbnail')return {status:204};
   if(call.path==='/videos/v1'&&call.method==='GET')return {body:{...video,stage:'published',youtubeUrl:sent.url,publishedAt:'2026-10-29T12:00:00.000Z'}};
  });
- const ui=await mountUI(createElement(Publish,{...props,onVideo:(next:Video)=>changes.push(next),...options.props}));
+ // The app keeps the video and hands the new one down when it changes, as the workspace does.
+ const Harness=()=>{const [current,setCurrent]=useState<Video>((options.props as {video?:Video}|undefined)?.video??video);return createElement(Publish,{...props,...options.props,video:current,onVideo:(next:Video)=>{changes.push(next);setCurrent(next);}});};
+ const ui=await mountUI(createElement(Harness));
  try{await flush();await run(ui,server,changes);}finally{await ui.close();server.restore();}
 }
 
@@ -95,7 +97,7 @@ test('Publish now needs the made-for-kids answer; then it sends the form and fol
 });
 
 test('a failed publish shows one sentence and Try again, which sends it again',async()=>{
- await withPublish({},async(ui,server)=>{
+ await withPublish({reply:({method,path})=>path==='/videos/v1'&&method==='GET'?{body:video}:undefined},async(ui,server)=>{
   const c=ui.container;
   await click(c.querySelector('input[name=kids][value=yes]'));
   await click(button(c,'Publish now'));await flush();
@@ -112,7 +114,7 @@ test('a failed publish shows one sentence and Try again, which sends it again',a
 });
 
 test('Schedule for later asks for a time, refuses one that has passed, and sends an ISO time',async()=>{
- await withPublish({},async(ui,server)=>{
+ await withPublish({reply:({method,path})=>path==='/videos/v1'&&method==='GET'?{body:video}:undefined},async(ui,server)=>{
   const c=ui.container;
   assert.equal(c.querySelector('#pub-at'),null);
   await choose(c.querySelector('#pub-when')!,'schedule');
@@ -176,6 +178,39 @@ test('a video already sent shows where it is: Postiz has it, Check again finds i
  });
 });
 
+test('a post Postiz did not confirm shows Check again and Open in Postiz, and never Try again or a second send',async()=>{
+ const unconfirmed={...sent,postId:'',unconfirmed:true,state:'queued',url:undefined,message:"Postiz didn't confirm the post, so it may or may not be there."};
+ let record:object|null=null;
+ await withPublish({reply:({method,path})=>path==='/videos/v1/postiz'&&method==='GET'?{body:record}:undefined},async(ui,server)=>{
+  const c=ui.container;
+  await click(c.querySelector('input[name=kids][value=no]'));
+  await click(button(c,'Publish now'));await flush();
+  record=unconfirmed;
+  await act(async()=>{FakeEventSource.last().emit('failed',{message:"Postiz didn't confirm the post, so it may or may not be there."});});await flush();
+  assert.ok(c.textContent?.includes("Postiz didn't confirm it"));
+  assert.ok(c.textContent?.includes('Not confirmed'));
+  assert.ok(button(c,'Check again'));
+  assert.ok(c.querySelector('a[href^="https://platform.postiz.com"]'),'Open in Postiz');
+  assert.equal([...c.querySelectorAll('button')].some(b=>b.textContent==='Try again'),false,'no Try again');
+  assert.equal(c.querySelector('#pub-title'),null,'no form to send it again');
+  assert.ok(c.textContent?.includes('Already on YouTube? Paste its link to finish.'));
+  assert.equal(posts(server.calls).length,1);
+  record={...sent,state:'queued',url:undefined};
+  await click(button(c,'Check again'));await flush();
+  assert.ok(c.textContent?.includes('Postiz has it')&&!c.textContent.includes("didn't confirm"));
+ });
+});
+
+test('Postiz saying published is not "on YouTube" until the video really is Published; until then the paste-the-link form is there',async()=>{
+ await withPublish({record:{...sent,state:'published'},reply:({method,path})=>path==='/videos/v1'&&method==='GET'?{body:video}:undefined},async ui=>{
+  const c=ui.container;
+  assert.ok(!c.textContent?.includes("It's on YouTube"),'no green claim');
+  assert.ok(c.textContent?.includes('Postiz has it'));
+  assert.ok(button(c,'Mark as published'),'a way out');
+  assert.ok(c.textContent?.includes('Open the video on YouTube once and check that the made-for-kids answer and the thumbnail are as you set them.'),'the first-publish reminder');
+ });
+});
+
 test('the way before Postiz still works: paste the link of a video you uploaded yourself',async()=>{
  await withPublish({reply:({method,path,body})=>{
   if(method==='POST'&&path==='/videos/v1/publish'){
@@ -225,7 +260,7 @@ test('your own thumbnail is uploaded with the video and can be removed',async()=
   const c=ui.container;
   assert.ok(c.textContent?.includes('YouTube picks a frame unless you add one.'));
   const input=c.querySelector('input[type=file]') as HTMLInputElement;
-  assert.equal(input.accept,'image/png,image/jpeg');
+  assert.equal(input.accept,'image/png,image/jpeg,image/webp');
   Object.defineProperty(input,'files',{configurable:true,value:[new File([new Uint8Array([1,2,3])],'mine.png',{type:'image/png'})]});
   await act(async()=>{input.dispatchEvent(new Event('change',{bubbles:true}));});await flush();
   assert.equal(server.calls.filter(call=>call.method==='POST'&&call.path==='/videos/v1/thumbnail').length,1);

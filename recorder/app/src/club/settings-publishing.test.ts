@@ -109,3 +109,22 @@ test('Settings still opens and says why when the publishing settings cannot be r
   assert.ok(c.querySelector('#set-ai'),'the rest of Settings is there');
  });
 });
+
+test('a failed save of the default visibility says so, and Try again sends that same choice again',async()=>{
+ let fail=true;
+ await withSettings(({method,path,body})=>{
+  if(path==='/publishing'&&method==='GET')return {body:on};
+  if(path==='/publishing/postiz/channels')return {body:{channels:[{id:'int_yt1',name:'Samin Yasar'}]}};
+  if(path==='/publishing'&&method==='PUT')return fail?{status:500}:{body:{...on,defaultVisibility:(body as {defaultVisibility:'private'}).defaultVisibility}};
+ },async(ui,calls)=>{
+  const c=ui.container;
+  await choose(c.querySelector('#set-vis')!,'private');
+  assert.ok(c.textContent?.includes("Couldn't save that choice.")||c.textContent?.includes('That did not work.'));
+  fail=false;
+  await click(button(c.querySelector('#set-publishing')!,'Try again'));
+  const puts=calls.filter(call=>call.method==='PUT'&&call.path==='/publishing');
+  assert.equal(puts.length,2);
+  assert.deepEqual(puts[1].body,{defaultVisibility:'private'});
+  assert.equal(c.querySelector('#set-publishing [role="alert"]'),null,'the error is gone once it worked');
+ });
+});

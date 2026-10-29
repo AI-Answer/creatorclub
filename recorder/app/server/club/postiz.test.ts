@@ -11,7 +11,8 @@ process.env.CREATORCLUB_DIR = temp;
 delete process.env.CREATORCLUB_POSTIZ_URL;
 const { clubRouter } = await import('./index.js');
 const { startFakePostiz } = await import('./fake-postiz.js');
-const { BAD_ADDRESS, BAD_KEY, CANT_REACH_POSTIZ, MAX_VIDEO_BYTES, POSTIZ_CLOUD_API, POSTS_PER_HOUR, PostizPublisher, postizApiBase, postizAppUrl, resetPostizState } = await import('./postiz.js');
+const { BAD_ADDRESS, BAD_KEY, CANT_REACH_POSTIZ, MAX_VIDEO_BYTES, POSTIZ_CLOUD_API, POSTS_PER_HOUR, PostizPublisher, UNCONFIRMED, isPrivateHost, normalizeAddress, postizApiBase, postizAppUrl, resetPostizState } = await import('./postiz.js');
+const { ALREADY_SENT, ALREADY_UNCONFIRMED, NOT_THERE, effectiveAddress, imageKind } = await import('./publisher-routes.js');
 const { PublisherError } = await import('./publisher.js');
 const store = await import('./store.js');
 
@@ -30,6 +31,8 @@ beforeEach(() => {
   fake.fail = {};
   fake.uploadAnswer = undefined;
   fake.newState = 'QUEUE';
+  fake.releaseURL = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ';
+  fake.postAnswer = undefined;
   resetPostizState();
 });
 
@@ -45,6 +48,62 @@ test('the API address: Cloud by default, a self-hosted server under /api/public/
   assert.equal(postizAppUrl(), 'https://platform.postiz.com/launches');
   assert.equal(postizAppUrl('https://postiz.example.com'), 'https://postiz.example.com/launches');
   for (const bad of ['postiz.example.com', 'ftp://x.y', 'not a url']) assert.throws(() => postizApiBase(bad), { message: BAD_ADDRESS });
+});
+
+test('an address with a username or password is refused, and plain http is only for this computer or the own network', () => {
+  for (const bad of ['https://user:pass@postiz.example.com', 'https://user@postiz.example.com', 'http://user:pass@127.0.0.1:5000', 'http://postiz.example.com', 'http://8.8.8.8', 'http://172.32.0.1', 'http://192.169.0.1']) {
+    assert.throws(() => normalizeAddress(bad), { message: BAD_ADDRESS }, bad);
+    assert.throws(() => postizApiBase(bad), { message: BAD_ADDRESS }, bad);
+    assert.throws(() => postizAppUrl(bad), { message: BAD_ADDRESS }, bad);
+  }
+  assert.match(BAD_ADDRESS, /without a username or password/);
+  assert.match(BAD_ADDRESS, /Plain http only works for this computer or your own network/);
+  for (const ok of ['http://localhost:5000', 'http://127.0.0.1:5000', 'http://[::1]:5000', 'http://10.0.0.2', 'http://172.20.1.1', 'http://192.168.1.5', 'http://169.254.1.1', 'http://postiz.local', 'https://postiz.example.com']) assert.doesNotThrow(() => normalizeAddress(ok), ok);
+  assert.equal(isPrivateHost('[fd12:3456::1]'), true);
+  assert.equal(isPrivateHost('2606:4700::1'), false);
+  assert.equal(normalizeAddress('https://postiz.example.com/api/?token=abc#frag'), 'https://postiz.example.com/api', 'only the origin and path are kept');
+  assert.equal(normalizeAddress('  https://postiz.example.com/ '), 'https://postiz.example.com');
+  assert.equal(normalizeAddress(''), null);
+});
+
+test('CREATORCLUB_POSTIZ_URL only counts in a test or a walkthrough, never in a real install', () => {
+  const saved = { url: process.env.CREATORCLUB_POSTIZ_URL, env: process.env.NODE_ENV, flag: process.env.CREATORCLUB_TEST };
+  try {
+    process.env.CREATORCLUB_POSTIZ_URL = 'http://127.0.0.1:9999';
+    delete process.env.NODE_ENV;
+    delete process.env.CREATORCLUB_TEST;
+    assert.equal(effectiveAddress({}), null, 'ignored in production');
+    process.env.NODE_ENV = 'production';
+    assert.equal(effectiveAddress({}), null);
+    process.env.NODE_ENV = 'test';
+    assert.equal(effectiveAddress({}), 'http://127.0.0.1:9999');
+    delete process.env.NODE_ENV;
+    process.env.CREATORCLUB_TEST = '1';
+    assert.equal(effectiveAddress({}), 'http://127.0.0.1:9999');
+    assert.equal(effectiveAddress({ address: 'https://postiz.example.com' }), 'https://postiz.example.com', 'the person\'s own address wins');
+    assert.equal(effectiveAddress({ address: 'https://u:p@postiz.example.com' }), 'http://127.0.0.1:9999', 'a saved address that is no longer accepted is ignored');
+  } finally {
+    for (const [key, value] of [['CREATORCLUB_POSTIZ_URL', saved.url], ['NODE_ENV', saved.env], ['CREATORCLUB_TEST', saved.flag]] as const) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
+});
+
+test('an upload that was kept is reused only for the same content', async () => {
+  fake.uploads.length = 0;
+  const publisher = new PostizPublisher({ apiKey: fake.key, address: fake.url });
+  await publisher.publish(request({ video: file({ name: 'hash.mp4', version: 'one' }) }), noProgress);
+  await publisher.publish(request({ video: file({ name: 'hash.mp4', version: 'one' }) }), noProgress);
+  await publisher.publish(request({ video: file({ name: 'hash.mp4', version: 'two' }) }), noProgress);
+  assert.equal(fake.uploads.filter((upload) => upload.name === 'hash.mp4').length, 2);
+});
+
+test('images are told apart by their first bytes, not by what the client called them', () => {
+  assert.equal(imageKind(Buffer.from('89504e470d0a1a0a00', 'hex')), 'png');
+  assert.equal(imageKind(Buffer.from('ffd8ffe000104a46', 'hex')), 'jpg');
+  assert.equal(imageKind(Buffer.concat([Buffer.from('RIFF'), Buffer.alloc(4), Buffer.from('WEBPVP8 ')])), 'webp');
+  for (const bad of [Buffer.from('GIF89a'), Buffer.from('<svg></svg>'), Buffer.alloc(0), Buffer.from('RIFF....WAVE')]) assert.equal(imageKind(bad), undefined);
 });
 
 test('connect sends the raw key (no Bearer) and returns only the enabled YouTube channels', async () => {
@@ -125,14 +184,14 @@ test('every way Postiz can refuse is one sentence, never its own words', async (
   fake.fail.upload = { status: 429 };
   await rejects(publisher.publish(request(), noProgress), 'Postiz allows 90 posts an hour and that is used up. Try again in a little while.');
   fake.fail.upload = { status: 500 };
-  await rejects(publisher.publish(request(), noProgress), 'Postiz had a problem on its side. Try again in a few minutes.');
+  await rejects(publisher.publish(request(), noProgress), 'Postiz had a problem on its side.');
   fake.fail.upload = { status: 400, body: { message: 'ffprobe: moov atom not found' } };
-  await rejects(publisher.publish(request(), noProgress), "Postiz couldn't process the video. Try again.");
+  await rejects(publisher.publish(request(), noProgress), "Postiz couldn't process the video.");
   fake.uploadAnswer = { ok: true };
-  await rejects(publisher.publish(request({ video: file({ name: 'other.mp4', version: 'b' }) }), noProgress), "Postiz couldn't process the video. Try again.");
+  await rejects(publisher.publish(request({ video: file({ name: 'other.mp4', version: 'b' }) }), noProgress), "Postiz couldn't process the video.");
   fake.uploadAnswer = undefined;
   fake.fail.posts = { status: 400, body: { message: 'title is too long: a raw detail' } };
-  await rejects(publisher.publish(request(), noProgress), 'Postiz rejected the post. Check the title, tags and time, then try again.');
+  await rejects(publisher.publish(request(), noProgress), 'Postiz rejected the post. Check the title, tags and time.');
   fake.fail.posts = { status: 429, headers: { 'Retry-After': '60' } };
   await rejects(publisher.publish(request(), noProgress), /Try again in a minute\./);
   fake.fail.posts = { status: 200, body: { nothing: true } };
@@ -220,6 +279,29 @@ test('nothing is connected at first, and the screen is never given the key', asy
   assert.equal((await readFile(path.join(temp, 'settings.json'), 'utf8')).includes(fake.key), false, 'and not in settings.json');
 });
 
+test('an address with credentials is refused, never saved or echoed, and only the clean origin is kept', async () => {
+  const before = (await call('GET', '/publishing')).body.postiz.address;
+  const bad = await call('PUT', '/publishing/postiz', { key: fake.key, address: 'https://admin:hunter2secret@postiz.example.com/api' });
+  assert.equal(bad.status, 400);
+  assert.equal(bad.body.error, BAD_ADDRESS);
+  assert.equal(bad.text.includes('hunter2secret') || bad.text.includes('admin'), false, 'what was typed is not echoed');
+  const plain = await call('PUT', '/publishing/postiz', { key: fake.key, address: 'http://postiz.example.com' });
+  assert.equal(plain.body.error, BAD_ADDRESS);
+  assert.equal((await call('GET', '/publishing')).body.postiz.address, before, 'a refused address changes nothing');
+  const good = await call('PUT', '/publishing/postiz', { key: fake.key, address: `${fake.url}/?token=abc#frag` });
+  assert.equal(good.status, 200);
+  assert.equal(good.body.state.postiz.address, fake.url);
+  const settings = await readFile(path.join(temp, 'settings.json'), 'utf8');
+  assert.equal(settings.includes('token=abc'), false);
+  assert.equal(settings.includes('hunter2secret'), false);
+  // A hand-edited settings.json with credentials in the address is not used and not shown.
+  await store.updatePublishingSettings({ address: 'https://admin:hunter2secret@postiz.example.com' });
+  const shown = await call('GET', '/publishing');
+  assert.equal(shown.body.postiz.address, null);
+  assert.equal(shown.text.includes('hunter2secret'), false);
+  await store.updatePublishingSettings({ address: fake.url });
+});
+
 test('the default visibility and the YouTube channel are saved; a channel Postiz does not have is refused', async () => {
   await connect();
   assert.equal((await call('PUT', '/publishing', { defaultVisibility: 'unlisted' })).body.defaultVisibility, 'unlisted');
@@ -269,6 +351,122 @@ test('when Postiz has not posted it yet the job still ends well, and asking agai
   assert.equal(later.state, 'published');
   assert.equal(later.url, 'https://www.youtube.com/watch?v=abc123DEF45');
   assert.equal((await call('GET', `/videos/${id}`)).body.stage, 'published');
+});
+
+/** Publishes one video now and returns the finished job. */
+const publishNow = async (id: string, over = {}) => finished((await call('POST', `/videos/${id}/postiz`, start(over))).body.id);
+const recordPath = (id: string) => path.join(store.videoDir('samin', id), 'postiz.json');
+
+test('Postiz saying published with no link, or a link that is not YouTube, leaves the video and the record queued, with a way out', async () => {
+  await connect();
+  for (const link of [undefined, 'https://vimeo.com/123456']) {
+    fake.posts.length = 0;
+    fake.newState = 'PUBLISHED';
+    fake.releaseURL = link;
+    const id = await newVideo();
+    const job = await publishNow(id);
+    assert.equal(job.status, 'done', String(link));
+    assert.equal(job.result.state, 'queued', 'never published without a YouTube link');
+    assert.equal(job.result.url, undefined);
+    assert.equal((await call('GET', `/videos/${id}`)).body.stage, 'publishing');
+    assert.equal((await call('GET', `/videos/${id}`)).body.youtubeUrl, undefined);
+    const again = (await call('GET', `/videos/${id}/postiz`)).body;
+    assert.equal(again.state, 'queued');
+    assert.equal((await call('GET', `/videos/${id}`)).body.stage, 'publishing');
+    // The way out is the old one: the person pastes the link.
+    const marked = await call('POST', `/videos/${id}/publish`, { youtubeUrl: 'https://youtu.be/dQw4w9WgXcQ' });
+    assert.equal(marked.body.stage, 'published');
+  }
+  fake.posts.length = 0;
+  fake.releaseURL = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ';
+  const id = await newVideo();
+  const job = await publishNow(id);
+  assert.equal(job.result.state, 'published');
+  assert.equal((await call('GET', `/videos/${id}`)).body.stage, 'published', 'with a YouTube link the video really moves');
+});
+
+test('a link that shows up later (no link at first) settles the record and moves the video', async () => {
+  await connect();
+  fake.posts.length = 0;
+  fake.newState = 'PUBLISHED';
+  fake.releaseURL = undefined;
+  const id = await newVideo();
+  assert.equal((await publishNow(id)).result.state, 'queued');
+  fake.finish('post_1', 'PUBLISHED', 'https://www.youtube.com/watch?v=abc123DEF45');
+  const later = (await call('GET', `/videos/${id}/postiz`)).body;
+  assert.equal(later.state, 'published');
+  assert.equal((await call('GET', `/videos/${id}`)).body.stage, 'published');
+});
+
+test('a post Postiz did not confirm is kept as unconfirmed, nothing more is sent until Check again settles it, and it is found by its channel and time', async () => {
+  await connect();
+  fake.posts.length = 0;
+  fake.uploads.length = 0;
+  const id = await newVideo();
+  fake.postAnswer = { created: true };
+  const job = await publishNow(id);
+  assert.equal(job.status, 'failed');
+  assert.equal(job.error, UNCONFIRMED);
+  const record = JSON.parse(await readFile(recordPath(id), 'utf8'));
+  assert.equal(record.unconfirmed, true);
+  assert.equal(record.state, 'queued');
+  assert.equal(record.postId, '');
+  assert.equal(fake.posts.length, 1, 'Postiz did make the post');
+  // Publishing again is refused with a plain sentence, and nothing reaches Postiz.
+  fake.log.length = 0;
+  const refused = await call('POST', `/videos/${id}/postiz`, start());
+  assert.equal(refused.status, 409);
+  assert.equal(refused.body.error, ALREADY_UNCONFIRMED);
+  assert.equal(fake.log.length, 0);
+  assert.equal(fake.posts.length, 1);
+  // Check again finds the post by its channel and time, and it becomes an ordinary one.
+  const found = (await call('GET', `/videos/${id}/postiz`)).body;
+  assert.equal(found.unconfirmed, undefined);
+  assert.equal(found.postId, 'post_1');
+  assert.equal(found.state, 'queued');
+  const stillRefused = await call('POST', `/videos/${id}/postiz`, start());
+  assert.equal(stillRefused.body.error, ALREADY_SENT);
+  fake.finish('post_1', 'PUBLISHED', 'https://www.youtube.com/watch?v=abc123DEF45');
+  assert.equal((await call('GET', `/videos/${id}/postiz`)).body.state, 'published');
+});
+
+test('an unconfirmed post Postiz still does not list after ten minutes is taken as not made, and can be sent again', async () => {
+  await connect();
+  fake.posts.length = 0;
+  const id = await newVideo();
+  fake.postAnswer = { created: true };
+  await publishNow(id);
+  fake.posts.length = 0; // Postiz has nothing for it
+  const young = (await call('GET', `/videos/${id}/postiz`)).body;
+  assert.equal(young.unconfirmed, true, 'not yet: it may still turn up');
+  const saved = JSON.parse(await readFile(recordPath(id), 'utf8'));
+  await writeFile(recordPath(id), JSON.stringify({ ...saved, sentAt: new Date(Date.now() - 11 * 60_000).toISOString() }));
+  const gone = (await call('GET', `/videos/${id}/postiz`)).body;
+  assert.equal(gone.state, 'failed');
+  assert.equal(gone.message, NOT_THERE);
+  const again = await publishNow(id);
+  assert.equal(again.status, 'done');
+  assert.equal(fake.posts.length, 1);
+});
+
+test('once Postiz has the video (queued or published) a second post is refused, and a failed one can be sent again', async () => {
+  await connect();
+  fake.posts.length = 0;
+  const queued = await newVideo();
+  await publishNow(queued);
+  const refused = await call('POST', `/videos/${queued}/postiz`, start());
+  assert.equal(refused.status, 409);
+  assert.equal(refused.body.error, ALREADY_SENT);
+  assert.equal(fake.posts.length, 1);
+  fake.newState = 'PUBLISHED';
+  const done = await newVideo();
+  await publishNow(done);
+  assert.equal((await call('POST', `/videos/${done}/postiz`, start())).body.error, ALREADY_SENT);
+  fake.newState = 'ERROR';
+  const failed = await newVideo();
+  assert.equal((await publishNow(failed)).status, 'failed');
+  fake.newState = 'QUEUE';
+  assert.equal((await publishNow(failed)).status, 'done', 'a post Postiz could not make is sent again');
 });
 
 test('Postiz failing to post it is one sentence on the job, and Retry works', async () => {
@@ -366,9 +564,11 @@ test('the thumbnail is saved with the video, only as a PNG or JPG up to 2 MB, an
     form.append('file', new Blob([new Uint8Array(bytes)], { type }), name);
     return fetch(`${base}/videos/${id}/thumbnail`, { method: 'POST', body: form });
   };
-  assert.equal((await send(Buffer.from('gif'), 'image/gif', 'a.gif')).status, 400);
+  assert.equal((await send(Buffer.from('GIF89a'), 'image/gif', 'a.gif')).status, 400);
+  assert.equal((await send(Buffer.from('GIF89a'), 'image/png', 'lie.png')).status, 400, 'a GIF called a PNG is still a GIF');
+  assert.equal((await send(Buffer.from('<svg/>'), 'image/jpeg', 'lie.jpg')).status, 400);
   assert.equal((await send(Buffer.alloc(2 * 1024 * 1024 + 1), 'image/png', 'big.png')).status, 400);
-  assert.equal((await send(Buffer.from('89504e470d0a1a0a', 'hex'), 'image/png', 'mine.png')).status, 204);
+  assert.equal((await send(Buffer.from('89504e470d0a1a0a', 'hex'), 'image/jpeg', 'mine.jpg')).status, 204, 'a PNG called a JPEG is saved as what it is');
   assert.equal((await call('GET', `/videos/${id}/thumbnail`)).status, 200);
   await finished((await call('POST', `/videos/${id}/postiz`, start({ title: 'with thumbnail' }))).body.id);
   assert.ok(fake.posts[0].body.posts[0].settings.thumbnail.id);

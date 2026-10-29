@@ -39,6 +39,8 @@ export type PostState = 'queued' | 'published' | 'failed';
 
 export interface PostStatus {
   state: PostState;
+  /** Set when a post sent without a confirmed id was found by its channel and time. */
+  postId?: string;
   /** The YouTube link, once it is known. */
   url?: string;
 }
@@ -48,6 +50,8 @@ export interface SentPost {
   postId: string;
   /** The date the post was sent for. */
   date: Date;
+  /** Needed to find a post whose id was never confirmed (`postId` is empty then). */
+  channelId?: string;
 }
 
 export interface Publisher {

@@ -627,4 +627,8 @@ export interface PublishRecord {
   message?: string;
   /** Where to see the post in Postiz. */
   postizUrl: string;
+  /** The YouTube channel it was sent to in Postiz. */
+  channelId?: string;
+  /** Postiz did not confirm the post, so it may exist: nothing more is sent until Check again finds it or rules it out. `postId` is empty. */
+  unconfirmed?: boolean;
 }

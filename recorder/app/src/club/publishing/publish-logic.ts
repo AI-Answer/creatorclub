@@ -81,8 +81,9 @@ export function progressRows(progress:PublishProgress|null,failed:boolean,schedu
 }
 
 /** The title and the sentence under it on the result card. */
-export type ResultInfo={state:PublishRecord['state'];visibility:PublishVisibility;scheduledFor?:string;url?:string;postizUrl?:string};
+export type ResultInfo={state:PublishRecord['state'];visibility:PublishVisibility;scheduledFor?:string;url?:string;postizUrl?:string;unconfirmed?:boolean};
 export function resultWords(record:ResultInfo):{title:string;line:string;done:boolean}{
+ if(record.unconfirmed)return {title:"Postiz didn't confirm it",line:"It may or may not be there. Check again, or open Postiz to see.",done:false};
  if(record.state==='published')return {title:"It's on YouTube",line:`It is live as ${visibilityWord(record.visibility).toLowerCase()}. YouTube may take a few minutes to show it in HD.`,done:true};
  if(record.scheduledFor)return {title:"It's scheduled",line:`Postiz will put it on YouTube on ${whenText(new Date(record.scheduledFor))}. Your laptop can be closed.`,done:true};
  return {title:'Postiz has it',line:'Postiz is sending it to YouTube. This can take a few minutes, and your laptop can be closed.',done:false};
