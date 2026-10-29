@@ -3,10 +3,10 @@ import type {AiStatus,ClubSettings,Video,Workspace} from '../../shared/club';
 import {clubFetch} from './api';
 import {Sidebar} from './Sidebar';
 import {autoCollapses,defaultTab,routePath,stepForTab,useHashRoute,type Route,type VideoStep,type VideoTab} from './routes';
-import {BoardScreen} from './screens/BoardScreen';
 import {OnboardingScreen} from './screens/OnboardingScreen';
 import {IdeasScreen} from './screens/IdeasScreen';
 import {OverviewScreen} from './screens/OverviewScreen';
+import {ProductionScreen} from './screens/ProductionScreen';
 import {SignalsScreen} from './screens/SignalsScreen';
 import {TrendingScreen} from './screens/TrendingScreen';
 import {SettingsScreen} from './screens/SettingsScreen';
@@ -109,7 +109,7 @@ function Shell(){
   case 'ideas':screen=<IdeasScreen route={route} navigate={navigate}/>;break;
   case 'trending':screen=<TrendingScreen navigate={navigate}/>;break;
   case 'signals':screen=<SignalsScreen navigate={navigate}/>;break;
-  case 'production':screen=<BoardScreen onOpenVideo={(id,step)=>navigate({name:'video',id,tab:step})}/>;break;
+  case 'production':screen=<ProductionScreen view={route.view} navigate={navigate} onNewVideo={openNewVideo}/>;break;
   case 'video':screen=<VideoRoute id={route.id} tab={route.tab} navigate={navigate}/>;break;
   case 'settings':screen=<SettingsScreen onAddChannel={addChannel}/>;break;
  }

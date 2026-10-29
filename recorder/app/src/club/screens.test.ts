@@ -344,6 +344,27 @@ test('leaving a breakdown that is still running stops its job',async()=>{
  fake.restore();
 });
 
+test('leaving before the breakdown\'s job id arrives aborts the request and stops the job once its id comes',async()=>{
+ FakeEventSource.install();
+ let release=()=>{};const hold=new Promise<void>(resolve=>{release=resolve;});
+ const inner=serve(server());
+ const fake=installFetch(async call=>{if(call.path==='/breakdowns'&&call.method==='POST')await hold;return inner(call);});
+ let signal:AbortSignal|null|undefined;
+ const sent=globalThis.fetch;
+ globalThis.fetch=(async(input:RequestInfo|URL,init?:RequestInit)=>{if(String(input)==='/api/club/breakdowns'&&init?.method==='POST')signal=init.signal;return sent(input,init);}) as typeof fetch;
+ const ui=await mountUI(createElement(ToastProvider,null,createElement(IdeasScreen,{route:{name:'ideas',bd:'dQw4w9WgXcQ'},navigate:()=>{}})));
+ try{
+  await settle();
+  assert.equal(signal?.aborted,false,'the request is under way');
+  await ui.close();
+  assert.equal(signal?.aborted,true,'leaving aborts it');
+  assert.equal(fake.calls.filter(call=>call.method==='DELETE').length,0,'there is no job to stop yet');
+  release();await settle();
+  assert.deepEqual(fake.calls.filter(call=>call.method==='DELETE').map(call=>call.path),['/jobs/j1'],'the job that was started is stopped');
+  assert.equal(FakeEventSource.all.length,0,'nothing follows it');
+ }finally{release();globalThis.fetch=sent;fake.restore();}
+});
+
 // ---------------------------------------------------------------- Working now
 
 const trendItems=()=>[
