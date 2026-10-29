@@ -123,8 +123,9 @@ test('Ideas is a compact list: title, why in one line, the source in small text;
   assert.equal(text(row.querySelector('.src')),"Receipts with Claude · 3.20× Duncan Rogoff's usual");
   assert.equal(row.querySelector('.thumb img')!.getAttribute('src'),'https://i.ytimg.com/vi/dQw4w9WgXcQ/mqdefault.jpg','the picture of the video it came from');
   assert.equal(row.querySelectorAll('.lvl, .chip').length,0,'no rating chips and no outlier chip on the row');
-  assert.deepEqual([...row.querySelectorAll('button')].map(b=>text(b)||b.getAttribute('aria-label')),['Start planning','More'],'Start planning and one menu');
-  assert.ok(row.classList.contains('always'),'the top row shows its buttons');
+  assert.deepEqual([...row.querySelectorAll('button')].map(b=>text(b)||b.getAttribute('aria-label')),['Start planning','More about Claude for receipts'],'Start planning and one menu');
+  const more=row.querySelector('.more button')!;
+  assert.equal(more.getAttribute('aria-haspopup'),'menu');assert.equal(more.getAttribute('aria-expanded'),'false');
 
   await press(c.querySelectorAll('.seg [role="tab"]')[1]);
   assert.deepEqual(routes.at(-1),{name:'ideas',filter:'later'});
@@ -136,7 +137,7 @@ test('Ideas is a compact list: title, why in one line, the source in small text;
  const later=server({videos:ideaVideos()});
  await mount(navigate=>createElement(IdeasScreen,{route:{name:'ideas',filter:'later'},navigate}),later,async ui=>{
   assert.deepEqual(texts(ui.container,'.irow .tt'),['Held back idea']);
-  assert.deepEqual([...ui.container.querySelectorAll('.irow button')].map(b=>text(b)||b.getAttribute('aria-label')),['Restore','More']);
+  assert.deepEqual([...ui.container.querySelectorAll('.irow button')].map(b=>text(b)||b.getAttribute('aria-label')),['Restore','More about Held back idea']);
  });
  const skipped=server({videos:ideaVideos()});
  await mount(navigate=>createElement(IdeasScreen,{route:{name:'ideas',filter:'skipped'},navigate}),skipped,async ui=>{
@@ -156,6 +157,29 @@ test('ideas from one source video show its picture once; a different video shows
  });
 });
 
+test('Start planning shows on every row; the menu trigger keeps its state while open and gets focus back when the menu closes',async()=>{
+ const many=[1,2,3].map(n=>base(`m${n}`,`Idea ${n}`,'ideas',{createdAt:`2026-10-0${n}T00:00:00.000Z`}));
+ const s=server({videos:many});
+ await mount(navigate=>createElement(IdeasScreen,{route:{name:'ideas'},navigate}),s,async (ui,_s,calls)=>{
+  const c=ui.container;
+  const rows=[...c.querySelectorAll('.irow')];
+  assert.equal(rows.length,3);
+  assert.deepEqual(rows.map(row=>text(row.querySelector('.acts > button'))),['Start planning','Start planning','Start planning'],'on every row, outside the hover-only part');
+  assert.ok(rows.every(row=>row.querySelector('.acts > button')!.closest('.more')===null));
+  const trigger=rows[1].querySelector('.more button') as HTMLElement;
+  assert.equal(trigger.getAttribute('aria-label'),'More about Idea 2');
+  await press(trigger);
+  assert.equal(trigger.getAttribute('aria-expanded'),'true');assert.ok(trigger.classList.contains('menu-open'),'the open trigger is marked, so its row keeps showing it');
+  assert.ok(c.querySelector('[role="menu"]'));
+  await act(async()=>{document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));});await settle();
+  assert.ok(c.querySelector('[role="menu"]')===null);assert.equal(trigger.getAttribute('aria-expanded'),'false');assert.ok(!trigger.classList.contains('menu-open'));
+  assert.equal(document.activeElement,trigger,'focus is back on the trigger after Escape');
+  await press(trigger);
+  await press(button(c.querySelector('[role="menu"]')!,'Bad timing'));
+  assert.ok(writes(calls).at(-1)!.startsWith('PUT /videos/m2 '));
+ });
+});
+
 test('Ideas empty states say what each list is for and offer the next step',async()=>{
  const items=[trend('dQw4w9WgXcQ','Receipts with Claude')];
  await mount(navigate=>createElement(IdeasScreen,{route:{name:'ideas'},navigate}),server({trending:{items,updatedAt:null,followed:1}}),async ui=>{
@@ -172,7 +196,7 @@ test('Ideas actions: Later and Skip with a reason can be undone, Start planning 
  const s=server({videos:ideaVideos()});
  await mount(navigate=>createElement(IdeasScreen,{route:{name:'ideas'},navigate}),s,async (ui,state,calls,routes)=>{
   const c=ui.container;
-  await press(c.querySelector('.irow [aria-label="More"]')!);
+  await press(c.querySelector('.irow .more button')!);
   assert.deepEqual(texts(c,'[role="menu"] .hd, [role="menu"] button'),['Later','Skip it because…','Too generic','Not their style','Already covered',"Can't show it",'Bad timing','Delete idea']);
   await press(button(c.querySelector('[role="menu"]')!,'Later'));
   assert.deepEqual(writes(calls),['PUT /videos/i1 {"hidden":"later"}']);
@@ -180,7 +204,7 @@ test('Ideas actions: Later and Skip with a reason can be undone, Start planning 
   await press(button(c.querySelector('.cc-toast')!,'Undo'));
   assert.equal(writes(calls).at(-1),'PUT /videos/i1 {"hidden":null}');assert.equal(c.querySelectorAll('.irow').length,1,'and comes back');
 
-  await press(c.querySelector('.irow [aria-label="More"]')!);
+  await press(c.querySelector('.irow .more button')!);
   await press(button(c.querySelector('[role="menu"]')!,'Bad timing'));
   assert.equal(writes(calls).at(-1),'PUT /videos/i1 {"hidden":"skipped","idea":{"dropReason":"Bad timing"}}');
   assert.ok(toasts(c).some(t=>t==='Skipped · Bad timingUndo'));

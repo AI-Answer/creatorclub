@@ -13,7 +13,7 @@ export function TrendCard({item,rank,isNew,reason,hasBreakdown,inIdeas,onBreak,o
   <Thumb videoId={item.videoId} seed={item.videoId} chip={<MultChip m={item.mult} who={who} onThumb dash/>}>
    {isNew&&<span className="chip solid br">New</span>}
   </Thumb>
-  <div className="meta"><span className="rank" title={`Number ${rank} of the list`}>{rank}</span><Avatar name={item.channel} size="xs"/><span className="ellipsis grow">{item.channel}</span>{inIdeas?<span className="faint small inline-flex items-center gap-1"><Icon name="Check" size={12} style={{color:'var(--cc-ok)'}}/>In ideas</span>:item.kind==='followed'&&<span className="faint small">Followed</span>}</div>
+  <div className="meta"><span className="rank" title={`Number ${rank} of the list`}>{rank}</span><Avatar name={item.channel} size="xs"/><span className="ellipsis grow">{item.channel}</span>{inIdeas?<span className="faint small row" style={{gap:4}}><Icon name="Check" size={12} style={{color:'var(--cc-ok)'}}/>In ideas</span>:item.kind==='followed'&&<span className="faint small">Followed</span>}</div>
   <div className="tt clamp2">{item.title}</div>
   <div className="stats"><span title="Total views"><Icon name="Eye" size={13}/><b>{fmtNum(item.views)}</b></span><span title="Views per day since it went up"><Icon name="TrendingUp" size={13}/><b>{fmtNum(item.vpd)}</b>/day</span><span><Icon name="Clock" size={13}/>{fmtDays(item.ageDays)}</span></div>
   {reason&&<div className="reason">{reason}</div>}

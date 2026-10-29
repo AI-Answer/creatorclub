@@ -14,9 +14,10 @@ const inRoot=(host:Element|null,menu:ReactNode)=>host?createPortal(menu,host):me
 /**
  * A button that opens a menu under it. `button(toggle,open)` draws the trigger; items run `fn` and close the menu;
  * a press outside or Escape closes it too. `align` is the side the menu lines up with.
+ * `restoreFocus` returns focus to the trigger when the menu closes by Escape or by choosing an item.
  * It is placed with `position:fixed` from the button's edges and drawn in the club's root when there is one (outside the trigger's parents), so neither a parent with `overflow:hidden` (the sidebar) nor a transform (a card lifting on hover, which would make `fixed` relative to the card) can clip or move it; it closes if the window is resized.
  */
-export function Menu({button,items,align='left',width,label}:{button(toggle:()=>void,open:boolean):ReactNode;items:readonly MenuItem[];align?:'left'|'right';width?:number;label?:string}){
+export function Menu({button,items,align='left',width,label,restoreFocus}:{button(toggle:()=>void,open:boolean):ReactNode;items:readonly MenuItem[];align?:'left'|'right';width?:number;label?:string;restoreFocus?:boolean}){
  const [open,setOpen]=useState(false);
  const [place,setPlace]=useState<CSSProperties>({}),[host,setHost]=useState<Element|null>(null);
  const ref=useRef<HTMLSpanElement>(null),menu=useRef<HTMLDivElement>(null);
@@ -30,6 +31,13 @@ export function Menu({button,items,align='left',width,label}:{button(toggle:()=>
   return()=>{window.removeEventListener('resize',close);window.removeEventListener('scroll',scrolled,true);};
  },[open]);
  const anchor=useRef<{top:number;bottom:number}|null>(null);
+ // With `restoreFocus`, closing by Escape or by choosing an item puts focus back on the trigger (the menu had it, and it is gone with the menu).
+ const giveBack=useRef(false);
+ useEffect(()=>{
+  if(!restoreFocus)return;
+  if(open){const key=(event:KeyboardEvent)=>{if(event.key==='Escape')giveBack.current=true;};document.addEventListener('keydown',key);return()=>document.removeEventListener('keydown',key);}
+  if(giveBack.current){giveBack.current=false;ref.current?.querySelector<HTMLElement>('button,a')?.focus();}
+ },[open,restoreFocus]);
  // Once it is drawn, a menu that would run off the bottom of the window opens upward from the button instead, when there is more room above.
  // Measured when the menu element itself mounts (wherever it is drawn), so it never depends on effect timing.
  const placeMenu=useCallback((node:HTMLDivElement|null)=>{
@@ -58,7 +66,7 @@ export function Menu({button,items,align='left',width,label}:{button(toggle:()=>
   {open&&inRoot(host,<div ref={placeMenu} className="menu" role="menu" aria-label={label} style={{position:'fixed',...place,minWidth:width}}>
    {items.map((item,index)=>item==='-'?<div key={index} className="sep"/>
     :'header' in item?<div key={index} className="hd">{item.header}</div>
-    :<button key={index} type="button" role={item.check===undefined?'menuitem':'menuitemradio'} aria-checked={item.check} onClick={()=>{setOpen(false);item.fn();}} style={item.danger?{color:'var(--cc-rec)'}:undefined}>
+    :<button key={index} type="button" role={item.check===undefined?'menuitem':'menuitemradio'} aria-checked={item.check} onClick={()=>{giveBack.current=true;setOpen(false);item.fn();}} style={item.danger?{color:'var(--cc-rec)'}:undefined}>
       {item.icon&&<Icon name={item.icon} size={15}/>}<span className="grow">{item.label}</span>{item.check&&<Icon name="Check" size={15}/>}
      </button>)}
   </div>)}

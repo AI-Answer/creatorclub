@@ -91,7 +91,7 @@ export function IdeasScreen({route,navigate}:{route:IdeasRoute;navigate(route:Ro
   <div className="row" style={{marginBottom:14}}>
    <div className="seg" role="tablist">{IDEA_TABS.map(([key,label])=><button key={key} type="button" role="tab" aria-selected={tab===key} className={tab===key?'on':''} onClick={()=>navigate({name:'ideas',...(key!=='new'&&{filter:key})})}>{label} <span className="n">{counts[key]}</span></button>)}</div>
   </div>
-  {list.length?<div className="card ilist">{list.map((video,index)=><IdeaRow key={video.id} video={video} thumb={thumbs[index]} trend={trendFor(video.idea?.sources?.[0]?.url,trends)} highlight={video.id===newId} primary={index===0} actions={actions} onOpen={()=>setDrawer(video.id)}/>)}</div>
+  {list.length?<div className="card ilist">{list.map((video,index)=><IdeaRow key={video.id} video={video} thumb={thumbs[index]} trend={trendFor(video.idea?.sources?.[0]?.url,trends)} highlight={video.id===newId} actions={actions} onOpen={()=>setDrawer(video.id)}/>)}</div>
    :<div className="card">{tab==='later'?<Empty icon="Bookmark" title="Nothing saved for later">Press Later on an idea that's good but not for this week. It waits here, out of the way.</Empty>
     :tab==='skipped'?<Empty icon="EyeOff" title="Nothing skipped">Skipped ideas land here with the reason you gave, so the next ideas fit better.</Empty>
     :<Empty icon="Lightbulb" title="No ideas yet" action={suggestion&&<button type="button" className="btn primary" onClick={()=>tryOne(suggestion)}><Icon name="Sparkles" size={15}/>Break down a video that's working</button>}>Paste a link above, or break down a video that's doing well right now and keep a concept.</Empty>}</div>}

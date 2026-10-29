@@ -116,10 +116,16 @@ test('unknown scenes are not zero scenes: only the stage is said until they are 
  assert.equal(progressText(video('a','planning'),empty),'Planning · no scenes yet');
 });
 
-test('Working now lists a video the feed has twice once, so its picture is not repeated',()=>{
- const items=[trend('a',{vpd:1000}),trend('a',{vpd:900,kind:'creator'}),trend('b',{vpd:500})];
- assert.deepEqual(trendList(items,'all','vpd').map(i=>i.videoId),['a','b']);
- assert.deepEqual(trendList(items,'fit','views').map(i=>i.videoId).filter(id=>id==='a').length,1);
+test('Working now lists a video the feed has twice once, and the counts say the same as the cards',()=>{
+ const first=trend('a',{vpd:1000}),again=trend('a',{vpd:900,kind:'creator'}),other=trend('b',{vpd:500});
+ const items=[first,again,other];
+ assert.deepEqual(trendList(items,'all','vpd'),[first,other],'the first copy is kept');
+ assert.deepEqual(trendCounts(items),{fit:2,followed:2,all:2},'"All 2", not 3');
+ assert.equal(offTopic(items),0);
+ // The copy that qualifies is the one a list keeps, so a list never loses a video to a copy that does not belong in it.
+ const off=trend('c',{fit:false,reason:null,vpd:800}),on=trend('c',{vpd:700});
+ assert.deepEqual(trendList([off,on],'fit','vpd'),[on]);assert.deepEqual(trendList([off,on],'all','vpd'),[off]);
+ assert.deepEqual(trendCounts([off,on]),{fit:1,followed:1,all:1});
 });
 
 test('Working now: For you, Followed and All, three sorts, growth per day and New',()=>{
