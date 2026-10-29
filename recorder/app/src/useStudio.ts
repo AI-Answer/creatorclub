@@ -21,7 +21,8 @@ export function useStudio(){
  useEffect(()=>{Promise.all([refresh(),api<Capabilities>('/health').then(setCapabilities)]).catch(e=>setError(e.message)).finally(()=>setLoading(false));},[refresh]);
  const select=useCallback((p:Project,etag?:string|null)=>{commitPendingEdits();saved.current=p;sent.current=null;size.current=0;revision.current=etag?Promise.resolve(etag):projectRevision(p);conflict.current=false;setConflicted(false);current.current=p;setProject(p);history.reset();setHistoryTick(x=>x+1);setSaveState('Saved locally');},[history]);
  // The byte size from the last save bounds undo memory; it is measured once when no save has happened yet.
- const change=useCallback<ProjectChange>((fn,opts)=>{const p=current.current;if(!p)return;const next=applyProjectChange(p,fn);history.record(p,()=>{if(!size.current)size.current=JSON.stringify(p).length;return Math.max(2,Math.min(80,Math.floor(24_000_000/Math.max(1,size.current))));},opts?.coalesce);current.current=next;setProject(next);setHistoryTick(x=>x+1);setSaveState('Saving…');},[history]);
+ const historyLimit=(p:Project)=>()=>{if(!size.current)size.current=JSON.stringify(p).length;return Math.max(2,Math.min(80,Math.floor(24_000_000/Math.max(1,size.current))));};
+ const change=useCallback<ProjectChange>((fn,opts)=>{const p=current.current;if(!p)return;const next=applyProjectChange(p,fn);history.record(p,historyLimit(p),opts?.coalesce);current.current=next;setProject(next);setHistoryTick(x=>x+1);setSaveState('Saving…');},[history]);
  const undo=useCallback(()=>{commitPendingEdits();if(!current.current)return;const prev=history.undo(current.current);if(!prev)return;current.current=prev;setProject(prev);setHistoryTick(x=>x+1);},[history]);
  const redo=useCallback(()=>{commitPendingEdits();if(!current.current)return;const next=history.redo(current.current);if(!next)return;current.current=next;setProject(next);setHistoryTick(x=>x+1);},[history]);
  const flush=useCallback(async()=>{commitPendingEdits();const p=current.current;if(!p)return;if(conflict.current)throw new Error('Autosave is paused because this project changed externally. Reload the server version before continuing.');const task=saveQueue.current.catch(()=>{}).then(async()=>{if(conflict.current)throw new Error('Project conflict: autosave is paused.');if(saved.current===p||sent.current===p)return;try{const expected=await revision.current,json=JSON.stringify(p);size.current=json.length;const result=await apiResult<unknown>(`/projects/${p.id}`,new JSONBody(json),'PUT',{'If-Match':expected,Prefer:'return=minimal'});if(result.etag)revision.current=Promise.resolve(result.etag);const adopted=adoptSavedProject(p,result.data);if(!result.etag)revision.current=projectRevision(adopted);saved.current=adopted;if(current.current===p){sent.current=p;current.current=adopted;setProject(adopted);setSaveState('Saved locally');}else{sent.current=null;setResave(x=>x+1);}}catch(e){if(e instanceof APIError&&e.status===409){conflict.current=true;setConflicted(true);setSaveState('Autosave paused');}throw e;}});saveQueue.current=task;await task;return current.current??p;},[]);
@@ -50,11 +51,28 @@ export function useStudio(){
   const ready=()=>{const id=current.current?.id;if(!id)return;void apiResult<Project>(`/projects/${id}`).then(fresh=>{if(disposed||current.current?.id!==id)return;return (fresh.etag?Promise.resolve(fresh.etag):projectRevision(fresh.data)).then(revision=>receive(new MessageEvent('project',{data:JSON.stringify({id,revision,action:'saved'})})));}).catch(()=>{});};
   const stopReady=subscribeEvents('ready',ready),stopProject=subscribeEvents('project',receive);return()=>{disposed=true;stopReady();stopProject();if(listTimer)clearTimeout(listTimer);};
  },[refresh,select,history]);
+ /**
+  * A change the server makes to the open project (the companion's Edit cards): pending edits are saved first, then `run` gets the saved revision,
+  * and the project it returns becomes the current one as one undo step, so the editor's Undo and Redo work on it. It runs in the save queue,
+  * so the server's own save is never taken for someone else's change. An edit made while it ran pauses autosave rather than being lost.
+  */
+ const commitServer=useCallback(async<T extends {project?:Project;revision?:string}>(run:(revision:string)=>Promise<T>):Promise<T>=>{
+  const snapshot=await flush();
+  const task=saveQueue.current.catch(()=>{}).then(async()=>{
+   const result=await run((await revision.current).replace(/^W\//,'').replaceAll('"',''));
+   const next=result.project;if(!next||!result.revision||!snapshot||next.id!==snapshot.id)return result;
+   commitPendingEdits();
+   if(current.current!==snapshot){conflict.current=true;setConflicted(true);setSaveState('Autosave paused');return result;}
+   history.record(snapshot,historyLimit(snapshot));saved.current=next;sent.current=null;revision.current=Promise.resolve(result.revision);current.current=next;setProject(next);setHistoryTick(x=>x+1);setSaveState('Saved locally');
+   return result;
+  });
+  saveQueue.current=task.then(()=>{});await task;return task;
+ },[flush,history]);
  const runProjectOperation=useCallback(<T extends {project:Project;revision:string}>(projectId:string,operation:(snapshot:Project,revision:string)=>Promise<T>,signal?:AbortSignal)=>runGuardedProjectOperation({projectId,signal,current:()=>{commitPendingEdits();return current.current;},flush,revision:()=>revision.current,operation,adopt:result=>{select(result.project,result.revision);void refresh().catch(e=>setError(e.message));},conflict:()=>{conflict.current=true;setConflicted(true);setSaveState('Autosave paused');setError('Recovery finished on the saved project. Your newer local edits are preserved. Reload the saved version before continuing.');}}),[flush,select,refresh]);
  const open=async(id:string)=>{try{await flush();const fresh=await apiResult<Project>(`/projects/${id}`);select(fresh.data,fresh.etag);}catch(e){setError((e as Error).message);}};
  const create=async(name:string)=>{try{await flush();const created=await apiResult<Project>('/projects',{name});select(created.data,created.etag);await refresh();}catch(e){setError((e as Error).message);}};
  const close=async()=>{try{await flush();setProject(null);current.current=null;await refresh();}catch(e){setError((e as Error).message);}};
  void historyTick;
  const reload=async()=>{if(!current.current)return;const fresh=await apiResult<Project>(`/projects/${current.current.id}`);select(fresh.data,fresh.etag);setError('');};
- return {project,projects,capabilities,saveState,error,setError,loading,refresh,select,change,undo,redo,canUndo:history.past.length>0,canRedo:history.future.length>0,open,create,close,flush,conflicted,reload,runProjectOperation};
+ return {project,projects,capabilities,saveState,error,setError,loading,refresh,select,change,commitServer,undo,redo,canUndo:history.past.length>0,canRedo:history.future.length>0,open,create,close,flush,conflicted,reload,runProjectOperation};
 }

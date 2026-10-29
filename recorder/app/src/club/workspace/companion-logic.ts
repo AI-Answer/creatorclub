@@ -14,14 +14,14 @@ export function lookingAt(tab:CompanionTab,scene?:{index:number;title:string}):s
 }
 
 /** Three things to ask on each step, depending on what the video has. */
-export function suggestions(tab:CompanionTab,facts:{scenes:number;scene?:{index:number}}):string[]{
+export function suggestions(tab:CompanionTab,facts:{scenes:number;scene?:{index:number};selected?:number}):string[]{
  const scene=facts.scene?`scene ${facts.scene.index+1}`:undefined;
  switch(tab){
   case 'board':return ['Write three hooks from this board','Suggest three titles','What do these have in common?'];
   case 'plan':return [facts.scenes?scene?`Tighten ${scene}`:'Tighten the first scene':'Draft the scenes','Write three hooks','Suggest three titles'];
   case 'record':return [scene?`Shorten ${scene} to fit its time`:'Shorten this scene to fit its time','Give me a warm-up line','What should I show on screen?'];
   case 'publish':return ['Write the description','Suggest thumbnail text','Is the title ready to publish?'];
-  case 'edit':return [];
+  case 'edit':return [facts.selected?'Trim the selected clip to the speech':'Cut the pauses','Remove the filler words','Add a title at the start'];
  }
 }
 
@@ -68,8 +68,8 @@ export function stepSummary(steps:readonly CompanionStep[]):string{
 
 const clock=(seconds:number)=>`${Math.floor(seconds/60)}:${String(Math.round(seconds%60)).padStart(2,'0')}`;
 
-/** What applying a card would change: the field, what it is now and what it becomes. */
-export function previewOf(action:CompanionAction,pkg:Package|null,outline:Outline|null):{field:string;now:string[];after:string[]}{
+/** What applying a card would change: the field, what it is now and what it becomes. Timeline cards preview on the editor's stage instead. */
+export function previewOf(action:CompanionAction,pkg:Package|null,outline:Outline|null):{field:string;now:string[];after:string[]}|undefined{
  const none='(empty)';
  switch(action.type){
   case 'use_hook':return {field:'Spoken hook',now:[pkg?.hook.spoken.trim()||none],after:[action.text]};
@@ -88,6 +88,7 @@ export function previewOf(action:CompanionAction,pkg:Package|null,outline:Outlin
    const after=action.scenes.map((scene,index)=>{const line=`${index+1}. ${scene.title} (${clock(at)})`;at+=scene.seconds;return line;});
    return {field:'Scenes',now:outline?.scenes.map((scene,index)=>`${index+1}. ${scene.title}`)??[],after};
   }
+  default:return undefined;
  }
 }
 
@@ -106,6 +107,6 @@ export function screenSummary(tab:CompanionTab,facts:{pkg:Package|null;outline:O
   case 'plan':return `Package with ${titles} of 3 titles and ${hook}; ${sceneLine}`;
   case 'record':return `Recording; ${sceneLine}${facts.recorded!==undefined?`, ${facts.recorded} recorded`:''}`;
   case 'publish':return `Publish form; description ${facts.pkg?.description?.trim()?'written':'not written yet'}`;
-  case 'edit':return 'The editor';
+  case 'edit':return 'The editor: the timeline, its transcript and the stage';
  }
 }

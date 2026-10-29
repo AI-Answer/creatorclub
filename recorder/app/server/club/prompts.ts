@@ -625,6 +625,17 @@ export const COMPANION_ACTION_HELP: Record<CompanionActionType, string> = {
   draft_scenes:
     '- draft_scenes: {"type": "draft_scenes", "scenes": [{"title": "...", "talkingPoints": ["..."], "show": "what is on screen", "seconds": 60}]}: 4 to 7 scenes for the whole video, replacing the scenes it has. The opening is 90 seconds or less, the ending 60 or less, and the scenes add up to about the target length.',
   set_description: '- set_description: {"type": "set_description", "text": "..."}: the YouTube description: what the viewer gets in two or three lines, then chapters with start times from the scenes. No links you were not given.',
+  cut_pauses: '- cut_pauses: {"type": "cut_pauses", "level": "gentle" | "balanced" | "tight"}: cuts the pauses between spoken words, found from the transcript: gentle cuts pauses over 2 s, balanced over 1 s, tight over 0.5 s, keeping a breath on each side. Needs a transcript.',
+  remove_fillers: '- remove_fillers: {"type": "remove_fillers"}: cuts "um", "uh" and similar words, found from the transcript\'s word timings.',
+  close_gaps: '- close_gaps: {"type": "close_gaps"}: closes the empty stretches between clips.',
+  split_at: '- split_at: {"type": "split_at", "time": 12.5, "clipId": "..."}: splits at a time in seconds: the clip with that id and its linked clips, or every clip running across that time when clipId is left out.',
+  trim_clip: '- trim_clip: {"type": "trim_clip", "clipId": "...", "side": "start" | "end", "time": 12.5}: trims a clip (and its linked clips) so it starts or ends at that time; the time removed is closed on every row.',
+  delete_range: '- delete_range: {"type": "delete_range", "start": 10.2, "end": 14.8}: deletes that stretch of time from every row (screen, camera, audio, captions, graphics, zooms); everything after it moves up.',
+  set_caption_style: '- set_caption_style: {"type": "set_caption_style", "enabled": true, "fontSize": 48, "color": "#ffffff", "background": "#10131ccc", "position": "bottom" | "center" | "top", "maxWords": 7}: the look of the captions; leave out what does not change.',
+  add_caption: '- add_caption: {"type": "add_caption", "start": 3.0, "end": 5.5, "text": "..."}: one caption line, at most 30 seconds, where no caption is yet.',
+  add_text: '- add_text: {"type": "add_text", "start": 3.0, "duration": 4, "text": "...", "position": "top" | "center" | "bottom"}: a text on screen (a title or a label), up to 60 seconds.',
+  set_zoom: '- set_zoom: {"type": "set_zoom", "start": 20.0, "duration": 4, "scale": 1.5, "x": 0.5, "y": 0.5, "target": "screen" | "camera"}: zooms in from 1.05x to 4x on a point (x and y from 0 to 1 across the frame); it replaces a zoom it overlaps.',
+  normalize_audio: '- normalize_audio: {"type": "normalize_audio"}: evens out the loudness of every clip when the video is exported.',
 };
 
 const COMPANION_SCENES_CHARS = 8000;

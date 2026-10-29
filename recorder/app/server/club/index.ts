@@ -20,7 +20,7 @@ import { recordingsDiskSpace } from './disk.js';
 import { readTranscript, startTileRead } from './research.js';
 import * as boardDocs from './board-docs.js';
 import { subscribeBoard } from './board-watch.js';
-import { applyCard, askBody, askCompanion, readThread, undoCard } from './companion.js';
+import { applyCard, askBody, askCompanion, cardBody, readThread, undoCard } from './companion.js';
 import { lock as companionLock } from './companion-actions.js';
 import { videoScenes, videosScenes } from './scenes.js';
 import { POSITION_MAX, WIDTH_MAX, WIDTH_MIN } from './tile-layout.js';
@@ -625,7 +625,7 @@ export function clubRouter({ ai = {}, transcribe, runAI, readViews = ytDlpViews(
       const index = Number(param(req, 'index'));
       if (!Number.isInteger(index) || index < 0 || index > 19) throw notFound('card');
       const run = action === 'apply' ? applyCard : undoCard;
-      res.json(await run(await requireWorkspace(), param(req, 'id'), param(req, 'messageId'), index));
+      res.json(await run(await requireWorkspace(), param(req, 'id'), param(req, 'messageId'), index, cardBody.parse(req.body ?? {})));
     }));
   }
 

@@ -24,7 +24,8 @@ test('it says what it is looking at, and the suggestions follow the step',()=>{
  assert.equal(suggestions('plan',{scenes:2,scene:{index:1}})[0],'Tighten scene 2');
  assert.equal(suggestions('record',{scenes:2,scene:{index:0}})[0],'Shorten scene 1 to fit its time');
  assert.equal(suggestions('publish',{scenes:2})[0],'Write the description');
- assert.deepEqual(suggestions('edit',{scenes:2}),[]);
+ assert.equal(suggestions('edit',{scenes:2})[0],'Cut the pauses');
+ assert.equal(suggestions('edit',{scenes:2,selected:3})[0],'Trim the selected clip to the speech');
  assert.notDeepEqual(suggestions('board',{scenes:0}),suggestions('plan',{scenes:0}));
 });
 
@@ -47,10 +48,11 @@ test('a finished reply sums up its steps in one line',()=>{
 
 test('Preview shows what a card changes, now and after',()=>{
  assert.deepEqual(previewOf({type:'use_hook',text:'New hook'},pkg,outline),{field:'Spoken hook',now:['Old hook'],after:['New hook']});
- assert.deepEqual(previewOf({type:'set_description',text:'D'},null,null).now,['(empty)']);
+ assert.deepEqual(previewOf({type:'set_description',text:'D'},null,null)!.now,['(empty)']);
  assert.deepEqual(previewOf({type:'set_scene',sceneId:'s2',talkingPoints:['Two clicks']},pkg,outline),{field:'Scene 2',now:['Level 1','• One click'],after:['Level 1','• Two clicks']});
- assert.deepEqual(previewOf({type:'set_scene',sceneId:'gone',title:'x'},pkg,outline).now,['This scene is no longer in the plan.']);
- assert.deepEqual(previewOf({type:'draft_scenes',scenes:[{title:'A',talkingPoints:[],show:'',seconds:90},{title:'B',talkingPoints:[],show:'',seconds:30}]},pkg,outline).after,['1. A (0:00)','2. B (1:30)']);
+ assert.deepEqual(previewOf({type:'set_scene',sceneId:'gone',title:'x'},pkg,outline)!.now,['This scene is no longer in the plan.']);
+ assert.equal(previewOf({type:'cut_pauses',level:'balanced'},pkg,outline),undefined,'timeline cards preview on the stage');
+ assert.deepEqual(previewOf({type:'draft_scenes',scenes:[{title:'A',talkingPoints:[],show:'',seconds:90},{title:'B',talkingPoints:[],show:'',seconds:30}]},pkg,outline)!.after,['1. A (0:00)','2. B (1:30)']);
 });
 
 test('the log follows only a reader at the bottom; the screen summary is short',()=>{

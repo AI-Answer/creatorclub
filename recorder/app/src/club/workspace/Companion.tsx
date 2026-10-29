@@ -1,6 +1,8 @@
 import {useCallback,useEffect,useLayoutEffect,useMemo,useRef,useState,type KeyboardEvent} from 'react';
 import type {Outline,Package,VideoScene} from '../../../shared/club';
-import {ACTION_TITLE,ACTION_VERB,type CompanionCard,type CompanionChanged,type CompanionContext,type CompanionReplyMessage,type CompanionStep,type CompanionTab} from '../../../shared/companion';
+import {ACTION_TITLE,ACTION_VERB,isEditAction,type CompanionCard,type CompanionChanged,type CompanionContext,type CompanionReplyMessage,type CompanionStep,type CompanionTab} from '../../../shared/companion';
+import type {EditorBridge,EditorState} from '../../App';
+import {describeEditAction} from '../../editing-actions';
 import {clubFetch} from '../api';
 import {ErrorLine} from '../ErrorLine';
 import {Button,CompanionMark,Icon,Spinner,cn} from '../ui';
@@ -15,16 +17,20 @@ const readOpen=()=>{try{return localStorage.getItem(OPEN_KEY)!=='0';}catch{retur
 const saveOpen=(open:boolean)=>{try{localStorage.setItem(OPEN_KEY,open?'1':'0');}catch{/* the panel still works, it just forgets */}};
 
 export type CompanionScene={id:string;index:number;title:string};
+/** The editor while Edit is open: the bridge (read when it is used) and what it shows now. */
+export type CompanionEditor={get():EditorBridge|null;state:EditorState|null};
 
 /**
  * The companion, docked on the right of a video's steps: one conversation per video, what it is looking at, suggestions for the step,
  * replies that stream in with their steps, and cards that apply a change with Preview and Undo. Collapses to a rail and remembers it.
  */
-export function Companion({videoId,tab,scene,screen,pkg,outline,scenes,onChanged,beforeApply,roomy=false}:{
+export function Companion({videoId,tab,scene,screen,pkg,outline,scenes,onChanged,beforeApply,editor,roomy=false}:{
  videoId:string;tab:CompanionTab;scene?:CompanionScene;screen:string;pkg:Package|null;outline:Outline|null;
  /** The video's scenes with their takes: replacing scenes that have takes asks first. */
  scenes?:readonly VideoScene[];
  onChanged(changed:CompanionChanged[]):void;beforeApply?():Promise<void>;
+ /** Edit: the open editor. Messages carry its playhead and selection; timeline cards preview on its stage and apply as one of its undo steps. */
+ editor?:CompanionEditor;
  /** The step needs its width (Record): in a narrow window the panel starts as its rail and opens over the step instead of beside it. */
  roomy?:boolean;
 }){
@@ -34,7 +40,8 @@ export function Companion({videoId,tab,scene,screen,pkg,outline,scenes,onChanged
  const open=narrow?openHere:saved;
  const [name,setName]=useState('Claude');
  useEffect(()=>{clubFetch<{defaultAi?:string}>('/settings').then(settings=>setName(settings.defaultAi==='codex'?'ChatGPT':'Claude'),()=>{});},[]);
- const companion=useCompanion(videoId,{onChanged,beforeApply});
+ const editorNow=useRef(editor);editorNow.current=editor;
+ const companion=useCompanion(videoId,{onChanged,beforeApply,editor:()=>editorNow.current?.get()??null});
  const {messages,live}=companion;
  const working=live?.phase==='working';
  const context:CompanionContext=useMemo(()=>({tab,...(scene?{sceneId:scene.id,sceneTitle:scene.title}:{}),screen}),[tab,scene,screen]);
@@ -66,10 +73,17 @@ export function Companion({videoId,tab,scene,screen,pkg,outline,scenes,onChanged
   if(pinned.current)toBottom();else setBehind(true);
  },[open,messages?.length,live?.text,live?.steps.length,live?.phase,toBottom]);
 
+ /** The context of a message: on Edit, the editor saves first (the companion reads the saved timeline) and adds its playhead and selection. */
+ const contextNow=async():Promise<CompanionContext>=>{
+  const bridge=tab==='edit'?editorNow.current?.get():null;
+  if(!bridge)return context;
+  await bridge.flush().catch(()=>{});
+  return {...context,...bridge.context()};
+ };
  const ask=async(question:string)=>{
   if(!question.trim()||working)return;
   pinned.current=true;
-  const sent=await companion.send(question,context);
+  const sent=await companion.send(question,await contextNow());
   if(sent)setText('');
  };
  const onKeyDown=(event:KeyboardEvent<HTMLTextAreaElement>)=>{
@@ -85,13 +99,14 @@ export function Companion({videoId,tab,scene,screen,pkg,outline,scenes,onChanged
  </aside>;
 
  const items=messages?withDividers(messages,tab):[];
- const ideas=suggestions(tab,{scenes:outline?.scenes.length??0,scene});
+ const ideas=suggestions(tab,{scenes:outline?.scenes.length??0,scene,selected:editor?.state?.selected});
+ const selected=tab==='edit'?editor?.state?.selected??0:0;
  return <aside className={cn('cmp',narrow&&'over')} aria-label={title} onKeyDown={onPanelKey}>
   <header className="cmp-head">
    <CompanionMark size={18} working={working} className="cmp-head-mark"/>
    <div className="cmp-head-text">
     <div className="cmp-title">{title}</div>
-    <div className="cmp-look">Looking at: <span>{lookingAt(tab,scene)}</span>{scene&&<span className="cmp-look-scene">{scene.title}</span>}</div>
+    <div className="cmp-look">Looking at: <span>{lookingAt(tab,scene)}</span>{scene&&<span className="cmp-look-scene">{scene.title}</span>}{selected>0&&<span className="cmp-look-scene">{selected} selected</span>}</div>
    </div>
    <button type="button" className="btn ghost sm icon-only" onClick={()=>toggle(false)} aria-label={`Hide ${title}`} title={`Hide ${title}`}><Icon name="PanelRightClose" size={16}/></button>
   </header>
@@ -106,9 +121,9 @@ export function Companion({videoId,tab,scene,screen,pkg,outline,scenes,onChanged
     </div>}
    {items.map(item=>item.kind==='divider'?<div key={item.key} className="cmp-divider" role="separator">{item.label}</div>
     :item.message.role==='user'?<div key={item.key} className="cmp-me">{item.message.text}</div>
-    :<Reply key={item.key} name={name} message={item.message} pkg={pkg} outline={outline} scenes={scenes} busy={companion.busyCard}
+    :<Reply key={item.key} name={name} message={item.message} pkg={pkg} outline={outline} scenes={scenes} busy={companion.busyCard} editor={editor}
       onApply={index=>companion.apply(item.message.id,index)} onUndo={index=>companion.undo(item.message.id,index)}/>)}
-   {live&&<LiveReply name={name} live={live} now={now} onRetry={()=>void companion.retry(context)}/>}
+   {live&&<LiveReply name={name} live={live} now={now} onRetry={()=>void contextNow().then(companion.retry)}/>}
    {companion.sendError&&<ErrorLine message={companion.sendError} onRetry={()=>void ask(text)}/>}
   </div>
   {behind&&<button type="button" className="cmp-jump" onClick={toBottom}><Icon name="ArrowDown" size={13}/>Jump to latest</button>}
@@ -140,13 +155,13 @@ function useNarrow(roomy:boolean){
 }
 
 /** A finished reply: who, the one-line summary of its steps (opens to the list), the text, and its cards. */
-function Reply({name,message,pkg,outline,scenes,busy,onApply,onUndo}:{name:string;message:CompanionReplyMessage;pkg:Package|null;outline:Outline|null;scenes?:readonly VideoScene[];busy:string|null;onApply(index:number):Promise<string>;onUndo(index:number):Promise<string>}){
+function Reply({name,message,pkg,outline,scenes,busy,editor,onApply,onUndo}:{name:string;message:CompanionReplyMessage;pkg:Package|null;outline:Outline|null;scenes?:readonly VideoScene[];busy:string|null;editor?:CompanionEditor;onApply(index:number):Promise<string>;onUndo(index:number):Promise<string>}){
  return <div className="cmp-reply">
   <div className="cmp-who"><CompanionMark size={14}/>{name}</div>
   {message.steps&&message.steps.length>0&&<Steps steps={message.steps}/>}
   {message.text&&<div className="cmp-md"><Markdown text={message.text}/></div>}
   {message.status==='stopped'&&<div className="cmp-note">Stopped</div>}
-  {message.cards.map((card,index)=><Card key={index} card={card} pkg={pkg} outline={outline} scenes={scenes} busy={busy===`${message.id}:${index}`} onApply={()=>onApply(index)} onUndo={()=>onUndo(index)}/>)}
+  {message.cards.map((card,index)=><Card key={index} id={`${message.id}:${index}`} card={card} pkg={pkg} outline={outline} scenes={scenes} busy={busy===`${message.id}:${index}`} editor={editor} onApply={()=>onApply(index)} onUndo={()=>onUndo(index)}/>)}
  </div>;
 }
 
@@ -182,18 +197,28 @@ function LiveReply({name,live,now,onRetry}:{name:string;live:Live;now:number;onR
 const scenesClock=(seconds:number)=>`${Math.floor(seconds/60)}:${String(Math.round(seconds%60)).padStart(2,'0')}`;
 
 /** One change the reply offers: what it is, Apply (or what it changed and Undo), and Preview of before and after. */
-function Card({card,pkg,outline,scenes,busy,onApply,onUndo}:{card:CompanionCard;pkg:Package|null;outline:Outline|null;scenes?:readonly VideoScene[];busy:boolean;onApply():Promise<string>;onUndo():Promise<string>}){
- const [preview,setPreview]=useState(false);
+function Card({id,card,pkg,outline,scenes,busy,editor,onApply,onUndo}:{id:string;card:CompanionCard;pkg:Package|null;outline:Outline|null;scenes?:readonly VideoScene[];busy:boolean;editor?:CompanionEditor;onApply():Promise<string>;onUndo():Promise<string>}){
+ const [textPreview,setTextPreview]=useState(false);
  const [error,setError]=useState('');
  const [confirm,setConfirm]=useState<'apply'|'undo'|null>(null);
  // New scenes over scenes that have takes ask first, like the Board's Draft scenes.
  // Applying it, or undoing it, replaces the scenes: with takes on any scene, that asks first (the server refuses what would lose takes).
  const asks=card.action.type==='draft_scenes'&&!!scenes?.some(scene=>scene.takes.length>0);
  const action=card.action;
- const run=async(fn:()=>Promise<string>)=>{setError('');const failed=await fn();setError(failed);if(!failed)setPreview(false);};
- const shown=preview?previewOf(action,pkg,outline):undefined;
+ // A timeline card previews on the editor's stage (pressed while its preview is the one shown); the others show Now and After here.
+ const timeline=isEditAction(action);
+ const stage=timeline?editor?.get()??null:null;
+ const preview=timeline?editor?.state?.previewKey===id:textPreview;
+ const setPreview=(on:boolean)=>{
+  if(!timeline){setTextPreview(on);return;}
+  const problem=stage?.preview(on?action:null,id);
+  setError(problem??'');
+ };
+ const run=async(fn:()=>Promise<string>)=>{setError('');const failed=await fn();setError(failed);if(!failed)setTextPreview(false);};
+ const shown=textPreview&&!timeline?previewOf(action,pkg,outline):undefined;
  let body;
- if(action.type==='draft_scenes'){
+ if(timeline)body=<div className="cmp-card-text">{describeEditAction(action)}</div>;
+ else if(action.type==='draft_scenes'){
   let at=0;
   body=<ol className="cmp-card-scenes">{action.scenes.map((scene,index)=>{const start=at;at+=scene.seconds;return <li key={index}><span>{scene.title}</span><span className="cmp-t">{scenesClock(start)}</span></li>;})}</ol>;
  }else if(action.type==='set_scene'){
@@ -214,7 +239,7 @@ function Card({card,pkg,outline,scenes,busy,onApply,onUndo}:{card:CompanionCard;
      {card.version&&<button type="button" className="btn ghost sm" disabled={busy} onClick={()=>{if(asks)setConfirm('undo');else void run(onUndo);}}><Icon name="Undo2" size={14}/>Undo</button>}
      {card.tooOld&&<span className="cmp-faint">Too old to undo</span>}</>
     :<><Button size="sm" variant="secondary" disabled={busy} onClick={()=>{if(asks)setConfirm('apply');else void run(onApply);}}>{busy?<span className="spin"/>:null}{card.state==='undone'?'Apply again':ACTION_VERB[action.type]}</Button>
-     <button type="button" className="btn ghost sm" aria-pressed={preview} onClick={()=>setPreview(value=>!value)}><Icon name={preview?'EyeOff':'Eye'} size={14}/>{preview?'Hide preview':'Preview'}</button>
+     {(!timeline||stage)&&<button type="button" className="btn ghost sm" aria-pressed={preview} onClick={()=>setPreview(!preview)}><Icon name={preview?'EyeOff':'Eye'} size={14}/>{preview?'Hide preview':'Preview'}</button>}
      {card.state==='undone'&&<span className="cmp-faint">Undone</span>}</>}
   </div>
   {error&&<div className="cmp-card-err" role="alert"><Icon name="TriangleAlert" size={13}/><span>{error}</span></div>}

@@ -110,7 +110,7 @@ export function changedSceneNumber(project: Project, mapping: RecorderScene[] | 
 type Storage = typeof import('../storage.js');
 let storage: Promise<Storage> | undefined;
 /** SceneForge's own project storage, loaded on first use so SCENEFORGE_DATA_DIR is read when it is needed. */
-const sceneforge = () =>
+export const sceneforge = () =>
   (storage ??= import('../storage.js')
     .then(async (module) => (await module.initStorage(), module))
     .catch((error) => {
