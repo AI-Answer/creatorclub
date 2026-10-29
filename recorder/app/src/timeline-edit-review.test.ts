@@ -3,8 +3,9 @@ import assert from 'node:assert/strict';
 import {createProject,defaultEffects,defaultTransform,clipDuration,type Clip,type Project} from '../shared/types';
 import {applyProjectChange} from './project-draft';
 import {deleteTranscriptSelection,transcriptWords} from './transcript-editing';
-import {withoutRanges} from './club/recorder/edit-auto';
-import {applyClipStarts,closeRange,deleteItems,ensureLinks,insertGap,isLinked,linkClips,linkedIds,planClipMove,remapLinks,rowItems,rowsOverlap,splitLinked,syncScenesToTakes,trimClips,unlinkClips} from './timeline-edit';
+import {gapRanges,withoutRanges} from './club/recorder/edit-auto';
+import {cutTimelineRange} from '../shared/timeline-edits';
+import {applyClipStarts,closeRange,deleteItems,ensureLinks,insertGap,isLinked,linkClips,linkedIds,planClipMove,remapLinks,rowItems,rowsOverlap,splitLinked,syncScenesToTakes,timelineGaps,trimClips,unlinkClips} from './timeline-edit';
 
 /** The review's probes (Task 2, fix round 1) as tests: pieces left by cuts stay separate, ripple trims and inserts never overlap, scenes follow their takes. */
 const clip=(id:string,track:Clip['track'],start:number,length:number,extra:Partial<Clip>={}):Clip=>({id,mediaId:'m',name:id,track,start,sourceIn:0,sourceOut:length,speed:1,gain:1,muted:false,transform:defaultTransform(),effects:defaultEffects(),...extra});
@@ -121,4 +122,51 @@ test('scenes never overlap: a moved piece does not stretch its scene over the ne
  const copy=withTakes(project(take(1,0,10)));ensureLinks(copy);copy.clips.push(...copy.clips.map(c=>({...c,id:'k'+c.id,start:30})));remapLinks(copy,new Set(['kscreen1','kcamera1','kaudio1']));
  assert.ok(copy.clips.filter(c=>c.id.startsWith('k')).every(c=>c.recordingTakeId===undefined&&c.linkId!==copy.clips[0].linkId));
  assert.equal(new Set(copy.clips.filter(c=>c.id.startsWith('k')).map(c=>c.linkId)).size,1,'the copies stay linked to each other');
+});
+
+/* Fix round 3: a ripple delete removes the time from every row; gaps are counted on screen, camera, audio and overlay only; no slivers. */
+test('Close gaps sees the gap under a music bed (the gaps probe)',()=>{
+ for(const musicEnd of [90,95]){const p=project([clip('s1','screen',0,10),clip('s2','screen',20,70),clip('m','music',0,musicEnd)]);
+  assert.deepEqual(timelineGaps(p.clips),[[10,20]],`music to ${musicEnd}`);assert.deepEqual(gapRanges(p),[[10,20]]);}
+});
+
+test('a ripple delete over a music sting removes the full 10 s from every track, and undo restores everything',()=>{
+ const base=project([clip('s1','screen',0,10),clip('s2','screen',10,10),clip('s3','screen',20,10),clip('st','music',12,3),clip('bed','music',5,25)]);base.scenes=[];
+ let done={closed:[] as Array<[number,number]>,swept:[] as string[]};const before=JSON.stringify(base);
+ const after=applyProjectChange(base,d=>{done=deleteItems(d,['s2'],true);});
+ assert.deepEqual(done.closed,[[10,20]]);assert.deepEqual(done.swept,['st'],'the sting inside went with the time');
+ assert.deepEqual(after.clips.filter(c=>c.track==='screen').map(c=>[c.start,c.start+clipDuration(c)]),[[0,10],[10,20]],'no black hole');
+ assert.deepEqual(after.clips.filter(c=>c.track==='music').map(c=>[c.start,clipDuration(c),c.sourceIn]),[[5,5,0],[10,10,15]],'the bed that runs across is shortened, its later part moves up');
+ assert.equal(JSON.stringify(base),before,'undo goes back to the untouched previous version');
+});
+
+test('legacy take clips cut on the server path: the later slice is its own group, so deleting the moved piece leaves the other',()=>{
+ const p=project([clip('s','screen',0,30,{recordingTakeId:'t'}),clip('c','camera',.4,30,{recordingTakeId:'t'}),clip('a','audio',0,30,{recordingTakeId:'t'})]);
+ cutTimelineRange(p,10,10.5,true);assert.deepEqual(p.clips.map(c=>linkedIds(p.clips,[c.id]).size),[3,3,3,3,3,3]);
+ const plan=planClipMove(p,linkedIds(p.clips,['s']),25,28);ensureLinks(p);applyClipStarts(p,plan.starts);
+ const q=structuredClone(p);deleteItems(q,['s'],true);assert.equal(q.clips.length,3);
+});
+
+test('a cut or split within a frame of a clip edge leaves no sliver',()=>{
+ const split=project([clip('a','screen',0,10),clip('b','screen',10,10)]);splitLinked(split,10.02,new Set());
+ assert.deepEqual(split.clips.map(c=>[c.start,clipDuration(c)]),[[0,10],[10,10]],'no 0.02 s piece');
+ splitLinked(split,5,new Set());assert.equal(split.clips.length,3,'a real split still happens');
+ const cut=project([clip('a','screen',0,10.02),clip('b','screen',10.02,10)]);cutTimelineRange(cut,10,12,true);
+ assert.ok(cut.clips.every(c=>clipDuration(c)>=.05),cut.clips.map(c=>clipDuration(c)).join());assert.deepEqual(cut.clips.map(c=>c.start),[0,10]);
+ const gap=project([clip('a','screen',0,10.01),clip('b','screen',10.01,10)]);insertGap(gap,10,3,new Set(['role:screen']));
+ assert.ok(gap.clips.every(c=>clipDuration(c)>=.05));assert.equal(overlaps(gap),false);
+});
+
+test('a ripple delete that removes all of one take keeps the timeline whole: later takes move up by the full length',()=>{
+ const p=withTakes(project([...take(1,0,10),...take(2,10,10)]));const done=deleteItems(p,['screen1'],true);
+ assert.deepEqual(done.closed,[[0,10]]);assert.ok(p.clips.every(c=>c.start===0));
+});
+
+test('an insert that would shift the rows of one take by different amounts (offset camera at the hole) slides instead',()=>{
+ // Piece F: screen and audio 0–5.389, camera 0–5.789; piece C right after it: screen and audio from 5.389, camera from 5.789.
+ const p=project([clip('Fs','screen',0,5.389,{linkId:'F'}),clip('Fa','audio',0,5.389,{linkId:'F'}),clip('Fc','camera',0,5.789,{linkId:'F'}),
+  clip('Cs','screen',5.389,23.99,{linkId:'C',sourceIn:5,sourceOut:28.99}),clip('Ca','audio',5.389,23.99,{linkId:'C',sourceIn:5,sourceOut:28.99}),clip('Cc','camera',5.789,23.59,{linkId:'C',sourceIn:5,sourceOut:28.59})]);
+ const plan=planClipMove(p,linkedIds(p.clips,['Fs']),5.77,18.9);applyClipStarts(p,plan.starts);
+ assert.notEqual(plan.kind,'insert');assert.equal(overlaps(p),false);assert.ok(p.clips.every(c=>c.start>=0));
+ assert.equal(Math.abs((p.clips.find(x=>x.id==='Cc')!.start-p.clips.find(x=>x.id==='Cs')!.start)-.4)<1e-9,true,'the camera keeps its 0.4 s offset');
 });

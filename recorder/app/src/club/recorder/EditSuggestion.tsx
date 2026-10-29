@@ -5,7 +5,7 @@ import type {Project} from '../../../shared/types';
 import {api} from '../../api';
 import {Button} from '../ui';
 import {cutSuggestion,formatCutDuration} from './edit-steps';
-import {planIsStale} from './edit-auto';
+import {planIsStale,UNKNOWN_PLAN} from './edit-auto';
 import {usePlanBase} from './EditAutoSheet';
 
 export const REMOVE_FAILED="Couldn't remove the pauses.";
@@ -84,7 +84,7 @@ export function EditSuggestion({project,jobs,merge,reload,flush,refresh,onReview
  </div>;
  if(suggestion.state==='running')return <div className="club-edit-suggestion is-quiet" role="status"><LoaderCircle aria-hidden className="spin" size={15}/><span>Looking for pauses and repeats…</span></div>;
  // A plan from before the latest edit no longer matches the timeline; the Auto-edit and style sheet offers to look again.
- if(suggestion.state!=='ready'||planIsStale(base,project))return null;
+ if(suggestion.state!=='ready'||base!==UNKNOWN_PLAN&&planIsStale(base,project))return null;
  return <div className="club-edit-suggestion" role="group" aria-label="Suggestion">
   <Scissors aria-hidden size={15}/>
   <span>{suggestion.label}</span>

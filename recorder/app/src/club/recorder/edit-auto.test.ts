@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import type {AutomationJob} from '../../../shared/automation';
 import {createProject,defaultEffects,defaultTransform,projectDuration,type Clip} from '../../../shared/types';
-import {clipsFingerprint,cutReview,fillerRanges,gapRanges,pauseRanges,planIsStale,rangesSeconds,withoutRanges} from './edit-auto';
+import {UNKNOWN_PLAN,clipsFingerprint,cutReview,fillerRanges,gapRanges,pauseRanges,planIsStale,rangesSeconds,withoutRanges} from './edit-auto';
 
 const job=(changes:Array<{id:string;category:'silence'|'repeat';start:number;end:number}>):AutomationJob=>({id:'j',projectId:'p',kind:'auto-cut',status:'ready',progress:1,message:'',createdAt:'',updatedAt:'',automatic:false,applied:false,undone:false,
  proposal:{summary:'',warnings:[],baseRevision:'r',beforeDuration:0,afterDuration:0,changes:changes.map(c=>({...c,label:c.id,reason:'',selected:true}))}});
@@ -38,4 +38,11 @@ test('a plan is out of date only when the clips moved since it was made',()=>{
  assert.equal(planIsStale(base,{...p,clips:p.clips.map(c=>c.id==='b'?{...c,start:9}:c)}),true,'a moved clip');
  assert.equal(planIsStale(base,{...p,clips:[p.clips[0]]}),true,'a deleted clip');
  assert.deepEqual(pauseRanges(plan,'tight',.16,true),[]);assert.deepEqual(fillerRanges(p,plan,true),[]);
+});
+
+test('a plan whose timeline cannot be read is never applied: it counts as out of date',async()=>{
+ const {planBase}=await import('./EditAutoSheet');const original=globalThis.fetch;
+ globalThis.fetch=async()=>{throw new TypeError('offline');};
+ try{const base=await planBase({...plan,id:'unreadable'});assert.equal(base,UNKNOWN_PLAN);const p=createProject();assert.equal(planIsStale(base,p),true);}
+ finally{globalThis.fetch=original;}
 });

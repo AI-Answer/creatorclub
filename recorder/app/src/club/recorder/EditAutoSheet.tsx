@@ -7,7 +7,7 @@ import {api} from '../../api';
 import {automationRunning} from '../../automation-state';
 import {closeRange} from '../../timeline-edit';
 import {Button} from '../ui';
-import {clipsFingerprint,cutReview,fillerRanges,gapRanges,latestCutJob,latestStyleJob,PAUSE_LEVEL_NAMES,pauseRanges,planIsStale,rangesSeconds,type PauseLevel,type Range} from './edit-auto';
+import {UNKNOWN_PLAN,clipsFingerprint,cutReview,fillerRanges,gapRanges,latestCutJob,latestStyleJob,PAUSE_LEVEL_NAMES,pauseRanges,planIsStale,rangesSeconds,type PauseLevel,type Range} from './edit-auto';
 import {formatCutDuration} from './edit-steps';
 
 /** What the stage shows while a choice is previewed: a cut comparison (CutPlayback), or the styled video at the playhead. */
@@ -20,7 +20,8 @@ export function planBase(job:AutomationJob|undefined):Promise<string|undefined>{
  if(!job||job.status!=='ready'||!job.proposal?.changes.length)return Promise.resolve(undefined);
  if(planBases.has(job.id))return Promise.resolve(planBases.get(job.id));
  let request=planBaseRequests.get(job.id);
- if(!request){request=api<CutReview>(`/automation/${job.id}/review`,{changeIds:[job.proposal.changes[0].id]}).then(review=>{const base=clipsFingerprint(review.before.clips);planBases.set(job.id,base);return base;}).catch(()=>undefined).finally(()=>planBaseRequests.delete(job.id));planBaseRequests.set(job.id,request);}
+ // A plan whose timeline cannot be read is UNKNOWN_PLAN: never applied here (and asked for again next time).
+ if(!request){request=api<CutReview>(`/automation/${job.id}/review`,{changeIds:[job.proposal.changes[0].id]}).then(review=>{const base=clipsFingerprint(review.before.clips);planBases.set(job.id,base);return base;}).catch(()=>UNKNOWN_PLAN).finally(()=>planBaseRequests.delete(job.id));planBaseRequests.set(job.id,request);}
  return request;
 }
 export function usePlanBase(job:AutomationJob|undefined){
@@ -71,7 +72,7 @@ export function EditAutoSheet({project:p,jobs,merge,reload,flush,change,refresh,
   setError('');retry.current=()=>void apply(option);
   if(option==='pauses'||option==='fillers'||option==='gaps'){
    const r=ranges[option];if(!r.length)return;
-   if(option!=='gaps'){const fresh=await flush().catch(()=>undefined),base=await planBase(cutJob);if(!fresh||planIsStale(base,fresh)){setError('The timeline changed since the last look. Find pauses again.');return;}}
+   if(option!=='gaps'){const fresh=await flush().catch(()=>undefined),base=await planBase(cutJob);if(!fresh||base===undefined||planIsStale(base,fresh)){setError('The timeline changed since the last look. Find pauses again.');return;}}
    change(d=>{for(const [a,b] of [...r].sort((x,y)=>y[0]-x[0]))closeRange(d,a,b);});
    notify(option==='pauses'?`Removed ${r.length} ${r.length===1?'pause':'pauses'} (${seconds(rangesSeconds(r))}).`:option==='fillers'?`Removed ${r.length} filler ${r.length===1?'word':'words'}.`:`Closed ${r.length} ${r.length===1?'gap':'gaps'}.`);
    // The plan was made for the timeline before this cut; retire it so the suggestion does not offer it again.

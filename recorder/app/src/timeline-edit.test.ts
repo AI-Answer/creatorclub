@@ -48,8 +48,8 @@ test('delete closes the gap on every track: later clips, captions, scenes and ma
  p.captions=[{id:'c1',start:2,end:3,text:'one'},{id:'c2',start:12,end:13,text:'two',words:[{text:'two',start:12,end:13}]}];
  p.elements=[{id:'e',type:'text',start:15,duration:2,text:'Title',x:0,y:0,width:1,height:1,color:'#fff',background:'#000',fontSize:40,opacity:1,rotation:0}];
  p.markers=[{id:'mk',time:14}];
- const gaps=deleteItems(p,['camera1'],true);
- assert.deepEqual(gaps,[[0,10]]);
+ const done=deleteItems(p,['camera1'],true);
+ assert.deepEqual(done.closed,[[0,10]]);
  assert.deepEqual(p.clips.map(c=>[c.id,c.start]),[['screen2',0],['camera2',0],['audio2',0]]);
  assert.deepEqual(p.captions.map(c=>[c.text,c.start,c.words?.[0]?.start]),[['two',2,2]]);
  assert.equal(p.elements[0].start,5);assert.equal(p.markers![0].time,4);
@@ -61,7 +61,7 @@ test('delete keeps the gap when asked, and never closes time another row still u
  const q=project([...take(1,0,10),...take(2,10,10)]);unlinkClips(q,['screen1']);deleteItems(q,['screen1'],true);
  assert.deepEqual(q.clips.map(c=>c.start),[0,0,10,10,10],'camera and audio of take 1 still play there');
  assert.deepEqual(uncovered([0,20],[clip('a','audio',2,3),clip('b','music',0,30)]),[[0,2],[5,20]],'music running past the gap does not keep it open');
- assert.deepEqual(uncovered([0,20],[clip('a','audio',2,3),clip('b','music',8,4)]),[[0,2],[5,8],[12,20]],'a clip wholly inside keeps its time, so closing the gap never removes it');
+ assert.deepEqual(uncovered([0,20],[clip('a','audio',2,3),clip('b','music',8,4)]),[[0,2],[5,20]],'only screen, camera, audio and overlay clips keep time');
  assert.deepEqual(timelineGaps([clip('a','screen',0,2),clip('b','screen',5,2)]),[[2,5]]);
 });
 

@@ -35,10 +35,10 @@ import {frameThrottle,sameStatusJobs} from './editor-view';
 import {EditSuggestion} from './club/recorder/EditSuggestion';
 import {ClubExport} from './club/recorder/ClubExport';
 import {EditAutoSheet,type AutoOption,type EditPreview} from './club/recorder/EditAutoSheet';
-import {Menu,type MenuItem} from './club/ui';
+import {Menu,useToast,type MenuItem} from './club/ui';
 import {CutPlayback} from './CutPlayback';
 import {TimelineClub,rowsHeight,usedRows,type TimelineControls} from './TimelineClub';
-import {addMarker,applyClipStarts,clampScale,deleteItems,ensureLinks,freeDelta,insertGap,moveEffects,rowItems,isLinked,linkClips,linkedIds,MAX_SCALE,MIN_SCALE,remapLinks,syncScenesToTakes,rulerLabel,splitLinked,unlinkClips} from './timeline-edit';
+import {type Deleted,addMarker,applyClipStarts,clampScale,deleteItems,ensureLinks,freeDelta,insertGap,moveEffects,rowItems,isLinked,linkClips,linkedIds,MAX_SCALE,MIN_SCALE,remapLinks,syncScenesToTakes,rulerLabel,splitLinked,unlinkClips} from './timeline-edit';
 
 const panels:Array<{name:Panel;icon:typeof Film}>=[{name:'Canvas',icon:Image},{name:'Layout',icon:LayoutTemplate},{name:'Clip',icon:Clapperboard},{name:'Zoom',icon:ZoomIn},{name:'Elements',icon:Elements},{name:'Music',icon:Music},{name:'Captions',icon:Subtitles},{name:'Cursor',icon:MousePointer2},{name:'Automate',icon:WandSparkles}];
 const MediaRecoveryNotice=memo(MediaRecoveryBanner),RecordingWorkspace=memo(Recording),ScriptWorkspace=memo(ScriptEditor);
@@ -49,6 +49,8 @@ function Keep({visible,children}:{visible:boolean;children:React.ReactNode}){con
 const roundTime=(time:number)=>Math.round(time*1000)/1000;
 function PlayheadField({playhead,duration,onSeek}:{playhead:Playhead;duration:number;onSeek:(time:number)=>void}){const value=usePlayheadSelector(playhead,roundTime);return <input aria-label="Playhead time in seconds" type="number" min={0} max={duration||3600} step={1/30} value={value} onChange={e=>onSeek(Number(e.target.value))}/>;}
 const tenths=(time:number)=>Math.floor(Math.max(0,time)*10);
+/** "10 s", "2.5 s", "1 min 4 s". */
+const seconds=(n:number)=>n>=60?`${Math.floor(n/60)} min ${Math.round(n%60)} s`:`${n<10?Math.round(n*10)/10:Math.round(n)} s`;
 /** "1:05.3 / 6:18": the club timeline's clock, rendered only when the tenth of a second changes. */
 function ClubTime({playhead,duration}:{playhead:Playhead;duration:number}){const t=usePlayheadSelector(playhead,tenths)/10;return <span className="club-time tnum">{rulerLabel(t,30,false)}.{Math.round(t*10)%10}<span> / {rulerLabel(duration,30,false)}</span></span>;}
 /** The timeline's actions at the pointer (right-click), the same list as the More menu. Drawn in the club's root like the club's menus. */
@@ -123,7 +125,7 @@ export default function App({embedded}:{embedded?:EmbeddedRecorder}={}){
  const importScene=useRef<{projectId:string;sceneId:string}|null>(null);
  const fileInput=useRef<HTMLInputElement>(null),projectId=useRef('');
  const duration=p?projectDuration(p):0;
- const toastRef=useRef<(message:string)=>void>(()=>{}),notify=useCallback((s:string)=>{toastRef.current(s);},[]);
+ const clubToast=useToast(),toastRef=useRef<(message:string)=>void>(()=>{}),notify=useCallback((s:string)=>{toastRef.current(s);},[]);
  useEffect(()=>{if(p?.id!==projectId.current){projectId.current=p?.id||'';setModal(value=>value==='media-recovery'?null:value);timelineSeek.cancel();setSelectedRange(null);playhead.set(0);setPlaying(false);setSelected(null);setSelectedIds(new Set());setTool('select');setScrubbing(false);setPlaybackRate(1);setPanel(null);setSide('transcript');setPreview(null);if(p)initialProjectMode.current=null;}},[p?.id]);
  // The clock advances from the stored playhead every frame, so unrelated renders can never rewind it.
  useEffect(()=>{if(!playing)return;let frame=0,last=performance.now();const tick=(now:number)=>{const elapsed=(now-last)/1000;last=now;const next=playhead.get()+elapsed*playbackRate;if(next>=duration){playhead.set(duration);setPlaying(false);return;}playhead.set(next);frame=requestAnimationFrame(tick);};if(playhead.get()>=duration)playhead.set(0);frame=requestAnimationFrame(tick);return()=>cancelAnimationFrame(frame);},[playing,duration,playbackRate,playhead]);
@@ -135,7 +137,9 @@ export default function App({embedded}:{embedded?:EmbeddedRecorder}={}){
  const selection=selectedIds.size?selectedIds:new Set(selected?[selected]:[]);
  const split=(at=playhead.get(),onlyId?:string)=>{if(!p)return;if(!p.clips.some(c=>(!onlyId||c.id===onlyId)&&c.start+.0001<at&&c.start+clipDuration(c)-.0001>at)){notify(embedded?'Move the playhead over a clip to split it.':'Place the playhead inside a clip to split it.');return;}studio.change(p=>{if(embedded)splitLinked(p,at,selection,onlyId);else splitAt(p,at,selection,onlyId);});};
  // In the club a delete takes the linked clips along and closes the gap on every track; Shift keeps the gap.
- const deleteSelected=(ripple=embedded?true:p?.settings.ripple??true)=>{if(!p)return;if(!selection.size){if(embedded)notify('Select a clip first.');return;}studio.change(p=>{if(embedded){deleteItems(p,selection,ripple);syncScenesToTakes(p);}else deleteSelection(p,selection,ripple);});setSelected(null);setSelectedIds(new Set());};
+ const deleteSelected=(ripple=embedded?true:p?.settings.ripple??true)=>{if(!p)return;if(!selection.size){if(embedded)notify('Select a clip first.');return;}let done:Deleted|undefined;studio.change(p=>{if(embedded){done=deleteItems(p,selection,ripple);syncScenesToTakes(p);}else deleteSelection(p,selection,ripple);});setSelected(null);setSelectedIds(new Set());
+  // A ripple delete takes that time out of every track; say how much (and which other clips went with it), with Undo.
+  const closed=done?.closed.reduce((n,[a,b])=>n+b-a,0)??0;if(embedded&&closed>0){const swept=done!.swept.length;clubToast(`Removed ${seconds(closed)} from every track${swept?` and ${swept} ${swept===1?'clip':'clips'} inside it`:''}.`,{undo:studio.undo});}};
  /** Arrow keys nudge the selection by a frame (Shift: a second), sliding against neighbours instead of overlapping; a run of nudges is one undo step. */
  const nudge=(direction:-1|1,big:boolean)=>{if(!p)return;const want=direction*(big?1:1/p.canvas.fps),clipIds=linkedIds(p.clips,[...selection].filter(id=>p.clips.some(c=>c.id===id))),effectIds=new Set([...selection].filter(id=>!p.clips.some(c=>c.id===id)&&!p.markers?.some(m=>m.id===id)));
   studio.change(d=>{const items=rowItems(d);if(clipIds.size){const moving=items.filter(i=>clipIds.has(i.id)),delta=freeDelta(moving,want,items);if(delta){ensureLinks(d);applyClipStarts(d,new Map(moving.map(m=>[m.id,m.start+delta])));syncScenesToTakes(d);}}

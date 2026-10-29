@@ -27,6 +27,8 @@ export function clipsFingerprint(clips:readonly Clip[]){
  * Normalize, autosave stamps) never make it stale. While `base` is not known yet the plan is not called stale.
  */
 export function planIsStale(base:string|undefined,p:Pick<Project,'clips'>){return base!==undefined&&base!==clipsFingerprint(p.clips);}
+/** The base of a plan whose timeline could not be read: it counts as out of date, so it is never applied without asking again. */
+export const UNKNOWN_PLAN='unknown';
 /** Quiet gaps from the plan at least as long as the level asks, each shortened to keep `padding` seconds on both sides. */
 export function pauseRanges(job:AutomationJob|undefined,level:PauseLevel,padding:number,stale=false):Range[]{
  if(stale||job?.status!=='ready'||!job.proposal)return [];

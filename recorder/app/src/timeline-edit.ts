@@ -1,5 +1,5 @@
 import {clipDuration,clipEffectTiming,makeId,narrationPriority,type Clip,type Media,type Project,type TrackKind} from '../shared/types';
-import {cutTimelineRange,relinkSlices} from '../shared/timeline-edits';
+import {cutTimelineRange,minimumPiece,relinkSlices} from '../shared/timeline-edits';
 import {clipLayerRowId} from '../shared/timeline-layers';
 import {plainClone,plainView} from './project-draft';
 
@@ -66,7 +66,7 @@ export function linkClips(p:Project,ids:Iterable<string>,newId:()=>string=makeId
 /** Splits at `time`: the selected clips and their linked clips, or only `onlyId`'s group, or every clip under the playhead when the selection does not cross it. Right-hand pieces form new link groups. */
 export function splitLinked(p:Project,time:number,selection:ReadonlySet<string>,onlyId?:string,newId:()=>string=makeId){
  ensureLinks(p,newId);
- const crosses=(c:Clip)=>c.start+EPS<time&&end(c)-EPS>time;
+ const piece=minimumPiece(p)-1e-9,crosses=(c:Clip)=>time-c.start>=piece&&end(c)-time>=piece;
  const scope=onlyId?linkedIds(p.clips,[onlyId]):linkedIds(p.clips,selection);
  const chosen=p.clips.filter(c=>crosses(c)&&scope.has(c.id)),targets=chosen.length||onlyId?chosen:p.clips.filter(crosses);
  const groups=new Map<string,string>();
@@ -86,21 +86,28 @@ export function splitLinked(p:Project,time:number,selection:ReadonlySet<string>,
 export function mergeRanges(ranges:ReadonlyArray<readonly [number,number]>):Array<[number,number]>{
  const out:Array<[number,number]>=[];for(const [a,b] of [...ranges].filter(([a,b])=>b-a>EPS).sort((x,y)=>x[0]-y[0])){const last=out.at(-1);if(last&&a<=last[1]+EPS)last[1]=Math.max(last[1],b);else out.push([a,b]);}return out;
 }
-/** The parts of `range` that no clip on a gap row covers. A clip of any row that lies wholly inside the range (a short music clip) also keeps its time, so closing the gap never removes a clip. */
+/** The parts of `range` that no clip on a screen, camera, audio or overlay row covers. */
 export function uncovered(range:readonly [number,number],clips:readonly Clip[]):Array<[number,number]>{
- const busy=mergeRanges(clips.filter(c=>gapTracks.has(c.track)||c.start>=range[0]-EPS&&end(c)<=range[1]+EPS).map(c=>[c.start,end(c)] as [number,number]));let [a]=range;const b=range[1],out:Array<[number,number]>=[];
+ const busy=mergeRanges(clips.filter(c=>gapTracks.has(c.track)).map(c=>[c.start,end(c)] as [number,number]));let [a]=range;const b=range[1],out:Array<[number,number]>=[];
  for(const [s,e] of busy){if(e<=a+EPS)continue;if(s>=b-EPS)break;if(s>a+EPS)out.push([a,Math.min(s,b)]);a=Math.max(a,e);if(a>=b-EPS)break;}
  if(b-a>EPS)out.push([a,b]);return out;
 }
 /** Deletes clips (with their linked clips), elements, captions, zooms and markers. With `ripple` the time the deleted clips leave empty on every row is removed from the whole timeline: later clips, captions, graphics, zooms, scenes and markers move up. */
-export function deleteItems(p:Project,ids:Iterable<string>,ripple:boolean){
+/**
+ * What a delete did: `closed` are the time ranges removed from every row (in timeline seconds before the delete), `swept` the ids of other clips
+ * that lay wholly inside them and went with that time (music under a deleted piece). Clips that ran across a closed range are shortened.
+ */
+export interface Deleted {closed:Array<[number,number]>;swept:string[]}
+export function deleteItems(p:Project,ids:Iterable<string>,ripple:boolean):Deleted{
  const all=linkedIds(p.clips,ids),removed=p.clips.filter(c=>all.has(c.id)).map(c=>[c.start,end(c)] as [number,number]);
  p.clips=p.clips.filter(c=>!all.has(c.id));p.elements=p.elements.filter(e=>!all.has(e.id));p.captions=p.captions.filter(c=>!all.has(c.id));p.zooms=p.zooms.filter(z=>!all.has(z.id));
  if(p.markers)p.markers=p.markers.filter(m=>!all.has(m.id));
- if(!ripple)return [] as Array<[number,number]>;
- const gaps=mergeRanges(removed).flatMap(range=>uncovered(range,plainView(p).clips)).sort((x,y)=>y[0]-x[0]);
- for(const [a,b] of gaps)closeRange(p,a,b);
- return gaps;
+ if(!ripple)return {closed:[],swept:[]};
+ // Ripple removes the time the deleted clips leave empty from every row, like Remove pauses: nothing is left behind as a black hole.
+ const closed=mergeRanges(removed).flatMap(range=>uncovered(range,plainView(p).clips)).sort((x,y)=>y[0]-x[0]),before=new Set(plainView(p).clips.map(c=>c.id));
+ for(const [a,b] of closed)closeRange(p,a,b);
+ const after=new Set(plainView(p).clips.map(c=>c.id));
+ return {closed:closed.reverse(),swept:[...before].filter(id=>!after.has(id))};
 }
 /** Removes [a, b) from every track and moves everything after it up, markers included. */
 export function closeRange(p:Project,a:number,b:number){
@@ -124,9 +131,15 @@ export function openRange(p:Project,at:number,length:number){
 }
 /** Opens `length` seconds at `at` for an insert: clips on `rows` (all rows when omitted) that run across `at` are cut there first, so what is inserted overlaps nothing. */
 export function insertGap(p:Project,at:number,length:number,rows?:ReadonlySet<string>,newId:()=>string=makeId){
- const fresh=new Map<string,string>();
+ const fresh=new Map<string,string>(),piece=minimumPiece(p);
+ // A linked take that starts on one row before the insert point and on another at or after it (an offset camera) would be torn apart by the shift:
+ // its clips that run across the point are cut there too, whatever their row, so the later slice moves as one.
+ const early=new Set<string>(),late=new Set<string>();for(const c of p.clips)if(c.linkId!==undefined)(c.start<at-EPS?early:late).add(c.linkId);
  for(const c of [...p.clips]){
-  if(!(c.start+EPS<at&&end(c)-EPS>at)||rows&&!rows.has(clipLayerRowId(c,p)))continue;
+  if(!(c.start+EPS<at&&end(c)-EPS>at)||rows&&!rows.has(clipLayerRowId(c,p))&&!(c.linkId!==undefined&&early.has(c.linkId)&&late.has(c.linkId)))continue;
+  // Within a frame of an edge, cut at the edge: the sliver goes and no piece is left.
+  if(at-c.start<piece){c.sourceIn+=(at-c.start)*c.speed;c.start=at;continue;}
+  if(end(c)-at<piece){c.sourceOut-=(end(c)-at)*c.speed;continue;}
   const cut=c.sourceIn+(at-c.start)*c.speed,origin=clipEffectTiming(c);c.effectTiming={sourceIn:origin.sourceIn,sourceOut:origin.sourceOut};
   const right={...plainClone(plainView(c)),id:newId(),start:at,sourceIn:cut};if(c.linkId!==undefined){if(!fresh.has(c.linkId))fresh.set(c.linkId,newId());right.linkId=fresh.get(c.linkId);}
   p.clips.push(right);c.sourceOut=cut;
@@ -210,9 +223,12 @@ export function planClipMove(p:Project,ids:ReadonlySet<string>,want:number,point
  if(clipsOnly){const plan=insertPlan(moving,pointer,items);
   // Rows of a linked group can have different boundaries: an insert that would still overlap somewhere falls back to sliding into a gap.
   // Clips linked to a clip the insert shifts move with it, so a take never comes apart.
-  if(plan){const groups=linkGroups(p.clips),shift=new Map<string,number>();for(const c of p.clips){const to=plan.starts.get(c.id);if(to!==undefined&&!ids.has(c.id))shift.set(groups.get(c.id)!,to-c.start);}
-   for(const c of p.clips){const d=shift.get(groups.get(c.id)!);if(d!==undefined&&!plan.starts.has(c.id))plan.starts.set(c.id,c.start+d);}}
-  if(plan&&!rowsOverlap(items.map(i=>plan.starts.has(i.id)?{...i,start:plan.starts.get(i.id)!}:i))){if(Math.abs(plan.at-plan.from)<EPS)return {kind:'none',starts:new Map(),delta:0,at:plan.at};return {kind:'insert',starts:plan.starts,delta:plan.at-plan.from,at:plan.at};}}
+  // When the rows of one take would need different shifts (an offset camera on the edge of the hole), or a clip would start before zero, the insert is not done: it slides instead.
+  let whole=Boolean(plan);
+  if(plan){const groups=linkGroups(p.clips),shift=new Map<string,number>();for(const c of p.clips){const to=plan.starts.get(c.id);if(to===undefined||ids.has(c.id))continue;const key=groups.get(c.id)!,d=to-c.start,had=shift.get(key);if(had!==undefined&&Math.abs(had-d)>1e-9)whole=false;shift.set(key,d);}
+   for(const c of p.clips){const d=shift.get(groups.get(c.id)!);if(d!==undefined&&!plan.starts.has(c.id))plan.starts.set(c.id,c.start+d);}
+   if([...plan.starts.values()].some(t=>t<-1e-9))whole=false;}
+  if(plan&&whole&&!rowsOverlap(items.map(i=>plan.starts.has(i.id)?{...i,start:plan.starts.get(i.id)!}:i))){if(Math.abs(plan.at-plan.from)<EPS)return {kind:'none',starts:new Map(),delta:0,at:plan.at};return {kind:'insert',starts:plan.starts,delta:plan.at-plan.from,at:plan.at};}}
  const delta=freeDelta(moving,want,items);
  return {kind:Math.abs(delta)<1e-9?'none':'slide',starts:new Map(moving.map(m=>[m.id,m.start+delta])),delta};
 }
@@ -233,9 +249,11 @@ export function moveEffects(p:Project,ids:ReadonlySet<string>,delta:number){
 
 /* ---------- Trims ---------- */
 
+/** A ripple trim at the start keeps the clips where they are and plays their content later, so every clip of the take does it together (an offset camera too), or the take would drift apart. */
+const trimmed=(p:Project,ids:ReadonlySet<string>,side:'left'|'right',ripple:boolean):ReadonlySet<string>=>ripple&&side==='left'?linkedIds(p.clips,ids):ids;
 /** The delta range a trim of these clips' `side` edge allows: source limits, a tenth of a second minimum, and, without ripple, the neighbours on each clip's row. */
-export function trimBounds(p:Project,ids:ReadonlySet<string>,side:'left'|'right',ripple:boolean,media:ReadonlyMap<string,Media>=new Map(p.media.map(m=>[m.id,m]))){
- const clips=p.clips.filter(c=>ids.has(c.id));let min=-Infinity,max=Infinity;
+export function trimBounds(p:Project,chosen:ReadonlySet<string>,side:'left'|'right',ripple:boolean,media:ReadonlyMap<string,Media>=new Map(p.media.map(m=>[m.id,m]))){
+ const ids=trimmed(p,chosen,side,ripple),clips=p.clips.filter(c=>ids.has(c.id));let min=-Infinity,max=Infinity;
  for(const c of clips){
   const length=clipDuration(c),row=clipLayerRowId(c,p),neighbours=p.clips.filter(o=>!ids.has(o.id)&&clipLayerRowId(o,p)===row);
   if(side==='left'){min=Math.max(min,-c.sourceIn/c.speed);max=Math.min(max,length-.1);if(!ripple)min=Math.max(min,-c.start,...neighbours.filter(o=>end(o)<=c.start+EPS).map(o=>end(o)-c.start));}
@@ -249,8 +267,8 @@ export function trimBounds(p:Project,ids:ReadonlySet<string>,side:'left'|'right'
  * closeRange/openRange as deletes and inserts: later clips, captions, graphics, zooms, scenes and markers follow, and nothing overlaps.
  * A left ripple trim therefore keeps the clips' start.
  */
-export function trimClips(p:Project,ids:ReadonlySet<string>,side:'left'|'right',delta:number,ripple:boolean){
- const clips=p.clips.filter(c=>ids.has(c.id));if(!clips.length||!delta)return;
+export function trimClips(p:Project,chosen:ReadonlySet<string>,side:'left'|'right',delta:number,ripple:boolean){
+ const ids=trimmed(p,chosen,side,ripple),clips=p.clips.filter(c=>ids.has(c.id));if(!clips.length||!delta)return;
  if(!ripple){for(const c of clips){if(side==='left'){c.sourceIn+=delta*c.speed;c.start+=delta;}else c.sourceOut+=delta*c.speed;}return;}
  // Clips of one take can be offset (a camera starting 0.4 s after the screen): time opens at the earliest edge, so the take's later clips and the
  // next take move together, and a shrink closes only the time no clip on a screen, camera, audio or overlay row still uses, as a delete does.
