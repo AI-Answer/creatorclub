@@ -13,7 +13,7 @@ import {usePublishing} from '../publishing/usePublishing';
 import {exportFileName,latestVideoExport} from '../recorder/edit-steps';
 import {clockTime} from '../video-plan';
 import {Button,Card,EmptyState,Icon,Input,Spinner,Textarea} from '../ui';
-import {PackageSummary,PasteLinkForm,ProgressCard,ResultCard,TagsField} from './PublishParts';
+import {PackageSummary,PasteLinkForm,ProgressCard,ResultCard,SELF_UPLOAD_LINE,SelfUpload,TagsField} from './PublishParts';
 import {buildDescription} from './record-logic';
 
 export const PUBLISH_LINE='Postiz uploads it to YouTube at the time you pick, even if your laptop is closed.';
@@ -92,7 +92,9 @@ export function Publish({video,pkg,scenes,onVideo,onDescription,onGoTo,saveError
  const dropThumbnail=()=>void clubFetch(`/videos/${encodeURIComponent(video.id)}/thumbnail`,{method:'DELETE'}).then(()=>setThumbnail(null),()=>setThumbError("Couldn't remove that image."));
 
  // ---- publishing
- const [run,setRun]=useState<Run>({phase:'idle'}),[showLink,setShowLink]=useState(false);
+ const [run,setRun]=useState<Run>({phase:'idle'});
+ // Postiz is set up and posts to a channel: then adding a link by hand is never offered on the form.
+ const postizReady=Boolean(publishing.state?.postiz.connected&&publishing.state?.postiz.channel);
  const stop=useRef<()=>void>(()=>{});
  useEffect(()=>()=>stop.current(),[]);
  const schedule=when==='schedule'?scheduleTime(at,new Date()):null;
@@ -141,7 +143,10 @@ export function Publish({video,pkg,scenes,onVideo,onDescription,onGoTo,saveError
  if(result)return <div className="pubx">{head}<div className="pubx-grid"><div>
   <ResultCard record={result.info} video={video} onCheck={record&&waiting?()=>loadRecord().catch(()=>{}):undefined}
    onForget={record?.state==='queued'?async()=>{setRecord(await clubFetch<PublishRecord>(`/videos/${encodeURIComponent(video.id)}/postiz/forget`,{body:{}}));}:undefined}>
-   <PasteLinkForm video={video} published={published} onVideo={onVideo}/>
+   {published?<PasteLinkForm video={video} published onVideo={onVideo}/>
+    // Postiz says it is published but no usable YouTube link came back: the way out is open and says so plainly.
+    :record?.state==='published'?<SelfUpload open video={video} onVideo={onVideo} line={`Postiz says it's published, but the YouTube link didn't come back. ${SELF_UPLOAD_LINE}`}/>
+    :record?.unconfirmed?<SelfUpload video={video} onVideo={onVideo}/>:null}
   </ResultCard></div>{summary}</div></div>;
 
  const exportLine=file===undefined?<Spinner label="Looking for the exported video"/>:file
@@ -177,9 +182,10 @@ export function Publish({video,pkg,scenes,onVideo,onDescription,onGoTo,saveError
    </Card>
    <div className="pubx-foot">
     <div className="fi">{problem?<span className="pubx-warn" role={tried?'alert':undefined}>{problem}</span>:<span>The exported video goes to Postiz, then to YouTube.</span>}</div>
-    <Button variant="primary" size="md" onClick={()=>void submit()}><Icon name={when==='now'?'upload':'calendar'} size={15}/>{when==='now'?'Publish now':`Schedule for ${scheduledDate?whenText(scheduledDate):'later'}`}</Button>
+    {/* One primary per view: until there is an export, Export video is the primary and this waits. */}
+    <Button variant={exported?'primary':'secondary'} size="md" onClick={()=>void submit()}><Icon name={when==='now'?'upload':'calendar'} size={15}/>{when==='now'?'Publish now':`Schedule for ${scheduledDate?whenText(scheduledDate):'later'}`}</Button>
    </div>
-   <div className="pubx-alt">{showLink?<PasteLinkForm video={video} published={false} onVideo={onVideo}/>:<button type="button" className="linkish" onClick={()=>setShowLink(true)}>Already uploaded it? Paste the link</button>}</div>
+   {publishing.state&&!postizReady&&<div className="pubx-alt"><SelfUpload video={video} onVideo={onVideo}/></div>}
   </div>{summary}</div>
  </div>;
 }

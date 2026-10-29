@@ -19,7 +19,6 @@ import {Publish} from './Publish';
 import {Teleprompter} from './Teleprompter';
 import {outlineSceneFor,promptScene,recorderSceneFor} from './record-logic';
 import {TAKE_NOT_ADDED,takesWaiting,continueIsPrimary,showsStrip,nextTab,stageForContinue,tabDone,TAB_LABEL,type TabFacts} from './rules';
-import {originLabel} from '../routes';
 
 /**
  * One video's page: the frame (header with the one set of step tabs, scene chips on Record and Edit, a bottom bar with Back and Continue) around the tab's own content. Board is the research canvas;
@@ -121,8 +120,6 @@ export function Workspace({video,tab,back,navigate,onVideo}:{video:Video;tab:Vid
   nextButton={label:`Continue to ${TAB_LABEL[next].toLowerCase()}`,run:()=>void continueToNext(),disabled:moving,primary:continueIsPrimary(tabDone(tab,facts),false)};
  }
 
- const backLabel=`Back to ${originLabel(back).toLowerCase()}`;
-
  // The companion is docked beside every step but Edit, which keeps its own editor chat until the editor's tools join it.
  const [boardKey,setBoardKey]=useState(0);
  const refresh=plan.refresh;
@@ -166,7 +163,7 @@ export function Workspace({video,tab,back,navigate,onVideo}:{video:Video;tab:Vid
    {tab==='publish'&&<Publish video={video} pkg={plan.pkg} scenes={list} onVideo={onVideo} onGoTo={target=>navigate(tabRoute(target))}
     saveError={plan.saveError} onRetry={plan.retrySave} onDescription={description=>plan.editPackage({...(pkgNow.current??EMPTY_PACKAGE),description})}/>}
   </div>
-  <Foot tab={tab} back={back} backLabel={backLabel} onTab={target=>void goToTab(target)} next={nextButton}/>
+  <Foot next={nextButton}/>
   </div>
   {tab!=='edit'&&<Companion videoId={video.id} tab={tab} scene={companionScene} screen={screen} pkg={plan.pkg} outline={plan.outline} scenes={list} onChanged={companionChanged} beforeApply={plan.flush} roomy={tab==='record'}/>}
   </div>

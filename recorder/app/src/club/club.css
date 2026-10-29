@@ -869,3 +869,5 @@
 .club-root .decide ul { list-style: none; margin: 6px 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .club-root .decide li { display: flex; align-items: flex-start; gap: 10px; padding: 8px 10px; border-radius: var(--cc-r); background: var(--cc-bg-sunk); line-height: 1.5; }
 .club-root .decide li span { flex: 1; }
+.club-root .linkish.quiet { color: var(--cc-text-2); font-weight: 500; }
+.club-root .linkish.quiet:hover { color: var(--cc-text); }

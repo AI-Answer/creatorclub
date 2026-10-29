@@ -72,12 +72,24 @@ export function ResultCard({record,video,onCheck,onForget,children}:{record:Resu
    {record.postizUrl&&<a className="btn" href={record.postizUrl} target="_blank" rel="noreferrer">Open in Postiz<Icon name="open-external" size={14}/></a>}
    {record.state==='queued'&&onCheck&&<Button disabled={checking} onClick={()=>{setChecking(true);void onCheck().finally(()=>setChecking(false));}}>Check again</Button>}
   </div>
-  {record.state!=='published'&&<p className="small muted" style={{margin:0}}>Already on YouTube? Paste its link to finish.</p>}
-  {children&&<div className="row" style={{width:'100%'}}>{children}</div>}
+  {children&&<div style={{width:'100%'}}>{children}</div>}
   {onForget&&<div className="row"><Button size="sm" onClick={()=>{setForgetError('');void onForget().catch(reason=>setForgetError(errorMessage(reason)));}}>I checked Postiz, it isn't there. Allow sending again</Button></div>}
-  {forgetError&&<p role="alert" className="small" style={{color:'var(--cc-rec)',margin:0}}>{forgetError}</p>}
+  {forgetError&&<p role="alert" className="small warn-text" style={{margin:0}}>{forgetError}</p>}
   {record.postizUrl&&reminder&&<p className="small muted" style={{margin:0}}>Postiz publishing is new here. Open the video on YouTube once and check that the made-for-kids answer and the thumbnail are as you set them. <button type="button" className="linkish" onClick={()=>{markReminderSeen();setReminder(false);}}>Got it</button></p>}
  </Card>;
+}
+
+/** What adding a link yourself does, in one sentence. */
+export const SELF_UPLOAD_LINE='Add the link so CreatorClub can mark it Published.';
+
+/**
+ * For a video uploaded outside CreatorClub: a quiet "I uploaded it myself" that opens the link field. Never a main option; Publish shows it
+ * only when Postiz is not set up, or when a post is stuck. `open` shows the field at once, for the stuck case, with `line` saying why.
+ */
+export function SelfUpload({video,onVideo,label='I uploaded it myself',line=SELF_UPLOAD_LINE,open=false}:{video:Video;onVideo(video:Video):void;label?:string;line?:string;open?:boolean}){
+ const [shown,setShown]=useState(open);
+ if(!shown)return <button type="button" className="linkish quiet" onClick={()=>setShown(true)}>{label}</button>;
+ return <div className="self-upload"><p className="small muted" style={{margin:'0 0 8px'}}>{line}</p><PasteLinkForm video={video} published={false} onVideo={onVideo}/></div>;
 }
 
 /** The way before Postiz: paste the link of a video uploaded by hand. */
@@ -104,7 +116,7 @@ export function PasteLinkForm({video,published,onVideo}:{video:Video;published:b
   <Input id="club-youtube-link" inputMode="url" autoComplete="off" aria-label="YouTube link" placeholder="youtube.com/watch?v=…" value={url} aria-invalid={invalid?true:undefined} aria-describedby={invalid?'club-youtube-link-error':undefined}
    onChange={event=>{setUrl(event.target.value);setInvalid('');}}/>
   <Button type="submit" disabled={busy||!url.trim()}>Mark as published</Button>
-  {invalid&&<p id="club-youtube-link-error" className="small" role="alert" style={{color:'var(--cc-rec)',flexBasis:'100%',margin:0}}>{invalid}</p>}
+  {invalid&&<p id="club-youtube-link-error" className="small warn-text" role="alert" style={{flexBasis:'100%',margin:0}}>{invalid}</p>}
   {failed&&<ErrorLine message={PUBLISH_FAILED} onRetry={()=>void submit()}/>}
  </form>;
 }

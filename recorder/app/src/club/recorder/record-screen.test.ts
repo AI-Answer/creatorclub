@@ -188,13 +188,15 @@ test('the scene a page opens on (chosen in Plan) is selected when Record opens',
  }finally{await close();}
 });
 
-test('the bottom bar has Back and Continue only, with no second set of steps',async()=>{
+test('the bottom bar has Continue only (the steps above are the way back), and no bar without a next step',async()=>{
  const calls:string[]=[];
- const ui=await mountUI(createElement(Foot,{tab:'record',backLabel:'Back to production',back:{name:'production',view:'board'},onTab:tab=>calls.push(tab),next:{label:'Continue to edit',run:()=>calls.push('next'),disabled:false,primary:true}}));
+ const ui=await mountUI(createElement(Foot,{next:{label:'Continue to edit',run:()=>calls.push('next'),disabled:false,primary:true}}));
  try{
-  assert.deepEqual([...ui.container.querySelectorAll('button,a')].map(el=>el.textContent?.trim()),['Back to plan','Continue to edit']);
+  assert.deepEqual([...ui.container.querySelectorAll('button,a')].map(el=>el.textContent?.trim()),['Continue to edit']);
   assert.equal(ui.container.querySelector('.steps'),null);
-  await click(button(ui.container,'Back to plan'));await click(button(ui.container,'Continue to edit'));
-  assert.deepEqual(calls,['plan','next']);
+  await click(button(ui.container,'Continue to edit'));
+  assert.deepEqual(calls,['next']);
+  await ui.render(createElement(Foot,{}));
+  assert.equal(ui.container.querySelector('.ws-foot'),null);
  }finally{await ui.close();}
 });
