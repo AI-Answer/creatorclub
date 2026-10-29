@@ -1,49 +1,39 @@
-import {useEffect,useMemo,useRef,useState,type FormEvent,type ReactNode} from 'react';
-import type {Package,Video,VideoScene} from '../../../shared/club';
+import {useCallback,useEffect,useMemo,useRef,useState} from 'react';
+import type {Package,PublishProgress,PublishRecord,PublishVisibility,Video,VideoScene} from '../../../shared/club';
 import type {ExportRecord} from '../../../shared/export-history';
 import type {Project} from '../../../shared/types';
-import {api,listSavedExports} from '../../api';
+import {api,listSavedExports,projectRevision} from '../../api';
 import {ClubExport} from '../recorder/ClubExport';
-import {ClubApiError,clubFetch,errorMessage} from '../api';
+import {clubFetch,clubUpload,errorMessage,notifyVideosChanged} from '../api';
 import {ErrorLine} from '../ErrorLine';
-import {fmtDate} from '../format';
+import {watchJob,failureMessage} from '../jobs';
+import {PostizSetup} from '../publishing/PostizSetup';
+import {TITLE_MAX,VISIBILITY_OPTIONS,defaultSchedule,progressOf,publishProblem,scheduleTime,whenText} from '../publishing/publish-logic';
+import {usePublishing} from '../publishing/usePublishing';
 import {exportFileName,latestVideoExport} from '../recorder/edit-steps';
 import {clockTime} from '../video-plan';
-import {Button,Card,EmptyState,Icon,Input,Textarea,useToast} from '../ui';
-import {buildDescription,shortLink} from './record-logic';
+import {Button,Card,EmptyState,Icon,Input,Spinner,Textarea} from '../ui';
+import {PackageSummary,PasteLinkForm,ProgressCard,ResultCard,TagsField} from './PublishParts';
+import {buildDescription} from './record-logic';
 
-export const PUBLISH_LINE='Upload to YouTube, then paste the link here. CreatorClub never posts for you.';
+export const PUBLISH_LINE='Postiz uploads it to YouTube at the time you pick, even if your laptop is closed.';
 /** What the server keeps of a description. */
 export const DESCRIPTION_MAX=5000;
-export const PUBLISH_FAILED="Couldn't mark the video as published.";
-/** The view count is read in the background after publishing; the page asks for it once, a little later. */
-const VIEWS_RECHECK_MS=8000;
+/** While Postiz is still sending a video to YouTube, the page asks it again this often. */
+const RECHECK_MS=15000;
 
-/** Copies with the Clipboard API, or with a hidden text field where that is not allowed. */
-export async function copyText(text:string):Promise<boolean>{
- try{await navigator.clipboard.writeText(text);return true;}catch{}
- const field=document.createElement('textarea');
- field.value=text;field.setAttribute('readonly','');field.style.position='fixed';field.style.opacity='0';
- document.body.append(field);field.select();
- try{return document.execCommand('copy');}catch{return false;}finally{field.remove();}
-}
-
-type CopyKey='title'|'thumb'|'desc';
-const COPIED:Record<CopyKey,string>={title:'the title',thumb:'the thumbnail text',desc:'the description'};
-
-function CopyButton({done,disabled,label,onCopy}:{done:boolean;disabled?:boolean;label:string;onCopy():void}){
- return <Button size="sm" disabled={disabled} aria-label={label} onClick={onCopy}><Icon name={done?'Check':'Copy'} size={14}/>{done?'Copied':'Copy'}</Button>;
-}
+type Run={phase:'idle'}|{phase:'running';progress:PublishProgress|null}|{phase:'failed';message:string;progress:PublishProgress|null};
 
 /**
- * The Publish tab, as the prototype lays it out: the exported video, the title, thumbnail text and description to copy into
- * YouTube Studio, the YouTube link with `Mark as published`, and the views once YouTube reports them. The video is exported in Edit.
+ * The Publish step. The exported video, the package as YouTube will show it, Postiz connected once, and the form YouTube asks for
+ * (title, description, tags, thumbnail, who can watch, made for kids, now or later). One button sends it; progress and the result follow.
  */
 export function Publish({video,pkg,scenes,onVideo,onDescription,onGoTo,saveError,onRetry}:{video:Video;pkg:Package|null;scenes:readonly VideoScene[]|undefined;onVideo(video:Video):void;onDescription(text:string):void;onGoTo(tab:'plan'|'record'|'edit'):void;saveError?:string;onRetry():void}){
- const toast=useToast();
+ const publishing=usePublishing();
  const published=video.stage==='published'&&Boolean(video.youtubeUrl);
- const [file,setFile]=useState<ExportRecord|null|undefined>(undefined);
- const [reread,setReread]=useState(0);
+
+ // ---- the exported video
+ const [file,setFile]=useState<ExportRecord|null|undefined>(undefined),[reread,setReread]=useState(0);
  useEffect(()=>{
   if(!video.recorderProjectId){setFile(null);return;}
   const request=new AbortController();
@@ -51,88 +41,137 @@ export function Publish({video,pkg,scenes,onVideo,onDescription,onGoTo,saveError
   return()=>request.abort();
  },[video.recorderProjectId,reread]);
  // The export runs from the saved recording project, so the editor need not be open. Its last autosave is what is exported.
- const [project,setProject]=useState<Project|null>(null);
+ const [project,setProject]=useState<Project|null>(null),[revision,setRevision]=useState('');
  useEffect(()=>{
   if(!video.recorderProjectId)return;
   const request=new AbortController();
   void api<Project>(`/projects/${encodeURIComponent(video.recorderProjectId)}`,undefined,undefined,request.signal).then(setProject,()=>{});
   return()=>request.abort();
  },[video.recorderProjectId]);
+ useEffect(()=>{if(!project)return;let alive=true;void projectRevision(project).then(value=>{if(alive)setRevision(value.replaceAll('"',''));},()=>{});return()=>{alive=false;};},[project]);
+ const stale=Boolean(file&&revision&&file.projectRevision.replaceAll('"','')!==revision);
+ const exported=Boolean(file)&&!stale;
 
- // The description starts from the package and the scenes, and is the person's own once edited (saved on the package when there is one).
+ // ---- what is already sent
+ const [record,setRecord]=useState<PublishRecord|null|undefined>(undefined);
+ const loadRecord=useCallback(async()=>{
+  const next=await clubFetch<PublishRecord|null>(`/videos/${encodeURIComponent(video.id)}/postiz`);
+  setRecord(next);
+  if(next?.state==='published'&&!published)void clubFetch<Video>(`/videos/${encodeURIComponent(video.id)}`).then(onVideo,()=>{});
+ },[video.id,published,onVideo]);
+ useEffect(()=>{void loadRecord().catch(()=>setRecord(null));},[video.id]);// eslint-disable-line react-hooks/exhaustive-deps
+ // A video scheduled for later is not asked about until its time has come.
+ const waiting=record?.state==='queued'&&!(record.scheduledFor&&new Date(record.scheduledFor).getTime()>Date.now());
+ useEffect(()=>{if(!waiting)return;const timer=setInterval(()=>void loadRecord().catch(()=>{}),RECHECK_MS);return()=>clearInterval(timer);},[waiting,loadRecord]);
+
+ // ---- the form
+ const [title,setTitle]=useState(video.title);
  const built=useMemo(()=>buildDescription(pkg,scenes,clockTime),[pkg,scenes]);
  const [edited,setEdited]=useState<string|undefined>(undefined);
  const description=edited??pkg?.description??built;
  useEffect(()=>{if(edited!==undefined&&edited===pkg?.description)setEdited(undefined);},[pkg?.description,edited]);
- const [copied,setCopied]=useState<Partial<Record<CopyKey,boolean>>>({});
- const copy=(key:CopyKey,text:string)=>void copyText(text).then(ok=>{if(!ok)return;setCopied(now=>({...now,[key]:true}));toast(`Copied ${COPIED[key]}`);});
- const allCopied=Boolean(copied.title&&(copied.thumb||!pkg?.thumbnailText)&&copied.desc);
+ const [tags,setTags]=useState<string[]>([]);
+ const [chosen,setChosen]=useState<PublishVisibility|null>(null);
+ const visibility=chosen??publishing.state?.defaultVisibility??'public';
+ const [kids,setKids]=useState<'yes'|'no'|null>(null),[tried,setTried]=useState(false);
+ const kidsField=useRef<HTMLDivElement>(null);
+ const [when,setWhen]=useState<'now'|'schedule'>('now'),[at,setAt]=useState(()=>defaultSchedule(new Date()));
+ const [thumbnail,setThumbnail]=useState<string|null>(null),[thumbError,setThumbError]=useState('');
+ useEffect(()=>{
+  let alive=true;
+  void fetch(`/api/club/videos/${encodeURIComponent(video.id)}/thumbnail`).then(response=>{if(alive&&response.status===200)setThumbnail(`/api/club/videos/${encodeURIComponent(video.id)}/thumbnail?v=${Date.now()}`);},()=>{});
+  return()=>{alive=false;};
+ },[video.id]);
+ const pick=async(chosenFile:File|undefined)=>{
+  if(!chosenFile)return;
+  setThumbError('');
+  const form=new FormData();form.append('file',chosenFile);
+  try{await clubUpload(`/videos/${encodeURIComponent(video.id)}/thumbnail`,form);setThumbnail(`/api/club/videos/${encodeURIComponent(video.id)}/thumbnail?v=${Date.now()}`);}
+  catch(reason){setThumbError(errorMessage(reason,"Couldn't use that image."));}
+ };
+ const dropThumbnail=()=>void clubFetch(`/videos/${encodeURIComponent(video.id)}/thumbnail`,{method:'DELETE'}).then(()=>setThumbnail(null),()=>setThumbError("Couldn't remove that image."));
+
+ // ---- publishing
+ const [run,setRun]=useState<Run>({phase:'idle'}),[showLink,setShowLink]=useState(false);
+ const stop=useRef<()=>void>(()=>{});
+ useEffect(()=>()=>stop.current(),[]);
+ const schedule=when==='schedule'?scheduleTime(at,new Date()):null;
+ const problem=publishProblem({connected:Boolean(publishing.state?.postiz.connected),channel:Boolean(publishing.state?.postiz.channel),exported,stale,kids,title})??(schedule&&'message' in schedule?schedule.message:null);
+ const submit=async()=>{
+  if(run.phase==='running')return;
+  setTried(true);
+  if(problem||!file||!kids){if(!kids){kidsField.current?.scrollIntoView?.({block:'center'});kidsField.current?.querySelector('input')?.focus();}return;}
+  setRun({phase:'running',progress:null});
+  try{
+   const started=await clubFetch<{id:string}>(`/videos/${encodeURIComponent(video.id)}/postiz`,{body:{exportId:file.id,title:title.trim(),description,tags,visibility,madeForKids:kids==='yes',...(schedule&&'iso' in schedule?{scheduledFor:schedule.iso}:{})}});
+   stop.current();
+   stop.current=watchJob(started.id,event=>{
+    if(event.type==='progress'){const progress=progressOf(event.data);if(progress)setRun({phase:'running',progress});}
+    else if(event.type==='done'){
+     const done=event.data as PublishRecord;
+     setRun({phase:'idle'});setRecord(done);
+     void clubFetch<Video>(`/videos/${encodeURIComponent(video.id)}`).then(next=>{onVideo(next);notifyVideosChanged();},()=>{});
+    }
+    else setRun(now=>({phase:'failed',message:event.type==='failed'?failureMessage(event.data):'That was stopped.',progress:now.phase==='idle'?null:now.progress}));
+   });
+  }catch(reason){setRun({phase:'failed',message:errorMessage(reason),progress:null});}
+ };
 
  if(!published&&scenes&&!scenes.some(scene=>scene.takes.length))return <div className="page"><div className="card"><EmptyState icon={<Icon name="Upload"/>} title="Nothing to publish yet"
   description={scenes.length?`Publishing starts once the scenes are recorded and edited. This video has ${scenes.length} ${scenes.length===1?'scene':'scenes'} waiting to be recorded.`:'Publishing starts once the scenes are recorded and edited. Draft the scenes first.'}
   action={<Button variant="primary" size="md" onClick={()=>onGoTo(scenes.length?'record':'plan')}><Icon name={scenes.length?'Mic':'Layers'} size={15}/>{scenes.length?'Open record':'Open plan'}</Button>}/></div></div>;
 
- const done=[Boolean(file),allCopied||published,published,false];
- const current=done.findIndex(value=>!value);
- const step=(index:number,title:string,body:ReactNode,aside?:ReactNode,hint?:string)=><div className={`pstep ${done[index]?'done':index===current?'on':'todo'}`}>
-  <span className="pnum">{done[index]?<Icon name="Check" size={16} stroke={2.6}/>:index+1}</span>
-  <div className="pc"><div className="pt">{title}{aside}</div>{hint&&!done[index]&&<div className="pd">{hint}</div>}{body}</div>
+ const scheduledDate=schedule&&'date' in schedule?schedule.date:null;
+ const summary=<PackageSummary video={video} thumbnailText={pkg?.thumbnailText} thumbnailUrl={thumbnail} channel={publishing.state?.postiz.channel?.name} visibility={visibility} when={scheduledDate} title={title} description={description} tags={tags}/>;
+ const result:{info:Parameters<typeof ResultCard>[0]['record']}|null=record&&record.state!=='failed'?{info:record}:published?{info:{state:'published',visibility:'public',url:video.youtubeUrl}}:null;
+ const head=<><div className="doc-h"><h2>Publish</h2></div><div className="doc-sub">{PUBLISH_LINE}</div></>;
+
+ if(run.phase!=='idle')return <div className="pubx">{head}<div className="pubx-grid"><div>
+  <ProgressCard progress={run.progress} failure={run.phase==='failed'?run.message:undefined} scheduled={Boolean(schedule&&'iso' in schedule)} onRetry={()=>void submit()}/>
+  {run.phase==='failed'&&<p className="small"><button type="button" className="linkish" onClick={()=>setRun({phase:'idle'})}>Edit details</button></p>}
+ </div>{summary}</div></div>;
+
+ if(result)return <div className="pubx">{head}<div className="pubx-grid"><div>
+  <ResultCard record={result.info} video={video} onCheck={record&&waiting?()=>loadRecord().catch(()=>{}):undefined}>
+   {published&&<PasteLinkForm video={video} published onVideo={onVideo}/>}
+  </ResultCard></div>{summary}</div></div>;
+
+ const exportLine=file===undefined?<Spinner label="Looking for the exported video"/>:file
+  ?<div className="row"><span className="club-export-done"><Icon name="Check" size={15}/>Video exported</span><span className="faint small">{exportFileName(file)}</span>
+   {stale&&project&&<><span className="small pubx-warn">You edited it after this export.</span><ClubExport quiet project={project} flush={async()=>project} onExported={now=>{if(now)setReread(n=>n+1);}}/></>}
+   {!stale&&file.outputPath&&window.sceneForge?.reveal&&<button type="button" className="linkish" onClick={()=>void window.sceneForge!.reveal(file.outputPath!).catch(()=>{})}>Show in Finder</button>}</div>
+  :project?<div className="row"><ClubExport project={project} flush={async()=>project} onExported={now=>{if(now)setReread(n=>n+1);}}/><span className="small muted">Publishing sends the exported video.</span></div>
+   :<span className="small muted">No exported video yet. <button type="button" className="linkish" onClick={()=>onGoTo('edit')}>Export it in Edit</button></span>;
+
+ return <div className="pubx">{head}
+  <div className="pubx-grid"><div>
+   <div className="pubx-export">{exportLine}</div>
+   <Card className="pubx-route">
+    <div className="rh"><span className="logo" style={{background:'#612bd3'}}>P</span><div><div className="rt">Publish with Postiz</div><div className="rd">Schedules the upload for you. A paid service, from $29 a month.</div></div></div>
+    {publishing.error?<ErrorLine message={publishing.error} onRetry={publishing.reload}/>:publishing.state?<PostizSetup state={publishing.state} onState={publishing.setState}/>:<Spinner label="Loading"/>}
+   </Card>
+   <Card className="pubx-form">
+    <div className="full"><label className="field" htmlFor="pub-title">Title</label><Input id="pub-title" maxLength={TITLE_MAX} value={title} onChange={event=>setTitle(event.target.value)}/></div>
+    <div className="full"><label className="field" htmlFor="pub-desc">Description</label><Textarea id="pub-desc" rows={5} maxLength={DESCRIPTION_MAX} placeholder="What the viewer gets, then chapters." value={description}
+     onChange={event=>setEdited(event.target.value)} onBlur={()=>{if(edited!==undefined&&edited!==pkg?.description)onDescription(edited);}}/>
+     {saveError&&<ErrorLine message="Couldn't save the description." onRetry={onRetry}/>}</div>
+    <div className="full"><label className="field" htmlFor="pub-tags">Tags</label><TagsField tags={tags} onChange={setTags}/></div>
+    <div className="full"><div className="field">Thumbnail</div><div className="small muted">{thumbnail?'Your own image. ':'YouTube picks a frame unless you add one. '}
+     <label className="linkish" style={{cursor:'pointer'}}>{thumbnail?'Use another image':'Upload an image'}<input type="file" className="sr-only" accept="image/png,image/jpeg" onChange={event=>{void pick(event.target.files?.[0]);event.target.value='';}}/></label>
+     {thumbnail&&<> <button type="button" className="linkish" onClick={dropThumbnail}>Remove image</button></>}</div>
+     {thumbError&&<p role="alert" className="small pz-err">{thumbError}</p>}</div>
+    <div><label className="field" htmlFor="pub-vis">Who can watch</label><select id="pub-vis" className="select" value={visibility} onChange={event=>setChosen(event.target.value as PublishVisibility)}>{VISIBILITY_OPTIONS.map(option=><option key={option.value} value={option.value}>{option.label}</option>)}</select></div>
+    <div className={tried&&!kids?'has-err':''}><div className="field" id="pub-kids-l">Made for kids? <span className="faint" style={{fontWeight:450}}>· Required by YouTube</span></div>
+     <div className="radios" role="radiogroup" aria-labelledby="pub-kids-l" ref={kidsField}>{(['no','yes'] as const).map(value=><label key={value} className="rad"><input type="radio" name="kids" value={value} checked={kids===value} onChange={()=>setKids(value)}/>{value==='no'?'No':'Yes'}</label>)}</div>
+     {tried&&!kids&&<p role="alert" className="small pz-err">Choose one. YouTube won't accept the video without it.</p>}</div>
+    <div><label className="field" htmlFor="pub-when">When</label><select id="pub-when" className="select" value={when} onChange={event=>setWhen(event.target.value as 'now'|'schedule')}><option value="now">Publish now</option><option value="schedule">Schedule for later</option></select></div>
+    {when==='schedule'&&<div><label className="field" htmlFor="pub-at">Date and time</label><Input id="pub-at" type="datetime-local" value={at} aria-invalid={schedule&&'message' in schedule?true:undefined} onChange={event=>setAt(event.target.value)}/></div>}
+   </Card>
+   <div className="pubx-foot">
+    <div className="fi">{problem?<span className="pubx-warn" role={tried?'alert':undefined}>{problem}</span>:<span>The exported video goes to Postiz, then to YouTube.</span>}</div>
+    <Button variant="primary" size="md" onClick={()=>void submit()}><Icon name={when==='now'?'Upload':'Calendar'} size={15}/>{when==='now'?'Publish now':`Schedule for ${scheduledDate?whenText(scheduledDate):'later'}`}</Button>
+   </div>
+   <div className="pubx-alt">{showLink?<PasteLinkForm video={video} published={false} onVideo={onVideo}/>:<button type="button" className="linkish" onClick={()=>setShowLink(true)}>Already uploaded it? Paste the link</button>}</div>
+  </div>{summary}</div>
  </div>;
-
- return <div className="pub">
-  <div className="doc-h" style={{marginBottom:4}}><h2>Publish</h2></div>
-  <div className="doc-sub">{PUBLISH_LINE}</div>
-  {step(0,'Export the video',file===undefined?null:file
-   ?<div style={{marginTop:6}}>{file.outputPath&&window.sceneForge?.reveal&&<button type="button" className="linkish" onClick={()=>void window.sceneForge!.reveal(file.outputPath!).catch(()=>{})}>Show in Finder</button>}</div>
-   :<div className="card pbox"><div className="row">{project?<ClubExport quiet project={project} flush={async()=>project} onExported={exportedNow=>{if(exportedNow)setReread(n=>n+1);}}/>:<span className="small muted">No exported video yet. <button type="button" className="linkish" onClick={()=>onGoTo('edit')}>Export it in Edit</button></span>}</div></div>,file?<span className="faint small" style={{fontWeight:500}}>{exportFileName(file)}</span>:null,'The full timeline as an MP4, as you left it in Edit.')}
-  {step(1,'Copy the title, thumbnail text and description',<div className="card pbox">
-    <div className="copyrow"><span className="k">Title</span><span className="v" style={{fontWeight:600}}>{video.title}</span><CopyButton done={!!copied.title} label="Copy title" onCopy={()=>copy('title',video.title)}/></div>
-    <div className="copyrow"><span className="k">Thumbnail text</span><span className="v">{pkg?.thumbnailText||<span className="faint">No thumbnail text yet. Add it in Plan.</span>}</span><CopyButton done={!!copied.thumb} disabled={!pkg?.thumbnailText} label="Copy thumbnail text" onCopy={()=>copy('thumb',pkg!.thumbnailText)}/></div>
-    <div className="copyrow"><span className="k">Description</span><Textarea rows={9} maxLength={DESCRIPTION_MAX} aria-label="Description" value={description} style={{fontSize:13.5}} onChange={event=>setEdited(event.target.value)} onBlur={()=>{if(edited!==undefined&&edited!==pkg?.description)onDescription(edited);}}/><CopyButton done={!!copied.desc} label="Copy description" onCopy={()=>copy('desc',description)}/></div>
-   {saveError&&<ErrorLine message="Couldn't save the description." onRetry={onRetry}/>}
-   </div>,undefined,'Paste them into YouTube Studio as you upload.')}
-  {step(2,'Upload to YouTube, then paste the link here',<PublishForm video={video} published={published} onVideo={onVideo}/>,
-   published?<span className="faint small" style={{fontWeight:500}}>{fmtDate(video.publishedAt??video.updatedAt)}</span>:null,'Public, unlisted or scheduled, any link works.')}
-  {step(3,'Views',published?<div className="card pbox">
-    {video.views!==undefined?<div className="row" style={{alignItems:'baseline',gap:10}}><span className="bignum">{video.views.toLocaleString()}</span><span className="muted">views since {fmtDate(video.publishedAt??video.updatedAt)}</span></div>
-     :<p className="small muted">Views show here once YouTube reports them.</p>}
-   </div>:null,undefined,'Shown once the video is published.')}
- </div>;
-}
-
-function PublishForm({video,published,onVideo}:{video:Video;published:boolean;onVideo(video:Video):void}){
- const [editing,setEditing]=useState(false),[url,setUrl]=useState(video.youtubeUrl??''),[busy,setBusy]=useState(false),[invalid,setInvalid]=useState(''),[failed,setFailed]=useState(false);
- const recheck=useRef<ReturnType<typeof setTimeout>|undefined>(undefined);
- useEffect(()=>()=>clearTimeout(recheck.current),[]);
-
- const submit=async(event?:FormEvent)=>{
-  event?.preventDefault();
-  if(!url.trim()||busy)return;
-  setBusy(true);setInvalid('');setFailed(false);
-  try{
-   const updated=await clubFetch<Video>(`/videos/${encodeURIComponent(video.id)}/publish`,{body:{youtubeUrl:url.trim()}});
-   onVideo(updated);setEditing(false);setUrl(updated.youtubeUrl??'');
-   clearTimeout(recheck.current);
-   recheck.current=setTimeout(()=>void clubFetch<Video>(`/videos/${encodeURIComponent(video.id)}`).then(onVideo,()=>{}),VIEWS_RECHECK_MS);
-  }catch(reason){
-   if(reason instanceof ClubApiError&&reason.status===400)setInvalid(errorMessage(reason));
-   else setFailed(true);
-  }finally{setBusy(false);}
- };
-
- if(published&&!editing)return <div className="row" style={{gap:10,marginTop:6}}>
-  <a className="small" style={{color:'var(--cc-accent-text)',fontWeight:500}} href={video.youtubeUrl} target="_blank" rel="noreferrer">{shortLink(video.youtubeUrl!)}</a>
-  <button type="button" className="linkish" onClick={()=>setEditing(true)}>Change link</button>
- </div>;
-
- return <Card className="pbox">
-  <form className="row" onSubmit={event=>void submit(event)}>
-   <Input id="club-youtube-link" inputMode="url" autoComplete="off" aria-label="YouTube link" placeholder="youtube.com/watch?v=…" value={url} aria-invalid={invalid?true:undefined} aria-describedby={invalid?'club-youtube-link-error':undefined}
-    onChange={event=>{setUrl(event.target.value);setInvalid('');}}/>
-   <Button type="submit" variant="primary" disabled={busy||!url.trim()}><Icon name="CircleCheck" size={15}/>Mark as published</Button>
-  </form>
-  {invalid&&<p id="club-youtube-link-error" className="small" style={{color:'var(--cc-rec)',marginTop:8}}>{invalid}</p>}
-  {failed&&<ErrorLine message={PUBLISH_FAILED} onRetry={()=>void submit()}/>}
-  <a className="btn ghost sm" style={{marginTop:10}} href="https://studio.youtube.com" target="_blank" rel="noreferrer"><Icon name="ArrowUpRight" size={14}/>Open YouTube Studio</a>
- </Card>;
 }

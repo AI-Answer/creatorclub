@@ -8,7 +8,7 @@ import {Button,Icon,Input,Tabs,type Tab} from '../ui';
 
 /** Claude and ChatGPT sign in with your own accounts. Gemini is optional and takes your own API key. Which AI writes is chosen here too. */
 export function ConnectedAiSection({status,settings,onStatus,onSettings}:{status:AiStatus;settings:ClubSettings;onStatus():void;onSettings(next:Partial<ClubSettings>):void}){
- return <section className="set-sec" id="set-ai" aria-labelledby="set-ai-title"><h2 id="set-ai-title">Connected AI</h2><p>CreatorClub uses your own Claude or ChatGPT account. Nothing is billed here.</p>
+ return <section className="set-group" id="set-ai" aria-labelledby="set-ai-title"><h2 id="set-ai-title">Connected AI</h2><p>CreatorClub uses your own Claude or ChatGPT account. Nothing is billed here.</p>
   <div className="card">
    <AiRow settings provider="claude" status={status.claude} description="Used for ideas, packaging, scenes and scripts." onChanged={onStatus}/>
    <AiRow settings provider="codex" status={status.codex} description="Optional. Works the same way, if that is the account you have." onChanged={onStatus}/>
