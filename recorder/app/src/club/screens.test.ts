@@ -110,34 +110,49 @@ const ideaVideos=()=>[
  base('p1','In planning','planning'),
 ];
 
-test('Ideas lists the New ideas as rich cards, with counts for Later and Skipped and an outlier chip from Working now',async()=>{
+test('Ideas is a compact list: title, why in one line, the source in small text; the ratings are in the drawer and the picture is small',async()=>{
  const s=server({videos:ideaVideos(),trending:{items:[trend('dQw4w9WgXcQ','Receipts with Claude')],updatedAt:'2026-10-28T00:00:00.000Z',followed:1}});
  await mount(navigate=>createElement(IdeasScreen,{route:{name:'ideas'},navigate}),s,async (ui,_s,_calls,routes)=>{
   const c=ui.container;
   assert.equal(text(c.querySelector('h1')),'Ideas');
   assert.deepEqual(texts(c,'.seg [role="tab"]'),['New 1','Later 1','Skipped 1']);
-  const cards=c.querySelectorAll('.card.idea');assert.equal(cards.length,1);
-  const card=cards[0];
-  assert.equal(text(card.querySelector('.tt')),'Claude for receipts');
-  assert.equal(text(card.querySelector('.hookq')),'I let Claude do my receipts.');
-  assert.deepEqual([...card.querySelectorAll('.lvl')].map(l=>[l.className,text(l)]),[['lvl high','Demand'],['lvl mid','Gap'],['lvl high','Easy to show']]);
-  assert.equal(text(card.querySelector('.src')),'Receipts with Claude');
-  assert.equal(card.querySelector('.thumb img')!.getAttribute('src'),'https://i.ytimg.com/vi/dQw4w9WgXcQ/mqdefault.jpg','the picture of the video it came from');
-  const chip=card.querySelector('.chip.mult')!;assert.equal(text(chip),'3.20×');assert.equal(chip.getAttribute('title'),"3.20× vs Duncan Rogoff's usual");
-  assert.match(text(card.querySelector('.chip.solid')),/From Duncan Rogoff/);
-  assert.deepEqual(texts(card,'.foot button'),['Start planning','Later','Skip']);
+  const rows=c.querySelectorAll('.irow');assert.equal(rows.length,1);assert.equal(c.querySelectorAll('.card.idea').length,0,'no cards');
+  const row=rows[0];
+  assert.equal(text(row.querySelector('.tt')),'Claude for receipts');
+  assert.equal(text(row.querySelector('.why')),'People ask about it.','why it could work, not the hook');
+  assert.equal(text(row.querySelector('.src')),"Receipts with Claude · 3.20× Duncan Rogoff's usual");
+  assert.equal(row.querySelector('.thumb img')!.getAttribute('src'),'https://i.ytimg.com/vi/dQw4w9WgXcQ/mqdefault.jpg','the picture of the video it came from');
+  assert.equal(row.querySelectorAll('.lvl, .chip').length,0,'no rating chips and no outlier chip on the row');
+  assert.deepEqual([...row.querySelectorAll('button')].map(b=>text(b)||b.getAttribute('aria-label')),['Start planning','More'],'Start planning and one menu');
+  assert.ok(row.classList.contains('always'),'the top row shows its buttons');
 
   await press(c.querySelectorAll('.seg [role="tab"]')[1]);
   assert.deepEqual(routes.at(-1),{name:'ideas',filter:'later'});
+
+  await press(row);
+  const drawer=c.querySelector('.drawer')!;
+  assert.deepEqual([...drawer.querySelectorAll('.lvl')].map(l=>[l.className,text(l)]),[['lvl high','Demand'],['lvl mid','Gap'],['lvl high','Easy to show']],'the ratings are in the drawer');
  });
  const later=server({videos:ideaVideos()});
  await mount(navigate=>createElement(IdeasScreen,{route:{name:'ideas',filter:'later'},navigate}),later,async ui=>{
-  assert.deepEqual(texts(ui.container,'.card.idea .body .tt'),['Held back idea']);
-  assert.deepEqual(texts(ui.container,'.card.idea .foot button'),['Restore']);
+  assert.deepEqual(texts(ui.container,'.irow .tt'),['Held back idea']);
+  assert.deepEqual([...ui.container.querySelectorAll('.irow button')].map(b=>text(b)||b.getAttribute('aria-label')),['Restore','More']);
  });
  const skipped=server({videos:ideaVideos()});
  await mount(navigate=>createElement(IdeasScreen,{route:{name:'ideas',filter:'skipped'},navigate}),skipped,async ui=>{
-  assert.equal(text(ui.container.querySelector('.card.idea .chip')),'Skipped · Too generic');
+  assert.equal(text(ui.container.querySelector('.irow .src')),'Skipped · Too generic');
+ });
+});
+
+test('ideas from one source video show its picture once; a different video shows its own',async()=>{
+ const from=(id:string,title:string,videoId:string,createdAt:string)=>base(id,title,'ideas',{createdAt,idea:{why:`Why ${id}`,sources:[{label:`Source ${videoId}`,url:`https://www.youtube.com/watch?v=${videoId}`}]}});
+ const s=server({videos:[from('a','First','aaaaaaaaaaa','2026-10-05T00:00:03.000Z'),from('b','Second','aaaaaaaaaaa','2026-10-05T00:00:02.000Z'),from('c','Third','bbbbbbbbbbb','2026-10-05T00:00:01.000Z'),from('d','Fourth','aaaaaaaaaaa','2026-10-05T00:00:00.000Z')]});
+ await mount(navigate=>createElement(IdeasScreen,{route:{name:'ideas'},navigate}),s,async ui=>{
+  const rows=[...ui.container.querySelectorAll('.irow')];
+  assert.deepEqual(rows.map(row=>text(row.querySelector('.tt'))),['First','Second','Third','Fourth']);
+  assert.deepEqual(rows.map(row=>row.querySelector('.thumb img')?.getAttribute('src')?.match(/vi\/(\w+)\//)?.[1]??null),['aaaaaaaaaaa',null,'bbbbbbbbbbb','aaaaaaaaaaa']);
+  assert.deepEqual(rows.map(row=>text(row.querySelector('.src'))),['Source aaaaaaaaaaa','Source aaaaaaaaaaa','Source bbbbbbbbbbb','Source aaaaaaaaaaa'],'the source is always said, in small text');
+  assert.equal(ui.container.querySelectorAll('.thumb').length,3);
  });
 });
 
@@ -146,7 +161,7 @@ test('Ideas empty states say what each list is for and offer the next step',asyn
  await mount(navigate=>createElement(IdeasScreen,{route:{name:'ideas'},navigate}),server({trending:{items,updatedAt:null,followed:1}}),async ui=>{
   const c=ui.container;
   assert.equal(text(c.querySelector('.empty h3')),'No ideas yet');
-  assert.match(text(c.querySelector('.try')),/Try one that's working now:Duncan Rogoff/,'a video from Working now to try');
+  assert.ok(c.querySelector('.try')===null,'no row of Working now pictures: Working now has them');
   assert.ok(button(c.querySelector('.empty')!,"Break down a video that's working"));
  });
  await mount(navigate=>createElement(IdeasScreen,{route:{name:'ideas',filter:'later'},navigate}),server(),async ui=>{assert.equal(text(ui.container.querySelector('.empty h3')),'Nothing saved for later');});
@@ -157,27 +172,28 @@ test('Ideas actions: Later and Skip with a reason can be undone, Start planning 
  const s=server({videos:ideaVideos()});
  await mount(navigate=>createElement(IdeasScreen,{route:{name:'ideas'},navigate}),s,async (ui,state,calls,routes)=>{
   const c=ui.container;
-  await press(button(c.querySelector('.card.idea')!,'Later'));
+  await press(c.querySelector('.irow [aria-label="More"]')!);
+  assert.deepEqual(texts(c,'[role="menu"] .hd, [role="menu"] button'),['Later','Skip it because…','Too generic','Not their style','Already covered',"Can't show it",'Bad timing','Delete idea']);
+  await press(button(c.querySelector('[role="menu"]')!,'Later'));
   assert.deepEqual(writes(calls),['PUT /videos/i1 {"hidden":"later"}']);
-  assert.deepEqual(toasts(c),['Saved for laterUndo']);assert.equal(c.querySelectorAll('.card.idea').length,0,'it leaves New');
+  assert.deepEqual(toasts(c),['Saved for laterUndo']);assert.equal(c.querySelectorAll('.irow').length,0,'it leaves New');
   await press(button(c.querySelector('.cc-toast')!,'Undo'));
-  assert.equal(writes(calls).at(-1),'PUT /videos/i1 {"hidden":null}');assert.equal(c.querySelectorAll('.card.idea').length,1,'and comes back');
+  assert.equal(writes(calls).at(-1),'PUT /videos/i1 {"hidden":null}');assert.equal(c.querySelectorAll('.irow').length,1,'and comes back');
 
-  await press(button(c.querySelector('.card.idea')!,'Skip'));
-  assert.deepEqual(texts(c,'[role="menu"] .hd, [role="menu"] button'),['Why skip it?','Too generic','Not their style','Already covered',"Can't show it",'Bad timing']);
+  await press(c.querySelector('.irow [aria-label="More"]')!);
   await press(button(c.querySelector('[role="menu"]')!,'Bad timing'));
   assert.equal(writes(calls).at(-1),'PUT /videos/i1 {"hidden":"skipped","idea":{"dropReason":"Bad timing"}}');
   assert.ok(toasts(c).some(t=>t==='Skipped · Bad timingUndo'));
   await press(button([...c.querySelectorAll('.cc-toast')].find(t=>/Bad timing/.test(t.textContent!))!,'Undo'));
   assert.equal(writes(calls).at(-1),'PUT /videos/i1 {"hidden":null,"idea":{"dropReason":null}}');
 
-  await press(button(c.querySelector('.card.idea')!,'Start planning'));
+  await press(button(c.querySelector('.irow')!,'Start planning'));
   assert.deepEqual(writes(calls).at(-1),'POST /videos/i1/move {"stage":"planning"}');
   assert.deepEqual(routes.at(-1),{name:'video',id:'i1',tab:'board'});assert.equal(state.videos.find(v=>v.id==='i1')!.stage,'planning');
  });
  const held=server({videos:ideaVideos()});
  await mount(navigate=>createElement(IdeasScreen,{route:{name:'ideas',filter:'skipped'},navigate}),held,async (ui,_s,calls)=>{
-  await press(button(ui.container.querySelector('.card.idea')!,'Restore'));
+  await press(button(ui.container.querySelector('.irow')!,'Restore'));
   assert.equal(writes(calls).at(-1),'PUT /videos/i3 {"hidden":null,"idea":{"dropReason":null}}');
   assert.ok(toasts(ui.container).includes('Restored to New'));
  });
@@ -187,7 +203,7 @@ test('the idea drawer edits every note where it stands and deleting waits so it 
  const s=server({videos:ideaVideos()});
  await mount(navigate=>createElement(IdeasScreen,{route:{name:'ideas'},navigate}),s,async (ui,state,calls)=>{
   const c=ui.container;
-  await press(c.querySelector('.card.idea')!);
+  await press(c.querySelector('.irow')!);
   const drawer=c.querySelector('.drawer')!;
   assert.ok(drawer);assert.equal(text(drawer.querySelector('.stage-pill')),'Ideas');
   assert.equal(text(drawer.querySelector('h2')),'Claude for receipts');
@@ -207,11 +223,11 @@ test('the idea drawer edits every note where it stands and deleting waits so it 
 
   const before=writes(calls).length;
   await press(button(drawer,'Delete'));
-  assert.ok(c.querySelector('.drawer')===null,'the drawer closes');assert.equal(c.querySelectorAll('.card.idea').length,0,'the idea is gone at once');
+  assert.ok(c.querySelector('.drawer')===null,'the drawer closes');assert.equal(c.querySelectorAll('.irow').length,0,'the idea is gone at once');
   assert.equal(writes(calls).length,before,'but nothing is deleted on the server yet');
   assert.ok(toasts(c).includes('Idea deletedUndo'));
   await press(button(c.querySelector('.cc-toast')!,'Undo'));
-  assert.equal(c.querySelectorAll('.card.idea').length,1,'Undo brings it back');
+  assert.equal(c.querySelectorAll('.irow').length,1,'Undo brings it back');
   assert.equal(writes(calls).some(w=>w.startsWith('DELETE')),false);
  });
 });
@@ -230,7 +246,7 @@ test('a new idea is highlighted with the banner that opens it and starts plannin
  await mount(navigate=>createElement(IdeasScreen,{route:{name:'ideas',new:'i1'},navigate}),server({videos:ideaVideos()}),async (ui,_s,calls,routes)=>{
   const c=ui.container;
   assert.match(text(c.querySelector('.card[style*="accent-soft"]')),/"Claude for receipts" is in your ideas\.Next: open it and start planning\./);
-  assert.match(c.querySelector('#idea-i1')!.getAttribute('style')!,/accent/);assert.equal(text(c.querySelector('#idea-i1 .chip.b-blue')),'New');
+  assert.ok(c.querySelector('#idea-i1')!.classList.contains('new'));assert.equal(text(c.querySelector('#idea-i1 .itag')),'New');
   assert.equal(c.querySelectorAll('.btn.primary').length,1,'one primary button on the page');
   await press(button(c,'Open it and start planning'));
   assert.equal(writes(calls).at(-1),'POST /videos/i1/move {"stage":"planning"}');assert.deepEqual(routes.at(-1),{name:'video',id:'i1',tab:'board'});
@@ -375,14 +391,15 @@ const trendItems=()=>[
 const trendServer=(over:Partial<Server>={})=>server({trending:{items:trendItems(),updatedAt:'2026-10-28T09:00:00.000Z',followed:3},workspace:profile('Maya Lopez',['Claude','AI agents'],['Complete beginners']),...over});
 const cards=(c:Element)=>texts(c,'.card.trend .tt');
 
-test('Working now: For you, Followed and All with counts, a chip legend, reasons, a dash when the usual is unknown, and Show everything',async()=>{
+test('Working now: ranked cards, For you, Followed and All with counts, a one-line legend, reasons, a dash when the usual is unknown, and Show everything',async()=>{
  await mount(navigate=>createElement(TrendingScreen,{navigate}),trendServer(),async ui=>{
   const c=ui.container;
   assert.equal(text(c.querySelector('h1')),'Working now');
   assert.match(text(c.querySelector('.actions')),/Updated Oct 28 · 3 videos/);
   assert.deepEqual(texts(c,'.seg button'),['For you 2','Followed 2','All 3']);
   assert.deepEqual(cards(c),['Claude Code in 20 minutes','Agents that run a shop'],'ranked by views per day, off-topic left out');
-  assert.match(text(c.querySelector('.legend')),/1–3×3–5×5–10×10–50×—Views compared with that channel's usual\. A dash means its usual isn't tracked yet\./);
+  assert.equal(text(c.querySelector('.legend')),"The number on each picture is its views compared with that channel's usual. A dash means its usual isn't tracked yet.");
+  assert.ok(c.querySelector('.legend .chip')===null,'a sentence, not a row of coloured chips');
   assert.equal(text(c.querySelector('.legend + .small')),'Matched to your topics: Claude, AI agents.');
   const [first,second]=c.querySelectorAll('.card.trend');
   assert.equal(text(first.querySelector('.chip.mult')),'6.40×');assert.equal(first.querySelector('.chip.mult')!.getAttribute('title'),"6.40× vs Duncan Rogoff's usual");
@@ -390,10 +407,11 @@ test('Working now: For you, Followed and All with counts, a chip legend, reasons
   assert.equal(text(first.querySelector('.chip.solid.br')),'New');assert.ok(second.querySelector('.chip.solid.br')===null);
   assert.equal(text(first.querySelector('.reason')),'Because you picked Claude');
   assert.equal(text(second.querySelector('.chip.mult')),'—');assert.ok(second.querySelector('.chip.mult')!.classList.contains('b-grey'));assert.match(second.querySelector('.chip.mult')!.getAttribute('title')!,/Metics Media's usual views aren't tracked yet/);
-  assert.equal(text(first.querySelector('.chip.outline')),'Followed');assert.ok(second.querySelector('.chip.outline')===null);
+  assert.deepEqual([first,second].map(card=>text(card.querySelector('.rank'))),['1','2'],'ranked in the order of the list');
+  assert.match(text(first.querySelector('.meta')),/Followed$/);assert.doesNotMatch(text(second.querySelector('.meta')),/Followed/);
   assert.equal(first.querySelector('.thumb img')!.getAttribute('src'),'https://i.ytimg.com/vi/aaaaaaaaaaa/mqdefault.jpg');
   assert.deepEqual(texts(first,'.stats span'),['50K','9K/day','1h ago'.replace('1h ago','1 day ago')]);
-  assert.deepEqual(texts(first,'.foot .btn'),['Break down','']);assert.equal(first.querySelector('.foot .icon-only')!.getAttribute('aria-label'),'Make it an idea');
+  assert.deepEqual(texts(first,'.foot .btn'),['Break down'],'one button in the footer');assert.equal(first.querySelector('.idea-pin')!.getAttribute('aria-label'),'Make it an idea','the idea button sits quietly on the picture');
 
   await press(button(c,'Show everything (1 more, off topic or under their usual)'));
   assert.deepEqual(cards(c),['My cat learns to code','Claude Code in 20 minutes','Agents that run a shop'],'All, sorted by views per day');
@@ -481,7 +499,7 @@ test('Break down on a Working now video opens the drawer and runs the job; one a
 test('Turn a Working now video into an idea: added once, with a button to open it; a second press only says so',async()=>{
  await mount(navigate=>createElement(TrendingScreen,{navigate}),trendServer(),async (ui,_s,calls,routes)=>{
   const c=ui.container;
-  await press(c.querySelector('.card.trend .foot .icon-only')!);
+  await press(c.querySelector('.card.trend .idea-pin')!);
   assert.equal(writes(calls).at(-1),'POST /trending/idea {"videoId":"aaaaaaaaaaa"}');
   assert.ok(toasts(c).includes('Added to your ideasOpen'));
   await press(button(c.querySelector('.cc-toast')!,'Open'));assert.deepEqual(routes.at(-1),{name:'ideas',new:'idea-t'});
@@ -489,8 +507,8 @@ test('Turn a Working now video into an idea: added once, with a button to open i
  const made=base('idea-t','Claude Code in 20 minutes','ideas',{idea:{sources:[{label:'Claude Code in 20 minutes (Duncan Rogoff | AI)',url:'https://www.youtube.com/watch?v=aaaaaaaaaaa'}]}});
  await mount(navigate=>createElement(TrendingScreen,{navigate}),trendServer({videos:[made]}),async (ui,_s,calls,routes)=>{
   const first=ui.container.querySelector('.card.trend')!;
-  const idea=first.querySelector('.foot .icon-only')!;
-  assert.equal(idea.getAttribute('aria-label'),'In your ideas');
+  const idea=first.querySelector('.idea-pin')!;
+  assert.equal(idea.getAttribute('aria-label'),'In your ideas');assert.match(text(first.querySelector('.meta')),/In ideas$/,'said under the card too');
   await press(idea);
   assert.equal(writes(calls).length,0,'no second idea');assert.deepEqual(routes.at(-1),{name:'ideas',open:'idea-t'});
  });
@@ -616,36 +634,37 @@ const fullServer=()=>server({
  trending:{items:trendItems(),updatedAt:'2026-10-28T09:00:00.000Z',followed:3},signals:{items:signalItems(),updatedAt:'2026-10-28T09:00:00.000Z',errors:[]},
 });
 
-test('Overview: greeting, what you left, production counts, the next ideas, what is working now and the latest signals',async()=>{
+test('Overview: the next action, then the other videos in production, and nothing else',async()=>{
  const opened:string[]=[];
- await mount(navigate=>createElement(OverviewScreen,{navigate,onNewVideo:()=>opened.push('new')}),fullServer(),async (ui,_s,_calls,routes)=>{
+ await mount(navigate=>createElement(OverviewScreen,{navigate,onNewVideo:()=>opened.push('new')}),fullServer(),async (ui,_s,calls,routes)=>{
   const c=ui.container;
   assert.match(text(c.querySelector('h1')),/^Good (morning|afternoon|evening), Samin$/);
   assert.equal(text(c.querySelector('.lede')),'2 videos in production · 1 idea waiting · 1 published');
-  assert.equal(c.querySelector('.btn.primary')!.textContent,'New video');
-  await press(c.querySelector('.btn.primary')!);assert.deepEqual(opened,['new']);
+  assert.equal(c.querySelectorAll('.btn.primary').length,1,'one primary button: the next action');
+  await press(button(c,'New video'));assert.deepEqual(opened,['new']);
 
-  assert.equal(text(c.querySelector('.sec-head h2')),'Pick up where you left off');
-  const resume=c.querySelectorAll('.resume .card');
-  assert.deepEqual([...resume].map(card=>text(card.querySelector('.title'))),['Hidden features in Claude Code','Agents for small shops'],'the one opened last first');
-  assert.equal(text(resume[0].querySelector('.chip.solid')),'Planning');
-  assert.equal(text(resume[0].querySelector('.row.small')),'Planning · 6 scenes drafted');assert.equal(resume[0].querySelectorAll('.dots i').length,6);
-  assert.equal(text(resume[1].querySelector('.row.small')),'Recording · 1 of 3 scenes');assert.deepEqual([...resume[1].querySelectorAll('.dots i')].map(i=>i.className),['kept','none','none']);
-  assert.deepEqual([texts(resume[0],'.btn')[0],texts(resume[1],'.btn')[0]],['Continue to recording','Record scene 2']);
-  assert.match(text(resume[1]),/Nov 5/);
-  await press(button(resume[1],'Record scene 2'));assert.deepEqual(routes.at(-1),{name:'video',id:'r1',tab:'record'});
-  await press(resume[0]);assert.deepEqual(routes.at(-1),{name:'video',id:'p1'});
+  assert.deepEqual(texts(c,'h2.sec'),['Next up','Also in production'],'no Working now, pipeline counts, ideas or signals');
+  assert.ok(c.querySelector('.card.trend')===null&&c.querySelector('.pipeline')===null&&c.querySelector('.sig')===null&&c.querySelector('.list-card .li .lt')!==null);
+  const next=c.querySelector('.nextup')!;
+  assert.equal(text(next.querySelector('.title')),'Hidden features in Claude Code','the one opened last');
+  assert.match(text(next.querySelector('.faint')),/^Planning/);
+  assert.equal(text(next.querySelector('.row.small')),'Planning · 6 scenes drafted');assert.equal(next.querySelectorAll('.dots i').length,6);
+  assert.equal(text(next.querySelector('.btn.primary')),'Continue to recording');
+  const rows=c.querySelectorAll('.list-card .li');
+  assert.deepEqual([...rows].map(row=>text(row.querySelector('.tt'))),['Agents for small shops']);
+  assert.equal(text(rows[0].querySelector('.row.small')),'Recording · 1 of 3 scenes');assert.deepEqual([...rows[0].querySelectorAll('.dots i')].map(i=>i.className),['kept','none','none']);
+  assert.equal(text(rows[0].querySelector('.btn')),'Record scene 2');assert.ok(rows[0].querySelector('.btn.primary')===null);
+  await press(button(rows[0],'Record scene 2'));assert.deepEqual(routes.at(-1),{name:'video',id:'r1',tab:'record'});
+  await press(button(next,'Continue to recording'));assert.deepEqual(routes.at(-1),{name:'video',id:'p1',tab:'record'});
+  await press(next);assert.deepEqual(routes.at(-1),{name:'video',id:'p1'});
+  await press(button(c,'Open production'));assert.deepEqual(routes.at(-1),{name:'production',view:'board'});
+  assert.equal(calls.filter(call=>call.path==='/trending'||call.path==='/signals').length,0,'it reads neither Working now nor Signals');
+ });
+});
 
-  assert.deepEqual(texts(c,'.pipeline .pipe-row').map(t=>t.replace(/\s+/g,' ')),['Ideas1','Planning1','Recording1','Editing0','Publishing0','Published1']);
-  assert.deepEqual(texts(c,'.list-card .li .tt'),['Claude for receipts']);
-  assert.deepEqual(texts(c,'.card.trend .tt'),['Claude Code in 20 minutes','Agents that run a shop'],'what is working for you');
-  assert.ok(c.querySelector('.card.trend .foot')===null,'compact cards have no buttons');
-  assert.equal(text(c.querySelector('.card.trend .reason')),'Because you picked Claude');
-  assert.match(text(c),/See all 3/);
-  const lists=c.querySelectorAll('.list-card');
-  assert.match(text(lists[lists.length-1].querySelector('.li')),/Alex Finn · 5hClaude can now run your inbox900/);
-  assert.equal(lists[lists.length-1].querySelectorAll('.li').length,3,'the posts about your topics, not the Resident Evil game');
-  await press(button(c,'See all 3'));assert.deepEqual(routes.at(-1),{name:'trending'});
+test('Overview with one video in production has the next action and no list under it',async()=>{
+ await mount(navigate=>createElement(OverviewScreen,{navigate,onNewVideo:()=>{}}),server({videos:[base('p1','Hidden features','planning')],workspace:profile('Samin Yasar')}),async ui=>{
+  assert.ok(ui.container.querySelector('.nextup'));assert.deepEqual(texts(ui.container,'h2.sec'),['Next up']);
  });
 });
 
@@ -658,7 +677,7 @@ test('Overview for a channel with nothing in production is the first-video check
   assert.ok(c.querySelector('.btn.primary')===null,'the checklist has its own primary button');
   assert.equal(text(c.querySelector('h2.sec')),'Your first video');
   assert.deepEqual(texts(c,'.card > div:first-child > .row > div > div:first-child').slice(0,4),['Connect your AI','Tell CreatorClub your space','Pick your first idea','Plan it, record the scenes, edit, publish']);
-  assert.ok(c.querySelector('.resume')===null);assert.ok(c.querySelector('.pipeline')===null);
+  assert.ok(c.querySelector('.nextup')===null);assert.ok(c.querySelector('.pipeline')===null);assert.deepEqual(texts(c,'h2.sec'),['Your first video'],'the checklist and nothing else');
   assert.doesNotMatch(text(c),/Samin|Resident Evil/);
   const picks=c.querySelectorAll('.card.trend.hov');
   assert.ok(picks.length>=2);assert.equal(text(picks[0].querySelector('.reason')),'Because you picked Claude');
@@ -680,7 +699,7 @@ test('Overview with only published videos says nothing is in production, and vid
  });
  const planning=base('p1','Hidden features','planning',{idea:{sources:[{label:'v',url:VIDEO_URL}]}});
  await mount(navigate=>createElement(OverviewScreen,{navigate,onNewVideo:()=>{}}),server({videos:[planning]}),async ui=>{
-  const thumb=ui.container.querySelector('.resume .thumb')!;
+  const thumb=ui.container.querySelector('.nextup .thumb')!;
   assert.ok(thumb.querySelector('img')===null,'no YouTube picture');assert.equal(text(thumb.querySelector('.tt')),'Hidden features');
  });
 });
@@ -806,18 +825,18 @@ test('For you never lists a video under its creator\'s usual; it waits under Sho
 test('an idea whose lane is timely or both shows the Timely chip; an evergreen one does not',async()=>{
  const timely=[base('i1','Claude news','ideas',{idea:{lane:'timely'}}),base('i2','Both kinds','ideas',{idea:{lane:'both'}}),base('i3','Always useful','ideas',{idea:{lane:'evergreen'}})];
  await mount(navigate=>createElement(IdeasScreen,{route:{name:'ideas'},navigate}),server({videos:timely}),async ui=>{
-  const chips=(id:string)=>texts(ui.container.querySelector(`#idea-${id}`)!,'.chip.b-amber');
+  const chips=(id:string)=>texts(ui.container.querySelector(`#idea-${id}`)!,'.itag.warm');
   assert.deepEqual([chips('i1'),chips('i2'),chips('i3')],[['Timely'],['Timely'],[]]);
  });
 });
 
-test('Overview shows the error and Try again when Working now fails to load, not "Nothing about your topics yet"',async()=>{
- const s=server({failTrending:true,videos:overviewVideos()});
+test('Overview of a new channel shows the error and Try again when Working now fails to load, not an empty list',async()=>{
+ const s=server({failTrending:true,workspace:profile('Maya Lopez',['Claude'])});
  await mount(navigate=>createElement(OverviewScreen,{navigate,onNewVideo(){}}),s,async (ui)=>{
   const c=ui.container;
   assert.equal(text(c.querySelector('[role="alert"] p')),"Couldn't load what's working now.");
   assert.ok(button(c,'Try again'));
-  assert.ok(!text(c).includes('Nothing about your topics yet'));
+  assert.ok(!text(c).includes('No videos to start from yet'));
   s.failTrending=false;
   await press(button(c,'Try again'));
   assert.equal(c.querySelector('[role="alert"]'),null);
