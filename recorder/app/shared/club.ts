@@ -150,6 +150,8 @@ export interface Package {
   titles: [string, string, string];
   thumbnailText: string;
   hook: { visual: string; spoken: string; text: string };
+  /** The YouTube description as edited in Publish. Unset until it is edited: Publish then starts from the hook, the angle and the chapters. */
+  description?: string;
 }
 
 export interface OutlineScene {

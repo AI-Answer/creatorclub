@@ -74,3 +74,9 @@ test('script words from the server land on the outline being edited by scene id,
  assert.equal(full.fullScript,'# T');
  assert.equal('scriptState' in withServerScripts(full,{scenes:server.scenes}),false);
 });
+
+test('an edited description stays through a package run',()=>{
+ const earlier:Package={...EMPTY_PACKAGE,description:'My description'};
+ assert.equal(mergePackage(earlier,written).description,'My description');
+ assert.equal('description' in mergePackage({...EMPTY_PACKAGE},written),false);
+});

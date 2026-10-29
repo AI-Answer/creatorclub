@@ -20,7 +20,7 @@ type Removed={job:AutomationJob;seconds:number;before:string;after:string};
  * Undo puts the timeline back through SceneForge's own undo of that change.
  * `refresh` reloads the saved timeline into the editor after either change.
  */
-export function EditSuggestion({project,jobs,merge,reload,flush,refresh,onReview}:{project:Project;jobs:AutomationJob[];merge(job:AutomationJob):void;reload():Promise<void>;flush():Promise<Project|undefined>;refresh():Promise<void>;onReview():void}){
+export function EditSuggestion({project,jobs,merge,reload,flush,refresh,onReview,onChanged}:{project:Project;jobs:AutomationJob[];merge(job:AutomationJob):void;reload():Promise<void>;flush():Promise<Project|undefined>;refresh():Promise<void>;onReview():void;onChanged?():void}){
  const suggestion=cutSuggestion(jobs);
  const [busy,setBusy]=useState(false),[failed,setFailed]=useState<''|'remove'|'undo'>(''),[removed,setRemoved]=useState<Removed|null>(null);
  const started=useRef('');
@@ -54,6 +54,7 @@ export function EditSuggestion({project,jobs,merge,reload,flush,refresh,onReview
    merge(result.job);
    setRemoved({job:result.job,seconds:suggestion.seconds,before:fresh.updatedAt,after:result.project.updatedAt});
    await Promise.all([reload().catch(()=>{}),refresh().catch(()=>{})]);
+   onChanged?.();
   }catch{setFailed('remove');}
   finally{setBusy(false);}
  };
@@ -65,6 +66,7 @@ export function EditSuggestion({project,jobs,merge,reload,flush,refresh,onReview
    const result=await api<AutomationMutation>(`/automation/${removed.job.id}/undo`,{});
    merge(result.job);setRemoved(null);
    await Promise.all([reload().catch(()=>{}),refresh().catch(()=>{})]);
+   onChanged?.();
   }catch{setFailed('undo');}
   finally{setBusy(false);}
  };

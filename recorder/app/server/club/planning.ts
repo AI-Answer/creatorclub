@@ -65,6 +65,7 @@ export const packageShape = z
     titles: z.tuple([text(200), text(200), text(200)]),
     thumbnailText: text(200),
     hook: z.object({ visual: text(2000), spoken: text(2000), text: text(500) }).strict(),
+    description: text(5000).optional(),
   })
   .strict();
 

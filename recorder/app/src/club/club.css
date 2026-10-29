@@ -720,6 +720,9 @@
 :where(.club-root) .shimmer:where(:not(.club-embed *)) { background: linear-gradient(90deg, var(--cc-bg-sunk) 0%, var(--cc-hover) 40%, var(--cc-bg-sunk) 80%); background-size: 200% 100%; animation: cc-shim 1.2s linear infinite; border-radius: 8px; }
 @keyframes cc-shim { to { background-position: -200% 0; } }
 /* record */
+:where(.club-root) .rec.with-embed:where(:not(.club-embed *)) { grid-template-columns: minmax(0, 1fr); gap: 0; padding: 0; }
+:where(.club-root) .rec.with-prompter:where(:not(.club-embed *)) { grid-template-columns: minmax(0, 1fr) 340px; gap: 0; padding: 0; }
+:where(.club-root) .rec.with-prompter .prompter:where(:not(.club-embed *)) { border-radius: 0; border-width: 0 0 0 1px; box-shadow: none; }
 :where(.club-root) .rec:where(:not(.club-embed *)) { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(340px, 1fr); gap: 20px; padding: 18px 22px 22px; height: 100%; min-height: 0; }
 :where(.club-root) .rec-left:where(:not(.club-embed *)) { display: flex; flex-direction: column; gap: 14px; min-height: 0; }
 :where(.club-root) .stage:where(:not(.club-embed *)) { position: relative; aspect-ratio: 16/9; border-radius: 14px; overflow: hidden; background: var(--cc-dark-stage); box-shadow: var(--cc-shadow-2); max-height: calc(100vh - 360px); align-self: center; width: 100%; }

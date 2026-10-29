@@ -1,10 +1,9 @@
-import {useCallback,useEffect,useMemo,useState} from 'react';
+import {useCallback,useEffect,useRef,useState} from 'react';
 import type {Video,VideoStage} from '../../../shared/club';
 import {clubFetch,errorMessage} from '../api';
 import {ClubRecorder} from '../ClubRecorder';
 import {ErrorLine} from '../ErrorLine';
 import {Plan} from '../plan/Plan';
-import {PublishStep} from '../screens/PublishStep';
 import {type Route,type VideoTab} from '../routes';
 import {useVideoScenes} from '../scenes';
 import {Button,EmptyState,Icon,useToast} from '../ui';
@@ -12,6 +11,9 @@ import {usePlan} from '../usePlan';
 import {STAGE_LABEL} from '../board';
 import {Board} from './Board';
 import {Foot,Header,Strip} from './Frame';
+import {Publish} from './Publish';
+import {Teleprompter} from './Teleprompter';
+import {promptScene,recorderSceneFor} from './record-logic';
 import {continueIsPrimary,pickJumpsToPlan,nextTab,stageForContinue,tabDone,TAB_LABEL,type TabFacts} from './rules';
 import {originLabel} from '../routes';
 
@@ -31,7 +33,13 @@ export function Workspace({video,tab,back,navigate,onVideo}:{video:Video;tab:Vid
  // Recording and editing report back through the recorder: whether every scene has a take, and whether the edit was exported.
  const [allRecorded,setAllRecorded]=useState(false),[exported,setExported]=useState(false);
  useEffect(()=>{setAllRecorded(false);setExported(false);},[video.recorderProjectId]);
- const onProgress=useCallback(({recorded,total}:{recorded:number;total:number})=>setAllRecorded(total>0&&recorded>=total),[]);
+ const reloadScenes=scenes.reload;
+ // A take was kept or deleted: the strip reads the scenes again.
+ const lastRecorded=useRef<number>(-1);
+ const onProgress=useCallback(({recorded,total}:{recorded:number;total:number})=>{
+  setAllRecorded(total>0&&recorded>=total);
+  if(lastRecorded.current!==recorded){if(lastRecorded.current>=0)reloadScenes();lastRecorded.current=recorded;}
+ },[reloadScenes]);
  const onExported=useCallback((done:boolean)=>setExported(done),[]);
 
  const list=scenes.state.status==='ready'?scenes.state.scenes:undefined;
@@ -71,6 +79,8 @@ export function Workspace({video,tab,back,navigate,onVideo}:{video:Video;tab:Vid
  },[id,onVideo,navigate,tabRoute]);
 
  // Record and Edit need the video's recording project. Without one the page leads back to Plan, and offers no Continue.
+ // Recording shows the focused scene's talking points beside the recorder; Edit has no teleprompter.
+ const prompting=tab==='record'?promptScene(plan.outline,list,focusId):undefined;
  const unplanned=(tab==='record'||tab==='edit')&&!video.recorderProjectId;
 
  let nextButton:{label:string;run():void;disabled:boolean;primary:boolean}|undefined;
@@ -93,11 +103,16 @@ export function Workspace({video,tab,back,navigate,onVideo}:{video:Video;tab:Vid
     onTarget={seconds=>{clubFetch<Video>(`/videos/${id}`,{method:'PUT',body:{targetSeconds:seconds>0?seconds:null}}).then(onVideo,reason=>toast(errorMessage(reason,"Couldn't save the target.")));}}
     onRecordScene={sceneId=>{setFocusId(sceneId);navigate(tabRoute('record'));}}/>}
    {(tab==='record'||tab==='edit')&&(video.recorderProjectId
-    ?<ClubRecorder projectId={video.recorderProjectId} mode={tab==='record'?'Record':'Edit'} onBack={()=>navigate({name:'production',view:'board'})}
-      onMode={mode=>{if(mode==='Edit'&&tab==='record')void continueToNext();else navigate(tabRoute(mode==='Edit'?'edit':'record'));}} onProgress={onProgress} onExported={tab==='edit'?onExported:undefined}/>
+    ?<div className={prompting?'rec with-prompter':'rec with-embed'}>
+     <div className="rec-left"><ClubRecorder projectId={video.recorderProjectId} mode={tab==='record'?'Record':'Edit'} onBack={()=>navigate({name:'production',view:'board'})}
+      onMode={mode=>{if(mode==='Edit'&&tab==='record')void continueToNext();else navigate(tabRoute(mode==='Edit'?'edit':'record'));}} onProgress={onProgress} onExported={tab==='edit'?onExported:undefined}
+      sceneId={tab==='record'?recorderSceneFor(video,focusId)??undefined:undefined} onChanged={reloadScenes}/></div>
+     {prompting&&<Teleprompter index={prompting.index} scene={prompting.scene}/>}
+    </div>
     :<EmptyState icon={<Icon name="FileText"/>} title="Plan this video first" description="Create the outline first. Each scene is recorded on its own."
       action={<Button variant="primary" size="md" onClick={()=>navigate(tabRoute('plan'))}>Back to plan</Button>}/>)}
-   {tab==='publish'&&<PublishStep video={video} pkg={plan.pkg} onVideo={onVideo}/>}
+   {tab==='publish'&&<Publish video={video} pkg={plan.pkg} scenes={list} onVideo={onVideo} onGoTo={target=>navigate(tabRoute(target))}
+    onDescription={description=>{if(plan.pkg)plan.editPackage({...plan.pkg,description});}}/>}
   </div>
   <Foot tab={tab} back={back} backLabel={backLabel} facts={facts} onTab={next=>navigate(tabRoute(next))} next={nextButton}/>
  </div>;

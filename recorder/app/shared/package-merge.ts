@@ -19,6 +19,7 @@ export function mergePackage(earlier:Package|null,written:Package,replace?:Packa
   hook:{visual:fill(earlier.hook.visual,written.hook.visual),spoken:fill(earlier.hook.spoken,written.hook.spoken),text:fill(earlier.hook.text,written.hook.text)},
  };
  const demand=rating(earlier.demand,written.demand),gap=rating(earlier.gap,written.gap),show=rating(earlier.show,written.show);
+ if(earlier.description)merged.description=earlier.description;
  if(demand)merged.demand=demand;if(gap)merged.gap=gap;if(show)merged.show=show;
  if(replace==='titles')merged.titles=written.titles;
  if(replace==='hook')merged.hook=written.hook;
