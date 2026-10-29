@@ -258,16 +258,15 @@ test('a board that cannot load says one sentence with Try again',async()=>{
  });
 });
 
-test('a new visitor lands on Welcome, not the how-it-works dialog; for everyone else ? opens that dialog and closing it saves nothing',async()=>{
+test('an existing install is not sent to Welcome or shown the how-it-works dialog; for everyone else ? opens that dialog and closing it saves nothing',async()=>{
  window.location.hash='';
  const state:Server={videos:base(),welcomed:false,failMove:false,failLoad:false,outlines:{}};
  const fake=installFetch(serve(state));
  const ui=await mountUI(createElement(ClubApp));
  try{
   await settle();
-  assert.equal(window.location.hash,'#/welcome');
+  assert.equal(window.location.hash,'#/overview');
   assert.equal(ui.container.querySelector('[role="dialog"]'),null);
-  assert.match(text(ui.container),/Step 1 of 4/);
  }finally{await ui.close();fake.restore();window.location.hash='';}
  window.location.hash='';
  state.welcomed=true;

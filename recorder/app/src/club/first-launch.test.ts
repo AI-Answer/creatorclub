@@ -42,13 +42,19 @@ const breakdown={
 };
 const trendItem={videoId:'abcdefghijk',title:'How I built it',channel:'Duncan Rogoff | AI',kind:'followed',views:760000,likes:null,comments:null,published:'2026-10-24',ageDays:3,vpd:200000,mult:2.84,fit:true,reason:'Because you picked Claude'};
 
-test('opening the overview before setup was finished goes to first launch; a finished setup or an unreachable server does not',async()=>{
- for(const [welcomed,expected] of [[false,'#/welcome'],[true,'#/overview']] as const){
-  await withServer(call=>{if(call.path==='/settings')return {body:{defaultAi:null,welcomed,appearance:null,geminiKey:null,helpSeen:[]}};},async()=>{
+test('opening the overview before setup was finished goes to first launch; a finished setup, an existing install or an unreachable server does not',async()=>{
+ const posts:string[]=[];
+ for(const [welcomed,status,workspaces,expected] of [[false,signedOut,none,'#/welcome'],[false,claudeIn,none,'#/welcome'],[false,signedOut,one,'#/welcome'],[true,signedOut,none,'#/overview'],[false,claudeIn,one,'#/overview']] as const){
+  await withServer(call=>{
+   if(call.path==='/settings')return {body:{defaultAi:null,welcomed,appearance:null,geminiKey:null,helpSeen:[]}};
+   if(call.path==='/settings/welcomed'){posts.push(call.method);return {body:{welcomed:true}};}
+   return baseRoutes(status,workspaces)(call);
+  },async()=>{
    window.location.hash='';const ui=await mountUI(createElement(ClubApp));
    try{await flush();assert.equal(window.location.hash,expected);}finally{await ui.close();window.location.hash='';}
   });
  }
+ assert.deepEqual(posts,['POST'],'an install that already has a channel and an AI is marked as set up, once');
  FakeEventSource.install();const original=globalThis.fetch;globalThis.fetch=(async()=>{throw new TypeError('offline');}) as typeof fetch;
  window.location.hash='';const ui=await mountUI(createElement(ClubApp));
  try{await flush();assert.equal(window.location.hash,'#/overview');}finally{globalThis.fetch=original;await ui.close();window.location.hash='';}
@@ -327,7 +333,7 @@ test('Welcome: a failed create shows one sentence with Try again; Skip setup sav
    fail=false;await click(c,'Try again');
    assert.match(text(c),/Step 4 of 4/);
    assert.equal(calls.find(call=>call.path==='/workspaces/fresh'&&!(call.body as {voice?:unknown}).voice)!==undefined,true,'skipped questions send no voice');
-   await click(c,"I'll look around first");
+   await click(c,"Look around");
    assert.deepEqual(routes.at(-1),{name:'overview'});
   }finally{await ui.close();}
  });
@@ -565,5 +571,50 @@ test('copy rules: no please, successfully, exclamation marks, or banned words on
   }finally{await ui.close();}
   const settings=await mountUI(createElement(SettingsScreen,{onSetup(){}}));
   try{await flush();assert.doesNotMatch(text(settings.container),banned);}finally{await settings.close();}
+ });
+});
+
+test('Welcome: a failed rename after creating a fresh channel retries only the rename, never a second channel',async()=>{
+ let putFails=true;
+ await withServer(call=>{
+  if(call.path==='/ai/status')return {body:claudeIn};
+  if(call.path==='/workspaces/fresh')return {status:201,body:{...workspace,slug:'ana',name:'Ana'}};
+  if(call.path==='/workspaces/ana'&&call.method==='PUT')return putFails?{status:500}:{body:{...workspace,slug:'ana',name:'Ana Studio'}};
+  if(call.path==='/settings/welcomed')return {body:{welcomed:true}};
+  if(call.path==='/trending')return {body:{items:[],updatedAt:null,followed:0}};
+  if(call.path==='/breakdowns'||call.path==='/videos'||call.path==='/recent')return {body:[]};
+ },async calls=>{
+  const ui=await mountUI(welcome());
+  try{
+   await flush();const c=ui.container;
+   await click(c,'Continue');await pressLabeled(c,"I'm starting fresh");
+   await type(c.querySelector('#w-name')!,'Ana');await click(c,'Claude');await click(c,'Creators');
+   await type(c.querySelector('#w-ch')!,'Ana Studio');
+   await click(c,'Continue');await click(c,'Skip questions');
+   assert.match(text(c),/That did not work\./);
+   putFails=false;await click(c,'Try again');
+   assert.match(text(c),/Step 4 of 4/);
+   assert.equal(calls.filter(call=>call.path==='/workspaces/fresh').length,1,'one channel');
+   assert.equal(calls.filter(call=>call.path==='/workspaces/ana'&&call.method==='PUT').length,2);
+  }finally{await ui.close();}
+ });
+});
+
+test('Welcome: leaving waits for setup to be saved; a failed save shows one sentence and Try again, and does not navigate',async()=>{
+ const routes:unknown[]=[];let fail=true;
+ await withServer(call=>{
+  if(call.path==='/ai/status')return {body:signedOut};
+  if(call.path==='/settings/welcomed')return fail?{status:500}:{body:{welcomed:true}};
+ },async()=>{
+  const ui=await mountUI(welcome(route=>routes.push(route)));
+  try{
+   await flush();const c=ui.container;
+   await click(c,'Skip setup');
+   assert.deepEqual(routes,[]);
+   assert.match(text(c),/That did not work\./);
+   fail=false;await click(c,'Try again');
+   assert.deepEqual(routes,[{name:'overview'}]);
+   assert.equal(c.querySelector('[role="alert"]'),null);
+  }finally{await ui.close();}
  });
 });

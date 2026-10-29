@@ -1,6 +1,7 @@
 import {useCallback,useEffect,useMemo,useRef,useState} from 'react';
 import type {AddChannelResult,Workspace} from '../../../shared/club';
-import {clubFetch} from '../api';
+import {clubFetch,errorMessage} from '../api';
+import {ErrorLine} from '../ErrorLine';
 import type {Route} from '../routes';
 import {useBreakdowns} from '../useBreakdowns';
 import {useJobRun} from '../useJobRun';
@@ -34,14 +35,23 @@ export function WelcomeScreen({navigate}:{navigate(route:Route):void}){
  const [channel,setChannel]=useState<WelcomeChannel|null>(null);
  const add=useJobRun(),save=useJobRun();
  const busy=add.state.phase==='running'||save.state.phase==='running';
- const welcomed=useRef(false);
+ const welcomed=useRef(false),created=useRef<Workspace|null>(null);
+ const [leaveError,setLeaveError]=useState<{message:string;route:Route}|null>(null);
 
- const markWelcomed=useCallback(()=>{
+ /** Saves that setup is done. Resolves when it is saved; throws the one sentence to show when it is not. */
+ const saveWelcomed=useCallback(async()=>{
   if(welcomed.current)return;
+  await clubFetch('/settings/welcomed',{method:'POST'});
   welcomed.current=true;
-  clubFetch('/settings/welcomed',{method:'POST'}).catch(()=>{welcomed.current=false;});
  },[]);
- const overview=()=>{markWelcomed();navigate({name:'overview'});};
+ /** Leaves setup for `route`, but only once setup is saved, so a failed save does not send you back here at every launch. */
+ const leave=useCallback(async(route:Route)=>{
+  setLeaveError(null);
+  try{await saveWelcomed();navigate(route);}
+  catch(reason){setLeaveError({message:errorMessage(reason),route});}
+ },[saveWelcomed,navigate]);
+ const markWelcomed=()=>{void saveWelcomed().catch(()=>{});};
+ const overview=()=>void leave({name:'overview'});
  const goTo=(next:number)=>{if(next===3)markWelcomed();setStep(next);};
 
  const addChannel=()=>{
@@ -63,9 +73,10 @@ export function WelcomeScreen({navigate}:{navigate(route:Route):void}){
   if(path==='fresh'&&!channel){
    const hasAnswers=Object.keys(answers).length>0;
    void save.run(async()=>{
-    const created=await clubFetch<Workspace>('/workspaces/fresh',{body:{name:fresh.name.trim(),topics:fresh.topics,audience:fresh.audience,...(hasAnswers&&{voice:answers})}});
+    // The channel is made once. A retry after a failed rename only repeats the rename.
+    created.current??=await clubFetch<Workspace>('/workspaces/fresh',{body:{name:fresh.name.trim(),topics:fresh.topics,audience:fresh.audience,...(hasAnswers&&{voice:answers})}});
     const named=fresh.channelName.trim();
-    return named?clubFetch<Workspace>(`/workspaces/${encodeURIComponent(created.slug)}`,{method:'PUT',body:{name:named}}):created;
+    return named?clubFetch<Workspace>(`/workspaces/${encodeURIComponent(created.current.slug)}`,{method:'PUT',body:{name:named}}):created.current;
    },result=>{setChannel(asChannel(result as Workspace,hasAnswers?'built':'none'));goTo(3);});
    return;
   }
@@ -95,14 +106,15 @@ export function WelcomeScreen({navigate}:{navigate(route:Route):void}){
     {step===0&&<ConnectStep onConnected={setAiConnected}/>}
     {step===1&&<ChannelStep path={path} onPath={setPath} url={url} onUrl={setUrl} job={add.state} onAdd={addChannel} channel={channel} fresh={fresh} onFresh={setFresh}/>}
     {step===2&&<VoiceStep path={path} channel={channel} draft={voice} onDraft={setVoice} save={save.state} onRetry={()=>finishVoice(false)}/>}
-    {step===3&&<WorkingData onAdded={id=>{markWelcomed();navigate({name:'ideas',new:id});}} onSettings={()=>{markWelcomed();navigate({name:'settings'});}}/>}
+    {step===3&&<WorkingData onAdded={id=>void leave({name:'ideas',new:id})} onSettings={()=>void leave({name:'settings'})}/>}
+    {leaveError&&<div style={{marginTop:14}}><ErrorLine message={leaveError.message} onRetry={()=>void leave(leaveError.route)}/></div>}
     <div className="row" style={{marginTop:26}}>
      {step>0?<Button variant="ghost" disabled={busy} onClick={()=>setStep(step-1)}><Icon name="ChevronLeft" size={15}/>Back</Button>:<span/>}
      <span className="grow"/>
      {questions&&<Button variant="ghost" disabled={busy} onClick={()=>finishVoice(true)}>Skip questions</Button>}
      {step<3
       ?<Button variant={allowed?'primary':'secondary'} disabled={!allowed} onClick={next}>Continue<Icon name="ChevronRight" size={15}/></Button>
-      :<Button onClick={overview}>I'll look around first<Icon name="ChevronRight" size={15}/></Button>}
+      :<Button onClick={overview}>Look around<Icon name="ChevronRight" size={15}/></Button>}
     </div>
    </div>
   </div>

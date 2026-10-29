@@ -14,7 +14,7 @@ export type WelcomePath='channel'|'fresh';
 export const WELCOME_QUESTIONS:readonly {key:keyof VoiceAnswers;q:string;why:string;ph?:string;options?:readonly string[]}[]=[
  {key:'audience',q:'How would you explain what your channel is about to a friend?',ph:"I show people who aren't technical how to get real work done with AI…",why:'This becomes the one line Claude uses to pick ideas for you.'},
  {key:'voice',q:'How do you sound on camera?',options:['Calm and clear, like a teacher','Upbeat and fast','Dry and honest, a bit funny',"I don't know yet"],why:'Talking points get written the way you speak.'},
- {key:'moves',q:'Which creators do you like watching, and why?',ph:'e.g. Riley Brown, because he builds it live…',why:'It tells Claude what kind of delivery you like.'},
+ {key:'moves',q:'Which creators do you like watching, and why?',ph:'e.g. A creator who builds live, because it feels real…',why:'It tells Claude what kind of delivery you like.'},
 ];
 const NOT_SURE="I don't know yet";
 

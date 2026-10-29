@@ -1,5 +1,5 @@
 import {useCallback,useEffect,useRef,useState} from 'react';
-import type {ClubSettings,Video} from '../../shared/club';
+import type {AiStatus,ClubSettings,Video,Workspace} from '../../shared/club';
 import {setAppearance} from '../appearance';
 import {clubFetch} from './api';
 import {Sidebar} from './Sidebar';
@@ -19,10 +19,20 @@ import {Button,EmptyState,Spinner,ToastProvider,cn} from './ui';
 import {useShellVideos} from './useShellVideos';
 import {Workspace as VideoWorkspace} from './workspace/Workspace';
 
-/** First launch is needed until setup was finished or skipped once (`welcomed`). A server that cannot be reached never forces it. */
+/**
+ * First launch is needed until setup was finished or skipped once (`welcomed`). An install that already has a channel and a signed-in AI
+ * counts as set up: that is saved once so it sticks. A server that cannot be reached never forces it.
+ */
 export async function needsOnboarding():Promise<boolean>{
- try{return !(await clubFetch<ClubSettings>('/settings')).welcomed;}
- catch{return false;}
+ try{
+  if((await clubFetch<ClubSettings>('/settings')).welcomed)return false;
+  const [status,{workspaces}]=await Promise.all([clubFetch<AiStatus>('/ai/status'),clubFetch<{workspaces:Workspace[]}>('/workspaces')]);
+  if(workspaces.length>0&&(status.claude.signedIn||status.codex.signedIn)){
+   await clubFetch('/settings/welcomed',{method:'POST'}).catch(()=>{});
+   return false;
+  }
+  return true;
+ }catch{return false;}
 }
 
 const isHome=(route:Route)=>route.name==='overview'||route.name==='production';
