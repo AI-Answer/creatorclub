@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createProject,defaultEffects,defaultTransform,clipDuration,type Clip,type Media,type Project} from '../shared/types';
 import {applyProjectChange} from './project-draft';
-import {addMarker,anchoredScroll,applyClipStarts,closeRange,collides,deleteItems,ensureLinks,filmstripTiles,fitScale,freeDelta,insertPlan,isLinked,linkClips,linkGroups,linkedIds,moveEffects,moveMarker,planClipMove,removeMarker,resizeEffect,rowItems,rulerLabel,rulerTicks,splitLinked,timelineGaps,trimBounds,trimClips,uncovered,unlinkClips} from './timeline-edit';
+import {addMarker,anchoredScroll,openRange,remapLinks,applyClipStarts,closeRange,collides,deleteItems,ensureLinks,filmstripTiles,fitScale,freeDelta,insertPlan,isLinked,linkClips,linkGroups,linkedIds,moveEffects,moveMarker,planClipMove,removeMarker,resizeEffect,rowItems,rulerLabel,rulerTicks,splitLinked,timelineGaps,trimBounds,trimClips,uncovered,unlinkClips} from './timeline-edit';
 
 const media=(id:string,duration=600):Media=>({id,name:id,path:`/tmp/${id}.mov`,kind:'video',duration,width:1920,height:1080,hasAudio:true});
 const clip=(id:string,track:Clip['track'],start:number,length:number,extra:Partial<Clip>={}):Clip=>({id,mediaId:track==='camera'?'cam':track==='audio'?'mic':'scr',name:id,track,start,sourceIn:0,sourceOut:length,speed:1,gain:1,muted:false,transform:defaultTransform(),effects:defaultEffects(),...extra});
@@ -106,6 +106,13 @@ test('linked trims move together; a ripple trim moves everything after, a plain 
  assert.deepEqual(p.clips.filter(c=>ids.has(c.id)).map(c=>[c.start,c.sourceIn,clipDuration(c)]),[[0,4,8],[0,4,8],[0,4,8]]);
  assert.deepEqual(p.clips.filter(c=>!ids.has(c.id)).map(c=>c.start),[8,8,8]);assert.equal(p.markers![0].time,13);
  trimClips(p,ids,'right',-1,false);assert.ok(p.clips.filter(c=>ids.has(c.id)).every(c=>clipDuration(c)===7));assert.deepEqual(p.clips.filter(c=>!ids.has(c.id)).map(c=>c.start),[8,8,8]);
+});
+
+test('opening time at a point moves everything after it; pasted clips get their own link groups',()=>{
+ n=0;const p=project([...take(1,0,10),...take(2,10,10)]);p.markers=[{id:'m',time:12}];p.captions=[{id:'c',start:11,end:12,text:'x',words:[{text:'x',start:11,end:12}]}];
+ openRange(p,10,5);assert.deepEqual(p.clips.map(c=>c.start),[0,0,0,15,15,15]);assert.equal(p.markers[0].time,17);assert.deepEqual([p.captions[0].start,p.captions[0].words![0].end],[16,17]);assert.deepEqual(p.scenes.map(s=>s.start),[0,15]);
+ ensureLinks(p,id);const copies=p.clips.slice(0,3).map(c=>({...c,id:`copy-${c.id}`,start:10}));p.clips.push(...copies);remapLinks(p,new Set(copies.map(c=>c.id)),id);
+ assert.equal(new Set(copies.map(c=>p.clips.find(x=>x.id===c.id)!.linkId)).size,1);assert.notEqual(p.clips.find(c=>c.id==='copy-screen1')!.linkId,p.clips.find(c=>c.id==='screen1')!.linkId);
 });
 
 test('markers are added sorted, moved and removed',()=>{

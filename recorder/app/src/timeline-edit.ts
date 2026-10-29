@@ -103,6 +103,21 @@ export function timelineGaps(clips:readonly Clip[]):Array<[number,number]>{
  const last=Math.max(0,...clips.filter(c=>gapTracks.has(c.track)).map(end));return uncovered([0,last],clips);
 }
 
+/** Opens `length` seconds at `at` on every track: everything that starts there or later moves later. */
+export function openRange(p:Project,at:number,length:number){
+ if(!(length>0))return;const later=(t:number)=>t>=at-EPS;
+ for(const c of p.clips)if(later(c.start))c.start+=length;
+ for(const e of p.elements)if(later(e.start))e.start+=length;
+ for(const z of p.zooms)if(later(z.start))z.start+=length;
+ for(const c of p.captions)if(later(c.start)){c.start+=length;c.end+=length;if(c.words)c.words=c.words.map(w=>({...w,start:w.start+length,end:w.end+length}));}
+ for(const s of p.scenes)if(later(s.start)&&s.start>0)s.start+=length;
+ for(const m of p.markers??[])if(later(m.time))m.time+=length;
+}
+/** Pasted or duplicated clips get link groups of their own, keeping which of them belong together. */
+export function remapLinks(p:Project,ids:ReadonlySet<string>,newId:()=>string=makeId){
+ const map=new Map<string,string>();for(const c of p.clips)if(ids.has(c.id)&&c.linkId!==undefined){if(!map.has(c.linkId))map.set(c.linkId,newId());c.linkId=map.get(c.linkId);}
+}
+
 /* ---------- Moves without overlaps ---------- */
 
 /** One timeline item for row checks: a clip on its layer row, or an element, caption or zoom on its own row. */

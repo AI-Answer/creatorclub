@@ -14,6 +14,7 @@ import { clipCompositeOrder } from "../shared/timeline-layers.ts";
 import { clipShadow } from "../shared/clip-shadow.ts";
 import { canvasBackgroundBMP, canvasBackgroundGeometry, canvasBackgroundRepeatSize, MOVING_DOTS } from "../shared/canvas-background.ts";
 import { zoomTiming } from "../shared/zoom-timing.ts";
+import { filmstripCount, FILMSTRIP_HEIGHT, FILMSTRIP_WIDTH } from "../shared/filmstrip.ts";
 import {
   clipDuration,
   clipEffectTiming,
@@ -262,6 +263,26 @@ export async function thumbnail(m: Media, cacheDir: string): Promise<string> {
     }
   });
 }
+/** One JPEG sprite of `filmstripCount` evenly spaced frames for the timeline's filmstrip, cached per source file. */
+export async function filmstrip(m: Media, cacheDir: string): Promise<string> {
+  const count = filmstripCount(m.duration);
+  if (m.kind !== "video" || !count) throw new Error("Filmstrips need a video with a known duration");
+  await fs.mkdir(cacheDir, { recursive: true });
+  const key = (await identity(m.path)).key, file = path.join(cacheDir, `${key}.filmstrip-${count}.jpg`);
+  return unique(file, async () => {
+    if (await exists(file)) return file;
+    const tmp = path.join(cacheDir, `${key}.${randomUUID()}.tmp.jpg`);
+    try {
+      await command(FFMPEG, ["-v", "error", "-nostdin", "-y", "-i", m.path, "-vf",
+        `fps=${(count / m.duration).toFixed(6)},scale=${FILMSTRIP_WIDTH}:${FILMSTRIP_HEIGHT}:force_original_aspect_ratio=decrease,pad=${FILMSTRIP_WIDTH}:${FILMSTRIP_HEIGHT}:(ow-iw)/2:(oh-ih)/2:color=0x171b27,tile=${count}x1`,
+        "-frames:v", "1", "-q:v", "5", tmp]);
+      await fs.rename(tmp, file);
+      return file;
+    } finally {
+      await fs.rm(tmp, { force: true });
+    }
+  });
+}
 /** Absolute source-level peaks, uniformly covering [0, duration), never normalized. */
 export async function waveform(m: Media, cacheDir: string): Promise<number[]> {
   if (!m.hasAudio && m.kind !== "audio") return [];
@@ -269,7 +290,7 @@ export async function waveform(m: Media, cacheDir: string): Promise<number[]> {
     throw new Error("Waveform requires a source duration between zero and 24 hours");
   await fs.mkdir(cacheDir, { recursive: true });
   const source = await identity(m.path),
-    count = Math.min(1600, Math.max(64, Math.ceil(m.duration * 20))),
+    count = Math.min(16000, Math.max(64, Math.ceil(m.duration * 50))),
     key = hash(`${source.key}:absolute-channel-peaks-v2:${m.duration}:${count}`),
     file = path.join(cacheDir, `${key}.wave-v2.json`);
   return unique(file, async () => {

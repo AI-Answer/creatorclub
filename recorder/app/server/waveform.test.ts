@@ -23,11 +23,11 @@ test('full-source peaks retain quiet microphone levels, silence and opposite-pha
     const source = path.join(dir, 'long.wav'), cache = path.join(dir, 'cache');
     await writeWave(source, 100, t => t >= 90 ? .6 : t >= 20 && t < 40 ? .006 : 0);
     const media = await probeMedia(source, cache), [peaks, concurrent] = await Promise.all([waveform(media, cache), waveform(media, cache)]);
-    assert.equal(peaks.length, 1600); assert.deepEqual(peaks, concurrent); assert.equal(largest(peaks.slice(0, 300)), 0);
-    const quiet = largest(peaks.slice(321, 639)), loud = largest(peaks.slice(1450));
+    assert.equal(peaks.length, 5000); assert.deepEqual(peaks, concurrent); assert.equal(largest(peaks.slice(0, 990)), 0);
+    const quiet = largest(peaks.slice(1005, 1995)), loud = largest(peaks.slice(4520));
     assert.ok(quiet > .0059 && quiet < .0061, `quiet source must stay quiet: ${quiet}`);
     assert.ok(loud > .59 && loud < .61, `last ten seconds and opposite stereo channels must survive: ${loud}`);
-    assert.ok(loud / quiet > 98 && loud / quiet < 102); assert.equal(largest(peaks.slice(650, 1430)), 0);
+    assert.ok(loud / quiet > 98 && loud / quiet < 102); assert.equal(largest(peaks.slice(2030, 4470)), 0);
     const evidence = path.resolve('../evidence/qa/waveform'); await fs.mkdir(evidence, {recursive: true});
     await fs.writeFile(path.join(evidence, 'backend-acceptance.json'), JSON.stringify({pass: true, duration: media.duration, bins: peaks.length, quietPeak: quiet, loudPeak: loud, ratio: loud / quiet, tailFirstSecond: 90, channels: 'opposite-phase stereo', analysisRate: 8000, amplitude: 'absolute, not normalized'}, null, 2));
   } finally { await fs.rm(dir, {recursive: true, force: true}); }
