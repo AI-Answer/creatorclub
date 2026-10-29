@@ -18,6 +18,9 @@
     const [recScene, setRecSceneS] = useState({});
     const [sbOpen, setSbOpen] = useState(null);
     const route = useRoute();
+    const fromRef = useRef({ route: 'production', label: 'Production' });
+    const LABELS = { overview: 'Overview', ideas: 'Ideas', trending: 'Working now', signals: 'Signals', production: 'Production', settings: 'Settings' };
+    if (LABELS[route.parts[0]]) fromRef.current = { route: route.raw, label: LABELS[route.parts[0]] };
     const ch = S.channels[S.active];
     window.CC_ACTIVE_FIRST = () => (S.channels[S.active].person || S.channels[S.active].name || 'you').split(' ')[0];
 
@@ -69,11 +72,11 @@
       return id;
     };
     const createFresh = (p) => {
-      setS((s) => ({ active: 'fresh', channels: Object.assign({}, s.channels, { fresh: Object.assign({ videos: [] }, s.channels.fresh || {}, { id: 'fresh', person: p.person, name: p.name, handle: null, url: null, topics: p.topics, about: p.about || `Videos about ${p.topics.slice(0, 2).join(' and ')} for ${p.audience.map((a) => a.toLowerCase()).join(', ')}.`, color: '#2563eb' }) }) }));
+      setS((s) => ({ active: 'fresh', channels: Object.assign({}, s.channels, { fresh: Object.assign({ videos: [] }, s.channels.fresh || {}, { id: 'fresh', person: p.person, name: p.name, handle: null, url: null, topics: p.topics, audience: p.audience, about: p.about || `Videos about ${p.topics.slice(0, 2).join(' and ')} for ${p.audience.map((a) => a.toLowerCase()).join(', ')}.`, color: '#2563eb' }) }) }));
       return 'fresh';
     };
     const store = {
-      channel: ch, channels: S.channels, active: S.active, videos: ch.videos,
+      channel: ch, channels: S.channels, active: S.active, videos: ch.videos, from: fromRef.current,
       setActive: (id) => setS((s) => Object.assign({}, s, { active: id })),
       updateVideo, addVideo, setStage, addIdea, ideaFromConcept, ideaFromTrend, ideaFromSignal, createFresh, toast,
       markOnboarded: () => lsSet('cc_onboarded', '1'),

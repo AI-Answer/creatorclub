@@ -730,3 +730,11 @@ label.field { display: block; font-size: 13px; font-weight: 550; margin-bottom: 
 .frame .cap { left: 44%; max-width: 62%; }
 .removed .tpause.kept { display: inline-flex; }
 .removed .trep.kept { display: inline; }
+.reason { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 550; color: var(--accent-text); }
+.legend { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+.legend .chip { height: 20px; }
+.ph-small:empty::before { font-size: 14px; font-weight: 450; letter-spacing: 0; font-style: italic; }
+.ws-foot { display: flex; justify-content: space-between; }
+.ai-items { display: flex; flex-direction: column; gap: 6px; margin: 4px 0 2px; }
+.ai-item { display: flex; gap: 10px; align-items: flex-start; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2); font-size: 13.5px; line-height: 1.45; }
+.tile.note textarea { white-space: pre-wrap; }

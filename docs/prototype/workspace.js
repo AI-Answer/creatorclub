@@ -30,11 +30,11 @@
     const lines = s.points.map((p) => p.replace(/^"|"$/g, '').replace(/^(Say|Proof|Analogy|Roadmap|Rule|Loop|Checklist|Name the false belief):\s*/i, ''));
     return 'Okay, so ' + lines.map((l, i) => (i ? l : l.charAt(0).toLowerCase() + l.slice(1))).join(' ') + (s.title === 'Ending' ? '' : " Let's get into it.");
   }
-  function description(v) {
+  function description(v, chan) {
     let t = 0;
     const ch = v.scenes.map((s) => { const kept = s.takes.find((k) => k.kept); const d = kept ? kept.dur - (v.edit.removed ? s.cut || 0 : 0) : s.dur; const line = `${fmtClock(t)} ${s.title}`; t += d; return line; });
     const next = D.own.find((o) => o.videoId === '_ZehNseg0Qg');
-    return [v.hook.spoken, '', v.angle, ch.length ? '\nChapters\n' + ch.join('\n') : '', next && v.id && !String(v.id).startsWith('fresh') ? `\nWatch next: ${next.title}\nhttps://youtu.be/${next.videoId}` : ''].filter((x) => x !== undefined).join('\n').replace(/\n{3,}/g, '\n\n').trim();
+    return [v.hook.spoken, '', v.angle, ch.length ? '\nChapters\n' + ch.join('\n') : '', next && chan && chan.id === 'samin' ? `\nWatch next: ${next.title}\nhttps://youtu.be/${next.videoId}` : ''].filter((x) => x !== undefined).join('\n').replace(/\n{3,}/g, '\n\n').trim();
   }
 
   // ---------- board model ----------
@@ -77,9 +77,10 @@
   }
   function Header({ v, tab }) {
     const st = useStore();
-    const back = v.stage === 'ideas' ? ['Ideas', 'ideas'] : ['Production', 'production'];
+    const from = st.from;
     return html`<div className="ws-top">
-      <div className="crumb"><a href=${'#/' + back[1]}>${back[0]}</a><${Icon} name="ChevronRight" size=${14} /></div>
+      <a className="btn ghost sm icon-only" href=${'#/' + from.route} title=${'Back to ' + from.label} aria-label=${'Back to ' + from.label}><${Icon} name="ArrowLeft" size=${16} /></a>
+      <div className="crumb"><a href="#/production" title="All videos">Videos</a><${Icon} name="ChevronRight" size=${14} /></div>
       <${Ed} className="ws-title" value=${chosenTitle(v)} ph="Video title" onChange=${(t) => { const titles = v.titles.slice(); titles[v.chosen] = t; st.updateVideo(v.id, { titles }); }} />
       <${Menu} button=${(t) => html`<button className="btn ghost sm" onClick=${t} style=${{ padding: '0 4px' }} aria-label="Change stage"><${StagePill} stage=${v.stage} /><${Icon} name="ChevronDown" size=${13} /></button>`}
         items=${[{ header: 'Move to' }].concat(STAGES.map((s) => ({ label: s.label, check: v.stage === s.id, fn: () => st.setStage(v.id, s.id) })))} />
@@ -109,9 +110,8 @@
     const primary = { board: v.scenes.length > 0, plan: v.scenes.length > 0, record: allKept, edit: v.edit.removed, publish: false }[tab];
     const stageFor = { plan: 'planning', record: 'recording', edit: 'editing', publish: 'publishing' };
     return html`<div className="ws-foot">
-      <div className="l">${prev ? html`<a className="btn ghost" href=${`#/video/${v.id}/${prev[0]}`}><${Icon} name="ChevronLeft" size=${15} />Back to ${prev[1].toLowerCase()}</a>` : html`<a className="btn ghost" href=${v.stage === 'ideas' ? '#/ideas' : '#/production'}><${Icon} name="ChevronLeft" size=${15} />Back to ${v.stage === 'ideas' ? 'ideas' : 'production'}</a>`}</div>
-      <div className="steps">${TABS.map(([k, l], j) => html`<${Fragment} key=${k}>${j > 0 && html`<${Icon} name="ChevronRight" size=${13} className="sep" />`}<a href=${`#/video/${v.id}/${k}`} className=${(tab === k ? 'on' : '') + (tabDone(v, k) ? ' done' : '')}><span className="c">${tabDone(v, k) && tab !== k ? html`<${Icon} name="Check" size=${12} stroke=${2.8} />` : j + 1}</span>${l}</a><//>`)}</div>
-      <div className="r">${next ? html`<button className=${'btn ' + (primary ? 'primary' : '')} onClick=${() => { advance(st, v, stageFor[next[0]]); go(`video/${v.id}/${next[0]}`); }}>Continue to ${next[1].toLowerCase()}<${Icon} name="ChevronRight" size=${15} /></button>` : html`<a className="btn" href="#/production">Back to production</a>`}</div>
+      <div className="l">${prev ? html`<a className="btn ghost" href=${`#/video/${v.id}/${prev[0]}`}><${Icon} name="ChevronLeft" size=${15} />Back to ${prev[1].toLowerCase()}</a>` : html`<a className="btn ghost" href=${'#/' + st.from.route}><${Icon} name="ChevronLeft" size=${15} />Back to ${st.from.label.toLowerCase()}</a>`}</div>
+      <div className="r">${next ? html`<button className=${'btn ' + (primary ? 'primary' : '')} onClick=${() => { advance(st, v, stageFor[next[0]]); go(`video/${v.id}/${next[0]}`); }}>Continue to ${next[1].toLowerCase()}<${Icon} name="ChevronRight" size=${15} /></button>` : html`<a className="btn" href=${'#/' + st.from.route}>Back to ${st.from.label.toLowerCase()}</a>`}</div>
     </div>`;
   }
 
@@ -144,8 +144,26 @@
       window.addEventListener('pointermove', mv); window.addEventListener('pointerup', up);
       setTiles((ts) => ts.filter((x) => x.id !== t.id).concat(ts.filter((x) => x.id === t.id)));
     };
-    const center = () => { const s = scroller.current; return { x: (s.scrollLeft + s.clientWidth / 2) / zoom - 130, y: (s.scrollTop + s.clientHeight / 2) / zoom - 80 }; };
-    const addTile = (t) => { const c = center(); const nt = Object.assign({ id: 't' + Date.now(), x: Math.round(c.x + (Math.random() * 60 - 30)), y: Math.round(c.y + (Math.random() * 60 - 30)), w: 260 }, t); commit(tiles.concat(nt)); setSel(nt.id); return nt; };
+    // New tiles land in the nearest free space to the middle of the view, then scroll into view.
+    const EST_H = { note: 150, link: 110, image: 250, video: 310, signal: 220 };
+    const findSpot = (w, h) => {
+      const sc = scroller.current;
+      const cx = (sc.scrollLeft + sc.clientWidth / 2) / zoom - w / 2, cy = (sc.scrollTop + sc.clientHeight / 2) / zoom - h / 2;
+      const rects = tilesRef.current.map((t) => { const el = document.querySelector(`[data-tile="${t.id}"]`); return { x: t.x, y: t.y, w: t.w, h: el ? el.offsetHeight : 240 }; });
+      const free = (x, y) => x >= 20 && y >= 20 && x + w < 2580 && y + h < 1680 && rects.every((r) => x + w + 16 <= r.x || r.x + r.w + 16 <= x || y + h + 16 <= r.y || r.y + r.h + 16 <= y);
+      for (let rad = 0; rad < 2400; rad += 40) {
+        const n = Math.max(1, Math.round(rad / 12));
+        for (let a = 0; a < n; a++) { const ang = (a / n) * Math.PI * 2; const x = Math.round(cx + Math.cos(ang) * rad), y = Math.round(cy + Math.sin(ang) * rad); if (free(x, y)) return { x, y }; }
+      }
+      return { x: Math.round(cx), y: Math.round(cy) };
+    };
+    const addTile = (t) => {
+      const w = t.w || 260; const spot = findSpot(w, EST_H[t.type] || 200);
+      const nt = Object.assign({ id: 't' + Date.now() + Math.round(Math.random() * 99), w }, t, spot);
+      commit(tilesRef.current.concat(nt)); setSel(nt.id);
+      setTimeout(() => { const el = document.querySelector(`[data-tile="${nt.id}"]`); el && el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' }); }, 60);
+      return nt;
+    };
     const remove = (id) => { const before = tiles; commit(tiles.filter((t) => t.id !== id)); st.toast('Removed from the board', { undo: () => commit(before) }); };
     const submitLink = () => {
       const u = link.trim(); if (!u) return;
@@ -168,7 +186,7 @@
       <div className="canvas-scroll" ref=${scroller}>
         <div className="canvas" style=${{ transform: `scale(${zoom})`, width: 2600 * zoom, height: 1700 * zoom }} onPointerDown=${(e) => { if (e.target.classList.contains('canvas')) setSel(null); }}>
           <div style=${{ position: 'absolute', inset: 0, width: 2600, height: 1700 }} className="canvas">
-            ${tiles.map((t) => html`<div key=${t.id} className=${'tile ' + t.type + (drag === t.id ? ' drag' : '') + (sel === t.id ? ' sel' : '')} style=${{ left: t.x, top: t.y, width: t.w }} onPointerDown=${(e) => onDown(e, t)}>
+            ${tiles.map((t) => html`<div key=${t.id} data-tile=${t.id} className=${'tile ' + t.type + (drag === t.id ? ' drag' : '') + (sel === t.id ? ' sel' : '')} style=${{ left: t.x, top: t.y, width: t.w }} onPointerDown=${(e) => onDown(e, t)}>
               <${TileBody} t=${t} v=${v} onRemove=${() => remove(t.id)} onNote=${(text) => commit(tiles.map((x) => x.id === t.id ? Object.assign({}, x, { text }) : x))} onOpen=${(j) => setBd(j)} />
             </div>`)}
           </div>
@@ -193,7 +211,7 @@
         <button className="btn ghost sm icon-only" aria-label="Zoom in" onClick=${() => setZoom((z) => Math.min(1.5, +(z + 0.1).toFixed(2)))}><${Icon} name="ZoomIn" size=${15} /></button>
         <button className="btn ghost sm" onClick=${() => { setZoom(0.7); scroller.current.scrollTo({ left: 0, top: 0, behavior: 'smooth' }); }}><${Icon} name="Maximize2" size=${14} />Fit</button>
       </div>
-      ${chat && html`<${ChatPanel} v=${v} tiles=${tiles} onClose=${() => setChat(false)} />`}
+      ${chat && html`<${ChatPanel} v=${v} tiles=${tiles} onClose=${() => setChat(false)} onAddNote=${(text) => { addTile({ type: 'note', text, by: 'Claude', w: 280 }); st.toast('Added to the board'); }} />`}
       ${confirm && html`<${Dialog} title="Replace the scenes?" onClose=${() => setConfirm(false)} footer=${html`<${Fragment}><button className="btn ghost" onClick=${() => setConfirm(false)}>Keep my scenes</button><button className="btn primary" onClick=${doDraft}>Replace ${v.scenes.length} scenes</button><//>`}>
         <p className="muted" style=${{ margin: 0, lineHeight: 1.55 }}>This video already has ${v.scenes.length} scenes${recordedCount(v) ? `, and ${recordedCount(v)} are recorded` : ''}. Drafting again replaces them. Your takes stay in the archive.</p><//>`}
       ${bd && html`<${window.CC.BreakdownDrawer} videoId=${bd} onClose=${() => setBd(null)} />`}
@@ -203,7 +221,8 @@
     return html`<div className="th"><${Icon} name=${icon} size=${13} />${label}${children}<button className="btn ghost sm icon-only x" onClick=${onRemove} aria-label="Remove tile" style=${{ width: 22, height: 22 }}><${Icon} name="X" size=${13} /></button></div>`;
   }
   function TileBody({ t, v, onRemove, onNote, onOpen }) {
-    if (t.type === 'note') return html`<${Fragment}><${TileHead} icon="StickyNote" label=${'Note' + (t.by ? ' · ' + t.by : '')} onRemove=${onRemove} /><div className="tb"><textarea defaultValue=${t.text} autoFocus=${!!t.fresh && !t.text} placeholder="Write a note…" onBlur=${(e) => e.target.value !== t.text && onNote(e.target.value)} rows="3" aria-label="Note"></textarea></div><//>`;
+    const st = useStore();
+    if (t.type === 'note') return html`<${Fragment}><${TileHead} icon="StickyNote" label=${'Note' + (t.by ? ' · ' + t.by : '')} onRemove=${onRemove} /><div className="tb"><textarea defaultValue=${t.text} autoFocus=${!!t.fresh && !t.text} placeholder="Write a note…" onBlur=${(e) => e.target.value !== t.text && onNote(e.target.value)} rows=${Math.min(14, Math.max(3, Math.ceil((t.text || '').length / 34) + (t.text || '').split('\n').length - 1))} aria-label="Note"></textarea></div><//>`;
     if (t.type === 'idea') return html`<${Fragment}><${TileHead} icon="Lightbulb" label="The idea" onRemove=${onRemove} /><div className="tb">
       <div style=${{ fontWeight: 650, fontSize: 15, letterSpacing: '-0.01em', marginBottom: 6 }}>${v.title}</div>
       <div className="muted" style=${{ fontSize: 13, lineHeight: 1.5, marginBottom: 10 }}>${v.why}</div>
@@ -212,7 +231,7 @@
     if (t.type === 'video') {
       const tr = trendById[t.videoId]; const j = jobByVideo[t.videoId]; const vi = tr || (j && j.video) || {};
       return html`<${Fragment}><${TileHead} icon="Youtube" label="YouTube" onRemove=${onRemove} /><div className="tb">
-        <${Thumb} videoId=${t.videoId} chip=${html`<${MultChip} m=${multFor(tr)} onThumb=${true} />`} />
+        <${Thumb} videoId=${t.videoId} chip=${html`<${MultChip} m=${multFor(tr)} who=${tr && window.CC.creatorName(tr.channel)} onThumb=${true} />`} />
         <div style=${{ fontWeight: 600, fontSize: 13.5, lineHeight: 1.35, margin: '10px 0 6px' }} className="clamp2">${vi.title || 'YouTube video'}</div>
         ${vi.channel ? html`<div className="row small muted" style=${{ marginBottom: 6 }}><${Avatar} name=${vi.channel} size="xs" /><span className="ellipsis">${vi.channel}</span></div>` : null}
         ${vi.views ? html`<div className="stats"><span><b>${fmtNum(vi.views)}</b> views</span>${vi.vpd ? html`<span><b>${fmtNum(vi.vpd)}</b>/day</span>` : null}<span>${fmtDays(vi.ageDays)}</span></div>` : html`<div className="small muted">Reading the video…</div>`}
@@ -221,10 +240,11 @@
     }
     if (t.type === 'breakdown') {
       const j = jobsById[t.job]; if (!j) return null;
+      const jr = window.CC.jobFor(j, st.channel);
       return html`<${Fragment}><${TileHead} icon="Sparkles" label=${'Breakdown · ' + j.video.channel.split('|')[0].trim()} onRemove=${onRemove} /><div className="tb">
         <div className="row" style=${{ gap: 10, marginBottom: 10 }}><img src=${window.CC.ytThumb(j.video.videoId)} alt="" style=${{ width: 72, height: 40, borderRadius: 5, objectFit: 'cover' }} /><div style=${{ fontWeight: 600, fontSize: 13, lineHeight: 1.3 }} className="clamp2">${j.video.title}</div></div>
         <div className="small faint" style=${{ marginBottom: 6 }}>Why it worked</div>
-        <ol style=${{ margin: 0, paddingLeft: 18, fontSize: 13, lineHeight: 1.5, color: 'var(--text-2)', display: 'flex', flexDirection: 'column', gap: 6 }}>${j.result.whyItWorked.slice(0, 3).map((w, i) => html`<li key=${i}>${w}</li>`)}</ol>
+        <ol style=${{ margin: 0, paddingLeft: 18, fontSize: 13, lineHeight: 1.5, color: 'var(--text-2)', display: 'flex', flexDirection: 'column', gap: 6 }}>${jr.whyItWorked.slice(0, 3).map((w, i) => html`<li key=${i}>${w}</li>`)}</ol>
         <button className="btn sm ghost" style=${{ marginTop: 8 }} onClick=${() => onOpen(j.video.videoId)}><${Icon} name="FileText" size=${13} />Open breakdown</button>
       </div><//>`;
     }
@@ -251,7 +271,22 @@
     return null;
   }
 
-  function ChatPanel({ v, tiles, onClose }) {
+  function hookItems(v) {
+    if (v.id === 'hidden-features') return ['This just did in one step what used to take me five. Most people never touch it.', "I've used this tool every day for a year and I missed this until last week.", "Three features in your AI tool: one click, one workflow, one setup, and you'll use all three by the end of this video."];
+    const base = (v.ideaHook || v.hook.spoken || '').trim();
+    return [base || "Here's the finished result. I'll show you exactly how I made it.", 'Most people think you need to be technical for this. Watch.', "Three levels, and by the end of this video you'll have done all three."];
+  }
+  function titleItems(v) {
+    const pk = C.PACK[v.id] || Object.values(C.PACK).find((x) => x.titles.includes(v.title));
+    const core = v.title.replace(/\?$/, '');
+    const list = pk ? pk.titles.map(window.CC.cleanTitle) : [core, core + ', Explained Simply', 'The Beginner Guide to ' + core];
+    const extra = v.id === 'hidden-features' ? ['3 AI Features Most People Never Touch', 'Stop Ignoring These AI Settings', 'Your AI Tool Does More Than You Think'] : [core + ', Explained Simply', 'The Beginner Guide to ' + core, core + ' in Three Levels'];
+    const fresh = list.concat(extra).filter((t, i, a) => t && !v.titles.includes(t) && a.indexOf(t) === i);
+    return fresh.slice(0, 3);
+  }
+  const strip = (h) => h.replace(/<li>/g, '• ').replace(/<\/li>/g, '\n').replace(/<\/p>/g, '\n').replace(/<[^>]+>/g, '').replace(/\n{2,}/g, '\n').trim();
+
+  function ChatPanel({ v, tiles, onClose, onAddNote }) {
     const st = useStore();
     const [msgs, setMsgs] = useState(v.chat || []);
     const [typing, setTyping] = useState(false);
@@ -259,28 +294,48 @@
     const body = useRef();
     useEffect(() => { body.current && (body.current.scrollTop = body.current.scrollHeight); st.updateVideo(v.id, { chat: msgs }); }, [msgs, typing]);
     const job = v.thumbId && jobByVideo[v.thumbId];
-    const generic = (q) => {
+    const jr = job && window.CC.jobFor(job, st.channel);
+    const answer = (q) => {
       const lq = q.toLowerCase();
-      if (lq.includes('hook')) return `<p>Three openings from what's on the board:</p><ul><li><b>Result first:</b> "${(v.hook.spoken || 'Open on the finished result, then say what it took.').replace(/"/g, '')}"</li><li><b>Wrong belief:</b> "Most people think you need to be technical for this. Watch."</li><li><b>Finish line:</b> "Three levels, and by the end you'll have done all three."</li></ul>`;
-      if (lq.includes('missing')) return `<ul><li><b>Proof you can show.</b> ${v.show && v.show.note ? v.show.note : 'Pick the one result you can show on screen.'}</li><li><b>The one task.</b> Choose a safe sample with no private data.</li><li><b>The gap.</b> ${v.gap && v.gap.note ? v.gap.note : 'Check what already exists before recording.'}</li></ul>`;
-      return `<p>Across the ${tiles.length} tiles on this board:</p><ul>${v.demand && v.demand.note ? `<li><b>Demand.</b> ${v.demand.note} <span class="cite">Idea</span></li>` : ''}${v.gap && v.gap.note ? `<li><b>Gap.</b> ${v.gap.note}</li>` : ''}${job ? `<li><b>From the breakdown.</b> ${job.result.whyItWorked[0]} <span class="cite">Breakdown</span></li>` : ''}</ul><p>Lead with the result on screen, then the three levels.</p>`;
+      if (lq.includes('hook')) return { t: '<p>Three openings from what\'s on the board. Pick one to use it as your spoken hook.</p>', items: hookItems(v).map((x) => ({ kind: 'hook', text: x })) };
+      if (lq.includes('title')) return { t: '<p>Three titles, 7 words or fewer, each a claim rather than a question.</p>', items: titleItems(v).map((x) => ({ kind: 'title', text: x })) };
+      if (C.CHAT[q] && v.id === 'hidden-features' && st.channel.id === 'samin') return { t: C.CHAT[q]() };
+      if (lq.includes('missing')) return { t: `<ul><li><b>Proof you can show.</b> ${v.show && v.show.note ? v.show.note : 'Pick the one result you can show on screen.'}</li><li><b>The one task.</b> Choose a safe sample with no private data.</li><li><b>The gap.</b> ${v.gap && v.gap.note ? v.gap.note : 'Check what already exists before recording.'}</li></ul>` };
+      return { t: `<p>Across the ${tiles.length} tiles on this board:</p><ul>${v.demand && v.demand.note ? `<li><b>Demand.</b> ${v.demand.note} <span class="cite">Idea</span></li>` : ''}${v.gap && v.gap.note ? `<li><b>Gap.</b> ${v.gap.note}</li>` : ''}${jr ? `<li><b>From the breakdown.</b> ${jr.whyItWorked[0]} <span class="cite">Breakdown</span></li>` : ''}</ul><p>Lead with the result on screen, then the three levels.</p>` };
     };
     const ask = (q) => {
       if (!q.trim()) return;
       setMsgs((m) => m.concat({ me: true, t: q })); setText(''); setTyping(true);
-      const r = (C.CHAT[q] && v.id === 'hidden-features') ? C.CHAT[q]() : generic(q);
-      setTimeout(() => { setTyping(false); setMsgs((m) => m.concat({ me: false, t: r })); }, 1100);
+      const r = answer(q);
+      setTimeout(() => { setTyping(false); setMsgs((m) => m.concat(Object.assign({ me: false, used: {} }, r))); }, 1100);
     };
-    const sugg = Object.keys(C.CHAT);
+    const markUsed = (i, k) => setMsgs((m) => m.map((x, j) => (j === i ? Object.assign({}, x, { used: Object.assign({}, x.used, { [k]: true }) }) : x)));
+    const useHook = (i, k, txt) => {
+      const before = v.hook;
+      st.updateVideo(v.id, { hook: Object.assign({}, v.hook, { spoken: txt }) }); markUsed(i, k);
+      st.toast('Set as your spoken hook in Plan', { undo: () => st.updateVideo(v.id, { hook: before }) });
+    };
+    const useTitle = (i, k, txt) => {
+      const before = { titles: v.titles, chosen: v.chosen };
+      const titles = v.titles.slice(); let at = titles.findIndex((x) => !x); if (at < 0) at = v.chosen;
+      titles[at] = txt; st.updateVideo(v.id, { titles, chosen: at }); markUsed(i, k);
+      st.toast('Set as your title in Plan', { undo: () => st.updateVideo(v.id, before) });
+    };
+    const sugg = ['What do these have in common?', 'Write three hooks from this board', 'Suggest three titles', "What's missing before I plan?"];
     return html`<aside className="chat" aria-label="Ask Claude about this board">
       <div className="ch"><${Icon} name="Sparkles" size=${16} style=${{ color: 'var(--accent)' }} />Ask Claude<span className="faint small" style=${{ fontWeight: 500 }}>· reads all ${tiles.length} tiles</span><button className="btn ghost sm icon-only" style=${{ marginLeft: 'auto' }} onClick=${onClose} aria-label="Close chat"><${Icon} name="X" size=${15} /></button></div>
       <div className="cb" ref=${body}>
-        ${!msgs.length && html`<div className="muted" style=${{ fontSize: 13.5, lineHeight: 1.55 }}>Ask anything about what you've gathered. Claude reads every tile: the breakdown, the videos, your notes and the posts.</div>`}
-        ${msgs.map((m, i) => m.me ? html`<div key=${i} className="msg me">${m.t}</div>` : html`<div key=${i} className="msg ai" dangerouslySetInnerHTML=${{ __html: m.t }}></div>`)}
+        ${!msgs.length && html`<div className="muted" style=${{ fontSize: 13.5, lineHeight: 1.55 }}>Ask anything about what you've gathered. Claude reads every tile: the breakdown, the videos, your notes and the posts. Anything useful can go straight onto the board or into your plan.</div>`}
+        ${msgs.map((m, i) => m.me ? html`<div key=${i} className="msg me">${m.t}</div>` : html`<div key=${i} className="msg ai">
+          <div dangerouslySetInnerHTML=${{ __html: m.t }}></div>
+          ${m.items && html`<div className="ai-items">${m.items.map((it, k) => html`<div key=${k} className="ai-item"><div className="grow">${it.text}</div>
+            ${m.used && m.used[k] ? html`<span className="chip b-green" style=${{ flex: 'none' }}><${Icon} name="Check" size=${12} />Used</span>` : html`<button className="btn sm" style=${{ flex: 'none' }} onClick=${() => (it.kind === 'hook' ? useHook(i, k, it.text) : useTitle(i, k, it.text))}>${it.kind === 'hook' ? 'Use as hook' : 'Use as title'}</button>`}</div>`)}</div>`}
+          <div className="row" style=${{ marginTop: 6 }}>${m.used && m.used.board ? html`<span className="chip b-green"><${Icon} name="Check" size=${12} />On the board</span>` : html`<button className="btn sm ghost" onClick=${() => { onAddNote(m.items ? strip(m.t) + '\n' + m.items.map((x) => '• ' + x.text).join('\n') : strip(m.t)); markUsed(i, 'board'); }}><${Icon} name="StickyNote" size=${14} />Add to board</button>`}</div>
+        </div>`)}
         ${typing && html`<div className="typing"><i></i><i></i><i></i></div>`}
       </div>
       <div className="cf">
-        ${!msgs.length && html`<div className="sugg" style=${{ marginBottom: 10 }}>${sugg.map((s) => html`<button key=${s} onClick=${() => ask(s)}><${Icon} name="CornerDownRight" size=${14} />${s}</button>`)}</div>`}
+        ${!msgs.length && html`<div className="sugg" style=${{ marginBottom: 10 }}>${sugg.map((x) => html`<button key=${x} onClick=${() => ask(x)}><${Icon} name="CornerDownRight" size=${14} />${x}</button>`)}</div>`}
         <form className="composer" onSubmit=${(e) => { e.preventDefault(); ask(text); }}>
           <textarea rows="1" value=${text} onChange=${(e) => setText(e.target.value)} onKeyDown=${(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); ask(text); } }} placeholder="Ask about this board" aria-label="Message"></textarea>
           <button className="btn sm primary icon-only" type="submit" disabled=${!text.trim()} aria-label="Send"><${Icon} name="ArrowUp" size=${15} /></button>
@@ -332,7 +387,7 @@
         </div>
         <div className="blk"><div className="blk-h"><h4>Thumbnail text</h4><span className="faint small">2 to 5 words</span></div>
           <div className="row" style=${{ alignItems: 'flex-start', gap: 16 }}>
-            <div className="grow"><${Ed} value=${v.thumbText} ph="Short and readable at phone size" onChange=${(x) => up({ thumbText: x })} style=${{ fontSize: 18, fontWeight: 700, letterSpacing: '-0.02em' }} />
+            <div className="grow"><${Ed} className="ph-small" value=${v.thumbText} ph="Empty. Type 2 to 5 words, readable at phone size" onChange=${(x) => up({ thumbText: x })} style=${{ fontSize: 18, fontWeight: 700, letterSpacing: '-0.02em' }} />
               <div className="small muted" style=${{ marginTop: 10, lineHeight: 1.5 }}>The thumbnail should name one real thing viewers recognise, not repeat the title.</div></div>
             <div className="prev-thumb"><div className="thumb"><${DraftThumb} text=${v.thumbText} seed=${v.id} /></div></div>
           </div></div>
@@ -623,7 +678,7 @@
     const [prog, setProg] = useState(null);
     const [link, setLink] = useState(p.link || '');
     const [err, setErr] = useState('');
-    const desc = useMemo(() => p.desc || description(v), [v.scenes, v.hook, v.angle, p.desc, v.edit.removed]);
+    const desc = useMemo(() => p.desc || description(v, st.channel), [v.scenes, v.hook, v.angle, p.desc, v.edit.removed]);
     useEffect(() => {
       if (v.stage !== 'published' || v.own) return;
       const i = setInterval(() => { const cur = v.publish.views || 0; if (cur > 30000) return; st.updateVideo(v.id, (x) => ({ publish: Object.assign({}, x.publish, { views: (x.publish.views || 0) + 40 + Math.round(Math.random() * 160), hist: (x.publish.hist || []).concat((x.publish.views || 0)).slice(-24) }) })); }, 1300);
@@ -633,7 +688,7 @@
       <div className="card" style=${{ padding: 20, display: 'grid', gridTemplateColumns: '300px 1fr', gap: 22 }}>
         <${Thumb} v=${v} />
         <div><${StagePill} stage="published" /><div style=${{ fontWeight: 650, fontSize: 18, letterSpacing: '-0.015em', margin: '10px 0 14px', lineHeight: 1.3 }}>${v.title}</div>
-          <div className="row" style=${{ gap: 10, alignItems: 'baseline' }}><span className="bignum">${fmtNum(v.views)}</span><span className="muted">views</span><${MultChip} m=${v.views / D.usualViews} suffix="your usual" /></div>
+          <div className="row" style=${{ gap: 10, alignItems: 'baseline' }}><span className="bignum">${fmtNum(v.views)}</span><span className="muted">views</span><${MultChip} m=${v.views / D.usualViews} who="you" label=${true} /></div>
           <div className="small muted" style=${{ marginTop: 6 }}>Published ${fmtDate(v.publishedAt)} · your usual is ${fmtNum(D.usualViews)} views</div>
           <a className="btn" style=${{ marginTop: 16 }} href=${'https://www.youtube.com/watch?v=' + v.thumbId} target="_blank" rel="noopener"><${Icon} name="Youtube" size=${15} />Open on YouTube</a></div>
       </div>
@@ -683,9 +738,9 @@
             <a className="btn ghost sm" style=${{ marginTop: 10 }} href="https://studio.youtube.com" target="_blank" rel="noopener"><${Icon} name="ArrowUpRight" size=${14} />Open YouTube Studio</a></div>`)}
           ${i === cur && s.k === 'mark' && box(s.k, html`<div className="row"><button className="btn primary" onClick=${markPublished}><${Icon} name="CircleCheck" size=${15} />Mark as published</button><span className="small muted">You can undo this.</span></div>`)}
           ${s.k === 'views' && v.stage === 'published' && box(s.k, html`<div>
-            <div className="row" style=${{ alignItems: 'baseline', gap: 10 }}><span className="bignum">${fmtNum(p.views || 0)}</span><span className="muted">views since ${fmtDate(v.publishedAt)}</span><span className="grow"></span><${MultChip} m=${Math.max(0.05, (p.views || 0) / (D.usualViews * 0.02))} suffix="your usual pace" /></div>
+            <div className="row" style=${{ alignItems: 'baseline', gap: 10 }}><span className="bignum">${fmtNum(p.views || 0)}</span><span className="muted">views since ${fmtDate(v.publishedAt)}</span><span className="grow"></span>${st.channel.id === 'samin' ? html`<span className=${'chip mult ' + window.CC.band(Math.max(0.05, (p.views || 0) / (D.usualViews * 0.02)))}>${fmtMult(Math.max(0.05, (p.views || 0) / (D.usualViews * 0.02)))} vs your usual first hours</span>` : null}</div>
             <div className="views-chart" aria-label="Views over time">${Array.from({ length: 24 }, (_, k) => { const val = hist[k] || 0; const mx = Math.max(1, ...hist, p.views || 0); return html`<i key=${k} style=${{ height: (val / mx) * 100 + '%', opacity: val ? .85 : .15 }}></i>`; })}</div>
-            <div className="small muted" style=${{ marginTop: 8 }}>Compared with your usual first hours. The 7-day result shows here next week.</div></div>`)}
+            <div className="small muted" style=${{ marginTop: 8 }}>${st.channel.id === 'samin' ? 'Compared with your usual first hours. ' : ''}The 7-day result shows here next week.</div></div>`)}
         </div>
       </div>`)}
     </div>`;

@@ -1,6 +1,7 @@
 /* Top-level screens: Overview, Ideas, Working now, Signals, Production, Settings. */
 (function () {
   const { useState, useEffect, useRef, useMemo, Fragment } = React;
+  const { topicMatch, trendText, signalText, jobFor, creatorName } = window.CC;
   const { html, D, Icon, fmtNum, fmtMult, fmtDays, fmtHours, fmtDate, fmtClock, TODAY, jobByVideo, trendById, multFor, STAGES, stageLabel,
     progressText, nextAction, defaultTab, chosenTitle, recordedCount, useStore, go, Avatar, MultChip, Level, StagePill, Thumb, SceneDots, Empty, Menu, Drawer, Dialog, SourceIcon, MONTHS } = window.CC;
 
@@ -9,24 +10,25 @@
   const ytIdFrom = (s) => { const m = String(s).match(/(?:v=|youtu\.be\/|shorts\/)([\w-]{11})/); return m ? m[1] : null; };
 
   // ---------- shared cards ----------
-  function TrendCard({ t, onBreak, compact }) {
+  function TrendCard({ t, onBreak, compact, reason }) {
     const st = useStore();
     const job = jobByVideo[t.videoId];
     return html`<div className="card trend hov" onClick=${() => onBreak(t)} tabIndex="0" onKeyDown=${(e) => e.key === 'Enter' && onBreak(t)}>
-      <${Thumb} videoId=${t.videoId} chip=${html`<${MultChip} m=${multFor(t)} onThumb=${true} />`}>
+      <${Thumb} videoId=${t.videoId} chip=${html`<${MultChip} m=${multFor(t)} who=${creatorName(t.channel)} onThumb=${true} dash=${true} />`}>
         ${t.firstSeen === '2026-10-26' && t.ageDays < 2 && html`<span className="chip solid br">New</span>`}
       <//>
       <div className="meta"><${Avatar} name=${t.channel} size="xs" /><span className="ellipsis grow">${t.channel}</span>${t.kind === 'followed' && html`<span className="chip outline" style=${{ height: 20 }}>Followed</span>`}</div>
       <div className="tt clamp2">${t.title}</div>
       <div className="stats"><span title="Total views"><${Icon} name="Eye" size=${13} /><b>${fmtNum(t.views)}</b></span><span title="Views per day since it went up"><${Icon} name="TrendingUp" size=${13} /><b>${fmtNum(t.vpd)}</b>/day</span><span><${Icon} name="Clock" size=${13} />${fmtDays(t.ageDays)}</span></div>
+      ${reason && html`<div className="reason"><${Icon} name="Sparkles" size=${12} />Because you picked ${reason}</div>`}
       ${!compact && html`<div className="foot" onClick=${(e) => e.stopPropagation()}>
         <button className="btn sm" onClick=${() => onBreak(t)}><${Icon} name=${job ? 'FileText' : 'Sparkles'} size=${14} />${job ? 'Open breakdown' : 'Break down'}</button>
-        <button className="btn sm ghost" onClick=${() => st.ideaFromTrend(t)}><${Icon} name="Plus" size=${14} />Make it an idea</button>
+        <button className="btn sm icon-only" style=${{ flex: 'none' }} onClick=${() => st.ideaFromTrend(t)} aria-label="Make it an idea" title="Make it an idea"><${Icon} name="Lightbulb" size=${15} /></button>
       </div>`}
     </div>`;
   }
 
-  function SignalCard({ s }) {
+  function SignalCard({ s, reason }) {
     const st = useStore();
     const [more, setMore] = useState(false);
     const long = s.text.length > 260;
@@ -36,7 +38,7 @@
         <div className="grow" style=${{ minWidth: 0 }}><div className="n ellipsis">${s.author}</div><div className="h ellipsis">${s.source === 'x' ? '@' + s.handle : 'u/' + s.handle} · ${fmtHours(s.ageHours)}</div></div>
         <${SourceIcon} source=${s.source} />
       </div>
-      ${s.flair && html`<div><span className="chip">${s.flair}</span></div>`}
+      ${(s.flair || reason) && html`<div className="row" style=${{ gap: 6, flexWrap: 'wrap' }}>${s.flair && html`<span className="chip">${s.flair}</span>`}${reason && html`<span className="reason"><${Icon} name="Sparkles" size=${12} />Because you picked ${reason}</span>`}</div>`}
       <div className="text">${long && !more ? s.text.slice(0, 250).trim() + '…' : s.text}${long && html`<button className="linkish" style=${{ marginLeft: 4 }} onClick=${() => setMore(!more)}>${more ? 'Show less' : 'Show more'}</button>`}</div>
       <div className="foot">
         <span className="stats"><span title="Likes"><${Icon} name="Heart" size=${13} /><b>${fmtNum(s.likes)}</b></span><span title="Replies"><${Icon} name="MessageCircle" size=${13} /><b>${fmtNum(s.replies)}</b></span>${s.views ? html`<span title="Views"><${Icon} name="Eye" size=${13} /><b>${fmtNum(s.views)}</b></span>` : null}</span>
@@ -49,8 +51,9 @@
 
   // ---------- Breakdown (paste-link result, inline or in drawer) ----------
   const STEPS = ['Reading the video', 'Reading the transcript', 'Reading the comments', 'Writing concepts'];
-  function Breakdown({ videoId, onAdded, firstName = 'Samin', instant, onBack }) {
+  function Breakdown({ videoId, onAdded, instant, onBack }) {
     const st = useStore();
+    const firstName = st.channel.id === 'samin' ? 'Samin' : 'you';
     const job = jobByVideo[videoId];
     const t = trendById[videoId];
     const [step, setStep] = useState(instant ? 99 : 0);
@@ -77,16 +80,15 @@
             ${s}${i === 2 && step > 2 && video ? ` · ${fmtNum(video.comments)} comments` : ''}</div>`)}</div>
         </div></div></div>`;
     }
-    const r = job.result;
-    const usual = D.usualViews;
+    const r = jobFor(job, st.channel);
     return html`<div className="bd">
       <div className="bd-head">
-        <a href=${video.url} target="_blank" rel="noopener" style=${{ width: 220, flex: 'none' }}><${Thumb} videoId=${videoId} chip=${html`<${MultChip} m=${multFor(t)} onThumb=${true} />`} /></a>
+        <a href=${video.url} target="_blank" rel="noopener" style=${{ width: 220, flex: 'none' }}><${Thumb} videoId=${videoId} chip=${html`<${MultChip} m=${multFor(t)} who=${creatorName(video.channel)} onThumb=${true} />`} /></a>
         <div className="grow">
           <div style=${{ fontWeight: 650, fontSize: 17, letterSpacing: '-0.015em', lineHeight: 1.3 }}>${video.title}</div>
           <div className="row" style=${{ marginTop: 8, gap: 8 }}><${Avatar} name=${video.channel} size="sm" /><span className="muted">${video.channel}</span></div>
           <div className="row" style=${{ marginTop: 14, gap: 8, flexWrap: 'wrap' }}>
-            <span className=${'chip mult ' + window.CC.band(video.views / usual)} title="Compared with your usual views">${fmtMult(video.views / usual)} your usual</span>
+            <${MultChip} m=${multFor(t)} who=${creatorName(video.channel)} label=${true} />
             <span className="chip outline"><${Icon} name="Eye" size=${12} />${fmtNum(video.views)} views</span>
             <span className="chip outline"><${Icon} name="Heart" size=${12} />${fmtNum(video.likes)}</span>
             <span className="chip outline"><${Icon} name="MessageCircle" size=${12} />${fmtNum(video.comments)}</span>
@@ -133,8 +135,9 @@
     const active = vids.filter((v) => ['planning', 'recording', 'editing', 'publishing'].includes(v.stage)).sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
     const ideas = vids.filter((v) => v.stage === 'ideas' && !v.hidden);
     const published = vids.filter((v) => v.stage === 'published').sort((a, b) => (b.publishedAt || '').localeCompare(a.publishedAt || ''));
-    const trends = D.trending.filter((t) => t.fit).sort((a, b) => b.vpd - a.vpd).slice(0, 6);
-    const sigs = D.signals.slice().sort((a, b) => b.likes / (b.ageHours + 2) - a.likes / (a.ageHours + 2)).slice(0, 4);
+    const topics = st.channel.topics;
+    const trends = D.trending.map((t) => ({ t, r: topicMatch(trendText(t), topics) })).filter((x) => x.r).sort((a, b) => b.t.vpd - a.t.vpd).slice(0, 6);
+    const sigs = D.signals.map((s) => ({ s, r: topicMatch(signalText(s), topics) })).filter((x) => x.r).sort((a, b) => b.s.likes / (b.s.ageHours + 2) - a.s.likes / (a.s.ageHours + 2)).slice(0, 4).map((x) => x.s);
     const [bd, setBd] = useState(null);
     const first = (st.channel.person || st.channel.name).split(' ')[0];
     const fresh = vids.length === 0 || (active.length === 0 && published.length === 0);
@@ -143,7 +146,7 @@
       <div className="page-head greet">
         <div><h1>${greeting()}, ${first}</h1>
           <div className="lede">${fresh ? (ideas.length ? `You have ${ideas.length} idea${ideas.length > 1 ? 's' : ''}. Open one and start planning.` : "Let's find your first video. Start with what's already working in your space.")
-            : `${active.length} videos in production · ${ideas.length} ideas waiting · ${published.length} published`}</div></div>
+            : `${active.length} video${active.length === 1 ? '' : 's'} in production · ${ideas.length} idea${ideas.length === 1 ? '' : 's'} waiting · ${published.length} published`}</div></div>
         <div className="actions"><button className=${'btn' + (fresh ? '' : ' primary')} onClick=${() => st.openNew()}><${Icon} name="Plus" size=${15} />New video</button></div>
       </div>
 
@@ -168,13 +171,13 @@
       <div className="ov-cols" style=${{ marginTop: 8 }}>
         <div>
           <div className="sec-head"><h2 className="sec"><${Icon} name="TrendingUp" size=${16} />Working now</h2><span className="faint small">Outliers in your space this week</span><button className="linkish more" onClick=${() => go('trending')}>See all ${D.trending.length}</button></div>
-          <div className="grid g3">${trends.map((t) => html`<${TrendCard} key=${t.videoId} t=${t} onBreak=${(x) => setBd(x.videoId)} compact=${true} />`)}</div>
+          <div className="grid g3">${trends.map(({ t, r }) => html`<${TrendCard} key=${t.videoId} t=${t} reason=${r} onBreak=${(x) => setBd(x.videoId)} compact=${true} />`)}</div>
           ${published.length > 0 && html`<${Fragment}>
-            <div className="sec-head"><h2 className="sec">Recently published</h2><span className="faint small">Compared with your usual ${fmtNum(D.usualViews)} views</span></div>
+            <div className="sec-head"><h2 className="sec">Recently published</h2><span className="faint small">Chips compare each video with your usual ${fmtNum(D.usualViews)} views</span></div>
             <div className="card list-card">${published.slice(0, 4).map((v) => html`<div key=${v.id} className="li" onClick=${() => openVideo(v)}>
               <${Thumb} v=${v} className="lt" />
               <div className="grow"><div className="tt clamp2">${v.title}</div><div className="stats" style=${{ marginTop: 4 }}><span><b>${fmtNum(v.views)}</b> views</span><span>${fmtDate(v.publishedAt)}</span></div></div>
-              <${MultChip} m=${v.views / D.usualViews} />
+              <${MultChip} m=${v.views / D.usualViews} who="you" />
             </div>`)}</div>
           <//>`}
         </div>
@@ -207,7 +210,8 @@
   }
 
   function FirstSteps({ ideas, onBreak }) {
-    const jobsVids = D.jobs.map((j) => trendById[j.video.videoId]).filter(Boolean);
+    const st = useStore();
+    const jobsVids = D.jobs.map((j) => trendById[j.video.videoId]).filter(Boolean).map((t) => ({ t, r: topicMatch(trendText(t), st.channel.topics) })).sort((a, b) => (b.r ? 1 : 0) - (a.r ? 1 : 0));
     const done = (k) => k === 'ai' || k === 'space' || (k === 'idea' && ideas.length > 0);
     const steps = [
       { k: 'ai', t: 'Connect your AI', d: 'Claude is connected.' },
@@ -228,10 +232,11 @@
       </div>
       <div>
         <div className="row" style=${{ marginBottom: 10 }}><b style=${{ fontSize: 14 }}>Start here: break one of these down</b></div>
-        <div className="grid g3" style=${{ gap: 12 }}>${jobsVids.map((t) => html`<div key=${t.videoId} className="card trend hov" onClick=${() => onBreak(t)}>
-          <${Thumb} videoId=${t.videoId} chip=${html`<${MultChip} m=${multFor(t)} onThumb=${true} />`} />
+        <div className="grid g3" style=${{ gap: 12 }}>${jobsVids.map(({ t, r }) => html`<div key=${t.videoId} className="card trend hov" onClick=${() => onBreak(t)}>
+          <${Thumb} videoId=${t.videoId} chip=${html`<${MultChip} m=${multFor(t)} who=${creatorName(t.channel)} onThumb=${true} dash=${true} />`} />
           <div className="tt clamp2" style=${{ fontSize: 13 }}>${t.title}</div>
           <div className="stats"><span><b>${fmtNum(t.views)}</b> views</span><span><b>${fmtNum(t.vpd)}</b>/day</span></div>
+          ${r && html`<div className="reason"><${Icon} name="Sparkles" size=${12} />Because you picked ${r}</div>`}
           <button className="btn sm" onClick=${(e) => { e.stopPropagation(); onBreak(t); }}><${Icon} name="Sparkles" size=${14} />Break this down</button>
         </div>`)}</div>
         <div className="small muted" style=${{ marginTop: 12 }}>A breakdown shows why the video worked, what viewers asked, and three concepts you could make.</div>
@@ -324,7 +329,7 @@
     const src = v.sources[0];
     const t = v.thumbId && trendById[v.thumbId];
     return html`<div id=${'idea-' + v.id} className="card idea hov" onClick=${onOpen} tabIndex="0" onKeyDown=${(e) => e.key === 'Enter' && onOpen()} style=${hi ? { boxShadow: '0 0 0 2px var(--accent), var(--shadow-2)', borderColor: 'transparent' } : null}>
-      <${Thumb} v=${v} chip=${html`<${MultChip} m=${multFor(t)} onThumb=${true} />`}>
+      <${Thumb} v=${v} chip=${html`<${MultChip} m=${multFor(t)} who=${t && creatorName(t.channel)} onThumb=${true} />`}>
         ${t && html`<span className="chip solid br"><${Icon} name="Youtube" size=${12} />From ${t.channel.split('|')[0].trim()}</span>`}
         ${hi && html`<span className="chip b-blue" style=${{ position: 'absolute', top: 8, right: 8 }}>New</span>`}
       <//>
@@ -341,6 +346,7 @@
   function IdeaDrawer({ v, onClose }) {
     const st = useStore();
     const job = v.thumbId && jobByVideo[v.thumbId];
+    const jr = job && jobFor(job, st.channel);
     return html`<${Drawer} onClose=${onClose} header=${html`<div className="row"><${StagePill} stage=${v.stage} />${v.timely && html`<span className="chip b-amber">Timely</span>`}</div>`}
       footer=${html`<${Fragment}>${v.hidden ? html`<${IdeaActions} v=${v} />` : html`<${Fragment}><button className="btn ghost sm" onClick=${() => { st.updateVideo(v.id, { hidden: 'later' }); onClose(); st.toast('Saved for later'); }}><${Icon} name="Bookmark" size=${14} />Later</button><span className="grow"></span><button className="btn primary" onClick=${() => { st.setStage(v.id, 'planning'); go(`video/${v.id}/board`); }}><${Icon} name="ArrowRight" size=${15} />Start planning</button><//>`}<//>`}>
       <${Thumb} v=${v} />
@@ -355,52 +361,70 @@
       ${v.sources.length > 0 && html`<div><div className="small faint" style=${{ marginBottom: 8 }}>Sources</div>${v.sources.map((s, i) => html`<div key=${i} className="row" style=${{ padding: '6px 0', fontSize: 13.5 }}>
         ${s.videoId ? html`<img src=${window.CC.ytThumb(s.videoId)} alt="" style=${{ width: 48, height: 27, borderRadius: 4, objectFit: 'cover' }} />` : html`<span className="src-ic" style=${{ background: 'var(--bg-sunk)', color: 'var(--text-2)' }}><${Icon} name="Link" size=${12} /></span>`}
         ${s.url || s.videoId ? html`<a href=${s.url || 'https://www.youtube.com/watch?v=' + s.videoId} target="_blank" rel="noopener" className="ellipsis" style=${{ color: 'var(--accent-text)' }}>${s.label}</a>` : html`<span className="ellipsis">${s.label}</span>`}</div>`)}</div>`}
-      ${job && html`<div style=${{ marginTop: 18 }}><div className="small faint" style=${{ marginBottom: 6 }}>From the breakdown</div><ol style=${{ margin: 0, paddingLeft: 18, color: 'var(--text-2)', lineHeight: 1.55, fontSize: 13.5 }}>${job.result.whyItWorked.slice(0, 2).map((w, i) => html`<li key=${i} style=${{ marginBottom: 6 }}>${w}</li>`)}</ol></div>`}
+      ${job && html`<div style=${{ marginTop: 18 }}><div className="small faint" style=${{ marginBottom: 6 }}>From the breakdown</div><ol style=${{ margin: 0, paddingLeft: 18, color: 'var(--text-2)', lineHeight: 1.55, fontSize: 13.5 }}>${jr.whyItWorked.slice(0, 2).map((w, i) => html`<li key=${i} style=${{ marginBottom: 6 }}>${w}</li>`)}</ol></div>`}
     <//>`;
   }
   const sentenceLevel = (l) => ({ high: 'High', mid: 'Medium', low: 'Low' }[l] || '');
 
   // ---------- Working now ----------
   function Trending() {
+    const st = useStore();
     const { q } = window.CC.useRoute();
     const show = q.get('show') || 'fit';
     const sort = q.get('sort') || 'vpd';
     const [bd, setBd] = useState(null);
     const set = (k, val) => { const p = new URLSearchParams({ show, sort }); p.set(k, val); go('trending?' + p.toString()); };
-    let list = D.trending.filter((t) => show === 'all' || (show === 'fit' ? t.fit : t.kind === 'followed'));
-    list = list.slice().sort((a, b) => sort === 'views' ? b.views - a.views : sort === 'growth' ? ((b.mult || 0) - (a.mult || 0)) || b.vpd - a.vpd : b.vpd - a.vpd);
-    const cnt = { fit: D.trending.filter((t) => t.fit).length, followed: D.trending.filter((t) => t.kind === 'followed').length, all: D.trending.length };
+    const topics = st.channel.topics;
+    const all = D.trending.map((t) => ({ t, r: topicMatch(trendText(t), topics) }));
+    const mine = all.filter((x) => x.r);
+    let list = show === 'all' ? all : show === 'fit' ? mine : all.filter((x) => x.t.kind === 'followed');
+    list = list.slice().sort((A, B) => { const a = A.t, b = B.t; return sort === 'views' ? b.views - a.views : sort === 'growth' ? ((b.mult || 0) - (a.mult || 0)) || b.vpd - a.vpd : b.vpd - a.vpd; });
+    const cnt = { fit: mine.length, followed: all.filter((x) => x.t.kind === 'followed').length, all: all.length };
+    const hidden = all.length - mine.length;
     return html`<div className="page wide">
-      <div className="page-head"><div><h1>Working now</h1><div className="lede">Videos outperforming in your space. Break one down to see why, or make it an idea.</div></div>
+      <div className="page-head"><div><h1>Working now</h1><div className="lede">Videos doing better than usual in your space. Break one down to see why, or save it as an idea.</div></div>
         <div className="actions"><span className="faint small"><${Icon} name="RotateCcw" size=${12} /> Updated Oct 26 · ${D.trending.length} videos</span></div></div>
-      <div className="row" style=${{ marginBottom: 16, gap: 12 }}>
+      <div className="row" style=${{ marginBottom: 10, gap: 12 }}>
         <div className="seg">${[['fit', 'For ' + window.CC_ACTIVE_FIRST()], ['followed', 'Followed'], ['all', 'All']].map(([k, l]) => html`<button key=${k} className=${show === k ? 'on' : ''} onClick=${() => set('show', k)}>${l} <span className="n">${cnt[k]}</span></button>`)}</div>
         <span className="grow"></span>
         <label className="small muted" htmlFor="sortby">Sort by</label>
-        <select id="sortby" className="select" value=${sort} onChange=${(e) => set('sort', e.target.value)}><option value="vpd">Views per day</option><option value="views">Total views</option><option value="growth">Growth</option></select>
+        <select id="sortby" className="select" value=${sort} onChange=${(e) => set('sort', e.target.value)}><option value="vpd">Views per day</option><option value="views">Total views</option><option value="growth">Outlier score</option></select>
       </div>
-      <div className="grid g4">${list.map((t) => html`<${TrendCard} key=${t.videoId} t=${t} onBreak=${(x) => setBd(x.videoId)} />`)}</div>
+      <div className="legend small muted"><span className="chip mult b-blue">1–3×</span><span className="chip mult b-green">3–5×</span><span className="chip mult b-amber">5–10×</span><span className="chip mult b-orange">10–50×</span><span className="chip mult b-grey">—</span>Views compared with that channel's usual. A dash means its usual isn't tracked yet.</div>
+      ${show === 'fit' && html`<div className="small muted" style=${{ margin: '0 0 14px' }}>Matched to your topics: ${(topics || []).map((t) => window.CC.topicLabel(t)).join(', ')}.</div>`}
+      ${list.length ? html`<div className="grid g4">${list.map(({ t, r }) => html`<${TrendCard} key=${t.videoId} t=${t} reason=${show !== 'followed' ? r : null} onBreak=${(x) => setBd(x.videoId)} />`)}</div>`
+        : html`<div className="card"><${Empty} icon="TrendingUp" title="Nothing matches your topics this week" action=${html`<button className="btn" onClick=${() => set('show', 'all')}>Show everything</button>`}>Add a topic in Settings, or look at everything that's working.</${Empty}></div>`}
+      ${show === 'fit' && hidden > 0 && html`<div style=${{ textAlign: 'center', marginTop: 20 }}><button className="btn" onClick=${() => set('show', 'all')}><${Icon} name="Eye" size=${15} />Show everything (${hidden} more, not about your topics)</button></div>`}
       ${bd && html`<${BreakdownDrawer} videoId=${bd} onClose=${() => setBd(null)} />`}
     </div>`;
   }
 
   // ---------- Signals ----------
   function Signals() {
+    const st = useStore();
     const { q } = window.CC.useRoute();
     const src = q.get('source') || 'all';
     const sort = q.get('sort') || 'top';
-    let list = D.signals.filter((s) => src === 'all' || s.source === src);
-    list = list.slice().sort((a, b) => sort === 'new' ? a.ageHours - b.ageHours : b.likes - a.likes);
+    const [everything, setEverything] = useState(false);
+    const topics = st.channel.topics;
+    let list = D.signals.filter((s) => src === 'all' || s.source === src).map((s) => ({ s, r: topicMatch(signalText(s), topics) }));
+    list.sort((A, B) => (sort === 'new' ? A.s.ageHours - B.s.ageHours : B.s.likes - A.s.likes));
+    const mine = list.filter((x) => x.r);
+    const off = list.length - mine.length;
+    const shown = everything ? mine.concat(list.filter((x) => !x.r)) : mine;
     const set = (k, v) => { const p = new URLSearchParams({ source: src, sort }); p.set(k, v); go('signals?' + p.toString()); };
     return html`<div className="page wide">
-      <div className="page-head"><div><h1>Signals</h1><div className="lede">What people in your space are posting and asking on X and Reddit.</div></div>
+      <div className="page-head"><div><h1>Signals</h1><div className="lede">What people in your space are posting and asking on X and Reddit, matched to your topics.</div></div>
         <div className="actions"><span className="faint small">${D.signals.length} posts · last 3 days</span></div></div>
       <div className="row" style=${{ marginBottom: 16, gap: 12 }}>
-        <div className="seg">${[['all', 'All'], ['x', 'X'], ['reddit', 'Reddit']].map(([k, l]) => html`<button key=${k} className=${src === k ? 'on' : ''} onClick=${() => set('source', k)}>${l} <span className="n">${k === 'all' ? D.signals.length : D.signals.filter((s) => s.source === k).length}</span></button>`)}</div>
+        <div className="seg">${[['all', 'All'], ['x', 'X'], ['reddit', 'Reddit']].map(([k, l]) => html`<button key=${k} className=${src === k ? 'on' : ''} onClick=${() => set('source', k)}>${l} <span className="n">${D.signals.filter((s) => (k === 'all' || s.source === k) && topicMatch(signalText(s), topics)).length}</span></button>`)}</div>
+        <span className="small muted">Matched to ${(topics || []).map((t) => window.CC.topicLabel(t)).join(', ')}</span>
         <span className="grow"></span>
         <div className="seg">${[['top', 'Most liked'], ['new', 'Newest']].map(([k, l]) => html`<button key=${k} className=${sort === k ? 'on' : ''} onClick=${() => set('sort', k)}>${l}</button>`)}</div>
       </div>
-      <div className="sig-cols">${list.map((s) => html`<${SignalCard} key=${s.id} s=${s} />`)}</div>
+      ${shown.length ? html`<div className="sig-cols">${shown.map(({ s, r }) => html`<${SignalCard} key=${s.id} s=${s} reason=${r} />`)}</div>`
+        : html`<div className="card"><${Empty} icon="MessagesSquare" title="No posts about your topics right now" action=${html`<button className="btn" onClick=${() => setEverything(true)}>Show everything</button>`}>New posts are read every few hours.</${Empty}></div>`}
+      ${off > 0 && html`<div style=${{ textAlign: 'center', marginTop: 8 }}><button className="btn" onClick=${() => setEverything(!everything)}><${Icon} name=${everything ? 'EyeOff' : 'Eye'} size=${15} />${everything ? 'Hide posts that aren\'t about your topics' : `Show everything (${off} more, not about your topics)`}</button></div>`}
     </div>`;
   }
 
@@ -441,7 +465,7 @@
     const na = nextAction(v);
     return html`<div className=${'card kcard hov' + (dragging ? ' dragging' : '')} draggable="true" onDragStart=${(e) => { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', v.id); onDrag(v.id); }} onDragEnd=${() => onDrag(null)}
       onClick=${() => v.stage === 'ideas' ? go('ideas?open=' + v.id) : openVideo(v)} tabIndex="0" onKeyDown=${(e) => e.key === 'Enter' && openVideo(v)}>
-      <${Thumb} v=${v} chip=${v.own ? html`<${MultChip} m=${v.views / D.usualViews} onThumb=${true} />` : null} />
+      <${Thumb} v=${v} chip=${v.own ? html`<${MultChip} m=${v.views / D.usualViews} who="you" onThumb=${true} />` : null} />
       <div className="tt clamp2">${chosenTitle(v)}</div>
       ${v.scenes.length > 0 && html`<div className="na"><${SceneDots} v=${v} /><span>${recordedCount(v)} of ${v.scenes.length} scenes</span></div>`}
       <div className="na" style=${{ color: v.stage === 'published' ? 'var(--text-2)' : 'var(--accent-text)', fontWeight: 550 }}><${Icon} name=${na.icon || 'ArrowRight'} size=${13} />${na.label}${v.plannedDate && v.stage !== 'published' ? html`<span className="faint" style=${{ marginLeft: 'auto', fontWeight: 500 }}>${fmtDate(v.plannedDate)}</span>` : v.own ? html`<span className="faint" style=${{ marginLeft: 'auto', fontWeight: 500 }}>${fmtDate(v.publishedAt)}</span>` : null}</div>
@@ -468,7 +492,7 @@
         <td><${StagePill} stage=${v.stage} /></td>
         <td>${v.scenes.length ? html`<span className="row"><${SceneDots} v=${v} /><span className="muted tnum">${recordedCount(v)} of ${v.scenes.length}</span></span>` : html`<span className="faint">—</span>`}</td>
         <td className="tnum">${v.publishedAt ? fmtDate(v.publishedAt) : v.plannedDate ? html`<span className="muted">${fmtDate(v.plannedDate)} · planned</span>` : html`<span className="faint">—</span>`}</td>
-        <td className="tnum">${v.views ? html`<span className="row"><b>${fmtNum(v.views)}</b><${MultChip} m=${v.views / D.usualViews} /></span>` : html`<span className="faint">—</span>`}</td>
+        <td className="tnum">${v.views ? html`<span className="row"><b>${fmtNum(v.views)}</b><${MultChip} m=${v.views / D.usualViews} who="you" /></span>` : html`<span className="faint">—</span>`}</td>
       </tr>`)}</tbody></table></div>`;
   }
   function CalendarView() {
@@ -521,7 +545,7 @@
           <section className="set-sec" id="set-ai"><h2>Connected AI</h2><p>CreatorClub uses your own Claude or ChatGPT account. Nothing is billed here.</p>
             <div className="card">
               <div className="srow"><span className="logo" style=${{ background: '#f4e9e1', color: '#c15f3c' }}><${Icon} name="Sparkles" size=${20} /></span>
-                <div className="grow"><div style=${{ fontWeight: 600 }}>Claude</div><div className="small muted row"><span className="dotok"></span>Connected as ${ch.name} · used for ideas, packaging, scenes and scripts</div></div>
+                <div className="grow"><div style=${{ fontWeight: 600 }}>Claude</div><div className="small muted row"><span className="dotok"></span>Connected as ${ch.person || ch.name} · used for ideas, packaging, scenes and scripts</div></div>
                 <button className="btn sm" onClick=${() => st.toast('Signed out of Claude', { undo: () => {} })}>Sign out</button></div>
               <div className="srow"><span className="logo" style=${{ background: 'var(--bg-sunk)' }}><${Icon} name="Bot" size=${20} /></span>
                 <div className="grow"><div style=${{ fontWeight: 600 }}>ChatGPT</div><div className="small muted">${gpt ? html`<span className="row"><span className="dotok"></span>Connected · used when Claude is busy</span>` : 'Optional. Used when Claude is unavailable.'}</div></div>

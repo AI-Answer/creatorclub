@@ -44,6 +44,52 @@
       (kids || []).map((k, i) => React.createElement(k[0], Object.assign({ key: i }, k[1]))));
   }
 
+  // ---------- topics & personalisation ----------
+  const TOPIC_KEYS = {
+    'claude': ['claude', 'anthropic', 'cowork', 'duet'],
+    'ai agents': ['agent', 'hermes', 'autopilot'],
+    'vibe coding': ['vibe', 'coding', 'code', 'developer', 'website'],
+    'ai for small business': ['business', 'client', 'customer', 'sales', ' ads ', 'marketing', ' shop', 'shopify', ' store', 'restaurant', 'pizzeria', 'e-commerce', 'ecommerce'],
+    'automation': ['automat', 'workflow', 'autopilot', 'n8n', 'zapier'],
+    'chatgpt': ['chatgpt', 'gpt', 'openai', 'codex'],
+    'ai video': ['video', 'higgsfield', 'seedance', 'veo', 'animation', 'film', 'stickman'],
+    'making money with ai': ['money', 'earn', 'side hustle', 'millionaire', 'income'],
+    'productivity': ['productiv', 'task', 'email', 'inbox', 'notes', 'deck', 'tutor'],
+  };
+  const topicLabel = (t) => (C.WELCOME.topics.find((x) => x.toLowerCase() === String(t).toLowerCase()) || sentence(String(t)));
+  function topicMatch(text, topics) {
+    const s = ' ' + String(text || '').toLowerCase() + ' ';
+    for (const t of topics || []) {
+      const keys = TOPIC_KEYS[String(t).toLowerCase()] || String(t).toLowerCase().split(/\W+/).filter((w) => w.length > 3);
+      if (keys.some((k) => s.includes(k))) return topicLabel(t);
+    }
+    return null;
+  }
+  const trendText = (t) => t.title + ' ' + t.channel;
+  const signalText = (s) => s.text + ' ' + s.author + ' ' + (s.flair || '');
+  const audText = (ch) => { const a = (ch && ch.audience) || []; return a.length ? a.map((x) => x.toLowerCase()).join(' and ') : 'beginners'; };
+  function fill(text, ch) {
+    if (!text) return text;
+    return text.replace(/\{aud\}/g, audText(ch)).replace(/\{topic\}/g, ((ch && ch.topics) || ['AI'])[0]).replace(/(^|[.!?]\s+)([a-z])/g, (m, a, b) => a + b.toUpperCase());
+  }
+  // A breakdown result for the active channel: Samin's own words on his channel, second person for everyone else.
+  function jobFor(job, ch) {
+    if (!job) return null;
+    if (!ch || ch.id === 'samin') return job.result;
+    const y = C.JOB_YOU[job.id] || {};
+    const r = job.result;
+    return {
+      whyItWorked: (y.whyItWorked || r.whyItWorked).map((w) => fill(w, ch)),
+      viewerQuestions: r.viewerQuestions,
+      concepts: r.concepts.map((c, i) => {
+        const o = (y.concepts || [])[i] || {};
+        const lv = (k) => (o[k] ? { level: o[k].level, note: fill(o[k].note, ch) } : c[k]);
+        return Object.assign({}, c, { angle: fill(o.angle || c.angle, ch), twist: fill(o.twist || c.twist, ch), why: fill(o.why || c.why, ch), demand: lv('demand'), gap: lv('gap'), show: lv('show') });
+      }),
+    };
+  }
+  const creatorName = (channel) => String(channel || '').split('|')[0].trim();
+
   // ---------- data model ----------
   const jobsById = Object.fromEntries(D.jobs.map((j) => [j.id, j]));
   const jobByVideo = Object.fromEntries(D.jobs.map((j) => [j.video.videoId, j]));
@@ -143,9 +189,12 @@
     const c = color || AV_COLORS[hash(name) % AV_COLORS.length];
     return html`<span className=${'avatar ' + size + (sq ? ' sq' : '')} style=${{ background: c }} aria-hidden="true">${initials(name)}</span>`;
   }
-  function MultChip({ m, onThumb, suffix }) {
-    if (!m) return null;
-    return html`<span className=${'chip mult ' + band(m) + (onThumb ? ' on-thumb' : '')} title=${'Views compared with the channel\'s usual: ' + fmtMult(m)}>${fmtMult(m)}${suffix ? ' ' + suffix : ''}</span>`;
+  // One multiplier per video, always "vs <that creator>'s usual". `dash` shows a neutral chip when it isn't tracked.
+  function MultChip({ m, onThumb, who, label, dash }) {
+    const cls = (onThumb ? ' on-thumb' : '');
+    const vs = who === 'you' ? 'vs your usual' : who ? `vs ${who}'s usual` : 'vs usual';
+    if (!m) return dash ? html`<span className=${'chip mult b-grey' + cls} title=${(who ? who + "'s" : "This channel's") + ' usual views aren\'t tracked yet'}>— ${label ? 'usual' : ''}</span>` : null;
+    return html`<span className=${'chip mult ' + band(m) + cls} title=${fmtMult(m) + ' ' + vs}>${fmtMult(m)}${label ? ' ' + vs : ''}</span>`;
   }
   function Level({ label, d }) {
     if (!d) return null;
@@ -277,7 +326,7 @@
 
   window.CC = {
     html, D, C, Icon, fmtNum, fmtMult, band, fmtDays, fmtHours, fmtClock, fmtMS, parseClock, fmtDate, TODAY, hash, initials, ytThumb, sentence, cleanTitle, words, GRADS, MONTHS,
-    jobsById, jobByVideo, trendById, multFor, buildVideo, initialChannels, STAGES, stageLabel, sceneStatus, recordedCount, progressText, nextAction, defaultTab, totalDur, chosenTitle,
+    jobsById, jobByVideo, trendById, multFor, topicMatch, trendText, signalText, jobFor, creatorName, audText, fill, topicLabel, buildVideo, initialChannels, STAGES, stageLabel, sceneStatus, recordedCount, progressText, nextAction, defaultTab, totalDur, chosenTitle,
     Store, useStore, useRoute, go, Avatar, MultChip, Level, StagePill, DraftThumb, Thumb, SceneDots, SceneStatus, Empty, Menu, Dialog, Drawer, copyText, Ed, SourceIcon, Frame, useClickAway,
   };
 })();

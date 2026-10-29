@@ -172,5 +172,51 @@
     ],
   };
 
-  window.CC_CONTENT = { PACK, DETAIL, TRANSCRIPT, BOARD, CHAT, WELCOME };
+
+  // Breakdowns rewritten in second person for any channel that isn't Samin's.
+  // {aud} = who the user makes videos for, {topic} = their first topic.
+  const L = (level, note) => ({ level, note });
+  const JOB_YOU = {
+    'v-J5EbL1UaqG8-mvqz25nn': {
+      whyItWorked: [
+        'Big promise in sentence one: a rebuilt Claude Code app with every new feature explained. It reached 586K views in 2.3 days.',
+        "It tackles the 'should I switch?' fear early: it's 'not only for coders' and is the same tool as Cowork with more features.",
+        'Each feature gets what it is, where to click, then a personal example, so viewers can picture using it themselves.',
+        'Proof from the creator\'s own account: /doctor found 312 problems in 404 files, and skill doctor saved about 20,000 tokens.',
+      ],
+      concepts: [
+        { angle: 'You run /doctor and skill doctor on your own Claude setup, show the problems it finds and the tokens it saves, and walk {aud} through cleaning up theirs.', twist: 'You show your real before and after, then give {aud} a 3-level cleanup: run the command, delete unused skills, rewrite old instructions in plain English.', why: 'The source numbers (404 files, 312 problems, 20,000 tokens) show a feature people want, and a cleanup is practical for {aud}.', show: L('high', 'You can run the commands on your own account and show the results. Check they exist in your version first.') },
+        { angle: 'You build one project with a coordinator chat that spins up separate threads, answering the viewer question about shared context.', twist: 'Use a project {aud} recognise, like launching an offer with a landing page and an email, and test live whether the threads share context.', why: 'Viewers asked about token windows and resets, and {aud} want an AI team that keeps track of a whole project.', gap: L('mid', 'Competition on this exact feature: not checked.'), show: L('mid', 'Projects need Pro or Max, and nested sessions a Team plan. Check your plan before filming.') },
+        { angle: 'You teach three small Claude Code desktop habits: side chats, split view and the context card, from a first test to a multitask workflow.', twist: 'Frame each one as fixing a real beginner pain, like a chat that gets messy or slow, and show the context card before and after compacting.', show: L('high', 'Everything is click-based and easy to show on screen. Check it in your app version.') },
+      ],
+    },
+    'v-QRVz697rEx0-mvpqpfsd': {
+      whyItWorked: [
+        'The title names a scary, specific incident: an AI agent builds its own robot body. It reached 1.6M views in 1.1 days.',
+        "The opening is a fast montage of short answers ('No. No. No.', '90%. 75%. 80%.') before any context. It hooks on fear and curiosity.",
+        'A funny human story is cut with expert interviews. The jokes are among the top comments, so viewers stayed for the people, not just the tech.',
+        'It ends on one hopeful action viewers can take. The top comment, with 1,500 likes, shows people engaging with the fear.',
+      ],
+      concepts: [
+        { angle: "You answer the viewer question 'How do you know you can trust your AI agent?' by running a simple, visible trust test on a real agent, step by step.", twist: 'Give your agent a small task with clear limits, then read its log line by line to see if it stayed inside them. Analogy: a new employee with a keycard.', why: 'People fear agents going rogue. You give {aud} a calm, hands-on check.', demand: L('high', 'The source reached 1.6M views in 1.1 days; agent safety is a clear fear. Search demand not checked.'), show: L('high', 'Run an agent with limits and read its logs on screen. It has to be a real run.') },
+        { angle: 'You turn the common-sense-rules argument into a how-to for setting permissions and limits on an agent {aud} would actually use.', twist: 'Set three plain rules (what it can read, what it can spend, when it must ask), then try to make the agent break them and show what happens.', why: 'It turns a scary topic into a setup {aud} can copy with no technical background.', gap: L('mid', 'Several safety explainers exist, so it needs a distinct angle. Crowding not checked.') },
+        { angle: "You ask 'would you want your AI to know everything about you?' and audit what you've already handed to your AI tools.", twist: 'Walk through your own AI accounts on screen: where to check memory, connected apps and history, and what to turn off, one click at a time.', why: "{aud} worry about privacy but don't know where the settings are. You show each click.", show: L('high', 'Screen-share your own settings pages and blur anything private.') },
+      ],
+    },
+    'v-imkKVWoIzVM-mvppo9k9': {
+      whyItWorked: [
+        "The promise saves time: 10 launches boiled down so you don't read every announcement. It reached 106K views in 5 days.",
+        'The opening names three concrete wins in plain words (video from a prompt, a deck in a chat, Claude in your car), then holds one back for last.',
+        "Each launch gets the same treatment: what it is, why it's useful, whether it's worth your time. Lines like 'if you never touch Cowork, skip it' help viewers sort.",
+        'It ends with a recap and one small action, so viewers leave with something to try the same day.',
+      ],
+      concepts: [
+        { angle: 'You show your own Claude usage on screen and the habits that stretch a limit, answering the viewer whose weekly limit ran out in 2 hours.', twist: 'Do the same task two ways, one heavy and one light, and show what each cost in usage.', show: L('high', 'Open your own usage page and run the same task two ways on screen.') },
+        { angle: 'You have Claude turn your own messy notes into a deck in a normal chat, then edit and export it.', twist: 'Show the notes-to-deck result next to the old copy-paste way, so {aud} can see the difference themselves.', why: 'A small task {aud} can copy in minutes, and the source video ends on this same tip.', show: L('high', 'Fully on screen with your own notes. Check your plan supports it first.') },
+        { angle: 'You test Claude by voice as a private tutor on one subject and report honestly what works.', twist: 'Set a 10-minute lesson goal, speak the prompt aloud, then test yourself afterwards to see if you learned anything.', gap: L('mid', 'Not checked. Voice tutor videos for Claude are unverified.'), show: L('mid', 'Voice works in the Claude app. The in-car part needs a car or screen you may not have, so test it first.') },
+      ],
+    },
+  };
+
+  window.CC_CONTENT = { PACK, DETAIL, TRANSCRIPT, BOARD, CHAT, WELCOME, JOB_YOU };
 })();
