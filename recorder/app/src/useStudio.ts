@@ -63,7 +63,7 @@ export function useStudio(){
    const next=result.project;if(!next||!result.revision||!snapshot||next.id!==snapshot.id)return result;
    commitPendingEdits();
    if(current.current!==snapshot){conflict.current=true;setConflicted(true);setSaveState('Autosave paused');return result;}
-   history.record(snapshot,historyLimit(snapshot));saved.current=next;sent.current=null;revision.current=Promise.resolve(result.revision);current.current=next;setProject(next);setHistoryTick(x=>x+1);setSaveState('Saved locally');
+   history.record(snapshot,historyLimit(snapshot));saved.current=next;sent.current=null;revision.current=Promise.resolve(`"${result.revision.replace(/^W\//,'').replaceAll('"','')}"`);current.current=next;setProject(next);setHistoryTick(x=>x+1);setSaveState('Saved locally');
    return result;
   });
   saveQueue.current=task.then(()=>{});await task;return task;

@@ -345,3 +345,53 @@ test('a reply that is not a conversation shows as an empty one',()=>{
  const asked:CompanionMessage={id:'q1',role:'user',text:'Q',context:{tab:'plan'}};
  assert.equal(normalizeThread({messages:[asked]} as never).messages.length,1);
 });
+
+// ---------------------------------------------------------------- on Edit
+
+test('on Edit: a message carries the playhead and selection, a timeline card previews on the stage and applies through the editor as one undo step',async()=>{
+ FakeEventSource.install();
+ const reply:CompanionReplyMessage={id:'r1',role:'assistant',text:'One card.',tab:'edit',cards:[{action:{type:'cut_pauses',level:'balanced'},state:'offered'}]};
+ const state={messages:[{id:'q0',role:'user',text:'Cut the pauses',context:{tab:'edit'}},reply] as CompanionMessage[]};
+ const server=installFetch(({method,path,body})=>{
+  if(path==='/settings')return {body:{defaultAi:'claude'}};
+  if(path==='/videos/v1/companion'&&method==='GET')return {body:{messages:state.messages}};
+  if(path==='/videos/v1/companion'&&method==='POST'){const b=body as {message:string;context:unknown};const message={id:'q9',role:'user' as const,text:b.message,context:b.context as {tab:'edit'}};state.messages.push(message);return {status:202,body:{jobId:'j9',message}};}
+  const card=/^\/videos\/v1\/companion\/r1\/cards\/0\/(apply|undo)$/.exec(path);
+  if(card){const next={...reply,cards:[card[1]==='apply'?{...reply.cards[0],state:'applied' as const,version:'cv_aaaaaaaaaaaa',result:'Cut 2 pauses, 6.4 s shorter'}:{...reply.cards[0],state:'undone' as const}]};state.messages=[state.messages[0],next];return {body:{message:next,changed:['timeline'],project:{id:'p1'},revision:'rev-2'}};}
+ });
+ const log:string[]=[];
+ let previewKey:string|undefined;
+ const bridge={
+  context:()=>({playhead:6.5,selection:['screen-1'],range:{start:0,end:20}}),
+  flush:async()=>{log.push('flush');},
+  preview:(action:unknown,key:string)=>{log.push(action?`preview ${(action as {type:string}).type}`:'preview off');previewKey=action?key:undefined;return undefined;},
+  commit:async<T,>(run:(revision:string)=>Promise<T>)=>{log.push('commit');return run('rev-1');},
+ };
+ const changed:CompanionChanged[][]=[];
+ const props=()=>({videoId:'v1',tab:'edit' as const,screen:'The editor',pkg,outline,onChanged:(list:CompanionChanged[])=>changed.push(list),editor:{get:()=>bridge as never,state:{selected:2,previewKey}}});
+ const ui=await mountUI(createElement(Companion,props()));
+ try{
+  await flush();
+  const c=ui.container;
+  assert.match(text(c),/Looking at: Edit2 selected/);
+  assert.match(c.querySelector('.cmp-card')?.textContent??'',/Cut pausesCut pauses between your words longer than 1 s, keeping a breath on each side\./,'the card says what it does');
+  await act(async()=>button(c,'Preview').click());
+  assert.deepEqual(log,['preview cut_pauses'],'Preview shows the cut on the stage');
+  await ui.render(createElement(Companion,props()));
+  assert.ok(button(c,'Hide preview'),'pressed while its preview is the one on the stage');
+  await act(async()=>button(c,'Cut them').click());await flush();
+  assert.deepEqual(log,['preview cut_pauses','preview off','commit'],'the preview goes, then the editor saves and applies');
+  const applied=server.calls.find(call=>call.path==='/videos/v1/companion/r1/cards/0/apply')!;
+  assert.deepEqual(applied.body,{revision:'rev-1'},'with the revision the editor saved');
+  assert.deepEqual(changed,[['timeline']]);
+  assert.match(c.querySelector('.cmp-card')?.textContent??'',/Cut 2 pauses, 6\.4 s shorter/);
+  await act(async()=>button(c,'Undo').click());await flush();
+  assert.equal(log.filter(entry=>entry==='commit').length,2,'Undo goes through the editor too');
+  assert.deepEqual(server.calls.find(call=>call.path==='/videos/v1/companion/r1/cards/0/undo')!.body,{revision:'rev-1'});
+
+  await act(async()=>button(c,'Remove the filler words').click());await flush();
+  const asked=server.calls.find(call=>call.method==='POST'&&call.path==='/videos/v1/companion')!;
+  assert.deepEqual(asked.body,{message:'Remove the filler words',context:{tab:'edit',screen:'The editor',playhead:6.5,selection:['screen-1'],range:{start:0,end:20}}},'the editor saves first, then its playhead and selection go with the question');
+  assert.ok(log.includes('flush'));
+ }finally{server.restore();await ui.close();}
+});

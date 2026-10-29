@@ -93,7 +93,8 @@ export function editActionProblem(p:Project,action:EditAction):string|undefined{
   }
   case 'add_text':{
    if(!inRange(action.start)||!(action.duration>0))return 'That time is outside the video.';
-   return overlapping(p,'elements',action.start,action.start+action.duration).length?'Something is already on the text row at that time.':undefined;
+   // A text that would run into the next item stops there; one that starts on another is refused.
+   return overlapping(p,'elements',action.start,action.start+.1).length?'Something is already on the text row at that time.':undefined;
   }
   case 'set_zoom':{
    if(!inRange(action.start)||!(action.duration>0)||action.start+action.duration>length+.05)return 'That time is outside the video.';

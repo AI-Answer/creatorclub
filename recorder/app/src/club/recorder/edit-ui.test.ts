@@ -54,7 +54,7 @@ function serve(jobs:(p:Project)=>AutomationJob[]){
  return {p,calls,restore:()=>{globalThis.fetch=originalFetch;}};
 }
 
-test('embedded Edit: one toolbar, panels and Ask Claude behind Style & more, the transcript open, no Borumi, and Remove them applies every cut',async()=>{
+test('embedded Edit: one toolbar, panels behind Style & more, the transcript open, no Borumi, and Remove them applies every cut',async()=>{
  localStorage.clear();
  const server=serve(p=>[plan(p)]),exported:boolean[]=[];
  const ui=await mountUI(createElement(ClubRecorder,{projectId:server.p.id,mode:'Edit',onBack:()=>{},onExported:(done:boolean)=>exported.push(done)}));
@@ -72,7 +72,8 @@ test('embedded Edit: one toolbar, panels and Ask Claude behind Style & more, the
   assert.ok(ui.container.querySelector('.club-edit-side:not([hidden]) .transcript-panel'),'the transcript is open beside the preview');
   await act(async()=>button(header,'Style & more').click());
   const menu=[...document.querySelectorAll('[role="menu"] button')].map(b=>b.textContent?.trim());
-  for(const item of ['Canvas','Layout','Clip','Zoom','Elements','Music','Captions','Cursor','Import media','Ask Claude','Settings…'])assert.ok(menu.includes(item),`Style & more has ${item}`);
+  for(const item of ['Canvas','Layout','Clip','Zoom','Elements','Music','Captions','Cursor','Import media','Settings…'])assert.ok(menu.includes(item),`Style & more has ${item}`);
+  assert.ok(!menu.includes('Ask Claude'),'the docked companion replaces the editor chat');
   assert.ok(!menu.includes('Automate'),'Automate lives in the Auto-edit and style sheet only');
   await act(async()=>[...document.querySelectorAll<HTMLButtonElement>('[role="menu"] button')].find(b=>b.textContent?.trim()==='Captions')!.click());
   assert.equal(ui.container.querySelector('.club-edit-side .inspector h2')?.textContent,'Captions','a panel opens as a sheet over the side');
