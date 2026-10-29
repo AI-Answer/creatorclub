@@ -164,7 +164,100 @@ export function parseOutline(markdown: string): Outline {
       else scene.talkingPoints.push(body);
     }
   }
+  return scenes.length ? { scenes } : parsePointsOutline(markdown);
+}
+
+const CONFIRM = /\s*\[CONFIRM:[^\]]*\]/g;
+const cleanLine = (value: string) => value.replace(CONFIRM, '').replace(/\*\*/g, '').replace(/\s+/g, ' ').trim();
+
+/**
+ * The old board's outline format: a `## Points` section where each `- Point N: title` is a scene and its indented bullets are what to say
+ * (`On screen:` is what to show; `Structure:` is a template and is left out; `[CONFIRM: …]` notes to the creator are dropped). Scenes have no length there.
+ */
+function parsePointsOutline(markdown: string): Outline {
+  const scenes: OutlineScene[] = [];
+  let inPoints = false;
+  let scene: OutlineScene | undefined;
+  for (const raw of markdown.split('\n')) {
+    const line = raw.replace(/\s+$/, '');
+    const heading = /^##\s+(.*)$/.exec(line.trim());
+    if (heading && !/^\s/.test(line)) {
+      inPoints = /^points$/i.test(heading[1].trim());
+      scene = undefined;
+      continue;
+    }
+    if (!inPoints) continue;
+    const top = /^[-*]\s+Point\s+\d+\s*[:.\-–]\s*(.*)$/i.exec(line);
+    if (top) {
+      scene = { title: cleanLine(top[1]) || 'Untitled', talkingPoints: [], show: '', seconds: 0 };
+      scenes.push(scene);
+      continue;
+    }
+    const sub = scene && /^\s+[-*]\s+(.*)$/.exec(line);
+    if (!scene || !sub) continue;
+    const labelled = /^([^:]{1,40}):\s*(.*)$/.exec(cleanLine(sub[1]));
+    const label = labelled?.[1].toLowerCase();
+    const body = labelled ? labelled[2].trim() : cleanLine(sub[1]);
+    if (label === 'structure' || !body) continue;
+    if (label === 'on screen') scene.show = body;
+    else scene.talkingPoints.push(body);
+  }
   return { scenes };
+}
+
+/** The package an old board outline holds: the Promise as the angle, the first three Title options, and the recommended hook's spoken line. Null when it has none of them. */
+export function packageFromOldOutline(markdown: string): Package | null {
+  const sections = new Map<string, string[]>();
+  let current: string[] | undefined;
+  for (const raw of markdown.split('\n')) {
+    const heading = /^##\s+(.*?)\s*$/.exec(raw);
+    if (heading) sections.set(heading[1].toLowerCase(), (current = []));
+    else current?.push(raw);
+  }
+  const titles = (sections.get('title options') ?? []).map((line) => /^\s*\d+[.)]\s+(.*)$/.exec(line)?.[1]).filter((title): title is string => !!title).map(cleanLine).filter(Boolean).slice(0, 3);
+  const spoken = /"([^"\n]{5,})"/.exec((sections.get('hook') ?? []).join('\n'))?.[1]?.trim() ?? '';
+  const angle = cleanLine((sections.get('promise') ?? []).join(' '));
+  if (!titles.length && !spoken) return null;
+  return { angle, twist: '', titles: [titles[0] ?? '', titles[1] ?? '', titles[2] ?? ''], thumbnailText: '', hook: { visual: '', spoken, text: '' } };
+}
+
+const isBlank = (value: string | undefined) => !value?.trim();
+const packageBlank = (pkg: Package | null) => !pkg || (isBlank(pkg.angle) && isBlank(pkg.twist) && isBlank(pkg.thumbnailText) && pkg.titles.every(isBlank) && Object.values(pkg.hook).every(isBlank) && !pkg.demand && !pkg.gap && !pkg.show);
+
+/** `base` with every empty place filled from `seed`. Nothing that has words or a rating is changed. */
+function fillEmpty(base: Package, seed: Package): Package {
+  return {
+    ...base,
+    ...(base.demand || !seed.demand ? {} : { demand: seed.demand }),
+    ...(base.gap || !seed.gap ? {} : { gap: seed.gap }),
+    ...(base.show || !seed.show ? {} : { show: seed.show }),
+    angle: isBlank(base.angle) ? seed.angle : base.angle,
+    twist: isBlank(base.twist) ? seed.twist : base.twist,
+    thumbnailText: isBlank(base.thumbnailText) ? seed.thumbnailText : base.thumbnailText,
+    titles: base.titles.map((title, i) => (isBlank(title) ? seed.titles[i] : title)) as Package['titles'],
+    hook: { visual: isBlank(base.hook.visual) ? seed.hook.visual : base.hook.visual, spoken: isBlank(base.hook.spoken) ? seed.hook.spoken : base.hook.spoken, text: isBlank(base.hook.text) ? seed.hook.text : base.hook.text },
+  };
+}
+
+/**
+ * A video whose package has nothing in it starts from what it already has, without an AI call: an old board outline's promise, titles and hook,
+ * then the idea's angle, twist, hook and ratings. Only empty places are filled, and a package with anything written is left alone.
+ */
+export async function ensurePackage(slug: string, video: Video): Promise<Package | null> {
+  const id = video.id;
+  const pkg = await readPackage(slug, id);
+  if (!packageBlank(pkg)) return pkg;
+  const idea = video.idea;
+  const old = await readText(outlineFile(slug, id));
+  const seeds: Package[] = [];
+  const fromOutline = old === undefined ? null : packageFromOldOutline(old);
+  if (fromOutline) seeds.push(fromOutline);
+  if (idea && (idea.angle || idea.twist || idea.hook || idea.demand || idea.gap || idea.show)) {
+    seeds.push({ ...emptyPackage(), angle: idea.angle ?? '', twist: idea.twist ?? '', hook: { visual: '', spoken: idea.hook ?? '', text: '' }, ...(idea.demand ? { demand: idea.demand } : {}), ...(idea.gap ? { gap: idea.gap } : {}), ...(idea.show ? { show: idea.show } : {}) });
+  }
+  if (!seeds.length) return pkg;
+  const filled = seeds.reduce(fillEmpty, pkg ?? emptyPackage());
+  return savePackage(slug, id, filled);
 }
 
 const titleKey = (title: string) => squash(title).toLowerCase();
@@ -217,6 +310,22 @@ export async function savePackage(slug: string, id: string, pkg: unknown): Promi
   await store.writeJSON(packageFile(slug, id), parsed);
   await syncPlanningFlags(slug, id);
   return parsed;
+}
+
+const packagePatch = z.object({ ...packageShape.shape, hook: packageShape.shape.hook.partial() }).partial().strict();
+
+/**
+ * Saves part of the package: only the fields sent change, so a page that is behind cannot put back what it did not edit.
+ * A whole package (every field a package needs) replaces it, which is what Undo sends.
+ */
+export function patchPackage(slug: string, id: string, body: unknown): Promise<Package> {
+  return store.withLock(`package:${packageFile(slug, id)}`, async () => {
+    if (packageShape.safeParse(body).success) return savePackage(slug, id, body);
+    const patch = packagePatch.parse(body);
+    const base = (await readPackage(slug, id)) ?? emptyPackage();
+    const { hook, ...rest } = patch;
+    return savePackage(slug, id, { ...base, ...rest, ...(hook ? { hook: { ...base.hook, ...hook } } : {}) });
+  });
 }
 
 /** A package with nothing written yet: no ratings, blank fields. Use as hook or Use as title fills in the one thing it was given. */

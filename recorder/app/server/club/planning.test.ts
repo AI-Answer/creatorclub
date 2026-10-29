@@ -105,7 +105,7 @@ async function finish(jobId: string) {
   throw new Error('job did not finish');
 }
 
-const { adoptSceneIds, formatOutline, parseOutline, scriptSections } = await import('./planning.js');
+const { adoptSceneIds, formatOutline, packageFromOldOutline, parseOutline, scriptSections } = await import('./planning.js');
 const { changedSceneNumber, recorderScenes, syncProject } = await import('./recorder.js');
 const { chapterize, timedCaptions } = await import('./research.js');
 const { validateScenes } = await import('../../src/recording-scenes.js');
@@ -146,6 +146,26 @@ test("the old board's outlines are read as scenes", async () => {
   assert.match(scenes[0].talkingPoints[0], /^phone channels get huge views/, '"Say:" is dropped');
   assert.match(scenes[0].show, /phone settings page/);
   assert.ok(!scenes.some((s) => s.title === 'Promise' || s.title === 'Title options'), '## sections are not scenes');
+});
+
+const migratedOutline = () => readFile(path.join(import.meta.dirname, 'fixtures/board-samin/videos/idea-1a179c8273f-1/outline.md'), 'utf8');
+
+test("a migrated outline with a ## Points section gives one scene per point, with what to say and what to show, and no notes to the creator", async () => {
+  const { scenes } = parseOutline(await migratedOutline());
+  assert.deepEqual(scenes.map((s) => s.title), ['Round 1, drop the old habit and see the first difference', 'Round 2, stop redoing work Claude can remember or reuse', 'Round 3, hand over the bigger job']);
+  assert.match(scenes[0].show, /^Samin runs the task the old way/);
+  assert.ok(!scenes[0].show.includes('CONFIRM'), '[CONFIRM: …] notes are dropped');
+  assert.equal(scenes[0].talkingPoints.length, 4, 'Setup, Analogy or example, Framework and Payoff and Transition; Structure is a template');
+  assert.ok(scenes.every((s) => s.talkingPoints.every((p) => !/^(Setup|Structure|Framework):/.test(p) && !p.includes('CONFIRM'))));
+  assert.deepEqual(parseOutline('## Promise\nSomething.\n').scenes, [], 'no points, no scenes');
+});
+
+test("an old outline's promise, title options and recommended hook become a package", async () => {
+  const pkg = packageFromOldOutline(await migratedOutline())!;
+  assert.deepEqual(pkg.titles, ["Still Using Claude Like It's 2024?", 'Same Task Twice: Old Claude vs New', 'Your Claude Habits Are From 2024']);
+  assert.match(pkg.hook.spoken, /^Are you still using Claude the way you did in 2024\?/);
+  assert.match(pkg.angle, /^By the end, a non-technical viewer/);
+  assert.equal(packageFromOldOutline('## Points\n- Point 1: x\n'), null);
 });
 
 test('a full script splits into its ## scenes', () => {
@@ -326,6 +346,34 @@ test('Package it reads the idea and research, and fixes titles that break the ru
   const edited = { ...goodPackage, angle: 'My own angle' };
   assert.deepEqual((await call('PUT', `/videos/${video.id}/package`, edited)).body, edited);
   assert.equal((await call('PUT', `/videos/${video.id}/package`, { ...edited, titles: ['one'] })).status, 400);
+});
+
+test('PUT /package changes only the fields it is sent, so a page that is behind cannot put back what it did not edit', async () => {
+  const fresh = (await call('POST', '/videos', { title: 'Patched' })).body as Video;
+  await call('PUT', `/videos/${fresh.id}/package`, goodPackage);
+  await call('POST', `/videos/${fresh.id}/package/text`, { kind: 'hook', text: 'A hook from the board.' });
+  const edited = (await call('PUT', `/videos/${fresh.id}/package`, { angle: 'My angle' })).body as Package;
+  assert.equal(edited.angle, 'My angle');
+  assert.equal(edited.hook.spoken, 'A hook from the board.', 'the hook the page never saw stays');
+  assert.deepEqual((await call('PUT', `/videos/${fresh.id}/package`, { hook: { text: 'NEW' } })).body.hook, { visual: 'The result', spoken: 'A hook from the board.', text: 'NEW' });
+  assert.equal((await call('PUT', `/videos/${fresh.id}/package`, { surprise: 1 })).status, 400);
+  assert.equal((await call('PUT', `/videos/${fresh.id}/package`, { titles: ['only one'] })).status, 400);
+  assert.deepEqual((await call('PUT', `/videos/${fresh.id}/package`, goodPackage)).body, goodPackage, 'a whole package still replaces it (Undo)');
+});
+
+test('an empty package starts from the idea (angle, twist, hook, ratings), filling only empty places, with no AI call', async () => {
+  const store = await import('./store.js');
+  const slug = (await store.currentWorkspace())!;
+  const fresh = (await call('POST', '/videos', { title: 'From an idea' })).body as Video;
+  await store.updateVideo(slug, fresh.id, { idea: { angle: 'The idea angle', twist: 'The idea twist', hook: 'Watch what happens when…', demand: { level: 'high', note: 'Asked a lot' }, gap: { level: 'mid', note: 'Some' } } });
+  const before = prompts.length;
+  const read = (await call('GET', `/videos/${fresh.id}/plan`)).body.package as Package;
+  assert.equal(prompts.length, before, 'no model is called');
+  assert.deepEqual([read.angle, read.twist, read.hook.spoken, read.demand?.level, read.gap?.level, read.show], ['The idea angle', 'The idea twist', 'Watch what happens when…', 'high', 'mid', undefined]);
+  await call('PUT', `/videos/${fresh.id}/package`, { angle: 'Mine' });
+  await store.updateVideo(slug, fresh.id, { idea: { angle: 'Changed later', twist: 'T2' } });
+  const again = (await call('GET', `/videos/${fresh.id}/plan`)).body.package as Package;
+  assert.deepEqual([again.angle, again.twist], ['Mine', 'The idea twist'], 'a package with words in it is not touched again');
 });
 
 test('running Package it again fills only what is empty on the server, keeps the hand edits, and Undo brings the earlier package back', async () => {
