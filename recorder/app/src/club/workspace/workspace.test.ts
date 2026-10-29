@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {clockTime} from '../video-plan';
-import {takesWaiting,TAKE_NOT_ADDED,nextTab,previousTab,scenesLine,stageForContinue,tabDone,allScenesKept,continueIsPrimary,pickJumpsToPlan} from './rules';
+import {takesWaiting,TAKE_NOT_ADDED,nextTab,previousTab,scenesLine,stageForContinue,tabDone,allScenesKept,continueIsPrimary,showsStrip} from './rules';
 import {canvasSize,clampZoom,dragTo,keyMove,moveBy,tileBox} from './board-layout';
 import {historyOf,markUsed,noteText,undoRequest} from './chat';
 
@@ -77,9 +77,9 @@ test('Continue is primary only when the tab is done and no other primary is wait
  assert.equal(continueIsPrimary(false,false),false,'not done yet');
 });
 
-test('picking a scene jumps to Plan only from the Board; elsewhere it focuses the scene in place',()=>{
- assert.equal(pickJumpsToPlan('board'),true);
- for(const tab of ['plan','record','edit','publish'] as const)assert.equal(pickJumpsToPlan(tab),false,tab);
+test('the scene chips show on Record and Edit only',()=>{
+ for(const tab of ['record','edit'] as const)assert.equal(showsStrip(tab),true,tab);
+ for(const tab of ['board','plan','publish'] as const)assert.equal(showsStrip(tab),false,tab);
 });
 
 test('Breakdown on a YouTube tile sends the tile\'s own YouTube id, never the CreatorClub video id',async()=>{

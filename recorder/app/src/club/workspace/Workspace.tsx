@@ -15,11 +15,11 @@ import {Foot,Header,Strip} from './Frame';
 import {Publish} from './Publish';
 import {Teleprompter} from './Teleprompter';
 import {outlineSceneFor,promptScene,recorderSceneFor} from './record-logic';
-import {TAKE_NOT_ADDED,takesWaiting,continueIsPrimary,pickJumpsToPlan,nextTab,stageForContinue,tabDone,TAB_LABEL,type TabFacts} from './rules';
+import {TAKE_NOT_ADDED,takesWaiting,continueIsPrimary,showsStrip,nextTab,stageForContinue,tabDone,TAB_LABEL,type TabFacts} from './rules';
 import {originLabel} from '../routes';
 
 /**
- * One video's page: the frame (header, tabs, scene strip, bottom bar) around the tab's own content. Board is the research canvas;
+ * One video's page: the frame (header with the one set of step tabs, scene chips on Record and Edit, a bottom bar with Back and Continue) around the tab's own content. Board is the research canvas;
  * Plan, Record, Edit and Publish show the step screens they have until their own tasks replace them.
  */
 export function Workspace({video,tab,back,navigate,onVideo}:{video:Video;tab:VideoTab;back:Route;navigate(route:Route,options?:{replace?:boolean}):void;onVideo(video:Video):void}){
@@ -122,7 +122,7 @@ export function Workspace({video,tab,back,navigate,onVideo}:{video:Video;tab:Vid
 
  return <div className="ws">
   <Header video={video} tab={tab} back={back} facts={facts} onTitle={saveTitle} onStage={stage=>void moveTo(stage,video.stage)} onTab={target=>void goToTab(target)}/>
-  <Strip scenes={scenes.state} focusId={focusId} tab={tab} onRetry={scenes.reload} onPick={sceneId=>{setFocusId(sceneId);setPickN(n=>n+1);if(pickJumpsToPlan(tab))navigate(tabRoute('plan'));}}/>
+  {showsStrip(tab)&&<Strip scenes={scenes.state} focusId={focusId} onRetry={scenes.reload} onPick={sceneId=>{setFocusId(sceneId);setPickN(n=>n+1);}}/>}
   {moveError&&<div className="ws-body" style={{flex:'none',padding:'8px 18px'}}><ErrorLine message={moveError} onRetry={()=>void continueToNext()}/></div>}
   <div className="ws-body" key={tab}>
    {tab==='board'&&<Board video={video} scenes={list} onDrafted={draftedNow}/>}
@@ -148,6 +148,6 @@ export function Workspace({video,tab,back,navigate,onVideo}:{video:Video;tab:Vid
    {tab==='publish'&&<Publish video={video} pkg={plan.pkg} scenes={list} onVideo={onVideo} onGoTo={target=>navigate(tabRoute(target))}
     saveError={plan.saveError} onRetry={plan.retrySave} onDescription={description=>plan.editPackage({...(pkgNow.current??EMPTY_PACKAGE),description})}/>}
   </div>
-  <Foot tab={tab} back={back} backLabel={backLabel} facts={facts} onTab={target=>void goToTab(target)} next={nextButton}/>
+  <Foot tab={tab} back={back} backLabel={backLabel} onTab={target=>void goToTab(target)} next={nextButton}/>
  </div>;
 }

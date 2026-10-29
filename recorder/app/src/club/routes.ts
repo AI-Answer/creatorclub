@@ -103,8 +103,8 @@ export function routeHash(route:Route):string{
 /** The hash without its query. A screen scrolls to the top and the sidebar forgets a manual toggle only when this changes. */
 export const routePath=(route:Route)=>routeHash(route).split('?')[0];
 
-/** The Record and Edit tabs take the whole window, so the sidebar folds to its icon rail on its own there. */
-export const autoCollapses=(route:Route)=>route.name==='video'&&(route.tab==='record'||route.tab==='edit');
+/** A video's page is the one place to work, so the sidebar folds to its icon rail on its own on every step of a video. */
+export const autoCollapses=(route:Route)=>route.name==='video';
 
 /**
  * The screen a video was opened from: the last screen before the video's page that was not itself a video's page, so moving between tabs

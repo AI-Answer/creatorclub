@@ -41,21 +41,15 @@ export function useMediaAccess(enabled:boolean,previews:PreviewSnapshot):Desktop
  return access;
 }
 
-/** Every problem as one coloured card at the top of the sources column, as in Borumi: one sentence per problem, each with at most one button. Renders nothing when all is well. */
+/** Every problem as one coloured card that takes the place of the readiness line above the Record button: one sentence per problem, each with at most one button. Renders nothing when all is well. */
 export function RecorderWarnings({problems,onAction}:{problems:Problems|null;onAction(action:ProblemAction):void}){
  if(!problems)return null;
  const danger=problems.tone==='danger';
- return <div role="alert" data-tone={problems.tone} className={cn('club-recorder-warnings mx-4 mt-4 flex gap-3 rounded-lg border p-3 font-sans text-sm',danger?'border-danger/25 bg-danger-soft text-danger':'border-band-amber/25 bg-band-amber-soft text-band-amber')}>
+ return <div role="alert" data-tone={problems.tone} className={cn('club-recorder-warnings flex min-w-0 flex-1 gap-3 rounded-lg border p-3 font-sans text-sm',danger?'border-danger/25 bg-danger-soft text-danger':'border-band-amber/25 bg-band-amber-soft text-band-amber')}>
   <TriangleAlert aria-hidden size={16} className="mt-0.5 shrink-0"/>
   <ul className="m-0 flex min-w-0 flex-1 list-none flex-col gap-2 p-0">{problems.lines.map(line=><li key={line.text} className="m-0 flex flex-col items-start gap-2">
    <span>{line.text}</span>
    {line.action&&<Button size="sm" className="text-ink" onClick={()=>onAction(line.action!)}>{PROBLEM_ACTION_LABELS[line.action]}</Button>}
   </li>)}</ul>
  </div>;
-}
-
-/** The pre-flight line under the sources, before the first take. */
-export function PreflightLine({text}:{text:string|null}){
- if(!text)return null;
- return <p role="status" className="club-recorder-preflight mx-4 my-3 font-sans text-sm text-muted">{text}</p>;
 }

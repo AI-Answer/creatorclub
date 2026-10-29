@@ -104,11 +104,11 @@ test('the collapse button folds the sidebar to icons and back, and a new page fo
  });
 });
 
-test('a video opens on the tab for its stage, the sidebar folds itself on Record and Edit, and the choice can be undone there',async()=>{
+test('a video opens on the tab for its stage, the sidebar folds itself on every step of a video, and the choice can be undone there',async()=>{
  await withApp('#/video/p1',async ui=>{
   const c=ui.container;
   assert.equal(window.location.hash,'#/video/p1/plan','planning opens on Plan');
-  assert.equal(c.querySelector('.sidebar.collapsed'),null);
+  assert.ok(c.querySelector('.sidebar.collapsed'),'the sidebar is the rail on Plan too');
   assert.equal(c.querySelector('.sb-video.active .t')!.textContent,'Hidden features in Claude Code');
   await hashTo('#/video/r1');
   assert.equal(window.location.hash,'#/video/r1/record','recording opens on Record');
