@@ -80,6 +80,7 @@ const sceneShape = z
     title: text(300),
     talkingPoints: z.array(text(2000)).max(60),
     show: text(4000),
+    decide: z.array(text(2000)).max(30).optional(),
     seconds: z.number().int().min(0).max(36_000),
   })
   .strict();
@@ -118,10 +119,30 @@ export function formatOutline(outline: Pick<Outline, 'scenes'>): string {
     const lines = [`### ${index + 1}. ${squash(scene.title) || 'Untitled'} (${clock(start)}–${clock(at)})${id}`];
     for (const point of scene.talkingPoints) if (squash(point)) lines.push(`- ${squash(point)}`);
     if (squash(scene.show)) lines.push(`Show: ${squash(scene.show)}`);
+    for (const item of scene.decide ?? []) if (squash(item)) lines.push(`To decide: ${squash(item)}`);
     return lines.join('\n');
   });
   return `${MARKER}\n# Outline\n\n${scenes.join('\n\n')}\n`;
 }
+
+/** An old outline's note to the creator, `[YOUR CALL: …]`. It is a choice to make, not words to say. */
+const YOUR_CALL = /\s*\[YOUR CALL:\s*([^\]]*)\]/gi;
+
+/** Text without its `[YOUR CALL: …]` markers, and the choices they held. */
+export function takeDecisions(value: string): { text: string; decide: string[] } {
+  const decide: string[] = [];
+  const text = value.replace(YOUR_CALL, (_marker, choice: string) => {
+    if (squash(choice)) decide.push(squash(choice));
+    return ' ';
+  });
+  return { text: text.replace(/[ \t]+/g, ' ').replace(/ *\n */g, '\n').trim(), decide };
+}
+
+const addDecisions = (scene: OutlineScene, items: string[]) => {
+  if (!items.length) return;
+  const known = new Set(scene.decide ?? []);
+  scene.decide = [...(scene.decide ?? []), ...items.filter((item) => !known.has(item))];
+};
 
 const HEADING = /^###\s+(?:\d+[.)]\s+)?(.*?)\s*(?:\((\d+):(\d{1,2})\s*[–—-]\s*(\d+):(\d{1,2})\))?\s*$/;
 const HEADING_ID = /\s*<!--\s*id:([A-Za-z0-9_-]{1,40})\s*-->\s*$/;
@@ -152,7 +173,16 @@ export function parseOutline(markdown: string): Outline {
     }
     if (!scene || !line) continue;
     const bullet = /^[-*]\s+(.*)$/.exec(line)?.[1];
-    const body = (bullet ?? line).trim();
+    // `[YOUR CALL: …]` notes and `To decide:` lines are choices for the creator: they go to the scene's "To decide" list, never into what is said.
+    const { text: said, decide } = takeDecisions((bullet ?? line).trim());
+    addDecisions(scene, decide);
+    const toDecide = /^to decide:\s*(.*)$/i.exec(said)?.[1];
+    if (toDecide !== undefined) {
+      if (toDecide.trim()) addDecisions(scene, [squash(toDecide)]);
+      continue;
+    }
+    const body = said;
+    if (!body) continue;
     const show = /^show:\s*(.*)$/i.exec(body)?.[1];
     if (show !== undefined) scene.show = scene.show ? `${scene.show} ${show}` : show;
     else if (bullet !== undefined) {
@@ -639,8 +669,14 @@ export function withScript(scenes: OutlineScene[], raw: string | undefined): Out
   if (!raw?.trim()) return { scenes };
   const sections = scriptSections(raw);
   const withParts = scenes.map((scene, index) => {
-    const body = matchSection(sections, scenes, index)?.body;
-    return body ? { ...scene, script: body } : scene;
+    const found = matchSection(sections, scenes, index)?.body;
+    if (!found) return scene;
+    // An older script can carry `[YOUR CALL: …]` notes too: they join the scene's "To decide" list and leave the words to say.
+    const { text: body, decide } = takeDecisions(found);
+    if (!decide.length) return { ...scene, script: found };
+    const next: OutlineScene = { ...scene, script: body };
+    addDecisions(next, decide);
+    return next;
   });
   const written = withParts.filter((scene) => scene.script).length;
   const byScene = raw.startsWith(SCENES_MARKER);

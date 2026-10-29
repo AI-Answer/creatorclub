@@ -558,10 +558,10 @@
 :where(.club-root) .ed:empty:where(:not(.club-embed *))::before { content: attr(data-ph); color: var(--cc-placeholder); }
 :where(.club-root) .topt:where(:not(.club-embed *)) { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border: 1px solid var(--cc-line); border-radius: 10px; margin-bottom: 6px; transition: border-color .15s, background .15s; cursor: pointer; }
 :where(.club-root) .topt:hover:where(:not(.club-embed *)) { border-color: var(--cc-line-strong); }
-:where(.club-root) .topt.on:where(:not(.club-embed *)) { border-color: var(--cc-text); background: var(--cc-surface-2); }
+:where(.club-root) .topt.on:where(:not(.club-embed *)) { border-color: var(--cc-accent); background: var(--cc-accent-soft); }
 :where(.club-root) .radio:where(:not(.club-embed *)) { width: 16px; height: 16px; border-radius: 50%; border: 1.5px solid var(--cc-line-strong); flex: none; margin-top: 3px; display: flex; align-items: center; justify-content: center; }
-:where(.club-root) .topt.on .radio:where(:not(.club-embed *)) { border-color: var(--cc-text); }
-:where(.club-root) .topt.on .radio:where(:not(.club-embed *))::after { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--cc-text); }
+:where(.club-root) .topt.on .radio:where(:not(.club-embed *)) { border-color: var(--cc-accent); }
+:where(.club-root) .topt.on .radio:where(:not(.club-embed *))::after { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--cc-accent); }
 :where(.club-root) .topt .ed:where(:not(.club-embed *)) { font-weight: 600; font-size: 15px; letter-spacing: -0.01em; flex: 1; }
 :where(.club-root) .topt .cnt:where(:not(.club-embed *)) { font-size: 12px; color: var(--cc-text-3); white-space: nowrap; margin-top: 3px; font-variant-numeric: tabular-nums; }
 :where(.club-root) .topt .cnt.bad:where(:not(.club-embed *)) { color: var(--cc-warn); }
@@ -850,3 +850,22 @@
 /* ---- Tooltip: the label of an icon-only control, with its shortcut. Drawn in the club root, centred under (or over) the control. */
 .club-root .cc-tooltip { z-index: 80; transform: translateX(-50%); display: inline-flex; align-items: center; gap: 8px; max-width: 280px; padding: 4px 8px; border-radius: var(--cc-r-sm); background: var(--cc-toast-bg); color: var(--cc-toast-text); font-size: var(--cc-text-xs); line-height: 16px; font-weight: 500; white-space: nowrap; pointer-events: none; box-shadow: var(--cc-shadow-2); animation: cc-fade var(--cc-dur-fast) ease; }
 .club-root .cc-tooltip kbd { font: inherit; font-size: 11px; padding: 0 4px; border-radius: 4px; background: var(--cc-toast-button); color: var(--cc-toast-text); }
+
+/* ---- Plan: compact package, scenes as rows with one open, the "To decide" list. */
+.club-root .prev-thumb.sm { width: 132px; }
+.club-root .pkg-more { display: inline-flex; align-items: center; gap: 6px; margin: -6px 0 18px; padding: 4px 0; border: 0; background: none; color: var(--cc-text-2); font-size: var(--cc-text-sm); font-weight: 550; cursor: pointer; text-align: left; }
+.club-root .pkg-more:hover { color: var(--cc-text); }
+.club-root .pkg-more:focus-visible { outline: 2px solid var(--cc-accent); outline-offset: 2px; border-radius: var(--cc-r-sm); }
+.club-root .scene.closed { display: flex; align-items: center; gap: 2px; padding: 0 6px 0 4px; margin-bottom: 6px; }
+.club-root .scene.closed .grip { cursor: grab; }
+.club-root .scene-open { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; height: 44px; padding: 0 6px; border: 0; background: none; border-radius: var(--cc-r); cursor: pointer; text-align: left; color: var(--cc-text); font-size: 14px; }
+.club-root .scene-open:hover { background: var(--cc-hover); }
+.club-root .scene-open:focus-visible { outline: 2px solid var(--cc-accent); outline-offset: -2px; }
+.club-root .scene-open .n { width: 24px; height: 24px; border-radius: 7px; background: var(--cc-bg-sunk); display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; flex: none; }
+.club-root .scene-open .t { flex: 1; min-width: 0; font-weight: 600; letter-spacing: -0.008em; }
+.club-root .decide { margin: 0 14px 12px 52px; font-size: 13px; color: var(--cc-text-2); }
+.club-root .decide summary { cursor: pointer; font-weight: 600; color: var(--cc-text-2); padding: 2px 0; width: fit-content; }
+.club-root .decide summary:focus-visible { outline: 2px solid var(--cc-accent); outline-offset: 2px; border-radius: 4px; }
+.club-root .decide ul { list-style: none; margin: 6px 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.club-root .decide li { display: flex; align-items: flex-start; gap: 10px; padding: 8px 10px; border-radius: var(--cc-r); background: var(--cc-bg-sunk); line-height: 1.5; }
+.club-root .decide li span { flex: 1; }

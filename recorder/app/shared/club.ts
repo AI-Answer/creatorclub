@@ -238,6 +238,12 @@ export interface OutlineScene {
   seconds: number;
   /** The scene's part of the script, when it has one. Derived when the outline is read (a script is saved in one file); sending it back does nothing. */
   script?: string;
+  /**
+   * Choices left for the creator ("which tool to use"), shown in Plan as the scene's "To decide" list and never in the teleprompter or the
+   * recording's text. Older outlines wrote them as `[YOUR CALL: …]` inside talking points; they are moved here when the outline is read,
+   * and the file is rewritten (as `To decide:` lines) only when the scene is next saved.
+   */
+  decide?: string[];
 }
 /** Whether the outline has a script: none, some scenes only (written one scene at a time), or every scene. Absent means none. */
 export type ScriptState = 'none' | 'partial' | 'full';

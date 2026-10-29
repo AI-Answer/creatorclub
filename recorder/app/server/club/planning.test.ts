@@ -105,7 +105,7 @@ async function finish(jobId: string) {
   throw new Error('job did not finish');
 }
 
-const { adoptSceneIds, formatOutline, packageFromOldOutline, parseOutline, scriptSections } = await import('./planning.js');
+const { adoptSceneIds, formatOutline, packageFromOldOutline, parseOutline, scriptSections, takeDecisions, withScript } = await import('./planning.js');
 const { changedSceneNumber, recorderScenes, syncProject } = await import('./recorder.js');
 const { chapterize, timedCaptions } = await import('./research.js');
 const { validateScenes } = await import('../../src/recording-scenes.js');
@@ -146,6 +146,35 @@ test("the old board's outlines are read as scenes", async () => {
   assert.match(scenes[0].talkingPoints[0], /^phone channels get huge views/, '"Say:" is dropped');
   assert.match(scenes[0].show, /phone settings page/);
   assert.ok(!scenes.some((s) => s.title === 'Promise' || s.title === 'Title options'), '## sections are not scenes');
+});
+
+test("an old outline's [YOUR CALL: …] notes become the scene's To decide list, out of the talking points; saving writes them as To decide lines", async () => {
+  const board = await readFile(path.join(import.meta.dirname, 'fixtures/board-samin/videos/hidden-features/outline.md'), 'utf8');
+  const { scenes } = parseOutline(board);
+  const level1 = scenes.find((scene) => scene.title.startsWith('Level 1'))!;
+  assert.deepEqual(level1.decide, [
+    "which tool to use. Claude is the default because it's his tool of record. A second tool would widen the audience but splits the proof.",
+    "which Level 1 features. Pick those that are in the tool's docs, easy to show, and not obvious. Cut any you can't check.",
+  ]);
+  for (const scene of scenes) {
+    assert.ok(!scene.talkingPoints.some((point) => /YOUR CALL/i.test(point)), `${scene.title}: no marker in what is said`);
+    assert.ok(!/YOUR CALL/i.test(scene.show));
+  }
+  assert.match(level1.talkingPoints.at(-1)!, /smaller than expected\.$/, 'the point the marker followed ends where it did');
+  assert.equal(scenes[0].decide, undefined, 'a scene without markers has no list');
+  // Saved again, the choices are kept as their own lines and read back the same.
+  const again = parseOutline(formatOutline({ scenes }));
+  assert.deepEqual(again.scenes.map((scene) => scene.decide), scenes.map((scene) => scene.decide));
+  assert.match(formatOutline({ scenes }), /^To decide: which tool to use\./m);
+  assert.doesNotMatch(formatOutline({ scenes }), /YOUR CALL/);
+});
+
+test('a marker inside a point or a script is taken out, and the words around it stay', () => {
+  assert.deepEqual(takeDecisions('Say it plainly. [YOUR CALL: tone] Then move on.'), { text: 'Say it plainly. Then move on.', decide: ['tone'] });
+  const scene = { id: 's_1', title: 'Intro', talkingPoints: ['Hello'], show: '', seconds: 30 };
+  const outline = withScript([scene], '# T\n\n## Intro\nHi there. [YOUR CALL: name the tool]\n');
+  assert.equal(outline.scenes[0].script, 'Hi there.');
+  assert.deepEqual(outline.scenes[0].decide, ['name the tool']);
 });
 
 const migratedOutline = () => readFile(path.join(import.meta.dirname, 'fixtures/board-samin/videos/idea-1a179c8273f-1/outline.md'), 'utf8');

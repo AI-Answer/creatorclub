@@ -85,7 +85,7 @@ test('the scene strip is the only scene list: Record shows just the selected sce
   const c=ui.container,cards=[...c.querySelectorAll('.rsc-scene')];
   assert.equal(cards.length,1,'one block, for the selected scene only');
   assert.equal(cards[0].querySelector('.rsc-scene-title')?.textContent,'Takes');
-  assert.equal(cards[0].querySelector('.rsc-status-text')?.textContent,'Not recorded');
+  assert.equal(cards[0].querySelector('.rsc-status-text'),null,'the status word is on the strip chip only, once per scene');
   assert.equal(cards[0].querySelector('.rsc-no-takes')?.textContent,'No takes yet. Record one above.');
   for(const name of ['Opening','Level 1','Level 2'])assert.equal(c.textContent?.includes(name),false,`${name} is only in the strip, not repeated here`);
   assert.equal(c.textContent?.includes(SCRIPT_ONE),false,'the script is not here: only the teleprompter shows it');

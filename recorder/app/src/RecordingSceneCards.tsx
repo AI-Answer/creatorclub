@@ -94,8 +94,8 @@ export const RecordingSceneCards=memo(function RecordingSceneCards(props:Recordi
     return <div className="rsc-scene-container" key={`${project.id}:${scene.id}`}>
      <article className="rsc-scene rsc-compact is-selected" data-scene-id={scene.id} aria-label={`Takes of ${name}`}>
       <header className="rsc-scene-heading">
+       {/* The scene's status word is on its chip in the strip above, once per scene. */}
        <span className="rsc-scene-title">Takes</span>
-       <span className={`rsc-status-text ${recorded?'is-complete':''}`}>{recorded?'Recorded':'Not recorded'}</span>
        <div data-rsc-menu className="rsc-scene-menu-anchor">{menuButton(key,`More for ${name}`)}{menu===key&&<CardMenu label="Scene actions">
         {menuItem('Record over…',()=>props.onRecord(scene.id,'record-over'),{disabled:!recorded})}
         {menuItem('Import media from file…',()=>props.onImport(scene.id),{icon:<Upload size={15}/>})}
