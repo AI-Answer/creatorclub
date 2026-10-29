@@ -3,6 +3,7 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { z } from 'zod';
 import { CHANGED_SINCE, TAB_ACTIONS, type CompanionAction, type CompanionActionType, type CompanionChanged, type CompanionTab } from '../../shared/companion.js';
+import { addNote, hydrate, removeNote } from './board-docs.js';
 import { ClubError } from './errors.js';
 import type { Package, VideoScene } from '../../shared/club.js';
 import { outlineFile, packageFile, parseOutline, patchPackage, readOutline, readPackage, saveOutline, savePackage, saveScript, scriptFile, syncPlanningFlags, usePackageText } from './planning.js';
@@ -180,7 +181,8 @@ const HANDLERS: { [K in CompanionActionType]: Handler<Extract<CompanionAction, {
   add_note: {
     changed: ['board'],
     apply: async (slug, id, action) => {
-      const tile = await store.addTile(slug, id, { kind: 'note', text: action.text });
+      // A note on the Board is a Markdown file in the video's folder; the text Undo compares with is what that file holds.
+      const tile = await addNote(slug, id, action.text);
       return { result: 'Added to the board', undo: { kind: 'tile', tileId: tile.id, text: tile.text ?? '' } };
     },
   },
@@ -277,10 +279,12 @@ async function undoChange(slug: string, id: string, version: string, undo: Undo)
       return;
     }
     case 'tile': {
-      const tile = await store.readTile(slug, id, undo.tileId).catch(() => undefined);
-      if (!tile) return; // already taken off the board
-      if ((tile.text ?? '') !== undo.text) throw new ClubError(CHANGED_SINCE, 409);
-      await store.deleteTile(slug, id, undo.tileId);
+      const stored = await store.readTile(slug, id, undo.tileId).catch(() => undefined);
+      if (!stored) return; // already taken off the board
+      // The note's text is what its file holds now, so a note written in since is not taken off. Removing it sets the file the app made aside, so it does not come back.
+      const [tile] = await hydrate(slug, id, [stored]);
+      if (!tile.doc?.missing && (tile.text ?? '') !== undo.text) throw new ClubError(CHANGED_SINCE, 409);
+      await removeNote(slug, id, undo.tileId);
       return;
     }
     case 'outline': {

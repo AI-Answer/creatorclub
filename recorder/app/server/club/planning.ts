@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { PLAN_JOB_KINDS, type AiProvider, type JobSnapshot, type Outline, type OutlineScene, type Package, type PackageUseResult, type PlanData, type PlanJobKind, type PlanJobResult, type Video } from '../../shared/club.js';
 import { mergePackage, type PackageGroup } from '../../shared/package-merge.js';
 import { AiError, aiLabel, runAI, type RunAIOptions } from './ai.js';
+import { boardTiles } from './board-docs.js';
 import { readBreakdown } from './breakdown.js';
 import type { ChannelData } from './channel.js';
 import { loadChannelContext } from './context.js';
@@ -729,7 +730,7 @@ export async function runPackage(slug: string, id: string, context: JobContext, 
   const video = await store.readVideo(slug, id);
   const before = await snapshotOf(slug, id, 'package');
   say('Reading the idea and the research board…');
-  const [channel, research, titles] = await Promise.all([loadChannelContext(slug), store.listTiles(slug, id), recentTitles(slug)]);
+  const [channel, research, titles] = await Promise.all([loadChannelContext(slug), boardTiles(slug, id), recentTitles(slug)]);
   const built = await buildPackagePrompt(channel, { idea: ideaFor(video), research, recentTitles: titles });
   const ai = await asker(context, options);
   say('Writing the package…');
@@ -765,8 +766,8 @@ export async function runOutline(slug: string, id: string, context: JobContext, 
   say('Reading your idea, package and research board…');
   const before = await snapshotOf(slug, id, 'outline');
   const previous = (await readOutline(slug, id))?.scenes ?? [];
-  const [channel, pkg, shape] = await Promise.all([loadChannelContext(slug), readPackage(slug, id), reusableOutline(slug, video)]);
-  const built = await buildOutlinePrompt(channel, { idea: ideaFor(video), pkg: pkg ?? undefined, reusableOutline: shape });
+  const [channel, pkg, shape, research] = await Promise.all([loadChannelContext(slug), readPackage(slug, id), reusableOutline(slug, video), boardTiles(slug, id)]);
+  const built = await buildOutlinePrompt(channel, { idea: ideaFor(video), pkg: pkg ?? undefined, reusableOutline: shape, research });
   const ai = await asker(context, options);
   say(shape ? 'Following the shape of the video you broke down. This takes about a minute…' : 'Writing the scenes. This takes about a minute…');
   let outline = parseAnswer(outlineShape, (await ai.ask(built, OUTLINE_BUDGET_USD)).json, ai.who, 'outline');

@@ -502,6 +502,13 @@ export async function readTile(slug: string, videoId: string, tileId: string): P
   return tile;
 }
 
+/** Runs `fn` with the Board of a video held: no tile is added, placed or seeded by anything else meanwhile. */
+export const boardLock = <T>(slug: string, videoId: string, fn: () => Promise<T>) => withLock(`board:${researchDir(slug, videoId)}`, fn);
+/** Saves a whole tile, for code that already holds the Board (see `boardLock`). */
+export const writeTile = (slug: string, videoId: string, tile: ResearchTile) => writeJSON(tileFile(slug, videoId, tile.id), tile);
+export const newTileId = () => newId('t');
+export const nowIso = now;
+
 /** Adds a tile in the first free place on the Board. One at a time per video, so two new tiles never take the same place. */
 export function addTile(slug: string, videoId: string, input: NewTile): Promise<ResearchTile> {
   return withLock(`board:${researchDir(slug, videoId)}`, async () => {

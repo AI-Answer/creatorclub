@@ -12,6 +12,10 @@ You plan the structure of one YouTube video for {name}, as scenes {first} will r
 {direction}
 </direction>
 
+<research>
+{research}
+</research>
+
 <criteria>
 {criteria}
 </criteria>

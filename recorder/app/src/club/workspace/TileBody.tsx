@@ -1,4 +1,4 @@
-import {useEffect,useState} from 'react';
+import {useEffect,useMemo,useState} from 'react';
 import {Image as ImageIcon,X} from 'lucide-react';
 import type {Breakdown,ResearchTile,TranscriptChapter} from '../../../shared/club';
 import {clubFetch,errorMessage} from '../api';
@@ -7,6 +7,8 @@ import {youtubeId} from '../board';
 import {ErrorLine} from '../ErrorLine';
 import {creatorName,fmtDays,fmtNum} from '../format';
 import {Avatar,Icon,Level,MultChip,SourceIcon,Spinner,Thumb,type IconName} from '../ui';
+import {markdownToHtml} from '../markdown';
+import {openInBrowser} from '../markdown/MarkdownEditor';
 import type {Reading} from './useBoard';
 
 /** The picture a tile shows: a video's thumbnail, or the tile's own saved file. */
@@ -17,7 +19,7 @@ export function tileImage(videoId:string,tile:ResearchTile):string|undefined{
 
 /** The head of a tile: its label, and a quiet remove button. */
 function TileHead({icon,label,onRemove}:{icon:IconName;label:string;onRemove():void}){
- return <div className="th"><Icon name={icon} size={13}/>{label}<button type="button" className="btn ghost sm icon-only x" onClick={onRemove} aria-label="Remove tile" style={{width:22,height:22}}><X aria-hidden size={13}/></button></div>;
+ return <div className="th"><Icon name={icon} size={13}/>{label}<button type="button" className="btn ghost sm icon-only x" onClick={onRemove} aria-label="Remove from the board" title="Remove from the board" style={{width:22,height:22}}><X aria-hidden size={13}/></button></div>;
 }
 
 export interface TileBodyProps{
@@ -25,7 +27,7 @@ export interface TileBodyProps{
  videoId:string;
  reading?:Reading;
  onRemove():void;
- onSaveText(text:string):void;
+ onOpen():void;
  onRetryRead():void;
  onBreakdown(videoId:string):void;
 }
@@ -45,11 +47,26 @@ export function TileBody(props:TileBodyProps){
  }
 }
 
-function NoteTile({tile,onRemove,onSaveText}:TileBodyProps){
+/** A note: its Markdown shown as written. It opens in the writing panel; the file it is saved in is named under it. */
+function NoteTile({tile,onRemove,onOpen}:TileBodyProps){
+ const doc=tile.doc,text=tile.text??'';
+ const html=useMemo(()=>markdownToHtml(text),[text]);
+ const label=doc?.root==='folder'?'Note from your Notes folder':'Note';
  return <>
-  <TileHead icon="StickyNote" label="Note" onRemove={onRemove}/>
-  <div className="tb"><textarea defaultValue={tile.text??''} autoFocus={!tile.text} placeholder="Write a note…" aria-label="Note" rows={Math.min(14,Math.max(3,Math.ceil((tile.text??'').length/34)))}
-   onBlur={event=>onSaveText(event.target.value)}/></div>
+  <TileHead icon="StickyNote" label={label} onRemove={onRemove}/>
+  <div className="tb">
+   {doc?.missing?<div className="small muted">{doc.root==='folder'?<>This note is from a Notes folder that is not the current one: <span className="note-path">{doc.folder??'an earlier folder'}</span>. It shows again if you choose that folder.</>:'This file is not in its folder any more. Put it back and it shows here again, or remove the card.'}</div>
+    :doc?.tooLarge?<div className="small muted">This file is over 1 MB, so it is not shown. It stays in its folder.</div>
+    :<div role="button" tabIndex={0} className="note-preview" aria-label={`Open note: ${tile.title||'empty note'}`} onClick={event=>{
+       // A link in the preview opens in the browser, never in the app, and does not open the note.
+       const anchor=(event.target as HTMLElement).closest('a');
+       if(anchor){event.preventDefault();event.stopPropagation();openInBrowser(anchor.getAttribute('href')??'');return;}
+       onOpen();
+      }} onKeyDown={event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();onOpen();}}}>
+      {text.trim()?<div className="md-view" dangerouslySetInnerHTML={{__html:html}}/>:<span className="muted">Empty note. Click to write.</span>}
+     </div>}
+   {doc&&<div className="note-file small faint ellipsis" title={doc.path}>{doc.path}</div>}
+  </div>
  </>;
 }
 

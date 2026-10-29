@@ -5,9 +5,14 @@ import {failureMessage,isStartedJob,watchJob} from '../jobs';
 import {useToast} from '../ui';
 import {KEY_SAVE_MS} from './board-layout';
 import {deleteTileLater,usePendingTiles} from './tile-delete';
+import {mergeTiles} from './board-files';
+import {useBoardEvents} from './useBoardFiles';
 
 export type Reading={phase:'running'}|{phase:'failed';message:string};
 export const READ_FAILED="Couldn't read that video.";
+
+/** A note's save: the tile as the server shows it now, and when the file had been changed elsewhere, the copy kept of that other version. */
+export type NoteSaved={tile:ResearchTile;conflict?:{copy:string}};
 
 export type NewTile={kind:ResearchTile['kind'];url?:string;text?:string};
 type Place={x:number;y:number};
@@ -59,6 +64,18 @@ export function useBoard(videoId:string){
  },[base]);
  useEffect(()=>{load();},[load]);
 
+ /** Reads the Board again after the files behind it changed. Tiles being moved keep the places waiting to be saved; a failed read changes nothing. */
+ const refresh=useCallback(()=>{
+  clubFetch<ResearchTile[]>(base).then(found=>{
+   const merged=mergeTiles(found,waiting.current);
+   for(const tile of merged)if(!saved.current.has(tile.id))saved.current.set(tile.id,tile.pos);
+   setLoaded(merged);
+   for(const tile of merged)if(tile.kind==='video'&&!tile.title&&!stops.current.has(tile.id))readRef.current(tile);
+  },()=>{});
+ },[base]);
+ const [changes,setChanges]=useState(0);
+ useBoardEvents(videoId,()=>{refresh();setChanges(count=>count+1);});
+
  /** Saves the place waiting for a tile. A failure puts the tile back where the server has it. */
  const commit=useCallback(async(id:string)=>{
   clearTimeout(timers.current.get(id));timers.current.delete(id);
@@ -107,14 +124,22 @@ export function useBoard(videoId:string){
   }
  },[base,read,toast]);
 
- /** Saves what was written in a note. */
- const saveText=useCallback(async(id:string,text:string)=>{
-  const before=loaded?.find(tile=>tile.id===id)?.text;
-  if((before??'')===text)return;
-  change(id,{text});
-  try{await clubFetch(`${base}/${encodeURIComponent(id)}`,{method:'PATCH',body:{text}});}
-  catch(reason){change(id,{text:before});toast(errorMessage(reason,"Couldn't save that note."));}
- },[base,change,loaded,toast]);
+ /**
+  * Saves what was written in a note, to its file. `base` is the hash of the text the writer was looking at: if the file holds something else by now,
+  * the server keeps the other version as a copy and says so. Resolves to the saved tile, or throws the sentence to show.
+  */
+ const saveNote=useCallback(async(id:string,text:string,basis?:string):Promise<NoteSaved>=>{
+  const {conflict,...tile}=await clubFetch<ResearchTile&{conflict?:{copy:string}}>(`${base}/${encodeURIComponent(id)}`,{method:'PATCH',body:{text,...(basis?{base:basis}:{})}});
+  replace(tile);
+  if(conflict)refresh();
+  return {tile,...(conflict?{conflict}:{})};
+ },[base,replace,refresh]);
+
+ /** Puts a tile the server made (a pinned file, a dropped note) on the Board. */
+ const adopt=useCallback((incoming:readonly ResearchTile[])=>{
+  for(const tile of incoming)saved.current.set(tile.id,tile.pos);
+  setLoaded(current=>{const known=new Set((current??[]).map(tile=>tile.id));return [...(current??[]),...incoming.filter(tile=>!known.has(tile.id))];});
+ },[]);
 
  /** Takes a tile off the Board, for good once its toast has gone unless Undo is pressed. */
  const remove=useCallback((tile:ResearchTile)=>{
@@ -122,5 +147,5 @@ export function useBoard(videoId:string){
   toast('Removed from the board',{undo});
  },[videoId,toast]);
 
- return {tiles,loadError,reload:load,reading,read,add,preview,place,saveText,remove};
+ return {tiles,changes,loadError,reload:load,refresh,reading,read,add,adopt,preview,place,saveNote,remove};
 }
