@@ -76,7 +76,7 @@ function ChannelSwitcher({collapsed,epoch,onSwitched,onAdd}:{collapsed:boolean;e
   },()=>toast("Couldn't switch channels."));
  },[channels?.current,onSwitched,toast]);
  const current=channels?.workspaces.find(workspace=>workspace.slug===channels.current);
- if(channels&&!current)return <a href="#/welcome" className="channel-btn" title={collapsed?'Add a channel':undefined} aria-label="Add a channel">
+ if(channels&&!current)return <a href="#/welcome?step=2" className="channel-btn" title={collapsed?'Add a channel':undefined} aria-label="Add a channel">
   <span className="avatar lg sq" aria-hidden style={{background:'var(--cc-bg-sunk)',color:'var(--cc-text-2)'}}><Icon name="Plus" size={16}/></span>
   <span className="meta"><div className="name ellipsis">Add a channel</div></span>
  </a>;

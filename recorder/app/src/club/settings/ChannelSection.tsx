@@ -25,7 +25,7 @@ export function ChannelSection({workspace,focus,onSaved,onSetup}:{workspace:Work
    ?<>
     <ChannelForm key={workspace.slug} workspace={workspace} onSaved={onSaved} onSetup={onSetup}/>
     <VoiceGuide key={`voice-${workspace.slug}`} workspace={workspace} onSaved={onSaved}/>
-    <Card className="mt-5 p-4" id="set-followed"><FollowedChannels key={`followed-${workspace.slug}`} focus={focus==='followed'}/><SignalSources key={`signals-${workspace.slug}`} focus={focus==='sources'}/></Card>
+    <Card className="mt-5 p-4" id="set-followed"><FollowedChannels key={`followed-${workspace.slug}`} focus={focus==='followed'}/><SignalSources key={`signals-${workspace.slug}`} focus={focus==='sources'} topics={workspace.topics}/></Card>
    </>
    :<Card className="p-4"><div className="row"><p className="muted" style={{margin:0}}>No channel yet.</p><Button size="sm" variant="primary" onClick={onSetup}>Add your channel</Button></div></Card>}
  </section>;

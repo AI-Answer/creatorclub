@@ -11,6 +11,13 @@ export const ACTIVE_STAGES:readonly VideoStage[]=['planning','recording','editin
 const isActive=(video:Video)=>ACTIVE_STAGES.includes(video.stage);
 const byUpdated=(a:Video,b:Video)=>b.updatedAt.localeCompare(a.updatedAt);
 
+/** Who the greeting names: the person, else the first word of a channel's name when it was added from its link (a fresh channel has no link, so its name is a topic, not a person). */
+export const greetingName=(profile:{person?:string;name:string;channelUrl:string}|null|undefined)=>{
+ if(!profile)return '';
+ if(profile.person?.trim())return firstName(profile.person);
+ return profile.channelUrl.trim()?firstName(profile.name.replace(/^@/,'')):'';
+};
+
 export const firstName=(name:string)=>name.trim().split(/\s+/)[0]||name;
 
 export interface Standing{active:Video[];ideas:Video[];published:Video[]}

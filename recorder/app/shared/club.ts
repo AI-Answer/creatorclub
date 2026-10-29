@@ -19,6 +19,36 @@ export interface Workspace {
 
 /** The topics Welcome offers, in the spelling shown to the person. */
 export const TOPIC_LABELS = ['Claude', 'AI agents', 'Vibe coding', 'AI for small business', 'Automation', 'ChatGPT', 'AI video', 'Making money with AI', 'Productivity'] as const;
+/**
+ * Well-known subreddits for a topic, keyed by the topic in lower case. Signals sources offers them as chips and never adds one by itself.
+ * A topic that is not here has no suggestion.
+ */
+export const TOPIC_SUBREDDITS: Readonly<Record<string, readonly string[]>> = {
+  claude: ['ClaudeAI'],
+  'ai agents': ['AI_Agents'],
+  'vibe coding': ['vibecoding'],
+  'ai for small business': ['smallbusiness'],
+  automation: ['automation'],
+  chatgpt: ['ChatGPT'],
+  'making money with ai': ['sidehustle'],
+  productivity: ['productivity'],
+  cooking: ['Cooking'],
+};
+
+/** The subreddits to suggest for a channel's topics, each once, leaving out those already in `have` (compared without `r/` and ignoring case). */
+export function suggestSubreddits(topics: readonly string[], have: readonly string[]): string[] {
+  const bare = (name: string) => name.trim().replace(/^r\//i, '').toLowerCase();
+  const taken = new Set(have.map(bare));
+  const out: string[] = [];
+  for (const topic of topics)
+    for (const name of TOPIC_SUBREDDITS[topic.trim().toLowerCase()] ?? [])
+      if (!taken.has(bare(name))) {
+        taken.add(bare(name));
+        out.push(name);
+      }
+  return out;
+}
+
 /** The audiences Welcome offers. */
 export const AUDIENCE_LABELS = ['Complete beginners', 'Small-business owners', 'Creators', 'Developers', 'Students'] as const;
 

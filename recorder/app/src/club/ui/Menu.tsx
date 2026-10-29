@@ -1,4 +1,4 @@
-import {useEffect,useRef,useState,type CSSProperties,type ReactNode} from 'react';
+import {useEffect,useLayoutEffect,useRef,useState,type CSSProperties,type ReactNode} from 'react';
 import {createPortal} from 'react-dom';
 import {Icon,type IconName} from './Icon';
 import {useClickAway} from './useClickAway';
@@ -29,9 +29,17 @@ export function Menu({button,items,align='left',width,label}:{button(toggle:()=>
   window.addEventListener('resize',close);window.addEventListener('scroll',scrolled,true);
   return()=>{window.removeEventListener('resize',close);window.removeEventListener('scroll',scrolled,true);};
  },[open]);
+ const anchor=useRef<{top:number;bottom:number}|null>(null);
+ // Once it is drawn, a menu that would run off the bottom of the window opens upward from the button instead, when there is more room above.
+ useLayoutEffect(()=>{
+  if(!open||!menu.current||!anchor.current)return;
+  const height=menu.current.getBoundingClientRect().height,{top,bottom}=anchor.current;
+  if(height>0&&bottom+6+height>window.innerHeight-8&&top>window.innerHeight-bottom)setPlace(current=>{const {top:_below,...rest}=current;return {...rest,bottom:window.innerHeight-top+6};});
+ },[open]);
  const toggle=()=>{
   if(!open&&ref.current){
    const box=ref.current.getBoundingClientRect();
+   anchor.current={top:box.top,bottom:box.bottom};
    setHost(ref.current.closest('.club-root'));
    setPlace({top:box.bottom+6,...(align==='left'?{left:box.left}:{right:window.innerWidth-box.right})});
   }

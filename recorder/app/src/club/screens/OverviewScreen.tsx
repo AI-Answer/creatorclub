@@ -8,7 +8,7 @@ import {FirstSteps} from '../FirstSteps';
 import {fmtDate,fmtHours,fmtNum} from '../format';
 import {videoThumbId} from '../ideas';
 import {qualifies} from '../trending-view';
-import {ACTIVE_STAGES,firstName,greeting,isFresh,nextAction,overviewLede,progressText,resumeVideos,stageCounts,standing} from '../overview';
+import {ACTIVE_STAGES,greeting,greetingName,isFresh,nextAction,overviewLede,progressText,resumeVideos,stageCounts,standing} from '../overview';
 import type {Route,VideoTab} from '../routes';
 import {useSceneProgress} from '../scenes';
 import {Empty,Icon,Level,SceneDots,SourceIcon,Spinner,Thumb} from '../ui';
@@ -48,7 +48,7 @@ export function OverviewScreen({navigate,onNewVideo}:{navigate(route:Route):void
 
  return <div className="page">
   <div className="page-head greet">
-   <div><h1>{profile?.person?`${greeting()}, ${firstName(profile.person)}`:greeting()}</h1><div className="lede">{overviewLede(now)}</div></div>
+   <div><h1>{greetingName(profile)?`${greeting()}, ${greetingName(profile)}`:greeting()}</h1><div className="lede">{overviewLede(now)}</div></div>
    <div className="actions"><button type="button" className={`btn${fresh?'':' primary'}`} onClick={onNewVideo}><Icon name="Plus" size={15}/>New video</button></div>
   </div>
 

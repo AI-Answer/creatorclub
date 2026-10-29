@@ -3,6 +3,9 @@ import type {SignalEntry} from '../../../shared/club';
 import {SignalCard} from '../cards/SignalCard';
 import {ErrorLine} from '../ErrorLine';
 import {topicLabel} from '../format';
+import {SubredditChips} from '../settings/SubredditChips';
+import {withEntry} from '../settings';
+import {clubFetch,errorMessage} from '../api';
 import {RefreshActions} from '../RefreshActions';
 import type {Route} from '../routes';
 import {SIGNAL_FILTERS,SIGNAL_SORTS,signalCounts,signalList,type SignalFilter,type SignalSort} from '../signals-view';
@@ -21,13 +24,23 @@ export function SignalsScreen({navigate}:{navigate(route:Route):void}){
  const {state}=useVideos();
  const toast=useToast();
  const [source,setSource]=useState<SignalFilter>('all'),[sort,setSort]=useState<SignalSort>('top'),[everything,setEverything]=useState(false);
- const [note,setNote]=useState(''),[allFailed,setAllFailed]=useState<string[]|null>(null);
+ const [adding,setAdding]=useState(false),[note,setNote]=useState(''),[allFailed,setAllFailed]=useState<string[]|null>(null);
  const videos=state.status==='ready'?state.videos:[];
  const makeIdea=useIdeaFrom(videos,navigate);
  const items=feed.data?.items;
  const {shown,off}=useMemo(()=>signalList(items??[],source,sort,everything),[items,source,sort,everything]);
  const counts=useMemo(()=>signalCounts(items??[]),[items]);
 
+ /** Saves one suggested subreddit to the channel's sources, then reads the list again so Refresh turns on. */
+ const addSubreddit=async(name:string)=>{
+  setAdding(true);
+  try{
+   const config=await clubFetch<{reddit?:string[]}>('/signals-config');
+   await clubFetch('/signals-config',{method:'PUT',body:{reddit:withEntry(config.reddit??[],name)}});
+   feed.reload();
+  }catch(reason){toast(errorMessage(reason,"Couldn't add that."));}
+  finally{setAdding(false);}
+ };
  const refresh=()=>{
   setNote('');setAllFailed(null);
   feed.refresh(result=>{
@@ -53,7 +66,8 @@ export function SignalsScreen({navigate}:{navigate(route:Route):void}){
 
   {feed.data.items.length===0
    ?sources===0
-    ?<div className="card"><Empty icon="MessagesSquare" title="Add where to read" action={<button type="button" className="btn primary" onClick={()=>navigate({name:'settings',section:'sources'})}><Icon name="Plus" size={15}/>Add sources</button>}>Signals reads posts from the subreddits and X accounts you choose. Add a few in Settings and they show up here.</Empty></div>
+    ?<div className="card"><Empty icon="MessagesSquare" title="Add where to read" action={<button type="button" className="btn primary" onClick={()=>navigate({name:'settings',section:'sources'})}><Icon name="Plus" size={15}/>Add sources</button>}>Signals reads posts from the subreddits and X accounts you choose. Add a few in Settings and they show up here.</Empty>
+     <div style={{padding:'0 20px 24px',textAlign:'center'}}><SubredditChips topics={profile?.topics??[]} have={[]} disabled={adding} onAdd={name=>void addSubreddit(name)}/></div></div>
     :<div className="card"><Empty icon="MessagesSquare" title="No posts yet" action={<button type="button" className="btn primary" onClick={refresh}><Icon name="RotateCcw" size={15}/>Refresh</button>}>Refresh to read X and Reddit. Add accounts and subreddits in Settings.</Empty></div>
    :<>
     <div className="row" style={{marginBottom:16,gap:12}}>

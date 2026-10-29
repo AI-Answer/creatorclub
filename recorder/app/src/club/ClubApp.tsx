@@ -101,7 +101,7 @@ function Shell(){
  },[]);
 
  const switched=useCallback(()=>{setChannelEpoch(n=>n+1);navigate({name:'overview'});},[navigate]);
- const addChannel=useCallback(()=>navigate({name:'welcome'}),[navigate]);
+ const addChannel=useCallback(()=>navigate({name:'welcome',step:2}),[navigate]);
  // With no channel, Welcome opens at step 2, where you add yours or start fresh.
  const startChannel=useCallback(()=>navigate({name:'welcome',step:2}),[navigate]);
  const openNewVideo=useCallback(()=>setNewOpen(true),[]);

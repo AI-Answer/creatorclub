@@ -501,7 +501,8 @@
 :where(.club-root) .idea .why:where(:not(.club-embed *)) { font-size: 13.5px; color: var(--cc-text-2); line-height: 1.5; }
 :where(.club-root) .idea .sigs:where(:not(.club-embed *)) { display: flex; gap: 6px; flex-wrap: wrap; }
 :where(.club-root) .idea .src:where(:not(.club-embed *)) { font-size: 12.5px; color: var(--cc-text-3); display: flex; align-items: center; gap: 6px; min-width: 0; }
-:where(.club-root) .idea .foot:where(:not(.club-embed *)) { display: flex; gap: 6px; padding: 10px 12px; border-top: 1px solid var(--cc-line); background: var(--cc-surface-2); align-items: center; }
+:where(.club-root) .idea .foot:where(:not(.club-embed *)) { display: flex; gap: 6px; padding: 10px 12px; border-top: 1px solid var(--cc-line); background: var(--cc-surface-2); align-items: center; flex-wrap: wrap; }
+:where(.club-root) .idea .foot .btn:where(:not(.club-embed *)) { white-space: nowrap; }
 /* ---------- Drawer & dialogs ---------- */
 :where(.club-root) .scrim:where(:not(.club-embed *)) { position: fixed; inset: 0; background: rgba(28, 25, 21, .28); z-index: 40; animation: cc-fade .2s ease; }
 @keyframes cc-fade { from { opacity: 0; } }
