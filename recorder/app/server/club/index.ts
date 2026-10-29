@@ -19,6 +19,7 @@ import { publishingRoutes, type PublishingOptions } from './publisher-routes.js'
 import { recordingsDiskSpace } from './disk.js';
 import { readTranscript, startTileRead } from './research.js';
 import { askAboutBoard, readBoardChat, saveBoardChat } from './board-chat.js';
+import { applyCard, askBody, askCompanion, readThread, undoCard } from './companion.js';
 import { videoScenes, videosScenes } from './scenes.js';
 import { POSITION_MAX, WIDTH_MAX, WIDTH_MIN } from './tile-layout.js';
 import { findTregCall, hasSources, NO_SOURCES, rankedSignals, readSignalsConfig, startSignalsRefresh, writeSignalsConfig, type SignalsSources } from './signals.js';
@@ -563,6 +564,20 @@ export function clubRouter({ ai = {}, transcribe, runAI, readViews = ytDlpViews(
     res.once('close', () => !res.writableFinished && stop.abort());
     res.json(await askAboutBoard(slug, param(req, 'id'), message, history, plan, stop.signal));
   }));
+
+  // ---- the companion: one conversation per video across the steps. The reply streams through /jobs/:id/events.
+  router.get('/videos/:id/companion', handler(async (req, res) => res.json(await readThread(await requireWorkspace(), param(req, 'id')))));
+  router.post('/videos/:id/companion', handler(async (req, res) => {
+    res.status(202).json(await askCompanion(await requireWorkspace(), param(req, 'id'), askBody.parse(req.body), plan));
+  }));
+  for (const action of ['apply', 'undo'] as const) {
+    router.post(`/videos/:id/companion/:messageId/cards/:index/${action}`, handler(async (req, res) => {
+      const index = Number(param(req, 'index'));
+      if (!Number.isInteger(index) || index < 0 || index > 19) throw notFound('card');
+      const run = action === 'apply' ? applyCard : undoCard;
+      res.json(await run(await requireWorkspace(), param(req, 'id'), param(req, 'messageId'), index));
+    }));
+  }
 
   // ---- breakdowns
   // JSON {url} for a link, or a multipart upload with a video `file`. Either starts a job whose result is the breakdown.

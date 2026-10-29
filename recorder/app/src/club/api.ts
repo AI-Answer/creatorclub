@@ -23,7 +23,7 @@ export const notifyVideosChanged=()=>window.dispatchEvent(new Event(VIDEOS_CHANG
 export function changesVideos(method:string|undefined,path:string):boolean{
  if(!method||method==='GET'||method==='HEAD')return false;
  const route=path.split('?')[0];
- if(/^\/videos(\/|$)/.test(route))return !/^\/videos\/[^/]+\/(opened|board\/chat)$/.test(route)&&!(method==='PUT'&&/^\/videos\/[^/]+\/(package|outline|script|script\/scene\/[^/]+)$/.test(route))&&!(method==='PATCH'&&/^\/videos\/[^/]+\/research\/[^/]+$/.test(route));
+ if(/^\/videos(\/|$)/.test(route))return !/^\/videos\/[^/]+\/(opened|board\/chat|companion)$/.test(route)&&!(method==='PUT'&&/^\/videos\/[^/]+\/(package|outline|script|script\/scene\/[^/]+)$/.test(route))&&!(method==='PATCH'&&/^\/videos\/[^/]+\/research\/[^/]+$/.test(route));
  return /^\/breakdowns\/[^/]+\/concepts\/[^/]+\/add$/.test(route);
 }
 

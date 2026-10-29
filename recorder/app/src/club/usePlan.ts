@@ -181,6 +181,8 @@ export function usePlan(video:Video,{onVideo,onRecord}:{onVideo(video:Video):voi
 
  return {
   load,reload,refresh,pkg,outline,changedScene,
+  /** Saves what is waiting now, so a change made elsewhere (the companion) starts from what is on screen. */
+  flush:async()=>{await packageSaver.flush();await outlineSaver.flush();},
   editPackage,editOutline,saveSceneScript,writePackage,createOutline,writeScript,scriptScene,stop,notices,resolveNotice,noticeError,
   packageJob:packageJob.state,outlineJob:outlineJob.state,scriptJob:scriptJob.state,
   saveError:packageSaver.error||outlineSaver.error||sceneError,

@@ -23,3 +23,4 @@ export {Tabs,type Tab} from './Tabs';
 export {DraftThumb,Thumb} from './Thumb';
 export {TOAST_MS,ToastProvider,useToast,type ShowToast,type ToastOptions} from './Toasts';
 export {useClickAway} from './useClickAway';
+export {CompanionMark} from './CompanionMark';

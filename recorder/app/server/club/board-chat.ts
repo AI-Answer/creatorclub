@@ -75,10 +75,10 @@ async function tileText(slug: string, videoId: string, tile: ResearchTile): Prom
 }
 
 /** The board's tiles as numbered text. Each tile is cut to its share of the room, so a long transcript or many tiles never grow the prompt. */
-export async function boardText(slug: string, videoId: string, tiles: readonly ResearchTile[]): Promise<string> {
+export async function boardText(slug: string, videoId: string, tiles: readonly ResearchTile[], chars = BOARD_CHARS): Promise<string> {
   const kept = tiles.slice(-TILES_KEPT);
   if (!kept.length) return '';
-  const each = Math.max(TILE_CHARS_MIN, Math.min(TILE_CHARS_MAX, Math.floor(BOARD_CHARS / kept.length)));
+  const each = Math.max(TILE_CHARS_MIN, Math.min(TILE_CHARS_MAX, Math.floor(chars / kept.length)));
   const lines = await Promise.all(kept.map(async (tile, index) => `${index + 1}. ${cut(await tileText(slug, videoId, tile), each)}`));
   const left = tiles.length - kept.length;
   return [...(left ? [`(${left} older ${left === 1 ? 'tile is' : 'tiles are'} left out)`] : []), ...lines].join('\n\n');
