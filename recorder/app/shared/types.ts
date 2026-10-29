@@ -19,6 +19,8 @@ export interface Clip {
  audioRole?:AudioRole;
  /** Persistent recorded-take provenance; split clips retain this identity. */
  recordingTakeId?:string;
+ /** Clips that share a link move, trim, split and delete together (the screen, camera and audio of one take). Absent on a take's clips until an edit links them explicitly. */
+ linkId?:string;
  /** Opaque imported clip identity; copy export validates it against the preserved baseline. */
  borumiOriginId?:string;
  /** Original source interval for continuous fades and audio processing after a split. */
@@ -49,6 +51,8 @@ export interface Project {
  canvas:Canvas; scenes:Scene[]; media:Media[]; clips:Clip[]; captions:Caption[]; captionStyle:CaptionStyle;
  elements:Element[]; zooms:Zoom[]; cursor:CursorSettings; notes:string;
  recordedTakes?:RecordedTake[];
+ /** Points the editor marks on the timeline (M), in timeline seconds. */
+ markers?:Array<{id:string;time:number;name?:string}>;
  /** Ordered rows created by dragging clips between timeline layers. */
  timelineLayers?:Array<{id:string;name:string;kind:'video'|'audio';order:number}>;
  settings:{previewQuality:'original'|'proxy';snap:boolean;ripple:boolean;teleprompterSpeed:number;teleprompterFontSize:number;teleprompterMirror:boolean};

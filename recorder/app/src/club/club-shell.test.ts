@@ -104,7 +104,7 @@ test('leaving a video step saves edits the autosave has not written yet',async()
  class Source extends EventTarget{close(){}}Object.assign(globalThis,{EventSource:Source});
  globalThis.fetch=async(input,init)=>{
   const url=String(input);if(url==='/api/projects')return Response.json([p]);
-  if(url===`/api/projects/${p.id}`){if(init?.method==='PUT'){saved.push(JSON.parse(String(init.body)).settings.ripple);return new Response(null,{status:204,headers:{ETag:'"next"'}});}return Response.json(p,{headers:{ETag:'"test"'}});}
+  if(url===`/api/projects/${p.id}`){if(init?.method==='PUT'){saved.push(JSON.parse(String(init.body)).settings.snap);return new Response(null,{status:204,headers:{ETag:'"next"'}});}return Response.json(p,{headers:{ETag:'"test"'}});}
   if(url==='/api/health')return Response.json({ffmpeg:true,ffprobe:true,transcription:{local:true,providers:[]},mcp:{},version:'test'});
   if(url==='/api/automation/settings')return Response.json({automaticTranscription:false});
   if(url.endsWith('/agent-chat')||url.includes('/automation'))return Response.json({jobs:[]});return Response.json([]);
@@ -112,10 +112,10 @@ test('leaving a video step saves edits the autosave has not written yet',async()
  const ui=await mountUI(createElement(ClubRecorder,{projectId:p.id,mode:'Edit',onBack:()=>{}}));
  try{
   await act(async()=>{await new Promise(resolve=>setTimeout(resolve,0));});
-  await act(async()=>(ui.container.querySelector('.ripple-toggle input') as HTMLInputElement).click());
+  await act(async()=>ui.container.querySelector<HTMLButtonElement>('button[title^="Magnetic snapping"]')!.click());
   assert.deepEqual(saved,[],'still inside the autosave debounce');
   await ui.render(createElement('div'));
   await new Promise(resolve=>setTimeout(resolve,20));
-  assert.deepEqual(saved,[!p.settings.ripple],'unmounting the embedded editor flushed the save');
+  assert.deepEqual(saved,[!p.settings.snap],'unmounting the embedded editor flushed the save');
  }finally{globalThis.fetch=originalFetch;await ui.close();}
 });

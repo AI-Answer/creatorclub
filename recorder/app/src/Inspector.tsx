@@ -1,6 +1,6 @@
 import {memo,useMemo,useState,useSyncExternalStore} from 'react';
 import {usePanelMotion} from './motion';
-import {Plus,Trash2,Upload,Sparkles,Check,AlignCenter,Subtitles,MousePointer2,AudioLines,Scissors,WandSparkles} from './Icons';
+import {Plus,Trash2,Upload,Sparkles,Check,AlignCenter,Subtitles,MousePointer2,AudioLines,Scissors,WandSparkles,X} from './Icons';
 import type {Caption,Clip,Element,Project,TrackKind} from '../shared/types';
 import {clipDuration,makeId,projectDuration} from '../shared/types';
 import {insertMedia,timecode} from './api';
@@ -13,7 +13,9 @@ export type Panel='Canvas'|'Layout'|'Clip'|'Zoom'|'Elements'|'Music'|'Captions'|
 export type Change=(fn:(p:Project)=>void,opts?:{coalesce?:string})=>void;
 type Props={project:Project;panel:Panel;selected:string|null;playhead:Playhead;change:Change;select:(id:string)=>void;onImport:(track?:TrackKind)=>void;onAI:(kind?:string)=>void;
  /** Inside CreatorClub the project is called a video. */
- club?:boolean};
+ club?:boolean;
+ /** Shown as a sheet over the side of the club's Edit: a close button in its heading. */
+ onClose?:()=>void};
 export function Section({title,children,hint}:{title:string;children:React.ReactNode;hint?:string}){return <section className="inspector-section"><h3>{title}</h3>{hint&&<p className="hint">{hint}</p>}{children}</section>;}
 export function Field({label,children}:{label:string;children:React.ReactNode}){return <label className="field"><span>{label}</span>{children}</label>;}
 export function NumberField({label,value,onChange,min,max,step=.1}:{label:string;value:number;onChange:(v:number)=>void;min?:number;max?:number;step?:number}){return <Field label={label}><input aria-label={label} type="number" value={Number.isFinite(value)?Math.round(value*1000)/1000:0} min={min} max={max} step={step} onChange={e=>{const n=Number(e.target.value);if(Number.isFinite(n))onChange(Math.max(min??-Infinity,Math.min(max??Infinity,n)));}}/></Field>;}
@@ -28,14 +30,14 @@ function CursorKeyframes({points,playhead,change}:{points:Project['cursor']['poi
 }
 function Color({label,value,onChange}:{label:string;value:string;onChange:(s:string)=>void}){return <Field label={label}><div className="color-input"><input aria-label={`${label} color`} type="color" value={/^#[0-9a-f]{6}$/i.test(value)?value:'#181825'} onChange={e=>onChange(e.target.value)}/><input aria-label={label} value={value} onChange={e=>onChange(e.target.value)}/></div></Field>;}
 export const Inspector=memo(function Inspector(props:Props){
- const {project:p,panel,selected,playhead,change,select,onImport,onAI,club}=props;
+ const {project:p,panel,selected,playhead,change,select,onImport,onAI,club,onClose}=props;
  const motionRef=usePanelMotion<HTMLElement>(panel);
  const clip=p.clips.find(c=>c.id===selected),element=p.elements.find(e=>e.id===selected),zoom=p.zooms.find(z=>z.id===selected),caption=p.captions.find(c=>c.id===selected);
  const updateClip=(fn:(c:Clip)=>void,key?:string)=>change(p=>{const c=p.clips.find(c=>c.id===selected);if(c)fn(c);},key?{coalesce:`clip:${selected}:${key}`}:undefined);
  const updateElement=(fn:(e:Element)=>void,key?:string)=>change(p=>{const e=p.elements.find(e=>e.id===selected);if(e)fn(e);},key?{coalesce:`element:${selected}:${key}`}:undefined);
  const [captionText,setCaptionText]=useState('');
  const addElement=(type:Element['type'])=>{const id=makeId(),start=playhead.get();change(p=>p.elements.push({id,type,start,duration:5,text:type==='text'?'Your story, beautifully told.':'',x:.15,y:.65,width:.7,height:type==='text'?.16:.22,color:'#ffffff',background:type==='highlight'?'#bba6ff66':type==='text'?'#171b27bb':'transparent',fontSize:64,opacity:1,rotation:0}));select(id);};
- return <aside className="inspector" ref={motionRef}><div className="inspector-heading"><span className="eyebrow">MAKE IT YOURS</span><h2>{panel}</h2></div>
+ return <aside className="inspector" ref={motionRef}><div className="inspector-heading"><span className="eyebrow">MAKE IT YOURS</span><h2>{panel}</h2>{onClose&&<button type="button" className="club-sheet-close" aria-label={`Close ${panel}`} onClick={onClose}><X size={16}/></button>}</div>
  {panel==='Canvas'&&<>
   <Section title="Video format"><div className="format-grid">{[['Landscape',1920,1080,'16:9'],['Vertical',1080,1920,'9:16'],['Square',1080,1080,'1:1'],['Portrait',1080,1350,'4:5']].map(([name,w,h,label])=><button key={name} className={`format-card ${p.canvas.width===w&&p.canvas.height===h?'active':''}`} onClick={()=>change(p=>{p.canvas.width=Number(w);p.canvas.height=Number(h);})}><span className="format-shape" style={{aspectRatio:`${w}/${h}`}}/><b>{name}</b><small>{label}</small></button>)}</div><div className="field-pair"><NumberField label="Width" value={p.canvas.width} min={64} max={7680} step={2} onChange={v=>change(p=>{p.canvas.width=Math.round(v/2)*2;},{coalesce:'canvas.width'})}/><NumberField label="Height" value={p.canvas.height} min={64} max={7680} step={2} onChange={v=>change(p=>{p.canvas.height=Math.round(v/2)*2;},{coalesce:'canvas.height'})}/></div><Field label="Frame rate"><select value={p.canvas.fps} onChange={e=>change(p=>{p.canvas.fps=+e.target.value;})}>{[24,25,30,60].map(v=><option key={v}>{v}</option>)}</select></Field></Section>
   <Section title="Background"><Field label="Background style"><select aria-label="Background style" value={p.canvas.backgroundPattern??'solid'} onChange={e=>{const value=e.target.value;change(p=>{if(value==='moving-dots')p.canvas.backgroundPattern='moving-dots';else delete p.canvas.backgroundPattern;});}}><option value="moving-dots">Moving dots</option><option value="solid">Solid color</option></select></Field>{p.canvas.backgroundPattern==='moving-dots'&&<p className="hint">Slow diagonal motion behind your clips. Color changes the base.</p>}<div className="swatch-grid">{['#121212','#ece8ff','#f8e8dc','#e6f4ef','#c2d7ed','#4e4367','#ffffff','#151515'].map(c=><button key={c} aria-label={`Background ${c}`} className="swatch" style={{background:c}} onClick={()=>change(p=>{p.canvas.background=c;})}>{p.canvas.background===c&&<Check size={16} color={['#121212','#4e4367','#151515'].includes(c)?'white':'#171b27'}/>}</button>)}</div><Color label="Custom color" value={p.canvas.background} onChange={v=>change(p=>{p.canvas.background=v;},{coalesce:'canvas.background'})}/><Slider label="Padding" value={p.canvas.padding} max={240} step={1} suffix=" px" onChange={v=>change(p=>{p.canvas.padding=v;},{coalesce:'canvas.padding'})}/><Slider label="Corner radius" value={p.canvas.radius} max={160} step={1} suffix=" px" onChange={v=>change(p=>{p.canvas.radius=v;},{coalesce:'canvas.radius'})}/></Section>
