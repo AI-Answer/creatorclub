@@ -105,7 +105,7 @@ export const TimelineClub=memo(function TimelineClub({project:p,playhead,scale,o
  const labels=useMemo(()=>{const out=new Map<string,string>();const scene=(t:number)=>p.scenes.findIndex(s=>t>=s.start-1e-3&&t<s.start+Math.max(s.duration,.001));
   // Only the topmost clip of a link group carries the label, so a take is named once.
   const top=new Map<string,number>();for(const c of p.clips){const row=rowById.get(clipLayerRowId(c,p)),key=groups.get(c.id)!;if(row)top.set(key,Math.min(top.get(key)??Infinity,row.top));}
-  for(const c of p.clips){const row=rowById.get(clipLayerRowId(c,p));if(!row)continue;const take=c.recordingTakeId?p.recordedTakes?.find(t=>t.id===c.recordingTakeId):undefined,i=scene(c.start);
+  for(const c of p.clips){const row=rowById.get(clipLayerRowId(c,p));if(!row)continue;const take=c.recordingTakeId?p.recordedTakes?.find(t=>t.id===c.recordingTakeId):undefined,i=take?p.scenes.findIndex(s=>s.id===take.sceneId):scene(c.start);
    out.set(c.id,top.get(groups.get(c.id)!)===row.top?(i>=0&&take?`${i+1} · ${p.scenes[i].name}${take.name?` · ${take.name}`:''}`:c.name):'');}
   return out;},[p.clips,p.scenes,p.recordedTakes,rowById,groups]);
 
