@@ -17,7 +17,6 @@ test('the Board tip shows on the first visit and is saved when closed; the ? but
   if(call.path==='/settings')return {body:{helpSeen:seen?['board']:[]}};
   if(call.path==='/settings/help/board'){seen=true;return {body:{helpSeen:['board']}};}
   if(call.path==='/videos')return {body:[]};
-  if(call.path==='/videos/v1/board/chat')return {body:[]};
   return undefined;
  });
  const ui=await mountUI(createElement(Board,{video,scenes:undefined,onDrafted:()=>{}}));

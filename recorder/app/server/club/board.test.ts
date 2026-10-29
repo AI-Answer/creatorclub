@@ -5,28 +5,27 @@ import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promis
 import type { AddressInfo } from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
-import type { BoardChatMessage, Breakdown, ResearchTile, SignalItem, TrendingItem, Video } from '../../shared/club.js';
+import type { Breakdown, ResearchTile, SignalItem, TrendingItem, Video } from '../../shared/club.js';
 import type { RunAIOptions, RunAIResult } from './ai.js';
 
 /*
  * The video Board through the HTTP routes: tile positions and the free-spot grid, the signal and breakdown tiles, a Board that
- * starts with its source, "Ask Claude about this board" with a stand-in for the AI, and Use as hook / title.
+ * starts with its source, the board as text for the companion, and Use as hook / title.
  */
 
 const temp = await mkdtemp(path.join(os.tmpdir(), 'creatorclub-board-'));
 process.env.CREATORCLUB_DIR = path.join(temp, 'root');
 process.env.CREATORCLUB_SECRETS_DIR = path.join(temp, 'app-support');
 
-// The stand-in AI answers the board chat by the schema it was given, and remembers every prompt.
+// The stand-in AI answers by the schema it was given (Package it, here), and remembers every prompt.
 const asked: { title: string; prompt: string; system?: string; budgetUsd?: number }[] = [];
 const answers: unknown[] = [];
 let wait: Promise<void> | undefined;
-let stopped = 0;
 const { AiError } = await import('./ai.js');
 async function fakeAI(options: RunAIOptions): Promise<RunAIResult> {
   asked.push({ title: (options.jsonSchema as { title?: string }).title ?? 'text', prompt: options.prompt, system: options.system, budgetUsd: options.budgetUsd });
   // While `wait` is set the answer waits for it; a stopped call ends the wait the way the real CLI is killed.
-  if (wait) await Promise.race([wait, new Promise((_, reject) => options.signal?.addEventListener('abort', () => (stopped++, reject(new AiError('cancelled', 'That was stopped.'))), { once: true }))]);
+  if (wait) await Promise.race([wait, new Promise((_, reject) => options.signal?.addEventListener('abort', () => reject(new AiError('cancelled', 'That was stopped.')), { once: true }))]);
   const json = answers.shift();
   return { text: JSON.stringify(json), json };
 }
@@ -34,8 +33,8 @@ async function fakeAI(options: RunAIOptions): Promise<RunAIResult> {
 const { clubRouter } = await import('./index.js');
 const store = await import('./store.js');
 const { freeSpot } = await import('./tile-layout.js');
-const { boardText, cleanItems } = await import('./board-chat.js');
-const { buildBoardChatPrompt, packageText } = await import('./prompts.js');
+const { boardText } = await import('./board-chat.js');
+const { packageText } = await import('./prompts.js');
 
 const app = express();
 app.use('/api/club', clubRouter({ runAI: fakeAI }));
@@ -197,100 +196,12 @@ test('a video made from a breakdown concept, a Signals post or a Working now vid
   );
 });
 
-// ---------------------------------------------------------------- Ask Claude about this board
+// ---------------------------------------------------------------- the board as the companion reads it
 
 const boardVideo = (await call('POST', '/videos', { title: 'Hidden features' })).body as Video;
 await call('POST', `/videos/${boardVideo.id}/research`, { kind: 'note', text: 'People keep asking about the free plan.' });
 await call('POST', `/videos/${boardVideo.id}/research`, { kind: 'signal', url: 'https://x.com/a/status/9', text: 'Nobody reads the settings page', meta: { source: 'x', author: '@a', likes: 300 } });
 await call('POST', `/videos/${boardVideo.id}/research`, { kind: 'breakdown', title: 'How I built it', meta: { breakdownId: BD } });
-const chat = (message: string, history: unknown[] = []) => call('POST', `/videos/${boardVideo.id}/board/chat`, { message, history });
-
-test('Ask Claude: one structured call with the board, the channel, and no one else\'s name; the reply comes back with items', async () => {
-  answers.push({ reply: 'Three openings below, from the post and your note.', items: [{ kind: 'hook', text: 'Nobody reads this page.' }, { kind: 'hook', text: ' Nobody reads this page. ' }, { kind: 'title', text: 'The settings page nobody reads' }, { kind: 'note', text: '' }] });
-  const res = await chat('Write three hooks from this board');
-  assert.equal(res.status, 200, JSON.stringify(res.body));
-  assert.deepEqual(res.body, { reply: 'Three openings below, from the post and your note.', items: [{ kind: 'hook', text: 'Nobody reads this page.' }, { kind: 'title', text: 'The settings page nobody reads' }] });
-
-  assert.equal(asked.length, 1);
-  const prompt = asked[0].prompt;
-  assert.equal(asked[0].title, 'BoardChat');
-  assert.equal(asked[0].budgetUsd, 0.5);
-  assert.match(prompt, /Hidden features/, 'the idea');
-  assert.match(prompt, /People keep asking about the free plan\./, 'a note');
-  assert.match(prompt, /Post on X by @a \(300 likes\): Nobody reads the settings page/, 'a post');
-  assert.match(prompt, /Breakdown of "How I built it" by Source Channel/, 'a breakdown');
-  assert.match(prompt, /Claim the outcome/, 'its reusable outline');
-  assert.match(prompt, /Practical AI for small shops/, 'the channel profile');
-  assert.match(prompt, /<question>\nWrite three hooks from this board\n<\/question>/);
-  assert.match(prompt, /second person/);
-  assert.doesNotMatch(prompt, /Samin/, 'a channel that is not Samin\'s never reads his name');
-  assert.doesNotMatch(prompt, /\{[a-z_]+\}/, 'every placeholder is filled');
-});
-
-test('the exchange is saved with the video, so reopening the Board keeps it; used items can be marked', async () => {
-  const saved = (await call('GET', `/videos/${boardVideo.id}/board/chat`)).body as BoardChatMessage[];
-  assert.deepEqual(saved.map((m) => m.role), ['user', 'assistant']);
-  assert.equal(saved[0].text, 'Write three hooks from this board');
-  assert.equal(saved[1].items?.length, 2);
-  assert.ok((await readdir(path.join(dir, 'videos', boardVideo.id))).includes('board-chat.json'));
-
-  const marked = await call('PUT', `/videos/${boardVideo.id}/board/chat`, [saved[0], { ...saved[1], used: [0] }]);
-  assert.equal(marked.status, 200);
-  assert.deepEqual(((await call('GET', `/videos/${boardVideo.id}/board/chat`)).body as BoardChatMessage[])[1].used, [0]);
-  assert.equal((await call('PUT', `/videos/${boardVideo.id}/board/chat`, [{ role: 'robot', text: 'x' }])).status, 400);
-  assert.equal((await call('PUT', `/videos/${boardVideo.id}/board/chat`, [{ ...saved[0], extra: 1 }])).status, 400);
-  assert.deepEqual(((await call('GET', `/videos/${boardVideo.id}/board/chat`)).body as BoardChatMessage[]).length, 2, 'bad requests changed nothing');
-  assert.deepEqual((await call('GET', '/videos/v_nothing/board/chat')).status, 404);
-});
-
-test('a long conversation is cut to the last twelve turns, each trimmed, and the saved chat grows by the new pair', async () => {
-  const history = Array.from({ length: 30 }, (_, index) => ({ role: index % 2 ? 'assistant' : 'user', text: `turn ${index} ${'word '.repeat(600)}` }));
-  answers.push({ reply: 'Here is what is missing.', items: [] });
-  const earlier = asked.length;
-  const res = await chat("What's missing before I plan?", history);
-  assert.deepEqual(res.body, { reply: 'Here is what is missing.', items: [] });
-  const prompt = asked[earlier].prompt;
-  assert.doesNotMatch(prompt, /turn 17 /, 'older turns are left out');
-  assert.match(prompt, /turn 18 /);
-  assert.match(prompt, /turn 29 /);
-  assert.equal(prompt.match(/turn \d+ /g)?.length, 12);
-  assert.ok(prompt.length < 30_000, `the prompt stays bounded (${prompt.length})`);
-  const saved = (await call('GET', `/videos/${boardVideo.id}/board/chat`)).body as BoardChatMessage[];
-  assert.deepEqual(saved.map((m) => m.role), ['user', 'assistant', 'user', 'assistant']);
-  assert.equal(saved[3].items, undefined);
-});
-
-test('an answer in the wrong shape, an empty message and a missing video are plain sentences, and nothing is saved', async () => {
-  const before = ((await call('GET', `/videos/${boardVideo.id}/board/chat`)).body as unknown[]).length;
-  const log = console.error;
-  console.error = () => {};
-  answers.push({ reply: 'No items key' });
-  const bad = await chat('Hello');
-  console.error = log;
-  assert.equal(bad.status, 502);
-  assert.match(bad.body.error, /answered in a shape we could not read/);
-  answers.push({ reply: '   ', items: [] });
-  assert.equal((await chat('Hello')).status, 502);
-  assert.equal((await chat('   ')).status, 400);
-  assert.equal((await call('POST', `/videos/${boardVideo.id}/board/chat`, { message: 'x', history: [{ role: 'system', text: 'x' }] })).status, 400);
-  assert.equal((await call('POST', '/videos/v_nothing/board/chat', { message: 'x' })).status, 404);
-  assert.equal(((await call('GET', `/videos/${boardVideo.id}/board/chat`)).body as unknown[]).length, before);
-});
-
-test('closing the panel stops the call, and nothing is saved', async () => {
-  const before = ((await call('GET', `/videos/${boardVideo.id}/board/chat`)).body as unknown[]).length;
-  wait = new Promise<void>(() => {});
-  const earlier = asked.length;
-  const request = new AbortController();
-  const pending = fetch(`${base}/videos/${boardVideo.id}/board/chat`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ message: 'Slow one', history: [] }), signal: request.signal }).catch(() => undefined);
-  for (let i = 0; i < 100 && asked.length === earlier; i++) await new Promise((r) => setTimeout(r, 10));
-  request.abort();
-  await pending;
-  for (let i = 0; i < 100 && !stopped; i++) await new Promise((r) => setTimeout(r, 10));
-  wait = undefined;
-  assert.equal(stopped, 1, 'the model call was stopped');
-  assert.equal(((await call('GET', `/videos/${boardVideo.id}/board/chat`)).body as unknown[]).length, before);
-});
 
 test('the board shown to the model is bounded however many tiles or how long the transcripts are', async () => {
   const many: ResearchTile[] = Array.from({ length: 80 }, (_, index) => ({ id: `t${index}`, kind: 'note', text: `note ${index} ${'x'.repeat(5000)}`, meta: {}, createdAt: `2026-10-01T00:00:${String(index % 60).padStart(2, '0')}.000Z` }));
@@ -300,24 +211,6 @@ test('the board shown to the model is bounded however many tiles or how long the
   assert.match(text, /note 79 /);
   assert.doesNotMatch(text, /note 0 /);
   assert.equal(await boardText('maya-lopez', boardVideo.id, []), '');
-});
-
-test('items are cleaned: no repeats or empty lines, titles must follow the title rules, six at most', () => {
-  const items = cleanItems([
-    { kind: 'title', text: 'Is this the best AI tool today?' },
-    { kind: 'title', text: 'One two three four five six seven eight' },
-    { kind: 'title', text: 'A real claim in few words' },
-    ...Array.from({ length: 10 }, (_, index) => ({ kind: 'note' as const, text: `Note ${index}` })),
-  ]);
-  assert.deepEqual(items.map((item) => item.text), ['A real claim in few words', 'Note 0', 'Note 1', 'Note 2', 'Note 3', 'Note 4']);
-});
-
-test('the prompt gives the channel and the board, and refuses nothing it was not given', async () => {
-  const built = await buildBoardChatPrompt({ workspace: { name: 'Ana Perez', about: '', topics: ['claude'], cta: '' }, voice: '' }, { idea: { title: 'Idea' }, board: '', history: [], message: 'Hi {name}' });
-  assert.match(built.prompt, /creator of the YouTube channel Ana Perez/);
-  assert.match(built.prompt, /\(the board is empty\)/);
-  assert.match(built.prompt, /Hi \{name\}/, 'text that goes in is never searched again');
-  assert.equal((built.schema as { title: string }).title, 'BoardChat');
 });
 
 // ---------------------------------------------------------------- Use as hook / title

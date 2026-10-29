@@ -135,3 +135,14 @@ export function watchJob(job: Job, afterId: number, onEvent: (event: JobEvent) =
 
 export { isTerminal };
 export type { Job };
+
+/** Stops every running job (the server is quitting), so no AI command line tool started by one outlives the app. */
+export function cancelAllJobs(): number {
+  let stopped = 0;
+  for (const job of jobs.values()) {
+    if (job.status !== 'running') continue;
+    cancelJob(job.id);
+    stopped++;
+  }
+  return stopped;
+}

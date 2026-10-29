@@ -1,4 +1,4 @@
-import {useCallback,useEffect,useRef,useState} from 'react';
+import {useCallback,useEffect,useMemo,useRef,useState} from 'react';
 import type {Video,VideoStage} from '../../../shared/club';
 import {clubFetch,errorMessage} from '../api';
 import {ClubRecorder} from '../ClubRecorder';
@@ -11,6 +11,9 @@ import {usePlan} from '../usePlan';
 import {EMPTY_PACKAGE} from '../plan/plan-logic';
 import {STAGE_LABEL} from '../board';
 import {Board} from './Board';
+import {Companion} from './Companion';
+import {screenSummary} from './companion-logic';
+import type {CompanionChanged} from '../../../shared/companion';
 import {Foot,Header,Strip} from './Frame';
 import {Publish} from './Publish';
 import {Teleprompter} from './Teleprompter';
@@ -120,12 +123,27 @@ export function Workspace({video,tab,back,navigate,onVideo}:{video:Video;tab:Vid
 
  const backLabel=`Back to ${originLabel(back).toLowerCase()}`;
 
+ // The companion is docked beside every step but Edit, which keeps its own editor chat until the editor's tools join it.
+ const [boardKey,setBoardKey]=useState(0);
+ const refresh=plan.refresh;
+ const companionChanged=useCallback((changed:CompanionChanged[])=>{
+  if(changed.includes('package')||changed.includes('outline'))void refresh();
+  if(changed.includes('outline')){reloadScenes();clubFetch<Video>(`/videos/${id}`).then(onVideo,()=>{});}
+  if(changed.includes('board'))setBoardKey(key=>key+1);
+ },[refresh,reloadScenes,id,onVideo]);
+ const scenesInPlan=plan.outline?.scenes;
+ const focusIndex=focusId&&scenesInPlan?scenesInPlan.findIndex(scene=>scene.id===focusId):-1;
+ const companionScene=useMemo(()=>(tab==='plan'||tab==='record')&&focusIndex>=0&&scenesInPlan?{id:focusId!,index:focusIndex,title:scenesInPlan[focusIndex].title}:undefined,[tab,focusId,focusIndex,scenesInPlan]);
+ const recorded=list?.filter(scene=>scene.takes.some(take=>take.kept)).length;
+ const screen=tab==='edit'?'':screenSummary(tab,{pkg:plan.pkg,outline:plan.outline,recorded});
+
  return <div className="ws">
   <Header video={video} tab={tab} back={back} facts={facts} onTitle={saveTitle} onStage={stage=>void moveTo(stage,video.stage)} onTab={target=>void goToTab(target)}/>
+  <div className="ws-row"><div className="ws-col">
   {showsStrip(tab)&&<Strip scenes={scenes.state} focusId={focusId} onRetry={scenes.reload} onPick={sceneId=>{setFocusId(sceneId);setPickN(n=>n+1);}}/>}
   {moveError&&<div className="ws-body" style={{flex:'none',padding:'8px 18px'}}><ErrorLine message={moveError} onRetry={()=>void continueToNext()}/></div>}
   <div className="ws-body" key={tab}>
-   {tab==='board'&&<Board video={video} scenes={list} onDrafted={draftedNow}/>}
+   {tab==='board'&&<Board video={video} scenes={list} onDrafted={draftedNow} refreshKey={boardKey}/>}
    {tab==='plan'&&<Plan video={video} plan={plan} known={list} focusId={focusId} onFocus={setFocusId} onTitle={saveTitle}
     onTarget={seconds=>{clubFetch<Video>(`/videos/${id}`,{method:'PUT',body:{targetSeconds:seconds>0?seconds:null}}).then(onVideo,reason=>toast(errorMessage(reason,"Couldn't save the target.")));}}
     onRecordScene={sceneId=>{setFocusId(sceneId);navigate(tabRoute('record'));}}/>}
@@ -149,5 +167,8 @@ export function Workspace({video,tab,back,navigate,onVideo}:{video:Video;tab:Vid
     saveError={plan.saveError} onRetry={plan.retrySave} onDescription={description=>plan.editPackage({...(pkgNow.current??EMPTY_PACKAGE),description})}/>}
   </div>
   <Foot tab={tab} back={back} backLabel={backLabel} onTab={target=>void goToTab(target)} next={nextButton}/>
+  </div>
+  {tab!=='edit'&&<Companion videoId={video.id} tab={tab} scene={companionScene} screen={screen} pkg={plan.pkg} outline={plan.outline} scenes={list} onChanged={companionChanged} beforeApply={plan.flush} roomy={tab==='record'}/>}
+  </div>
  </div>;
 }
