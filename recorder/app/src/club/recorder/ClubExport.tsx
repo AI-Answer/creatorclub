@@ -18,7 +18,7 @@ export const videoExportOptions=(project:Project):ExportOptions=>({format:'mp4',
  * history, and follows it. `onExported(true)` once a finished export matches the current timeline, so the bottom bar's
  * `Continue to publishing` becomes the primary; `false` again after the next edit.
  */
-export function ClubExport({project,flush,onExported}:{project:Project;flush():Promise<Project|undefined>;onExported?(exported:boolean):void}){
+export function ClubExport({project,flush,onExported,quiet}:{project:Project;flush():Promise<Project|undefined>;onExported?(exported:boolean):void;/** Not the primary button (another button on the page is). */quiet?:boolean}){
  const [record,setRecord]=useState<ExportRecord|null>(null),[failed,setFailed]=useState(false),[busy,setBusy]=useState(false),[revision,setRevision]=useState('');
  const session=useRef(new ExportSession());
  useEffect(()=>{
@@ -62,6 +62,6 @@ export function ClubExport({project,flush,onExported}:{project:Project;flush():P
  </div>;
  return <div className="club-export">
   {done&&<span className="club-export-done" role="status"><Check aria-hidden size={15}/>Video exported</span>}
-  <Button size="sm" variant={done?'secondary':'primary'} disabled={busy||!project.clips.length} onClick={()=>void start()}>{busy&&<LoaderCircle aria-hidden className="spin"/>}Export video</Button>
+  <Button size="sm" variant={done||quiet?'secondary':'primary'} disabled={busy||!project.clips.length} onClick={()=>void start()}>{busy&&<LoaderCircle aria-hidden className="spin"/>}Export video</Button>
  </div>;
 }

@@ -1,7 +1,9 @@
 import {useEffect,useMemo,useRef,useState,type FormEvent,type ReactNode} from 'react';
 import type {Package,Video,VideoScene} from '../../../shared/club';
 import type {ExportRecord} from '../../../shared/export-history';
-import {listSavedExports} from '../../api';
+import type {Project} from '../../../shared/types';
+import {api,listSavedExports} from '../../api';
+import {ClubExport} from '../recorder/ClubExport';
 import {ClubApiError,clubFetch,errorMessage} from '../api';
 import {ErrorLine} from '../ErrorLine';
 import {fmtDate} from '../format';
@@ -11,6 +13,8 @@ import {Button,Card,EmptyState,Icon,Input,Textarea,useToast} from '../ui';
 import {buildDescription,shortLink} from './record-logic';
 
 export const PUBLISH_LINE='Upload to YouTube, then paste the link here. CreatorClub never posts for you.';
+/** What the server keeps of a description. */
+export const DESCRIPTION_MAX=5000;
 export const PUBLISH_FAILED="Couldn't mark the video as published.";
 /** The view count is read in the background after publishing; the page asks for it once, a little later. */
 const VIEWS_RECHECK_MS=8000;
@@ -35,14 +39,23 @@ function CopyButton({done,disabled,label,onCopy}:{done:boolean;disabled?:boolean
  * The Publish tab, as the prototype lays it out: the exported video, the title, thumbnail text and description to copy into
  * YouTube Studio, the YouTube link with `Mark as published`, and the views once YouTube reports them. The video is exported in Edit.
  */
-export function Publish({video,pkg,scenes,onVideo,onDescription,onGoTo}:{video:Video;pkg:Package|null;scenes:readonly VideoScene[]|undefined;onVideo(video:Video):void;onDescription(text:string):void;onGoTo(tab:'plan'|'record'|'edit'):void}){
+export function Publish({video,pkg,scenes,onVideo,onDescription,onGoTo,saveError,onRetry}:{video:Video;pkg:Package|null;scenes:readonly VideoScene[]|undefined;onVideo(video:Video):void;onDescription(text:string):void;onGoTo(tab:'plan'|'record'|'edit'):void;saveError?:string;onRetry():void}){
  const toast=useToast();
  const published=video.stage==='published'&&Boolean(video.youtubeUrl);
  const [file,setFile]=useState<ExportRecord|null|undefined>(undefined);
+ const [reread,setReread]=useState(0);
  useEffect(()=>{
   if(!video.recorderProjectId){setFile(null);return;}
   const request=new AbortController();
   void listSavedExports(video.recorderProjectId,request.signal).then(({jobs})=>setFile(latestVideoExport(jobs)??null)).catch(()=>{if(!request.signal.aborted)setFile(null);});
+  return()=>request.abort();
+ },[video.recorderProjectId,reread]);
+ // The export runs from the saved recording project, so the editor need not be open. Its last autosave is what is exported.
+ const [project,setProject]=useState<Project|null>(null);
+ useEffect(()=>{
+  if(!video.recorderProjectId)return;
+  const request=new AbortController();
+  void api<Project>(`/projects/${encodeURIComponent(video.recorderProjectId)}`,undefined,undefined,request.signal).then(setProject,()=>{});
   return()=>request.abort();
  },[video.recorderProjectId]);
 
@@ -50,6 +63,7 @@ export function Publish({video,pkg,scenes,onVideo,onDescription,onGoTo}:{video:V
  const built=useMemo(()=>buildDescription(pkg,scenes,clockTime),[pkg,scenes]);
  const [edited,setEdited]=useState<string|undefined>(undefined);
  const description=edited??pkg?.description??built;
+ useEffect(()=>{if(edited!==undefined&&edited===pkg?.description)setEdited(undefined);},[pkg?.description,edited]);
  const [copied,setCopied]=useState<Partial<Record<CopyKey,boolean>>>({});
  const copy=(key:CopyKey,text:string)=>void copyText(text).then(ok=>{if(!ok)return;setCopied(now=>({...now,[key]:true}));toast(`Copied ${COPIED[key]}`);});
  const allCopied=Boolean(copied.title&&(copied.thumb||!pkg?.thumbnailText)&&copied.desc);
@@ -69,13 +83,13 @@ export function Publish({video,pkg,scenes,onVideo,onDescription,onGoTo}:{video:V
   <div className="doc-h" style={{marginBottom:4}}><h2>Publish</h2></div>
   <div className="doc-sub">{PUBLISH_LINE}</div>
   {step(0,'Export the video',file===undefined?null:file
-   ?<div style={{marginTop:6}}><button type="button" className="linkish" disabled={!window.sceneForge?.reveal} onClick={()=>void window.sceneForge!.reveal(file.outputPath!).catch(()=>{})}>Show in Finder</button></div>
-   :<div className="card pbox"><div className="row"><span className="small muted">No exported video yet.</span><Button size="sm" onClick={()=>onGoTo('edit')}>Export in Edit</Button></div></div>,
-   file?<span className="faint small" style={{fontWeight:500}}>{exportFileName(file)}</span>:null,'The full timeline as an MP4. Export it in Edit.')}
+   ?<div style={{marginTop:6}}>{file.outputPath&&window.sceneForge?.reveal&&<button type="button" className="linkish" onClick={()=>void window.sceneForge!.reveal(file.outputPath!).catch(()=>{})}>Show in Finder</button>}</div>
+   :<div className="card pbox"><div className="row">{project?<ClubExport quiet project={project} flush={async()=>project} onExported={exportedNow=>{if(exportedNow)setReread(n=>n+1);}}/>:<span className="small muted">No exported video yet. <button type="button" className="linkish" onClick={()=>onGoTo('edit')}>Export it in Edit</button></span>}</div></div>,file?<span className="faint small" style={{fontWeight:500}}>{exportFileName(file)}</span>:null,'The full timeline as an MP4, as you left it in Edit.')}
   {step(1,'Copy the title, thumbnail text and description',<div className="card pbox">
     <div className="copyrow"><span className="k">Title</span><span className="v" style={{fontWeight:600}}>{video.title}</span><CopyButton done={!!copied.title} label="Copy title" onCopy={()=>copy('title',video.title)}/></div>
     <div className="copyrow"><span className="k">Thumbnail text</span><span className="v">{pkg?.thumbnailText||<span className="faint">No thumbnail text yet. Add it in Plan.</span>}</span><CopyButton done={!!copied.thumb} disabled={!pkg?.thumbnailText} label="Copy thumbnail text" onCopy={()=>copy('thumb',pkg!.thumbnailText)}/></div>
-    <div className="copyrow"><span className="k">Description</span><Textarea rows={9} aria-label="Description" value={description} style={{fontSize:13.5}} onChange={event=>setEdited(event.target.value)} onBlur={()=>{if(edited!==undefined&&edited!==pkg?.description)onDescription(edited);}}/><CopyButton done={!!copied.desc} label="Copy description" onCopy={()=>copy('desc',description)}/></div>
+    <div className="copyrow"><span className="k">Description</span><Textarea rows={9} maxLength={DESCRIPTION_MAX} aria-label="Description" value={description} style={{fontSize:13.5}} onChange={event=>setEdited(event.target.value)} onBlur={()=>{if(edited!==undefined&&edited!==pkg?.description)onDescription(edited);}}/><CopyButton done={!!copied.desc} label="Copy description" onCopy={()=>copy('desc',description)}/></div>
+   {saveError&&<ErrorLine message="Couldn't save the description." onRetry={onRetry}/>}
    </div>,undefined,'Paste them into YouTube Studio as you upload.')}
   {step(2,'Upload to YouTube, then paste the link here',<PublishForm video={video} published={published} onVideo={onVideo}/>,
    published?<span className="faint small" style={{fontWeight:500}}>{fmtDate(video.publishedAt??video.updatedAt)}</span>:null,'Public, unlisted or scheduled, any link works.')}

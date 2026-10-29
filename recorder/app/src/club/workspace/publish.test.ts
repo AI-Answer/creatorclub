@@ -18,7 +18,7 @@ const pkg:Package={angle:'Most people use one feature.',twist:'',titles:['A','B'
 const scenes:VideoScene[]=[{id:'a',title:'Opening',seconds:60,takes:[{id:'t',seconds:60,kept:true}],status:'Kept take 1'},{id:'b',title:'Level 1',seconds:90,takes:[],status:'Not recorded'}];
 const output='/Users/me/SceneForge/exports/Hidden features-e1.mp4';
 const exported:ExportRecord={id:'e1',type:'export',status:'complete',progress:1,message:'',outputPath:output,startedAt:'2026-10-28T10:00:00.000Z',completedAt:'2026-10-28T10:01:00.000Z',projectId:'p1',projectName:'Hidden features',projectRevision:'r',snapshotCreatedAt:'',options:{format:'mp4'},updatedAt:'',revision:1,output:{status:'available'},recovery:{status:'available',runtimeChanged:false}};
-const props={video,pkg,scenes,onVideo:()=>{},onDescription:()=>{},onGoTo:()=>{}};
+const props={video,pkg,scenes,onVideo:()=>{},onDescription:()=>{},onGoTo:()=>{},onRetry:()=>{}};
 
 test('Publish: the export, the chosen title, thumbnail text and description to copy, and Mark as published as the one primary',async()=>{
  const revealed:string[]=[],copied:string[]=[],saved:string[]=[],changes:Video[]=[];
@@ -77,11 +77,12 @@ test('Publish without an export or a package says where to get them; a published
   await flush();
   const text=ui.container.textContent??'';
   assert.ok(text.includes('No exported video yet.'));
+  assert.equal(ui.container.querySelector('textarea[aria-label="Description"]')?.getAttribute('maxlength'),'5000');
   assert.ok(text.includes('No thumbnail text yet. Add it in Plan.'));
   assert.ok(text.includes('1,234')&&text.includes('views since'));
   assert.ok(text.includes('youtube.com/watch?v=dQw4w9WgXcQ'));
   assert.ok(!ui.container.querySelector('#club-youtube-link'),'a published video shows its link, not the form');
-  await act(async()=>button(ui.container,'Export in Edit').click());
+  await act(async()=>button(ui.container,'Export it in Edit').click());
   assert.deepEqual(goes,['edit']);
   await act(async()=>button(ui.container,'Change link').click());
   assert.equal((ui.container.querySelector('#club-youtube-link') as HTMLInputElement).value,published.youtubeUrl);
@@ -120,4 +121,16 @@ test('the teleprompter shows the scene\'s talking points, steps through them and
  }finally{await ui.close();}
  const none=await mountUI(createElement(Teleprompter,{index:0,scene:{title:'Empty',talkingPoints:[],show:'',seconds:0}}));
  try{assert.ok(none.container.textContent?.includes('This scene has no talking points. Add them in Plan.'));}finally{await none.close();}
+});
+
+test('a failed description save says so with Try again, and an edit clears once the package has it',async()=>{
+ const server=installFetch(({path})=>path.startsWith('/api/exports')?{body:{jobs:[],nextOffset:null}}:undefined);
+ const retries:number[]=[];
+ const ui=await mountUI(createElement(Publish,{...props,saveError:'raw',onRetry:()=>retries.push(1)}));
+ try{
+  await flush();
+  assert.ok(ui.container.textContent?.includes("Couldn't save the description."));
+  await act(async()=>button(ui.container,'Try again').click());
+  assert.deepEqual(retries,[1]);
+ }finally{await ui.close();server.restore();}
 });

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import type {Outline,Package,Video,VideoScene} from '../../../shared/club';
 import {clockTime} from '../video-plan';
-import {buildDescription,pausesRemoved,promptScene,recorderSceneFor,sceneRunSeconds,shortLink,videoSeconds} from './record-logic';
+import {outlineSceneFor,buildDescription,pausesRemoved,promptScene,recorderSceneFor,sceneRunSeconds,shortLink,videoSeconds} from './record-logic';
 
 const scene=(id:string,seconds:number,takes:{seconds:number;kept:boolean}[]=[],cutSeconds?:number):VideoScene=>({id,title:`Scene ${id}`,seconds,takes:takes.map((take,i)=>({id:`${id}t${i}`,...take})),status:'',...(cutSeconds?{cutSeconds}:{})});
 const outline:Outline={scenes:['a','b','c'].map(id=>({id,title:`Scene ${id}`,talkingPoints:['x'],show:'',seconds:30}))};
@@ -47,4 +47,12 @@ test('the description is the hook, the angle and chapters starting at 0:00',()=>
 test('a link is shown without its scheme',()=>{
  assert.equal(shortLink('https://www.youtube.com/watch?v=abc'),'youtube.com/watch?v=abc');
  assert.equal(shortLink('https://youtu.be/abc'),'youtu.be/abc');
+});
+
+test('the recorder\'s own scene maps back to the outline scene',()=>{
+ const video:Pick<Video,'recorderScenes'>={recorderScenes:[{outlineId:'a',sceneId:'r1',text:'',changedAt:''},{outlineId:'b',sceneId:'r2',text:'',changedAt:''}]};
+ assert.equal(outlineSceneFor(video,'r2'),'b');
+ assert.equal(outlineSceneFor(video,'r9'),undefined);
+ assert.equal(outlineSceneFor({},'r1'),undefined);
+ for(const id of ['a','b'])assert.equal(outlineSceneFor(video,recorderSceneFor(video,id)!),id,'a round trip');
 });

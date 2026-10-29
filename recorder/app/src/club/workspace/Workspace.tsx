@@ -8,12 +8,13 @@ import {type Route,type VideoTab} from '../routes';
 import {useVideoScenes} from '../scenes';
 import {Button,EmptyState,Icon,useToast} from '../ui';
 import {usePlan} from '../usePlan';
+import {EMPTY_PACKAGE} from '../plan/plan-logic';
 import {STAGE_LABEL} from '../board';
 import {Board} from './Board';
 import {Foot,Header,Strip} from './Frame';
 import {Publish} from './Publish';
 import {Teleprompter} from './Teleprompter';
-import {promptScene,recorderSceneFor} from './record-logic';
+import {outlineSceneFor,promptScene,recorderSceneFor} from './record-logic';
 import {continueIsPrimary,pickJumpsToPlan,nextTab,stageForContinue,tabDone,TAB_LABEL,type TabFacts} from './rules';
 import {originLabel} from '../routes';
 
@@ -27,7 +28,10 @@ export function Workspace({video,tab,back,navigate,onVideo}:{video:Video;tab:Vid
  const tabRoute=useCallback((next:VideoTab):Route=>({name:'video',id:video.id,tab:next}),[video.id]);
  const plan=usePlan(video,{onVideo,onRecord:()=>navigate(tabRoute('record'))});
  const scenes=useVideoScenes(video.id);
- const [focusId,setFocusId]=useState<string|null>(null);
+ const [focusId,setFocusId]=useState<string|null>(null),[pickN,setPickN]=useState(0);
+ const pkgNow=useRef(plan.pkg);pkgNow.current=plan.pkg;
+ /** The recorder moved to another scene (its own cards, or the next scene after Continue): the strip and the teleprompter follow. */
+ const recorderScene=useCallback((sceneId:string)=>{const outlineId=outlineSceneFor(video,sceneId);if(outlineId)setFocusId(outlineId);},[video.recorderScenes]);
  const [moving,setMoving]=useState(false),[moveError,setMoveError]=useState('');
 
  // Recording and editing report back through the recorder: whether every scene has a take, and whether the edit was exported.
@@ -95,7 +99,7 @@ export function Workspace({video,tab,back,navigate,onVideo}:{video:Video;tab:Vid
 
  return <div className="ws">
   <Header video={video} tab={tab} back={back} facts={facts} onTitle={saveTitle} onStage={stage=>void moveTo(stage,video.stage)} onTab={next=>navigate(tabRoute(next))}/>
-  <Strip scenes={scenes.state} focusId={focusId} onRetry={scenes.reload} onPick={sceneId=>{setFocusId(sceneId);if(pickJumpsToPlan(tab))navigate(tabRoute('plan'));}}/>
+  <Strip scenes={scenes.state} focusId={focusId} onRetry={scenes.reload} onPick={sceneId=>{setFocusId(sceneId);setPickN(n=>n+1);if(pickJumpsToPlan(tab))navigate(tabRoute('plan'));}}/>
   {moveError&&<div className="ws-body" style={{flex:'none',padding:'8px 18px'}}><ErrorLine message={moveError} onRetry={()=>void continueToNext()}/></div>}
   <div className="ws-body" key={tab}>
    {tab==='board'&&<Board video={video} scenes={list} onDrafted={draftedNow}/>}
@@ -106,13 +110,13 @@ export function Workspace({video,tab,back,navigate,onVideo}:{video:Video;tab:Vid
     ?<div className={prompting?'rec with-prompter':'rec with-embed'}>
      <div className="rec-left"><ClubRecorder projectId={video.recorderProjectId} mode={tab==='record'?'Record':'Edit'} onBack={()=>navigate({name:'production',view:'board'})}
       onMode={mode=>{if(mode==='Edit'&&tab==='record')void continueToNext();else navigate(tabRoute(mode==='Edit'?'edit':'record'));}} onProgress={onProgress} onExported={tab==='edit'?onExported:undefined}
-      sceneId={tab==='record'?recorderSceneFor(video,focusId)??undefined:undefined} onChanged={reloadScenes}/></div>
+      sceneId={tab==='record'?recorderSceneFor(video,focusId)??undefined:undefined} sceneNonce={pickN} onSceneChange={tab==='record'?recorderScene:undefined} onChanged={reloadScenes}/></div>
      {prompting&&<Teleprompter index={prompting.index} scene={prompting.scene}/>}
     </div>
     :<EmptyState icon={<Icon name="FileText"/>} title="Plan this video first" description="Create the outline first. Each scene is recorded on its own."
       action={<Button variant="primary" size="md" onClick={()=>navigate(tabRoute('plan'))}>Back to plan</Button>}/>)}
    {tab==='publish'&&<Publish video={video} pkg={plan.pkg} scenes={list} onVideo={onVideo} onGoTo={target=>navigate(tabRoute(target))}
-    onDescription={description=>{if(plan.pkg)plan.editPackage({...plan.pkg,description});}}/>}
+    saveError={plan.saveError} onRetry={plan.retrySave} onDescription={description=>plan.editPackage({...(pkgNow.current??EMPTY_PACKAGE),description})}/>}
   </div>
   <Foot tab={tab} back={back} backLabel={backLabel} facts={facts} onTab={next=>navigate(tabRoute(next))} next={nextButton}/>
  </div>;

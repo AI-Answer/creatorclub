@@ -80,7 +80,7 @@ export type RecordingProgress={recorded:number;total:number};
  * moves to the next scene to record after Continue, and reports progress through `onProgress`. Hiding the `Edit & export` banner and the
  * scene quick actions is up to the caller (it leaves out `onEdit`, `onAutoCut` and `onVisualize`). Recording itself is the same in both.
  */
-export function Recording({project,change,commit,onRecorded,onError,onImport,onSetup,onEdit,onAutoCut,onVisualize,club=false,onProgress,selectSceneId}:{project:Project;change:(fn:(p:Project)=>void,opts?:{coalesce?:string})=>void;commit?:(fn:(p:Project)=>void)=>Promise<void>;onRecorded:(media:Media[],tracks:TrackKind[],offsets?:number[],options?:ConfirmTakeOptions)=>string|void|Promise<string|void>;onError:(error:string)=>void;onImport?:(sceneId?:string)=>void;onSetup?:()=>void;onEdit?:()=>void;onAutoCut?:(sceneId:string)=>void|Promise<void>;onVisualize?:(sceneId:string)=>void|Promise<void>;club?:boolean;onProgress?:(progress:RecordingProgress)=>void;/** The scene to select, chosen outside the recorder (the club's scene strip). Ignored while a take is being recorded. */selectSceneId?:string}){
+export function Recording({project,change,commit,onRecorded,onError,onImport,onSetup,onEdit,onAutoCut,onVisualize,club=false,onProgress,selectSceneId,selectNonce,onSceneChange}:{project:Project;change:(fn:(p:Project)=>void,opts?:{coalesce?:string})=>void;commit?:(fn:(p:Project)=>void)=>Promise<void>;onRecorded:(media:Media[],tracks:TrackKind[],offsets?:number[],options?:ConfirmTakeOptions)=>string|void|Promise<string|void>;onError:(error:string)=>void;onImport?:(sceneId?:string)=>void;onSetup?:()=>void;onEdit?:()=>void;onAutoCut?:(sceneId:string)=>void|Promise<void>;onVisualize?:(sceneId:string)=>void|Promise<void>;club?:boolean;onProgress?:(progress:RecordingProgress)=>void;/** The scene to select, chosen outside the recorder (the club's scene strip). Ignored while a take is being recorded. */selectSceneId?:string;selectNonce?:number;/** Told whenever the selected scene changes, so the club can follow it. */onSceneChange?:(sceneId:string)=>void}){
  const [recordSceneId,setRecordSceneId]=useState(project.scenes[0]?.id||''),[savedTakes,setSavedTakes]=useState(()=>loadSavedTakes(project.id)),[reviewId,setReviewId]=useState<string|null>(()=>[...loadSavedTakes(project.id),...(project.recordedTakes||[])].reverse().find(t=>!t.retained&&!t.confirmedAt)?.id||null);
  const [confirming,setConfirming]=useState(false),confirmingRef=useRef(false);
  const [countdown,setCountdown]=useState<number|null>(null),[countdownEnabled,setCountdownEnabled]=useState(()=>{try{return localStorage.getItem('sceneforge.recording-countdown')!=='false';}catch{return true;}});
@@ -154,7 +154,9 @@ export function Recording({project,change,commit,onRecorded,onError,onImport,onS
  // Opening Record selects the first scene still to record.
  useEffect(()=>{const first=recordedScenes&&project.scenes.find(scene=>!recordedScenes.has(scene.id));if(first)setRecordSceneId(first.id);},[]);
  // The club's scene strip selects the scene to record.
- useEffect(()=>{if(selectSceneId&&status==='idle'&&project.scenes.some(scene=>scene.id===selectSceneId))setRecordSceneId(selectSceneId);},[selectSceneId]);
+ // A choice made during a recording waits for the recording to end.
+ useEffect(()=>{if(selectSceneId&&status==='idle'&&project.scenes.some(scene=>scene.id===selectSceneId))setRecordSceneId(selectSceneId);},[selectSceneId,selectNonce,status]);
+ useEffect(()=>{if(recordSceneId)onSceneChange?.(recordSceneId);},[recordSceneId]);
  /** The take preview's Continue: keep or confirm the take exactly as before, then select the next scene still to record. */
  const continueReview=async(confirmed:boolean)=>{
   const sceneId=reviewTake?.sceneId;if(!sceneId)return;

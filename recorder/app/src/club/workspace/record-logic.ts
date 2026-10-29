@@ -9,6 +9,10 @@ import type {Outline,OutlineScene,Package,Video,VideoScene} from '../../../share
 export const recorderSceneFor=(video:Pick<Video,'recorderScenes'>,outlineId:string|null):string|undefined=>
  outlineId?video.recorderScenes?.find(entry=>entry.outlineId===outlineId)?.sceneId:undefined;
 
+/** The outline scene a recording-project scene belongs to: the reverse of `recorderSceneFor`. */
+export const outlineSceneFor=(video:Pick<Video,'recorderScenes'>,recorderSceneId:string):string|undefined=>
+ video.recorderScenes?.find(entry=>entry.sceneId===recorderSceneId)?.outlineId;
+
 /** The scene the teleprompter shows: the focused one, else the first scene without a kept take, else the first. Nothing while there is no outline. */
 export function promptScene(outline:Outline|null,scenes:readonly VideoScene[]|undefined,focusId:string|null):{index:number;scene:OutlineScene}|undefined{
  const list=outline?.scenes??[];
