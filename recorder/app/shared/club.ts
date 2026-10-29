@@ -160,6 +160,19 @@ export interface TranscriptChapter {
   text: string;
 }
 
+/**
+ * The Markdown file behind a note. `root` says where it lives: `video` is the video's own folder (new notes go in its `notes` folder), `folder` is the
+ * channel's Notes folder. `path` is relative to that root. The server adds `hash` (what the file held when it was read, sent back as `base` when saving
+ * so a change made elsewhere in the meantime is noticed), and `missing` or `tooLarge` when the file cannot be shown.
+ */
+export interface TileDoc {
+  root: 'video' | 'folder';
+  path: string;
+  hash?: string;
+  missing?: boolean;
+  tooLarge?: boolean;
+}
+
 export interface ResearchTile {
   id: string;
   kind: TileKind;
@@ -171,7 +184,30 @@ export interface ResearchTile {
   meta: TileMeta;
   /** Set when the tile is added, so a tile always has a place on the Board. */
   pos?: TilePosition;
+  /** Notes: the Markdown file that holds the text. The tile's `text` is that file's content when the server lists it. */
+  doc?: TileDoc;
   createdAt: string;
+}
+
+/** What saving a note says when the file had changed since the editor read it: the other version is kept as a copy in the video's notes folder. */
+export interface DocConflict {
+  copy: string;
+}
+
+/** The Markdown files the Board can take: in the video's folder, and in the channel's Notes folder. */
+export interface BoardFiles {
+  /** The video's folder: the absolute path (to copy) and the same with the home folder shortened (to show). */
+  folder: { path: string; display: string };
+  notes: null | { path: string; display: string; files: NotesFile[]; truncated?: boolean };
+}
+
+export interface NotesFile {
+  path: string;
+  title: string;
+  bytes: number;
+  modified: string;
+  /** Already a card on this video's Board. */
+  pinned: boolean;
 }
 
 /** The package of a video. The ratings are left out until they are judged: a package made by Use as hook or Use as title has none, and the blank fields stay blank. */

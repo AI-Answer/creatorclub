@@ -5,7 +5,8 @@ import { AiError } from './ai.js';
 import { readBreakdown } from './breakdown.js';
 import { loadChannelContext } from './context.js';
 import { asker, parseAnswer, readOutline, readPackage, type PlanOptions } from './planning.js';
-import { buildBoardChatPrompt, titleProblems } from './prompts.js';
+import { boardTiles } from './board-docs.js';
+import { buildBoardChatPrompt, noteText, titleProblems } from './prompts.js';
 import { readTranscript } from './research.js';
 import * as store from './store.js';
 
@@ -36,7 +37,7 @@ async function tileText(slug: string, videoId: string, tile: ResearchTile): Prom
   switch (tile.kind) {
     case 'note':
     case 'text':
-      return `Your note: ${squash(tile.text ?? '') || '(empty)'}`;
+      return `Your note${tile.doc && tile.title ? ` "${tile.title}"` : ''}: ${noteText(tile.text ?? '') || '(empty)'}`;
     case 'signal': {
       const stats = [meta.likes !== undefined ? `${count(meta.likes)} likes` : '', meta.replies !== undefined ? `${count(meta.replies)} replies` : ''].filter(Boolean).join(', ');
       return `Post${meta.source ? ` on ${meta.source === 'x' ? 'X' : 'Reddit'}` : ''}${meta.author ? ` by ${meta.author}` : ''}${stats ? ` (${stats})` : ''}: ${squash(tile.text ?? '')}`;
@@ -149,7 +150,7 @@ export async function askAboutBoard(
   signal: AbortSignal,
 ): Promise<BoardChatReply> {
   const video = await store.readVideo(slug, id);
-  const [channel, tiles, pkg, outline] = await Promise.all([loadChannelContext(slug), store.listPlacedTiles(slug, id), readPackage(slug, id), readOutline(slug, id)]);
+  const [channel, tiles, pkg, outline] = await Promise.all([loadChannelContext(slug), boardTiles(slug, id), readPackage(slug, id), readOutline(slug, id)]);
   const built = await buildBoardChatPrompt(channel, { idea: ideaFor(video), pkg: pkg ?? undefined, outline: outline ?? undefined, board: await boardText(slug, id, tiles), history, message });
   const ai = await asker({ signal }, options);
   const answer = parseAnswer(answerShape, (await ai.ask(built, BOARD_CHAT_BUDGET_USD)).json, ai.who, 'board chat');

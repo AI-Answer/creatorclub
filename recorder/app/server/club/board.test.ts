@@ -98,7 +98,8 @@ test('PATCH moves a tile, renames it and edits a note; it checks the numbers and
   assert.equal(moved.body.text, 'First thought');
   assert.deepEqual((await call('PATCH', url(note), { pos: { x: 10, y: 20, w: 400 } })).body.pos, { x: 10, y: 20, w: 400 });
   const edited = await call('PATCH', url(note), { text: 'Second thought', title: 'Idea' });
-  assert.deepEqual([edited.body.text, edited.body.title, edited.body.pos.x], ['Second thought', 'Idea', 10]);
+  // A note is a Markdown file: its title is its first line, not a name of its own.
+  assert.deepEqual([edited.body.text, edited.body.title, edited.body.pos.x], ['Second thought', 'Second thought', 10]);
   assert.equal((await call('PATCH', url(note), { text: '' })).body.text, '', 'a note can be cleared');
 
   assert.equal((await call('PATCH', url(link), { title: 'Renamed' })).body.title, 'Renamed');
@@ -164,7 +165,7 @@ test('signal and breakdown tiles can be added, and need what they show', async (
   // A note can be added empty, to be written on the Board.
   const blank = await call('POST', `/videos/${video.id}/research`, { kind: 'note' });
   assert.equal(blank.status, 201);
-  assert.equal(blank.body.text, undefined);
+  assert.equal(blank.body.text, '');
   assert.equal((await call('POST', `/videos/${video.id}/research`, { kind: 'text' })).body.error, 'Add some text first.');
 });
 

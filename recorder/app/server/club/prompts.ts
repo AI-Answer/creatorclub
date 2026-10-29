@@ -188,6 +188,18 @@ export function ideaText(idea: PromptIdea): string {
   return lines.join('\n');
 }
 
+const NOTE_CHARS = 4000;
+
+/**
+ * A note's text for a prompt. A note is Markdown, so its lines (headings, bullets, checklists) are kept, with the blank lines squeezed and every line
+ * indented under the label that introduces it; a one-line note stays one line.
+ */
+export function noteText(text: string, max = NOTE_CHARS): string {
+  const clean = text.replace(/\n{3,}/g, '\n\n').trim();
+  const cut = clean.length > max ? `${clean.slice(0, max).trimEnd()}…` : clean;
+  return cut.includes('\n') ? `\n${cut.split('\n').map((line) => (line ? `    ${line}` : line)).join('\n')}` : cut;
+}
+
 /** The research board as lines of text: video tiles with their numbers, links, notes. */
 export function researchText(tiles: ResearchTile[]): string {
   const lines = tiles.map((tile) => {
@@ -206,7 +218,7 @@ export function researchText(tiles: ResearchTile[]): string {
       case 'breakdown':
         return `- Breakdown of a video: ${[tile.title, tile.url].filter(Boolean).join(' ') || 'untitled'}`;
       default:
-        return `- Note: ${squash(tile.text ?? tile.title ?? '').slice(0, 1500)}`;
+        return `- Note: ${noteText(tile.text ?? tile.title ?? '')}`;
     }
   });
   return lines.length ? lines.join('\n') : '(none)';
@@ -416,6 +428,8 @@ export interface OutlineInput {
   minutes?: number;
   /** What the creator has asked for, in their own words. */
   direction?: string;
+  /** The Board's tiles: the notes (Markdown), videos and links the scenes should draw on. */
+  research?: ResearchTile[];
 }
 
 const lengthText = (minutes: number | undefined) =>
@@ -433,6 +447,7 @@ export async function buildOutlinePrompt(ctx: ChannelContext, input: OutlineInpu
       idea: ideaText(input.idea),
       package: packageText(input.pkg),
       direction: input.direction?.trim() || '(none: use your judgment)',
+      research: researchText(input.research ?? []),
       criteria: criteriaText(ctx),
       voice_summary: voiceSummary(ctx.voice),
       structure: structureText(ctx.structure),

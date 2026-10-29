@@ -18,6 +18,8 @@ import { publishVideo, ytDlpViews, type ViewsReader } from './publish.js';
 import { publishingRoutes, type PublishingOptions } from './publisher-routes.js';
 import { recordingsDiskSpace } from './disk.js';
 import { readTranscript, startTileRead } from './research.js';
+import * as boardDocs from './board-docs.js';
+import { subscribeBoard } from './board-watch.js';
 import { askAboutBoard, readBoardChat, saveBoardChat } from './board-chat.js';
 import { videoScenes, videosScenes } from './scenes.js';
 import { POSITION_MAX, WIDTH_MAX, WIDTH_MIN } from './tile-layout.js';
@@ -152,7 +154,8 @@ const tilePatchBody = z
   .object({
     pos: z.object({ x: z.number().finite().min(0).max(POSITION_MAX), y: z.number().finite().min(0).max(POSITION_MAX), w: z.number().finite().min(WIDTH_MIN).max(WIDTH_MAX).optional() }).strict(),
     title: z.string().max(500),
-    text: z.string().max(20_000),
+    text: z.string().max(boardDocs.MAX_DOC_BYTES),
+    base: z.string().max(64),
   })
   .partial()
   .strict()
@@ -176,6 +179,10 @@ const packageRunBody = z.object({ replace: z.enum(['titles', 'hook']).optional()
 const scriptRunBody = z.object({ sceneId: z.string().regex(SCENE_ID).optional() }).strict();
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { files: 1, fileSize: 50 * 1024 * 1024 } });
+// Dropped Markdown and text files: each is checked against the note size limit afterwards, so one that is too large is reported and the rest still come in.
+const docsUpload = multer({ storage: multer.memoryStorage(), limits: { files: 20, fileSize: 5 * 1024 * 1024 } });
+const notesFolderBody = z.object({ path: z.string().trim().min(1).max(1000).nullable() }).strict();
+const pinBody = z.object({ path: z.string().min(1).max(300) }).strict();
 
 const VIDEO_EXTENSIONS = new Set(['.mp4', '.mov', '.m4v', '.webm', '.mkv', '.avi']);
 const NOT_A_FILE = 'Drop a video file, like an mp4 or a mov.';
@@ -446,8 +453,7 @@ export function clubRouter({ ai = {}, transcribe, runAI, readViews = ytDlpViews(
   router.get('/videos/:id/research', handler(async (req, res) => {
     const slug = await requireWorkspace();
     const id = param(req, 'id');
-    await store.seedIdeaTiles(slug, id);
-    res.json(await store.listPlacedTiles(slug, id));
+    res.json(await boardDocs.boardTiles(slug, id));
   }));
   router.post('/videos/:id/research', upload.single('file'), handler(async (req, res) => {
     const slug = await requireWorkspace();
@@ -457,15 +463,31 @@ export function clubRouter({ ai = {}, transcribe, runAI, readViews = ytDlpViews(
     const needs = { link: body.url, video: body.url, text: body.text, note: true, image: file ?? body.url, signal: body.text, breakdown: body.meta?.breakdownId, idea: body.text }[body.kind];
     if (!needs) throw new ClubError(body.kind === 'text' ? 'Add some text first.' : body.kind === 'signal' ? 'Add the post first.' : body.kind === 'breakdown' ? 'Pick a breakdown first.' : 'Add a link or a file first.');
     if (body.kind === 'breakdown') await readBreakdown(slug, body.meta!.breakdownId!);
+    // A note is a Markdown file in the video's folder.
+    if (body.kind === 'note') return res.status(201).json(await boardDocs.addNote(slug, param(req, 'id'), body.text));
     res.status(201).json(await store.addTile(slug, param(req, 'id'), { ...body, file }));
   }));
   // Moves a tile on the Board, renames it, or edits a note. Writes only what was sent.
   router.patch('/videos/:id/research/:tileId', handler(async (req, res) => {
     const slug = await requireWorkspace();
-    const { pos, ...rest } = tilePatchBody.parse(req.body);
-    const tile = await store.readTile(slug, param(req, 'id'), param(req, 'tileId'));
+    const { pos, base, ...rest } = tilePatchBody.parse(req.body);
+    const id = param(req, 'id');
+    let tile = await store.readTile(slug, id, param(req, 'tileId'));
     if (rest.text !== undefined && tile.kind !== 'note' && tile.kind !== 'text') throw new ClubError('Only notes can be edited.');
-    res.json(await store.updateTile(slug, param(req, 'id'), tile.id, { ...rest, ...(pos ? { pos: { ...tile.pos, ...pos } } : {}) }));
+    if (tile.kind === 'note' && !tile.doc) {
+      await boardDocs.syncBoard(slug, id);
+      tile = await store.readTile(slug, id, tile.id);
+    }
+    // A note's text is saved to its file, not to the tile. If the file changed since the editor read it, the other version is kept and the answer says so.
+    if (tile.doc) {
+      let conflict: { copy: string } | undefined;
+      if (rest.text !== undefined) ({ conflict } = await boardDocs.saveNote(slug, id, tile, rest.text, base));
+      const placed = pos ? await store.updateTile(slug, id, tile.id, { pos: { ...tile.pos, ...pos } }) : tile;
+      const [shown] = await boardDocs.hydrate(slug, id, [placed]);
+      res.json({ ...shown, ...(conflict ? { conflict } : {}) });
+      return;
+    }
+    res.json(await store.updateTile(slug, id, tile.id, { ...rest, ...(pos ? { pos: { ...tile.pos, ...pos } } : {}) }));
   }));
   router.get('/videos/:id/research/:tileId/file', handler(async (req, res) => {
     const slug = await requireWorkspace();
@@ -486,8 +508,47 @@ export function clubRouter({ ai = {}, transcribe, runAI, readViews = ytDlpViews(
     res.json(await readTranscript(await requireWorkspace(), param(req, 'id'), param(req, 'tileId')));
   }));
   router.delete('/videos/:id/research/:tileId', handler(async (req, res) => {
-    await store.deleteTile(await requireWorkspace(), param(req, 'id'), param(req, 'tileId'));
+    await boardDocs.removeNote(await requireWorkspace(), param(req, 'id'), param(req, 'tileId'));
     res.status(204).end();
+  }));
+
+  // ---- the Board's files: where the video's folder is, the Notes folder, files dropped or pinned, and news when a file changes
+  router.get('/videos/:id/board/files', handler(async (req, res) => {
+    const slug = await requireWorkspace();
+    await store.readVideo(slug, param(req, 'id'));
+    res.json(await boardDocs.boardFiles(slug, param(req, 'id')));
+  }));
+  router.put('/board/notes-folder', handler(async (req, res) => {
+    const { path: folder } = notesFolderBody.parse(req.body);
+    res.json({ path: await boardDocs.setNotesFolder(await requireWorkspace(), folder) });
+  }));
+  router.post('/videos/:id/board/import', docsUpload.array('files', 20), handler(async (req, res) => {
+    const slug = await requireWorkspace();
+    await store.readVideo(slug, param(req, 'id'));
+    const files = ((req.files as Express.Multer.File[] | undefined) ?? []).map((file) => ({ name: file.originalname, data: file.buffer }));
+    if (!files.length) throw new ClubError('Drop a Markdown or text file.');
+    res.status(201).json(await boardDocs.importFiles(slug, param(req, 'id'), files));
+  }));
+  router.post('/videos/:id/board/pin', handler(async (req, res) => {
+    const slug = await requireWorkspace();
+    await store.readVideo(slug, param(req, 'id'));
+    res.status(201).json(await boardDocs.pinNote(slug, param(req, 'id'), pinBody.parse(req.body).path));
+  }));
+  // One message, "files", each time a Markdown or text file in the video's folder or the Notes folder appears, changes or goes.
+  router.get('/videos/:id/board/events', handler(async (req, res) => {
+    const slug = await requireWorkspace();
+    const id = param(req, 'id');
+    await store.readVideo(slug, id);
+    res.set({ 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache, no-transform', Connection: 'keep-alive' });
+    res.flushHeaders();
+    res.write('retry: 2000\n\n');
+    const stop = subscribeBoard(slug, id, () => res.write('event: files\ndata: {}\n\n'));
+    const heartbeat = setInterval(() => res.write(': keepalive\n\n'), 15_000);
+    heartbeat.unref();
+    res.on('close', () => {
+      clearInterval(heartbeat);
+      stop();
+    });
   }));
 
   // ---- planning: package, outline, full script, and the hand-off to the recorder
