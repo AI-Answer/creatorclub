@@ -448,6 +448,49 @@ test('Add note puts a tile on the board and Undo takes it off; the description i
   assert.equal((await plan()).package.description, undefined);
 });
 
+test('the companion works with notes as Markdown files: Add note makes the file and the card, Undo sets it aside for good, an edited note is kept, and the prompt carries the Markdown', async () => {
+  const cards = async () => (await call<ResearchTile[]>('GET', `/videos/${video.id}/research`)).body.filter((tile) => tile.doc);
+  const reply = await replyWith([{ type: 'add_note', text: '# Plan B\n\n- show the **bill**\n- [ ] check the price' }], 'board');
+  const before = (await cards()).length;
+  assert.deepEqual((await apply(reply, 0)).body.changed, ['board']);
+  const added = (await cards()).find((tile) => tile.title === 'Plan B')!;
+  assert.ok(added, 'the card shows');
+  assert.equal(added.doc!.root, 'video');
+  const file = path.join(vdir, added.doc!.path);
+  assert.equal(await readFile(file, 'utf8'), '# Plan B\n\n- show the **bill**\n- [ ] check the price', 'the note is a Markdown file in the video\'s folder');
+  assert.equal(added.text, '# Plan B\n\n- show the **bill**\n- [ ] check the price');
+
+  // The next question carries the note's Markdown, lines and all.
+  scripts.push({ text: 'Fine.' });
+  await events((await ask('What do you see?', { tab: 'board' })).body.jobId);
+  const prompt = asked.at(-1)!.prompt;
+  assert.match(prompt, /Your note "Plan B":/);
+  assert.match(prompt, /- show the \*\*bill\*\*\n\s+- \[ \] check the price/, 'the bullets and the checklist are in the board text');
+  assert.doesNotMatch(prompt, /\(empty\)/);
+
+  // Undo takes the card off and sets the file aside, and the Board does not bring it back.
+  await undo(reply, 0);
+  assert.equal((await cards()).length, before);
+  assert.equal(await stat(file).then(() => true, () => false), false, 'the file is gone from the video\'s folder');
+  assert.ok((await readdir(path.join(vdir, 'notes', '.removed'))).some((name) => name.endsWith('plan-b.md')), 'and kept aside');
+  assert.equal((await cards()).length, before, 'a second read of the Board does not bring it back');
+
+  // Applied again, then written in by the person: Undo is refused and the note stays, in the file and on the Board.
+  await apply(reply, 0);
+  const again = (await cards()).find((tile) => tile.title === 'Plan B')!;
+  await call('PATCH', `/videos/${video.id}/research/${again.id}`, { text: '# Plan B\n\nrewritten by me' });
+  assert.equal(errorOf(await undo(reply, 0)), CHANGED_SINCE);
+  assert.equal(await readFile(path.join(vdir, again.doc!.path), 'utf8'), '# Plan B\n\nrewritten by me');
+  assert.ok((await cards()).some((tile) => tile.id === again.id), 'the card stays');
+  // The same when an agent wrote in the file itself.
+  const third = await replyWith([{ type: 'add_note', text: 'Quick thought' }], 'board');
+  await apply(third, 0);
+  const quick = (await cards()).find((tile) => tile.title === 'Quick thought')!;
+  await writeFile(path.join(vdir, quick.doc!.path), 'Quick thought, changed by an agent');
+  assert.equal(errorOf(await undo(third, 0)), CHANGED_SINCE);
+  assert.equal(await readFile(path.join(vdir, quick.doc!.path), 'utf8'), 'Quick thought, changed by an agent');
+});
+
 test('Stop keeps what arrived as a stopped reply; one reply runs at a time; Try again does not save the question twice', async () => {
   let release!: () => void;
   scripts.push({ deltas: ['Half of an ', 'answer'], text: 'Half of an answer and more', hold: new Promise((resolve) => (release = resolve)) });

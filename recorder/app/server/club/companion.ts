@@ -22,6 +22,7 @@ import {
   type CompanionUserMessage,
 } from '../../shared/companion.js';
 import { AiError, aiLabel, runAI, type AIEvent } from './ai.js';
+import { boardTiles } from './board-docs.js';
 import { boardText, readBoardChat } from './board-chat.js';
 import { actionShape, applyAction, undoVersion, validateActions, versionExists } from './companion-actions.js';
 import { chunkText, parseReply, ReplySplitter } from './companion-reply.js';
@@ -285,7 +286,7 @@ async function writeReply(slug: string, id: string, input: AskInput, context: Jo
   steps.start(READING[tab]);
 
   const video = await store.readVideo(slug, id);
-  const [channel, tiles, pkg, outline] = await Promise.all([loadChannelContext(slug), store.listPlacedTiles(slug, id), readPackage(slug, id), readOutline(slug, id)]);
+  const [channel, tiles, pkg, outline] = await Promise.all([loadChannelContext(slug), boardTiles(slug, id), readPackage(slug, id), readOutline(slug, id)]);
   const takes =
     tab === 'record'
       ? await videoScenes(slug, id).then(
