@@ -19,13 +19,15 @@ export function growthPerDay(item:Pick<TrendingEntry,'history'>):number{
 /** A video "For you" lists: about the channel's topics, and not under its creator's usual views (a video below 1× is no outlier). An unknown usual stays. */
 export const qualifies=(item:Pick<TrendingEntry,'fit'|'mult'>)=>item.fit&&(item.mult===null||item.mult>=1);
 
-export const trendCounts=(items:readonly TrendingEntry[])=>({fit:items.filter(qualifies).length,followed:items.filter(i=>i.kind==='followed').length,all:items.length});
+/** How many videos each list shows: the same as the cards, so a video the feed has twice counts once. */
+export const trendCounts=(items:readonly TrendingEntry[])=>({fit:trendList(items,'fit','vpd').length,followed:trendList(items,'followed','vpd').length,all:trendList(items,'all','vpd').length});
 /** Videos "For you" leaves out: not about the channel's topics, or under their creator's usual. */
-export const offTopic=(items:readonly TrendingEntry[])=>items.filter(i=>!qualifies(i)).length;
+export const offTopic=(items:readonly TrendingEntry[])=>trendCounts(items).all-trendCounts(items).fit;
 
-/** The videos to show for a list and a sort. */
+/** The videos to show for a list and a sort. A video the feed lists twice (found by a search and by a followed channel) shows once, so its picture is not repeated. */
 export function trendList(items:readonly TrendingEntry[],show:TrendShow,sort:TrendSort):TrendingEntry[]{
- const list=items.filter(i=>show==='all'||(show==='fit'?qualifies(i):i.kind==='followed'));
+ const seen=new Set<string>();
+ const list=items.filter(i=>(show==='all'||(show==='fit'?qualifies(i):i.kind==='followed'))&&!seen.has(i.videoId)&&!!seen.add(i.videoId));
  list.sort((a,b)=>sort==='views'?b.views-a.views:sort==='outlier'?(b.mult??-1)-(a.mult??-1)||b.vpd-a.vpd:b.vpd-a.vpd);
  // Videos known to beat their creator's usual come first; those with no usual known follow.
  return show==='fit'?[...list.filter(i=>i.mult!==null),...list.filter(i=>i.mult===null)]:list;

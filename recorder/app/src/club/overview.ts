@@ -48,11 +48,6 @@ export function resumeVideos(videos:readonly Video[],recent:readonly string[],li
  return [...opened,...rest].slice(0,limit);
 }
 
-/** Videos per stage for the "In production" card. Put-off and skipped ideas are not counted. */
-export function stageCounts(videos:readonly Video[],stages:readonly VideoStage[]):{stage:VideoStage;count:number}[]{
- return stages.map(stage=>({stage,count:videos.filter(v=>v.stage===stage&&!v.hidden).length}));
-}
-
 /** How far a video's scenes are, from what is known about them. `scenes` is undefined while they are not known (still loading, or could not be read): then only the stage is said. */
 export function progressText(video:Video,scenes:readonly SceneProgress[]|undefined):string{
  if(!scenes){

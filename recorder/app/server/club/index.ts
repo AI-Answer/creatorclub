@@ -15,6 +15,7 @@ import { addChannel, rebuildVoice, startFresh } from './onboard.js';
 import { SCENE_ID, deletePackage, ensurePackage, heldResults, patchPackage, readOutline, readPackage, runningPlanJobs, saveOutline, savePackage, saveScript, saveSceneScript, startPlanJob, undoReplace, usePackageText, useHeld, type PlanOptions } from './planning.js';
 import { continueToRecording, outlineChangedScene } from './recorder.js';
 import { publishVideo, ytDlpViews, type ViewsReader } from './publish.js';
+import { publishingRoutes, type PublishingOptions } from './publisher-routes.js';
 import { recordingsDiskSpace } from './disk.js';
 import { readTranscript, startTileRead } from './research.js';
 import { askAboutBoard, readBoardChat, saveBoardChat } from './board-chat.js';
@@ -220,6 +221,8 @@ export interface ClubRouterOptions {
   runAI?: PlanOptions['runAI'];
   /** Reads a published video's view count. Defaults to yt-dlp (metadata only). Tests pass a stand-in. */
   readViews?: ViewsReader;
+  /** Publishing to Postiz: how a finished export is found, and the waits. Tests pass stand-ins; SceneForge's server passes its export history. */
+  publishing?: Omit<PublishingOptions, 'readViews'>;
   /** Where Working now reads followed channels from. Defaults to yt-dlp, metadata only. Tests pass a stand-in. */
   uploads?: UploadsSourceFactory;
   /** Where Working now searches topics for a channel that follows nobody yet. Defaults to yt-dlp `ytsearch`, metadata only. Tests pass a stand-in. */
@@ -228,7 +231,7 @@ export interface ClubRouterOptions {
   signals?: Partial<SignalsSources>;
 }
 
-export function clubRouter({ ai = {}, transcribe, runAI, readViews = ytDlpViews(ai), uploads = ytDlpSource(ai), search = ytDlpSearchSource(ai), signals = {} }: ClubRouterOptions = {}): Router {
+export function clubRouter({ ai = {}, transcribe, runAI, readViews = ytDlpViews(ai), publishing = {}, uploads = ytDlpSource(ai), search = ytDlpSearchSource(ai), signals = {} }: ClubRouterOptions = {}): Router {
   const signalSources: SignalsSources = { treg: findTregCall(ai), ...signals };
   const plan: PlanOptions = { extraDirs: ai.extraDirs, runAI };
   const router = Router();
@@ -433,6 +436,7 @@ export function clubRouter({ ai = {}, transcribe, runAI, readViews = ytDlpViews(
     const { youtubeUrl } = publishBody.parse(req.body);
     res.json((await publishVideo(await requireWorkspace(), param(req, 'id'), youtubeUrl, readViews)).video);
   }));
+  publishingRoutes(router, { handler, requireWorkspace }, { ...publishing, readViews });
   router.post('/videos/:id/opened', handler(async (req, res) => {
     await store.markOpened(await requireWorkspace(), param(req, 'id'));
     res.status(204).end();

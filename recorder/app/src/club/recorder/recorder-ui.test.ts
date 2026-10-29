@@ -116,7 +116,7 @@ test('standalone SceneForge keeps its own take review',async()=>{
  }finally{await ui.close();}
 });
 
-test('the warnings card shows low disk as one amber card, and the pre-flight line names the sources not ready',async()=>{
+test('the warnings card shows low disk as one amber card in place of the readiness line',async()=>{
  localStorage.clear();const originalFetch=globalThis.fetch;const asked:string[]=[];
  globalThis.fetch=async(input)=>{const url=String(input);asked.push(url);return url==='/api/club/disk'?Response.json({freeBytes:2*1024**3,low:true}):Response.json([]);};
  Object.defineProperty(navigator,'permissions',{value:{query:async()=>({state:'prompt'})},configurable:true});
@@ -127,11 +127,11 @@ test('the warnings card shows low disk as one amber card, and the pre-flight lin
   assert.equal(cards.length,1,'one card, not one per problem');
   assert.equal(cards[0].getAttribute('data-tone'),'warning');
   assert.equal(cards[0].textContent,'Your disk is almost full: free up at least 8 GB before recording.');
-  assert.equal(cards[0].parentElement?.getAttribute('aria-label'),'Recording sources','the card sits in the sources column');
-  assert.equal(cards[0].parentElement?.firstElementChild===cards[0],true,'at the top of it');
+  assert.equal(cards[0].closest('.club-record-bar')!==null,true,'the card sits in the bar above the Record button');
+  assert.equal(Boolean(ui.container.querySelector('.club-readiness')),false,'it takes the place of the readiness line');
+  assert.equal(cards[0].closest('.club-sources'),null,'and is not hidden under Change');
   assert.ok(asked.includes('/api/club/disk'));
-  assert.equal(ui.container.querySelector('.club-recorder-preflight')?.textContent,'Fix the camera and microphone above before recording');
-  assert.equal(Boolean(ui.container.querySelector('.recording-ready-hint')),false,'the old ready hint is replaced by the pre-flight line');
+  assert.equal(Boolean(ui.container.querySelector('.recording-ready-hint')),false,'the old ready hint is gone');
  }finally{globalThis.fetch=originalFetch;await ui.close();}
 });
 
@@ -143,7 +143,8 @@ test('standalone SceneForge shows no warnings card and does not check disk space
  try{
   await flush();
   assert.equal(Boolean(ui.container.querySelector('.club-recorder-warnings')),false);
-  assert.equal(Boolean(ui.container.querySelector('.club-recorder-preflight')),false);
+  assert.equal(Boolean(ui.container.querySelector('.club-record-bar')),false,'standalone keeps its sources column and cards');
+  assert.ok(ui.container.querySelector('aside.recording-source-panel'));
   assert.ok(ui.container.querySelector('.recording-ready-hint'));
   assert.equal(asked.some(url=>url.includes('/api/club/disk')),false);
  }finally{globalThis.fetch=originalFetch;await ui.close();}
@@ -202,9 +203,10 @@ test('inside CreatorClub, Continue confirms the take, selects the next scene and
   assert.ok(server.saved()?.clips.some(clip=>clip.recordingTakeId==='t1'),'the take is on the timeline');
   assert.equal(c.querySelector('.rsc-scene.is-selected')?.getAttribute('data-scene-id'),'s2','scene 2 is next to record');
   assert.equal(progress.at(-1),'1/2');
-  assert.ok(c.querySelector('.rsc-take-badge')?.textContent==='Take 1 (00:07)','the take shows as a thumbnail');
+  assert.equal(c.querySelector('.rsc-take-badge'),null,'the takes shown are scene 2\'s, which has none yet');
   assert.ok(!c.textContent?.includes('Edit & export'),'the bottom bar, not a second button, leads to editing');
-  assert.ok(c.textContent?.includes('Remove pauses'),'a scene with a take can have its pauses removed');
+  assert.ok(!c.textContent?.includes('Remove pauses')&&!c.textContent?.includes('Style video'),'the cards have no per-scene editing buttons');
+  assert.equal(c.querySelector('.rsc-take-menu-anchor .rsc-gear'),null,'and no gear on a take: its preview holds the choices');
  }finally{server.restore();await ui.close();}
 });
 
@@ -219,12 +221,12 @@ test('the bottom bar makes Continue to edit the primary only once every scene ha
  const bar=()=>button(ui.container,'Continue to edit');
  try{
   await flush();await flush();
-  assert.ok(!bar().classList.contains('primary'),'while scenes are left, the scene\'s Record is the primary');
+  assert.ok(!bar().classList.contains('primary'),'while scenes are left, the Record button is the one big action');
   await click(footerButton(ui.container,'Continue'));await flush();await flush();
   assert.ok(!bar().classList.contains('primary'),'one of two scenes recorded');
   const scene2=ui.container.querySelector('.rsc-scene[data-scene-id="s2"]')!;
   assert.ok(scene2.classList.contains('is-selected'));
-  assert.ok(scene2.querySelector('.rsc-record-button'),'scene 2 shows its Record button');
+  assert.equal(ui.container.querySelector<HTMLButtonElement>('.club-record-button')?.textContent,'Record scene 2','the one Record button is for scene 2');
  }finally{globalThis.fetch=original;server.restore();await ui.close();}
  // A recording whose every scene has a take: Continue to edit is the primary.
  const all=serveProject();all.p.scenes.pop();
@@ -290,7 +292,7 @@ test('a source that fails for another reason says so in plain words, with no raw
  const audio=await mountClubRecording(only('systemAudio'),'granted');
  try{
   assert.deepEqual(cardLines(audio.ui.container),[],'nothing chosen yet is not an error');
-  assert.equal(audio.ui.container.querySelector('.club-recorder-preflight')?.textContent,'Fix the computer audio above before recording');
+  assert.equal(audio.ui.container.querySelector('.club-readiness')?.textContent,'Computer audio: opens when you record');
   await click(button(audio.ui.container,'Choose source'));await flush();
   assert.deepEqual(cardLines(audio.ui.container),[{text:"The computer audio can't be captured: choose the screen or window again.",button:'Choose source'}]);
   assert.equal(Boolean(audio.ui.container.querySelector('.capture-source-error')),false,'no unexplained buttons under the source');

@@ -52,8 +52,8 @@ export function tabDone(tab:VideoTab,{stage,scenes,allRecorded,exported}:TabFact
 /** Continue is the primary button only once the tab's job is done and the tab has no primary of its own still waiting (one primary per view). */
 export const continueIsPrimary=(done:boolean,ownPrimary:boolean)=>done&&!ownPrimary;
 
-/** Picking a scene in the strip only jumps to Plan from the Board, as in the prototype; on any other tab it focuses the scene there. */
-export const pickJumpsToPlan=(tab:VideoTab)=>tab==='board';
+/** The scene chips appear only where a scene is chosen to work on: Record and Edit. Board, Plan and Publish have their own scene lists or none. */
+export const showsStrip=(tab:VideoTab)=>tab==='record'||tab==='edit';
 
 /** "5 scenes · 4:30", "1 scene · 0:45". */
 export function scenesLine(scenes:readonly Pick<VideoScene,'seconds'>[],clock:(seconds:number)=>string):string{

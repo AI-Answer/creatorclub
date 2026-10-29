@@ -18,17 +18,40 @@ function Field({label,help,children}:{label:string;help?:string;children:ReactNo
 const same=(a:readonly string[],b:readonly string[])=>a.length===b.length&&a.every((item,index)=>item===b[index]);
 const labels:readonly string[]=AUDIENCE_LABELS;
 
-/** What CreatorClub knows about the channel: your name, topics, who it's for, how you talk, the channels you follow and where signals come from. */
+type Row='channel'|'follow'|'voice';
+
+/**
+ * What CreatorClub knows about the channel, as three rows that open in place: the channel itself (name, topics, who it's for),
+ * the channels you follow and where signals come from, and how you sound. Nothing is edited until a row is opened.
+ */
 export function ChannelSection({workspace,focus,onSaved,onSetup}:{workspace:Workspace|null;focus?:'followed'|'sources';onSaved(workspace:Workspace):void;onSetup():void}){
- return <section className="set-sec" id="set-channel" aria-labelledby="set-channel-title"><h2 id="set-channel-title">Channel</h2><p>What CreatorClub knows about your channel. It shapes every idea and script.</p>
+ const [open,setOpen]=useState<readonly Row[]>(focus?['follow']:[]);
+ const toggle=(row:Row)=>setOpen(now=>now.includes(row)?now.filter(item=>item!==row):[...now,row]);
+ return <section className="set-group" id="set-channel" aria-labelledby="set-channel-title"><h2 id="set-channel-title">Channel</h2><p>What CreatorClub knows about your channel. It shapes every idea and script.</p>
   {workspace
-   ?<>
-    <ChannelForm key={workspace.slug} workspace={workspace} onSaved={onSaved} onSetup={onSetup}/>
-    <VoiceGuide key={`voice-${workspace.slug}`} workspace={workspace} onSaved={onSaved}/>
-    <Card className="mt-5 p-4" id="set-followed"><FollowedChannels key={`followed-${workspace.slug}`} focus={focus==='followed'}/><SignalSources key={`signals-${workspace.slug}`} focus={focus==='sources'} topics={workspace.topics}/></Card>
-   </>
+   ?<Card>
+    <Fold title={workspace.name} summary={<>{handleLabel(workspace.handle)||'No YouTube channel yet'}{workspace.channelUrl&&<a style={{marginLeft:8,color:'var(--cc-accent-text)'}} href={workspace.channelUrl} target="_blank" rel="noopener noreferrer">Open on YouTube</a>}{workspace.topics.length>0&&<span className="faint"> · {workspace.topics.map(topicLabel).join(', ')}</span>}</>}
+     lead={<Avatar name={workspace.name} size="lg"/>} verb="Edit" noun="channel" open={open.includes('channel')} onToggle={()=>toggle('channel')}>
+     <ChannelForm key={workspace.slug} workspace={workspace} onSaved={onSaved} onSetup={onSetup}/>
+    </Fold>
+    <Fold id="set-followed" title="Channels you follow" summary="Working now and Signals look here for what is doing well." verb="Manage" noun="follows" open={open.includes('follow')} onToggle={()=>toggle('follow')}>
+     <div className="fold-pad"><FollowedChannels key={`followed-${workspace.slug}`} focus={focus==='followed'}/><SignalSources key={`signals-${workspace.slug}`} focus={focus==='sources'} topics={workspace.topics}/></div>
+    </Fold>
+    <Fold title="How you sound" summary="How CreatorClub writes like you." verb="Edit" noun="voice" open={open.includes('voice')} onToggle={()=>toggle('voice')}>
+     <div className="fold-pad"><VoiceGuide key={`voice-${workspace.slug}`} workspace={workspace} onSaved={onSaved}/></div>
+    </Fold>
+   </Card>
    :<Card className="p-4"><div className="row"><p className="muted" style={{margin:0}}>No channel yet.</p><Button size="sm" variant="primary" onClick={onSetup}>Add your channel</Button></div></Card>}
  </section>;
+}
+
+/** A row of a group: what it is, a button that opens it in place, and the editing inside while open. */
+function Fold({id,title,summary,lead,verb,noun,open,onToggle,children}:{id?:string;title:string;summary:ReactNode;lead?:ReactNode;verb:'Edit'|'Manage';noun:string;open:boolean;onToggle():void;children:ReactNode}){
+ return <div className="fold" id={id}>
+  <div className="srow2">{lead}<div className="grow" style={{minWidth:0}}><div className="st">{title}</div><div className="sd">{summary}</div></div>
+   <div className="sv"><Button size="sm" aria-expanded={open} aria-label={`${open?'Close':verb} ${noun}`} onClick={onToggle}>{open?'Close':verb}</Button></div></div>
+  {open&&<div className="fold-body">{children}</div>}
+ </div>;
 }
 
 function ChannelForm({workspace,onSaved,onSetup}:{workspace:Workspace;onSaved(workspace:Workspace):void;onSetup():void}){
@@ -49,10 +72,7 @@ function ChannelForm({workspace,onSaved,onSetup}:{workspace:Workspace;onSaved(wo
  },[workspace.slug,name,person,handle,topics,audience,about,cta,onSaved]);
  const audiences=[...labels,...audience.filter(item=>!labels.includes(item))];
  const addAudience=()=>{edit(setAudience)(addTopic(audience,other));setOther('');};
- return <Card className="p-4" style={{padding:18}}>
-  <div className="row" style={{gap:14,marginBottom:18}}><Avatar name={workspace.name} size="lg"/>
-   <div className="grow"><div style={{fontWeight:650,fontSize:15}}>{workspace.name}</div><div className="small muted">{handleLabel(workspace.handle)||'No YouTube channel yet'}{workspace.channelUrl&&<a style={{marginLeft:8,color:'var(--cc-accent-text)'}} href={workspace.channelUrl} target="_blank" rel="noopener noreferrer">Open on YouTube</a>}</div></div>
-   <Button size="sm" onClick={onSetup}>Run setup again</Button></div>
+ return <div className="fold-pad">
   <div style={{display:'flex',flexDirection:'column',gap:16}}>
    <div className="grid g2" style={{gap:12}}>
     <Field label="Your first name" help="Used in your greeting."><Input value={person} onChange={event=>edit(setPerson)(event.target.value)}/></Field>
@@ -66,10 +86,10 @@ function ChannelForm({workspace,onSaved,onSetup}:{workspace:Workspace;onSaved(wo
     <div className="row" style={{marginTop:8}}><Input aria-label="Another audience" value={other} placeholder="Someone else" style={{maxWidth:260}} onChange={event=>setOther(event.target.value)} onKeyDown={event=>{if(event.key==='Enter'){event.preventDefault();addAudience();}}}/><Button size="sm" disabled={!other.trim()} onClick={addAudience}><Icon name="Plus" size={14}/>Add</Button></div>
    </div>
    <Field label="Ending rule" help="How your videos end. Scripts follow it."><Textarea rows={2} value={cta} onChange={event=>edit(setCta)(event.target.value)}/></Field>
-   <div className="row"><Button variant="primary" disabled={!dirty||saving||!name.trim()} onClick={()=>void save()}>Save changes</Button>{saved&&!dirty&&<span role="status" className="small muted">Saved</span>}</div>
+   <div className="row"><Button variant="primary" disabled={!dirty||saving||!name.trim()} onClick={()=>void save()}>Save changes</Button>{saved&&!dirty&&<span role="status" className="small muted">Saved</span>}<button type="button" className="linkish" style={{marginLeft:'auto'}} onClick={onSetup}>Run setup again</button></div>
    {error&&<ErrorLine message={error} onRetry={()=>void save()}/>}
   </div>
- </Card>;
+ </div>;
 }
 
 /**
@@ -90,7 +110,7 @@ function VoiceGuide({workspace,onSaved}:{workspace:Workspace;onSaved(workspace:W
  const rebuild=()=>{setAnswered(false);void voice.run(()=>clubFetch(`/workspaces/${slug}/voice`,{method:'POST',body:{}}),()=>setReads(count=>count+1));};
  const answers=()=>{setAnswered(true);setAsking(false);setReads(count=>count+1);clubFetch<Workspace>(`/workspaces/${slug}`).then(onSaved,()=>{});};
  const state=voice.state;
- return <div style={{marginTop:18,display:'flex',flexDirection:'column',gap:8}}>
+ return <div style={{display:'flex',flexDirection:'column',gap:8}}>
   <div className="field">Voice guide</div>
   {guide
    ?<Card className="p-4" style={{background:'var(--cc-bg-sunk)',fontSize:13.5,lineHeight:1.6,color:'var(--cc-text-2)'}}>{guide.summary}

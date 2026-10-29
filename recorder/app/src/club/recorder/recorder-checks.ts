@@ -86,13 +86,18 @@ export function recorderProblems(sources:readonly SourceCheck[],disk:DiskSpace|n
  return lines.length?{tone:sourceProblem?'danger':'warning',lines}:null;
 }
 
-/** Before the first take only: "Fix the camera above before recording", naming every included source that isn't ready yet. */
-export function preflightLine(sources:readonly SourceCheck[],firstRecording:boolean):string|null{
- if(!firstRecording)return null;
- const names=sources.filter(source=>source.state!=='ready'&&source.state!=='starting').map(source=>NAMES[source.kind]);
- if(!names.length)return null;
- const list=names.length===1?names[0]:`${names.slice(0,-1).join(', ')} and ${names.at(-1)}`;
- return `Fix the ${list} above before recording`;
+const TITLES:Record<SourceKind,string>={camera:'Camera',microphone:'Microphone',screen:'Screen',systemAudio:'Computer audio'};
+
+/**
+ * The one line above the Record button, naming the sources that are on: "Camera · Microphone · Screen: ready".
+ * A source still opening, or not opened yet (recording opens it), says so. With no source on it says to choose one.
+ * Problems are not told here: they replace this line (see `recorderProblems`).
+ */
+export function readinessLine(sources:readonly SourceCheck[]):{text:string;ready:boolean}{
+ if(!sources.length)return {text:'No source is on. Choose one under Change.',ready:false};
+ const names=sources.map(source=>TITLES[source.kind]).join(' · ');
+ if(sources.every(source=>source.state==='ready'))return {text:`${names}: ready`,ready:true};
+ return {text:sources.some(source=>source.state==='off')?`${names}: opens when you record`:`${names}: opening…`,ready:false};
 }
 
 /** The scene to record after `from`: the next one without a take, else the first earlier one without a take, else null (all recorded). */

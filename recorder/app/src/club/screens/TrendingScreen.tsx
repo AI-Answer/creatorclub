@@ -63,10 +63,10 @@ export function TrendingScreen({navigate}:{navigate(route:Route):void}){
      <label className="small muted" htmlFor="sortby">Sort by</label>
      <select id="sortby" className="select" value={sort} onChange={event=>setSort(event.target.value as TrendSort)}>{TREND_SORTS.map(([key,label])=><option key={key} value={key}>{label}</option>)}</select>
     </div>
-    <div className="legend small muted"><span className="chip mult b-blue">1–3×</span><span className="chip mult b-green">3–5×</span><span className="chip mult b-amber">5–10×</span><span className="chip mult b-orange">10–50×</span><span className="chip mult b-grey">—</span>Views compared with that channel's usual. A dash means its usual isn't tracked yet.</div>
+    <div className="legend small muted">The number on each picture is its views compared with that channel's usual. A dash means its usual isn't tracked yet.</div>
     {show==='fit'&&topics.length>0&&<div className="small muted" style={{margin:'0 0 14px'}}>Matched to your topics: {topics.join(', ')}.</div>}
     {list.length
-     ?<div className="grid g4">{list.map(item=><TrendCard key={item.videoId} item={item} isNew={isNew(item,updatedAt)} reason={show!=='followed'?item.reason:null}
+     ?<div className="grid g4">{list.map((item,index)=><TrendCard key={item.videoId} item={item} rank={index+1} isNew={isNew(item,updatedAt)} reason={show!=='followed'?item.reason:null}
        hasBreakdown={!!(saved&&savedBreakdown(saved,item.videoId))} inIdeas={!!ideaFromSource(videos,trendingUrl(item.videoId))} onBreak={setBreakdown} onIdea={openIdea}/>)}</div>
      :<div className="card"><Empty icon="TrendingUp" title={show==='followed'?'Nothing from the channels you follow':'Nothing is beating its usual on your topics'} action={show==='followed'?undefined:<button type="button" className="btn" onClick={everything}>Show everything</button>}>{show==='followed'?'Refresh to read them again.':"Nothing about your topics is above its creator's usual right now. Look at everything that's working."}</Empty></div>}
     {show==='fit'&&hidden>0&&list.length>0&&<div style={{textAlign:'center',marginTop:20}}><button type="button" className="btn" onClick={everything}><Icon name="Eye" size={15}/>Show everything ({hidden} more, off topic or under their usual)</button></div>}

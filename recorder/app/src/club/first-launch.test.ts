@@ -22,7 +22,7 @@ const emit=(type:string,data?:unknown)=>act(async()=>{FakeEventSource.last().emi
 const text=(container:Element)=>container.textContent??'';
 const labels=(container:Element)=>[...container.querySelectorAll('button')].map(b=>b.textContent?.trim());
 const withServer=async(reply:(call:FakeCall)=>FakeReply|Promise<FakeReply>,run:(calls:FakeCall[])=>Promise<void>)=>{
- FakeEventSource.install();const server=installFetch(reply);
+ FakeEventSource.install();const server=installFetch(call=>reply(call)??(call.path==='/publishing'&&call.method==='GET'?{body:{postiz:{connected:false,address:null,channel:null},defaultVisibility:'public'}}:undefined));
  try{await run(server.calls);}finally{server.restore();}
 };
 const baseRoutes=(status:AiStatus,workspaces:unknown):((call:FakeCall)=>FakeReply)=>call=>{
@@ -363,7 +363,7 @@ test('Settings: Claude and ChatGPT with their status and Connect or Reconnect, a
   const ui=await mountUI(createElement(SettingsScreen,{onSetup(){}}));
   try{
    await flush();const c=ui.container;
-   assert.deepEqual([...c.querySelectorAll('h2')].map(h=>h.textContent),['Connected AI','Channel','Appearance']);
+   assert.deepEqual([...c.querySelectorAll('h2')].map(h=>h.textContent),['Connected AI','Channel','Publishing and look']);
    const names=[...c.querySelectorAll('button[aria-label]')].map(b=>b.getAttribute('aria-label')).filter(l=>/Connect|Reconnect/.test(l!));
    assert.deepEqual(names,['Reconnect Claude','Connect ChatGPT'],'Gemini has no sign-in');
    assert.match(text(c),/Connected as dani@example\.com/);
@@ -477,6 +477,8 @@ test('Settings: channel details (including your first name) save, and Rebuild vo
   const ui=await mountUI(createElement(SettingsScreen,{onSetup(){}}));
   try{
    await flush();const c=ui.container;
+   assert.equal(c.querySelector('#set-channel input'),null,'the channel form is closed until Edit');
+   await pressLabeled(c,'Edit channel');await pressLabeled(c,'Edit voice');
    const field=(label:string)=>[...c.querySelectorAll<HTMLLabelElement>('#set-channel label')].find(l=>l.querySelector('.field')?.textContent===label)!.querySelector('input')!;
    assert.equal(field('Your first name').value,'');
    assert.equal(field('Channel name').value,'Samin');
@@ -518,6 +520,7 @@ test('Settings: followed channels and signal sources save at once, and a failed 
   const ui=await mountUI(createElement(SettingsScreen,{onSetup(){}}));
   try{
    await flush();const c=ui.container;
+   await pressLabeled(c,'Manage follows');
    assert.deepEqual([...c.querySelectorAll('ul[aria-label="Followed channels"] li')].map(li=>li.textContent),['@RileyBrown']);
    await type(c.querySelector('input[aria-label="Followed channels"]')!,'@NateHerk');
    await act(async()=>c.querySelector<HTMLButtonElement>('input[aria-label="Followed channels"]')!.parentElement!.querySelector('button')!.click());await flush();
@@ -619,7 +622,7 @@ test('Welcome: leaving waits for setup to be saved; a failed save shows one sent
  });
 });
 
-test('Settings opened at the followed channels scrolls there and focuses the input; signal sources have visible labels and readable prefixes',async()=>{
+test('Settings opened at the followed channels scrolls there, opens them and focuses the input; signal sources have visible labels and readable prefixes',async()=>{
  await withServer(call=>{
   if(call.path==='/ai/status')return {body:claudeIn};
   if(call.path==='/settings')return {body:{defaultAi:'claude',appearance:null,geminiKey:null}};
@@ -636,7 +639,7 @@ test('Settings opened at the followed channels scrolls there and focuses the inp
    await flush();const c=ui.container;
    assert.deepEqual(scrolled,['set-followed']);
    assert.equal(document.activeElement,c.querySelector('input[aria-label="Followed channels"]'));
-   assert.equal(c.querySelector('.set-nav .nav-item.active')!.textContent,'Channel');
+   assert.ok(c.querySelector('button[aria-label="Close follows"]'),'the followed channels row is open');
    const labelsShown=[...c.querySelectorAll('#set-followed .small')].map(el=>el.textContent).filter(t=>['X accounts','X searches','Subreddits'].includes(t!));
    assert.deepEqual(labelsShown,['X accounts','X searches','Subreddits']);
    assert.deepEqual([...c.querySelectorAll('ul[aria-label="X accounts"] li')].map(li=>li.textContent),['@alexfinn']);
@@ -660,6 +663,7 @@ test('Settings: the voice guide shows its summary and source; a channel with no 
   const ui=await mountUI(createElement(SettingsScreen,{onSetup(){}}));
   try{
    await flush();const c=ui.container;
+   await pressLabeled(c,'Edit voice');
    assert.match(text(c),/Voice guide/);
    assert.match(text(c),/Voice: Calm and clear\./);
    assert.match(text(c),/Built from your answers\./);

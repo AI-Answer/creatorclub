@@ -559,3 +559,76 @@ export interface VideoScene {
 
 /** `GET /api/club/videos/scenes`: the scenes of every video that is not published, by video id. A video whose scenes could not be read has no entry, which is not the same as an empty list (an outline with no scenes). */
 export type ScenesByVideo = Record<string, VideoScene[]>;
+
+// ---------------------------------------------------------------- publishing (Postiz)
+
+export type PublishVisibility = 'public' | 'unlisted' | 'private';
+export const PUBLISH_VISIBILITIES: readonly PublishVisibility[] = ['public', 'unlisted', 'private'];
+
+/** A YouTube channel connected in the person's Postiz. */
+export interface PublishChannel {
+  id: string;
+  name: string;
+}
+
+/** `GET /api/club/publishing`: what Publish and Settings know about where videos go. The API key itself never leaves the server. */
+export interface PublishingState {
+  postiz: {
+    /** A key is saved. */
+    connected: boolean;
+    /** The person's own Postiz address, or null for Postiz Cloud. */
+    address: string | null;
+    /** The YouTube channel videos are posted to. */
+    channel: PublishChannel | null;
+  };
+  /** Who can watch a new video until the person says otherwise. */
+  defaultVisibility: PublishVisibility;
+}
+
+/** `PUT /api/club/publishing/postiz`: the key was accepted. `channels` are the YouTube channels Postiz has. */
+export interface PostizConnectResult {
+  state: PublishingState;
+  channels: PublishChannel[];
+}
+
+/** The body of `POST /api/club/videos/:id/postiz`. */
+export interface PublishStart {
+  /** The export (SceneForge export history id) to send. */
+  exportId: string;
+  title: string;
+  description: string;
+  tags: string[];
+  visibility: PublishVisibility;
+  madeForKids: boolean;
+  /** Absent to publish now; an ISO time in the future to schedule. */
+  scheduledFor?: string;
+}
+
+/** Progress of the publish job. `percent` is of the step, when it can be known. */
+export interface PublishProgress {
+  step: 'check' | 'upload' | 'post' | 'wait';
+  message: string;
+  percent?: number;
+}
+
+/** What Postiz was given for a video, and where it stands. Kept with the video so Publish shows it again. */
+export interface PublishRecord {
+  postId: string;
+  title: string;
+  visibility: PublishVisibility;
+  sentAt: string;
+  /** ISO time it is set to go live, for a scheduled video. */
+  scheduledFor?: string;
+  /** Postiz has it queued, YouTube has it, or Postiz could not post it. */
+  state: 'queued' | 'published' | 'failed';
+  /** The YouTube link, once Postiz reports it. */
+  url?: string;
+  /** One sentence, when `state` is failed. */
+  message?: string;
+  /** Where to see the post in Postiz. */
+  postizUrl: string;
+  /** The YouTube channel it was sent to in Postiz. */
+  channelId?: string;
+  /** Postiz did not confirm the post, so it may exist: nothing more is sent until Check again finds it or rules it out. `postId` is empty. */
+  unconfirmed?: boolean;
+}
