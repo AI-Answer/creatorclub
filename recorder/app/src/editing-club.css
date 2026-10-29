@@ -28,6 +28,8 @@
 .club-embed .app-shell[data-mode=Edit] .club-edit-suggestion{display:flex;align-items:center;gap:10px;min-width:0;padding:6px 6px 6px 12px;border:1px solid var(--cc-line);border-radius:12px;background:var(--cc-page);font-size:14px;color:var(--cc-ink)}
 .club-embed .app-shell[data-mode=Edit] .club-edit-suggestion>span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .club-embed .app-shell[data-mode=Edit] .club-edit-suggestion.is-quiet{border-color:transparent;background:transparent;padding-left:0;color:var(--cc-muted);font-size:13px}
+.club-embed .app-shell[data-mode=Edit] .club-edit-dismiss{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:8px;color:var(--cc-muted)}
+.club-embed .app-shell[data-mode=Edit] .club-edit-dismiss:hover{background:var(--cc-subtle);color:var(--cc-ink)}
 .club-embed .app-shell[data-mode=Edit] .club-export{display:flex;align-items:center;gap:8px;margin-left:8px;font-size:13px;color:var(--cc-muted)}
 .club-embed .app-shell[data-mode=Edit] .club-export-done{display:inline-flex;align-items:center;gap:6px;color:var(--cc-success)}
 
