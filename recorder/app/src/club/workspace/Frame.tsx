@@ -12,7 +12,6 @@ import {fmtDate} from '../format';
 export function Header({video,tab,back,facts,onTitle,onStage,onTab}:{video:Video;tab:VideoTab;back:Route;facts:TabFacts;onTitle(title:string):void;onStage(stage:VideoStage):void;onTab(tab:VideoTab):void}){
  const items:MenuItem[]=[{header:'Move to'},...VIDEO_STAGES.map((stage):MenuItem=>({label:STAGE_LABEL[stage],check:video.stage===stage,fn:()=>onStage(stage)}))];
  return <div className="ws-top">
-  <a className="btn ghost sm icon-only" href={routeHash(back)} aria-label="Back" title="Back"><Icon name="ArrowLeft" size={16}/></a>
   <div className="crumb"><a href={routeHash(back)} title="Back to where you came from">Videos</a><Icon name="ChevronRight" size={14}/></div>
   <Ed className="ws-title" value={video.title} ph="Video title" onChange={title=>{if(title.trim())onTitle(title.trim());}}/>
   <Menu button={toggle=><button type="button" className="btn ghost sm" onClick={toggle} style={{padding:'0 4px'}} aria-label="Change stage"><StagePill stage={video.stage}/><Icon name="ChevronDown" size={13}/></button>} items={items}/>
@@ -26,12 +25,12 @@ export function Header({video,tab,back,facts,onTitle,onStage,onTab}:{video:Video
  </div>;
 }
 
-/** The scenes of the video, the same on every tab. A failed read says so; an empty outline says what to do. */
-export function Strip({scenes,focusId,tab,onPick,onRetry}:{scenes:VideoScenes;focusId:string|null;tab?:VideoTab;onPick(sceneId:string):void;onRetry():void}){
+/** The scenes of the video, shown on Record and Edit only. A failed read says so; an empty outline says what to do. */
+export function Strip({scenes,focusId,onPick,onRetry}:{scenes:VideoScenes;focusId:string|null;onPick(sceneId:string):void;onRetry():void}){
  if(scenes.status==='loading')return <div className="strip"><span className="lab"><Icon name="Layers" size={14}/>Scenes</span></div>;
  if(scenes.status==='unknown')return <div className="strip"><ErrorLine message="Couldn't read the scenes." onRetry={onRetry}/></div>;
  const list=scenes.scenes;
- if(!list.length)return <div className="strip"><span className="lab"><Icon name="Layers" size={14}/>Scenes</span><span className="small muted">{tab==='board'?'Gather references here, then draft scenes from the board.':'No scenes yet. Draft them from the board.'}</span></div>;
+ if(!list.length)return <div className="strip"><span className="lab"><Icon name="Layers" size={14}/>Scenes</span><span className="small muted">No scenes yet. Draft them from the board.</span></div>;
  const progress=toProgress(list);
  return <div className="strip" role="list" aria-label="Scenes">
   <span className="lab"><Icon name="Layers" size={14}/>{scenesLine(list,clockTime)}</span>
@@ -40,14 +39,12 @@ export function Strip({scenes,focusId,tab,onPick,onRetry}:{scenes:VideoScenes;fo
  </div>;
 }
 
-/** The bottom bar: Back on the left, the step dots, Continue on the right (primary only once the tab's job is done). */
-export function Foot({tab,backLabel,back,facts,onTab,next}:{tab:VideoTab;backLabel:string;back:Route;facts:TabFacts;onTab(tab:VideoTab):void;next?:{label:string;run():void;disabled:boolean;primary:boolean}}){
+/** The bottom bar has no steps (the tabs above are the only navigation): Back on the left, Continue on the right (primary only once the tab's job is done). */
+export function Foot({tab,backLabel,back,onTab,next}:{tab:VideoTab;backLabel:string;back:Route;onTab(tab:VideoTab):void;next?:{label:string;run():void;disabled:boolean;primary:boolean}}){
  const prev=previousTab(tab),after=nextTab(tab);
  return <div className="ws-foot">
   <div className="l">{prev?<button type="button" className="btn ghost" onClick={()=>onTab(prev)}><Icon name="ChevronLeft" size={15}/>Back to {TAB_LABEL[prev].toLowerCase()}</button>
    :<a className="btn ghost" href={routeHash(back)}><Icon name="ChevronLeft" size={15}/>{backLabel}</a>}</div>
-  <nav className="steps" aria-label="Steps">{videoTabs.map((key,index)=>{const done=tabDone(key,facts);return <a key={key} href="#" className={cn(key===tab&&'on',done&&'done')} aria-current={key===tab?'step':undefined}
-   onClick={event=>{event.preventDefault();onTab(key);}}><span className="c">{done&&key!==tab?<Icon name="Check" size={11} stroke={2.6}/>:index+1}</span>{TAB_LABEL[key]}</a>;})}</nav>
   <div className="r">{after&&next?<button type="button" className={cn('btn',next.primary&&'primary')} disabled={next.disabled} onClick={next.run}>{next.label}<Icon name="ChevronRight" size={15}/></button>
    :!after?<a className="btn" href={routeHash(back)}>{backLabel}</a>:null}</div>
  </div>;

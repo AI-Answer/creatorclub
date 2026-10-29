@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {nextSceneToRecord,preflightLine,recorderProblems,sourceChecks,sourceState,takeThumbnailLabel,type SourceCheck,type SourceKind,type SourceSnapshot} from './recorder-checks';
+import {nextSceneToRecord,readinessLine,recorderProblems,sourceChecks,sourceState,takeThumbnailLabel,type SourceCheck,type SourceKind,type SourceSnapshot} from './recorder-checks';
 
 const GB=1024**3;
 const ready:SourceCheck[]=[{kind:'camera',state:'ready'},{kind:'microphone',state:'ready'}];
@@ -20,8 +20,8 @@ test('every source × ok / not ready / error / permission: one plain sentence na
  for(const kind of kinds){
   const name=names[kind],captured=kind==='screen'||kind==='systemAudio';
   assert.equal(card(kind,'ok'),null,`${kind} ok: no card`);
-  assert.equal(card(kind,'not ready'),null,`${kind} not ready: no card (the pre-flight line covers it)`);
-  assert.equal(preflightLine(sourceChecks([{kind,included:true,...conditions['not ready']}]),true),`Fix the ${name} above before recording`);
+  assert.equal(card(kind,'not ready'),null,`${kind} not ready: no card (the readiness line covers it)`);
+  assert.equal(readinessLine(sourceChecks([{kind,included:true,...conditions['not ready']}])).ready,false);
 
   const error=card(kind,'error')!;
   assert.equal(error.tone,'danger');assert.equal(error.lines.length,1,`${kind} error: exactly one line`);
@@ -77,12 +77,12 @@ test('a failed source makes the card red, and its line comes before the disk lin
  assert.deepEqual(problems?.lines.map(line=>line.text),['The camera was disconnected: plug it back in, then try again.','Your disk is almost full: free up at least 1 GB before recording.']);
 });
 
-test('the pre-flight line names every included source that is not ready, before the first take only',()=>{
- assert.equal(preflightLine([{kind:'camera',state:'off'}],true),'Fix the camera above before recording');
- assert.equal(preflightLine([{kind:'camera',state:'off'},{kind:'microphone',state:'error'},{kind:'systemAudio',state:'blocked'}],true),'Fix the camera, microphone and computer audio above before recording');
- assert.equal(preflightLine([{kind:'camera',state:'starting'}],true),null,'a source still opening is not named');
- assert.equal(preflightLine([{kind:'camera',state:'off'}],false),null,'after the first take the line is gone');
- assert.equal(preflightLine(ready,true),null);
+test('the readiness line names the sources that are on and says whether they are ready',()=>{
+ assert.deepEqual(readinessLine([{kind:'camera',state:'ready'},{kind:'microphone',state:'ready'},{kind:'screen',state:'ready'}]),{text:'Camera · Microphone · Screen: ready',ready:true});
+ assert.deepEqual(readinessLine([{kind:'systemAudio',state:'ready'}]),{text:'Computer audio: ready',ready:true});
+ assert.deepEqual(readinessLine([{kind:'camera',state:'ready'},{kind:'microphone',state:'starting'}]),{text:'Camera · Microphone: opening…',ready:false});
+ assert.deepEqual(readinessLine([{kind:'camera',state:'off'},{kind:'microphone',state:'ready'}]),{text:'Camera · Microphone: opens when you record',ready:false});
+ assert.deepEqual(readinessLine([]),{text:'No source is on. Choose one under Change.',ready:false});
 });
 
 test('the next scene to record comes after the current one, then wraps to the earlier ones',()=>{

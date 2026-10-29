@@ -45,11 +45,9 @@ test('a video opens on the tab for its stage',()=>{
  assert.deepEqual(VIDEO_STAGES.map(defaultTab),['board','plan','record','edit','publish','publish']);
 });
 
-test('the sidebar folds on its own on Record and Edit only',()=>{
- assert.equal(autoCollapses({name:'video',id:'v',tab:'record'}),true);
- assert.equal(autoCollapses({name:'video',id:'v',tab:'edit'}),true);
- for(const tab of ['board','plan','publish'] as const)assert.equal(autoCollapses({name:'video',id:'v',tab}),false,tab);
- assert.equal(autoCollapses({name:'video',id:'v'}),false);
+test('the sidebar folds on its own on every step of a video, and nowhere else',()=>{
+ for(const tab of ['board','plan','record','edit','publish'] as const)assert.equal(autoCollapses({name:'video',id:'v',tab}),true,tab);
+ assert.equal(autoCollapses({name:'video',id:'v'}),true);
  assert.equal(autoCollapses({name:'production',view:'board'}),false);
 });
 
