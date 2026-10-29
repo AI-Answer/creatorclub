@@ -75,7 +75,7 @@ function VideoTile({tile,videoId,reading,onRemove,onRetryRead,onBreakdown}:TileB
     :meta.views!==undefined?<div className="stats"><span><b>{fmtNum(meta.views)}</b> views</span>{meta.ageDays!==undefined&&<span>{fmtDays(meta.ageDays)}</span>}</div>:null}
    <div className="row" style={{marginTop:8,gap:6,flexWrap:'wrap'}}>
     {tile.url&&<a className="btn sm ghost" href={tile.url} target="_blank" rel="noopener noreferrer"><Icon name="ArrowUpRight" size={13}/>Open</a>}
-    <button type="button" className="btn sm ghost" onClick={()=>onBreakdown(videoId)}><Icon name="FileText" size={13}/>Breakdown</button>
+    {source&&<button type="button" className="btn sm ghost" onClick={()=>onBreakdown(source)}><Icon name="FileText" size={13}/>Breakdown</button>}
     {meta.transcript&&<button type="button" className="btn sm ghost" aria-expanded={open} onClick={()=>setOpen(current=>!current)}>{open?'Hide transcript':'Transcript'}</button>}
    </div>
    {open&&(error?<div style={{marginTop:8}}><ErrorLine message={error} onRetry={()=>{setError('');setChapters(null);}}/></div>
@@ -96,14 +96,14 @@ function BreakdownTile({tile,videoId,onRemove,onBreakdown}:TileBodyProps){
  if(found===undefined)return <><TileHead icon="Sparkles" label="Breakdown" onRemove={onRemove}/><div className="tb"><Spinner label="Loading the breakdown" size={14}/></div></>;
  if(!found)return <><TileHead icon="Sparkles" label="Breakdown" onRemove={onRemove}/><div className="tb small muted">This breakdown is no longer saved.</div></>;
  const why=found.whyItWorked;
- const source=youtubeId(found.url)??videoId;
+ const source=youtubeId(found.url);
  return <>
   <TileHead icon="Sparkles" label={`Breakdown · ${creatorName(found.video.channel)}`} onRemove={onRemove}/>
   <div className="tb">
    <div className="row" style={{gap:10,marginBottom:10}}><img src={found.video.thumbnail} alt="" style={{width:72,height:40,borderRadius:5,objectFit:'cover'}}/><div style={{fontWeight:600,fontSize:13,lineHeight:1.3}} className="clamp2">{found.video.title}</div></div>
    <div className="small faint" style={{marginBottom:6}}>Why it worked</div>
    <ol style={{margin:0,paddingLeft:18,fontSize:13,lineHeight:1.5,color:'var(--cc-text-2)',display:'flex',flexDirection:'column',gap:6}}>{[why.titlePackaging,why.hookSpeed,why.retention].filter(Boolean).slice(0,3).map((line,index)=><li key={index}>{line}</li>)}</ol>
-   <button type="button" className="btn sm ghost" style={{marginTop:8}} onClick={()=>onBreakdown(source)}><Icon name="FileText" size={13}/>Open breakdown</button>
+   {source&&<button type="button" className="btn sm ghost" style={{marginTop:8}} onClick={()=>onBreakdown(source)}><Icon name="FileText" size={13}/>Open breakdown</button>}
   </div>
  </>;
 }

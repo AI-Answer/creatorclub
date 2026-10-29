@@ -6,7 +6,7 @@ import type {Outline,Package,Video} from '../../shared/club';
 import {createProject,defaultEffects,defaultTransform} from '../../shared/types';
 import type {Route,VideoTab} from './routes';
 const {Workspace}=await import('./workspace/Workspace');
-const {ClubRecorder,OPEN_FAILED}=await import('./ClubRecorder');
+const {ClubRecorder,OPEN_FAILED,NOT_ON_THIS_COMPUTER}=await import('./ClubRecorder');
 const {FakeEventSource,installFetch}=await import('./test-fakes');
 const {VIDEOS_CHANGED}=await import('./api');
 
@@ -162,7 +162,7 @@ test('a changed outline is flagged',async()=>{
  }finally{await ui.close();server.restore();}
 });
 
-test('Record and Edit without a recording project lead back to Plan and offer no Continue',async()=>{
+test('Record and Edit without a recording project say what comes first, with one primary button and no Continue',async()=>{
  const editing:Video={...planned,stage:'editing',planning:{research:true,package:true,outline:false}};
  const server=installFetch(call=>{
   if(call.path==='/videos/v1/plan')return {body:{package:null,outline:null}};
@@ -174,16 +174,39 @@ test('Record and Edit without a recording project lead back to Plan and offer no
  try{
   await flush();
   const c=ui.container;
-  for(const tab of ['record','edit'] as const){
+  for(const [tab,title,action,goes] of [['record','Plan the scenes first','Open plan','plan'],['edit','Nothing recorded yet','Open record','record']] as const){
    await ui.render(createElement(Workspace,{video:editing,tab,back,navigate:route=>{if(route.name==='video')seen.push(route.tab!);},onVideo:()=>{}}));await flush();
-   assert.ok(hasText(c,'Plan this video first'),`${tab} explains what is missing`);
-   assert.deepEqual(primaries(c),['Back to plan'],`${tab} has one primary, Back to plan`);
+   assert.ok(hasText(c,title),`${tab} explains what is missing`);
+   assert.ok(!hasText(c,'Create the outline first'));
+   assert.deepEqual(primaries(c),[action],`${tab} has one primary`);
    assert.ok(![...c.querySelectorAll('button,a')].some(b=>b.textContent?.trim().startsWith('Continue to')),`${tab} offers no Continue`);
-   const plan=[...c.querySelectorAll('button')].find(b=>b.textContent?.trim()==='Back to plan'&&b.classList.contains('primary'))!;
-   await act(async()=>plan.click());
+   await act(async()=>button(c,action).click());
+   assert.equal(seen.at(-1),goes);
   }
-  assert.deepEqual(seen,['plan','plan']);
   assert.ok(!server.calls.some(call=>call.path==='/videos/v1/move'),'the card is never moved');
+ }finally{await ui.close();server.restore();}
+});
+
+test('Record with scenes but no recording project says it is ready, and its one button does what Continue to recording does',async()=>{
+ const planning:Video={...planned,planning:{research:true,package:true,outline:true}};
+ const twoScenes={scenes:[{id:'a',title:'Opening',talkingPoints:['x'],show:'',seconds:60},{id:'b',title:'End',talkingPoints:['y'],show:'',seconds:60}]};
+ const server=installFetch(call=>{
+  if(call.path==='/videos/v1/plan')return {body:{package:null,outline:twoScenes}};
+  if(call.path==='/videos/v1/scenes')return {body:twoScenes.scenes.map(s=>({id:s.id,title:s.title,seconds:60,takes:[],status:'Not recorded'}))};
+  if(call.path==='/settings')return {body:{helpSeen:[]}};
+  if(call.path==='/videos/v1/recorder')return {body:{...planning,stage:'recording',recorderProjectId:'p1'}};
+ });
+ const seen:VideoTab[]=[];
+ const ui=await mountUI(createElement(Workspace,{video:planning,tab:'record',back,navigate:route=>{if(route.name==='video')seen.push(route.tab!);},onVideo:()=>{}}));
+ try{
+  await flush();await flush();
+  const c=ui.container;
+  assert.ok(hasText(c,'Ready to record'));
+  assert.ok(!hasText(c,'Plan the scenes first')&&!hasText(c,'Create the outline first'));
+  assert.deepEqual(primaries(c),['Start recording']);
+  await act(async()=>button(c,'Start recording').click());await flush();
+  assert.ok(server.calls.some(call=>call.method==='POST'&&call.path==='/videos/v1/recorder'),'the recording project is made');
+  assert.deepEqual(seen,['record']);
  }finally{await ui.close();server.restore();}
 });
 
@@ -194,7 +217,7 @@ test('Continue on Record moves the card to Editing, and never moves it back',asy
  class Source extends EventTarget{close(){}}Object.assign(globalThis,{EventSource:Source});
  const server=installFetch(call=>{
   if(call.path==='/videos/v1/plan')return {body:{package:null,outline:null}};
-  if(call.path==='/videos/v1/scenes')return {body:[]};
+  if(call.path==='/videos/v1/scenes')return {body:[{id:'s1',title:'Opening',seconds:30,takes:[{id:'t1',seconds:20,kept:true}],status:'Kept take 1'}]};
   if(call.path==='/settings')return {body:{helpSeen:[]}};
   if(call.path==='/videos/v1/move'){moves.push(call.body);return {body:{...recording,stage:(call.body as {stage:string}).stage}};}
  });
@@ -216,7 +239,7 @@ test('a recording that cannot be opened shows one sentence and Try again',async(
  class Source extends EventTarget{close(){}}Object.assign(globalThis,{EventSource:Source});
  globalThis.fetch=async(input)=>{
   const url=String(input);if(url==='/api/projects')return Response.json([p]);
-  if(url===`/api/projects/${p.id}`){opened++;return fail?Response.json({error:'ENOENT: no such file /Users/x/projects/p.json'},{status:404}):Response.json(p,{headers:{ETag:'"t"'}});}
+  if(url===`/api/projects/${p.id}`){opened++;return fail?Response.json({error:'ENOENT: no such file /Users/x/projects/p.json'},{status:500}):Response.json(p,{headers:{ETag:'"t"'}});}
   if(url==='/api/health')return Response.json({ffmpeg:true,ffprobe:true,transcription:{local:true,providers:[]},mcp:{},version:'test'});
   if(url==='/api/automation/settings')return Response.json({automaticTranscription:false});
   if(url.endsWith('/agent-chat')||url.includes('/automation'))return Response.json({jobs:[]});return Response.json([]);
@@ -228,7 +251,7 @@ test('a recording that cannot be opened shows one sentence and Try again',async(
   assert.ok(!hasText(ui.container,'ENOENT'),'the raw error is not shown');
   fail=false;
   await act(async()=>button(ui.container,'Try again').click());await flush();await flush();
-  assert.equal(opened,2);
+  assert.equal(opened,3,'the first open, the check of why it failed, and the open again');
   assert.ok(ui.container.querySelector('.edit-workspace'),'the editor opens on the second try');
  }finally{globalThis.fetch=originalFetch;await ui.close();}
 });
@@ -292,4 +315,27 @@ test('Draft scenes from the Board reads the plan and the scenes again before Pla
   assert.equal(c.querySelectorAll('.scene').length,4,'Plan shows the scenes without a reload');
   assert.ok(primaries(c).includes('Continue to recording'),'Continue is ready');
  }finally{await ui.close();inner.restore();}
+});
+
+test('a recording project that is not on this computer says so and offers to start it again from the plan',async()=>{
+ const originalFetch=globalThis.fetch;let restarted=0;
+ localStorage.clear();
+ class Source extends EventTarget{close(){}}Object.assign(globalThis,{EventSource:Source});
+ globalThis.fetch=async(input)=>{
+  const url=String(input);
+  if(url==='/api/projects')return Response.json([]);
+  if(url.startsWith('/api/projects/'))return Response.json({error:'ENOENT: no such file'},{status:404});
+  if(url==='/api/health')return Response.json({ffmpeg:true,ffprobe:true,transcription:{local:true,providers:[]},mcp:{},version:'test'});
+  if(url==='/api/automation/settings')return Response.json({automaticTranscription:false});
+  return Response.json([]);
+ };
+ const ui=await mountUI(createElement(ClubRecorder,{projectId:'gone',mode:'Record',onBack:()=>{},onRestart:()=>{restarted++;}}));
+ try{
+  await flush();await flush();
+  assert.ok(hasText(ui.container,NOT_ON_THIS_COMPUTER));
+  assert.ok(!hasText(ui.container,'ENOENT'));
+  assert.ok(![...ui.container.querySelectorAll('button')].some(b=>b.textContent==='Try again'),'trying again cannot help');
+  await act(async()=>button(ui.container,'Start the recording again from the plan').click());
+  assert.equal(restarted,1);
+ }finally{globalThis.fetch=originalFetch;await ui.close();}
 });

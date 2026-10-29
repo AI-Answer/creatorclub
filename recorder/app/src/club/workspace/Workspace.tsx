@@ -6,7 +6,7 @@ import {ErrorLine} from '../ErrorLine';
 import {Plan} from '../plan/Plan';
 import {type Route,type VideoTab} from '../routes';
 import {useVideoScenes} from '../scenes';
-import {Button,EmptyState,Icon,useToast} from '../ui';
+import {Button,EmptyState,Icon,Spinner,useToast} from '../ui';
 import {usePlan} from '../usePlan';
 import {EMPTY_PACKAGE} from '../plan/plan-logic';
 import {STAGE_LABEL} from '../board';
@@ -91,7 +91,9 @@ export function Workspace({video,tab,back,navigate,onVideo}:{video:Video;tab:Vid
  // Record and Edit need the video's recording project. Without one the page leads back to Plan, and offers no Continue.
  // Recording shows the focused scene's talking points beside the recorder; Edit has no teleprompter.
  const prompting=tab==='record'?promptScene(plan.outline,list,focusId):undefined;
- const unplanned=(tab==='record'||tab==='edit')&&!video.recorderProjectId;
+ // Record needs scenes and then a recording project; Edit needs something recorded. Until then the tab says what comes first, and offers no Continue.
+ const hasScenes=!!list?.length,hasTakes=!!list?.some(scene=>scene.takes.length>0);
+ const unplanned=(tab==='record'&&!video.recorderProjectId)||(tab==='edit'&&(!video.recorderProjectId||(!!list&&!hasTakes)));
 
  let nextButton:{label:string;run():void;disabled:boolean;primary:boolean}|undefined;
  if(tab==='plan'){
@@ -112,15 +114,21 @@ export function Workspace({video,tab,back,navigate,onVideo}:{video:Video;tab:Vid
    {tab==='plan'&&<Plan video={video} plan={plan} known={list} focusId={focusId} onFocus={setFocusId} onTitle={saveTitle}
     onTarget={seconds=>{clubFetch<Video>(`/videos/${id}`,{method:'PUT',body:{targetSeconds:seconds>0?seconds:null}}).then(onVideo,reason=>toast(errorMessage(reason,"Couldn't save the target.")));}}
     onRecordScene={sceneId=>{setFocusId(sceneId);navigate(tabRoute('record'));}}/>}
-   {(tab==='record'||tab==='edit')&&(video.recorderProjectId
+   {(tab==='record'||tab==='edit')&&(!unplanned&&video.recorderProjectId
     ?<div className={prompting?'rec with-prompter':'rec with-embed'}>
      <div className="rec-left"><ClubRecorder projectId={video.recorderProjectId} mode={tab==='record'?'Record':'Edit'} onBack={()=>navigate({name:'production',view:'board'})}
       onMode={mode=>{if(mode==='Edit'&&tab==='record')void continueToNext();else navigate(tabRoute(mode==='Edit'?'edit':'record'));}} onProgress={onProgress} onExported={tab==='edit'?onExported:undefined}
+      onRestart={plan.continueAction?.run}
       sceneId={tab==='record'?recorderSceneFor(video,focusId)??undefined:undefined} sceneNonce={pickN} onSceneChange={tab==='record'?recorderScene:undefined} onChanged={reloadScenes}/></div>
      {prompting&&<Teleprompter index={prompting.index} scene={prompting.scene}/>}
     </div>
-    :<EmptyState icon={<Icon name="FileText"/>} title="Plan this video first" description="Create the outline first. Each scene is recorded on its own."
-      action={<Button variant="primary" size="md" onClick={()=>navigate(tabRoute('plan'))}>Back to plan</Button>}/>)}
+    :tab==='edit'?<EmptyState icon={<Icon name="Scissors"/>} title="Nothing recorded yet" description="Record a scene first. Then you can edit it here."
+      action={<Button variant="primary" size="md" onClick={()=>navigate(tabRoute('record'))}>Open record</Button>}/>
+    :list===undefined?<div className="flex flex-1 items-center justify-center"><Spinner label="Loading the scenes" size={20}/></div>
+    :!hasScenes?<EmptyState icon={<Icon name="FileText"/>} title="Plan the scenes first" description="Each scene is recorded on its own, so the scenes come first."
+      action={<Button variant="primary" size="md" onClick={()=>navigate(tabRoute('plan'))}>Open plan</Button>}/>
+    :<EmptyState icon={<Icon name="Video"/>} title="Ready to record" description="Start the recording for these scenes."
+      action={<Button variant="primary" size="md" disabled={!plan.continueAction||plan.continueAction.disabled} onClick={()=>plan.continueAction?.run()}>Start recording</Button>}/>)}
    {tab==='publish'&&<Publish video={video} pkg={plan.pkg} scenes={list} onVideo={onVideo} onGoTo={target=>navigate(tabRoute(target))}
     saveError={plan.saveError} onRetry={plan.retrySave} onDescription={description=>plan.editPackage({...(pkgNow.current??EMPTY_PACKAGE),description})}/>}
   </div>

@@ -81,3 +81,19 @@ test('picking a scene jumps to Plan only from the Board; elsewhere it focuses th
  assert.equal(pickJumpsToPlan('board'),true);
  for(const tab of ['plan','record','edit','publish'] as const)assert.equal(pickJumpsToPlan(tab),false,tab);
 });
+
+test('Breakdown on a YouTube tile sends the tile\'s own YouTube id, never the CreatorClub video id',async()=>{
+ const {mountUI}=await import('../../test-dom');
+ const {act,createElement}=await import('react');
+ const {TileBody}=await import('./TileBody');
+ const sent:string[]=[];
+ const tile={id:'t1',kind:'video' as const,url:'https://www.youtube.com/watch?v=abcdefghijk',title:'A video',meta:{},createdAt:''};
+ const props={tile,videoId:'v-1a2b3c',onRemove(){},onSaveText(){},onRetryRead(){},onBreakdown:(id:string)=>sent.push(id)};
+ const ui=await mountUI(createElement(TileBody,props));
+ try{
+  await act(async()=>[...ui.container.querySelectorAll('button')].find(b=>b.textContent?.trim()==='Breakdown')!.click());
+  assert.deepEqual(sent,['abcdefghijk']);
+  await ui.render(createElement(TileBody,{...props,tile:{...tile,url:'https://example.com/not-youtube'}}));
+  assert.equal([...ui.container.querySelectorAll('button')].some(b=>b.textContent?.trim()==='Breakdown'),false,'a tile with no YouTube id has nothing to break down');
+ }finally{await ui.close();}
+});
