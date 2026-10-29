@@ -189,3 +189,21 @@ test('the menu opens from the button\'s edge with fixed placement, so a parent t
   await act(async()=>{window.dispatchEvent(new Event('resize'));});assert.equal(ui.container.querySelector('[role="menu"]'),null,'a resize closes it');
  }finally{Element.prototype.getBoundingClientRect=original;await ui.close();}
 });
+
+test('a menu inside a card that lifts on hover is drawn in the club root, outside the card, and still runs its items',async()=>{
+ const ran:string[]=[];
+ const ui=await mountUI(createElement('div',{className:'club-root',id:'root'},
+  createElement('div',{className:'card',id:'card',style:{transform:'translateY(-2px)'}},
+   createElement(Menu,{items:[{label:'Skip',fn:()=>ran.push('skip')}],button:(toggle)=>createElement('button',{onClick:toggle},'Skip with a reason')}))));
+ try{
+  const c=ui.container;
+  await press(button(c,'Skip with a reason'));await tick();
+  const menu=c.querySelector('[role="menu"]')!;
+  assert.ok(menu,'the menu opens');
+  assert.equal(menu.closest('#card'),null,'it is not inside the card, whose transform would move a fixed menu');
+  assert.equal(menu.parentElement!.id,'root');
+  await press(button(menu,'Skip'));
+  assert.deepEqual(ran,['skip'],'a press inside the menu is not a press outside it');
+  assert.equal(c.querySelector('[role="menu"]'),null);
+ }finally{await ui.close();}
+});
