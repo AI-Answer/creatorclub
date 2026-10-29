@@ -33,9 +33,9 @@ const LayerRowControls=memo(function LayerRowControls({row,change}:{row:Timeline
 });
 /** Follows the playhead store without rendering the timeline, and pages the view when playback or a seek leaves it, or when it mounts, reappears or rescales off-screen. */
 function TimelinePlayhead({playhead,scale,onPage}:{playhead:Playhead;scale:number;onPage:(el:HTMLElement)=>void}){
- const line=useRef<HTMLDivElement>(null);
+ const line=useRef<HTMLDivElement>(null),lastFollowed=useRef({time:NaN}); // Kept across rescales, so a zoom does not page the view (the timeline anchors it instead).
  // Parent refs attach after this effect on mount and reappear, so the scroller comes from the line's own node; each setup follows afresh.
- useLayoutEffect(()=>{const el=line.current?.closest<HTMLElement>('.timeline-scroll'),followed={time:NaN};const update=()=>{const time=playhead.get(),x=time*scale,ratio=window.devicePixelRatio||1;if(el&&time!==followed.time){followed.time=time;if(x<el.scrollLeft||x>el.scrollLeft+el.clientWidth-40){el.scrollLeft=Math.max(0,x-el.clientWidth*.25);onPage(el);}}if(line.current)line.current.style.transform=`translateX(${Math.round(x*ratio)/ratio}px)`;};update();return playhead.subscribe(update);},[playhead,scale,onPage]);
+ useLayoutEffect(()=>{const el=line.current?.closest<HTMLElement>('.timeline-scroll'),followed=lastFollowed.current;const update=()=>{const time=playhead.get(),x=time*scale,ratio=window.devicePixelRatio||1;if(el&&time!==followed.time){followed.time=time;if(x<el.scrollLeft||x>el.scrollLeft+el.clientWidth-40){el.scrollLeft=Math.max(0,x-el.clientWidth*.25);onPage(el);}}if(line.current)line.current.style.transform=`translateX(${Math.round(x*ratio)/ratio}px)`;};update();return playhead.subscribe(update);},[playhead,scale,onPage]);
  return <div className="playhead" ref={line}><span/></div>;
 }
 /** Skips rendering unless its own clip, preview, selection, waveform or clipped window changes. */

@@ -41,7 +41,7 @@ test('waveform cache validates contents and duration, replaces damaged cache, an
     await fs.writeFile(path.join(cache, file), JSON.stringify(first.map(() => 12)));
     assert.deepEqual(await waveform(media, cache), first, 'invalid amplitude cache regenerated');
     const longer = await waveform({...media, duration: 10}, cache);
-    assert.equal(longer.length, 200); assert.ok(largest(longer.slice(0, 100)) > .09); assert.equal(largest(longer.slice(101)), 0);
+    assert.equal(longer.length, 500); assert.ok(largest(longer.slice(0, 250)) > .09); assert.equal(largest(longer.slice(252)), 0);
     await writeWave(source, 5, () => .2); const future = new Date(Date.now() + 2000); await fs.utimes(source, future, future);
     const updated = await waveform(media, cache); assert.ok(largest(updated) > .19 && largest(updated) < .21);
     assert.equal((await fs.readdir(cache)).filter(f => f.endsWith('.wave-v2.json')).length, 3);

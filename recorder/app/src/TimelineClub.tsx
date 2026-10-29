@@ -7,7 +7,7 @@ import {clipLayerKind,clipLayerRowId,moveClipsToLayer,timelineRows,type Timeline
 import {filmstripCount} from '../shared/filmstrip';
 import {hasWaveform,waveformMediaKey,waveformBars,waveformEnvelopePath,timelineWaveformCache} from './timeline-waveform';
 import {sameTimelineWindow,timelineWindow} from './timeline-viewport';
-import {groupMove,hitLayerDrop,snapDistancePixels,snapTargets,snapTimelineDelta,timelinePointerDelta,type LayerDrop,type SnapTarget} from './timeline-drag';
+import {groupMove,hitLayerDrop,snapTargets,snapTimelineDelta,timelinePointerDelta,type LayerDrop,type SnapTarget} from './timeline-drag';
 import {rectangleBetween,itemsInRectangle,type SelectionItem,type SelectionRect} from './timeline-selection';
 import {anchoredScroll,applyClipStarts,clampScale,ensureLinks,filmstripTiles,fitScale,freeDelta,linkGroups,linkedIds,moveEffects,moveMarker,planClipMove,removeMarker,resizeEffect,rowItems,rulerTicks,rulerLabel,trimBounds,trimClips} from './timeline-edit';
 import type {Playhead} from './playhead';
@@ -24,7 +24,8 @@ type Effect='elements'|'captions'|'zooms';
 interface Row {id:string;name:string;icon:typeof Camera;height:number;top:number;layer?:TimelineLayerRow;effect?:Effect;linked?:boolean}
 interface Preview {start:number;duration:number;sourceIn?:number;dy?:number}
 interface Drag {items:Map<string,Preview>;ghosts:Array<{row:string;start:number;duration:number}>;guide:number|null;insert:number|null;label:string;markers?:Map<string,number>}
-const RULER=30;
+/** Snapping reaches 8 px on screen, whatever the zoom, so a short neighbour does not pull an edit away from where it was dropped. */
+const RULER=30,SNAP_PX=8;
 const icons:Record<TrackKind,typeof Camera>={screen:Monitor,camera:Camera,audio:Mic,music:Music,overlay:Layers};
 const heights:Record<TrackKind,number>={screen:50,camera:38,audio:40,music:32,overlay:38};
 const effectRows:Array<{id:Effect;name:string;icon:typeof Camera}>=[{id:'elements',name:'Graphics',icon:Type},{id:'captions',name:'Captions',icon:AudioLines},{id:'zooms',name:'Zoom',icon:ZoomIn}];
@@ -44,8 +45,8 @@ export function usedRows(p:Project):Row[]{
 export const rowsHeight=(rows:readonly Row[])=>RULER+rows.reduce((n,r)=>n+r.height,0)+10;
 
 function Playhead_({playhead,scale,follow,onPage}:{playhead:Playhead;scale:number;follow:boolean;onPage:(el:HTMLElement)=>void}){
- const line=useRef<HTMLDivElement>(null);
- useLayoutEffect(()=>{const el=line.current?.closest<HTMLElement>('.timeline-scroll'),seen={time:NaN};const update=()=>{const time=playhead.get(),x=time*scale,ratio=window.devicePixelRatio||1;
+ const line=useRef<HTMLDivElement>(null),lastSeen=useRef({time:NaN}); // Kept across rescales: a zoom keeps the playhead in place instead of paging.
+ useLayoutEffect(()=>{const el=line.current?.closest<HTMLElement>('.timeline-scroll'),seen=lastSeen.current;const update=()=>{const time=playhead.get(),x=time*scale,ratio=window.devicePixelRatio||1;
   if(el&&follow&&time!==seen.time){seen.time=time;if(x<el.scrollLeft||x>el.scrollLeft+el.clientWidth-40){el.scrollLeft=Math.max(0,x-el.clientWidth*.25);onPage(el);}}
   if(line.current)line.current.style.transform=`translateX(${Math.round(x*ratio)/ratio}px)`;};update();return playhead.subscribe(update);},[playhead,scale,follow,onPage]);
  return <div className="playhead" ref={line}><span/></div>;
@@ -110,7 +111,7 @@ export const TimelineClub=memo(function TimelineClub({project:p,playhead,scale,o
 
  const targets=(moving:ReadonlySet<string>):SnapTarget[]=>snapTargets(rowItems(latest.current).map(i=>({id:i.id,start:i.start,duration:i.duration})),moving,playhead.get(),latest.current.scenes.flatMap(s=>[s.start,s.start+s.duration]),(latest.current.markers??[]).filter(m=>!moving.has(m.id)).map(m=>m.time));
  const contentX=(clientX:number)=>{const el=ref.current!;return clientX-el.getBoundingClientRect().left+el.scrollLeft;};
- const snapTime=(time:number,moving:ReadonlySet<string>=new Set())=>{const el=ref.current;if(!el||!latest.current.settings.snap)return {time,guide:null as number|null};const r=snapTimelineDelta({delta:0,anchors:[time],targets:targets(moving),scale,thresholdPx:snapDistancePixels(el.clientWidth)});return {time:time+r.delta,guide:r.guide?.time??null};};
+ const snapTime=(time:number,moving:ReadonlySet<string>=new Set())=>{const el=ref.current;if(!el||!latest.current.settings.snap)return {time,guide:null as number|null};const r=snapTimelineDelta({delta:0,anchors:[time],targets:targets(moving),scale,thresholdPx:SNAP_PX});return {time:time+r.delta,guide:r.guide?.time??null};};
 
  /** Runs one pointer gesture: `move` on each pointer move (with scroll at the edges), `drop` on release. Escape, pointer cancel and window blur cancel it. */
  function run(e:React.PointerEvent,move:(x:number,y:number,ev:PointerEvent)=>void,drop:(moved:boolean,ev:PointerEvent)=>void){
@@ -132,7 +133,7 @@ export const TimelineClub=memo(function TimelineClub({project:p,playhead,scale,o
   const group=clip?[...linkedIds(base.clips,[id])]:[id];
   if(e.shiftKey||e.metaKey||e.ctrlKey){const next=new Set(selectedIds);const on=next.has(id);for(const g of group)on?next.delete(g):next.add(g);onSelectMany([...next]);return;}
   const selection=selectedIds.has(id)?selectedIds:new Set(group);if(!selectedIds.has(id))onSelectMany(group);
-  const el=ref.current!,thresholdPx=snapDistancePixels(el.clientWidth),x0=e.clientX,left0=el.scrollLeft,y0=e.clientY;
+  const el=ref.current!,thresholdPx=SNAP_PX,x0=e.clientX,left0=el.scrollLeft,y0=e.clientY;
   if(mode==='move'){
    const ids=clip?linkedIds(base.clips,[...selection].filter(s=>base.clips.some(c=>c.id===s))):new Set([...selection].filter(s=>items.some(i=>i.id===s&&!base.clips.some(c=>c.id===s))));
    const moving=items.filter(i=>ids.has(i.id)),snaps=targets(ids);let plan:ReturnType<typeof planClipMove>|null=null,effectDelta=0,drop:LayerDrop|null=null;
