@@ -4,7 +4,8 @@
 /AGENTS.md
 
 # Dependencies, generated applications, downloaded models and runtime sources.
-node_modules/
+# No trailing slash: a symlink to a shared node_modules (used by git worktrees) must be ignored too.
+node_modules
 **/.local/
 /app/dist/
 /app/server-dist/
