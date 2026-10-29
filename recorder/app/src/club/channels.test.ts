@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {act,createElement} from 'react';
 import {FakeEventSource,installFetch,type FakeCall,type FakeReply} from './test-fakes';
 const {Sidebar}=await import('./Sidebar');
+const {ToastProvider}=await import('./ui');
 const {OnboardingScreen}=await import('./screens/OnboardingScreen');
 const {SettingsScreen}=await import('./screens/SettingsScreen');
 
@@ -22,55 +23,56 @@ const withServer=async(reply:(call:FakeCall)=>FakeReply|Promise<FakeReply>,run:(
 const emit=(type:string,data?:unknown)=>act(async()=>{FakeEventSource.last().emit(type,data);});
 const questions=['In one or two sentences, how would you describe your voice?','Who is your audience and what do you teach them?','Any signature moves?'];
 
-test('channel switcher: shows the current channel, lists all of them, switches, and offers Add channel',async()=>{
+const sidebar=(props:Partial<Parameters<typeof Sidebar>[0]>={})=>createElement(Sidebar,{route:{name:'overview'},collapsed:false,onToggle(){},onSearch(){},onHelp(){},onSwitched(){},onAdd(){},videos:[],epoch:0,...props});
+
+test('channel switcher: shows the current channel, lists all of them, switches, and offers Add a channel',async()=>{
  await withServer(call=>{
   if(call.path==='/workspaces'&&call.method==='GET')return {body:two};
   if(call.path==='/workspaces/ana/current')return {body:{current:'ana'}};
  },async calls=>{
-  const routes:unknown[]=[],switched:string[]=[];
-  const ui=await mountUI(createElement(Sidebar,{route:{name:'board'},navigate:route=>routes.push(route),onHelp(){},onSwitch:slug=>switched.push(slug)}));
+  const switched:string[]=[];let added=0;
+  const ui=await mountUI(sidebar({onSwitched:()=>switched.push('switched'),onAdd:()=>{added++;}}));
   try{
    await flush();const c=ui.container;
    const trigger=c.querySelector('[aria-haspopup="menu"]')!;
-   assert.match(text(trigger),/Samin Yasar/);
+   assert.match(text(trigger),/Samin Yasar/);assert.match(text(trigger),/@samin/);
    assert.equal(c.querySelector('[role="menu"]'),null,'closed at first');
    await press(trigger);
    const items=[...c.querySelectorAll('[role="menuitemradio"]')];
-   assert.deepEqual(items.map(i=>i.textContent!.trim().slice(1)),['Samin Yasar','Ana']);
+   assert.deepEqual(items.map(i=>i.textContent!.trim()),['Samin Yasar','Ana']);
    assert.deepEqual(items.map(i=>i.getAttribute('aria-checked')),['true','false']);
-   assert.ok([...c.querySelectorAll('[role="menuitem"]')].some(i=>i.textContent!.trim()==='Add channel'));
+   assert.ok([...c.querySelectorAll('[role="menuitem"]')].some(i=>i.textContent!.trim()==='Add a channel'));
    await press(items[1]);
    assert.deepEqual(calls.filter(call=>call.method==='POST').map(call=>call.path),['/workspaces/ana/current']);
-   assert.deepEqual(switched,['ana']);
+   assert.deepEqual(switched,['switched']);
    assert.equal(c.querySelector('[role="menu"]'),null,'closes after choosing');
    assert.match(text(c.querySelector('[aria-haspopup="menu"]')!),/Ana/);
    await press(c.querySelector('[aria-haspopup="menu"]')!);
-   await press([...c.querySelectorAll('[role="menuitem"]')].find(i=>i.textContent!.trim()==='Add channel')!);
-   assert.deepEqual(routes,[{name:'onboarding'}]);
+   await press([...c.querySelectorAll('[role="menuitem"]')].find(i=>i.textContent!.trim()==='Add a channel')!);
+   assert.equal(added,1);
    assert.equal(c.querySelector('[role="menu"]'),null);
   }finally{await ui.close();}
  });
 });
 
-test('channel switcher: a failed switch says one sentence and keeps the current channel; with no channels it is a plain Add channel button',async()=>{
+test('channel switcher: a failed switch says one sentence and keeps the current channel; with no channels it is a plain Add a channel link',async()=>{
  await withServer(call=>{
   if(call.path==='/workspaces'&&call.method==='GET')return {body:two};
  },async()=>{
-  const ui=await mountUI(createElement(Sidebar,{route:{name:'board'},navigate(){},onHelp(){}}));
+  const ui=await mountUI(createElement(ToastProvider,null,sidebar()));
   try{
    await flush();const c=ui.container;
    await press(c.querySelector('[aria-haspopup="menu"]')!);
    await press(c.querySelectorAll('[role="menuitemradio"]')[1]);
-   assert.match(text(c),/Couldn't switch channels\./);
+   assert.match(text(c.querySelector('[role="status"]')!),/Couldn't switch channels\./);
    assert.match(text(c.querySelector('[aria-haspopup="menu"]')!),/Samin Yasar/);
   }finally{await ui.close();}
  });
  await withServer(call=>{
   if(call.path==='/workspaces'&&call.method==='GET')return {body:{current:null,workspaces:[]}};
  },async()=>{
-  const routes:unknown[]=[];
-  const ui=await mountUI(createElement(Sidebar,{route:{name:'board'},navigate:route=>routes.push(route),onHelp(){}}));
-  try{await flush();await press(button(ui.container,'Add channel'));assert.deepEqual(routes,[{name:'onboarding'}]);assert.equal(ui.container.querySelector('[aria-haspopup="menu"]'),null);}finally{await ui.close();}
+  const ui=await mountUI(sidebar());
+  try{await flush();const link=ui.container.querySelector<HTMLAnchorElement>('a[aria-label="Add a channel"]')!;assert.equal(link.getAttribute('href'),'#/welcome');assert.equal(ui.container.querySelector('[aria-haspopup="menu"]'),null);}finally{await ui.close();}
  });
 });
 

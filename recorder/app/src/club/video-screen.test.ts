@@ -11,7 +11,7 @@ const {FakeEventSource,installFetch}=await import('./test-fakes');
 
 const flush=()=>act(async()=>{await new Promise(resolve=>setTimeout(resolve,0));});
 const type=async(input:Element,value:string,proto:object=HTMLInputElement.prototype)=>act(async()=>{Object.getOwnPropertyDescriptor(proto,'value')!.set!.call(input,value);input.dispatchEvent(new Event('input',{bubbles:true}));});
-const primaries=(root:Element)=>[...root.querySelectorAll('button')].filter(b=>b.className.includes('bg-primary')&&!b.disabled).map(b=>b.textContent?.trim());
+const primaries=(root:Element)=>[...root.querySelectorAll('button')].filter(b=>b.classList.contains('primary')&&!b.disabled).map(b=>b.textContent?.trim());
 const hasText=(root:Element,text:string)=>(root.textContent??'').includes(text);
 
 const idea:Video={id:'v1',title:'Hidden features in Claude Code',stage:'ideas',order:0,createdAt:'2026-10-01T00:00:00.000Z',updatedAt:'2026-10-01T00:00:00.000Z',stageDates:{ideas:'2026-10-01T00:00:00.000Z'},planning:{research:false,package:false,outline:false}};
@@ -193,7 +193,7 @@ test('Record and Edit without a recording project lead back to Plan and offer no
    assert.ok(hasText(c,'Plan this video first'),`${step} explains what is missing`);
    assert.deepEqual(primaries(c),['Back to plan'],`${step} has one primary, Back to plan`);
    assert.ok(![...c.querySelectorAll('button')].some(b=>b.textContent?.trim().startsWith('Continue to')),`${step} offers no Continue`);
-   const plan=[...c.querySelectorAll('button')].find(b=>b.textContent?.trim()==='Back to plan'&&b.className.includes('bg-primary'))!;
+   const plan=[...c.querySelectorAll('button')].find(b=>b.textContent?.trim()==='Back to plan'&&b.classList.contains('primary'))!;
    await act(async()=>plan.click());
   }
   assert.deepEqual(seen,['plan','plan']);

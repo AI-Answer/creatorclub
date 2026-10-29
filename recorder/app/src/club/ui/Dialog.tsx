@@ -1,29 +1,30 @@
-import {useEffect,useId,useRef,type ReactNode} from 'react';
-import {X} from 'lucide-react';
+import {useId,type ReactNode} from 'react';
 import {cn} from './cn';
+import {Icon} from './Icon';
+import {useEscape,useFocusPanel} from './overlay';
 
 /**
- * Modal on the native `<dialog>`. Escape, the close button and a click on the backdrop all call `onClose`;
- * the parent owns `open`. `footer` holds the buttons, primary last.
+ * A centred modal: a scrim, a title, the content and a footer of buttons (primary last).
+ * Escape, a click on the scrim and `onClose` close it; the parent owns whether it shows (`open` defaults to true).
  */
-export function Dialog({open,onClose,title,description,children,footer,className}:{open:boolean;onClose():void;title:string;description?:string;children?:ReactNode;footer?:ReactNode;className?:string}){
- const ref=useRef<HTMLDialogElement>(null),titleId=useId(),descriptionId=useId();
- useEffect(()=>{const dialog=ref.current;if(!dialog)return;
-  if(open&&!dialog.open){if(typeof dialog.showModal==='function')dialog.showModal();else dialog.setAttribute('open','');}
-  else if(!open&&dialog.open){if(typeof dialog.close==='function')dialog.close();else dialog.removeAttribute('open');}
- },[open]);
- return <dialog ref={ref} aria-labelledby={titleId} aria-describedby={description?descriptionId:undefined}
-  onCancel={e=>{e.preventDefault();onClose();}}
-  onClick={e=>{if(e.target===e.currentTarget)onClose();}}
-  className={cn('m-auto w-[calc(100%-32px)] max-w-lg rounded-lg border border-line bg-card p-0 font-sans text-ink shadow-xl backdrop:bg-scrim',className)}>
-  <div className="flex items-start justify-between gap-4 px-6 pt-5">
-   <div className="flex flex-col gap-1">
-    <h2 id={titleId} className="text-lg font-semibold">{title}</h2>
-    {description&&<p id={descriptionId} className="text-base text-muted">{description}</p>}
+export function Dialog({open=true,onClose,title,description,children,footer,width,className}:{open?:boolean;onClose():void;title:string;description?:string;children?:ReactNode;footer?:ReactNode;width?:number;className?:string}){
+ if(!open)return null;
+ return <DialogPanel onClose={onClose} title={title} description={description} footer={footer} width={width} className={className}>{children}</DialogPanel>;
+}
+
+function DialogPanel({onClose,title,description,children,footer,width,className}:{onClose():void;title:string;description?:string;children?:ReactNode;footer?:ReactNode;width?:number;className?:string}){
+ const titleId=useId(),descriptionId=useId();
+ useEscape(onClose);
+ const panel=useFocusPanel();
+ return <>
+  <div className="scrim" onClick={onClose}/>
+  <div ref={panel} tabIndex={-1} className={cn('dialog',className)} role="dialog" aria-modal="true" aria-labelledby={titleId} aria-describedby={description?descriptionId:undefined} style={width?{width}:undefined}>
+   <div className="dh" style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:12}}>
+    <div><h3 id={titleId}>{title}</h3>{description&&<p id={descriptionId} className="muted" style={{marginTop:4}}>{description}</p>}</div>
+    <button type="button" className="btn ghost sm icon-only" style={{marginRight:-6,marginTop:-2}} onClick={onClose} aria-label="Close"><Icon name="X" size={16}/></button>
    </div>
-   <button type="button" aria-label="Close" onClick={onClose} className="-mr-2 flex size-8 shrink-0 items-center justify-center rounded-md text-muted hover:bg-subtle hover:text-ink focus-visible:outline-2 focus-visible:outline-accent"><X size={16} aria-hidden/></button>
+   <div className="db">{children}</div>
+   {footer&&<div className="df">{footer}</div>}
   </div>
-  {children&&<div className="px-6 pt-4">{children}</div>}
-  {footer?<div className="flex justify-end gap-2 px-6 pt-6 pb-5">{footer}</div>:<div className="pb-5"/>}
- </dialog>;
+ </>;
 }

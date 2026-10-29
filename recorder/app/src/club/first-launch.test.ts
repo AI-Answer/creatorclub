@@ -30,8 +30,8 @@ const baseRoutes=(status:AiStatus,workspaces:unknown):((call:FakeCall)=>FakeRepl
  if(call.path==='/workspaces'&&call.method==='GET')return {body:workspaces};
 };
 
-test('opening the board with no AI or no channel goes to first launch; a ready setup or an unreachable server does not',async()=>{
- for(const [status,workspaces,expected] of [[signedOut,none,'#/onboarding'],[claudeIn,none,'#/onboarding'],[signedOut,one,'#/onboarding'],[claudeIn,one,'#/board']] as const){
+test('opening the overview with no AI or no channel goes to first launch; a ready setup or an unreachable server does not',async()=>{
+ for(const [status,workspaces,expected] of [[signedOut,none,'#/welcome'],[claudeIn,none,'#/welcome'],[signedOut,one,'#/welcome'],[claudeIn,one,'#/overview']] as const){
   await withServer(baseRoutes(status,workspaces),async()=>{
    window.location.hash='';const ui=await mountUI(createElement(ClubApp));
    try{await flush();assert.equal(window.location.hash,expected);}finally{await ui.close();window.location.hash='';}
@@ -39,7 +39,7 @@ test('opening the board with no AI or no channel goes to first launch; a ready s
  }
  FakeEventSource.install();const original=globalThis.fetch;globalThis.fetch=(async()=>{throw new TypeError('offline');}) as typeof fetch;
  window.location.hash='';const ui=await mountUI(createElement(ClubApp));
- try{await flush();assert.equal(window.location.hash,'#/board');}finally{globalThis.fetch=original;await ui.close();window.location.hash='';}
+ try{await flush();assert.equal(window.location.hash,'#/overview');}finally{globalThis.fetch=original;await ui.close();window.location.hash='';}
 });
 
 test('Connect your AI: Connect Claude installs with progress, waits for the browser, then shows who is connected',async()=>{
@@ -56,8 +56,8 @@ test('Connect your AI: Connect Claude installs with progress, waits for the brow
    assert.equal(c.querySelector('h1')!.textContent,'Connect your AI');
    assert.match(text(c),/CreatorClub uses your own Claude or ChatGPT account\./);
    assert.deepEqual(labels(c),['Connect Claude','Connect ChatGPT']);
-   assert.equal(c.querySelectorAll('button.bg-primary').length,1,'one primary button');
-   assert.ok(button(c,'Connect Claude').className.includes('bg-primary'));
+   assert.equal(c.querySelectorAll('button.primary').length,1,'one primary button');
+   assert.ok(button(c,'Connect Claude').classList.contains('primary'));
    assert.equal(c.querySelector('input'),null,'never asks for a key');
 
    await click(c,'Connect Claude');
@@ -104,7 +104,7 @@ test('Connect ChatGPT sends codex; a failed install is one sentence and Try agai
    assert.equal(FakeEventSource.last().closed,true);
    assert.match(text(c),/Couldn't install ChatGPT\./);
    assert.deepEqual(labels(c),['Try again']);
-   assert.ok(button(c,'Try again').className.includes('bg-primary'));
+   assert.ok(button(c,'Try again').classList.contains('primary'));
    await click(c,'Try again');
    assert.equal(calls.filter(call=>call.path==='/ai/connect').length,2);
    assert.deepEqual(calls.filter(call=>call.path==='/ai/connect').map(call=>call.body),[{provider:'codex'},{provider:'codex'}]);
@@ -370,8 +370,8 @@ test('Cancel in the signing-in state ends the job, goes back to the buttons, and
    await click(c,'Connect Claude');
    await emit('progress',{phase:'signing-in'});
    assert.deepEqual(labels(c),['Cancel']);
-   assert.ok(button(c,'Cancel').className.includes('bg-transparent'),'a quiet ghost button, not a second primary');
-   assert.equal(c.querySelectorAll('button.bg-primary').length,0);
+   assert.ok(button(c,'Cancel').classList.contains('ghost'),'a quiet ghost button, not a second primary');
+   assert.equal(c.querySelectorAll('button.primary').length,0);
    const first=FakeEventSource.last();
    await click(c,'Cancel');
    assert.deepEqual(calls.filter(call=>call.method==='DELETE').map(call=>call.path),['/jobs/j_1']);

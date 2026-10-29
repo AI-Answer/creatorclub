@@ -192,22 +192,22 @@ test('the first-visit dialog opens once, Start saves that, and ? opens it again'
  const ui=await mountUI(createElement(ClubApp));
  try{
   await flush();
-  const dialog=ui.container.querySelector('dialog')!;
-  assert.ok(dialog.hasAttribute('open'),'a new visitor sees the dialog');
-  assert.match(text(dialog),/How CreatorClub works/);
-  assert.deepEqual([...dialog.querySelectorAll('li')].map(li=>text(li)),[
-   '1 Find the idea Paste a video you like and pick a concept that fits your channel.',
-   '2 Plan it Collect research, package the video and write the outline.',
-   '3 Record, edit, publish Record each scene, remove the pauses, then export and paste your YouTube link.',
+  const dialog=()=>ui.container.querySelector('[role="dialog"]');
+  assert.ok(dialog(),'a new visitor sees the dialog');
+  assert.match(text(dialog()!),/How CreatorClub works/);
+  assert.deepEqual([...dialog()!.querySelectorAll('.hs')].map(step=>[step.querySelector('b')!.textContent,step.querySelector('span')!.textContent]),[
+   ['1 Find the idea',"Break down what's working. Keep the concept you'd make."],
+   ['2 Plan it','Gather references on its board, package it, draft the scenes.'],
+   ['3 Record, edit, publish','Talk through each scene, remove pauses, paste the YouTube link.'],
   ]);
-  assert.equal(dialog.querySelectorAll('li svg').length,3,'a small picture for each step');
+  assert.equal(dialog()!.querySelectorAll('.hs svg').length,3,'an icon for each step');
   assert.equal(fake.calls.filter(call=>call.path==='/settings/welcomed').length,0,'not saved until it is closed');
-  await press(button(dialog,'Start'));
-  assert.equal(dialog.hasAttribute('open'),false);
+  await press(button(dialog()!,'Start'));
+  assert.equal(dialog(),null);
   assert.deepEqual(fake.calls.filter(call=>call.path==='/settings/welcomed').map(call=>call.method),['POST']);
   await press(ui.container.querySelector('[aria-label="How CreatorClub works"]')!);
-  assert.ok(dialog.hasAttribute('open'),'? opens it again');
-  await press(button(dialog,'Start'));
+  assert.ok(dialog(),'? opens it again');
+  await press(button(dialog()!,'Start'));
   assert.equal(fake.calls.filter(call=>call.path==='/settings/welcomed').length,1,'only the first close is saved');
  }finally{await ui.close();fake.restore();window.location.hash='';}
 });

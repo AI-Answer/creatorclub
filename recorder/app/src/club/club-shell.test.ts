@@ -13,8 +13,8 @@ const ws={slug:'samin',name:'Samin Yasar',handle:'@samin',channelUrl:'',topics:[
 const stored={id:'v1',title:'Hidden features in Claude Code',stage:'planning',order:0,createdAt:'2026-10-01T00:00:00.000Z',updatedAt:'2026-10-01T00:00:00.000Z',stageDates:{},planning:{research:true,package:false,outline:false}};
 const flush=()=>act(async()=>{await new Promise(resolve=>setTimeout(resolve,0));});
 
-test('the shell routes through board, video steps and settings, and keeps the place in the hash',async()=>{
- window.location.hash='';
+test('the shell routes through production, video steps and settings, and keeps the place in the hash',async()=>{
+ window.location.hash='#/production';
  const server=installFetch(call=>{
   if(call.path==='/ai/status')return {body:{claude:{installed:true,version:'2',signedIn:true},codex:{installed:false,version:null,signedIn:false}}};
   if(call.path==='/workspaces')return {body:{current:'samin',workspaces:[ws]}};
@@ -29,21 +29,24 @@ test('the shell routes through board, video steps and settings, and keeps the pl
  const ui=await mountUI(createElement(ClubApp));
  try{
   await flush();
-  assert.equal(window.location.hash,'#/board');assert.ok(ui.container.querySelector('aside'),'sidebar on the board');
-  assert.equal(ui.container.querySelector('dialog[open]'),null,'a returning visitor sees no dialog');
+  assert.equal(window.location.hash,'#/production');assert.ok(ui.container.querySelector('nav[aria-label="Main"]'),'sidebar on Production');
+  assert.equal(ui.container.querySelector('[role="dialog"]'),null,'a returning visitor sees no dialog');
   await act(async()=>[...ui.container.querySelectorAll<HTMLElement>('[data-card]')].find(card=>/Hidden features/.test(card.textContent||''))!.click());await flush();
-  assert.equal(window.location.hash,'#/video/v1/plan');assert.equal(ui.container.querySelector('aside'),null,'the video page uses the whole window');
+  assert.equal(window.location.hash,'#/video/v1/plan');assert.ok(ui.container.querySelector('nav[aria-label="Main"]'),'the sidebar stays beside a video');
   assert.match(ui.container.querySelector('[aria-label="Breadcrumb"]')!.textContent||'',/Hidden features in Claude Code/);
   assert.ok(server.calls.some(call=>call.path==='/videos/v1/opened'&&call.method==='POST'),'opening a video is noted for Recent videos');
   assert.equal(ui.container.querySelector('[aria-current="step"]')!.textContent,'1Plan');
   assert.ok([...ui.container.querySelectorAll('button')].some(b=>b.textContent==='Package it'),'Plan opens on the first step not done yet');
   await act(async()=>button(ui.container,'2Record').click());
   assert.equal(window.location.hash,'#/video/v1/record');
+  assert.ok(ui.container.querySelector('.sidebar.collapsed'),'the sidebar folds to its rail on Record');
   await act(async()=>button(ui.container,'Back to plan').click());
+  assert.equal(ui.container.querySelector('.sidebar.collapsed'),null,'and opens again on Plan');
   await act(async()=>button(ui.container,'4Publish').click());
   assert.equal(window.location.hash,'#/video/v1/publish');assert.equal(ui.container.querySelectorAll('footer button').length,5,'no continue button after Publish');
   await act(async()=>button(ui.container,'Board').click());await flush();
-  await act(async()=>button(ui.container,'Settings').click());
+  assert.equal(window.location.hash,'#/production');
+  await act(async()=>ui.container.querySelector<HTMLElement>('a[href="#/settings"]')!.click());await flush();
   assert.equal(window.location.hash,'#/settings');assert.equal(ui.container.querySelector('[aria-current="page"]')!.textContent,'Settings');
   window.location.hash='#/video/v1/edit';await act(async()=>{window.dispatchEvent(new Event('hashchange'));});await flush();
   assert.equal(ui.container.querySelector('[aria-current="step"]')!.textContent,'3Edit','a hash change from outside moves the shell');

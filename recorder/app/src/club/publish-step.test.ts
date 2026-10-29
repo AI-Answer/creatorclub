@@ -9,7 +9,7 @@ const {installFetch}=await import('./test-fakes');
 
 const flush=()=>act(async()=>{await new Promise(resolve=>setTimeout(resolve,0));});
 const type=async(input:Element,value:string)=>act(async()=>{Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value')!.set!.call(input,value);input.dispatchEvent(new Event('input',{bubbles:true}));});
-const primaries=(root:Element)=>[...root.querySelectorAll('button')].filter(b=>b.className.includes('bg-primary')).map(b=>b.textContent?.trim());
+const primaries=(root:Element)=>[...root.querySelectorAll('button')].filter(b=>b.classList.contains('primary')).map(b=>b.textContent?.trim());
 
 const video:Video={id:'v1',title:'Hidden features',stage:'publishing',order:0,createdAt:'2026-10-01T00:00:00.000Z',updatedAt:'2026-10-01T00:00:00.000Z',stageDates:{publishing:'2026-10-28T00:00:00.000Z'},planning:{research:true,package:true,outline:true},recorderProjectId:'p1'};
 const pkg:Package={demand:{level:'high',note:''},gap:{level:'mid',note:''},show:{level:'high',note:''},angle:'',twist:'',titles:['Claude Code features you missed','Seven hidden Claude Code tricks','Stop using Claude Code wrong'],thumbnailText:'Hidden features',hook:{visual:'A menu',spoken:'You never opened this.',text:'HIDDEN'}};

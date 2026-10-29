@@ -41,7 +41,7 @@ test('the take preview shows the take name, a status badge and exactly three cho
   assert.equal(header.querySelector('h1')?.textContent,'Take 1');
   assert.ok(header.textContent?.includes('New take'),'an unused take is badged as new');
   assert.deepEqual(footerLabels(ui.container),['Delete take','Record another take','Continue']);
-  assert.ok(footerButton(ui.container,'Continue').className.includes('bg-primary'),'Continue is the primary');
+  assert.ok(footerButton(ui.container,'Continue').classList.contains('primary'),'Continue is the primary');
   assert.equal(ui.container.querySelectorAll('.take-source-select').length,0,'no hidden "Show in main preview" buttons on the sources');
   assert.ok(!ui.container.textContent?.includes('Use this take'),'the old confirm button is gone');
   await click(footerButton(ui.container,'Continue'));
@@ -202,9 +202,9 @@ test('the bottom bar makes Continue to editing the primary only once every scene
  const bar=()=>button(ui.container,'Continue to editing');
  try{
   await flush();await flush();
-  assert.ok(!bar().className.includes('bg-primary'),'while scenes are left, the scene\'s Record is the primary');
+  assert.ok(!bar().classList.contains('primary'),'while scenes are left, the scene\'s Record is the primary');
   await click(footerButton(ui.container,'Continue'));await flush();await flush();
-  assert.ok(!bar().className.includes('bg-primary'),'one of two scenes recorded');
+  assert.ok(!bar().classList.contains('primary'),'one of two scenes recorded');
   const scene2=ui.container.querySelector('.rsc-scene[data-scene-id="s2"]')!;
   assert.ok(scene2.classList.contains('is-selected'));
   assert.ok(scene2.querySelector('.rsc-record-button'),'scene 2 shows its Record button');
@@ -218,8 +218,8 @@ test('the bottom bar makes Continue to editing the primary only once every scene
  const done=await mountUI(createElement(VideoScreen,{video:{...video,recorderProjectId:all.p.id},step:'record',onStep:()=>{},onBoard:()=>{},onVideo:()=>{}}));
  try{
   await flush();await flush();
-  assert.ok(button(done.container,'Continue to editing').className.includes('bg-primary'),'after the last scene, Continue to editing is the primary');
-  assert.equal([...done.container.querySelectorAll('button')].filter(b=>b.className.includes('bg-primary')).length,1,'and the only one');
+  assert.ok(button(done.container,'Continue to editing').classList.contains('primary'),'after the last scene, Continue to editing is the primary');
+  assert.equal([...done.container.querySelectorAll('button')].filter(b=>b.classList.contains('primary')).length,1,'and the only one');
  }finally{globalThis.fetch=original2;all.restore();await done.close();}
 });
 

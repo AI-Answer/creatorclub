@@ -61,7 +61,7 @@ async function withBoard(run:(ui:Awaited<ReturnType<typeof mountUI>>,posted:Post
  try{await flush();await run(ui,posted,fake.calls);}finally{await ui.close();globalThis.fetch=inner;fake.restore();}
 }
 const uploads=(posted:Posted[])=>posted.filter(entry=>entry.form);
-const dialog=(c:Element)=>c.querySelector('dialog[open]');
+const dialog=(c:Element)=>c.querySelector('[role="dialog"]');
 const link=(c:Element)=>c.querySelector<HTMLInputElement>('input[aria-label="Paste a YouTube or Instagram link"]')!;
 
 test('Break down: a pasted link runs a job, streams progress and shows the stat row, the sections and three concepts; nothing is added by itself',async()=>{
