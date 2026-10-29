@@ -5,7 +5,7 @@ import {createPlayhead,usePlayheadTime} from './playhead';
 import {Stage} from './Stage';
 import {Pause,Play} from './Icons';
 
-export function CutPlayback({review,labels={before:'Original',after:'Edited'}}:{review:CutReview;labels?:{before:string;after:string}}){
+export function CutPlayback({review,labels={before:'Original',after:'Edited'},note='This preview does not change your project.'}:{review:CutReview;labels?:{before:string;after:string};note?:string}){
  const [phase,setPhase]=useState<'before'|'after'>('after'),[joinId,setJoinId]=useState(review.joins[0]?.id??''),[playing,setPlaying]=useState(false),[playhead]=useState(()=>createPlayhead());
  const root=useRef<HTMLElement>(null);
  useEffect(()=>{root.current?.scrollIntoView({block:'nearest'});},[]);
@@ -22,6 +22,6 @@ export function CutPlayback({review,labels={before:'Original',after:'Edited'}}:{
   <div className="cut-playback-heading"><label>Cut<select aria-label="Cut to review" value={joinId} onChange={event=>setJoinId(event.target.value)}>{review.joins.map(join=><option key={join.id} value={join.id}>{join.label}</option>)}</select></label><div className="comparison-switch" aria-label="Playback version">{(['before','after'] as const).map(value=><button className="button compact" key={value} aria-pressed={phase===value} onClick={()=>setPhase(value)}>{labels[value]}</button>)}</div></div>
   <div className="cut-playback-stage"><Stage project={project} playhead={playhead} playing={playing} playbackRate={1} onSelect={()=>{}} onImport={()=>{}}/></div>
   <div className="cut-playback-controls"><button className="button compact" disabled={end<=from} onClick={toggle}>{playing?<Pause size={14}/>:<Play size={14}/>} {playing?'Pause comparison':'Play comparison'}</button><input aria-label="Comparison playback position" type="range" min={from} max={Math.max(from,end)} step={.01} value={time} onChange={event=>{setPlaying(false);playhead.set(Number(event.target.value));}}/><span>{Math.max(0,time-from).toFixed(1)}s</span></div>
-  <p className="hint">{phase==='before'?'Listen to the original passage, including the proposed removal.':'Listen across the join with the selected cuts applied.'} This preview does not change your project.</p>
+  <p className="hint">{phase==='before'?'Listen to the original passage, including the proposed removal.':'Listen across the join with the selected cuts applied.'} {note}</p>
  </section>;
 }

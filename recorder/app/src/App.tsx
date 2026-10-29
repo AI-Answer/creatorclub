@@ -56,7 +56,7 @@ function ContextMenu({at,items,onClose}:{at:{x:number;y:number};items:readonly M
  const ref=useRef<HTMLDivElement>(null),[host]=useState(()=>document.querySelector('.club-root'));
  useEffect(()=>{ref.current?.querySelector<HTMLButtonElement>('button')?.focus();const away=(event:Event)=>{if(!ref.current?.contains(event.target as Node))onClose();},key=(event:KeyboardEvent)=>{if(event.key==='Escape'){event.preventDefault();event.stopPropagation();onClose();}};
   window.addEventListener('pointerdown',away,true);window.addEventListener('scroll',away,true);window.addEventListener('keydown',key,true);return()=>{window.removeEventListener('pointerdown',away,true);window.removeEventListener('scroll',away,true);window.removeEventListener('keydown',key,true);};},[onClose]);
- const menu=<div ref={ref} className="menu" role="menu" aria-label="Timeline actions" style={{position:'fixed',left:Math.min(at.x,window.innerWidth-260),top:Math.min(at.y,window.innerHeight-430),minWidth:240,zIndex:60}}>
+ const menu=<div ref={ref} className="menu" role="menu" aria-label="Timeline actions" style={{position:'fixed',left:Math.max(8,Math.min(at.x,window.innerWidth-260)),top:Math.max(8,Math.min(at.y,window.innerHeight-580)),maxHeight:window.innerHeight-16,overflowY:'auto',minWidth:240,zIndex:60}}>
   {items.map((item,index)=>item==='-'?<div key={index} className="sep"/>:'header' in item?<div key={index} className="hd">{item.header}</div>:<button key={index} type="button" role={item.check===undefined?'menuitem':'menuitemradio'} aria-checked={item.check} onClick={()=>{onClose();item.fn();}}><span className="grow">{item.label}</span>{item.check&&<Check size={14}/>}</button>)}
  </div>;
  return host?createPortal(menu,host):menu;
@@ -127,7 +127,7 @@ export default function App({embedded}:{embedded?:EmbeddedRecorder}={}){
  const nudge=(direction:-1|1,big:boolean)=>{if(!p)return;const want=direction*(big?1:1/p.canvas.fps),clipIds=linkedIds(p.clips,[...selection].filter(id=>p.clips.some(c=>c.id===id))),effectIds=new Set([...selection].filter(id=>!p.clips.some(c=>c.id===id)&&!p.markers?.some(m=>m.id===id)));
   studio.change(d=>{const items=rowItems(d);if(clipIds.size){const moving=items.filter(i=>clipIds.has(i.id)),delta=freeDelta(moving,want,items);if(delta){ensureLinks(d);applyClipStarts(d,new Map(moving.map(m=>[m.id,m.start+delta])));}}
    if(effectIds.size){const moving=items.filter(i=>effectIds.has(i.id)),delta=freeDelta(moving,want,items);if(delta)moveEffects(d,effectIds,delta);}},{coalesce:'timeline.nudge'});};
- const addMarkerAtPlayhead=()=>{if(!p)return;const time=playhead.get();studio.change(d=>{addMarker(d,time);});notify(`Marker at ${rulerLabel(time,p.canvas.fps,false)}.`);};
+ const addMarkerAtPlayhead=()=>{if(!p)return;const time=playhead.get();studio.change(d=>{addMarker(d,time);});notify(`Marker added at ${rulerLabel(time,p.canvas.fps,false)}.`);};
  const selectionLinked=Boolean(p&&[...selection].some(id=>isLinked(p.clips,id)));
  const toggleLink=()=>{if(!p)return;const clips=[...selection].filter(id=>p.clips.some(c=>c.id===id));if(selectionLinked){studio.change(d=>{unlinkClips(d,clips);});notify('Unlinked. Move or trim them separately.');}else if(clips.length>1){studio.change(d=>{linkClips(d,clips);});notify('Linked. They move and trim together.');}else notify('Select two or more clips to link them.');};
  const copy=()=>{if(!p)return;const ids=embedded?linkedIds(p.clips,selection):selection;clipboard.current=copySelection(p,ids);if(clipboard.current)notify(`Copied ${ids.size} timeline items.`);};
@@ -199,7 +199,7 @@ export default function App({embedded}:{embedded?:EmbeddedRecorder}={}){
  const clubEditView=()=>{if(!p||!embedded)return null;const stageProject=preview?.after&&previewPhase==='after'?preview.after:p;return <div className={`edit-workspace club-edit ${sideView?'has-side':''}`}>
   <main className="club-edit-stage">
    <Keep visible={!preview?.review}><Stage project={stageProject} playhead={playhead} playing={playing} playbackRate={playbackRate} onSelect={select} onImport={importMedia}/></Keep>
-   {preview?.review&&<div className="club-preview-stage"><CutPlayback key={preview.key} review={preview.review} labels={{before:'Before',after:'After'}}/></div>}
+   {preview?.review&&<div className="club-preview-stage"><CutPlayback key={preview.key} review={preview.review} labels={{before:'Before',after:'After'}} note="This preview does not change your video."/></div>}
    {preview&&<div className="club-preview-badges" role="status"><span className="club-pill is-accent">Previewing at lower quality</span><span className="club-pill">{preview.label} · {preview.summary}</span>
     {preview.after&&<span className="club-seg" role="group" aria-label="Before or after">{(['before','after'] as const).map(v=><button key={v} type="button" aria-pressed={previewPhase===v} onClick={()=>setPreviewPhase(v)}>{v==='before'?'Before':'After'}</button>)}</span>}</div>}
   </main>
