@@ -7,6 +7,8 @@ import {promisify} from 'node:util';
 import {createDmg,sha256File} from './create-dmg.mjs';
 import {resolveSigningIdentity,signPackage} from './signing.mjs';
 import {buildMcpLauncher} from './build-mcp-launcher.mjs';
+// The packaged app is CreatorClub, with its own bundle id, so it never replaces or shares permissions with SceneForge.app.
+const APP_NAME='CreatorClub',APP_ID='com.aianswer.creatorclub';
 const staging=path.resolve('.local/package');
 const requestedOutput=process.env.SCENEFORGE_PACKAGE_OUT;
 if(requestedOutput&&!path.isAbsolute(requestedOutput))throw Error('SCENEFORGE_PACKAGE_OUT must be an absolute directory path.');
@@ -14,7 +16,7 @@ const packageOutput=path.resolve(requestedOutput||'../release');
 if(process.platform!=='darwin')throw Error('macOS packaging and signing must run on macOS.');
 const signingIdentity=await resolveSigningIdentity();
 console.log(JSON.stringify({signingMode:signingIdentity.mode,identitySource:signingIdentity.source,identitySha1:signingIdentity.sha1}));
-for(const file of ['runtime/bin/ffmpeg','runtime/bin/ffprobe','runtime/bin/whisper-cli','runtime/manifest.json','dist/index.html','server-dist/index.mjs'])await access(file).catch(()=>{throw Error(`Missing ${file}. Build the runtime and app before packaging.`)});
+for(const file of ['runtime/bin/ffmpeg','runtime/bin/ffprobe','runtime/bin/whisper-cli','runtime/manifest.json','dist/index.html','server-dist/index.mjs','server-dist/methodology/package.md'])await access(file).catch(()=>{throw Error(`Missing ${file}. Build the runtime and app before packaging.`)});
 const modelFile='runtime/models/ggml-base.en.bin',modelHash='a03779c86df3323075f5e796cb2ce5029f00ec8869eee3fdfb897afe36c6d002';
 const modelURL='https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin';
 await mkdir('runtime/models',{recursive:true});
@@ -32,11 +34,11 @@ for(const dir of ['desktop','dist','server-dist'])await cp(dir,path.join(staging
 for(const entry of ['bin','licenses','models','manifest.json','THIRD-PARTY-NOTICES.txt'])await cp(path.join('runtime',entry),path.join(staging,'runtime',entry),{recursive:true});
 for(const name of ['LICENSE','THIRD_PARTY_NOTICES.md'])await cp(path.resolve('..',name),path.join(staging,name));
 await cp('../docs',path.join(staging,'docs'),{recursive:true});
-await writeFile(path.join(staging,'package.json'),JSON.stringify({name:'sceneforge',productName:'SceneForge',version:'0.1.0',main:'desktop/main.cjs',description:'Local-first script, recording and video editing studio',author:'Samin Yasar'},null,2));
+await writeFile(path.join(staging,'package.json'),JSON.stringify({name:'creatorclub',productName:APP_NAME,version:'0.1.0',main:'desktop/main.cjs',description:'Plan, record, edit and publish YouTube videos',author:'AI Answer'},null,2));
 const version=JSON.parse(await readFile('node_modules/electron/package.json','utf8')).version;
-const result=await packager({dir:staging,name:'SceneForge',platform:'darwin',arch:'arm64',electronVersion:version,out:packageOutput,overwrite:true,asar:false,icon:path.resolve('assets/icon.icns'),appBundleId:'com.samin.sceneforge',appCategoryType:'public.app-category.video',extendInfo:{LSMinimumSystemVersion:'14.0',NSCameraUsageDescription:'Record camera video for your scenes.',NSMicrophoneUsageDescription:'Record narration for your scenes.',NSAudioCaptureUsageDescription:'Record system audio from the screen or window you choose.',NSScreenCaptureUsageDescription:'Record the screen or window you choose.'}});
+const result=await packager({dir:staging,name:APP_NAME,platform:'darwin',arch:'arm64',electronVersion:version,out:packageOutput,overwrite:true,asar:false,icon:path.resolve('assets/icon.icns'),appBundleId:APP_ID,appCategoryType:'public.app-category.video',extendInfo:{LSMinimumSystemVersion:'14.0',NSCameraUsageDescription:'CreatorClub records your camera for the scenes you film.',NSMicrophoneUsageDescription:'CreatorClub records your microphone for the scenes you film.',NSAudioCaptureUsageDescription:'CreatorClub records system audio from the screen or window you choose.',NSScreenCaptureUsageDescription:'CreatorClub records the screen or window you choose.'}});
 for(const dir of result){
- const resources=path.join(dir,'SceneForge.app/Contents/Resources');
+ const resources=path.join(dir,`${APP_NAME}.app/Contents/Resources`);
  // Electron Packager excludes these distribution files by default. Retain
  // their exact vendor bytes in the final bundle before signing it.
  for(const license of ['LICENSE','LICENSES.chromium.html']){
@@ -44,16 +46,16 @@ for(const dir of result){
   await cp(source,target);
   if(await sha256File(source)!==await sha256File(target))throw Error('Electron license copy failed: '+license);
  }
- await buildMcpLauncher(path.join(dir,'SceneForge.app'));
+ await buildMcpLauncher(path.join(dir,`${APP_NAME}.app`));
 }
-for(const dir of result)await signPackage(path.join(dir,'SceneForge.app'),signingIdentity);
+for(const dir of result)await signPackage(path.join(dir,`${APP_NAME}.app`),signingIdentity);
 for(const dir of result){
- const app=path.join(dir,'SceneForge.app'),zip=path.join(packageOutput,'SceneForge-macOS-arm64.zip');
+ const app=path.join(dir,`${APP_NAME}.app`),zip=path.join(packageOutput,`${APP_NAME}-macOS-arm64.zip`);
  await rm(zip,{force:true});
  await promisify(execFile)('ditto',['--norsrc','--noextattr','-c','-k','--keepParent',app,zip]);
  const sha=await sha256File(zip);
  await writeFile(zip+'.sha256',sha+'  '+path.basename(zip)+'\n');
  console.log(JSON.stringify({zip,sha256:sha,signing:signingIdentity.mode,notarized:false}));
- console.log(JSON.stringify(await createDmg(app,path.join(packageOutput,'SceneForge-macOS-arm64.dmg'))));
+ console.log(JSON.stringify(await createDmg(app,path.join(packageOutput,`${APP_NAME}-macOS-arm64.dmg`))));
 }
 console.log(result.join('\n'));

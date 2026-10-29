@@ -49,9 +49,12 @@ app.use(express.json({limit:'30mb'}));
 const route=(fn:(req:Request,res:Response)=>Promise<unknown>|unknown)=>(req:Request,res:Response,next:NextFunction)=>Promise.resolve(fn(req,res)).catch(next);
 const param=(req:Request,name='id')=>String(req.params[name]);
 const reviewedRevision=(req:Request)=>{const value=req.headers['if-match'];if(typeof value!=='string'||!/^(?:"[0-9a-f]{64}"|[0-9a-f]{64})$/.test(value))throw Object.assign(Error('A reviewed project revision is required. Refresh and review this action again.'),{status:409});return value.replaceAll('"','');};
-const capabilities=async()=>({...await media.getCapabilities(),transcription:await ai.transcriptionCapabilities(),vision:await getVisionCapabilities(),application:'SceneForge',mcp:{command:process.env.SCENEFORGE_MCP_COMMAND||path.join(os.homedir(),'Applications/SceneForge.app/Contents/MacOS/sceneforge-mcp'),args:[],toolCount:toolDefinitions.length},version:'0.1.0'});
+// An empty SCENEFORGE_MCP_COMMAND (the CreatorClub app without its own launcher) advertises no MCP launcher at all.
+const mcpCommand=process.env.SCENEFORGE_MCP_COMMAND??path.join(os.homedir(),'Applications/SceneForge.app/Contents/MacOS/sceneforge-mcp');
+// `product` tells the CreatorClub app its own service apart from a SceneForge one.
+const capabilities=async()=>({...await media.getCapabilities(),transcription:await ai.transcriptionCapabilities(),vision:await getVisionCapabilities(),application:'SceneForge',product:'CreatorClub',mcp:mcpCommand?{command:mcpCommand,args:[],toolCount:toolDefinitions.length}:undefined,version:'0.1.0'});
 app.get('/api/health',route(async(_,res)=>res.json({...await capabilities(),dataDir:storage.DATA_DIR})));
-app.get('/api/ready',(_req,res)=>{res.json({application:'SceneForge',version:'0.1.0'});});
+app.get('/api/ready',(_req,res)=>{res.json({application:'SceneForge',product:'CreatorClub',version:'0.1.0'});});
 app.get('/api/capabilities',route(async(_,res)=>res.json(await capabilities())));
 app.get('/api/events',(_req,res)=>{
  res.setHeader('Content-Type','text/event-stream');res.setHeader('Cache-Control','no-cache, no-transform');res.setHeader('Connection','keep-alive');res.flushHeaders();

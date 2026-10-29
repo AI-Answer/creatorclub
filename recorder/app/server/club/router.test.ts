@@ -8,6 +8,8 @@ import path from 'node:path';
 
 const temp = await mkdtemp(path.join(os.tmpdir(), 'creatorclub-router-'));
 process.env.CREATORCLUB_DIR = temp;
+const secrets = path.join(temp, 'app-support');
+process.env.CREATORCLUB_SECRETS_DIR = secrets;
 const { clubRouter } = await import('./index.js');
 const { startJob } = await import('./jobs.js');
 
@@ -160,7 +162,7 @@ test('ai status route answers for Claude and ChatGPT', async () => {
   assert.deepEqual(Object.keys(res.body).sort(), ['claude', 'codex']);
 });
 
-test('the Gemini API key is saved owner-only, only ever returned masked, and can be removed', async () => {
+test('the Gemini API key is saved owner-only outside the workspace, only ever returned masked, and can be removed', async () => {
   const key = 'AIzaSyExampleKeyForTestingOnly1234';
   assert.equal((await call('GET', '/settings')).body.geminiKey, null);
   for (const bad of ['', 'short', 'has spaces in it and is long enough', key + '!', 'x'.repeat(300)]) assert.equal((await call('PUT', '/settings/gemini-key', { key: bad })).status, 400, bad.slice(0, 20));
@@ -170,12 +172,13 @@ test('the Gemini API key is saved owner-only, only ever returned masked, and can
   const settings = await call('GET', '/settings');
   assert.equal(settings.body.geminiKey, '••••1234');
   assert.ok(!JSON.stringify(settings.body).includes('AIzaSy'));
-  const file = path.join(temp, 'settings.json');
-  assert.equal((await stat(file)).mode & 0o777, 0o600, 'settings.json is owner-only');
+  const file = path.join(secrets, 'secrets.json');
+  assert.equal((await stat(file)).mode & 0o777, 0o600, 'secrets.json is owner-only');
   assert.equal(JSON.parse(await readFile(file, 'utf8')).geminiKey, key);
-  // Other settings changes keep the key and the mode.
+  // Other settings changes keep the key, and settings.json in the workspace root never holds it.
   await call('PUT', '/settings', { defaultAi: 'claude' });
   assert.equal((await call('GET', '/settings')).body.geminiKey, '••••1234');
+  assert.ok(!(await readFile(path.join(temp, 'settings.json'), 'utf8')).includes('geminiKey'));
   assert.equal((await stat(file)).mode & 0o777, 0o600);
   assert.deepEqual((await call('DELETE', '/settings/gemini-key')).body, { geminiKey: null });
   assert.equal((await call('GET', '/settings')).body.geminiKey, null);

@@ -1,5 +1,5 @@
 import {useCallback,useEffect,useState} from 'react';
-import {ChevronRight,FileText,Scissors} from 'lucide-react';
+import {ChevronRight,FileText} from 'lucide-react';
 import type {Video} from '../../../shared/club';
 import {clubFetch,errorMessage} from '../api';
 import {ClubRecorder} from '../ClubRecorder';
@@ -8,7 +8,7 @@ import {sceneAnchor} from '../plan/OutlineEditor';
 import {PlanChecklist} from '../plan/PlanChecklist';
 import {PublishStep} from './PublishStep';
 import type {VideoStep} from '../routes';
-import {EmptyState,cn} from '../ui';
+import {Button,EmptyState,cn} from '../ui';
 import {usePlan} from '../usePlan';
 import {VideoBottomBar} from '../VideoBottomBar';
 import {PLAN_COPY,continueStage,doneSteps,movesForward} from '../video-plan';
@@ -55,8 +55,12 @@ export function VideoScreen({video,step,onStep,onBoard,onVideo}:{video:Video;ste
   requestAnimationFrame(()=>document.getElementById(sceneAnchor(index))?.scrollIntoView?.({block:'start',behavior:'smooth'}));
  };
 
+ // Record and Edit need the video's recording project; without one the page only leads back to Plan, and the bar offers no Continue.
+ const unplanned=(step==='record'||step==='edit')&&!video.recorderProjectId;
+ const openPlan=useCallback(()=>onStep('plan'),[onStep]);
  const bar=step==='plan'
   ?{label:plan.continueAction&&PLAN_COPY[plan.continueAction.step].continue,run:plan.continueAction?.run,disabled:plan.continueAction?.disabled}
+  :unplanned?{label:undefined,run:undefined,disabled:true}
   :{label:continueLabel(step),run:()=>void advance(step),disabled:moving};
 
  return <div className="flex h-full min-h-0 flex-col">
@@ -78,7 +82,7 @@ export function VideoScreen({video,step,onStep,onBoard,onVideo}:{video:Video;ste
     </ol>
    </aside>}
    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-auto">
-    <StepContent video={video} step={step} plan={plan} onBoard={onBoard} onMode={onMode} onProgress={onProgress} onExported={onExported} onVideo={onVideo}/>
+    <StepContent video={video} step={step} plan={plan} onBoard={onBoard} onPlan={openPlan} onMode={onMode} onProgress={onProgress} onExported={onExported} onVideo={onVideo}/>
    </div>
   </div>
   <VideoBottomBar steps={videoStepList} current={step} done={doneSteps(video)} onStep={onStep}
@@ -88,10 +92,10 @@ export function VideoScreen({video,step,onStep,onBoard,onVideo}:{video:Video;ste
  </div>;
 }
 
-function StepContent({video,step,plan,onBoard,onMode,onProgress,onExported,onVideo}:{video:Video;step:VideoStep;plan:ReturnType<typeof usePlan>;onBoard():void;onMode(mode:'Record'|'Edit'):void;onProgress(progress:{recorded:number;total:number}):void;onExported(exported:boolean):void;onVideo(video:Video):void}){
+function StepContent({video,step,plan,onBoard,onPlan,onMode,onProgress,onExported,onVideo}:{video:Video;step:VideoStep;plan:ReturnType<typeof usePlan>;onBoard():void;onPlan():void;onMode(mode:'Record'|'Edit'):void;onProgress(progress:{recorded:number;total:number}):void;onExported(exported:boolean):void;onVideo(video:Video):void}){
  if(step==='plan')return <PlanChecklist video={video} plan={plan}/>;
  if((step==='record'||step==='edit')&&video.recorderProjectId)return <ClubRecorder projectId={video.recorderProjectId} mode={step==='record'?'Record':'Edit'} onBack={onBoard} onMode={onMode} onProgress={onProgress} onExported={step==='edit'?onExported:undefined}/>;
- if(step==='record')return <EmptyState icon={<FileText/>} title="No scenes yet" description="Create the outline first. Each scene is recorded on its own."/>;
- if(step==='edit')return <EmptyState icon={<Scissors/>} title="Nothing to edit yet" description="Record a scene first."/>;
+ if(step==='record'||step==='edit')return <EmptyState icon={<FileText/>} title="Plan this video first" description="Create the outline first. Each scene is recorded on its own."
+  action={<Button variant="primary" size="md" onClick={onPlan}>Back to plan</Button>}/>;
  return <PublishStep video={video} pkg={plan.pkg} onVideo={onVideo}/>;
 }

@@ -3,7 +3,7 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { z } from 'zod';
 import { PLAN_JOB_KINDS, type AiProvider, type JobSnapshot, type Outline, type OutlineScene, type Package, type PlanData, type PlanJobKind, type PlanJobResult, type Video } from '../../shared/club.js';
-import { AiError, runAI, type RunAIOptions } from './ai.js';
+import { AiError, aiLabel, runAI, type RunAIOptions } from './ai.js';
 import { readBreakdown } from './breakdown.js';
 import type { ChannelData } from './channel.js';
 import { loadChannelContext } from './context.js';
@@ -426,7 +426,7 @@ async function asker(context: JobContext, options: PlanOptions): Promise<Asker> 
   const provider: AiProvider = (await store.defaultAi()) ?? 'claude';
   const run = options.runAI ?? runAI;
   return {
-    who: provider === 'claude' ? 'Claude' : 'Codex',
+    who: aiLabel(provider),
     ask: (built, budgetUsd) =>
       run({
         extraDirs: options.extraDirs,

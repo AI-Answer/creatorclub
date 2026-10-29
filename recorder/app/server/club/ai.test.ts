@@ -4,7 +4,7 @@ import { mkdtemp, rm, writeFile, chmod, readFile, mkdir } from 'node:fs/promises
 import { writeFileSync, existsSync, rmSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { aiStatus, runAI, parseClaudeAuth, parseCodexAuth, parseJSONLoose, AiError, type AIEvent } from './ai.js';
+import { aiLabel, aiStatus, runAI, parseClaudeAuth, parseCodexAuth, parseJSONLoose, AiError, type AIEvent } from './ai.js';
 
 const temp = await mkdtemp(path.join(os.tmpdir(), 'creatorclub-ai-test-'));
 const bin = path.join(temp, 'bin');
@@ -153,6 +153,15 @@ test('claude: sign-in, budget and missing-tool failures become short user-safe e
   await assert.rejects(runAI({ ...base, prompt: 'p' }), (e: AiError) => e.code === 'over-budget');
   process.env.PATH = emptyBin;
   await assert.rejects(runAI({ ...base, prompt: 'p' }), (e: AiError) => e.code === 'not-installed' && e.message === 'Claude is not installed on this Mac.');
+});
+
+test('codex errors call it ChatGPT, the name every screen uses', async () => {
+  assert.equal(aiLabel('codex'), 'ChatGPT');
+  assert.equal(aiLabel('claude'), 'Claude');
+  withFake('ok');
+  await assert.rejects(runAI({ ...base, provider: 'codex', prompt: 'p', jsonSchema: { type: 'object' } }), (e: AiError) => e.code === 'bad-answer' && e.message === 'ChatGPT answered in a shape we could not read.');
+  process.env.PATH = emptyBin;
+  await assert.rejects(runAI({ ...base, provider: 'codex', prompt: 'p' }), (e: AiError) => e.code === 'not-installed' && e.message === 'ChatGPT is not installed on this Mac.');
 });
 
 test('cancelling stops the child process', async () => {

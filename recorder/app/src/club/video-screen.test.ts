@@ -177,9 +177,36 @@ test('help lines stay hidden once a step was completed in the channel, and a cha
  }finally{await ui.close();server.restore();state.help=[];}
 });
 
+test('Record and Edit without a recording project lead back to Plan and offer no Continue',async()=>{
+ const editing:Video={...idea,stage:'editing',planning:{research:true,package:true,outline:false}};
+ const server=installFetch(call=>{
+  if(call.path==='/videos/v1/plan')return {body:{package:null,outline:null}};
+  if(call.path==='/settings')return {body:{helpSeen:[]}};
+ });
+ const seen:VideoStep[]=[];
+ const ui=await mountUI(createElement(VideoScreen,{video:editing,step:'record',onStep:s=>seen.push(s),onBoard:()=>{},onVideo:()=>{}}));
+ try{
+  await flush();
+  const c=ui.container;
+  for(const step of ['record','edit'] as const){
+   await ui.render(createElement(VideoScreen,{video:editing,step,onStep:s=>seen.push(s),onBoard:()=>{},onVideo:()=>{}}));await flush();
+   assert.ok(hasText(c,'Plan this video first'),`${step} explains what is missing`);
+   assert.deepEqual(primaries(c),['Back to plan'],`${step} has one primary, Back to plan`);
+   assert.ok(![...c.querySelectorAll('button')].some(b=>b.textContent?.trim().startsWith('Continue to')),`${step} offers no Continue`);
+   const plan=[...c.querySelectorAll('button')].find(b=>b.textContent?.trim()==='Back to plan'&&b.className.includes('bg-primary'))!;
+   await act(async()=>plan.click());
+  }
+  assert.deepEqual(seen,['plan','plan']);
+  assert.ok(!server.calls.some(call=>call.path==='/videos/v1/move'),'the card is never moved');
+ }finally{await ui.close();server.restore();}
+});
+
 test('Continue on Record moves the card to Editing, and never moves it back',async()=>{
- const recording:Video={...idea,stage:'recording',planning:{research:true,package:true,outline:true}};
+ const recording:Video={...idea,stage:'recording',planning:{research:true,package:true,outline:true},recorderProjectId:'p1'};
  const moves:unknown[]=[];
+ // The recording project itself is not served, so the embedded recorder shows its open error; only the bar is under test.
+ localStorage.clear();
+ class Source extends EventTarget{close(){}}Object.assign(globalThis,{EventSource:Source});
  const server=installFetch(call=>{
   if(call.path==='/videos/v1/plan')return {body:{package:null,outline:null}};
   if(call.path==='/settings')return {body:{helpSeen:[]}};

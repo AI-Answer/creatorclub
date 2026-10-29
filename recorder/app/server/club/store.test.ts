@@ -1,6 +1,6 @@
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, rm, readdir, readFile } from 'node:fs/promises';
+import { mkdtemp, rm, readdir, readFile, stat, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
@@ -137,4 +137,42 @@ test('the first-visit flag and the recent videos live in settings.json', async (
   const settings = JSON.parse(await readFile(path.join(temp, 'settings.json'), 'utf8'));
   assert.equal(settings.welcomed, true);
   assert.ok(settings.currentWorkspace, 'other settings are kept');
+});
+
+test('a Gemini key an older build left in settings.json moves to secrets.json once, owner-only', async () => {
+  const secrets = path.join(temp, 'secrets-move');
+  process.env.CREATORCLUB_SECRETS_DIR = secrets;
+  try {
+    const settingsFile = path.join(temp, 'settings.json');
+    const before = JSON.parse(await readFile(settingsFile, 'utf8').catch(() => '{}'));
+    await writeFile(settingsFile, JSON.stringify({ ...before, geminiKey: 'AIzaSyLegacyKeyForTestingOnly9876' }));
+    assert.equal(await store.geminiKey(), 'AIzaSyLegacyKeyForTestingOnly9876');
+    const moved = path.join(secrets, 'secrets.json');
+    assert.equal(JSON.parse(await readFile(moved, 'utf8')).geminiKey, 'AIzaSyLegacyKeyForTestingOnly9876');
+    assert.equal((await stat(moved)).mode & 0o777, 0o600);
+    const after = JSON.parse(await readFile(settingsFile, 'utf8'));
+    assert.equal(after.geminiKey, undefined, 'the key is gone from the workspace root');
+    assert.deepEqual(after, before, 'the other settings are kept');
+    // A key saved since then is not replaced by a stale one in settings.json.
+    await store.setGeminiKey('AIzaSyNewerKeyForTestingOnly5555');
+    await writeFile(settingsFile, JSON.stringify({ ...after, geminiKey: 'AIzaSyStaleKeyForTestingOnly0000' }));
+    assert.equal(await store.maskedGeminiKey(), '••••5555');
+    assert.equal(JSON.parse(await readFile(settingsFile, 'utf8')).geminiKey, undefined);
+  } finally {
+    delete process.env.CREATORCLUB_SECRETS_DIR;
+  }
+});
+
+test('secrets default to Application Support, and stay next to a custom workspace root without an override', () => {
+  const saved = { dir: process.env.CREATORCLUB_DIR, secrets: process.env.CREATORCLUB_SECRETS_DIR };
+  try {
+    delete process.env.CREATORCLUB_SECRETS_DIR;
+    assert.equal(store.secretsDir(), temp);
+    delete process.env.CREATORCLUB_DIR;
+    assert.equal(store.secretsDir(), path.join(os.homedir(), 'Library', 'Application Support', 'CreatorClub'));
+    assert.equal(store.rootDir(), path.join(os.homedir(), 'Documents', 'CreatorClub'), 'workspaces stay in Documents');
+  } finally {
+    process.env.CREATORCLUB_DIR = saved.dir;
+    if (saved.secrets) process.env.CREATORCLUB_SECRETS_DIR = saved.secrets;
+  }
 });

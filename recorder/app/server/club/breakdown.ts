@@ -3,7 +3,7 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { z } from 'zod';
 import type { AiProvider, Breakdown, BreakdownResult, Video } from '../../shared/club.js';
-import { AiError, runAI, watchWithGemini } from './ai.js';
+import { AiError, aiLabel, runAI, watchWithGemini } from './ai.js';
 import { json3ToText, pickCaptionLanguage, ytdlpTwice, type ChannelData } from './channel.js';
 import { loadChannelContext } from './context.js';
 import { ClubError, notFound } from './errors.js';
@@ -328,7 +328,7 @@ export async function runBreakdown(input: BreakdownInput, context: JobContext, o
         images: thumbnail ? [thumbnail] : undefined,
         signal: context.signal,
       });
-      result = parseBreakdownResult(answer.json, provider === 'claude' ? 'Claude' : 'Codex');
+      result = parseBreakdownResult(answer.json, aiLabel(provider));
     }
     check();
 

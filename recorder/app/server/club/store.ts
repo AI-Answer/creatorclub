@@ -77,7 +77,7 @@ interface Settings {
   welcomed?: boolean;
   /** Video ids per channel, most recently opened first. */
   recent?: Record<string, string[]>;
-  /** The person's own Gemini API key. Only ever sent to Google; the screen gets it masked. */
+  /** Older builds kept the Gemini API key here. It moves to secrets.json the first time it is read. */
   geminiKey?: string;
   /** Plan steps completed at least once, per channel. Their help lines stop showing. */
   helpSeen?: Record<string, PlanStep[]>;
@@ -87,8 +87,37 @@ const settingsFile = () => path.join(rootDir(), 'settings.json');
 /** Read-modify-write on settings.json, one at a time, so two changes never undo each other. */
 const updateSettings = (change: (settings: Settings) => Settings) =>
   withLock(`settings:${settingsFile()}`, async () =>
-    // Owner-only: the file can hold the Gemini API key.
+    // Owner-only: files written by older builds can still hold the Gemini API key until it moves.
     writeFileAtomic(settingsFile(), JSON.stringify(change((await readJSON<Settings>(settingsFile())) ?? {}), null, 2) + '\n', 0o600));
+
+// ---------------------------------------------------------------- secrets
+
+/**
+ * API keys live outside the workspace root, so they never sync with Documents (iCloud) or travel with a channel folder.
+ * CREATORCLUB_SECRETS_DIR overrides the folder. A custom CREATORCLUB_DIR without it keeps its secrets next to it, so a
+ * temporary workspace (every test) never reads or writes the real key.
+ */
+export const secretsDir = () =>
+  process.env.CREATORCLUB_SECRETS_DIR || process.env.CREATORCLUB_DIR || path.join(os.homedir(), 'Library', 'Application Support', 'CreatorClub');
+
+interface Secrets {
+  /** The person's own Gemini API key. Only ever sent to Google; the screen gets it masked. */
+  geminiKey?: string;
+}
+const secretsFile = () => path.join(secretsDir(), 'secrets.json');
+
+/** Read-modify-write on secrets.json, owner-only, one at a time. */
+const updateSecrets = (change: (secrets: Secrets) => Secrets) =>
+  withLock(`secrets:${secretsFile()}`, async () =>
+    writeFileAtomic(secretsFile(), JSON.stringify(change((await readJSON<Secrets>(secretsFile())) ?? {}), null, 2) + '\n', 0o600));
+
+/** Moves a key an older build saved in settings.json into secrets.json, once. A key already in secrets.json wins. */
+async function moveLegacyKey() {
+  const legacy = (await readJSON<Settings>(settingsFile()))?.geminiKey;
+  if (legacy === undefined) return;
+  if (typeof legacy === 'string' && legacy) await updateSecrets((secrets) => (secrets.geminiKey ? secrets : { ...secrets, geminiKey: legacy }));
+  await updateSettings(({ geminiKey: _moved, ...settings }) => settings);
+}
 
 /** The current workspace slug, or undefined when none is chosen or its folder is gone. */
 export async function currentWorkspace(): Promise<string | undefined> {
@@ -119,7 +148,8 @@ export async function setDefaultAiIfUnset(provider: AiProvider): Promise<void> {
 
 /** The saved Gemini API key, for the one place that calls Google with it. Never send this to the screen. */
 export async function geminiKey(): Promise<string | undefined> {
-  const value = (await readJSON<Settings>(settingsFile()))?.geminiKey;
+  await moveLegacyKey();
+  const value = (await readJSON<Secrets>(secretsFile()))?.geminiKey;
   return typeof value === 'string' && value ? value : undefined;
 }
 
@@ -132,11 +162,13 @@ export async function maskedGeminiKey(): Promise<string | null> {
 }
 
 export async function setGeminiKey(key: string) {
-  await updateSettings((settings) => ({ ...settings, geminiKey: key }));
+  await moveLegacyKey();
+  await updateSecrets((secrets) => ({ ...secrets, geminiKey: key }));
 }
 
 export async function removeGeminiKey() {
-  await updateSettings(({ geminiKey: _removed, ...settings }) => settings);
+  await moveLegacyKey();
+  await updateSecrets(({ geminiKey: _removed, ...secrets }) => secrets);
 }
 
 export async function welcomed(): Promise<boolean> {

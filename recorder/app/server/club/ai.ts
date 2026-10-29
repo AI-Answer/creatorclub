@@ -12,7 +12,9 @@ import type { AiProvider, AiProviderStatus, AiStatus, ConnectProvider } from '..
  */
 
 const BINARY: Record<ConnectProvider, string> = { claude: 'claude', codex: 'codex' };
-const LABEL: Record<AiProvider, string> = { claude: 'Claude', codex: 'Codex' };
+/** The name the person sees for each AI. Codex signs in with ChatGPT, and every screen calls it ChatGPT. */
+const LABEL: Record<AiProvider, string> = { claude: 'Claude', codex: 'ChatGPT' };
+export const aiLabel = (provider: AiProvider) => LABEL[provider];
 
 /** Apps opened from the Dock get a minimal PATH, so look in the usual install places too. */
 export const commonBinDirs = () => {
