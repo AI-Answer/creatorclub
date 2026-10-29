@@ -139,6 +139,13 @@ export type TregCall = (endpoint: string, payload?: unknown, query?: string[], s
 /** The treg command line tool, found like the other helper programs. Undefined when it is not installed. */
 export type TregFinder = () => Promise<TregCall | undefined>;
 
+/** treg's own settings (TREG_*) and the certificate settings of a company network go through; the app's other variables do not. */
+const TREG_ENV = /^(TREG_[A-Z0-9_]*|SSL_CERT_FILE|NODE_EXTRA_CA_CERTS)$/;
+export const tregEnv = (options: ToolOptions): NodeJS.ProcessEnv => ({
+  ...toolEnv(options),
+  ...Object.fromEntries(Object.entries(process.env).filter(([key, value]) => TREG_ENV.test(key) && value !== undefined)),
+});
+
 export const findTregCall = (options: ToolOptions): TregFinder => async () => {
   const file = await findTreg(options);
   if (!file) return undefined;
@@ -146,7 +153,7 @@ export const findTregCall = (options: ToolOptions): TregFinder => async () => {
     const args = ['call', endpoint, '--header', 'X-Treg-Route-Max-Cost: 0.01'];
     if (payload !== undefined) args.push('--method', 'POST', '--data', JSON.stringify(payload));
     for (const q of query) args.push('--query', q);
-    const result = await runTool(file, args, { env: toolEnv(options), signal, timeoutMs: 90_000 });
+    const result = await runTool(file, args, { env: tregEnv(options), signal, timeoutMs: 90_000 });
     try {
       const out = JSON.parse(result.stdout) as unknown;
       return out && typeof out === 'object' && !Array.isArray(out) && !(out as Raw).error ? (out as Raw) : null;

@@ -310,22 +310,33 @@ export type NewVideo = Pick<Video, 'title'> & Partial<Pick<Video, 'stage' | 'sou
 
 const nextOrder = (videos: Video[], stage: VideoStage) => Math.max(-1, ...videos.filter((v) => v.stage === stage).map((v) => v.order)) + 1;
 
+async function createLocked(slug: string, input: NewVideo, videos: Video[]): Promise<Video> {
+  const stage = input.stage ?? 'ideas';
+  const at = now();
+  const video: Video = {
+    ...input,
+    id: newId('v'),
+    stage,
+    order: nextOrder(videos, stage),
+    createdAt: at,
+    updatedAt: at,
+    stageDates: { [stage]: at },
+    planning: input.planning ?? { research: false, package: false, outline: false },
+  };
+  await writeVideo(slug, video);
+  return video;
+}
+
 export function createVideo(slug: string, input: NewVideo): Promise<Video> {
+  return workspaceLock(slug, async () => createLocked(slug, input, await listVideos(slug)));
+}
+
+/** Creates a video unless `find` already finds one among the channel's videos. The check and the create happen under one lock, so two calls at once make one video. */
+export function createVideoUnless(slug: string, input: NewVideo, find: (videos: Video[]) => Video | undefined): Promise<{ video: Video; created: boolean }> {
   return workspaceLock(slug, async () => {
-    const stage = input.stage ?? 'ideas';
-    const at = now();
-    const video: Video = {
-      ...input,
-      id: newId('v'),
-      stage,
-      order: nextOrder(await listVideos(slug), stage),
-      createdAt: at,
-      updatedAt: at,
-      stageDates: { [stage]: at },
-      planning: input.planning ?? { research: false, package: false, outline: false },
-    };
-    await writeVideo(slug, video);
-    return video;
+    const videos = await listVideos(slug);
+    const existing = find(videos);
+    return existing ? { video: existing, created: false } : { video: await createLocked(slug, input, videos), created: true };
   });
 }
 

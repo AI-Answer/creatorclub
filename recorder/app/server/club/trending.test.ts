@@ -16,6 +16,7 @@ after(() => rm(temp, { recursive: true, force: true }));
 const store = await import('./store.js');
 const { refreshTrending, rankedTrending, followedUrl, readFollowed, ytDlpUploads } = await import('./trending.js');
 type Source = import('./trending.js').UploadsSource;
+type UploadsSourceFactory = import('./trending.js').UploadsSourceFactory;
 
 const DAY = 86_400_000;
 const NOW = Date.parse('2026-10-29T12:00:00.000Z');
@@ -167,6 +168,38 @@ test('a channel that cannot be read keeps its earlier videos for 30 days; readin
   await assert.rejects(refreshTrending(allBroken, context().context, fake, NOW), { message: "Couldn't read the channels you follow. Check your connection and try again." });
   console.error = logged;
   assert.equal(await readFile(path.join(store.workspaceDir(allBroken), 'trending.json'), 'utf8'), before);
+});
+
+test('a channel whose numbers could not be read counts as failed: its videos stay, and an all-failed refresh does not move lastRefresh', async () => {
+  uploads.set('https://www.youtube.com/@mute', alphaUploads('mute'));
+  uploads.set('https://www.youtube.com/@loud', alphaUploads('loud'));
+  const blocked = new Set(['mute']);
+  const source: UploadsSourceFactory = async () => {
+    const real = await fake();
+    return { list: real.list, stats: async (ids, signal) => (blocked.has(ids[0].replace(/\d+$/, '')) ? new Map() : real.stats(ids, signal)) };
+  };
+  const seed: TrendingItem = {
+    videoId: 'mute-old', title: 'Earlier', channel: 'Mute', kind: 'followed', views: 1000, likes: null, comments: null, published: '2026-10-25', ageDays: 4, vpd: 250, mult: 1.1,
+    history: [{ d: '2026-10-26', v: 1000 }], firstSeen: '2026-10-26', fit: true,
+  };
+  const logged = console.error;
+  console.error = () => {};
+  try {
+    const slug = await channel([{ name: 'Mute', handle: '@mute' }, { name: 'Loud', handle: '@loud' }], [seed]);
+    const result = await refreshTrending(slug, context().context, source, NOW);
+    assert.deepEqual(result.failed, ['Mute'], 'yt-dlp answering nothing is a failure, not an empty channel');
+    assert.equal(result.channels, 1);
+    const ids = (await items(slug)).map((item) => item.videoId);
+    assert.ok(ids.includes('mute-old') && ids.includes('loud00'));
+
+    const onlyMute = await channel([{ name: 'Mute', handle: '@mute' }], [seed]);
+    await store.writeJSON(path.join(store.workspaceDir(onlyMute), 'meta.json'), { lastRefresh: '2026-10-26T00:00:00.000Z', newVideos: 0 });
+    await assert.rejects(refreshTrending(onlyMute, context().context, source, NOW), { message: "Couldn't read the channels you follow. Check your connection and try again." });
+    assert.deepEqual(await store.readJSON(path.join(store.workspaceDir(onlyMute), 'meta.json')), { lastRefresh: '2026-10-26T00:00:00.000Z', newVideos: 0 }, 'lastRefresh stays');
+    assert.deepEqual((await items(onlyMute)).map((item) => item.videoId), ['mute-old']);
+  } finally {
+    console.error = logged;
+  }
 });
 
 test('refresh needs a followed channel, and stops when cancelled', async () => {

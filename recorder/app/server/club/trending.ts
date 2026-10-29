@@ -159,6 +159,8 @@ export async function refreshTrending(slug: string, context: JobContext, makeSou
       if (!entries.length) throw new Error('no uploads');
       const stats = await source.stats(entries.map((entry) => entry.id), context.signal);
       if (context.signal.aborted) throw new ClubError('That was stopped.');
+      // yt-dlp failing (bot check, rate limit, timeout) shows up as missing numbers, not as an error: too few means the channel was not read.
+      if (stats.size < Math.ceil(entries.length / 4)) throw new Error(`numbers for ${stats.size} of ${entries.length} uploads`);
       const usual = usualViews(entries.map((entry) => stats.get(entry.id)?.views)) ?? channel.median;
       if (usual !== undefined && usual > 0) medians.set(channel, usual);
       for (const entry of entries) {

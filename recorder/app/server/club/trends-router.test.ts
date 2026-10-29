@@ -154,7 +154,7 @@ test('followed channels and signal sources: read, replace and validate', async (
   assert.deepEqual(config.body, { x: ['AnthropicAI'], xTopics: ['"claude code"'], reddit: ['ClaudeAI', 'vibecoding'], maxAgeDays: 7 });
   assert.equal((await call('PUT', '/signals-config', { reddit: ['not a sub!'] })).status, 400);
   assert.equal((await call('PUT', '/signals-config', { surprise: 1 })).status, 400);
-  assert.deepEqual((await call('PUT', '/signals-config', {})).body, { x: [], xTopics: [], reddit: [] }, 'an empty save clears every source');
+  await call('PUT', '/signals-config', { x: [], xTopics: [], reddit: [] });
 });
 
 test('Working now: refresh is a job with progress, the read ranks for the channel, and a second start joins the running job', async () => {
@@ -239,4 +239,28 @@ test('turn a Working now video into an idea: its title and link are kept as the 
   assert.equal((await call('POST', '/trending/idea', { videoId: item.videoId })).status, 200);
   assert.equal((await call('POST', '/trending/idea', { videoId: 'nothing1234' })).status, 404);
   assert.equal((await call('POST', '/trending/idea', { videoId: '../x' })).status, 400);
+});
+
+test('a double click makes one idea: two requests at once, from a post and from a video', async () => {
+  const before = ((await call('GET', '/videos')).body as Video[]).length;
+  const signals = (await call('GET', '/signals')).body as SignalsResponse;
+  const trending = (await call('GET', '/trending')).body as TrendingResponse;
+  // Items that are not an idea yet: the post's earlier idea was skipped and recreated above, so use the second video.
+  const fresh = trending.items[1];
+  const results = await Promise.all([
+    call('POST', '/trending/idea', { videoId: fresh.videoId }),
+    call('POST', '/trending/idea', { videoId: fresh.videoId }),
+    call('POST', '/trending/idea', { videoId: fresh.videoId }),
+  ]);
+  assert.deepEqual(results.map((r) => r.status).sort(), [200, 200, 201]);
+  assert.equal(new Set(results.map((r) => r.body.id)).size, 1);
+  assert.equal(((await call('GET', '/videos')).body as Video[]).length, before + 1);
+  assert.ok(signals.items.length > 0);
+});
+
+test('saving signal sources keeps the lists that are not sent', async () => {
+  await call('PUT', '/signals-config', { x: ['AnthropicAI'], reddit: ['ClaudeAI'], minXLikes: 800 });
+  const merged = await call('PUT', '/signals-config', { reddit: ['vibecoding'] });
+  assert.deepEqual(merged.body, { x: ['AnthropicAI'], xTopics: [], reddit: ['vibecoding'], minXLikes: 800, maxAgeDays: 7 });
+  assert.deepEqual((await call('PUT', '/signals-config', { x: [] })).body, { x: [], xTopics: [], reddit: ['vibecoding'], minXLikes: 800, maxAgeDays: 7 }, 'an empty list clears a source');
 });

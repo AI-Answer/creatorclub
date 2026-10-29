@@ -13,7 +13,7 @@ process.env.CREATORCLUB_SECRETS_DIR = path.join(temp, 'app-support');
 after(() => rm(temp, { recursive: true, force: true }));
 
 const store = await import('./store.js');
-const { refreshSignals, rankedSignals, redditItem, REDDIT_USER_AGENT, X_NEEDS_TREG } = await import('./signals.js');
+const { refreshSignals, rankedSignals, redditItem, tregEnv, REDDIT_USER_AGENT, X_NEEDS_TREG } = await import('./signals.js');
 type Sources = import('./signals.js').SignalsSources;
 type Treg = import('./signals.js').TregCall;
 
@@ -205,4 +205,20 @@ test('read for a channel: posts about its topics and audience first with a reaso
 
   const none = await store.createWorkspace({ name: 'No signals yet', handle: '', channelUrl: '', topics: [], about: '', cta: '' });
   assert.deepEqual(await rankedSignals(none.slug, none), { items: [], updatedAt: null, errors: [] });
+});
+
+test('treg gets its own TREG_* settings and certificate variables, and none of the app\'s other secrets', () => {
+  const keep = { ...process.env };
+  Object.assign(process.env, { TREG_TOKEN: 't', TREG_API_URL: 'u', SSL_CERT_FILE: '/c.pem', NODE_EXTRA_CA_CERTS: '/e.pem', ANTHROPIC_API_KEY: 'secret', OPENAI_API_KEY: 'secret' });
+  try {
+    const env = tregEnv({});
+    assert.deepEqual([env.TREG_TOKEN, env.TREG_API_URL, env.SSL_CERT_FILE, env.NODE_EXTRA_CA_CERTS], ['t', 'u', '/c.pem', '/e.pem']);
+    assert.ok(!('ANTHROPIC_API_KEY' in env) && !('OPENAI_API_KEY' in env));
+    assert.ok(env.PATH && env.HOME);
+  } finally {
+    for (const key of ['TREG_TOKEN', 'TREG_API_URL', 'SSL_CERT_FILE', 'NODE_EXTRA_CA_CERTS', 'ANTHROPIC_API_KEY', 'OPENAI_API_KEY']) {
+      if (keep[key] === undefined) delete process.env[key];
+      else process.env[key] = keep[key];
+    }
+  }
 });

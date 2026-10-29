@@ -336,7 +336,8 @@ export function clubRouter({ ai = {}, transcribe, runAI, readViews = ytDlpViews(
   router.get('/signals-config', handler(async (_req, res) => res.json(await readSignalsConfig(await requireWorkspace()))));
   router.put('/signals-config', handler(async (req, res) => {
     const slug = await requireWorkspace();
-    await writeSignalsConfig(slug, signalsConfigBody.parse(req.body));
+    // Fields that are sent replace the stored ones; fields left out stay. An empty list clears a source.
+    await writeSignalsConfig(slug, { ...(await readSignalsConfig(slug)), ...signalsConfigBody.parse(req.body) });
     res.json(await readSignalsConfig(slug));
   }));
 
