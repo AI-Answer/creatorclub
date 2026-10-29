@@ -6,7 +6,7 @@ import type {Outline,Package,VideoScene} from '../../../shared/club';
 import type {CompanionChanged,CompanionMessage,CompanionReplyMessage} from '../../../shared/companion';
 import {atBottom,elapsed,lookingAt,previewOf,screenSummary,stepSummary,suggestions,withDividers} from './companion-logic';
 import {blocks} from './Markdown';
-import {withPendingStops,withStep,withText} from './useCompanion';
+import {normalizeThread,withPendingStops,withStep,withText} from './useCompanion';
 const {Companion}=await import('./Companion');
 const {FakeEventSource,installFetch}=await import('../test-fakes');
 
@@ -334,4 +334,12 @@ test('a stopped reply stays on screen until the server has saved its own copy, r
  const late=withPendingStops([question,saved,next],pending);
  assert.deepEqual(late.messages.map(message=>message.id),['q1','r1','q2'],'replaced by the server copy');
  assert.deepEqual(late.settled,['j1']);
+});
+
+test('a reply that is not a conversation shows as an empty one',()=>{
+ assert.deepEqual(normalizeThread([] as never).messages,[]);
+ assert.deepEqual(normalizeThread(undefined).messages,[]);
+ assert.deepEqual(normalizeThread({} as never).messages,[]);
+ const asked:CompanionMessage={id:'q1',role:'user',text:'Q',context:{tab:'plan'}};
+ assert.equal(normalizeThread({messages:[asked]} as never).messages.length,1);
 });

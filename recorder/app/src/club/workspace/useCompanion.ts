@@ -34,6 +34,11 @@ export function withStep(steps:readonly LiveStep[],index:number,label:string,now
  * The server's conversation with the stopped replies this screen still holds: a local copy stays, right after its question, until the
  * server's own reply to that question arrives.
  */
+/** A reply that is not a conversation (an old server, a broken proxy) shows as an empty one instead of breaking the panel. */
+export function normalizeThread(raw:CompanionThread|undefined):CompanionThread{
+ return {...(raw&&typeof raw==='object'?raw:{}),messages:Array.isArray(raw?.messages)?raw.messages:[]} as CompanionThread;
+}
+
 export function withPendingStops(server:readonly CompanionMessage[],pending:ReadonlyMap<string,{questionId:string;message:CompanionMessage}>):{messages:CompanionMessage[];settled:string[]}{
  const messages=[...server],settled:string[]=[];
  for(const [jobId,stop] of pending){
@@ -118,7 +123,8 @@ export function useCompanion(videoId:string,{onChanged,beforeApply}:{onChanged(c
 
  const load=useCallback(()=>{
   setLoadError('');
-  clubFetch<CompanionThread>(base).then(thread=>{
+  clubFetch<CompanionThread>(base).then(raw=>{
+   const thread=normalizeThread(raw);
    const {messages:merged,settled}=withPendingStops(thread.messages,pendingStops.current);
    for(const jobId of settled)pendingStops.current.delete(jobId);
    setMessages(merged);
@@ -150,7 +156,8 @@ export function useCompanion(videoId:string,{onChanged,beforeApply}:{onChanged(c
  /** Try again after a failed reply: the same question, not saved twice; a reply that is in fact still running is followed instead. */
  const retry=useCallback(async(context:CompanionContext)=>{
   const failed=liveRef.current;if(!failed)return;
-  const thread=await clubFetch<CompanionThread>(base).catch(()=>undefined);
+  const raw=await clubFetch<CompanionThread>(base).catch(()=>undefined);
+  const thread=raw?normalizeThread(raw):undefined;
   if(thread){
    setMessages(thread.messages);
    if(thread.running){
