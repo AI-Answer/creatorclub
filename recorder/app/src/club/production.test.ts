@@ -76,6 +76,8 @@ test('a move says where it went and keeps what Undo needs; moves that change not
  assert.equal(planMove(all,'b','ideas',null),null,'already last');
  assert.equal(planMove(all,'p','published',null),null,'Published has no order to change');
  assert.equal(planMove(all,'a','published',null)!.message,'Moved to Published');
+ assert.equal(planMove(all,'a','publishing',null)!.message,'Moved to Publishing, but nothing is recorded yet');
+ assert.equal(planMove([video({id:'r',recorderProjectId:'p1'})],'r','publishing',null)!.message,'Moved to Publishing');
  assert.equal(planMove(all,'gone','planning',null),null);
  const withHidden=[...all,video({id:'h',order:2,hidden:'later'})];
  assert.equal(planMove(withHidden,'b','ideas',null),null,'the ideas put off after it are out of sight');

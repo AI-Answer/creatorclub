@@ -56,6 +56,7 @@ const serve=(s:Server)=>(call:FakeCall):FakeReply=>{
   s.videos=[...s.videos,created];return {status:201,body:created};
  }
  if(path==='/followed')return {body:[]};
+ if(path==='/signals-config')return {body:{reddit:[]}};
  if(path==='/trending/refresh'||path==='/signals/refresh'){s.jobs.push(path);return {status:202,body:{id:`j${s.jobs.length}`,status:'running'}};}
  if(path==='/trending/idea'){const made=base('idea-t',(s.trending.items.find(i=>i.videoId===(body as {videoId:string}).videoId)!).title,'ideas');s.videos=[...s.videos,made];return {status:201,body:made};}
  if(path==='/signals/idea'){const made=base('idea-s','From a post','ideas');s.videos=[...s.videos,made];return {status:201,body:made};}
@@ -820,5 +821,21 @@ test('Overview shows the error and Try again when Working now fails to load, not
   s.failTrending=false;
   await press(button(c,'Try again'));
   assert.equal(c.querySelector('[role="alert"]'),null);
+ });
+});
+
+test('the greeting of a channel added from its link uses the first word of its name',async()=>{
+ await mount(navigate=>createElement(OverviewScreen,{navigate,onNewVideo:()=>{}}),server({workspace:{...profile('Maya Lopez',['Claude'],[],null),channelUrl:'https://www.youtube.com/@maya'}}),async ui=>{
+  assert.match(text(ui.container.querySelector('h1')),/, Maya$/);
+ });
+});
+
+test('Signals with no sources suggests subreddits for the topics; one press saves that one and nothing is added before',async()=>{
+ await mount(navigate=>createElement(SignalsScreen,{navigate}),server({signals:{items:[],updatedAt:null,errors:[],sources:0},workspace:profile('Maya Lopez',['Claude','AI agents','Underwater basket weaving'])}),async (ui,_s,calls)=>{
+  const c=ui.container;
+  assert.deepEqual([...c.querySelectorAll('.card button.chip')].map(b=>b.textContent),['r/ClaudeAI','r/AI_Agents']);
+  assert.deepEqual(writes(calls),[],'nothing is added by itself');
+  await press(button(c,'r/ClaudeAI'));
+  assert.deepEqual(writes(calls),['PUT /signals-config {"reddit":["ClaudeAI"]}']);
  });
 });

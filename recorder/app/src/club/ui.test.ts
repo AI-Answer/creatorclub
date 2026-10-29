@@ -190,6 +190,18 @@ test('the menu opens from the button\'s edge with fixed placement, so a parent t
  }finally{Element.prototype.getBoundingClientRect=original;await ui.close();}
 });
 
+test('a menu that would run off the bottom of the window opens upward from its button',async()=>{
+ const ui=await mountUI(createElement(Menu,{items:[{label:'Ana',fn(){}}],button:toggle=>createElement('button',{onClick:toggle},'Open')}));
+ const rect=(top:number,bottom:number,height:number)=>({left:10,right:50,top,bottom,width:40,height,x:10,y:top,toJSON(){return {};}}) as DOMRect;
+ const original=Element.prototype.getBoundingClientRect;
+ Element.prototype.getBoundingClientRect=function(this:Element){return this.getAttribute('role')==='menu'?rect(0,0,200):rect(window.innerHeight-40,window.innerHeight-10,30);};
+ try{
+  await press(button(ui.container,'Open'));
+  const menu=ui.container.querySelector<HTMLElement>('[role="menu"]')!;
+  assert.equal(menu.style.top,'');assert.equal(menu.style.bottom,'46px');
+ }finally{Element.prototype.getBoundingClientRect=original;await ui.close();}
+});
+
 test('a menu inside a card that lifts on hover is drawn in the club root, outside the card, and still runs its items',async()=>{
  const ran:string[]=[];
  const ui=await mountUI(createElement('div',{className:'club-root',id:'root'},

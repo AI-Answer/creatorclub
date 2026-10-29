@@ -67,7 +67,7 @@ export function SignalsScreen({navigate}:{navigate(route:Route):void}){
   {feed.data.items.length===0
    ?sources===0
     ?<div className="card"><Empty icon="MessagesSquare" title="Add where to read" action={<button type="button" className="btn primary" onClick={()=>navigate({name:'settings',section:'sources'})}><Icon name="Plus" size={15}/>Add sources</button>}>Signals reads posts from the subreddits and X accounts you choose. Add a few in Settings and they show up here.</Empty>
-     <div style={{padding:'0 20px 24px',textAlign:'center'}}><SubredditChips topics={profile?.topics??[]} have={[]} disabled={adding} onAdd={name=>void addSubreddit(name)}/></div></div>
+     <div style={{padding:'0 20px 24px',textAlign:'center'}}><SubredditChips topics={profile?.topics??[]} have={[]} center disabled={adding} onAdd={name=>void addSubreddit(name)}/></div></div>
     :<div className="card"><Empty icon="MessagesSquare" title="No posts yet" action={<button type="button" className="btn primary" onClick={refresh}><Icon name="RotateCcw" size={15}/>Refresh</button>}>Refresh to read X and Reddit. Add accounts and subreddits in Settings.</Empty></div>
    :<>
     <div className="row" style={{marginBottom:16,gap:12}}>

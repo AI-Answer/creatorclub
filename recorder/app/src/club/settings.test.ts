@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {suggestSubreddits} from '../../shared/club';
 import {followedFromInput,followedLabel,parseList,withEntry,withFollowed} from './settings';
 
 test('a followed channel is made from a handle or a channel link, and nothing else',()=>{
@@ -23,4 +24,10 @@ test('lists of topics, accounts and subreddits are trimmed and kept free of repe
  assert.deepEqual(withEntry(['Claude'],'  claude '),['Claude']);
  assert.deepEqual(withEntry(['Claude'],'Woodworking'),['Claude','Woodworking']);
  assert.deepEqual(withEntry(['Claude'],'  '),['Claude']);
+});
+
+test('subreddits are suggested for known topics only, once each, and never one already in the list',()=>{
+ assert.deepEqual(suggestSubreddits(['Claude','AI agents','Vibe coding','Cooking'],[]),['ClaudeAI','AI_Agents','vibecoding','Cooking']);
+ assert.deepEqual(suggestSubreddits(['Claude','claude','Nothing known'],['r/claudeai']),[]);
+ assert.deepEqual(suggestSubreddits([],[]),[]);
 });

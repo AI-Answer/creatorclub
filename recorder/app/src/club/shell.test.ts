@@ -141,7 +141,7 @@ test('switching channel tells the server, reloads the sidebar and goes to the ov
   assert.match(c.querySelector('.channel-btn')!.textContent!,/AnaStarting fresh/,'a channel with no handle says so');
   await press(c.querySelector('.channel-btn')!);
   await press([...c.querySelectorAll('[role="menuitem"]')].find(i=>i.textContent!.trim()==='Add a channel')!);
-  assert.equal(window.location.hash,'#/welcome');
+  assert.equal(window.location.hash,'#/welcome?step=2');
  });
 });
 

@@ -70,7 +70,7 @@ test('channel switcher: a failed switch says one sentence and keeps the current 
   if(call.path==='/workspaces'&&call.method==='GET')return {body:{current:null,workspaces:[]}};
  },async()=>{
   const ui=await mountUI(sidebar());
-  try{await flush();const link=ui.container.querySelector<HTMLAnchorElement>('a[aria-label="Add a channel"]')!;assert.equal(link.getAttribute('href'),'#/welcome');assert.equal(ui.container.querySelector('[aria-haspopup="menu"]'),null);}finally{await ui.close();}
+  try{await flush();const link=ui.container.querySelector<HTMLAnchorElement>('a[aria-label="Add a channel"]')!;assert.equal(link.getAttribute('href'),'#/welcome?step=2');assert.equal(ui.container.querySelector('[aria-haspopup="menu"]'),null);}finally{await ui.close();}
  });
 });
 
