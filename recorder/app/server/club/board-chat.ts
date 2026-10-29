@@ -37,7 +37,10 @@ async function tileText(slug: string, videoId: string, tile: ResearchTile): Prom
   switch (tile.kind) {
     case 'note':
     case 'text':
-      return `Your note${tile.doc && tile.title ? ` "${tile.title}"` : ''}: ${noteText(tile.text ?? '') || '(empty)'}`;
+    {
+      const body = noteText(tile.text ?? '') || '(empty)';
+      return `Your note${tile.doc && tile.title ? ` "${tile.title}"` : ''}:${body.startsWith('\n') ? '' : ' '}${body}`;
+    }
     case 'signal': {
       const stats = [meta.likes !== undefined ? `${count(meta.likes)} likes` : '', meta.replies !== undefined ? `${count(meta.replies)} replies` : ''].filter(Boolean).join(', ');
       return `Post${meta.source ? ` on ${meta.source === 'x' ? 'X' : 'Reddit'}` : ''}${meta.author ? ` by ${meta.author}` : ''}${stats ? ` (${stats})` : ''}: ${squash(tile.text ?? '')}`;

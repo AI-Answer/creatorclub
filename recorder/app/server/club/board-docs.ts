@@ -321,7 +321,7 @@ export interface ImportResult {
   skipped: { name: string; reason: string }[];
 }
 
-const importStem = (name: string, ext: string) => path.basename(name, ext).replace(/[^\p{L}\p{N} _-]+/gu, '-').replace(/\s+/g, '-').replace(/^[-.]+|-+$/g, '').slice(0, 60).toLowerCase() || 'note';
+const importStem = (name: string, ext: string) => path.basename(name, ext).replace(/[^\p{L}\p{N} _-]+/gu, '-').replace(/\s+/g, '-').replace(/-{2,}/g, '-').replace(/^[-.]+|-+$/g, '').slice(0, 60).toLowerCase() || 'note';
 
 /** Dropped files become notes in the video's `notes` folder, each with its own card. Anything but Markdown and text, or too large, is skipped with the reason. */
 export function importFiles(slug: string, videoId: string, files: readonly { name: string; data: Buffer }[]): Promise<ImportResult> {

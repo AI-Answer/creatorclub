@@ -15,26 +15,30 @@ export interface WatchOptions {
   /** How often the folders are scanned while `fs.watch` is working, and when it is not. */
   pollMs?: number;
   pollFastMs?: number;
+  /** Use `fs.watch`. Off, only the scan runs (as where `fs.watch` cannot be used); tests turn it off to try that path. */
+  native?: boolean;
 }
 
-const DEFAULTS: Required<WatchOptions> = { debounceMs: 250, maxWaitMs: 1000, pollMs: 4000, pollFastMs: 1000 };
+const DEFAULTS: Required<WatchOptions> = { debounceMs: 250, maxWaitMs: 1000, pollMs: 4000, pollFastMs: 1000, native: true };
 
 /** Whether a change reported by `fs.watch` could matter: a Markdown or text file, or a folder (no extension). A temporary file or a data file does not. */
-export function worthKnowing(filename: string | null): boolean {
+export function worthKnowing(filename: string | null, onlyFolder?: string): boolean {
   if (!filename) return true;
   const name = path.basename(filename);
   if (name.startsWith('.')) return false;
-  return isDocName(name) || path.extname(name) === '';
+  if (isDocName(name)) return true;
+  // A folder (no extension): any, inside a folder watched all the way down; in the video's folder only `notes`.
+  return path.extname(name) === '' && (!onlyFolder || name === onlyFolder);
 }
 
 /** Calls `onChange` when a Markdown or text file in the video's folders appears, changes or goes. Returns the function that stops watching. */
 export function watchBoard(slug: string, videoId: string, onChange: () => void, options: WatchOptions = {}): () => void {
-  const { debounceMs, maxWaitMs, pollMs, pollFastMs } = { ...DEFAULTS, ...options };
+  const { debounceMs, maxWaitMs, pollMs, pollFastMs, native } = { ...DEFAULTS, ...options };
   const videoDir = store.videoDir(slug, videoId);
   const watchers = new Map<string, FSWatcher>();
   let stopped = false;
   let signature: string | undefined;
-  let working = true;
+  let working = native;
   let quiet: NodeJS.Timeout | undefined;
   let first = 0;
   let poll: NodeJS.Timeout | undefined;
@@ -53,10 +57,12 @@ export function watchBoard(slug: string, videoId: string, onChange: () => void, 
   };
 
   const open = (dir: string, recursive: boolean) => {
-    if (watchers.has(dir)) return;
+    if (!native || watchers.has(dir)) return;
     try {
       const watcher = watch(dir, { recursive, persistent: false }, (_event, filename) => {
-        if (worthKnowing(filename ? String(filename) : null)) soon();
+        // Some systems report a change to the watched folder itself, with its own name; that is not news about a file.
+        const name = filename ? String(filename) : null;
+        if (name !== path.basename(dir) && worthKnowing(name, dir === videoDir ? NOTES_DIR : undefined)) soon();
         // A new `notes` folder is watched from its first file on.
         if (dir === videoDir && (!filename || String(filename) === NOTES_DIR)) void arm();
       });
