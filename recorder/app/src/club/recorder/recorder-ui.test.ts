@@ -203,7 +203,7 @@ test('inside CreatorClub, Continue confirms the take, selects the next scene and
   assert.ok(server.saved()?.clips.some(clip=>clip.recordingTakeId==='t1'),'the take is on the timeline');
   assert.equal(c.querySelector('.rsc-scene.is-selected')?.getAttribute('data-scene-id'),'s2','scene 2 is next to record');
   assert.equal(progress.at(-1),'1/2');
-  assert.ok(c.querySelector('.rsc-take-badge')?.textContent==='Take 1 (00:07)','the take shows as a thumbnail');
+  assert.equal(c.querySelector('.rsc-take-badge'),null,'the takes shown are scene 2\'s, which has none yet');
   assert.ok(!c.textContent?.includes('Edit & export'),'the bottom bar, not a second button, leads to editing');
   assert.ok(!c.textContent?.includes('Remove pauses')&&!c.textContent?.includes('Style video'),'the cards have no per-scene editing buttons');
   assert.equal(c.querySelector('.rsc-take-menu-anchor .rsc-gear'),null,'and no gear on a take: its preview holds the choices');

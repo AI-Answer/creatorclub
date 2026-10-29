@@ -5,7 +5,7 @@ import {act,createElement} from 'react';
 import type {Project} from '../../../shared/types';
 import {createProject} from '../../../shared/types';
 import {defaultRecordingSettings,loadRecordingPreferences,saveRecordingPreferences} from '../../recording-presets';
-import {recordLabel} from './RecordBar';
+import {FramingPreview,recordLabel} from './RecordBar';
 const {Recording}=await import('../../Recording');
 const {Foot}=await import('../workspace/Frame');
 
@@ -22,9 +22,10 @@ function threeScenes():Project{
  project.scenes.push({id:'s2',name:'Level 1',script:'Second scene words.',notes:'',start:0,duration:0},{id:'s3',name:'Level 2',script:'Third scene words.',notes:'',start:0,duration:0});
  return project;
 }
-async function mountRecord(project:Project,extra:Record<string,unknown>={}){
+const off={camera:false,microphone:false,screen:false,systemAudio:false};
+async function mountRecord(project:Project,extra:Record<string,unknown>={},selection:typeof off=off){
  localStorage.clear();
- saveRecordingPreferences({...loadRecordingPreferences(),current:{...defaultRecordingSettings(),selection:{camera:false,microphone:false,screen:false,systemAudio:false}}});
+ saveRecordingPreferences({...loadRecordingPreferences(),current:{...defaultRecordingSettings(),selection}});
  const originalFetch=globalThis.fetch;
  globalThis.fetch=async(input)=>String(input)==='/api/club/disk'?Response.json({freeBytes:500*1024**3,low:false}):Response.json([]);
  Object.defineProperty(navigator,'permissions',{value:{query:async()=>({state:'prompt'})},configurable:true});
@@ -78,21 +79,67 @@ test('the Record button is enabled for the selected scene, which is the first wi
  }finally{await close();}
 });
 
-test('scene cards are compact: number, title, status; no script, no Remove pauses or Style video, no per-scene Record, no reorder or rename',async()=>{
+test('the scene strip is the only scene list: Record shows just the selected scene\'s takes, with no script and no per-scene buttons',async()=>{
  const {ui,close}=await mountRecord(threeScenes(),{onAutoCut:()=>{},onVisualize:()=>{}});
  try{
   const c=ui.container,cards=[...c.querySelectorAll('.rsc-scene')];
-  assert.equal(cards.length,3);
-  assert.deepEqual(cards.map(card=>card.querySelector('.rsc-number')?.textContent),['1','2','3']);
-  assert.deepEqual(cards.map(card=>card.querySelector('.rsc-scene-title')?.textContent),['Opening','Level 1','Level 2']);
-  assert.deepEqual(cards.map(card=>card.querySelector('.rsc-status-text')?.textContent),['Not recorded','Not recorded','Not recorded']);
-  assert.equal(c.textContent?.includes(SCRIPT_ONE),false,'the script is not on the cards: only the teleprompter shows it');
-  assert.equal(c.querySelector('.rsc-script'),null);
-  for(const gone of ['.rsc-quick-actions','.rsc-record-button','.rsc-record-tile','.rsc-import','.rsc-add-between','.rsc-scene-grip','.rsc-scene-name'])assert.equal(c.querySelector(gone),null,gone);
+  assert.equal(cards.length,1,'one block, for the selected scene only');
+  assert.equal(cards[0].querySelector('.rsc-scene-title')?.textContent,'Takes');
+  assert.equal(cards[0].querySelector('.rsc-status-text')?.textContent,'Not recorded');
+  assert.equal(cards[0].querySelector('.rsc-no-takes')?.textContent,'No takes yet. Record one above.');
+  for(const name of ['Opening','Level 1','Level 2'])assert.equal(c.textContent?.includes(name),false,`${name} is only in the strip, not repeated here`);
+  assert.equal(c.textContent?.includes(SCRIPT_ONE),false,'the script is not here: only the teleprompter shows it');
+  for(const gone of ['.rsc-script','.rsc-quick-actions','.rsc-record-button','.rsc-record-tile','.rsc-import','.rsc-add-between','.rsc-scene-grip','.rsc-scene-name','.rsc-number'])assert.equal(c.querySelector(gone),null,gone);
   assert.equal(c.textContent?.includes('Remove pauses')||c.textContent?.includes('Style video'),false);
-  assert.equal(c.querySelectorAll('.rsc-scene-menu-anchor').length,1,'only the selected scene has a menu');
-  assert.ok(c.querySelector('.rsc-scene.is-selected .rsc-scene-menu-anchor'));
   assert.equal(c.textContent?.includes('YOUR SCRIPT'),false,'nor is the script shown while recording');
+ }finally{await close();}
+});
+
+test('the framing preview shows when the camera is on, with one line and one action when there is no picture, and not when it is off',async()=>{
+ const off1=await mountRecord(threeScenes());
+ try{assert.equal(off1.ui.container.querySelector('.club-framing'),null,'no framing box with every source off');}finally{await off1.close();}
+ const mic=await mountRecord(threeScenes(),{},{...off,microphone:true});
+ try{assert.equal(mic.ui.container.querySelector('.club-framing'),null,'nor with only the microphone');}finally{await mic.close();}
+ const cam=await mountRecord(threeScenes(),{},{...off,camera:true});
+ try{
+  const framing=cam.ui.container.querySelector('.club-framing')!;
+  assert.ok(framing,'the camera is on: the framing preview is in the main column');
+  assert.equal(framing.closest('.club-sources'),null,'not only inside the Change sheet');
+  assert.equal(framing.querySelectorAll('button').length,1,'one action when there is no picture');
+  assert.equal(framing.querySelector('video'),null,'and no empty video box');
+  assert.equal(framing.querySelectorAll('p').length,1,'one line');
+ }finally{await cam.close();}
+ const screen=await mountRecord(threeScenes(),{},{...off,screen:true});
+ try{
+  assert.equal(screen.ui.container.querySelector('.club-framing')?.getAttribute('aria-label'),'Screen framing','with only the screen on, it shows the screen');
+ }finally{await screen.close();}
+});
+
+test('the framing preview plays the stream it is given, mirrored for the camera, and says nothing else',async()=>{
+ const stream=new (window as unknown as {MediaStream:new()=>MediaStream}).MediaStream();
+ const ui=await mountUI(createElement(FramingPreview,{label:'Camera',stream,mirror:true,note:{text:'The camera preview is off.'}}));
+ try{
+  const video=ui.container.querySelector('video')!;
+  assert.ok(video,'a stream draws a video');
+  assert.match(video.getAttribute('style')??'',/scaleX\(-1\)/,'the camera is mirrored');
+  assert.equal(ui.container.querySelector('p'),null,'no note while there is a picture');
+ }finally{await ui.close();}
+});
+
+test('opening the Change sheet moves focus into it; Escape or the Change button puts focus back on Change',async()=>{
+ const {ui,close}=await mountRecord(threeScenes());
+ try{
+  const c=ui.container,change=button(c,'Change'),sheet=c.querySelector<HTMLElement>('.club-sources')!;
+  await click(change);
+  assert.ok(sheet.contains(document.activeElement),'focus is on the first control in the sheet');
+  await act(async()=>{document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));});
+  assert.equal(sheet.hidden,true);
+  assert.equal(document.activeElement,change,'Escape returns focus to Change');
+  await click(change);
+  assert.ok(sheet.contains(document.activeElement));
+  await click(change);
+  assert.equal(sheet.hidden,true);
+  assert.equal(document.activeElement,change,'closing with Change keeps focus on it');
  }finally{await close();}
 });
 

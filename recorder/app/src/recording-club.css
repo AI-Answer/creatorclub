@@ -71,13 +71,19 @@
 .club-embed .app-shell[data-mode=Record] :is(.recording-capture-notice,.recording-storage-note){font-size:12px}
 
 /*
-  Record is one calm column: a line saying whether the sources are ready with Change beside it, the one big Record button, then compact scene cards.
+  Record is one calm column: a framing preview, a line saying whether the sources are ready with Change beside it, the one big Record button, then the selected scene's takes.
   The source rows, presets and the countdown option sit in the sheet that Change opens.
 */
 .club-embed .app-shell[data-mode=Record] .recording-workspace.club-record{display:block;overflow:hidden}
 .club-embed .app-shell[data-mode=Record] .club-record .recording-main{height:100%;align-items:stretch;justify-content:flex-start;padding:0;background:var(--cc-page)}
 .club-embed .app-shell[data-mode=Record] .club-record .recording-main.capture-active{align-items:center;justify-content:center;padding:45px 35px 60px}
-.club-record-bar{display:flex;flex-direction:column;gap:14px;width:100%;max-width:760px;margin:0 auto;padding:20px 28px 4px;flex:none}
+.club-record-bar{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;width:100%;max-width:760px;margin:0 auto;padding:20px 28px 4px;flex:none}
+.club-record-bar.has-framing{grid-template-columns:clamp(180px,22vw,280px) minmax(0,1fr);align-items:center}
+.club-record-controls{display:flex;flex-direction:column;gap:14px;min-width:0}
+.club-framing{aspect-ratio:16/9;width:100%;overflow:hidden;border:1px solid var(--cc-line);border-radius:12px;background:var(--cc-subtle)}
+.club-framing>video{display:block;width:100%;height:100%;object-fit:cover}
+.club-framing-note{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:12px;text-align:center}
+.club-framing-note>p{margin:0;font-size:13px;color:var(--cc-muted)}
 .club-record-bar[hidden]{display:none}
 .club-record-status{display:flex;align-items:center;gap:12px;min-width:0}
 .club-readiness{flex:1;min-width:0;display:flex;align-items:center;gap:9px;margin:0;font-size:14px;font-weight:550;color:var(--cc-ink)}
@@ -85,24 +91,23 @@
 .club-readiness-dot.is-ready{background:var(--cc-success)}
 .club-change{position:relative;flex:none;margin-left:auto}
 .club-change>.button{font-size:13px;color:var(--cc-accent-text,var(--cc-accent));font-weight:600}
-.club-sources{position:absolute;right:0;top:calc(100% + 8px);z-index:40;width:min(400px,calc(100vw - 64px));max-height:min(74vh,660px);display:flex;flex-direction:column;background:var(--cc-card);border:1px solid var(--cc-line);border-radius:12px;box-shadow:0 12px 32px #0003}
+.club-sources{position:absolute;right:0;top:calc(100% + 8px);z-index:40;width:min(400px,calc(100vw - 64px));max-height:min(660px,max(280px,calc(100vh - 260px)));display:flex;flex-direction:column;background:var(--cc-card);border:1px solid var(--cc-line);border-radius:12px;box-shadow:var(--cc-shadow-3)}
 .club-sources[hidden]{display:none}
 .club-sources>.recording-presets{flex:none;padding:10px 16px;border-bottom:1px solid var(--cc-line)}
 .club-sources>.recording-presets .recording-presets-menu{left:0;right:0;width:auto}
 .club-sources .recording-source-panel{flex:1;min-height:0;border-right:0;border-radius:0}
 .club-sources>.recording-card-options{flex:none;padding:12px 16px;border-top:1px solid var(--cc-line)}
-.club-record-button{display:flex;align-items:center;justify-content:center;gap:12px;width:100%;min-height:64px;border:0;border-radius:14px;background:#e5484d;color:#fff;font-size:18px;font-weight:650;cursor:pointer;box-shadow:0 6px 18px #e5484d4d}
-.club-record-button>span{width:20px;height:20px;border-radius:50%;border:3px solid #fff;box-sizing:border-box;flex:none}
+.club-record-button{display:flex;align-items:center;justify-content:center;gap:12px;width:100%;min-height:64px;border:0;border-radius:14px;background:var(--cc-rec);color:var(--cc-on-primary);font-size:18px;font-weight:650;cursor:pointer;box-shadow:var(--cc-shadow-2)}
+.club-record-button>span{width:20px;height:20px;border-radius:50%;border:3px solid currentColor;box-sizing:border-box;flex:none}
 .club-record-button:hover:not(:disabled){filter:brightness(.94)}
 .club-record-button:disabled{opacity:.5;cursor:default;box-shadow:none}
 .club-record-button:focus-visible{outline:3px solid var(--cc-accent);outline-offset:3px}
 
-/* Compact scene cards: number, title, status, then the take thumbnails. */
+/* The selected scene's takes under the Record button (the scene strip is the only scene list). */
 .club-embed .app-shell[data-mode=Record] .club-record .recording-scene-cards{width:100%;max-width:760px;margin:0 auto;padding:18px 28px 32px;background:transparent;overflow:visible;display:flex;flex-direction:column;gap:8px}
 .club-embed .app-shell[data-mode=Record] .club-record .rsc-scene-container{width:100%;max-width:none;margin:0}
 .club-embed .app-shell[data-mode=Record] .rsc-scene.rsc-compact{padding:10px 14px;gap:10px;cursor:pointer}
 .club-embed .app-shell[data-mode=Record] .rsc-compact .rsc-scene-heading{gap:10px;min-height:24px}
-.club-embed .app-shell[data-mode=Record] .rsc-number{width:24px;height:24px;flex:none;display:inline-flex;align-items:center;justify-content:center;border-radius:7px;background:var(--cc-subtle);font-size:12px;font-weight:650}
 .club-embed .app-shell[data-mode=Record] .rsc-scene-title{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:14px;font-weight:600}
 .club-embed .app-shell[data-mode=Record] .rsc-status-text{flex:none;font-size:12px;color:var(--cc-muted)}
 .club-embed .app-shell[data-mode=Record] .rsc-status-text.is-complete{color:var(--cc-success)}
@@ -148,3 +153,4 @@
 .club-embed .app-shell[data-mode=Record] .take-review>footer.club-take-footer{padding:16px 24px;gap:12px;border-top:1px solid var(--cc-line);background:var(--cc-card);flex-wrap:nowrap}
 .club-embed .app-shell[data-mode=Record] .take-settings{border-color:var(--cc-line);border-radius:12px;background:var(--cc-card)}
 .club-embed .app-shell[data-mode=Record] .take-settings :is(p,label,small){font-size:13px}
+.club-embed .app-shell[data-mode=Record] .rsc-no-takes{margin:0;font-size:13px;color:var(--cc-muted)}

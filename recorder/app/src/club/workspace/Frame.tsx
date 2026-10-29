@@ -1,3 +1,4 @@
+import type {KeyboardEvent} from 'react';
 import {routeHash,videoTabs,type Route,type VideoTab} from '../routes';
 import {VIDEO_STAGES,type Video,type VideoStage} from '../../../shared/club';
 import {STAGE_LABEL} from '../board';
@@ -32,7 +33,15 @@ export function Strip({scenes,focusId,onPick,onRetry}:{scenes:VideoScenes;focusI
  const list=scenes.scenes;
  if(!list.length)return <div className="strip"><span className="lab"><Icon name="Layers" size={14}/>Scenes</span><span className="small muted">No scenes yet. Draft them from the board.</span></div>;
  const progress=toProgress(list);
- return <div className="strip" role="list" aria-label="Scenes">
+ // The chips are the one scene selector: Tab reaches them and the arrow keys move between them.
+ const arrows=(event:KeyboardEvent<HTMLDivElement>)=>{
+  const move=event.key==='ArrowRight'?1:event.key==='ArrowLeft'?-1:0;
+  if(!move)return;
+  const chips=[...event.currentTarget.querySelectorAll<HTMLButtonElement>('button.sc')],at=chips.indexOf(document.activeElement as HTMLButtonElement);
+  if(at<0)return;
+  event.preventDefault();chips[(at+move+chips.length)%chips.length].focus();
+ };
+ return <div className="strip" role="list" aria-label="Scenes" onKeyDown={arrows}>
   <span className="lab"><Icon name="Layers" size={14}/>{scenesLine(list,clockTime)}</span>
   {list.map((scene,index)=><button key={scene.id} role="listitem" type="button" className={cn('sc',focusId===scene.id&&'on')} onClick={()=>onPick(scene.id)} title={scene.title}>
    <span className="n">{index+1}</span><span className="t">{scene.title}</span><SceneStatus scene={progress[index]}/></button>)}

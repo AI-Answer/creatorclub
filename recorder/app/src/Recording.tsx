@@ -23,7 +23,7 @@ import {MeterAudio,drawWaveform,fitCanvas,waveformLevel,waveformPoints} from './
 import {sceneCardData} from './recording-scene-data';
 import {nextSceneToRecord,readinessLine,recorderProblems,sourceChecks,type ProblemAction,type SourceCheck,type SourceSnapshot} from './club/recorder/recorder-checks';
 import {useDiskSpace,useMediaAccess} from './club/recorder/RecorderWarnings';
-import {RecordBar,recordLabel} from './club/recorder/RecordBar';
+import {FramingPreview,RecordBar,recordLabel,type FramingNote} from './club/recorder/RecordBar';
 
 type Capture={stream:MediaStream;recorder:MediaRecorder;track:TrackKind;id:string;queue:Promise<void>;index:number;pending:number;startedAtMs:number;label:string;failure?:Error};
 type Status='idle'|'starting'|'recording'|'paused'|'saving';
@@ -363,6 +363,15 @@ export function Recording({project,change,commit,onRecorded,onError,onImport,onS
  const presetPicker=<div className="recording-presets" ref={presetRoot}><button className="recording-presets-trigger" aria-label="Recording presets" aria-expanded={presetOpen} disabled={active} title="Recording presets (⌘⇧P)" onClick={()=>setPresetOpen(v=>!v)}>{activePreset?activePreset.name:'Recording presets'}{modified?' · Modified':''}<ChevronDown size={13}/></button>{presetOpen&&<div className="recording-presets-menu" role="dialog" aria-label="Recording presets"><strong>Recording presets</strong><span className="preset-description">Save devices, source toggles, and capture settings in this profile.</span><div className="recording-presets-list"><button onClick={()=>applySettings(defaultRecordingSettings(),null)}>Default settings</button>{preferences.presets.map(p=><button key={p.id} aria-pressed={preferences.activeId===p.id} onClick={()=>applySettings(p.settings,p.id)}><span>{p.name}</span>{preferences.activeId===p.id&&<Check size={15}/>}</button>)}</div><form onSubmit={e=>{e.preventDefault();savePreset();}}><label>Preset name<input aria-label="Preset name" maxLength={80} value={presetName} placeholder={activePreset?.name||'e.g. Camera and desktop'} onChange={e=>setPresetName(e.target.value)}/></label><div className="preset-actions"><button className="button compact" type="submit" disabled={!presetName.trim()}>Save as new</button>{activePreset&&<button className="button compact" type="button" disabled={!presetName.trim()} onClick={()=>savePreset(true)}>Rename</button>}</div></form>{activePreset&&<div className="preset-actions"><button onClick={()=>{setPreferences(p=>({...p,presets:saveRecordingPreset(p.presets,activePreset.name,current,activePreset.id)}));setPresetError('');}}>Update saved settings</button><button onClick={()=>{setPreferences(p=>({...p,activeId:null,presets:p.presets.filter(item=>item.id!==activePreset.id)}));setPresetError('');}}>Delete preset</button></div>}<small>Applying a preset stops current previews. Allowed camera and mic reopen. A saved screen resumes when its capture area still matches; choose a source when needed.</small>{presetError&&<p role="alert">{presetError}</p>}</div>}</div>;
  // Each source shows its own live media under its row, as in Borumi: camera picture, microphone line, screen picture, computer-audio line.
  const screenShown=selection.screen&&!(sourceError&&!screenView.source.stream&&!hasNativeFrame);
+ // CreatorClub's framing check: the camera (mirrored), or the screen when only the screen is on. The sheet's previews report readiness; this one does not.
+ const framingKind=club?(selection.camera?'camera' as const:selection.screen?'screen' as const:null):null;
+ const framing=framingKind&&(()=>{
+  const source=framingKind==='camera'?previews.camera:screenView.source,opening=source.status==='loading';
+  const note:FramingNote=framingKind==='camera'
+   ?{text:opening?'Opening the camera…':source.error||'The camera preview is off.',action:opening?undefined:{label:source.error?'Try again':'Allow camera',run:()=>void request('camera')}}
+   :{text:opening?'Opening the screen…':source.error||'Choose a screen or window to share.',action:opening?undefined:{label:'Choose screen',run:()=>chooseScreen()}};
+  return <FramingPreview label={framingKind==='camera'?'Camera':'Screen'} stream={source.stream} mirror={framingKind==='camera'&&mirror} viewBox={framingKind==='screen'?screenView.viewBox:undefined} note={note}/>;
+ })();
  const sourcesPanel=<aside className="recording-source-panel" aria-label="Recording sources"><fieldset className="capture-sources-fieldset" disabled={active}>
    <section className={`capture-source ${selection.camera?'enabled':''}`}><header><SourceSwitch label="Camera" value={selection.camera} disabled={active} onChange={v=>toggleSource('camera',v)}/><strong>Camera</strong>{deviceSelect('camera')}{settingsButton('camera','Camera')}</header>{sourceReadiness('camera')}
     {selection.camera&&<div className="capture-media capture-media-camera"><VideoPreview source={previews.camera} label="Camera" mirror={mirror} onEnable={()=>void request('camera')} onStalled={setCameraStalled} onReady={setCameraReceiving}/></div>}
@@ -392,7 +401,7 @@ export function Recording({project,change,commit,onRecorded,onError,onImport,onS
   <main className={`recording-main ${active?'capture-active':'scene-cards-mode'}`}>
    {club&&<RecordBar line={readiness} problems={problems} onProblem={problemAction} hidden={active} open={changeOpen} onOpenChange={setChangeOpen}
     label={sceneIndex>=0?recordLabel(sceneIndex+1,sceneRecorded):null} recordDisabled={confirming} onRecord={()=>cardHandlers.onRecord(recordSceneId,'replace-matching')}
-    presets={presetPicker} sources={sourcesPanel} countdown={<div className="recording-card-options">{countdownOption}</div>}/>}
+    framing={framing||undefined} presets={presetPicker} sources={sourcesPanel} countdown={<div className="recording-card-options">{countdownOption}</div>}/>}
    {!active?<><RecordingSceneCards project={project} takes={allTakes} selectedSceneId={recordSceneId} disabled={confirming} club={club} {...cardHandlers}/>
     {hasRecording&&onEdit&&<div className="recording-next"><div><strong>Recording saved</strong><span>Trim it, add captions and export your video.</span></div><button className="button primary" onClick={onEdit}>Edit &amp; export<ArrowRight size={16}/></button></div>}
     {(!club||captureNotice)&&<div className="recording-card-options">{!club&&countdownOption}{!club&&<div className="recording-ready-hint">{readyCount===enabledCount&&enabledCount?`${readyCount} ${readyCount===1?'source is':'sources are'} ready · previews are live`:enabledCount?'Enable each preview to check your sources before recording.':'Choose a camera, microphone, screen, or system sound to begin.'}</div>}{captureNotice&&<p className="recording-capture-notice">{captureNotice}</p>}</div>}

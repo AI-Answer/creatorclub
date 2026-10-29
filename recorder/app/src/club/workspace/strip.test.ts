@@ -17,6 +17,20 @@ test('a scene in the strip reports its own id, so the tab can focus it in place'
  }finally{await ui.close();}
 });
 
+test('the chips are tabbable and the arrow keys move focus between them, wrapping round',async()=>{
+ const scenes={status:'ready' as const,scenes:[1,2,3].map(n=>({id:`s${n}`,title:`Scene ${n}`,seconds:30,takes:[],status:'Not recorded'}))};
+ const ui=await mountUI(createElement(Strip,{scenes,focusId:null,onPick(){},onRetry(){}}));
+ try{
+  const chips=[...ui.container.querySelectorAll<HTMLButtonElement>('button.sc')];
+  assert.ok(chips.every(chip=>chip.tabIndex>=0),'every chip is reachable with Tab');
+  const press=(key:string)=>act(async()=>{document.activeElement!.dispatchEvent(new KeyboardEvent('keydown',{key,bubbles:true}));});
+  chips[0].focus();
+  await press('ArrowRight');assert.equal(document.activeElement,chips[1]);
+  await press('ArrowRight');await press('ArrowRight');assert.equal(document.activeElement,chips[0],'wraps from the last to the first');
+  await press('ArrowLeft');assert.equal(document.activeElement,chips[2],'and back');
+ }finally{await ui.close();}
+});
+
 test('an empty strip says to draft the scenes from the board',async()=>{
  const scenes={status:'ready' as const,scenes:[]};
  const ui=await mountUI(createElement(Strip,{scenes,focusId:null,onPick(){},onRetry(){}}));

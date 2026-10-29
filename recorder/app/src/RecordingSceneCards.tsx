@@ -88,18 +88,20 @@ export const RecordingSceneCards=memo(function RecordingSceneCards(props:Recordi
    // CreatorClub: a compact card (number, title, status, take thumbnails). The script is in the teleprompter, the scenes are planned in Plan,
    // and Record is the one big button above; the selected scene's menu keeps Record over and Import.
    if(props.club){
-    const name=scene.name||`Scene ${index+1}`,select=()=>{if(!locked&&!selected)invoke(()=>props.onSelectScene(scene.id));};
+    // The scene strip is the only scene list: only the selected scene's takes show here.
+    if(!selected)return null;
+    const name=scene.name||`Scene ${index+1}`;
     return <div className="rsc-scene-container" key={`${project.id}:${scene.id}`}>
-     <article className={`rsc-scene rsc-compact ${selected?'is-selected':''}`} data-scene-id={scene.id} aria-label={`${name}, ${recorded?'recorded':'not recorded'}`} aria-current={selected||undefined} onPointerDown={select} onFocus={select}>
+     <article className="rsc-scene rsc-compact is-selected" data-scene-id={scene.id} aria-label={`Takes of ${name}`}>
       <header className="rsc-scene-heading">
-       <span className="rsc-number" aria-hidden="true">{index+1}</span>
-       <span className="rsc-scene-title">{name}</span>
+       <span className="rsc-scene-title">Takes</span>
        <span className={`rsc-status-text ${recorded?'is-complete':''}`}>{recorded?'Recorded':'Not recorded'}</span>
-       {selected&&<div data-rsc-menu className="rsc-scene-menu-anchor">{menuButton(key,`More for ${name}`)}{menu===key&&<CardMenu label="Scene actions">
+       <div data-rsc-menu className="rsc-scene-menu-anchor">{menuButton(key,`More for ${name}`)}{menu===key&&<CardMenu label="Scene actions">
         {menuItem('Record over…',()=>props.onRecord(scene.id,'record-over'),{disabled:!recorded})}
         {menuItem('Import media from file…',()=>props.onImport(scene.id),{icon:<Upload size={15}/>})}
-       </CardMenu>}</div>}
+       </CardMenu>}</div>
       </header>
+      {active.length===0&&archived.length===0&&!legacyFootage&&<p className="rsc-no-takes">No takes yet. Record one above.</p>}
       {(active.length>0||archived.length>0)&&<div className={`rsc-takes ${drop===`active:${scene.id}`?'is-over':''}`} aria-label={`${name} takes`} onDragOver={e=>{if(!locked&&drag?.kind==='take'&&props.onMoveTake){e.preventDefault();e.stopPropagation();setDrop(`active:${scene.id}`);}}} onDragLeave={()=>setDrop(null)} onDrop={e=>receiveTake(e,scene.id,false)}>
        {active.map(t=>renderTake(t,scene.id))}
        {archived.length>0&&<button type="button" className="rsc-archive-toggle" disabled={locked} aria-expanded={showArchive} onClick={()=>setExpanded({...expanded,[scene.id]:!showArchive})}>{showArchive?<ChevronDown size={15}/>:<FolderOpen size={15}/>}Archived ({archived.length})</button>}
