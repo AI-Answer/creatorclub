@@ -12,6 +12,7 @@ import {hasWaveform,waveformMediaKey,waveformBars,waveformEnvelopePath,timelineW
 import {moveRecordingScene} from './recording-scenes';
 import type {Playhead} from './playhead';
 import {sameTimelineWindow,timelineWindow} from './timeline-viewport';
+import {anchoredScroll} from './timeline-edit';
 import {groupMove,hitLayerDrop,isVerticalLayerDrag,sceneDragFingerprint,snapDistancePixels,snapTargets,snapTimelineDelta,timelinePointerDelta,type LayerDrop} from './timeline-drag';
 
 const trackIcons={overlay:Layers,screen:Clapperboard,camera:Camera,audio:Mic,music:Music};
@@ -69,8 +70,8 @@ export const Timeline=memo(function Timeline({project:p,playhead,zoom,selected,o
  const effectRows=useMemo(()=>({elements:p.elements.map(e=>({id:e.id,start:e.start,duration:e.duration,name:e.text||e.type})),zooms:p.zooms.map(z=>({id:z.id,start:z.start,duration:z.duration,name:`${z.target} · ${z.scale}×` })),captions:p.captions.map(c=>({id:c.id,start:c.start,duration:c.end-c.start,name:c.text}))}),[p.elements,p.zooms,p.captions]);
  const [marquee,setMarquee]=useState<SelectionRect|null>(null),gestureCleanup=useRef<(()=>void)|null>(null);
  useEffect(()=>()=>gestureCleanup.current?.(),[]);
- // Gestures close over these collections, so only their replacement cancels one; an autosave stamp must not.
- useEffect(()=>{gestureCleanup.current?.();},[p.id,p.clips,p.timelineLayers,p.settings,p.elements,p.captions,p.zooms,p.scenes,p.media,zoom]);
+ // Only the person ends a gesture (Escape, pointer cancel, blur), or opening another project or zooming. A save or reload replaces these arrays with equal copies and must not; the drop re-checks the clips it moves against the project as it is then.
+ useEffect(()=>{gestureCleanup.current?.();},[p.id,zoom]);
  const lastScrub=useRef(0),blade=useRef<HTMLDivElement>(null),bladeAt=useRef<number|null>(null);
  const scale=zoom,duration=useMemo(()=>projectDuration(p),[p]),extent=Math.max(30,duration+10),width=extent*scale;
  const placeBlade=()=>{const el=blade.current;if(!el)return;const at=bladeAt.current;el.hidden=at===null;if(at!==null)el.style.transform=`translateX(${at*scale}px)`;};
@@ -83,6 +84,11 @@ export const Timeline=memo(function Timeline({project:p,playhead,zoom,selected,o
  // Departed sources are dropped and cached peaks delivered in one update, so peaks that stay visible keep their identity.
  useEffect(()=>{let current=true,initial:Record<string,readonly number[]>|null={};const keep=new Set(showWaveforms?visibleAudio.map(waveformMediaKey):[]);const releases=showWaveforms?visibleAudio.map(media=>{const key=waveformMediaKey(media);return timelineWaveformCache.subscribe(media,peaks=>{if(!current)return;if(initial)initial[key]=peaks;else setWaveforms(previous=>previous[key]===peaks?previous:{...previous,[key]:peaks});});}):[];const delivered=initial;initial=null;setWaveforms(previous=>{const next:Record<string,readonly number[]>={};let same=true;for(const key in previous)if(keep.has(key))next[key]=previous[key];else same=false;for(const key in delivered)if(next[key]!==delivered[key]){next[key]=delivered[key];same=false;}return same?previous:next;});return()=>{current=false;releases.forEach(release=>release());};},[waveformKeys,showWaveforms]);
  const ruler=useMemo(()=>Array.from({length:Math.ceil((end-start)/step)+2},(_,i)=>Math.floor(start/step)*step+i*step).filter(n=>n<=extent).map(n=><span key={n} style={{left:n*scale}}>{timecode(n)}</span>),[start,end,step,extent,scale]);
+ /** Blade clicks and media drops land on a nearby edge, scene boundary or the playhead when snapping is on. */
+ function snapAt(time:number){const el=ref.current;if(!el||!p.settings.snap)return time;const targets=snapTargets([...p.clips.map(c=>({id:c.id,start:c.start,duration:clipDuration(c)})),...p.elements.map(x=>({id:x.id,start:x.start,duration:x.duration}))],new Set(),playhead.get(),p.scenes.flatMap(s=>[s.start,s.start+s.duration]));return time+snapTimelineDelta({delta:0,anchors:[time],targets,scale,thresholdPx:snapDistancePixels(el.clientWidth)}).delta;}
+ // Zoom keeps the playhead where it is on screen instead of jumping.
+ const shownZoom=useRef(zoom);
+ useLayoutEffect(()=>{const el=ref.current;if(el&&shownZoom.current!==zoom){el.scrollLeft=anchoredScroll({anchor:playhead.get(),from:shownZoom.current,to:zoom,scrollLeft:el.scrollLeft,viewport:el.clientWidth});scrollPos.current={left:el.scrollLeft,top:el.scrollTop};placeLabels();view(el.scrollLeft,el.clientWidth);}shownZoom.current=zoom;},[zoom]);
  function pointerTime(e:React.PointerEvent){const rect=e.currentTarget.getBoundingClientRect();return Math.max(0,Math.min(extent,(e.clientX-rect.left)/scale));}
  function beginSelection(e:React.PointerEvent,rangeOnly=false){
   if(e.button!==0)return;if(tool==='blade'&&!rangeOnly){onSeek(pointerTime(e));return;}e.preventDefault();gestureCleanup.current?.();
@@ -103,7 +109,7 @@ export const Timeline=memo(function Timeline({project:p,playhead,zoom,selected,o
  function begin(e:React.PointerEvent,c:Clip,mode:'move'|'left'|'right'){
   if(e.button!==0)return;e.stopPropagation();e.preventDefault();
   const scroll=ref.current,content=scroll?.firstElementChild as HTMLElement|null;if(!scroll||!content)return;
-  if(tool==='blade'){onSplit(c.id,(e.clientX-scroll.getBoundingClientRect().left+scroll.scrollLeft)/scale);return;}
+  if(tool==='blade'){onSplit(c.id,snapAt((e.clientX-scroll.getBoundingClientRect().left+scroll.scrollLeft)/scale));return;}
   if(e.shiftKey){onSelect(c.id,true);return;}
   gestureCleanup.current?.();if(!selectedIds.has(c.id))onSelect(c.id);
   const ids=mode==='move'&&selectedIds.has(c.id)?new Set(p.clips.filter(item=>selectedIds.has(item.id)).map(item=>item.id)):new Set([c.id]);
@@ -177,7 +183,7 @@ export const Timeline=memo(function Timeline({project:p,playhead,zoom,selected,o
     {onSceneAction&&<button type="button" className="timeline-scene-actions" draggable={false} aria-label={`Actions for ${s.name}`} aria-haspopup="menu" aria-expanded={sceneMenu===s.id} onClick={()=>setSceneMenu(sceneMenu===s.id?null:s.id)}><ChevronDown size={12}/></button>}
     {sceneMenu===s.id&&<div className="timeline-scene-menu" ref={sceneMenuRef} role="menu" aria-label={`${s.name} actions`} draggable={false} onKeyDown={event=>{if(event.key==='ArrowDown'||event.key==='ArrowUp'){event.preventDefault();const items=[...event.currentTarget.querySelectorAll<HTMLButtonElement>('button')],index=items.indexOf(document.activeElement as HTMLButtonElement);items[(index+(event.key==='ArrowDown'?1:items.length-1))%items.length]?.focus();}}}><button type="button" role="menuitem" onClick={()=>{setSceneMenu(null);onSceneAction?.(s.id,'auto-cut');}}>Auto-cut scene</button><button type="button" role="menuitem" onClick={()=>{setSceneMenu(null);onSceneAction?.(s.id,'visualize');}}>Visualize scene</button></div>}
    </div>;})}{sceneDrop?.id==='end'&&<div className="timeline-scene-end-drop" style={{left:duration*scale}}/>}</div>
-  {tracks.map(t=>{const effects=t.id==='elements'?effectRows.elements:t.id==='zooms'?effectRows.zooms:t.id==='captions'?effectRows.captions:null;return <div className={`timeline-row row-${t.layer?.track??t.id} ${customLayers.has(t.id)?'has-layer-controls':''} ${drag?.drop?.kind==='existing'&&drag.drop.rowId===t.id?'layer-drop-target':''}`} key={t.id} data-track={t.id} data-layer-kind={t.layer?.kind} data-label={t.name} onPointerDown={e=>{if(e.target===e.currentTarget)beginSelection(e);}} onDragOver={e=>{if(t.layer)e.preventDefault();}} onDrop={e=>{e.preventDefault();const id=e.dataTransfer.getData('application/sceneforge-media'),media=mediaById.get(id);if(media&&t.layer&&(media.kind==='audio'?'audio':'video')===t.layer.kind){onDropMedia(id,t.layer.track??(t.layer.kind==='audio'?'audio':'screen'),Math.max(0,(e.clientX-e.currentTarget.getBoundingClientRect().left)/scale),t.id);}}}>
+  {tracks.map(t=>{const effects=t.id==='elements'?effectRows.elements:t.id==='zooms'?effectRows.zooms:t.id==='captions'?effectRows.captions:null;return <div className={`timeline-row row-${t.layer?.track??t.id} ${customLayers.has(t.id)?'has-layer-controls':''} ${drag?.drop?.kind==='existing'&&drag.drop.rowId===t.id?'layer-drop-target':''}`} key={t.id} data-track={t.id} data-layer-kind={t.layer?.kind} data-label={t.name} onPointerDown={e=>{if(e.target===e.currentTarget)beginSelection(e);}} onDragOver={e=>{if(t.layer)e.preventDefault();}} onDrop={e=>{e.preventDefault();const id=e.dataTransfer.getData('application/sceneforge-media'),media=mediaById.get(id);if(media&&t.layer&&(media.kind==='audio'?'audio':'video')===t.layer.kind){onDropMedia(id,t.layer.track??(t.layer.kind==='audio'?'audio':'screen'),snapAt(Math.max(0,(e.clientX-e.currentTarget.getBoundingClientRect().left)/scale)),t.id);}}}>
    {t.layer&&customLayers.has(t.id)&&<LayerRowControls row={t.layer} change={change}/>}
    {t.layer&&<span className="layer-drop-edge" aria-hidden="true"/>}
    {(clipsByTrack.get(t.id)||[]).map(c=>{const preview=drag?.clips.get(c.id),left=preview?.start??c.start,right=left+(preview?.duration??clipDuration(c));if(!preview&&(c.start+clipDuration(c)<start||c.start>end))return null;const media=mediaById.get(c.mediaId);return <TimelineClip key={c.id} clip={c} media={media} preview={preview} selected={selectedIds.has(c.id)||selected===c.id} peaks={showWaveforms&&media?waveforms[mediaKeys.get(media.id)!]:undefined} scale={scale} from={Math.max(start,left)} to={Math.min(end,right)} onBegin={beginClip}/>;})}

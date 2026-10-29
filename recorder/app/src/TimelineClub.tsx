@@ -24,7 +24,7 @@ type Effect='elements'|'captions'|'zooms';
 interface Row {id:string;name:string;icon:typeof Camera;height:number;top:number;layer?:TimelineLayerRow;effect?:Effect;linked?:boolean}
 interface Preview {start:number;duration:number;sourceIn?:number;dy?:number}
 interface Drag {items:Map<string,Preview>;ghosts:Array<{row:string;start:number;duration:number}>;guide:number|null;insert:number|null;label:string;markers?:Map<string,number>}
-const RULER=30,SCENE_COLORS=['#2563eb','#18794e','#a35200','#7c3aed','#b4231f','#0e7490'];
+const RULER=30;
 const icons:Record<TrackKind,typeof Camera>={screen:Monitor,camera:Camera,audio:Mic,music:Music,overlay:Layers};
 const heights:Record<TrackKind,number>={screen:50,camera:38,audio:40,music:32,overlay:38};
 const effectRows:Array<{id:Effect;name:string;icon:typeof Camera}>=[{id:'elements',name:'Graphics',icon:Type},{id:'captions',name:'Captions',icon:AudioLines},{id:'zooms',name:'Zoom',icon:ZoomIn}];
@@ -102,9 +102,11 @@ export const TimelineClub=memo(function TimelineClub({project:p,playhead,scale,o
 
  // Labels: the first piece of a scene on the screen row says which scene and take it is.
  const labels=useMemo(()=>{const out=new Map<string,string>();const scene=(t:number)=>p.scenes.findIndex(s=>t>=s.start-1e-3&&t<s.start+Math.max(s.duration,.001));
+  // Only the topmost clip of a link group carries the label, so a take is named once.
+  const top=new Map<string,number>();for(const c of p.clips){const row=rowById.get(clipLayerRowId(c,p)),key=groups.get(c.id)!;if(row)top.set(key,Math.min(top.get(key)??Infinity,row.top));}
   for(const c of p.clips){const row=rowById.get(clipLayerRowId(c,p));if(!row)continue;const take=c.recordingTakeId?p.recordedTakes?.find(t=>t.id===c.recordingTakeId):undefined,i=scene(c.start);
-   const head=row.layer?.track==='screen'||row.layer?.track===undefined||!p.clips.some(o=>o.track==='screen');out.set(c.id,head?(i>=0&&take?`${i+1} · ${p.scenes[i].name}${take.name?` · ${take.name}`:''}`:c.name):'');}
-  return out;},[p.clips,p.scenes,p.recordedTakes,rowById]);
+   out.set(c.id,top.get(groups.get(c.id)!)===row.top?(i>=0&&take?`${i+1} · ${p.scenes[i].name}${take.name?` · ${take.name}`:''}`:c.name):'');}
+  return out;},[p.clips,p.scenes,p.recordedTakes,rowById,groups]);
 
  const targets=(moving:ReadonlySet<string>):SnapTarget[]=>snapTargets(rowItems(latest.current).map(i=>({id:i.id,start:i.start,duration:i.duration})),moving,playhead.get(),latest.current.scenes.flatMap(s=>[s.start,s.start+s.duration]),(latest.current.markers??[]).filter(m=>!moving.has(m.id)).map(m=>m.time));
  const contentX=(clientX:number)=>{const el=ref.current!;return clientX-el.getBoundingClientRect().left+el.scrollLeft;};
@@ -112,13 +114,13 @@ export const TimelineClub=memo(function TimelineClub({project:p,playhead,scale,o
 
  /** Runs one pointer gesture: `move` on each pointer move (with scroll at the edges), `drop` on release. Escape, pointer cancel and window blur cancel it. */
  function run(e:React.PointerEvent,move:(x:number,y:number,ev:PointerEvent)=>void,drop:(moved:boolean,ev:PointerEvent)=>void){
-  gesture.current?.();const el=ref.current!;let last={x:e.clientX,y:e.clientY},moved=false,frame=0,closed=false;const id=e.pointerId;
+  gesture.current?.();const el=ref.current!;let last={x:e.clientX,y:e.clientY},moved=false,frame=0,closed=false,lastEvent:PointerEvent=e.nativeEvent as PointerEvent;const id=e.pointerId;
   const update=(ev:PointerEvent)=>{moved||=Math.abs(last.x-e.clientX)>=3||Math.abs(last.y-e.clientY)>=3;if(moved)move(last.x,last.y,ev);};
-  const onMove=(ev:PointerEvent)=>{if(ev.pointerId!==id)return;last={x:ev.clientX,y:ev.clientY};update(ev);};
+  const onMove=(ev:PointerEvent)=>{if(ev.pointerId!==id)return;last={x:ev.clientX,y:ev.clientY};lastEvent=ev;update(ev);};
   const close=()=>{if(closed)return;closed=true;cancelAnimationFrame(frame);window.removeEventListener('pointermove',onMove);window.removeEventListener('pointerup',onUp);window.removeEventListener('pointercancel',cancel);window.removeEventListener('keydown',key);window.removeEventListener('blur',cancel);setDrag(null);setMarquee(null);gesture.current=null;};
   const cancel=()=>close(),key=(ev:KeyboardEvent)=>{if(ev.key==='Escape'){ev.preventDefault();close();}};
   const onUp=(ev:PointerEvent)=>{if(ev.pointerId!==id)return;last={x:ev.clientX,y:ev.clientY};if(moved)move(last.x,last.y,ev);close();drop(moved,ev);};
-  const edge=()=>{if(closed)return;const b=el.getBoundingClientRect();const dx=last.x<b.left+24?-Math.min(16,(b.left+24-last.x)/2):last.x>b.right-24?Math.min(16,(last.x-b.right+24)/2):0;if(dx&&moved){const before=el.scrollLeft;el.scrollLeft+=dx;if(el.scrollLeft!==before)move(last.x,last.y,new PointerEvent('pointermove'));}frame=requestAnimationFrame(edge);};
+  const edge=()=>{if(closed)return;const b=el.getBoundingClientRect();const dx=last.x<b.left+24?-Math.min(16,(b.left+24-last.x)/2):last.x>b.right-24?Math.min(16,(last.x-b.right+24)/2):0;if(dx&&moved&&b.width>48){const before=el.scrollLeft;el.scrollLeft+=dx;if(el.scrollLeft!==before)move(last.x,last.y,lastEvent);}frame=requestAnimationFrame(edge);};
   window.addEventListener('pointermove',onMove);window.addEventListener('pointerup',onUp);window.addEventListener('pointercancel',cancel);window.addEventListener('keydown',key);window.addEventListener('blur',cancel);gesture.current=close;frame=requestAnimationFrame(edge);
  }
  const sameClips=(ids:Iterable<string>,before:Project)=>{const now=new Map(latest.current.clips.map(c=>[c.id,c]));for(const id of ids){const a=before.clips.find(c=>c.id===id),b=now.get(id);if(a&&(!b||b.start!==a.start||b.sourceIn!==a.sourceIn||b.sourceOut!==a.sourceOut||b.speed!==a.speed))return false;}return true;};
@@ -194,13 +196,14 @@ export const TimelineClub=memo(function TimelineClub({project:p,playhead,scale,o
  const visible=(s:number,d:number)=>s+d>=start&&s<=end;
  const ticks=useMemo(()=>rulerTicks(start,end,scale,p.canvas.fps),[start,end,scale,p.canvas.fps]);
  const placeHeads=()=>{const el=ref.current;if(heads.current&&el)heads.current.style.transform=`translateY(${-el.scrollTop}px)`;};
- return <div className={`timeline club-timeline tool-${tool} ${drag?'timeline-dragging':''}`} onContextMenu={e=>{if(!onContextMenu||!(e.target as HTMLElement).closest('.timeline-clip,.timeline-effect'))return;e.preventDefault();onContextMenu(e.clientX,e.clientY);}}>
+ return <div className={`timeline club-timeline tool-${tool} ${drag?'timeline-dragging':''}`} onContextMenu={e=>{if(!onContextMenu)return;e.preventDefault();const hit=(e.target as HTMLElement).closest<HTMLElement>('[data-clip-id],[data-effect-id]'),id=hit?.dataset.clipId??hit?.dataset.effectId;
+  if(id&&!selectedIds.has(id))onSelectMany(hit?.dataset.clipId?[...linkedIds(latest.current.clips,[id])]:[id]);onContextMenu(e.clientX,e.clientY);}}>
   <div className="club-tl-heads" aria-hidden><div ref={heads}><div className="club-tl-head is-ruler" style={{height:RULER}}/>{rows.map(r=><div key={r.id} className={`club-tl-head ${r.linked?'is-linked':''}`} style={{height:r.height}} title={r.name}><r.icon size={13}/><span>{r.name}</span></div>)}</div></div>
   <div className="timeline-scroll" ref={ref} tabIndex={-1} onScroll={e=>{const el=e.currentTarget;placeHeads();view(el.scrollLeft,el.clientWidth);}}>
    <div className="timeline-content" style={{width,height:contentHeight}}>
     <div className="club-ruler" style={{height:RULER}} onPointerDown={beginRuler} title="Click or drag to move the playhead">
      {ticks.map(t=><span key={t.time} className={t.major?'tick major':'tick'} style={{left:t.time*scale}}>{t.label&&<b>{t.label}</b>}</span>)}
-     {p.scenes.map((s,i)=>visible(s.start,Math.max(1,s.duration))&&<div key={s.id} className="club-scene-tag" style={{left:s.start*scale,background:SCENE_COLORS[i%SCENE_COLORS.length]}} title={`Scene ${i+1}: ${s.name}`} onPointerDown={e=>{e.stopPropagation();onSeek(s.start);}}>{i+1} {s.name}</div>)}
+     {p.scenes.map((s,i)=>visible(s.start,Math.max(1,s.duration))&&<div key={s.id} className="club-scene-tag" style={{left:s.start*scale}} title={`Scene ${i+1}: ${s.name}`} onPointerDown={e=>{e.stopPropagation();onSeek(s.start);}}>{i+1} {s.name}</div>)}
      {(p.markers??[]).map(m=>{const time=drag?.markers?.get(m.id)??m.time;return visible(time,0)&&<div key={m.id} className="club-marker" style={{left:time*scale}} title={`Marker at ${fmt(time)} · drag to move · double-click to remove`} onPointerDown={e=>beginMarker(e,m.id)} onDoubleClick={()=>change(d=>removeMarker(d,m.id))}/>;})}
     </div>
     {rows.map(r=><div key={r.id} className={`timeline-row club-row row-${r.layer?.track??r.effect??'layer'}`} data-track={r.id} style={{top:r.top,height:r.height}} onPointerDown={e=>{if(e.target===e.currentTarget)beginEmpty(e);}}
