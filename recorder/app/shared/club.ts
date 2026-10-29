@@ -6,6 +6,8 @@ export interface Workspace {
   handle: string;
   channelUrl: string;
   topics: string[];
+  /** Who the channel makes videos for ("Complete beginners", "Developers"…). Empty until chosen. */
+  audience: string[];
   about: string;
   cta: string;
   /** Teaching playbooks to apply to this channel. Always empty in v1. */
@@ -274,4 +276,125 @@ export interface VoiceResult {
 export interface DiskSpace {
   freeBytes: number;
   low: boolean;
+}
+
+// ---------------------------------------------------------------- Working now and Signals
+
+/** A channel to watch in Working now (`followed.json`). It is found by its link, handle or channel id; one of the three is needed. */
+export interface FollowedChannel {
+  name: string;
+  channelId?: string;
+  /** "@name". */
+  handle?: string;
+  /** The channel page, like https://www.youtube.com/@name. */
+  url?: string;
+  /** The channel's usual views, the median of its last 30 uploads, as last read. */
+  median?: number;
+}
+
+export type TrendingKind = 'followed' | 'creator' | 'news';
+
+/** One video in Working now (`trending.json`). `mult` is null when the channel's usual views are not known. */
+export interface TrendingItem {
+  videoId: string;
+  title: string;
+  channel: string;
+  kind: TrendingKind;
+  views: number;
+  likes: number | null;
+  comments: number | null;
+  /** YYYY-MM-DD. */
+  published: string;
+  /** As of the last refresh. */
+  ageDays: number;
+  /** Views per day, as of the last refresh. */
+  vpd: number;
+  /** Views over the channel's usual views, two decimals. Null when the usual is not known. */
+  mult: number | null;
+  /** One reading per day the video was seen: date and views. */
+  history: { d: string; v: number }[];
+  /** YYYY-MM-DD. */
+  firstSeen: string;
+  fit: boolean;
+}
+
+/** A trending video as `GET /api/club/trending` returns it: ranked for the current channel. `fit` is true when its text matches the channel's topics or audience, and `reason` says which ("Because you picked Claude"). */
+export interface TrendingEntry extends TrendingItem {
+  reason: string | null;
+}
+export interface TrendingResponse {
+  items: TrendingEntry[];
+  /** ISO time of the last refresh, or null when the list was never refreshed. */
+  updatedAt: string | null;
+  /** How many channels are followed, so an empty list can say why. */
+  followed: number;
+}
+
+export type SignalSource = 'x' | 'reddit';
+export interface SignalMedia {
+  type: 'image' | 'video';
+  url: string | null;
+  w?: number | null;
+  h?: number | null;
+}
+
+/** One post in Signals (`signals.json`). X posts: `author` is the display name and `handle` the account. Reddit: `author` is "r/<sub>" and `handle` the poster. */
+export interface SignalItem {
+  id: string;
+  source: SignalSource;
+  author: string;
+  handle: string;
+  text: string;
+  url: string;
+  likes: number;
+  replies: number;
+  shares?: number;
+  views?: number | null;
+  media: SignalMedia | null;
+  /** A Reddit flair, or the X topic the post was found by. */
+  flair?: string | null;
+  createdAt: string;
+  /** As of the last refresh. */
+  ageHours: number;
+}
+
+/** A post as `GET /api/club/signals` returns it. Same `fit` and `reason` as `TrendingEntry`. */
+export interface SignalEntry extends SignalItem {
+  reason: string | null;
+  fit: boolean;
+}
+export interface SignalsResponse {
+  items: SignalEntry[];
+  updatedAt: string | null;
+  /** Sources that could not be read in the last refresh, like "r/ClaudeAI". */
+  errors: string[];
+}
+
+/** Where Signals reads from (`signals-config.json`). Every number has a default. */
+export interface SignalsConfig {
+  /** X accounts, without the @. */
+  x?: string[];
+  /** X searches. A phrase goes in quotes. */
+  xTopics?: string[];
+  minXLikes?: number;
+  /** Subreddits, without the r/. */
+  reddit?: string[];
+  maxAgeDays?: number;
+  minRedditScore?: number;
+  maxPerSource?: number;
+}
+
+/** Result of the job behind `POST /api/club/trending/refresh`. `failed` lists followed channels that could not be read (their earlier videos stay). */
+export interface TrendingRefreshResult {
+  videos: number;
+  added: number;
+  channels: number;
+  failed: string[];
+}
+/** Result of the job behind `POST /api/club/signals/refresh`. `note` is set when part of the refresh was skipped. */
+export interface SignalsRefreshResult {
+  posts: number;
+  added: number;
+  errors: string[];
+  note?: string;
 }

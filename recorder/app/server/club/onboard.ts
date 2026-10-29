@@ -1,4 +1,4 @@
-import type { AddChannelResult, VoiceAnswers, VoiceResult } from '../../shared/club.js';
+import type { AddChannelResult, VoiceAnswers, VoiceResult, Workspace } from '../../shared/club.js';
 import { channelFile, parseChannelInput, readChannel, sameChannelUrl, savedTranscripts, type ChannelRead } from './channel.js';
 import type { JobContext } from './jobs.js';
 import * as store from './store.js';
@@ -57,4 +57,33 @@ export async function rebuildVoice(slug: string, answers: VoiceAnswers | undefin
   if (transcripts.length < MIN_TRANSCRIPTS) return { voice: 'needs-answers' };
   await buildVoiceGuide(slug, workspace.name, transcripts, { ...options, signal: context.signal, say: say(context) });
   return { voice: 'built' };
+}
+
+export interface FreshChannel {
+  name: string;
+  topics: string[];
+  audience: string[];
+  /** The Voice DNA questions the person chose to answer. */
+  voice?: Partial<VoiceAnswers>;
+}
+
+/**
+ * Starts a channel with no YouTube channel behind it: a name, topics and who it is for, and a voice guide from any answers given.
+ * It becomes the current channel.
+ */
+export async function startFresh(input: FreshChannel): Promise<Workspace> {
+  const answers = input.voice ?? {};
+  const answered = Object.values(answers).some((value) => value?.trim());
+  const workspace = await store.createWorkspace({
+    name: input.name,
+    handle: '',
+    channelUrl: '',
+    topics: input.topics,
+    audience: input.audience,
+    about: answers.audience?.trim() ?? '',
+    cta: '',
+  });
+  if (answered) await writeVoiceFromAnswers(workspace.slug, workspace.name, answers);
+  await store.setCurrentWorkspace(workspace.slug);
+  return workspace;
 }

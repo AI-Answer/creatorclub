@@ -1,6 +1,6 @@
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { cp, mkdtemp, readFile, rm, readdir, stat } from 'node:fs/promises';
+import { cp, mkdtemp, readFile, rm, readdir, stat, utimes, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -17,7 +17,7 @@ await cp(fixture, source, { recursive: true });
 const snapshot = async () => JSON.stringify(await Promise.all((await readdir(source, { recursive: true })).sort().map(async (f) => [f, (await stat(path.join(source, f))).isFile() ? await readFile(path.join(source, f), 'utf8').catch(() => '') : ''])));
 const before = await snapshot();
 
-const { migrateBoard, cleanOutline, cleanVoice, placeIdea } = await import('./migrate-board.js');
+const { migrateBoard, copyBoardData, BOARD_DATA_FILES, cleanOutline, cleanVoice, placeIdea } = await import('./migrate-board.js');
 const store = await import('./store.js');
 
 test('statuses map to stages as PLAN.md says; parked and dropped stay in Ideas but hidden', () => {
@@ -126,7 +126,37 @@ test('migrating a board workspace: profile, files, status mapping, outlines and 
   assert.match(original, /Jake/, 'the source still has them');
   assert.ok((await readFile(path.join(store.videoDir('samin', 'hidden-features'), 'outline.md'), 'utf8')).includes('## Sections'));
 
+  assert.deepEqual(report.boardData, [...BOARD_DATA_FILES], 'Working now and Signals files come across with the board');
+  for (const name of BOARD_DATA_FILES) assert.equal(await readFile(path.join(dir, name), 'utf8'), await readFile(path.join(source, name), 'utf8'), name);
+  assert.ok(!(await readdir(dir)).includes('config.json'), 'the board\'s search queries are not needed: Working now reads followed channels');
+
   assert.equal(await snapshot(), before, 'the source workspace was not touched');
+});
+
+test('copying the board data again is a no-op, and a file that is newer in the channel is never overwritten', async () => {
+  const dir = store.workspaceDir('samin');
+  assert.deepEqual(await copyBoardData(source, 'samin'), [], 'nothing changed, nothing copied');
+
+  // Followed channels edited in CreatorClub: newer than the board's file.
+  await writeFile(path.join(dir, 'followed.json'), '[{"name":"Edited","handle":"@edited"}]\n');
+  // The board refreshed its signals later than the copy: older in the channel, so it is replaced.
+  const future = new Date(Date.now() + 60_000);
+  const newerSignals = JSON.stringify({ updatedAt: future.toISOString(), items: [], errors: [] });
+  await writeFile(path.join(source, 'signals.json'), newerSignals);
+  await utimes(path.join(source, 'signals.json'), future, future);
+
+  assert.deepEqual(await copyBoardData(source, 'samin'), ['signals.json']);
+  assert.equal(await readFile(path.join(dir, 'followed.json'), 'utf8'), '[{"name":"Edited","handle":"@edited"}]\n');
+  assert.equal(await readFile(path.join(dir, 'signals.json'), 'utf8'), newerSignals);
+  assert.deepEqual(await copyBoardData(source, 'samin'), [], 'and again');
+
+  // A channel that was imported before these files existed (the real one) gets them on a later run.
+  await store.createWorkspace({ slug: 'earlier', name: 'Earlier import', handle: '', channelUrl: '', topics: [], about: '', cta: '' });
+  assert.deepEqual(await copyBoardData(source, 'earlier'), [...BOARD_DATA_FILES]);
+  assert.deepEqual(await copyBoardData(source, 'earlier'), []);
+
+  // A board with none of these files copies nothing.
+  assert.deepEqual(await copyBoardData(path.join(source, 'videos'), 'samin'), []);
 });
 
 test('migrating again into an existing channel is refused and changes nothing', async () => {
@@ -136,5 +166,5 @@ test('migrating again into an existing channel is refused and changes nothing', 
 
 test('a folder that is not a board workspace is refused before anything is written', async () => {
   await assert.rejects(migrateBoard(temp), { message: 'That folder has no profile.json, so it is not a board workspace.' });
-  assert.deepEqual((await store.listWorkspaces()).map((w) => w.slug), ['samin']);
+  assert.deepEqual((await store.listWorkspaces()).map((w) => w.slug).sort(), ['earlier', 'samin']);
 });

@@ -1,0 +1,90 @@
+[
+ {
+  "videoId": "rCkYVxOX-dI",
+  "title": "Build Your First AI Agent in 20 Minutes (No Coding)",
+  "channel": "Metics Media",
+  "kind": "followed",
+  "views": 394110,
+  "likes": 5512,
+  "comments": 93,
+  "published": "2026-10-19",
+  "ageDays": 7.3,
+  "vpd": 53750,
+  "mult": 43.4,
+  "history": [
+   {
+    "d": "2026-10-23",
+    "v": 262277
+   },
+   {
+    "d": "2026-10-26",
+    "v": 394110
+   }
+  ],
+  "firstSeen": "2026-10-23",
+  "fit": true
+ },
+ {
+  "videoId": "4PO0x-myitw",
+  "title": "How Smart People Are Using AI Right Now (7 Insane Use Cases)",
+  "channel": "Riley Brown",
+  "kind": "followed",
+  "views": 194866,
+  "likes": 3329,
+  "comments": 188,
+  "published": "2026-10-22",
+  "ageDays": 4.0,
+  "vpd": 48956,
+  "mult": 1.9,
+  "history": [
+   {
+    "d": "2026-10-26",
+    "v": 194866
+   }
+  ],
+  "firstSeen": "2026-10-26",
+  "fit": true
+ },
+ {
+  "videoId": "QRVz697rEx0",
+  "title": "AI agent builds itself a robot body, does exactly what experts warned",
+  "channel": "InsideAI",
+  "kind": "creator",
+  "views": 1495111,
+  "likes": 29930,
+  "comments": 3275,
+  "published": "2026-10-25",
+  "ageDays": 1.1,
+  "vpd": 1413391,
+  "mult": null,
+  "history": [
+   {
+    "d": "2026-10-26",
+    "v": 1495111
+   }
+  ],
+  "firstSeen": "2026-10-26",
+  "fit": true
+ },
+ {
+  "videoId": "J5EbL1UaqG8",
+  "title": "Claude 2.0 is Insane (All Updates Explained)",
+  "channel": "Ben AI",
+  "kind": "creator",
+  "views": 473623,
+  "likes": 7394,
+  "comments": 246,
+  "published": "2026-10-25",
+  "ageDays": 1.4,
+  "vpd": 342053,
+  "mult": null,
+  "history": [
+   {
+    "d": "2026-10-26",
+    "v": 473623
+   }
+  ],
+  "firstSeen": "2026-10-26",
+  "fit": true
+ }
+]

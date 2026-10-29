@@ -6,7 +6,7 @@ import { ClubError } from './errors.js';
 import { rootDir, writeFileAtomic } from './store.js';
 
 /*
- * The helper programs the app shells out to besides the AI: yt-dlp (channel and caption data) and ffmpeg.
+ * The helper programs the app shells out to besides the AI: yt-dlp (channel and caption data), ffmpeg and treg (X posts).
  * They are found the same way as the AI command line tools: PATH, then the usual install places,
  * then `<root>/.bin/`, where the app puts a yt-dlp it downloaded itself.
  */
@@ -18,6 +18,7 @@ export const localBinDir = () => path.join(rootDir(), '.bin');
 const searchDirs = (lookup: Lookup) => [...(lookup.extraDirs ?? commonBinDirs()), localBinDir()];
 
 export const findYtDlp = (lookup: Lookup = {}) => findExecutable('yt-dlp', { ...lookup, extraDirs: searchDirs(lookup) });
+export const findTreg = (lookup: Lookup = {}) => findExecutable('treg', { ...lookup, extraDirs: searchDirs(lookup) });
 export const findFfmpeg = (lookup: Lookup = {}) => findExecutable('ffmpeg', { ...lookup, extraDirs: searchDirs(lookup) });
 
 /** The environment a helper program gets, with `<root>/.bin` on its PATH so yt-dlp finds the tools next to it. */

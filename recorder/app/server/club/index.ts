@@ -11,12 +11,15 @@ import { addConceptToBoard, breakdownDir, newBreakdownId, readBreakdown, runBrea
 import { cancelJob, getJob, snapshot, startJob, watchJob } from './jobs.js';
 import { parseChannelInput } from './channel.js';
 import { FILE_TOO_BIG, MAX_FILE_BYTES, detectSource } from './source.js';
-import { addChannel, rebuildVoice } from './onboard.js';
+import { addChannel, rebuildVoice, startFresh } from './onboard.js';
 import { heldResults, readOutline, readPackage, runningPlanJobs, saveOutline, savePackage, saveScript, startPlanJob, undoReplace, useHeld, type PlanOptions } from './planning.js';
 import { continueToRecording, outlineChangedScene } from './recorder.js';
 import { publishVideo, ytDlpViews, type ViewsReader } from './publish.js';
 import { recordingsDiskSpace } from './disk.js';
 import { readTranscript, startTileRead } from './research.js';
+import { findTregCall, hasSources, NO_SOURCES, rankedSignals, readSignalsConfig, startSignalsRefresh, writeSignalsConfig, type SignalsSources } from './signals.js';
+import { ideaFromSignal, ideaFromTrending } from './trend-ideas.js';
+import { rankedTrending, readFollowed, startTrendingRefresh, writeFollowed, ytDlpSource, type UploadsSourceFactory } from './trending.js';
 import * as store from './store.js';
 import type { ToolOptions } from './tools.js';
 
@@ -54,6 +57,7 @@ const workspaceFields = {
   handle: z.string().trim().max(120).default(''),
   channelUrl: z.string().trim().max(500).default(''),
   topics: z.array(z.string().trim().min(1)).default([]),
+  audience: z.array(z.string().trim().min(1)).default([]),
   about: z.string().default(''),
   cta: z.string().default(''),
 };
@@ -67,6 +71,35 @@ const voiceBody = z.object({
   }).strict().optional(),
 }).strict();
 const workspacePatchBody = z.object(workspaceFields).partial().strict();
+const answer = z.string().trim().max(2000).optional();
+const freshBody = z.object({
+  name: workspaceFields.name,
+  topics: workspaceFields.topics,
+  audience: workspaceFields.audience,
+  voice: z.object({ voice: answer, audience: answer, moves: answer }).strict().optional(),
+}).strict();
+
+const followedBody = z.array(z.object({
+  name: z.string().trim().min(1).max(120),
+  channelId: z.string().regex(/^UC[\w-]{22}$/).optional(),
+  handle: z.string().trim().max(60).optional(),
+  url: z.string().trim().max(500).optional(),
+  median: z.number().positive().optional(),
+}).strict().refine((channel) => channel.url || channel.handle || channel.channelId, { message: 'needs a link, a handle or a channel id' })).max(100);
+const xHandle = z.string().trim().regex(/^@?[A-Za-z0-9_]{1,15}$/).transform((handle) => handle.replace(/^@/, ''));
+const subreddit = z.string().trim().regex(/^(?:r\/)?[A-Za-z0-9_]{2,21}$/).transform((name) => name.replace(/^r\//, ''));
+const limit = z.number().int().nonnegative().max(1_000_000);
+const signalsConfigBody = z.object({
+  x: z.array(xHandle).max(50),
+  xTopics: z.array(z.string().trim().min(1).max(100)).max(50),
+  reddit: z.array(subreddit).max(50),
+  minXLikes: limit,
+  maxAgeDays: z.number().int().min(1).max(30),
+  minRedditScore: limit,
+  maxPerSource: z.number().int().min(1).max(100),
+}).partial().strict();
+const signalIdeaBody = z.object({ id: z.string().min(1).max(100) }).strict();
+const trendingIdeaBody = z.object({ videoId: z.string().regex(/^[\w-]{6,20}$/) }).strict();
 
 const tileMeta = z
   .object({ views: z.number(), channel: z.string(), multiplier: z.number(), thumbnail: z.string(), likes: z.number(), comments: z.number(), ageDays: z.number(), platform: z.enum(['youtube', 'instagram']) })
@@ -129,9 +162,14 @@ export interface ClubRouterOptions {
   runAI?: PlanOptions['runAI'];
   /** Reads a published video's view count. Defaults to yt-dlp (metadata only). Tests pass a stand-in. */
   readViews?: ViewsReader;
+  /** Where Working now reads followed channels from. Defaults to yt-dlp, metadata only. Tests pass a stand-in. */
+  uploads?: UploadsSourceFactory;
+  /** Where Signals reads from: `fetch` for Reddit's public listing and `treg` for X. Tests pass stand-ins. */
+  signals?: Partial<SignalsSources>;
 }
 
-export function clubRouter({ ai = {}, transcribe, runAI, readViews = ytDlpViews(ai) }: ClubRouterOptions = {}): Router {
+export function clubRouter({ ai = {}, transcribe, runAI, readViews = ytDlpViews(ai), uploads = ytDlpSource(ai), signals = {} }: ClubRouterOptions = {}): Router {
+  const signalSources: SignalsSources = { treg: findTregCall(ai), ...signals };
   const plan: PlanOptions = { extraDirs: ai.extraDirs, runAI };
   const router = Router();
   router.use(express.json({ limit: '5mb' }));
@@ -234,6 +272,8 @@ export function clubRouter({ ai = {}, transcribe, runAI, readViews = ytDlpViews(
     if (!(await store.currentWorkspace())) await store.setCurrentWorkspace(workspace.slug);
     res.status(201).json(workspace);
   }));
+  // A channel with no YouTube channel behind it: a name, topics, who it is for, and optionally the voice answers.
+  router.post('/workspaces/fresh', handler(async (req, res) => res.status(201).json(await startFresh(freshBody.parse(req.body)))));
   router.get('/workspaces/:slug', handler(async (req, res) => res.json(await store.readWorkspace(param(req, 'slug')))));
   router.put('/workspaces/:slug', handler(async (req, res) => {
     const existing = await store.readWorkspace(param(req, 'slug'));
@@ -250,6 +290,54 @@ export function clubRouter({ ai = {}, transcribe, runAI, readViews = ytDlpViews(
   router.post('/workspaces/:slug/current', handler(async (req, res) => {
     await store.setCurrentWorkspace(param(req, 'slug'));
     res.json({ current: param(req, 'slug') });
+  }));
+
+  // ---- Working now and Signals. Both are read for the current channel and ranked for it; the refreshes are jobs.
+  router.get('/trending', handler(async (_req, res) => {
+    const slug = await requireWorkspace();
+    res.json(await rankedTrending(slug, await store.readWorkspace(slug)));
+  }));
+  router.post('/trending/refresh', handler(async (_req, res) => {
+    const slug = await requireWorkspace();
+    if (!(await readFollowed(slug)).length) throw new ClubError('Follow a channel first.', 409);
+    res.status(202).json(startTrendingRefresh(slug, uploads));
+  }));
+  router.post('/trending/idea', handler(async (req, res) => {
+    const { videoId } = trendingIdeaBody.parse(req.body);
+    const { video, created } = await ideaFromTrending(await requireWorkspace(), videoId);
+    res.status(created ? 201 : 200).json(video);
+  }));
+  router.get('/signals', handler(async (_req, res) => {
+    const slug = await requireWorkspace();
+    res.json(await rankedSignals(slug, await store.readWorkspace(slug)));
+  }));
+  router.post('/signals/refresh', handler(async (_req, res) => {
+    const slug = await requireWorkspace();
+    if (!hasSources(await readSignalsConfig(slug))) throw new ClubError(NO_SOURCES, 409);
+    res.status(202).json(startSignalsRefresh(slug, signalSources));
+  }));
+  router.post('/signals/idea', handler(async (req, res) => {
+    const { id } = signalIdeaBody.parse(req.body);
+    const { video, created } = await ideaFromSignal(await requireWorkspace(), id);
+    res.status(created ? 201 : 200).json(video);
+  }));
+  // The channels to watch and the places to read posts from. Settings edits both.
+  router.get('/followed', handler(async (_req, res) => res.json(await readFollowed(await requireWorkspace()))));
+  router.put('/followed', handler(async (req, res) => {
+    const slug = await requireWorkspace();
+    const channels = followedBody.parse(req.body).map((channel) => ({
+      ...channel,
+      ...(channel.url ? { url: parseChannelInput(channel.url).url } : {}),
+      ...(channel.handle ? { handle: parseChannelInput(channel.handle.startsWith('@') ? channel.handle : `@${channel.handle}`).handle } : {}),
+    }));
+    await writeFollowed(slug, channels);
+    res.json(channels);
+  }));
+  router.get('/signals-config', handler(async (_req, res) => res.json(await readSignalsConfig(await requireWorkspace()))));
+  router.put('/signals-config', handler(async (req, res) => {
+    const slug = await requireWorkspace();
+    await writeSignalsConfig(slug, signalsConfigBody.parse(req.body));
+    res.json(await readSignalsConfig(slug));
   }));
 
   // ---- videos

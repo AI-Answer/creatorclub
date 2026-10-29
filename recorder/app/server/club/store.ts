@@ -231,7 +231,8 @@ export async function listWorkspaces(): Promise<Workspace[]> {
 export async function readWorkspace(slug: string): Promise<Workspace> {
   const workspace = await readJSON<Workspace>(profileFile(slug));
   if (!workspace) throw notFound('channel');
-  return workspace;
+  // Channels saved before audiences existed have none.
+  return { ...workspace, audience: Array.isArray(workspace.audience) ? workspace.audience : [] };
 }
 
 export async function writeWorkspace(workspace: Workspace) {
@@ -250,7 +251,7 @@ export const slugify = (name: string) =>
     .slice(0, 48);
 
 /** Creates a workspace; the slug comes from the name unless given, and gets a numeric suffix on collision. */
-export async function createWorkspace(input: Omit<Workspace, 'slug' | 'createdAt'> & { slug?: string }): Promise<Workspace> {
+export async function createWorkspace(input: Omit<Workspace, 'slug' | 'createdAt' | 'audience'> & { slug?: string; audience?: string[] }): Promise<Workspace> {
   const base = input.slug ?? (slugify(input.name) || 'channel');
   let slug = assertSlug(base);
   for (let n = 2; await readJSON(profileFile(slug)); n++) {
@@ -258,7 +259,7 @@ export async function createWorkspace(input: Omit<Workspace, 'slug' | 'createdAt
     slug = `${base}-${n}`;
   }
   const { slug: _ignored, ...fields } = input;
-  const workspace: Workspace = { ...fields, slug, createdAt: now() };
+  const workspace: Workspace = { ...fields, audience: fields.audience ?? [], slug, createdAt: now() };
   await writeWorkspace(workspace);
   return workspace;
 }

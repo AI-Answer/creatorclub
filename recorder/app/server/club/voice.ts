@@ -30,10 +30,13 @@ export async function buildVoiceGuide(slug: string, name: string, transcripts: T
   await writeFileAtomic(voiceFile(slug), guide + '\n');
 }
 
-/** The guide for a channel without enough captions: the creator's own answers, set down as they gave them. */
-export async function writeVoiceFromAnswers(slug: string, name: string, answers: VoiceAnswers): Promise<void> {
-  const lines = [`# ${name}: Voice Guide`, '', '## Voice DNA', `- **Voice:** ${answers.voice.trim()}`, `- **Audience:** ${answers.audience.trim()}`];
-  if (answers.moves.trim()) lines.push(`- **Signature moves:** ${answers.moves.trim()}`);
+/** The guide for a channel without enough captions: the creator's own answers, set down as they gave them. Unanswered questions are left out. */
+export async function writeVoiceFromAnswers(slug: string, name: string, answers: Partial<VoiceAnswers>): Promise<void> {
+  const lines = [`# ${name}: Voice Guide`, '', '## Voice DNA'];
+  const add = (label: string, value: string | undefined) => value?.trim() && lines.push(`- **${label}:** ${value.trim()}`);
+  add('Voice', answers.voice);
+  add('Audience', answers.audience);
+  add('Signature moves', answers.moves);
   await writeFileAtomic(voiceFile(slug), lines.join('\n') + '\n');
 }
 

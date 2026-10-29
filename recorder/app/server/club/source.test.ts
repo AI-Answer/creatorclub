@@ -9,7 +9,9 @@ import {
   median,
   outlierMultiplier,
   parseInfo,
+  parseStatLines,
   parseViewLines,
+  statsArgs,
   subtitleArgs,
   topComments,
   usualViews,
@@ -77,7 +79,7 @@ test('the yt-dlp commands read details, comments, one caption track and the thum
   assert.deepEqual(subtitleArgs(yt().url, 'en-orig', '/w/m'), [
     '--skip-download', '--no-warnings', '--no-playlist', '--write-auto-subs', '--write-subs', '--sub-langs', 'en-orig', '--sub-format', 'json3', '-o', '/w/m', yt().url,
   ]);
-  for (const args of [infoArgs(yt() as never, 'o'), igArgs, subtitleArgs(yt().url, 'en', 'o'), listingArgs('https://www.youtube.com/channel/UCabc', false, 30), viewsArgs(['a'])]) {
+  for (const args of [infoArgs(yt() as never, 'o'), igArgs, subtitleArgs(yt().url, 'en', 'o'), listingArgs('https://www.youtube.com/channel/UCabc', false, 30), viewsArgs(['a']), statsArgs(['a'])]) {
     assert.ok(args.includes('--skip-download') || args.includes('--flat-playlist'), 'nothing is downloaded');
     assert.ok(!args.some((a) => a === '-f' || a === '-x' || a === '--extract-audio' || a === '--merge-output-format'), 'no format is chosen, so no stream is fetched');
   }
@@ -93,6 +95,19 @@ test('the channel listing and view commands', () => {
   assert.deepEqual(viewsArgs(['a', 'b']).slice(-2), ['https://www.youtube.com/watch?v=a', 'https://www.youtube.com/watch?v=b']);
   const parsed = parseViewLines('aaa\t120\nbbb\tNA\n\nccc\t5\nnot a line\n');
   assert.deepEqual([...parsed], [['aaa', 120], ['ccc', 5]]);
+});
+
+test('video numbers for Working now: views, likes, comments and the upload time, a video with no views left out', () => {
+  assert.deepEqual(statsArgs(['a', 'b']).slice(-2), ['https://www.youtube.com/watch?v=a', 'https://www.youtube.com/watch?v=b']);
+  assert.ok(statsArgs(['a']).includes('--print') && statsArgs(['a']).includes('--skip-download'));
+  const parsed = parseStatLines(
+    ['aaa\t1500\t30\t4\t1793226009\t20261028', 'bbb\tNA\tNA\tNA\tNA\tNA', 'ccc\t200\tNA\tNA\tNA\t20261026', 'ddd\t7\tNA\tNA\tNA\tNA', '', 'not a line'].join('\n'),
+  );
+  assert.deepEqual([...parsed], [
+    ['aaa', { views: 1500, likes: 30, comments: 4, uploadedAt: 1793226009000 }],
+    ['ccc', { views: 200, likes: null, comments: null, uploadedAt: Date.UTC(2026, 9, 26) }],
+    ['ddd', { views: 7, likes: null, comments: null }],
+  ]);
 });
 
 test('median: odd, even, unsorted, one value, none', () => {

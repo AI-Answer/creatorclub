@@ -255,7 +255,7 @@ async function readVideo(entry: { id: string; title: string }, withCaptions: boo
 }
 
 /** Runs `task` over `items`, `size` at a time, keeping the order of the results. */
-async function pool<T, R>(items: T[], size: number, task: (item: T, index: number) => Promise<R>): Promise<R[]> {
+export async function pool<T, R>(items: T[], size: number, task: (item: T, index: number) => Promise<R>): Promise<R[]> {
   const results: R[] = new Array(items.length);
   let next = 0;
   await Promise.all(

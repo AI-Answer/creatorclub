@@ -114,6 +114,34 @@ export function parseViewLines(output: string): Map<string, number> {
   return views;
 }
 
+/** What Working now needs of whole videos: views, likes, comments and the upload time, one tab separated line each. Metadata only; `NA` where YouTube gave none. */
+export function statsArgs(ids: string[]): string[] {
+  return ['--skip-download', '--no-warnings', '--ignore-errors', '--no-playlist', '--print', '%(id)s\t%(view_count)s\t%(like_count)s\t%(comment_count)s\t%(timestamp)s\t%(upload_date)s', ...ids.map((id) => `https://www.youtube.com/watch?v=${id}`)];
+}
+
+export interface VideoStats {
+  views: number;
+  likes: number | null;
+  comments: number | null;
+  /** Milliseconds since 1970. Undefined when YouTube gave neither a time nor a date. */
+  uploadedAt?: number;
+}
+
+/** Reads `statsArgs` output. A video with no view count is left out. */
+export function parseStatLines(output: string): Map<string, VideoStats> {
+  const stats = new Map<string, VideoStats>();
+  const count = (value: string | undefined) => (/^\d+$/.test(value ?? '') ? Number(value) : null);
+  for (const line of output.split('\n')) {
+    const [id, views, likes, comments, timestamp, date] = line.trim().split('\t');
+    const viewCount = count(views);
+    if (!id || viewCount === null) continue;
+    const day = /^(\d{4})(\d{2})(\d{2})$/.exec(date ?? '');
+    const uploadedAt = /^\d+$/.test(timestamp ?? '') ? Number(timestamp) * 1000 : day ? Date.UTC(Number(day[1]), Number(day[2]) - 1, Number(day[3])) : undefined;
+    stats.set(id, { views: viewCount, likes: count(likes), comments: count(comments), ...(uploadedAt === undefined ? {} : { uploadedAt }) });
+  }
+  return stats;
+}
+
 // ---------------------------------------------------------------- outlier maths
 
 /** Eden's method needs a few uploads to mean anything; under this many there is no number. */

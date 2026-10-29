@@ -140,6 +140,30 @@ async function readIfExists(file: string): Promise<string | undefined> {
   }
 }
 
+/** The board's Working now and Signals files, copied as they are. `config.json` (the old board's search queries) is not needed: Working now reads followed channels. */
+export const BOARD_DATA_FILES = ['trending.json', 'signals.json', 'followed.json', 'signals-config.json', 'meta.json'] as const;
+
+/**
+ * Copies the board's Working now and Signals files into a channel folder. Copy only: the source is never touched,
+ * a file that is already there and newer than the source (or the same) is left alone, and running it again changes nothing.
+ * Returns the files that were copied.
+ */
+export async function copyBoardData(sourceDir: string, slug: string): Promise<string[]> {
+  const target = store.workspaceDir(slug);
+  const copied: string[] = [];
+  for (const name of BOARD_DATA_FILES) {
+    const from = path.join(sourceDir, name);
+    const data = await fs.readFile(from).catch((error: NodeJS.ErrnoException) => (error.code === 'ENOENT' ? undefined : Promise.reject(error)));
+    if (!data) continue;
+    const to = path.join(target, name);
+    const existing = await fs.stat(to).catch(() => undefined);
+    if (existing && (existing.mtimeMs >= (await fs.stat(from)).mtimeMs || (await fs.readFile(to)).equals(data))) continue;
+    await store.writeFileAtomic(to, data);
+    copied.push(name);
+  }
+  return copied;
+}
+
 export interface MigrationReport {
   slug: string;
   videos: number;
@@ -150,6 +174,8 @@ export interface MigrationReport {
   unmatchedOutlines: number;
   files: { voice: boolean; criteria: boolean; structure: boolean };
   voiceLinesDropped: number;
+  /** Working now and Signals files copied from the board. */
+  boardData: string[];
 }
 
 /** Imports a board workspace folder. Throws if the target channel already exists. */
@@ -201,6 +227,7 @@ export async function migrateBoard(sourceDir: string, options: { slug?: string }
     const outline = outlines.get(video.id);
     if (outline) await store.writeFileAtomic(path.join(store.videoDir(workspace.slug, video.id), 'outline.md'), outline);
   }
+  const boardData = await copyBoardData(sourceDir, workspace.slug);
   if (!(await store.currentWorkspace())) await store.setCurrentWorkspace(workspace.slug);
 
   const byStage = Object.fromEntries(VIDEO_STAGES.map((stage) => [stage, videos.filter((v) => v.stage === stage && !v.hidden).length])) as Record<VideoStage, number>;
@@ -214,6 +241,7 @@ export async function migrateBoard(sourceDir: string, options: { slug?: string }
     unmatchedOutlines: videoFolders.filter((folder) => !ideaIds.has(folder)).length,
     files: { voice: !!voice, criteria: criteria !== undefined, structure: structure !== undefined },
     voiceLinesDropped: voice?.dropped ?? 0,
+    boardData,
   };
 }
 
