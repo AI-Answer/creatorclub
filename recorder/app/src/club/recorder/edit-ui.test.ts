@@ -22,6 +22,8 @@ const plan=(project:Project):AutomationJob=>({id:'j1',projectId:project.id,kind:
 /** A one-clip project served like SceneForge's API; `jobs` is what the automation list answers. */
 function serve(jobs:(p:Project)=>AutomationJob[]){
  const p=createProject('Hidden features');insertMedia(p,[camera]);
+ // Saved before the plan was asked for (a plan made before the latest edit is out of date).
+ p.updatedAt='2026-10-29T09:00:00.000Z';
  // The saved timeline: the original, or after Remove them the cut one (408 s); Undo puts the original back.
  const cut:Project={...structuredClone(p),updatedAt:'2026-10-29T10:05:00.000Z'};cut.clips[0].sourceOut=cut.clips[0].sourceIn+408;for(const scene of cut.scenes)scene.duration=Math.min(scene.duration,408);
  let current:Project=p;
