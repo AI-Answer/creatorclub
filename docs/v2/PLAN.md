@@ -108,3 +108,19 @@ Dock the same companion panel on Edit. Context sent with each message: the playh
 - **Old `[YOUR CALL: …]` markers:** on read, move them out of talking points and scripts into a per-scene "To decide" list shown in Plan (collapsed) and excluded from the teleprompter and Record text. Do not rewrite the stored file until the user edits that scene.
 - "Not recorded" and similar status words appear once per scene.
 Do NOT touch the editor files (`src/App.tsx`, `src/Timeline*.tsx`, `src/timeline-*.ts`, `src/editing*.ts`, `src/Inspector.tsx`, `src/editing-club.css`, `src/recording-club.css`): Task 7b restyles them after Task 3b merges.
+
+---
+
+# Update 2026-10-30 (Dani: "why are ideas and production not together? why don't signals and working now share a space? why nothing like Heptabase?")
+
+Prototype A's information architecture was never built: the real app still has Overview, Ideas, Working now, Signals and Production as five separate screens, and the Production board already has its own Ideas column, so Ideas exist twice. New structure (ruling, Dani can redirect):
+- **Home** (today's Overview: the next action and the videos in progress).
+- **Discover**: ONE screen for everything from outside: Working now (YouTube outliers) and Signals (X, Reddit) in one ranked feed with source filter chips (YouTube, X, Reddit, plus Followed and For you), one sort, and one action on every card: "Turn into idea". No Ideas list here except a small "Your ideas" shelf count linking to Videos.
+- **Videos**: ONE pipeline with Ideas as the first lane (Ideas, Planning, Recording, Editing, Publishing, Published), with the existing board, table and calendar views. This replaces the Production screen and the Ideas screen: an idea is a video at stage "ideas", with the same rows and the same drawer. "Start planning" moves it right.
+- **Research** (new, after the two above): a channel-level canvas like Heptabase, reusing the Board's tiles, notes, Markdown files and watched folders: any card from Discover, any idea or video, any link, note or `.md` file can be placed and connected on it, and "Start a video from this selection" creates an idea with those cards as its first Board. Build it by generalizing the per-video Board code, not by writing a second one.
+
+## Task 5b: one Discover, one Videos
+Implement Home, Discover and Videos as above: routes, sidebar (Home, Discover, Videos, Research (later), then Settings), the merged screens, and redirects from the old routes (`#/ideas`, `#/trending`, `#/signals`, `#/production`) so no link or test breaks. Keep every existing function: breakdowns, Later/Skipped, idea drawer, Delete with Undo, refresh jobs, source and sort controls, the board/table/calendar views, Move to, drag between lanes. Fewer controls than today's sum (the two merged screens must not show more controls at first paint than today's larger one). The tokens and icon registry belong to Task 7a; use what exists and merge main when 7a lands.
+
+## Publish: the paste-the-link form
+It is a leftover of the time before publishing was automated ("the way before Postiz: paste the link of a video uploaded by hand"). Demote it: shown only when the video was uploaded outside CreatorClub, as a quiet "I uploaded it myself" action with one sentence ("Add the link so CreatorClub can mark it Published"), never as a main option, and never when Postiz is connected and working.
