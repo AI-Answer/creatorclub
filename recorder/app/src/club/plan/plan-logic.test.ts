@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type {Outline,Package} from '../../../shared/club';
-import {EMPTY_PACKAGE,blankScene,chosenTitle,editPoint,hasEmptyPlace,insertScene,mergePackage,moveScene,packageIsEmpty,parseClock,removeScene,titleTooLong,totalSeconds,withServerScripts,wordCount} from './plan-logic';
+import {packageDiff,EMPTY_PACKAGE,blankScene,chosenTitle,editPoint,hasEmptyPlace,insertScene,mergePackage,moveScene,packageIsEmpty,parseClock,removeScene,titleTooLong,totalSeconds,withServerScripts,wordCount} from './plan-logic';
 
 const written:Package={demand:{level:'high',note:'new'},angle:'new angle',twist:'new twist',titles:['N1','N2','N3'],thumbnailText:'NEW',hook:{visual:'new v',spoken:'new s',text:'new t'}};
 
@@ -79,4 +79,13 @@ test('an edited description stays through a package run',()=>{
  const earlier:Package={...EMPTY_PACKAGE,description:'My description'};
  assert.equal(mergePackage(earlier,written).description,'My description');
  assert.equal('description' in mergePackage({...EMPTY_PACKAGE},written),false);
+});
+
+test('the package diff is only what changed, the hook field by field, and the whole package when the server has none',()=>{
+ const server:Package={demand:{level:'high',note:'n'},angle:'a',twist:'t',titles:['1','2','3'],thumbnailText:'T',hook:{visual:'v',spoken:'s',text:'x'}};
+ assert.deepEqual(packageDiff(server,{...server}),{});
+ assert.deepEqual(packageDiff(server,{...server,angle:'new'}),{angle:'new'});
+ assert.deepEqual(packageDiff(server,{...server,hook:{...server.hook,spoken:'edited'}}),{hook:{spoken:'edited'}});
+ assert.deepEqual(packageDiff(server,{...server,titles:['1','two','3']}),{titles:['1','two','3']});
+ assert.equal(packageDiff(null,server),server);
 });

@@ -265,3 +265,31 @@ test("SceneForge's own move to the editor goes through the club",async()=>{
   assert.ok(ui.container.querySelector('.edit-workspace'),'the club changes the step, and the editor opens');
  }finally{await ui.close();globalThis.fetch=originalFetch;globalThis.requestAnimationFrame=originalFrame;}
 });
+
+test('Draft scenes from the Board reads the plan and the scenes again before Plan opens, so neither is empty',async()=>{
+ FakeEventSource.install();
+ const state:Server={video:planned,pkg:null,outline:null,help:['research','board']};
+ const inner=installFetch(({method,path,body})=>{
+  const b=body as Record<string,unknown>;
+  if(path==='/videos/v1/research')return {body:[]};
+  if(path==='/settings')return {body:{defaultAi:'claude',welcomed:true,helpSeen:['board']}};
+  if(path==='/videos/v1/plan')return {body:{package:null,outline:state.outline}};
+  if(path==='/videos/v1/scenes')return {body:(state.outline?.scenes??[]).map((s,i)=>({id:`s${i}`,title:s.title,seconds:s.seconds,takes:[],status:'Not recorded'}))};
+  if(path==='/videos/v1'&&method==='GET')return {body:state.video};
+  if(path==='/videos/v1/outline'&&method==='POST'){state.outline=outline;return {status:202,body:{id:'j-draft',status:'running'}};}
+  void b;
+ });
+ const tabs:VideoTab[]=[];
+ const ui=await mountUI(createElement(Harness,{initial:planned,tabs,start:'board'}));
+ try{
+  await flush();
+  const c=ui.container;
+  assert.equal(inner.calls.filter(call=>call.path==='/videos/v1/scenes').length,1);
+  await act(async()=>button(c,'Draft scenes from board').click());await flush();
+  await act(async()=>FakeEventSource.last().emit('done',{value:outline}));await flush();
+  assert.deepEqual(tabs,['plan'],'Plan opens');
+  assert.ok(inner.calls.filter(call=>call.path==='/videos/v1/scenes').length>=2,'the strip read the scenes again');
+  assert.equal(c.querySelectorAll('.scene').length,4,'Plan shows the scenes without a reload');
+  assert.ok(primaries(c).includes('Continue to recording'),'Continue is ready');
+ }finally{await ui.close();inner.restore();}
+});

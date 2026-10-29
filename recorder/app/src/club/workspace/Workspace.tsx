@@ -77,10 +77,16 @@ export function Workspace({video,tab,back,navigate,onVideo}:{video:Video;tab:Vid
   }catch(reason){setMoveError(errorMessage(reason,"Couldn't move the video."));}
   finally{setMoving(false);}
  };
+ // A draft from the Board wrote the outline: the plan and the strip read it before Plan opens, so neither shows "No scenes yet".
+ const reloadPlan=plan.reload;
  const draftedNow=useCallback(()=>{
   clubFetch<Video>(`/videos/${id}`).then(onVideo,()=>{});
+  reloadPlan();reloadScenes();
   navigate(tabRoute('plan'));
- },[id,onVideo,navigate,tabRoute]);
+ },[id,onVideo,navigate,tabRoute,reloadPlan,reloadScenes]);
+ // The Board can write the package (Use as hook, Ask Claude): Plan and Publish read it again when they open.
+ const refreshPlan=plan.refresh;
+ useEffect(()=>{if(tab==='plan'||tab==='publish')void refreshPlan();},[tab,refreshPlan]);
 
  // Record and Edit need the video's recording project. Without one the page leads back to Plan, and offers no Continue.
  // Recording shows the focused scene's talking points beside the recorder; Edit has no teleprompter.

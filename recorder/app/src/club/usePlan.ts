@@ -6,7 +6,7 @@ export type Notice={type:'replaced'|'held';token:string};
 type Notices=Partial<Record<PlanJobKind,Notice>>;
 import {clubFetch,errorMessage,notifyVideosChanged} from './api';
 import {useJobRun} from './useJobRun';
-import {withServerScripts,type PackageGroup} from './plan/plan-logic';
+import {packageDiff,withServerScripts,type PackageGroup} from './plan/plan-logic';
 
 const SAVE_DELAY_MS=600;
 
@@ -30,7 +30,8 @@ function useSaver<T>(save:(value:T)=>Promise<unknown>,onSaved?:()=>void){
  const cancel=useCallback(()=>{clearTimeout(timer.current);pending.current=null;},[]);
  // Leaving the page saves what is still waiting.
  useEffect(()=>()=>{if(pending.current){clearTimeout(timer.current);void saveRef.current(pending.current.value).catch(()=>{});}},[]);
- return {queue,flush,cancel,error};
+ const hasPending=useCallback(()=>pending.current!==null,[]);
+ return {queue,flush,cancel,error,hasPending};
 }
 
 export type PlanLoad={status:'loading'}|{status:'error';message:string}|{status:'ready'};
@@ -46,16 +47,20 @@ export function usePlan(video:Video,{onVideo,onRecord}:{onVideo(video:Video):voi
  const [continuing,setContinuing]=useState(false),[continueError,setContinueError]=useState('');
  const [notices,setNotices]=useState<Notices>({});
 
+ /** The package as the server last had it: the saves send only what differs from it. */
+ const serverPkg=useRef<Package|null>(null);
+ const showPkg=useCallback((next:Package|null)=>{serverPkg.current=next;setPkg(next);},[]);
+
  const reload=useCallback(()=>{
   setLoad({status:'loading'});
   clubFetch<PlanData>(`/videos/${id}/plan`).then(data=>{
-   setPkg(data.package);setOutline(data.outline);setChangedScene(data.changedScene);setLoad({status:'ready'});
+   showPkg(data.package);setOutline(data.outline);setChangedScene(data.changedScene);setLoad({status:'ready'});
    // Results held while this page was away are offered again; runs still going are followed.
    setNotices(Object.fromEntries(Object.entries(data.ready??{}).map(([kind,token])=>[kind,{type:'held',token}])));
    for(const [kind,jobId] of Object.entries(data.running??{}))if(jobId)attachRef.current(kind as PlanJobKind,jobId);
   },
    reason=>setLoad({status:'error',message:errorMessage(reason,"Couldn't load this video's plan.")}));
- },[id]);
+ },[id,showPkg]);
  useEffect(reload,[reload]);
 
  /** After a save: the scene the outline changed after, and the script words as the server now matches them to the scenes. */
@@ -66,8 +71,25 @@ export function usePlan(video:Video,{onVideo,onRecord}:{onVideo(video:Video):voi
    if(server)setOutline(current=>current&&withServerScripts(current,server));
   },()=>{});
  },[id]);
- const packageSaver=useSaver((value:Package)=>clubFetch(`/videos/${id}/package`,{method:'PUT',body:value}));
+ const packageSaver=useSaver(async(value:Package)=>{
+  const diff=packageDiff(serverPkg.current,value);
+  if(serverPkg.current&&!Object.keys(diff).length)return;
+  serverPkg.current=await clubFetch<Package>(`/videos/${id}/package`,{method:'PUT',body:diff});
+ });
  const outlineSaver=useSaver((value:Outline)=>clubFetch(`/videos/${id}/outline`,{method:'PUT',body:{scenes:value.scenes}}),refreshChanged);
+
+ /**
+  * Reads the plan again without the loading state, for a page that was away: the Board's Use as hook or the chat may have written the package meanwhile.
+  * What is waiting to be saved goes first, and nothing is replaced if the person typed while it was reading.
+  */
+ const refresh=useCallback(async()=>{
+  try{await packageSaver.flush();await outlineSaver.flush();}catch{return;}
+  try{
+   const data=await clubFetch<PlanData>(`/videos/${id}/plan`);
+   if(packageSaver.hasPending()||outlineSaver.hasPending())return;
+   showPkg(data.package);setOutline(data.outline);setChangedScene(data.changedScene);
+  }catch{/* the page keeps what it has */}
+ },[id,showPkg,packageSaver.flush,outlineSaver.flush,packageSaver.hasPending,outlineSaver.hasPending]);
 
  // Typing after a replace keeps the new version: its Undo line goes away. A held result stays on offer.
  const dropReplaced=useCallback((...kinds:PlanJobKind[])=>setNotices(current=>{const next={...current};for(const kind of kinds)if(next[kind]?.type==='replaced')delete next[kind];return next;}),[]);
@@ -101,10 +123,10 @@ export function usePlan(video:Video,{onVideo,onRecord}:{onVideo(video:Video):voi
   notifyVideosChanged();
   if(result.held){setNotices(current=>({...current,[kind]:{type:'held',token:result.held!}}));return;}
   // The server already filled only what was empty, so its package is the one to show.
-  if(kind==='package')setPkg(result.value as Package);
+  if(kind==='package')showPkg(result.value as Package);
   else{setOutline(result.value as Outline);refreshChanged();}
   setNotices(current=>{const {[kind]:_old,...rest}=current;return result.replaced?{...rest,[kind]:{type:'replaced',token:result.replaced}}:rest;});
- },[refreshChanged]);
+ },[refreshChanged,showPkg]);
  const attachRef=useRef<(kind:PlanJobKind,jobId:string)=>void>(()=>{});
  attachRef.current=(kind,jobId)=>{void jobs[kind].attach(jobId,result=>finished(kind,result));};
  /** Saves what is waiting first, so the run starts from what is on screen, then runs the step (the server reuses a run already going). */
@@ -133,10 +155,10 @@ export function usePlan(video:Video,{onVideo,onRecord}:{onVideo(video:Video):voi
   if(kind==='package')packageSaver.cancel();else outlineSaver.cancel();
   try{
    const result=await clubFetch<{package:Package|null;outline:Outline|null}>(`/videos/${id}/${kind}/${notice.type==='replaced'?'undo':'use'}`,{body:{token:notice.token}});
-   setPkg(result.package);setOutline(result.outline);refreshChanged();
+   showPkg(result.package);setOutline(result.outline);refreshChanged();
    setNotices(({[kind]:_done,...rest})=>rest);
   }catch(reason){setNoticeError(errorMessage(reason,notice.type==='replaced'?"Couldn't undo that.":"Couldn't use that version."));}
- },[id,notices,refreshChanged,packageSaver.cancel,outlineSaver.cancel]);
+ },[id,notices,refreshChanged,showPkg,packageSaver.cancel,outlineSaver.cancel]);
 
  /** Continue to recording: saves what is waiting, creates or updates the recording project, moves the card and opens Record. */
  const busy=packageJob.state.phase==='running'||outlineJob.state.phase==='running'||scriptJob.state.phase==='running';
@@ -152,7 +174,7 @@ export function usePlan(video:Video,{onVideo,onRecord}:{onVideo(video:Video):voi
  const continueAction=load.status==='ready'&&outline?.scenes.length?{run:()=>void continueToRecording(),disabled:continuing||busy}:undefined;
 
  return {
-  load,reload,pkg,outline,changedScene,
+  load,reload,refresh,pkg,outline,changedScene,
   editPackage,editOutline,saveSceneScript,writePackage,createOutline,writeScript,scriptScene,stop,notices,resolveNotice,noticeError,
   packageJob:packageJob.state,outlineJob:outlineJob.state,scriptJob:scriptJob.state,
   saveError:packageSaver.error||outlineSaver.error||sceneError,

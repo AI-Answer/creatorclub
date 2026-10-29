@@ -240,3 +240,31 @@ test('Plan tab: Write script for one scene posts its id, Write full script posts
   assert.deepEqual(events,['video','record']);
  });
 });
+
+test('Plan: a package written elsewhere (Use as hook) shows when Plan opens again, and the next edit sends only the field that was edited',async()=>{
+ let latest!:ReturnType<typeof usePlan>;
+ const Probe=()=>{latest=usePlan(video,{onVideo(){},onRecord(){}});return createElement('span',null,latest.pkg?.hook.spoken??'none');};
+ let server:Package={...full,hook:{visual:'v',spoken:'old hook',text:'x'}};
+ FakeEventSource.install();
+ const fake=installFetch(call=>{
+  if(call.method==='GET'&&call.path==='/videos/v1/plan')return {body:{running:{},ready:{},package:server,outline:null}};
+  if(call.method==='PUT'&&call.path==='/videos/v1/package'){server={...server,...(call.body as object),hook:{...server.hook,...((call.body as {hook?:object}).hook??{})}};return {body:server};}
+ });
+ const ui=await mountUI(createElement(Probe));
+ try{
+  await flush();
+  assert.equal(ui.container.textContent,'old hook');
+  server={...server,hook:{...server.hook,spoken:'hook from the board'}};
+  await act(async()=>{await latest.refresh();});await flush();
+  assert.equal(ui.container.textContent,'hook from the board');
+  await act(async()=>{latest.editPackage({...latest.pkg!,angle:'My angle'});});
+  await act(async()=>{await new Promise(resolve=>setTimeout(resolve,700));});
+  assert.deepEqual(fake.calls.filter(call=>call.method==='PUT').map(call=>call.body),[{angle:'My angle'}],'not the whole package');
+  assert.equal(server.hook.spoken,'hook from the board');
+  // Behind the server: an edit made on a page that never saw the new hook still cannot put the old one back.
+  server={...server,hook:{...server.hook,spoken:'written again'}};
+  await act(async()=>{latest.editPackage({...latest.pkg!,twist:'My twist'});});
+  await act(async()=>{await new Promise(resolve=>setTimeout(resolve,700));});
+  assert.equal(server.hook.spoken,'written again');
+ }finally{await ui.close();fake.restore();}
+});

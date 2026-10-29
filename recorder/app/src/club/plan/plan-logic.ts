@@ -27,6 +27,21 @@ export const packageIsEmpty=(pkg:Package|null)=>!pkg||(!pkg.angle.trim()&&!pkg.t
 /** A new scene's id, made here so the scene keeps it from its first save (the server keeps ids it is given). */
 export const newSceneId=()=>`s_${[...crypto.getRandomValues(new Uint8Array(4))].map(byte=>byte.toString(16).padStart(2,'0')).join('')}`;
 
+/**
+ * What changed in the package since the server's copy: only those fields (the hook field by field). The server changes nothing else,
+ * so a page that is behind cannot put back what it did not edit. Without a server copy it is the whole package.
+ */
+export function packageDiff(server:Package|null,next:Package):Partial<Package>{
+ if(!server)return next;
+ const out:Record<string,unknown>={};
+ for(const key of ['demand','gap','show','angle','twist','titles','thumbnailText','description'] as const)
+  if(next[key]!==undefined&&JSON.stringify(server[key])!==JSON.stringify(next[key]))out[key]=next[key];
+ const hook:Partial<Package['hook']>={};
+ for(const key of ['visual','spoken','text'] as const)if(server.hook[key]!==next.hook[key])hook[key]=next.hook[key];
+ if(Object.keys(hook).length)out.hook=hook;
+ return out as Partial<Package>;
+}
+
 /** The element id of a scene's card, for scrolling to it. */
 export const sceneCardId=(sceneId:string)=>`plan-scene-${sceneId}`;
 
