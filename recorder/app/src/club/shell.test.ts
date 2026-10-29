@@ -37,7 +37,7 @@ const serve=(server:Server)=>(call:FakeCall):FakeReply=>{
  if(path==='/videos'&&method==='GET')return {body:server.current?server.videos:[]};
  if(path==='/videos'&&method==='POST'){const created=video('new1',(call.body as {title:string}).title,'ideas');server.videos=[...server.videos,created];return {status:201,body:created};}
  if(path==='/recent')return {body:[]};
- if(path==='/trending')return {body:{items:[],updatedAt:null,followed:0}};
+ if(path==='/trending')return {body:{items:[],updatedAt:'2026-10-28T00:00:00.000Z',followed:0}};
  if(path==='/signals')return {body:{items:[],updatedAt:null,errors:[]}};
  if(path==='/breakdowns'&&method==='GET')return {body:[]};
  if(path==='/settings')return {body:{defaultAi:'claude',welcomed:server.welcomed,helpSeen:['board']}};
@@ -315,4 +315,18 @@ test('on the desktop app one drag strip sits ahead of every screen; in a browser
    });
   }
  }finally{if(bridge)Object.defineProperty(window,'sceneForge',bridge);else delete (window as {sceneForge?:unknown}).sceneForge;}
+});
+
+test('with no channel every screen shows one friendly state whose button opens Welcome at step 2, and nothing that needs a channel is fetched',async()=>{
+ await withApp('#/overview',async (ui,_server,calls)=>{
+  const c=ui.container;
+  assert.equal(c.querySelector('.empty-state h2, h2')!.textContent,'Add your channel or start fresh');
+  assert.equal(c.querySelector('[role="alert"]'),null,'no red error');
+  assert.equal(calls.some(call=>['/videos','/trending','/signals','/recent'].includes(call.path)),false,'no request that needs a channel');
+  await hashTo('#/signals');
+  assert.equal(c.querySelector('h2')!.textContent,'Add your channel or start fresh');
+  await press(button(c,'Add your channel'));
+  assert.equal(window.location.hash,'#/welcome?step=2');
+  assert.match(c.textContent!,/Step 2 of 4/);
+ },{workspaces:[],current:null});
 });

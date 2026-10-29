@@ -38,3 +38,10 @@ export function withEntry(list:readonly string[],text:string):string[]{
  const entry=text.trim();
  return !entry||list.some(item=>item.toLowerCase()===entry.toLowerCase())?[...list]:[...list,entry];
 }
+
+/** How a signal source reads in its list. The saved value stays as it is: accounts and subreddits are saved without their `@` and `r/`. */
+export const asAccount=(value:string)=>`@${value.replace(/^@/,'')}`;
+export const asSubreddit=(value:string)=>`r/${value.replace(/^r\//i,'')}`;
+export const asSearch=(value:string)=>/^".*"$/.test(value)?value:`"${value}"`;
+/** A handle as it reads in a channel's header: with its `@`. Empty stays empty. */
+export const handleLabel=(handle:string)=>handle&&!handle.startsWith('@')?`@${handle}`:handle;

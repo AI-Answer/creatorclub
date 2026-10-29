@@ -872,6 +872,11 @@
 :where(.club-root) .srow:where(:not(.club-embed *)) { display: flex; align-items: center; gap: 14px; padding: 16px; border-bottom: 1px solid var(--cc-line); }
 :where(.club-root) .srow:last-child:where(:not(.club-embed *)) { border-bottom: 0; }
 :where(.club-root) .logo:where(:not(.club-embed *)) { width: 38px; height: 38px; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex: none; }
+:where(.club-root) .logo-claude:where(:not(.club-embed *)) { background: #f4e9e1; color: #c15f3c; }
+:where(.club-root) .logo-codex:where(:not(.club-embed *)) { background: var(--cc-bg-sunk); color: var(--cc-text); }
+:where(.club-root) .logo-gemini:where(:not(.club-embed *)) { background: #e8effd; color: #1d4ed8; }
+:where(.club-root):where([data-theme=dark], [data-theme=dark] *) .logo-claude:where(:not(.club-embed *)) { background: #2e2019; color: #e08a63; }
+:where(.club-root):where([data-theme=dark], [data-theme=dark] *) .logo-gemini:where(:not(.club-embed *)) { background: #1a2540; color: #8fb0f5; }
 :where(.club-root) .dotok:where(:not(.club-embed *)) { width: 7px; height: 7px; border-radius: 50%; background: var(--cc-ok); display: inline-block; }
 :where(.club-root) .tag:where(:not(.club-embed *)) { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: 7px; border: 1px solid var(--cc-line); background: var(--cc-surface-2); font-size: 13px; font-weight: 550; }
 :where(.club-root) .theme-pick:where(:not(.club-embed *)) { display: grid; grid-template-columns: repeat(2, 200px); gap: 12px; }

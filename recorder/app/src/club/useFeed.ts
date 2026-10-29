@@ -1,6 +1,7 @@
 import {useCallback,useEffect,useRef,useState} from 'react';
 import type {SignalsRefreshResult,SignalsResponse,TrendingRefreshResult,TrendingResponse} from '../../shared/club';
 import {clubFetch,errorMessage} from './api';
+import {needsSeed} from './trending-view';
 import {useJobRun,type JobRun} from './useJobRun';
 
 export type Feed<Data,Result>={
@@ -31,5 +32,16 @@ function useFeed<Data,Result>(path:string,fallback:string):Feed<Data,Result>{
  return {data,loadError,reload,refresh,job:state};
 }
 
-export const useTrending=()=>useFeed<TrendingResponse,TrendingRefreshResult>('/trending',"Couldn't load what's working now.");
+/**
+ * Working now. A channel that follows too few channels and was never filled starts the search on its topics by itself, once per screen,
+ * and `seeding` is true from the answer until that finishes, so the screen shows progress instead of an empty list.
+ */
+export function useTrending(){
+ const feed=useFeed<TrendingResponse,TrendingRefreshResult>('/trending',"Couldn't load what's working now.");
+ const {data,refresh,job}=feed;
+ const started=useRef(false);
+ const due=data!==null&&needsSeed(data);
+ useEffect(()=>{if(due&&!started.current){started.current=true;refresh();}},[due,refresh]);
+ return {...feed,seeding:job.phase==='running'||(due&&job.phase==='idle')};
+}
 export const useSignals=()=>useFeed<SignalsResponse,SignalsRefreshResult>('/signals',"Couldn't load the posts.");

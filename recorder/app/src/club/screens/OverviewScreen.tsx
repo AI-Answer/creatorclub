@@ -52,7 +52,7 @@ export function OverviewScreen({navigate,onNewVideo}:{navigate(route:Route):void
   </div>
 
   {fresh
-   ?<FirstSteps ideas={ideas} hasTopics={!!profile?.topics.length} start={loading(trendingFeed)?null:topPicks.slice(0,3)} onBreak={setBreakdown} onOpenIdea={video=>navigate({name:'ideas',new:video.id})} onIdeas={()=>navigate({name:'ideas'})}/>
+   ?<FirstSteps ideas={ideas} hasTopics={!!profile?.topics.length} start={loading(trendingFeed)||trendingFeed.seeding?null:topPicks.slice(0,3)} onBreak={setBreakdown} onOpenIdea={video=>navigate({name:'ideas',new:video.id})} onIdeas={()=>navigate({name:'ideas'})}/>
    :<>
     <div className="sec-head"><h2 className="sec">Pick up where you left off</h2><button type="button" className="linkish more" onClick={production}>Open production</button></div>
     {resume.length===0
@@ -75,8 +75,8 @@ export function OverviewScreen({navigate,onNewVideo}:{navigate(route:Route):void
 
   <div className="ov-cols" style={{marginTop:8}}>
    <div>
-    <div className="sec-head"><h2 className="sec"><Icon name="TrendingUp" size={16}/>Working now</h2><span className="faint small">Outliers in your space this week</span><button type="button" className="linkish more" onClick={()=>navigate({name:'trending'})}>See all {trending?.items.length??0}</button></div>
-    {loading(trendingFeed)?<Spinner label="Loading what's working" size={18}/>
+    <div className="sec-head"><h2 className="sec"><Icon name="TrendingUp" size={16}/>Working now</h2><span className="faint small">Outliers in your space this week</span>{!!trending?.items.length&&<button type="button" className="linkish more" onClick={()=>navigate({name:'trending'})}>See all {trending.items.length}</button>}</div>
+    {loading(trendingFeed)||trendingFeed.seeding?<Spinner label="Loading what's working" size={18}/>
      :topPicks.length
      ?<div className="grid g3">{topPicks.slice(0,6).map(item=><TrendCard key={item.videoId} item={item} reason={item.reason} compact onBreak={setBreakdown}/>)}</div>
      :<div className="card"><Empty icon="TrendingUp" title={trending?.followed===0?'No channels followed yet':'Nothing about your topics yet'} action={<button type="button" className="btn" onClick={()=>navigate({name:'trending'})}>Open Working now</button>}>{trending?.followed===0?'Follow channels in Settings. The videos beating their usual views show up here.':'Refresh Working now to read the channels you follow.'}</Empty></div>}

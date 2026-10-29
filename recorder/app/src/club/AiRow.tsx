@@ -3,9 +3,9 @@ import {ConnectStatus} from './ConnectStatus';
 import {connectLabel,useConnect} from './useConnect';
 import {Button,Icon,type IconName} from './ui';
 
-const LOGO:Record<ConnectProvider,{icon:IconName;background:string;color:string}>={
- claude:{icon:'Sparkles',background:'#f4e9e1',color:'#c15f3c'},
- codex:{icon:'Bot',background:'var(--cc-bg-sunk)',color:'var(--cc-text)'},
+const LOGO:Record<ConnectProvider,{icon:IconName;className:string}>={
+ claude:{icon:'Sparkles',className:'logo-claude'},
+ codex:{icon:'Bot',className:'logo-codex'},
 };
 
 /**
@@ -19,7 +19,7 @@ export function AiRow({provider,status,description,primary=false,settings=false,
  const connected=status.signedIn;
  const reconnect=connected&&settings;
  return <div className="srow" style={{flexWrap:'wrap'}}>
-  <span className="logo" style={{background:logo.background,color:logo.color}}><Icon name={logo.icon} size={20}/></span>
+  <span className={`logo ${logo.className}`}><Icon name={logo.icon} size={20}/></span>
   <div className="grow" style={{minWidth:0}}>
    <div style={{fontWeight:600}}>{name}</div>
    <div className="small muted">{connected

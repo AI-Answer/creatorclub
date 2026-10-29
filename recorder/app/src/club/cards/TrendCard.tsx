@@ -1,4 +1,5 @@
 import type {TrendingEntry} from '../../../shared/club';
+import {FollowChannel} from '../FollowChannel';
 import {creatorName,fmtDays,fmtNum} from '../format';
 import {Avatar,Icon,MultChip,Thumb} from '../ui';
 
@@ -16,6 +17,7 @@ export function TrendCard({item,isNew,reason,compact,hasBreakdown,inIdeas,onBrea
   <div className="tt clamp2">{item.title}</div>
   <div className="stats"><span title="Total views"><Icon name="Eye" size={13}/><b>{fmtNum(item.views)}</b></span><span title="Views per day since it went up"><Icon name="TrendingUp" size={13}/><b>{fmtNum(item.vpd)}</b>/day</span><span><Icon name="Clock" size={13}/>{fmtDays(item.ageDays)}</span></div>
   {reason&&<div className="reason"><Icon name="Sparkles" size={12}/>{reason}</div>}
+  <FollowChannel item={item}/>
   {!compact&&<div className="foot" onClick={event=>event.stopPropagation()}>
    <button type="button" className="btn sm" onClick={()=>onBreak(item)}><Icon name={hasBreakdown?'FileText':'Sparkles'} size={14}/>{hasBreakdown?'Open breakdown':'Break down'}</button>
    <button type="button" className="btn sm icon-only" style={{flex:'none'}} onClick={()=>onIdea?.(item)} aria-label={inIdeas?'In your ideas':'Make it an idea'} title={inIdeas?'In your ideas. Open it':'Make it an idea'}>

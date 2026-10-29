@@ -5,7 +5,7 @@ import {autoCollapses,defaultTab,originLabel,parseRoute,routeHash,routePath,vide
 
 test('every route survives a round trip through the hash',()=>{
  const routes:Route[]=[
-  {name:'welcome'},{name:'overview'},{name:'trending'},{name:'signals'},{name:'settings'},
+  {name:'welcome'},{name:'welcome',step:2},{name:'settings',section:'followed'},{name:'settings',section:'ai'},{name:'overview'},{name:'trending'},{name:'signals'},{name:'settings'},
   {name:'ideas'},{name:'ideas',filter:'later'},{name:'ideas',filter:'skipped',open:'v-1'},{name:'ideas',new:'v-2'},{name:'ideas',bd:'dQw4w9WgXcQ'},{name:'ideas',filter:'later',open:'a b&c',new:'n',bd:'x'},
   {name:'production',view:'board'},{name:'production',view:'table'},{name:'production',view:'calendar'},
   {name:'video',id:'v-1'},{name:'video',id:'a b/c'},...videoTabs.map(tab=>({name:'video',id:'v-1',tab}) as Route),
@@ -66,4 +66,13 @@ test('a video goes back to the screen it was opened from, whatever tabs or video
  assert.deepEqual(videoOrigin(ideas,one,overview),ideas,'leaving does not change it');
  assert.equal(videoOrigin(undefined,{name:'welcome'},one),undefined,'first launch is not somewhere to go back to');
  assert.equal(originLabel(ideas),'Ideas');assert.equal(originLabel({name:'trending'}),'Working now');assert.equal(originLabel(undefined),'Production');
+});
+
+test('Welcome opens at a step and Settings at a section; an unknown step or section is ignored',()=>{
+ assert.equal(routeHash({name:'welcome',step:2}),'#/welcome?step=2');
+ assert.equal(routeHash({name:'settings',section:'followed'}),'#/settings/followed');
+ assert.deepEqual(parseRoute('#/welcome?step=9'),{name:'welcome'});
+ assert.deepEqual(parseRoute('#/welcome?step=x'),{name:'welcome'});
+ assert.deepEqual(parseRoute('#/settings/channel'),{name:'settings',section:'channel'});
+ assert.deepEqual(parseRoute('#/settings/nope'),{name:'overview'});
 });

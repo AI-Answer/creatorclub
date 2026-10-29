@@ -52,7 +52,7 @@ function GeminiRow({saved,onChanged}:{saved:string|null;onChanged(masked:string|
   finally{setBusy(false);}
  };
  return <div className="srow" style={{alignItems:'flex-start'}}>
-  <span className="logo" style={{background:'#e8effd',color:'#1d4ed8'}}><Icon name="Eye" size={20}/></span>
+  <span className="logo logo-gemini"><Icon name="Eye" size={20}/></span>
   <div className="grow">
    <div style={{fontWeight:600}}>Gemini <span className="chip" style={{marginLeft:6}}>Optional</span></div>
    <div className="small muted" style={{marginBottom:10}}>Lets CreatorClub watch videos with sound and motion when it breaks them down.</div>

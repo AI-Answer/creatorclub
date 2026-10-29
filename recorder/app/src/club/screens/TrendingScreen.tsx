@@ -47,13 +47,14 @@ export function TrendingScreen({navigate}:{navigate(route:Route):void}){
 
  return <div className="page wide">
   <div className="page-head"><div><h1>Working now</h1><div className="lede">Videos doing better than usual in your space. Break one down to see why, or save it as an idea.</div></div>
-   <div className="actions"><RefreshActions updatedAt={updatedAt} summary={plural(feed.data.items.length,'video')} job={feed.job} onRefresh={refresh} disabled={followed===0}/></div></div>
+   <div className="actions"><RefreshActions updatedAt={updatedAt} summary={plural(feed.data.items.length,'video')} job={feed.job} onRefresh={refresh}/></div></div>
   {feed.job.phase==='failed'&&<div style={{marginBottom:14}}><ErrorLine message={feed.job.message} onRetry={refresh}/></div>}
   {failedChannels.length>0&&<div className="small muted" style={{marginBottom:14}}>Couldn't read {failedChannels.join(', ')}. Their earlier videos stay.</div>}
 
   {feed.data.items.length===0
-   ?<div className="card">{followed===0
-    ?<Empty icon="TrendingUp" title="No channels followed yet" action={<button type="button" className="btn" onClick={()=>navigate({name:'settings'})}>Open Settings</button>}>Follow channels in Settings. The videos beating their usual views show up here.</Empty>
+   ?feed.seeding?<Spinner label="Searching YouTube for your topics" size={20}/>
+   :<div className="card">{followed===0
+    ?<Empty icon="TrendingUp" title="No channels followed yet" action={<button type="button" className="btn" onClick={()=>navigate({name:'settings',section:'followed'})}>Open Settings</button>}>Follow channels in Settings. The videos beating their usual views show up here.</Empty>
     :<Empty icon="TrendingUp" title="Nothing read yet" action={<button type="button" className="btn primary" onClick={refresh}><Icon name="RotateCcw" size={15}/>Refresh</button>}>Refresh to read the channels you follow.</Empty>}</div>
    :<>
     <div className="row" style={{marginBottom:10,gap:12}}>

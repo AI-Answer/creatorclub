@@ -14,8 +14,10 @@ import {SettingsScreen} from './screens/SettingsScreen';
 import {Help} from './shell/Help';
 import {NewVideo} from './shell/NewVideo';
 import {Palette} from './shell/Palette';
+import {NoChannel} from './shell/NoChannel';
 import {ScreenBoundary} from './shell/ScreenBoundary';
 import {Button,EmptyState,Spinner,ToastProvider,cn} from './ui';
+import {useChannelState} from './useChannelState';
 import {useShellVideos} from './useShellVideos';
 import {Workspace as VideoWorkspace} from './workspace/Workspace';
 
@@ -36,6 +38,8 @@ export async function needsOnboarding():Promise<boolean>{
 }
 
 const isHome=(route:Route)=>route.name==='overview'||route.name==='production';
+/** Welcome makes the channel and Settings can add one; every other screen needs it. */
+const needsChannel=(route:Route)=>route.name!=='welcome'&&route.name!=='settings';
 
 /** One video's workspace. Loads the video and notes that it was opened, which feeds Recent videos. Without a tab in the link it opens on the tab for the video's stage. */
 function VideoRoute({id,tab,navigate}:{id:string;tab?:VideoTab;navigate(route:Route,options?:{replace?:boolean}):void}){
@@ -73,7 +77,9 @@ function Shell(){
  const [sidebarOpen,setSidebarOpen]=useState<boolean|null>(null);
  const path=routePath(route);
  const main=useRef<HTMLElement>(null);
- const videos=useShellVideos(`${channelEpoch}${path}`);
+ // Asked again when you switch channels, and when you leave Welcome (where a channel may just have been made).
+ const channel=useChannelState(`${channelEpoch}${route.name==='welcome'}`);
+ const videos=useShellVideos(`${channelEpoch}${path}`,channel==='ready');
 
  useEffect(()=>{setSidebarOpen(null);if(main.current&&route.name!=='video')main.current.scrollTop=0;},[path,route.name]);
  useEffect(()=>{
@@ -96,19 +102,22 @@ function Shell(){
 
  const switched=useCallback(()=>{setChannelEpoch(n=>n+1);navigate({name:'overview'});},[navigate]);
  const addChannel=useCallback(()=>navigate({name:'welcome'}),[navigate]);
+ // With no channel, Welcome opens at step 2, where you add yours or start fresh.
+ const startChannel=useCallback(()=>navigate({name:'welcome',step:2}),[navigate]);
  const openNewVideo=useCallback(()=>setNewOpen(true),[]);
 
  let screen;
  switch(route.name){
-  case 'welcome':screen=<WelcomeScreen navigate={navigate}/>;break;
+  case 'welcome':screen=<WelcomeScreen navigate={navigate} initialStep={route.step}/>;break;
   case 'overview':screen=<OverviewScreen navigate={navigate} onNewVideo={openNewVideo}/>;break;
   case 'ideas':screen=<IdeasScreen route={route} navigate={navigate}/>;break;
   case 'trending':screen=<TrendingScreen navigate={navigate}/>;break;
   case 'signals':screen=<SignalsScreen navigate={navigate}/>;break;
   case 'production':screen=<ProductionScreen view={route.view} navigate={navigate} onNewVideo={openNewVideo}/>;break;
   case 'video':screen=<VideoRoute id={route.id} tab={route.tab} navigate={navigate}/>;break;
-  case 'settings':screen=<SettingsScreen onSetup={addChannel}/>;break;
+  case 'settings':screen=<SettingsScreen section={route.section} onSetup={addChannel}/>;break;
  }
+ if(needsChannel(route)&&channel!=='ready')screen=channel==='none'?<NoChannel onStart={startChannel}/>:<div className="flex flex-1 items-center justify-center"><Spinner label="Loading" size={20}/></div>;
  const collapsed=sidebarOpen===null?autoCollapses(route):!sidebarOpen;
  return <div className="shell">
   {route.name!=='welcome'&&<Sidebar route={route} collapsed={collapsed} onToggle={()=>setSidebarOpen(collapsed)} onSearch={()=>setPaletteOpen(true)} onHelp={()=>setHelpOpen(true)} onSwitched={switched} onAdd={addChannel} videos={videos} epoch={channelEpoch}/>}

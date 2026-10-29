@@ -21,15 +21,15 @@ const asChannel=(workspace:Workspace,voice:WelcomeChannel['voice']):WelcomeChann
 function WorkingData({onAdded,onSettings}:{onAdded(id:string):void;onSettings():void}){
  const feed=useTrending(),saved=useBreakdowns(),{state}=useVideos();
  const items=useMemo(()=>feed.data&&startingVideos(feed.data.items),[feed.data]);
- return <WorkingStep items={items} loadError={feed.loadError} onReload={feed.reload} saved={saved} videos={state.status==='ready'?state.videos:[]} onAdded={onAdded} onSettings={onSettings}/>;
+ return <WorkingStep items={items} searching={feed.seeding} loadError={feed.loadError} onReload={feed.reload} saved={saved} videos={state.status==='ready'?state.videos:[]} onAdded={onAdded} onSettings={onSettings}/>;
 }
 
 /**
  * First launch, in four steps with a why line on each, Back, and Skip setup: connect your AI, add your channel or start fresh, how you talk,
  * and what's working for you. Reaching the last step (or skipping) saves that setup is done. Adding a concept there lands on Ideas.
  */
-export function WelcomeScreen({navigate}:{navigate(route:Route):void}){
- const [step,setStep]=useState(0),[aiConnected,setAiConnected]=useState(false);
+export function WelcomeScreen({navigate,initialStep}:{navigate(route:Route):void;initialStep?:number}){
+ const [step,setStep]=useState((initialStep??1)-1),[aiConnected,setAiConnected]=useState(false);
  const [path,setPath]=useState<WelcomePath|null>(null),[url,setUrl]=useState('');
  const [fresh,setFresh]=useState<FreshDraft>(NO_FRESH),[voice,setVoice]=useState<VoiceDraft>({});
  const [channel,setChannel]=useState<WelcomeChannel|null>(null);
@@ -106,7 +106,7 @@ export function WelcomeScreen({navigate}:{navigate(route:Route):void}){
     {step===0&&<ConnectStep onConnected={setAiConnected}/>}
     {step===1&&<ChannelStep path={path} onPath={setPath} url={url} onUrl={setUrl} job={add.state} onAdd={addChannel} channel={channel} fresh={fresh} onFresh={setFresh}/>}
     {step===2&&<VoiceStep path={path} channel={channel} draft={voice} onDraft={setVoice} save={save.state} onRetry={()=>finishVoice(false)}/>}
-    {step===3&&<WorkingData onAdded={id=>void leave({name:'ideas',new:id})} onSettings={()=>void leave({name:'settings'})}/>}
+    {step===3&&<WorkingData onAdded={id=>void leave({name:'ideas',new:id})} onSettings={()=>void leave({name:'settings',section:'followed'})}/>}
     {leaveError&&<div style={{marginTop:14}}><ErrorLine message={leaveError.message} onRetry={()=>void leave(leaveError.route)}/></div>}
     <div className="row" style={{marginTop:26}}>
      {step>0?<Button variant="ghost" disabled={busy} onClick={()=>setStep(step-1)}><Icon name="ChevronLeft" size={15}/>Back</Button>:<span/>}

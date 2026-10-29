@@ -1,4 +1,5 @@
 import type {TrendingEntry,Video} from '../../shared/club';
+import {FollowChannel} from './FollowChannel';
 import {creatorName,fmtNum} from './format';
 import {Empty,Icon,MultChip,Spinner,Thumb} from './ui';
 
@@ -23,13 +24,14 @@ export function FirstSteps({ideas,hasTopics,start,onBreak,onOpenIdea,onIdeas}:{i
    {ideas.length>0&&<button type="button" className="btn primary" style={{marginTop:16}} onClick={()=>onOpenIdea(ideas[0])}><Icon name="ArrowRight" size={15}/>Open "{ideas[0].title}"</button>}
   </div>
   <div>
-   <div className="row" style={{marginBottom:10}}><b style={{fontSize:14}}>Start here: break one of these down</b></div>
+   {(start===null||start.length>0)&&<div className="row" style={{marginBottom:10}}><b style={{fontSize:14}}>Start here: break one of these down</b></div>}
    {start===null?<Spinner label="Loading what's working" size={18}/>:start.length?<>
     <div className="grid g3" style={{gap:12}}>{start.map(item=><div key={item.videoId} className="card trend hov" onClick={()=>onBreak(item)}>
      <Thumb videoId={item.videoId} seed={item.videoId} chip={<MultChip m={item.mult} who={creatorName(item.channel)} onThumb dash/>}/>
      <div className="tt clamp2" style={{fontSize:13}}>{item.title}</div>
      <div className="stats"><span><b>{fmtNum(item.views)}</b> views</span><span><b>{fmtNum(item.vpd)}</b>/day</span></div>
      {item.reason&&<div className="reason"><Icon name="Sparkles" size={12}/>{item.reason}</div>}
+     <FollowChannel item={item}/>
      <button type="button" className="btn sm" onClick={event=>{event.stopPropagation();onBreak(item);}}><Icon name="Sparkles" size={14}/>Break this down</button>
     </div>)}</div>
     <div className="small muted" style={{marginTop:12}}>A breakdown shows why the video worked, what viewers asked, and three concepts you could make.</div>

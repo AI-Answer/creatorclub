@@ -35,7 +35,7 @@ type Server={
  jobs:string[];
 };
 const server=(over:Partial<Server>={}):Server=>({
- videos:[],recent:[],trending:{items:[],updatedAt:null,followed:0},signals:{items:[],updatedAt:null,errors:[]},breakdowns:[],saved:{},workspace:profile('Maya Lopez'),projects:[],outlines:{},jobs:[],...over,
+ videos:[],recent:[],trending:{items:[],updatedAt:'2026-10-28T00:00:00.000Z',followed:0},signals:{items:[],updatedAt:null,errors:[]},breakdowns:[],saved:{},workspace:profile('Maya Lopez'),projects:[],outlines:{},jobs:[],...over,
 });
 const serve=(s:Server)=>(call:FakeCall):FakeReply=>{
  const {path,method,body}=call;
@@ -55,6 +55,7 @@ const serve=(s:Server)=>(call:FakeCall):FakeReply=>{
   const created=base(`added${add[2]}`,concept.title,'ideas',{source:{kind:'breakdown',breakdownId:add[1]}});
   s.videos=[...s.videos,created];return {status:201,body:created};
  }
+ if(path==='/followed')return {body:[]};
  if(path==='/trending/refresh'||path==='/signals/refresh'){s.jobs.push(path);return {status:202,body:{id:`j${s.jobs.length}`,status:'running'}};}
  if(path==='/trending/idea'){const made=base('idea-t',(s.trending.items.find(i=>i.videoId===(body as {videoId:string}).videoId)!).title,'ideas');s.videos=[...s.videos,made];return {status:201,body:made};}
  if(path==='/signals/idea'){const made=base('idea-s','From a post','ideas');s.videos=[...s.videos,made];return {status:201,body:made};}
@@ -419,12 +420,12 @@ test('Working now with nothing that matches says so and offers everything; with 
   await press(button(c.querySelector('.empty')!,'Show everything'));
   assert.deepEqual(cards(c),['My cat learns to code']);
  });
- await mount(navigate=>createElement(TrendingScreen,{navigate}),server({trending:{items:[],updatedAt:null,followed:0}}),async (ui,_s,_calls,routes)=>{
+ await mount(navigate=>createElement(TrendingScreen,{navigate}),server({trending:{items:[],updatedAt:'2026-10-28T00:00:00.000Z',followed:0}}),async (ui,_s,_calls,routes)=>{
   const c=ui.container;
   assert.equal(text(c.querySelector('.empty h3')),'No channels followed yet');
-  assert.equal((button(c,'Refresh') as HTMLButtonElement).disabled,true,'nothing to read');
-  assert.match(text(c.querySelector('.actions')),/Not refreshed yet/);
-  await press(button(c,'Open Settings'));assert.deepEqual(routes.at(-1),{name:'settings'});
+  assert.equal((button(c,'Refresh') as HTMLButtonElement).disabled,false,'with nobody followed, Refresh searches your topics');
+  assert.match(text(c.querySelector('.actions')),/Updated Oct 28/);
+  await press(button(c,'Open Settings'));assert.deepEqual(routes.at(-1),{name:'settings',section:'followed'});
  });
 });
 
@@ -736,4 +737,35 @@ test('a Working now card and its breakdown say the same multiplier, even when th
   await press(button(second,'Open breakdown'));
   assert.deepEqual(texts(c.querySelector('.drawer')!,'.bd-head .chip.mult'),['—','— usual'],'a card with a dash is a dash here too');
  });
+});
+
+test('Working now for a channel that was never filled and follows nobody searches its topics by itself, with progress, then lists what it found with Follow this channel',async()=>{
+ const found=trend('sssssssssss','Home cooking basics',{kind:'creator',channel:'Chef Sam',channelId:'UCFeFVytEkT8kaqPCJZGFswg',mult:null,reason:'Because you picked Home cooking'});
+ await mount(navigate=>createElement(TrendingScreen,{navigate}),server({trending:{items:[],updatedAt:null,followed:0}}),async (ui,s,calls)=>{
+  const c=ui.container;
+  assert.deepEqual(writes(calls),['POST /trending/refresh'],'started once, without a click');
+  assert.ok(c.querySelector('[role="status"]'),'progress is shown, not an empty list');
+  assert.equal(c.querySelector('.empty h3'),null);
+  s.trending={items:[found],updatedAt:'2026-10-29T08:00:00.000Z',followed:0};
+  await emit('done',{videos:1,added:1,channels:0,failed:[]});
+  assert.deepEqual(cards(c),['Home cooking basics']);
+  assert.match(text(c.querySelector('.reason')),/Because you picked Home cooking/);
+  assert.equal(text(c.querySelector('.card.trend .chip.mult')),'—');
+  await press(button(c,'Follow this channel'));
+  assert.equal(writes(calls).at(-1),'PUT /followed [{"name":"Chef Sam","channelId":"UCFeFVytEkT8kaqPCJZGFswg"}]');
+  assert.match(text(c),/Following Chef Sam/);
+  assert.equal(writes(calls).filter(w=>w==='POST /trending/refresh').length,1,'the search is not started again');
+ });
+});
+
+test('the search runs only for a channel that follows too few channels and was never filled; a followed channel is not offered again',async()=>{
+ const {needsSeed,followTarget}=await import('./trending-view');
+ assert.equal(needsSeed({items:[],updatedAt:null,followed:0}),true);
+ assert.equal(needsSeed({items:[],updatedAt:null,followed:2}),true);
+ assert.equal(needsSeed({items:[],updatedAt:null,followed:3}),false);
+ assert.equal(needsSeed({items:[],updatedAt:'2026-10-29T00:00:00.000Z',followed:0}),false,'it was read before');
+ assert.equal(needsSeed({items:[trend('aaaaaaaaaaa','x')],updatedAt:null,followed:0}),false);
+ assert.deepEqual(followTarget({kind:'creator',channel:'Chef Sam',channelId:'UCFeFVytEkT8kaqPCJZGFswg'}),{name:'Chef Sam',channelId:'UCFeFVytEkT8kaqPCJZGFswg'});
+ assert.equal(followTarget({kind:'followed',channel:'Chef Sam',channelId:'UCFeFVytEkT8kaqPCJZGFswg'}),null);
+ assert.equal(followTarget({kind:'creator',channel:'Chef Sam'}),null,'no channel id, nothing to follow');
 });

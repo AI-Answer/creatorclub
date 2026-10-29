@@ -227,7 +227,7 @@ test('Welcome with a channel that has too few captions asks the voice questions 
    if(call.path==='/ai/status')return {body:claudeIn};
    if(call.path==='/workspaces'&&call.method==='POST')return {status:202,body:{id:'j_add',kind:'add-channel',status:'running',createdAt:''}};
    if(call.path==='/workspaces/quiet/voice')return {status:202,body:{id:'j_voice',kind:'voice',status:'running',createdAt:''}};
-   if(call.path==='/trending')return {body:{items:[],updatedAt:null,followed:0}};
+   if(call.path==='/trending')return {body:{items:[],updatedAt:'2026-10-28T00:00:00.000Z',followed:0}};
    if(call.path==='/breakdowns'||call.path==='/videos'||call.path==='/recent')return {body:[]};
    if(call.path==='/settings/welcomed')return {body:{welcomed:true}};
   },async calls=>{
@@ -266,7 +266,7 @@ test('Welcome starting fresh: name, topics and who it is for create the channel 
   if(call.path==='/ai/status')return {body:claudeIn};
   if(call.path==='/workspaces/fresh')return {status:201,body:{...workspace,slug:'ana',name:'Ana',person:'Ana',topics:['Claude','Woodworking'],audience:['Creators']}};
   if(call.path==='/workspaces/ana'&&call.method==='PUT')return {body:{...workspace,slug:'ana',name:'Ana Studio',person:'Ana'}};
-  if(call.path==='/trending')return {body:{items:[],updatedAt:null,followed:0}};
+  if(call.path==='/trending')return {body:{items:[],updatedAt:'2026-10-28T00:00:00.000Z',followed:0}};
   if(call.path==='/breakdowns'&&call.method==='GET')return {body:[]};
   if(call.path==='/breakdowns'&&call.method==='POST')return {status:202,body:{id:'j_bd',kind:'breakdown',status:'running',createdAt:''}};
   if(call.path==='/videos')return {body:[]};
@@ -304,7 +304,7 @@ test('Welcome starting fresh: name, topics and who it is for create the channel 
    assert.deepEqual(calls.find(call=>call.path==='/breakdowns'&&call.method==='POST')?.body,{url:'https://youtu.be/abcdefghijk'});
    await click(c,'Pick another video');
    await click(c,'Follow channels in Settings');
-   assert.deepEqual(routes.at(-1),{name:'settings'});
+   assert.deepEqual(routes.at(-1),{name:'settings',section:'followed'});
    await click(c,'Back');
    assert.equal(c.querySelector('h1')!.textContent,'How you talk');
    assert.match(text(c),/Your voice guide is saved/);
@@ -319,7 +319,7 @@ test('Welcome: a failed create shows one sentence with Try again; Skip setup sav
   if(call.path==='/ai/status')return {body:claudeIn};
   if(call.path==='/workspaces/fresh')return fail?{status:400,body:{error:'Some details were not valid.'}}:{status:201,body:{...workspace,slug:'ana',name:'Ana'}};
   if(call.path==='/settings/welcomed')return {body:{welcomed:true}};
-  if(call.path==='/trending')return {body:{items:[],updatedAt:null,followed:0}};
+  if(call.path==='/trending')return {body:{items:[],updatedAt:'2026-10-28T00:00:00.000Z',followed:0}};
   if(call.path==='/breakdowns'||call.path==='/videos'||call.path==='/recent')return {body:[]};
  },async calls=>{
   const ui=await mountUI(welcome(route=>routes.push(route)));
@@ -481,11 +481,11 @@ test('Settings: channel details (including your first name) save, and Rebuild vo
    assert.equal(field('Your first name').value,'');
    assert.equal(field('Channel name').value,'Samin');
    assert.equal(field('Handle').value,'@samin');
-   assert.deepEqual([...c.querySelectorAll('ul[aria-label="Topics"] li')].map(li=>li.textContent),['ai','claude']);
+   assert.deepEqual([...c.querySelectorAll('ul[aria-label="Topics"] li')].map(li=>li.textContent),['Ai','Claude']);
    assert.equal(button(c,'Save changes').disabled,true,'nothing to save yet');
    await type(field('Your first name'),'Dani');
    await type(c.querySelector('input[aria-label="Topics"]')!,'trading');await click(c,'Add');
-   await act(async()=>c.querySelector<HTMLButtonElement>('button[aria-label="Remove ai"]')!.click());
+   await act(async()=>c.querySelector<HTMLButtonElement>('button[aria-label="Remove Ai"]')!.click());
    await click(c,'Save changes');
    assert.deepEqual(calls.find(call=>call.method==='PUT'&&call.path==='/workspaces/samin')?.body,{name:'Samin',person:'Dani',handle:'@samin',topics:['claude','trading'],audience:['Creators'],about:'Teaches Claude',cta:''});
    assert.match(text(c),/Saved/);assert.equal(button(c,'Save changes').disabled,true);
@@ -561,7 +561,7 @@ test('copy rules: no please, successfully, exclamation marks, or banned words on
   if(call.path==='/workspaces/samin')return {body:{...workspace,name:'Ana',handle:'@ana'}};
   if(call.path==='/followed')return {body:[]};
   if(call.path==='/signals-config')return {body:{}};
-  if(call.path==='/trending')return {body:{items:[],updatedAt:null,followed:0}};
+  if(call.path==='/trending')return {body:{items:[],updatedAt:'2026-10-28T00:00:00.000Z',followed:0}};
   if(call.path==='/breakdowns'||call.path==='/videos'||call.path==='/recent')return {body:[]};
  },async()=>{
   const ui=await mountUI(welcome());
@@ -581,7 +581,7 @@ test('Welcome: a failed rename after creating a fresh channel retries only the r
   if(call.path==='/workspaces/fresh')return {status:201,body:{...workspace,slug:'ana',name:'Ana'}};
   if(call.path==='/workspaces/ana'&&call.method==='PUT')return putFails?{status:500}:{body:{...workspace,slug:'ana',name:'Ana Studio'}};
   if(call.path==='/settings/welcomed')return {body:{welcomed:true}};
-  if(call.path==='/trending')return {body:{items:[],updatedAt:null,followed:0}};
+  if(call.path==='/trending')return {body:{items:[],updatedAt:'2026-10-28T00:00:00.000Z',followed:0}};
   if(call.path==='/breakdowns'||call.path==='/videos'||call.path==='/recent')return {body:[]};
  },async calls=>{
   const ui=await mountUI(welcome());
@@ -615,6 +615,58 @@ test('Welcome: leaving waits for setup to be saved; a failed save shows one sent
    fail=false;await click(c,'Try again');
    assert.deepEqual(routes,[{name:'overview'}]);
    assert.equal(c.querySelector('[role="alert"]'),null);
+  }finally{await ui.close();}
+ });
+});
+
+test('Settings opened at the followed channels scrolls there and focuses the input; signal sources have visible labels and readable prefixes',async()=>{
+ await withServer(call=>{
+  if(call.path==='/ai/status')return {body:claudeIn};
+  if(call.path==='/settings')return {body:{defaultAi:'claude',appearance:null,geminiKey:null}};
+  if(call.path==='/workspaces'&&call.method==='GET')return {body:one};
+  if(call.path==='/workspaces/samin')return {body:workspace};
+  if(call.path==='/followed')return {body:[]};
+  if(call.path==='/signals-config')return {body:{x:['alexfinn'],xTopics:['claude code'],reddit:['ClaudeAI']}};
+ },async()=>{
+  const scrolled:string[]=[];
+  const original=Element.prototype.scrollIntoView;
+  Element.prototype.scrollIntoView=function(this:Element){scrolled.push(this.id);};
+  const ui=await mountUI(createElement(SettingsScreen,{section:'followed',onSetup(){}}));
+  try{
+   await flush();const c=ui.container;
+   assert.deepEqual(scrolled,['set-followed']);
+   assert.equal(document.activeElement,c.querySelector('input[aria-label="Followed channels"]'));
+   assert.equal(c.querySelector('.set-nav .nav-item.active')!.textContent,'Channel');
+   const labelsShown=[...c.querySelectorAll('#set-followed .small')].map(el=>el.textContent).filter(t=>['X accounts','X searches','Subreddits'].includes(t!));
+   assert.deepEqual(labelsShown,['X accounts','X searches','Subreddits']);
+   assert.deepEqual([...c.querySelectorAll('ul[aria-label="X accounts"] li')].map(li=>li.textContent),['@alexfinn']);
+   assert.deepEqual([...c.querySelectorAll('ul[aria-label="X searches"] li')].map(li=>li.textContent),['"claude code"']);
+   assert.deepEqual([...c.querySelectorAll('ul[aria-label="Subreddits"] li')].map(li=>li.textContent),['r/ClaudeAI']);
+  }finally{await ui.close();Element.prototype.scrollIntoView=original;}
+ });
+});
+
+test('Settings: the voice guide shows its summary and source; a channel with no videos answers the three questions instead of rebuilding',async()=>{
+ const fresh={...workspace,slug:'ana',name:'Ana',handle:'',channelUrl:''};
+ await withServer(call=>{
+  if(call.path==='/ai/status')return {body:claudeIn};
+  if(call.path==='/settings')return {body:{defaultAi:'claude',appearance:null,geminiKey:null}};
+  if(call.path==='/workspaces'&&call.method==='GET')return {body:{current:'ana',workspaces:[fresh]}};
+  if(call.path==='/workspaces/ana'&&call.method==='GET')return {body:fresh};
+  if(call.path==='/workspaces/ana/voice'&&call.method==='GET')return {body:{summary:'Voice: Calm and clear.',transcripts:0}};
+  if(call.path==='/followed')return {body:[]};
+  if(call.path==='/signals-config')return {body:{}};
+ },async()=>{
+  const ui=await mountUI(createElement(SettingsScreen,{onSetup(){}}));
+  try{
+   await flush();const c=ui.container;
+   assert.match(text(c),/Voice guide/);
+   assert.match(text(c),/Voice: Calm and clear\./);
+   assert.match(text(c),/Built from your answers\./);
+   assert.equal(labels(c).includes('Rebuild voice guide'),false);
+   assert.equal(c.querySelector('#set-channel')!.textContent!.includes('learns from your latest videos'),false);
+   await click(c,'Answer the three voice questions again');
+   assert.equal(c.querySelectorAll('#set-channel form textarea').length,3);
   }finally{await ui.close();}
  });
 });

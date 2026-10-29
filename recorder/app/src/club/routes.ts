@@ -15,25 +15,30 @@ export type ProductionView=typeof productionViews[number];
 export const ideaFilters=['later','skipped'] as const;
 export type IdeaFilter=typeof ideaFilters[number];
 
+/** The parts of Settings a link can open: Connected AI, Channel, the channels you follow (inside Channel), Appearance. */
+export const settingsSections=['ai','channel','followed','appearance'] as const;
+export type SettingsSection=typeof settingsSections[number];
+
 /**
  * Screens of the club shell, mirrored in `location.hash` so a reload keeps your place.
  * An idea's `open` shows its drawer, `new` its drawer right after it was added, `bd` breaks down the YouTube video with that id.
  * A video without a `tab` opens on the tab for its stage.
  */
 export type Route=
- |{name:'welcome'}
+ |{name:'welcome';step?:number}
  |{name:'overview'}
  |{name:'ideas';filter?:IdeaFilter;open?:string;new?:string;bd?:string}
  |{name:'trending'}
  |{name:'signals'}
  |{name:'production';view:ProductionView}
  |{name:'video';id:string;tab?:VideoTab}
- |{name:'settings'};
+ |{name:'settings';section?:SettingsSection};
 
 export type RouteName=Route['name'];
 
 const isTab=(value:string):value is VideoTab=>(videoTabs as readonly string[]).includes(value);
 const isView=(value:string):value is ProductionView=>(productionViews as readonly string[]).includes(value);
+const isSection=(value:string):value is SettingsSection=>(settingsSections as readonly string[]).includes(value);
 const isFilter=(value:string|null):value is IdeaFilter=>(ideaFilters as readonly string[]).includes(value??'');
 
 const OVERVIEW:Route={name:'overview'};
@@ -42,7 +47,7 @@ const OVERVIEW:Route={name:'overview'};
 export const defaultTab=(stage:VideoStage):VideoTab=>({ideas:'board',planning:'plan',recording:'record',editing:'edit',publishing:'publish',published:'publish'} as const)[stage];
 
 /**
- * Reads `#/overview`, `#/ideas?filter=later&open=<id>`, `#/production/table`, `#/video/<id>/<tab>` and the rest.
+ * Reads `#/overview`, `#/ideas?filter=later&open=<id>`, `#/production/table`, `#/video/<id>/<tab>`, `#/settings/followed`, `#/welcome?step=2` and the rest.
  * The old `#/board` is Production, `#/onboarding` is `#/welcome`, and `#/video/<id>/<step>` links keep working because
  * the old steps are tabs too. Anything else is the overview.
  */
@@ -59,9 +64,13 @@ export function parseRoute(hash:string):Route{
   if(segments.length===1)return {name:'production',view:'board'};
   return segments.length===2&&isView(id)?{name:'production',view:id}:OVERVIEW;
  }
+ if(name==='settings'&&segments.length===2)return isSection(id)?{name:'settings',section:id}:OVERVIEW;
  if(segments.length!==1)return OVERVIEW;
  switch(name){
-  case 'welcome':case 'onboarding':return {name:'welcome'};
+  case 'welcome':case 'onboarding':{
+   const step=Number(new URLSearchParams(query).get('step'));
+   return Number.isInteger(step)&&step>=1&&step<=4?{name:'welcome',step}:{name:'welcome'};
+  }
   case 'overview':case 'trending':case 'signals':case 'settings':return {name};
   case 'board':return {name:'production',view:'board'};
   case 'ideas':{
@@ -85,6 +94,8 @@ export function routeHash(route:Route):string{
    const query=params.toString();
    return query?`#/ideas?${query}`:'#/ideas';
   }
+  case 'welcome':return route.step?`#/welcome?step=${route.step}`:'#/welcome';
+  case 'settings':return route.section?`#/settings/${route.section}`:'#/settings';
   default:return `#/${route.name}`;
  }
 }
