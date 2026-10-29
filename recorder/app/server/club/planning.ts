@@ -2,22 +2,24 @@ import { randomBytes } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { z } from 'zod';
-import { PLAN_JOB_KINDS, type AiProvider, type JobSnapshot, type Outline, type OutlineScene, type Package, type PlanData, type PlanJobKind, type PlanJobResult, type Video } from '../../shared/club.js';
+import { PLAN_JOB_KINDS, type AiProvider, type ConceptRating, type JobSnapshot, type Outline, type OutlineScene, type Package, type PackageUseResult, type PlanData, type PlanJobKind, type PlanJobResult, type Video } from '../../shared/club.js';
 import { AiError, aiLabel, runAI, type RunAIOptions } from './ai.js';
 import { readBreakdown } from './breakdown.js';
 import type { ChannelData } from './channel.js';
 import { loadChannelContext } from './context.js';
-import { ClubError } from './errors.js';
+import { ClubError, notFound } from './errors.js';
 import { getJob, snapshot, startJob, type JobContext } from './jobs.js';
 import {
   buildExpandPrompt,
   buildOutlinePrompt,
   buildPackagePrompt,
+  buildSceneScriptPrompt,
   buildScriptPrompt,
   outlineProblems,
   packageProblems,
   sceneWords,
   spokenWords,
+  type ChannelContext,
   type JsonPrompt,
   type PromptIdea,
 } from './prompts.js';
@@ -78,7 +80,7 @@ const sceneShape = z
 /** An outline as the person edits it: 1 to 20 scenes. The AI's own answer is held to 4 to 7 by `outlineProblems`. */
 export const outlineShape = z.object({ scenes: z.array(sceneShape).min(1).max(20) }).strict();
 
-function parseAnswer<T>(shape: z.ZodType<T>, json: unknown, who: string, what: string): T {
+export function parseAnswer<T>(shape: z.ZodType<T>, json: unknown, who: string, what: string): T {
   const parsed = shape.safeParse(json);
   if (!parsed.success) {
     console.error(`[club] ${what} answer rejected:`, parsed.error.issues.slice(0, 3).map((issue) => `${issue.path.join('.')}: ${issue.message}`).join('; '));
@@ -197,6 +199,40 @@ export async function savePackage(slug: string, id: string, pkg: unknown): Promi
   const parsed = packageShape.parse(pkg);
   await store.writeJSON(packageFile(slug, id), parsed);
   return parsed;
+}
+
+const emptyRating = (rating?: ConceptRating): ConceptRating => rating ?? { level: 'mid', note: '' };
+
+/** A package with nothing written yet. The ratings and the angle come from the idea when it has them. */
+const emptyPackage = (video: Video): Package => ({
+  demand: emptyRating(video.idea?.demand),
+  gap: emptyRating(video.idea?.gap),
+  show: emptyRating(video.idea?.show),
+  angle: video.idea?.angle ?? '',
+  twist: video.idea?.twist ?? '',
+  titles: ['', '', ''],
+  thumbnailText: '',
+  hook: { visual: '', spoken: video.idea?.hook ?? '', text: '' },
+});
+
+/**
+ * Use as hook or Use as title: puts a line from the Board chat into the package, making a package when there is none.
+ * A title goes first (the first title is the one the video is named by) and the earlier ones follow it, the last one dropping off when all three are full.
+ * Saved with `savePackage`, the same path as PUT /package, so a Package it run that is still going holds its result.
+ * Returns the package it replaced, for Undo.
+ */
+export function usePackageText(slug: string, id: string, kind: 'hook' | 'title', line: string): Promise<PackageUseResult> {
+  return store.withLock(`package:${packageFile(slug, id)}`, async () => {
+    const video = await store.readVideo(slug, id);
+    const text = squash(line);
+    if (!text) throw new ClubError('Add some text first.');
+    if (kind === 'title' && [...text].length > 200) throw new ClubError('That title is too long.');
+    const previous = await readPackage(slug, id);
+    const base = previous ?? emptyPackage(video);
+    const others = base.titles.filter((title) => title.trim() && title.trim().toLowerCase() !== text.toLowerCase());
+    const next: Package = kind === 'hook' ? { ...base, hook: { ...base.hook, spoken: text } } : { ...base, titles: [text, ...others, '', ''].slice(0, 3) as Package['titles'] };
+    return { package: await savePackage(slug, id, next), previous };
+  });
 }
 
 const readText = (file: string) => fs.readFile(file, 'utf8').catch((error: NodeJS.ErrnoException) => (error.code === 'ENOENT' ? undefined : Promise.reject(error)));
@@ -351,17 +387,32 @@ export async function heldResults(slug: string, id: string): Promise<PlanData['r
 // ---------------------------------------------------------------- one run per video and step
 
 const runningJobs = new Map<string, string>();
+/** The scene a running script job writes; empty for the whole script. */
+const runningScenes = new Map<string, string>();
 const jobKey = (slug: string, id: string, kind: PlanJobKind) => `${slug}/${id}/${kind}`;
 
-/** Starts a Plan step for a video, or returns the run of that step already going, so a second click never pays twice. */
-export function startPlanJob(slug: string, id: string, kind: PlanJobKind, options: PlanOptions = {}): JobSnapshot {
+/**
+ * Starts a Plan step for a video, or returns the run of that step already going, so a second click never pays twice.
+ * Write full script instead takes a `sceneId` to write one scene. The script is one file, so only one script run goes at a time per video.
+ */
+export function startPlanJob(slug: string, id: string, kind: PlanJobKind, options: PlanOptions = {}, sceneId?: string): JobSnapshot {
   const key = jobKey(slug, id, kind);
   const running = runningJobs.get(key);
   const job = running ? getJob(running) : undefined;
-  if (job?.status === 'running') return snapshot(job);
-  const run = { package: runPackage, outline: runOutline, script: runScript }[kind];
-  const started = startJob(kind, (context) => (run(slug, id, context, options) as Promise<unknown>).finally(() => runningJobs.get(key) === started.id && runningJobs.delete(key)));
+  if (job?.status === 'running') {
+    if ((runningScenes.get(key) ?? '') !== (sceneId ?? '')) throw new ClubError('Wait for the script that is running.', 409);
+    return snapshot(job);
+  }
+  const run: (slug: string, id: string, context: JobContext, options?: PlanOptions) => Promise<unknown> = sceneId && kind === 'script' ? (s, i, context, opts) => runSceneScript(s, i, sceneId, context, opts) : { package: runPackage, outline: runOutline, script: runScript }[kind];
+  const started = startJob(kind, (context) =>
+    run(slug, id, context, options).finally(() => {
+      if (runningJobs.get(key) !== started.id) return;
+      runningJobs.delete(key);
+      runningScenes.delete(key);
+    }),
+  );
   runningJobs.set(key, started.id);
+  runningScenes.set(key, sceneId ?? '');
   return started;
 }
 
@@ -401,6 +452,13 @@ export function joinScript(title: string, sections: ScriptSection[]): string {
   return [`# ${title}`, ...sections.map((section) => `## ${section.heading}\n\n${section.body}`)].join('\n\n') + '\n';
 }
 
+const headingKey = (title: string) => title.trim().toLowerCase();
+
+/** A scene's part of the script: the section under its own title, else the section in its place when there are as many sections as scenes. */
+export function matchSection(sections: ScriptSection[], scenes: Pick<OutlineScene, 'title'>[], index: number): ScriptSection | undefined {
+  return sections.find((section) => headingKey(section.heading) === headingKey(scenes[index].title)) ?? (sections.length === scenes.length ? sections[index] : undefined);
+}
+
 // ---------------------------------------------------------------- running the AI steps
 
 const ideaFor = (video: Video): PromptIdea => {
@@ -417,12 +475,13 @@ async function recentTitles(slug: string): Promise<string[]> {
     .filter(Boolean);
 }
 
-interface Asker {
+export interface Asker {
   ask(built: { prompt: string; system?: string; schema?: object }, budgetUsd: number): Promise<{ text: string; json?: unknown }>;
   who: string;
 }
 
-async function asker(context: JobContext, options: PlanOptions): Promise<Asker> {
+/** Asks the channel's AI with the options a run was given. `context` only needs to carry the signal that stops the call. */
+export async function asker(context: Pick<JobContext, 'signal'>, options: PlanOptions): Promise<Asker> {
   const provider: AiProvider = (await store.defaultAi()) ?? 'claude';
   const run = options.runAI ?? runAI;
   return {
@@ -513,6 +572,26 @@ export async function runOutline(slug: string, id: string, context: JobContext, 
 
 const stripFence = (value: string) => value.trim().replace(/^```(?:markdown|md)?\s*\n([\s\S]*?)\n```$/i, '$1').trim();
 
+/** Only the scene's body is wanted; a heading the model adds anyway would split the script into extra scenes. */
+const bodyOnly = (value: string) =>
+  stripFence(value)
+    .split('\n')
+    .filter((line) => !/^#{1,2}\s/.test(line.trim()))
+    .join('\n')
+    .trim();
+
+/** Lengthens one scene that is under 80% of its word budget, once. Returns the scene's new body, or its body as it was. */
+async function lengthenScene(ai: Asker, channel: ChannelContext, title: string, outline: Outline, sections: ScriptSection[], index: number, say: (message: string) => void, context: JobContext): Promise<string> {
+  const section = sections[index];
+  const want = sceneWords(outline.scenes[index].seconds);
+  if (!want || spokenWords(section.body) >= want * EXPAND_BELOW) return section.body;
+  say(`Lengthening scene ${index + 1}…`);
+  const expand = await buildExpandPrompt(channel, { outline: { scenes: outline.scenes }, script: joinScript(title, sections), heading: section.heading, section: section.body, want });
+  const body = bodyOnly((await ai.ask(expand, EXPAND_BUDGET_USD)).text);
+  stopped(context);
+  return body || section.body;
+}
+
 /** Write full script instead: the script in the creator's voice, then each scene under 80% of its word budget lengthened once. */
 export async function runScript(slug: string, id: string, context: JobContext, options: PlanOptions = {}): Promise<PlanJobResult<Outline>> {
   const say = (message: string) => context.emit({ message });
@@ -530,23 +609,42 @@ export async function runScript(slug: string, id: string, context: JobContext, o
   if (!script) throw new AiError('bad-answer', `${ai.who} sent back no script.`);
   const sections = scriptSections(script);
   if (sections.length === outline.scenes.length) {
-    for (const [index, section] of sections.entries()) {
-      const want = sceneWords(outline.scenes[index].seconds);
-      if (!want || spokenWords(section.body) >= want * EXPAND_BELOW) continue;
-      say(`Lengthening scene ${index + 1}…`);
-      const expand = await buildExpandPrompt(channel, { outline: { scenes: outline.scenes }, script: joinScript(title, sections), heading: section.heading, section: section.body, want });
-      // Only the scene's body is wanted; a heading the model adds anyway would split the script into extra scenes.
-      const body = stripFence((await ai.ask(expand, EXPAND_BUDGET_USD)).text)
-        .split('\n')
-        .filter((line) => !/^#{1,2}\s/.test(line.trim()))
-        .join('\n')
-        .trim();
-      stopped(context);
-      if (body) sections[index] = { ...section, body };
-    }
+    for (const index of sections.keys()) sections[index] = { ...sections[index], body: await lengthenScene(ai, channel, title, outline, sections, index, say, context) };
     script = joinScript(title, sections);
   }
   stopped(context);
   const result = await commitResult(slug, id, 'script', before, script.trimEnd() + '\n');
+  return { value: result.held ? { ...outline, fullScript: script } : ((await readOutline(slug, id)) ?? outline), ...result };
+}
+
+/**
+ * Write this scene: the script of one scene, in the creator's voice. The scene's own words are kept as the draft when it has some.
+ * The other scenes keep what the script says for them; a script that does not exist yet starts with every scene empty except this one.
+ * The earlier script is set aside like a full run's, so Undo and "Use it" work the same.
+ */
+export async function runSceneScript(slug: string, id: string, sceneId: string, context: JobContext, options: PlanOptions = {}): Promise<PlanJobResult<Outline>> {
+  const say = (message: string) => context.emit({ message });
+  const video = await store.readVideo(slug, id);
+  const before = await snapshotOf(slug, id, 'script');
+  const outline = await readOutline(slug, id);
+  if (!outline) throw new ClubError('Create the outline first.');
+  const index = outline.scenes.findIndex((scene) => scene.id === sceneId);
+  if (index < 0) throw notFound('scene');
+  const [channel, pkg] = await Promise.all([loadChannelContext(slug), readPackage(slug, id)]);
+  const existing = outline.fullScript ?? '';
+  const title = /^#\s+(.+)$/m.exec(existing)?.[1].trim() || pkg?.titles[0]?.trim() || video.title;
+  const found = scriptSections(existing);
+  const sections: ScriptSection[] = outline.scenes.map((scene, place) => ({ heading: scene.title.trim() || `Scene ${place + 1}`, body: matchSection(found, outline.scenes, place)?.body ?? '' }));
+  const ai = await asker(context, options);
+  say(`Writing scene ${index + 1}…`);
+  const built = await buildSceneScriptPrompt(channel, { title, idea: ideaFor(video), pkg: pkg ?? undefined, outline: { scenes: outline.scenes }, index, draft: sections[index].body });
+  const body = bodyOnly((await ai.ask(built, SCRIPT_BUDGET_USD)).text);
+  stopped(context);
+  if (!body) throw new AiError('bad-answer', `${ai.who} sent back no script.`);
+  sections[index] = { ...sections[index], body };
+  sections[index].body = await lengthenScene(ai, channel, title, outline, sections, index, say, context);
+  stopped(context);
+  const script = joinScript(title, sections);
+  const result = await commitResult(slug, id, 'script', before, script);
   return { value: result.held ? { ...outline, fullScript: script } : ((await readOutline(slug, id)) ?? outline), ...result };
 }

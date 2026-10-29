@@ -3,12 +3,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {act,createElement} from 'react';
 import type {SignalEntry,TrendingEntry,Video} from '../../shared/club';
+import type {SceneProgress} from './scene-status';
 import {installFetch,type FakeCall} from './test-fakes';
 const {ideaCounts,ideasIn,ideaLead,ideaSourceVideoId,videoThumbId,breakdownUrl,tabOf}=await import('./ideas');
 const {greeting,standing,isFresh,overviewLede,resumeVideos,stageCounts,progressText,nextAction,firstName}=await import('./overview');
 const {trendList,trendCounts,offTopic,growthPerDay,isNew}=await import('./trending-view');
 const {signalList,signalCounts}=await import('./signals-view');
-const {sceneProgress}=await import('./scenes');
 const {breakdownStep,commentsRead,BREAKDOWN_STEPS}=await import('./breakdown');
 const {creatorName}=await import('./format');
 const {deleteLater,usePendingDeletes}=await import('./pending-delete');
@@ -17,6 +17,9 @@ const {ideaFromSource,trendingUrl}=await import('./useIdeaFrom');
 const {savedBreakdown}=await import('./useBreakdowns');
 
 const video=(id:string,stage:Video['stage'],extra:Partial<Video>={}):Video=>({id,title:id,stage,order:0,createdAt:'2026-10-01T00:00:00.000Z',updatedAt:'2026-10-01T00:00:00.000Z',stageDates:{},planning:{research:false,package:false,outline:false},...extra});
+
+/** `scenes` scenes of which `recorded` are done, as dots: the first ones filled. */
+const sceneProgress=(scenes:number,recorded:number):SceneProgress[]=>Array.from({length:scenes},(_,index)=>({takes:index<recorded?[{n:1,kept:true}]:[]}));
 const trend=(videoId:string,extra:Partial<TrendingEntry>={}):TrendingEntry=>({videoId,title:videoId,channel:'Ch',kind:'followed',views:1000,likes:1,comments:1,published:'2026-10-20',ageDays:3,vpd:300,mult:2,history:[],firstSeen:'2026-10-20',fit:true,reason:'Because you picked Claude',...extra});
 const post=(id:string,extra:Partial<SignalEntry>={}):SignalEntry=>({id,source:'x',author:'A',handle:'a',text:'t',url:`https://x.com/${id}`,likes:10,replies:1,media:null,createdAt:'2026-10-28T00:00:00.000Z',ageHours:5,fit:true,reason:'Because you picked Claude',...extra});
 

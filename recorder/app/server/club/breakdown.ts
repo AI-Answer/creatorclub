@@ -384,7 +384,7 @@ export async function addConceptToBoard(slug: string, id: string, index: number)
   if (!concept) throw notFound('concept');
   const existing = (await store.listVideos(slug)).find((video) => video.source?.breakdownId === id && video.title === concept.title);
   if (existing) throw new ClubError('That concept is already on the board.', 409);
-  return store.createVideo(slug, {
+  const video = await store.createVideo(slug, {
     title: concept.title,
     stage: 'ideas',
     source: { kind: 'breakdown', breakdownId: id },
@@ -399,4 +399,7 @@ export async function addConceptToBoard(slug: string, id: string, index: number)
       sources: [{ label: breakdown.video.title, ...(breakdown.url ? { url: breakdown.url } : {}) }],
     },
   });
+  // The video's Board starts with the breakdown it came from.
+  await store.addTile(slug, video.id, { kind: 'breakdown', title: breakdown.video.title, ...(breakdown.url ? { url: breakdown.url } : {}), meta: { breakdownId: id } });
+  return video;
 }

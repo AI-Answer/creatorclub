@@ -201,6 +201,10 @@ export function researchText(tiles: ResearchTile[]): string {
         return `- Link: ${[tile.title, tile.url].filter(Boolean).join(' ')}`;
       case 'image':
         return `- Image: ${tile.title ?? tile.file ?? 'untitled'}`;
+      case 'signal':
+        return `- Post${meta.author ? ` by ${meta.author}` : ''}${meta.likes !== undefined ? ` (${meta.likes.toLocaleString('en-US')} likes)` : ''}: ${squash(tile.text ?? '').slice(0, 1500)}`;
+      case 'breakdown':
+        return `- Breakdown of a video: ${[tile.title, tile.url].filter(Boolean).join(' ') || 'untitled'}`;
       default:
         return `- Note: ${squash(tile.text ?? tile.title ?? '').slice(0, 1500)}`;
     }
@@ -488,6 +492,52 @@ export async function buildScriptPrompt(ctx: ChannelContext, input: ScriptInput)
   };
 }
 
+export interface SceneScriptInput {
+  title: string;
+  idea: PromptIdea;
+  pkg?: Package;
+  outline: Outline;
+  /** The scene to write, as a place in the outline (0-based). */
+  index: number;
+  /** What the scene says now, when it has a script already: the creator's own words, kept. */
+  draft?: string;
+  rhythm?: string;
+}
+
+const OPENING_RULE = "- This is the opening: use the package's hook (its spoken line, what is on screen, the text) and write the rest of the opening around it.\n";
+const ENDING_RULE = "- This is the ending: end on the outline's ending and its call to action. No recap.\n";
+
+/** Writes one scene of the script, with the whole outline for context. */
+export async function buildSceneScriptPrompt(ctx: ChannelContext, input: SceneScriptInput): Promise<BuiltPrompt> {
+  const scene = input.outline.scenes[input.index];
+  if (!scene) throw new ClubError('That scene was not found.', 404);
+  const template = await methodologyFile('scene-script.md');
+  const last = input.outline.scenes.length - 1;
+  return {
+    prompt: fill(template, {
+      name: ctx.workspace.name,
+      first: firstName(ctx.workspace.name),
+      title: input.title,
+      idea: ideaText(input.idea),
+      package: packageText(input.pkg),
+      outline: outlineText(input.outline),
+      voice: fullVoice(ctx.voice),
+      rhythm: input.rhythm?.trim() || NO_RHYTHM,
+      structure: structureText(ctx.structure),
+      number: input.index + 1,
+      count: input.outline.scenes.length,
+      heading: scene.title,
+      words: sceneWords(scene.seconds),
+      scene: outlineText({ scenes: [scene] }).replace(/^### 1\./, `### ${input.index + 1}.`),
+      draft: input.draft?.trim() || '(none: write it fresh)',
+      cta: ctaRule(ctx.workspace),
+      first_rule: input.index === 0 ? OPENING_RULE : '',
+      last_rule: input.index === last && last > 0 ? ENDING_RULE : '',
+    }),
+    system: SYSTEM_TEXT,
+  };
+}
+
 export interface ExpandInput {
   outline: Outline;
   /** The whole script as it stands. */
@@ -537,6 +587,43 @@ export async function buildRevisePrompt(ctx: ChannelContext, input: ReviseInput)
   return {
     prompt: fill(template, { name: ctx.workspace.name, first: firstName(ctx.workspace.name), script: input.script, table: input.table || '(none)', habits: input.habits || '(none)' }),
     system: SYSTEM_TEXT,
+  };
+}
+
+// ---------------------------------------------------------------- Ask Claude about this board
+
+export const CHAT_TURNS_KEPT = 12;
+const CHAT_TURN_CHARS = 1500;
+const OUTLINE_CHARS = 6000;
+
+export interface BoardChatInput {
+  idea: PromptIdea;
+  pkg?: Package;
+  outline?: Outline;
+  /** The board's tiles as text, already trimmed. */
+  board: string;
+  /** The conversation so far; only the last turns are sent, each trimmed. */
+  history: { role: 'user' | 'assistant'; text: string }[];
+  message: string;
+}
+
+export async function buildBoardChatPrompt(ctx: ChannelContext, input: BoardChatInput): Promise<JsonPrompt> {
+  const [template, schema] = await Promise.all([methodologyFile('board-chat.md'), methodologySchema('board-chat')]);
+  const turns = input.history.slice(-CHAT_TURNS_KEPT).map((turn) => `${turn.role === 'user' ? 'Creator' : 'You'}: ${squash(turn.text).slice(0, CHAT_TURN_CHARS)}`);
+  return {
+    prompt: fill(template, {
+      name: ctx.workspace.name,
+      criteria: criteriaText(ctx),
+      voice_summary: voiceSummary(ctx.voice),
+      idea: ideaText(input.idea),
+      package: packageText(input.pkg),
+      outline: input.outline ? outlineText(input.outline).slice(0, OUTLINE_CHARS) : '(none yet)',
+      board: input.board || '(the board is empty)',
+      conversation: turns.length ? turns.join('\n') : '(none yet)',
+      question: input.message.trim(),
+    }),
+    system: SYSTEM_JSON,
+    schema,
   };
 }
 

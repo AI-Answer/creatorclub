@@ -31,11 +31,17 @@ export async function ideaFromSignal(slug: string, id: string): Promise<IdeaResu
   if (!post) throw notFound('post');
   const who = post.source === 'reddit' ? post.author : `@${post.handle}`;
   const title = titleFromPost(post.text) || who;
-  return store.createVideoUnless(
+  const result = await store.createVideoUnless(
     slug,
     { title, stage: 'ideas', source: { kind: 'manual' }, idea: { sources: [{ label: `${title} (${who})`, url: post.url }], note: post.text } },
     madeFrom(post.url),
   );
+  // The video's Board starts with the post.
+  if (result.created) {
+    const meta = { source: post.source, author: who, likes: post.likes, replies: post.replies, ...(typeof post.views === 'number' ? { views: post.views } : {}) };
+    await store.addTile(slug, result.video.id, { kind: 'signal', url: post.url, text: post.text, meta });
+  }
+  return result;
 }
 
 /** An idea from a Working now video. Its notes keep the video's title, and the video as the source. */
@@ -43,9 +49,24 @@ export async function ideaFromTrending(slug: string, videoId: string): Promise<I
   const item = await readTrendingItem(slug, videoId);
   if (!item) throw notFound('video');
   const url = `https://www.youtube.com/watch?v=${item.videoId}`;
-  return store.createVideoUnless(
+  const result = await store.createVideoUnless(
     slug,
     { title: item.title, stage: 'ideas', source: { kind: 'manual' }, idea: { sources: [{ label: `${item.title} (${item.channel})`, url }], note: item.title } },
     madeFrom(url),
   );
+  // The video's Board starts with the video, with the numbers Working now had for it.
+  if (result.created) {
+    const meta = {
+      platform: 'youtube' as const,
+      channel: item.channel,
+      views: item.views,
+      ageDays: item.ageDays,
+      thumbnail: `https://i.ytimg.com/vi/${item.videoId}/hqdefault.jpg`,
+      ...(item.likes !== null ? { likes: item.likes } : {}),
+      ...(item.comments !== null ? { comments: item.comments } : {}),
+      ...(item.mult !== null ? { multiplier: item.mult } : {}),
+    };
+    await store.addTile(slug, result.video.id, { kind: 'video', url, title: item.title, meta });
+  }
+  return result;
 }

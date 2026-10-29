@@ -4,6 +4,7 @@ import path from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { ClubError, notFound } from './errors.js';
 import { arrangeColumn } from '../../shared/club-board.js';
+import { freeSpot } from './tile-layout.js';
 import {
   PLAN_STEPS,
   VIDEO_STAGES,
@@ -13,6 +14,7 @@ import {
   type ResearchTile,
   type TileKind,
   type TileMeta,
+  type TilePosition,
   type Video,
   type VideoStage,
   type Workspace,
@@ -269,7 +271,7 @@ export async function createWorkspace(input: Omit<Workspace, 'slug' | 'createdAt
 
 /** Runs `fn` after every earlier call with the same key, so read-modify-write cycles never overlap. */
 const lockTails = new Map<string, Promise<unknown>>();
-function withLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
+export function withLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
   const run = (lockTails.get(key) ?? Promise.resolve()).then(fn);
   const tail = run.catch(() => {});
   lockTails.set(key, tail);
@@ -458,28 +460,50 @@ export async function readTile(slug: string, videoId: string, tileId: string): P
   return tile;
 }
 
-export async function addTile(slug: string, videoId: string, input: NewTile): Promise<ResearchTile> {
-  await readVideo(slug, videoId);
-  const id = newId('t');
-  const tile: ResearchTile = { id, kind: input.kind, meta: input.meta ?? {}, createdAt: now() };
-  if (input.url) tile.url = input.url;
-  if (input.title) tile.title = input.title;
-  if (input.text) tile.text = input.text;
-  if (input.file) {
-    tile.file = `${id}-${safeFileName(input.file.name)}`;
-    await writeFileAtomic(path.join(researchDir(slug, videoId), tile.file), input.file.data);
-  }
-  await writeJSON(tileFile(slug, videoId, id), tile);
-  return tile;
+/** Adds a tile in the first free place on the Board. One at a time per video, so two new tiles never take the same place. */
+export function addTile(slug: string, videoId: string, input: NewTile): Promise<ResearchTile> {
+  return withLock(`board:${researchDir(slug, videoId)}`, async () => {
+    const tiles = await listTiles(slug, videoId);
+    const id = newId('t');
+    const tile: ResearchTile = { id, kind: input.kind, meta: input.meta ?? {}, pos: freeSpot(tiles, input.kind), createdAt: now() };
+    if (input.url) tile.url = input.url;
+    if (input.title) tile.title = input.title;
+    if (input.text) tile.text = input.text;
+    if (input.file) {
+      tile.file = `${id}-${safeFileName(input.file.name)}`;
+      await writeFileAtomic(path.join(researchDir(slug, videoId), tile.file), input.file.data);
+    }
+    await writeJSON(tileFile(slug, videoId, id), tile);
+    return tile;
+  });
 }
 
 /** Merges new details into a tile, one change at a time per tile. */
-export function updateTile(slug: string, videoId: string, tileId: string, patch: Partial<Pick<ResearchTile, 'title' | 'text' | 'file' | 'meta'>>): Promise<ResearchTile> {
+export function updateTile(slug: string, videoId: string, tileId: string, patch: Partial<Pick<ResearchTile, 'title' | 'text' | 'file' | 'meta' | 'pos'>>): Promise<ResearchTile> {
   return withLock(`tile:${tileFile(slug, videoId, tileId)}`, async () => {
     const tile = await readTile(slug, videoId, tileId);
     const updated: ResearchTile = { ...tile, ...patch, meta: { ...tile.meta, ...patch.meta } };
     await writeJSON(tileFile(slug, videoId, tileId), updated);
     return updated;
+  });
+}
+
+/** The video's tiles, each with a place on the Board: tiles saved before positions existed are placed now, in the order they were added, and keep the place. */
+export function listPlacedTiles(slug: string, videoId: string): Promise<ResearchTile[]> {
+  return withLock(`board:${researchDir(slug, videoId)}`, async () => {
+    const tiles = await listTiles(slug, videoId);
+    for (const [index, tile] of tiles.entries()) {
+      if (tile.pos) continue;
+      const pos: TilePosition = freeSpot(tiles, tile.kind);
+      tiles[index] = await withLock(`tile:${tileFile(slug, videoId, tile.id)}`, async () => {
+        const current = await readTile(slug, videoId, tile.id);
+        if (current.pos) return current;
+        const placed = { ...current, pos };
+        await writeJSON(tileFile(slug, videoId, tile.id), placed);
+        return placed;
+      });
+    }
+    return tiles;
   });
 }
 

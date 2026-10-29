@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {act,createElement} from 'react';
 import type {Breakdown,BreakdownSummary,SignalEntry,TrendingEntry,Video,Workspace} from '../../shared/club';
-import {FakeEventSource,installFetch,type FakeCall,type FakeReply} from './test-fakes';
+import {FakeEventSource,fakeScenes,installFetch,type FakeCall,type FakeReply} from './test-fakes';
 import type {Route} from './routes';
 const {ToastProvider}=await import('./ui');
 const {OverviewScreen}=await import('./screens/OverviewScreen');
@@ -58,9 +58,7 @@ const serve=(s:Server)=>(call:FakeCall):FakeReply=>{
  if(path==='/trending/refresh'||path==='/signals/refresh'){s.jobs.push(path);return {status:202,body:{id:`j${s.jobs.length}`,status:'running'}};}
  if(path==='/trending/idea'){const made=base('idea-t',(s.trending.items.find(i=>i.videoId===(body as {videoId:string}).videoId)!).title,'ideas');s.videos=[...s.videos,made];return {status:201,body:made};}
  if(path==='/signals/idea'){const made=base('idea-s','From a post','ideas');s.videos=[...s.videos,made];return {status:201,body:made};}
- const plan=path.match(/^\/videos\/(\w+)\/plan$/);
- if(plan)return {body:{package:null,outline:s.outlines[plan[1]]?{scenes:Array.from({length:s.outlines[plan[1]]},(_,i)=>({title:`S${i}`,talkingPoints:[],show:'',seconds:30}))}:null,running:{},ready:{}}};
- if(path==='/api/projects')return {body:s.projects};
+ if(path==='/videos/scenes')return {body:fakeScenes(s.videos,{projects:s.projects,outlines:s.outlines})};
  const move=path.match(/^\/videos\/(\w+)\/move$/);
  if(move){s.videos=s.videos.map(v=>v.id===move[1]?{...v,stage:(body as {stage:Video['stage']}).stage}:v);return {body:s.videos.find(v=>v.id===move[1])};}
  const one=path.match(/^\/videos\/(\w+)$/);

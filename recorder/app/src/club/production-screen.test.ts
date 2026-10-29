@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import {act,createElement} from 'react';
 import type {Video} from '../../shared/club';
 import {arrangeColumn} from '../../shared/club-board';
-import {installFetch,type FakeCall,type FakeReply} from './test-fakes';
+import {fakeScenes,installFetch,type FakeCall,type FakeReply} from './test-fakes';
 import type {ProductionView,Route} from './routes';
 const {ToastProvider}=await import('./ui');
 const {ProductionScreen}=await import('./screens/ProductionScreen');
@@ -32,22 +32,18 @@ const drag=async(el:Element,type:string,y?:number)=>act(async()=>{el.dispatchEve
 const dragTo=async(source:Element,target:Element,y=10_000)=>{await drag(source,'dragstart');await drag(target,'dragover',y);await drag(target,'drop',y);await drag(source,'dragend');await settle();};
 const toasts=(c:Element)=>[...c.querySelectorAll('.cc-toast')].map(text);
 
-type Server={videos:Video[];welcomed:boolean;failMove:boolean;failLoad:boolean;outlines:Record<string,number>;failPlan?:string[];holdPlan?:Promise<void>};
+type Server={videos:Video[];welcomed:boolean;failMove:boolean;failLoad:boolean;outlines:Record<string,number>;unreadable?:string[];holdScenes?:Promise<void>};
 function serve(server:Server){
- const planReply=(id:string):FakeReply=>({body:{package:null,outline:server.outlines[id]?{scenes:Array.from({length:server.outlines[id]},(_,i)=>({title:`S${i}`,talkingPoints:[],show:'',seconds:30}))}:null,running:{},ready:{}}});
+ const scenesReply=():FakeReply=>({body:fakeScenes(server.videos,{projects,outlines:server.outlines,unreadable:server.unreadable})});
  return (call:FakeCall):FakeReply|Promise<FakeReply>=>{
   const {path,method}=call;
   if(path==='/workspaces'&&method==='GET')return {body:{current:'maya',workspaces:[ws]}};
   if(path==='/videos'&&method==='GET')return server.failLoad?{status:500,body:{error:"Couldn't load your videos."}}:{body:server.videos};
   if(path==='/recent')return {body:[]};
-  if(path==='/api/projects')return {body:projects};
   if(path==='/settings'&&method==='GET')return {body:{defaultAi:'claude',welcomed:server.welcomed}};
   if(path==='/settings/welcomed')return {body:{welcomed:true}};
   if(path==='/ai/status')return {body:{claude:{installed:true,version:'2',signedIn:true},codex:{installed:false,version:null,signedIn:false}}};
-  const plan=path.match(/^\/videos\/(\w+)\/plan$/);
-  if(plan&&server.failPlan?.includes(plan[1]))return {status:500,body:{error:'That did not work.'}};
-  if(plan&&server.holdPlan)return server.holdPlan.then(():FakeReply=>planReply(plan[1]));
-  if(plan)return planReply(plan[1]);
+  if(path==='/videos/scenes')return server.holdScenes?server.holdScenes.then(scenesReply):scenesReply();
   const move=path.match(/^\/videos\/(\w+)\/move$/);
   if(move){
    if(server.failMove)return {status:500,body:{error:"Couldn't save that."}};
@@ -93,6 +89,7 @@ test('Board: six columns with counts, cards with scene dots and the next action,
   assert.equal(card(c,'Live').querySelector('img')!.getAttribute('src'),'https://i.ytimg.com/vi/dQw4w9WgXcQ/mqdefault.jpg');
   assert.ok(card(c,'Recorded').querySelector('.tthumb'),'a video in production shows a draft thumbnail');
   assert.equal(calls.filter(call=>call.method!=='GET').length,0,'looking changes nothing');
+  assert.deepEqual(calls.filter(call=>/scenes|\/plan$|api\/projects/.test(call.path)).map(call=>call.path),['/videos/scenes'],'the scenes of every card come in one request');
   assert.equal(c.querySelectorAll('.btn.primary').length,1,'one primary button');
   await press(button(c,'New video'));assert.equal(opened.count,1);
   await press(recorded);await press(card(c,'Alpha'));await press(card(c,'Live'));await press(planned);
@@ -303,7 +300,7 @@ test('Production in the app: the Production page, New video, and a card that ope
 test('Board: scenes that are loading or could not be read say nothing about scenes; a known empty outline says so',async()=>{
  const videos=[mk('p',{title:'Planned',stage:'planning'}),mk('r',{title:'Recording one',stage:'recording'}),mk('e',{title:'Editing one',stage:'editing'})];
  // Could not be read.
- await withBoard({videos,failPlan:['p','r','e']},'board',async ui=>{
+ await withBoard({videos,unreadable:['p','r','e']},'board',async ui=>{
   const c=ui.container;
   assert.match(text(card(c,'Planned')),/Continue planning/);assert.match(text(card(c,'Recording one')),/Continue recording/);
   assert.equal(c.querySelectorAll('.dots').length,0,'no dots for scenes nobody knows');
@@ -311,7 +308,7 @@ test('Board: scenes that are loading or could not be read say nothing about scen
  });
  // Still loading, then known.
  let release=()=>{};const hold=new Promise<void>(resolve=>{release=resolve;});
- await withBoard({videos,outlines:{p:3,r:2},holdPlan:hold},'board',async ui=>{
+ await withBoard({videos,outlines:{p:3,r:2},holdScenes:hold},'board',async ui=>{
   const c=ui.container;
   assert.match(text(card(c,'Planned')),/Continue planning/);assert.match(text(card(c,'Recording one')),/Continue recording/);
   assert.equal(c.querySelectorAll('.dots').length,0);

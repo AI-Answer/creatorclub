@@ -19,11 +19,11 @@ export const VIDEOS_CHANGED='club:videos-changed';
 /** Tells everything that lists videos to load them again, for a change the server made that no request of ours reported. */
 export const notifyVideosChanged=()=>window.dispatchEvent(new Event(VIDEOS_CHANGED));
 
-/** Writes that add, change or remove a video: `/videos…` (not just noting that one was opened) and a concept added from a breakdown. */
+/** Writes that add, change or remove a video: `/videos…` (not just noting that one was opened, moving or editing a tile on its Board, or chatting about the Board) and a concept added from a breakdown. */
 export function changesVideos(method:string|undefined,path:string):boolean{
  if(!method||method==='GET'||method==='HEAD')return false;
  const route=path.split('?')[0];
- if(/^\/videos(\/|$)/.test(route))return !/^\/videos\/[^/]+\/opened$/.test(route);
+ if(/^\/videos(\/|$)/.test(route))return !/^\/videos\/[^/]+\/(opened|board\/chat)$/.test(route)&&!(method==='PATCH'&&/^\/videos\/[^/]+\/research\/[^/]+$/.test(route));
  return /^\/breakdowns\/[^/]+\/concepts\/[^/]+\/add$/.test(route);
 }
 

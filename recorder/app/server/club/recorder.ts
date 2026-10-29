@@ -1,7 +1,7 @@
 import type { Outline, RecorderScene, Video } from '../../shared/club.js';
 import { createProject, makeId, projectDuration, type Project } from '../../shared/types.js';
 import { ClubError } from './errors.js';
-import { readOutline, scriptSections } from './planning.js';
+import { matchSection, readOutline, scriptSections } from './planning.js';
 import * as store from './store.js';
 
 /*
@@ -21,14 +21,10 @@ export interface SceneContent {
 /** What each recorder scene gets: the scene title, its talking points one per line (or its part of the full script, when one was written), and what to show as notes. */
 export function recorderScenes(outline: Outline): SceneContent[] {
   const sections = outline.fullScript ? scriptSections(outline.fullScript) : [];
-  const key = (title: string) => title.trim().toLowerCase();
-  // A scene's part of the script is the section under its own title, else the section in its place when the counts match.
-  const sectionFor = (title: string, index: number) =>
-    sections.find((section) => key(section.heading) === key(title)) ?? (sections.length === outline.scenes.length ? sections[index] : undefined);
   return outline.scenes.map((scene, index) => ({
     outlineId: scene.id ?? `s_${index + 1}`,
     name: scene.title.trim() || `Scene ${index + 1}`,
-    script: sectionFor(scene.title, index)?.body || scene.talkingPoints.map((point) => point.trim()).filter(Boolean).join('\n'),
+    script: matchSection(sections, outline.scenes, index)?.body || scene.talkingPoints.map((point) => point.trim()).filter(Boolean).join('\n'),
     notes: scene.show.trim(),
   }));
 }
@@ -122,7 +118,7 @@ const sceneforge = () =>
       throw error;
     }));
 
-async function readProjectIfThere(id: string | undefined): Promise<Project | undefined> {
+export async function readProjectIfThere(id: string | undefined): Promise<Project | undefined> {
   if (!id) return undefined;
   const { readProject } = await sceneforge();
   return readProject(id).catch((error: NodeJS.ErrnoException) => {

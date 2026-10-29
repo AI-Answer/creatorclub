@@ -1,7 +1,7 @@
 import express, { Router, type NextFunction, type Request, type Response } from 'express';
 import multer from 'multer';
 import { z } from 'zod';
-import { PLAN_JOB_KINDS, PLAN_STEPS, TILE_KINDS, VIDEO_STAGES, type Workspace } from '../../shared/club.js';
+import { BOARD_ITEM_KINDS, PLAN_JOB_KINDS, PLAN_STEPS, TILE_KINDS, VIDEO_STAGES, type Workspace } from '../../shared/club.js';
 import { aiStatus } from './ai.js';
 import { startConnect, type ConnectOptions } from './connect.js';
 import { ClubError, GENERIC_FAILURE, notFound } from './errors.js';
@@ -12,11 +12,14 @@ import { cancelJob, getJob, runningOnce, snapshot, startJob, startJobOnce, watch
 import { parseChannelInput } from './channel.js';
 import { FILE_TOO_BIG, MAX_FILE_BYTES, detectSource } from './source.js';
 import { addChannel, rebuildVoice, startFresh } from './onboard.js';
-import { heldResults, readOutline, readPackage, runningPlanJobs, saveOutline, savePackage, saveScript, startPlanJob, undoReplace, useHeld, type PlanOptions } from './planning.js';
+import { SCENE_ID, heldResults, readOutline, readPackage, runningPlanJobs, saveOutline, savePackage, saveScript, startPlanJob, undoReplace, usePackageText, useHeld, type PlanOptions } from './planning.js';
 import { continueToRecording, outlineChangedScene } from './recorder.js';
 import { publishVideo, ytDlpViews, type ViewsReader } from './publish.js';
 import { recordingsDiskSpace } from './disk.js';
 import { readTranscript, startTileRead } from './research.js';
+import { askAboutBoard, readBoardChat, saveBoardChat } from './board-chat.js';
+import { videoScenes, videosScenes } from './scenes.js';
+import { POSITION_MAX, WIDTH_MAX, WIDTH_MIN } from './tile-layout.js';
 import { findTregCall, hasSources, NO_SOURCES, rankedSignals, readSignalsConfig, startSignalsRefresh, writeSignalsConfig, type SignalsSources } from './signals.js';
 import { ideaFromSignal, ideaFromTrending } from './trend-ideas.js';
 import { rankedTrending, readFollowed, startTrendingRefresh, writeFollowed, ytDlpSource, type UploadsSourceFactory } from './trending.js';
@@ -109,7 +112,20 @@ const signalIdeaBody = z.object({ id: z.string().min(1).max(100) }).strict();
 const trendingIdeaBody = z.object({ videoId: z.string().regex(/^[\w-]{6,20}$/) }).strict();
 
 const tileMeta = z
-  .object({ views: z.number(), channel: z.string(), multiplier: z.number(), thumbnail: z.string(), likes: z.number(), comments: z.number(), ageDays: z.number(), platform: z.enum(['youtube', 'instagram']) })
+  .object({
+    views: z.number(),
+    channel: z.string(),
+    multiplier: z.number(),
+    thumbnail: z.string(),
+    likes: z.number(),
+    comments: z.number(),
+    ageDays: z.number(),
+    platform: z.enum(['youtube', 'instagram']),
+    source: z.enum(['x', 'reddit']),
+    author: z.string().max(200),
+    replies: z.number(),
+    breakdownId: z.string().regex(/^bd_[a-f0-9]{12}$/),
+  })
   .partial()
   .strict();
 const scriptBody = z.object({ script: z.string().max(200_000).nullable() }).strict();
@@ -122,6 +138,32 @@ const newTileBody = z.object({
   text: z.string().optional(),
   meta: z.preprocess((v) => (typeof v === 'string' ? JSON.parse(v) : v), tileMeta).optional(),
 }).strict();
+
+// Moving a tile, renaming it, or editing a note. A tile's width is optional; one left out stays as it is.
+const tilePatchBody = z
+  .object({
+    pos: z.object({ x: z.number().finite().min(0).max(POSITION_MAX), y: z.number().finite().min(0).max(POSITION_MAX), w: z.number().finite().min(WIDTH_MIN).max(WIDTH_MAX).optional() }).strict(),
+    title: z.string().max(500),
+    text: z.string().max(20_000),
+  })
+  .partial()
+  .strict()
+  .refine((patch) => Object.keys(patch).length > 0, { message: 'nothing to change' });
+const boardChatBody = z.object({ message: z.string().trim().min(1).max(4000), history: z.array(z.object({ role: z.enum(['user', 'assistant']), text: z.string().max(20_000) }).strict()).max(200).default([]) }).strict();
+const boardMessages = z
+  .array(
+    z
+      .object({
+        role: z.enum(['user', 'assistant']),
+        text: z.string().max(20_000),
+        items: z.array(z.object({ kind: z.enum(BOARD_ITEM_KINDS), text: z.string().max(2000) }).strict()).max(20).optional(),
+        used: z.array(z.number().int().min(0).max(19)).max(20).optional(),
+      })
+      .strict(),
+  )
+  .max(400);
+const packageUseBody = z.object({ kind: z.enum(['hook', 'title']), text: z.string().trim().min(1).max(2000) }).strict();
+const scriptRunBody = z.object({ sceneId: z.string().regex(SCENE_ID).optional() }).strict();
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { files: 1, fileSize: 50 * 1024 * 1024 } });
 
@@ -354,6 +396,8 @@ export function clubRouter({ ai = {}, transcribe, runAI, readViews = ytDlpViews(
     res.status(201).json(await store.createVideo(await requireWorkspace(), newVideoBody.parse(req.body)));
   }));
   router.get('/recent', handler(async (_req, res) => res.json(await store.recentVideoIds(await requireWorkspace()))));
+  // Every video that is not published, in one request. Registered before /videos/:id so "scenes" is not read as an id.
+  router.get('/videos/scenes', handler(async (_req, res) => res.json(await videosScenes(await requireWorkspace()))));
   router.get('/videos/:id', handler(async (req, res) => res.json(await store.readVideo(await requireWorkspace(), param(req, 'id')))));
   router.put('/videos/:id', handler(async (req, res) => {
     res.json(await store.updateVideo(await requireWorkspace(), param(req, 'id'), videoPatchBody.parse(req.body)));
@@ -377,13 +421,24 @@ export function clubRouter({ ai = {}, transcribe, runAI, readViews = ytDlpViews(
   }));
 
   // ---- research tiles
-  router.get('/videos/:id/research', handler(async (req, res) => res.json(await store.listTiles(await requireWorkspace(), param(req, 'id')))));
+  router.get('/videos/:id/research', handler(async (req, res) => res.json(await store.listPlacedTiles(await requireWorkspace(), param(req, 'id')))));
   router.post('/videos/:id/research', upload.single('file'), handler(async (req, res) => {
+    const slug = await requireWorkspace();
     const body = newTileBody.parse(req.body);
     const file = req.file ? { name: req.file.originalname, data: req.file.buffer } : undefined;
-    const needs = { link: body.url, video: body.url, text: body.text, note: body.text, image: file ?? body.url }[body.kind];
-    if (!needs) throw new ClubError(body.kind === 'text' || body.kind === 'note' ? 'Add some text first.' : 'Add a link or a file first.');
-    res.status(201).json(await store.addTile(await requireWorkspace(), param(req, 'id'), { ...body, file }));
+    // A note can be added empty: it lands on the Board ready to be written in.
+    const needs = { link: body.url, video: body.url, text: body.text, note: true, image: file ?? body.url, signal: body.text, breakdown: body.meta?.breakdownId }[body.kind];
+    if (!needs) throw new ClubError(body.kind === 'text' ? 'Add some text first.' : body.kind === 'signal' ? 'Add the post first.' : body.kind === 'breakdown' ? 'Pick a breakdown first.' : 'Add a link or a file first.');
+    if (body.kind === 'breakdown') await readBreakdown(slug, body.meta!.breakdownId!);
+    res.status(201).json(await store.addTile(slug, param(req, 'id'), { ...body, file }));
+  }));
+  // Moves a tile on the Board, renames it, or edits a note. Writes only what was sent.
+  router.patch('/videos/:id/research/:tileId', handler(async (req, res) => {
+    const slug = await requireWorkspace();
+    const { pos, ...rest } = tilePatchBody.parse(req.body);
+    const tile = await store.readTile(slug, param(req, 'id'), param(req, 'tileId'));
+    if (rest.text !== undefined && tile.kind !== 'note' && tile.kind !== 'text') throw new ClubError('Only notes can be edited.');
+    res.json(await store.updateTile(slug, param(req, 'id'), tile.id, { ...rest, ...(pos ? { pos: { ...tile.pos, ...pos } } : {}) }));
   }));
   router.get('/videos/:id/research/:tileId/file', handler(async (req, res) => {
     const slug = await requireWorkspace();
@@ -418,6 +473,11 @@ export function clubRouter({ ai = {}, transcribe, runAI, readViews = ytDlpViews(
     res.json({ package: pkg, outline, ...(changedScene ? { changedScene } : {}), running: runningPlanJobs(slug, id), ready });
   }));
   router.put('/videos/:id/package', handler(async (req, res) => res.json(await savePackage(await requireWorkspace(), param(req, 'id'), req.body))));
+  // "Use as hook" and "Use as title" from the Board chat. Saves through the same path as PUT /package, so a package job that is running holds its result.
+  router.post('/videos/:id/package/text', handler(async (req, res) => {
+    const { kind, text } = packageUseBody.parse(req.body);
+    res.json(await usePackageText(await requireWorkspace(), param(req, 'id'), kind, text));
+  }));
   router.put('/videos/:id/outline', handler(async (req, res) => res.json(await saveOutline(await requireWorkspace(), param(req, 'id'), req.body))));
   router.put('/videos/:id/script', handler(async (req, res) => {
     res.json({ outline: await saveScript(await requireWorkspace(), param(req, 'id'), scriptBody.parse(req.body).script) });
@@ -428,8 +488,14 @@ export function clubRouter({ ai = {}, transcribe, runAI, readViews = ytDlpViews(
       const slug = await requireWorkspace();
       const id = param(req, 'id');
       await store.readVideo(slug, id);
-      if (kind === 'script' && !(await readOutline(slug, id))) throw new ClubError('Create the outline first.');
-      res.status(202).json(startPlanJob(slug, id, kind, plan));
+      // Write full script instead, or with a `sceneId` the script of that one scene.
+      const sceneId = kind === 'script' ? scriptRunBody.parse(req.body ?? {}).sceneId : undefined;
+      if (kind === 'script') {
+        const outline = await readOutline(slug, id);
+        if (!outline) throw new ClubError('Create the outline first.');
+        if (sceneId && !outline.scenes.some((scene) => scene.id === sceneId)) throw notFound('scene');
+      }
+      res.status(202).json(startPlanJob(slug, id, kind, plan, sceneId));
     }));
     // "Replaced the outline · Undo" puts back what a run replaced; "New outline ready · Use it" takes a result that was held.
     for (const action of ['undo', 'use'] as const) {
@@ -444,6 +510,20 @@ export function clubRouter({ ai = {}, transcribe, runAI, readViews = ytDlpViews(
     }
   }
   router.post('/videos/:id/recorder', handler(async (req, res) => res.json(await continueToRecording(await requireWorkspace(), param(req, 'id')))));
+  // The outline's scenes with the takes the recording project holds for each. Read only.
+  router.get('/videos/:id/scenes', handler(async (req, res) => res.json(await videoScenes(await requireWorkspace(), param(req, 'id')))));
+
+  // ---- Board chat: "Ask Claude about this board". The conversation is saved with the video.
+  router.get('/videos/:id/board/chat', handler(async (req, res) => res.json(await readBoardChat(await requireWorkspace(), param(req, 'id')))));
+  router.put('/videos/:id/board/chat', handler(async (req, res) => res.json(await saveBoardChat(await requireWorkspace(), param(req, 'id'), boardMessages.parse(req.body)))));
+  router.post('/videos/:id/board/chat', handler(async (req, res) => {
+    const slug = await requireWorkspace();
+    const { message, history } = boardChatBody.parse(req.body);
+    // The reply is paid for, so it stops when the person closes the panel or leaves.
+    const stop = new AbortController();
+    res.once('close', () => !res.writableFinished && stop.abort());
+    res.json(await askAboutBoard(slug, param(req, 'id'), message, history, plan, stop.signal));
+  }));
 
   // ---- breakdowns
   // JSON {url} for a link, or a multipart upload with a video `file`. Either starts a job whose result is the breakdown.

@@ -84,7 +84,7 @@ export interface RecorderScene {
   changedAt: string;
 }
 
-export const TILE_KINDS = ['link', 'video', 'text', 'image', 'note'] as const;
+export const TILE_KINDS = ['link', 'video', 'text', 'image', 'note', 'signal', 'breakdown'] as const;
 export type TileKind = (typeof TILE_KINDS)[number];
 
 export interface TileMeta {
@@ -98,6 +98,19 @@ export interface TileMeta {
   platform?: 'youtube' | 'instagram';
   /** True once the video's transcript is saved with the tile. */
   transcript?: boolean;
+  /** Signal tiles: where the post was read, who wrote it ("@name" on X, "r/sub" on Reddit), and how many replies it has. Its text and link are the tile's own; its likes are `likes`. */
+  source?: SignalSource;
+  author?: string;
+  replies?: number;
+  /** Breakdown tiles: the saved breakdown the tile shows. */
+  breakdownId?: string;
+}
+
+/** Where a tile sits on the video's Board, in pixels from its top left corner. `w` is its width; the Board gives it a default when it is missing. */
+export interface TilePosition {
+  x: number;
+  y: number;
+  w?: number;
 }
 
 /** A video tile's transcript, split into the video's own chapters (one untitled chapter when it has none). */
@@ -117,6 +130,8 @@ export interface ResearchTile {
   /** File name inside the video's research folder (image tiles and uploads). */
   file?: string;
   meta: TileMeta;
+  /** Set when the tile is added, so a tile always has a place on the Board. */
+  pos?: TilePosition;
   createdAt: string;
 }
 
@@ -416,3 +431,58 @@ export interface SignalsRefreshResult {
   errors: string[];
   note?: string;
 }
+
+// ---------------------------------------------------------------- Board chat and scene status
+
+/** What "Ask Claude about this board" can hand back to use: a spoken hook, a title, a note for the Board, or a scene idea. */
+export const BOARD_ITEM_KINDS = ['hook', 'title', 'note', 'scene'] as const;
+export type BoardItemKind = (typeof BOARD_ITEM_KINDS)[number];
+export interface BoardItem {
+  kind: BoardItemKind;
+  text: string;
+}
+
+/** One message of a video's Board chat (`board-chat.json`). `used` marks the items already taken, by their place in `items`. */
+export interface BoardChatMessage {
+  role: 'user' | 'assistant';
+  text: string;
+  items?: BoardItem[];
+  used?: number[];
+}
+
+/** The answer to `POST /api/club/videos/:id/board/chat`. */
+export interface BoardChatReply {
+  reply: string;
+  items: BoardItem[];
+}
+
+/** Result of `POST /api/club/videos/:id/package/use`: the package as saved, and the one it replaced (null when there was none), so Undo can put it back with `PUT /package`. */
+export interface PackageUseResult {
+  package: Package;
+  previous: Package | null;
+}
+
+/** One take of a scene in the recording project. `kept` is true while the take is on the timeline. */
+export interface SceneTakeInfo {
+  id: string;
+  seconds: number;
+  kept: boolean;
+}
+
+/** One outline scene with what the recording project holds for it. */
+export interface VideoScene {
+  /** The outline scene's id. */
+  id: string;
+  title: string;
+  /** The seconds the outline gives the scene. */
+  seconds: number;
+  /** In the order they were recorded, so "Kept take 2" is the second one. */
+  takes: SceneTakeInfo[];
+  /** "Not recorded", "2 takes", "Kept take 2" or "Cut 14s". */
+  status: string;
+  /** Seconds taken out of the scene by removing pauses. Left out while the recording project does not record them per scene. */
+  cutSeconds?: number;
+}
+
+/** `GET /api/club/videos/scenes`: the scenes of every video that is not published, by video id. A video whose scenes could not be read has no entry, which is not the same as an empty list (an outline with no scenes). */
+export type ScenesByVideo = Record<string, VideoScene[]>;

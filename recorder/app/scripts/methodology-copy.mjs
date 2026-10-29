@@ -2,7 +2,7 @@ import {access,cp} from 'node:fs/promises';
 import path from 'node:path';
 
 /** The files the server reads from methodology/ (see server/club/prompts.ts). A packaged app without them cannot run any AI step. */
-export const METHODOLOGY_FILES = ['breakdown.md','breakdown.schema.json','expand.md','outline.md','outline.schema.json','package.md','package.schema.json','revise.md','script.md','voice.md','ref/hook-library.md','ref/cta-permutations.md'];
+export const METHODOLOGY_FILES = ['board-chat.md','board-chat.schema.json','breakdown.md','breakdown.schema.json','expand.md','outline.md','outline.schema.json','package.md','package.schema.json','revise.md','scene-script.md','script.md','voice.md','ref/hook-library.md','ref/cta-permutations.md'];
 
 /** Copies the prompt files next to the bundled server. Throws when any of them is missing, so a package never ships without them. */
 export async function copyMethodology({from, to}) {

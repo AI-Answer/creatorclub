@@ -1,3 +1,5 @@
+import type {ScenesByVideo,Video} from '../../shared/club';
+
 /** Stand-ins for the browser's EventSource and fetch, so screens can be tested against a scripted server. */
 export class FakeEventSource{
  static all:FakeEventSource[]=[];
@@ -31,4 +33,16 @@ export function installFetch(reply:(call:FakeCall)=>FakeReply|Promise<FakeReply>
   return new Response(JSON.stringify(answer?.body??(answer?undefined:{error:'That was not found.'})),{status:answer?.status??(answer?200:404),headers:{'content-type':'application/json'}});
  }) as typeof fetch;
  return {calls,restore:()=>{globalThis.fetch=original;}};
+}
+
+/**
+ * What `GET /videos/scenes` answers for a set of videos: a video with a recording project has that project's scene count and how many are kept,
+ * any other has its outline's count (none when `outlines` lacks it). Videos in `unreadable` are left out, as the server does when it cannot read one.
+ */
+export function fakeScenes(videos:readonly Video[],data:{projects?:readonly {id:string;sceneCount:number;recordedSceneCount:number}[];outlines?:Record<string,number>;unreadable?:readonly string[]}={}):ScenesByVideo{
+ return Object.fromEntries(videos.filter(video=>video.stage!=='published'&&!data.unreadable?.includes(video.id)).map(video=>{
+  const project=data.projects?.find(candidate=>candidate.id===video.recorderProjectId);
+  const count=project?.sceneCount??data.outlines?.[video.id]??0,kept=project?.recordedSceneCount??0;
+  return [video.id,Array.from({length:count},(_,index)=>({id:`s${index}`,title:`S${index}`,seconds:30,takes:index<kept?[{id:`t${index}`,seconds:20,kept:true}]:[],status:index<kept?'Kept take 1':'Not recorded'}))];
+ }));
 }
