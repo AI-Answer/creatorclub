@@ -72,7 +72,8 @@ test('embedded Edit: one toolbar, panels and Ask Claude behind Style & more, the
   assert.ok(ui.container.querySelector('.club-edit-side:not([hidden]) .transcript-panel'),'the transcript is open beside the preview');
   await act(async()=>button(header,'Style & more').click());
   const menu=[...document.querySelectorAll('[role="menu"] button')].map(b=>b.textContent?.trim());
-  for(const item of ['Canvas','Layout','Clip','Zoom','Elements','Music','Captions','Cursor','Automate','Import media','Ask Claude'])assert.ok(menu.includes(item),`Style & more has ${item}`);
+  for(const item of ['Canvas','Layout','Clip','Zoom','Elements','Music','Captions','Cursor','Import media','Ask Claude','Settings…'])assert.ok(menu.includes(item),`Style & more has ${item}`);
+  assert.ok(!menu.includes('Automate'),'Automate lives in the Auto-edit and style sheet only');
   await act(async()=>[...document.querySelectorAll<HTMLButtonElement>('[role="menu"] button')].find(b=>b.textContent?.trim()==='Captions')!.click());
   assert.equal(ui.container.querySelector('.club-edit-side .inspector h2')?.textContent,'Captions','a panel opens as a sheet over the side');
   await act(async()=>ui.container.querySelector<HTMLButtonElement>('button[aria-label="Close Captions"]')!.click());

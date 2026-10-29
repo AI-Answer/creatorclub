@@ -10,11 +10,13 @@ const {TimelineClub,usedRows}=await import('./TimelineClub');
 const media:Media={id:'m',name:'m',path:'/tmp/m.mov',kind:'video',duration:60,width:1920,height:1080,hasAudio:true};
 const clip=(id:string,track:Clip['track'],start:number,length:number,take?:string):Clip=>({id,mediaId:'m',name:id,track,start,sourceIn:0,sourceOut:length,speed:1,gain:1,muted:false,transform:defaultTransform(),effects:defaultEffects(),...(take?{recordingTakeId:take}:{})});
 function project(clips:Clip[]):Project{const p=createProject('Edit');p.media=[media];p.clips=clips;p.scenes=[];p.settings.snap=false;return p;}
+/** Drag previews render on the next animation frame. */
+const frame=()=>act(async()=>{await new Promise(resolve=>setTimeout(resolve,40));});
 const pointer=(type:string,x:number,target:EventTarget=window)=>target.dispatchEvent(new (window as unknown as {PointerEvent:typeof PointerEvent}).PointerEvent(type,{bubbles:true,cancelable:true,button:0,buttons:1,clientX:x,clientY:10,pointerId:1}));
 
 function harness(p:Project){
- const state={project:p,changes:0};const playhead=createPlayhead(0);
- const element=(next:Project)=>createElement(TimelineClub,{project:next,playhead,scale:50,onScale:()=>{},selectedIds:new Set<string>(),onSelectMany:()=>{},onSeek:()=>{},change:fn=>{state.changes++;state.project=applyProjectChange(state.project,fn);},onDropMedia:()=>{},tool:'select',onSplit:()=>{},follow:true,showWaveforms:false,onOpen:()=>{}});
+ const state={project:p,changes:0,notices:[] as string[]};const playhead=createPlayhead(0);
+ const element=(next:Project)=>createElement(TimelineClub,{project:next,playhead,scale:50,onScale:()=>{},selectedIds:new Set<string>(),onSelectMany:()=>{},onSeek:()=>{},change:fn=>{state.changes++;state.project=applyProjectChange(state.project,fn);},onDropMedia:()=>{},tool:'select',onSplit:()=>{},follow:true,showWaveforms:false,onOpen:()=>{},onNotice:(message:string)=>{state.notices.push(message);}});
  return {state,element};
 }
 
@@ -30,7 +32,7 @@ test('a drag survives a background save or reload of the project and drops on th
  try{
   const node=ui.container.querySelector('[data-clip-id="a"]')!;
   await act(async()=>{pointer('pointerdown',110,node);});
-  await act(async()=>{pointer('pointermove',160);pointer('pointermove',210);});
+  await act(async()=>{pointer('pointermove',160);pointer('pointermove',210);});await frame();
   assert.ok(ui.container.querySelector('.clip-drag-preview'),'the clip is being dragged');
   // An autosave or a server reload replaces the project object and its arrays with equal copies.
   const saved:Project={...state.project,updatedAt:'2026-10-29T12:00:00.000Z',clips:state.project.clips.map(c=>({...c})),captions:[...state.project.captions]};
@@ -51,5 +53,27 @@ test('Escape cancels a drag; a linked take moves as one',async()=>{
   assert.equal(state.changes,0,'cancelled by the person');
   await act(async()=>{pointer('pointerdown',10,ui.container.querySelector('[data-clip-id="s"]')!);pointer('pointermove',60);pointer('pointerup',60);});
   assert.deepEqual(state.project.clips.map(c=>[c.id,c.start]),[['s',1],['c',1],['o',10]],'camera follows the screen');
+ }finally{await ui.close();}
+});
+
+test('Escape ends only the drag: the editor\'s own keys never see it',async()=>{
+ const {state,element}=harness(project([clip('a','screen',2,4)]));const ui=await mountUI(element(state.project));let seen=0;const editor=(e:KeyboardEvent)=>{if(e.key==='Escape')seen++;};window.addEventListener('keydown',editor);
+ try{
+  await act(async()=>{pointer('pointerdown',110,ui.container.querySelector('[data-clip-id="a"]')!);pointer('pointermove',160);});await frame();
+  await act(async()=>{document.body.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));});
+  assert.equal(seen,0,'a sheet behind the timeline stays open');assert.equal(ui.container.querySelector('.clip-drag-preview'),null);
+  await act(async()=>{document.body.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));});assert.equal(seen,1,'without a drag Escape reaches the editor');
+ }finally{window.removeEventListener('keydown',editor);await ui.close();}
+});
+
+test('a drop on clips that changed during the drag applies nothing and says so',async()=>{
+ const {state,element}=harness(project([clip('a','screen',2,4),clip('b','screen',8,4)]));const ui=await mountUI(element(state.project));
+ try{
+  await act(async()=>{pointer('pointerdown',110,ui.container.querySelector('[data-clip-id="a"]')!);pointer('pointermove',150);});await frame();
+  // Another window (or Claude) moved clip a meanwhile.
+  const remote:Project={...state.project,clips:state.project.clips.map(c=>c.id==='a'?{...c,start:0}:{...c})};state.project=remote;await ui.render(element(remote));
+  await act(async()=>{pointer('pointerup',150);});
+  assert.equal(state.changes,1,'one change call, which made no edit');assert.deepEqual(state.project.clips.map(c=>c.start),[0,8]);
+  assert.deepEqual(state.notices,['The timeline changed during the drag, so nothing moved. Try again.']);
  }finally{await ui.close();}
 });

@@ -16,6 +16,7 @@
   /* Timeline kinds: one hue each, the same wherever a kind is drawn. Lift into the central token file when there is one. */
   --kind-screen:#1f7a80;--kind-camera:#6b55c4;--kind-audio:#4f6d8a;--kind-graphics:#b8457d;--kind-captions:#6b7a2a;--kind-zoom:#9a5a2c;--kind-marker:var(--cc-ink);
   --kind-ink:#ffffff;--tl-select:var(--cc-accent);--tl-row:var(--cc-subtle);
+  --tl-shadow-ink:#000000;--tl-shade-soft:color-mix(in srgb,var(--tl-shadow-ink) 12%,transparent);--tl-shade:color-mix(in srgb,var(--tl-shadow-ink) 35%,transparent);--tl-shade-strong:color-mix(in srgb,var(--tl-shadow-ink) 60%,transparent);
   font-family:var(--font-sans);font-size:14px;color:var(--cc-ink);background:var(--cc-page);padding-bottom:0;
 }
 
@@ -43,15 +44,14 @@
 .club-embed .app-shell[data-mode=Edit] .club-edit-stage{grid-row:1;grid-column:1;position:relative;display:flex;flex-direction:column;min-width:0;min-height:0;overflow:hidden}
 .club-embed .app-shell[data-mode=Edit] .club-edit-stage .stage-wrap{background:transparent;padding:14px 20px}
 .club-embed .app-shell[data-mode=Edit] .club-edit-stage .stage{border-radius:12px}
-.club-embed .app-shell[data-mode=Edit] .club-preview-stage{flex:1;min-height:0;overflow:auto;padding:52px 20px 8px}
+.club-embed .app-shell[data-mode=Edit] .club-preview-stage{flex:1;min-height:0;overflow:auto;padding:6px 20px 8px}
 .club-embed .app-shell[data-mode=Edit] .club-preview-stage .cut-playback{border:0;padding:0;background:transparent}
-.club-embed .app-shell[data-mode=Edit] .club-preview-badges{position:absolute;left:20px;top:18px;z-index:5;display:flex;flex-wrap:wrap;gap:6px;align-items:center;pointer-events:none}
+.club-embed .app-shell[data-mode=Edit] .club-preview-badges{order:-1;flex-shrink:0;padding:10px 20px 0;display:flex;flex-wrap:wrap;gap:6px;align-items:center;pointer-events:none}
 .club-embed .app-shell[data-mode=Edit] .club-preview-badges>*{pointer-events:auto}
 .club-embed .app-shell[data-mode=Edit] .club-pill{display:inline-flex;align-items:center;height:26px;padding:0 10px;border-radius:999px;background:var(--cc-card);border:1px solid var(--cc-line);font-size:12px;color:var(--cc-ink)}
-.club-embed .app-shell[data-mode=Edit] .club-pill.is-accent{background:var(--cc-accent-soft);border-color:transparent;color:var(--cc-accent-text)}
 .club-embed .app-shell[data-mode=Edit] .club-seg{display:inline-flex;padding:2px;border-radius:8px;background:var(--cc-subtle);gap:2px}
 .club-embed .app-shell[data-mode=Edit] .club-seg>button{height:24px;padding:0 10px;border-radius:6px;font-size:12px;color:var(--cc-muted)}
-.club-embed .app-shell[data-mode=Edit] .club-seg>button[aria-pressed=true]{background:var(--cc-card);color:var(--cc-ink);box-shadow:0 1px 2px rgb(0 0 0/.08)}
+.club-embed .app-shell[data-mode=Edit] .club-seg>button[aria-pressed=true]{background:var(--cc-card);color:var(--cc-ink);box-shadow:0 1px 2px var(--tl-shade-soft)}
 
 /* The right side: the transcript by default, or one sheet. */
 .club-embed .app-shell[data-mode=Edit] .club-edit-side{grid-row:1;grid-column:2;min-width:0;min-height:0;display:flex;flex-direction:column;border-left:1px solid var(--cc-line);background:var(--cc-card);overflow:hidden}
@@ -124,7 +124,7 @@
 .club-embed .app-shell[data-mode=Edit] .club-row{position:absolute;left:0;right:0;background:none;border:0;margin:0;cursor:default}
 .club-embed .app-shell[data-mode=Edit] .club-row::before{display:none}
 .club-embed .app-shell[data-mode=Edit] .club-row:nth-of-type(odd){background:var(--tl-row)}
-.club-embed .app-shell[data-mode=Edit] .club-timeline .timeline-clip.club-clip{position:absolute;display:block;padding:0;border:1px solid rgb(0 0 0/.12);border-radius:6px;overflow:hidden;background:var(--kind-screen);color:var(--kind-ink);box-shadow:none;cursor:grab;user-select:none}
+.club-embed .app-shell[data-mode=Edit] .club-timeline .timeline-clip.club-clip{position:absolute;display:block;padding:0;border:1px solid var(--tl-shade-soft);border-radius:6px;overflow:hidden;background:var(--kind-screen);color:var(--kind-ink);box-shadow:none;cursor:grab;user-select:none}
 .club-embed .app-shell[data-mode=Edit] .club-timeline .timeline-clip.club-clip.clip-camera{background:var(--kind-camera)}
 .club-embed .app-shell[data-mode=Edit] .club-timeline .timeline-clip.club-clip:is(.clip-audio,.clip-music){background:color-mix(in srgb,var(--kind-audio) 22%,var(--cc-card));color:var(--cc-ink)}
 .club-embed .app-shell[data-mode=Edit] .club-timeline .timeline-clip.club-clip.clip-music{background:color-mix(in srgb,var(--kind-audio) 12%,var(--cc-card))}
@@ -133,20 +133,20 @@
 .club-embed .app-shell[data-mode=Edit] .club-clip.is-unlinked{border-style:dashed}
 .club-embed .app-shell[data-mode=Edit] .club-timeline :is(.club-clip,.club-effect).selected{outline:2px solid var(--tl-select);outline-offset:-1px;z-index:3}
 .club-embed .app-shell[data-mode=Edit] .club-filmstrip{position:absolute;inset:0;pointer-events:none;opacity:.92}
-.club-embed .app-shell[data-mode=Edit] .club-filmstrip>i{position:absolute;top:0;background-repeat:no-repeat;border-right:1px solid rgb(0 0 0/.35)}
+.club-embed .app-shell[data-mode=Edit] .club-filmstrip>i{position:absolute;top:0;background-repeat:no-repeat;border-right:1px solid var(--tl-shade)}
 .club-embed .app-shell[data-mode=Edit] .club-filmstrip.is-image{background-repeat:repeat-x}
 .club-embed .app-shell[data-mode=Edit] .club-wave{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
 .club-embed .app-shell[data-mode=Edit] .club-wave path{fill:var(--kind-audio)}
-.club-embed .app-shell[data-mode=Edit] .club-clip-label{position:sticky;left:4px;z-index:2;display:inline-flex;align-items:center;gap:4px;max-width:calc(100% - 12px);margin:3px 0 0 4px;padding:1px 6px;border-radius:4px;background:rgb(0 0 0/.55);color:var(--kind-ink);font-size:11px;font-weight:600;line-height:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none}
+.club-embed .app-shell[data-mode=Edit] .club-clip-label{position:sticky;left:4px;z-index:2;display:inline-flex;align-items:center;gap:4px;max-width:calc(100% - 12px);margin:3px 0 0 4px;padding:1px 6px;border-radius:4px;background:var(--tl-shade-strong);color:var(--kind-ink);font-size:11px;font-weight:600;line-height:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none}
 .club-embed .app-shell[data-mode=Edit] .club-timeline .trim-handle{position:absolute;top:0;bottom:0;width:7px;z-index:4;cursor:ew-resize;background:transparent}
 .club-embed .app-shell[data-mode=Edit] .club-timeline .trim-handle.left{left:0}
 .club-embed .app-shell[data-mode=Edit] .club-timeline .trim-handle.right{right:0}
-.club-embed .app-shell[data-mode=Edit] .club-timeline :is(.club-clip,.club-effect):hover .trim-handle{background:rgb(255 255 255/.35)}
+.club-embed .app-shell[data-mode=Edit] .club-timeline :is(.club-clip,.club-effect):hover .trim-handle{background:color-mix(in srgb,var(--kind-ink) 35%,transparent)}
 .club-embed .app-shell[data-mode=Edit] .club-timeline .timeline-effect.club-effect{position:absolute;top:3px;bottom:3px;height:auto;padding:0 8px;border-radius:5px;border:0;background:var(--kind-graphics);color:var(--kind-ink);font-size:11.5px;font-weight:500;line-height:20px;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:grab;user-select:none}
 .club-embed .app-shell[data-mode=Edit] .club-timeline .row-captions .club-effect{background:var(--kind-captions)}
 .club-embed .app-shell[data-mode=Edit] .club-timeline .row-zooms .club-effect{background:var(--kind-zoom)}
 .club-embed .app-shell[data-mode=Edit] .club-effect>span{pointer-events:none}
-.club-embed .app-shell[data-mode=Edit] .club-timeline .clip-drag-preview{opacity:.9;box-shadow:0 4px 12px rgb(0 0 0/.18);cursor:grabbing;z-index:6}
+.club-embed .app-shell[data-mode=Edit] .club-timeline .clip-drag-preview{opacity:.9;box-shadow:0 4px 12px var(--tl-shade);cursor:grabbing;z-index:6}
 .club-embed .app-shell[data-mode=Edit] .club-ghost{position:absolute;top:3px;bottom:3px;border:1px dashed var(--cc-muted);border-radius:6px;pointer-events:none}
 .club-embed .app-shell[data-mode=Edit] .club-preview-cut{position:absolute;z-index:5;pointer-events:none;background:repeating-linear-gradient(135deg,color-mix(in srgb,var(--cc-danger) 30%,transparent) 0 4px,transparent 4px 8px);border-left:1px solid var(--cc-danger);border-right:1px solid var(--cc-danger)}
 .club-embed .app-shell[data-mode=Edit] .club-snap{position:absolute;top:0;bottom:0;width:0;margin-left:-1px;border-left:2px solid var(--tl-select);z-index:9;pointer-events:none;background:none}

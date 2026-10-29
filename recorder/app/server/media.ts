@@ -273,7 +273,7 @@ export async function filmstrip(m: Media, cacheDir: string): Promise<string> {
     if (await exists(file)) return file;
     const tmp = path.join(cacheDir, `${key}.${randomUUID()}.tmp.jpg`);
     try {
-      await command(FFMPEG, ["-v", "error", "-nostdin", "-y", "-i", m.path, "-vf",
+      await command(FFMPEG, ["-v", "error", "-nostdin", "-y", ...(m.duration > 120 ? ["-skip_frame", "nokey"] : []), "-i", m.path, "-vf",
         `fps=${(count / m.duration).toFixed(6)},scale=${FILMSTRIP_WIDTH}:${FILMSTRIP_HEIGHT}:force_original_aspect_ratio=decrease,pad=${FILMSTRIP_WIDTH}:${FILMSTRIP_HEIGHT}:(ow-iw)/2:(oh-ih)/2:color=0x171b27,tile=${count}x1`,
         "-frames:v", "1", "-q:v", "5", tmp]);
       await fs.rename(tmp, file);

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import type {AutomationJob} from '../../../shared/automation';
 import {createProject,defaultEffects,defaultTransform,projectDuration,type Clip} from '../../../shared/types';
-import {cutReview,fillerRanges,gapRanges,pauseRanges,rangesSeconds,withoutRanges} from './edit-auto';
+import {cutReview,fillerRanges,gapRanges,pauseRanges,planIsStale,rangesSeconds,withoutRanges} from './edit-auto';
 
 const job=(changes:Array<{id:string;category:'silence'|'repeat';start:number;end:number}>):AutomationJob=>({id:'j',projectId:'p',kind:'auto-cut',status:'ready',progress:1,message:'',createdAt:'',updatedAt:'',automatic:false,applied:false,undone:false,
  proposal:{summary:'',warnings:[],baseRevision:'r',beforeDuration:0,afterDuration:0,changes:changes.map(c=>({...c,label:c.id,reason:'',selected:true}))}});
@@ -27,4 +27,12 @@ test('gaps are the empty stretches between clips; removing ranges closes them on
  const gaps=gapRanges(p);assert.deepEqual(gaps,[[5,8],[13,20]]);assert.equal(rangesSeconds(gaps),10);
  const after=withoutRanges(p,gaps);assert.deepEqual(after.clips.map(c=>c.start),[0,5,10]);assert.equal(projectDuration(after),15);assert.deepEqual(p.clips.map(c=>c.start),[0,8,20],'the original is untouched');
  const review=cutReview(p,gaps,'Gap');assert.deepEqual(review.joins.map(j=>[j.originalStart,j.editedTime]),[[5,5],[13,10]]);assert.equal(review.before,p);
+});
+
+test('a plan older than the last edit is out of date: its pauses and repeats are not offered',()=>{
+ const asked={...plan,createdAt:'2026-10-29T10:00:00.000Z'},p=createProject();
+ p.updatedAt='2026-10-29T09:59:00.000Z';assert.equal(planIsStale(asked,p),false,'saved, then asked');
+ assert.equal(pauseRanges(asked,'tight',.16,planIsStale(asked,p)).length,2);
+ p.updatedAt='2026-10-29T10:01:00.000Z';assert.equal(planIsStale(asked,p),true,'edited after the plan was asked for');
+ assert.deepEqual(pauseRanges(asked,'tight',.16,true),[]);assert.deepEqual(fillerRanges(p,asked,true),[]);
 });

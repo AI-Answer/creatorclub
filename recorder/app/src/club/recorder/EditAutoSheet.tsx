@@ -7,7 +7,7 @@ import {api} from '../../api';
 import {automationRunning} from '../../automation-state';
 import {closeRange} from '../../timeline-edit';
 import {Button} from '../ui';
-import {cutReview,fillerRanges,gapRanges,latestCutJob,latestStyleJob,PAUSE_LEVEL_NAMES,pauseRanges,rangesSeconds,type PauseLevel,type Range} from './edit-auto';
+import {cutReview,fillerRanges,gapRanges,latestCutJob,latestStyleJob,PAUSE_LEVEL_NAMES,pauseRanges,planIsStale,rangesSeconds,type PauseLevel,type Range} from './edit-auto';
 import {formatCutDuration} from './edit-steps';
 
 /** What the stage shows while a choice is previewed: a cut comparison (CutPlayback), or the styled video at the playhead. */
@@ -24,10 +24,12 @@ export function EditAutoSheet({project:p,jobs,merge,reload,flush,change,refresh,
  const [level,setLevel]=useState<PauseLevel>('balanced'),[padding,setPadding]=useState(.16),[hover,setHover]=useState<AutoOption|null>(null),[pin,setPin]=useState<AutoOption|null>(initial??null),[busy,setBusy]=useState(''),[error,setError]=useState('');
  const [styled,setStyled]=useState<{jobId:string;after:Project}|null>(null),list=useRef<HTMLDivElement>(null),retry=useRef<()=>void>(()=>{});
  const cutJob=latestCutJob(jobs),styleJob=latestStyleJob(jobs);
- const ranges=useMemo(()=>({pauses:pauseRanges(cutJob,level,padding),fillers:fillerRanges(p,cutJob),gaps:gapRanges(p)}),[cutJob,level,padding,p]);
+ // A plan made before the latest edit no longer matches the timeline: it is never applied, and the row offers to look again.
+ const stale=cutJob?.status==='ready'&&planIsStale(cutJob,p);
+ const ranges=useMemo(()=>({pauses:pauseRanges(cutJob,level,padding,stale),fillers:fillerRanges(p,cutJob,stale),gaps:gapRanges(p)}),[cutJob,level,padding,p,stale]);
  const active=pin??hover;
  const describe=(option:AutoOption)=>{
-  if(option==='pauses'){if(!cutJob)return 'Finds quiet gaps in your speech.';if(automationRunning(cutJob))return 'Looking for pauses…';const r=ranges.pauses;return r.length?`${r.length} ${r.length===1?'pause':'pauses'} · ${seconds(rangesSeconds(r))} shorter`:'No pauses left at this setting';}
+  if(option==='pauses'){if(!cutJob)return 'Finds quiet gaps in your speech.';if(automationRunning(cutJob))return 'Looking for pauses…';if(stale)return 'The timeline changed since the last look.';const r=ranges.pauses;return r.length?`${r.length} ${r.length===1?'pause':'pauses'} · ${seconds(rangesSeconds(r))} shorter`:'No pauses left at this setting';}
   if(option==='fillers'){const r=ranges.fillers;return r.length?`${r.length} found: "um", "uh" and repeated phrases · ${seconds(rangesSeconds(r))}`:p.captions.length?'None left':'Needs a transcript first';}
   if(option==='gaps'){const r=ranges.gaps;return r.length?`${r.length} empty ${r.length===1?'stretch':'stretches'} between clips · ${seconds(rangesSeconds(r))}`:'No gaps between clips';}
   if(option==='normalize')return p.clips.length&&p.clips.every(c=>c.effects.normalize)?'On: loudness is evened out when you export':'Evens out loudness when you export';
@@ -71,7 +73,7 @@ export function EditAutoSheet({project:p,jobs,merge,reload,flush,change,refresh,
   if(event.key==='ArrowDown'||event.key==='ArrowUp'){event.preventDefault();const rows=[...list.current!.querySelectorAll<HTMLElement>('[data-option]')],i=rows.indexOf(event.currentTarget as HTMLElement);rows[(i+(event.key==='ArrowDown'?1:rows.length-1))%rows.length]?.focus();}
   if(event.key==='Escape'){event.preventDefault();event.stopPropagation();if(pin)setPin(null);else onClose();}
  };
- const row=(option:AutoOption,icon:React.ReactNode,title:string,extra?:React.ReactNode)=><div key={option} data-option={option} tabIndex={0} className={`club-auto-row ${pin===option?'is-pinned':''}`} aria-label={title}
+ const row=(option:AutoOption,icon:React.ReactNode,title:string,extra?:React.ReactNode)=><div key={option} role="listitem" data-option={option} tabIndex={0} className={`club-auto-row ${pin===option?'is-pinned':''}`} aria-label={title}
   onMouseEnter={()=>setHover(option)} onMouseLeave={()=>setHover(h=>h===option?null:h)} onFocus={event=>{if(event.target===event.currentTarget)setHover(option);}} onBlur={()=>setHover(h=>h===option?null:h)}
   onClick={event=>{if((event.target as HTMLElement).closest('button,input'))return;setPin(option);}} onKeyDown={event=>keys(event,option)}>
   <div className="club-auto-title">{icon}{title}</div><div className="club-auto-desc">{describe(option)}</div>{extra}
@@ -81,8 +83,8 @@ export function EditAutoSheet({project:p,jobs,merge,reload,flush,change,refresh,
   <p className="club-sheet-hint">Hover to preview · click to choose · Enter to apply</p>
   <div className="club-sheet-body" ref={list} role="list">
    {row('pauses',<Scissors size={15}/>,'Remove pauses',<>
-    {!cutJob&&<Button size="sm" disabled={!!busy||!p.clips.length} onClick={()=>void plan('auto-cut')}>{busy==='auto-cut'&&<LoaderCircle className="spin" aria-hidden/>}Find pauses</Button>}
-    {cutJob?.status==='ready'&&<><div className="club-auto-control"><span className="club-seg" role="group" aria-label="How much to cut">{(Object.keys(PAUSE_LEVEL_NAMES) as PauseLevel[]).map(l=><button key={l} type="button" aria-pressed={level===l} onClick={()=>{setLevel(l);setPin('pauses');}}>{PAUSE_LEVEL_NAMES[l]}</button>)}</span></div>
+    {(!cutJob||stale||cutJob.status!=='ready'&&!automationRunning(cutJob))&&<Button size="sm" disabled={!!busy||!p.clips.length} onClick={()=>void plan('auto-cut')}>{busy==='auto-cut'&&<LoaderCircle className="spin" aria-hidden/>}{cutJob?'Find pauses again':'Find pauses'}</Button>}
+    {cutJob?.status==='ready'&&!stale&&<><div className="club-auto-control"><span className="club-seg" role="group" aria-label="How much to cut">{(Object.keys(PAUSE_LEVEL_NAMES) as PauseLevel[]).map(l=><button key={l} type="button" aria-pressed={level===l} onClick={()=>{setLevel(l);setPin('pauses');}}>{PAUSE_LEVEL_NAMES[l]}</button>)}</span></div>
      <label className="club-auto-control"><span>Keep</span><input type="range" min={.05} max={.5} step={.01} value={padding} aria-label="Breathing room kept around each cut" onChange={event=>{setPadding(+event.target.value);setPin('pauses');}}/><span className="tnum">{padding.toFixed(2)}s</span><span className="faint">around each cut</span></label></>}
    </>)}
    {row('fillers',<AudioLines size={15}/>,'Review filler words')}
