@@ -44,7 +44,7 @@ export function PostRow({item,rank,reason,inIdeas,onIdea}:{item:SignalEntry;rank
  const title=`${item.author}'s post`;
  return <div className="frow" data-kind="post">
   <span className="rank" title={`Number ${rank} of the list`}>{rank}</span>
-  <div className="fpic post-pic">{image?<img src={image} alt="" loading="lazy" onError={()=>setBroken(true)}/>:<Avatar name={reddit?item.author.replace('r/',''):item.author} sq={reddit} size="lg"/>}<SourceIcon source={item.source}/></div>
+  <div className={`fpic post-pic${image?'':' bare'}`}>{image?<img src={image} alt="" loading="lazy" onError={()=>setBroken(true)}/>:<Avatar name={reddit?item.author.replace('r/',''):item.author} sq={reddit}/>}<SourceIcon source={item.source}/></div>
   <div className="main">
    <div className="who"><b className="ellipsis">{item.author}</b><span className="ellipsis">{reddit?`u/${item.handle}`:`@${item.handle}`} · {fmtHours(item.ageHours)}</span></div>
    <div className="text">{long&&!more?`${item.text.slice(0,250).trim()}…`:item.text}{long&&<button type="button" className="linkish" style={{marginLeft:4}} onClick={()=>setMore(open=>!open)}>{more?'Show less':'Show more'}</button>}</div>

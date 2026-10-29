@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type {Video} from '../../shared/club';
-import {IDEAS_SHOWN,applyMove,beforeIdAt,boardColumns,calendarDay,calendarPlan,clickSort,dropIndex,isDescending,isSamePlace,monthGrid,monthTitle,nextInStage,openRoute,planMove,scenesLine,shiftMonth,tableDateText,tableRows,type TableSort} from './production';
+import {applyMove,beforeIdAt,boardColumns,calendarDay,calendarPlan,clickSort,dropIndex,isDescending,isSamePlace,monthGrid,monthTitle,nextInStage,openRoute,planMove,scenesLine,shiftMonth,tableDateText,tableRows,type TableSort} from './production';
 
 let n=0;
 const video=(over:Partial<Video>={}):Video=>({id:`v${++n}`,title:`Video ${n}`,stage:'ideas',order:0,createdAt:`2026-10-${String(10+n).padStart(2,'0')}T00:00:00.000Z`,updatedAt:'2026-10-20T00:00:00.000Z',stageDates:{},planning:{research:false,package:false,outline:false},...over});
@@ -9,23 +9,23 @@ const ids=(videos:readonly Video[])=>videos.map(v=>v.id);
 const col=(videos:Video[],stage:Video['stage'])=>boardColumns(videos).find(column=>column.stage===stage)!;
 
 test('a video opens in the Ideas drawer when it is an idea, else on the tab for its stage or the one asked for',()=>{
- assert.deepEqual(openRoute(video({id:'a'})),{name:'ideas',open:'a'});
+ assert.deepEqual(openRoute(video({id:'a'})),{name:'videos',view:'board',open:'a'});
  assert.deepEqual(openRoute(video({id:'b',stage:'recording'})),{name:'video',id:'b',tab:'record'});
  assert.deepEqual(openRoute(video({id:'c',stage:'published'})),{name:'video',id:'c',tab:'publish'});
  assert.deepEqual(openRoute(video({id:'d',stage:'planning'}),'publish'),{name:'video',id:'d',tab:'publish'});
  assert.equal(scenesLine(2,5),'2 of 5 scenes');assert.equal(scenesLine(0,1),'0 of 1 scene');
 });
 
-test('the board has six columns in board order; Later and Skipped are out, Published has the latest first, Ideas show six',()=>{
+test('the board has six columns in board order; Later and Skipped are out, Published has the latest first',()=>{
  const a=video({id:'a',order:2}),b=video({id:'b',order:0}),c=video({id:'c',order:2,createdAt:'2026-01-01T00:00:00.000Z'}),later=video({id:'l',hidden:'later'}),skipped=video({id:'k',hidden:'skipped'});
  const old=video({id:'old',stage:'published',publishedAt:'2026-09-01',order:0}),fresh=video({id:'new',stage:'published',publishedAt:'2026-10-14',order:5});
  const columns=boardColumns([a,b,c,later,skipped,old,fresh]);
  assert.deepEqual(columns.map(column=>column.stage),['ideas','planning','recording','editing','publishing','published']);
  assert.deepEqual(ids(columns[0].all),['b','c','a']);
  assert.deepEqual(ids(columns[5].all),['new','old']);
- const many=Array.from({length:IDEAS_SHOWN+2},(_,i)=>video({id:`i${i}`,order:i}));
+ const many=Array.from({length:8},(_,i)=>video({id:`i${i}`,order:i}));
  const ideas=col(many,'ideas');
- assert.equal(ideas.all.length,IDEAS_SHOWN+2);assert.deepEqual(ids(ideas.shown),many.slice(0,IDEAS_SHOWN).map(v=>v.id));
+ assert.equal(ideas.all.length,8);assert.equal(ideas.shown.length,8,'every idea is drawn: the Ideas lane groups them itself');
  assert.equal(col(many,'planning').shown.length,0);
 });
 
@@ -33,15 +33,14 @@ test('dropIndex finds the first card below the pointer',()=>{
  assert.equal(dropIndex([50,150,250],10),0);assert.equal(dropIndex([50,150,250],100),1);assert.equal(dropIndex([50,150,250],260),3);assert.equal(dropIndex([],5),0);
 });
 
-test('a card dropped among the drawn ones goes before the one at that place; at the end of a part-shown column it goes before the first one not drawn',()=>{
+test('a card dropped among the drawn ones goes before the one at that place; Ideas and Published take it last',()=>{
  const planning=[video({id:'a',stage:'planning',order:0}),video({id:'b',stage:'planning',order:1}),video({id:'c',stage:'planning',order:2})];
  const column=col(planning,'planning');
  assert.equal(beforeIdAt(column,'x',0),'a');assert.equal(beforeIdAt(column,'x',2),'c');assert.equal(beforeIdAt(column,'x',3),null);
  assert.equal(beforeIdAt(column,'b',1),'c','the dragged card is not counted');assert.equal(beforeIdAt(column,'c',2),null);
- const many=Array.from({length:IDEAS_SHOWN+2},(_,i)=>video({id:`i${i}`,order:i}));
- const ideas=col(many,'ideas');
- assert.equal(beforeIdAt(ideas,'x',IDEAS_SHOWN),'i6','dropped at the end of the drawn ideas, it stays in view');
- assert.equal(beforeIdAt(ideas,'i1',IDEAS_SHOWN-1),'i6');
+ const ideas=col(Array.from({length:4},(_,i)=>video({id:`i${i}`,order:i})),'ideas');
+ assert.equal(beforeIdAt(ideas,'x',0),null,'Ideas are grouped and ranked, not in an order of yours');
+ assert.equal(beforeIdAt({stage:'planning',all:[...planning,video({id:'d',stage:'planning',order:3})],shown:planning},'x',3),'d','at the end of a part-shown column it goes before the first one not drawn');
  assert.equal(beforeIdAt(col([video({id:'p',stage:'published',order:0})],'published'),'x',0),null,'Published has no order');
 });
 
@@ -72,16 +71,18 @@ test('a move says where it went and keeps what Undo needs; moves that change not
  const a=video({id:'a',order:0,stageDates:{ideas:'2026-10-01T00:00:00.000Z'}}),b=video({id:'b',order:1}),p=video({id:'p',stage:'published',order:0});
  const all=[a,b,p];
  assert.deepEqual(planMove(all,'a','recording',null),{message:'Moved to Recording',previous:{stage:'ideas',beforeId:'b',stageDates:{ideas:'2026-10-01T00:00:00.000Z'}}});
- assert.equal(planMove(all,'b','ideas','a')!.message,'Moved in Ideas');
- assert.equal(planMove(all,'b','ideas',null),null,'already last');
+ assert.equal(planMove(all,'b','ideas','a'),null,'Ideas have no order to change');
+ assert.equal(planMove(all,'b','ideas',null),null);
  assert.equal(planMove(all,'p','published',null),null,'Published has no order to change');
  assert.equal(planMove(all,'a','published',null)!.message,'Moved to Published');
  assert.equal(planMove(all,'a','publishing',null)!.message,'Moved to Publishing, but nothing is recorded yet');
  assert.equal(planMove([video({id:'r',recorderProjectId:'p1'})],'r','publishing',null)!.message,'Moved to Publishing');
  assert.equal(planMove(all,'gone','planning',null),null);
  const withHidden=[...all,video({id:'h',order:2,hidden:'later'})];
- assert.equal(planMove(withHidden,'b','ideas',null),null,'the ideas put off after it are out of sight');
- assert.equal(planMove(withHidden,'a','ideas',null)!.message,'Moved in Ideas');
+ assert.equal(planMove(withHidden,'a','ideas',null),null);
+ const plans=[video({id:'p1',stage:'planning',order:0}),video({id:'p2',stage:'planning',order:1}),video({id:'p3',stage:'planning',order:2,hidden:'later'})];
+ assert.equal(planMove(plans,'p1','planning',null)!.message,'Moved in Planning');
+ assert.equal(planMove(plans,'p2','planning',null),null,'what is out of sight after it does not count');
 });
 
 test('the table starts with the furthest-along videos and sorts by each column, turning around on a second press',()=>{

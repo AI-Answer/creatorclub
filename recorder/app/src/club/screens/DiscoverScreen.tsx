@@ -101,7 +101,7 @@ export function DiscoverScreen({show='fit',navigate}:{show?:DiscoverShow;navigat
  const refreshButton=(label='Refresh')=>running?undefined:<button type="button" className="btn primary" onClick={refresh}><Icon name="RotateCcw" size={15}/>{label}</button>;
 
  return <div className="page">
-  <div className="page-head"><div><h1>Discover</h1><div className="lede">What's working on YouTube and what people ask on X and Reddit, ranked for your topics. Turn what you like into an idea.</div></div>
+  <div className="page-head"><div><h1>Discover</h1><div className="lede">What's working on YouTube, X and Reddit, ranked for your topics.</div></div>
    <div className="actions"><RefreshActions updatedAt={updatedAt} summary={summary} job={job} onRefresh={refresh}/></div></div>
   {trending.loadError&&!trending.data&&<div style={{marginBottom:14}}><ErrorLine message={trending.loadError} onRetry={trending.reload}/></div>}
   {signals.loadError&&!signals.data&&<div style={{marginBottom:14}}><ErrorLine message={signals.loadError} onRetry={signals.reload}/></div>}

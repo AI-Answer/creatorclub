@@ -64,7 +64,7 @@ function FirstVideo({ideas,videos,hasTopics,navigate}:{ideas:readonly Video[];vi
  const waiting=feed.data===null&&feed.loadError===null;
  const picks=(feed.data?.items??[]).filter(qualifies).slice(0,3);
  return <>
-  <FirstSteps ideas={ideas} hasTopics={hasTopics} start={waiting||feed.seeding?null:picks} error={feed.loadError&&!feed.data?feed.loadError:null} onRetry={feed.reload} onBreak={setBreakdown} onOpenIdea={video=>navigate({name:'videos',view:'board',new:video.id})} onIdeas={()=>navigate({name:'videos',view:'board'})}/>
+  <FirstSteps ideas={ideas} hasTopics={hasTopics} start={waiting||feed.seeding?null:picks} error={feed.loadError&&!feed.data?feed.loadError:null} onRetry={feed.reload} onBreak={setBreakdown} onOpenIdea={video=>navigate({name:'videos',view:'board',new:video.id})} onIdeas={()=>navigate({name:'discover'})}/>
   {breakdown&&<BreakdownDrawer videoId={breakdown.videoId} title={breakdown.title} channel={breakdown.channel} multiplier={breakdown.mult} saved={saved} videos={videos} onAdded={id=>navigate({name:'videos',view:'board',new:id})} onClose={()=>setBreakdown(null)}/>}
  </>;
 }

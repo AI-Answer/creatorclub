@@ -65,12 +65,12 @@ export function IdeaLane({videos,newId,openGroup,dragId,actions,onOpen,onMove,on
   const list=groups[group],folded=group==='later'||group==='skipped';
   if(!list.length)return null;
   if(folded)return <div key={group} className="igroup" data-group={group}>
-   <button type="button" className="igroup-h toggle" aria-expanded={!!open[group]} onClick={()=>toggle(group)}><span>{label}</span><span className="n">{list.length}</span><Icon name={open[group]?'ChevronDown':'ChevronRight'} size={14} className="faint"/></button>
+   <button type="button" className="igroup-h toggle" aria-expanded={!!open[group]} onClick={()=>toggle(group)}><span>{label}</span> <span className="n">{list.length}</span><Icon name={open[group]?'ChevronDown':'ChevronRight'} size={14} className="faint"/></button>
    {open[group]&&list.map(card)}
   </div>;
   const shown=open[group]?list:list.slice(0,GROUP_SHOWN);
   return <div key={group} className="igroup" data-group={group}>
-   <div className="igroup-h"><span>{label}</span><span className="n">{list.length}</span></div>
+   <div className="igroup-h"><span>{label}</span> <span className="n">{list.length}</span></div>
    {shown.map(card)}
    {list.length>GROUP_SHOWN&&<button type="button" className="linkish igroup-more" onClick={()=>toggle(group)}>{open[group]?'Show fewer':`Show all ${list.length}`}</button>}
   </div>;
