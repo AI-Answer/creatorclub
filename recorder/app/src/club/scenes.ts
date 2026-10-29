@@ -51,3 +51,27 @@ export function useSceneProgress(videos:readonly Video[]):Record<string,ScenePro
 
  return useMemo(()=>Object.fromEntries(videos.filter(video=>ACTIVE_STAGES.includes(video.stage)&&found[video.id]).map(video=>[video.id,toProgress(found[video.id])])),[found,videos]);
 }
+
+/** One video's scenes as the workspace has them: not read yet, could not be read (not the same as having none), or the outline's scenes with their takes. */
+export type VideoScenes={status:'loading'}|{status:'unknown'}|{status:'ready';scenes:VideoScene[]};
+
+/**
+ * The scenes of the video being worked on, for the strip under its header. Read again whenever a change to a video was saved (`VIDEOS_CHANGED`) and on `reload`.
+ * The scenes already on screen stay while they are read again; a failed read makes them unknown. A slower, older answer never replaces a newer one.
+ */
+export function useVideoScenes(id:string):{state:VideoScenes;reload():void}{
+ const [state,setState]=useState<VideoScenes>({status:'loading'});
+ const latest=useRef(0),alive=useRef(true);
+ const load=useCallback(()=>{
+  const mine=++latest.current;
+  clubFetch<VideoScene[]>(`/videos/${encodeURIComponent(id)}/scenes`).then(scenes=>({status:'ready',scenes}) as const,()=>({status:'unknown'}) as const).then(next=>{
+   if(alive.current&&mine===latest.current)setState(next);
+  });
+ },[id]);
+ useEffect(()=>{
+  alive.current=true;setState({status:'loading'});load();
+  window.addEventListener(VIDEOS_CHANGED,load);
+  return()=>{alive.current=false;latest.current++;window.removeEventListener(VIDEOS_CHANGED,load);};
+ },[load]);
+ return {state,reload:load};
+}

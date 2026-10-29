@@ -1,14 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {VIDEO_STAGES} from '../../shared/club';
-import {stepForStage} from './board';
-import {changedSceneLine,clockTime,continueStage,doneSteps,linkHost,movesForward,nextPlanStep,openPlanStep,stageOfStep,tileFromText} from './video-plan';
-
-test('stages and steps map both ways: Ideas opens Plan, Published opens Publish',()=>{
- assert.deepEqual(VIDEO_STAGES.map(stepForStage),['plan','plan','record','edit','publish','publish']);
- for(const [step,stage] of Object.entries(stageOfStep))assert.equal(stepForStage(stage),step,`${step} works in ${stage}`);
- assert.deepEqual(continueStage,{plan:'recording',record:'editing',edit:'publishing',publish:undefined});
-});
+import {changedSceneLine,clockTime,linkHost,movesForward,nextPlanStep,openPlanStep,stageReached,tileFromText} from './video-plan';
 
 test('a Continue only moves the card forward',()=>{
  assert.equal(movesForward('ideas','planning'),true);
@@ -17,20 +9,17 @@ test('a Continue only moves the card forward',()=>{
  assert.equal(movesForward('recording','recording'),false);
 });
 
-test('steps are ticked once the video has moved past their stage',()=>{
- assert.deepEqual(doneSteps({stage:'ideas'}),[]);
- assert.deepEqual(doneSteps({stage:'planning'}),[]);
- assert.deepEqual(doneSteps({stage:'recording'}),['plan']);
- assert.deepEqual(doneSteps({stage:'publishing'}),['plan','record','edit']);
- assert.deepEqual(doneSteps({stage:'published'}),['plan','record','edit','publish']);
+test('a stage is reached once the card is at or past it',()=>{
+ assert.equal(stageReached('recording','recording'),true);assert.equal(stageReached('publishing','recording'),true);
+ assert.equal(stageReached('planning','recording'),false);assert.equal(stageReached('ideas','planning'),false);
 });
 
-test('Plan opens on the first step not done, and the steps follow each other',()=>{
- assert.equal(openPlanStep({research:false,package:false,outline:false}),'research');
+test('Plan opens on the first step not done (Research is the Board now), and the steps follow each other',()=>{
+ assert.equal(openPlanStep({research:false,package:false,outline:false}),'package');
  assert.equal(openPlanStep({research:true,package:false,outline:false}),'package');
  assert.equal(openPlanStep({research:true,package:true,outline:false}),'outline');
  assert.equal(openPlanStep({research:true,package:true,outline:true}),'outline');
- assert.equal(openPlanStep({research:false,package:true,outline:true}),'research');
+ assert.equal(openPlanStep({research:false,package:true,outline:true}),'outline');
  assert.equal(nextPlanStep('research'),'package');assert.equal(nextPlanStep('package'),'outline');assert.equal(nextPlanStep('outline'),undefined);
  assert.equal(changedSceneLine(3),'Your outline changed after you recorded scene 3.');
 });

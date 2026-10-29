@@ -1,7 +1,7 @@
 import express, { Router, type NextFunction, type Request, type Response } from 'express';
 import multer from 'multer';
 import { z } from 'zod';
-import { BOARD_ITEM_KINDS, PLAN_JOB_KINDS, PLAN_STEPS, TILE_KINDS, VIDEO_STAGES, type Workspace } from '../../shared/club.js';
+import { BOARD_ITEM_KINDS, HELP_STEPS, PLAN_JOB_KINDS, TILE_KINDS, VIDEO_STAGES, type Workspace } from '../../shared/club.js';
 import { aiStatus } from './ai.js';
 import { startConnect, type ConnectOptions } from './connect.js';
 import { ClubError, GENERIC_FAILURE, notFound } from './errors.js';
@@ -241,7 +241,7 @@ export function clubRouter({ ai = {}, transcribe, runAI, readViews = ytDlpViews(
   // A Plan step was completed once in this channel: its help line stops showing.
   router.post('/settings/help/:step', handler(async (req, res) => {
     const slug = await requireWorkspace();
-    const step = z.enum(PLAN_STEPS).parse(param(req, 'step'));
+    const step = z.enum(HELP_STEPS).parse(param(req, 'step'));
     await store.markHelpSeen(slug, step);
     res.json({ helpSeen: await store.helpSeen(slug) });
   }));

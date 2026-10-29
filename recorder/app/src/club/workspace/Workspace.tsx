@@ -1,0 +1,103 @@
+import {useCallback,useEffect,useMemo,useState} from 'react';
+import type {Video,VideoStage} from '../../../shared/club';
+import {clubFetch,errorMessage} from '../api';
+import {ClubRecorder} from '../ClubRecorder';
+import {ErrorLine} from '../ErrorLine';
+import {PlanChecklist} from '../plan/PlanChecklist';
+import {sceneAnchor} from '../plan/OutlineEditor';
+import {PublishStep} from '../screens/PublishStep';
+import {type Route,type VideoTab} from '../routes';
+import {useVideoScenes} from '../scenes';
+import {Button,EmptyState,Icon,useToast} from '../ui';
+import {usePlan} from '../usePlan';
+import {STAGE_LABEL} from '../board';
+import {Board} from './Board';
+import {Foot,Header,Strip} from './Frame';
+import {nextTab,stageForContinue,tabDone,TAB_LABEL,type TabFacts} from './rules';
+import {originLabel} from '../routes';
+
+/**
+ * One video's page: the frame (header, tabs, scene strip, bottom bar) around the tab's own content. Board is the research canvas;
+ * Plan, Record, Edit and Publish show the step screens they have until their own tasks replace them.
+ */
+export function Workspace({video,tab,back,navigate,onVideo}:{video:Video;tab:VideoTab;back:Route;navigate(route:Route,options?:{replace?:boolean}):void;onVideo(video:Video):void}){
+ const toast=useToast();
+ const id=encodeURIComponent(video.id);
+ const tabRoute=useCallback((next:VideoTab):Route=>({name:'video',id:video.id,tab:next}),[video.id]);
+ const plan=usePlan(video,{onVideo,onRecord:()=>navigate(tabRoute('record'))});
+ const scenes=useVideoScenes(video.id);
+ const [focus,setFocus]=useState<number|null>(null);
+ const [moving,setMoving]=useState(false),[moveError,setMoveError]=useState('');
+
+ // Recording and editing report back through the recorder: whether every scene has a take, and whether the edit was exported.
+ const [allRecorded,setAllRecorded]=useState(false),[exported,setExported]=useState(false);
+ useEffect(()=>{setAllRecorded(false);setExported(false);},[video.recorderProjectId]);
+ const onProgress=useCallback(({recorded,total}:{recorded:number;total:number})=>setAllRecorded(total>0&&recorded>=total),[]);
+ const onExported=useCallback((done:boolean)=>setExported(done),[]);
+
+ const list=scenes.state.status==='ready'?scenes.state.scenes:undefined;
+ const facts:TabFacts={stage:video.stage,scenes:list,allRecorded:allRecorded||undefined,exported};
+
+ useEffect(()=>{
+  if(focus!==null&&tab==='plan')requestAnimationFrame(()=>document.getElementById(sceneAnchor(focus))?.scrollIntoView?.({block:'start',behavior:'smooth'}));
+ },[focus,tab]);
+
+ /** Moves the card to a stage, with Undo when `undoTo` is given (the stage menu). */
+ const moveTo=useCallback(async(stage:VideoStage,undoTo?:VideoStage)=>{
+  if(stage===video.stage)return;
+  try{onVideo(await clubFetch<Video>(`/videos/${id}/move`,{body:{stage}}));}
+  catch(reason){toast(errorMessage(reason,"Couldn't move the video."));return;}
+  if(undoTo)toast(`Moved to ${STAGE_LABEL[stage]}`,{undo:()=>void moveTo(undoTo)});
+ },[id,video.stage,onVideo,toast]);
+
+ const saveTitle=useCallback((title:string)=>{
+  clubFetch<Video>(`/videos/${id}`,{method:'PUT',body:{title}}).then(onVideo,reason=>toast(errorMessage(reason,"Couldn't save the title.")));
+ },[id,onVideo,toast]);
+
+ /** Continue to the next tab: the card moves forward when the tab's stage is further along than the card, then the tab opens. */
+ const next=nextTab(tab);
+ const continueToNext=async()=>{
+  if(!next)return;
+  const stage=stageForContinue(video.stage,next);
+  setMoving(true);setMoveError('');
+  try{
+   if(stage)onVideo(await clubFetch<Video>(`/videos/${id}/move`,{body:{stage}}));
+   navigate(tabRoute(next));
+  }catch(reason){setMoveError(errorMessage(reason,"Couldn't move the video."));}
+  finally{setMoving(false);}
+ };
+ const draftedNow=useCallback(()=>{
+  clubFetch<Video>(`/videos/${id}`).then(onVideo,()=>{});
+  navigate(tabRoute('plan'));
+ },[id,onVideo,navigate,tabRoute]);
+
+ // Record and Edit need the video's recording project. Without one the page leads back to Plan, and offers no Continue.
+ const unplanned=(tab==='record'||tab==='edit')&&!video.recorderProjectId;
+
+ let nextButton:{label:string;run():void;disabled:boolean;primary:boolean}|undefined;
+ if(tab==='plan'){
+  nextButton=plan.continueAction?{label:plan.open==='package'?'Continue to outline':'Continue to record',run:plan.continueAction.run,disabled:plan.continueAction.disabled,primary:true}
+   :{label:plan.open==='package'?'Continue to outline':'Continue to record',run:()=>{},disabled:true,primary:false};
+ }else if(next&&!unplanned&&tab!=='publish'){
+  nextButton={label:`Continue to ${TAB_LABEL[next].toLowerCase()}`,run:()=>void continueToNext(),disabled:moving,primary:tabDone(tab,facts)};
+ }
+
+ const backLabel=`Back to ${originLabel(back).toLowerCase()}`;
+
+ return <div className="ws">
+  <Header video={video} tab={tab} back={back} facts={facts} onTitle={saveTitle} onStage={stage=>void moveTo(stage,video.stage)} onTab={next=>navigate(tabRoute(next))}/>
+  <Strip tab={tab} scenes={scenes.state} focus={focus} onRetry={scenes.reload} onPick={index=>{setFocus(index);if(tab!=='plan')navigate(tabRoute('plan'));}}/>
+  {moveError&&<div className="ws-body" style={{flex:'none',padding:'8px 18px'}}><ErrorLine message={moveError} onRetry={()=>void continueToNext()}/></div>}
+  <div className="ws-body" key={tab}>
+   {tab==='board'&&<Board video={video} scenes={list} onDrafted={draftedNow}/>}
+   {tab==='plan'&&<div className="flex flex-col"><PlanChecklist video={video} plan={plan}/></div>}
+   {(tab==='record'||tab==='edit')&&(video.recorderProjectId
+    ?<ClubRecorder projectId={video.recorderProjectId} mode={tab==='record'?'Record':'Edit'} onBack={()=>navigate({name:'production',view:'board'})}
+      onMode={mode=>{if(mode==='Edit'&&tab==='record')void continueToNext();else navigate(tabRoute(mode==='Edit'?'edit':'record'));}} onProgress={onProgress} onExported={tab==='edit'?onExported:undefined}/>
+    :<EmptyState icon={<Icon name="FileText"/>} title="Plan this video first" description="Create the outline first. Each scene is recorded on its own."
+      action={<Button variant="primary" size="md" onClick={()=>navigate(tabRoute('plan'))}>Back to plan</Button>}/>)}
+   {tab==='publish'&&<PublishStep video={video} pkg={plan.pkg} onVideo={onVideo}/>}
+  </div>
+  <Foot tab={tab} back={back} backLabel={backLabel} facts={facts} onTab={next=>navigate(tabRoute(next))} next={nextButton}/>
+ </div>;
+}

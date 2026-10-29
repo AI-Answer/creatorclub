@@ -6,7 +6,6 @@ import {createProject} from '../../shared/types';
 const {default:ClubApp}=await import('./ClubApp');
 const {installFetch}=await import('./test-fakes');
 const {ClubRecorder}=await import('./ClubRecorder');
-const {VideoBottomBar}=await import('./VideoBottomBar');
 const {OutlierChip}=await import('./ui');
 
 const ws={slug:'samin',name:'Samin Yasar',handle:'@samin',channelUrl:'',topics:[],about:'',cta:'',createdAt:'2026-01-01T00:00:00.000Z'};
@@ -33,36 +32,26 @@ test('the shell routes through production, video steps and settings, and keeps t
   assert.equal(ui.container.querySelector('[role="dialog"]'),null,'a returning visitor sees no dialog');
   await act(async()=>[...ui.container.querySelectorAll<HTMLElement>('[data-card]')].find(card=>/Hidden features/.test(card.textContent||''))!.click());await flush();
   assert.equal(window.location.hash,'#/video/v1/plan');assert.ok(ui.container.querySelector('nav[aria-label="Main"]'),'the sidebar stays beside a video');
-  assert.match(ui.container.querySelector('[aria-label="Breadcrumb"]')!.textContent||'',/Hidden features in Claude Code/);
+  assert.match(ui.container.querySelector('.ws-title')!.textContent||'',/Hidden features in Claude Code/);
   assert.ok(server.calls.some(call=>call.path==='/videos/v1/opened'&&call.method==='POST'),'opening a video is noted for Recent videos');
-  assert.equal(ui.container.querySelector('[aria-current="step"]')!.textContent,'1Plan');
+  assert.equal(ui.container.querySelector('.steps [aria-current="step"]')!.textContent,'2Plan');
   assert.ok([...ui.container.querySelectorAll('button')].some(b=>b.textContent==='Package it'),'Plan opens on the first step not done yet');
-  await act(async()=>button(ui.container,'2Record').click());
+  await act(async()=>[...ui.container.querySelectorAll<HTMLElement>('.steps a')].find(a=>a.textContent==='3Record')!.click());
   assert.equal(window.location.hash,'#/video/v1/record');
   assert.ok(ui.container.querySelector('.sidebar.collapsed'),'the sidebar folds to its rail on Record');
   await act(async()=>button(ui.container,'Back to plan').click());
   assert.equal(ui.container.querySelector('.sidebar.collapsed'),null,'and opens again on Plan');
-  await act(async()=>button(ui.container,'4Publish').click());
-  assert.equal(window.location.hash,'#/video/v1/publish');assert.equal(ui.container.querySelectorAll('footer button').length,5,'no continue button after Publish');
-  await act(async()=>button(ui.container,'Board').click());await flush();
+  await act(async()=>[...ui.container.querySelectorAll<HTMLElement>('.steps a')].find(a=>a.textContent==='5Publish')!.click());
+  assert.equal(window.location.hash,'#/video/v1/publish');assert.ok(![...ui.container.querySelectorAll('button')].some(b=>b.textContent?.startsWith('Continue')),'no continue button after Publish');
+  await act(async()=>ui.container.querySelector<HTMLElement>('.crumb a')!.click());await flush();
   assert.equal(window.location.hash,'#/production');
   await act(async()=>ui.container.querySelector<HTMLElement>('a[href="#/settings"]')!.click());await flush();
   assert.equal(window.location.hash,'#/settings');assert.equal(ui.container.querySelector('[aria-current="page"]')!.textContent,'Settings');
   window.location.hash='#/video/v1/edit';await act(async()=>{window.dispatchEvent(new Event('hashchange'));});await flush();
-  assert.equal(ui.container.querySelector('[aria-current="step"]')!.textContent,'3Edit','a hash change from outside moves the shell');
+  assert.equal(ui.container.querySelector('.steps [aria-current="step"]')!.textContent,'4Edit','a hash change from outside moves the shell');
   window.location.hash='#/video/gone/plan';await act(async()=>{window.dispatchEvent(new Event('hashchange'));});await flush();
   assert.match(ui.container.textContent||'',/Video not found/);
  }finally{await ui.close();server.restore();window.location.hash='';}
-});
-
-test('the bottom bar ticks done steps and leaves out back and continue without handlers',async()=>{
- const picked:string[]=[];
- const ui=await mountUI(createElement(VideoBottomBar<'a'|'b'|'c'>,{steps:[{id:'a',label:'A'},{id:'b',label:'B'},{id:'c',label:'C'}],current:'b',done:['a'],onStep:id=>picked.push(id)}));
- try{
-  const buttons=[...ui.container.querySelectorAll('button')];assert.equal(buttons.length,3);
-  assert.match(buttons[0].textContent||'',/\(done\)/);assert.equal(buttons[1].getAttribute('aria-current'),'step');
-  await act(async()=>buttons[2].click());assert.deepEqual(picked,['c']);
- }finally{await ui.close();}
 });
 
 test('the outlier chip colours by band and hides without a number',async()=>{

@@ -1,8 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {VIDEO_STAGES} from '../../shared/club';
-import {autoCollapses,defaultTab,parseRoute,routeHash,routePath,stepForTab,videoTabs,type Route} from './routes';
-import {backLabel,continueLabel,nextStep,previousStep} from './video-steps';
+import {autoCollapses,defaultTab,originLabel,parseRoute,routeHash,routePath,videoOrigin,videoTabs,type Route} from './routes';
 
 test('every route survives a round trip through the hash',()=>{
  const routes:Route[]=[
@@ -58,13 +57,13 @@ test('the route path ignores the query, so opening an idea does not reset the pa
  assert.equal(routePath({name:'ideas',open:'v-1'}),'#/ideas');assert.equal(routePath({name:'ideas'}),'#/ideas');assert.equal(routePath({name:'video',id:'v',tab:'plan'}),'#/video/v/plan');
 });
 
-test('until the new video page arrives, Board stands in as Plan',()=>{
- assert.deepEqual(videoTabs.map(stepForTab),['plan','plan','record','edit','publish']);
-});
-
-test('the bottom bar labels follow PLAN.md',()=>{
- assert.equal(backLabel('plan'),'Back to board');assert.equal(previousStep('plan'),'board');
- assert.equal(backLabel('record'),'Back to plan');assert.equal(continueLabel('record'),'Continue to editing');
- assert.equal(continueLabel('plan'),'Continue to recording');assert.equal(continueLabel('edit'),'Continue to publishing');
- assert.equal(backLabel('publish'),'Back to editing');assert.equal(continueLabel('publish'),undefined);assert.equal(nextStep('publish'),undefined);
+test('a video goes back to the screen it was opened from, whatever tabs or videos it moved through',()=>{
+ const ideas:Route={name:'ideas',filter:'later'},overview:Route={name:'overview'},one:Route={name:'video',id:'a',tab:'board'},two:Route={name:'video',id:'a',tab:'plan'},other:Route={name:'video',id:'b'};
+ assert.deepEqual(videoOrigin(undefined,ideas,one),ideas,'opened from Ideas');
+ assert.deepEqual(videoOrigin(ideas,one,two),ideas,'a tab change keeps it');
+ assert.deepEqual(videoOrigin(ideas,two,other),ideas,'so does another video from the sidebar');
+ assert.deepEqual(videoOrigin(ideas,overview,one),overview,'a new visit from another screen replaces it');
+ assert.deepEqual(videoOrigin(ideas,one,overview),ideas,'leaving does not change it');
+ assert.equal(videoOrigin(undefined,{name:'welcome'},one),undefined,'first launch is not somewhere to go back to');
+ assert.equal(originLabel(ideas),'Ideas');assert.equal(originLabel({name:'trending'}),'Working now');assert.equal(originLabel(undefined),'Production');
 });

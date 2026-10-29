@@ -6,11 +6,11 @@ import { ClubError, notFound } from './errors.js';
 import { arrangeColumn } from '../../shared/club-board.js';
 import { freeSpot } from './tile-layout.js';
 import {
-  PLAN_STEPS,
+  HELP_STEPS,
   VIDEO_STAGES,
   type AiProvider,
+  type HelpStep,
   type IdeaNotes,
-  type PlanStep,
   type ResearchTile,
   type TileKind,
   type TileMeta,
@@ -83,7 +83,7 @@ interface Settings {
   /** Older builds kept the Gemini API key here. It moves to secrets.json the first time it is read. */
   geminiKey?: string;
   /** Plan steps completed at least once, per channel. Their help lines stop showing. */
-  helpSeen?: Record<string, PlanStep[]>;
+  helpSeen?: Record<string, HelpStep[]>;
 }
 const settingsFile = () => path.join(rootDir(), 'settings.json');
 
@@ -183,14 +183,14 @@ export async function setWelcomed() {
 }
 
 /** Plan steps whose help line no longer shows in this channel. */
-export async function helpSeen(slug: string): Promise<PlanStep[]> {
+export async function helpSeen(slug: string): Promise<HelpStep[]> {
   const seen = (await readJSON<Settings>(settingsFile()))?.helpSeen?.[assertSlug(slug)] ?? [];
-  return PLAN_STEPS.filter((step) => seen.includes(step));
+  return HELP_STEPS.filter((step) => seen.includes(step));
 }
 
 /** Records that a Plan step was completed once in this channel. */
-export async function markHelpSeen(slug: string, step: PlanStep) {
-  if (!PLAN_STEPS.includes(step)) throw new ClubError('That step does not exist.');
+export async function markHelpSeen(slug: string, step: HelpStep) {
+  if (!HELP_STEPS.includes(step)) throw new ClubError('That step does not exist.');
   assertSlug(slug);
   await updateSettings((settings) => {
     const seen = settings.helpSeen?.[slug] ?? [];

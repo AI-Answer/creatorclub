@@ -113,6 +113,9 @@ export interface TilePosition {
   w?: number;
 }
 
+/** The width a tile has on the Board until it is given one. */
+export const defaultTileWidth = (kind: TileKind) => (kind === 'breakdown' ? 320 : 280);
+
 /** A video tile's transcript, split into the video's own chapters (one untitled chapter when it has none). */
 export interface TranscriptChapter {
   title: string;
@@ -165,6 +168,10 @@ export interface Outline {
   fullScript?: string;
   scriptState?: ScriptState;
 }
+
+/** Steps whose help line or first-visit tip stops showing once they were done in a channel: the three Plan steps and the Board's tip. */
+export const HELP_STEPS = ['research', 'package', 'outline', 'board'] as const;
+export type HelpStep = (typeof HELP_STEPS)[number];
 
 /** The three Plan steps, in order. Each shows its help line until it is first completed in the channel. */
 export const PLAN_STEPS = ['research', 'package', 'outline'] as const;
@@ -267,8 +274,8 @@ export interface ClubSettings {
   welcomed: boolean;
   /** The saved Gemini API key, masked ("••••1234"), or null. The full key never leaves the server. */
   geminiKey: string | null;
-  /** Plan steps already completed once in the current channel, whose help lines no longer show. */
-  helpSeen: PlanStep[];
+  /** Steps already completed once in the current channel (Plan's help lines, the Board tip), which no longer show. */
+  helpSeen: HelpStep[];
 }
 
 /** Progress events of a connect job. `line` is one cleaned-up line of installer output. */

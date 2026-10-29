@@ -2,7 +2,7 @@ import {useCallback,useEffect,useRef,useState} from 'react';
 import type {AiStatus,ClubSettings,Video,Workspace} from '../../shared/club';
 import {clubFetch} from './api';
 import {Sidebar} from './Sidebar';
-import {autoCollapses,defaultTab,routePath,stepForTab,useHashRoute,type Route,type VideoStep,type VideoTab} from './routes';
+import {autoCollapses,defaultTab,routePath,useHashRoute,videoBackRoute,type Route,type VideoTab} from './routes';
 import {OnboardingScreen} from './screens/OnboardingScreen';
 import {IdeasScreen} from './screens/IdeasScreen';
 import {OverviewScreen} from './screens/OverviewScreen';
@@ -10,13 +10,13 @@ import {ProductionScreen} from './screens/ProductionScreen';
 import {SignalsScreen} from './screens/SignalsScreen';
 import {TrendingScreen} from './screens/TrendingScreen';
 import {SettingsScreen} from './screens/SettingsScreen';
-import {VideoScreen} from './screens/VideoScreen';
 import {Help} from './shell/Help';
 import {NewVideo} from './shell/NewVideo';
 import {Palette} from './shell/Palette';
 import {ScreenBoundary} from './shell/ScreenBoundary';
 import {Button,EmptyState,Spinner,ToastProvider,cn} from './ui';
 import {useShellVideos} from './useShellVideos';
+import {Workspace as VideoWorkspace} from './workspace/Workspace';
 
 /** First launch is needed when no AI is signed in or there is no channel. A server that cannot be reached never forces it. */
 export async function needsOnboarding():Promise<boolean>{
@@ -28,7 +28,7 @@ export async function needsOnboarding():Promise<boolean>{
 
 const isHome=(route:Route)=>route.name==='overview'||route.name==='production';
 
-/** One video's page. Loads the video and notes that it was opened, which feeds Recent videos. Without a tab in the link it opens on the tab for the video's stage. */
+/** One video's workspace. Loads the video and notes that it was opened, which feeds Recent videos. Without a tab in the link it opens on the tab for the video's stage. */
 function VideoRoute({id,tab,navigate}:{id:string;tab?:VideoTab;navigate(route:Route,options?:{replace?:boolean}):void}){
  const [video,setVideo]=useState<Video|null|undefined>(undefined);
  useEffect(()=>{
@@ -43,11 +43,9 @@ function VideoRoute({id,tab,navigate}:{id:string;tab?:VideoTab;navigate(route:Ro
  },[id]);
  const stage=video?.stage;
  useEffect(()=>{if(stage&&!tab)navigate({name:'video',id,tab:defaultTab(stage)},{replace:true});},[stage,tab,id,navigate]);
- const openProduction=useCallback(()=>navigate({name:'production',view:'board'}),[navigate]);
- const openStep=useCallback((step:VideoStep)=>navigate({name:'video',id,tab:step}),[navigate,id]);
  if(video===undefined)return <div className="flex flex-1 items-center justify-center"><Spinner label="Loading the video" size={20}/></div>;
- if(video===null)return <EmptyState className="flex-1" title="Video not found" description="It may have been removed from the board." action={<Button onClick={openProduction}>Open board</Button>}/>;
- return <VideoScreen key={video.id} video={video} step={stepForTab(tab??defaultTab(video.stage))} onStep={openStep} onBoard={openProduction} onVideo={setVideo}/>;
+ if(video===null)return <EmptyState className="flex-1" title="Video not found" description="It may have been removed from the board." action={<Button onClick={()=>navigate({name:'production',view:'board'})}>Open board</Button>}/>;
+ return <VideoWorkspace key={video.id} video={video} tab={tab??defaultTab(video.stage)} back={videoBackRoute()} navigate={navigate} onVideo={setVideo}/>;
 }
 
 /** CreatorClub's root: the sidebar beside the current screen, with search (⌘K), New video, the How it works dialog and toasts above them. */

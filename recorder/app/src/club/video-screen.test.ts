@@ -2,10 +2,10 @@ import {mountUI,button} from '../test-dom';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {act,createElement,useState} from 'react';
-import type {Outline,Package,ResearchTile,Video} from '../../shared/club';
+import type {Outline,Package,Video} from '../../shared/club';
 import {createProject,defaultEffects,defaultTransform} from '../../shared/types';
-import type {VideoStep} from './routes';
-const {VideoScreen}=await import('./screens/VideoScreen');
+import type {Route,VideoTab} from './routes';
+const {Workspace}=await import('./workspace/Workspace');
 const {ClubRecorder,OPEN_FAILED}=await import('./ClubRecorder');
 const {FakeEventSource,installFetch}=await import('./test-fakes');
 
@@ -13,12 +13,13 @@ const flush=()=>act(async()=>{await new Promise(resolve=>setTimeout(resolve,0));
 const type=async(input:Element,value:string,proto:object=HTMLInputElement.prototype)=>act(async()=>{Object.getOwnPropertyDescriptor(proto,'value')!.set!.call(input,value);input.dispatchEvent(new Event('input',{bubbles:true}));});
 const primaries=(root:Element)=>[...root.querySelectorAll('button')].filter(b=>b.classList.contains('primary')&&!b.disabled).map(b=>b.textContent?.trim());
 const hasText=(root:Element,text:string)=>(root.textContent??'').includes(text);
+const back:Route={name:'production',view:'board'};
 
-const idea:Video={id:'v1',title:'Hidden features in Claude Code',stage:'ideas',order:0,createdAt:'2026-10-01T00:00:00.000Z',updatedAt:'2026-10-01T00:00:00.000Z',stageDates:{ideas:'2026-10-01T00:00:00.000Z'},planning:{research:false,package:false,outline:false}};
+const planned:Video={id:'v1',title:'Hidden features in Claude Code',stage:'planning',order:0,createdAt:'2026-10-01T00:00:00.000Z',updatedAt:'2026-10-01T00:00:00.000Z',stageDates:{ideas:'2026-10-01T00:00:00.000Z'},planning:{research:true,package:false,outline:false}};
 const pkg:Package={demand:{level:'high',note:'Asked a lot'},gap:{level:'mid',note:'Few show it'},show:{level:'high',note:'Screen only'},angle:'Angle',twist:'Twist',titles:['Claude Code features you missed','Seven hidden Claude Code tricks','Stop using Claude Code wrong'],thumbnailText:'Hidden features',hook:{visual:'A menu',spoken:'You never opened this.',text:'HIDDEN'}};
 const outline:Outline={scenes:[{title:'Opening',talkingPoints:['Show the result','Make the claim'],show:'The finished thing',seconds:60},{title:'Level 1',talkingPoints:['First feature'],show:'Settings',seconds:120},{title:'Where this falls short',talkingPoints:['Costs'],show:'Usage page',seconds:60},{title:'Ending',talkingPoints:['Next video'],show:'End card',seconds:30}]};
 
-type Server={video:Video;pkg:Package|null;outline:Outline|null;tiles:ResearchTile[];help:string[]};
+type Server={video:Video;pkg:Package|null;outline:Outline|null;help:string[]};
 
 function serve(state:Server){
  return installFetch(({method,path,body})=>{
@@ -26,9 +27,7 @@ function serve(state:Server){
   if(path==='/settings')return {body:{defaultAi:'claude',welcomed:true,geminiKey:null,helpSeen:state.help}};
   if(path.startsWith('/settings/help/')){state.help.push(path.split('/').pop()!);return {body:{helpSeen:state.help}};}
   if(path==='/videos/v1/plan')return {body:{package:state.pkg,outline:state.outline}};
-  if(path==='/videos/v1/research'&&method==='GET')return {body:state.tiles};
-  if(path==='/videos/v1/research'&&method==='POST'){const tile:ResearchTile={id:`t${state.tiles.length+1}`,kind:b.kind as ResearchTile['kind'],...(b.url?{url:String(b.url)}:{}),...(b.text?{text:String(b.text)}:{}),meta:{},createdAt:'2026-10-02T00:00:00.000Z'};state.tiles.push(tile);return {status:201,body:tile};}
-  if(/^\/videos\/v1\/research\/t\d+\/read$/.test(path))return {status:202,body:{id:'j-read',status:'running'}};
+  if(path==='/videos/v1/scenes')return {body:[]};
   if(path==='/videos/v1'&&method==='PUT'){state.video={...state.video,...b} as Video;return {body:state.video};}
   if(path==='/videos/v1/move'){state.video={...state.video,stage:b.stage as Video['stage']};return {body:state.video};}
   if(path==='/videos/v1/package'&&method==='POST')return {status:202,body:{id:'j-pkg',status:'running'}};
@@ -39,34 +38,19 @@ function serve(state:Server){
  });
 }
 
-/** The page as ClubApp holds it: the video in state, and the step. Record is only noted, so SceneForge is not mounted here. */
-function Harness({initial,steps}:{initial:Video;steps:VideoStep[]}){
- const [video,setVideo]=useState(initial),[step,setStep]=useState<VideoStep>('plan');
- return createElement(VideoScreen,{video,step,onStep:next=>{steps.push(next);if(next!=='record')setStep(next);},onBoard:()=>{},onVideo:setVideo});
+/** The page as ClubApp holds it: the video in state, and the tab. Record is only noted, so SceneForge is not mounted here. */
+function Harness({initial,tabs,start='plan'}:{initial:Video;tabs:VideoTab[];start?:VideoTab}){
+ const [video,setVideo]=useState(initial),[tab,setTab]=useState<VideoTab>(start);
+ return createElement(Workspace,{video,tab,back,onVideo:setVideo,navigate:route=>{if(route.name==='video'){tabs.push(route.tab!);if(route.tab!=='record')setTab(route.tab!);}}});
 }
 
-test('a video walks from Ideas through Research, Package and Create outline into recording',async()=>{
+test('a video walks from Package through Create outline into recording',async()=>{
  FakeEventSource.install();
- const state:Server={video:idea,pkg:null,outline:null,tiles:[],help:[]},server=serve(state),steps:VideoStep[]=[];
- const ui=await mountUI(createElement(Harness,{initial:idea,steps}));
+ const state:Server={video:planned,pkg:null,outline:null,help:['research']},server=serve(state),tabs:VideoTab[]=[];
+ const ui=await mountUI(createElement(Harness,{initial:planned,tabs}));
  try{
   await flush();
   const c=ui.container;
-  // 1. Research: its help line, the board, and the bar's Continue as the only primary button.
-  assert.ok(hasText(c,'Collect anything that helps: links, videos, notes, screenshots.'));
-  assert.deepEqual(primaries(c),['Continue to packaging']);
-  await type(c.querySelector('input[aria-label="Paste a link or write a note"]')!,'https://youtu.be/dQw4w9WgXcQ');
-  await act(async()=>button(c,'Add').click());await flush();
-  assert.deepEqual(server.calls.filter(call=>call.method==='POST').map(call=>call.path),['/videos/v1/research','/videos/v1/research/t1/read']);
-  assert.ok(hasText(c,'Reading the video…'));
-  await act(async()=>FakeEventSource.last().emit('done',{...state.tiles[0],title:'How I built it',meta:{channel:'Source',views:2500,multiplier:2.5,transcript:true}}));
-  assert.ok(hasText(c,'How I built it'));assert.ok(c.querySelector('[data-band="blue"]'),'the outlier chip shows on the tile');
-  await act(async()=>button(c,'Continue to packaging').click());await flush();
-  assert.equal(state.video.stage,'planning','Continue moves an idea to Planning');
-  assert.deepEqual(state.video.planning,{research:true,package:false,outline:false});
-  assert.deepEqual(state.help,['research']);
-
-  // 2. Package: Package it is the one primary until there is a package, then the bar continues.
   assert.ok(hasText(c,'Decide why this video gets clicked.'));
   assert.deepEqual(primaries(c),['Package it']);
   await act(async()=>button(c,'Package it').click());await flush();
@@ -81,19 +65,17 @@ test('a video walks from Ideas through Research, Package and Create outline into
   assert.equal(state.pkg?.titles[0],'Claude Code features nobody uses','edits are saved before moving on');
   assert.equal(state.video.planning.package,true);
 
-  // 3. Create outline, edit a scene, then Continue to recording.
   assert.ok(hasText(c,"Turn this into scenes. You'll talk through each one when you record."));
   assert.deepEqual(primaries(c),['Create outline']);
   await act(async()=>button(c,'Create outline').click());await flush();
   await act(async()=>FakeEventSource.last().emit('done',{value:outline}));
-  assert.equal(c.querySelectorAll('[aria-label="Scenes"] li').length,8,'four scene cards and four scenes on the left');
+  assert.equal(c.querySelectorAll('ol[aria-label="Scenes"] > li').length,4,'four scene cards in the outline');
   assert.ok(button(c,'Write full script instead'));
   await type(c.querySelector('input[aria-label="Scene 2 title"]')!,'Level 1: settings');
-  assert.match(c.querySelector('aside[aria-label="Scenes"]')!.textContent??'',/Level 1: settings/,'the scene list follows the outline');
-  assert.deepEqual(primaries(c),['Continue to recording']);
-  await act(async()=>button(c,'Continue to recording').click());await flush();
+  assert.deepEqual(primaries(c),['Continue to record']);
+  await act(async()=>button(c,'Continue to record').click());await flush();
   assert.equal(state.outline?.scenes[1].title,'Level 1: settings');
-  assert.deepEqual(steps,['record'],'Record opens');
+  assert.deepEqual(tabs,['record'],'Record opens');
   assert.equal(state.video.stage,'recording');
   assert.equal(state.video.recorderProjectId,'p1');
  }finally{await ui.close();server.restore();}
@@ -101,17 +83,18 @@ test('a video walks from Ideas through Research, Package and Create outline into
 
 test('an AI step can be stopped, a page opened mid-run follows it, and a replaced outline can be undone',async()=>{
  FakeEventSource.install();
- const planned:Video={...idea,stage:'planning',planning:{research:true,package:true,outline:false}};
+ const planned2:Video={...planned,planning:{research:true,package:true,outline:false}};
  const edited:Outline={scenes:outline.scenes.map((s,i)=>({...s,id:`s_0000000${i}`,...(i===0?{title:'My own opening'}:{})}))};
  const state={outline:edited as Outline|null,undone:0};
  const server=installFetch(({method,path,body})=>{
   if(path==='/videos/v1/plan')return {body:{package:pkg,outline:state.outline,running:{outline:'j-running'},ready:{}}};
+  if(path==='/videos/v1/scenes')return {body:[]};
   if(path==='/settings')return {body:{helpSeen:['research','package','outline']}};
   if(path==='/jobs/j-running'&&method==='DELETE')return {body:{id:'j-running',status:'cancelled'}};
   if(path==='/videos/v1/outline'&&method==='POST')return {status:202,body:{id:'j-again',status:'running'}};
   if(path==='/videos/v1/outline/undo'){state.undone++;assert.deepEqual(body,{token:'2026-10-29T10-00-00-000Z'});return {body:{package:pkg,outline:edited}};}
  });
- const ui=await mountUI(createElement(Harness,{initial:planned,steps:[]}));
+ const ui=await mountUI(createElement(Harness,{initial:planned2,tabs:[]}));
  try{
   await flush();
   const c=ui.container;
@@ -137,15 +120,16 @@ test('an AI step can be stopped, a page opened mid-run follows it, and a replace
 
 test('a result that finished after the step was edited is offered, not written',async()=>{
  FakeEventSource.install();
- const planned:Video={...idea,stage:'planning',planning:{research:true,package:true,outline:false}};
+ const planned2:Video={...planned,planning:{research:true,package:true,outline:false}};
  const mine:Outline={scenes:outline.scenes.map((s,i)=>({...s,id:`s_1000000${i}`,...(i===0?{title:'Mine'}:{})}))};
  const theirs:Outline={scenes:outline.scenes.map((s,i)=>({...s,id:`s_1000000${i}`}))};
  const server=installFetch(({path,body})=>{
   if(path==='/videos/v1/plan')return {body:{package:pkg,outline:mine,running:{},ready:{outline:'2026-10-29T11-00-00-000Z'}}};
+  if(path==='/videos/v1/scenes')return {body:[]};
   if(path==='/settings')return {body:{helpSeen:['research','package','outline']}};
   if(path==='/videos/v1/outline/use'){assert.deepEqual(body,{token:'2026-10-29T11-00-00-000Z'});return {body:{package:pkg,outline:theirs}};}
  });
- const ui=await mountUI(createElement(Harness,{initial:planned,steps:[]}));
+ const ui=await mountUI(createElement(Harness,{initial:planned2,tabs:[]}));
  try{
   await flush();
   const c=ui.container;
@@ -159,40 +143,41 @@ test('a result that finished after the step was edited is offered, not written',
 
 test('help lines stay hidden once a step was completed in the channel, and a changed outline is flagged',async()=>{
  FakeEventSource.install();
- const planned:Video={...idea,stage:'recording',planning:{research:true,package:true,outline:true},recorderProjectId:'p1'};
- const state:Server={video:planned,pkg,outline,tiles:[],help:['research','package','outline']},server=installFetch(call=>{
+ const recording:Video={...planned,stage:'recording',planning:{research:true,package:true,outline:true},recorderProjectId:'p1'};
+ const state:Server={video:recording,pkg,outline,help:['research','package','outline']};
+ const server=installFetch(call=>{
   if(call.path==='/videos/v1/plan')return {body:{package:pkg,outline,changedScene:3}};
+  if(call.path==='/videos/v1/scenes')return {body:[]};
   if(call.path==='/settings')return {body:{helpSeen:state.help}};
   return undefined;
  });
- const ui=await mountUI(createElement(Harness,{initial:planned,steps:[]}));
+ const ui=await mountUI(createElement(Harness,{initial:recording,tabs:[],start:'plan'}));
  try{
   await flush();
   const c=ui.container;
   assert.ok(hasText(c,'Your outline changed after you recorded scene 3.'));
   assert.ok(!hasText(c,"Turn this into scenes."),'no help line');
-  assert.deepEqual([...c.querySelectorAll('footer [aria-current="step"]')].map(b=>b.textContent),['1Plan (done)'],'Plan is current and ticked once recording');
-  await act(async()=>[...c.querySelectorAll('section button[aria-expanded]')][0].dispatchEvent(new MouseEvent('click',{bubbles:true})));
-  assert.ok(!hasText(c,'Collect anything that helps'),'Research opens without its help line');
- }finally{await ui.close();server.restore();state.help=[];}
+  assert.deepEqual([...c.querySelectorAll('.tabs a.on')].map(a=>a.textContent),['Plan'],'Plan is the open tab');
+ }finally{await ui.close();server.restore();}
 });
 
 test('Record and Edit without a recording project lead back to Plan and offer no Continue',async()=>{
- const editing:Video={...idea,stage:'editing',planning:{research:true,package:true,outline:false}};
+ const editing:Video={...planned,stage:'editing',planning:{research:true,package:true,outline:false}};
  const server=installFetch(call=>{
   if(call.path==='/videos/v1/plan')return {body:{package:null,outline:null}};
+  if(call.path==='/videos/v1/scenes')return {body:[]};
   if(call.path==='/settings')return {body:{helpSeen:[]}};
  });
- const seen:VideoStep[]=[];
- const ui=await mountUI(createElement(VideoScreen,{video:editing,step:'record',onStep:s=>seen.push(s),onBoard:()=>{},onVideo:()=>{}}));
+ const seen:VideoTab[]=[];
+ const ui=await mountUI(createElement(Workspace,{video:editing,tab:'record',back,navigate:route=>{if(route.name==='video')seen.push(route.tab!);},onVideo:()=>{}}));
  try{
   await flush();
   const c=ui.container;
-  for(const step of ['record','edit'] as const){
-   await ui.render(createElement(VideoScreen,{video:editing,step,onStep:s=>seen.push(s),onBoard:()=>{},onVideo:()=>{}}));await flush();
-   assert.ok(hasText(c,'Plan this video first'),`${step} explains what is missing`);
-   assert.deepEqual(primaries(c),['Back to plan'],`${step} has one primary, Back to plan`);
-   assert.ok(![...c.querySelectorAll('button')].some(b=>b.textContent?.trim().startsWith('Continue to')),`${step} offers no Continue`);
+  for(const tab of ['record','edit'] as const){
+   await ui.render(createElement(Workspace,{video:editing,tab,back,navigate:route=>{if(route.name==='video')seen.push(route.tab!);},onVideo:()=>{}}));await flush();
+   assert.ok(hasText(c,'Plan this video first'),`${tab} explains what is missing`);
+   assert.deepEqual(primaries(c),['Back to plan'],`${tab} has one primary, Back to plan`);
+   assert.ok(![...c.querySelectorAll('button,a')].some(b=>b.textContent?.trim().startsWith('Continue to')),`${tab} offers no Continue`);
    const plan=[...c.querySelectorAll('button')].find(b=>b.textContent?.trim()==='Back to plan'&&b.classList.contains('primary'))!;
    await act(async()=>plan.click());
   }
@@ -202,24 +187,24 @@ test('Record and Edit without a recording project lead back to Plan and offer no
 });
 
 test('Continue on Record moves the card to Editing, and never moves it back',async()=>{
- const recording:Video={...idea,stage:'recording',planning:{research:true,package:true,outline:true},recorderProjectId:'p1'};
+ const recording:Video={...planned,stage:'recording',planning:{research:true,package:true,outline:true},recorderProjectId:'p1'};
  const moves:unknown[]=[];
- // The recording project itself is not served, so the embedded recorder shows its open error; only the bar is under test.
  localStorage.clear();
  class Source extends EventTarget{close(){}}Object.assign(globalThis,{EventSource:Source});
  const server=installFetch(call=>{
   if(call.path==='/videos/v1/plan')return {body:{package:null,outline:null}};
+  if(call.path==='/videos/v1/scenes')return {body:[]};
   if(call.path==='/settings')return {body:{helpSeen:[]}};
   if(call.path==='/videos/v1/move'){moves.push(call.body);return {body:{...recording,stage:(call.body as {stage:string}).stage}};}
  });
- const seen:VideoStep[]=[];
- const ui=await mountUI(createElement(VideoScreen,{video:recording,step:'record',onStep:s=>seen.push(s),onBoard:()=>{},onVideo:()=>{}}));
+ const seen:VideoTab[]=[];
+ const ui=await mountUI(createElement(Workspace,{video:recording,tab:'record',back,navigate:route=>{if(route.name==='video')seen.push(route.tab!);},onVideo:()=>{}}));
  try{
   await flush();
-  await act(async()=>button(ui.container,'Continue to editing').click());await flush();
+  await act(async()=>button(ui.container,'Continue to edit').click());await flush();
   assert.deepEqual(moves,[{stage:'editing'}]);assert.deepEqual(seen,['edit']);
-  await ui.render(createElement(VideoScreen,{video:{...recording,stage:'published'},step:'edit',onStep:s=>seen.push(s),onBoard:()=>{},onVideo:()=>{}}));
-  await act(async()=>button(ui.container,'Continue to publishing').click());await flush();
+  await ui.render(createElement(Workspace,{video:{...recording,stage:'published'},tab:'edit',back,navigate:route=>{if(route.name==='video')seen.push(route.tab!);},onVideo:()=>{}}));
+  await act(async()=>button(ui.container,'Continue to publish').click());await flush();
   assert.equal(moves.length,1,'a published video is not moved back');assert.deepEqual(seen,['edit','publish']);
  }finally{await ui.close();server.restore();}
 });

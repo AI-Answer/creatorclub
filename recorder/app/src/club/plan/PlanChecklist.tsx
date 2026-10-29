@@ -1,14 +1,13 @@
 import type {ReactNode} from 'react';
 import {Check,ChevronDown} from 'lucide-react';
-import {PLAN_JOB_KINDS,PLAN_STEPS,type PlanJobKind,type PlanStep,type Video} from '../../../shared/club';
+import {PLAN_JOB_KINDS,type PlanJobKind,type Video} from '../../../shared/club';
 import {ErrorLine} from '../ErrorLine';
 import type {JobRun} from '../useJobRun';
 import type {Notice,Plan} from '../usePlan';
 import {Button,Spinner,cn} from '../ui';
-import {PLAN_COPY,WRITE_SCRIPT,changedSceneLine} from '../video-plan';
+import {PLAN_COPY,PLAN_TAB_STEPS,WRITE_SCRIPT,changedSceneLine,type PlanTabStep} from '../video-plan';
 import {OutlineEditor,ScriptEditor} from './OutlineEditor';
 import {PackageForm} from './PackageForm';
-import {ResearchBoard} from './ResearchBoard';
 
 const STARTING='Starting…';
 
@@ -35,7 +34,7 @@ function NoticeLine({kind,notice,onAct}:{kind:PlanJobKind;notice?:Notice;onAct(k
  </p>;
 }
 
-function Step({index,step,done,open,summary,help,onOpen,children}:{index:number;step:PlanStep;done:boolean;open:boolean;summary?:string;help?:string;onOpen():void;children:ReactNode}){
+function Step({index,step,done,open,summary,help,onOpen,children}:{index:number;step:PlanTabStep;done:boolean;open:boolean;summary?:string;help?:string;onOpen():void;children:ReactNode}){
  const {title}=PLAN_COPY[step];
  return <section aria-label={title} className="rounded-lg border border-line bg-card">
   <button type="button" aria-expanded={open} onClick={onOpen} className="flex w-full items-center gap-3 rounded-lg px-5 py-4 text-left focus-visible:outline-2 focus-visible:outline-accent">
@@ -54,23 +53,21 @@ function Step({index,step,done,open,summary,help,onOpen,children}:{index:number;
 }
 
 /**
- * The Plan step: Research, Package and Create outline as a checklist, one open at a time, with PLAN.md's copy.
- * Only one primary button shows: Package it or Create outline while there is nothing yet, else the bottom bar's Continue.
+ * The Plan tab: Package and Create outline as a checklist, one open at a time, with PLAN.md's copy. Research is the Board tab.
+ * Only one primary button shows: Package it or Create outline while there is nothing yet, else the tab's Continue.
  */
 export function PlanChecklist({video,plan}:{video:Video;plan:Plan}){
  if(plan.load.status==='loading')return <div className="flex flex-1 items-center justify-center py-16"><Spinner label="Loading the plan" size={20}/></div>;
  if(plan.load.status==='error')return <div className="mx-auto w-full max-w-3xl px-6 py-8"><ErrorLine message={plan.load.message} onRetry={plan.reload}/></div>;
  const {pkg,outline}=plan;
- const done:Record<PlanStep,boolean>={research:video.planning.research,package:video.planning.package,outline:video.planning.outline||!!video.recorderProjectId};
- const help=(step:PlanStep)=>plan.helpSeen&&!plan.helpSeen.includes(step)?PLAN_COPY[step].help:undefined;
- const summaries:Record<PlanStep,string|undefined>={
-  research:undefined,
+ const done:Record<PlanTabStep,boolean>={package:video.planning.package,outline:video.planning.outline||!!video.recorderProjectId};
+ const help=(step:PlanTabStep)=>plan.helpSeen&&!plan.helpSeen.includes(step)?PLAN_COPY[step].help:undefined;
+ const summaries:Record<PlanTabStep,string|undefined>={
   package:pkg?.titles[0]||undefined,
   outline:outline?`${outline.scenes.length} ${outline.scenes.length===1?'scene':'scenes'}${outline.fullScript?' · full script':''}`:undefined,
  };
  const packaging=plan.packageJob.phase==='running',outlining=plan.outlineJob.phase==='running',scripting=plan.scriptJob.phase==='running';
- const body:Record<PlanStep,ReactNode>={
-  research:<ResearchBoard videoId={video.id}/>,
+ const body:Record<PlanTabStep,ReactNode>={
   package:<>
    <JobLine state={plan.packageJob} onRetry={plan.packageIt} onStop={()=>plan.stop('package')}/>
    <NoticeLine kind="package" notice={plan.notices.package} onAct={plan.resolveNotice}/>
@@ -100,7 +97,7 @@ export function PlanChecklist({video,plan}:{video:Video;plan:Plan}){
   {plan.continueError&&<ErrorLine message={plan.continueError} onRetry={()=>plan.continueAction?.run()}/>}
   {plan.saveError&&<ErrorLine message={plan.saveError} onRetry={plan.retrySave}/>}
   {plan.noticeError&&<ErrorLine message={plan.noticeError} onRetry={()=>{for(const kind of PLAN_JOB_KINDS)if(plan.notices[kind]){void plan.resolveNotice(kind);break;}}}/>}
-  {PLAN_STEPS.map((step,index)=><Step key={step} index={index} step={step} done={done[step]} open={plan.open===step} summary={summaries[step]} help={help(step)} onOpen={()=>plan.setOpen(step)}>{body[step]}</Step>)}
+  {PLAN_TAB_STEPS.map((step,index)=><Step key={step} index={index} step={step} done={done[step]} open={plan.open===step} summary={summaries[step]} help={help(step)} onOpen={()=>plan.setOpen(step)}>{body[step]}</Step>)}
  </div>;
 }
 

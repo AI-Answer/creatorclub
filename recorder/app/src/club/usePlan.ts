@@ -1,12 +1,12 @@
 import {useCallback,useEffect,useRef,useState} from 'react';
-import type {ClubSettings,Outline,Package,PlanData,PlanJobKind,PlanJobResult,PlanStep,Video} from '../../shared/club';
+import type {ClubSettings,HelpStep,Outline,Package,PlanData,PlanJobKind,PlanJobResult,PlanStep,Video} from '../../shared/club';
 
 /** A status line under a step: "Replaced the outline · Undo" or "New outline ready · Use it". */
 export type Notice={type:'replaced'|'held';token:string};
 type Notices=Partial<Record<PlanJobKind,Notice>>;
 import {clubFetch,errorMessage} from './api';
 import {useJobRun} from './useJobRun';
-import {movesForward,nextPlanStep,openPlanStep} from './video-plan';
+import {movesForward,nextPlanStep,openPlanStep,type PlanTabStep} from './video-plan';
 
 const SAVE_DELAY_MS=600;
 
@@ -43,8 +43,8 @@ export function usePlan(video:Video,{onVideo,onRecord}:{onVideo(video:Video):voi
  const id=encodeURIComponent(video.id);
  const [load,setLoad]=useState<PlanLoad>({status:'loading'});
  const [pkg,setPkg]=useState<Package|null>(null),[outline,setOutline]=useState<Outline|null>(null),[changedScene,setChangedScene]=useState<number|undefined>();
- const [helpSeen,setHelpSeen]=useState<PlanStep[]|null>(null);
- const [open,setOpen]=useState<PlanStep>(()=>openPlanStep(video.planning));
+ const [helpSeen,setHelpSeen]=useState<HelpStep[]|null>(null);
+ const [open,setOpen]=useState<PlanTabStep>(()=>openPlanStep(video.planning));
  const [continuing,setContinuing]=useState(false),[continueError,setContinueError]=useState('');
  const [notices,setNotices]=useState<Notices>({});
  const videoRef=useRef(video);videoRef.current=video;
@@ -127,7 +127,7 @@ export function usePlan(video:Video,{onVideo,onRecord}:{onVideo(video:Video):voi
   clubFetch(`/settings/help/${step}`,{method:'POST'}).catch(()=>{});
  },[helpSeen]);
 
- const continueFrom=useCallback(async(step:PlanStep)=>{
+ const continueFrom=useCallback(async(step:PlanTabStep)=>{
   setContinuing(true);setContinueError('');
   try{
    if(step==='package')await packageSaver.flush();
@@ -138,13 +138,13 @@ export function usePlan(video:Video,{onVideo,onRecord}:{onVideo(video:Video):voi
     return;
    }
    await complete(step);retireHelp(step);
-   const next=nextPlanStep(step);if(next)setOpen(next);
+   const next=nextPlanStep(step);if(next)setOpen(next as PlanTabStep);
   }catch(reason){setContinueError(errorMessage(reason,step==='outline'?"Couldn't set up the recording.":"Couldn't save that step."));}
   finally{setContinuing(false);}
  },[id,complete,retireHelp,onVideo,onRecord,packageSaver.flush,outlineSaver.flush,scriptSaver.flush]);
 
  /** The bottom bar's one primary button for the open step. Package and outline offer it only once there is something to continue with. */
- const ready=open==='research'||(open==='package'?!!pkg:!!outline?.scenes.length);
+ const ready=open==='package'?!!pkg:!!outline?.scenes.length;
  const busy=packageJob.state.phase==='running'||outlineJob.state.phase==='running'||scriptJob.state.phase==='running';
  const continueAction=load.status==='ready'&&ready?{step:open,run:()=>void continueFrom(open),disabled:continuing||busy}:undefined;
 

@@ -9,7 +9,7 @@ import {defaultRecordingSettings,loadRecordingPreferences,saveRecordingPreferenc
 const {TakeReview}=await import('../../TakeReview');
 const {Recording}=await import('../../Recording');
 const {ClubRecorder}=await import('../ClubRecorder');
-const {VideoScreen}=await import('../screens/VideoScreen');
+const {Workspace}=await import('../workspace/Workspace');
 
 // The take preview starts playing on open with a requestAnimationFrame loop; these tests check its choices, not playback.
 const realFrame=globalThis.requestAnimationFrame;
@@ -192,14 +192,14 @@ test('inside CreatorClub, Continue confirms the take, selects the next scene and
 });
 
 
-test('the bottom bar makes Continue to editing the primary only once every scene has a take',async()=>{
+test('the bottom bar makes Continue to edit the primary only once every scene has a take',async()=>{
  localStorage.clear();
  const server=serveProject();
  const original=globalThis.fetch;
  globalThis.fetch=async(input,init)=>{const url=String(input);if(url.startsWith('/api/club/videos/v1/plan'))return Response.json({package:null,outline:null});if(url==='/api/club/settings')return Response.json({helpSeen:[]});return original(input,init);};
  const video={id:'v1',title:'Hidden features',stage:'recording' as const,order:0,createdAt:'2026-10-01T00:00:00.000Z',updatedAt:'2026-10-01T00:00:00.000Z',stageDates:{},planning:{research:true,package:true,outline:true},recorderProjectId:server.p.id};
- const ui=await mountUI(createElement(VideoScreen,{video,step:'record',onStep:()=>{},onBoard:()=>{},onVideo:()=>{}}));
- const bar=()=>button(ui.container,'Continue to editing');
+ const ui=await mountUI(createElement(Workspace,{video,tab:'record',back:{name:'production',view:'board'},navigate:()=>{},onVideo:()=>{}}));
+ const bar=()=>button(ui.container,'Continue to edit');
  try{
   await flush();await flush();
   assert.ok(!bar().classList.contains('primary'),'while scenes are left, the scene\'s Record is the primary');
@@ -209,16 +209,16 @@ test('the bottom bar makes Continue to editing the primary only once every scene
   assert.ok(scene2.classList.contains('is-selected'));
   assert.ok(scene2.querySelector('.rsc-record-button'),'scene 2 shows its Record button');
  }finally{globalThis.fetch=original;server.restore();await ui.close();}
- // A recording whose every scene has a take: Continue to editing is the primary.
+ // A recording whose every scene has a take: Continue to edit is the primary.
  const all=serveProject();all.p.scenes.pop();
  all.p.clips=[{id:'c1',mediaId:'m1',name:'cam',track:'camera',start:0,sourceIn:0,sourceOut:7.4,speed:1,gain:1,muted:false,transform:{} as never,effects:{} as never,recordingTakeId:'t1'}];all.p.media=[camera];all.p.scenes[0].duration=7.4;
  all.p.recordedTakes![0].confirmedAt='2026-10-02T00:00:01.000Z';
  const original2=globalThis.fetch;
  globalThis.fetch=async(input,init)=>{const url=String(input);if(url.startsWith('/api/club/videos/v1/plan'))return Response.json({package:null,outline:null});if(url==='/api/club/settings')return Response.json({helpSeen:[]});return original2(input,init);};
- const done=await mountUI(createElement(VideoScreen,{video:{...video,recorderProjectId:all.p.id},step:'record',onStep:()=>{},onBoard:()=>{},onVideo:()=>{}}));
+ const done=await mountUI(createElement(Workspace,{video:{...video,recorderProjectId:all.p.id},tab:'record',back:{name:'production',view:'board'},navigate:()=>{},onVideo:()=>{}}));
  try{
   await flush();await flush();
-  assert.ok(button(done.container,'Continue to editing').classList.contains('primary'),'after the last scene, Continue to editing is the primary');
+  assert.ok(button(done.container,'Continue to edit').classList.contains('primary'),'after the last scene, Continue to edit is the primary');
   assert.equal([...done.container.querySelectorAll('button')].filter(b=>b.classList.contains('primary')).length,1,'and the only one');
  }finally{globalThis.fetch=original2;all.restore();await done.close();}
 });

@@ -1,4 +1,4 @@
-import type { ResearchTile, TileKind, TilePosition } from '../../shared/club.js';
+import { defaultTileWidth, type ResearchTile, type TileKind, type TilePosition } from '../../shared/club.js';
 
 /*
  * Where new tiles land on a video's Board: a grid of slots, five across, filled left to right and top to bottom, the way the
@@ -17,7 +17,7 @@ export const POSITION_MAX = 20_000;
 export const WIDTH_MIN = 120;
 export const WIDTH_MAX = 1200;
 
-export const defaultWidth = (kind: TileKind) => (kind === 'breakdown' ? 320 : 280);
+export const defaultWidth = defaultTileWidth;
 
 const overlaps = (a: { x: number; y: number; w: number }, b: { x: number; y: number; w: number }) =>
   a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + TILE_HEIGHT && b.y < a.y + TILE_HEIGHT;

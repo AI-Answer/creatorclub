@@ -1,7 +1,7 @@
-import {useCallback,useEffect,useState} from 'react';
+import {useCallback,useEffect,useRef,useState} from 'react';
 import type {VideoStage} from '../../shared/club';
 
-/** The four steps of a video's page as the plan screen still shows them. Goes when the new video page replaces it. */
+/** The four steps of a video's page after Board. */
 export const videoSteps=['plan','record','edit','publish'] as const;
 export type VideoStep=typeof videoSteps[number];
 
@@ -95,29 +95,49 @@ export const routePath=(route:Route)=>routeHash(route).split('?')[0];
 /** The Record and Edit tabs take the whole window, so the sidebar folds to its icon rail on its own there. */
 export const autoCollapses=(route:Route)=>route.name==='video'&&(route.tab==='record'||route.tab==='edit');
 
-/** The step of the plan screen that stands in for a tab until the new video page arrives. Board has no step of its own yet. */
-export const stepForTab=(tab:VideoTab):VideoStep=>tab==='board'?'plan':tab;
+/**
+ * The screen a video was opened from: the last screen before the video's page that was not itself a video's page, so moving between tabs
+ * or videos does not lose it. Opened from a link (nothing before it), a video has none, and going back leads to Production.
+ */
+export function videoOrigin(origin:Route|undefined,previous:Route,next:Route):Route|undefined{
+ if(next.name!=='video'||previous.name==='video')return origin;
+ return previous.name==='welcome'?undefined:previous;
+}
+
+const ORIGIN_LABEL:Partial<Record<RouteName,string>>={overview:'Overview',ideas:'Ideas',trending:'Working now',signals:'Signals',production:'Production',settings:'Settings'};
+/** The name of a screen in "Back to …". */
+export const originLabel=(route:Route|undefined)=>(route&&ORIGIN_LABEL[route.name])||'Production';
+
+let origin:Route|undefined;
+/** Where a video's page goes back to: the screen it was opened from, else Production. */
+export const videoBackRoute=():Route=>origin??{name:'production',view:'board'};
 
 /** Current route plus `navigate`, which pushes a history entry so the browser back button works. `replace` swaps the entry instead. */
 export function useHashRoute():[Route,(route:Route,options?:{replace?:boolean})=>void]{
  const [route,setRoute]=useState(()=>parseRoute(window.location.hash));
+ const shown=useRef(route);
+ /** Shows a route, remembering where a video was opened from. The same route twice (a push and the hashchange it causes) is one change. */
+ const show=useCallback((next:Route)=>{
+  if(routeHash(shown.current)!==routeHash(next)){origin=videoOrigin(origin,shown.current,next);shown.current=next;}
+  setRoute(next);
+ },[]);
  useEffect(()=>{
   // An old or unusual hash is rewritten to its canonical form, so `#/board` becomes `#/production`.
   const sync=()=>{
    const next=parseRoute(window.location.hash),canonical=routeHash(next);
    if(window.location.hash!==canonical)window.history.replaceState(window.history.state,'',canonical);
-   setRoute(next);
+   show(next);
   };
   sync();
   window.addEventListener('hashchange',sync);return()=>window.removeEventListener('hashchange',sync);
- },[]);
+ },[show]);
  const navigate=useCallback((next:Route,options?:{replace?:boolean})=>{
   const hash=routeHash(next);
   if(window.location.hash!==hash){
    if(options?.replace)window.history.replaceState(window.history.state,'',hash);
    else window.location.hash=hash;
   }
-  setRoute(next);
- },[]);
+  show(next);
+ },[show]);
  return [route,navigate];
 }

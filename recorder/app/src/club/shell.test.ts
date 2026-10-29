@@ -40,7 +40,7 @@ const serve=(server:Server)=>(call:FakeCall):FakeReply=>{
  if(path==='/trending')return {body:{items:[],updatedAt:null,followed:0}};
  if(path==='/signals')return {body:{items:[],updatedAt:null,errors:[]}};
  if(path==='/breakdowns'&&method==='GET')return {body:[]};
- if(path==='/settings')return {body:{defaultAi:'claude',welcomed:server.welcomed}};
+ if(path==='/settings')return {body:{defaultAi:'claude',welcomed:server.welcomed,helpSeen:['board']}};
  const move=path.match(/^\/videos\/(\w+)\/move$/);
  if(move){server.videos=server.videos.map(v=>v.id===move[1]?{...v,stage:(call.body as {stage:Video['stage']}).stage}:v);return {body:server.videos.find(v=>v.id===move[1])};}
  const one=path.match(/^\/videos\/(\w+)$/);
