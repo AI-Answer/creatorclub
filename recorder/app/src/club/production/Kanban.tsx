@@ -7,7 +7,6 @@ import {StagePill} from '../ui';
 import {KanbanCard} from './KanbanCard';
 
 type Over={stage:VideoStage;beforeId:string|null};
-const NO_SCENES:readonly SceneProgress[]=[];
 
 /** Six columns, Ideas to Published. Cards drag between and within them (HTML5 drag); a line shows where the card will land. */
 export function Kanban({videos,scenes,onOpen,onMove,onAllIdeas}:{
@@ -50,7 +49,7 @@ export function Kanban({videos,scenes,onOpen,onMove,onAllIdeas}:{
    <div ref={element=>{if(element)elements.current.set(stage,element);else elements.current.delete(stage);}}>
     {shown.map(video=><div key={video.id}>
      {lineBefore===video.id&&video.id!==dragId&&<div aria-hidden data-drop-line className="drop-line"/>}
-     <KanbanCard video={video} scenes={scenes[video.id]??NO_SCENES} dragging={dragId===video.id} onOpen={()=>onOpen(video)}
+     <KanbanCard video={video} scenes={scenes[video.id]} dragging={dragId===video.id} onOpen={()=>onOpen(video)} onMove={to=>onMove(video.id,to,null)}
       onDragStart={event=>{event.dataTransfer.effectAllowed='move';event.dataTransfer.setData('text/plain',video.id);setDragId(video.id);}} onDragEnd={reset}/>
     </div>)}
     {lineBefore==='end'&&<div aria-hidden data-drop-line className="drop-line"/>}

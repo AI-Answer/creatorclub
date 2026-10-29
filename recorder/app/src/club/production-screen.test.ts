@@ -32,9 +32,10 @@ const drag=async(el:Element,type:string,y?:number)=>act(async()=>{el.dispatchEve
 const dragTo=async(source:Element,target:Element,y=10_000)=>{await drag(source,'dragstart');await drag(target,'dragover',y);await drag(target,'drop',y);await drag(source,'dragend');await settle();};
 const toasts=(c:Element)=>[...c.querySelectorAll('.cc-toast')].map(text);
 
-type Server={videos:Video[];welcomed:boolean;failMove:boolean;failLoad:boolean;outlines:Record<string,number>};
+type Server={videos:Video[];welcomed:boolean;failMove:boolean;failLoad:boolean;outlines:Record<string,number>;failPlan?:string[];holdPlan?:Promise<void>};
 function serve(server:Server){
- return (call:FakeCall):FakeReply=>{
+ const planReply=(id:string):FakeReply=>({body:{package:null,outline:server.outlines[id]?{scenes:Array.from({length:server.outlines[id]},(_,i)=>({title:`S${i}`,talkingPoints:[],show:'',seconds:30}))}:null,running:{},ready:{}}});
+ return (call:FakeCall):FakeReply|Promise<FakeReply>=>{
   const {path,method}=call;
   if(path==='/workspaces'&&method==='GET')return {body:{current:'maya',workspaces:[ws]}};
   if(path==='/videos'&&method==='GET')return server.failLoad?{status:500,body:{error:"Couldn't load your videos."}}:{body:server.videos};
@@ -44,7 +45,9 @@ function serve(server:Server){
   if(path==='/settings/welcomed')return {body:{welcomed:true}};
   if(path==='/ai/status')return {body:{claude:{installed:true,version:'2',signedIn:true},codex:{installed:false,version:null,signedIn:false}}};
   const plan=path.match(/^\/videos\/(\w+)\/plan$/);
-  if(plan)return {body:{package:null,outline:server.outlines[plan[1]]?{scenes:Array.from({length:server.outlines[plan[1]]},(_,i)=>({title:`S${i}`,talkingPoints:[],show:'',seconds:30}))}:null,running:{},ready:{}}};
+  if(plan&&server.failPlan?.includes(plan[1]))return {status:500,body:{error:'That did not work.'}};
+  if(plan&&server.holdPlan)return server.holdPlan.then(():FakeReply=>planReply(plan[1]));
+  if(plan)return planReply(plan[1]);
   const move=path.match(/^\/videos\/(\w+)\/move$/);
   if(move){
    if(server.failMove)return {status:500,body:{error:"Couldn't save that."}};
@@ -139,7 +142,7 @@ test('Board: dropping above another card places it before that card; dropping wh
   for(const el of c.querySelectorAll<HTMLElement>('[data-column="ideas"] [data-card]'))el.getBoundingClientRect=()=>({top:el.dataset.cardId==='a'?0:100,height:40} as DOMRect);
   await drag(card(c,'Bravo'),'dragstart');await drag(column(c,'ideas'),'dragover',5);
   assert.equal(c.querySelectorAll('[data-drop-line]').length,1,'a line shows where it will land');
-  assert.equal(column(c,'ideas').querySelector('[data-drop-line]')!.nextElementSibling!.getAttribute('data-card-id'),'a');
+  assert.equal(column(c,'ideas').querySelector('[data-drop-line]')!.nextElementSibling!.querySelector('[data-card]')!.getAttribute('data-card-id'),'a');
   await drag(column(c,'ideas'),'drop',5);await drag(card(c,'Bravo'),'dragend');await settle();
   assert.deepEqual(calls.filter(call=>call.method==='POST').map(call=>call.body),[{stage:'ideas',beforeId:'a'}]);
   assert.deepEqual(toasts(c),['Moved in IdeasUndo']);
@@ -295,4 +298,79 @@ test('Production in the app: the Production page, New video, and a card that ope
   await press(button(ui.container.querySelector('.page-head')!,'New video'));
   assert.ok(ui.container.querySelector('[role="dialog"]'),'New video opens its dialog');
  }finally{await ui.close();fake.restore();window.location.hash='';}
+});
+
+test('Board: scenes that are loading or could not be read say nothing about scenes; a known empty outline says so',async()=>{
+ const videos=[mk('p',{title:'Planned',stage:'planning'}),mk('r',{title:'Recording one',stage:'recording'}),mk('e',{title:'Editing one',stage:'editing'})];
+ // Could not be read.
+ await withBoard({videos,failPlan:['p','r','e']},'board',async ui=>{
+  const c=ui.container;
+  assert.match(text(card(c,'Planned')),/Continue planning/);assert.match(text(card(c,'Recording one')),/Continue recording/);
+  assert.equal(c.querySelectorAll('.dots').length,0,'no dots for scenes nobody knows');
+  assert.equal(/scenes? from board|Continue to editing|0 of/.test(text(c.querySelector('.kanban'))),false);
+ });
+ // Still loading, then known.
+ let release=()=>{};const hold=new Promise<void>(resolve=>{release=resolve;});
+ await withBoard({videos,outlines:{p:3,r:2},holdPlan:hold},'board',async ui=>{
+  const c=ui.container;
+  assert.match(text(card(c,'Planned')),/Continue planning/);assert.match(text(card(c,'Recording one')),/Continue recording/);
+  assert.equal(c.querySelectorAll('.dots').length,0);
+  release();await settle();
+  assert.match(text(card(c,'Planned')),/3 scenes?Continue to recording|0 of 3 scenesContinue to recording/);
+  assert.match(text(card(c,'Recording one')),/0 of 2 scenesRecord scene 1/);
+  assert.equal(c.querySelectorAll('.dots').length,2);
+ });
+ // Known to have no scenes.
+ await withBoard({videos,outlines:{}},'board',async ui=>{
+  const c=ui.container;
+  assert.match(text(card(c,'Planned')),/Draft scenes from board/);assert.match(text(card(c,'Recording one')),/Draft scenes from board/);
+  assert.equal(c.querySelectorAll('.dots').length,0,'no scenes, so no dots');
+ });
+});
+
+test('Board: Move to on a card is a button you can reach with the keyboard; it moves the video like a drag, with Undo',async()=>{
+ await withBoard({},'board',async(ui,calls)=>{
+  const c=ui.container;
+  const trigger=c.querySelector<HTMLButtonElement>('button[aria-label="Move Alpha to…"]')!;
+  assert.ok(trigger&&trigger.tabIndex>=0&&trigger.tagName==='BUTTON');
+  assert.equal(trigger.closest('[data-card]'),null,'it is not inside the card, so pressing it does not open the video');
+  await press(trigger);
+  const menu=c.querySelector('.menu')!;
+  assert.deepEqual([...menu.querySelectorAll('.hd,button')].map(text),['Move to','Ideas','Planning','Recording','Editing','Publishing','Published']);
+  assert.equal(menu.querySelector('[aria-checked="true"]')!.textContent,'Ideas','the stage it is in is marked');
+  await press([...menu.querySelectorAll('button')].find(b=>text(b)==='Ideas')!);
+  assert.equal(calls.filter(call=>call.method==='POST').length,0,'its own stage does nothing');
+  await press(trigger);
+  await press([...c.querySelectorAll('.menu button')].find(b=>text(b)==='Recording')!);
+  assert.deepEqual(calls.filter(call=>call.method==='POST').map(call=>[call.path,call.body]),[['/videos/a/move',{stage:'recording',beforeId:null}]]);
+  assert.ok(column(c,'recording').querySelector('[data-card-id="a"]'));
+  assert.deepEqual(toasts(c),['Moved to RecordingUndo']);
+  await press(button(c.querySelector('.cc-toast')!,'Undo'));
+  assert.deepEqual(cardIds(column(c,'ideas')),['a','b']);
+  assert.equal(c.querySelector('.menu'),null,'the menu closes after a choice');
+ });
+ await withBoard({failMove:true},'board',async ui=>{
+  const c=ui.container;
+  await press(c.querySelector('button[aria-label="Move Alpha to…"]')!);
+  await press([...c.querySelectorAll('.menu button')].find(b=>text(b)==='Editing')!);
+  assert.deepEqual(toasts(c),["Couldn't save that."]);assert.ok(column(c,'ideas').querySelector('[data-card-id="a"]'));
+ });
+});
+
+test('Calendar: a video with no day has a date field in the Not scheduled list; choosing a day plans it, with Undo',async()=>{
+ const videos=[mk('g',{title:'Gamma',stage:'editing',stageDates:{}}),mk('h',{title:'Hotel',stage:'planning',stageDates:{}})];
+ await withBoard({videos},'calendar',async(ui,calls)=>{
+  const c=ui.container;
+  const field=(title:string)=>c.querySelector<HTMLInputElement>(`input[type="date"][aria-label="Set publish date for ${title}"]`)!;
+  assert.ok(field('Gamma')&&field('Hotel'));assert.equal(field('Gamma').tabIndex>=0,true);
+  const day=dayOf(new Date(new Date().getFullYear(),new Date().getMonth(),15,12));
+  await act(async()=>{Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value')!.set!.call(field('Gamma'),day);field('Gamma').dispatchEvent(new Event('input',{bubbles:true}));});await settle();
+  assert.deepEqual(calls.filter(call=>call.method==='PUT').map(call=>[call.path,call.body]),[['/videos/g',{publishDate:day}]]);
+  assert.ok([...c.querySelector(`[data-day="${day}"]`)!.querySelectorAll('.ev .ellipsis')].some(el=>text(el)==='Gamma'),'on that day');
+  assert.equal(field('Gamma'),null,'and out of the list');assert.ok(field('Hotel'));
+  assert.match(toasts(c)[0],/^Planned for [A-Z][a-z]{2} \d+Undo$/);
+  await press(button(c.querySelector('.cc-toast')!,'Undo'));
+  assert.deepEqual(calls.filter(call=>call.method==='PUT').slice(-1).map(call=>call.body),[{publishDate:null}]);
+  assert.ok(field('Gamma'),'back in the list');
+ });
 });

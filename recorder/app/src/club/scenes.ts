@@ -26,7 +26,10 @@ export async function loadProgress():Promise<Record<string,ProjectProgress>>{
  }catch{return {};}
 }
 
-/** The scenes of each given video that is being made, by video id. Videos not loaded yet are left out. */
+/**
+ * The scenes of each given video that is being made, by video id. A video whose scenes are not known (still loading, or they could not be read) has no entry:
+ * that is not the same as an empty list, which means its outline has no scenes.
+ */
 export function useSceneProgress(videos:readonly Video[]):Record<string,SceneProgress[]>{
  const [progress,setProgress]=useState<Record<string,SceneProgress[]>>({});
  const key=videos.filter(video=>ACTIVE_STAGES.includes(video.stage)).map(video=>`${video.id}:${video.stage}:${video.recorderProjectId??''}`).join(',');
@@ -34,12 +37,13 @@ export function useSceneProgress(videos:readonly Video[]):Record<string,ScenePro
   if(!key)return;
   let live=true;
   const active=videos.filter(video=>ACTIVE_STAGES.includes(video.stage));
-  const outlineScenes=(video:Video)=>clubFetch<{outline:Outline|null}>(`/videos/${encodeURIComponent(video.id)}/plan`).then(plan=>plan.outline?.scenes.length??0,()=>0);
+  const outlineScenes=(video:Video)=>clubFetch<{outline:Outline|null}>(`/videos/${encodeURIComponent(video.id)}/plan`).then(plan=>plan.outline?.scenes.length??0,()=>null);
  void Promise.all([loadProgress(),Promise.all(active.map(outlineScenes))]).then(([projects,outlines])=>{
    if(!live)return;
-   setProgress(Object.fromEntries(active.map((video,index)=>{
+   setProgress(Object.fromEntries(active.flatMap((video,index)=>{
     const project=video.recorderProjectId?projects[video.recorderProjectId]:undefined;
-    return [video.id,sceneProgress(project?.scenes??outlines[index],project?.recorded??0)];
+    const count=project?.scenes??outlines[index];
+    return count===null?[]:[[video.id,sceneProgress(count,project?.recorded??0)]];
    })));
   });
   return()=>{live=false;};

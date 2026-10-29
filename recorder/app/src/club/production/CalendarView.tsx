@@ -31,7 +31,10 @@ export function CalendarView({videos,onOpen,onOpenPublish,onSchedule,today=new D
    <button type="button" className="btn sm icon-only" aria-label="Next month" onClick={()=>setMonth(shiftMonth(month,1))}><Icon name="ChevronRight" size={15}/></button>
    <button type="button" className="btn sm" onClick={()=>setMonth(monthOf(today))}>Today</button>
    <span className="grow"/>
-   {unscheduled.length>0&&<span className="small muted" aria-label="Not scheduled">Not scheduled: {unscheduled.map((video,index)=><span key={video.id}><button type="button" className="linkish" onClick={()=>onOpenPublish(video)}>{video.title}</button>{index<unscheduled.length-1?', ':''}</span>)}</span>}
+   {unscheduled.length>0&&<span className="small muted row" style={{flexWrap:'wrap',justifyContent:'flex-end'}} role="group" aria-label="Not scheduled">Not scheduled:{' '}{unscheduled.map(video=><span key={video.id} className="row" style={{gap:6}}>
+    <button type="button" className="linkish" onClick={()=>onOpenPublish(video)}>{video.title}</button>
+    <input type="date" className="input" style={{height:26,width:132,padding:'0 6px',fontSize:12.5}} aria-label={`Set publish date for ${video.title}`} value="" onChange={event=>{if(event.target.value)onSchedule(video.id,event.target.value);}}/>
+   </span>)}</span>}
   </div>
   <div className="cal">
    {WEEKDAYS.map(name=><div key={name} className="dow">{name}</div>)}

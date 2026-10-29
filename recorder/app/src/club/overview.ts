@@ -46,8 +46,18 @@ export function stageCounts(videos:readonly Video[],stages:readonly VideoStage[]
  return stages.map(stage=>({stage,count:videos.filter(v=>v.stage===stage&&!v.hidden).length}));
 }
 
-/** How far a video's scenes are, from what is known about them. */
-export function progressText(video:Video,scenes:readonly SceneProgress[]):string{
+/** How far a video's scenes are, from what is known about them. `scenes` is undefined while they are not known (still loading, or could not be read): then only the stage is said. */
+export function progressText(video:Video,scenes:readonly SceneProgress[]|undefined):string{
+ if(!scenes){
+  switch(video.stage){
+   case 'ideas':return 'Idea';
+   case 'planning':return 'Planning';
+   case 'recording':return 'Recording';
+   case 'editing':return 'Editing';
+   case 'publishing':return 'Publishing · ready to upload';
+   case 'published':return video.publishedAt?`Published ${fmtDate(video.publishedAt)}`:'Published';
+  }
+ }
  const total=scenes.length,recorded=recordedCount(scenes);
  switch(video.stage){
   case 'ideas':return 'Idea';
@@ -60,13 +70,22 @@ export function progressText(video:Video,scenes:readonly SceneProgress[]):string
 }
 
 export interface NextAction{label:string;tab:VideoTab;icon:IconName}
-/** The one thing to do next on a video. */
-export function nextAction(video:Video,scenes:readonly SceneProgress[]):NextAction{
+/**
+ * The one thing to do next on a video. `scenes` is undefined while they are not known: a stage-only action then, with no claim about scenes.
+ * An empty list is a known outline with no scenes in it.
+ */
+export function nextAction(video:Video,scenes:readonly SceneProgress[]|undefined):NextAction{
+ if(!scenes){
+  if(video.stage==='planning')return {label:'Continue planning',tab:'plan',icon:'ArrowRight'};
+  if(video.stage==='recording')return {label:'Continue recording',tab:'record',icon:'Mic'};
+ }
+ const known=scenes??[];
  switch(video.stage){
   case 'ideas':return {label:'Start planning',tab:'board',icon:'ArrowRight'};
-  case 'planning':return scenes.length?{label:'Continue to recording',tab:'record',icon:'Mic'}:{label:'Draft scenes from board',tab:'board',icon:'Sparkles'};
+  case 'planning':return known.length?{label:'Continue to recording',tab:'record',icon:'Mic'}:{label:'Draft scenes from board',tab:'board',icon:'Sparkles'};
   case 'recording':{
-   const next=scenes.findIndex(scene=>!scene.takes.some(take=>take.kept));
+   if(!known.length)return {label:'Draft scenes from board',tab:'board',icon:'Sparkles'};
+   const next=known.findIndex(scene=>!scene.takes.some(take=>take.kept));
    return next<0?{label:'Continue to editing',tab:'edit',icon:'Scissors'}:{label:`Record scene ${next+1}`,tab:'record',icon:'Mic'};
   }
   case 'editing':return {label:'Keep editing',tab:'edit',icon:'Scissors'};

@@ -58,12 +58,12 @@ export function OverviewScreen({navigate,onNewVideo}:{navigate(route:Route):void
     {resume.length===0
      ?<div className="card"><Empty icon="Clapperboard" title="Nothing in production" action={<button type="button" className="btn" onClick={()=>navigate({name:'ideas'})}>Open Ideas</button>}>Start planning an idea to bring it here.</Empty></div>
      :<div className="resume">{resume.map(video=>{
-     const progress=scenes[video.id]??[],next=nextAction(video,progress);
+     const progress=scenes[video.id],next=nextAction(video,progress);
      return <div key={video.id} className="card hov" onClick={()=>openVideo(video.id)} tabIndex={0} onKeyDown={event=>{if(event.key==='Enter'&&event.target===event.currentTarget)openVideo(video.id);}}>
       <Thumb videoId={videoThumbId(video)} text={video.title} seed={video.id} chip={<span className="chip solid on-thumb">{STAGE_LABEL[video.stage]}</span>}/>
       <div className="body">
        <div className="title clamp2">{video.title}</div>
-       <div className="row small muted"><SceneDots scenes={progress}/><span>{progressText(video,progress)}</span></div>
+       <div className="row small muted"><SceneDots scenes={progress??[]}/><span>{progressText(video,progress)}</span></div>
        <div className="row" style={{marginTop:'auto',paddingTop:4}}>
         <button type="button" className="btn sm" onClick={event=>{event.stopPropagation();openVideo(video.id,next.tab);}}><Icon name={next.icon} size={14}/>{next.label}</button>
         {video.publishDate&&<span className="faint small" style={{marginLeft:'auto'}}><Icon name="Calendar" size={12}/> {fmtDate(video.publishDate)}</span>}

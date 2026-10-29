@@ -90,6 +90,19 @@ test('overview: progress words and the next action come from the scenes that are
  assert.deepEqual(sceneProgress(3,1).map(scene=>scene.takes.some(take=>take.kept)),[true,false,false]);
 });
 
+test('unknown scenes are not zero scenes: only the stage is said until they are known, and a known empty outline says so',()=>{
+ for(const stage of ['planning','recording','editing'] as const)assert.equal(progressText(video('a',stage),undefined),{planning:'Planning',recording:'Recording',editing:'Editing'}[stage]);
+ assert.deepEqual(nextAction(video('a','planning'),undefined),{label:'Continue planning',tab:'plan',icon:'ArrowRight'});
+ assert.deepEqual(nextAction(video('a','recording'),undefined),{label:'Continue recording',tab:'record',icon:'Mic'});
+ assert.equal(nextAction(video('a','recording'),undefined).label.includes('editing'),false,'no claim that the scenes are all recorded');
+ assert.equal(nextAction(video('a','editing'),undefined).label,'Keep editing');assert.equal(nextAction(video('a','ideas'),undefined).label,'Start planning');
+ assert.equal(nextAction(video('a','published',{views:5}),undefined).label,'5 views');
+ const empty=sceneProgress(0,0);
+ assert.equal(nextAction(video('a','planning'),empty).label,'Draft scenes from board');
+ assert.equal(nextAction(video('a','recording'),empty).label,'Draft scenes from board','a known empty outline has nothing to record');
+ assert.equal(progressText(video('a','planning'),empty),'Planning · no scenes yet');
+});
+
 test('Working now: For you, Followed and All, three sorts, growth per day and New',()=>{
  const items=[
   trend('a',{vpd:1000,views:5000,history:[{d:'2026-10-26',v:3000},{d:'2026-10-28',v:5000}]}),
