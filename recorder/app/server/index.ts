@@ -44,7 +44,12 @@ app.use((req,res,next)=>{
  const origin=req.headers.origin;if(origin&&!['http://localhost:4173','http://127.0.0.1:4173',`http://localhost:${PORT}`,`http://127.0.0.1:${PORT}`].includes(origin)){res.status(403).json({error:'Origin is not allowed'});return;}
  res.setHeader('X-Content-Type-Options','nosniff');next();
 });
-app.use('/api/club',clubRouter());
+app.use('/api/club',clubRouter({publishing:{exportFile:async id=>{
+ const record=await exportsStore.get(id).catch(()=>undefined);
+ if(!record||record.status!=='complete'||record.output.status!=='available'||record.options.format!=='mp4'||!record.outputPath)return undefined;
+ const stat=await fs.stat(record.outputPath).catch(()=>undefined);
+ return stat?{path:record.outputPath,name:path.basename(record.outputPath),size:stat.size,projectId:record.projectId}:undefined;
+}}}));
 app.use(express.json({limit:'30mb'}));
 const route=(fn:(req:Request,res:Response)=>Promise<unknown>|unknown)=>(req:Request,res:Response,next:NextFunction)=>Promise.resolve(fn(req,res)).catch(next);
 const param=(req:Request,name='id')=>String(req.params[name]);

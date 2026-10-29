@@ -16,7 +16,7 @@ const press=async(element:Element)=>{await act(async()=>(element as HTMLElement)
 const type=async(input:Element,value:string,proto:object=HTMLInputElement.prototype)=>act(async()=>{Object.getOwnPropertyDescriptor(proto,'value')!.set!.call(input,value);input.dispatchEvent(new Event('input',{bubbles:true}));});
 const text=(container:Element)=>container.textContent??'';
 const withServer=async(reply:(call:FakeCall)=>FakeReply|Promise<FakeReply>,run:(calls:FakeCall[])=>Promise<void>)=>{
- FakeEventSource.install();const server=installFetch(reply);
+ FakeEventSource.install();const server=installFetch(call=>reply(call)??(call.path==='/publishing'&&call.method==='GET'?{body:{postiz:{connected:false,address:null,channel:null},defaultVisibility:'public'}}:undefined));
  try{await run(server.calls);}finally{server.restore();}
 };
 const emit=(type:string,data?:unknown)=>act(async()=>{FakeEventSource.last().emit(type,data);});
@@ -87,6 +87,7 @@ test('Settings: Rebuild voice guide that needs answers shows the questions, and 
   const ui=await mountUI(createElement(SettingsScreen,{onSetup(){}}));
   try{
    await flush();const c=ui.container;
+   await press(c.querySelector('button[aria-label="Edit channel"]')!);await press(c.querySelector('button[aria-label="Edit voice"]')!);
    await press(button(c,'Rebuild voice guide'));
    await emit('done',{voice:'needs-answers'});
    assert.doesNotMatch(text(c),/Rebuilt your voice guide/);

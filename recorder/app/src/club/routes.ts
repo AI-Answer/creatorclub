@@ -16,7 +16,7 @@ export const ideaFilters=['later','skipped'] as const;
 export type IdeaFilter=typeof ideaFilters[number];
 
 /** The parts of Settings a link can open: Connected AI, Channel, the channels you follow and the signal sources (both inside Channel), Appearance. */
-export const settingsSections=['ai','channel','followed','sources','appearance'] as const;
+export const settingsSections=['ai','channel','followed','sources','publishing'] as const;
 export type SettingsSection=typeof settingsSections[number];
 
 /**

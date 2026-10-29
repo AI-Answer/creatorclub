@@ -17,6 +17,8 @@ import {
   type TilePosition,
   type Video,
   type VideoStage,
+  type PublishChannel,
+  type PublishVisibility,
   type Workspace,
 } from '../../shared/club.js';
 
@@ -86,6 +88,8 @@ interface Settings {
   geminiKey?: string;
   /** Plan steps completed at least once, per channel. Their help lines stop showing. */
   helpSeen?: Record<string, HelpStep[]>;
+  /** Where videos are published. The API key is in secrets.json. */
+  publishing?: { address?: string; channel?: PublishChannel; defaultVisibility?: PublishVisibility };
 }
 const settingsFile = () => path.join(rootDir(), 'settings.json');
 
@@ -108,6 +112,8 @@ export const secretsDir = () =>
 interface Secrets {
   /** The person's own Gemini API key. Only ever sent to Google; the screen gets it masked. */
   geminiKey?: string;
+  /** The person's own Postiz API key. Only ever sent to their Postiz; the screen is told whether one is saved. */
+  postizKey?: string;
 }
 const secretsFile = () => path.join(secretsDir(), 'secrets.json');
 
@@ -184,6 +190,30 @@ export async function setGeminiKey(key: string) {
 export async function removeGeminiKey() {
   await moveLegacyKey();
   await updateSecrets(({ geminiKey: _removed, ...secrets }) => secrets);
+}
+
+/** The saved Postiz API key, for the one place that calls Postiz with it. Never send this to the screen. */
+export async function postizKey(): Promise<string | undefined> {
+  const value = (await readJSON<Secrets>(secretsFile()))?.postizKey;
+  return typeof value === 'string' && value ? value : undefined;
+}
+
+export const setPostizKey = (key: string) => updateSecrets((secrets) => ({ ...secrets, postizKey: key }));
+export const removePostizKey = () => updateSecrets(({ postizKey: _removed, ...secrets }) => secrets);
+
+export type PublishingSettings = NonNullable<Settings['publishing']>;
+
+export async function publishingSettings(): Promise<PublishingSettings> {
+  return (await readJSON<Settings>(settingsFile()))?.publishing ?? {};
+}
+
+/** Changes the publishing settings. A field set to undefined is removed. */
+export async function updatePublishingSettings(change: Partial<{ [K in keyof PublishingSettings]: PublishingSettings[K] | undefined }>) {
+  await updateSettings((settings) => {
+    const next = { ...settings.publishing, ...change };
+    for (const key of Object.keys(next) as (keyof PublishingSettings)[]) if (next[key] === undefined) delete next[key];
+    return { ...settings, publishing: next };
+  });
 }
 
 export async function welcomed(): Promise<boolean> {
