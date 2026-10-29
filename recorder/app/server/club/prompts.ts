@@ -1,6 +1,7 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import type { ConceptRating, IdeaNotes, Outline, Package, ResearchTile, Video, Workspace } from '../../shared/club.js';
+import type { CompanionActionType } from '../../shared/companion.js';
 import type { Transcript } from './channel.js';
 import { ClubError } from './errors.js';
 
@@ -609,40 +610,72 @@ export async function buildRevisePrompt(ctx: ChannelContext, input: ReviseInput)
   };
 }
 
-// ---------------------------------------------------------------- Ask Claude about this board
+// ---------------------------------------------------------------- The companion
 
 export const CHAT_TURNS_KEPT = 12;
 const CHAT_TURN_CHARS = 1500;
-const OUTLINE_CHARS = 6000;
 
-export interface BoardChatInput {
+/** How each action is described to the model: its JSON and when to use it. */
+export const COMPANION_ACTION_HELP: Record<CompanionActionType, string> = {
+  use_hook: '- use_hook: {"type": "use_hook", "text": "..."}: one spoken opening line, the first thing the creator says. One action per option.',
+  use_title: '- use_title: {"type": "use_title", "text": "..."}: a video title of 7 words or fewer and 60 characters or fewer, a claim and not a question. One action per title.',
+  set_thumbnail_text: '- set_thumbnail_text: {"type": "set_thumbnail_text", "text": "..."}: the words on the thumbnail, 2 to 5 words.',
+  add_note: '- add_note: {"type": "add_note", "text": "..."}: a note pinned to the board: a fact or an idea worth keeping, with where it came from.',
+  set_scene: '- set_scene: {"type": "set_scene", "sceneId": "...", "title": "...", "talkingPoints": ["..."]}: rewrites one scene that exists. Use its id exactly as given in <scenes>; leave out the title or the talking points when they do not change.',
+  draft_scenes:
+    '- draft_scenes: {"type": "draft_scenes", "scenes": [{"title": "...", "talkingPoints": ["..."], "show": "what is on screen", "seconds": 60}]}: 4 to 7 scenes for the whole video, replacing the scenes it has. The opening is 90 seconds or less, the ending 60 or less, and the scenes add up to about the target length.',
+  set_description: '- set_description: {"type": "set_description", "text": "..."}: the YouTube description: what the viewer gets in two or three lines, then chapters with start times from the scenes. No links you were not given.',
+};
+
+const COMPANION_SCENES_CHARS = 8000;
+
+/** The scenes with their ids and running clock, so the model can name the one to change. */
+export function companionScenesText(outline: Outline | undefined): string {
+  if (!outline?.scenes.length) return '(no scenes yet)';
+  let at = 0;
+  const text = outline.scenes
+    .map((scene, index) => {
+      const start = at;
+      at += scene.seconds;
+      return [`### ${index + 1}. ${scene.title} (id: ${scene.id ?? 'none'}, ${clock(start)}–${clock(at)})`, ...scene.talkingPoints.map((point) => `- ${point}`), `Show: ${scene.show}`].join('\n');
+    })
+    .join('\n\n');
+  return text.length > COMPANION_SCENES_CHARS ? `${text.slice(0, COMPANION_SCENES_CHARS)}…` : text;
+}
+
+export interface CompanionPromptInput {
   idea: PromptIdea;
   pkg?: Package;
   outline?: Outline;
   /** The board's tiles as text, already trimmed. */
   board: string;
+  /** What the screen shows: the step, the scene in focus and a short summary. */
+  screen: string;
   /** The conversation so far; only the last turns are sent, each trimmed. */
   history: { role: 'user' | 'assistant'; text: string }[];
   message: string;
+  actions: readonly CompanionActionType[];
 }
 
-export async function buildBoardChatPrompt(ctx: ChannelContext, input: BoardChatInput): Promise<JsonPrompt> {
-  const [template, schema] = await Promise.all([methodologyFile('board-chat.md'), methodologySchema('board-chat')]);
+export async function buildCompanionPrompt(ctx: ChannelContext, input: CompanionPromptInput): Promise<BuiltPrompt> {
+  const template = await methodologyFile('companion.md');
   const turns = input.history.slice(-CHAT_TURNS_KEPT).map((turn) => `${turn.role === 'user' ? 'Creator' : 'You'}: ${squash(turn.text).slice(0, CHAT_TURN_CHARS)}`);
+  const pkg = input.pkg ? [packageText(input.pkg), input.pkg.description?.trim() ? `Description:\n${input.pkg.description.trim().slice(0, 3000)}` : ''].filter(Boolean).join('\n') : packageText(undefined);
   return {
     prompt: fill(template, {
       name: ctx.workspace.name,
       criteria: criteriaText(ctx),
       voice_summary: voiceSummary(ctx.voice),
       idea: ideaText(input.idea),
-      package: packageText(input.pkg),
-      outline: input.outline ? outlineText(input.outline).slice(0, OUTLINE_CHARS) : '(none yet)',
+      package: pkg,
+      scenes: companionScenesText(input.outline),
       board: input.board || '(the board is empty)',
+      screen: input.screen,
       conversation: turns.length ? turns.join('\n') : '(none yet)',
-      question: input.message.trim(),
+      message: input.message.trim(),
+      actions: input.actions.length ? input.actions.map((type) => COMPANION_ACTION_HELP[type]).join('\n') : '(none on this step: answer in words only)',
     }),
-    system: SYSTEM_JSON,
-    schema,
+    system: 'You are a YouTube creator\'s planning companion. Use only the facts you are given and never invent numbers, results or product behaviour. Answer in Markdown, then the actions in the format asked for.',
   };
 }
 

@@ -1,7 +1,7 @@
 import express, { Router, type NextFunction, type Request, type Response } from 'express';
 import multer from 'multer';
 import { z } from 'zod';
-import { SEED_BELOW, BOARD_ITEM_KINDS, HELP_STEPS, PLAN_JOB_KINDS, TILE_KINDS, VIDEO_STAGES, type Workspace } from '../../shared/club.js';
+import { SEED_BELOW, HELP_STEPS, PLAN_JOB_KINDS, TILE_KINDS, VIDEO_STAGES, type Workspace } from '../../shared/club.js';
 import { aiStatus } from './ai.js';
 import { startConnect, type ConnectOptions } from './connect.js';
 import { ClubError, GENERIC_FAILURE, notFound } from './errors.js';
@@ -20,7 +20,8 @@ import { recordingsDiskSpace } from './disk.js';
 import { readTranscript, startTileRead } from './research.js';
 import * as boardDocs from './board-docs.js';
 import { subscribeBoard } from './board-watch.js';
-import { askAboutBoard, readBoardChat, saveBoardChat } from './board-chat.js';
+import { applyCard, askBody, askCompanion, readThread, undoCard } from './companion.js';
+import { lock as companionLock } from './companion-actions.js';
 import { videoScenes, videosScenes } from './scenes.js';
 import { POSITION_MAX, WIDTH_MAX, WIDTH_MIN } from './tile-layout.js';
 import { findTregCall, hasSources, NO_SOURCES, rankedSignals, readSignalsConfig, startSignalsRefresh, writeSignalsConfig, type SignalsSources } from './signals.js';
@@ -160,19 +161,6 @@ const tilePatchBody = z
   .partial()
   .strict()
   .refine((patch) => Object.keys(patch).length > 0, { message: 'nothing to change' });
-const boardChatBody = z.object({ message: z.string().trim().min(1).max(4000), history: z.array(z.object({ role: z.enum(['user', 'assistant']), text: z.string().max(20_000) }).strict()).max(200).default([]) }).strict();
-const boardMessages = z
-  .array(
-    z
-      .object({
-        role: z.enum(['user', 'assistant']),
-        text: z.string().max(20_000),
-        items: z.array(z.object({ kind: z.enum(BOARD_ITEM_KINDS), text: z.string().max(2000) }).strict()).max(20).optional(),
-        used: z.array(z.number().int().min(0).max(19)).max(20).optional(),
-      })
-      .strict(),
-  )
-  .max(400);
 const packageUseBody = z.object({ kind: z.enum(['hook', 'title']), text: z.string().trim().min(1).max(2000) }).strict();
 const sceneScriptBody = z.object({ text: z.string().max(200_000) }).strict();
 const packageRunBody = z.object({ replace: z.enum(['titles', 'hook']).optional() }).strict();
@@ -566,26 +554,34 @@ export function clubRouter({ ai = {}, transcribe, runAI, readViews = ytDlpViews(
     const changedScene = await outlineChangedScene(video, outline);
     res.json({ package: pkg, outline, ...(changedScene ? { changedScene } : {}), running: runningPlanJobs(slug, id), ready });
   }));
-  router.put('/videos/:id/package', handler(async (req, res) => res.json(await patchPackage(await requireWorkspace(), param(req, 'id'), req.body))));
+  // Plan's own saves take the same per-video lock as the companion's Undo, so Undo's check and its write see the same files.
+  const planSave = async <T>(req: Request, save: (slug: string, id: string) => Promise<T>) => {
+    const slug = await requireWorkspace();
+    const id = param(req, 'id');
+    return store.withLock(companionLock(slug, id), () => save(slug, id));
+  };
+  router.put('/videos/:id/package', handler(async (req, res) => res.json(await planSave(req, (slug, id) => patchPackage(slug, id, req.body)))));
   // Removes the package (set aside, not deleted): Undo of a first Use as hook or Use as title.
   router.delete('/videos/:id/package', handler(async (req, res) => {
-    await deletePackage(await requireWorkspace(), param(req, 'id'));
+    await planSave(req, deletePackage);
     res.status(204).end();
   }));
   // "Use as hook" and "Use as title" from the Board chat. Saves through the same path as PUT /package, so a package job that is running holds its result.
   router.post('/videos/:id/package/text', handler(async (req, res) => {
     const { kind, text } = packageUseBody.parse(req.body);
-    res.json(await usePackageText(await requireWorkspace(), param(req, 'id'), kind, text));
+    res.json(await planSave(req, (slug, id) => usePackageText(slug, id, kind, text)));
   }));
-  router.put('/videos/:id/outline', handler(async (req, res) => res.json(await saveOutline(await requireWorkspace(), param(req, 'id'), req.body))));
+  router.put('/videos/:id/outline', handler(async (req, res) => res.json(await planSave(req, (slug, id) => saveOutline(slug, id, req.body)))));
   router.put('/videos/:id/script', handler(async (req, res) => {
-    res.json({ outline: await saveScript(await requireWorkspace(), param(req, 'id'), scriptBody.parse(req.body).script) });
+    const { script } = scriptBody.parse(req.body);
+    res.json({ outline: await planSave(req, (slug, id) => saveScript(slug, id, script)) });
   }));
   // Hand-edits one scene's part of the script, whether the script was written scene by scene or whole.
   router.put('/videos/:id/script/scene/:sceneId', handler(async (req, res) => {
     const sceneId = param(req, 'sceneId');
     if (!SCENE_ID.test(sceneId)) throw notFound('scene');
-    res.json({ outline: await saveSceneScript(await requireWorkspace(), param(req, 'id'), sceneId, sceneScriptBody.parse(req.body).text) });
+    const { text } = sceneScriptBody.parse(req.body);
+    res.json({ outline: await planSave(req, (slug, id) => saveSceneScript(slug, id, sceneId, text)) });
   }));
   for (const kind of PLAN_JOB_KINDS) {
     // Package it, Create outline and Write full script instead. A second start while one runs gets the running one.
@@ -619,17 +615,19 @@ export function clubRouter({ ai = {}, transcribe, runAI, readViews = ytDlpViews(
   // The outline's scenes with the takes the recording project holds for each. Read only.
   router.get('/videos/:id/scenes', handler(async (req, res) => res.json(await videoScenes(await requireWorkspace(), param(req, 'id')))));
 
-  // ---- Board chat: "Ask Claude about this board". The conversation is saved with the video.
-  router.get('/videos/:id/board/chat', handler(async (req, res) => res.json(await readBoardChat(await requireWorkspace(), param(req, 'id')))));
-  router.put('/videos/:id/board/chat', handler(async (req, res) => res.json(await saveBoardChat(await requireWorkspace(), param(req, 'id'), boardMessages.parse(req.body)))));
-  router.post('/videos/:id/board/chat', handler(async (req, res) => {
-    const slug = await requireWorkspace();
-    const { message, history } = boardChatBody.parse(req.body);
-    // The reply is paid for, so it stops when the person closes the panel or leaves.
-    const stop = new AbortController();
-    res.once('close', () => !res.writableFinished && stop.abort());
-    res.json(await askAboutBoard(slug, param(req, 'id'), message, history, plan, stop.signal));
+  // ---- the companion: one conversation per video across the steps. The reply streams through /jobs/:id/events.
+  router.get('/videos/:id/companion', handler(async (req, res) => res.json(await readThread(await requireWorkspace(), param(req, 'id')))));
+  router.post('/videos/:id/companion', handler(async (req, res) => {
+    res.status(202).json(await askCompanion(await requireWorkspace(), param(req, 'id'), askBody.parse(req.body), plan));
   }));
+  for (const action of ['apply', 'undo'] as const) {
+    router.post(`/videos/:id/companion/:messageId/cards/:index/${action}`, handler(async (req, res) => {
+      const index = Number(param(req, 'index'));
+      if (!Number.isInteger(index) || index < 0 || index > 19) throw notFound('card');
+      const run = action === 'apply' ? applyCard : undoCard;
+      res.json(await run(await requireWorkspace(), param(req, 'id'), param(req, 'messageId'), index));
+    }));
+  }
 
   // ---- breakdowns
   // JSON {url} for a link, or a multipart upload with a video `file`. Either starts a job whose result is the breakdown.

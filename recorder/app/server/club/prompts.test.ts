@@ -86,12 +86,10 @@ const outline: Outline = {
 
 test('every schema parses and takes the shapes of the shared types, and nothing else', async () => {
   const load = async (name: string) => JSON.parse(await readFile(path.join(methodology, `${name}.schema.json`), 'utf8')) as Schema;
-  const [breakdownSchema, packageSchema, outlineSchema, boardChatSchema] = await Promise.all(['breakdown', 'package', 'outline', 'board-chat'].map(load));
+  const [breakdownSchema, packageSchema, outlineSchema] = await Promise.all(['breakdown', 'package', 'outline'].map(load));
   assert.deepEqual(check(breakdownSchema, breakdown), []);
   assert.deepEqual(check(packageSchema, pkg), []);
   assert.deepEqual(check(outlineSchema, { scenes: outline.scenes }), []);
-  assert.deepEqual(check(boardChatSchema, { reply: 'Three below.', items: [{ kind: 'hook', text: 'A line' }, { kind: 'scene', text: 'Name - what it covers' }] }), []);
-  assert.deepEqual(check(boardChatSchema, { reply: 'No items needed.', items: [] }), []);
 
   // Every property is required and no extra key is allowed, so a provider with strict structured output accepts them too.
   const everyObject = (schema: Schema, visit: (s: Schema) => void) => {
@@ -99,7 +97,7 @@ test('every schema parses and takes the shapes of the shared types, and nothing 
     Object.values(schema.properties ?? {}).forEach((inner) => everyObject(inner, visit));
     if (schema.items) everyObject(schema.items, visit);
   };
-  for (const schema of [breakdownSchema, packageSchema, outlineSchema, boardChatSchema]) {
+  for (const schema of [breakdownSchema, packageSchema, outlineSchema]) {
     everyObject(schema, (s) => {
       if (s.type !== 'object') return;
       assert.equal(s.additionalProperties, false);
@@ -113,8 +111,6 @@ test('every schema parses and takes the shapes of the shared types, and nothing 
   assert.notDeepEqual(check(outlineSchema, { scenes: outline.scenes.slice(0, 3) }), [], 'at least 4 scenes');
   assert.notDeepEqual(check(outlineSchema, { scenes: [...outline.scenes, ...outline.scenes] }), [], 'at most 7 scenes');
   assert.notDeepEqual(check(breakdownSchema, { ...breakdown, extra: 1 }), [], 'no extra keys');
-  assert.notDeepEqual(check(boardChatSchema, { reply: 'x', items: [{ kind: 'video', text: 'y' }] }), [], 'an item is a hook, title, note or scene');
-  assert.notDeepEqual(check(boardChatSchema, { reply: 'x', items: Array.from({ length: 7 }, () => ({ kind: 'note', text: 'y' })) }), [], 'at most 6 items');
   assert.notDeepEqual(check(breakdownSchema, { ...breakdown, concepts: [] }), [], 'at least one concept');
 });
 
@@ -129,7 +125,7 @@ test('no methodology file mentions the excluded sources or a club, and there is 
   };
   await walk(methodology);
   const names = files.map((file) => path.relative(methodology, file)).sort();
-  for (const wanted of ['breakdown.md', 'package.md', 'outline.md', 'script.md', 'expand.md', 'revise.md', 'voice.md', 'ref/hook-library.md', 'breakdown.schema.json', 'package.schema.json', 'outline.schema.json', 'board-chat.md', 'board-chat.schema.json', 'scene-script.md'])
+  for (const wanted of ['breakdown.md', 'package.md', 'outline.md', 'script.md', 'expand.md', 'revise.md', 'voice.md', 'ref/hook-library.md', 'breakdown.schema.json', 'package.schema.json', 'outline.schema.json', 'companion.md', 'scene-script.md'])
     assert.ok(names.includes(wanted), `${wanted} exists`);
   assert.ok(!names.some((name) => /knowledge/i.test(name)));
   for (const file of files) {

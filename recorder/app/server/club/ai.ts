@@ -136,7 +136,10 @@ export async function aiStatus(lookup: Lookup = {}): Promise<AiStatus> {
 
 export type AIEvent =
   | { type: 'started' }
+  /** A whole message's text (claude's `assistant` line, codex's `agent_message`). */
   | { type: 'text'; text: string }
+  /** A piece of text as it is written. Claude with `stream` only; codex sends whole messages. */
+  | { type: 'delta'; text: string }
   | { type: 'tool'; name: string };
 
 export interface RunAIOptions extends Lookup {
@@ -152,6 +155,8 @@ export interface RunAIOptions extends Lookup {
   /** Image file paths. They are named in the prompt and read from their own folder only. */
   images?: string[];
   onEvent?: (event: AIEvent) => void;
+  /** Claude: also send the text as it is written (`--include-partial-messages`), as `delta` events. */
+  stream?: boolean;
   signal?: AbortSignal;
   timeoutMs?: number;
 }
@@ -186,6 +191,7 @@ const DEFAULT_SYSTEM = 'You are a precise assistant. Follow the instructions you
 
 async function claudeInvocation(o: RunAIOptions): Promise<Invocation> {
   const args = ['-p', '--output-format', 'stream-json', '--verbose', '--model', o.model ?? 'sonnet', '--max-budget-usd', String(o.budgetUsd)];
+  if (o.stream) args.push('--include-partial-messages');
   if (o.jsonSchema) args.push('--json-schema', JSON.stringify(o.jsonSchema));
   // Isolation: no MCP servers, skills, user/project settings (hooks, plugins) and a replaced system prompt, so the
   // user's own Claude Code setup (CLAUDE.md, brain hooks) is not loaded into every call. Verified with a real call.
@@ -221,8 +227,10 @@ async function codexInvocation(o: RunAIOptions, cwd: string): Promise<Invocation
   return { args, stdin: o.system ? `${o.system}\n\n${o.prompt}` : o.prompt, cleanup };
 }
 
-interface StreamState {
+export interface StreamState {
   text: string;
+  /** Claude sent partial messages, so whole messages carry nothing new. */
+  streamed?: boolean;
   failure?: string;
   budgetHit?: boolean;
   costUsd?: number;
@@ -232,13 +240,22 @@ interface StreamState {
 
 type Json = Record<string, any>;
 
-/** Claude `stream-json`: system init, assistant messages with content blocks, then one `result` line. */
+/**
+ * Claude `stream-json`: system init, assistant messages with content blocks, then one `result` line. With partial messages,
+ * `stream_event` lines carry the API's events: text deltas, and a tool use as its block starts.
+ */
 function readClaudeLine(event: Json, state: StreamState, emit: (e: AIEvent) => void) {
   if (event.type === 'system' && event.subtype === 'init') emit({ type: 'started' });
+  if (event.type === 'stream_event') {
+    state.streamed = true;
+    const inner = event.event ?? {};
+    if (inner.type === 'content_block_delta' && inner.delta?.type === 'text_delta' && typeof inner.delta.text === 'string' && inner.delta.text) emit({ type: 'delta', text: inner.delta.text });
+    if (inner.type === 'content_block_start' && inner.content_block?.type === 'tool_use') emit({ type: 'tool', name: String(inner.content_block.name) });
+  }
   if (event.type === 'assistant') {
     for (const block of event.message?.content ?? []) {
       if (block.type === 'text' && block.text) emit({ type: 'text', text: block.text });
-      if (block.type === 'tool_use') emit({ type: 'tool', name: String(block.name) });
+      if (block.type === 'tool_use' && !state.streamed) emit({ type: 'tool', name: String(block.name) });
     }
   }
   if (event.type === 'result') {
@@ -267,6 +284,38 @@ function readCodexLine(event: Json, state: StreamState, emit: (e: AIEvent) => vo
   if (event.type === 'turn.failed') state.failure = String(event.error?.message ?? 'turn failed');
 }
 
+/**
+ * Reads a CLI's JSON lines as they arrive in chunks of any size: a line split across chunks is joined, a line that is not JSON is skipped,
+ * and `end` reads what is left without a final newline.
+ */
+export function createStreamReader(provider: AiProvider, emit: (event: AIEvent) => void, state: StreamState = { text: '' }) {
+  const readLine = provider === 'claude' ? readClaudeLine : readCodexLine;
+  let buffer = '';
+  const handle = (line: string) => {
+    if (!line.trim()) return;
+    try {
+      readLine(JSON.parse(line) as Json, state, emit);
+    } catch {
+      // not a JSON event line, or one of a shape we do not read
+    }
+  };
+  return {
+    state,
+    feed(chunk: string) {
+      buffer += chunk;
+      let newline: number;
+      while ((newline = buffer.indexOf('\n')) >= 0) {
+        handle(buffer.slice(0, newline));
+        buffer = buffer.slice(newline + 1);
+      }
+    },
+    end() {
+      handle(buffer);
+      buffer = '';
+    },
+  };
+}
+
 const AUTH_FAILURE = /not logged in|please run \/login|\/login|invalid api key|authentication|log ?in required|sign in/i;
 
 export async function runAI(options: RunAIOptions): Promise<RunAIResult> {
@@ -278,9 +327,8 @@ export async function runAI(options: RunAIOptions): Promise<RunAIResult> {
 
   const cwd = await neutralCwd();
   const invocation = provider === 'claude' ? await claudeInvocation(options) : await codexInvocation(options, cwd);
-  const state: StreamState = { text: '' };
-  const emit = (event: AIEvent) => options.onEvent?.(event);
-  const readLine = provider === 'claude' ? readClaudeLine : readCodexLine;
+  const reader = createStreamReader(provider, (event) => options.onEvent?.(event));
+  const state = reader.state;
 
   try {
     // Setup above awaited, so an abort may already have fired with no listener to hear it. No await sits between this
@@ -289,7 +337,6 @@ export async function runAI(options: RunAIOptions): Promise<RunAIResult> {
     const { code, stderr, interrupted } = await new Promise<{ code: number | null; stderr: string; interrupted?: 'timeout' | 'abort' | 'spawn' }>((resolve) => {
       const child = spawn(file, invocation.args, { cwd, env: childEnv(options), stdio: ['pipe', 'pipe', 'pipe'] });
       let stderr = '';
-      let buffer = '';
       let interrupted: 'timeout' | 'abort' | 'spawn' | undefined;
       const stop = (reason: 'timeout' | 'abort') => {
         interrupted = reason;
@@ -300,24 +347,9 @@ export async function runAI(options: RunAIOptions): Promise<RunAIResult> {
       const onAbort = () => stop('abort');
       options.signal?.addEventListener('abort', onAbort, { once: true });
 
-      const handleLine = (line: string) => {
-        if (!line.trim()) return;
-        try {
-          readLine(JSON.parse(line) as Json, state, emit);
-        } catch {
-          // not a JSON event line; ignore
-        }
-      };
       child.stdout.setEncoding('utf8');
       child.stderr.setEncoding('utf8');
-      child.stdout.on('data', (chunk: string) => {
-        buffer += chunk;
-        let newline: number;
-        while ((newline = buffer.indexOf('\n')) >= 0) {
-          handleLine(buffer.slice(0, newline));
-          buffer = buffer.slice(newline + 1);
-        }
-      });
+      child.stdout.on('data', (chunk: string) => reader.feed(chunk));
       child.stderr.on('data', (chunk) => (stderr = (stderr + chunk).slice(-4000)));
       child.stdin.on('error', () => {});
       child.stdin.end(invocation.stdin);
@@ -327,7 +359,7 @@ export async function runAI(options: RunAIOptions): Promise<RunAIResult> {
       child.on('close', (code) => {
         clearTimeout(timer);
         options.signal?.removeEventListener('abort', onAbort);
-        handleLine(buffer);
+        reader.end();
         resolve({ code, stderr, interrupted });
       });
     });

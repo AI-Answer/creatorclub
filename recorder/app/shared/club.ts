@@ -543,29 +543,7 @@ export interface SignalsRefreshResult {
   note?: string;
 }
 
-// ---------------------------------------------------------------- Board chat and scene status
-
-/** What "Ask Claude about this board" can hand back to use: a spoken hook, a title, a note for the Board, or a scene idea. */
-export const BOARD_ITEM_KINDS = ['hook', 'title', 'note', 'scene'] as const;
-export type BoardItemKind = (typeof BOARD_ITEM_KINDS)[number];
-export interface BoardItem {
-  kind: BoardItemKind;
-  text: string;
-}
-
-/** One message of a video's Board chat (`board-chat.json`). `used` marks the items already taken, by their place in `items`. */
-export interface BoardChatMessage {
-  role: 'user' | 'assistant';
-  text: string;
-  items?: BoardItem[];
-  used?: number[];
-}
-
-/** The answer to `POST /api/club/videos/:id/board/chat`. */
-export interface BoardChatReply {
-  reply: string;
-  items: BoardItem[];
-}
+// ---------------------------------------------------------------- Use as hook / title and scene status
 
 /** Result of `POST /api/club/videos/:id/package/text`: the package as saved, and the one it replaced (null when there was none), so Undo can put it back with `PUT /package`, or remove the package with `DELETE /package` when there was none. */
 export interface PackageUseResult {

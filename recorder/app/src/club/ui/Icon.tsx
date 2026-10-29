@@ -2,8 +2,8 @@ import type {CSSProperties} from 'react';
 import {
  AArrowDown,AArrowUp,ArrowDown,ArrowLeft,ArrowRight,ArrowUp,ArrowUpRight,Bookmark,Bot,Calendar,Camera,Captions,Check,ChevronDown,ChevronLeft,ChevronRight,ChevronsUpDown,
  Circle,CircleCheck,CircleHelp,Clapperboard,Clock,Code,Copy,CornerDownRight,Download,Expand,Eye,EyeOff,FileText,Film,Folder,FolderOpen,GripVertical,Heading1,Heading2,Heading3,Heart,House,Image,Layers,LayoutTemplate,Lightbulb,
- Link,List,ListChecks,ListOrdered,Maximize2,MessageCircle,MessagesSquare,Mic,Minus,Monitor,MoreHorizontal,Music,Package,PanelLeftClose,PanelLeftOpen,Pause,Pilcrow,Play,Plus,Quote,RotateCcw,Scissors,Search,Send,Settings,
- Sparkles,Sprout,SquareKanban,StickyNote,Sun,Table,Trash2,TrendingUp,TriangleAlert,Type,Undo2,Upload,Video,Wand2,X,Youtube,ZoomIn,ZoomOut,
+ Link,List,ListChecks,ListOrdered,Maximize2,MessageCircle,MessagesSquare,Mic,Minus,Monitor,MoreHorizontal,Music,Package,PanelLeftClose,PanelLeftOpen,PanelRightClose,PanelRightOpen,Pause,Pilcrow,Play,Plus,Quote,RotateCcw,Scissors,Search,Send,Settings,
+ Sparkles,Sprout,Square,SquareKanban,StickyNote,Sun,Table,Trash2,TrendingUp,TriangleAlert,Type,Undo2,Upload,Video,Wand2,X,Youtube,ZoomIn,ZoomOut,
  type LucideIcon,
 } from 'lucide-react';
 
@@ -14,8 +14,8 @@ import {
 const icons={
  AArrowDown,AArrowUp,ArrowDown,ArrowLeft,ArrowRight,ArrowUp,ArrowUpRight,Bookmark,Bot,Calendar,Camera,Captions,Check,ChevronDown,ChevronLeft,ChevronRight,ChevronsUpDown,
  Circle,CircleCheck,CircleHelp,Clapperboard,Clock,Code,Copy,CornerDownRight,Download,Expand,Eye,EyeOff,FileText,Film,Folder,FolderOpen,GripVertical,Heading1,Heading2,Heading3,Heart,House,Image,Layers,LayoutTemplate,Lightbulb,
- Link,List,ListChecks,ListOrdered,Maximize2,MessageCircle,MessagesSquare,Mic,Minus,Monitor,MoreHorizontal,Music,Package,PanelLeftClose,PanelLeftOpen,Pause,Pilcrow,Play,Plus,Quote,RotateCcw,Scissors,Search,Send,Settings,
- Sparkles,Sprout,SquareKanban,StickyNote,Sun,Table,Trash2,TrendingUp,TriangleAlert,Type,Undo2,Upload,Video,Wand2,X,Youtube,ZoomIn,ZoomOut,
+ Link,List,ListChecks,ListOrdered,Maximize2,MessageCircle,MessagesSquare,Mic,Minus,Monitor,MoreHorizontal,Music,Package,PanelLeftClose,PanelLeftOpen,PanelRightClose,PanelRightOpen,Pause,Pilcrow,Play,Plus,Quote,RotateCcw,Scissors,Search,Send,Settings,
+ Sparkles,Sprout,Square,SquareKanban,StickyNote,Sun,Table,Trash2,TrendingUp,TriangleAlert,Type,Undo2,Upload,Video,Wand2,X,Youtube,ZoomIn,ZoomOut,
 } satisfies Record<string,LucideIcon>;
 
 export type IconName=keyof typeof icons;

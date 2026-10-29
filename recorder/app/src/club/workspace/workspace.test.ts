@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import {clockTime} from '../video-plan';
 import {takesWaiting,TAKE_NOT_ADDED,nextTab,previousTab,scenesLine,stageForContinue,tabDone,allScenesKept,continueIsPrimary,showsStrip} from './rules';
 import {canvasSize,clampZoom,dragTo,keyMove,moveBy,tileBox} from './board-layout';
-import {historyOf,markUsed,noteText,undoRequest} from './chat';
 
 test('the tabs follow each other, and Continue moves the card to the stage of the next tab only when that is further along',()=>{
  assert.equal(previousTab('board'),undefined);assert.equal(nextTab('publish'),undefined);
@@ -53,22 +52,6 @@ test('arrow keys move a focused tile a step, Shift a bigger step, and other keys
  assert.equal(keyMove('Enter',false),undefined);
  assert.deepEqual(moveBy({x:5,y:5},{dx:-10,dy:0}),{x:0,y:5});
  assert.equal(clampZoom(1.23),1.23);assert.equal(clampZoom(0.1),0.5);assert.equal(clampZoom(3),1.5);
-});
-
-test('Ask Claude: history is the last twelve turns, used items are marked once, and Undo restores the package or removes it',()=>{
- const msgs=Array.from({length:14},(_,i)=>({role:(i%2?'assistant':'user') as 'user'|'assistant',text:`m${i}`,items:[{kind:'hook' as const,text:'h'}]}));
- assert.equal(historyOf(msgs).length,12);assert.equal(historyOf(msgs)[0].text,'m2');
- assert.deepEqual(historyOf(msgs)[0],{role:'user',text:'m2'},'only role and text go back to the server');
- const marked=markUsed(markUsed(msgs,13,0),13,0);
- assert.deepEqual(marked[13].used,[0]);assert.equal(marked[12].used,undefined);
- const pkg={angle:'a',twist:'t',titles:['x','',''] as [string,string,string],thumbnailText:'',hook:{visual:'',spoken:'',text:''}};
- assert.deepEqual(undoRequest('v1',null),{method:'DELETE',path:'/videos/v1/package'});
- assert.deepEqual(undoRequest('v1',pkg),{method:'PUT',path:'/videos/v1/package',body:pkg});
-});
-
-test('a reply copied to the Board is its words, then each item on a line',()=>{
- assert.equal(noteText(' Three openings. ',[{text:'One'},{text:'Two'}]),'Three openings.\n• One\n• Two');
- assert.equal(noteText('Just words',[]),'Just words');
 });
 
 test('Continue is primary only when the tab is done and no other primary is waiting on the tab',()=>{

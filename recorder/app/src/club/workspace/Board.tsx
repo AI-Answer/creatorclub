@@ -2,13 +2,11 @@ import {useEffect,useRef,useState,type ClipboardEvent,type DragEvent,type FormEv
 import type {ClubSettings,ResearchTile,Video,VideoScene} from '../../../shared/club';
 import {clubFetch,errorMessage} from '../api';
 import {ErrorLine} from '../ErrorLine';
-import {Button,Dialog,Icon,Menu,Spinner,cn,useToast} from '../ui';
+import {Icon,Menu,Spinner,cn,useToast} from '../ui';
 import {tileFromText} from '../video-plan';
-import {recordedCount} from '../scene-status';
-import {toProgress} from '../scenes';
 import {ZOOM,canvasSize,clampZoom,dragTo,keyMove,moveBy,nearestFree,tileBox} from './board-layout';
 import {BoardTip} from './BoardTip';
-import {ChatPanel} from './ChatPanel';
+import {ReplaceScenes} from './ReplaceScenes';
 import {TileBody} from './TileBody';
 import {useBoard} from './useBoard';
 import {useDraft} from './useDraft';
@@ -36,13 +34,16 @@ export async function addFromText(add:(body:{kind:ResearchTile['kind'];url?:stri
 
 /**
  * The Board: a free canvas of tiles. Drag a tile (or focus it and use the arrow keys) and its place is saved; a new tile lands in free space.
- * "Ask Claude about this board" and "Draft scenes from board" sit over the canvas, and the first visit shows how the board works.
+ * "Draft scenes from board" sits over the canvas (the companion beside it reads the board too), and the first visit shows how the board works.
  */
-export function Board({video,scenes,onDrafted}:{video:Video;scenes:readonly VideoScene[]|undefined;onDrafted():void}){
+export function Board({video,scenes,onDrafted,refreshKey=0}:{video:Video;scenes:readonly VideoScene[]|undefined;onDrafted():void;refreshKey?:number}){
  const board=useBoard(video.id);
+ // The companion added or took off a tile: read the board again.
+ const reloadBoard=board.reload;
+ useEffect(()=>{if(refreshKey)reloadBoard();},[refreshKey,reloadBoard]);
  const toast=useToast();
  const [zoom,setZoom]=useState(1),[sel,setSel]=useState<string|null>(null),[dragId,setDragId]=useState<string|null>(null);
- const [chat,setChat]=useState(false),[linkOpen,setLinkOpen]=useState(false),[link,setLink]=useState('');
+ const [linkOpen,setLinkOpen]=useState(false),[link,setLink]=useState('');
  const [tip,setTip]=useState<null|'first'|'again'>(null),[fresh,setFresh]=useState<string|null>(null);
  const [breakdown,setBreakdown]=useState<string|null>(null),[openNote,setOpenNote]=useState<string|null>(null),[madeNote,setMadeNote]=useState<string|null>(null),[folderOpen,setFolderOpen]=useState(false),[filesTick,setFilesTick]=useState(0);
  const scroller=useRef<HTMLDivElement>(null),fileInput=useRef<HTMLInputElement>(null);
@@ -84,12 +85,12 @@ export function Board({video,scenes,onDrafted}:{video:Video;scenes:readonly Vide
   board.place(tileId,moveBy(tileBox(tile),move),'soon');
  };
  const tilesNow=useRef(tiles);tilesNow.current=tiles;
- /** Adds a tile where the person is looking: the free place nearest the middle of the view (clear of the chat panel), scrolled to and marked for a moment. */
+ /** Adds a tile where the person is looking: the free place nearest the middle of the view, scrolled to and marked for a moment. */
  const addHere=async(body:Parameters<typeof board.add>[0])=>{
   const tile=await board.add(body);
   const view=scroller.current;
   if(!tile||!view)return tile;
-  const width=view.clientWidth-(chat?398:0);
+  const width=view.clientWidth;
   const centre={x:(view.scrollLeft+width/2)/zoom,y:(view.scrollTop+view.clientHeight/2)/zoom};
   const box=tileBox(tile);
   const others=(tilesNow.current??[]).filter(other=>other.id!==tile.id).map(tileBox);
@@ -144,7 +145,6 @@ export function Board({video,scenes,onDrafted}:{video:Video;scenes:readonly Vide
  const noteOpen=openNote?tiles?.find(tile=>tile.id===openNote&&tile.doc):undefined;
  const scrollTop=()=>{setZoom(ZOOM.fit);scroller.current?.scrollTo({left:0,top:0,behavior:'smooth'});};
  const size=canvasSize(tiles??[]);
- const shiftChat=chat?{right:398}:undefined;
  const shown=breakdown?tiles?.find(tile=>youtubeId(tile.url)===breakdown):undefined;
 
  return <div className="board-wrap" onPaste={paste} onDragOver={event=>event.preventDefault()} onDrop={drop} onClick={event=>{if(event.target===event.currentTarget)setSel(null);}}>
@@ -162,15 +162,14 @@ export function Board({video,scenes,onDrafted}:{video:Video;scenes:readonly Vide
     </div>
    </div>
   </div>}
-  <div className="board-actions" style={shiftChat}>
-   <button type="button" className={cn('btn',!chat&&'ai')} onClick={()=>setChat(open=>!open)} aria-pressed={chat}><Icon name="Sparkles" size={15}/>Ask Claude about this board</button>
+  <div className="board-actions">
    <button type="button" className="btn ghost icon-only" aria-label="How the board works" title="How the board works" onClick={()=>setTip('again')}><Icon name="CircleHelp" size={15}/></button>
    <button type="button" className={cn('btn',scenes&&scenes.length?'':'primary')} disabled={draft.running} onClick={draft.request}>
     {draft.running?<><span className="spin"/>{draft.line}</>:<><Icon name="Wand2" size={15}/>Draft scenes from board</>}
    </button>
   </div>
   {draft.failed&&<div className="board-actions" style={{top:'auto',bottom:70,right:18}}><ErrorLine message={draft.failed} onRetry={draft.start}/></div>}
-  <div className="btoolbar" style={chat?{left:'calc(50% - 190px)'}:undefined}>
+  <div className="btoolbar">
    <Menu label="Add to the board" button={(toggle,open)=><button type="button" className="btn sm" aria-haspopup="menu" aria-expanded={open} onClick={toggle}><Icon name="Plus" size={15}/>Add</button>} items={[
     {label:'Note',icon:'StickyNote',fn:()=>void addNote()},
     {label:'Link',icon:'Link',fn:()=>setLinkOpen(true)},
@@ -186,17 +185,14 @@ export function Board({video,scenes,onDrafted}:{video:Video;scenes:readonly Vide
    <button type="button" className="btn ghost sm icon-only" aria-label="Zoom in" title="Zoom in" onClick={()=>setZoom(current=>clampZoom(current+ZOOM.step))}><Icon name="ZoomIn" size={15}/></button>
    <button type="button" className="btn ghost sm" onClick={scrollTop}><Icon name="Maximize2" size={14}/>Fit</button>
   </div>
-  {linkOpen&&<form className="menu board-link" style={chat?{left:'calc(50% - 190px)'}:undefined} onSubmit={event=>void submitLink(event)}>
+  {linkOpen&&<form className="menu board-link" onSubmit={event=>void submitLink(event)}>
    <input className="input" autoFocus value={link} onChange={event=>setLink(event.target.value)} placeholder="YouTube, Instagram, X or any link" style={{height:32}} onKeyDown={event=>{if(event.key==='Escape')setLinkOpen(false);}} aria-label="Link to add"/>
    <button className="btn sm primary" type="submit" style={{height:32}}>Add</button></form>}
   {files&&<div className="board-folder" role="group" aria-label="This video's folder">
    <Icon name="FolderOpen" size={14}/><span className="ellipsis" title={files.folder.path}>{folderLabel(files.folder)}</span>
    <button type="button" className="btn ghost sm icon-only" aria-label="Copy the folder path" title="Copy the folder path" onClick={()=>copyPath(files.folder.path,'Copied the folder path')}><Icon name="Copy" size={13}/></button>
   </div>}
-  {chat&&<ChatPanel video={video} tileCount={count} onClose={()=>setChat(false)} onAddNote={text=>addHere({kind:'note',text}).then(tile=>{if(tile)toast('Added to the board');return !!tile;})}/>}
-  {draft.confirm&&<Dialog title="Replace the scenes?" onClose={()=>draft.setConfirm(false)} footer={<><Button variant="ghost" onClick={()=>draft.setConfirm(false)}>Keep my scenes</Button><Button variant="primary" onClick={draft.start}>Replace {scenes?.length??0} scenes</Button></>}>
-   <p className="muted" style={{margin:0,lineHeight:1.55}}>This video already has {scenes?.length??0} scenes{scenes&&recordedCount(toProgress(scenes))?`, and ${recordedCount(toProgress(scenes))} are recorded`:''}. Drafting again replaces them. You can undo it from the message that follows.</p>
-  </Dialog>}
+  {draft.confirm&&<ReplaceScenes scenes={scenes??[]} action="Drafting again" undoLine="You can undo it from the message that follows." onKeep={()=>draft.setConfirm(false)} onReplace={draft.start}/>}
   {noteOpen&&<NotePanel key={noteOpen.id} tile={noteOpen} save={(text,base)=>board.saveNote(noteOpen.id,text,base)} isNew={madeNote===noteOpen.id} onClose={discard=>{setOpenNote(null);setMadeNote(null);if(discard)void clubFetch(`/videos/${encodeURIComponent(video.id)}/research/${encodeURIComponent(noteOpen.id)}`,{method:'DELETE'}).then(()=>board.refresh(),()=>{});}} onCopyPath={name=>copyPath(name,'Copied the file name')}/>}
   {folderOpen&&<NotesFolder notes={files?.notes??null} onClose={()=>setFolderOpen(false)}
    onChoose={async path=>{const result=await chooseNotesFolder(path);if('error' in result)return result.error;setFilesTick(tick=>tick+1);board.refresh();return undefined;}}
