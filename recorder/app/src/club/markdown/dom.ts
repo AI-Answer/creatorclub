@@ -60,7 +60,8 @@ export function blockHtml(block: Block, line: Line = 'p'): string {
 }
 
 /** The page for a document. An empty document is one empty paragraph, so there is somewhere to write. */
-export const renderHtml = (doc: Doc, line: Line = 'p') => (doc.length ? doc.map((block) => blockHtml(block, line)).join('') : `<${line}><br></${line}>`);
+export const renderHtml = (doc: Doc, line: Line = 'p', numbered = false) =>
+  doc.length ? doc.map((block, index) => (numbered ? blockHtml(block, line).replace(/^<(\w+)/, `<$1 data-b="${index}"`) : blockHtml(block, line))).join('') : `<${line}><br></${line}>`;
 
 // ---------------------------------------------------------------- page to document
 
@@ -158,9 +159,9 @@ function readItem(li: HTMLElement): Item {
       seenList = true;
       children.push(readList(child));
     } else if (isElement(child) && (child.tagName === 'P' || child.tagName === 'DIV') && !seenList) {
-      // Further paragraphs under an item become part of its text, one line each.
-      if (lead.childNodes.length) lead.appendChild(li.ownerDocument.createElement('br'));
-      for (const grand of [...child.childNodes]) lead.appendChild(grand.cloneNode(true));
+      // The first paragraph of an item is its text; further ones stay paragraphs of the item.
+      if (lead.childNodes.length && child.textContent?.trim()) children.push({ t: 'p', inline: blockInline(child) });
+      else for (const grand of [...child.childNodes]) lead.appendChild(grand.cloneNode(true));
     } else if (isElement(child) && isBlock(child)) children.push(...readBlocks(child.parentNode!, [child]));
     else lead.appendChild(child.cloneNode(true));
   }
@@ -184,6 +185,14 @@ function readList(list: HTMLElement): Block {
 }
 
 function readBlock(element: HTMLElement): Block[] {
+  const blocks = readBlockOf(element);
+  // A block made from an original block remembers which one.
+  const origin = element.getAttribute('data-b');
+  if (origin !== null && blocks.length === 1 && /^\d+$/.test(origin)) blocks[0] = { ...blocks[0], origin: Number(origin) };
+  return blocks;
+}
+
+function readBlockOf(element: HTMLElement): Block[] {
   const tag = element.tagName;
   if (/^H[1-6]$/.test(tag)) return [{ t: 'h', level: Number(tag[1]) as 1, inline: blockInline(element) }];
   if (tag === 'UL' || tag === 'OL') return [readList(element)];

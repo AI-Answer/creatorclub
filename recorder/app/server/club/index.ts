@@ -529,6 +529,12 @@ export function clubRouter({ ai = {}, transcribe, runAI, readViews = ytDlpViews(
     if (!files.length) throw new ClubError('Drop a Markdown or text file.');
     res.status(201).json(await boardDocs.importFiles(slug, param(req, 'id'), files));
   }));
+  // Cards removed from the Board for files that are still in the video's folder come back.
+  router.post('/videos/:id/board/hidden/show', handler(async (req, res) => {
+    const slug = await requireWorkspace();
+    await store.readVideo(slug, param(req, 'id'));
+    res.json({ shown: await boardDocs.showHidden(slug, param(req, 'id')) });
+  }));
   router.post('/videos/:id/board/pin', handler(async (req, res) => {
     const slug = await requireWorkspace();
     await store.readVideo(slug, param(req, 'id'));

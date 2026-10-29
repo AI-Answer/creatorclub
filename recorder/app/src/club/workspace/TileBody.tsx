@@ -8,6 +8,7 @@ import {ErrorLine} from '../ErrorLine';
 import {creatorName,fmtDays,fmtNum} from '../format';
 import {Avatar,Icon,Level,MultChip,SourceIcon,Spinner,Thumb,type IconName} from '../ui';
 import {markdownToHtml} from '../markdown';
+import {openInBrowser} from '../markdown/MarkdownEditor';
 import type {Reading} from './useBoard';
 
 /** The picture a tile shows: a video's thumbnail, or the tile's own saved file. */
@@ -54,9 +55,14 @@ function NoteTile({tile,onRemove,onOpen}:TileBodyProps){
  return <>
   <TileHead icon="StickyNote" label={label} onRemove={onRemove}/>
   <div className="tb">
-   {doc?.missing?<div className="small muted">This file is not in its folder any more. Put it back and it shows here again, or remove the card.</div>
+   {doc?.missing?<div className="small muted">{doc.root==='folder'?<>This note is from a Notes folder that is not the current one: <span className="note-path">{doc.folder??'an earlier folder'}</span>. It shows again if you choose that folder.</>:'This file is not in its folder any more. Put it back and it shows here again, or remove the card.'}</div>
     :doc?.tooLarge?<div className="small muted">This file is over 1 MB, so it is not shown. It stays in its folder.</div>
-    :<div role="button" tabIndex={0} className="note-preview" aria-label={`Open note: ${tile.title||'empty note'}`} onClick={onOpen} onKeyDown={event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();onOpen();}}}>
+    :<div role="button" tabIndex={0} className="note-preview" aria-label={`Open note: ${tile.title||'empty note'}`} onClick={event=>{
+       // A link in the preview opens in the browser, never in the app, and does not open the note.
+       const anchor=(event.target as HTMLElement).closest('a');
+       if(anchor){event.preventDefault();event.stopPropagation();openInBrowser(anchor.getAttribute('href')??'');return;}
+       onOpen();
+      }} onKeyDown={event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();onOpen();}}}>
       {text.trim()?<div className="md-view" dangerouslySetInnerHTML={{__html:html}}/>:<span className="muted">Empty note. Click to write.</span>}
      </div>}
    {doc&&<div className="note-file small faint ellipsis" title={doc.path}>{doc.path}</div>}

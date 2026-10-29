@@ -136,6 +136,10 @@ export function Board({video,scenes,onDrafted}:{video:Video;scenes:readonly Vide
   const text=event.dataTransfer.getData('text/uri-list').split('\n').find(line=>line&&!line.startsWith('#'))||event.dataTransfer.getData('text/plain');
   if(text.trim())void addFromText(addHere,text);
  };
+ const showHidden=async()=>{
+  try{await clubFetch(`/videos/${encodeURIComponent(video.id)}/board/hidden/show`,{method:'POST'});board.refresh();setFilesTick(tick=>tick+1);}
+  catch(reason){toast(errorMessage(reason,"Couldn't show those files."));}
+ };
  const copyPath=(text:string,message:string)=>{navigator.clipboard?.writeText(text).then(()=>toast(message),()=>toast("Couldn't copy that."));};
  const noteOpen=openNote?tiles?.find(tile=>tile.id===openNote&&tile.doc):undefined;
  const scrollTop=()=>{setZoom(ZOOM.fit);scroller.current?.scrollTo({left:0,top:0,behavior:'smooth'});};
@@ -173,6 +177,7 @@ export function Board({video,scenes,onDrafted}:{video:Video;scenes:readonly Vide
     {label:'Image or Markdown file',icon:'Image',fn:()=>fileInput.current?.click()},
     '-',
     {label:'Notes folder',icon:'Folder',fn:()=>setFolderOpen(true)},
+    ...(files?.folder.hidden?[{label:`Show hidden files (${files.folder.hidden})`,icon:'Eye' as const,fn:()=>void showHidden()}]:[]),
    ]}/>
    <input ref={fileInput} type="file" accept="image/*,.md,.markdown,.txt" multiple hidden aria-label="Choose files to add" onChange={event=>{takeFiles([...event.target.files??[]]);event.target.value='';}}/>
    <span className="sep"></span>

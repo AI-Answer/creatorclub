@@ -25,7 +25,13 @@ export interface Item {
   children: Block[];
 }
 
-export type Block =
+/** Where a block came from: the number of the block in the Markdown the page was made from. Set on blocks read back from the page, so a block that was not edited can be written as it was. */
+export interface Origin {
+  origin?: number;
+}
+
+export type Block = Origin &
+  (
   | { t: 'p'; inline: Inline[] }
   | { t: 'h'; level: 1 | 2 | 3 | 4 | 5 | 6; inline: Inline[] }
   | { t: 'ul'; items: Item[] }
@@ -33,7 +39,8 @@ export type Block =
   | { t: 'quote'; blocks: Block[] }
   | { t: 'code'; lang: string; text: string }
   | { t: 'hr' }
-  | { t: 'raw'; text: string };
+  | { t: 'raw'; text: string }
+  );
 
 export type Doc = Block[];
 

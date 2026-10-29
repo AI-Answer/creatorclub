@@ -17,9 +17,11 @@ export interface WatchOptions {
   pollFastMs?: number;
   /** Use `fs.watch`. Off, only the scan runs (as where `fs.watch` cannot be used); tests turn it off to try that path. */
   native?: boolean;
+  /** `fs.watch`; tests pass a stand-in to count the watchers that are opened and closed. */
+  watchFn?: typeof watch;
 }
 
-const DEFAULTS: Required<WatchOptions> = { debounceMs: 250, maxWaitMs: 1000, pollMs: 4000, pollFastMs: 1000, native: true };
+const DEFAULTS: Required<WatchOptions> = { debounceMs: 250, maxWaitMs: 1000, pollMs: 4000, pollFastMs: 1000, native: true, watchFn: watch };
 
 /** Whether a change reported by `fs.watch` could matter: a Markdown or text file, or a folder (no extension). A temporary file or a data file does not. */
 export function worthKnowing(filename: string | null, onlyFolder?: string): boolean {
@@ -33,7 +35,7 @@ export function worthKnowing(filename: string | null, onlyFolder?: string): bool
 
 /** Calls `onChange` when a Markdown or text file in the video's folders appears, changes or goes. Returns the function that stops watching. */
 export function watchBoard(slug: string, videoId: string, onChange: () => void, options: WatchOptions = {}): () => void {
-  const { debounceMs, maxWaitMs, pollMs, pollFastMs, native } = { ...DEFAULTS, ...options };
+  const { debounceMs, maxWaitMs, pollMs, pollFastMs, native, watchFn } = { ...DEFAULTS, ...options };
   const videoDir = store.videoDir(slug, videoId);
   const watchers = new Map<string, FSWatcher>();
   let stopped = false;
@@ -59,7 +61,7 @@ export function watchBoard(slug: string, videoId: string, onChange: () => void, 
   const open = (dir: string, recursive: boolean) => {
     if (!native || watchers.has(dir)) return;
     try {
-      const watcher = watch(dir, { recursive, persistent: false }, (_event, filename) => {
+      const watcher = watchFn(dir, { recursive, persistent: false }, (_event, filename) => {
         // Some systems report a change to the watched folder itself, with its own name; that is not news about a file.
         const name = filename ? String(filename) : null;
         if (name !== path.basename(dir) && worthKnowing(name, dir === videoDir ? NOTES_DIR : undefined)) soon();
@@ -84,9 +86,14 @@ export function watchBoard(slug: string, videoId: string, onChange: () => void, 
     open(videoDir, false);
     const notes = path.join(videoDir, NOTES_DIR);
     const folder = await notesFolder(slug).catch(() => undefined);
-    // A `notes` folder that is not made yet is watched once it is.
-    if (await exists(notes)) open(notes, true);
-    if (folder && (await exists(folder))) open(folder, true);
+    if (stopped) return;
+    // A `notes` folder that is not made yet is watched once it is. A link in its place is not followed.
+    const notesReal = await fs.lstat(notes).then((stat) => stat.isDirectory(), () => false);
+    const folderThere = folder ? await exists(folder) : false;
+    // The checks above take time; a watcher stopped meanwhile must not open anything new.
+    if (stopped) return;
+    if (notesReal) open(notes, true);
+    if (folder && folderThere) open(folder, true);
     // Folders that are no longer wanted (the Notes folder was changed) stop being watched.
     for (const [dir, watcher] of watchers) {
       if (dir !== videoDir && dir !== notes && dir !== folder) {

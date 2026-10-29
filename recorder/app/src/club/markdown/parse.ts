@@ -122,6 +122,12 @@ function pairDelimiters(tokens: (Delimiter | Piece)[]) {
   }
 }
 
+/** The reference labels the document defines (`[1]: https://…`), lower case, so `[text][1]` and `[1]` can be kept as they are. Set while a document is parsed. */
+let definedLabels: ReadonlySet<string> = new Set();
+const DEFINITION = /^ {0,3}\[(?!\^)([^\]]+)\]:\s*\S/;
+const FOOTNOTE = /^ {0,3}\[\^[^\]]+\]:/;
+const INLINE_HTML = /^(?:<\/?[A-Za-z][A-Za-z0-9-]*(?:\s[^<>]*)?\/?>|<!--[\s\S]*?-->)/;
+
 export function parseInline(s: string, marks: Marks = {}): Inline[] {
   const tokens: (Delimiter | Piece)[] = [];
   let buffer = '';
@@ -187,12 +193,34 @@ export function parseInline(s: string, marks: Marks = {}): Inline[] {
     }
     if (c === '[') {
       const close = closingBracket(s, i);
+      // A footnote mark, a reference link and a defined `[label]` are kept as written: the editor shows them but never rewrites them.
+      const note = /^\[\^[^\]\s]+\]/.exec(s.slice(i));
+      if (note) {
+        flush();
+        push({ t: 'atom', md: note[0], label: note[0] });
+        i += note[0].length;
+        continue;
+      }
       if (close > 0 && s[close + 1] === '(') {
         const target = linkTarget(s, close + 1);
         if (target && safeHref(target.href)) {
+          const label = parseInline(s.slice(i + 1, close), { ...marks, href: target.href });
           flush();
-          for (const run of parseInline(s.slice(i + 1, close), { ...marks, href: target.href })) push(run);
+          // A link around an image stays whole.
+          if (label.some((run) => run.t === 'atom')) push({ t: 'atom', md: s.slice(i, target.end), label: label.map((run) => (run.t === 'atom' ? run.label : run.t === 'text' ? run.text : '')).join('') || 'linked image' });
+          else for (const run of label) push(run);
           i = target.end;
+          continue;
+        }
+      }
+      if (close > 0) {
+        const reference = s[close + 1] === '[' ? closingBracket(s, close + 1) : -1;
+        const label = s.slice(i + 1, close).toLowerCase();
+        if (reference > 0 || definedLabels.has(label)) {
+          flush();
+          const end = reference > 0 ? reference + 1 : close + 1;
+          push({ t: 'atom', md: s.slice(i, end), label: s.slice(i + 1, close) || 'link' });
+          i = end;
           continue;
         }
       }
@@ -203,6 +231,14 @@ export function parseInline(s: string, marks: Marks = {}): Inline[] {
         flush();
         push(text(auto[1], { ...marks, href: auto[1] }));
         i += auto[0].length;
+        continue;
+      }
+      // Inline HTML (`<kbd>`, `<br>`, a comment) is kept as written.
+      const html = INLINE_HTML.exec(s.slice(i));
+      if (html) {
+        flush();
+        push({ t: 'atom', md: html[0], label: html[0].length > 24 ? `${html[0].slice(0, 22)}…>` : html[0] });
+        i += html[0].length;
         continue;
       }
     }
@@ -263,12 +299,29 @@ const unindent = (line: string, by: number) => {
   return line.slice(i);
 };
 
-export function parseMarkdown(source: string): Doc {
-  const lines = source.replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n').split('\n');
-  return blocks(lines, true);
+/** A document and where each of its top-level blocks sits in the text it was read from, so unedited blocks can be written back as they were. */
+export interface ParsedSource {
+  /** The text as lines, with line ends and a byte order mark taken off. */
+  lines: string[];
+  /** For each top-level block of `doc`, the lines it covers (`end` is past its last line). */
+  pieces: { start: number; end: number }[];
+  doc: Doc;
 }
 
-function blocks(lines: string[], top = false): Block[] {
+export function parseSource(source: string): ParsedSource {
+  const lines = source.replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n').split('\n');
+  definedLabels = new Set(lines.flatMap((line) => (DEFINITION.exec(line)?.[1] ? [DEFINITION.exec(line)![1].toLowerCase()] : [])));
+  const pieces: { start: number; end: number }[] = [];
+  const doc = blocks(lines, true, pieces);
+  definedLabels = new Set();
+  return { lines, pieces: pieces.length === doc.length ? pieces : [], doc };
+}
+
+export function parseMarkdown(source: string): Doc {
+  return parseSource(source).doc;
+}
+
+function blocks(lines: string[], top = false, pieces?: { start: number; end: number }[]): Block[] {
   const out: Block[] = [];
   let i = 0;
   // Front matter: a block of `---` lines at the very top is kept as it is.
@@ -276,13 +329,59 @@ function blocks(lines: string[], top = false): Block[] {
     const end = lines.findIndex((line, index) => index > 0 && /^(?:---|\.\.\.)\s*$/.test(line));
     if (end > 0) {
       out.push({ t: 'raw', text: lines.slice(0, end + 1).join('\n') });
+      pieces?.push({ start: 0, end: end + 1 });
       i = end + 1;
     }
   }
-  while (i < lines.length) {
+  // Each pass of the loop makes one block; the line it started on and where the next pass begins give the lines it covers.
+  let started = -1;
+  let count = out.length;
+  const close = (stop: number) => {
+    if (pieces && started >= 0 && out.length > count) {
+      let end = stop;
+      while (end > started + 1 && isBlank(lines[end - 1])) end--;
+      pieces.push({ start: started, end });
+    }
+    started = -1;
+  };
+  while (true) {
+    close(i);
+    if (i >= lines.length) break;
+    started = i;
+    count = out.length;
     const line = lines[i];
     if (isBlank(line)) {
       i++;
+      continue;
+    }
+    // Indented code: lines indented four spaces (or a tab), with blank lines inside it.
+    if (/^(?: {4}|\t)/.test(line)) {
+      const body: string[] = [];
+      while (i < lines.length && (isBlank(lines[i]) || /^(?: {4}|\t)/.test(lines[i]))) body.push(lines[i++].replace(/^(?: {4}|\t)/, ''));
+      while (body.length && isBlank(body[body.length - 1])) body.pop();
+      out.push({ t: 'code', lang: '', text: body.join('\n') });
+      continue;
+    }
+    // Link reference definitions and footnotes are kept as written.
+    if (DEFINITION.test(line) || FOOTNOTE.test(line)) {
+      const start = i;
+      const foot = FOOTNOTE.test(line);
+      i++;
+      while (i < lines.length) {
+        if (isBlank(lines[i])) {
+          let j = i;
+          while (j < lines.length && isBlank(lines[j])) j++;
+          if (foot && j < lines.length && /^ {2,}|^\t/.test(lines[j])) {
+            i = j;
+            continue;
+          }
+          break;
+        }
+        if (FOOTNOTE.test(lines[i]) || (!foot && !DEFINITION.test(lines[i]))) break;
+        if (foot && !/^ {2,}|^\t/.test(lines[i]) && DEFINITION.test(lines[i])) break;
+        i++;
+      }
+      out.push({ t: 'raw', text: lines.slice(start, i).join('\n').replace(/\s+$/, '') });
       continue;
     }
     const fence = FENCE.exec(line);

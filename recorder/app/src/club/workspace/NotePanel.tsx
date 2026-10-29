@@ -19,11 +19,15 @@ export function NotePanel({tile,save,onClose,onCopyPath,isNew}:{tile:ResearchTil
  const view=useRef({text:tile.text??'',base:doc.hash,mine:[] as string[],dirty:false,saving:false});
  const timer=useRef<ReturnType<typeof setTimeout>>(undefined);
  const running=useRef<Promise<boolean>|null>(null);
+ const readNow=useRef<(()=>string)|undefined>(undefined);
  const saveRef=useRef(save);saveRef.current=save;
 
  /** Writes what is in the editor. One save at a time; writing done meanwhile is saved right after. Resolves to false when it could not be saved. */
  const flush=useCallback(():Promise<boolean>=>{
   clearTimeout(timer.current);
+  // What is typed may not have been read from the page yet (it is read when typing pauses): read it now.
+  const typed=readNow.current?.();
+  if(typed!==undefined&&typed!==view.current.text){view.current.text=typed;view.current.dirty=true;}
   if(running.current)return running.current.then(()=>view.current.dirty?flush():true);
   if(!view.current.dirty)return Promise.resolve(true);
   const sent=view.current.text;
@@ -48,10 +52,12 @@ export function NotePanel({tile,save,onClose,onCopyPath,isNew}:{tile:ResearchTil
   return run;
  },[toast]);
 
- const change=(markdown:string)=>{
-  view.current.text=markdown;view.current.dirty=true;setText(markdown);setStatus('unsaved');
+ const edited=()=>{
+  view.current.dirty=true;setStatus('unsaved');
   clearTimeout(timer.current);timer.current=setTimeout(()=>void flush(),SAVE_WAIT_MS);
  };
+ // The page was read back into Markdown (typing paused, or a save asked for it). The save timer is the keystrokes', not this.
+ const change=(markdown:string)=>{view.current.text=markdown;view.current.dirty=true;setText(markdown);};
 
  // The file changed on disk (an agent, another app): taken in when nothing is unsaved here.
  useEffect(()=>{
@@ -75,11 +81,11 @@ export function NotePanel({tile,save,onClose,onCopyPath,isNew}:{tile:ResearchTil
    <div className="row small muted" style={{gap:6}}><Icon name="FileText" size={12}/><span className="ellipsis" title={doc.path}>{doc.path}</span>
     <button type="button" className="btn ghost sm icon-only" style={{width:22,height:22}} aria-label="Copy file name" title="Copy file name" onClick={()=>onCopyPath(doc.path)}><Icon name="Copy" size={12}/></button></div>
   </div>
-  <span className={`small ${status==='failed'?'danger-text':'muted'}`} role="status" style={{marginLeft:'auto',marginRight:6}}>{savedLine(status)}</span>
+  <span className={`small row ${status==='failed'?'warn-text':'muted'}`} role="status" style={{marginLeft:'auto',marginRight:6,gap:5}}>{status==='failed'&&<Icon name="TriangleAlert" size={13}/>}{savedLine(status)}</span>
  </>}>
-  {notice&&<div className={`md-notice ${notice.kind}`} role="status">{notice.line}{notice.kind==='failed'&&<button type="button" className="btn sm" style={{marginLeft:10}} onClick={()=>void flush()}>Try again</button>}</div>}
+  {notice&&<div className={`md-notice ${notice.kind}`} role="status">{notice.kind!=='updated'&&<Icon name="TriangleAlert" size={14}/>}{notice.line}{notice.kind==='failed'&&<button type="button" className="btn sm" style={{marginLeft:10}} onClick={()=>void flush()}>Try again</button>}</div>}
   {doc.missing?<p className="muted">This file is not in its folder any more. Remove the card, or put the file back and it opens again.</p>
    :doc.tooLarge?<p className="muted">This file is over 1 MB, which is too large to show here. It stays in its folder.</p>
-   :<MarkdownEditor value={text} onChange={change} label="Note" autoFocus editorRef={undefined}/>}
+   :<MarkdownEditor value={text} onChange={change} onEdit={edited} readNow={readNow} label="Note" autoFocus/>}
  </Drawer>;
 }

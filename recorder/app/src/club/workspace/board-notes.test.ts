@@ -11,7 +11,7 @@ const {ToastProvider}=await import('../ui');
 const video:Video={id:'v1',title:'Hidden features',stage:'ideas',order:0,createdAt:'2026-10-01T00:00:00.000Z',updatedAt:'2026-10-01T00:00:00.000Z',stageDates:{},planning:{research:false,package:false,outline:false}};
 const flush=()=>act(async()=>{await new Promise(resolve=>setTimeout(resolve,0));});
 const note=(id:string,text:string,path:string,extra:Partial<ResearchTile>={}):ResearchTile=>({id,kind:'note',title:text.split('\n')[0].replace(/^#+\s*/,''),text,meta:{},createdAt:'2026-10-01T00:00:00.000Z',pos:{x:60,y:60,w:280},doc:{root:'video',path,hash:`h-${id}`},...extra});
-const files:BoardFiles={folder:{path:'/Users/me/Documents/CreatorClub/samin/videos/hidden-features',display:'~/Documents/CreatorClub/samin/videos/hidden-features'},notes:null};
+const files:BoardFiles={folder:{path:'/Users/me/Documents/CreatorClub/samin/videos/hidden-features',display:'~/Documents/CreatorClub/samin/videos/hidden-features',hidden:0},notes:null};
 
 function board(tiles:ResearchTile[],extra:(call:{method:string;path:string;body:unknown})=>{status?:number;body?:unknown}|undefined=()=>undefined){
  return installFetch(call=>{
@@ -202,4 +202,48 @@ test('the board reads itself again when the server says a file changed, keeping 
   await act(async()=>{await new Promise(resolve=>setTimeout(resolve,250));});await flush();
   assert.deepEqual([...ui.container.querySelectorAll('.tile.note h1')].map(item=>item.textContent),['One','Two, written by an agent']);
  }finally{await ui.close();delete (globalThis as {EventSource?:unknown}).EventSource;}
+});
+
+test('a link in a note card opens in the browser, not in the app, and does not open the note; a card from another Notes folder says so; Show hidden files brings cards back',async()=>{
+ const opened:string[]=[];
+ const original=window.open;
+ window.open=((url:string)=>{opened.push(url);return null;}) as typeof window.open;
+ let hidden=2,shown=0;
+ const tiles=[note('t1','See [the docs](https://example.com/docs) and [local](/etc/passwd)','notes/links.md'),note('t2','','idea.md',{doc:{root:'folder',path:'idea.md',folder:'/Users/me/old-vault',missing:true}})];
+ board(tiles,call=>{
+  if(call.path==='/videos/v1/board/files')return {body:{...files,folder:{...files.folder,hidden}}};
+  if(call.method==='POST'&&call.path==='/videos/v1/board/hidden/show'){shown++;hidden=0;return {body:{shown:2}};}
+  return undefined;
+ });
+ const ui=await mount();
+ try{
+  await flush();await flush();
+  const card=ui.container.querySelector('.tile.note')!;
+  const anchor=card.querySelector<HTMLAnchorElement>('.md-view a')!;
+  await act(async()=>{const event=new MouseEvent('click',{bubbles:true,cancelable:true});anchor.dispatchEvent(event);assert.ok(event.defaultPrevented);});
+  assert.deepEqual(opened,['https://example.com/docs']);
+  assert.equal(document.querySelector('[role=dialog]'),null,'the note did not open');
+  const local=card.querySelectorAll<HTMLAnchorElement>('.md-view a')[1];
+  await act(async()=>{const event=new MouseEvent('click',{bubbles:true,cancelable:true});local.dispatchEvent(event);assert.ok(event.defaultPrevented);});
+  assert.deepEqual(opened,['https://example.com/docs'],'an address that is not a web address opens nothing');
+  const other=ui.container.querySelectorAll('.tile.note')[1];
+  assert.match(other.textContent!,/not the current one/);assert.match(other.textContent!,/\/Users\/me\/old-vault/);
+  await act(async()=>button(ui.container.querySelector('.btoolbar')!,'Add').click());
+  const item=[...document.querySelectorAll<HTMLButtonElement>('[role=menuitem]')].find(entry=>entry.textContent==='Show hidden files (2)')!;
+  assert.ok(item,'the menu offers the hidden files');
+  await act(async()=>item.click());await flush();
+  assert.equal(shown,1);
+  await act(async()=>button(ui.container.querySelector('.btoolbar')!,'Add').click());
+  assert.equal([...document.querySelectorAll('[role=menuitem]')].some(entry=>/Show hidden/.test(entry.textContent??'')),false,'and stops offering them once shown');
+ }finally{window.open=original;await ui.close();}
+});
+
+test('a failed save and a refused Notes folder are warnings, not errors: amber with an icon, never red',async()=>{
+ const css=(await import('node:fs')).readFileSync(new URL('../club.css',import.meta.url),'utf8');
+ assert.match(css,/\.club-root \.warn-text \{ color: var\(--cc-warn\); \}/);
+ const panel=(await import('node:fs')).readFileSync(new URL('./NotePanel.tsx',import.meta.url),'utf8');
+ const folder=(await import('node:fs')).readFileSync(new URL('./NotesFolder.tsx',import.meta.url),'utf8');
+ for(const source of [panel,folder])assert.doesNotMatch(source,/--cc-rec|danger-text/);
+ const closes=[...(await import('node:fs')).readFileSync(new URL('../ui/Drawer.tsx',import.meta.url),'utf8').matchAll(/aria-label="Close"[^>]*>/g)].map(match=>match[0]);
+ assert.ok(closes.length&&closes.every(tag=>/title="Close"/.test(tag)),'the close button has a tooltip');
 });

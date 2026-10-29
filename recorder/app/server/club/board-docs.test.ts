@@ -228,10 +228,12 @@ test('the Notes folder: it has to exist, its files can be pinned, pinning twice 
 
   const files = await docs.boardFiles(slug, id);
   assert.equal(files.folder.path, dirOf(id));
+  assert.equal(files.folder.hidden, 0);
   assert.deepEqual(files.notes!.files.map((file) => [file.path, file.title, file.pinned]).sort(), [['daily/today.md', 'today', false], ['idea.md', 'Vault idea', false]]);
 
   const pinned = await docs.pinNote(slug, id, 'idea.md');
   assert.deepEqual([pinned.doc?.root, pinned.doc?.path, pinned.text, pinned.title], ['folder', 'idea.md', '# Vault idea\n\nbody', 'Vault idea']);
+  assert.equal(pinned.doc?.folder, await (await import('node:fs/promises')).realpath(vault), 'the card remembers which folder it came from');
   assert.equal((await docs.pinNote(slug, id, 'idea.md')).id, pinned.id);
   assert.equal((await docs.boardFiles(slug, id)).notes!.files.find((file) => file.path === 'idea.md')?.pinned, true);
   for (const bad of ['../secret.md', '/etc/hosts', 'daily/../../x.md', '.obsidian.md']) await assert.rejects(docs.pinNote(slug, id, bad), /not in the folder/, bad);
@@ -322,5 +324,181 @@ test('the watcher also watches the Notes folder, and follows a changed Notes fol
   await writeFile(path.join(other, 'new.md'), 'x');
   assert.ok(await until(() => calls > moved), 'and in the new one');
   stop();
+  await docs.setNotesFolder(slug, null);
+});
+
+
+// ---------------------------------------------------------------- fix round 1
+
+test('removing a card of a file another writer keeps in the video\'s folder leaves that file alone; only files the app made are set aside', async () => {
+  const id = await makeVideo('Agent files stay');
+  const dir = dirOf(id);
+  await writeFile(path.join(dir, 'CLAUDE.md'), '# Rules for the agent');
+  await writeFile(path.join(dir, 'AGENTS.md'), '# Agents');
+  await mkdir(path.join(dir, 'notes'));
+  await writeFile(path.join(dir, 'notes', 'by-agent.md'), 'an agent made this in notes');
+  const mine = await docs.addNote(slug, id, '# Mine');
+  const listed = await docs.boardTiles(slug, id);
+  assert.equal(listed.filter((tile) => tile.doc).length, 4);
+  for (const tile of listed.filter((tile) => tile.doc && tile.doc.path !== mine.doc!.path)) await docs.removeNote(slug, id, tile.id);
+  assert.equal(await readFile(path.join(dir, 'CLAUDE.md'), 'utf8'), '# Rules for the agent');
+  assert.equal(await readFile(path.join(dir, 'AGENTS.md'), 'utf8'), '# Agents');
+  assert.equal(await readFile(path.join(dir, 'notes', 'by-agent.md'), 'utf8'), 'an agent made this in notes', 'an agent\'s file inside notes is not the app\'s to move');
+  assert.deepEqual((await docs.boardTiles(slug, id)).filter((tile) => tile.doc).map((tile) => tile.doc!.path), [mine.doc!.path], 'no card comes back');
+  assert.equal((await docs.boardFiles(slug, id)).folder.hidden, 3);
+  assert.equal(await docs.showHidden(slug, id), 3);
+  assert.equal((await docs.boardTiles(slug, id)).filter((tile) => tile.doc).length, 4);
+  await docs.removeNote(slug, id, mine.id);
+  assert.equal(await stat(path.join(dir, mine.doc!.path)).then(() => true, () => false), false, 'the app\'s own note is set aside');
+  assert.equal((await readdir(path.join(dir, 'notes', '.removed'))).length, 1);
+  // A conflict copy the app made is the app's too.
+  const note = await docs.addNote(slug, id, 'start');
+  await writeFile(path.join(dir, note.doc!.path), 'someone else');
+  const clash = await docs.saveNote(slug, id, note, 'start mine', note.doc!.hash);
+  const copyTile = (await docs.boardTiles(slug, id)).find((tile) => tile.doc?.path === clash.conflict!.copy)!;
+  assert.match(copyTile.title!, / \(other version\)$/, 'its card says what it is');
+  await docs.removeNote(slug, id, copyTile.id);
+  assert.equal(await stat(path.join(dir, clash.conflict!.copy)).then(() => true, () => false), false);
+});
+
+test('a pinned card follows its Notes folder: after the folder changes it is missing, and nothing is read or written in the new folder under that name', async () => {
+  const id = await makeVideo('Folder switch');
+  const one = path.join(temp, 'vault-one');
+  const two = path.join(temp, 'vault-two');
+  await mkdir(one, { recursive: true });
+  await mkdir(two, { recursive: true });
+  await writeFile(path.join(one, 'idea.md'), '# From one');
+  await writeFile(path.join(two, 'idea.md'), '# From two, a different file');
+  await docs.setNotesFolder(slug, one);
+  const pinned = await docs.pinNote(slug, id, 'idea.md');
+  await docs.setNotesFolder(slug, two);
+  const shown = (await docs.boardTiles(slug, id)).find((tile) => tile.id === pinned.id)!;
+  assert.deepEqual([shown.doc?.missing, shown.text, shown.doc?.folder], [true, '', await (await import('node:fs/promises')).realpath(one)], 'missing, with the folder it belongs to');
+  await assert.rejects(docs.saveNote(slug, id, pinned, 'overwrite', pinned.doc!.hash), /not the current one/);
+  assert.equal(await readFile(path.join(two, 'idea.md'), 'utf8'), '# From two, a different file', 'the file in the other folder is untouched');
+  // Pinning the same name now gives a second card for the other folder.
+  const second = await docs.pinNote(slug, id, 'idea.md');
+  assert.notEqual(second.id, pinned.id);
+  assert.equal(second.text, '# From two, a different file');
+  // Going back to the first folder brings the first card back.
+  await docs.setNotesFolder(slug, one);
+  assert.equal((await docs.boardTiles(slug, id)).find((tile) => tile.id === pinned.id)?.text, '# From one');
+  await docs.setNotesFolder(slug, null);
+});
+
+test('the Notes folder is refused when it is the whole computer, the home folder or one above it, a system folder, or where CreatorClub keeps its files', async () => {
+  const realRoot = await (await import('node:fs/promises')).realpath(store.rootDir()).catch(() => store.rootDir());
+  await mkdir(store.rootDir(), { recursive: true });
+  const refused = ['/', os.homedir(), path.dirname(os.homedir()), '/Users', '/private', '/etc', '/usr', '/usr/bin', '/System', '/System/Library', '/Library', '/var', store.rootDir(), path.join(store.rootDir(), slug), path.dirname(store.rootDir())];
+  for (const folder of refused) {
+    if (!(await stat(folder).then(() => true, () => false))) continue;
+    await assert.rejects(docs.setNotesFolder(slug, folder), /not your whole computer|keeps its own files/, folder);
+  }
+  await mkdir(store.secretsDir(), { recursive: true });
+  await assert.rejects(docs.setNotesFolder(slug, store.secretsDir()), /keeps its own files/);
+  assert.equal(await docs.refusedFolder(path.join(temp, 'fine-notes')), undefined, 'an ordinary folder is fine');
+  assert.ok(realRoot);
+  assert.equal(await docs.notesFolder(slug), undefined, 'nothing was saved');
+});
+
+test('a link in place of the notes folder, or inside it, is not followed: not listed, not written to, not set aside in', async () => {
+  const id = await makeVideo('Links');
+  const dir = dirOf(id);
+  const outside = path.join(temp, 'linked-outside');
+  await mkdir(outside, { recursive: true });
+  await writeFile(path.join(outside, 'secret.md'), 'private');
+  await symlink(outside, path.join(dir, 'notes'));
+  await writeFile(path.join(dir, 'visible.md'), 'visible');
+  const tiles = await docs.boardTiles(slug, id);
+  assert.deepEqual(tiles.filter((tile) => tile.doc).map((tile) => tile.doc!.path), ['visible.md'], 'the linked folder is not listed');
+  await assert.rejects(docs.addNote(slug, id, 'new'), /is a link/);
+  assert.deepEqual(await readdir(outside), ['secret.md'], 'nothing was written outside');
+  await assert.rejects(docs.removeNote(slug, id, tiles.find((tile) => tile.doc)!.id).then(() => docs.importFiles(slug, id, [{ name: 'a.md', data: Buffer.from('x') }])), /is a link/);
+  // A file that is a link out of a real notes folder is neither listed nor read.
+  const id2 = await makeVideo('Links inside');
+  await mkdir(path.join(dirOf(id2), 'notes'));
+  await symlink(path.join(outside, 'secret.md'), path.join(dirOf(id2), 'notes', 'linked.md'));
+  await writeFile(path.join(dirOf(id2), 'notes', 'real.md'), 'real');
+  assert.deepEqual((await docs.boardTiles(slug, id2)).filter((tile) => tile.doc).map((tile) => tile.doc!.path), ['notes/real.md']);
+  await assert.rejects(docs.resolveDoc(dirOf(id2), 'notes/linked.md'), /not in the folder/);
+});
+
+test('an old note whose file was planned but not made (a stop in between) gets its file at the planned path, not a second one', async () => {
+  const id = await makeVideo('Interrupted');
+  const researchDir = store.researchDir(slug, id);
+  await mkdir(researchDir, { recursive: true });
+  await writeFile(path.join(researchDir, 't_half.json'), JSON.stringify({ id: 't_half', kind: 'note', text: 'Half done note', meta: {}, doc: { root: 'video', path: 'notes/half-done-note.md', pending: true }, createdAt: '2026-10-01T00:00:00.000Z' }));
+  const tiles = await docs.boardTiles(slug, id);
+  assert.deepEqual(tiles.map((tile) => [tile.doc?.path, tile.text, tile.doc?.pending]), [['notes/half-done-note.md', 'Half done note', undefined]]);
+  assert.deepEqual(await readdir(path.join(dirOf(id), 'notes')), ['half-done-note.md'], 'one file');
+  assert.equal(JSON.parse(await readFile(path.join(researchDir, 't_half.json'), 'utf8')).doc.pending, undefined, 'and the tile is settled');
+  // A note the person deleted the file of is not made again from the copy of its text.
+  await rm(path.join(dirOf(id), 'notes', 'half-done-note.md'));
+  assert.equal((await docs.boardTiles(slug, id))[0].doc?.missing, true);
+});
+
+test('a save finds a file changed just before it was written: the new text is read again and kept as a copy', async () => {
+  const id = await makeVideo('Race');
+  const note = await docs.addNote(slug, id, 'start');
+  const file = path.join(dirOf(id), note.doc!.path);
+  let wrote = false;
+  const saved = await docs.saveDoc(dirOf(id), dirOf(id), note.doc!.path, 'my words', note.doc!.hash, {
+    beforeCommit: async () => {
+      if (wrote) return;
+      wrote = true;
+      await sleep(15);
+      await writeFile(file, 'an agent wrote at the last moment');
+    },
+  });
+  assert.equal(await readFile(file, 'utf8'), 'my words');
+  assert.ok(saved.conflict, 'the clash was noticed');
+  assert.equal(await readFile(path.join(dirOf(id), saved.conflict!.copy), 'utf8'), 'an agent wrote at the last moment');
+  assert.equal((await readdir(dirOf(id))).filter((name) => name.endsWith('.tmp')).length, 0);
+});
+
+test('saving keeps the line endings and byte order mark of the file it replaces', async () => {
+  const id = await makeVideo('Endings');
+  const note = await docs.addNote(slug, id, 'x');
+  const file = path.join(dirOf(id), note.doc!.path);
+  await writeFile(file, '\uFEFF# T\r\n\r\n- a\r\n');
+  const read = await docs.readDoc(dirOf(id), note.doc!.path);
+  assert.deepEqual('text' in read && read.text, '# T\n\n- a\n', 'the page sees plain line ends and no mark');
+  await docs.saveDoc(dirOf(id), dirOf(id), note.doc!.path, '# T\n\n- a\n- b\n', 'text' in read ? read.hash : undefined);
+  assert.equal(await readFile(file, 'utf8'), '\uFEFF# T\r\n\r\n- a\r\n- b\r\n');
+  await writeFile(file, 'plain\n');
+  await docs.saveDoc(dirOf(id), dirOf(id), note.doc!.path, 'plain\nmore\n');
+  assert.equal(await readFile(file, 'utf8'), 'plain\nmore\n');
+});
+
+test('a watcher stopped while it is still starting opens nothing and leaves nothing open', async () => {
+  const id = await makeVideo('Leak');
+  await mkdir(path.join(dirOf(id), 'notes'), { recursive: true });
+  const vault = path.join(temp, 'vault-leak');
+  await mkdir(vault, { recursive: true });
+  await docs.setNotesFolder(slug, vault);
+  let opened = 0;
+  let closed = 0;
+  const { watch } = await import('node:fs');
+  const counting = ((target: string, options: unknown, listener: unknown) => {
+    const watcher = (watch as unknown as (...args: unknown[]) => import('node:fs').FSWatcher)(target, options, listener);
+    opened++;
+    const close = watcher.close.bind(watcher);
+    watcher.close = () => (closed++, close());
+    return watcher;
+  }) as unknown as typeof watch;
+  // Stopped at once: the folders are looked up after the stop, and none may be opened for it.
+  const stop = watchBoard(slug, id, () => {}, { watchFn: counting, pollMs: 50 });
+  stop();
+  await sleep(300);
+  assert.equal(opened, closed, `every watcher opened was closed (${opened} opened, ${closed} closed)`);
+  // Started and stopped later: all closed, and none opened after.
+  const second = watchBoard(slug, id, () => {}, { watchFn: counting, pollMs: 50 });
+  await sleep(300);
+  assert.ok(opened > closed, 'it is watching');
+  second();
+  const atStop = opened;
+  await sleep(300);
+  assert.equal(opened, atStop, 'nothing is opened after it stopped');
+  assert.equal(opened, closed, 'and everything is closed');
   await docs.setNotesFolder(slug, null);
 });

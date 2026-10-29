@@ -1065,3 +1065,7 @@
 .club-root .md-link { z-index: 60; display: flex; gap: 6px; padding: 8px; width: 330px; }
 .club-root .md-link .input { flex: 1; min-width: 0; height: 30px; }
 .club-root .md-link button { width: auto; flex: none; }
+.club-root .warn-text { color: var(--cc-warn); }
+.club-root .md-notice { display: flex; gap: 8px; align-items: flex-start; }
+.club-root .md-notice .icon { flex: none; margin-top: 2px; }
+.club-root .note-path { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11.5px; overflow-wrap: anywhere; }

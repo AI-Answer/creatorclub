@@ -176,7 +176,7 @@ export function serializeBlock(block: Block): string {
   }
 }
 
-const isEmpty = (block: Block) => (block.t === 'p' && !serializeInline(block.inline).trim()) || (block.t === 'quote' && block.blocks.every(isEmpty));
+export const isEmpty = (block: Block) => (block.t === 'p' && !serializeInline(block.inline).trim()) || (block.t === 'quote' && block.blocks.every(isEmpty));
 
 function serializeBlocks(doc: Doc): string {
   const parts: string[] = [];

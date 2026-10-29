@@ -30,7 +30,7 @@ export function NotesFolder({notes,onChoose,onPin,onClose}:{notes:BoardFiles['no
     <input className="input grow" aria-label="Folder path" placeholder={notes?'Use a different folder: paste its path':'Paste the path of the folder'} value={path} onChange={event=>setPath(event.target.value)}/>
     <Button size="sm" variant="primary" type="submit" disabled={!path.trim()||!!busy}>Use folder</Button>
    </form>
-   {error&&<p className="small" role="alert" style={{color:'var(--cc-rec)',margin:'8px 0 0'}}>{error}</p>}
+   {error&&<p className="small warn-text row" role="alert" style={{margin:'8px 0 0',gap:6}}><Icon name="TriangleAlert" size={14}/>{error}</p>}
    {notes&&(notes.files.length===0?<p className="muted small" style={{margin:'14px 0 0'}}>No Markdown or text files in this folder yet. New ones show up here by themselves.</p>
     :<ul className="notes-list" aria-label="Files in the Notes folder">
       {notes.files.map(file=><li key={file.path}>

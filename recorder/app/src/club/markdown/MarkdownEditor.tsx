@@ -1,9 +1,13 @@
-import {useCallback,useEffect,useImperativeHandle,useLayoutEffect,useRef,useState,type ClipboardEvent,type KeyboardEvent,type MouseEvent,type Ref} from 'react';
+import {useCallback,useEffect,useImperativeHandle,useLayoutEffect,useRef,useState,type ClipboardEvent,type KeyboardEvent,type MouseEvent,type MutableRefObject,type Ref} from 'react';
 import {Icon} from '../ui';
 import {COMMANDS,blockShortcut,enterShortcut,filterCommands,inlineShortcut,isUrl,linkAddress,looksLikeMarkdown,slashQuery,type Command,type CommandId} from './commands';
-import {docFromHtml,inlineHtml,markdownFromPage,markdownToHtml,parseMarkdown,plainToDoc,renderHtml} from './index';
+import {docFromHtml,inlineHtml,markdownFromPage,parseMarkdown,parseSource,plainToDoc,renderHtml,type ParsedSource} from './index';
 
 /*
+ * Undo: typing, the commands and paste go through the browser's own editing commands, so Cmd+Z and Cmd+Shift+Z undo and redo them. Three changes are
+ * made on the page directly and are not part of that history: ticking a checkbox (click it again), leaving a code block with Enter on an empty line, and
+ * taking in a change made to the file from outside (that replaces the page and starts the history again).
+ *
  * The note editor: a page you type in, whose text is Markdown. The browser does the typing, the caret and undo; this adds what a writer wants
  * on top: Markdown shortcuts, a `/` menu, bold/italic/link keys, checklists, and paste that keeps headings and lists but nothing else.
  * The page is the truth while you write: it is read back into Markdown after each change, and only replaced when the Markdown changes from outside.
@@ -15,6 +19,9 @@ const escapeHtml=(value:string)=>value.replace(/[&<>"]/g,char=>({'&':'&amp;','<'
 const exec=(command:string,argument?:string)=>document.execCommand(command,false,argument);
 
 export interface EditorHandle{focus():void}
+
+/** How long after the last keystroke the page is read back into Markdown. Reading a long note takes time, so it is not done on every key. */
+export const READ_AFTER_MS=250;
 
 /** Where the caret is: the block it is in, the text of that block before it, and the text node it sits in (when it sits in one). */
 interface Caret{block:HTMLElement;before:string;node:Text|null;offset:number;range:Range}
@@ -95,12 +102,9 @@ export function runCommand(root:HTMLElement,id:CommandId){
    if(inside('blockquote'))leaveQuote();else exec('formatBlock','blockquote');break;
   case 'code':
    if(inside('pre'))exec('formatBlock','div');else exec('formatBlock','pre');break;
-  case 'divider':{
-   exec('insertHorizontalRule');
-   // A divider at the very end leaves nowhere to write after it.
-   const rule=[...root.querySelectorAll('hr')].find(candidate=>!candidate.nextElementSibling);
-   if(rule){const paragraph=root.ownerDocument.createElement('p');paragraph.innerHTML='<br>';rule.after(paragraph);const range=root.ownerDocument.createRange();range.setStart(paragraph,0);range.collapse(true);const selection=root.ownerDocument.getSelection()!;selection.removeAllRanges();selection.addRange(range);}
-   break;}
+  case 'divider':
+   // One undoable step that also leaves a line to write on after the divider.
+   exec('insertHTML','<hr><div><br></div>');break;
  }
 }
 
@@ -121,10 +125,19 @@ function toggleCode(root:HTMLElement){
 interface SlashState{items:Command[];index:number;query:string;length:number;left:number;top:number}
 interface LinkState{left:number;top:number;value:string;range:Range;existing:boolean}
 
-export function MarkdownEditor({value,onChange,label,placeholder='Write, or type / for commands',autoFocus,editorRef,onBlur}:{value:string;onChange(markdown:string):void;label:string;placeholder?:string;autoFocus?:boolean;editorRef?:Ref<EditorHandle>;onBlur?():void}){
+/**
+ * `onEdit` is told at once about every change (cheap: it only says "something changed"); `onChange` gets the Markdown once typing pauses for `delay`.
+ * `readNow` is filled with a function that reads the page into Markdown right away, for a save that cannot wait; it stays usable while the editor is closing.
+ */
+/** Opens a web address in the system browser: the app's own window handler sends `_blank` windows there, and nothing else is opened. */
+export function openInBrowser(href:string){if(/^(?:https?:|mailto:)/i.test(href))window.open(href,'_blank','noopener,noreferrer');}
+
+export function MarkdownEditor({value,onChange,onEdit,delay=READ_AFTER_MS,readNow,label,placeholder='Write, or type / for commands',autoFocus,editorRef,onBlur}:{value:string;onChange(markdown:string):void;onEdit?():void;delay?:number;readNow?:MutableRefObject<(()=>string)|undefined>;label:string;placeholder?:string;autoFocus?:boolean;editorRef?:Ref<EditorHandle>;onBlur?():void}){
  const page=useRef<HTMLDivElement>(null),wrap=useRef<HTMLDivElement>(null);
  // The Markdown the page holds now; a `value` that equals it is the page's own text coming back and changes nothing.
  const held=useRef<string|null>(null);
+ // The text the page was made from, block by block: blocks you do not touch are saved as they were.
+ const source=useRef<ParsedSource|undefined>(undefined);
  const [slash,setSlash]=useState<SlashState|null>(null),[link,setLink]=useState<LinkState|null>(null);
  const latest=useRef(onChange);latest.current=onChange;
 
@@ -134,24 +147,39 @@ export function MarkdownEditor({value,onChange,label,placeholder='Write, or type
   const root=page.current;if(!root)return;
   root.dataset.empty=String(!root.textContent?.replace(/[​﻿]/g,'').trim()&&!root.querySelector('hr,pre,li'));
  },[]);
- const emit=useCallback(()=>{
-  const root=page.current;if(!root)return;
+ const pending=useRef<ReturnType<typeof setTimeout>|undefined>(undefined);
+ const emit=useCallback((from?:HTMLElement|null)=>{
+  const root=from??page.current;if(!root)return held.current??'';
+  clearTimeout(pending.current);pending.current=undefined;
   markEmpty();
-  const markdown=markdownFromPage(root);
-  if(markdown===held.current)return;
-  held.current=markdown;latest.current(markdown);
+  const markdown=markdownFromPage(root,source.current);
+  if(markdown!==held.current){held.current=markdown;latest.current(markdown);}
+  return markdown;
  },[markEmpty]);
+ // Typing: say so now, read the page when it pauses.
+ const typed=useCallback(()=>{
+  onEditRef.current?.();
+  clearTimeout(pending.current);
+  if(delay<=0)emit();else pending.current=setTimeout(()=>emit(),delay);
+ },[delay,emit]);
+ const onEditRef=useRef(onEdit);onEditRef.current=onEdit;
+ useEffect(()=>{
+  // Kept on the page's own element, so it still works while the editor is being closed; closing also reads what is waiting.
+  const root=page.current;
+  if(readNow)readNow.current=()=>emit(root);
+  return()=>{if(pending.current)emit(root);};
+ },[readNow,emit]);
 
  // The page is written when it first shows and whenever the Markdown changes from outside (a file edited by an agent, or loaded for another note).
  useLayoutEffect(()=>{
   const root=page.current;if(!root)return;
   if(held.current===value)return;
   const scroll=root.parentElement?.parentElement?.scrollTop;
-  root.innerHTML=markdownToHtml(value,'div');held.current=value;markEmpty();
+  const parsed=parseSource(value);source.current=parsed;
+  root.innerHTML=renderHtml(parsed.doc,'div',true);held.current=value;markEmpty();
   if(scroll!==undefined&&root.parentElement?.parentElement)root.parentElement.parentElement.scrollTop=scroll;
  },[value,markEmpty]);
  useEffect(()=>{
-  try{document.execCommand('defaultParagraphSeparator',false,'div');document.execCommand('styleWithCSS',false,'false');}catch{/* a host without it keeps its own */}
   if(autoFocus){
    const root=page.current;if(!root)return;
    root.focus();
@@ -191,7 +219,7 @@ export function MarkdownEditor({value,onChange,label,placeholder='Write, or type
    if(item&&!clean(item.textContent??'').trim())item.setAttribute('data-checked','false');
    else if(item){const before=item.previousElementSibling;if(before&&before.getAttribute('data-checked')==='true'&&item.getAttribute('data-checked')==='true')item.setAttribute('data-checked','false');}
   }
-  emit();placeSlash();
+  typed();placeSlash();
  };
 
  const onKeyDown=(event:KeyboardEvent<HTMLDivElement>)=>{
@@ -296,7 +324,8 @@ export function MarkdownEditor({value,onChange,label,placeholder='Write, or type
  };
  const onClick=(event:MouseEvent<HTMLDivElement>)=>{
   const anchor=(event.target as HTMLElement).closest('a');
-  if((event.metaKey||event.ctrlKey)&&anchor){event.preventDefault();window.open(anchor.getAttribute('href')??'','_blank','noopener,noreferrer');}
+  // A link in a note never takes the app away: Cmd or Ctrl and a click opens it in the browser, a plain click puts the caret in it.
+  if(anchor){event.preventDefault();if(event.metaKey||event.ctrlKey)openInBrowser(anchor.getAttribute('href')??'');}
   placeSlash();
  };
 
@@ -324,10 +353,10 @@ export function MarkdownEditor({value,onChange,label,placeholder='Write, or type
  const closeLink=()=>{setLink(null);page.current?.focus();};
 
  return <div className="md-wrap" ref={wrap}>
-  <div ref={page} className="md-editor" contentEditable suppressContentEditableWarning role="textbox" aria-multiline="true" aria-label={label} data-placeholder={placeholder} data-empty="true" spellCheck
-   onInput={onInput} onKeyDown={onKeyDown} onKeyUp={onKeyUp} onPaste={onPaste} onMouseDown={onMouseDown} onClick={onClick} onBlur={()=>{setSlash(null);onBlur?.();}}/>
-  {slash&&<div className="md-slash menu" role="listbox" aria-label="Commands" style={{left:slash.left,top:slash.top}} onMouseDown={event=>event.preventDefault()}>
-   {slash.items.map((command,index)=><button key={command.id} type="button" role="option" aria-selected={index===slash.index} className={index===slash.index?'on':undefined} onClick={()=>choose(command)} onMouseEnter={()=>setSlash(current=>current&&{...current,index})}>
+  <div ref={page} className="md-editor" contentEditable suppressContentEditableWarning role="textbox" aria-multiline="true" aria-label={label} aria-haspopup={slash?'listbox':undefined} aria-expanded={slash?true:undefined} aria-controls={slash?'md-slash-list':undefined} aria-activedescendant={slash?`md-slash-${slash.items[slash.index].id}`:undefined} data-placeholder={placeholder} data-empty="true" spellCheck
+   onInput={onInput} onKeyDown={onKeyDown} onKeyUp={onKeyUp} onPaste={onPaste} onMouseDown={onMouseDown} onClick={onClick} onBlur={()=>{setSlash(null);emit();onBlur?.();}}/>
+  {slash&&<div className="md-slash menu" id="md-slash-list" role="listbox" aria-label="Commands" style={{left:slash.left,top:slash.top}} onMouseDown={event=>event.preventDefault()}>
+   {slash.items.map((command,index)=><button key={command.id} id={`md-slash-${command.id}`} type="button" role="option" tabIndex={-1} aria-selected={index===slash.index} className={index===slash.index?'on':undefined} onClick={()=>choose(command)} onMouseEnter={()=>setSlash(current=>current&&{...current,index})}>
     <Icon name={command.icon} size={15}/><span className="grow">{command.label}</span>{command.hint&&<kbd>{command.hint}</kbd>}
    </button>)}
   </div>}

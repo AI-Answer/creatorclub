@@ -9,7 +9,7 @@ export function Drawer({children,header,footer,onClose,label,width}:{children?:R
  return <>
   <div className="scrim" onClick={onClose}/>
   <aside ref={panel} tabIndex={-1} className="drawer" role="dialog" aria-modal="true" aria-label={label} style={width?{width}:undefined}>
-   <div className="dh">{header}<button type="button" className="btn ghost sm icon-only" style={{marginLeft:'auto'}} onClick={onClose} aria-label="Close"><Icon name="X" size={16}/></button></div>
+   <div className="dh">{header}<button type="button" className="btn ghost sm icon-only" style={{marginLeft:'auto'}} onClick={onClose} aria-label="Close" title="Close"><Icon name="X" size={16}/></button></div>
    <div className="db">{children}</div>
    {footer&&<div className="df">{footer}</div>}
   </aside>

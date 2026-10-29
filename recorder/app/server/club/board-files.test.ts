@@ -98,7 +98,7 @@ test('old notes are moved into files when the Board is read, with their text; a 
   assert.deepEqual((await readdir(path.join(root, 'videos', video.id, 'notes'))).sort(), ['a-first-note.md', 'another.md']);
 });
 
-test('a file written in the video\'s folder shows up as a card; removing the card sets the file aside', async () => {
+test('a file written in the video\'s folder shows up as a card; removing the card leaves the file where it is and hides the card until it is asked for', async () => {
   const video = await newVideo('Agent');
   await writeFile(path.join(root, 'videos', video.id, 'research-notes.md'), '# From Claude Code\n\n- found a thing');
   const listed = await tiles(video.id);
@@ -108,7 +108,13 @@ test('a file written in the video\'s folder shows up as a card; removing the car
   assert.equal(info.folder.path, path.join(root, 'videos', video.id));
   assert.equal((await call('DELETE', `/videos/${video.id}/research/${card.id}`)).status, 204);
   assert.equal((await tiles(video.id)).some((tile) => tile.doc), false);
-  assert.ok((await readdir(path.join(root, 'videos', video.id, 'notes', '.removed'))).some((name) => name.endsWith('research-notes.md')));
+  assert.equal(await readFile(path.join(root, 'videos', video.id, 'research-notes.md'), 'utf8'), '# From Claude Code\n\n- found a thing', 'the agent\'s file is still where it was');
+  assert.equal(await readdir(path.join(root, 'videos', video.id, 'notes')).then((names) => names.includes('.removed'), () => false), false, 'and nothing was moved');
+  assert.equal(((await call('GET', `/videos/${video.id}/board/files`)).body as BoardFiles).folder.hidden, 1);
+  assert.equal((await tiles(video.id)).some((tile) => tile.doc), false, 'it does not come back by itself');
+  assert.deepEqual((await call('POST', `/videos/${video.id}/board/hidden/show`)).body, { shown: 1 });
+  assert.deepEqual((await tiles(video.id)).filter((tile) => tile.doc).map((tile) => tile.doc!.path), ['research-notes.md'], 'Show hidden files brings it back');
+  assert.equal(((await call('GET', `/videos/${video.id}/board/files`)).body as BoardFiles).folder.hidden, 0);
 });
 
 const form = (files: { name: string; text: string; type?: string }[]) => {

@@ -171,6 +171,10 @@ export interface TileDoc {
   hash?: string;
   missing?: boolean;
   tooLarge?: boolean;
+  /** `folder` notes: the whole path of the Notes folder the file was pinned from. The card only reads and writes the file while that is still the Notes folder. */
+  folder?: string;
+  /** Set while the file of an old note is being made; only the server sees it. */
+  pending?: boolean;
 }
 
 export interface ResearchTile {
@@ -197,7 +201,8 @@ export interface DocConflict {
 /** The Markdown files the Board can take: in the video's folder, and in the channel's Notes folder. */
 export interface BoardFiles {
   /** The video's folder: the absolute path (to copy) and the same with the home folder shortened (to show). */
-  folder: { path: string; display: string };
+  /** `hidden` is how many files in the folder have had their card removed and are not shown. */
+  folder: { path: string; display: string; hidden: number };
   notes: null | { path: string; display: string; files: NotesFile[]; truncated?: boolean };
 }
 

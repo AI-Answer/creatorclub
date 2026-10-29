@@ -24,7 +24,7 @@ function caretAtEnd(element:Element){
 
 test('the editor shows Markdown as blocks and gives Markdown back after writing, once per change',async()=>{
  const changes:string[]=[];
- const ui=await mountUI(createElement(MarkdownEditor,{value:'# Title\n\n- one\n- [x] two\n\nSome **bold** text.',onChange:(markdown:string)=>changes.push(markdown),label:'Note'}));
+ const ui=await mountUI(createElement(MarkdownEditor,{delay:0,value:'# Title\n\n- one\n- [x] two\n\nSome **bold** text.',onChange:(markdown:string)=>changes.push(markdown),label:'Note'}));
  try{
   const page=pageOf(ui.container);
   assert.equal(page.getAttribute('role'),'textbox');assert.equal(page.getAttribute('aria-label'),'Note');assert.equal(page.getAttribute('contenteditable'),'true');
@@ -34,7 +34,7 @@ test('the editor shows Markdown as blocks and gives Markdown back after writing,
   assert.equal(page.dataset.empty,'false');
   assert.deepEqual(changes,[],'showing a note changes nothing');
   await type(page,()=>{page.querySelector('h1')!.textContent='A new title';});
-  assert.deepEqual(changes,['# A new title\n\n- one\n- [x] two\n\nSome **bold** text.\n']);
+  assert.deepEqual(changes,['# A new title\n\n- one\n- [x] two\n\nSome **bold** text.'],'the changed heading is written; the rest, with no final newline, stays as it was');
   await type(page,()=>{});
   assert.equal(changes.length,1,'an input that changes nothing says nothing');
  }finally{await ui.close();}
@@ -42,7 +42,7 @@ test('the editor shows Markdown as blocks and gives Markdown back after writing,
 
 test('Markdown that arrives from outside replaces the page; the editor\'s own text coming back does not',async()=>{
  const changes:string[]=[];
- const make=(value:string)=>createElement(MarkdownEditor,{value,onChange:(markdown:string)=>changes.push(markdown),label:'Note'});
+ const make=(value:string)=>createElement(MarkdownEditor,{delay:0,value,onChange:(markdown:string)=>changes.push(markdown),label:'Note'});
  const ui=await mountUI(make('first'));
  try{
   const page=pageOf(ui.container);
@@ -61,7 +61,7 @@ test('Markdown that arrives from outside replaces the page; the editor\'s own te
 });
 
 test('an empty note shows its placeholder, and the label and placeholder can be set',async()=>{
- const ui=await mountUI(createElement(MarkdownEditor,{value:'',onChange:()=>{},label:'Idea',placeholder:'Start here'}));
+ const ui=await mountUI(createElement(MarkdownEditor,{delay:0,value:'',onChange:()=>{},label:'Idea',placeholder:'Start here'}));
  try{
   const page=pageOf(ui.container);
   assert.equal(page.dataset.empty,'true');assert.equal(page.dataset.placeholder,'Start here');assert.equal(page.getAttribute('aria-label'),'Idea');
@@ -70,7 +70,7 @@ test('an empty note shows its placeholder, and the label and placeholder can be 
 
 test('the keys: bold, italic, strike, code and checklist toggle do what they say, and Tab moves a list item',async()=>{
  const spy=recordCommands();
- const ui=await mountUI(createElement(MarkdownEditor,{value:'- item\n- [ ] task',onChange:()=>{},label:'Note'}));
+ const ui=await mountUI(createElement(MarkdownEditor,{delay:0,value:'- item\n- [ ] task',onChange:()=>{},label:'Note'}));
  try{
   const page=pageOf(ui.container);
   caretAtEnd(page.querySelector('li')!);spy.calls.length=0;
@@ -89,7 +89,7 @@ test('the keys: bold, italic, strike, code and checklist toggle do what they say
 
 test('a checkbox is ticked by clicking it, and by nothing else on the line',async()=>{
  const changes:string[]=[];
- const ui=await mountUI(createElement(MarkdownEditor,{value:'- [ ] task',onChange:(markdown:string)=>changes.push(markdown),label:'Note'}));
+ const ui=await mountUI(createElement(MarkdownEditor,{delay:0,value:'- [ ] task',onChange:(markdown:string)=>changes.push(markdown),label:'Note'}));
  try{
   const page=pageOf(ui.container),item=page.querySelector('li')!;
   const press=(offsetX:number)=>act(async()=>{const event=new MouseEvent('mousedown',{bubbles:true,cancelable:true});Object.defineProperty(event,'offsetX',{value:offsetX});item.dispatchEvent(event);});
@@ -103,7 +103,7 @@ test('a checkbox is ticked by clicking it, and by nothing else on the line',asyn
 
 test('the commands: a heading made twice is text again, lists toggle, a quote is left, a checklist item toggles',async()=>{
  const spy=recordCommands();
- const ui=await mountUI(createElement(MarkdownEditor,{value:'plain\n\n# Heading\n\n- item\n\n> quoted',onChange:()=>{},label:'Note'}));
+ const ui=await mountUI(createElement(MarkdownEditor,{delay:0,value:'plain\n\n# Heading\n\n- item\n\n> quoted',onChange:()=>{},label:'Note'}));
  try{
   const page=pageOf(ui.container);
   const run=(id:Parameters<typeof runCommand>[1])=>{spy.calls.length=0;runCommand(page,id);return [...spy.calls];};
@@ -112,7 +112,7 @@ test('the commands: a heading made twice is text again, lists toggle, a quote is
   assert.deepEqual(run('numbers'),['insertOrderedList']);
   assert.deepEqual(run('quote'),['formatBlock:blockquote']);
   assert.deepEqual(run('code'),['formatBlock:pre']);
-  assert.deepEqual(run('divider'),['insertHorizontalRule']);
+  assert.deepEqual(run('divider'),['insertHTML:<hr><div><br></div>']);
   caretAtEnd(page.querySelector('h1')!);
   assert.deepEqual(run('h1'),['formatBlock:div'],'the same heading again makes it text');
   assert.deepEqual(run('h3'),['formatBlock:h3']);
@@ -133,7 +133,7 @@ test('the commands: a heading made twice is text again, lists toggle, a quote is
 
 test('typing / opens the command menu, narrows as you type, runs the choice, and Escape closes it',async()=>{
  const spy=recordCommands();
- const ui=await mountUI(createElement(MarkdownEditor,{value:'hello',onChange:()=>{},label:'Note'}));
+ const ui=await mountUI(createElement(MarkdownEditor,{delay:0,value:'hello',onChange:()=>{},label:'Note'}));
  try{
   const page=pageOf(ui.container);
   const line=page.firstElementChild!;
@@ -164,7 +164,7 @@ test('typing / opens the command menu, narrows as you type, runs the choice, and
 
 test('Markdown shortcuts: "# " makes a heading, "- " a list, "[] " a checklist, "```" then Enter a code block; not inside a code block',async()=>{
  const spy=recordCommands();
- const ui=await mountUI(createElement(MarkdownEditor,{value:'x',onChange:()=>{},label:'Note'}));
+ const ui=await mountUI(createElement(MarkdownEditor,{delay:0,value:'x',onChange:()=>{},label:'Note'}));
  try{
   const page=pageOf(ui.container),line=page.firstElementChild!;
   const typed=async(text:string,pressed:string)=>{line.textContent=text;caretAtEnd(line);spy.calls.length=0;await key(page,pressed);return [...spy.calls];};
@@ -174,7 +174,7 @@ test('Markdown shortcuts: "# " makes a heading, "- " a list, "[] " a checklist, 
   assert.deepEqual(await typed('1.',' '),['delete','insertOrderedList']);
   assert.deepEqual(await typed('>',' '),['delete','formatBlock:blockquote']);
   assert.deepEqual(await typed('```','Enter'),['delete','formatBlock:pre']);
-  assert.deepEqual(await typed('---','Enter'),['delete','insertHorizontalRule']);
+  assert.deepEqual(await typed('---','Enter'),['delete','insertHTML:<hr><div><br></div>']);
   assert.deepEqual(await typed('text -',' '),[],'a dash after words is just a dash');
   assert.deepEqual(await typed('#','a'),[]);
   assert.deepEqual(await typed('1.','Enter'),[]);
@@ -184,7 +184,7 @@ test('Markdown shortcuts: "# " makes a heading, "- " a list, "[] " a checklist, 
 test('paste: a lone address becomes a link, Markdown becomes blocks, plain text stays text, scripts are dropped',async()=>{
  const spy=recordCommands();
  const changes:string[]=[];
- const ui=await mountUI(createElement(MarkdownEditor,{value:'x',onChange:(markdown:string)=>changes.push(markdown),label:'Note'}));
+ const ui=await mountUI(createElement(MarkdownEditor,{delay:0,value:'x',onChange:(markdown:string)=>changes.push(markdown),label:'Note'}));
  try{
   const page=pageOf(ui.container),line=page.firstElementChild!;
   caretAtEnd(line);
@@ -208,4 +208,61 @@ test('paste: a lone address becomes a link, Markdown becomes blocks, plain text 
   await paste({'text/plain':'<script>alert(1)</script>'});
   assert.equal(inserted().at(-1),'&lt;script&gt;alert(1)&lt;/script&gt;','pasted text is shown, never run');
  }finally{spy.restore();await ui.close();}
+});
+
+test('typing says so at once but the page is read into Markdown only when typing pauses; a save that cannot wait reads it itself, even while the editor closes',async()=>{
+ const edits:number[]=[],changes:string[]=[];
+ const readNow={current:undefined as (()=>string)|undefined};
+ const make=()=>createElement(MarkdownEditor,{value:'hello',delay:60,onEdit:()=>edits.push(1),onChange:(markdown:string)=>changes.push(markdown),readNow,label:'Note'});
+ const ui=await mountUI(make());
+ try{
+  const page=pageOf(ui.container);
+  await type(page,()=>{page.firstElementChild!.textContent='hello w';});
+  await type(page,()=>{page.firstElementChild!.textContent='hello wo';});
+  await type(page,()=>{page.firstElementChild!.textContent='hello wor';});
+  assert.equal(edits.length,3,'every keystroke is announced');
+  assert.deepEqual(changes,[],'but the page is not read yet');
+  await act(async()=>{await new Promise(resolve=>setTimeout(resolve,120));});
+  assert.deepEqual(changes,['hello wor\n'],'one read once typing paused');
+  await type(page,()=>{page.firstElementChild!.textContent='hello world';});
+  assert.equal(readNow.current!(),'hello world\n','asked for now, it reads now');
+  assert.deepEqual(changes,['hello wor\n','hello world\n']);
+  await type(page,()=>{page.firstElementChild!.textContent='hello world!';});
+  const read=readNow.current!;
+  await ui.close();
+  assert.equal(read(),'hello world!\n','still readable after the editor is gone');
+  assert.equal(changes.at(-1),'hello world!\n','closing the editor reads what was waiting');
+ }finally{/* closed above */}
+});
+
+test('the command menu is a listbox the editor points at: the highlighted command is the active descendant',async()=>{
+ const ui=await mountUI(createElement(MarkdownEditor,{value:'x',delay:0,onChange:()=>{},label:'Note'}));
+ try{
+  const page=pageOf(ui.container),line=page.firstElementChild!;
+  assert.equal(page.getAttribute('aria-activedescendant'),null);
+  caretAtEnd(line);
+  await type(page,()=>{line.textContent='x /';caretAtEnd(line);});
+  const list=ui.container.querySelector('[role=listbox]')!;
+  assert.equal(page.getAttribute('aria-controls'),list.id);assert.equal(page.getAttribute('aria-expanded'),'true');
+  assert.equal(page.getAttribute('aria-activedescendant'),'md-slash-text');
+  assert.equal(document.getElementById('md-slash-text')?.getAttribute('aria-selected'),'true');
+  await key(page,'ArrowDown');
+  assert.equal(page.getAttribute('aria-activedescendant'),'md-slash-h1');
+  await key(page,'Escape');
+  assert.equal(page.getAttribute('aria-activedescendant'),null);
+ }finally{await ui.close();}
+});
+
+test('a link in a note never takes the app away: a plain click only places the caret',async()=>{
+ const opened:string[]=[];
+ const original=window.open;
+ window.open=((url:string)=>{opened.push(url);return null;}) as typeof window.open;
+ const ui=await mountUI(createElement(MarkdownEditor,{value:'a [site](https://example.com/x) and [bad](javascript:alert(1))',delay:0,onChange:()=>{},label:'Note'}));
+ try{
+  const page=pageOf(ui.container),anchor=page.querySelector('a')!;
+  const click=(init:MouseEventInit)=>act(async()=>{const event=new MouseEvent('click',{bubbles:true,cancelable:true,...init});anchor.dispatchEvent(event);assert.ok(event.defaultPrevented,'the browser does not follow it');});
+  await click({});assert.deepEqual(opened,[]);
+  await click({metaKey:true});assert.deepEqual(opened,['https://example.com/x']);
+  assert.equal(page.querySelectorAll('a').length,1,'an unsafe address is not made a link');
+ }finally{window.open=original;await ui.close();}
 });
