@@ -13,7 +13,7 @@ import {usePlan} from '../usePlan';
 import {STAGE_LABEL} from '../board';
 import {Board} from './Board';
 import {Foot,Header,Strip} from './Frame';
-import {nextTab,stageForContinue,tabDone,TAB_LABEL,type TabFacts} from './rules';
+import {continueIsPrimary,pickJumpsToPlan,nextTab,stageForContinue,tabDone,TAB_LABEL,type TabFacts} from './rules';
 import {originLabel} from '../routes';
 
 /**
@@ -26,7 +26,7 @@ export function Workspace({video,tab,back,navigate,onVideo}:{video:Video;tab:Vid
  const tabRoute=useCallback((next:VideoTab):Route=>({name:'video',id:video.id,tab:next}),[video.id]);
  const plan=usePlan(video,{onVideo,onRecord:()=>navigate(tabRoute('record'))});
  const scenes=useVideoScenes(video.id);
- const [focus,setFocus]=useState<number|null>(null);
+ const [focusId,setFocusId]=useState<string|null>(null);
  const [moving,setMoving]=useState(false),[moveError,setMoveError]=useState('');
 
  // Recording and editing report back through the recorder: whether every scene has a take, and whether the edit was exported.
@@ -38,9 +38,14 @@ export function Workspace({video,tab,back,navigate,onVideo}:{video:Video;tab:Vid
  const list=scenes.state.status==='ready'?scenes.state.scenes:undefined;
  const facts:TabFacts={stage:video.stage,scenes:list,allRecorded:allRecorded||undefined,exported};
 
+ // A finished outline job changes the scenes; they are read again so the strip and the tab's job follow it.
+ const outlineDone=plan.outlineJob.phase==='done';
+ useEffect(()=>{if(outlineDone)scenes.reload();},[outlineDone,scenes.reload]);
+
  useEffect(()=>{
-  if(focus!==null&&tab==='plan')requestAnimationFrame(()=>document.getElementById(sceneAnchor(focus))?.scrollIntoView?.({block:'start',behavior:'smooth'}));
- },[focus,tab]);
+  const index=list?.findIndex(scene=>scene.id===focusId)??-1;
+  if(focusId!==null&&tab==='plan'&&index>=0)requestAnimationFrame(()=>document.getElementById(sceneAnchor(index))?.scrollIntoView?.({block:'start',behavior:'smooth'}));
+ },[focusId,tab,list]);
 
  /** Moves the card to a stage, with Undo when `undoTo` is given (the stage menu). */
  const moveTo=useCallback(async(stage:VideoStage,undoTo?:VideoStage)=>{
@@ -76,17 +81,17 @@ export function Workspace({video,tab,back,navigate,onVideo}:{video:Video;tab:Vid
 
  let nextButton:{label:string;run():void;disabled:boolean;primary:boolean}|undefined;
  if(tab==='plan'){
-  nextButton=plan.continueAction?{label:plan.open==='package'?'Continue to outline':'Continue to record',run:plan.continueAction.run,disabled:plan.continueAction.disabled,primary:true}
+  nextButton=plan.continueAction?{label:plan.open==='package'?'Continue to outline':'Continue to record',run:plan.continueAction.run,disabled:plan.continueAction.disabled,primary:continueIsPrimary(tabDone('plan',facts),!plan.pkg||!plan.outline?.scenes.length)}
    :{label:plan.open==='package'?'Continue to outline':'Continue to record',run:()=>{},disabled:true,primary:false};
  }else if(next&&!unplanned&&tab!=='publish'){
-  nextButton={label:`Continue to ${TAB_LABEL[next].toLowerCase()}`,run:()=>void continueToNext(),disabled:moving,primary:tabDone(tab,facts)};
+  nextButton={label:`Continue to ${TAB_LABEL[next].toLowerCase()}`,run:()=>void continueToNext(),disabled:moving,primary:continueIsPrimary(tabDone(tab,facts),false)};
  }
 
  const backLabel=`Back to ${originLabel(back).toLowerCase()}`;
 
  return <div className="ws">
   <Header video={video} tab={tab} back={back} facts={facts} onTitle={saveTitle} onStage={stage=>void moveTo(stage,video.stage)} onTab={next=>navigate(tabRoute(next))}/>
-  <Strip tab={tab} scenes={scenes.state} focus={focus} onRetry={scenes.reload} onPick={index=>{setFocus(index);if(tab!=='plan')navigate(tabRoute('plan'));}}/>
+  <Strip scenes={scenes.state} focusId={focusId} onRetry={scenes.reload} onPick={sceneId=>{setFocusId(sceneId);if(pickJumpsToPlan(tab))navigate(tabRoute('plan'));}}/>
   {moveError&&<div className="ws-body" style={{flex:'none',padding:'8px 18px'}}><ErrorLine message={moveError} onRetry={()=>void continueToNext()}/></div>}
   <div className="ws-body" key={tab}>
    {tab==='board'&&<Board video={video} scenes={list} onDrafted={draftedNow}/>}

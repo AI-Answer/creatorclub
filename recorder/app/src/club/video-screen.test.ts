@@ -27,12 +27,12 @@ function serve(state:Server){
   if(path==='/settings')return {body:{defaultAi:'claude',welcomed:true,geminiKey:null,helpSeen:state.help}};
   if(path.startsWith('/settings/help/')){state.help.push(path.split('/').pop()!);return {body:{helpSeen:state.help}};}
   if(path==='/videos/v1/plan')return {body:{package:state.pkg,outline:state.outline}};
-  if(path==='/videos/v1/scenes')return {body:[]};
+  if(path==='/videos/v1/scenes')return {body:(state.outline?.scenes??[]).map((s,i)=>({id:s.id??`s${i}`,title:s.title,seconds:s.seconds,takes:[],status:'Not recorded'}))};
   if(path==='/videos/v1'&&method==='PUT'){state.video={...state.video,...b} as Video;return {body:state.video};}
   if(path==='/videos/v1/move'){state.video={...state.video,stage:b.stage as Video['stage']};return {body:state.video};}
   if(path==='/videos/v1/package'&&method==='POST')return {status:202,body:{id:'j-pkg',status:'running'}};
   if(path==='/videos/v1/package'&&method==='PUT'){state.pkg=b as unknown as Package;return {body:state.pkg};}
-  if(path==='/videos/v1/outline'&&method==='POST')return {status:202,body:{id:'j-outline',status:'running'}};
+  if(path==='/videos/v1/outline'&&method==='POST'){state.outline=outline;return {status:202,body:{id:'j-outline',status:'running'}};}
   if(path==='/videos/v1/outline'&&method==='PUT'){state.outline=b as unknown as Outline;return {body:state.outline};}
   if(path==='/videos/v1/recorder'){state.video={...state.video,stage:'recording',recorderProjectId:'p1',planning:{...state.video.planning,outline:true}};return {body:state.video};}
  });
@@ -60,7 +60,7 @@ test('a video walks from Package through Create outline into recording',async()=
   const firstTitle=c.querySelector<HTMLInputElement>('input[value="Claude Code features you missed"]');
   assert.ok(firstTitle,'the package fills editable fields');
   await type(firstTitle!,'Claude Code features nobody uses');
-  assert.deepEqual(primaries(c),['Continue to outline']);
+  assert.deepEqual(primaries(c),[],'Continue is primary only once the outline is done, as in the prototype');
   await act(async()=>button(c,'Continue to outline').click());await flush();
   assert.equal(state.pkg?.titles[0],'Claude Code features nobody uses','edits are saved before moving on');
   assert.equal(state.video.planning.package,true);
@@ -68,7 +68,7 @@ test('a video walks from Package through Create outline into recording',async()=
   assert.ok(hasText(c,"Turn this into scenes. You'll talk through each one when you record."));
   assert.deepEqual(primaries(c),['Create outline']);
   await act(async()=>button(c,'Create outline').click());await flush();
-  await act(async()=>FakeEventSource.last().emit('done',{value:outline}));
+  await act(async()=>FakeEventSource.last().emit('done',{value:outline}));await flush();
   assert.equal(c.querySelectorAll('ol[aria-label="Scenes"] > li').length,4,'four scene cards in the outline');
   assert.ok(button(c,'Write full script instead'));
   await type(c.querySelector('input[aria-label="Scene 2 title"]')!,'Level 1: settings');

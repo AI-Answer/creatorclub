@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {clockTime} from '../video-plan';
-import {nextTab,previousTab,scenesLine,stageForContinue,tabDone,allScenesKept} from './rules';
+import {nextTab,previousTab,scenesLine,stageForContinue,tabDone,allScenesKept,continueIsPrimary,pickJumpsToPlan} from './rules';
 import {canvasSize,clampZoom,dragTo,keyMove,moveBy,tileBox} from './board-layout';
 import {historyOf,markUsed,noteText,undoRequest} from './chat';
 
@@ -18,8 +18,8 @@ test('a tab is done when its job is: scenes for Board, kept takes for Record, an
  const kept=[{takes:[{id:'a',seconds:1,kept:true}]}],unkept=[{takes:[{id:'a',seconds:1,kept:false}]}];
  assert.equal(tabDone('board',{stage:'ideas'}),false);
  assert.equal(tabDone('board',{stage:'ideas',scenes:kept}),true);
- assert.equal(tabDone('plan',{stage:'planning',scenes:kept}),false,'Plan waits for the card to reach recording');
- assert.equal(tabDone('plan',{stage:'recording',scenes:kept}),true);
+ assert.equal(tabDone('plan',{stage:'planning'}),false,'no outline yet');
+ assert.equal(tabDone('plan',{stage:'planning',scenes:kept}),true,'the outline is the job of Plan');
  assert.equal(tabDone('record',{stage:'recording',scenes:[...kept,...unkept]}),false);
  assert.equal(tabDone('record',{stage:'recording',scenes:kept}),true);
  assert.equal(tabDone('record',{stage:'recording',scenes:[],allRecorded:true}),true,'the recorder says so before the scenes are read again');
@@ -69,4 +69,15 @@ test('Ask Claude: history is the last twelve turns, used items are marked once, 
 test('a reply copied to the Board is its words, then each item on a line',()=>{
  assert.equal(noteText(' Three openings. ',[{text:'One'},{text:'Two'}]),'Three openings.\n• One\n• Two');
  assert.equal(noteText('Just words',[]),'Just words');
+});
+
+test('Continue is primary only when the tab is done and no other primary is waiting on the tab',()=>{
+ assert.equal(continueIsPrimary(true,false),true);
+ assert.equal(continueIsPrimary(true,true),false,'the tab has its own primary button');
+ assert.equal(continueIsPrimary(false,false),false,'not done yet');
+});
+
+test('picking a scene jumps to Plan only from the Board; elsewhere it focuses the scene in place',()=>{
+ assert.equal(pickJumpsToPlan('board'),true);
+ for(const tab of ['plan','record','edit','publish'] as const)assert.equal(pickJumpsToPlan(tab),false,tab);
 });

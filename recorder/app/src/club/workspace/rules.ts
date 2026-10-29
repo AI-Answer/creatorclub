@@ -35,14 +35,14 @@ export interface TabFacts{
 export const allScenesKept=(scenes:readonly Pick<VideoScene,'takes'>[]|undefined)=>!!scenes?.length&&scenes.every(scene=>scene.takes.some(take=>take.kept));
 
 /**
- * Whether the tab's own job is done. Board and Plan: there are scenes (Plan once the video moved on to recording). Record: every scene has a kept take.
+ * Whether the tab's own job is done. Board and Plan: there are scenes. Record: every scene has a kept take.
  * Edit: the edit was exported, or the video moved on to publishing. Publish: it is published.
  */
 export function tabDone(tab:VideoTab,{stage,scenes,allRecorded,exported}:TabFacts):boolean{
  const hasScenes=!!scenes?.length;
  switch(tab){
   case 'board':return hasScenes;
-  case 'plan':return hasScenes&&stageReached(stage,'recording');
+  case 'plan':return hasScenes;
   case 'record':return !!allRecorded||allScenesKept(scenes);
   case 'edit':return !!exported||stageReached(stage,'publishing');
   case 'publish':return stage==='published';
@@ -51,6 +51,9 @@ export function tabDone(tab:VideoTab,{stage,scenes,allRecorded,exported}:TabFact
 
 /** Continue is the primary button only once the tab's job is done and the tab has no primary of its own still waiting (one primary per view). */
 export const continueIsPrimary=(done:boolean,ownPrimary:boolean)=>done&&!ownPrimary;
+
+/** Picking a scene in the strip only jumps to Plan from the Board, as in the prototype; on any other tab it focuses the scene there. */
+export const pickJumpsToPlan=(tab:VideoTab)=>tab==='board';
 
 /** "5 scenes · 4:30", "1 scene · 0:45". */
 export function scenesLine(scenes:readonly Pick<VideoScene,'seconds'>[],clock:(seconds:number)=>string):string{
