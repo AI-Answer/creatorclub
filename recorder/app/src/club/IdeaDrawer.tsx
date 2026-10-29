@@ -3,7 +3,7 @@ import type {Breakdown,Video} from '../../shared/club';
 import {clubFetch} from './api';
 import {IdeaActions,type IdeaActionSet} from './cards/IdeaCard';
 import {ytThumb} from './format';
-import {LEVEL_WORD,ideaSourceVideoId} from './ideas';
+import {LEVEL_WORD,ideaSourceVideoId,isTimely} from './ideas';
 import {Drawer,Ed,Icon,Level,StagePill,Thumb} from './ui';
 import {youtubeId} from './board';
 
@@ -30,7 +30,7 @@ export function IdeaDrawer({video,actions,onClose,onRemove}:{video:Video;actions
  const ratings=[['Demand','demand',notes.demand],['Gap','gap',notes.gap],['Easy to show','show',notes.show]] as const;
  const remove=<button type="button" className="btn ghost sm" onClick={()=>onRemove(video)}><Icon name="Trash2" size={14}/>Delete</button>;
  return <Drawer onClose={onClose} label={video.title}
-  header={<div className="row"><StagePill stage={video.stage}/></div>}
+  header={<div className="row"><StagePill stage={video.stage}/>{isTimely(video)&&<span className="chip b-amber">Timely</span>}</div>}
   footer={video.hidden
    ?<><IdeaActions video={video} actions={actions}/><span className="grow"/>{remove}</>
    :<><button type="button" className="btn ghost sm" onClick={()=>{void actions.later(video);onClose();}}><Icon name="Bookmark" size={14}/>Later</button>{remove}<span className="grow"/>

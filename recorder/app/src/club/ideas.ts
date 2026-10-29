@@ -45,3 +45,6 @@ const YOUTUBE_ID=/^[\w-]{11}$/;
 export const breakdownUrl=(bd:string)=>YOUTUBE_ID.test(bd)?`https://www.youtube.com/watch?v=${bd}`:bd;
 
 export const LEVEL_WORD:Record<ConceptLevel,string>={high:'High',mid:'Medium',low:'Low'};
+
+/** An idea is timely when its lane says so ("timely", or "both" for one that is timely and evergreen). */
+export const isTimely=(video:Pick<Video,'idea'>)=>video.idea?.lane==='timely'||video.idea?.lane==='both';

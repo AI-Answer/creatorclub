@@ -1,5 +1,5 @@
 import type {TrendingEntry,Video} from '../../../shared/club';
-import {ideaLead,ideaSourceVideoId} from '../ideas';
+import {ideaLead,ideaSourceVideoId,isTimely} from '../ideas';
 import {creatorName} from '../format';
 import {Icon,Level,Menu,MultChip,Thumb} from '../ui';
 import {SKIP_REASONS} from '../ideas';
@@ -30,7 +30,7 @@ export function IdeaCard({video,trend,highlight,actions,onOpen}:{video:Video;tre
    {highlight&&<span className="chip b-blue" style={{position:'absolute',top:8,right:8}}>New</span>}
   </Thumb>
   <div className="body">
-   {video.idea?.dropReason&&<div className="row" style={{gap:6}}><span className="chip">Skipped · {video.idea.dropReason}</span></div>}
+   {(isTimely(video)||video.idea?.dropReason)&&<div className="row" style={{gap:6}}>{isTimely(video)&&<span className="chip b-amber">Timely</span>}{video.idea?.dropReason&&<span className="chip">Skipped · {video.idea.dropReason}</span>}</div>}
    <div className="tt">{video.title}</div>
    {lead&&(lead.kind==='hook'?<div className="hookq clamp3">{lead.text}</div>:<div className="why clamp3">{lead.text}</div>)}
    <div className="sigs"><Level label="Demand" d={video.idea?.demand}/><Level label="Gap" d={video.idea?.gap}/><Level label="Easy to show" d={video.idea?.show}/></div>

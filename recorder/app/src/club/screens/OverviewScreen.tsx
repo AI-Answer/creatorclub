@@ -78,6 +78,7 @@ export function OverviewScreen({navigate,onNewVideo}:{navigate(route:Route):void
    <div>
     <div className="sec-head"><h2 className="sec"><Icon name="TrendingUp" size={16}/>Working now</h2><span className="faint small">Outliers in your space this week</span>{!!trending?.items.length&&<button type="button" className="linkish more" onClick={()=>navigate({name:'trending'})}>See all {trending.items.length}</button>}</div>
     {loading(trendingFeed)||trendingFeed.seeding?<Spinner label="Loading what's working" size={18}/>
+     :trendingFeed.loadError&&!trending?<ErrorLine message={trendingFeed.loadError} onRetry={trendingFeed.reload}/>
      :topPicks.length
      ?<div className="grid g3">{topPicks.slice(0,6).map(item=><TrendCard key={item.videoId} item={item} reason={item.reason} compact onBreak={setBreakdown}/>)}</div>
      :<div className="card"><Empty icon="TrendingUp" title={trending?.followed===0?'No channels followed yet':'Nothing about your topics yet'} action={<button type="button" className="btn" onClick={()=>navigate({name:'trending'})}>Open Working now</button>}>{trending?.followed===0?'Follow channels in Settings. The videos beating their usual views show up here.':'Refresh Working now to read the channels you follow.'}</Empty></div>}
@@ -98,6 +99,7 @@ export function OverviewScreen({navigate,onNewVideo}:{navigate(route:Route):void
      :<div className="card"><Empty icon="Lightbulb" title="No ideas yet">Break down one of the videos that's working and keep the concept you'd make.</Empty></div>}
     <div className="sec-head"><h2 className="sec">Latest signals</h2><button type="button" className="linkish more" onClick={()=>navigate({name:'signals'})}>All signals</button></div>
     {loading(signalsFeed)?<Spinner label="Loading the posts" size={18}/>
+     :signalsFeed.loadError&&!signals?<ErrorLine message={signalsFeed.loadError} onRetry={signalsFeed.reload}/>
      :latest.length
      ?<div className="card list-card">{latest.map(post=><div key={post.id} className="li" style={{alignItems:'flex-start'}} onClick={()=>navigate({name:'signals'})}>
       <SourceIcon source={post.source}/>

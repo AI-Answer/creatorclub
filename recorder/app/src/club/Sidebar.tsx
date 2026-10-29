@@ -83,8 +83,8 @@ function ChannelSwitcher({collapsed,epoch,onSwitched,onAdd}:{collapsed:boolean;e
  const name=current?.name??'';
  const items:MenuItem[]=[{header:'Channels'},...(channels?.workspaces??[]).map(workspace=>({label:workspace.name,check:workspace.slug===channels?.current,fn:()=>choose(workspace.slug)})),'-',{label:'Add a channel',icon:'Plus',fn:onAdd}];
  return <Menu width={240} label="Channels" items={items} button={toggle=><button type="button" className="channel-btn" onClick={toggle} disabled={!channels} title={collapsed?name:undefined} aria-label="Switch channel" aria-haspopup="menu">
-  <Avatar name={name} size="lg" sq/>
-  <span className="meta"><div className="name ellipsis">{name}</div><div className="sub">{current?.handle||'Starting fresh'}</div></span>
+  {channels?<Avatar name={name} size="lg" sq/>:<span aria-hidden style={{width:38,height:38,flex:'none',borderRadius:10,background:'var(--cc-bg-sunk)'}}/>}
+  <span className="meta"><div className="name ellipsis">{name}</div><div className="sub">{channels?(current?.handle||'Starting fresh'):''}</div></span>
   <Icon name="ChevronsUpDown" size={15} className="chev faint"/>
  </button>}/>;
 }

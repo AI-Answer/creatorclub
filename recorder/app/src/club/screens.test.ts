@@ -30,7 +30,7 @@ const breakdown=(over:Partial<Breakdown>={}):Breakdown=>({
 });
 
 type Server={
- videos:Video[];recent:string[];trending:{items:TrendingEntry[];updatedAt:string|null;followed:number};signals:{items:SignalEntry[];updatedAt:string|null;errors:string[];sources?:number};
+ failTrending?:boolean;videos:Video[];recent:string[];trending:{items:TrendingEntry[];updatedAt:string|null;followed:number};signals:{items:SignalEntry[];updatedAt:string|null;errors:string[];sources?:number};
  breakdowns:BreakdownSummary[];saved:Record<string,Breakdown>;workspace:Workspace;projects:{id:string;sceneCount:number;recordedSceneCount:number}[];outlines:Record<string,number>;
  jobs:string[];
 };
@@ -43,7 +43,7 @@ const serve=(s:Server)=>(call:FakeCall):FakeReply=>{
  if(path==='/videos'&&method==='POST'){const created=base('new1',(body as {title:string}).title,'ideas');s.videos=[...s.videos,created];return {status:201,body:created};}
  if(path==='/recent')return {body:s.recent};
  if(path==='/workspaces')return {body:{current:s.workspace.slug,workspaces:[s.workspace]}};
- if(path==='/trending')return {body:s.trending};
+ if(path==='/trending')return s.failTrending?{status:500,body:{error:"Couldn't load what's working now."}}:{body:s.trending};
  if(path==='/signals')return {body:s.signals};
  if(path==='/breakdowns'&&method==='GET')return {body:s.breakdowns};
  if(path==='/breakdowns'&&method==='POST'){s.jobs.push(`j${s.jobs.length+1}`);return {status:202,body:{id:`j${s.jobs.length}`,status:'running'}};}
@@ -403,12 +403,12 @@ test('Working now: For you, Followed and All with counts, a chip legend, reasons
  });
 });
 
-test('Working now sorts by views per day, total views or growth',async()=>{
+test('Working now sorts by views per day, total views or outlier score',async()=>{
  await mount(navigate=>createElement(TrendingScreen,{navigate}),trendServer(),async ui=>{
   const c=ui.container,select=c.querySelector('#sortby')!;
-  assert.deepEqual([...select.querySelectorAll('option')].map(o=>o.textContent),['Views per day','Total views','Growth']);
+  assert.deepEqual([...select.querySelectorAll('option')].map(o=>o.textContent),['Views per day','Total views','Outlier score']);
   await choose(select,'views');assert.deepEqual(cards(c),['Claude Code in 20 minutes','Agents that run a shop'],'videos known to beat their usual come first, then those with no usual known');
-  await choose(select,'growth');assert.deepEqual(cards(c),['Claude Code in 20 minutes','Agents that run a shop'],'30,000 views gained in a day, against none known');
+  await choose(select,'outlier');assert.deepEqual(cards(c),['Claude Code in 20 minutes','Agents that run a shop'],'6.4× its usual, against no usual known');
  });
 });
 
@@ -800,4 +800,25 @@ test('For you never lists a video under its creator\'s usual; it waits under Sho
  assert.deepEqual(trendList(items,'fit','vpd').map(i=>i.title),['Above','Exactly','Unknown']);
  assert.deepEqual(trendList(items,'all','vpd').map(i=>i.title),['Below','Unknown','Above','Exactly']);
  assert.equal(trendCounts(items).fit,3);
+});
+
+test('an idea whose lane is timely or both shows the Timely chip; an evergreen one does not',async()=>{
+ const timely=[base('i1','Claude news','ideas',{idea:{lane:'timely'}}),base('i2','Both kinds','ideas',{idea:{lane:'both'}}),base('i3','Always useful','ideas',{idea:{lane:'evergreen'}})];
+ await mount(navigate=>createElement(IdeasScreen,{route:{name:'ideas'},navigate}),server({videos:timely}),async ui=>{
+  const chips=(id:string)=>texts(ui.container.querySelector(`#idea-${id}`)!,'.chip.b-amber');
+  assert.deepEqual([chips('i1'),chips('i2'),chips('i3')],[['Timely'],['Timely'],[]]);
+ });
+});
+
+test('Overview shows the error and Try again when Working now fails to load, not "Nothing about your topics yet"',async()=>{
+ const s=server({failTrending:true,videos:overviewVideos()});
+ await mount(navigate=>createElement(OverviewScreen,{navigate,onNewVideo(){}}),s,async (ui)=>{
+  const c=ui.container;
+  assert.equal(text(c.querySelector('[role="alert"] p')),"Couldn't load what's working now.");
+  assert.ok(button(c,'Try again'));
+  assert.ok(!text(c).includes('Nothing about your topics yet'));
+  s.failTrending=false;
+  await press(button(c,'Try again'));
+  assert.equal(c.querySelector('[role="alert"]'),null);
+ });
 });

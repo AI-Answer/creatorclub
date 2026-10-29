@@ -177,7 +177,7 @@ test('search sends an idea to Ideas and any other video to the tab for its stage
  assert.equal(paletteOptions(Array.from({length:60},(_,n)=>video(`v${n}`,`Video ${n}`,'ideas')),'video').length,40,'at most forty results');
 });
 
-test('New video: a link opens Break down in Ideas, a title creates a real video and opens its Board',async()=>{
+test('New video: a link opens Break down in Ideas, a title creates a real video and lands on Ideas',async()=>{
  await withApp('#/overview',async (ui,server,calls)=>{
   const c=ui.container;
   await keyDown(window,'k',{metaKey:true});
@@ -211,7 +211,7 @@ test('New video: a link opens Break down in Ideas, a title creates a real video 
   await type(dialog()!.querySelector('input')!,'  Claude does my taxes  ');
   await press(button(dialog()!,'Add idea'));
   assert.deepEqual(calls.filter(call=>call.method==='POST'&&call.path==='/videos').map(call=>call.body),[{title:'Claude does my taxes'}]);
-  assert.equal(dialog(),null);assert.equal(window.location.hash,'#/video/new1/board');
+  assert.equal(dialog(),null);assert.equal(window.location.hash,'#/ideas?new=new1','a title lands on Ideas with the new idea highlighted');
   assert.ok(server.videos.some(v=>v.id==='new1'));
  });
 });
@@ -329,4 +329,24 @@ test('with no channel every screen shows one friendly state whose button opens W
   assert.equal(window.location.hash,'#/welcome?step=2');
   assert.match(c.textContent!,/Step 2 of 4/);
  },{workspaces:[],current:null});
+});
+
+test('before the channels load the switcher shows a neutral skeleton, never the "Starting fresh" placeholder with a "?" avatar',async()=>{
+ let release:()=>void=()=>{};
+ const gate=new Promise<void>(resolve=>{release=resolve;});
+ FakeEventSource.install();
+ const inner=serve({videos,workspaces:[ws('samin','Samin Yasar')],current:'samin',welcomed:true});
+ const fake=installFetch(async call=>{if(call.path==='/workspaces'&&call.method==='GET')await gate;return inner(call);});
+ window.location.hash='#/ideas';
+ const ui=await mountUI(createElement(ClubApp));
+ try{
+  await flush();
+  const button=ui.container.querySelector('.channel-btn');
+  if(button){
+   assert.ok(!button.textContent!.includes('Starting fresh'));
+   assert.ok(!button.textContent!.includes('?'));
+  }
+  release();await flush();await flush();
+  assert.match(ui.container.querySelector('.channel-btn')!.textContent!,/Samin Yasar@samin/);
+ }finally{release();await ui.close();fake.restore();window.location.hash='';}
 });

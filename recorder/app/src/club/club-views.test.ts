@@ -108,15 +108,15 @@ test('unknown scenes are not zero scenes: only the stage is said until they are 
 
 test('Working now: For you, Followed and All, three sorts, growth per day and New',()=>{
  const items=[
-  trend('a',{vpd:1000,views:5000,history:[{d:'2026-10-26',v:3000},{d:'2026-10-28',v:5000}]}),
-  trend('b',{vpd:500,views:90000,kind:'creator',history:[{d:'2026-10-27',v:80000},{d:'2026-10-28',v:90000}]}),
+  trend('a',{mult:2,vpd:1000,views:5000,history:[{d:'2026-10-26',v:3000},{d:'2026-10-28',v:5000}]}),
+  trend('b',{mult:6.4,vpd:500,views:90000,kind:'creator',history:[{d:'2026-10-27',v:80000},{d:'2026-10-28',v:90000}]}),
   trend('c',{vpd:900,views:100,fit:false,reason:null,history:[{d:'2026-10-28',v:100}]}),
-  trend('d',{vpd:200,views:7000,history:[{d:'2026-10-20',v:100},{d:'2026-10-27',v:6000}]}),
+  trend('d',{mult:null,vpd:200,views:7000,history:[{d:'2026-10-20',v:100},{d:'2026-10-27',v:6000}]}),
  ];
- const ids=(show:'fit'|'followed'|'all',sort:'vpd'|'views'|'growth')=>trendList(items,show,sort).map(i=>i.videoId);
+ const ids=(show:'fit'|'followed'|'all',sort:'vpd'|'views'|'outlier')=>trendList(items,show,sort).map(i=>i.videoId);
  assert.deepEqual(ids('fit','vpd'),['a','b','d']);assert.deepEqual(ids('followed','vpd'),['a','c','d']);assert.deepEqual(ids('all','vpd'),['a','c','b','d']);
  assert.deepEqual(ids('all','views'),['b','d','a','c']);
- assert.deepEqual(ids('fit','growth'),['b','a','d'],'10,000 a day, then 1,000, then 842');
+ assert.deepEqual(ids('fit','outlier'),['b','a','d'],'by how far each beats its creator\'s usual; no usual comes last');
  assert.deepEqual(trendCounts(items),{fit:3,followed:3,all:4});assert.equal(offTopic(items),1);
  assert.equal(growthPerDay(items[0]),1000);assert.equal(growthPerDay(items[1]),10000);assert.equal(growthPerDay(items[2]),0,'one reading is no growth');
  assert.equal(Math.round(growthPerDay(items[3])),843);assert.equal(growthPerDay(trend('x',{history:[{d:'2026-10-28',v:50},{d:'2026-10-28',v:80}]})),30,'two readings the same day count as one day');

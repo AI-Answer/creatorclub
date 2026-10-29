@@ -2,8 +2,8 @@ import type {TrendingEntry,TrendingResponse} from '../../shared/club';
 
 /** The three lists on Working now. */
 export type TrendShow='fit'|'followed'|'all';
-export type TrendSort='vpd'|'views'|'growth';
-export const TREND_SORTS:ReadonlyArray<readonly [TrendSort,string]>=[['vpd','Views per day'],['views','Total views'],['growth','Growth']];
+export type TrendSort='vpd'|'views'|'outlier';
+export const TREND_SORTS:ReadonlyArray<readonly [TrendSort,string]>=[['vpd','Views per day'],['views','Total views'],['outlier','Outlier score']];
 
 const DAY_MS=86_400_000;
 
@@ -26,7 +26,7 @@ export const offTopic=(items:readonly TrendingEntry[])=>items.filter(i=>!qualifi
 /** The videos to show for a list and a sort. */
 export function trendList(items:readonly TrendingEntry[],show:TrendShow,sort:TrendSort):TrendingEntry[]{
  const list=items.filter(i=>show==='all'||(show==='fit'?qualifies(i):i.kind==='followed'));
- list.sort((a,b)=>sort==='views'?b.views-a.views:sort==='growth'?growthPerDay(b)-growthPerDay(a)||b.vpd-a.vpd:b.vpd-a.vpd);
+ list.sort((a,b)=>sort==='views'?b.views-a.views:sort==='outlier'?(b.mult??-1)-(a.mult??-1)||b.vpd-a.vpd:b.vpd-a.vpd);
  // Videos known to beat their creator's usual come first; those with no usual known follow.
  return show==='fit'?[...list.filter(i=>i.mult!==null),...list.filter(i=>i.mult===null)]:list;
 }
