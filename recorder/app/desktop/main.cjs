@@ -170,7 +170,7 @@ app.whenReady().then(async()=>{
  ipcMain.handle('choose-capture-source',(e,options)=>captureManager.choose(e,options));
  ipcMain.handle('restore-capture-source',(e,selection)=>captureManager.restore(e,selection));
  ipcMain.handle('cancel-capture-selection',(e,token)=>captureManager.cancel(e,token));
- recordingHud=createRecordingHud({preferencesPath:path.join(app.getPath('userData'),'recording-island.json'),BrowserWindow,ipcMain,screen,getMainWindow:()=>mainWindow,verifyMain:verifyDesktopSender,onMainVisibility:publishMainVisibility});
+ recordingHud=createRecordingHud({preferencesPath:path.join(app.getPath('userData'),'recording-island.json'),defaultLayout:{camera:false,script:true},appName,BrowserWindow,ipcMain,screen,getMainWindow:()=>mainWindow,verifyMain:verifyDesktopSender,onMainVisibility:publishMainVisibility});
  captureBorder=createCaptureBorder({BrowserWindow});
  nativeRecording=createNativeRecordingManager({ipcMain,getMainWindow:()=>mainWindow,origin:base,dataDir:paths.studio,onState:event=>{captureBorder.update(event);keepAwakeWhileRecording(event.type);},onPrepare:event=>{if(event.recordVideo)captureBorder.prewarm();}});
  const verify=(e)=>{if(!trusted(e.senderFrame.url))throw new Error('Untrusted window');};
