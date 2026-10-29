@@ -6,7 +6,7 @@ import {clockTime,linkHost} from '../video-plan';
 import {youtubeId} from '../board';
 import {ErrorLine} from '../ErrorLine';
 import {creatorName,fmtDays,fmtNum} from '../format';
-import {Avatar,Icon,MultChip,SourceIcon,Spinner,Thumb,type IconName} from '../ui';
+import {Avatar,Icon,Level,MultChip,SourceIcon,Spinner,Thumb,type IconName} from '../ui';
 import type {Reading} from './useBoard';
 
 /** The picture a tile shows: a video's thumbnail, or the tile's own saved file. */
@@ -41,6 +41,7 @@ export function TileBody(props:TileBodyProps){
   case 'link':return <LinkTile {...props}/>;
   case 'image':return <ImageTile {...props}/>;
   case 'text':return <TextTile {...props}/>;
+  case 'idea':return <IdeaTile {...props}/>;
  }
 }
 
@@ -49,6 +50,18 @@ function NoteTile({tile,onRemove,onSaveText}:TileBodyProps){
   <TileHead icon="StickyNote" label="Note" onRemove={onRemove}/>
   <div className="tb"><textarea defaultValue={tile.text??''} autoFocus={!tile.text} placeholder="Write a note…" aria-label="Note" rows={Math.min(14,Math.max(3,Math.ceil((tile.text??'').length/34)))}
    onBlur={event=>onSaveText(event.target.value)}/></div>
+ </>;
+}
+
+/** "The idea": why it could work and how it was rated, from the idea the video started as. */
+function IdeaTile({tile,onRemove}:TileBodyProps){
+ const {meta}=tile,ratings=[['Demand',meta.demand],['Gap',meta.gap],['Easy to show',meta.show]] as const;
+ return <>
+  <TileHead icon="Lightbulb" label="The idea" onRemove={onRemove}/>
+  <div className="tb">
+   {tile.text&&<p style={{margin:'0 0 10px',fontSize:13.5,lineHeight:1.5}}>{tile.text}</p>}
+   <div style={{display:'flex',flexDirection:'column',gap:6}}>{ratings.map(([label,rating])=>rating&&<div key={label}><Level label={label} d={rating}/>{rating.note&&<div className="small muted" style={{marginTop:2}}>{rating.note}</div>}</div>)}</div>
+  </div>
  </>;
 }
 

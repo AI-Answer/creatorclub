@@ -107,7 +107,7 @@ export function Workspace({video,tab,back,navigate,onVideo}:{video:Video;tab:Vid
 
  return <div className="ws">
   <Header video={video} tab={tab} back={back} facts={facts} onTitle={saveTitle} onStage={stage=>void moveTo(stage,video.stage)} onTab={next=>navigate(tabRoute(next))}/>
-  <Strip scenes={scenes.state} focusId={focusId} onRetry={scenes.reload} onPick={sceneId=>{setFocusId(sceneId);setPickN(n=>n+1);if(pickJumpsToPlan(tab))navigate(tabRoute('plan'));}}/>
+  <Strip scenes={scenes.state} focusId={focusId} tab={tab} onRetry={scenes.reload} onPick={sceneId=>{setFocusId(sceneId);setPickN(n=>n+1);if(pickJumpsToPlan(tab))navigate(tabRoute('plan'));}}/>
   {moveError&&<div className="ws-body" style={{flex:'none',padding:'8px 18px'}}><ErrorLine message={moveError} onRetry={()=>void continueToNext()}/></div>}
   <div className="ws-body" key={tab}>
    {tab==='board'&&<Board video={video} scenes={list} onDrafted={draftedNow}/>}

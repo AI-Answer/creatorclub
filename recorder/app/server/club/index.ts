@@ -114,6 +114,7 @@ const signalsConfigBody = z.object({
 const signalIdeaBody = z.object({ id: z.string().min(1).max(100) }).strict();
 const trendingIdeaBody = z.object({ videoId: z.string().regex(/^[\w-]{6,20}$/) }).strict();
 
+const ratingShape = z.object({ level: z.enum(['high', 'mid', 'low']), note: z.string().max(2000) }).strict();
 const tileMeta = z
   .object({
     views: z.number(),
@@ -128,6 +129,9 @@ const tileMeta = z
     author: z.string().max(200),
     replies: z.number(),
     breakdownId: z.string().regex(/^bd_[a-f0-9]{12}$/),
+    demand: ratingShape,
+    gap: ratingShape,
+    show: ratingShape,
   })
   .partial()
   .strict();
@@ -435,13 +439,18 @@ export function clubRouter({ ai = {}, transcribe, runAI, readViews = ytDlpViews(
   }));
 
   // ---- research tiles
-  router.get('/videos/:id/research', handler(async (req, res) => res.json(await store.listPlacedTiles(await requireWorkspace(), param(req, 'id')))));
+  router.get('/videos/:id/research', handler(async (req, res) => {
+    const slug = await requireWorkspace();
+    const id = param(req, 'id');
+    await store.seedIdeaTiles(slug, id);
+    res.json(await store.listPlacedTiles(slug, id));
+  }));
   router.post('/videos/:id/research', upload.single('file'), handler(async (req, res) => {
     const slug = await requireWorkspace();
     const body = newTileBody.parse(req.body);
     const file = req.file ? { name: req.file.originalname, data: req.file.buffer } : undefined;
     // A note can be added empty: it lands on the Board ready to be written in.
-    const needs = { link: body.url, video: body.url, text: body.text, note: true, image: file ?? body.url, signal: body.text, breakdown: body.meta?.breakdownId }[body.kind];
+    const needs = { link: body.url, video: body.url, text: body.text, note: true, image: file ?? body.url, signal: body.text, breakdown: body.meta?.breakdownId, idea: body.text }[body.kind];
     if (!needs) throw new ClubError(body.kind === 'text' ? 'Add some text first.' : body.kind === 'signal' ? 'Add the post first.' : body.kind === 'breakdown' ? 'Pick a breakdown first.' : 'Add a link or a file first.');
     if (body.kind === 'breakdown') await readBreakdown(slug, body.meta!.breakdownId!);
     res.status(201).json(await store.addTile(slug, param(req, 'id'), { ...body, file }));

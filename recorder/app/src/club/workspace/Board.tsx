@@ -6,7 +6,7 @@ import {Button,Dialog,Icon,Spinner,cn,useToast} from '../ui';
 import {tileFromText} from '../video-plan';
 import {recordedCount} from '../scene-status';
 import {toProgress} from '../scenes';
-import {ZOOM,canvasSize,clampZoom,dragTo,keyMove,moveBy,tileBox} from './board-layout';
+import {ZOOM,canvasSize,clampZoom,dragTo,keyMove,moveBy,nearestFree,tileBox} from './board-layout';
 import {BoardTip} from './BoardTip';
 import {ChatPanel} from './ChatPanel';
 import {TileBody} from './TileBody';
@@ -39,7 +39,7 @@ export function Board({video,scenes,onDrafted}:{video:Video;scenes:readonly Vide
  const toast=useToast();
  const [zoom,setZoom]=useState(1),[sel,setSel]=useState<string|null>(null),[dragId,setDragId]=useState<string|null>(null);
  const [chat,setChat]=useState(false),[linkOpen,setLinkOpen]=useState(false),[link,setLink]=useState('');
- const [tip,setTip]=useState<null|'first'|'again'>(null);
+ const [tip,setTip]=useState<null|'first'|'again'>(null),[fresh,setFresh]=useState<string|null>(null);
  const [breakdown,setBreakdown]=useState<string|null>(null);
  const scroller=useRef<HTMLDivElement>(null),fileInput=useRef<HTMLInputElement>(null);
  const dragging=useRef<{id:string;sx:number;sy:number;x:number;y:number}|null>(null);
@@ -78,14 +78,30 @@ export function Board({video,scenes,onDrafted}:{video:Video;scenes:readonly Vide
   const tile=tiles!.find(item=>item.id===tileId);if(!tile)return;
   board.place(tileId,moveBy(tileBox(tile),move),'soon');
  };
- const addNote=async(text='')=>{const tile=await board.add({kind:'note',text});if(tile)setSel(tile.id);};
+ const tilesNow=useRef(tiles);tilesNow.current=tiles;
+ /** Adds a tile where the person is looking: the free place nearest the middle of the view (clear of the chat panel), scrolled to and marked for a moment. */
+ const addHere=async(body:Parameters<typeof board.add>[0])=>{
+  const tile=await board.add(body);
+  const view=scroller.current;
+  if(!tile||!view)return tile;
+  const width=view.clientWidth-(chat?398:0);
+  const centre={x:(view.scrollLeft+width/2)/zoom,y:(view.scrollTop+view.clientHeight/2)/zoom};
+  const box=tileBox(tile);
+  const others=(tilesNow.current??[]).filter(other=>other.id!==tile.id).map(tileBox);
+  const spot=nearestFree(others,box.w,centre);
+  if(spot.x!==box.x||spot.y!==box.y)board.place(tile.id,spot,'now');
+  setSel(tile.id);setFresh(tile.id);setTimeout(()=>setFresh(current=>current===tile.id?null:current),1600);
+  view.scrollTo?.({left:Math.max(0,(spot.x+box.w/2)*zoom-width/2),top:Math.max(0,(spot.y+190)*zoom-view.clientHeight/2),behavior:'smooth'});
+  return tile;
+ };
+ const addNote=async(text='')=>{await addHere({kind:'note',text});};
  const submitLink=async(event:FormEvent)=>{
   event.preventDefault();
   const text=link.trim();if(!text)return;
-  if(!(await addFromText(board.add,text))){toast("Couldn't add that.");return;}
+  if(!(await addFromText(addHere,text))){toast("Couldn't add that.");return;}
   setLink('');setLinkOpen(false);toast(tileFromText(text)?.kind==='video'?'Added the video to the board':'Added the link to the board');
  };
- const addImage=(file:File)=>{const form=new FormData();form.append('kind','image');form.append('title',file.name);form.append('file',file);return board.add(form);};
+ const addImage=(file:File)=>{const form=new FormData();form.append('kind','image');form.append('title',file.name);form.append('file',file);return addHere(form);};
  const takeFiles=(files:File[])=>{
   const images=files.filter(isImage);
   if(!images.length){toast(NOT_SUPPORTED);return;}
@@ -96,14 +112,14 @@ export function Board({video,scenes,onDrafted}:{video:Video;scenes:readonly Vide
   const files=[...event.clipboardData.files];
   if(files.length){event.preventDefault();takeFiles(files);return;}
   const text=event.clipboardData.getData('text/plain');
-  if(text.trim()){event.preventDefault();void addFromText(board.add,text);}
+  if(text.trim()){event.preventDefault();void addFromText(addHere,text);}
  };
  const drop=(event:DragEvent<HTMLDivElement>)=>{
   event.preventDefault();
   const files=[...event.dataTransfer.files];
   if(files.length){takeFiles(files);return;}
   const text=event.dataTransfer.getData('text/uri-list').split('\n').find(line=>line&&!line.startsWith('#'))||event.dataTransfer.getData('text/plain');
-  if(text.trim())void addFromText(board.add,text);
+  if(text.trim())void addFromText(addHere,text);
  };
  const scrollTop=()=>{setZoom(ZOOM.fit);scroller.current?.scrollTo({left:0,top:0,behavior:'smooth'});};
  const size=canvasSize(tiles??[]);
@@ -117,7 +133,7 @@ export function Board({video,scenes,onDrafted}:{video:Video;scenes:readonly Vide
     <div className="canvas" style={{width:size.width,height:size.height,transform:`scale(${zoom})`}}>
      {tiles.length===0&&<p className="muted" style={{position:'absolute',left:60,top:60,maxWidth:360,fontSize:14,lineHeight:1.55}}>Drop links, screenshots and notes here. Claude reads the whole board when it drafts your scenes.</p>}
      {tiles.map(tile=>{const box=tileBox(tile);return <div key={tile.id} data-tile={tile.id} tabIndex={0} role="group" aria-label={`${tile.kind} tile. Arrow keys move it.`}
-      className={cn('tile',tile.kind,sel===tile.id&&'sel',dragId===tile.id&&'drag')} style={{left:box.x,top:box.y,width:box.w}}
+      className={cn('tile',tile.kind,sel===tile.id&&'sel',dragId===tile.id&&'drag',fresh===tile.id&&'fresh')} style={{left:box.x,top:box.y,width:box.w}}
       onPointerDown={event=>onDown(event,tile.id)} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp} onKeyDown={event=>onKey(event,tile.id)} onFocus={()=>setSel(tile.id)}>
       <TileBody tile={tile} videoId={video.id} reading={board.reading[tile.id]} onRemove={()=>board.remove(tile)} onSaveText={text=>void board.saveText(tile.id,text)}
        onRetryRead={()=>board.read(tile)} onBreakdown={setBreakdown}/>
@@ -149,7 +165,7 @@ export function Board({video,scenes,onDrafted}:{video:Video;scenes:readonly Vide
    <button type="button" className="btn ghost sm icon-only" aria-label="Zoom in" onClick={()=>setZoom(current=>clampZoom(current+ZOOM.step))}><Icon name="ZoomIn" size={15}/></button>
    <button type="button" className="btn ghost sm" onClick={scrollTop}><Icon name="Maximize2" size={14}/>Fit</button>
   </div>
-  {chat&&<ChatPanel video={video} tileCount={count} onClose={()=>setChat(false)} onAddNote={text=>{void board.add({kind:'note',text}).then(tile=>{if(tile)toast('Added to the board');});}}/>}
+  {chat&&<ChatPanel video={video} tileCount={count} onClose={()=>setChat(false)} onAddNote={text=>addHere({kind:'note',text}).then(tile=>{if(tile)toast('Added to the board');return !!tile;})}/>}
   {draft.confirm&&<Dialog title="Replace the scenes?" onClose={()=>draft.setConfirm(false)} footer={<><Button variant="ghost" onClick={()=>draft.setConfirm(false)}>Keep my scenes</Button><Button variant="primary" onClick={draft.start}>Replace {scenes?.length??0} scenes</Button></>}>
    <p className="muted" style={{margin:0,lineHeight:1.55}}>This video already has {scenes?.length??0} scenes{scenes&&recordedCount(toProgress(scenes))?`, and ${recordedCount(toProgress(scenes))} are recorded`:''}. Drafting again replaces them. You can undo it from the message that follows.</p>
   </Dialog>}

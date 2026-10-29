@@ -623,6 +623,8 @@
 :where(.club-root) .tile:hover:where(:not(.club-embed *)) { box-shadow: var(--cc-shadow-3); }
 :where(.club-root) .tile.drag:where(:not(.club-embed *)) { box-shadow: 0 24px 60px -18px rgba(25,22,18,.35); transform: rotate(-.6deg) scale(1.01); transition: none; cursor: grabbing; }
 :where(.club-root) .tile.sel:where(:not(.club-embed *)) { border-color: var(--cc-accent); box-shadow: 0 0 0 1px var(--cc-accent), var(--cc-shadow-2); }
+@keyframes tile-fresh { 0% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--cc-accent) 40%, transparent); } 100% { box-shadow: 0 0 0 1px var(--cc-accent), var(--cc-shadow-2); } }
+:where(.club-root) .tile.fresh:where(:not(.club-embed *)) { animation: tile-fresh 1.4s ease-out; }
 :where(.club-root) .tile .th:where(:not(.club-embed *)) { display: flex; align-items: center; gap: 7px; padding: 8px 10px; font-size: 12px; font-weight: 600; color: var(--cc-text-3); cursor: grab; border-bottom: 1px solid var(--cc-line); }
 :where(.club-root) .tile .th .x:where(:not(.club-embed *)) { margin-left: auto; opacity: 0; transition: opacity .15s; }
 :where(.club-root) .tile:hover .th .x:where(:not(.club-embed *)) { opacity: 1; }

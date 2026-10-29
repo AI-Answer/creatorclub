@@ -16,3 +16,13 @@ test('a scene in the strip reports its own id, so the tab can focus it in place'
   assert.match(buttons[1].textContent??'',/Level 1/,'the scene names show');
  }finally{await ui.close();}
 });
+
+test('an empty strip on the Board says to gather references first; on the other tabs it says to draft from the board',async()=>{
+ const scenes={status:'ready' as const,scenes:[]};
+ const ui=await mountUI(createElement(Strip,{scenes,focusId:null,tab:'board',onPick(){},onRetry(){}}));
+ try{
+  assert.match(ui.container.textContent!,/Gather references here, then draft scenes from the board\./);
+  await ui.render(createElement(Strip,{scenes,focusId:null,tab:'plan',onPick(){},onRetry(){}}));
+  assert.match(ui.container.textContent!,/No scenes yet\. Draft them from the board\./);
+ }finally{await ui.close();}
+});

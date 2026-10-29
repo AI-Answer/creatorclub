@@ -86,7 +86,7 @@ export interface RecorderScene {
   changedAt: string;
 }
 
-export const TILE_KINDS = ['link', 'video', 'text', 'image', 'note', 'signal', 'breakdown'] as const;
+export const TILE_KINDS = ['link', 'video', 'text', 'image', 'note', 'signal', 'breakdown', 'idea'] as const;
 export type TileKind = (typeof TILE_KINDS)[number];
 
 export interface TileMeta {
@@ -106,6 +106,10 @@ export interface TileMeta {
   replies?: number;
   /** Breakdown tiles: the saved breakdown the tile shows. */
   breakdownId?: string;
+  /** The idea tile: how the idea was rated when it was made. Its `text` is why it could work. */
+  demand?: ConceptRating;
+  gap?: ConceptRating;
+  show?: ConceptRating;
 }
 
 /** Where a tile sits on the video's Board, in pixels from its top left corner. `w` is its width; the Board gives it a default when it is missing. */

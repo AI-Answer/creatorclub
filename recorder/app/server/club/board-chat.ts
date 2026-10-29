@@ -41,6 +41,8 @@ async function tileText(slug: string, videoId: string, tile: ResearchTile): Prom
       const stats = [meta.likes !== undefined ? `${count(meta.likes)} likes` : '', meta.replies !== undefined ? `${count(meta.replies)} replies` : ''].filter(Boolean).join(', ');
       return `Post${meta.source ? ` on ${meta.source === 'x' ? 'X' : 'Reddit'}` : ''}${meta.author ? ` by ${meta.author}` : ''}${stats ? ` (${stats})` : ''}: ${squash(tile.text ?? '')}`;
     }
+    case 'idea':
+      return `The idea: ${squash(tile.text ?? '') || '(no reason given)'}`;
     case 'link':
       return `Link: ${[tile.title, tile.url].filter(Boolean).join(' ')}`;
     case 'image':

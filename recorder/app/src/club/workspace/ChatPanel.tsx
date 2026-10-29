@@ -11,8 +11,9 @@ const SUGGESTIONS=['What do these have in common?','Write three hooks from this 
  * "Ask Claude about this board": the saved conversation, a question, and the answer's items. Hooks and titles are used in Plan with Undo;
  * the whole answer can be added to the Board as a note. While a reply runs, the question shows with a working state.
  */
-export function ChatPanel({video,tileCount,onClose,onAddNote}:{video:Video;tileCount:number;onClose():void;onAddNote(text:string):void}){
+export function ChatPanel({video,tileCount,onClose,onAddNote}:{video:Video;tileCount:number;onClose():void;onAddNote(text:string):Promise<boolean>|void}){
  const toast=useToast();
+ const [onBoard,setOnBoard]=useState<ReadonlySet<number>>(new Set());
  const id=encodeURIComponent(video.id);
  const [messages,setMessages]=useState<BoardChatMessage[]|null>(null);
  const [loadError,setLoadError]=useState('');
@@ -72,7 +73,8 @@ export function ChatPanel({video,tileCount,onClose,onAddNote}:{video:Video;tileC
      {usedAt(message,k)?<span className="chip b-green" style={{flex:'none'}}><Icon name="Check" size={12}/>Used</span>
       :item.kind==='hook'||item.kind==='title'?<button type="button" className="btn sm" style={{flex:'none'}} onClick={()=>void useItem(index,k,item.kind as 'hook'|'title',item)}>{item.kind==='hook'?'Use as hook':'Use as title'}</button>:null}
     </div>)}</div>}
-    <div className="row" style={{marginTop:6}}><button type="button" className="btn sm ghost" onClick={()=>onAddNote(noteText(message.text,message.items??[]))}><Icon name="StickyNote" size={14}/>Add to board</button></div>
+    <div className="row" style={{marginTop:6}}>{onBoard.has(index)?<span className="chip b-green"><Icon name="Check" size={12}/>On the board</span>
+     :<button type="button" className="btn sm ghost" onClick={()=>void Promise.resolve(onAddNote(noteText(message.text,message.items??[]))).then(added=>{if(added!==false)setOnBoard(current=>new Set(current).add(index));})}><Icon name="StickyNote" size={14}/>Add to board</button>}</div>
    </div>)}
    {pending&&<><div className="msg me">{pending}</div><div className="typing" role="status" aria-label="Claude is reading the board"><i></i><i></i><i></i></div></>}
    {askError&&<ErrorLine message={askError} onRetry={()=>void ask(text||'')}/>}

@@ -27,11 +27,11 @@ export function Header({video,tab,back,facts,onTitle,onStage,onTab}:{video:Video
 }
 
 /** The scenes of the video, the same on every tab. A failed read says so; an empty outline says what to do. */
-export function Strip({scenes,focusId,onPick,onRetry}:{scenes:VideoScenes;focusId:string|null;onPick(sceneId:string):void;onRetry():void}){
+export function Strip({scenes,focusId,tab,onPick,onRetry}:{scenes:VideoScenes;focusId:string|null;tab?:VideoTab;onPick(sceneId:string):void;onRetry():void}){
  if(scenes.status==='loading')return <div className="strip"><span className="lab"><Icon name="Layers" size={14}/>Scenes</span></div>;
  if(scenes.status==='unknown')return <div className="strip"><ErrorLine message="Couldn't read the scenes." onRetry={onRetry}/></div>;
  const list=scenes.scenes;
- if(!list.length)return <div className="strip"><span className="lab"><Icon name="Layers" size={14}/>Scenes</span><span className="small muted">No scenes yet. Draft them from the board.</span></div>;
+ if(!list.length)return <div className="strip"><span className="lab"><Icon name="Layers" size={14}/>Scenes</span><span className="small muted">{tab==='board'?'Gather references here, then draft scenes from the board.':'No scenes yet. Draft them from the board.'}</span></div>;
  const progress=toProgress(list);
  return <div className="strip" role="list" aria-label="Scenes">
   <span className="lab"><Icon name="Layers" size={14}/>{scenesLine(list,clockTime)}</span>

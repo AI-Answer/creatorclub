@@ -490,6 +490,39 @@ export function addTile(slug: string, videoId: string, input: NewTile): Promise<
   });
 }
 
+/**
+ * A video made from an idea has "The idea" on its Board (why it could work, and how it was rated), and the idea's sources as link tiles when the Board does not show them already.
+ * Done once, the first time the Board is read: a marker keeps it from coming back after tiles are removed. A video with no idea gets nothing.
+ */
+export function seedIdeaTiles(slug: string, videoId: string): Promise<void> {
+  return withLock(`board:${researchDir(slug, videoId)}`, async () => {
+    const marker = path.join(researchDir(slug, videoId), '.seeded');
+    if (await fs.stat(marker).then(() => true, () => false)) return;
+    const video = await readVideo(slug, videoId);
+    const tiles = await listTiles(slug, videoId);
+    const idea = video.idea;
+    const pieces: NewTile[] = [];
+    if (idea) {
+      const meta: TileMeta = { ...(idea.demand ? { demand: idea.demand } : {}), ...(idea.gap ? { gap: idea.gap } : {}), ...(idea.show ? { show: idea.show } : {}) };
+      if (idea.why || Object.keys(meta).length) pieces.push({ kind: 'idea', title: 'The idea', text: idea.why ?? '', meta });
+      // A source the idea already put on the Board (the breakdown, the video, the post it came from) is not added again.
+      for (const source of idea.sources ?? []) if (source.url && !tiles.some((tile) => tile.url === source.url)) pieces.push({ kind: 'link', url: source.url, title: source.label });
+    }
+    const placed: Pick<ResearchTile, 'kind' | 'pos'>[] = [...tiles];
+    for (const [index, piece] of pieces.entries()) {
+      const id = newId('t');
+      // A millisecond apart, so the idea stays first when the tiles are listed by when they were added.
+      const tile: ResearchTile = { id, kind: piece.kind, meta: piece.meta ?? {}, pos: freeSpot(placed, piece.kind), createdAt: new Date(Date.now() + index).toISOString() };
+      if (piece.url) tile.url = piece.url;
+      if (piece.title) tile.title = piece.title;
+      if (piece.text) tile.text = piece.text;
+      placed.push(tile);
+      await writeJSON(tileFile(slug, videoId, id), tile);
+    }
+    await writeFileAtomic(marker, 'seeded\n');
+  });
+}
+
 /** Merges new details into a tile, one change at a time per tile. */
 export function updateTile(slug: string, videoId: string, tileId: string, patch: Partial<Pick<ResearchTile, 'title' | 'text' | 'file' | 'meta' | 'pos'>>): Promise<ResearchTile> {
   return withLock(`tile:${tileFile(slug, videoId, tileId)}`, async () => {

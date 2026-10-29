@@ -168,27 +168,29 @@ test('signal and breakdown tiles can be added, and need what they show', async (
   assert.equal((await call('POST', `/videos/${video.id}/research`, { kind: 'text' })).body.error, 'Add some text first.');
 });
 
-test('a video made from a breakdown concept, a Signals post or a Working now video starts its Board with that source', async () => {
+const sourceTiles = async (id: string) => (await tiles(id)).filter((tile) => tile.kind !== 'idea');
+
+test('a video made from a breakdown concept, a Signals post or a Working now video starts its Board with that source (and The idea beside it)', async () => {
   const concept = await call('POST', `/breakdowns/${BD}/concepts/0/add`);
   assert.equal(concept.status, 201);
-  const fromConcept = await tiles(concept.body.id);
+  const fromConcept = await sourceTiles(concept.body.id);
   assert.deepEqual(fromConcept.map((tile) => [tile.kind, tile.title, tile.meta.breakdownId, tile.url]), [['breakdown', 'How I built it', BD, 'https://www.youtube.com/watch?v=dQw4w9WgXcQ']]);
 
   const post: SignalItem = { id: 'x-77', source: 'x', author: 'Alex Finn', handle: 'alexfinn', text: 'Claude can now run your inbox. Here is how.', url: 'https://x.com/alexfinn/status/77', likes: 1200, replies: 80, views: 50_000, media: null, createdAt: '2026-10-28T00:00:00.000Z', ageHours: 5 };
   await writeFile(path.join(dir, 'signals.json'), JSON.stringify({ updatedAt: '2026-10-28T00:00:00.000Z', items: [post], errors: [] }));
   const fromPost = await call('POST', '/signals/idea', { id: 'x-77' });
   assert.equal(fromPost.status, 201);
-  const postTiles = await tiles(fromPost.body.id);
+  const postTiles = await sourceTiles(fromPost.body.id);
   assert.equal(postTiles.length, 1);
   assert.deepEqual([postTiles[0].kind, postTiles[0].text, postTiles[0].url, postTiles[0].meta], ['signal', post.text, post.url, { source: 'x', author: '@alexfinn', likes: 1200, replies: 80, views: 50_000 }]);
   assert.equal((await call('POST', '/signals/idea', { id: 'x-77' })).status, 200);
-  assert.equal((await tiles(fromPost.body.id)).length, 1, 'a second click adds no second tile');
+  assert.equal((await sourceTiles(fromPost.body.id)).length, 1, 'a second click adds no second tile');
 
   const item: TrendingItem = { videoId: 'abcdefghijk', title: 'Claude Code in 20 minutes', channel: 'Duncan', kind: 'followed', views: 120_000, likes: 4000, comments: null, published: '2026-10-24', ageDays: 4, vpd: 30_000, mult: 3.2, history: [], firstSeen: '2026-10-20', fit: true };
   await writeFile(path.join(dir, 'trending.json'), JSON.stringify([item]));
   const fromVideo = await call('POST', '/trending/idea', { videoId: item.videoId });
   assert.equal(fromVideo.status, 201);
-  const videoTiles = await tiles(fromVideo.body.id);
+  const videoTiles = await sourceTiles(fromVideo.body.id);
   assert.deepEqual(
     [videoTiles[0].kind, videoTiles[0].title, videoTiles[0].url, videoTiles[0].meta],
     ['video', item.title, 'https://www.youtube.com/watch?v=abcdefghijk', { platform: 'youtube', channel: 'Duncan', views: 120_000, ageDays: 4, thumbnail: 'https://i.ytimg.com/vi/abcdefghijk/hqdefault.jpg', likes: 4000, multiplier: 3.2 }],
@@ -322,8 +324,7 @@ test('the prompt gives the channel and the board, and refuses nothing it was not
 
 test('Use as hook makes a package when there is none, and Use as title puts the title first', async () => {
   const video = (await call('POST', '/videos', { title: 'Use it' })).body as Video;
-  await call('PUT', `/videos/${video.id}`, { idea: { angle: 'An angle from the idea', demand: { level: 'high', note: 'Asked a lot.' } } });
-  assert.equal((await call('GET', `/videos/${video.id}/plan`)).body.package, null);
+  assert.equal((await call('GET', `/videos/${video.id}/plan`)).body.package, null, 'no idea notes to start the package from');
 
   const hook = await call('POST', `/videos/${video.id}/package/text`, { kind: 'hook', text: '  Nobody reads\nthis page.  ' });
   assert.equal(hook.status, 200, JSON.stringify(hook.body));
@@ -394,4 +395,25 @@ test('Use as title goes through the package save path: a Package it run that was
   for (let i = 0; i < 100 && done.status === 'running'; i++, done = (await call('GET', `/jobs/${job.body.id}`)).body) await new Promise((r) => setTimeout(r, 10));
   assert.match(done.result.held, /^\d{4}-/, 'held, not written over the line that was just used');
   assert.equal((await call('GET', `/videos/${video.id}/plan`)).body.package.hook.spoken, 'My own opening line.');
+});
+
+test('a video made from an idea gets The idea tile and its sources on the Board once; tiles that are already there stay and are not repeated', async () => {
+  const slug = (await store.currentWorkspace())!;
+  const made = (await call('POST', '/videos', { title: 'From an idea' })).body as Video;
+  await store.updateVideo(slug, made.id, {
+    idea: { why: 'People keep asking.', demand: { level: 'high', note: 'Asked a lot' }, show: { level: 'mid', note: 'Mostly screen' }, sources: [{ label: 'A talk', url: 'https://example.com/talk' }, { label: 'Seen already', url: 'https://example.com/have' }, { label: 'No link' }] },
+  });
+  await call('POST', `/videos/${made.id}/research`, { kind: 'link', url: 'https://example.com/have' });
+  const seeded = await tiles(made.id);
+  assert.deepEqual(seeded.map((tile) => [tile.kind, tile.title ?? tile.url]), [['link', 'https://example.com/have'], ['idea', 'The idea'], ['link', 'A talk']]);
+  const idea = seeded.find((tile) => tile.kind === 'idea')!;
+  assert.equal(idea.text, 'People keep asking.');
+  assert.deepEqual([idea.meta.demand, idea.meta.gap, idea.meta.show], [{ level: 'high', note: 'Asked a lot' }, undefined, { level: 'mid', note: 'Mostly screen' }]);
+  assert.equal(new Set(seeded.map((tile) => `${tile.pos!.x},${tile.pos!.y}`)).size, 3, 'each has its own place');
+  // Once: removing every tile does not bring them back.
+  for (const tile of seeded) await call('DELETE', `/videos/${made.id}/research/${tile.id}`);
+  assert.deepEqual(await tiles(made.id), []);
+
+  const plain = (await call('POST', '/videos', { title: 'No idea' })).body as Video;
+  assert.deepEqual(await tiles(plain.id), [], 'a video that was not an idea starts empty');
 });

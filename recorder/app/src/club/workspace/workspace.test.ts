@@ -97,3 +97,14 @@ test('Breakdown on a YouTube tile sends the tile\'s own YouTube id, never the Cr
   assert.equal([...ui.container.querySelectorAll('button')].some(b=>b.textContent?.trim()==='Breakdown'),false,'a tile with no YouTube id has nothing to break down');
  }finally{await ui.close();}
 });
+
+test('a new tile takes the free place nearest the middle of the view, never above or left of the canvas, and clear of the tiles there',async()=>{
+ const {nearestFree}=await import('./board-layout');
+ assert.deepEqual(nearestFree([],280,{x:1000,y:800}),{x:860,y:610},'the middle of the view when it is free');
+ const taken=[{x:860,y:610,w:280}];
+ const next=nearestFree(taken,280,{x:1000,y:800});
+ assert.notDeepEqual(next,{x:860,y:610});
+ assert.ok(next.x+280+24<=860||next.x>=860+280+24||next.y+380+24<=610||next.y>=610+380+24,'it does not sit on the tile that is there');
+ assert.ok(Math.hypot(next.x-860,next.y-610)<500,'and it is close to the middle');
+ assert.deepEqual(nearestFree([],280,{x:0,y:0}),{x:0,y:0},'the canvas has no negative places');
+});
