@@ -1,13 +1,12 @@
 import {useEffect,useRef,useState,type ClipboardEvent,type DragEvent,type FormEvent,type PointerEvent,type KeyboardEvent} from 'react';
 import type {ClubSettings,ResearchTile,Video,VideoScene} from '../../../shared/club';
-import {clubFetch,errorMessage} from '../api';
+import {clubFetch} from '../api';
 import {ErrorLine} from '../ErrorLine';
-import {Button,Dialog,Icon,Spinner,cn,useToast} from '../ui';
+import {Icon,Spinner,cn,useToast} from '../ui';
 import {tileFromText} from '../video-plan';
-import {recordedCount} from '../scene-status';
-import {toProgress} from '../scenes';
 import {ZOOM,canvasSize,clampZoom,dragTo,keyMove,moveBy,nearestFree,tileBox} from './board-layout';
 import {BoardTip} from './BoardTip';
+import {ReplaceScenes} from './ReplaceScenes';
 import {TileBody} from './TileBody';
 import {useBoard} from './useBoard';
 import {useDraft} from './useDraft';
@@ -165,9 +164,7 @@ export function Board({video,scenes,onDrafted,refreshKey=0}:{video:Video;scenes:
    <button type="button" className="btn ghost sm icon-only" aria-label="Zoom in" onClick={()=>setZoom(current=>clampZoom(current+ZOOM.step))}><Icon name="ZoomIn" size={15}/></button>
    <button type="button" className="btn ghost sm" onClick={scrollTop}><Icon name="Maximize2" size={14}/>Fit</button>
   </div>
-  {draft.confirm&&<Dialog title="Replace the scenes?" onClose={()=>draft.setConfirm(false)} footer={<><Button variant="ghost" onClick={()=>draft.setConfirm(false)}>Keep my scenes</Button><Button variant="primary" onClick={draft.start}>Replace {scenes?.length??0} scenes</Button></>}>
-   <p className="muted" style={{margin:0,lineHeight:1.55}}>This video already has {scenes?.length??0} scenes{scenes&&recordedCount(toProgress(scenes))?`, and ${recordedCount(toProgress(scenes))} are recorded`:''}. Drafting again replaces them. You can undo it from the message that follows.</p>
-  </Dialog>}
+  {draft.confirm&&<ReplaceScenes scenes={scenes??[]} action="Drafting again" undoLine="You can undo it from the message that follows." onKeep={()=>draft.setConfirm(false)} onReplace={draft.start}/>}
   {tip&&<BoardTip onClose={closeTip}/>}
   {breakdown&&<BreakdownDrawer videoId={breakdown} title={shown?.title??''} channel={shown?.meta.channel??''} multiplier={shown?.meta.multiplier??null} saved={saved} videos={listed} onAdded={()=>{}} onClose={()=>setBreakdown(null)}/>}
  </div>;

@@ -595,44 +595,10 @@ export async function buildRevisePrompt(ctx: ChannelContext, input: ReviseInput)
   };
 }
 
-// ---------------------------------------------------------------- Ask Claude about this board
+// ---------------------------------------------------------------- The companion
 
 export const CHAT_TURNS_KEPT = 12;
 const CHAT_TURN_CHARS = 1500;
-const OUTLINE_CHARS = 6000;
-
-export interface BoardChatInput {
-  idea: PromptIdea;
-  pkg?: Package;
-  outline?: Outline;
-  /** The board's tiles as text, already trimmed. */
-  board: string;
-  /** The conversation so far; only the last turns are sent, each trimmed. */
-  history: { role: 'user' | 'assistant'; text: string }[];
-  message: string;
-}
-
-export async function buildBoardChatPrompt(ctx: ChannelContext, input: BoardChatInput): Promise<JsonPrompt> {
-  const [template, schema] = await Promise.all([methodologyFile('board-chat.md'), methodologySchema('board-chat')]);
-  const turns = input.history.slice(-CHAT_TURNS_KEPT).map((turn) => `${turn.role === 'user' ? 'Creator' : 'You'}: ${squash(turn.text).slice(0, CHAT_TURN_CHARS)}`);
-  return {
-    prompt: fill(template, {
-      name: ctx.workspace.name,
-      criteria: criteriaText(ctx),
-      voice_summary: voiceSummary(ctx.voice),
-      idea: ideaText(input.idea),
-      package: packageText(input.pkg),
-      outline: input.outline ? outlineText(input.outline).slice(0, OUTLINE_CHARS) : '(none yet)',
-      board: input.board || '(the board is empty)',
-      conversation: turns.length ? turns.join('\n') : '(none yet)',
-      question: input.message.trim(),
-    }),
-    system: SYSTEM_JSON,
-    schema,
-  };
-}
-
-// ---------------------------------------------------------------- The companion
 
 /** How each action is described to the model: its JSON and when to use it. */
 export const COMPANION_ACTION_HELP: Record<CompanionActionType, string> = {

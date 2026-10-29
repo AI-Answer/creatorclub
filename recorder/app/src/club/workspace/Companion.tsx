@@ -1,11 +1,12 @@
 import {useCallback,useEffect,useLayoutEffect,useMemo,useRef,useState,type KeyboardEvent} from 'react';
-import type {Outline,Package} from '../../../shared/club';
-import {ACTION_TITLE,ACTION_VERB,type CompanionCard,type CompanionChanged,type CompanionContext,type CompanionReplyMessage,type CompanionStep,type CompanionTab} from '../../../shared/companion';
+import type {Outline,Package,VideoScene} from '../../../shared/club';
+import {ACTION_TITLE,ACTION_VERB,CHANGED_SINCE,type CompanionCard,type CompanionChanged,type CompanionContext,type CompanionReplyMessage,type CompanionStep,type CompanionTab} from '../../../shared/companion';
 import {clubFetch} from '../api';
 import {ErrorLine} from '../ErrorLine';
 import {Button,CompanionMark,Icon,Spinner,cn} from '../ui';
 import {atBottom,elapsed,lookingAt,previewOf,stepSummary,suggestions,withDividers} from './companion-logic';
 import {Markdown} from './Markdown';
+import {ReplaceScenes} from './ReplaceScenes';
 import {useCompanion,type Live} from './useCompanion';
 import './companion.css';
 
@@ -19,8 +20,10 @@ export type CompanionScene={id:string;index:number;title:string};
  * The companion, docked on the right of a video's steps: one conversation per video, what it is looking at, suggestions for the step,
  * replies that stream in with their steps, and cards that apply a change with Preview and Undo. Collapses to a rail and remembers it.
  */
-export function Companion({videoId,tab,scene,screen,pkg,outline,onChanged,beforeApply,roomy=false}:{
+export function Companion({videoId,tab,scene,screen,pkg,outline,scenes,onChanged,beforeApply,roomy=false}:{
  videoId:string;tab:CompanionTab;scene?:CompanionScene;screen:string;pkg:Package|null;outline:Outline|null;
+ /** The video's scenes with their takes: replacing scenes that have takes asks first. */
+ scenes?:readonly VideoScene[];
  onChanged(changed:CompanionChanged[]):void;beforeApply?():Promise<void>;
  /** The step needs its width (Record): in a narrow window the panel starts as its rail and opens over the step instead of beside it. */
  roomy?:boolean;
@@ -37,19 +40,20 @@ export function Companion({videoId,tab,scene,screen,pkg,outline,onChanged,before
  const context:CompanionContext=useMemo(()=>({tab,...(scene?{sceneId:scene.id,sceneTitle:scene.title}:{}),screen}),[tab,scene,screen]);
  const [text,setText]=useState('');
  const input=useRef<HTMLTextAreaElement>(null);
- const toggle=(next:boolean)=>{if(narrow)setOpenHere(next);else{setSaved(next);saveOpen(next);}if(next)setTimeout(()=>input.current?.focus(),0);};
+ const rail=useRef<HTMLButtonElement>(null);
+ // Focus follows the panel: into the message field when it opens, onto the rail that reopens it when it is hidden.
+ const toggle=(next:boolean)=>{if(narrow)setOpenHere(next);else{setSaved(next);saveOpen(next);}setTimeout(()=>(next?input.current:rail.current)?.focus(),0);};
 
  // A clock for the steps while a reply is written.
  const [now,setNow]=useState(Date.now());
  useEffect(()=>{if(!working)return;const timer=setInterval(()=>setNow(Date.now()),500);return()=>clearInterval(timer);},[working]);
 
- // Esc stops a reply, unless a dialog is open (Esc closes that).
+ // Esc stops a reply when focus is in the panel, unless something else already used the key or a dialog is open (Esc closes that).
  const stop=companion.stop;
- useEffect(()=>{
-  if(!working)return;
-  const onKey=(event:globalThis.KeyboardEvent)=>{if(event.key==='Escape'&&!document.querySelector('[role="dialog"]')){event.preventDefault();stop();}};
-  window.addEventListener('keydown',onKey);return()=>window.removeEventListener('keydown',onKey);
- },[working,stop]);
+ const onPanelKey=(event:KeyboardEvent<HTMLElement>)=>{
+  if(event.key!=='Escape'||!working||event.defaultPrevented||document.querySelector('[role="dialog"],[aria-modal="true"]'))return;
+  event.preventDefault();stop();
+ };
 
  // The log follows new text only while the reader is at its bottom.
  const log=useRef<HTMLDivElement>(null);
@@ -75,14 +79,14 @@ export function Companion({videoId,tab,scene,screen,pkg,outline,onChanged,before
 
  const title=`Ask ${name}`;
  if(!open)return <aside className="cmp collapsed" aria-label={title}>
-  <button type="button" className="cmp-rail" onClick={()=>toggle(true)} aria-label={`Show ${title}`} title={`Show ${title}`}>
+  <button ref={rail} type="button" className="cmp-rail" onClick={()=>toggle(true)} aria-label={`Show ${title}`} title={`Show ${title}`}>
    <CompanionMark size={18} working={working}/><span>{title}</span>
   </button>
  </aside>;
 
  const items=messages?withDividers(messages,tab):[];
  const ideas=suggestions(tab,{scenes:outline?.scenes.length??0,scene});
- return <aside className={cn('cmp',narrow&&'over')} aria-label={title}>
+ return <aside className={cn('cmp',narrow&&'over')} aria-label={title} onKeyDown={onPanelKey}>
   <header className="cmp-head">
    <CompanionMark size={18} working={working} className="cmp-head-mark"/>
    <div className="cmp-head-text">
@@ -91,7 +95,9 @@ export function Companion({videoId,tab,scene,screen,pkg,outline,onChanged,before
    </div>
    <button type="button" className="btn ghost sm icon-only" onClick={()=>toggle(false)} aria-label={`Hide ${title}`} title={`Hide ${title}`}><Icon name="PanelRightClose" size={16}/></button>
   </header>
-  <div className="cmp-log" ref={log} onScroll={onScroll} role="log" aria-live="polite" aria-busy={working}>
+  {/* One line for screen readers: the step, "Reply ready" or the failure. The timer is never in a live region. */}
+  <div className="cmp-sr" role="status">{companion.announce}</div>
+  <div className="cmp-log" ref={log} onScroll={onScroll} role="log" aria-live="off" aria-busy={working}>
    {companion.loadError?<ErrorLine message={companion.loadError} onRetry={companion.reload}/>
     :!messages?<div className="cmp-loading"><Spinner label="Loading the conversation" size={16}/></div>
     :!messages.length&&!live&&<div className="cmp-reply">
@@ -100,9 +106,9 @@ export function Companion({videoId,tab,scene,screen,pkg,outline,onChanged,before
     </div>}
    {items.map(item=>item.kind==='divider'?<div key={item.key} className="cmp-divider" role="separator">{item.label}</div>
     :item.message.role==='user'?<div key={item.key} className="cmp-me">{item.message.text}</div>
-    :<Reply key={item.key} name={name} message={item.message} pkg={pkg} outline={outline} busy={companion.busyCard}
+    :<Reply key={item.key} name={name} message={item.message} pkg={pkg} outline={outline} scenes={scenes} busy={companion.busyCard}
       onApply={index=>companion.apply(item.message.id,index)} onUndo={index=>companion.undo(item.message.id,index)}/>)}
-   {live&&<LiveReply name={name} live={live} now={now} onRetry={()=>companion.retry(context)}/>}
+   {live&&<LiveReply name={name} live={live} now={now} onRetry={()=>void companion.retry(context)}/>}
    {companion.sendError&&<ErrorLine message={companion.sendError} onRetry={()=>void ask(text)}/>}
   </div>
   {behind&&<button type="button" className="cmp-jump" onClick={toBottom}><Icon name="ArrowDown" size={13}/>Jump to latest</button>}
@@ -134,13 +140,13 @@ function useNarrow(roomy:boolean){
 }
 
 /** A finished reply: who, the one-line summary of its steps (opens to the list), the text, and its cards. */
-function Reply({name,message,pkg,outline,busy,onApply,onUndo}:{name:string;message:CompanionReplyMessage;pkg:Package|null;outline:Outline|null;busy:string|null;onApply(index:number):Promise<string>;onUndo(index:number):Promise<string>}){
+function Reply({name,message,pkg,outline,scenes,busy,onApply,onUndo}:{name:string;message:CompanionReplyMessage;pkg:Package|null;outline:Outline|null;scenes?:readonly VideoScene[];busy:string|null;onApply(index:number):Promise<string>;onUndo(index:number):Promise<string>}){
  return <div className="cmp-reply">
   <div className="cmp-who"><CompanionMark size={14}/>{name}</div>
   {message.steps&&message.steps.length>0&&<Steps steps={message.steps}/>}
   {message.text&&<div className="cmp-md"><Markdown text={message.text}/></div>}
   {message.status==='stopped'&&<div className="cmp-note">Stopped</div>}
-  {message.cards.map((card,index)=><Card key={index} card={card} pkg={pkg} outline={outline} busy={busy===`${message.id}:${index}`} onApply={()=>onApply(index)} onUndo={()=>onUndo(index)}/>)}
+  {message.cards.map((card,index)=><Card key={index} card={card} pkg={pkg} outline={outline} scenes={scenes} busy={busy===`${message.id}:${index}`} onApply={()=>onApply(index)} onUndo={()=>onUndo(index)}/>)}
  </div>;
 }
 
@@ -158,7 +164,7 @@ function Steps({steps}:{steps:readonly CompanionStep[]}){
 function LiveReply({name,live,now,onRetry}:{name:string;live:Live;now:number;onRetry():void}){
  const working=live.phase==='working';
  const last=live.steps.length-1;
- return <div className={cn('cmp-reply','live',!working&&'failed')} aria-label={working?`${name} is working`:undefined}>
+ return <div className={cn('cmp-reply','live',!working&&'failed')} aria-live="off">
   <div className="cmp-who"><CompanionMark size={14} working={working}/>{name}{working&&<span className="cmp-t">{elapsed(now-live.started)}</span>}</div>
   {live.steps.length>0&&<ol className="cmp-steps live">{live.steps.map((step,index)=>{
    const active=working&&index===last,end=live.steps[index+1]?.started??now;
@@ -176,9 +182,12 @@ function LiveReply({name,live,now,onRetry}:{name:string;live:Live;now:number;onR
 const scenesClock=(seconds:number)=>`${Math.floor(seconds/60)}:${String(Math.round(seconds%60)).padStart(2,'0')}`;
 
 /** One change the reply offers: what it is, Apply (or what it changed and Undo), and Preview of before and after. */
-function Card({card,pkg,outline,busy,onApply,onUndo}:{card:CompanionCard;pkg:Package|null;outline:Outline|null;busy:boolean;onApply():Promise<string>;onUndo():Promise<string>}){
+function Card({card,pkg,outline,scenes,busy,onApply,onUndo}:{card:CompanionCard;pkg:Package|null;outline:Outline|null;scenes?:readonly VideoScene[];busy:boolean;onApply():Promise<string>;onUndo():Promise<string>}){
  const [preview,setPreview]=useState(false);
  const [error,setError]=useState('');
+ const [confirm,setConfirm]=useState(false);
+ // New scenes over scenes that have takes ask first, like the Board's Draft scenes.
+ const asks=card.action.type==='draft_scenes'&&!!scenes?.some(scene=>scene.takes.length>0);
  const action=card.action;
  const run=async(fn:()=>Promise<string>)=>{setError('');const failed=await fn();setError(failed);if(!failed)setPreview(false);};
  const shown=preview?previewOf(action,pkg,outline):undefined;
@@ -202,10 +211,11 @@ function Card({card,pkg,outline,busy,onApply,onUndo}:{card:CompanionCard;pkg:Pac
    {card.state==='applied'
     ?<><span className="cmp-result"><Icon name="Check" size={13} stroke={2.4}/>{card.result??'Applied'}</span>
      {card.version&&<button type="button" className="btn ghost sm" disabled={busy} onClick={()=>void run(onUndo)}><Icon name="Undo2" size={14}/>Undo</button>}</>
-    :<><Button size="sm" variant="secondary" disabled={busy} onClick={()=>void run(onApply)}>{busy?<span className="spin"/>:null}{card.state==='undone'?'Apply again':ACTION_VERB[action.type]}</Button>
+    :<><Button size="sm" variant="secondary" disabled={busy} onClick={()=>{if(asks)setConfirm(true);else void run(onApply);}}>{busy?<span className="spin"/>:null}{card.state==='undone'?'Apply again':ACTION_VERB[action.type]}</Button>
      <button type="button" className="btn ghost sm" aria-pressed={preview} onClick={()=>setPreview(value=>!value)}><Icon name={preview?'EyeOff':'Eye'} size={14}/>{preview?'Hide preview':'Preview'}</button>
      {card.state==='undone'&&<span className="cmp-faint">Undone</span>}</>}
   </div>
-  {error&&<div className="cmp-card-err" role="alert">{error}</div>}
+  {error&&<div className="cmp-card-err" role="alert"><Icon name="TriangleAlert" size={13}/><span>{error}{error===CHANGED_SINCE&&action.type==='draft_scenes'?' Your earlier scenes are kept in the video\'s folder.':''}</span></div>}
+  {confirm&&scenes&&<ReplaceScenes scenes={scenes} action="Applying these" undoLine="You can undo it from this card." onKeep={()=>setConfirm(false)} onReplace={()=>{setConfirm(false);void run(onApply);}}/>}
  </div>;
 }

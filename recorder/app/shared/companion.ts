@@ -122,7 +122,8 @@ export type CompanionMessage = CompanionUserMessage | CompanionReplyMessage;
 /** `GET /videos/:id/companion`: the conversation, and the reply being written, if any. */
 export interface CompanionThread {
   messages: CompanionMessage[];
-  running?: { jobId: string; messageId: string };
+  /** The reply being written: its steps and the text shown so far, so a panel that opens late shows all of it. */
+  running?: { jobId: string; messageId: string; steps: string[]; text: string };
 }
 
 /** `POST /videos/:id/companion`: the saved question and the job that writes the reply (follow it at `/jobs/:id/events`). */
@@ -131,11 +132,14 @@ export interface CompanionAsked {
   message: CompanionUserMessage;
 }
 
-/** A progress event of a reply job: a step starts, or more text arrives at `at` (its offset in the reply). */
-export type CompanionEvent = { type: 'step'; label: string } | { type: 'text'; at: number; text: string };
+/** A progress event of a reply job: step `index` starts, or more text arrives at `at` (its offset in the reply). Both can be replayed safely. */
+export type CompanionEvent = { type: 'step'; label: string; index: number } | { type: 'text'; at: number; text: string };
 
 /** What an apply or undo changed, so the screen reads it again. */
 export type CompanionChanged = 'package' | 'outline' | 'board';
+
+/** Undo's answer when the part a card changed was changed again after it: nothing newer is ever overwritten. */
+export const CHANGED_SINCE = "This changed after it was applied, so it can't be undone safely.";
 
 /** `POST …/cards/:index/apply` and `…/undo`. */
 export interface CompanionApplied {

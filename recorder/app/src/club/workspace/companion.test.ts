@@ -2,10 +2,11 @@ import {mountUI,button} from '../../test-dom';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {act,createElement} from 'react';
-import type {Outline,Package} from '../../../shared/club';
+import type {Outline,Package,VideoScene} from '../../../shared/club';
 import type {CompanionChanged,CompanionMessage,CompanionReplyMessage} from '../../../shared/companion';
 import {atBottom,elapsed,lookingAt,previewOf,screenSummary,stepSummary,suggestions,withDividers} from './companion-logic';
 import {blocks} from './Markdown';
+import {withStep,withText} from './useCompanion';
 const {Companion}=await import('./Companion');
 const {FakeEventSource,installFetch}=await import('../test-fakes');
 
@@ -66,7 +67,8 @@ test('Markdown: paragraphs, lists and headings; text still streaming stays as wr
 
 // ---------------------------------------------------------------- the panel, streaming
 
-function serve(state:{messages:CompanionMessage[];running?:{jobId:string;messageId:string}}){
+type State={messages:CompanionMessage[];running?:{jobId:string;messageId:string;text:string;steps:string[]};jobs?:Record<string,string>};
+function serve(state:State){
  return installFetch(({method,path,body})=>{
   if(path==='/settings')return {body:{defaultAi:'claude'}};
   if(path==='/videos/v1/companion'&&method==='GET')return {body:{messages:state.messages,...(state.running?{running:state.running}:{})}};
@@ -77,6 +79,7 @@ function serve(state:{messages:CompanionMessage[];running?:{jobId:string;message
    return {status:202,body:{jobId:`j${state.messages.length}`,message}};
   }
   if(method==='DELETE'&&path.startsWith('/jobs/'))return {body:{status:'cancelled'}};
+  if(method==='GET'&&path.startsWith('/jobs/'))return {body:{id:path.split('/').pop(),kind:'companion',status:state.jobs?.[path.split('/').pop()!]??'running',createdAt:''}};
   const card=/^\/videos\/v1\/companion\/(\w+)\/cards\/(\d+)\/(apply|undo)$/.exec(path);
   if(card){
    const reply=state.messages.find(message=>message.id===card[1]) as CompanionReplyMessage;
@@ -87,7 +90,9 @@ function serve(state:{messages:CompanionMessage[];running?:{jobId:string;message
  });
 }
 
-const mount=(changed:CompanionChanged[][]=[])=>mountUI(createElement(Companion,{videoId:'v1',tab:'plan',scene:{id:'s2',index:1,title:'Level 1'},screen:'Package',pkg,outline,onChanged:(list:CompanionChanged[])=>changed.push(list)}));
+const recordedScenes:VideoScene[]=[{id:'s1',title:'Opening',seconds:60,takes:[{id:'t1',seconds:50,kept:true,retained:false}],status:'Kept take 1'},{id:'s2',title:'Level 1',seconds:120,takes:[],status:'Not recorded'}];
+const mount=(changed:CompanionChanged[][]=[],scenes?:VideoScene[])=>mountUI(createElement(Companion,{videoId:'v1',tab:'plan',scene:{id:'s2',index:1,title:'Level 1'},screen:'Package',pkg,outline,scenes,onChanged:(list:CompanionChanged[])=>changed.push(list)}));
+const status=(root:Element)=>root.querySelector('.cmp-sr[role="status"]')?.textContent;
 
 test('asking streams: the steps with their time, a skeleton before the first words, the words without the actions, then the reply and its card',async()=>{
  FakeEventSource.install();
@@ -107,10 +112,14 @@ test('asking streams: the steps with their time, a skeleton before the first wor
   assert.ok(c.querySelector('button[aria-label="Stop (Esc)"]'),'Send becomes Stop');
   assert.equal(c.querySelector('.cmp-sugg'),null,'suggestions wait while it works');
 
-  await act(async()=>FakeEventSource.last().emit('progress',{type:'step',label:'Reading the plan'}));
-  await act(async()=>FakeEventSource.last().emit('progress',{type:'step',label:'Thinking it through'}));
+  await act(async()=>FakeEventSource.last().emit('progress',{type:'step',label:'Reading the plan',index:0}));
+  await act(async()=>FakeEventSource.last().emit('progress',{type:'step',label:'Thinking it through',index:1}));
+  await act(async()=>FakeEventSource.last().emit('progress',{type:'step',label:'Reading the plan',index:0}));
+  assert.equal(status(c),'Thinking it through','screen readers hear the step, from one status line');
+  assert.equal(c.querySelector('.cmp-log')?.getAttribute('aria-live'),'off','the log and its timer are not announced');
+  assert.equal(c.querySelector('.cmp-reply.live')?.getAttribute('aria-live'),'off');
   const steps=()=>[...c.querySelectorAll('.cmp-steps.live li')].map(li=>({on:li.classList.contains('on'),text:li.querySelector('span:not(.cmp-t):not(.cmp-pulse)')?.textContent}));
-  assert.deepEqual(steps(),[{on:false,text:'Reading the plan'},{on:true,text:'Thinking it through'}]);
+  assert.deepEqual(steps(),[{on:false,text:'Reading the plan'},{on:true,text:'Thinking it through'}],'a replayed step is not shown twice');
   await act(async()=>FakeEventSource.last().emit('progress',{type:'text',at:0,text:'Three **hooks** '}));
   await act(async()=>FakeEventSource.last().emit('progress',{type:'text',at:0,text:'Three **hooks** '}));
   await act(async()=>FakeEventSource.last().emit('progress',{type:'text',at:16,text:'below.'}));
@@ -122,6 +131,7 @@ test('asking streams: the steps with their time, a skeleton before the first wor
   state.messages.push(reply);
   await act(async()=>FakeEventSource.last().emit('done',reply));await flush();
   assert.equal(c.querySelector('.cmp-reply.live'),null);
+  assert.equal(status(c),'Reply ready');
   assert.equal(c.querySelector('.cmp-sum-line')?.textContent,'Read the plan, wrote hooks · 4s','the steps fold into one line');
   assert.equal(c.querySelector('.cmp-steps'),null);
   await act(async()=>(c.querySelector('.cmp-sum-line') as HTMLElement).click());
@@ -146,9 +156,24 @@ test('Esc stops a reply and keeps what had arrived; a failure says so and Try ag
   await flush();
   const c=ui.container;
   await act(async()=>button(c,'Suggest three titles').click());await flush();
-  await act(async()=>FakeEventSource.last().emit('progress',{type:'step',label:'Thinking it through'}));
+  await act(async()=>FakeEventSource.last().emit('progress',{type:'step',label:'Thinking it through',index:0}));
   await act(async()=>FakeEventSource.last().emit('progress',{type:'text',at:0,text:'Half an answer'}));
-  await act(async()=>window.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'})));await flush();
+  const deletes=()=>server.calls.filter(call=>call.method==='DELETE').length;
+  // Esc elsewhere on the page is not the panel's: focus outside, a key another control already used, or an open dialog.
+  const outside=document.createElement('input');document.body.append(outside);outside.focus();
+  await act(async()=>outside.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true})));
+  await act(async()=>window.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'})));
+  const field=c.querySelector('textarea')!;
+  const used=new KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true});used.preventDefault();
+  await act(async()=>field.dispatchEvent(used));
+  const dialog=document.createElement('div');dialog.setAttribute('role','dialog');document.body.append(dialog);
+  await act(async()=>field.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true})));
+  dialog.remove();outside.remove();
+  assert.equal(deletes(),0,'none of those stop the reply');
+  assert.ok(c.querySelector('.cmp-reply.live'));
+  // Esc with focus in the panel stops it.
+  field.focus();
+  await act(async()=>field.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true})));await flush();
   assert.ok(server.calls.some(call=>call.method==='DELETE'&&call.path==='/jobs/j1'),'Esc cancels the job');
   assert.equal(c.querySelector('.cmp-reply.live'),null);
   assert.match(text(c),/Half an answer/);
@@ -166,16 +191,26 @@ test('Esc stops a reply and keeps what had arrived; a failure says so and Try ag
 
 test('a reopened panel finds the reply still being written, and the panel remembers being hidden',async()=>{
  FakeEventSource.install();
- const state={messages:[{id:'q0',role:'user',text:'Draft the scenes',context:{tab:'board'}}] as CompanionMessage[],running:{jobId:'j9',messageId:'q0'}},server=serve(state);
+ const state={messages:[{id:'q0',role:'user',text:'Draft the scenes',context:{tab:'board'}}] as CompanionMessage[],running:{jobId:'j9',messageId:'q0',text:'Half of the',steps:['Reading the board','Thinking it through']}},server=serve(state);
  const ui=await mount();
  try{
   await flush();
   const c=ui.container;
   assert.equal(FakeEventSource.last().url,'/api/club/jobs/j9/events');
   assert.ok(c.querySelector('.cmp-reply.live'));
+  assert.equal(c.querySelector('.cmp-md.streaming')?.textContent,'Half of the','the text written so far shows at once');
+  assert.equal(c.querySelectorAll('.cmp-steps.live li').length,2);
+  // The replay from the start adds nothing that is already shown.
+  await act(async()=>FakeEventSource.last().emit('progress',{type:'step',label:'Reading the board',index:0}));
+  await act(async()=>FakeEventSource.last().emit('progress',{type:'text',at:0,text:'Half'}));
+  await act(async()=>FakeEventSource.last().emit('progress',{type:'text',at:4,text:' of the reply'}));
+  assert.equal(c.querySelector('.cmp-md.streaming')?.textContent,'Half of the reply');
+  assert.equal(c.querySelectorAll('.cmp-steps.live li').length,2);
   assert.match(text(c),/Board/,'a divider names the step it was asked on');
   await act(async()=>(c.querySelector('button[aria-label="Hide Ask Claude"]') as HTMLElement).click());
   assert.ok(c.querySelector('.cmp.collapsed'));
+  for(let i=0;i<50&&document.activeElement!==c.querySelector('.cmp-rail');i++)await act(async()=>{await new Promise(resolve=>setTimeout(resolve,10));});
+  assert.equal(document.activeElement,c.querySelector('.cmp-rail'),'focus moves to the rail that reopens it');
   assert.equal(localStorage.getItem('cc.companion.open'),'0');
   await ui.close();
   const again=await mount();
@@ -185,4 +220,82 @@ test('a reopened panel finds the reply still being written, and the panel rememb
   assert.equal(localStorage.getItem('cc.companion.open'),'1');
   await again.close();
  }finally{server.restore();localStorage.removeItem('cc.companion.open');}
+});
+
+test('replays never repeat: a step goes by its index, text by its offset',()=>{
+ const one=withStep([],0,'A',1);
+ assert.deepEqual(withStep(one,0,'A',2),one);
+ assert.equal(withStep(one,1,'B',2).length,2);
+ assert.equal(withText('Hello',0,'He'),'Hello');
+ assert.equal(withText('Hello',3,'lo world'),'Hello world');
+});
+
+test('a dropped connection is not a failure while the reply still runs; Try again follows a running reply instead of asking twice',async()=>{
+ FakeEventSource.install();
+ const state:State={messages:[],jobs:{}},server=serve(state);
+ const ui=await mount();
+ try{
+  await flush();
+  const c=ui.container;
+  await act(async()=>button(c,'Write three hooks').click());await flush();
+  await act(async()=>FakeEventSource.last().emit('progress',{type:'text',at:0,text:'Some '}));
+  const first=FakeEventSource.last();
+  // The browser gave up on the stream: the job is asked about, found running, and followed again.
+  first.readyState=2;
+  await act(async()=>first.emit('error'));await flush();
+  assert.notEqual(FakeEventSource.last(),first,'followed again');
+  assert.equal(c.querySelector('[role="alert"]'),null,'no failure is shown');
+  assert.equal(c.querySelector('.cmp-md.streaming')?.textContent,'Some','what was shown stays');
+  await act(async()=>FakeEventSource.last().emit('progress',{type:'text',at:0,text:'Some words.'}));
+  assert.equal(c.querySelector('.cmp-md.streaming')?.textContent,'Some words.');
+
+  // A real failure, then Try again while the server says the reply is in fact running: followed, not asked again.
+  await act(async()=>FakeEventSource.last().emit('failed',{message:'Claude could not finish that.'}));
+  assert.match(c.querySelector('[role="alert"]')?.textContent??'',/Claude could not finish that\./);
+  state.running={jobId:'j1',messageId:'q0',text:'Some words.',steps:['Thinking it through']};
+  const posts=()=>server.calls.filter(call=>call.method==='POST'&&call.path==='/videos/v1/companion').length;
+  await act(async()=>button(c,'Try again').click());await flush();
+  assert.equal(posts(),1,'not asked twice');
+  assert.equal(FakeEventSource.last().url,'/api/club/jobs/j1/events');
+  assert.ok(c.querySelector('.cmp-reply.live'));
+ }finally{server.restore();await ui.close();}
+});
+
+test("after Stop the server's copy replaces the local one, so a reply that had already finished is not hidden",async()=>{
+ FakeEventSource.install();
+ const state:State={messages:[]},server=serve(state);
+ const ui=await mount();
+ try{
+  await flush();
+  const c=ui.container;
+  await act(async()=>button(c,'Suggest three titles').click());await flush();
+  await act(async()=>FakeEventSource.last().emit('progress',{type:'text',at:0,text:'Three titles'}));
+  // The reply finished on the server just as Stop was pressed.
+  state.messages.push({id:'r9',role:'assistant',text:'Three titles below.',tab:'plan',cards:[]});
+  const field=c.querySelector('textarea')!;field.focus();
+  await act(async()=>field.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true})));
+  assert.equal(c.querySelector('.cmp-note')?.textContent,'Stopped');
+  await act(async()=>{await new Promise(resolve=>setTimeout(resolve,500));});
+  assert.equal(c.querySelector('.cmp-note'),null);
+  assert.match(text(c),/Three titles below\./);
+ }finally{server.restore();await ui.close();}
+});
+
+test("a draft that would replace recorded scenes asks first, with the Board's dialog",async()=>{
+ FakeEventSource.install();
+ const reply:CompanionReplyMessage={id:'r1',role:'assistant',text:'New scenes.',tab:'plan',cards:[{action:{type:'draft_scenes',scenes:[{title:'A',talkingPoints:[],show:'',seconds:60}]},state:'offered'}]};
+ const state:State={messages:[{id:'q0',role:'user',text:'Draft',context:{tab:'plan'}},reply]},server=serve(state);
+ const ui=await mount([],recordedScenes);
+ try{
+  await flush();
+  const c=ui.container;
+  const applies=()=>server.calls.filter(call=>call.path.endsWith('/apply')).length;
+  await act(async()=>button(c,'Apply').click());
+  assert.match(document.body.textContent??'',/This video already has 2 scenes, and 1 are recorded\. Applying these replaces them\./);
+  await act(async()=>button(document.body,'Keep my scenes').click());
+  assert.equal(applies(),0,'kept');
+  await act(async()=>button(c,'Apply').click());
+  await act(async()=>button(document.body,'Replace 2 scenes').click());await flush();
+  assert.equal(applies(),1);
+ }finally{server.restore();await ui.close();}
 });

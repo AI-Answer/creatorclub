@@ -1,4 +1,5 @@
 import { randomBytes } from 'node:crypto';
+import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { z } from 'zod';
 import type { Outline, Video } from '../../shared/club.js';
@@ -7,6 +8,7 @@ import {
   COMPANION_ACTION_TYPES,
   COMPANION_TABS,
   TAB_ACTIONS,
+  type CompanionAction,
   type CompanionApplied,
   type CompanionAsked,
   type CompanionCard,
@@ -63,21 +65,39 @@ const contextShape = z
   })
   .strict();
 
-const cardShape = z.object({ action: actionShape, state: z.enum(['offered', 'applied', 'undone']), version: z.string().max(40).optional(), result: z.string().max(300).optional() }).strict();
+/** Saved text is capped here, so what is saved always reads back. */
+const TEXT_MAX = { user: 20_000, assistant: 40_000 };
+const capped = (max: number) => z.string().transform((text) => text.slice(0, max));
+const tabShape = z.enum(COMPANION_TABS).catch('board');
+
+/** Cards are read leniently: one that is not readable is left out, never its message. The action is checked again on Apply. */
+const cardShape = z
+  .object({
+    action: z.object({ type: z.string() }).passthrough(),
+    state: z.enum(['offered', 'applied', 'undone']).catch('offered'),
+    version: z.string().max(40).optional().catch(undefined),
+    result: capped(300).optional().catch(undefined),
+  })
+  .strip();
+const readCards = (cards: unknown) =>
+  (Array.isArray(cards) ? cards : []).slice(0, 20).flatMap((card) => {
+    const parsed = cardShape.safeParse(card);
+    return parsed.success ? [parsed.data as unknown as CompanionCard] : [];
+  });
 const messageShape = z.union([
-  z.object({ id: z.string().max(40), role: z.literal('user'), text: z.string().max(20_000), at: z.string().max(40).optional(), context: contextShape }).strict(),
+  z.object({ id: z.string().max(40), role: z.literal('user'), text: capped(TEXT_MAX.user), at: z.string().max(40).optional().catch(undefined), context: contextShape.partial().extend({ tab: tabShape }).catch({ tab: 'board' }) }).strip(),
   z
     .object({
       id: z.string().max(40),
       role: z.literal('assistant'),
-      text: z.string().max(40_000),
-      at: z.string().max(40).optional(),
-      tab: z.enum(COMPANION_TABS),
-      cards: z.array(cardShape).max(20),
-      steps: z.array(z.object({ label: z.string().max(80), ms: z.number().min(0) }).strict()).max(20).optional(),
-      status: z.literal('stopped').optional(),
+      text: capped(TEXT_MAX.assistant),
+      at: z.string().max(40).optional().catch(undefined),
+      tab: tabShape,
+      cards: z.unknown().transform(readCards),
+      steps: z.array(z.object({ label: z.string().max(80), ms: z.number().min(0) }).strip()).max(20).optional().catch(undefined),
+      status: z.literal('stopped').optional().catch(undefined),
     })
-    .strict(),
+    .strip(),
 ]);
 
 /** The old Board chat as companion messages: its items become cards (a used one is applied, without Undo). */
@@ -93,8 +113,26 @@ export function fromBoardChat(old: Awaited<ReturnType<typeof readBoardChat>>): C
   });
 }
 
+const stamp = () => new Date().toISOString().replace(/[:.]/g, '-');
+
+/** Keeps a copy of a conversation file that could not be read whole, so nothing in it is lost when it is written again. */
+async function keepAside(slug: string, id: string, how: 'rename' | 'copy') {
+  const file = threadFile(slug, id);
+  const aside = path.join(path.dirname(file), `companion-unreadable-${stamp()}.json`);
+  await (how === 'rename' ? fs.rename(file, aside) : fs.copyFile(file, aside));
+  console.error(`[club] companion: kept ${path.basename(aside)} aside`);
+}
+
 async function readThreadFile(slug: string, id: string): Promise<CompanionMessage[]> {
-  const saved = await store.readJSON<unknown>(threadFile(slug, id)).catch(() => undefined);
+  let saved: unknown;
+  try {
+    saved = await store.readJSON<unknown>(threadFile(slug, id));
+  } catch {
+    // A file that cannot be parsed is set aside and the conversation starts again; it is not taken for a missing one.
+    await keepAside(slug, id, 'rename');
+    await store.writeJSON(threadFile(slug, id), { messages: [] });
+    return [];
+  }
   if (saved === undefined) {
     // First read: carry the Board chat over. The old file stays where it is.
     const old = await readBoardChat(slug, id);
@@ -103,11 +141,22 @@ async function readThreadFile(slug: string, id: string): Promise<CompanionMessag
     await store.writeJSON(threadFile(slug, id), { messages });
     return messages;
   }
-  const list = Array.isArray((saved as { messages?: unknown })?.messages) ? (saved as { messages: unknown[] }).messages : [];
-  return list.flatMap((message) => {
+  const list = Array.isArray((saved as { messages?: unknown })?.messages) ? (saved as { messages: unknown[] }).messages : undefined;
+  if (!list) {
+    await keepAside(slug, id, 'rename');
+    await store.writeJSON(threadFile(slug, id), { messages: [] });
+    return [];
+  }
+  const messages = list.flatMap((message) => {
     const parsed = messageShape.safeParse(message);
     return parsed.success ? [parsed.data as CompanionMessage] : [];
   });
+  // A message too broken to read (no id or role) is left out; the file as it was is kept beside it first, then written without it.
+  if (messages.length < list.length) {
+    await keepAside(slug, id, 'copy');
+    await store.writeJSON(threadFile(slug, id), { messages });
+  }
+  return messages;
 }
 
 const changeThread = <T>(slug: string, id: string, change: (messages: CompanionMessage[]) => { messages: CompanionMessage[]; result: T }) =>
@@ -117,13 +166,14 @@ const changeThread = <T>(slug: string, id: string, change: (messages: CompanionM
     return result;
   });
 
-const running = new Map<string, { jobId: string; messageId: string }>();
+/** The reply being written for each video, with its steps and text so far, so a panel that opens late shows all of it. */
+const running = new Map<string, NonNullable<CompanionThread['running']>>();
 
 export async function readThread(slug: string, id: string): Promise<CompanionThread> {
   await store.readVideo(slug, id);
   const messages = await store.withLock(`companion:${threadFile(slug, id)}`, () => readThreadFile(slug, id));
   const now = running.get(jobKey(slug, id));
-  return { messages, ...(now && runningOnce(jobKey(slug, id))?.id === now.jobId ? { running: now } : {}) };
+  return { messages, ...(now && runningOnce(jobKey(slug, id))?.id === now.jobId ? { running: { ...now, steps: [...now.steps] } } : {}) };
 }
 
 // ---------------------------------------------------------------- what the companion is told
@@ -162,12 +212,13 @@ const historyText = (message: CompanionMessage) => {
 class Steps {
   readonly done: CompanionStep[] = [];
   private current?: { label: string; started: number };
+  private count = 0;
   constructor(private readonly emit: (event: CompanionEvent) => void) {}
   start(label: string) {
     if (this.current?.label === label) return;
     this.close();
     this.current = { label, started: Date.now() };
-    this.emit({ type: 'step', label });
+    this.emit({ type: 'step', label, index: this.count++ });
   }
   close() {
     if (this.current) this.done.push({ label: this.current.label, ms: Date.now() - this.current.started });
@@ -187,11 +238,17 @@ const wait = (ms: number, signal: AbortSignal) =>
 interface AskInput {
   message: CompanionUserMessage;
   history: CompanionMessage[];
+  /** What the screen would need to show this reply from the start: kept while it is written. */
+  live: { steps: string[]; text: string };
 }
 
 /** Writes one reply: reads what the step needs, streams the model's answer, checks its actions and saves the reply. */
 async function writeReply(slug: string, id: string, input: AskInput, context: JobContext, options: PlanOptions): Promise<CompanionReplyMessage> {
-  const emit = (event: CompanionEvent) => context.emit(event);
+  const emit = (event: CompanionEvent) => {
+    if (event.type === 'step') input.live.steps[event.index] = event.label;
+    else input.live.text = input.live.text.slice(0, event.at) + event.text;
+    context.emit(event);
+  };
   const steps = new Steps(emit);
   const tab = input.message.context.tab;
   steps.start(READING[tab]);
@@ -252,6 +309,8 @@ async function writeReply(slug: string, id: string, input: AskInput, context: Jo
   let whole = '';
   steps.start('Thinking it through');
   try {
+    // Reading the video takes a moment: a stop that came meanwhile never starts the runner.
+    if (context.signal.aborted) throw new AiError('cancelled', 'That was stopped.');
     const answer = await run({
       extraDirs: options.extraDirs,
       provider,
@@ -268,6 +327,8 @@ async function writeReply(slug: string, id: string, input: AskInput, context: Jo
         } else if (event.type === 'text' && !streamed) whole = event.text;
       },
     });
+    // A runner that finished just as Stop was pressed: the stop wins, so the reply ends where the person saw it end.
+    if (context.signal.aborted) throw new AiError('cancelled', 'That was stopped.');
     if (!streamed) {
       // A runner without partial messages: the whole answer arrives at once, and is shown in pieces so it still reads as it is written.
       const pieces = chunkText(answer.text || whole);
@@ -292,7 +353,7 @@ async function writeReply(slug: string, id: string, input: AskInput, context: Jo
     const reply: CompanionReplyMessage = {
       id: newId(),
       role: 'assistant',
-      text: parsed.reply,
+      text: parsed.reply.slice(0, TEXT_MAX.assistant),
       at: new Date().toISOString(),
       tab,
       cards: actions.map((action) => ({ action, state: 'offered' })),
@@ -306,7 +367,13 @@ async function writeReply(slug: string, id: string, input: AskInput, context: Jo
       // Stopped: what had arrived is kept, marked as stopped, so the conversation shows what was read.
       steps.close();
       const text = (shown + splitter.end()).trim();
-      if (text) await changeThread(slug, id, (messages) => ({ messages: [...messages, { id: newId(), role: 'assistant', text, at: new Date().toISOString(), tab, cards: [], steps: steps.done, status: 'stopped' }], result: undefined }));
+      // It goes right after its question, even when the next question was asked while this was being saved.
+      const stopped: CompanionReplyMessage = { id: newId(), role: 'assistant', text: text.slice(0, TEXT_MAX.assistant), at: new Date().toISOString(), tab, cards: [], steps: steps.done, status: 'stopped' };
+      if (text)
+        await changeThread(slug, id, (messages) => {
+          const at = messages.findIndex((message) => message.id === input.message.id);
+          return { messages: at < 0 ? [...messages, stopped] : [...messages.slice(0, at + 1), stopped, ...messages.slice(at + 1)], result: undefined };
+        });
     }
     throw error;
   }
@@ -332,14 +399,25 @@ export async function askCompanion(slug: string, id: string, body: z.infer<typeo
     const asked: CompanionUserMessage = { id: newId(), role: 'user', text: body.message.trim(), at: new Date().toISOString(), context: body.context };
     return { messages: [...messages, asked], result: { message: asked, history: messages } };
   });
-  const job = startJobOnce(key, 'companion', (context) => writeReply(slug, id, { message, history }, context, options));
-  running.set(key, { jobId: job.id, messageId: message.id });
+  const live = { jobId: '', messageId: message.id, steps: [] as string[], text: '' };
+  const job = startJobOnce(key, 'companion', (context) =>
+    writeReply(slug, id, { message, history, live }, context, options).finally(() => {
+      if (running.get(key) === live) running.delete(key);
+    }),
+  );
+  live.jobId = job.id;
+  running.set(key, live);
   return { jobId: job.id, message };
 }
 
 // ---------------------------------------------------------------- applying and undoing a card
 
-async function changeCard(slug: string, id: string, messageId: string, index: number, change: (card: CompanionCard) => Promise<{ card: CompanionCard; changed: CompanionApplied['changed'] }>): Promise<CompanionApplied> {
+/** Reading the card, changing it and saving its state happen under one lock per video, so a double click or two windows apply once. */
+function changeCard(slug: string, id: string, messageId: string, index: number, change: (card: CompanionCard) => Promise<{ card: CompanionCard; changed: CompanionApplied['changed'] }>): Promise<CompanionApplied> {
+  return store.withLock(`companion-card:${store.videoDir(slug, id)}`, () => changeCardNow(slug, id, messageId, index, change));
+}
+
+async function changeCardNow(slug: string, id: string, messageId: string, index: number, change: (card: CompanionCard) => Promise<{ card: CompanionCard; changed: CompanionApplied['changed'] }>): Promise<CompanionApplied> {
   const thread = await readThread(slug, id);
   const message = thread.messages.find((each): each is CompanionReplyMessage => each.id === messageId && each.role === 'assistant');
   const card = message?.cards[index];
@@ -361,7 +439,9 @@ async function changeCard(slug: string, id: string, messageId: string, index: nu
 export function applyCard(slug: string, id: string, messageId: string, index: number): Promise<CompanionApplied> {
   return changeCard(slug, id, messageId, index, async (card) => {
     if (card.state === 'applied') throw new ClubError('That is already applied.', 409);
-    const { version, result, changed } = await applyAction(slug, id, card.action);
+    const checked = actionShape.safeParse(card.action);
+    if (!checked.success) throw new ClubError("That change can't be applied.", 409);
+    const { version, result, changed } = await applyAction(slug, id, checked.data as CompanionAction);
     return { card: { ...card, state: 'applied', version, result }, changed };
   });
 }

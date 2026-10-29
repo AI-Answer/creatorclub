@@ -1,7 +1,7 @@
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import express from 'express';
-import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import type { AddressInfo } from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
@@ -25,6 +25,8 @@ interface Script {
   /** Holds the answer until this settles; a stop ends it the way the real CLI is killed. */
   hold?: Promise<void>;
   fail?: boolean;
+  /** After a stop, the runner takes this long to end (a CLI that is slow to die). */
+  slowStop?: number;
 }
 const scripts: Script[] = [];
 const asked: RunAIOptions[] = [];
@@ -33,8 +35,9 @@ const tick = (ms = 2) => new Promise((resolve) => setTimeout(resolve, ms));
 async function fakeAI(options: RunAIOptions): Promise<RunAIResult> {
   asked.push(options);
   const script = scripts.shift() ?? { text: 'No script.' };
-  const aborted = new Promise<never>((_, reject) => options.signal?.addEventListener('abort', () => reject(new AiError('cancelled', 'That was stopped.')), { once: true }));
+  const aborted = new Promise<never>((_, reject) => options.signal?.addEventListener('abort', () => setTimeout(() => reject(new AiError('cancelled', 'That was stopped.')), script.slowStop ?? 0), { once: true }));
   aborted.catch(() => {});
+  if (options.signal?.aborted) throw new AiError('cancelled', 'That was stopped.');
   options.onEvent?.({ type: 'started' });
   for (const delta of script.deltas ?? []) {
     options.onEvent?.({ type: 'delta', text: delta });
@@ -47,7 +50,8 @@ async function fakeAI(options: RunAIOptions): Promise<RunAIResult> {
 }
 
 const { clubRouter } = await import('./index.js');
-const { validateActions } = await import('./companion-actions.js');
+const { validateActions, applyAction, CHANGED_SINCE } = await import('./companion-actions.js');
+const { cancelAllJobs, getJob } = await import('./jobs.js');
 const { ReplySplitter, parseReply, chunkText } = await import('./companion-reply.js');
 const { screenText, fromBoardChat } = await import('./companion.js');
 
@@ -194,7 +198,9 @@ const apply = (reply: CompanionReplyMessage, index: number) => call<CompanionApp
 const undo = (reply: CompanionReplyMessage, index: number) => call<CompanionApplied>('POST', `/videos/${video.id}/companion/${reply.id}/cards/${index}/undo`);
 const plan = async () => (await call<{ package: Package; outline: Outline }>('GET', `/videos/${video.id}/plan`)).body;
 
-test('every applied card is a version: Use as hook and Use as title apply and undo', async () => {
+const errorOf = (res: { body: unknown }) => (res.body as { error?: string }).error;
+
+test('every applied card is a version, and each Undo puts back only what that card changed', async () => {
   const reply = await replyWith([{ type: 'use_hook', text: 'This menu does the work.' }, { type: 'use_title', text: 'The menu nobody opens' }]);
   const hook = await apply(reply, 0);
   assert.equal(hook.status, 200, JSON.stringify(hook.body));
@@ -206,14 +212,68 @@ test('every applied card is a version: Use as hook and Use as title apply and un
   await apply(reply, 1);
   assert.deepEqual((await plan()).package.titles, ['The menu nobody opens', 'Hidden features you never opened', '']);
 
+  // Two applies in a row, then Undo of the first: the hook goes back, the title applied after it stays, and its card stays applied.
   const undone = await undo(reply, 0);
+  assert.equal(undone.status, 200, JSON.stringify(undone.body));
   assert.equal(undone.body.message.cards[0].state, 'undone');
   assert.equal(undone.body.message.cards[0].version, undefined);
-  // Undo puts the file back as it was before that card, so the title applied after it goes too; it is kept beside the package.
-  assert.equal((await plan()).package.hook.spoken, 'You never opened this.');
-  assert.ok((await readdir(vdir)).some((name) => /^package-undone-.+\.json$/.test(name)), 'what was there is kept aside');
+  assert.equal(undone.body.message.cards[1].state, 'applied');
+  const after = (await plan()).package;
+  assert.equal(after.hook.spoken, 'You never opened this.');
+  assert.deepEqual(after.titles, ['The menu nobody opens', 'Hidden features you never opened', '']);
   assert.equal((await undo(reply, 0)).status, 409, 'nothing left to undo');
+  // Then Undo of the second on its own.
+  await undo(reply, 1);
+  assert.deepEqual((await plan()).package.titles, ['Hidden features you never opened', '', '']);
+  assert.equal((await plan()).package.hook.spoken, 'You never opened this.', 'the hook is untouched by the title Undo');
   assert.equal((await apply(reply, 0)).status, 200, 'an undone card can be applied again');
+  await undo(reply, 0);
+});
+
+test('Undo never overwrites newer work: edits to other fields survive, and an edit to the same field makes Undo refuse', async () => {
+  const reply = await replyWith([{ type: 'use_hook', text: 'Open the menu first.' }, { type: 'set_thumbnail_text', text: 'Never opened' }]);
+  await apply(reply, 0);
+  // Apply the hook, then edit the titles in Plan, then Undo the hook: the title edits stay.
+  await call('PUT', `/videos/${video.id}/package`, { titles: ['My own title', 'Second one', null] });
+  assert.equal((await undo(reply, 0)).status, 200);
+  const pkgNow = (await plan()).package;
+  assert.equal(pkgNow.hook.spoken, 'You never opened this.');
+  assert.deepEqual(pkgNow.titles, ['My own title', 'Second one', '']);
+
+  // Undo after the person edited the same field: refused, the edit stays, the card stays applied.
+  await apply(reply, 0);
+  await call('PUT', `/videos/${video.id}/package`, { hook: { spoken: 'My own opening line.' } });
+  const refused = await undo(reply, 0);
+  assert.equal(refused.status, 409);
+  assert.equal(errorOf(refused), CHANGED_SINCE);
+  assert.equal((await plan()).package.hook.spoken, 'My own opening line.');
+  assert.equal(((await thread()).messages.find((message) => message.id === reply.id) as CompanionReplyMessage).cards[0].state, 'applied');
+
+  // Two cards that change the same field: the later one wins, and Undo of the earlier refuses rather than undo the later.
+  const two = await replyWith([{ type: 'set_thumbnail_text', text: 'First words' }, { type: 'set_thumbnail_text', text: 'Second words' }]);
+  await apply(two, 0);
+  await apply(two, 1);
+  assert.equal(errorOf(await undo(two, 0)), CHANGED_SINCE);
+  assert.equal((await plan()).package.thumbnailText, 'Second words');
+  assert.equal((await undo(two, 1)).status, 200);
+  assert.equal((await plan()).package.thumbnailText, 'First words', 'each Undo goes back to what its own card found');
+  await call('PUT', `/videos/${video.id}/package`, pkg);
+});
+
+test('a double click or two windows apply a card once', async () => {
+  const reply = await replyWith([{ type: 'add_note', text: 'Only once.' }]);
+  const tiles = async () => ((await call<ResearchTile[]>('GET', `/videos/${video.id}/research`)).body).filter((tile) => tile.text === 'Only once.').length;
+  const results = await Promise.all([apply(reply, 0), apply(reply, 0), apply(reply, 0)]);
+  assert.deepEqual(results.map((res) => res.status).sort(), [200, 409, 409]);
+  assert.equal(await tiles(), 1);
+  await undo(reply, 0);
+});
+
+test('versions are kept for the last twenty applied cards of a video', async () => {
+  const other = (await call<Video>('POST', '/videos', { title: 'Many versions' })).body;
+  for (let index = 0; index < 23; index++) await applyAction('maya-lopez', other.id, { type: 'set_thumbnail_text', text: `Words ${index}` });
+  const versions = (await readdir(path.join(dir, 'videos', other.id, 'companion-versions'))).filter((name) => name.endsWith('.json'));
+  assert.equal(versions.length, 20);
 });
 
 test('Draft scenes replaces the scenes and sets the script aside; Undo brings both back', async () => {
@@ -227,6 +287,19 @@ test('Draft scenes replaces the scenes and sets the script aside; Undo brings bo
   await undo(reply, 0);
   assert.equal(await readFile(path.join(vdir, 'outline.md'), 'utf8'), before);
   assert.match(await readFile(path.join(vdir, 'script.md'), 'utf8'), /## Level 1\nThe first\./);
+  // Drafted, then edited by hand: Undo refuses, and the earlier scenes are kept on disk under a clear name.
+  const again = await replyWith([{ type: 'draft_scenes', scenes: [{ title: 'X', talkingPoints: ['x'], show: '', seconds: 60 }] }]);
+  await apply(again, 0);
+  const drafted = (await plan()).outline;
+  await call('PUT', `/videos/${video.id}/outline`, { scenes: [{ ...drafted.scenes[0], title: 'X, edited' }] });
+  const refused = await undo(again, 0);
+  assert.equal(refused.status, 409);
+  assert.equal(errorOf(refused), CHANGED_SINCE);
+  assert.equal((await plan()).outline.scenes[0].title, 'X, edited', 'the edit stays');
+  const kept = (await readdir(vdir)).find((name) => /^outline-before-companion-cv_[a-f0-9]{12}\.md$/.test(name));
+  assert.ok(kept, 'the pre-action outline is kept');
+  assert.equal(await readFile(path.join(vdir, kept!), 'utf8'), before);
+  await call('PUT', `/videos/${video.id}/outline`, saved);
 });
 
 test('Set scene changes one scene by its id; a scene removed meanwhile is a clear refusal', async () => {
@@ -235,8 +308,13 @@ test('Set scene changes one scene by its id; a scene removed meanwhile is a clea
   const scenes = (await plan()).outline.scenes;
   assert.deepEqual(scenes[0].talkingPoints, ['Show the finished thing', 'Say why']);
   assert.equal(scenes[0].id, s1, 'the id stays');
-  await undo(reply, 0);
+  // Another scene edited meanwhile: this scene's Undo still works, and the other edit stays.
+  const edited = (await plan()).outline.scenes;
+  await call('PUT', `/videos/${video.id}/outline`, { scenes: [edited[0], { ...edited[1], title: 'Level 1, renamed' }] });
+  assert.equal((await undo(reply, 0)).status, 200);
   assert.deepEqual((await plan()).outline.scenes[0].talkingPoints, ['Show the result']);
+  assert.equal((await plan()).outline.scenes[1].title, 'Level 1, renamed');
+  await call('PUT', `/videos/${video.id}/outline`, saved);
 
   const stale = await replyWith([{ type: 'set_scene', sceneId: s2, title: 'Gone soon' }]);
   await call('PUT', `/videos/${video.id}/outline`, { scenes: [(await plan()).outline.scenes[0]] });
@@ -254,6 +332,12 @@ test('Add note puts a tile on the board and Undo takes it off; the description i
   assert.equal(await count(), before + 1);
   await undo(reply, 0);
   assert.equal(await count(), before);
+  // A note written in after it was added stays on the board.
+  await apply(reply, 0);
+  const tile = ((await call<ResearchTile[]>('GET', `/videos/${video.id}/research`)).body).find((each) => each.text === 'Free plan questions keep coming.')!;
+  await call('PATCH', `/videos/${video.id}/research/${tile.id}`, { text: 'Free plan questions keep coming. Ask Ana.' });
+  assert.equal(errorOf(await undo(reply, 0)), CHANGED_SINCE);
+  assert.equal(await count(), before + 1);
 
   const publish = await replyWith([{ type: 'set_description', text: 'What you get.\n\n0:00 Opening' }], 'publish');
   await apply(publish, 0);
@@ -268,7 +352,10 @@ test('Stop keeps what arrived as a stopped reply; one reply runs at a time; Try 
   const started = await ask('Long one', { tab: 'plan' });
   assert.equal((await ask('Another', { tab: 'plan' })).status, 409, 'a second question waits for the first');
   assert.equal((await thread()).running?.messageId, started.body.message.id, 'a reopened panel finds the running reply');
-  await tick(30);
+  await tick(80);
+  const running = (await thread()).running!;
+  assert.equal(running.text, 'Half of an answer', 'with the text shown so far');
+  assert.deepEqual(running.steps, ['Reading the plan', 'Thinking it through', 'Writing the reply'], 'and its steps');
   await call('DELETE', `/jobs/${started.body.jobId}`);
   release();
   await tick(30);
@@ -290,6 +377,33 @@ test('Stop keeps what arrived as a stopped reply; one reply runs at a time; Try 
   assert.equal(after.length, count + 1, 'only the reply is added');
 });
 
+test('a stopped reply that is still being saved goes after its own question, not after the next one', async () => {
+  let release!: () => void;
+  scripts.push({ deltas: ['Partly ', 'there'], text: 'Partly there', hold: new Promise((resolve) => (release = resolve)), slowStop: 60 });
+  const first = await ask('Slow to stop', { tab: 'plan' });
+  await tick(40);
+  await call('DELETE', `/jobs/${first.body.jobId}`);
+  scripts.push({ text: 'Next answer.' });
+  const next = await ask('Next question', { tab: 'plan' });
+  assert.equal(next.status, 202, 'a new question can be asked at once');
+  await events(next.body.jobId);
+  release();
+  await tick(120);
+  const ids = (await thread()).messages.slice(-4).map((message) => (message.role === 'user' ? message.text : message.status ?? message.text));
+  assert.deepEqual(ids, ['Slow to stop', 'stopped', 'Next question', 'Next answer.']);
+});
+
+test('quitting stops every running reply, so no CLI outlives the app', async () => {
+  scripts.push({ deltas: ['Going'], text: 'Going', hold: new Promise(() => {}) });
+  const before = asked.length;
+  const started = await ask('Never ends', { tab: 'plan' });
+  for (let i = 0; i < 200 && asked.length === before; i++) await tick(5);
+  assert.ok(cancelAllJobs() >= 1);
+  assert.equal(getJob(started.body.jobId)?.status, 'cancelled');
+  assert.equal(asked.at(-1)!.signal?.aborted, true, 'the runner was told to stop');
+  await tick(20);
+});
+
 test('the old Board chat is carried over on first read and its file is kept', async () => {
   const old = (await call<Video>('POST', '/videos', { title: 'Older video' })).body;
   const file = path.join(dir, 'videos', old.id, 'board-chat.json');
@@ -302,6 +416,33 @@ test('the old Board chat is carried over on first read and its file is kept', as
   assert.ok(JSON.parse(await readFile(file, 'utf8')).length === 2, 'the old file stays');
   assert.ok(JSON.parse(await readFile(path.join(dir, 'videos', old.id, 'companion.json'), 'utf8')).messages.length === 2);
   assert.deepEqual(fromBoardChat([]), []);
+});
+
+test('a conversation file is read leniently: a bad card goes, never its message; long text is capped; an unreadable file is set aside', async () => {
+  const other = (await call<Video>('POST', '/videos', { title: 'Odd files' })).body;
+  const folder = path.join(dir, 'videos', other.id);
+  const file = path.join(folder, 'companion.json');
+  await writeFile(file, JSON.stringify({ messages: [
+    { id: 'm1', role: 'user', text: 'Hi', context: { tab: 'plan', extra: true } },
+    { id: 'm2', role: 'assistant', text: 'x'.repeat(50_000), tab: 'plan', cards: [{ action: { type: 'use_hook', text: 'Kept' }, state: 'offered' }, 'not a card', { state: 'applied' }, { action: { type: 'from_the_future', x: 1 }, state: 'offered' }] },
+    { role: 'assistant', text: 'No id' },
+  ] }));
+  const read = (await call<CompanionThread>('GET', `/videos/${other.id}/companion`)).body;
+  assert.deepEqual(read.messages.map((message) => message.id), ['m1', 'm2'], 'only the message with no id is left out');
+  const reply = read.messages[1] as CompanionReplyMessage;
+  assert.equal(reply.text.length, 40_000);
+  assert.deepEqual(reply.cards.map((card) => card.action.type), ['use_hook', 'from_the_future'], 'a card that is not readable goes, its message stays');
+  assert.ok((await readdir(folder)).some((name) => /^companion-unreadable-.+\.json$/.test(name)), 'the file as it was is kept aside');
+  const refused = await call('POST', `/videos/${other.id}/companion/m2/cards/1/apply`);
+  assert.equal(errorOf(refused), "That change can't be applied.", 'a card is checked again on Apply');
+
+  // Not JSON at all: set aside, and the conversation starts empty instead of being replaced by the old Board chat.
+  await writeFile(path.join(folder, 'board-chat.json'), JSON.stringify([{ role: 'user', text: 'Old' }]));
+  await writeFile(file, '{ not json');
+  const fresh = (await call<CompanionThread>('GET', `/videos/${other.id}/companion`)).body;
+  assert.deepEqual(fresh.messages, []);
+  assert.equal(JSON.parse(await readFile(file, 'utf8')).messages.length, 0);
+  assert.ok((await stat(file)).isFile());
 });
 
 test('bad requests are refused', async () => {

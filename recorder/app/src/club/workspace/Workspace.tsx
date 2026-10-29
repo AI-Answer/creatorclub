@@ -168,7 +168,7 @@ export function Workspace({video,tab,back,navigate,onVideo}:{video:Video;tab:Vid
   </div>
   <Foot tab={tab} back={back} backLabel={backLabel} onTab={target=>void goToTab(target)} next={nextButton}/>
   </div>
-  {tab!=='edit'&&<Companion videoId={video.id} tab={tab} scene={companionScene} screen={screen} pkg={plan.pkg} outline={plan.outline} onChanged={companionChanged} beforeApply={plan.flush} roomy={tab==='record'}/>}
+  {tab!=='edit'&&<Companion videoId={video.id} tab={tab} scene={companionScene} screen={screen} pkg={plan.pkg} outline={plan.outline} scenes={list} onChanged={companionChanged} beforeApply={plan.flush} roomy={tab==='record'}/>}
   </div>
  </div>;
 }

@@ -1,7 +1,7 @@
 import express, { Router, type NextFunction, type Request, type Response } from 'express';
 import multer from 'multer';
 import { z } from 'zod';
-import { SEED_BELOW, BOARD_ITEM_KINDS, HELP_STEPS, PLAN_JOB_KINDS, TILE_KINDS, VIDEO_STAGES, type Workspace } from '../../shared/club.js';
+import { SEED_BELOW, HELP_STEPS, PLAN_JOB_KINDS, TILE_KINDS, VIDEO_STAGES, type Workspace } from '../../shared/club.js';
 import { aiStatus } from './ai.js';
 import { startConnect, type ConnectOptions } from './connect.js';
 import { ClubError, GENERIC_FAILURE, notFound } from './errors.js';
@@ -18,7 +18,6 @@ import { publishVideo, ytDlpViews, type ViewsReader } from './publish.js';
 import { publishingRoutes, type PublishingOptions } from './publisher-routes.js';
 import { recordingsDiskSpace } from './disk.js';
 import { readTranscript, startTileRead } from './research.js';
-import { askAboutBoard, readBoardChat, saveBoardChat } from './board-chat.js';
 import { applyCard, askBody, askCompanion, readThread, undoCard } from './companion.js';
 import { videoScenes, videosScenes } from './scenes.js';
 import { POSITION_MAX, WIDTH_MAX, WIDTH_MIN } from './tile-layout.js';
@@ -158,19 +157,6 @@ const tilePatchBody = z
   .partial()
   .strict()
   .refine((patch) => Object.keys(patch).length > 0, { message: 'nothing to change' });
-const boardChatBody = z.object({ message: z.string().trim().min(1).max(4000), history: z.array(z.object({ role: z.enum(['user', 'assistant']), text: z.string().max(20_000) }).strict()).max(200).default([]) }).strict();
-const boardMessages = z
-  .array(
-    z
-      .object({
-        role: z.enum(['user', 'assistant']),
-        text: z.string().max(20_000),
-        items: z.array(z.object({ kind: z.enum(BOARD_ITEM_KINDS), text: z.string().max(2000) }).strict()).max(20).optional(),
-        used: z.array(z.number().int().min(0).max(19)).max(20).optional(),
-      })
-      .strict(),
-  )
-  .max(400);
 const packageUseBody = z.object({ kind: z.enum(['hook', 'title']), text: z.string().trim().min(1).max(2000) }).strict();
 const sceneScriptBody = z.object({ text: z.string().max(200_000) }).strict();
 const packageRunBody = z.object({ replace: z.enum(['titles', 'hook']).optional() }).strict();
@@ -552,18 +538,6 @@ export function clubRouter({ ai = {}, transcribe, runAI, readViews = ytDlpViews(
   router.post('/videos/:id/recorder', handler(async (req, res) => res.json(await continueToRecording(await requireWorkspace(), param(req, 'id')))));
   // The outline's scenes with the takes the recording project holds for each. Read only.
   router.get('/videos/:id/scenes', handler(async (req, res) => res.json(await videoScenes(await requireWorkspace(), param(req, 'id')))));
-
-  // ---- Board chat: "Ask Claude about this board". The conversation is saved with the video.
-  router.get('/videos/:id/board/chat', handler(async (req, res) => res.json(await readBoardChat(await requireWorkspace(), param(req, 'id')))));
-  router.put('/videos/:id/board/chat', handler(async (req, res) => res.json(await saveBoardChat(await requireWorkspace(), param(req, 'id'), boardMessages.parse(req.body)))));
-  router.post('/videos/:id/board/chat', handler(async (req, res) => {
-    const slug = await requireWorkspace();
-    const { message, history } = boardChatBody.parse(req.body);
-    // The reply is paid for, so it stops when the person closes the panel or leaves.
-    const stop = new AbortController();
-    res.once('close', () => !res.writableFinished && stop.abort());
-    res.json(await askAboutBoard(slug, param(req, 'id'), message, history, plan, stop.signal));
-  }));
 
   // ---- the companion: one conversation per video across the steps. The reply streams through /jobs/:id/events.
   router.get('/videos/:id/companion', handler(async (req, res) => res.json(await readThread(await requireWorkspace(), param(req, 'id')))));

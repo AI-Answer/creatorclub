@@ -21,6 +21,7 @@ import {automation} from './automation.js';
 import {planBorumiRoundtrip,exportBorumiRoundtrip} from './borumi-roundtrip.js';
 import {planNewBorumiProject,exportNewBorumiProject} from './borumi-new-project.js';
 import {clubRouter} from './club/index.js';
+import {cancelAllJobs} from './club/jobs.js';
 import {isAudioRole,type Project,type ExportOptions} from '../shared/types.js';
 
 const PORT=Number(process.env.SCENEFORGE_PORT||4174);
@@ -213,5 +214,5 @@ app.get('/{*rest}',(req,res)=>{if(req.path.startsWith('/api/'))res.status(404).j
 app.use((error:Error & {status?:number;code?:string},_req:Request,res:Response,_next:NextFunction)=>{console.error(error.message);res.status(error.status||(error.code==='ENOENT'?404:400)).json({error:error.message});});
 const server=app.listen(PORT,'127.0.0.1',(error?:Error)=>{if(error){console.error('Could not start SceneForge: '+error.message);void exportsStore.shutdown(media.shutdownJobs).finally(()=>{process.exitCode=1;});return;}console.log(`SceneForge is ready at http://127.0.0.1:${PORT}`);});
 let shuttingDown=false;
-const shutdown=()=>{if(shuttingDown)return;shuttingDown=true;server.close();void Promise.allSettled([exportsStore.shutdown(media.shutdownJobs),agentChat.shutdownAgentChats(),automation.shutdown()]).then(results=>{for(const result of results)if(result.status==='rejected')console.error(result.reason);});};
+const shutdown=()=>{if(shuttingDown)return;shuttingDown=true;server.close();cancelAllJobs();void Promise.allSettled([exportsStore.shutdown(media.shutdownJobs),agentChat.shutdownAgentChats(),automation.shutdown()]).then(results=>{for(const result of results)if(result.status==='rejected')console.error(result.reason);});};
 process.on('SIGTERM',shutdown);process.on('SIGINT',shutdown);
