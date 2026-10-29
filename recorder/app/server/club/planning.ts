@@ -289,6 +289,29 @@ export async function saveScript(slug: string, id: string, script: string | null
   return readOutline(slug, id);
 }
 
+/**
+ * Hand-edits one scene's script. The scene's part is merged into the script as it is now, in the format the script already has:
+ * a script written scene by scene stays that way (the other scenes keep what they have), a full script stays one. A script that has
+ * no `##` scenes cannot be split, so it is edited as the full script instead.
+ */
+export async function saveSceneScript(slug: string, id: string, sceneId: string, text: string): Promise<Outline> {
+  await store.readVideo(slug, id);
+  const file = scriptFile(slug, id);
+  return store.withLock(`script:${file}`, async () => {
+    const outline = await readOutline(slug, id);
+    const index = outline?.scenes.findIndex((scene) => scene.id === sceneId) ?? -1;
+    if (!outline || index < 0) throw notFound('scene');
+    const current = await readText(file);
+    if (current?.trim() && !scriptSections(current).length) throw new ClubError('This script has no scenes to edit one by one. Edit the full script instead.', 409);
+    const body = text.trim();
+    if (current === undefined && !body) return outline;
+    const pkg = await readPackage(slug, id);
+    const video = await store.readVideo(slug, id);
+    await store.writeFileAtomic(file, mergeScene(outline.scenes, index, current, body, pkg?.titles[0]?.trim() || video.title));
+    return (await readOutline(slug, id)) ?? outline;
+  });
+}
+
 // ---------------------------------------------------------------- versions: replace with Undo, or hold a late result
 
 const FILES: Record<PlanJobKind, (slug: string, id: string) => string> = { package: packageFile, outline: outlineFile, script: scriptFile };

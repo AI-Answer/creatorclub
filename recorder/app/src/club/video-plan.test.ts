@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {changedSceneLine,clockTime,linkHost,movesForward,nextPlanStep,openPlanStep,stageReached,tileFromText} from './video-plan';
+import {changedSceneLine,clockTime,linkHost,movesForward,stageReached,tileFromText} from './video-plan';
 
 test('a Continue only moves the card forward',()=>{
  assert.equal(movesForward('ideas','planning'),true);
@@ -14,13 +14,7 @@ test('a stage is reached once the card is at or past it',()=>{
  assert.equal(stageReached('planning','recording'),false);assert.equal(stageReached('ideas','planning'),false);
 });
 
-test('Plan opens on the first step not done (Research is the Board now), and the steps follow each other',()=>{
- assert.equal(openPlanStep({research:false,package:false,outline:false}),'package');
- assert.equal(openPlanStep({research:true,package:false,outline:false}),'package');
- assert.equal(openPlanStep({research:true,package:true,outline:false}),'outline');
- assert.equal(openPlanStep({research:true,package:true,outline:true}),'outline');
- assert.equal(openPlanStep({research:false,package:true,outline:true}),'outline');
- assert.equal(nextPlanStep('research'),'package');assert.equal(nextPlanStep('package'),'outline');assert.equal(nextPlanStep('outline'),undefined);
+test('the changed-scene line names the scene',()=>{
  assert.equal(changedSceneLine(3),'Your outline changed after you recorded scene 3.');
 });
 

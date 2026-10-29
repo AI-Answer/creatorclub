@@ -3,8 +3,7 @@ import type {Video,VideoStage} from '../../../shared/club';
 import {clubFetch,errorMessage} from '../api';
 import {ClubRecorder} from '../ClubRecorder';
 import {ErrorLine} from '../ErrorLine';
-import {PlanChecklist} from '../plan/PlanChecklist';
-import {sceneAnchor} from '../plan/OutlineEditor';
+import {Plan} from '../plan/Plan';
 import {PublishStep} from '../screens/PublishStep';
 import {type Route,type VideoTab} from '../routes';
 import {useVideoScenes} from '../scenes';
@@ -42,11 +41,6 @@ export function Workspace({video,tab,back,navigate,onVideo}:{video:Video;tab:Vid
  const outlineDone=plan.outlineJob.phase==='done';
  useEffect(()=>{if(outlineDone)scenes.reload();},[outlineDone,scenes.reload]);
 
- useEffect(()=>{
-  const index=list?.findIndex(scene=>scene.id===focusId)??-1;
-  if(focusId!==null&&tab==='plan'&&index>=0)requestAnimationFrame(()=>document.getElementById(sceneAnchor(index))?.scrollIntoView?.({block:'start',behavior:'smooth'}));
- },[focusId,tab,list]);
-
  /** Moves the card to a stage, with Undo when `undoTo` is given (the stage menu). */
  const moveTo=useCallback(async(stage:VideoStage,undoTo?:VideoStage)=>{
   if(stage===video.stage)return;
@@ -81,8 +75,8 @@ export function Workspace({video,tab,back,navigate,onVideo}:{video:Video;tab:Vid
 
  let nextButton:{label:string;run():void;disabled:boolean;primary:boolean}|undefined;
  if(tab==='plan'){
-  nextButton=plan.continueAction?{label:plan.open==='package'?'Continue to outline':'Continue to record',run:plan.continueAction.run,disabled:plan.continueAction.disabled,primary:continueIsPrimary(tabDone('plan',facts),!plan.pkg||!plan.outline?.scenes.length)}
-   :{label:plan.open==='package'?'Continue to outline':'Continue to record',run:()=>{},disabled:true,primary:false};
+  nextButton=plan.continueAction?{label:'Continue to recording',run:plan.continueAction.run,disabled:plan.continueAction.disabled,primary:continueIsPrimary(tabDone('plan',facts),false)}
+   :{label:'Continue to recording',run:()=>{},disabled:true,primary:false};
  }else if(next&&!unplanned&&tab!=='publish'){
   nextButton={label:`Continue to ${TAB_LABEL[next].toLowerCase()}`,run:()=>void continueToNext(),disabled:moving,primary:continueIsPrimary(tabDone(tab,facts),false)};
  }
@@ -95,7 +89,8 @@ export function Workspace({video,tab,back,navigate,onVideo}:{video:Video;tab:Vid
   {moveError&&<div className="ws-body" style={{flex:'none',padding:'8px 18px'}}><ErrorLine message={moveError} onRetry={()=>void continueToNext()}/></div>}
   <div className="ws-body" key={tab}>
    {tab==='board'&&<Board video={video} scenes={list} onDrafted={draftedNow}/>}
-   {tab==='plan'&&<div className="flex flex-col"><PlanChecklist video={video} plan={plan}/></div>}
+   {tab==='plan'&&<Plan video={video} plan={plan} known={list} focusId={focusId} onFocus={setFocusId} onTitle={saveTitle}
+    onRecordScene={sceneId=>{setFocusId(sceneId);navigate(tabRoute('record'));}}/>}
    {(tab==='record'||tab==='edit')&&(video.recorderProjectId
     ?<ClubRecorder projectId={video.recorderProjectId} mode={tab==='record'?'Record':'Edit'} onBack={()=>navigate({name:'production',view:'board'})}
       onMode={mode=>{if(mode==='Edit'&&tab==='record')void continueToNext();else navigate(tabRoute(mode==='Edit'?'edit':'record'));}} onProgress={onProgress} onExported={tab==='edit'?onExported:undefined}/>

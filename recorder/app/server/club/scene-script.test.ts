@@ -279,3 +279,50 @@ test('a scene is matched to its part of the script by title, else by place when 
   assert.equal(matchSection([{ heading: 'x', body: 'a' }, { heading: 'y', body: 'b' }], scenes, 1)?.body, 'b', 'by place');
   assert.equal(matchSection([{ heading: 'x', body: 'a' }], scenes, 1), undefined, 'a different number: no guess');
 });
+
+test('hand-editing a scene keeps the script format: a scene-by-scene script stays partial, a full script stays one, other scenes are untouched', async () => {
+  const edit = (sceneId: string, text: string) => call('PUT', `/videos/${video.id}/script/scene/${sceneId}`, { text });
+  // Start from a script written scene by scene: only scenes 1 and 4 have words.
+  await call('PUT', `/videos/${video.id}/script`, { script: null });
+  await edit(ids[0], 'Opening words.');
+  await edit(ids[3], 'Ending words.');
+  const before = scriptSections(await scriptText());
+  const partial = await edit(ids[2], 'My own words for scene three.');
+  assert.equal(partial.status, 200);
+  const value = partial.body.outline as Outline;
+  assert.equal(value.scenes[2].script, 'My own words for scene three.');
+  assert.equal(value.scriptState, 'partial');
+  assert.equal(value.fullScript, undefined);
+  assert.equal(value.scenes[0].script, before[0].body, 'other scenes keep what they have');
+  assert.match(await scriptText(), /^<!-- CreatorClub scene script -->\n/, 'the scene marker stays');
+
+  // Emptying a scene clears only its part.
+  assert.equal(((await edit(ids[2], '  ')).body.outline as Outline).scenes[2].script, undefined);
+
+  // Once every scene has words the script is full, and editing a scene edits its section of it.
+  await edit(ids[1], 'Level one words.');
+  const full = (await edit(ids[2], 'Level two words.')).body.outline as Outline;
+  assert.equal(full.scriptState, 'full');
+  assert.ok(full.fullScript?.includes('Level two words.'));
+  await call('PUT', `/videos/${video.id}/script`, { script: `# Whole\n\n## Opening\n\nA\n\n## Level 1\n\nB\n\n## Where this falls short\n\nC\n\n## Ending\n\nD\n` });
+  const whole = (await edit(ids[1], 'B edited')).body.outline as Outline;
+  assert.equal(whole.scriptState, 'full');
+  assert.equal(whole.fullScript, '# Whole\n\n## Opening\n\nA\n\n## Level 1\n\nB edited\n\n## Where this falls short\n\nC\n\n## Ending\n\nD\n');
+  assert.doesNotMatch(await scriptText(), /CreatorClub scene script/, 'a full script written whole does not become a scene script');
+});
+
+test('hand-editing a scene: unknown scene is 404, a script without scenes is refused and left as it was, no script and no words writes nothing', async () => {
+  const edit = (sceneId: string, text: unknown) => call('PUT', `/videos/${video.id}/script/scene/${sceneId}`, { text });
+  assert.equal((await edit('nope', 'x')).status, 404);
+  assert.equal((await edit('bad id!', 'x')).status, 404);
+  assert.equal((await edit(ids[0], 5)).status, 400);
+  await call('PUT', `/videos/${video.id}/script`, { script: 'One long script with no scene headings.' });
+  const refused = await edit(ids[0], 'new');
+  assert.equal(refused.status, 409);
+  assert.equal(await scriptText(), 'One long script with no scene headings.\n');
+  await call('PUT', `/videos/${video.id}/script`, { script: null });
+  assert.equal((await edit(ids[0], '')).status, 200);
+  assert.ok(!(await files()).includes('script.md'), 'nothing is written for no words');
+  const first = await edit(ids[0], 'Fresh start');
+  assert.equal((first.body.outline as Outline).scriptState, 'partial');
+});

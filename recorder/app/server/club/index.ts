@@ -12,7 +12,7 @@ import { cancelJob, getJob, runningOnce, snapshot, startJob, startJobOnce, watch
 import { parseChannelInput } from './channel.js';
 import { FILE_TOO_BIG, MAX_FILE_BYTES, detectSource } from './source.js';
 import { addChannel, rebuildVoice, startFresh } from './onboard.js';
-import { SCENE_ID, deletePackage, heldResults, readOutline, readPackage, runningPlanJobs, saveOutline, savePackage, saveScript, startPlanJob, undoReplace, usePackageText, useHeld, type PlanOptions } from './planning.js';
+import { SCENE_ID, deletePackage, heldResults, readOutline, readPackage, runningPlanJobs, saveOutline, savePackage, saveScript, saveSceneScript, startPlanJob, undoReplace, usePackageText, useHeld, type PlanOptions } from './planning.js';
 import { continueToRecording, outlineChangedScene } from './recorder.js';
 import { publishVideo, ytDlpViews, type ViewsReader } from './publish.js';
 import { recordingsDiskSpace } from './disk.js';
@@ -163,6 +163,7 @@ const boardMessages = z
   )
   .max(400);
 const packageUseBody = z.object({ kind: z.enum(['hook', 'title']), text: z.string().trim().min(1).max(2000) }).strict();
+const sceneScriptBody = z.object({ text: z.string().max(200_000) }).strict();
 const scriptRunBody = z.object({ sceneId: z.string().regex(SCENE_ID).optional() }).strict();
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { files: 1, fileSize: 50 * 1024 * 1024 } });
@@ -486,6 +487,12 @@ export function clubRouter({ ai = {}, transcribe, runAI, readViews = ytDlpViews(
   router.put('/videos/:id/outline', handler(async (req, res) => res.json(await saveOutline(await requireWorkspace(), param(req, 'id'), req.body))));
   router.put('/videos/:id/script', handler(async (req, res) => {
     res.json({ outline: await saveScript(await requireWorkspace(), param(req, 'id'), scriptBody.parse(req.body).script) });
+  }));
+  // Hand-edits one scene's part of the script, whether the script was written scene by scene or whole.
+  router.put('/videos/:id/script/scene/:sceneId', handler(async (req, res) => {
+    const sceneId = param(req, 'sceneId');
+    if (!SCENE_ID.test(sceneId)) throw notFound('scene');
+    res.json({ outline: await saveSceneScript(await requireWorkspace(), param(req, 'id'), sceneId, sceneScriptBody.parse(req.body).text) });
   }));
   for (const kind of PLAN_JOB_KINDS) {
     // Package it, Create outline and Write full script instead. A second start while one runs gets the running one.

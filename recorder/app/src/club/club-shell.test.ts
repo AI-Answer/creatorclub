@@ -35,7 +35,7 @@ test('the shell routes through production, video steps and settings, and keeps t
   assert.match(ui.container.querySelector('.ws-title')!.textContent||'',/Hidden features in Claude Code/);
   assert.ok(server.calls.some(call=>call.path==='/videos/v1/opened'&&call.method==='POST'),'opening a video is noted for Recent videos');
   assert.equal(ui.container.querySelector('.steps [aria-current="step"]')!.textContent,'2Plan');
-  assert.ok([...ui.container.querySelectorAll('button')].some(b=>b.textContent==='Package it'),'Plan opens on the first step not done yet');
+  assert.ok([...ui.container.querySelectorAll('button')].some(b=>b.textContent==='Write titles'),'Plan opens with the package and the scenes side by side');
   await act(async()=>[...ui.container.querySelectorAll<HTMLElement>('.steps a')].find(a=>a.textContent==='3Record')!.click());
   assert.equal(window.location.hash,'#/video/v1/record');
   assert.ok(ui.container.querySelector('.sidebar.collapsed'),'the sidebar folds to its rail on Record');

@@ -1,14 +1,10 @@
-import {PLAN_STEPS,VIDEO_STAGES,type PlanStep,type Video,type VideoStage} from '../../shared/club';
+import {VIDEO_STAGES,type VideoStage} from '../../shared/club';
 import {looksLikeVideoLink} from './breakdown';
 
 /*
- * The rules of a video's page that need no screen: which step belongs to which stage, where a Continue button moves the
- * card, which steps show a tick, which Plan step is open, and what a pasted or dropped thing becomes on the research board.
+ * The rules of a video's page that need no screen: where a Continue button moves the card, and what a pasted or dropped thing
+ * becomes on the research board.
  */
-
-/** The steps the Plan tab still shows. Research is the Board tab now. */
-export const PLAN_TAB_STEPS=['package','outline'] as const;
-export type PlanTabStep=typeof PLAN_TAB_STEPS[number];
 
 const rank=(stage:VideoStage)=>VIDEO_STAGES.indexOf(stage);
 /** A Continue only ever moves a card forward. A card dragged further along stays where it is. */
@@ -16,22 +12,6 @@ export const movesForward=(from:VideoStage,to:VideoStage)=>rank(to)>rank(from);
 
 /** The stage is at or past `reached`. */
 export const stageReached=(stage:VideoStage,reached:VideoStage)=>rank(stage)>=rank(reached);
-
-/** PLAN.md's copy for the Plan steps, word for word. */
-export const PLAN_COPY:Record<PlanTabStep,{title:string;help:string;action:string}>={
- package:{title:'Package',help:'Decide why this video gets clicked.',action:'Package it'},
- outline:{title:'Create outline',help:"Turn this into scenes. You'll talk through each one when you record.",action:'Create outline'},
-};
-
-export const WRITE_SCRIPT='Write full script instead';
-
-/** The Plan step that opens first: the first one not completed yet, else the outline. */
-export function openPlanStep(planning:Video['planning']):PlanTabStep{
- return PLAN_TAB_STEPS.find(step=>!planning[step])??'outline';
-}
-
-/** The step after this one inside Plan, or nothing after the outline (Continue to record leaves Plan). */
-export const nextPlanStep=(step:PlanStep):PlanStep|undefined=>PLAN_STEPS[PLAN_STEPS.indexOf(step)+1];
 
 /** "Your outline changed after you recorded scene 3." */
 export const changedSceneLine=(scene:number)=>`Your outline changed after you recorded scene ${scene}.`;

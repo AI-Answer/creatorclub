@@ -10,7 +10,6 @@ const {ClubRecorder,OPEN_FAILED}=await import('./ClubRecorder');
 const {FakeEventSource,installFetch}=await import('./test-fakes');
 
 const flush=()=>act(async()=>{await new Promise(resolve=>setTimeout(resolve,0));});
-const type=async(input:Element,value:string,proto:object=HTMLInputElement.prototype)=>act(async()=>{Object.getOwnPropertyDescriptor(proto,'value')!.set!.call(input,value);input.dispatchEvent(new Event('input',{bubbles:true}));});
 const primaries=(root:Element)=>[...root.querySelectorAll('button')].filter(b=>b.classList.contains('primary')&&!b.disabled).map(b=>b.textContent?.trim());
 const hasText=(root:Element,text:string)=>(root.textContent??'').includes(text);
 const back:Route={name:'production',view:'board'};
@@ -44,7 +43,10 @@ function Harness({initial,tabs,start='plan'}:{initial:Video;tabs:VideoTab[];star
  return createElement(Workspace,{video,tab,back,onVideo:setVideo,navigate:route=>{if(route.name==='video'){tabs.push(route.tab!);if(route.tab!=='record')setTab(route.tab!);}}});
 }
 
-test('a video walks from Package through Create outline into recording',async()=>{
+const edit=async(element:Element|null,value:string)=>{assert.ok(element,'field to edit');await act(async()=>{(element as HTMLElement).innerText=value;element!.dispatchEvent(new Event('focusout',{bubbles:true}));});};
+const sceneTitles=(root:Element)=>[...root.querySelectorAll('.scene .t')].map(t=>t.textContent);
+
+test('a video walks from an empty Plan through Write titles and Draft scenes into recording',async()=>{
  FakeEventSource.install();
  const state:Server={video:planned,pkg:null,outline:null,help:['research']},server=serve(state),tabs:VideoTab[]=[];
  const ui=await mountUI(createElement(Harness,{initial:planned,tabs}));
@@ -52,28 +54,27 @@ test('a video walks from Package through Create outline into recording',async()=
   await flush();
   const c=ui.container;
   assert.ok(hasText(c,'Decide why this video gets clicked.'));
-  assert.deepEqual(primaries(c),['Package it']);
-  await act(async()=>button(c,'Package it').click());await flush();
+  assert.deepEqual(primaries(c),['Draft scenes from board'],'one primary: the thing to do first');
+  await act(async()=>button(c,'Write titles').click());await flush();
   await act(async()=>FakeEventSource.last().emit('progress',{message:'Writing the package…'}));
   assert.ok(hasText(c,'Writing the package…'),'progress streams in');
   await act(async()=>FakeEventSource.last().emit('done',{value:pkg}));
-  const firstTitle=c.querySelector<HTMLInputElement>('input[value="Claude Code features you missed"]');
-  assert.ok(firstTitle,'the package fills editable fields');
-  await type(firstTitle!,'Claude Code features nobody uses');
-  assert.deepEqual(primaries(c),[],'Continue is primary only once the outline is done, as in the prototype');
-  await act(async()=>button(c,'Continue to outline').click());await flush();
-  assert.equal(state.pkg?.titles[0],'Claude Code features nobody uses','edits are saved before moving on');
-  assert.equal(state.video.planning.package,true);
+  const titles=()=>[...c.querySelectorAll('.topt [role="textbox"]')].map(t=>t.textContent);
+  assert.deepEqual(titles(),pkg.titles,'the package fills editable fields');
+  await edit(c.querySelector('.topt [role="textbox"]'),'Claude Code features nobody uses');
+  await act(async()=>[...c.querySelectorAll<HTMLElement>('.topt')][1].click());await flush();
+  assert.equal(state.video.title,'Seven hidden Claude Code tricks','picking a title makes it the video title');
+  assert.equal(c.querySelectorAll('.topt')[1].getAttribute('aria-checked'),'true');
+  assert.deepEqual(primaries(c),['Draft scenes from board']);
 
-  assert.ok(hasText(c,"Turn this into scenes. You'll talk through each one when you record."));
-  assert.deepEqual(primaries(c),['Create outline']);
-  await act(async()=>button(c,'Create outline').click());await flush();
+  await act(async()=>button(c,'Draft scenes from board').click());await flush();
   await act(async()=>FakeEventSource.last().emit('done',{value:outline}));await flush();
-  assert.equal(c.querySelectorAll('ol[aria-label="Scenes"] > li').length,4,'four scene cards in the outline');
-  assert.ok(button(c,'Write full script instead'));
-  await type(c.querySelector('input[aria-label="Scene 2 title"]')!,'Level 1: settings');
-  assert.deepEqual(primaries(c),['Continue to record']);
-  await act(async()=>button(c,'Continue to record').click());await flush();
+  assert.equal(c.querySelectorAll('.scene').length,4,'four scene cards in the outline');
+  assert.ok(button(c,'Write full script'));
+  await edit(c.querySelectorAll('.scene .t')[1],'Level 1: settings');
+  assert.deepEqual(primaries(c),['Continue to recording']);
+  await act(async()=>button(c,'Continue to recording').click());await flush();
+  assert.equal(state.pkg?.titles[0],'Claude Code features nobody uses','edits are saved before moving on');
   assert.equal(state.outline?.scenes[1].title,'Level 1: settings');
   assert.deepEqual(tabs,['record'],'Record opens');
   assert.equal(state.video.stage,'recording');
@@ -84,36 +85,33 @@ test('a video walks from Package through Create outline into recording',async()=
 test('an AI step can be stopped, a page opened mid-run follows it, and a replaced outline can be undone',async()=>{
  FakeEventSource.install();
  const planned2:Video={...planned,planning:{research:true,package:true,outline:false}};
- const edited:Outline={scenes:outline.scenes.map((s,i)=>({...s,id:`s_0000000${i}`,...(i===0?{title:'My own opening'}:{})}))};
- const state={outline:edited as Outline|null,undone:0};
+ const state={outline:null as Outline|null,undone:0};
  const server=installFetch(({method,path,body})=>{
   if(path==='/videos/v1/plan')return {body:{package:pkg,outline:state.outline,running:{outline:'j-running'},ready:{}}};
   if(path==='/videos/v1/scenes')return {body:[]};
   if(path==='/settings')return {body:{helpSeen:['research','package','outline']}};
   if(path==='/jobs/j-running'&&method==='DELETE')return {body:{id:'j-running',status:'cancelled'}};
   if(path==='/videos/v1/outline'&&method==='POST')return {status:202,body:{id:'j-again',status:'running'}};
-  if(path==='/videos/v1/outline/undo'){state.undone++;assert.deepEqual(body,{token:'2026-10-29T10-00-00-000Z'});return {body:{package:pkg,outline:edited}};}
+  if(path==='/videos/v1/outline/undo'){state.undone++;assert.deepEqual(body,{token:'2026-10-29T10-00-00-000Z'});return {body:{package:pkg,outline:null}};}
  });
  const ui=await mountUI(createElement(Harness,{initial:planned2,tabs:[]}));
  try{
   await flush();
   const c=ui.container;
   assert.ok(FakeEventSource.all.some(source=>source.url.includes('/jobs/j-running/events')),'the page follows the run already going');
-  assert.ok(hasText(c,'Starting…'));assert.ok(c.querySelector('fieldset[disabled]'),'the scenes are locked while it runs');
+  assert.ok(hasText(c,'Starting…'));
   await act(async()=>button(c,'Stop').click());await flush();
   assert.ok(server.calls.some(call=>call.method==='DELETE'&&call.path==='/jobs/j-running'),'Stop cancels the job on the server');
   await act(async()=>FakeEventSource.last().emit('cancelled',{}));
   assert.ok(!hasText(c,'Starting…'));
-  assert.equal(c.querySelector<HTMLInputElement>('input[aria-label="Scene 1 title"]')!.value,'My own opening');
 
-  await act(async()=>button(c,'Create outline').click());await flush();
-  const replaced={scenes:outline.scenes.map((s,i)=>({...s,id:`s_0000000${i}`}))};
-  await act(async()=>FakeEventSource.last().emit('done',{value:replaced,replaced:'2026-10-29T10-00-00-000Z'}));
-  assert.equal(c.querySelector<HTMLInputElement>('input[aria-label="Scene 1 title"]')!.value,'Opening');
+  await act(async()=>button(c,'Draft scenes from board').click());await flush();
+  await act(async()=>FakeEventSource.last().emit('done',{value:outline,replaced:'2026-10-29T10-00-00-000Z'}));
+  assert.deepEqual(sceneTitles(c),['Opening','Level 1','Where this falls short','Ending']);
   assert.ok(hasText(c,'Replaced the outline'));
   await act(async()=>button(c,'Undo').click());await flush();
   assert.equal(state.undone,1);
-  assert.equal(c.querySelector<HTMLInputElement>('input[aria-label="Scene 1 title"]')!.value,'My own opening','Undo brings the edits back');
+  assert.equal(c.querySelectorAll('.scene').length,0,'Undo brings back what was there');
   assert.ok(!hasText(c,'Replaced the outline'));
  }finally{await ui.close();server.restore();}
 });
@@ -134,14 +132,14 @@ test('a result that finished after the step was edited is offered, not written',
   await flush();
   const c=ui.container;
   assert.ok(hasText(c,'New outline ready'));
-  assert.equal(c.querySelector<HTMLInputElement>('input[aria-label="Scene 1 title"]')!.value,'Mine','the edited outline stays until Use it');
+  assert.equal(sceneTitles(c)[0],'Mine','the edited outline stays until Use it');
   await act(async()=>button(c,'Use it').click());await flush();
-  assert.equal(c.querySelector<HTMLInputElement>('input[aria-label="Scene 1 title"]')!.value,'Opening');
+  assert.equal(sceneTitles(c)[0],'Opening');
   assert.ok(!hasText(c,'New outline ready'));
  }finally{await ui.close();server.restore();}
 });
 
-test('help lines stay hidden once a step was completed in the channel, and a changed outline is flagged',async()=>{
+test('a changed outline is flagged',async()=>{
  FakeEventSource.install();
  const recording:Video={...planned,stage:'recording',planning:{research:true,package:true,outline:true},recorderProjectId:'p1'};
  const state:Server={video:recording,pkg,outline,help:['research','package','outline']};
@@ -156,7 +154,6 @@ test('help lines stay hidden once a step was completed in the channel, and a cha
   await flush();
   const c=ui.container;
   assert.ok(hasText(c,'Your outline changed after you recorded scene 3.'));
-  assert.ok(!hasText(c,"Turn this into scenes."),'no help line');
   assert.deepEqual([...c.querySelectorAll('.tabs a.on')].map(a=>a.textContent),['Plan'],'Plan is the open tab');
  }finally{await ui.close();server.restore();}
 });
