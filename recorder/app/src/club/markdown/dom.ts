@@ -11,7 +11,7 @@ const escapeHtml = (value: string) => value.replace(/[&<>"]/g, (char) => ({ '&':
 
 // ---------------------------------------------------------------- document to HTML
 
-function inlineHtml(runs: readonly Inline[]): string {
+export function inlineHtml(runs: readonly Inline[]): string {
   return runs
     .map((run) => {
       if (run.t === 'br') return '<br>';
@@ -30,23 +30,26 @@ function inlineHtml(runs: readonly Inline[]): string {
 
 const lineHtml = (runs: readonly Inline[]) => inlineHtml(runs) || '<br>';
 
-function itemHtml(item: Item): string {
+function itemHtml(item: Item, line: Line): string {
   const attrs = item.checked === undefined ? '' : ` data-task="" data-checked="${item.checked}"`;
-  return `<li${attrs}>${inlineHtml(item.inline) || (item.children.length ? '' : '<br>')}${item.children.map(blockHtml).join('')}</li>`;
+  return `<li${attrs}>${inlineHtml(item.inline) || (item.children.length ? '' : '<br>')}${item.children.map((child) => blockHtml(child, line)).join('')}</li>`;
 }
 
-export function blockHtml(block: Block): string {
+/** The tag a paragraph is written as. The editor uses `div`, which is what the browser makes itself when you press Enter, so lists and headings made later nest cleanly. */
+export type Line = 'p' | 'div';
+
+export function blockHtml(block: Block, line: Line = 'p'): string {
   switch (block.t) {
     case 'p':
-      return `<p>${lineHtml(block.inline)}</p>`;
+      return `<${line}>${lineHtml(block.inline)}</${line}>`;
     case 'h':
       return `<h${block.level}>${lineHtml(block.inline)}</h${block.level}>`;
     case 'ul':
-      return `<ul>${block.items.map(itemHtml).join('')}</ul>`;
+      return `<ul>${block.items.map((item) => itemHtml(item, line)).join('')}</ul>`;
     case 'ol':
-      return `<ol${block.start !== 1 ? ` start="${block.start}"` : ''}>${block.items.map(itemHtml).join('')}</ol>`;
+      return `<ol${block.start !== 1 ? ` start="${block.start}"` : ''}>${block.items.map((item) => itemHtml(item, line)).join('')}</ol>`;
     case 'quote':
-      return `<blockquote>${block.blocks.map(blockHtml).join('') || '<p><br></p>'}</blockquote>`;
+      return `<blockquote>${block.blocks.map((child) => blockHtml(child, line)).join('') || `<${line}><br></${line}>`}</blockquote>`;
     case 'code':
       return `<pre data-lang="${escapeHtml(block.lang)}"><code>${escapeHtml(block.text) || '<br>'}</code></pre>`;
     case 'hr':
@@ -57,7 +60,7 @@ export function blockHtml(block: Block): string {
 }
 
 /** The page for a document. An empty document is one empty paragraph, so there is somewhere to write. */
-export const renderHtml = (doc: Doc) => (doc.length ? doc.map(blockHtml).join('') : '<p><br></p>');
+export const renderHtml = (doc: Doc, line: Line = 'p') => (doc.length ? doc.map((block) => blockHtml(block, line)).join('') : `<${line}><br></${line}>`);
 
 // ---------------------------------------------------------------- page to document
 
@@ -196,7 +199,7 @@ function readBlock(element: HTMLElement): Block[] {
     const lang = element.getAttribute('data-lang') ?? /language-([\w+-]+)/.exec(`${element.className} ${code?.className ?? ''}`)?.[1] ?? '';
     return [{ t: 'code', lang, text: value }];
   }
-  if (tag === 'P' || (tag === 'DIV' && !hasBlock(element)) || tag === 'LI' || tag === 'DT' || tag === 'DD' || tag === 'TD' || tag === 'TH') {
+  if (((tag === 'P' || tag === 'DIV') && !hasBlock(element)) || tag === 'LI' || tag === 'DT' || tag === 'DD' || tag === 'TD' || tag === 'TH') {
     // A paragraph with a `<br><br>` inside is two paragraphs, as a pasted page often means it.
     return [{ t: 'p', inline: blockInline(element) }];
   }

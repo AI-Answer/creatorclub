@@ -88,7 +88,7 @@ test('Breakdown on a YouTube tile sends the tile\'s own YouTube id, never the Cr
  const {TileBody}=await import('./TileBody');
  const sent:string[]=[];
  const tile={id:'t1',kind:'video' as const,url:'https://www.youtube.com/watch?v=abcdefghijk',title:'A video',meta:{},createdAt:''};
- const props={tile,videoId:'v-1a2b3c',onRemove(){},onSaveText(){},onRetryRead(){},onBreakdown:(id:string)=>sent.push(id)};
+ const props={tile,videoId:'v-1a2b3c',onRemove(){},onOpen(){},onRetryRead(){},onBreakdown:(id:string)=>sent.push(id)};
  const ui=await mountUI(createElement(TileBody,props));
  try{
   await act(async()=>[...ui.container.querySelectorAll('button')].find(b=>b.textContent?.trim()==='Breakdown')!.click());
