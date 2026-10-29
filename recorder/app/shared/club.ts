@@ -135,10 +135,11 @@ export interface ResearchTile {
   createdAt: string;
 }
 
+/** The package of a video. The ratings are left out until they are judged: a package made by Use as hook or Use as title has none, and the blank fields stay blank. */
 export interface Package {
-  demand: ConceptRating;
-  gap: ConceptRating;
-  show: ConceptRating;
+  demand?: ConceptRating;
+  gap?: ConceptRating;
+  show?: ConceptRating;
   angle: string;
   twist: string;
   titles: [string, string, string];
@@ -153,10 +154,16 @@ export interface OutlineScene {
   talkingPoints: string[];
   show: string;
   seconds: number;
+  /** The scene's part of the script, when it has one. Derived when the outline is read (a script is saved in one file); sending it back does nothing. */
+  script?: string;
 }
+/** Whether the outline has a script: none, some scenes only (written one scene at a time), or every scene. Absent means none. */
+export type ScriptState = 'none' | 'partial' | 'full';
 export interface Outline {
   scenes: OutlineScene[];
+  /** The whole script as one text. Set when the script covers every scene, or was written as one piece; not set while only some scenes have a script (see `scriptState` and each scene's `script`). */
   fullScript?: string;
+  scriptState?: ScriptState;
 }
 
 /** The three Plan steps, in order. Each shows its help line until it is first completed in the channel. */
@@ -456,7 +463,7 @@ export interface BoardChatReply {
   items: BoardItem[];
 }
 
-/** Result of `POST /api/club/videos/:id/package/use`: the package as saved, and the one it replaced (null when there was none), so Undo can put it back with `PUT /package`. */
+/** Result of `POST /api/club/videos/:id/package/text`: the package as saved, and the one it replaced (null when there was none), so Undo can put it back with `PUT /package`, or remove the package with `DELETE /package` when there was none. */
 export interface PackageUseResult {
   package: Package;
   previous: Package | null;

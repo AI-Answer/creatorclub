@@ -11,14 +11,16 @@ function Field({label,hint,children}:{label:string;hint?:string;children:ReactNo
  </label>;
 }
 
-function Rating({label,value,onChange}:{label:string;value:ConceptRating;onChange(value:ConceptRating):void}){
+/** A rating that was never judged shows "Not rated" until a level is picked. */
+function Rating({label,value,onChange}:{label:string;value?:ConceptRating;onChange(value:ConceptRating):void}){
  return <div className="grid grid-cols-[104px_88px_1fr] items-center gap-2">
   <span className="text-sm font-medium text-ink">{label}</span>
-  <select aria-label={`${label} level`} value={value.level} onChange={event=>onChange({...value,level:event.target.value as ConceptLevel})}
+  <select aria-label={`${label} level`} value={value?.level??''} onChange={event=>onChange({note:'',...value,level:event.target.value as ConceptLevel})}
    className="h-10 rounded-md border border-line bg-card px-2 font-sans text-base text-ink focus-visible:outline-2 focus-visible:outline-accent">
+   {!value&&<option value="" disabled>Not rated</option>}
    {LEVELS.map(level=><option key={level.value} value={level.value}>{level.label}</option>)}
   </select>
-  <Input aria-label={`${label} note`} value={value.note} onChange={event=>onChange({...value,note:event.target.value})}/>
+  <Input aria-label={`${label} note`} value={value?.note??''} disabled={!value} onChange={event=>value&&onChange({...value,note:event.target.value})}/>
  </div>;
 }
 

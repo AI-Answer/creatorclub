@@ -41,6 +41,10 @@ const call = async (method: string, url: string, body?: unknown) => {
   const text = await res.text();
   return { status: res.status, body: text ? JSON.parse(text) : undefined };
 };
+/** Waits until the stand-in AI has been asked something new, so the run has read everything it starts from. */
+async function asking(count: number) {
+  for (let i = 0; i < 200 && prompts.length === count; i++) await new Promise((r) => setTimeout(r, 10));
+}
 async function finish(jobId: string) {
   for (let i = 0; i < 300; i++) {
     const job = (await call('GET', `/jobs/${jobId}`)).body;
@@ -81,13 +85,21 @@ test('Write this scene writes one scene of the script: the others stay empty, an
   const sections = scriptSections(await scriptText());
   assert.deepEqual(sections.map((s) => s.heading), ['Opening', 'Level 1', 'Where this falls short', 'Ending']);
   assert.deepEqual(sections.map((s) => s.body.length > 0), [true, false, false, false]);
-  assert.match(await scriptText(), /^# Build it fast\n\n## Opening\n\nword0 /);
-  assert.equal(job.result.value.fullScript, await scriptText());
+  assert.match(await scriptText(), /^<!-- CreatorClub scene script -->\n# Build it fast\n\n## Opening\n\nword0 /);
   assert.equal(job.result.replaced, undefined, 'there was no script to replace');
+
+  // The outline says so: some scenes have a script, and it is not the full script.
+  const value = job.result.value as Outline;
+  assert.equal(value.scriptState, 'partial');
+  assert.equal(value.fullScript, undefined, 'a scene is not the full script');
+  assert.deepEqual(value.scenes.map((each) => each.script), [words(140), undefined, undefined, undefined]);
+  assert.deepEqual((await outline()), value, 'and so does the plan');
+  assert.equal((await call('PUT', `/videos/${video.id}/outline`, { scenes: value.scenes })).status, 200, 'the outline sent back as it was read is accepted');
+  assert.equal(((await outline()).scenes)[0].script, words(140), 'and the script is still there');
 
   // Continue to recording gives the written scene its script and the others their talking points.
   const wanted = recorderScenes((await outline()));
-  assert.equal(wanted[0].script, words(140));
+  assert.equal(wanted[0].script, words(140), 'the recorder gets the scene\'s own script');
   assert.equal(wanted[1].script, 'Level 1 point one\nLevel 1 point two');
 });
 
@@ -152,22 +164,105 @@ test('one script run at a time per video: the same scene joins the running job, 
   assert.equal((await finish(next.body.id)).status, 'done');
 });
 
-test('a scene written after the script was edited is held, not written over the edit', async () => {
+test('edits made elsewhere while a scene is written stay: only that scene is merged into the script as it is then', async () => {
   let release!: () => void;
   gate = new Promise<void>((resolve) => (release = resolve));
   answers.push(words(210));
+  const earlier = prompts.length;
   const job = await call('POST', `/videos/${video.id}/script`, { sceneId: ids[2] });
-  await new Promise((r) => setTimeout(r, 30));
-  const mine = (await scriptText()).replace('## Opening', '## Opening\n\nMy own first line.');
-  await call('PUT', `/videos/${video.id}/script`, { script: mine });
+  await asking(earlier);
+  const current = await scriptText();
+  const edited = current.replace(/## Opening\n\n[^]*?\n\n## Level 1/, '## Opening\n\nMy own first line.\n\n## Level 1');
+  assert.notEqual(edited, current);
+  await call('PUT', `/videos/${video.id}/script`, { script: edited });
+  release();
+  gate = undefined;
+  const done = await finish(job.body.id);
+  assert.equal(done.result.held, undefined, 'a different scene changed, so nothing is held');
+  assert.ok(done.result.replaced);
+  const sections = scriptSections(await scriptText());
+  assert.equal(sections[0].body, 'My own first line.', 'the edit made while it ran is kept');
+  assert.equal(sections[2].body, words(210), 'and the new scene is in');
+});
+
+test('a scene result is held only when that scene or the outline changed meanwhile, and Use it merges just that scene', async () => {
+  let release!: () => void;
+  gate = new Promise<void>((resolve) => (release = resolve));
+  answers.push(words(210));
+  const earlier = prompts.length;
+  const job = await call('POST', `/videos/${video.id}/script`, { sceneId: ids[2] });
+  await asking(earlier);
+  const current = await scriptText();
+  const mineScene = current.replace(`## Where this falls short\n\n${words(210)}`, '## Where this falls short\n\nMy own words for this scene.');
+  assert.notEqual(mineScene, current);
+  await call('PUT', `/videos/${video.id}/script`, { script: mineScene });
   release();
   gate = undefined;
   const done = await finish(job.body.id);
   assert.match(done.result.held, /^\d{4}-/);
-  assert.equal(await scriptText(), mine.trimEnd() + '\n', 'the edit is still the script');
+  assert.equal(done.result.replaced, undefined);
+  assert.equal(scriptSections(await scriptText())[2].body, 'My own words for this scene.', 'the scene\'s edit is not overwritten');
+  const heldFile = (await files()).find((name) => name.startsWith('script-new-'))!;
+  const heldText = await readFile(path.join(dir, 'videos', video.id, heldFile), 'utf8');
+  assert.match(heldText, new RegExp(`^<!-- scene:${ids[2]} -->\\n## Where this falls short\\n\\n${words(210)}\\n$`), 'only that scene is held');
   assert.deepEqual((await call('GET', `/videos/${video.id}/plan`)).body.ready, { script: done.result.held });
+
+  // Edits made to other scenes after the hold are still there after Use it.
+  const later = (await scriptText()).replace(/## Ending\n\n[^]*$/, '## Ending\n\nMy new ending.\n');
+  await call('PUT', `/videos/${video.id}/script`, { script: later });
   const used = await call('POST', `/videos/${video.id}/script/use`, { token: done.result.held });
-  assert.equal(used.status, 200);
+  assert.equal(used.status, 200, JSON.stringify(used.body));
+  const sections = scriptSections(await scriptText());
+  assert.equal(sections[2].body, words(210), 'the held scene is in');
+  assert.equal(sections[3].body, 'My new ending.', 'the other scenes keep their edits');
+  assert.equal(sections[0].body, 'My own first line.');
+  assert.deepEqual((await call('GET', `/videos/${video.id}/plan`)).body.ready, {}, 'used once');
+  assert.ok((await files()).some((name) => /^script-earlier-.*\.md$/.test(name)));
+});
+
+test('a scene result is held when the outline changed while it was written', async () => {
+  let release!: () => void;
+  gate = new Promise<void>((resolve) => (release = resolve));
+  answers.push(words(105));
+  const earlier = prompts.length;
+  const job = await call('POST', `/videos/${video.id}/script`, { sceneId: ids[3] });
+  await asking(earlier);
+  const now = await outline();
+  await call('PUT', `/videos/${video.id}/outline`, { scenes: now.scenes.map((each, i) => (i === 1 ? { ...each, show: 'A changed note' } : each)) });
+  release();
+  gate = undefined;
+  assert.match((await finish(job.body.id)).result.held, /^\d{4}-/);
+});
+
+test('a script written whole is a full script, and a scene-by-scene one becomes full when every scene has its part', async () => {
+  const whole = scriptSections(await scriptText()).map((section) => `## ${section.heading}\n\n${section.body || 'Filled in.'}`).join('\n\n');
+  const saved = await call('PUT', `/videos/${video.id}/script`, { script: `# Build it fast\n\n${whole}` });
+  assert.equal(saved.body.outline.scriptState, 'full');
+  assert.match(saved.body.outline.fullScript, /^# Build it fast\n\n## Opening/, 'written whole: no marker, the editor gets the text as it is');
+  assert.equal(saved.body.outline.scenes.every((each: { script?: string }) => !!each.script), true);
+
+  // Scene by scene from nothing: partial until the last scene is written, then it reads as the full script without the marker line.
+  const fresh = (await call('POST', '/videos', { title: 'By scene' })).body as Video;
+  await call('PUT', `/videos/${fresh.id}/outline`, { scenes: [scene('One', 60), scene('Two', 60)] });
+  const freshIds = ((await call('GET', `/videos/${fresh.id}/plan`)).body.outline as Outline).scenes.map((each) => each.id!);
+  answers.push(words(140));
+  const first = await finish((await call('POST', `/videos/${fresh.id}/script`, { sceneId: freshIds[0] })).body.id);
+  assert.equal(first.result.value.scriptState, 'partial');
+  answers.push(words(140));
+  const second = await finish((await call('POST', `/videos/${fresh.id}/script`, { sceneId: freshIds[1] })).body.id);
+  assert.equal(second.result.value.scriptState, 'full');
+  assert.match(second.result.value.fullScript, /^# By scene\n\n## One\n\nword0/, 'no marker line in what is shown');
+  assert.equal(scriptSections(second.result.value.fullScript).length, 2);
+});
+
+test('the recorder gets a scene\'s own script, and talking points for scenes without one', async () => {
+  const fresh = (await call('POST', '/videos', { title: 'Push' })).body as Video;
+  await call('PUT', `/videos/${fresh.id}/outline`, { scenes: [scene('One', 60), scene('Two', 60)] });
+  const freshIds = ((await call('GET', `/videos/${fresh.id}/plan`)).body.outline as Outline).scenes.map((each) => each.id!);
+  answers.push(words(140));
+  await finish((await call('POST', `/videos/${fresh.id}/script`, { sceneId: freshIds[1] })).body.id);
+  const pushed = recorderScenes((await call('GET', `/videos/${fresh.id}/plan`)).body.outline);
+  assert.deepEqual(pushed.map((each) => each.script), ['One point one\nOne point two', words(140)]);
 });
 
 test('a scene that is not in the outline, a bad id, no outline and a bad body are refused in one sentence', async () => {

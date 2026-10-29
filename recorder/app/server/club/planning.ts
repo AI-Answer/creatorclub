@@ -2,7 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { z } from 'zod';
-import { PLAN_JOB_KINDS, type AiProvider, type ConceptRating, type JobSnapshot, type Outline, type OutlineScene, type Package, type PackageUseResult, type PlanData, type PlanJobKind, type PlanJobResult, type Video } from '../../shared/club.js';
+import { PLAN_JOB_KINDS, type AiProvider, type JobSnapshot, type Outline, type OutlineScene, type Package, type PackageUseResult, type PlanData, type PlanJobKind, type PlanJobResult, type Video } from '../../shared/club.js';
 import { AiError, aiLabel, runAI, type RunAIOptions } from './ai.js';
 import { readBreakdown } from './breakdown.js';
 import type { ChannelData } from './channel.js';
@@ -54,9 +54,9 @@ const text = (max: number) => z.string().max(max);
 
 export const packageShape = z
   .object({
-    demand: rating,
-    gap: rating,
-    show: rating,
+    demand: rating.optional(),
+    gap: rating.optional(),
+    show: rating.optional(),
     angle: text(2000),
     twist: text(2000),
     titles: z.tuple([text(200), text(200), text(200)]),
@@ -70,6 +70,8 @@ export const SCENE_ID = /^[A-Za-z0-9_-]{1,40}$/;
 const sceneShape = z
   .object({
     id: z.string().regex(SCENE_ID).optional(),
+    // Derived when the outline is read. It is accepted so an outline sent back as it was read is not refused, and it is not saved here.
+    script: text(200_000).optional(),
     title: text(300),
     talkingPoints: z.array(text(2000)).max(60),
     show: text(4000),
@@ -201,38 +203,33 @@ export async function savePackage(slug: string, id: string, pkg: unknown): Promi
   return parsed;
 }
 
-const emptyRating = (rating?: ConceptRating): ConceptRating => rating ?? { level: 'mid', note: '' };
-
-/** A package with nothing written yet. The ratings and the angle come from the idea when it has them. */
-const emptyPackage = (video: Video): Package => ({
-  demand: emptyRating(video.idea?.demand),
-  gap: emptyRating(video.idea?.gap),
-  show: emptyRating(video.idea?.show),
-  angle: video.idea?.angle ?? '',
-  twist: video.idea?.twist ?? '',
-  titles: ['', '', ''],
-  thumbnailText: '',
-  hook: { visual: '', spoken: video.idea?.hook ?? '', text: '' },
-});
+/** A package with nothing written yet: no ratings, blank fields. Use as hook or Use as title fills in the one thing it was given. */
+const emptyPackage = (): Package => ({ angle: '', twist: '', titles: ['', '', ''], thumbnailText: '', hook: { visual: '', spoken: '', text: '' } });
 
 /**
  * Use as hook or Use as title: puts a line from the Board chat into the package, making a package when there is none.
  * A title goes first (the first title is the one the video is named by) and the earlier ones follow it, the last one dropping off when all three are full.
  * Saved with `savePackage`, the same path as PUT /package, so a Package it run that is still going holds its result.
- * Returns the package it replaced, for Undo.
+ * Returns the package it replaced, for Undo: `PUT /package` with it, or `DELETE /package` when there was none.
  */
 export function usePackageText(slug: string, id: string, kind: 'hook' | 'title', line: string): Promise<PackageUseResult> {
   return store.withLock(`package:${packageFile(slug, id)}`, async () => {
-    const video = await store.readVideo(slug, id);
+    await store.readVideo(slug, id);
     const text = squash(line);
     if (!text) throw new ClubError('Add some text first.');
     if (kind === 'title' && [...text].length > 200) throw new ClubError('That title is too long.');
     const previous = await readPackage(slug, id);
-    const base = previous ?? emptyPackage(video);
+    const base = previous ?? emptyPackage();
     const others = base.titles.filter((title) => title.trim() && title.trim().toLowerCase() !== text.toLowerCase());
     const next: Package = kind === 'hook' ? { ...base, hook: { ...base.hook, spoken: text } } : { ...base, titles: [text, ...others, '', ''].slice(0, 3) as Package['titles'] };
     return { package: await savePackage(slug, id, next), previous };
   });
+}
+
+/** Removes the package (it is set aside, not deleted), so Undo of a first Use as hook or Use as title goes back to no package. */
+export async function deletePackage(slug: string, id: string): Promise<void> {
+  await store.readVideo(slug, id);
+  await setAside(packageFile(slug, id), 'unused');
 }
 
 const readText = (file: string) => fs.readFile(file, 'utf8').catch((error: NodeJS.ErrnoException) => (error.code === 'ENOENT' ? undefined : Promise.reject(error)));
@@ -250,8 +247,7 @@ export async function readOutline(slug: string, id: string): Promise<Outline | n
   if (!parsed.scenes.length) return null;
   const used = new Set(parsed.scenes.map((scene) => scene.id).filter(Boolean));
   const scenes = parsed.scenes.map((scene, index) => (scene.id ? scene : { ...scene, id: used.has(`s_${index + 1}`) ? newSceneId() : `s_${index + 1}` }));
-  const script = await readText(scriptFile(slug, id));
-  return script?.trim() ? { scenes, fullScript: script } : { scenes };
+  return withScript(scenes, await readText(scriptFile(slug, id)));
 }
 
 /** "2026-10-28T22-50-18-485Z": names the versions set aside by one run, and is the token Undo and Use it take. */
@@ -352,7 +348,18 @@ export async function useHeld(slug: string, id: string, kind: PlanJobKind, token
   if (!(await exists(held))) throw new ClubError('That version was not found.', 404);
   const content = await fs.readFile(held, 'utf8');
   const now = stamp();
-  if (kind === 'outline') {
+  const heldScene = kind === 'script' ? HELD_SCENE.exec(content)?.[1] : undefined;
+  if (heldScene) {
+    // A scene's result takes only that scene's place in the script as it is now; edits made elsewhere stay.
+    const scenes = (await readOutline(slug, id))?.scenes ?? [];
+    const index = scenes.findIndex((scene) => scene.id === heldScene);
+    if (index < 0) throw new ClubError('That scene was not found.', 404);
+    const current = await readText(file);
+    const body = scriptSections(content.replace(HELD_SCENE, ''))[0]?.body ?? '';
+    const video = await store.readVideo(slug, id);
+    await setAside(file, 'earlier', now);
+    await store.writeFileAtomic(file, mergeScene(scenes, index, current, body, video.title));
+  } else if (kind === 'outline') {
     const previous = (await readOutline(slug, id))?.scenes ?? [];
     await setAside(file, 'earlier', now);
     await setAside(scriptFile(slug, id), 'earlier', now);
@@ -447,9 +454,16 @@ export function scriptSections(script: string): ScriptSection[] {
   return sections.map((section) => ({ ...section, body: section.body.trim() }));
 }
 
+/**
+ * A script written one scene at a time starts with this line. It tells a script that covers some scenes from one written as a
+ * whole, so the Plan step does not treat a scene's script as the full script. It is left out of everything shown.
+ */
+const SCENES_MARKER = '<!-- CreatorClub scene script -->';
+const withoutMarker = (script: string) => (script.startsWith(SCENES_MARKER) ? script.slice(SCENES_MARKER.length).replace(/^\n/, '') : script);
+
 /** Puts the sections back together under the script's own title. */
-export function joinScript(title: string, sections: ScriptSection[]): string {
-  return [`# ${title}`, ...sections.map((section) => `## ${section.heading}\n\n${section.body}`)].join('\n\n') + '\n';
+export function joinScript(title: string, sections: ScriptSection[], byScene = false): string {
+  return (byScene ? `${SCENES_MARKER}\n` : '') + [`# ${title}`, ...sections.map((section) => `## ${section.heading}\n\n${section.body}`)].join('\n\n') + '\n';
 }
 
 const headingKey = (title: string) => title.trim().toLowerCase();
@@ -458,6 +472,49 @@ const headingKey = (title: string) => title.trim().toLowerCase();
 export function matchSection(sections: ScriptSection[], scenes: Pick<OutlineScene, 'title'>[], index: number): ScriptSection | undefined {
   return sections.find((section) => headingKey(section.heading) === headingKey(scenes[index].title)) ?? (sections.length === scenes.length ? sections[index] : undefined);
 }
+
+/**
+ * The outline with what its script says. Each scene gets its part of the script (`script`). `scriptState` says whether no scene, some
+ * scenes or every scene has one; it is left out when none does. `fullScript` is the whole script, but only when it covers every
+ * scene or was written as one piece: a script written scene by scene is not a full script until every scene has its part.
+ */
+export function withScript(scenes: OutlineScene[], raw: string | undefined): Outline {
+  if (!raw?.trim()) return { scenes };
+  const sections = scriptSections(raw);
+  const withParts = scenes.map((scene, index) => {
+    const body = matchSection(sections, scenes, index)?.body;
+    return body ? { ...scene, script: body } : scene;
+  });
+  const written = withParts.filter((scene) => scene.script).length;
+  const byScene = raw.startsWith(SCENES_MARKER);
+  const scriptState = written === 0 && byScene ? 'none' : byScene && written < scenes.length ? 'partial' : 'full';
+  if (scriptState === 'none') return { scenes };
+  return { scenes: withParts, scriptState, ...(scriptState === 'full' ? { fullScript: withoutMarker(raw) } : {}) };
+}
+
+/** Every outline scene with the script it has now (empty when it has none), plus the sections of the script no scene matched, which are kept. */
+function sceneSections(scenes: OutlineScene[], script: string | undefined): { sections: ScriptSection[]; unmatched: ScriptSection[] } {
+  const found = scriptSections(script ?? '');
+  const claimed = new Set<ScriptSection>();
+  const sections = scenes.map((scene, index) => {
+    const section = matchSection(found, scenes, index);
+    if (section) claimed.add(section);
+    return { heading: scene.title.trim() || `Scene ${index + 1}`, body: section?.body ?? '' };
+  });
+  return { sections, unmatched: found.filter((section) => !claimed.has(section)) };
+}
+
+const scriptTitle = (script: string | undefined, fallback: string) => /^#\s+(.+)$/m.exec(script ?? '')?.[1].trim() || fallback;
+
+/** `script` with one scene's part replaced. Other scenes keep what they have, and a script written whole stays one. */
+function mergeScene(scenes: OutlineScene[], index: number, script: string | undefined, body: string, fallbackTitle: string): string {
+  const { sections, unmatched } = sceneSections(scenes, script);
+  sections[index] = { ...sections[index], body };
+  return joinScript(scriptTitle(script, fallbackTitle), [...sections, ...unmatched], script === undefined || script.startsWith(SCENES_MARKER));
+}
+
+/** What a held scene result is saved as: its scene's id on the first line, then the scene's part as `## heading` and body. */
+const HELD_SCENE = /^<!-- scene:([A-Za-z0-9_-]{1,40}) -->\n/;
 
 // ---------------------------------------------------------------- running the AI steps
 
@@ -614,37 +671,58 @@ export async function runScript(slug: string, id: string, context: JobContext, o
   }
   stopped(context);
   const result = await commitResult(slug, id, 'script', before, script.trimEnd() + '\n');
-  return { value: result.held ? { ...outline, fullScript: script } : ((await readOutline(slug, id)) ?? outline), ...result };
+  return { value: result.held ? withScript(outline.scenes, script) : ((await readOutline(slug, id)) ?? outline), ...result };
+}
+
+/**
+ * Writes one scene's result. The scene is merged into the script as it is when the run ends, so edits made to other scenes while it
+ * ran stay. It is held, and nothing is written, only when the scene's own part of the script or the outline changed meanwhile; a
+ * held result keeps just that scene, so Use it also takes only that scene. The script that was there is set aside as `earlier`.
+ */
+async function commitSceneResult(slug: string, id: string, sceneId: string, started: { outline: string | undefined; body: string; title: string }, body: string): Promise<{ replaced?: string; held?: string }> {
+  const file = scriptFile(slug, id);
+  return store.withLock(`script:${file}`, async () => {
+    const token = stamp();
+    const outline = await readOutline(slug, id);
+    const index = outline?.scenes.findIndex((scene) => scene.id === sceneId) ?? -1;
+    const current = await readText(file);
+    const now = outline && index >= 0 ? sceneSections(outline.scenes, current).sections[index].body : undefined;
+    if (!outline || index < 0 || (await readText(outlineFile(slug, id))) !== started.outline || now !== started.body) {
+      const heading = outline?.scenes[index]?.title.trim() || 'Scene';
+      await store.writeFileAtomic(versionFile(file, 'new', token), `<!-- scene:${sceneId} -->\n## ${heading}\n\n${body}\n`);
+      return { held: token };
+    }
+    const replaced = await setAside(file, 'earlier', token);
+    await store.writeFileAtomic(file, mergeScene(outline.scenes, index, current, body, started.title));
+    return replaced ? { replaced: token } : {};
+  });
 }
 
 /**
  * Write this scene: the script of one scene, in the creator's voice. The scene's own words are kept as the draft when it has some.
  * The other scenes keep what the script says for them; a script that does not exist yet starts with every scene empty except this one.
- * The earlier script is set aside like a full run's, so Undo and "Use it" work the same.
  */
 export async function runSceneScript(slug: string, id: string, sceneId: string, context: JobContext, options: PlanOptions = {}): Promise<PlanJobResult<Outline>> {
   const say = (message: string) => context.emit({ message });
   const video = await store.readVideo(slug, id);
-  const before = await snapshotOf(slug, id, 'script');
+  const outlineBefore = await readText(outlineFile(slug, id));
   const outline = await readOutline(slug, id);
   if (!outline) throw new ClubError('Create the outline first.');
   const index = outline.scenes.findIndex((scene) => scene.id === sceneId);
   if (index < 0) throw notFound('scene');
-  const [channel, pkg] = await Promise.all([loadChannelContext(slug), readPackage(slug, id)]);
-  const existing = outline.fullScript ?? '';
-  const title = /^#\s+(.+)$/m.exec(existing)?.[1].trim() || pkg?.titles[0]?.trim() || video.title;
-  const found = scriptSections(existing);
-  const sections: ScriptSection[] = outline.scenes.map((scene, place) => ({ heading: scene.title.trim() || `Scene ${place + 1}`, body: matchSection(found, outline.scenes, place)?.body ?? '' }));
+  const [channel, pkg, existing] = await Promise.all([loadChannelContext(slug), readPackage(slug, id), readText(scriptFile(slug, id))]);
+  const title = scriptTitle(existing, pkg?.titles[0]?.trim() || video.title);
+  const sections = sceneSections(outline.scenes, existing).sections;
+  const startBody = sections[index].body;
   const ai = await asker(context, options);
   say(`Writing scene ${index + 1}…`);
-  const built = await buildSceneScriptPrompt(channel, { title, idea: ideaFor(video), pkg: pkg ?? undefined, outline: { scenes: outline.scenes }, index, draft: sections[index].body });
-  const body = bodyOnly((await ai.ask(built, SCRIPT_BUDGET_USD)).text);
+  const built = await buildSceneScriptPrompt(channel, { title, idea: ideaFor(video), pkg: pkg ?? undefined, outline: { scenes: outline.scenes }, index, draft: startBody });
+  const written = bodyOnly((await ai.ask(built, SCRIPT_BUDGET_USD)).text);
   stopped(context);
-  if (!body) throw new AiError('bad-answer', `${ai.who} sent back no script.`);
-  sections[index] = { ...sections[index], body };
-  sections[index].body = await lengthenScene(ai, channel, title, outline, sections, index, say, context);
+  if (!written) throw new AiError('bad-answer', `${ai.who} sent back no script.`);
+  sections[index] = { ...sections[index], body: written };
+  const body = await lengthenScene(ai, channel, title, outline, sections, index, say, context);
   stopped(context);
-  const script = joinScript(title, sections);
-  const result = await commitResult(slug, id, 'script', before, script);
-  return { value: result.held ? { ...outline, fullScript: script } : ((await readOutline(slug, id)) ?? outline), ...result };
+  const result = await commitSceneResult(slug, id, sceneId, { outline: outlineBefore, body: startBody, title }, body);
+  return { value: (await readOutline(slug, id)) ?? outline, ...result };
 }

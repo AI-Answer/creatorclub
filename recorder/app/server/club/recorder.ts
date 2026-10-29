@@ -18,13 +18,13 @@ export interface SceneContent {
   notes: string;
 }
 
-/** What each recorder scene gets: the scene title, its talking points one per line (or its part of the full script, when one was written), and what to show as notes. */
+/** What each recorder scene gets: the scene title, its talking points one per line (or its part of the script, when it has one), and what to show as notes. */
 export function recorderScenes(outline: Outline): SceneContent[] {
   const sections = outline.fullScript ? scriptSections(outline.fullScript) : [];
   return outline.scenes.map((scene, index) => ({
     outlineId: scene.id ?? `s_${index + 1}`,
     name: scene.title.trim() || `Scene ${index + 1}`,
-    script: matchSection(sections, outline.scenes, index)?.body || scene.talkingPoints.map((point) => point.trim()).filter(Boolean).join('\n'),
+    script: scene.script?.trim() || matchSection(sections, outline.scenes, index)?.body || scene.talkingPoints.map((point) => point.trim()).filter(Boolean).join('\n'),
     notes: scene.show.trim(),
   }));
 }

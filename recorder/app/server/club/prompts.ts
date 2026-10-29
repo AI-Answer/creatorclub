@@ -212,24 +212,28 @@ export function researchText(tiles: ResearchTile[]): string {
   return lines.length ? lines.join('\n') : '(none)';
 }
 
-const ratingLine = (label: string, rating: ConceptRating) => `${label} (${rating.level}): ${rating.note}`;
+const ratingLine = (label: string, rating: ConceptRating | undefined) => (rating ? `${label} (${rating.level}): ${rating.note}` : undefined);
 
-/** A package as prompt text, for the steps that come after it. */
+/** A package as prompt text, for the steps that come after it. Fields not filled in, and ratings not judged, are left out. */
 export function packageText(pkg: Package | undefined): string {
   if (!pkg) return '(none: choose these yourself)';
-  return [
-    `Title options: ${pkg.titles.join(' | ')}`,
-    `Thumbnail text: ${pkg.thumbnailText}`,
-    `Angle: ${pkg.angle}`,
-    `Twist: ${pkg.twist}`,
-    ratingLine('Demand', pkg.demand),
-    ratingLine('Gap', pkg.gap),
-    ratingLine('Can show', pkg.show),
-    'Hook:',
-    `- On screen first: ${pkg.hook.visual}`,
-    `- Spoken: ${pkg.hook.spoken}`,
-    `- Text: ${pkg.hook.text}`,
-  ].join('\n');
+  const titles = pkg.titles.map((title) => title.trim()).filter(Boolean);
+  const hook = [
+    pkg.hook.visual.trim() ? `- On screen first: ${pkg.hook.visual.trim()}` : '',
+    pkg.hook.spoken.trim() ? `- Spoken: ${pkg.hook.spoken.trim()}` : '',
+    pkg.hook.text.trim() ? `- Text: ${pkg.hook.text.trim()}` : '',
+  ].filter(Boolean);
+  const lines = [
+    titles.length ? `Title options: ${titles.join(' | ')}` : '',
+    pkg.thumbnailText.trim() ? `Thumbnail text: ${pkg.thumbnailText.trim()}` : '',
+    pkg.angle.trim() ? `Angle: ${pkg.angle.trim()}` : '',
+    pkg.twist.trim() ? `Twist: ${pkg.twist.trim()}` : '',
+    ratingLine('Demand', pkg.demand) ?? '',
+    ratingLine('Gap', pkg.gap) ?? '',
+    ratingLine('Can show', pkg.show) ?? '',
+    ...(hook.length ? ['Hook:', ...hook] : []),
+  ].filter(Boolean);
+  return lines.length ? lines.join('\n') : '(none: choose these yourself)';
 }
 
 // ---------------------------------------------------------------- outline as prompt text and word budgets

@@ -12,7 +12,7 @@ import { cancelJob, getJob, runningOnce, snapshot, startJob, startJobOnce, watch
 import { parseChannelInput } from './channel.js';
 import { FILE_TOO_BIG, MAX_FILE_BYTES, detectSource } from './source.js';
 import { addChannel, rebuildVoice, startFresh } from './onboard.js';
-import { SCENE_ID, heldResults, readOutline, readPackage, runningPlanJobs, saveOutline, savePackage, saveScript, startPlanJob, undoReplace, usePackageText, useHeld, type PlanOptions } from './planning.js';
+import { SCENE_ID, deletePackage, heldResults, readOutline, readPackage, runningPlanJobs, saveOutline, savePackage, saveScript, startPlanJob, undoReplace, usePackageText, useHeld, type PlanOptions } from './planning.js';
 import { continueToRecording, outlineChangedScene } from './recorder.js';
 import { publishVideo, ytDlpViews, type ViewsReader } from './publish.js';
 import { recordingsDiskSpace } from './disk.js';
@@ -473,6 +473,11 @@ export function clubRouter({ ai = {}, transcribe, runAI, readViews = ytDlpViews(
     res.json({ package: pkg, outline, ...(changedScene ? { changedScene } : {}), running: runningPlanJobs(slug, id), ready });
   }));
   router.put('/videos/:id/package', handler(async (req, res) => res.json(await savePackage(await requireWorkspace(), param(req, 'id'), req.body))));
+  // Removes the package (set aside, not deleted): Undo of a first Use as hook or Use as title.
+  router.delete('/videos/:id/package', handler(async (req, res) => {
+    await deletePackage(await requireWorkspace(), param(req, 'id'));
+    res.status(204).end();
+  }));
   // "Use as hook" and "Use as title" from the Board chat. Saves through the same path as PUT /package, so a package job that is running holds its result.
   router.post('/videos/:id/package/text', handler(async (req, res) => {
     const { kind, text } = packageUseBody.parse(req.body);

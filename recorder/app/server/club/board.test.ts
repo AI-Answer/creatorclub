@@ -35,7 +35,7 @@ const { clubRouter } = await import('./index.js');
 const store = await import('./store.js');
 const { freeSpot } = await import('./tile-layout.js');
 const { boardText, cleanItems } = await import('./board-chat.js');
-const { buildBoardChatPrompt } = await import('./prompts.js');
+const { buildBoardChatPrompt, packageText } = await import('./prompts.js');
 
 const app = express();
 app.use('/api/club', clubRouter({ runAI: fakeAI }));
@@ -329,8 +329,8 @@ test('Use as hook makes a package when there is none, and Use as title puts the 
   assert.equal(hook.status, 200, JSON.stringify(hook.body));
   assert.equal(hook.body.previous, null);
   assert.equal(hook.body.package.hook.spoken, 'Nobody reads this page.');
-  assert.deepEqual([hook.body.package.angle, hook.body.package.demand], ['An angle from the idea', { level: 'high', note: 'Asked a lot.' }]);
-  assert.deepEqual(hook.body.package.titles, ['', '', '']);
+  // Nothing else is made up: no ratings, and everything not used stays blank.
+  assert.deepEqual(hook.body.package, { angle: '', twist: '', titles: ['', '', ''], thumbnailText: '', hook: { visual: '', spoken: 'Nobody reads this page.', text: '' } });
   assert.deepEqual((await call('GET', `/videos/${video.id}/plan`)).body.package, hook.body.package, 'saved like PUT /package');
 
   const first = await call('POST', `/videos/${video.id}/package/text`, { kind: 'title', text: 'The settings page nobody reads' });
@@ -351,6 +351,29 @@ test('Use as hook makes a package when there is none, and Use as title puts the 
   assert.equal((await call('POST', `/videos/${video.id}/package/text`, { kind: 'headline', text: 'x' })).status, 400);
   assert.equal((await call('POST', `/videos/${video.id}/package/text`, { kind: 'hook', text: '   ' })).status, 400);
   assert.equal((await call('POST', '/videos/v_nothing/package/text', { kind: 'hook', text: 'x' })).status, 404);
+});
+
+test('a package with only a hook reads as a hook in the prompts, with no ratings, blanks or empty title lines; Undo of the first use removes the package', async () => {
+  const video = (await call('POST', '/videos', { title: 'Hollow' })).body as Video;
+  const used = await call('POST', `/videos/${video.id}/package/text`, { kind: 'hook', text: 'Nobody reads this page.' });
+  assert.equal(used.body.previous, null);
+  assert.equal(packageText(used.body.package), 'Hook:\n- Spoken: Nobody reads this page.');
+  assert.equal(packageText({ ...used.body.package, hook: { visual: '', spoken: '', text: '' } }), '(none: choose these yourself)');
+  const titled = await call('POST', `/videos/${video.id}/package/text`, { kind: 'title', text: 'The page nobody reads' });
+  assert.equal(packageText(titled.body.package), 'Title options: The page nobody reads\nHook:\n- Spoken: Nobody reads this page.');
+  // A package the person rated later reads as before.
+  assert.match(packageText({ ...titled.body.package, demand: { level: 'high', note: 'Asked.' } }), /Demand \(high\): Asked\./);
+  // A partial package is a package: it can be saved by hand too, and an outline built on it asks no rating.
+  assert.equal((await call('PUT', `/videos/${video.id}/package`, titled.body.package)).status, 200);
+
+  const folder = path.join(dir, 'videos', video.id);
+  assert.equal((await call('DELETE', `/videos/${video.id}/package`)).status, 204);
+  assert.equal((await call('GET', `/videos/${video.id}/plan`)).body.package, null, 'back to no package');
+  assert.ok((await readdir(folder)).some((name) => /^package-unused-.*\.json$/.test(name)), 'set aside, not deleted');
+  assert.equal((await call('DELETE', `/videos/${video.id}/package`)).status, 204, 'nothing to remove is fine');
+  assert.equal((await call('DELETE', '/videos/v_nothing/package')).status, 404);
+  // Using it again after Undo starts from no package again.
+  assert.equal((await call('POST', `/videos/${video.id}/package/text`, { kind: 'hook', text: 'Again.' })).body.previous, null);
 });
 
 test('Use as title goes through the package save path: a Package it run that was going holds its result', async () => {
