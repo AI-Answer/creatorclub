@@ -78,6 +78,8 @@ interface Settings {
   defaultAi?: AiProvider;
   /** Set once the first-visit "How CreatorClub works" dialog has been closed. */
   welcomed?: boolean;
+  /** The theme the person chose in Settings. */
+  appearance?: 'light' | 'dark';
   /** Video ids per channel, most recently opened first. */
   recent?: Record<string, string[]>;
   /** Older builds kept the Gemini API key here. It moves to secrets.json the first time it is read. */
@@ -147,6 +149,16 @@ export async function setDefaultAi(provider: AiProvider) {
 /** Sets the default AI only when none is set yet. */
 export async function setDefaultAiIfUnset(provider: AiProvider): Promise<void> {
   await updateSettings((settings) => (settings.defaultAi === 'claude' || settings.defaultAi === 'codex' ? settings : { ...settings, defaultAi: provider }));
+}
+
+/** The theme chosen in Settings, or undefined while none is chosen. */
+export async function appearance(): Promise<'light' | 'dark' | undefined> {
+  const value = (await readJSON<Settings>(settingsFile()))?.appearance;
+  return value === 'light' || value === 'dark' ? value : undefined;
+}
+
+export async function setAppearance(value: 'light' | 'dark') {
+  await updateSettings((settings) => ({ ...settings, appearance: value }));
 }
 
 /** The saved Gemini API key, for the one place that calls Google with it. Never send this to the screen. */

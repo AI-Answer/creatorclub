@@ -203,7 +203,7 @@ const connectBody = z.object({ provider: z.enum(['claude', 'codex']), reconnect:
 const stageDates = z.record(stage, z.string()).refine((dates) => Object.keys(dates).length > 0);
 const moveBody = z.object({ stage, beforeId: z.string().nullable().optional(), stageDates: stageDates.optional() }).strict();
 const geminiKeyBody = z.object({ key: z.string().trim().min(20).max(200).regex(/^[\w-]+$/) }).strict();
-const settingsBody = z.object({ defaultAi: z.enum(['claude', 'codex']) }).strict();
+const settingsBody = z.object({ defaultAi: z.enum(['claude', 'codex']), appearance: z.enum(['light', 'dark']) }).partial().strict().refine((body) => Object.keys(body).length > 0, { message: 'nothing to save' });
 const publishBody = z.object({ youtubeUrl: z.string().trim().min(1).max(2000) }).strict();
 
 export interface ClubRouterOptions {
@@ -240,7 +240,7 @@ export function clubRouter({ ai = {}, transcribe, runAI, readViews = ytDlpViews(
   // ---- settings
   router.get('/settings', handler(async (_req, res) => {
     const slug = await store.currentWorkspace();
-    res.json({ defaultAi: (await store.defaultAi()) ?? null, welcomed: await store.welcomed(), geminiKey: await store.maskedGeminiKey(), helpSeen: slug ? await store.helpSeen(slug) : [] });
+    res.json({ defaultAi: (await store.defaultAi()) ?? null, welcomed: await store.welcomed(), appearance: (await store.appearance()) ?? null, geminiKey: await store.maskedGeminiKey(), helpSeen: slug ? await store.helpSeen(slug) : [] });
   }));
   // A Plan step was completed once in this channel: its help line stops showing.
   router.post('/settings/help/:step', handler(async (req, res) => {
@@ -250,8 +250,10 @@ export function clubRouter({ ai = {}, transcribe, runAI, readViews = ytDlpViews(
     res.json({ helpSeen: await store.helpSeen(slug) });
   }));
   router.put('/settings', handler(async (req, res) => {
-    await store.setDefaultAi(settingsBody.parse(req.body).defaultAi);
-    res.json({ defaultAi: await store.defaultAi() });
+    const { defaultAi, appearance } = settingsBody.parse(req.body);
+    if (defaultAi) await store.setDefaultAi(defaultAi);
+    if (appearance) await store.setAppearance(appearance);
+    res.json({ defaultAi: (await store.defaultAi()) ?? null, appearance: (await store.appearance()) ?? null });
   }));
 
   // The Gemini API key lets Break down watch YouTube videos. It is saved locally and only ever returned masked.

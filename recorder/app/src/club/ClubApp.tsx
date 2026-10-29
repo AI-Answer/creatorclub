@@ -1,9 +1,10 @@
 import {useCallback,useEffect,useRef,useState} from 'react';
-import type {AiStatus,ClubSettings,Video,Workspace} from '../../shared/club';
+import type {ClubSettings,Video} from '../../shared/club';
+import {setAppearance} from '../appearance';
 import {clubFetch} from './api';
 import {Sidebar} from './Sidebar';
 import {autoCollapses,defaultTab,routePath,useHashRoute,videoBackRoute,type Route,type VideoTab} from './routes';
-import {OnboardingScreen} from './screens/OnboardingScreen';
+import {WelcomeScreen} from './screens/WelcomeScreen';
 import {IdeasScreen} from './screens/IdeasScreen';
 import {OverviewScreen} from './screens/OverviewScreen';
 import {ProductionScreen} from './screens/ProductionScreen';
@@ -18,12 +19,10 @@ import {Button,EmptyState,Spinner,ToastProvider,cn} from './ui';
 import {useShellVideos} from './useShellVideos';
 import {Workspace as VideoWorkspace} from './workspace/Workspace';
 
-/** First launch is needed when no AI is signed in or there is no channel. A server that cannot be reached never forces it. */
+/** First launch is needed until setup was finished or skipped once (`welcomed`). A server that cannot be reached never forces it. */
 export async function needsOnboarding():Promise<boolean>{
- try{
-  const [status,{workspaces}]=await Promise.all([clubFetch<AiStatus>('/ai/status'),clubFetch<{workspaces:Workspace[]}>('/workspaces')]);
-  return !(status.claude.signedIn||status.codex.signedIn)||workspaces.length===0;
- }catch{return false;}
+ try{return !(await clubFetch<ClubSettings>('/settings')).welcomed;}
+ catch{return false;}
 }
 
 const isHome=(route:Route)=>route.name==='overview'||route.name==='production';
@@ -72,44 +71,33 @@ function Shell(){
   window.addEventListener('keydown',key);return()=>window.removeEventListener('keydown',key);
  },[]);
 
- // The first-visit dialog opens once. Closing it for the first time saves that in the workspace's settings.json.
- const firstVisit=useRef(false);
- const welcomeIfNew=useCallback(()=>{
-  clubFetch<ClubSettings>('/settings').then(settings=>{if(!settings.welcomed){firstVisit.current=true;setHelpOpen(true);}},()=>{});
- },[]);
- const closeHelp=useCallback(()=>{
-  setHelpOpen(false);
-  if(firstVisit.current){firstVisit.current=false;clubFetch('/settings/welcomed',{method:'POST'}).catch(()=>{});}
- },[]);
- const finishOnboarding=useCallback(()=>{navigate({name:'overview'});welcomeIfNew();},[navigate,welcomeIfNew]);
- // Reaching the overview or Production with no AI or no channel sends you to first launch; otherwise a first visit opens the dialog.
- // Checked once, and only if you are still on one of them.
+ // Reaching the overview or Production before setup was finished or skipped sends you to first launch. Checked once, and only if you are still on one of them.
  const current=useRef(route);current.current=route;
  const checked=useRef(false);
  useEffect(()=>{
   if(!isHome(route)||checked.current)return;
   checked.current=true;
-  void needsOnboarding().then(needed=>{
-   if(!isHome(current.current))return;
-   if(needed)navigate({name:'welcome'});else welcomeIfNew();
-  });
- },[route,navigate,welcomeIfNew]);
+  void needsOnboarding().then(needed=>{if(needed&&isHome(current.current))navigate({name:'welcome'});});
+ },[route,navigate]);
+ // The theme chosen in Settings is kept in settings.json, so it applies when the app opens.
+ useEffect(()=>{
+  clubFetch<ClubSettings>('/settings').then(settings=>{if(settings.appearance)setAppearance(settings.appearance);},()=>{});
+ },[]);
 
  const switched=useCallback(()=>{setChannelEpoch(n=>n+1);navigate({name:'overview'});},[navigate]);
- const openProduction=useCallback(()=>navigate({name:'production',view:'board'}),[navigate]);
  const addChannel=useCallback(()=>navigate({name:'welcome'}),[navigate]);
  const openNewVideo=useCallback(()=>setNewOpen(true),[]);
 
  let screen;
  switch(route.name){
-  case 'welcome':screen=<OnboardingScreen onBoard={openProduction} onDone={finishOnboarding}/>;break;
+  case 'welcome':screen=<WelcomeScreen navigate={navigate}/>;break;
   case 'overview':screen=<OverviewScreen navigate={navigate} onNewVideo={openNewVideo}/>;break;
   case 'ideas':screen=<IdeasScreen route={route} navigate={navigate}/>;break;
   case 'trending':screen=<TrendingScreen navigate={navigate}/>;break;
   case 'signals':screen=<SignalsScreen navigate={navigate}/>;break;
   case 'production':screen=<ProductionScreen view={route.view} navigate={navigate} onNewVideo={openNewVideo}/>;break;
   case 'video':screen=<VideoRoute id={route.id} tab={route.tab} navigate={navigate}/>;break;
-  case 'settings':screen=<SettingsScreen onAddChannel={addChannel}/>;break;
+  case 'settings':screen=<SettingsScreen onSetup={addChannel}/>;break;
  }
  const collapsed=sidebarOpen===null?autoCollapses(route):!sidebarOpen;
  return <div className="shell">
@@ -120,6 +108,6 @@ function Shell(){
   </div>
   {paletteOpen&&<Palette videos={videos} onClose={()=>setPaletteOpen(false)} onOpen={navigate} onNewVideo={()=>setNewOpen(true)}/>}
   {newOpen&&<NewVideo onClose={()=>setNewOpen(false)} onOpen={navigate}/>}
-  {helpOpen&&<Help onClose={closeHelp}/>}
+  {helpOpen&&<Help onClose={()=>setHelpOpen(false)}/>}
  </div>;
 }

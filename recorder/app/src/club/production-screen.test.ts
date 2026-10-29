@@ -258,25 +258,31 @@ test('a board that cannot load says one sentence with Try again',async()=>{
  });
 });
 
-test('the first-visit dialog opens once, Start saves that, and ? opens it again',async()=>{
+test('a new visitor lands on Welcome, not the how-it-works dialog; for everyone else ? opens that dialog and closing it saves nothing',async()=>{
  window.location.hash='';
  const state:Server={videos:base(),welcomed:false,failMove:false,failLoad:false,outlines:{}};
  const fake=installFetch(serve(state));
  const ui=await mountUI(createElement(ClubApp));
  try{
   await settle();
-  const dialog=()=>ui.container.querySelector('[role="dialog"]');
-  assert.ok(dialog(),'a new visitor sees the dialog');
-  assert.match(text(dialog()),/How CreatorClub works/);
-  assert.equal(fake.calls.filter(call=>call.path==='/settings/welcomed').length,0,'not saved until it is closed');
-  await press(button(dialog()!,'Start'));
-  assert.ok(dialog()===null);
-  assert.deepEqual(fake.calls.filter(call=>call.path==='/settings/welcomed').map(call=>call.method),['POST']);
-  await press(ui.container.querySelector('[aria-label="How CreatorClub works"]')!);
-  assert.ok(dialog(),'? opens it again');
-  await press(button(dialog()!,'Start'));
-  assert.equal(fake.calls.filter(call=>call.path==='/settings/welcomed').length,1,'only the first close is saved');
+  assert.equal(window.location.hash,'#/welcome');
+  assert.equal(ui.container.querySelector('[role="dialog"]'),null);
+  assert.match(text(ui.container),/Step 1 of 4/);
  }finally{await ui.close();fake.restore();window.location.hash='';}
+ window.location.hash='';
+ state.welcomed=true;
+ const again=installFetch(serve(state));
+ const second=await mountUI(createElement(ClubApp));
+ try{
+  await settle();
+  const dialog=()=>second.container.querySelector('[role="dialog"]');
+  assert.equal(dialog(),null,'no dialog on its own');
+  await press(second.container.querySelector('[aria-label="How CreatorClub works"]')!);
+  assert.match(text(dialog()),/How CreatorClub works/);
+  await press(button(dialog()!,'Start'));
+  assert.equal(dialog(),null);
+  assert.equal(again.calls.filter(call=>call.path==='/settings/welcomed').length,0);
+ }finally{await second.close();again.restore();window.location.hash='';}
 });
 
 test('Production in the app: the Production page, New video, and a card that opens its video',async()=>{

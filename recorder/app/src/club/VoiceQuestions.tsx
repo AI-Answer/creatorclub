@@ -9,12 +9,6 @@ import {Button,Progress,Textarea} from './ui';
 export const voiceNeedsAnswers=(result:unknown):boolean=>
  typeof result==='object'&&result!==null&&(result as {voice?:unknown}).voice==='needs-answers';
 
-/** The channel slug inside an add-channel job result, if it has one. */
-export const resultSlug=(result:unknown):string|undefined=>{
- const workspace=typeof result==='object'&&result!==null?(result as {workspace?:{slug?:unknown}}).workspace:undefined;
- return typeof workspace?.slug==='string'?workspace.slug:undefined;
-};
-
 const empty:VoiceAnswers={voice:'',audience:'',moves:''};
 
 /** The three Voice DNA questions as a small form. Saving writes the voice guide from the answers. */
