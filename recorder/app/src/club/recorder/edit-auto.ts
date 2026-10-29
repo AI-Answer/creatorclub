@@ -1,5 +1,5 @@
 import type {AutomationJob,CutReview} from '../../../shared/automation';
-import type {Project} from '../../../shared/types';
+import type {Clip,Project} from '../../../shared/types';
 import {plainClone} from '../../project-draft';
 import {closeRange,mergeRanges,timelineGaps} from '../../timeline-edit';
 
@@ -16,14 +16,17 @@ const PLAN_MARGIN=.16,MIN_CUT=.25;
 export const latestCutJob=(jobs:readonly AutomationJob[])=>[...jobs].filter(j=>j.kind==='auto-cut'&&!j.sceneId).sort((a,b)=>b.createdAt.localeCompare(a.createdAt))[0];
 export const latestStyleJob=(jobs:readonly AutomationJob[])=>[...jobs].filter(j=>j.kind==='visualize'&&!j.sceneId).sort((a,b)=>b.createdAt.localeCompare(a.createdAt))[0];
 
-/**
- * A plan describes the timeline as it was when it was asked for (the editor saves first, then asks). Any edit since then moves
- * `project.updatedAt` past the plan's creation, and its times no longer match the timeline: it is out of date and is never applied.
- */
-export function planIsStale(job:AutomationJob|undefined,p:Pick<Project,'updatedAt'>){
- if(!job)return false;const asked=Date.parse(job.createdAt),edited=Date.parse(p.updatedAt);
- return Number.isFinite(asked)&&Number.isFinite(edited)&&edited>asked;
+/** The clip timings a plan's cuts are measured against: which clips, where, which source range, speed, row. Captions, effects and saves do not change it. */
+export function clipsFingerprint(clips:readonly Clip[]){
+ const r=(n:number)=>Math.round(n*1e4)/1e4;
+ return JSON.stringify([...clips].sort((a,b)=>a.id.localeCompare(b.id)).map(c=>[c.id,c.track,c.layerId??'',r(c.start),r(c.sourceIn),r(c.sourceOut),r(c.speed),c.muted]));
 }
+/**
+ * A plan is out of date only when the clips moved since it was made: `base` is the fingerprint of the timeline the plan was made on
+ * (from the server's own copy of it), compared with the timeline now. The server's side effects (a transcription saving captions,
+ * Normalize, autosave stamps) never make it stale. While `base` is not known yet the plan is not called stale.
+ */
+export function planIsStale(base:string|undefined,p:Pick<Project,'clips'>){return base!==undefined&&base!==clipsFingerprint(p.clips);}
 /** Quiet gaps from the plan at least as long as the level asks, each shortened to keep `padding` seconds on both sides. */
 export function pauseRanges(job:AutomationJob|undefined,level:PauseLevel,padding:number,stale=false):Range[]{
  if(stale||job?.status!=='ready'||!job.proposal)return [];

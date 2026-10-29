@@ -7,12 +7,27 @@ import {api} from '../../api';
 import {automationRunning} from '../../automation-state';
 import {closeRange} from '../../timeline-edit';
 import {Button} from '../ui';
-import {cutReview,fillerRanges,gapRanges,latestCutJob,latestStyleJob,PAUSE_LEVEL_NAMES,pauseRanges,planIsStale,rangesSeconds,type PauseLevel,type Range} from './edit-auto';
+import {clipsFingerprint,cutReview,fillerRanges,gapRanges,latestCutJob,latestStyleJob,PAUSE_LEVEL_NAMES,pauseRanges,planIsStale,rangesSeconds,type PauseLevel,type Range} from './edit-auto';
 import {formatCutDuration} from './edit-steps';
 
 /** What the stage shows while a choice is previewed: a cut comparison (CutPlayback), or the styled video at the playhead. */
 export type EditPreview={key:string;label:string;summary:string;ranges?:Range[];review?:CutReview;after?:Project};
 export type AutoOption='pauses'|'fillers'|'gaps'|'normalize'|'style';
+
+/** The fingerprint of the timeline a plan was made on, read once per plan from the server's own copy (`before` of its review), kept for the session. */
+const planBases=new Map<string,string>(),planBaseRequests=new Map<string,Promise<string|undefined>>();
+export function planBase(job:AutomationJob|undefined):Promise<string|undefined>{
+ if(!job||job.status!=='ready'||!job.proposal?.changes.length)return Promise.resolve(undefined);
+ if(planBases.has(job.id))return Promise.resolve(planBases.get(job.id));
+ let request=planBaseRequests.get(job.id);
+ if(!request){request=api<CutReview>(`/automation/${job.id}/review`,{changeIds:[job.proposal.changes[0].id]}).then(review=>{const base=clipsFingerprint(review.before.clips);planBases.set(job.id,base);return base;}).catch(()=>undefined).finally(()=>planBaseRequests.delete(job.id));planBaseRequests.set(job.id,request);}
+ return request;
+}
+export function usePlanBase(job:AutomationJob|undefined){
+ const [base,setBase]=useState<string|undefined>(()=>job?planBases.get(job.id):undefined);
+ useEffect(()=>{let live=true;setBase(job?planBases.get(job.id):undefined);void planBase(job).then(value=>{if(live)setBase(value);});return()=>{live=false;};},[job?.id,job?.status]);
+ return base;
+}
 const seconds=(n:number)=>n<60?`${n.toFixed(1)}s`:formatCutDuration(n);
 
 /**
@@ -25,7 +40,7 @@ export function EditAutoSheet({project:p,jobs,merge,reload,flush,change,refresh,
  const [styled,setStyled]=useState<{jobId:string;after:Project}|null>(null),list=useRef<HTMLDivElement>(null),retry=useRef<()=>void>(()=>{});
  const cutJob=latestCutJob(jobs),styleJob=latestStyleJob(jobs);
  // A plan made before the latest edit no longer matches the timeline: it is never applied, and the row offers to look again.
- const stale=cutJob?.status==='ready'&&planIsStale(cutJob,p);
+ const cutBase=usePlanBase(cutJob),stale=cutJob?.status==='ready'&&planIsStale(cutBase,p);
  const ranges=useMemo(()=>({pauses:pauseRanges(cutJob,level,padding,stale),fillers:fillerRanges(p,cutJob,stale),gaps:gapRanges(p)}),[cutJob,level,padding,p,stale]);
  const active=pin??hover;
  const describe=(option:AutoOption)=>{
@@ -55,7 +70,9 @@ export function EditAutoSheet({project:p,jobs,merge,reload,flush,change,refresh,
  const apply=async(option:AutoOption)=>{
   setError('');retry.current=()=>void apply(option);
   if(option==='pauses'||option==='fillers'||option==='gaps'){
-   const r=ranges[option];if(!r.length)return;change(d=>{for(const [a,b] of [...r].sort((x,y)=>y[0]-x[0]))closeRange(d,a,b);});
+   const r=ranges[option];if(!r.length)return;
+   if(option!=='gaps'){const fresh=await flush().catch(()=>undefined),base=await planBase(cutJob);if(!fresh||planIsStale(base,fresh)){setError('The timeline changed since the last look. Find pauses again.');return;}}
+   change(d=>{for(const [a,b] of [...r].sort((x,y)=>y[0]-x[0]))closeRange(d,a,b);});
    notify(option==='pauses'?`Removed ${r.length} ${r.length===1?'pause':'pauses'} (${seconds(rangesSeconds(r))}).`:option==='fillers'?`Removed ${r.length} filler ${r.length===1?'word':'words'}.`:`Closed ${r.length} ${r.length===1?'gap':'gaps'}.`);
    // The plan was made for the timeline before this cut; retire it so the suggestion does not offer it again.
    if(option==='pauses'&&cutJob?.status==='ready')void api<AutomationJob>(`/automation/${cutJob.id}`,undefined,'DELETE').then(merge).catch(()=>{});

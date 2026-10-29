@@ -6,6 +6,7 @@ import {api} from '../../api';
 import {Button} from '../ui';
 import {cutSuggestion,formatCutDuration} from './edit-steps';
 import {planIsStale} from './edit-auto';
+import {usePlanBase} from './EditAutoSheet';
 
 export const REMOVE_FAILED="Couldn't remove the pauses.";
 export const UNDO_FAILED="Couldn't put the pauses back.";
@@ -22,7 +23,7 @@ type Removed={job:AutomationJob;seconds:number;before:string;after:string};
  * `refresh` reloads the saved timeline into the editor after either change.
  */
 export function EditSuggestion({project,jobs,merge,reload,flush,refresh,onReview,onChanged}:{project:Project;jobs:AutomationJob[];merge(job:AutomationJob):void;reload():Promise<void>;flush():Promise<Project|undefined>;refresh():Promise<void>;onReview():void;onChanged?():void}){
- const suggestion=cutSuggestion(jobs);
+ const suggestion=cutSuggestion(jobs),base=usePlanBase(suggestion.state==='ready'?suggestion.job:undefined);
  const [busy,setBusy]=useState(false),[failed,setFailed]=useState<''|'remove'|'undo'>(''),[removed,setRemoved]=useState<Removed|null>(null);
  const started=useRef('');
  const hasClips=project.clips.length>0;
@@ -83,7 +84,7 @@ export function EditSuggestion({project,jobs,merge,reload,flush,refresh,onReview
  </div>;
  if(suggestion.state==='running')return <div className="club-edit-suggestion is-quiet" role="status"><LoaderCircle aria-hidden className="spin" size={15}/><span>Looking for pauses and repeats…</span></div>;
  // A plan from before the latest edit no longer matches the timeline; the Auto-edit and style sheet offers to look again.
- if(suggestion.state!=='ready'||planIsStale(suggestion.job,project))return null;
+ if(suggestion.state!=='ready'||planIsStale(base,project))return null;
  return <div className="club-edit-suggestion" role="group" aria-label="Suggestion">
   <Scissors aria-hidden size={15}/>
   <span>{suggestion.label}</span>
