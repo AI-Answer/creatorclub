@@ -1,6 +1,6 @@
 import {useCallback,useState} from 'react';
 import type {Outline,PlanJobResult,VideoScene,Video} from '../../../shared/club';
-import {clubFetch,errorMessage} from '../api';
+import {clubFetch,errorMessage,notifyVideosChanged} from '../api';
 import {progressLine} from '../jobs';
 import {useJobRun} from '../useJobRun';
 import {useToast} from '../ui';
@@ -19,6 +19,7 @@ export function useDraft({video,tiles,scenes,onDrafted}:{video:Video;tiles:numbe
  const id=video.id;
  const finish=useCallback((raw:unknown)=>{
   const result=raw as PlanJobResult<Outline>;
+  notifyVideosChanged();
   const count=result.value?.scenes.length??0;
   if(result.held){
    toast('New scenes ready',{action:{label:'Use it',fn:()=>void outlineVersion(id,'use',result.held!).catch(reason=>toast(errorMessage(reason,"Couldn't use that version.")))}});

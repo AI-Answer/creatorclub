@@ -8,6 +8,7 @@ import type {Route,VideoTab} from './routes';
 const {Workspace}=await import('./workspace/Workspace');
 const {ClubRecorder,OPEN_FAILED}=await import('./ClubRecorder');
 const {FakeEventSource,installFetch}=await import('./test-fakes');
+const {VIDEOS_CHANGED}=await import('./api');
 
 const flush=()=>act(async()=>{await new Promise(resolve=>setTimeout(resolve,0));});
 const primaries=(root:Element)=>[...root.querySelectorAll('button')].filter(b=>b.classList.contains('primary')&&!b.disabled).map(b=>b.textContent?.trim());
@@ -50,6 +51,7 @@ test('a video walks from an empty Plan through Write titles and Draft scenes int
  FakeEventSource.install();
  const state:Server={video:planned,pkg:null,outline:null,help:['research']},server=serve(state),tabs:VideoTab[]=[];
  const ui=await mountUI(createElement(Harness,{initial:planned,tabs}));
+ let announced=0;const listen=()=>{announced++;};window.addEventListener(VIDEOS_CHANGED,listen);
  try{
   await flush();
   const c=ui.container;
@@ -58,7 +60,9 @@ test('a video walks from an empty Plan through Write titles and Draft scenes int
   await act(async()=>button(c,'Write titles').click());await flush();
   await act(async()=>FakeEventSource.last().emit('progress',{message:'Writing the package…'}));
   assert.ok(hasText(c,'Writing the package…'),'progress streams in');
+  const before=announced;
   await act(async()=>FakeEventSource.last().emit('done',{value:pkg}));
+  assert.equal(announced,before+1,'a finished plan job tells the sidebar and scene dots to reload');
   const titles=()=>[...c.querySelectorAll('.topt [role="textbox"]')].map(t=>t.textContent);
   assert.deepEqual(titles(),pkg.titles,'the package fills editable fields');
   await edit(c.querySelector('.topt [role="textbox"]'),'Claude Code features nobody uses');
@@ -79,7 +83,7 @@ test('a video walks from an empty Plan through Write titles and Draft scenes int
   assert.deepEqual(tabs,['record'],'Record opens');
   assert.equal(state.video.stage,'recording');
   assert.equal(state.video.recorderProjectId,'p1');
- }finally{await ui.close();server.restore();}
+ }finally{window.removeEventListener(VIDEOS_CHANGED,listen);await ui.close();server.restore();}
 });
 
 test('an AI step can be stopped, a page opened mid-run follows it, and a replaced outline can be undone',async()=>{

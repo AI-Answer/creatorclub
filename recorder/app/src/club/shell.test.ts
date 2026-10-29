@@ -271,9 +271,9 @@ test('the sidebar rail keeps every place reachable by name',async()=>{
 });
 
 test('which writes count as changing a video',()=>{
- const yes:Array<[string,string]>=[['POST','/videos'],['POST','/videos/v1/move'],['PUT','/videos/v1'],['DELETE','/videos/v1'],['POST','/videos/v1/recorder'],['POST','/videos/v1/research'],['DELETE','/videos/v1/research/t1'],['POST','/breakdowns/b1/concepts/2/add'],['POST','/videos?x=1']];
+ const yes:Array<[string,string]>=[['POST','/videos'],['POST','/videos/v1/move'],['PUT','/videos/v1'],['DELETE','/videos/v1'],['POST','/videos/v1/recorder'],['POST','/videos/v1/research'],['DELETE','/videos/v1/research/t1'],['POST','/breakdowns/b1/concepts/2/add'],['POST','/videos?x=1'],['PUT','/videos/v1/package/x'],['DELETE','/videos/v1/package'],['POST','/videos/v1/package/text'],['PUT','/videos/v1']];
  for(const [method,path] of yes)assert.equal(changesVideos(method,path),true,`${method} ${path}`);
- const no:Array<[string|undefined,string]>=[['GET','/videos'],[undefined,'/videos'],['POST','/videos/v1/opened'],['PATCH','/videos/v1/research/t1'],['POST','/videos/v1/board/chat'],['PUT','/videos/v1/board/chat'],['POST','/breakdowns'],['POST','/workspaces/ana/current'],['PUT','/settings'],['DELETE','/jobs/j1'],['POST','/videosx']];
+ const no:Array<[string|undefined,string]>=[['GET','/videos'],[undefined,'/videos'],['POST','/videos/v1/opened'],['PATCH','/videos/v1/research/t1'],['POST','/videos/v1/board/chat'],['PUT','/videos/v1/board/chat'],['POST','/breakdowns'],['POST','/workspaces/ana/current'],['PUT','/settings'],['DELETE','/jobs/j1'],['POST','/videosx'],['PUT','/videos/v1/package'],['PUT','/videos/v1/outline?x=1'],['PUT','/videos/v1/script'],['PUT','/videos/v1/script/scene/s1']];
  for(const [method,path] of no)assert.equal(changesVideos(method,path),false,`${method} ${path}`);
 });
 

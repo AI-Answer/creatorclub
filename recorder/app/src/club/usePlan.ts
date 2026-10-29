@@ -4,7 +4,7 @@ import type {Outline,Package,PlanData,PlanJobKind,PlanJobResult,Video} from '../
 /** A status line under a step: "Replaced the outline · Undo" or "New outline ready · Use it". */
 export type Notice={type:'replaced'|'held';token:string};
 type Notices=Partial<Record<PlanJobKind,Notice>>;
-import {clubFetch,errorMessage} from './api';
+import {clubFetch,errorMessage,notifyVideosChanged} from './api';
 import {useJobRun} from './useJobRun';
 import {withServerScripts,type PackageGroup} from './plan/plan-logic';
 
@@ -98,6 +98,7 @@ export function usePlan(video:Video,{onVideo,onRecord}:{onVideo(video:Video):voi
  /** A finished run: shown at once, with Undo when it replaced something; held behind "Use it" when the step changed while it ran. */
  const finished=useCallback((kind:PlanJobKind,raw:unknown)=>{
   const result=raw as PlanJobResult<Package|Outline>;
+  notifyVideosChanged();
   if(result.held){setNotices(current=>({...current,[kind]:{type:'held',token:result.held!}}));return;}
   // The server already filled only what was empty, so its package is the one to show.
   if(kind==='package')setPkg(result.value as Package);

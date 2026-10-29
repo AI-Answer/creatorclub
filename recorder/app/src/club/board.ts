@@ -1,25 +1,17 @@
 import type {Video,VideoStage} from '../../shared/club';
-import type {VideoStep} from './routes';
 
 /** Column names, copied from PLAN.md. */
 export const STAGE_LABEL:Record<VideoStage,string>={ideas:'Ideas',planning:'Planning',recording:'Recording',editing:'Editing',publishing:'Publishing',published:'Published'};
-
-/** What SceneForge knows about a video's recording project. */
-export type ProjectProgress={scenes:number;recorded:number;thumbnailMediaId?:string};
-
-/** The step of a video's page that matches its stage. */
-export const stepForStage=(stage:VideoStage):VideoStep=>({ideas:'plan',planning:'plan',recording:'record',editing:'edit',publishing:'publish',published:'publish'} as const)[stage];
 
 const shortDate=new Intl.DateTimeFormat('en-US',{month:'short',day:'numeric'});
 
 // ---------------------------------------------------------------- status
 
-/** Short status under a card: "Planning · 1 of 2" (package, scenes), "Recording · 2 of 5 scenes". Only counts what is known. */
-export function statusLine(video:Video,progress?:ProjectProgress):string{
+/** Short status under a card: "Planning · 1 of 2" (package, scenes). */
+export function statusLine(video:Video):string{
  switch(video.stage){
   case 'ideas':return 'Idea';
   case 'planning':return `Planning · ${[video.planning.package,video.planning.outline].filter(Boolean).length} of 2`;
-  case 'recording':return progress&&progress.scenes>0?`Recording · ${progress.recorded} of ${progress.scenes} ${progress.scenes===1?'scene':'scenes'}`:'Recording';
   case 'published':{const day=videoDayKey(video);return day?`Published · ${formatDay(day)}`:'Published';}
   default:return STAGE_LABEL[video.stage];
  }
