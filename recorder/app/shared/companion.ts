@@ -77,6 +77,8 @@ export interface CompanionCard {
   version?: string;
   /** One line saying what applying it changed, e.g. "Replaced 4 scenes". */
   result?: string;
+  /** Applied so long ago that its version was pruned: it can no longer be undone. */
+  tooOld?: true;
 }
 
 /** What the screen tells the companion with every message. */

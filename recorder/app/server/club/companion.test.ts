@@ -50,7 +50,9 @@ async function fakeAI(options: RunAIOptions): Promise<RunAIResult> {
 }
 
 const { clubRouter } = await import('./index.js');
-const { validateActions, applyAction, CHANGED_SINCE } = await import('./companion-actions.js');
+const { validateActions, applyAction, undoVersion, readTakesWith, CHANGED_SINCE, KEPT_ASIDE, TAKES_RECORDED, lock } = await import('./companion-actions.js');
+const { videoScenes } = await import('./scenes.js');
+const store = await import('./store.js');
 const { cancelAllJobs, getJob } = await import('./jobs.js');
 const { ReplySplitter, parseReply, chunkText } = await import('./companion-reply.js');
 const { screenText, fromBoardChat } = await import('./companion.js');
@@ -260,6 +262,106 @@ test('Undo never overwrites newer work: edits to other fields survive, and an ed
   await call('PUT', `/videos/${video.id}/package`, pkg);
 });
 
+test('Use as title: Undo puts the titles back exactly, and never takes away a title the person already had', async () => {
+  const titles = async () => (await plan()).package.titles;
+  // An existing title moved first, then Undo: back to the list as it was.
+  await call('PUT', `/videos/${video.id}/package`, { ...pkg, titles: ['My first title', 'My second title', ''] });
+  const moved = await replyWith([{ type: 'use_title', text: 'My second title' }]);
+  await apply(moved, 0);
+  assert.deepEqual(await titles(), ['My second title', 'My first title', '']);
+  assert.equal((await undo(moved, 0)).status, 200);
+  assert.deepEqual(await titles(), ['My first title', 'My second title', ''], 'the title the person already had survives Undo');
+
+  // An existing title (different case) moved first, then the titles edited, then Undo: refused, nothing lost.
+  const cased = await replyWith([{ type: 'use_title', text: 'my second title' }]);
+  await apply(cased, 0);
+  await call('PUT', `/videos/${video.id}/package`, { titles: [null, 'My first title, edited', null] });
+  const refused = await undo(cased, 0);
+  assert.equal(errorOf(refused), CHANGED_SINCE);
+  assert.deepEqual(await titles(), ['my second title', 'My first title, edited', '']);
+
+  // A new title, then Undo: back exactly.
+  await call('PUT', `/videos/${video.id}/package`, { ...pkg, titles: ['One', 'Two', 'Three'] });
+  const fresh = await replyWith([{ type: 'use_title', text: 'A brand new title' }]);
+  await apply(fresh, 0);
+  assert.deepEqual(await titles(), ['A brand new title', 'One', 'Two']);
+  await undo(fresh, 0);
+  assert.deepEqual(await titles(), ['One', 'Two', 'Three'], 'the title that fell off comes back');
+
+  // A new title, then the other titles edited, then Undo: only the new title goes; the edits stay.
+  const again = await replyWith([{ type: 'use_title', text: 'Another new title' }]);
+  await apply(again, 0);
+  await call('PUT', `/videos/${video.id}/package`, { titles: [null, 'One, edited', null] });
+  assert.equal((await undo(again, 0)).status, 200);
+  assert.deepEqual(await titles(), ['One, edited', 'Two', 'Three']);
+  await call('PUT', `/videos/${video.id}/package`, pkg);
+});
+
+test('the same field changed by two cards is undone newest first, and every card stays truthful', async () => {
+  const first = await replyWith([{ type: 'use_hook', text: 'Same line.' }]);
+  const second = await replyWith([{ type: 'use_hook', text: 'Same line.' }]);
+  await apply(first, 0);
+  await apply(second, 0);
+  assert.equal(errorOf(await undo(first, 0)), CHANGED_SINCE, 'the newer card still holds the field');
+  assert.equal((await plan()).package.hook.spoken, 'Same line.');
+  assert.equal((await undo(second, 0)).status, 200);
+  assert.equal((await plan()).package.hook.spoken, 'Same line.', 'back to what the second card found');
+  assert.equal((await undo(first, 0)).status, 200, 'then the first can go');
+  assert.equal((await plan()).package.hook.spoken, 'You never opened this.');
+});
+
+test('Undo of drafted scenes refuses once a take was recorded on one of them, and an Undo with nothing kept says nothing was kept', async () => {
+  const other = (await call<Video>('POST', '/videos', { title: 'Drafts and takes' })).body;
+  const draft = { type: 'draft_scenes' as const, scenes: [{ title: 'A', talkingPoints: ['a'], show: '', seconds: 60 }, { title: 'B', talkingPoints: ['b'], show: '', seconds: 60 }] };
+  try {
+    // Takes are read from the recording project; here a stand-in says the first drafted scene has one.
+    let withTakes: string[] = [];
+    readTakesWith(async (slug, id) => (await videoScenes(slug, id)).map((scene, index) => ({ ...scene, takes: withTakes.includes(scene.id) || (withTakes.includes('first') && index === 0) ? [{ id: 't1', seconds: 10, kept: true, retained: false }] : [] })));
+    const { version } = await applyAction('maya-lopez', other.id, draft);
+    withTakes = ['first'];
+    await assert.rejects(undoVersion('maya-lopez', other.id, version), (error: Error) => error.message === TAKES_RECORDED);
+    assert.equal((await call<{ outline: Outline }>('GET', `/videos/${other.id}/plan`)).body.outline.scenes.length, 2, 'the drafted scenes stay');
+    withTakes = [];
+    await undoVersion('maya-lopez', other.id, version);
+    assert.equal((await call<{ outline: Outline | null }>('GET', `/videos/${other.id}/plan`)).body.outline, null, 'without takes, Undo goes back to no scenes');
+
+    // Drafted over nothing, then edited: refused, and nothing is said to be kept because there was nothing.
+    const second = await applyAction('maya-lopez', other.id, draft);
+    const scenes = (await call<{ outline: Outline }>('GET', `/videos/${other.id}/plan`)).body.outline.scenes;
+    await call('PUT', `/videos/${other.id}/outline`, { scenes: [{ ...scenes[0], title: 'A, edited' }] });
+    await assert.rejects(undoVersion('maya-lopez', other.id, second.version), (error: Error) => error.message === CHANGED_SINCE);
+    assert.ok(!(await readdir(path.join(dir, 'videos', other.id))).some((name) => name.includes('before-companion')));
+  } finally {
+    readTakesWith(videoScenes);
+  }
+});
+
+test('a card applied before the last twenty versions says it is too old to undo instead of offering Undo', async () => {
+  const reply = await replyWith([{ type: 'set_thumbnail_text', text: 'Old words' }]);
+  await apply(reply, 0);
+  for (let index = 0; index < 21; index++) await applyAction('maya-lopez', video.id, { type: 'add_note', text: `Filler ${index}` });
+  const card = ((await thread()).messages.find((message) => message.id === reply.id) as CompanionReplyMessage).cards[0];
+  assert.equal(card.state, 'applied');
+  assert.equal(card.version, undefined);
+  assert.equal(card.tooOld, true);
+  assert.equal(errorOf(await undo(reply, 0)), 'There is nothing to undo.');
+  await call('PUT', `/videos/${video.id}/package`, pkg);
+});
+
+test("Plan's own saves wait for the companion's lock, so Undo's check and write see the same file", async () => {
+  let release!: () => void;
+  const held = store.withLock(lock('maya-lopez', video.id), () => new Promise<void>((resolve) => (release = resolve)));
+  let saved = false;
+  const save = call('PUT', `/videos/${video.id}/package`, { thumbnailText: 'While locked' }).then(() => (saved = true));
+  await tick(60);
+  assert.equal(saved, false, 'the save waits');
+  release();
+  await held;
+  await save;
+  assert.equal((await plan()).package.thumbnailText, 'While locked');
+  await call('PUT', `/videos/${video.id}/package`, pkg);
+});
+
 test('a double click or two windows apply a card once', async () => {
   const reply = await replyWith([{ type: 'add_note', text: 'Only once.' }]);
   const tiles = async () => ((await call<ResearchTile[]>('GET', `/videos/${video.id}/research`)).body).filter((tile) => tile.text === 'Only once.').length;
@@ -294,7 +396,7 @@ test('Draft scenes replaces the scenes and sets the script aside; Undo brings bo
   await call('PUT', `/videos/${video.id}/outline`, { scenes: [{ ...drafted.scenes[0], title: 'X, edited' }] });
   const refused = await undo(again, 0);
   assert.equal(refused.status, 409);
-  assert.equal(errorOf(refused), CHANGED_SINCE);
+  assert.equal(errorOf(refused), `${CHANGED_SINCE} ${KEPT_ASIDE}`, 'it says the earlier scenes are kept, because they were');
   assert.equal((await plan()).outline.scenes[0].title, 'X, edited', 'the edit stays');
   const kept = (await readdir(vdir)).find((name) => /^outline-before-companion-cv_[a-f0-9]{12}\.md$/.test(name));
   assert.ok(kept, 'the pre-action outline is kept');
@@ -443,6 +545,20 @@ test('a conversation file is read leniently: a bad card goes, never its message;
   assert.deepEqual(fresh.messages, []);
   assert.equal(JSON.parse(await readFile(file, 'utf8')).messages.length, 0);
   assert.ok((await stat(file)).isFile());
+});
+
+test('a card with a known type but a field of the wrong kind never breaks the next question', async () => {
+  const other = (await call<Video>('POST', '/videos', { title: 'Bad card' })).body;
+  await writeFile(path.join(dir, 'videos', other.id, 'companion.json'), JSON.stringify({ messages: [
+    { id: 'm1', role: 'user', text: 'Hi', context: { tab: 'plan' } },
+    { id: 'm2', role: 'assistant', text: 'ok', tab: 'plan', cards: [{ action: { type: 'use_hook', text: 5 }, state: 'offered' }] },
+  ] }));
+  scripts.push({ text: 'Fine.' });
+  const res = await call<CompanionAsked>('POST', `/videos/${other.id}/companion`, { message: 'Next', context: { tab: 'plan' } });
+  const stream = await events(res.body.jobId);
+  assert.equal(stream.at(-1)!.type, 'done', JSON.stringify(stream.at(-1)));
+  assert.match(asked.at(-1)!.prompt, /use_hook \(not used\)/, 'the history names the card without its broken text');
+  assert.equal(errorOf(await call('POST', `/videos/${other.id}/companion/m2/cards/0/apply`)), "That change can't be applied.");
 });
 
 test('bad requests are refused', async () => {

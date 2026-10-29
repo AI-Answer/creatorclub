@@ -4,8 +4,9 @@ import path from 'node:path';
 import { z } from 'zod';
 import { CHANGED_SINCE, TAB_ACTIONS, type CompanionAction, type CompanionActionType, type CompanionChanged, type CompanionTab } from '../../shared/companion.js';
 import { ClubError } from './errors.js';
-import type { Package } from '../../shared/club.js';
-import { outlineFile, packageFile, patchPackage, readOutline, readPackage, saveOutline, savePackage, saveScript, scriptFile, syncPlanningFlags, usePackageText } from './planning.js';
+import type { Package, VideoScene } from '../../shared/club.js';
+import { outlineFile, packageFile, parseOutline, patchPackage, readOutline, readPackage, saveOutline, savePackage, saveScript, scriptFile, syncPlanningFlags, usePackageText } from './planning.js';
+import { videoScenes } from './scenes.js';
 import { titleProblems } from './prompts.js';
 import * as store from './store.js';
 
@@ -83,6 +84,8 @@ export function validateActions(raw: readonly unknown[], { tab, sceneIds }: { ta
  */
 
 export { CHANGED_SINCE };
+export const KEPT_ASIDE = "Your earlier scenes are kept in the video's folder.";
+export const TAKES_RECORDED = "Takes were recorded for these scenes, so this can't be undone.";
 const VERSIONS_KEPT = 20;
 
 const versionsDir = (slug: string, id: string) => path.join(store.videoDir(slug, id), 'companion-versions');
@@ -97,7 +100,7 @@ interface SceneText {
 /** What Undo needs, by the kind of change. Edit's actions (3b) add a kind for their project transactions. */
 type Undo =
   | { kind: 'package-field'; field: PackageField; before: string | null; after: string }
-  | { kind: 'title'; title: string; dropped?: string }
+  | { kind: 'title'; title: string; dropped?: string; before: string[]; after: string[] }
   | { kind: 'scene'; sceneId: string; before: SceneText; after: SceneText }
   | { kind: 'tile'; tileId: string; text: string }
   | { kind: 'outline'; outline: { before: string | null; after: string | null }; script: { before: string | null; after: string | null } };
@@ -107,6 +110,29 @@ interface Version {
   at: string;
   changed: CompanionChanged[];
   undo: Undo;
+  /** Set once undone, so a later card's Undo knows this one no longer holds its part. */
+  undone?: boolean;
+  /** Orders versions made in the same millisecond. */
+  order?: number;
+}
+
+let sequence = 0;
+const nextOrder = () => Date.now() * 1000 + (sequence++ % 1000);
+const newer = (a: Version, b: Version) => (a.order !== undefined && b.order !== undefined ? a.order > b.order : a.at > b.at);
+
+/** The part of the video an undo puts back: two versions with the same part are undone newest first. */
+function partOf(undo: Undo): string {
+  switch (undo.kind) {
+    case 'package-field':
+      return `package:${undo.field}`;
+    case 'title':
+      return 'package:titles';
+    case 'scene':
+    case 'outline':
+      return 'outline';
+    case 'tile':
+      return `tile:${undo.tileId}`;
+  }
 }
 
 const readText = (file: string) => fs.readFile(file, 'utf8').catch((error: NodeJS.ErrnoException) => (error.code === 'ENOENT' ? null : Promise.reject(error)));
@@ -148,7 +174,7 @@ const HANDLERS: { [K in CompanionActionType]: Handler<Extract<CompanionAction, {
       const title = saved.titles[0];
       // A third title can fall off the end when a new one goes first: Undo puts it back.
       const dropped = before.find((old) => old.trim() && !saved.titles.some((now) => now.trim().toLowerCase() === old.trim().toLowerCase()));
-      return { result: 'Set as your first title', undo: { kind: 'title', title, ...(dropped ? { dropped } : {}) } };
+      return { result: 'Set as your first title', undo: { kind: 'title', title, ...(dropped ? { dropped } : {}), before: [...before], after: [...saved.titles] } };
     },
   },
   add_note: {
@@ -200,7 +226,8 @@ async function prune(slug: string, id: string) {
   for (const old of dated.slice(VERSIONS_KEPT)) await fs.rm(path.join(dir, old.name), { force: true });
 }
 
-const lock = (slug: string, id: string) => `companion-apply:${store.videoDir(slug, id)}`;
+/** One lock per video for every write that Undo checks: the companion's applies and undos, and Plan's own saves. */
+export const lock = (slug: string, id: string) => `companion-apply:${store.videoDir(slug, id)}`;
 
 /** Applies one action and saves its version. Returns the version id and a line saying what changed. */
 export async function applyAction(slug: string, id: string, action: CompanionAction): Promise<{ version: string; result: string; changed: CompanionChanged[] }> {
@@ -208,7 +235,7 @@ export async function applyAction(slug: string, id: string, action: CompanionAct
   return store.withLock(lock(slug, id), async () => {
     const { result, undo } = await handler.apply(slug, id, action);
     const version = `cv_${randomBytes(6).toString('hex')}`;
-    const saved: Version = { action: action.type, at: new Date().toISOString(), changed: handler.changed, undo };
+    const saved: Version = { action: action.type, at: new Date().toISOString(), order: nextOrder(), changed: handler.changed, undo };
     await store.writeJSON(path.join(versionsDir(slug, id), `${version}.json`), saved);
     await prune(slug, id);
     return { version, result, changed: handler.changed };
@@ -227,8 +254,14 @@ async function undoChange(slug: string, id: string, version: string, undo: Undo)
     case 'title':
       return store.withLock(packageLock(slug, id), async () => {
         const pkg = await readPackage(slug, id);
-        const at = pkg?.titles.findIndex((title) => title === undo.title) ?? -1;
-        if (!pkg || at < 0) throw new ClubError(CHANGED_SINCE, 409);
+        if (!pkg) throw new ClubError(CHANGED_SINCE, 409);
+        // Untouched since: the titles go back exactly as they were.
+        if (same(pkg.titles, undo.after)) return void (await savePackage(slug, id, { ...pkg, titles: undo.before as Package['titles'] }));
+        // The title was already there before the card moved it first: removing it would take away the person's own title.
+        const key = (title: string) => title.trim().toLowerCase();
+        if (undo.before.some((title) => key(title) === key(undo.title))) throw new ClubError(CHANGED_SINCE, 409);
+        const at = pkg.titles.findIndex((title) => title === undo.title);
+        if (at < 0) throw new ClubError(CHANGED_SINCE, 409);
         const rest = pkg.titles.filter((_, index) => index !== at);
         const back = undo.dropped && !rest.some((title) => title.trim().toLowerCase() === undo.dropped!.trim().toLowerCase()) ? undo.dropped : '';
         const titles = [...rest.filter((title) => title.trim()), ...(back ? [back] : [])].slice(0, 3);
@@ -255,14 +288,21 @@ async function undoChange(slug: string, id: string, version: string, undo: Undo)
       const now = { outline: await readText(files.outline), script: await readText(files.script) };
       if (now.outline !== undo.outline.after || now.script !== undo.script.after) {
         // The earlier scenes stay on disk under a clear name, so nothing is lost.
+        let kept = false;
         for (const key of ['outline', 'script'] as const) {
           const before = undo[key].before;
           if (before === null) continue;
           const { dir, name, ext } = path.parse(files[key]);
           await store.writeFileAtomic(path.join(dir, `${name}-before-companion-${version}${ext}`), before);
+          kept = true;
         }
-        throw new ClubError(CHANGED_SINCE, 409);
+        throw new ClubError(kept ? `${CHANGED_SINCE} ${KEPT_ASIDE}` : CHANGED_SINCE, 409);
       }
+      // Takes live in the recording project, linked to scenes by id, so recording one changes neither file: a drafted scene that
+      // has takes would lose them from view if the old scenes came back.
+      const earlier = new Set(undo.outline.before === null ? [] : parseOutline(undo.outline.before).scenes.map((scene) => scene.id).filter(Boolean));
+      const recorded = (await takes(slug, id).catch(() => [])).filter((scene) => !earlier.has(scene.id) && scene.takes.length > 0);
+      if (recorded.length) throw new ClubError(TAKES_RECORDED, 409);
       for (const key of ['outline', 'script'] as const) {
         const before = undo[key].before;
         if (before !== null) await store.writeFileAtomic(files[key], before);
@@ -276,14 +316,41 @@ async function undoChange(slug: string, id: string, version: string, undo: Undo)
   }
 }
 
-/** Undo of one applied card. Each card's Undo is independent of the others. */
+/** A newer applied card that changed the same part, and is not undone: it must be undone first. */
+async function newerOnSamePart(slug: string, id: string, version: string, saved: Version): Promise<boolean> {
+  const dir = versionsDir(slug, id);
+  const names = (await fs.readdir(dir).catch(() => [] as string[])).filter((name) => /^cv_[a-f0-9]{12}\.json$/.test(name) && name !== `${version}.json`);
+  for (const name of names) {
+    const other = await store.readJSON<Version>(path.join(dir, name)).catch(() => undefined);
+    if (other?.undo && !other.undone && newer(other, saved) && partOf(other.undo) === partOf(saved.undo)) return true;
+  }
+  return false;
+}
+
+/** Whether a version can still be undone: its file was not pruned. */
+export const versionExists = (slug: string, id: string, version: string) =>
+  VERSION_ID.test(version) ? fs.access(path.join(versionsDir(slug, id), `${version}.json`)).then(() => true, () => false) : Promise.resolve(false);
+
+/**
+ * Undo of one applied card. Each card's Undo stands on its own: it puts back only its own part, and refuses when that part
+ * changed since, by hand or by a newer card that is still applied.
+ */
 export async function undoVersion(slug: string, id: string, version: string): Promise<CompanionChanged[]> {
   if (!VERSION_ID.test(version)) throw new ClubError('That version was not found.', 404);
   return store.withLock(lock(slug, id), async () => {
-    const saved = await store.readJSON<Version>(path.join(versionsDir(slug, id), `${version}.json`)).catch(() => undefined);
+    const file = path.join(versionsDir(slug, id), `${version}.json`);
+    const saved = await store.readJSON<Version>(file).catch(() => undefined);
     if (!saved?.undo) throw new ClubError('That version was not found.', 404);
+    if (await newerOnSamePart(slug, id, version, saved)) throw new ClubError(CHANGED_SINCE, 409);
     await undoChange(slug, id, version, saved.undo);
+    await store.writeJSON(file, { ...saved, undone: true });
     await syncPlanningFlags(slug, id);
     return saved.changed;
   });
 }
+
+/** Tests replace how the scenes' takes are read. */
+let takes: (slug: string, id: string) => Promise<VideoScene[]> = videoScenes;
+export const readTakesWith = (reader: typeof takes) => {
+  takes = reader;
+};

@@ -6,7 +6,7 @@ import type {Outline,Package,VideoScene} from '../../../shared/club';
 import type {CompanionChanged,CompanionMessage,CompanionReplyMessage} from '../../../shared/companion';
 import {atBottom,elapsed,lookingAt,previewOf,screenSummary,stepSummary,suggestions,withDividers} from './companion-logic';
 import {blocks} from './Markdown';
-import {withStep,withText} from './useCompanion';
+import {withPendingStops,withStep,withText} from './useCompanion';
 const {Companion}=await import('./Companion');
 const {FakeEventSource,installFetch}=await import('../test-fakes');
 
@@ -297,5 +297,41 @@ test("a draft that would replace recorded scenes asks first, with the Board's di
   await act(async()=>button(c,'Apply').click());
   await act(async()=>button(document.body,'Replace 2 scenes').click());await flush();
   assert.equal(applies(),1);
+  // Undo would bring the old scenes back over scenes that have takes: it asks too.
+  const undos=()=>server.calls.filter(call=>call.path.endsWith('/undo')).length;
+  await act(async()=>button(c,'Undo').click());
+  assert.match(document.body.textContent??'',/Undoing this replaces them\. You can apply it again from this card\./);
+  await act(async()=>button(document.body,'Keep my scenes').click());
+  assert.equal(undos(),0);
+  await act(async()=>button(c,'Undo').click());
+  await act(async()=>button(document.body,'Replace 2 scenes').click());await flush();
+  assert.equal(undos(),1);
  }finally{server.restore();await ui.close();}
+});
+
+test('an applied card whose version is gone says it is too old to undo, and offers no Undo',async()=>{
+ FakeEventSource.install();
+ const reply:CompanionReplyMessage={id:'r1',role:'assistant',text:'Done.',tab:'plan',cards:[{action:{type:'use_hook',text:'Old'},state:'applied',result:'Set as your spoken hook',tooOld:true}]};
+ const server=serve({messages:[{id:'q0',role:'user',text:'Hook',context:{tab:'plan'}},reply]});
+ const ui=await mount();
+ try{
+  await flush();
+  const c=ui.container;
+  assert.match(c.querySelector('.cmp-card')?.textContent??'',/Too old to undo/);
+  assert.equal([...c.querySelectorAll('.cmp-card button')].some(b=>b.textContent?.includes('Undo')),false);
+ }finally{server.restore();await ui.close();}
+});
+
+test('a stopped reply stays on screen until the server has saved its own copy, right after its question',()=>{
+ const question:CompanionMessage={id:'q1',role:'user',text:'Q',context:{tab:'plan'}};
+ const next:CompanionMessage={id:'q2',role:'user',text:'Next',context:{tab:'plan'}};
+ const local:CompanionMessage={id:'stopped-j1',role:'assistant',text:'Half',tab:'plan',cards:[],status:'stopped'};
+ const pending=new Map([['j1',{questionId:'q1',message:local}]]);
+ const early=withPendingStops([question,next],pending);
+ assert.deepEqual(early.messages.map(message=>message.id),['q1','stopped-j1','q2'],'kept, in its place, while the server has none');
+ assert.deepEqual(early.settled,[]);
+ const saved:CompanionMessage={id:'r1',role:'assistant',text:'Half',tab:'plan',cards:[],status:'stopped'};
+ const late=withPendingStops([question,saved,next],pending);
+ assert.deepEqual(late.messages.map(message=>message.id),['q1','r1','q2'],'replaced by the server copy');
+ assert.deepEqual(late.settled,['j1']);
 });

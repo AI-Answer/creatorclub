@@ -30,6 +30,20 @@ export function withStep(steps:readonly LiveStep[],index:number,label:string,now
  return index<steps.length?steps as LiveStep[]:[...steps,{label,started:now}];
 }
 
+/**
+ * The server's conversation with the stopped replies this screen still holds: a local copy stays, right after its question, until the
+ * server's own reply to that question arrives.
+ */
+export function withPendingStops(server:readonly CompanionMessage[],pending:ReadonlyMap<string,{questionId:string;message:CompanionMessage}>):{messages:CompanionMessage[];settled:string[]}{
+ const messages=[...server],settled:string[]=[];
+ for(const [jobId,stop] of pending){
+  const at=messages.findIndex(message=>message.id===stop.questionId);
+  if(at>=0&&messages[at+1]?.role==='assistant'){settled.push(jobId);continue;}
+  if(at>=0)messages.splice(at+1,0,stop.message);else messages.push(stop.message);
+ }
+ return {messages,settled};
+}
+
 /** A text event, placed at its offset: a piece already shown (a replay) changes nothing. */
 export function withText(text:string,at:number,piece:string):string{
  if(at+piece.length<=text.length)return text;
@@ -53,6 +67,8 @@ export function useCompanion(videoId:string,{onChanged,beforeApply}:{onChanged(c
  const liveRef=useRef(live);liveRef.current=live;
  const changedRef=useRef(onChanged);changedRef.current=onChanged;
  const loadRef=useRef<()=>void>(()=>{});
+ /** Stopped replies shown locally until the server's copy arrives, by job. */
+ const pendingStops=useRef(new Map<string,{questionId:string;message:CompanionMessage;tries:number}>());
 
  /**
   * Follows a reply's events. `from` is what the screen already has (the server's running text and steps, or the reply so far after a
@@ -103,7 +119,14 @@ export function useCompanion(videoId:string,{onChanged,beforeApply}:{onChanged(c
  const load=useCallback(()=>{
   setLoadError('');
   clubFetch<CompanionThread>(base).then(thread=>{
-   setMessages(thread.messages);
+   const {messages:merged,settled}=withPendingStops(thread.messages,pendingStops.current);
+   for(const jobId of settled)pendingStops.current.delete(jobId);
+   setMessages(merged);
+   // The server may take longer to save a stopped reply: look again a few times, keeping the local copy meanwhile.
+   for(const [jobId,stop] of pendingStops.current){
+    if(++stop.tries>5){pendingStops.current.delete(jobId);continue;}
+    setTimeout(()=>loadRef.current(),SETTLE_MS*stop.tries);
+   }
    const running=thread.running,question=running&&thread.messages.find(message=>message.id===running.messageId);
    if(running&&question?.role==='user'&&liveRef.current?.jobId!==running.jobId)follow(running.jobId,running.messageId,question.context.tab,{text:running.text,steps:running.steps});
   },reason=>setLoadError(errorMessage(reason,"Couldn't load the conversation.")));
@@ -150,7 +173,11 @@ export function useCompanion(videoId:string,{onChanged,beforeApply}:{onChanged(c
   stopFollowing.current?.();stopFollowing.current=null;
   const now=Date.now();
   const steps=current.steps.map((step,index)=>({label:step.label,ms:(current.steps[index+1]?.started??now)-step.started}));
-  if(current.text.trim())setMessages(list=>[...(list??[]),{id:`stopped-${current.jobId}`,role:'assistant',text:current.text.trim(),tab:current.tab,cards:[],steps,status:'stopped'}]);
+  if(current.text.trim()){
+   const message:CompanionMessage={id:`stopped-${current.jobId}`,role:'assistant',text:current.text.trim(),tab:current.tab,cards:[],steps,status:'stopped'};
+   pendingStops.current.set(current.jobId,{questionId:current.questionId,message,tries:0});
+   setMessages(list=>withPendingStops(list??[],new Map([[current.jobId,{questionId:current.questionId,message}]])).messages);
+  }
   setLive(null);setAnnounce('Stopped');
   // A reply that finished just before the stop, or the stopped part the server keeps, comes back from the server in a moment.
   void clubFetch(`/jobs/${encodeURIComponent(current.jobId)}`,{method:'DELETE'}).catch(()=>{}).then(()=>setTimeout(()=>loadRef.current(),SETTLE_MS));

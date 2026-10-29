@@ -23,7 +23,7 @@ import {
 } from '../../shared/companion.js';
 import { AiError, aiLabel, runAI, type AIEvent } from './ai.js';
 import { boardText, readBoardChat } from './board-chat.js';
-import { actionShape, applyAction, undoVersion, validateActions } from './companion-actions.js';
+import { actionShape, applyAction, undoVersion, validateActions, versionExists } from './companion-actions.js';
 import { chunkText, parseReply, ReplySplitter } from './companion-reply.js';
 import { loadChannelContext } from './context.js';
 import { ClubError, notFound } from './errors.js';
@@ -73,10 +73,21 @@ const tabShape = z.enum(COMPANION_TABS).catch('board');
 /** Cards are read leniently: one that is not readable is left out, never its message. The action is checked again on Apply. */
 const cardShape = z
   .object({
-    action: z.object({ type: z.string() }).passthrough(),
+    // Known fields of the wrong kind are dropped, not passed on: the action is checked whole again on Apply.
+    action: z
+      .object({
+        type: z.string(),
+        text: z.string().optional().catch(undefined),
+        sceneId: z.string().optional().catch(undefined),
+        title: z.string().optional().catch(undefined),
+        talkingPoints: z.array(z.string()).optional().catch(undefined),
+        scenes: z.array(z.unknown()).optional().catch(undefined),
+      })
+      .passthrough(),
     state: z.enum(['offered', 'applied', 'undone']).catch('offered'),
     version: z.string().max(40).optional().catch(undefined),
     result: capped(300).optional().catch(undefined),
+    tooOld: z.literal(true).optional().catch(undefined),
   })
   .strip();
 const readCards = (cards: unknown) =>
@@ -166,12 +177,29 @@ const changeThread = <T>(slug: string, id: string, change: (messages: CompanionM
     return result;
   });
 
+/** Applied cards whose version was pruned can no longer be undone: they say so instead of offering Undo. */
+async function markTooOld(slug: string, id: string, messages: CompanionMessage[]): Promise<CompanionMessage[]> {
+  return Promise.all(
+    messages.map(async (message) => {
+      if (message.role !== 'assistant' || !message.cards.some((card) => card.state === 'applied' && card.version)) return message;
+      const cards = await Promise.all(
+        message.cards.map(async (card) => {
+          if (card.state !== 'applied' || !card.version || (await versionExists(slug, id, card.version))) return card;
+          const { version: _gone, ...rest } = card;
+          return { ...rest, tooOld: true as const };
+        }),
+      );
+      return { ...message, cards };
+    }),
+  );
+}
+
 /** The reply being written for each video, with its steps and text so far, so a panel that opens late shows all of it. */
 const running = new Map<string, NonNullable<CompanionThread['running']>>();
 
 export async function readThread(slug: string, id: string): Promise<CompanionThread> {
   await store.readVideo(slug, id);
-  const messages = await store.withLock(`companion:${threadFile(slug, id)}`, () => readThreadFile(slug, id));
+  const messages = await markTooOld(slug, id, await store.withLock(`companion:${threadFile(slug, id)}`, () => readThreadFile(slug, id)));
   const now = running.get(jobKey(slug, id));
   return { messages, ...(now && runningOnce(jobKey(slug, id))?.id === now.jobId ? { running: { ...now, steps: [...now.steps] } } : {}) };
 }
@@ -202,7 +230,10 @@ export function screenText(context: CompanionContext, video: Pick<Video, 'title'
 /** What each earlier reply offered, so the model knows what was used. */
 const historyText = (message: CompanionMessage) => {
   if (message.role === 'user') return message.text;
-  const cards = message.cards.map((card) => `${card.action.type}${'text' in card.action ? ` "${card.action.text.slice(0, 120)}"` : ''} (${card.state === 'offered' ? 'not used' : card.state})`);
+  const cards = message.cards.map((card) => {
+    const text = (card.action as { text?: unknown }).text;
+    return `${String(card.action.type)}${typeof text === 'string' ? ` "${text.slice(0, 120)}"` : ''} (${card.state === 'offered' ? 'not used' : card.state})`;
+  });
   return cards.length ? `${message.text}\n[Offered: ${cards.join('; ')}]` : message.text;
 };
 
@@ -449,6 +480,7 @@ export function applyCard(slug: string, id: string, messageId: string, index: nu
 export function undoCard(slug: string, id: string, messageId: string, index: number): Promise<CompanionApplied> {
   return changeCard(slug, id, messageId, index, async (card) => {
     if (card.state !== 'applied' || !card.version) throw new ClubError('There is nothing to undo.', 409);
+    if (!(await versionExists(slug, id, card.version))) throw new ClubError('This was applied too long ago to undo.', 409);
     const changed = await undoVersion(slug, id, card.version);
     const { version: _version, result: _result, ...rest } = card;
     return { card: { ...rest, state: 'undone' }, changed };

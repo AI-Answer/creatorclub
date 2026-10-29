@@ -19,6 +19,7 @@ import { publishingRoutes, type PublishingOptions } from './publisher-routes.js'
 import { recordingsDiskSpace } from './disk.js';
 import { readTranscript, startTileRead } from './research.js';
 import { applyCard, askBody, askCompanion, readThread, undoCard } from './companion.js';
+import { lock as companionLock } from './companion-actions.js';
 import { videoScenes, videosScenes } from './scenes.js';
 import { POSITION_MAX, WIDTH_MAX, WIDTH_MIN } from './tile-layout.js';
 import { findTregCall, hasSources, NO_SOURCES, rankedSignals, readSignalsConfig, startSignalsRefresh, writeSignalsConfig, type SignalsSources } from './signals.js';
@@ -486,26 +487,34 @@ export function clubRouter({ ai = {}, transcribe, runAI, readViews = ytDlpViews(
     const changedScene = await outlineChangedScene(video, outline);
     res.json({ package: pkg, outline, ...(changedScene ? { changedScene } : {}), running: runningPlanJobs(slug, id), ready });
   }));
-  router.put('/videos/:id/package', handler(async (req, res) => res.json(await patchPackage(await requireWorkspace(), param(req, 'id'), req.body))));
+  // Plan's own saves take the same per-video lock as the companion's Undo, so Undo's check and its write see the same files.
+  const planSave = async <T>(req: Request, save: (slug: string, id: string) => Promise<T>) => {
+    const slug = await requireWorkspace();
+    const id = param(req, 'id');
+    return store.withLock(companionLock(slug, id), () => save(slug, id));
+  };
+  router.put('/videos/:id/package', handler(async (req, res) => res.json(await planSave(req, (slug, id) => patchPackage(slug, id, req.body)))));
   // Removes the package (set aside, not deleted): Undo of a first Use as hook or Use as title.
   router.delete('/videos/:id/package', handler(async (req, res) => {
-    await deletePackage(await requireWorkspace(), param(req, 'id'));
+    await planSave(req, deletePackage);
     res.status(204).end();
   }));
   // "Use as hook" and "Use as title" from the Board chat. Saves through the same path as PUT /package, so a package job that is running holds its result.
   router.post('/videos/:id/package/text', handler(async (req, res) => {
     const { kind, text } = packageUseBody.parse(req.body);
-    res.json(await usePackageText(await requireWorkspace(), param(req, 'id'), kind, text));
+    res.json(await planSave(req, (slug, id) => usePackageText(slug, id, kind, text)));
   }));
-  router.put('/videos/:id/outline', handler(async (req, res) => res.json(await saveOutline(await requireWorkspace(), param(req, 'id'), req.body))));
+  router.put('/videos/:id/outline', handler(async (req, res) => res.json(await planSave(req, (slug, id) => saveOutline(slug, id, req.body)))));
   router.put('/videos/:id/script', handler(async (req, res) => {
-    res.json({ outline: await saveScript(await requireWorkspace(), param(req, 'id'), scriptBody.parse(req.body).script) });
+    const { script } = scriptBody.parse(req.body);
+    res.json({ outline: await planSave(req, (slug, id) => saveScript(slug, id, script)) });
   }));
   // Hand-edits one scene's part of the script, whether the script was written scene by scene or whole.
   router.put('/videos/:id/script/scene/:sceneId', handler(async (req, res) => {
     const sceneId = param(req, 'sceneId');
     if (!SCENE_ID.test(sceneId)) throw notFound('scene');
-    res.json({ outline: await saveSceneScript(await requireWorkspace(), param(req, 'id'), sceneId, sceneScriptBody.parse(req.body).text) });
+    const { text } = sceneScriptBody.parse(req.body);
+    res.json({ outline: await planSave(req, (slug, id) => saveSceneScript(slug, id, sceneId, text)) });
   }));
   for (const kind of PLAN_JOB_KINDS) {
     // Package it, Create outline and Write full script instead. A second start while one runs gets the running one.

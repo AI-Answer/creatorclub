@@ -1,6 +1,6 @@
 import {useCallback,useEffect,useLayoutEffect,useMemo,useRef,useState,type KeyboardEvent} from 'react';
 import type {Outline,Package,VideoScene} from '../../../shared/club';
-import {ACTION_TITLE,ACTION_VERB,CHANGED_SINCE,type CompanionCard,type CompanionChanged,type CompanionContext,type CompanionReplyMessage,type CompanionStep,type CompanionTab} from '../../../shared/companion';
+import {ACTION_TITLE,ACTION_VERB,type CompanionCard,type CompanionChanged,type CompanionContext,type CompanionReplyMessage,type CompanionStep,type CompanionTab} from '../../../shared/companion';
 import {clubFetch} from '../api';
 import {ErrorLine} from '../ErrorLine';
 import {Button,CompanionMark,Icon,Spinner,cn} from '../ui';
@@ -185,8 +185,9 @@ const scenesClock=(seconds:number)=>`${Math.floor(seconds/60)}:${String(Math.rou
 function Card({card,pkg,outline,scenes,busy,onApply,onUndo}:{card:CompanionCard;pkg:Package|null;outline:Outline|null;scenes?:readonly VideoScene[];busy:boolean;onApply():Promise<string>;onUndo():Promise<string>}){
  const [preview,setPreview]=useState(false);
  const [error,setError]=useState('');
- const [confirm,setConfirm]=useState(false);
+ const [confirm,setConfirm]=useState<'apply'|'undo'|null>(null);
  // New scenes over scenes that have takes ask first, like the Board's Draft scenes.
+ // Applying it, or undoing it, replaces the scenes: with takes on any scene, that asks first (the server refuses what would lose takes).
  const asks=card.action.type==='draft_scenes'&&!!scenes?.some(scene=>scene.takes.length>0);
  const action=card.action;
  const run=async(fn:()=>Promise<string>)=>{setError('');const failed=await fn();setError(failed);if(!failed)setPreview(false);};
@@ -210,12 +211,14 @@ function Card({card,pkg,outline,scenes,busy,onApply,onUndo}:{card:CompanionCard;
   <div className="cmp-card-a">
    {card.state==='applied'
     ?<><span className="cmp-result"><Icon name="Check" size={13} stroke={2.4}/>{card.result??'Applied'}</span>
-     {card.version&&<button type="button" className="btn ghost sm" disabled={busy} onClick={()=>void run(onUndo)}><Icon name="Undo2" size={14}/>Undo</button>}</>
-    :<><Button size="sm" variant="secondary" disabled={busy} onClick={()=>{if(asks)setConfirm(true);else void run(onApply);}}>{busy?<span className="spin"/>:null}{card.state==='undone'?'Apply again':ACTION_VERB[action.type]}</Button>
+     {card.version&&<button type="button" className="btn ghost sm" disabled={busy} onClick={()=>{if(asks)setConfirm('undo');else void run(onUndo);}}><Icon name="Undo2" size={14}/>Undo</button>}
+     {card.tooOld&&<span className="cmp-faint">Too old to undo</span>}</>
+    :<><Button size="sm" variant="secondary" disabled={busy} onClick={()=>{if(asks)setConfirm('apply');else void run(onApply);}}>{busy?<span className="spin"/>:null}{card.state==='undone'?'Apply again':ACTION_VERB[action.type]}</Button>
      <button type="button" className="btn ghost sm" aria-pressed={preview} onClick={()=>setPreview(value=>!value)}><Icon name={preview?'EyeOff':'Eye'} size={14}/>{preview?'Hide preview':'Preview'}</button>
      {card.state==='undone'&&<span className="cmp-faint">Undone</span>}</>}
   </div>
-  {error&&<div className="cmp-card-err" role="alert"><Icon name="TriangleAlert" size={13}/><span>{error}{error===CHANGED_SINCE&&action.type==='draft_scenes'?' Your earlier scenes are kept in the video\'s folder.':''}</span></div>}
-  {confirm&&scenes&&<ReplaceScenes scenes={scenes} action="Applying these" undoLine="You can undo it from this card." onKeep={()=>setConfirm(false)} onReplace={()=>{setConfirm(false);void run(onApply);}}/>}
+  {error&&<div className="cmp-card-err" role="alert"><Icon name="TriangleAlert" size={13}/><span>{error}</span></div>}
+  {confirm&&scenes&&<ReplaceScenes scenes={scenes} action={confirm==='apply'?'Applying these':'Undoing this'} undoLine={confirm==='apply'?'You can undo it from this card.':'You can apply it again from this card.'}
+   onKeep={()=>setConfirm(null)} onReplace={()=>{const which=confirm;setConfirm(null);void run(which==='apply'?onApply:onUndo);}}/>}
  </div>;
 }
