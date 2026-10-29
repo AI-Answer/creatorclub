@@ -16,7 +16,7 @@ const PLACEHOLDER:Record<Mode,string>={link:'youtube.com/watch?v=…',title:'e.g
 const ACTION:Record<Mode,string>={link:'Break down',title:'Add idea'};
 
 /**
- * The New video dialog. A link (YouTube or Instagram) opens Break down in Ideas; a title adds the idea and shows it on Ideas.
+ * The New video dialog. A link (YouTube or Instagram) opens Break down on Videos; a title adds the idea and shows it in the Ideas lane of Videos.
  * Recording straight away is not offered: a video can only be recorded once it has an outline.
  */
 export function NewVideo({onClose,onOpen}:{onClose():void;onOpen(route:Route):void}){
@@ -27,12 +27,12 @@ export function NewVideo({onClose,onOpen}:{onClose():void;onOpen(route:Route):vo
   if(!text||busy)return;
   if(mode==='link'){
    if(!looksLikeVideoLink(text)){toast("That doesn't look like a video link. Paste the full address.");return;}
-   onClose();onOpen({name:'ideas',bd:youtubeId(text)??text});return;
+   onClose();onOpen({name:'videos',view:'board',bd:youtubeId(text)??text});return;
   }
   setBusy(true);
   try{
    const video=await clubFetch<Video>('/videos',{body:{title:text}});
-   onClose();onOpen({name:'ideas',new:video.id});
+   onClose();onOpen({name:'videos',view:'board',new:video.id});
   }catch(reason){toast(errorMessage(reason,"Couldn't add the video."));}
   finally{setBusy(false);}
  };

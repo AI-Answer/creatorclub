@@ -1,64 +1,49 @@
 import {useCallback,useEffect,useState} from 'react';
 import type {Video,Workspace} from '../../shared/club';
 import {clubFetch} from './api';
-import {statusLine,youtubeId} from './board';
-import {defaultTab,type Route,type RouteName} from './routes';
-import {Avatar,Icon,Menu,Thumb,useToast,type IconName,type MenuItem} from './ui';
+import type {Route,RouteName} from './routes';
+import {Avatar,Icon,Menu,useToast,type IconName,type MenuItem} from './ui';
 
 type Channels={current:string|null;workspaces:Workspace[]};
 
-const NAV:ReadonlyArray<{name:Extract<RouteName,'overview'|'ideas'|'trending'|'signals'|'production'>;label:string;icon:IconName}>=[
- {name:'overview',label:'Overview',icon:'House'},
- {name:'ideas',label:'Ideas',icon:'Lightbulb'},
- {name:'trending',label:'Working now',icon:'TrendingUp'},
- {name:'signals',label:'Signals',icon:'MessagesSquare'},
- {name:'production',label:'Production',icon:'SquareKanban'},
+/** The places, in order. Research joins them later. */
+const NAV:ReadonlyArray<{name:Extract<RouteName,'home'|'discover'|'videos'>;label:string;icon:IconName;href:string}>=[
+ {name:'home',label:'Home',icon:'House',href:'#/home'},
+ {name:'discover',label:'Discover',icon:'TrendingUp',href:'#/discover'},
+ {name:'videos',label:'Videos',icon:'Clapperboard',href:'#/videos'},
 ];
 
 const IN_PRODUCTION:ReadonlyArray<Video['stage']>=['planning','recording','editing','publishing'];
 
 /** Videos being made, the ones touched last first. */
 export const inProduction=(videos:readonly Video[])=>videos.filter(video=>IN_PRODUCTION.includes(video.stage)).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt));
-/** Ideas you haven't put off or skipped. */
-export const openIdeas=(videos:readonly Video[])=>videos.filter(video=>video.stage==='ideas'&&!video.hidden);
 
 /**
- * Left sidebar: the channel switcher, search, the five places, the videos in production, then Settings, How it works and the collapse button.
- * Collapsed, it is an icon rail with the same places.
+ * Left sidebar: the channel switcher, search, then the three places (Home, Discover, Videos with the number of videos in progress).
+ * At the bottom, three icons with tooltips: Settings, Help (How CreatorClub works) and the collapse toggle. Collapsed, it is an icon rail with the same items.
  */
 export function Sidebar({route,collapsed,onToggle,onSearch,onHelp,onSwitched,onAdd,videos,epoch}:{route:Route;collapsed:boolean;onToggle():void;onSearch():void;onHelp():void;onSwitched():void;onAdd():void;videos:readonly Video[];epoch:number}){
- const active=inProduction(videos),ideas=openIdeas(videos).length;
- const counts:Partial<Record<RouteName,number>>={ideas,production:active.length};
+ const counts:Partial<Record<RouteName,number>>={videos:inProduction(videos).length};
+ const settings=route.name==='settings';
  return <nav className={`sidebar${collapsed?' collapsed':''}`} aria-label="Main">
   <div className="club-drag club-window-top"/>
   <div className="sb-top">
    <ChannelSwitcher collapsed={collapsed} epoch={epoch} onSwitched={onSwitched} onAdd={onAdd}/>
   </div>
-  <button type="button" className="sb-search" onClick={onSearch} title="Search"><Icon name="Search" size={15}/><span>Search</span><span className="kbd">⌘K</span></button>
+  <button type="button" className="sb-search" onClick={onSearch} title="Search (⌘K)" aria-label="Search"><Icon name="Search" size={15}/><span>Search</span><span className="kbd">⌘K</span></button>
   <div className="nav">
-   {NAV.map(({name,label,icon})=>{
+   {NAV.map(({name,label,icon,href})=>{
     const here=route.name===name,count=counts[name];
-    return <a key={name} href={`#/${name}`} className={`nav-item${here?' active':''}`} title={collapsed?label:undefined} aria-label={collapsed?label:undefined} aria-current={here?'page':undefined}>
-     <Icon name={icon} size={17}/><span className="label">{label}</span>{count?<span className="count">{count}</span>:null}
+    return <a key={name} href={href} className={`nav-item${here?' active':''}`} title={collapsed?label:undefined} aria-label={collapsed?label:undefined} aria-current={here?'page':undefined}>
+     <Icon name={icon} size={17}/><span className="label">{label}</span>{count?<span className="count" title={`${count} in progress`}>{count}</span>:null}
     </a>;
    })}
   </div>
-  {active.length>0&&<div className="sb-videos">
-   <div className="sb-label">In production</div>
-   <div className="nav" style={{paddingTop:0}}>
-    {active.slice(0,5).map(video=><a key={video.id} href={`#/video/${encodeURIComponent(video.id)}/${defaultTab(video.stage)}`} className={`sb-video${route.name==='video'&&route.id===video.id?' active':''}`} title={statusLine(video)}>
-     <span className="mini" style={{position:'relative'}}><Thumb videoId={youtubeId(video.youtubeUrl)} text={video.title} seed={video.id} style={{borderRadius:4,aspectRatio:'auto',height:20}}/></span>
-     <span className="t">{video.title}</span>
-    </a>)}
-   </div>
-  </div>}
-  <div className="sb-bottom">
-   <a href="#/settings" className={`nav-item${route.name==='settings'?' active':''}`} title={collapsed?'Settings':undefined} aria-label={collapsed?'Settings':undefined} aria-current={route.name==='settings'?'page':undefined}>
-    <Icon name="Settings" size={17}/><span className="label">Settings</span>
-   </a>
-   <button type="button" className="nav-item" onClick={onHelp} title={collapsed?'How CreatorClub works':undefined} aria-label="How CreatorClub works"><Icon name="CircleHelp" size={17}/><span className="label">How it works</span></button>
-   <button type="button" className="nav-item" onClick={onToggle} title={collapsed?'Expand sidebar':'Collapse sidebar'} aria-label={collapsed?'Expand sidebar':'Collapse sidebar'}>
-    <Icon name={collapsed?'PanelLeftOpen':'PanelLeftClose'} size={17}/><span className="label">{collapsed?'Expand':'Collapse'}</span>
+  <div className="sb-bottom sb-icons">
+   <a href="#/settings" className={`sb-icon${settings?' active':''}`} title="Settings" aria-label="Settings" aria-current={settings?'page':undefined}><Icon name="Settings" size={17}/></a>
+   <button type="button" className="sb-icon" onClick={onHelp} title="Help: how CreatorClub works" aria-label="Help"><Icon name="CircleHelp" size={17}/></button>
+   <button type="button" className="sb-icon sb-collapse" onClick={onToggle} title={collapsed?'Expand sidebar':'Collapse sidebar'} aria-label={collapsed?'Expand sidebar':'Collapse sidebar'}>
+    <Icon name={collapsed?'PanelLeftOpen':'PanelLeftClose'} size={17}/>
    </button>
   </div>
  </nav>;

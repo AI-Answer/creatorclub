@@ -17,8 +17,8 @@ import {useTrending} from '../useFeed';
 import {useProfile} from '../useProfile';
 import {useVideos} from '../useVideos';
 
-/** Overview: the next thing to do, then the other videos in production. A channel with nothing in production yet gets the first-video checklist instead. */
-export function OverviewScreen({navigate,onNewVideo}:{navigate(route:Route):void;onNewVideo():void}){
+/** Home: the next thing to do, then the other videos in production. A channel with nothing in production yet gets the first-video checklist instead. */
+export function HomeScreen({navigate,onNewVideo}:{navigate(route:Route):void;onNewVideo():void}){
  const {state,reload}=useVideos();
  const profile=useProfile();
  const videos=state.status==='ready'?state.videos:[];
@@ -28,7 +28,7 @@ export function OverviewScreen({navigate,onNewVideo}:{navigate(route:Route):void
  const scenes=useSceneProgress(inProduction);
 
  if(state.status==='error')return <div className="page"><ErrorLine message={state.message} onRetry={reload} primary/></div>;
- if(state.status==='loading'||profile===undefined)return <div className="page"><Spinner label="Loading your overview" size={20}/></div>;
+ if(state.status==='loading'||profile===undefined)return <div className="page"><Spinner label="Loading" size={20}/></div>;
 
  const fresh=isFresh(now);
  const openVideo=(id:string,tab?:VideoTab)=>navigate({name:'video',id,...(tab&&{tab})});
@@ -43,12 +43,12 @@ export function OverviewScreen({navigate,onNewVideo}:{navigate(route:Route):void
   {fresh
    ?<FirstVideo ideas={now.ideas} videos={videos} hasTopics={!!profile?.topics.length} navigate={navigate}/>
    :!next
-    ?<div className="card"><Empty icon="Clapperboard" title="Nothing in production" action={<button type="button" className="btn primary" onClick={()=>navigate({name:'ideas'})}>Open Ideas</button>}>Start planning an idea to bring it here.</Empty></div>
+    ?<div className="card"><Empty icon="Clapperboard" title="Nothing in production" action={<button type="button" className="btn primary" onClick={()=>navigate({name:'videos',view:'board'})}>Pick an idea</button>}>Start planning an idea to bring it here.</Empty></div>
     :<>
      <div className="sec-head"><h2 className="sec">Next up</h2></div>
      <NextUp video={next} progress={scenes[next.id]} onOpen={openVideo}/>
      {others.length>0&&<>
-      <div className="sec-head"><h2 className="sec">Also in production</h2><button type="button" className="linkish more" onClick={()=>navigate({name:'production',view:'board'})}>Open production</button></div>
+      <div className="sec-head"><h2 className="sec">Also in production</h2></div>
       <div className="card list-card">{others.map(video=><ProductionRow key={video.id} video={video} progress={scenes[video.id]} onOpen={openVideo}/>)}</div>
      </>}
     </>}
@@ -64,8 +64,8 @@ function FirstVideo({ideas,videos,hasTopics,navigate}:{ideas:readonly Video[];vi
  const waiting=feed.data===null&&feed.loadError===null;
  const picks=(feed.data?.items??[]).filter(qualifies).slice(0,3);
  return <>
-  <FirstSteps ideas={ideas} hasTopics={hasTopics} start={waiting||feed.seeding?null:picks} error={feed.loadError&&!feed.data?feed.loadError:null} onRetry={feed.reload} onBreak={setBreakdown} onOpenIdea={video=>navigate({name:'ideas',new:video.id})} onIdeas={()=>navigate({name:'ideas'})}/>
-  {breakdown&&<BreakdownDrawer videoId={breakdown.videoId} title={breakdown.title} channel={breakdown.channel} multiplier={breakdown.mult} saved={saved} videos={videos} onAdded={id=>navigate({name:'ideas',new:id})} onClose={()=>setBreakdown(null)}/>}
+  <FirstSteps ideas={ideas} hasTopics={hasTopics} start={waiting||feed.seeding?null:picks} error={feed.loadError&&!feed.data?feed.loadError:null} onRetry={feed.reload} onBreak={setBreakdown} onOpenIdea={video=>navigate({name:'videos',view:'board',new:video.id})} onIdeas={()=>navigate({name:'videos',view:'board'})}/>
+  {breakdown&&<BreakdownDrawer videoId={breakdown.videoId} title={breakdown.title} channel={breakdown.channel} multiplier={breakdown.mult} saved={saved} videos={videos} onAdded={id=>navigate({name:'videos',view:'board',new:id})} onClose={()=>setBreakdown(null)}/>}
  </>;
 }
 

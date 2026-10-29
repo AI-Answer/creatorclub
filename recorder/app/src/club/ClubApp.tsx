@@ -5,11 +5,9 @@ import {clubFetch} from './api';
 import {Sidebar} from './Sidebar';
 import {autoCollapses,defaultTab,routePath,useHashRoute,videoBackRoute,type Route,type VideoTab} from './routes';
 import {WelcomeScreen} from './screens/WelcomeScreen';
-import {IdeasScreen} from './screens/IdeasScreen';
-import {OverviewScreen} from './screens/OverviewScreen';
-import {ProductionScreen} from './screens/ProductionScreen';
-import {SignalsScreen} from './screens/SignalsScreen';
-import {TrendingScreen} from './screens/TrendingScreen';
+import {DiscoverScreen} from './screens/DiscoverScreen';
+import {HomeScreen} from './screens/HomeScreen';
+import {VideosScreen} from './screens/VideosScreen';
 import {SettingsScreen} from './screens/SettingsScreen';
 import {Help} from './shell/Help';
 import {NewVideo} from './shell/NewVideo';
@@ -37,7 +35,7 @@ export async function needsOnboarding():Promise<boolean>{
  }catch{return false;}
 }
 
-const isHome=(route:Route)=>route.name==='overview'||route.name==='production';
+const isHome=(route:Route)=>route.name==='home'||route.name==='videos';
 /** Welcome makes the channel and Settings can add one; every other screen needs it. */
 const needsChannel=(route:Route)=>route.name!=='welcome'&&route.name!=='settings';
 
@@ -57,7 +55,7 @@ function VideoRoute({id,tab,navigate}:{id:string;tab?:VideoTab;navigate(route:Ro
  const stage=video?.stage;
  useEffect(()=>{if(stage&&!tab)navigate({name:'video',id,tab:defaultTab(stage)},{replace:true});},[stage,tab,id,navigate]);
  if(video===undefined)return <div className="flex flex-1 items-center justify-center"><Spinner label="Loading the video" size={20}/></div>;
- if(video===null)return <EmptyState className="flex-1" title="Video not found" description="It may have been removed from the board." action={<Button onClick={()=>navigate({name:'production',view:'board'})}>Open board</Button>}/>;
+ if(video===null)return <EmptyState className="flex-1" title="Video not found" description="It may have been removed from the board." action={<Button onClick={()=>navigate({name:'videos',view:'board'})}>Open Videos</Button>}/>;
  return <VideoWorkspace key={video.id} video={video} tab={tab??defaultTab(video.stage)} back={videoBackRoute()} navigate={navigate} onVideo={setVideo}/>;
 }
 
@@ -87,7 +85,7 @@ function Shell(){
   window.addEventListener('keydown',key);return()=>window.removeEventListener('keydown',key);
  },[]);
 
- // Reaching the overview or Production before setup was finished or skipped sends you to first launch. Checked once, and only if you are still on one of them.
+ // Reaching Home or Videos before setup was finished or skipped sends you to first launch. Checked once, and only if you are still on one of them.
  const current=useRef(route);current.current=route;
  const checked=useRef(false);
  useEffect(()=>{
@@ -100,7 +98,7 @@ function Shell(){
   clubFetch<ClubSettings>('/settings').then(settings=>{if(settings.appearance)setAppearance(settings.appearance);},()=>{});
  },[]);
 
- const switched=useCallback(()=>{setChannelEpoch(n=>n+1);navigate({name:'overview'});},[navigate]);
+ const switched=useCallback(()=>{setChannelEpoch(n=>n+1);navigate({name:'home'});},[navigate]);
  const addChannel=useCallback(()=>navigate({name:'welcome',step:2}),[navigate]);
  // With no channel, Welcome opens at step 2, where you add yours or start fresh.
  const startChannel=useCallback(()=>navigate({name:'welcome',step:2}),[navigate]);
@@ -109,11 +107,9 @@ function Shell(){
  let screen;
  switch(route.name){
   case 'welcome':screen=<WelcomeScreen navigate={navigate} initialStep={route.step}/>;break;
-  case 'overview':screen=<OverviewScreen navigate={navigate} onNewVideo={openNewVideo}/>;break;
-  case 'ideas':screen=<IdeasScreen route={route} navigate={navigate}/>;break;
-  case 'trending':screen=<TrendingScreen navigate={navigate}/>;break;
-  case 'signals':screen=<SignalsScreen navigate={navigate}/>;break;
-  case 'production':screen=<ProductionScreen view={route.view} navigate={navigate} onNewVideo={openNewVideo}/>;break;
+  case 'home':screen=<HomeScreen navigate={navigate} onNewVideo={openNewVideo}/>;break;
+  case 'discover':screen=<DiscoverScreen show={route.show} navigate={navigate}/>;break;
+  case 'videos':screen=<VideosScreen route={route} navigate={navigate} onNewVideo={openNewVideo}/>;break;
   case 'video':screen=<VideoRoute id={route.id} tab={route.tab} navigate={navigate}/>;break;
   case 'settings':screen=<SettingsScreen section={route.section} onSetup={addChannel}/>;break;
  }

@@ -51,7 +51,7 @@ export function WelcomeScreen({navigate,initialStep}:{navigate(route:Route):void
   catch(reason){setLeaveError({message:errorMessage(reason),route});}
  },[saveWelcomed,navigate]);
  const markWelcomed=()=>{void saveWelcomed().catch(()=>{});};
- const overview=()=>void leave({name:'overview'});
+ const overview=()=>void leave({name:'home'});
  const goTo=(next:number)=>{if(next===3)markWelcomed();setStep(next);};
 
  const addChannel=()=>{
@@ -106,7 +106,7 @@ export function WelcomeScreen({navigate,initialStep}:{navigate(route:Route):void
     {step===0&&<ConnectStep onConnected={setAiConnected}/>}
     {step===1&&<ChannelStep path={path} onPath={setPath} url={url} onUrl={setUrl} job={add.state} onAdd={addChannel} channel={channel} fresh={fresh} onFresh={setFresh}/>}
     {step===2&&<VoiceStep path={path} channel={channel} draft={voice} onDraft={setVoice} save={save.state} onRetry={()=>finishVoice(false)}/>}
-    {step===3&&<WorkingData onAdded={id=>void leave({name:'ideas',new:id})} onSettings={()=>void leave({name:'settings',section:'followed'})}/>}
+    {step===3&&<WorkingData onAdded={id=>void leave({name:'videos',view:'board',new:id})} onSettings={()=>void leave({name:'settings',section:'followed'})}/>}
     {leaveError&&<div style={{marginTop:14}}><ErrorLine message={leaveError.message} onRetry={()=>void leave(leaveError.route)}/></div>}
     <div className="row" style={{marginTop:26}}>
      {step>0?<Button variant="ghost" disabled={busy} onClick={()=>setStep(step-1)}><Icon name="ChevronLeft" size={15}/>Back</Button>:<span/>}
