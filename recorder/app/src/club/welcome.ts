@@ -56,5 +56,5 @@ export function canContinue(step:number,state:{aiConnected:boolean;path:WelcomeP
 
 /** The videos to start from: the ones that fit the channel's topics, outliers first. Empty when none fit, so the step says so instead of listing the others. */
 export function startingVideos(items:readonly TrendingEntry[],limit=6):TrendingEntry[]{
- return items.filter(item=>item.fit).sort((a,b)=>(b.mult??-1)-(a.mult??-1)||b.vpd-a.vpd).slice(0,limit);
+ return items.filter(item=>item.fit&&(item.mult===null||item.mult>=1)).sort((a,b)=>(b.mult??-1)-(a.mult??-1)||b.vpd-a.vpd).slice(0,limit);
 }

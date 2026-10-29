@@ -105,7 +105,7 @@ test('refresh reads Reddit top of the week with a real User-Agent, keeps the bes
   assert.deepEqual(file.items.map((i) => i.id), ['r-p1', 'r-p2', 'r-q1'], 'ranked by likes and replies; the duplicate is dropped and r/ClaudeAI is capped at 2');
   assert.equal(file.updatedAt, '2026-10-29T12:00:00.000Z');
   assert.deepEqual(file.errors, []);
-  assert.deepEqual(result, { posts: 3, added: 3, errors: [] }, 'no note when no X source is set up');
+  assert.deepEqual(result, { posts: 3, added: 3, errors: [], tried: 2 }, 'no note when no X source is set up');
   assert.ok(!(await readdir(store.workspaceDir(slug))).some((name) => name.endsWith('.tmp')));
 });
 
@@ -204,7 +204,8 @@ test('read for a channel: posts about its topics and audience first with a reaso
   assert.deepEqual(ranked.errors, ['r/gone']);
 
   const none = await store.createWorkspace({ name: 'No signals yet', handle: '', channelUrl: '', topics: [], about: '', cta: '' });
-  assert.deepEqual(await rankedSignals(none.slug, none), { items: [], updatedAt: null, errors: [] });
+  assert.deepEqual(await rankedSignals(none.slug, none), { items: [], updatedAt: null, errors: [], sources: 0 });
+  assert.equal(ranked.sources, 0, 'no sources set up');
 });
 
 test('treg gets its own TREG_* settings and certificate variables, and none of the app\'s other secrets', () => {

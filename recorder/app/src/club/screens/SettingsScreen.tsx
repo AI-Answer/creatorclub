@@ -26,11 +26,11 @@ const SECTIONS:readonly {id:string;label:string;icon:IconName}[]=[
  {id:'set-appearance',label:'Appearance',icon:'Sun'},
 ];
 /** The element a link's section scrolls to, and the nav item that shows as current for it. Followed channels sit inside Channel. */
-const TARGET:Record<SettingsSection,{id:string;nav:string}>={ai:{id:'set-ai',nav:'set-ai'},channel:{id:'set-channel',nav:'set-channel'},followed:{id:'set-followed',nav:'set-channel'},appearance:{id:'set-appearance',nav:'set-appearance'}};
+const TARGET:Record<SettingsSection,{id:string;nav:string}>={ai:{id:'set-ai',nav:'set-ai'},channel:{id:'set-channel',nav:'set-channel'},followed:{id:'set-followed',nav:'set-channel'},sources:{id:'set-sources',nav:'set-channel'},appearance:{id:'set-appearance',nav:'set-appearance'}};
 
 /**
  * Settings: Connected AI, Channel and Appearance, with a list on the left to jump between them. `onSetup` opens first launch to add or set up a channel.
- * A link to a `section` (`#/settings/followed`) scrolls there once the settings are loaded; the followed channels' input is focused.
+ * A link to a `section` (`#/settings/followed`) scrolls there once the settings are loaded; the followed channels' or the signal sources' first input is focused.
  */
 export function SettingsScreen({section:linked,onSetup}:{section?:SettingsSection;onSetup():void}){
  const [data,setData]=useState<Loaded|null>(null),[error,setError]=useState('');
@@ -59,7 +59,7 @@ export function SettingsScreen({section:linked,onSetup}:{section?:SettingsSectio
     <nav className="set-nav" aria-label="Settings sections">{SECTIONS.map(item=><button key={item.id} type="button" className={`nav-item${section===item.id?' active':''}`} aria-current={section===item.id?'true':undefined} onClick={()=>jump(item.id)}><Icon name={item.icon} size={16}/><span className="label">{item.label}</span></button>)}</nav>
     <div>
      <ConnectedAiSection status={data.status} settings={data.settings} onStatus={refreshStatus} onSettings={change=>setData({...data,settings:{...data.settings,...change}})}/>
-     <ChannelSection workspace={data.workspace} focusFollowed={linked==='followed'} onSaved={workspace=>setData({...data,workspace})} onSetup={onSetup}/>
+     <ChannelSection workspace={data.workspace} focus={linked==='followed'||linked==='sources'?linked:undefined} onSaved={workspace=>setData({...data,workspace})} onSetup={onSetup}/>
      <AppearanceSection saved={data.settings.appearance}/>
     </div>
    </div>}

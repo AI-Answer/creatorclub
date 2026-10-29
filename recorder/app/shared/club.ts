@@ -430,6 +430,8 @@ export interface SignalsResponse {
   updatedAt: string | null;
   /** Sources that could not be read in the last refresh, like "r/ClaudeAI". */
   errors: string[];
+  /** How many sources are set up (X accounts, X searches and subreddits). Zero means Refresh has nothing to read. */
+  sources: number;
 }
 
 /** Where Signals reads from (`signals-config.json`). Every number has a default. */
@@ -458,6 +460,8 @@ export interface SignalsRefreshResult {
   posts: number;
   added: number;
   errors: string[];
+  /** How many sources were tried. When it equals the number in `errors`, nothing could be read. */
+  tried: number;
   note?: string;
 }
 

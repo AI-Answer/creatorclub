@@ -16,14 +16,19 @@ export function growthPerDay(item:Pick<TrendingEntry,'history'>):number{
  return (last.v-before.v)/days;
 }
 
-export const trendCounts=(items:readonly TrendingEntry[])=>({fit:items.filter(i=>i.fit).length,followed:items.filter(i=>i.kind==='followed').length,all:items.length});
-/** Videos that are not about the channel's topics, which "For you" leaves out. */
-export const offTopic=(items:readonly TrendingEntry[])=>items.filter(i=>!i.fit).length;
+/** A video "For you" lists: about the channel's topics, and not under its creator's usual views (a video below 1× is no outlier). An unknown usual stays. */
+export const qualifies=(item:Pick<TrendingEntry,'fit'|'mult'>)=>item.fit&&(item.mult===null||item.mult>=1);
+
+export const trendCounts=(items:readonly TrendingEntry[])=>({fit:items.filter(qualifies).length,followed:items.filter(i=>i.kind==='followed').length,all:items.length});
+/** Videos "For you" leaves out: not about the channel's topics, or under their creator's usual. */
+export const offTopic=(items:readonly TrendingEntry[])=>items.filter(i=>!qualifies(i)).length;
 
 /** The videos to show for a list and a sort. */
 export function trendList(items:readonly TrendingEntry[],show:TrendShow,sort:TrendSort):TrendingEntry[]{
- const list=items.filter(i=>show==='all'||(show==='fit'?i.fit:i.kind==='followed'));
- return list.sort((a,b)=>sort==='views'?b.views-a.views:sort==='growth'?growthPerDay(b)-growthPerDay(a)||b.vpd-a.vpd:b.vpd-a.vpd);
+ const list=items.filter(i=>show==='all'||(show==='fit'?qualifies(i):i.kind==='followed'));
+ list.sort((a,b)=>sort==='views'?b.views-a.views:sort==='growth'?growthPerDay(b)-growthPerDay(a)||b.vpd-a.vpd:b.vpd-a.vpd);
+ // Videos known to beat their creator's usual come first; those with no usual known follow.
+ return show==='fit'?[...list.filter(i=>i.mult!==null),...list.filter(i=>i.mult===null)]:list;
 }
 
 /** "New": first seen in the last refresh and still under two days old. */

@@ -30,7 +30,7 @@ const breakdown=(over:Partial<Breakdown>={}):Breakdown=>({
 });
 
 type Server={
- videos:Video[];recent:string[];trending:{items:TrendingEntry[];updatedAt:string|null;followed:number};signals:{items:SignalEntry[];updatedAt:string|null;errors:string[]};
+ videos:Video[];recent:string[];trending:{items:TrendingEntry[];updatedAt:string|null;followed:number};signals:{items:SignalEntry[];updatedAt:string|null;errors:string[];sources?:number};
  breakdowns:BreakdownSummary[];saved:Record<string,Breakdown>;workspace:Workspace;projects:{id:string;sceneCount:number;recordedSceneCount:number}[];outlines:Record<string,number>;
  jobs:string[];
 };
@@ -382,7 +382,7 @@ test('Working now: For you, Followed and All with counts, a chip legend, reasons
   assert.deepEqual(texts(c,'.seg button'),['For you 2','Followed 2','All 3']);
   assert.deepEqual(cards(c),['Claude Code in 20 minutes','Agents that run a shop'],'ranked by views per day, off-topic left out');
   assert.match(text(c.querySelector('.legend')),/1–3×3–5×5–10×10–50×—Views compared with that channel's usual\. A dash means its usual isn't tracked yet\./);
-  assert.equal(text(c.querySelector('.legend + .small')),'Matched to your topics: Claude, AI agents, Complete beginners.');
+  assert.equal(text(c.querySelector('.legend + .small')),'Matched to your topics: Claude, AI agents.');
   const [first,second]=c.querySelectorAll('.card.trend');
   assert.equal(text(first.querySelector('.chip.mult')),'6.40×');assert.equal(first.querySelector('.chip.mult')!.getAttribute('title'),"6.40× vs Duncan Rogoff's usual");
   assert.ok(first.querySelector('.chip.mult')!.classList.contains('b-amber'));
@@ -394,7 +394,7 @@ test('Working now: For you, Followed and All with counts, a chip legend, reasons
   assert.deepEqual(texts(first,'.stats span'),['50K','9K/day','1h ago'.replace('1h ago','1 day ago')]);
   assert.deepEqual(texts(first,'.foot .btn'),['Break down','']);assert.equal(first.querySelector('.foot .icon-only')!.getAttribute('aria-label'),'Make it an idea');
 
-  await press(button(c,'Show everything (1 more, not about your topics)'));
+  await press(button(c,'Show everything (1 more, off topic or under their usual)'));
   assert.deepEqual(cards(c),['My cat learns to code','Claude Code in 20 minutes','Agents that run a shop'],'All, sorted by views per day');
   assert.ok(c.querySelector('.card.trend')!.querySelector('.reason')===null,'no reason on a video that is not about your topics');
   await press([...c.querySelectorAll('.seg button')].find(b=>/^Followed/.test(b.textContent!))!);
@@ -407,7 +407,7 @@ test('Working now sorts by views per day, total views or growth',async()=>{
  await mount(navigate=>createElement(TrendingScreen,{navigate}),trendServer(),async ui=>{
   const c=ui.container,select=c.querySelector('#sortby')!;
   assert.deepEqual([...select.querySelectorAll('option')].map(o=>o.textContent),['Views per day','Total views','Growth']);
-  await choose(select,'views');assert.deepEqual(cards(c),['Agents that run a shop','Claude Code in 20 minutes']);
+  await choose(select,'views');assert.deepEqual(cards(c),['Claude Code in 20 minutes','Agents that run a shop'],'videos known to beat their usual come first, then those with no usual known');
   await choose(select,'growth');assert.deepEqual(cards(c),['Claude Code in 20 minutes','Agents that run a shop'],'30,000 views gained in a day, against none known');
  });
 });
@@ -416,7 +416,7 @@ test('Working now with nothing that matches says so and offers everything; with 
  const s=trendServer({trending:{items:[trend('ccccccccccc','My cat learns to code',{fit:false,reason:null})],updatedAt:'2026-10-28T09:00:00.000Z',followed:1}});
  await mount(navigate=>createElement(TrendingScreen,{navigate}),s,async ui=>{
   const c=ui.container;
-  assert.equal(text(c.querySelector('.empty h3')),'Nothing matches your topics this week');
+  assert.equal(text(c.querySelector('.empty h3')),'Nothing is beating its usual on your topics');
   await press(button(c.querySelector('.empty')!,'Show everything'));
   assert.deepEqual(cards(c),['My cat learns to code']);
  });
@@ -575,6 +575,30 @@ test('Refresh on Signals follows the job, shows sources that could not be read a
  await mount(navigate=>createElement(SignalsScreen,{navigate}),server(),async ui=>{
   assert.equal(text(ui.container.querySelector('.empty h3')),'No posts yet');
   assert.ok(button(ui.container.querySelector('.empty')!,'Refresh'));
+ });
+});
+
+test('Signals with no sources is an empty state that opens the Settings signal sources, with Refresh off; when every source fails it is an error to retry, not a toast',async()=>{
+ await mount(navigate=>createElement(SignalsScreen,{navigate}),server({signals:{items:[],updatedAt:null,errors:[],sources:0}}),async (ui,_s,calls,routes)=>{
+  const c=ui.container;
+  assert.equal(text(c.querySelector('.empty h3')),'Add where to read');
+  assert.equal((button(c,'Refresh') as HTMLButtonElement).disabled,true);
+  assert.equal(button(c,'Refresh').getAttribute('title'),'Add a source in Settings first');
+  assert.equal(c.querySelector('[role="alert"]'),null);
+  await press(button(c,'Add sources'));assert.deepEqual(routes.at(-1),{name:'settings',section:'sources'});
+  assert.deepEqual(writes(calls),[]);
+ });
+ await mount(navigate=>createElement(SignalsScreen,{navigate}),signalServer({signals:{items:signalItems(),updatedAt:'2026-10-28T09:00:00.000Z',errors:[],sources:2}}),async (ui,_s,calls)=>{
+  const c=ui.container;
+  await press(button(c,'Refresh'));
+  await emit('done',{posts:3,added:0,errors:['r/AI_Agents','r/smallbusiness'],tried:2});
+  assert.equal(text(c.querySelector('[role="alert"] p')),"Couldn't read r/AI_Agents, r/smallbusiness.");
+  assert.deepEqual(toasts(c),[],'no success toast');
+  await press(button(c,'Try again'));
+  assert.equal(writes(calls).filter(w=>w==='POST /signals/refresh').length,2);
+  await emit('done',{posts:3,added:0,errors:['r/AI_Agents'],tried:2});
+  assert.equal(c.querySelector('[role="alert"]'),null,'part failing keeps the grey line');
+  assert.ok(toasts(c).includes('Nothing new since last time'));
  });
 });
 
@@ -768,4 +792,12 @@ test('the search runs only for a channel that follows too few channels and was n
  assert.deepEqual(followTarget({kind:'creator',channel:'Chef Sam',channelId:'UCFeFVytEkT8kaqPCJZGFswg'}),{name:'Chef Sam',channelId:'UCFeFVytEkT8kaqPCJZGFswg'});
  assert.equal(followTarget({kind:'followed',channel:'Chef Sam',channelId:'UCFeFVytEkT8kaqPCJZGFswg'}),null);
  assert.equal(followTarget({kind:'creator',channel:'Chef Sam'}),null,'no channel id, nothing to follow');
+});
+
+test('For you never lists a video under its creator\'s usual; it waits under Show everything, and unknown usuals follow the known ones',async()=>{
+ const {trendList,trendCounts}=await import('./trending-view');
+ const items=[trend('aaaaaaaaaaa','Below',{mult:0.83,vpd:9000}),trend('bbbbbbbbbbb','Unknown',{mult:null,vpd:8000}),trend('ccccccccccc','Above',{mult:1.2,vpd:100}),trend('ddddddddddd','Exactly',{mult:1,vpd:50})];
+ assert.deepEqual(trendList(items,'fit','vpd').map(i=>i.title),['Above','Exactly','Unknown']);
+ assert.deepEqual(trendList(items,'all','vpd').map(i=>i.title),['Below','Unknown','Above','Exactly']);
+ assert.equal(trendCounts(items).fit,3);
 });

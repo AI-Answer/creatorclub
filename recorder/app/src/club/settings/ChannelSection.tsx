@@ -19,13 +19,13 @@ const same=(a:readonly string[],b:readonly string[])=>a.length===b.length&&a.eve
 const labels:readonly string[]=AUDIENCE_LABELS;
 
 /** What CreatorClub knows about the channel: your name, topics, who it's for, how you talk, the channels you follow and where signals come from. */
-export function ChannelSection({workspace,focusFollowed,onSaved,onSetup}:{workspace:Workspace|null;focusFollowed?:boolean;onSaved(workspace:Workspace):void;onSetup():void}){
+export function ChannelSection({workspace,focus,onSaved,onSetup}:{workspace:Workspace|null;focus?:'followed'|'sources';onSaved(workspace:Workspace):void;onSetup():void}){
  return <section className="set-sec" id="set-channel" aria-labelledby="set-channel-title"><h2 id="set-channel-title">Channel</h2><p>What CreatorClub knows about your channel. It shapes every idea and script.</p>
   {workspace
    ?<>
     <ChannelForm key={workspace.slug} workspace={workspace} onSaved={onSaved} onSetup={onSetup}/>
     <VoiceGuide key={`voice-${workspace.slug}`} workspace={workspace} onSaved={onSaved}/>
-    <Card className="mt-5 p-4" id="set-followed"><FollowedChannels key={`followed-${workspace.slug}`} focus={focusFollowed}/><SignalSources key={`signals-${workspace.slug}`}/></Card>
+    <Card className="mt-5 p-4" id="set-followed"><FollowedChannels key={`followed-${workspace.slug}`} focus={focus==='followed'}/><SignalSources key={`signals-${workspace.slug}`} focus={focus==='sources'}/></Card>
    </>
    :<Card className="p-4"><div className="row"><p className="muted" style={{margin:0}}>No channel yet.</p><Button size="sm" variant="primary" onClick={onSetup}>Add your channel</Button></div></Card>}
  </section>;

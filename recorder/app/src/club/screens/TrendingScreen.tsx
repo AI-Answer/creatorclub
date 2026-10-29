@@ -40,7 +40,7 @@ export function TrendingScreen({navigate}:{navigate(route:Route):void}){
  if(feed.data===null&&feed.loadError===null)return <div className="page wide"><Spinner label="Loading what's working" size={20}/></div>;
  if(feed.data===null)return <div className="page wide"><ErrorLine message={feed.loadError!} onRetry={feed.reload} primary/></div>;
  const {updatedAt,followed}=feed.data;
- const topics=[...(profile?.topics??[]),...(profile?.audience??[])].map(topicLabel);
+ const topics=(profile?.topics??[]).map(topicLabel);
  const hidden=offTopic(feed.data.items);
  const everything=()=>setShow('all');
  const openIdea=(item:TrendingEntry)=>{const idea=ideaFromSource(videos,trendingUrl(item.videoId));if(idea)navigate({name:'ideas',open:idea.id});else void makeIdea({kind:'trending',videoId:item.videoId});};
@@ -68,8 +68,8 @@ export function TrendingScreen({navigate}:{navigate(route:Route):void}){
     {list.length
      ?<div className="grid g4">{list.map(item=><TrendCard key={item.videoId} item={item} isNew={isNew(item,updatedAt)} reason={show!=='followed'?item.reason:null}
        hasBreakdown={!!(saved&&savedBreakdown(saved,item.videoId))} inIdeas={!!ideaFromSource(videos,trendingUrl(item.videoId))} onBreak={setBreakdown} onIdea={openIdea}/>)}</div>
-     :<div className="card"><Empty icon="TrendingUp" title={show==='followed'?'Nothing from the channels you follow':'Nothing matches your topics this week'} action={show==='followed'?undefined:<button type="button" className="btn" onClick={everything}>Show everything</button>}>{show==='followed'?'Refresh to read them again.':"Add a topic in Settings, or look at everything that's working."}</Empty></div>}
-    {show==='fit'&&hidden>0&&list.length>0&&<div style={{textAlign:'center',marginTop:20}}><button type="button" className="btn" onClick={everything}><Icon name="Eye" size={15}/>Show everything ({hidden} more, not about your topics)</button></div>}
+     :<div className="card"><Empty icon="TrendingUp" title={show==='followed'?'Nothing from the channels you follow':'Nothing is beating its usual on your topics'} action={show==='followed'?undefined:<button type="button" className="btn" onClick={everything}>Show everything</button>}>{show==='followed'?'Refresh to read them again.':"Nothing about your topics is above its creator's usual right now. Look at everything that's working."}</Empty></div>}
+    {show==='fit'&&hidden>0&&list.length>0&&<div style={{textAlign:'center',marginTop:20}}><button type="button" className="btn" onClick={everything}><Icon name="Eye" size={15}/>Show everything ({hidden} more, off topic or under their usual)</button></div>}
    </>}
   {breakdown&&<BreakdownDrawer videoId={breakdown.videoId} title={breakdown.title} channel={breakdown.channel} multiplier={breakdown.mult} saved={saved} videos={videos} onAdded={id=>navigate({name:'ideas',new:id})} onClose={()=>setBreakdown(null)}/>}
  </div>;

@@ -7,6 +7,7 @@ import {ErrorLine} from '../ErrorLine';
 import {FirstSteps} from '../FirstSteps';
 import {fmtDate,fmtHours,fmtNum} from '../format';
 import {videoThumbId} from '../ideas';
+import {qualifies} from '../trending-view';
 import {ACTIVE_STAGES,firstName,greeting,isFresh,nextAction,overviewLede,progressText,resumeVideos,stageCounts,standing} from '../overview';
 import type {Route,VideoTab} from '../routes';
 import {useSceneProgress} from '../scenes';
@@ -38,7 +39,7 @@ export function OverviewScreen({navigate,onNewVideo}:{navigate(route:Route):void
  if(state.status==='loading'||profile===undefined)return <div className="page"><Spinner label="Loading your overview" size={20}/></div>;
 
  const {active,ideas}=now,fresh=isFresh(now);
- const topPicks=(trending?.items??[]).filter(item=>item.fit);
+ const topPicks=(trending?.items??[]).filter(qualifies);
  const latest=(signals?.items??[]).filter(item=>item.fit).slice(0,4);
  const counts=stageCounts(videos,STAGES);
  const most=Math.max(1,...counts.map(row=>row.count));

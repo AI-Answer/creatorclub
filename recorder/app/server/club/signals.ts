@@ -67,13 +67,13 @@ const score = (item: SignalItem) => (item.likes + 3 * item.replies) / Math.sqrt(
 
 /** Signals for a channel, ranked for it: posts that match its topics or audience first (each with its reason), the rest with `fit: false`. */
 export async function rankedSignals(slug: string, workspace: Pick<Workspace, 'topics' | 'audience'>): Promise<SignalsResponse> {
-  const file = await readFile(slug);
+  const [file, config] = await Promise.all([readFile(slug), readSignalsConfig(slug)]);
   const entries: SignalEntry[] = file.items.map((item) => {
     const reason = reasonFor(signalText(item), workspace.topics, workspace.audience);
     return { ...item, fit: reason !== null, reason };
   });
   entries.sort((a, b) => Number(b.fit) - Number(a.fit) || score(b) - score(a));
-  return { items: entries, updatedAt: file.updatedAt, errors: file.errors };
+  return { items: entries, updatedAt: file.updatedAt, errors: file.errors, sources: sourceCount(config) };
 }
 
 // ---------------------------------------------------------------- reading posts
@@ -237,7 +237,8 @@ export interface SignalsSources {
   treg: TregFinder;
 }
 
-export const hasSources = (config: SignalsConfig) => !!(config.x?.length || config.xTopics?.length || config.reddit?.length);
+export const sourceCount = (config: SignalsConfig) => (config.x?.length ?? 0) + (config.xTopics?.length ?? 0) + (config.reddit?.length ?? 0);
+export const hasSources = (config: SignalsConfig) => sourceCount(config) > 0;
 export const NO_SOURCES = 'Add a subreddit or an X account first.';
 
 /**
@@ -262,6 +263,7 @@ export async function refreshSignals(slug: string, context: JobContext, sources:
 
   const items: SignalItem[] = [];
   const errors: string[] = [];
+  let tried = 0;
   let note: string | undefined;
   const check = () => {
     if (context.signal.aborted) throw new ClubError('That was stopped.');
@@ -274,6 +276,7 @@ export async function refreshSignals(slug: string, context: JobContext, sources:
 
   for (const sub of config.reddit ?? []) {
     check();
+    tried++;
     say(`Reading r/${sub}…`);
     const got = await redditItems(sub, limits, doFetch, context.signal, nowMs);
     if (got) items.push(...got);
@@ -282,6 +285,7 @@ export async function refreshSignals(slug: string, context: JobContext, sources:
   if (treg) {
     for (const handle of config.x ?? []) {
       check();
+      tried++;
       say(`Reading @${handle}…`);
       const got = await xAccountItems(handle, limits.maxAgeDays, treg, context.signal, nowMs).catch(() => null);
       if (got) items.push(...got);
@@ -289,6 +293,7 @@ export async function refreshSignals(slug: string, context: JobContext, sources:
     }
     for (const topic of config.xTopics ?? []) {
       check();
+      tried++;
       say(`Searching X for ${topic.replace(/^"|"$/g, '')}…`);
       const got = await xTopicItems(topic, limits.maxAgeDays, minXLikes, treg, context.signal, nowMs).catch(() => null);
       if (got) items.push(...got);
@@ -312,7 +317,7 @@ export async function refreshSignals(slug: string, context: JobContext, sources:
   });
   const file: SignalsFile = { updatedAt: new Date(nowMs).toISOString(), items: kept, errors };
   await store.writeJSON(signalsFile(slug), file);
-  return { posts: kept.length, added: kept.filter((item) => !known.has(item.id)).length, errors, ...(note ? { note } : {}) };
+  return { posts: kept.length, added: kept.filter((item) => !known.has(item.id)).length, errors, tried, ...(note ? { note } : {}) };
 }
 
 /** Starts the refresh job. A second start while one runs gets the running one. */

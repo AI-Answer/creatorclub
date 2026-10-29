@@ -217,11 +217,11 @@ test('Signals: refresh reads Reddit, notes that X waits for treg, and the read i
   await call('POST', '/workspaces/ana-perez/current');
   assert.deepEqual((await call('POST', '/signals/refresh')).body, { error: 'Add a subreddit or an X account first.' }, 'the sources were cleared above');
   await call('PUT', '/signals-config', { x: ['AnthropicAI'], reddit: ['ClaudeAI', 'vibecoding'] });
-  assert.deepEqual((await call('GET', '/signals')).body, { items: [], updatedAt: null, errors: [] });
+  assert.deepEqual((await call('GET', '/signals')).body, { items: [], updatedAt: null, errors: [], sources: 3 });
 
   const job = await finished((await call('POST', '/signals/refresh')).body.id);
   assert.equal(job.status, 'done');
-  assert.deepEqual(job.result, { posts: 1, added: 1, errors: [], note: 'X posts refresh when treg is connected.' });
+  assert.deepEqual(job.result, { posts: 1, added: 1, errors: [], tried: 2, note: 'X posts refresh when treg is connected.' });
   assert.equal(redditCalls, 2, 'one request per subreddit');
 
   const read = (await call('GET', '/signals')).body as SignalsResponse;

@@ -24,8 +24,8 @@ function useSavedList<T>(path:string,fallback:string,pick:(loaded:unknown)=>T,bo
  return {value,error,busy,load,save,retry:failed?()=>void save(failed):load};
 }
 
-function Block({title,help,first,children}:{title:string;help:string;first?:boolean;children:ReactNode}){
- return <div style={{marginTop:first?0:24}}><div className="field">{title}</div><div className="small muted" style={{marginBottom:10}}>{help}</div>{children}</div>;
+function Block({id,title,help,first,children}:{id?:string;title:string;help:string;first?:boolean;children:ReactNode}){
+ return <div id={id} style={{marginTop:first?0:24}}><div className="field">{title}</div><div className="small muted" style={{marginBottom:10}}>{help}</div>{children}</div>;
 }
 
 /** The channels Working now watches. Add one with its link or @handle. */
@@ -45,14 +45,14 @@ type Sources={x:string[];xTopics:string[];reddit:string[]};
 const pickSources=(loaded:unknown):Sources=>{const config=loaded as SignalsConfig;return {x:config.x??[],xTopics:config.xTopics??[],reddit:config.reddit??[]};};
 
 /** Where Signals reads posts from: X accounts, X searches and subreddits. */
-export function SignalSources(){
+export function SignalSources({focus}:{focus?:boolean}){
  const list=useSavedList<Sources>('/signals-config',"Couldn't load your signal sources.",pickSources,value=>value);
  const sources=list.value;
  const edit=(key:keyof Sources)=>(next:string[])=>{if(sources)void list.save({...sources,[key]:next});};
- return <Block title="Signal sources" help="Signals reads posts from these places and shows the ones about your topics.">
+ return <Block id="set-sources" title="Signal sources" help="Signals reads posts from these places and shows the ones about your topics.">
   {sources===null&&!list.error?<Spinner label="Loading signal sources" size={16}/>:null}
   {sources&&<div style={{display:'flex',flexDirection:'column',gap:16}}>
-   <div><div className="small" style={{fontWeight:600,marginBottom:6}}>X accounts</div><TagEditor label="X accounts" values={sources.x} disabled={list.busy} placeholder="@account" show={asAccount} onAdd={withEntry} onChange={edit('x')}/></div>
+   <div><div className="small" style={{fontWeight:600,marginBottom:6}}>X accounts</div><TagEditor label="X accounts" values={sources.x} disabled={list.busy} autoFocus={focus} placeholder="@account" show={asAccount} onAdd={withEntry} onChange={edit('x')}/></div>
    <div><div className="small" style={{fontWeight:600,marginBottom:6}}>X searches</div><TagEditor label="X searches" values={sources.xTopics} disabled={list.busy} placeholder="A word or a phrase in quotes" show={asSearch} onAdd={withEntry} onChange={edit('xTopics')}/></div>
    <div><div className="small" style={{fontWeight:600,marginBottom:6}}>Subreddits</div><TagEditor label="Subreddits" values={sources.reddit} disabled={list.busy} placeholder="r/ClaudeAI" show={asSubreddit} onAdd={withEntry} onChange={edit('reddit')}/></div>
   </div>}
