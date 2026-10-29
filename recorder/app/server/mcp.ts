@@ -5,6 +5,7 @@ import { createHash } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 import {basename,isAbsolute} from 'node:path';
 import { makeId,clipDuration,clipEffectTiming,projectDuration,type Project,type Clip } from '../shared/types.js';
+import { relinkSlices } from '../shared/timeline-edits.js';
 
 const string={type:'string'};const number={type:'number'};const object={type:'object'};
 const array=(items:unknown)=>({type:'array',items});
@@ -100,6 +101,8 @@ export function trimProject(p:Project,input:number[][],ripple=true):Project{
  out.clips=p.clips.flatMap(clip=>{const end=clip.start+clipDuration(clip),origin=clipEffectTiming(clip),affected=ranges.some(([a,b])=>a<end&&b>clip.start);let parts:Array<[number,number]>=[[clip.start,end]];for(const [a,b] of ranges)parts=parts.flatMap(([s,e])=>b<=s||a>=e?[[s,e]]:[...(a>s?[[s,a] as [number,number]]:[]),...(b<e?[[b,e] as [number,number]]:[])]);return parts.map(([s,e],i)=>({...structuredClone(clip),id:i===0?clip.id:makeId(),start:mapped(s),sourceIn:clip.sourceIn+(s-clip.start)*clip.speed,sourceOut:clip.sourceIn+(e-clip.start)*clip.speed,...(affected?{effectTiming:{sourceIn:origin.sourceIn,sourceOut:origin.sourceOut}}:{})}))});
  out.captions=p.captions.flatMap(c=>{if(ranges.some(([a,b])=>c.start<b&&c.end>a))return [];return [{...c,start:mapped(c.start),end:mapped(c.end),words:c.words?.map(w=>({...w,start:mapped(w.start),end:mapped(w.end)}))}]});
  if(ripple){out.scenes=p.scenes.map(s=>({...s,start:mapped(s.start),duration:Math.max(0,mapped(s.start+s.duration)-mapped(s.start))}));out.elements=p.elements.map(e=>({...e,start:mapped(e.start),duration:Math.max(0,mapped(e.start+e.duration)-mapped(e.start))})).filter(e=>e.duration>0);out.zooms=p.zooms.map(z=>({...z,start:mapped(z.start),duration:Math.max(0,mapped(z.start+z.duration)-mapped(z.start))})).filter(z=>z.duration>0);out.cursor.points=p.cursor.points.filter(pt=>!ranges.some(([a,b])=>pt.time>=a&&pt.time<b)).map(pt=>({...pt,time:mapped(pt.time)}))}
+ // Pieces of a linked take keep their link per slice, never across a cut.
+ relinkSlices(out);
  return out;
 }
 

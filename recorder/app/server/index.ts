@@ -108,6 +108,7 @@ const upload=multer({storage:multer.diskStorage({destination:storage.UPLOAD_DIR,
 app.post('/api/media/upload',upload.array('files',100),route(async(req,res)=>{const result=[];for(const file of req.files as Express.Multer.File[]){try{const m=await media.probeMedia(file.path,storage.CACHE_DIR);m.name=file.originalname;result.push(await storage.registerMedia(m));}catch(e){await fs.rm(file.path,{force:true});throw e;}}return res.json(result);}));
 app.get('/api/media/:id/file',route(async(req,res)=>res.sendFile((await storage.readMedia(param(req))).path)));
 app.get('/api/media/:id/thumbnail',route(async(req,res)=>res.sendFile(await media.thumbnail(await storage.readMedia(param(req)),storage.CACHE_DIR))));
+app.get('/api/media/:id/filmstrip',route(async(req,res)=>res.sendFile(await media.filmstrip(await storage.readMedia(param(req)),storage.CACHE_DIR))));
 app.get('/api/media/:id/waveform',route(async(req,res)=>res.json({peaks:await media.waveform(await storage.readMedia(param(req)),storage.CACHE_DIR)})));
 app.get('/api/media/:id/face-track',route(async(req,res)=>{
  const start=Number(req.query.start),end=Number(req.query.end);if(!Number.isFinite(start)||!Number.isFinite(end)||start<0||end<=start||end-start>30)throw Error('Face tracking requires a finite source range of up to 30 seconds.');

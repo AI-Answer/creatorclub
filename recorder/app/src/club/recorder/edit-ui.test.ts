@@ -54,7 +54,7 @@ function serve(jobs:(p:Project)=>AutomationJob[]){
  return {p,calls,restore:()=>{globalThis.fetch=originalFetch;}};
 }
 
-test('embedded Edit: one suggestion, Ask Claude as the one AI entry, no Borumi, and Remove them applies every cut',async()=>{
+test('embedded Edit: one toolbar, panels and Ask Claude behind Style & more, the transcript open, no Borumi, and Remove them applies every cut',async()=>{
  localStorage.clear();
  const server=serve(p=>[plan(p)]),exported:boolean[]=[];
  const ui=await mountUI(createElement(ClubRecorder,{projectId:server.p.id,mode:'Edit',onBack:()=>{},onExported:(done:boolean)=>exported.push(done)}));
@@ -65,10 +65,18 @@ test('embedded Edit: one suggestion, Ask Claude as the one AI entry, no Borumi, 
   const visible=ui.container.textContent??'';
   for(const word of ['Borumi','Edit with your AI'])assert.ok(!visible.includes(word),`no "${word}"`);
   assert.ok(!/project/i.test(visible),`no "project" in the embedded editor: ${visible.match(/.{0,40}project.{0,40}/i)?.[0]}`);
-  const rail=[...ui.container.querySelectorAll('.panel-rail button')].map(b=>b.textContent?.trim());
-  assert.deepEqual(rail,['Canvas','Layout','Clip','Zoom','Elements','Music','Captions','Cursor','Automate'],'labelled icons, with Automate for pauses and filler words');
-  assert.equal(ui.container.querySelector('.inspector'),null,'panels start collapsed');
-  assert.equal([...header.querySelectorAll('button')].filter(b=>b.textContent?.trim()==='Ask Claude').length,1);
+  const labels=[...header.querySelectorAll('.project-header-controls button')].map(b=>b.getAttribute('aria-label')??b.textContent?.trim());
+  assert.deepEqual(labels,['Undo','Redo','Version history','Auto-edit and style','Style & more','Export video'],'one toolbar: no Import, no Ask Claude, no panel rail');
+  assert.equal(ui.container.querySelector('.panel-rail'),null);
+  assert.equal(ui.container.querySelector('.inspector'),null,'panels start closed');
+  assert.ok(ui.container.querySelector('.club-edit-side:not([hidden]) .transcript-panel'),'the transcript is open beside the preview');
+  await act(async()=>button(header,'Style & more').click());
+  const menu=[...document.querySelectorAll('[role="menu"] button')].map(b=>b.textContent?.trim());
+  for(const item of ['Canvas','Layout','Clip','Zoom','Elements','Music','Captions','Cursor','Import media','Ask Claude','Settings…'])assert.ok(menu.includes(item),`Style & more has ${item}`);
+  assert.ok(!menu.includes('Automate'),'Automate lives in the Auto-edit and style sheet only');
+  await act(async()=>[...document.querySelectorAll<HTMLButtonElement>('[role="menu"] button')].find(b=>b.textContent?.trim()==='Captions')!.click());
+  assert.equal(ui.container.querySelector('.club-edit-side .inspector h2')?.textContent,'Captions','a panel opens as a sheet over the side');
+  await act(async()=>ui.container.querySelector<HTMLButtonElement>('button[aria-label="Close Captions"]')!.click());
   assert.equal(server.calls.filter(c=>c.url.endsWith('/quick-action')).length,0,'a plan already exists: none is started');
   assert.ok(primaries(ui.container).includes('Export video'));
 
@@ -76,8 +84,8 @@ test('embedded Edit: one suggestion, Ask Claude as the one AI entry, no Borumi, 
   const apply=server.calls.find(c=>c.url==='/api/automation/j1/apply');
   assert.deepEqual(apply?.body,{changeIds:['silence-a','repeat-b']},'every proposed cut, also the ones not selected by default');
   assert.ok(!ui.container.querySelector('.project-header')?.textContent?.includes('pauses and repeats'),'the card goes away once applied');
-  const duration=()=>ui.container.querySelector('.transport-time')?.textContent;
-  assert.ok(duration()?.includes('06:48'),`the cut timeline is shown: ${duration()}`);
+  const duration=()=>ui.container.querySelector('.club-time')?.textContent;
+  assert.ok(duration()?.includes('6:48'),`the cut timeline is shown: ${duration()}`);
   assert.ok(header.textContent?.includes('Removed 3m 12s'),'a quiet line says what was removed');
   await act(async()=>button(header,'Undo').click());for(let i=0;i<4;i++)await flush();
   assert.ok(server.calls.some(c=>c.url==='/api/automation/j1/undo'&&c.method==='POST'),'Undo uses SceneForge\'s undo of that change');
@@ -140,7 +148,7 @@ test('the Removed line ends with the next edit, and can be dismissed',async()=>{
   const header=next.container.querySelector('.project-header')!;
   await act(async()=>button(header,'Remove them').click());for(let i=0;i<3;i++)await flush();
   assert.ok(header.textContent?.includes('Removed 3m 12s'));
-  await act(async()=>(next.container.querySelector('.ripple-toggle input') as HTMLInputElement).click());
+  await act(async()=>next.container.querySelector<HTMLButtonElement>('button[title^="Magnetic snapping"]')!.click());
   assert.ok(!header.textContent?.includes('Removed'),'an edit after the removal ends the Undo line');
  }finally{await next.close();again.restore();}
 });
