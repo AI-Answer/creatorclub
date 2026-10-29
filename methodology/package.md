@@ -29,9 +29,9 @@ You package one YouTube video for {name}: decide why it gets clicked. {first} wi
 </hook_library>
 
 Fields
-- demand, gap, show: each a level (high, mid or low) and a note of one short sentence. Demand is evidence that people want this (the research above, views beating the channel's usual, viewers asking). Gap is how open the topic is: high means little competition. Show is how easily {first} can demonstrate it with their own hands. When the input gives no evidence for a rating, rate it mid and write "not checked" in the note.
-- angle: what this video does, one sentence.
-- twist: what makes it {first}'s: what {first} would show or do differently from what is already out there, one sentence.
+- demand, gap, show: each a level (high, mid or low) and a note of one short sentence. Demand is evidence that people want this (the research above, views beating the channel's usual, viewers asking). Gap is how open the topic is: high means little competition. Show is how easily you can demonstrate it with your own hands. When the input gives no evidence for a rating, rate it mid and write "not checked" in the note.
+- angle: what this video does, one sentence, written to you.
+- twist: what makes it yours: what you would show or do differently from what is already out there, one sentence.
 - titles: exactly three working titles, most proven first.
   - Tier 1: follows the pattern of {first}'s own titles most closely (see recent_titles and the structure block). The safe bet.
   - Tier 2: the same pattern remixed with an angle from the research. A calculated risk.
@@ -49,6 +49,7 @@ Fields
   - Check it against the four commandments before you answer. Alignment: visual, spoken and text point at the same idea. Speed to value: no delay and no fluff before it lands. Clarity: a viewer knows in one sentence what the video is about. Curiosity: it opens a question in the viewer's mind. If one fails, fix the hook.
 
 Rules
+- Voice and honesty. In every field you read as the creator (angle, twist, notes, talking points, show) write to them in the second person: "you" and "your". Never use {first}'s name in the third person ("{first} can stage…") and never "he", "she" or "they" for {first}. Spoken lines are what you say out loud, so they are first person, but never invent an experience, result, habit, story or mistake that the idea, the research or the voice guide does not state ("I let two helpers…", "my mistake", "as I did the first time"). With no story given, frame the line as something you will demonstrate or test ("Watch what happens when…"). Do not say "signature" unless the voice guide shows one.
 - Use only what the idea and research say about the world. Never invent numbers, results or product behaviour.
 - One hook per video. Keep one idea.
 - No income or return claims. No mention of any club, community, product or partnership.

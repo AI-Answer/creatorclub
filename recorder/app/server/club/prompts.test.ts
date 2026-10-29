@@ -297,8 +297,8 @@ test('script: scene budgets at 140 words a minute, the full voice guide without 
   assert.match(full.prompt, /SENTENCE-HABITS-MARKER/, 'the script gets the full voice guide');
   assert.doesNotMatch(full.prompt, /Claude Club|Skool/);
   assert.match(full.prompt, /Median sentence: 14 words\./);
-  assert.match(full.prompt, /\[SCREEN:/);
-  assert.match(full.prompt, /\[REACT:/);
+  assert.match(full.prompt, /No bracketed cues of any kind/, 'no [SCREEN], [REACT] or [YOUR CALL] markers end up in the teleprompter');
+  assert.doesNotMatch(full.prompt, /Screen actions go on their own line|a short cue on its own line/);
   assert.match(full.prompt, /call to action: point the viewer to another video/);
   assert.match(full.prompt, /CTA Permutations/);
   assert.doesNotMatch(full.prompt, excluded);
@@ -476,4 +476,26 @@ test('stripPromotions keeps prohibitions and list numbers, and cuts only the pit
   assert.equal(strip('Show the result (first try and second try) and ask people to join the community.'), 'Show the result (first try and second try).');
   assert.equal(strip('Join the club.'), '');
   assert.equal(strip('- Prompts and the community link.'), '', 'a scrap of fewer than three words is dropped');
+});
+
+test('the planning prompts talk to the creator in the second person and never invent a story, a signature move or a bracketed cue', async () => {
+  const idea = { title: 'Cancel X' };
+  const built = {
+    package: await p.buildPackagePrompt(ctx, { idea, research: [] }),
+    outline: await p.buildOutlinePrompt(ctx, { idea }),
+    script: await p.buildScriptPrompt(ctx, { title: 't', idea, outline }),
+    scene: await p.buildSceneScriptPrompt(ctx, { title: 't', idea, outline, index: 1 }),
+  };
+  for (const [name, { prompt }] of Object.entries(built)) {
+    assert.match(prompt, /write to them in the second person: "you" and "your"/, name);
+    assert.match(prompt, /Never use Ana's name in the third person/, name);
+    assert.match(prompt, /never invent an experience, result, habit, story or mistake/, name);
+    assert.match(prompt, /Do not say "signature" unless the voice guide shows one/, name);
+  }
+  assert.match(built.package.prompt, /twist: what makes it yours: what you would show or do differently/);
+  assert.doesNotMatch(built.package.prompt, /what makes it Ana's/);
+  assert.doesNotMatch(built.outline.prompt, /"Your call:"/, 'talking points are plain notes, not coaching lines');
+  assert.doesNotMatch(built.outline.prompt, /\[YOUR CALL/);
+  assert.match(built.scene.prompt, /No bracketed cues of any kind/, 'scene scripts carry no [YOUR CALL] or [SCREEN] markers');
+  assert.doesNotMatch(built.scene.prompt, /Screen actions go on their own line|starts with "Your call:"/);
 });
