@@ -8,6 +8,7 @@ const {default:ClubApp}=await import('./ClubApp');
 const {Sidebar,inProduction,openIdeas}=await import('./Sidebar');
 const {paletteOptions}=await import('./shell/Palette');
 const {ScreenBoundary}=await import('./shell/ScreenBoundary');
+const {VIDEOS_CHANGED,changesVideos,clubFetch}=await import('./api');
 
 const ws=(slug:string,name:string,handle=`@${slug}`)=>({slug,name,handle,channelUrl:'',topics:[],about:'',cta:'',createdAt:'2026-01-01T00:00:00.000Z'});
 const video=(id:string,title:string,stage:Video['stage'],extra:Partial<Video>={}):Video=>({id,title,stage,order:0,createdAt:'2026-10-01T00:00:00.000Z',updatedAt:'2026-10-01T00:00:00.000Z',stageDates:{},planning:{research:false,package:false,outline:false},...extra});
@@ -37,6 +38,8 @@ const serve=(server:Server)=>(call:FakeCall):FakeReply=>{
  if(path==='/videos'&&method==='POST'){const created=video('new1',(call.body as {title:string}).title,'ideas');server.videos=[...server.videos,created];return {status:201,body:created};}
  if(path==='/recent')return {body:[]};
  if(path==='/settings')return {body:{defaultAi:'claude',welcomed:server.welcomed}};
+ const move=path.match(/^\/videos\/(\w+)\/move$/);
+ if(move){server.videos=server.videos.map(v=>v.id===move[1]?{...v,stage:(call.body as {stage:Video['stage']}).stage}:v);return {body:server.videos.find(v=>v.id===move[1])};}
  const one=path.match(/^\/videos\/(\w+)$/);
  if(one)return {body:server.videos.find(v=>v.id===one[1])};
  if(/\/opened$/.test(path))return {status:204};
@@ -254,4 +257,51 @@ test('the sidebar rail keeps every place reachable by name',async()=>{
   assert.deepEqual([...rail.querySelectorAll('a.nav-item')].map(a=>a.getAttribute('aria-label')),['Overview','Ideas','Working now','Signals','Production','Settings']);
   assert.equal(rail.querySelector('a[aria-current="page"]')!.getAttribute('aria-label'),'Production');
  }finally{await ui.close();fake.restore();}
+});
+
+test('which writes count as changing a video',()=>{
+ const yes:Array<[string,string]>=[['POST','/videos'],['POST','/videos/v1/move'],['PUT','/videos/v1'],['DELETE','/videos/v1'],['POST','/videos/v1/recorder'],['POST','/videos/v1/research'],['POST','/breakdowns/b1/concepts/2/add'],['POST','/videos?x=1']];
+ for(const [method,path] of yes)assert.equal(changesVideos(method,path),true,`${method} ${path}`);
+ const no:Array<[string|undefined,string]>=[['GET','/videos'],[undefined,'/videos'],['POST','/videos/v1/opened'],['POST','/breakdowns'],['POST','/workspaces/ana/current'],['PUT','/settings'],['DELETE','/jobs/j1'],['POST','/videosx']];
+ for(const [method,path] of no)assert.equal(changesVideos(method,path),false,`${method} ${path}`);
+});
+
+test('the sidebar counts follow a change saved to a video, without leaving the page',async()=>{
+ await withApp('#/production',async (ui,_server,calls)=>{
+  const c=ui.container;
+  const count=(label:string)=>c.querySelector(`.sidebar a[href="#/${label}"] .count`)?.textContent;
+  assert.equal(count('ideas'),'1');assert.equal(count('production'),'2');
+  assert.deepEqual([...c.querySelectorAll('.sb-video .t')].map(t=>t.textContent),['Agents for small shops','Hidden features in Claude Code']);
+  await act(async()=>{await clubFetch('/videos/i1/move',{body:{stage:'planning'}});});await flush();
+  assert.equal(window.location.hash,'#/production','the route did not change');
+  assert.equal(count('ideas'),undefined);assert.equal(count('production'),'3');
+  assert.equal(c.querySelectorAll('.sb-video').length,3);
+  const loads=calls.filter(call=>call.path==='/videos'&&call.method==='GET').length;
+  await act(async()=>{await clubFetch('/videos');});await flush();
+  assert.equal(calls.filter(call=>call.path==='/videos'&&call.method==='GET').length,loads+1,'reading videos does not reload the sidebar');
+ });
+});
+
+test('a failed write does not announce a change',async()=>{
+ FakeEventSource.install();
+ const fake=installFetch(()=>({status:500,body:{error:'No.'}}));
+ let heard=0;const listen=()=>{heard++;};window.addEventListener(VIDEOS_CHANGED,listen);
+ try{await assert.rejects(clubFetch('/videos/v1/move',{body:{stage:'ideas'}}));assert.equal(heard,0);}finally{window.removeEventListener(VIDEOS_CHANGED,listen);fake.restore();}
+});
+
+test('on the desktop app one drag strip sits ahead of every screen; in a browser there is none',async()=>{
+ const bridge=Object.getOwnPropertyDescriptor(window,'sceneForge');
+ await withApp('#/overview',async ui=>{assert.equal(ui.container.querySelector('.main-drag'),null);});
+ Object.assign(window,{sceneForge:{}});
+ try{
+  for(const hash of ['#/overview','#/ideas','#/production']){
+   await withApp(hash,async ui=>{
+    const col=ui.container.querySelector('.main-col')!;
+    assert.ok(ui.container.querySelector('.club-root')!.classList.contains('club-desktop'));
+    assert.equal(col.querySelectorAll('.club-drag.main-drag').length,1,hash);
+    assert.ok(col.firstElementChild!.classList.contains('main-drag'),'before the screen, so controls under it stay clickable');
+    assert.equal(col.children[1].tagName,'MAIN');
+   });
+  }
+ }finally{if(bridge)Object.defineProperty(window,'sceneForge',bridge);else delete (window as {sceneForge?:unknown}).sceneForge;}
 });

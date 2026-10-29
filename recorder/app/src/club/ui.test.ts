@@ -177,3 +177,15 @@ test('toasts show a message, offer Undo or an action, and go away by themselves'
   assert.ok(TOAST_MS.withButton>TOAST_MS.plain);
  }finally{await ui.close();}
 });
+
+test('the menu opens from the button\'s edge with fixed placement, so a parent that clips cannot cut it off',async()=>{
+ const ui=await mountUI(createElement('div',{style:{overflow:'hidden',width:60}},createElement(Menu,{width:240,items:[{label:'Ana',fn(){}}],button:toggle=>createElement('button',{onClick:toggle},'Open')})));
+ const box={left:10,right:50,top:20,bottom:50,width:40,height:30,x:10,y:20,toJSON(){return {};}};
+ const original=Element.prototype.getBoundingClientRect;Element.prototype.getBoundingClientRect=()=>box as DOMRect;
+ try{
+  await press(button(ui.container,'Open'));
+  const menu=ui.container.querySelector<HTMLElement>('[role="menu"]')!;
+  assert.equal(menu.style.position,'fixed');assert.equal(menu.style.top,'56px');assert.equal(menu.style.left,'10px');assert.equal(menu.style.minWidth,'240px');
+  await act(async()=>{window.dispatchEvent(new Event('resize'));});assert.equal(ui.container.querySelector('[role="menu"]'),null,'a resize closes it');
+ }finally{Element.prototype.getBoundingClientRect=original;await ui.close();}
+});

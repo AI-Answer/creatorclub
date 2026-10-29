@@ -112,7 +112,10 @@ function Shell(){
  const collapsed=sidebarOpen===null?autoCollapses(route):!sidebarOpen;
  return <div className="shell">
   {route.name!=='welcome'&&<Sidebar route={route} collapsed={collapsed} onToggle={()=>setSidebarOpen(collapsed)} onSearch={()=>setPaletteOpen(true)} onHelp={()=>setHelpOpen(true)} onSwitched={switched} onAdd={addChannel} videos={videos} epoch={channelEpoch}/>}
-  <main key={channelEpoch} ref={main} className="main" id="main"><ScreenBoundary key={route.name==='video'?`video/${route.id}`:path}>{screen}</ScreenBoundary></main>
+  <div className="main-col">
+   {window.sceneForge&&<div className="club-drag main-drag" aria-hidden/>}
+   <main key={channelEpoch} ref={main} className="main" id="main"><ScreenBoundary key={route.name==='video'?`video/${route.id}`:path}>{screen}</ScreenBoundary></main>
+  </div>
   {paletteOpen&&<Palette videos={videos} onClose={()=>setPaletteOpen(false)} onOpen={navigate} onNewVideo={()=>setNewOpen(true)}/>}
   {newOpen&&<NewVideo onClose={()=>setNewOpen(false)} onOpen={navigate}/>}
   {helpOpen&&<Help onClose={closeHelp}/>}

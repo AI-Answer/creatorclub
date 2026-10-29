@@ -218,6 +218,10 @@
 .club-desktop .club-drag :is(button, a, input, select, textarea) { -webkit-app-region: no-drag; }
 .club-desktop .club-window-top { height: 44px; }
 .club-desktop .club-traffic { padding-left: 84px; }
+/* One strip across the top of every screen, so the window drags from anywhere along it. It comes before the screen in the DOM, so buttons, links and fields under it stay clickable. */
+.main-col { position: relative; flex: 1; min-width: 0; display: flex; }
+.club-desktop .main-drag { position: absolute; top: 0; left: 0; right: 0; height: 16px; -webkit-app-region: drag; }
+.club-desktop .main :is(button, a, input, select, textarea, summary, [role=button], [contenteditable=true]) { -webkit-app-region: no-drag; }
 
 /*
   Scoped preflight, after Tailwind's. Element selectors keep element specificity: any utility class wins,

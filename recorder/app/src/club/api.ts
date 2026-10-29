@@ -13,6 +13,17 @@ export function clubUpload<T=unknown>(path:string,form:FormData,signal?:AbortSig
  return send<T>(path,{method:'POST',body:form,signal});
 }
 
+/** Fired on `window` after the server accepted a change to videos, so anything showing a list of them (the sidebar) can load it again. */
+export const VIDEOS_CHANGED='club:videos-changed';
+
+/** Writes that add, change or remove a video: `/videos…` (not just noting that one was opened) and a concept added from a breakdown. */
+export function changesVideos(method:string|undefined,path:string):boolean{
+ if(!method||method==='GET'||method==='HEAD')return false;
+ const route=path.split('?')[0];
+ if(/^\/videos(\/|$)/.test(route))return !/^\/videos\/[^/]+\/opened$/.test(route);
+ return /^\/breakdowns\/[^/]+\/concepts\/[^/]+\/add$/.test(route);
+}
+
 async function send<T>(path:string,init:RequestInit):Promise<T>{
  let response:Response;
  try{
@@ -24,6 +35,7 @@ async function send<T>(path:string,init:RequestInit):Promise<T>{
   const message=typeof body==='object'&&body!==null&&'error' in body&&typeof body.error==='string'?body.error:GENERIC;
   throw new ClubApiError(message,response.status);
  }
+ if(changesVideos(init.method,path))window.dispatchEvent(new Event(VIDEOS_CHANGED));
  return body as T;
 }
 
