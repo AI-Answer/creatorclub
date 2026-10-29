@@ -155,7 +155,7 @@ test("a migrated outline with a ## Points section gives one scene per point, wit
   assert.deepEqual(scenes.map((s) => s.title), ['Round 1, drop the old habit and see the first difference', 'Round 2, stop redoing work Claude can remember or reuse', 'Round 3, hand over the bigger job']);
   assert.match(scenes[0].show, /^Samin runs the task the old way/);
   assert.ok(!scenes[0].show.includes('CONFIRM'), '[CONFIRM: …] notes are dropped');
-  assert.equal(scenes[0].talkingPoints.length, 4, 'Setup, Analogy or example, Framework and Payoff and Transition; Structure is a template');
+  assert.equal(scenes[0].talkingPoints.length, 5, 'Setup, Analogy or example, Framework, Payoff and Transition; Structure is a template');
   assert.ok(scenes.every((s) => s.talkingPoints.every((p) => !/^(Setup|Structure|Framework):/.test(p) && !p.includes('CONFIRM'))));
   assert.deepEqual(parseOutline('## Promise\nSomething.\n').scenes, [], 'no points, no scenes');
 });
