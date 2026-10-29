@@ -1,4 +1,4 @@
-import {useEffect,useLayoutEffect,useRef,useState,type CSSProperties,type ReactNode} from 'react';
+import {useCallback,useEffect,useRef,useState,type CSSProperties,type ReactNode} from 'react';
 import {createPortal} from 'react-dom';
 import {Icon,type IconName} from './Icon';
 import {useClickAway} from './useClickAway';
@@ -31,11 +31,13 @@ export function Menu({button,items,align='left',width,label}:{button(toggle:()=>
  },[open]);
  const anchor=useRef<{top:number;bottom:number}|null>(null);
  // Once it is drawn, a menu that would run off the bottom of the window opens upward from the button instead, when there is more room above.
- useLayoutEffect(()=>{
-  if(!open||!menu.current||!anchor.current)return;
-  const height=menu.current.getBoundingClientRect().height,{top,bottom}=anchor.current;
+ // Measured when the menu element itself mounts (wherever it is drawn), so it never depends on effect timing.
+ const placeMenu=useCallback((node:HTMLDivElement|null)=>{
+  menu.current=node;
+  if(!node||!anchor.current)return;
+  const height=node.getBoundingClientRect().height,{top,bottom}=anchor.current;
   if(height>0&&bottom+6+height>window.innerHeight-8&&top>window.innerHeight-bottom)setPlace(current=>{const {top:_below,...rest}=current;return {...rest,bottom:window.innerHeight-top+6};});
- },[open]);
+ },[]);
  const toggle=()=>{
   if(!open&&ref.current){
    const box=ref.current.getBoundingClientRect();
@@ -53,7 +55,7 @@ export function Menu({button,items,align='left',width,label}:{button(toggle:()=>
  };
  return <span ref={ref} onKeyDown={enter} style={{position:'relative',display:'inline-flex'}}>
   {button(toggle,open)}
-  {open&&inRoot(host,<div ref={menu} className="menu" role="menu" aria-label={label} style={{position:'fixed',...place,minWidth:width}}>
+  {open&&inRoot(host,<div ref={placeMenu} className="menu" role="menu" aria-label={label} style={{position:'fixed',...place,minWidth:width}}>
    {items.map((item,index)=>item==='-'?<div key={index} className="sep"/>
     :'header' in item?<div key={index} className="hd">{item.header}</div>
     :<button key={index} type="button" role={item.check===undefined?'menuitem':'menuitemradio'} aria-checked={item.check} onClick={()=>{setOpen(false);item.fn();}} style={item.danger?{color:'var(--cc-rec)'}:undefined}>
