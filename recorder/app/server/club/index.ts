@@ -14,6 +14,7 @@ import { FILE_TOO_BIG, MAX_FILE_BYTES, detectSource } from './source.js';
 import { addChannel, rebuildVoice } from './onboard.js';
 import { heldResults, readOutline, readPackage, runningPlanJobs, saveOutline, savePackage, saveScript, startPlanJob, undoReplace, useHeld, type PlanOptions } from './planning.js';
 import { continueToRecording, outlineChangedScene } from './recorder.js';
+import { publishVideo, ytDlpViews, type ViewsReader } from './publish.js';
 import { recordingsDiskSpace } from './disk.js';
 import { readTranscript, startTileRead } from './research.js';
 import * as store from './store.js';
@@ -117,6 +118,7 @@ const stageDates = z.record(stage, z.string()).refine((dates) => Object.keys(dat
 const moveBody = z.object({ stage, beforeId: z.string().nullable().optional(), stageDates: stageDates.optional() }).strict();
 const geminiKeyBody = z.object({ key: z.string().trim().min(20).max(200).regex(/^[\w-]+$/) }).strict();
 const settingsBody = z.object({ defaultAi: z.enum(['claude', 'codex']) }).strict();
+const publishBody = z.object({ youtubeUrl: z.string().trim().min(1).max(2000) }).strict();
 
 export interface ClubRouterOptions {
   /** Where to look for the AI command line tools and yt-dlp, and how fast to poll them. Tests point these at fake tools. */
@@ -125,9 +127,11 @@ export interface ClubRouterOptions {
   transcribe?: Transcriber;
   /** Runs the Plan step's prompts. Tests pass a stand-in so no model is called. */
   runAI?: PlanOptions['runAI'];
+  /** Reads a published video's view count. Defaults to yt-dlp (metadata only). Tests pass a stand-in. */
+  readViews?: ViewsReader;
 }
 
-export function clubRouter({ ai = {}, transcribe, runAI }: ClubRouterOptions = {}): Router {
+export function clubRouter({ ai = {}, transcribe, runAI, readViews = ytDlpViews(ai) }: ClubRouterOptions = {}): Router {
   const plan: PlanOptions = { extraDirs: ai.extraDirs, runAI };
   const router = Router();
   router.use(express.json({ limit: '5mb' }));
@@ -265,6 +269,11 @@ export function clubRouter({ ai = {}, transcribe, runAI }: ClubRouterOptions = {
   router.post('/videos/:id/move', handler(async (req, res) => {
     const { stage: target, ...options } = moveBody.parse(req.body);
     res.json(await store.moveVideo(await requireWorkspace(), param(req, 'id'), target, options));
+  }));
+  // Mark as published: the YouTube link and the date are saved and the card moves to Published. Views are read once afterwards.
+  router.post('/videos/:id/publish', handler(async (req, res) => {
+    const { youtubeUrl } = publishBody.parse(req.body);
+    res.json((await publishVideo(await requireWorkspace(), param(req, 'id'), youtubeUrl, readViews)).video);
   }));
   router.post('/videos/:id/opened', handler(async (req, res) => {
     await store.markOpened(await requireWorkspace(), param(req, 'id'));

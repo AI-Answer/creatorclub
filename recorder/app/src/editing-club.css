@@ -1,0 +1,63 @@
+/*
+  CreatorClub's look for SceneForge's Edit screen, used only when the editor is embedded in the video page.
+  Every rule starts with `.club-embed .app-shell[data-mode=Edit]`, so standalone SceneForge keeps its own styles.
+  Same approach as recording-club.css: SceneForge's variables point at the club tokens, then the hard-coded parts are calmed down.
+  One header row (the suggestion on the left; Ask Claude, Import, undo, redo, history and Export video on the right),
+  the rail with labelled icons, panels collapsed until a rail item or a clip is chosen, and no text under 12px.
+  Imported from main.tsx after recording-club.css.
+*/
+.club-embed .app-shell[data-mode=Edit]{
+  --background:var(--cc-card);--foreground:var(--cc-ink);--surface:var(--cc-card);
+  --primary:var(--cc-primary);--primary-foreground:var(--cc-primary-ink);
+  --secondary:var(--cc-subtle);--input:var(--cc-subtle);--line:var(--cc-line);--muted:var(--cc-muted);
+  --accent:var(--cc-primary);--accent-soft:var(--cc-subtle);--danger:var(--cc-danger);
+  font-family:var(--font-sans);font-size:14px;color:var(--cc-ink);background:var(--cc-page);padding-bottom:0;
+}
+
+/* Chrome: the video's name is in the breadcrumb, and Ask Claude and Import move into the header row. */
+.club-embed .app-shell[data-mode=Edit] .titlebar,
+.club-embed .app-shell[data-mode=Edit] .workspace-nav{display:none}
+.club-embed .app-shell[data-mode=Edit] .project-header{background:var(--cc-card);border-color:var(--cc-line);min-height:52px;height:52px;padding:0 16px;gap:16px}
+.club-embed .app-shell[data-mode=Edit] .project-header-controls{gap:4px}
+.club-embed .app-shell[data-mode=Edit] .project-header-controls>.button.subtle{font-size:13px;min-height:32px;border-radius:8px;color:var(--cc-ink)}
+.club-embed .app-shell[data-mode=Edit] .project-header-controls>.agent-chat-toggle.is-active{background:var(--cc-subtle)}
+.club-embed .app-shell[data-mode=Edit] .project-header-controls>.divider{width:1px;height:20px;margin:0 6px;background:var(--cc-line)}
+.club-embed .app-shell[data-mode=Edit] .project-header-controls .icon-button{color:var(--cc-muted);border-radius:8px}
+
+/* The one suggestion, and Export video. */
+.club-embed .app-shell[data-mode=Edit] .club-edit-suggestion{display:flex;align-items:center;gap:10px;min-width:0;padding:6px 6px 6px 12px;border:1px solid var(--cc-line);border-radius:12px;background:var(--cc-page);font-size:14px;color:var(--cc-ink)}
+.club-embed .app-shell[data-mode=Edit] .club-edit-suggestion>span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.club-embed .app-shell[data-mode=Edit] .club-edit-suggestion.is-quiet{border-color:transparent;background:transparent;padding-left:0;color:var(--cc-muted);font-size:13px}
+.club-embed .app-shell[data-mode=Edit] .club-export{display:flex;align-items:center;gap:8px;margin-left:8px;font-size:13px;color:var(--cc-muted)}
+.club-embed .app-shell[data-mode=Edit] .club-export-done{display:inline-flex;align-items:center;gap:6px;color:var(--cc-success)}
+
+/* Rail: labelled icons on white, the open panel's icon in black. */
+.club-embed .app-shell[data-mode=Edit] .panel-rail{width:72px;background:var(--cc-card);border-right:1px solid var(--cc-line);gap:6px;padding:12px 4px}
+.club-embed .app-shell[data-mode=Edit] .panel-rail>button{min-height:56px;gap:4px;color:var(--cc-ink)}
+.club-embed .app-shell[data-mode=Edit] .panel-rail>button>.nav-icon{width:36px;height:36px;border-radius:10px;background:transparent;color:var(--cc-muted)}
+.club-embed .app-shell[data-mode=Edit] .panel-rail>button:hover>.nav-icon{background:var(--cc-subtle);color:var(--cc-ink)}
+.club-embed .app-shell[data-mode=Edit] .panel-rail>button.active>.nav-icon{background:var(--cc-primary);color:var(--cc-primary-ink)}
+.club-embed .app-shell[data-mode=Edit] .panel-rail>button>span:last-child{font-size:12px;font-weight:500;color:var(--cc-muted)}
+.club-embed .app-shell[data-mode=Edit] .panel-rail>button.active>span:last-child{color:var(--cc-ink)}
+
+/* Panels, preview, transcript, timeline: white surfaces and hairlines on the warm page. */
+.club-embed .app-shell[data-mode=Edit] :is(.inspector,.transcript-panel,.preview-toolbar,.transport,.timeline-toolbar,.editor-status){background:var(--cc-card);border-color:var(--cc-line)}
+.club-embed .app-shell[data-mode=Edit] .preview-workspace{background:var(--cc-page)}
+
+/* No text under 12px. */
+.club-embed .app-shell[data-mode=Edit] :is(
+  .button.compact,.field,.field>input,.field>select,.color-input>input,.slider-field>span,.slider-field b,.toggle-field,.toggle-field small,
+  .inspector-section h3,.inspector-section textarea,.inspector-section .button,.inspector .hint,.inspector .field,.inspector .field>input,.inspector .field>select,.inspector-empty p,
+  .format-card b,.format-card small,.layout-card,.list-item,.list-item small,.capability-note,.element-grid>button,.cursor-point>b,.cursor-point .field>span,
+  .preview-toolbar>span,.preview-toolbar .button,.preview-toolbar small,.stage-empty>span,.stage-empty .button,.stage-caption-label,
+  .transport-time,.transport-time input,.playback-rate,.transport-shortcut,.transport-shortcut kbd,.media-card>b,.media-card>small,.library-title,.hint,
+  .timeline-title,.ripple-toggle,.scrub-toggle,.ruler-label,.track-label,.track-count,.time-ruler>span,.timeline-clip,.timeline-effect,.editor-status,.status-key,
+  .transcription-status,.transcription-status small,.transcription-status button,.transcript-panel .empty-state p,.empty-state p,.empty-state .button,.import-warning,.import-warning button,
+  .timeline-layer-toolbar span,.timeline-add-layer-button,.timeline-waveform-toggle,.timeline-scene-title span,
+  .agent-provider span,.agent-provider button,.agent-setup b,.agent-setup p,.agent-context-chip,.agent-range-add,.agent-send-row small
+){font-size:12px}
+.club-embed .app-shell[data-mode=Edit] .transport-time input{min-width:5.5em}
+
+/* Modals opened from Edit (Review first, Import): the same calm sizes. */
+.club-embed .app-shell[data-mode=Edit] :is(.modal>header p,.modal .field,.modal .field>input,.modal .field>select,.modal .field>textarea,.modal-actions>span,.modal .button,.upload-area p,.modal-footnote,.inline-success,.inline-error,.quick-proposal small,.quick-proposal p,.quick-advanced summary,.semantic-cut-option small,.quick-job-summary span,.quick-action-warnings li,.quick-proposal-heading button){font-size:12px}
+.club-embed .app-shell[data-mode=Edit] .modal{border-radius:12px;border-color:var(--cc-line)}

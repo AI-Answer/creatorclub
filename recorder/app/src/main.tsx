@@ -9,6 +9,7 @@ import './timeline-interactions.css';
 import './interaction-theme.css';
 import './club/club.css';
 import './recording-club.css';
+import './editing-club.css';
 import {initializeAppearance} from './appearance';
 initializeAppearance();
 
