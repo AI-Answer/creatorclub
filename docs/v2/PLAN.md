@@ -53,3 +53,40 @@ Goal: Ideas and Working now stop shouting. Spec: prototype A `#/discover`, `docs
 
 ## Task 6: Motion graphics and auto zoom (design spike, after Tasks 1–5)
 A written design only: how title cards, lower thirds, callouts and animated captions render in preview and export with the existing ffmpeg pipeline (including the macOS-only Swift rasterizer problem and the preview/export mismatch in `docs/v2/research/editor.md`), whether HTML templates rendered by Chromium (as the `hyperframes` skill does) are the right engine, and how cursor-based auto zoom can be captured natively. Output: `docs/v2/MOTION.md` with a recommendation, an effort estimate and a first slice. No app code.
+
+---
+
+# Update (Dani picked A and added requirements)
+
+Dani, verbatim summary: likes A; tokens, colours and icons must be centralized; unclear text and icons improved; fewer repeated tabs; the timeline must be excellent to control, edit and move in; the Board must let him write properly (bullets, rich text) and take in `.md` files from a folder, other agents, or a Claude Code session; the AI helper on the right needs better styling, streaming, a loading and reasoning state, and an original icon ("not a vibecoded piece of shit"); in Edit, prompts and motion graphics must really apply; do not mix colours; the UI must be consistent and predictable, with intuitive places for things.
+
+## Revised rulings
+- **Layout: A is the base.** Step rail as the only navigation, one task per screen, companion docked at the right. Take from C: the single companion with conversation across steps and result cards. Take from B: nothing structural beyond the timeline's behaviour.
+- **Colour rule (applies to everything):** one accent (blue) for focus, selection and the primary action; red only for recording and destructive actions; green only for done or ok; amber only for warnings. Timeline and take colours are fixed by kind (screen, camera, audio, graphics, captions, zoom, markers) and used identically in the timeline, the scene chips and the take chips. No other hues. Neutral surfaces otherwise.
+- **Motion decisions** (from `docs/v2/MOTION.md`, "Dani decides"): the cursor stays drawn into the recording for now; motion blocks sit beside `elements` first; the brand kit is per channel (Inter plus an accent from the channel); macOS first but new paths avoid Swift-only or VideoToolbox-only code; auto zoom arrives as a suggestion to review, not a default; the export cost (about 1 s per second of motion) is accepted.
+- Postiz first, direct YouTube later (unchanged).
+
+## Order of work
+Tasks 1, 2, 4 and 5 (running) → merge → Task 7 (design system) → Task 3 (companion, with the new design) → Task 8 (Board writing) → Task 9 (motion blocks, first slice). Task 6 is replaced by Task 9.
+
+## Task 7: Design system and consistency
+Run after Tasks 1, 2, 4 and 5 are merged.
+- **One source of truth.** `src/club/ui/tokens.css`: colours (surface, text, line, accent, record, ok, warn, one fixed colour per timeline kind), spacing, radius, type scale, shadows, motion durations; light and dark. `src/club/ui/icons.tsx`: one registry of icons with semantic names (`record`, `split`, `ripple`, `snap`, `marker`, `companion`, …) wrapping lucide plus custom marks; no component imports lucide directly. `src/club/ui/`: Button variants (primary, secondary, quiet, danger), IconButton (a label and tooltip are required by the type), Menu, Sheet, Tabs, Chip, Toast, Tooltip with shortcut hints.
+- **The embedded editor and recorder consume the same tokens**: replace raw colours in club-mode CSS (`editing-club.css`, `recording-club.css`, `original-theme.css` club rules) with tokens. A test fails when a raw colour literal (hex, rgb, hsl) appears in club CSS or TSX outside `tokens.css`.
+- **Text and icons pass:** every icon-only button has a tooltip and an accessible name; every ambiguous label is rewritten with a verb and an object; consistent keyboard hints; one place per function (document a "where things live" map in `docs/v2/UI-MAP.md`: sidebar, step rail, header, sheet, companion, avatar menu); no repeated navigation (a step or panel is reachable from one place).
+- Done when: the lint test passes; a script that collects distinct computed colours reports at most 24 per screen and only token colours; screenshots of every screen are checked in a headless run against the copy server.
+
+## Task 3 additions: the companion's design and streaming
+- **Identity:** an original mark, not a sparkle or a star. Design three SVG directions in a scratch file, choose the one that sits with the CreatorClub mark, and use it as the `companion` icon everywhere (header, message avatar, loading state).
+- **Messages:** your message is a quiet right-aligned block; the companion's reply is flowing text with markdown (bold, lists, code) and inline result cards (Apply, Preview, Undo); no chat-bubble clutter.
+- **Streaming and reasoning:** real token streaming (claude `--output-format stream-json --include-partial-messages` through `server/club/ai.ts`; a chunked fallback for codex). While working it shows a step list ("Reading the board", "Drafting scenes") with elapsed time that collapses to a one-line summary when done; Stop (Esc) cancels; a skeleton before the first token; clear error and retry states; scroll anchoring that never fights the reader.
+- Done when a headless run shows the streaming and step states with a fake runner and once with the real runner on the copy server.
+
+## Task 8: Board that is good to write in
+- **Rich text:** the Board's notes become documents that you can write in without friction: headings, bullets, numbered lists, checklists, bold, italic, links, quotes, `/` commands, paste from anywhere, autosave, undo. Stored as Markdown in the video's folder (`board.md` per note or one file), so any agent can read and write it. Choose the editor library in the task (TipTap, MIT, is the default; justify any other) and add it as the only new dependency.
+- **Files in:** drop `.md` and `.txt` files onto the Board, pick a folder to watch ("Notes folder": each `.md` in it appears as a card you can pin), and the video's own folder is watched so anything another agent writes there (a Claude Code or Codex session running in that folder, or the user's terminal) shows up on the Board within a second or two. Say in the UI where the folder is and give a button that copies the path.
+- **Out:** "Use as package", "Use as hook" and "Draft scenes from the board" read the Markdown.
+- Tests for Markdown round-trip, the file watcher (temp dirs), and importing.
+
+## Task 9: Motion blocks, first slice
+The slice in `docs/v2/MOTION.md`: title card, lower third, callout arrow, chapter label, two styles each; preview and export render the same templates; the companion tool `add_motion_block` ("add a lower third at 0:12"); blocks on the timeline using Task 2's draggable effect rows; the colour rule above. First prove alpha in Electron 44 with a spike and report before building the rest.
