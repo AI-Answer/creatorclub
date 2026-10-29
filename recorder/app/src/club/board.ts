@@ -14,11 +14,11 @@ const shortDate=new Intl.DateTimeFormat('en-US',{month:'short',day:'numeric'});
 
 // ---------------------------------------------------------------- status
 
-/** Short status under a card: "Planning · 2 of 3", "Recording · 2 of 5 scenes". Only counts what is known. */
+/** Short status under a card: "Planning · 1 of 2" (package, scenes), "Recording · 2 of 5 scenes". Only counts what is known. */
 export function statusLine(video:Video,progress?:ProjectProgress):string{
  switch(video.stage){
   case 'ideas':return 'Idea';
-  case 'planning':return `Planning · ${Object.values(video.planning).filter(Boolean).length} of 3`;
+  case 'planning':return `Planning · ${[video.planning.package,video.planning.outline].filter(Boolean).length} of 2`;
   case 'recording':return progress&&progress.scenes>0?`Recording · ${progress.recorded} of ${progress.scenes} ${progress.scenes===1?'scene':'scenes'}`:'Recording';
   case 'published':{const day=videoDayKey(video);return day?`Published · ${formatDay(day)}`:'Published';}
   default:return STAGE_LABEL[video.stage];

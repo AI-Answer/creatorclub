@@ -4,11 +4,10 @@ import {toProgress} from '../scenes';
 import {Button,Ed,Icon,Menu,SceneStatus,cn,useToast} from '../ui';
 import {clockTime} from '../video-plan';
 import {blankScene,editPoint,insertScene,moveScene,parseClock,removeScene,sceneCardId,totalSeconds,TARGET_SECONDS} from './plan-logic';
-import {useTarget} from './useTarget';
 
 /** The right column of Plan: the outline's scenes as cards. Edit in place, drag or use arrow keys to reorder, add, remove with Undo, and write scripts. */
-export function ScenesColumn({videoId,hasRecording,outline,known,focusId,drafting,draftLine,scriptingScene,scripting,onEdit,onFocus,onDraft,onWriteFull,onWriteScene,onSceneScript,onRecord}:{
- videoId:string;hasRecording:boolean;outline:Outline|null;known:readonly VideoScene[]|undefined;focusId:string|null;
+export function ScenesColumn({target,onTarget,hasRecording,outline,known,focusId,drafting,draftLine,scriptingScene,scripting,onEdit,onFocus,onDraft,onWriteFull,onWriteScene,onSceneScript,onRecord}:{
+ target:number;onTarget(seconds:number):void;hasRecording:boolean;outline:Outline|null;known:readonly VideoScene[]|undefined;focusId:string|null;
  drafting:boolean;draftLine?:string;
  /** The scene a script run is writing, or none while it writes the whole script. */
  scriptingScene?:string;scripting:boolean;
@@ -16,7 +15,6 @@ export function ScenesColumn({videoId,hasRecording,outline,known,focusId,draftin
 }){
  const toast=useToast();
  const scenes=outline?.scenes??[];
- const [target,setTarget]=useTarget(videoId);
  const [dragIndex,setDragIndex]=useState<number|null>(null),[overIndex,setOverIndex]=useState<number|null>(null);
  const [added,setAdded]=useState<string|null>(null);
  const cards=useRef<Record<number,HTMLElement|null>>({});
@@ -60,7 +58,7 @@ export function ScenesColumn({videoId,hasRecording,outline,known,focusId,draftin
   <div className="row" style={{marginBottom:18,gap:14}}>
    <span className="doc-sub" style={{margin:0,whiteSpace:'nowrap'}}>Talk through each one when you record.</span><span className="grow"/>
    {scenes.length>0&&<div className="len" style={{whiteSpace:'nowrap'}}><span className="tnum"><b style={{color:over?'var(--cc-warn)':'var(--cc-text)'}}>{clockTime(total)}</b>{target>0?' of':''}</span>
-    <select className="select" style={{height:26,fontSize:12.5}} value={target} onChange={event=>setTarget(Number(event.target.value))} aria-label="Target length">
+    <select className="select" style={{height:26,fontSize:12.5}} value={target} onChange={event=>onTarget(Number(event.target.value))} aria-label="Target length">
      <option value={0}>No target</option>{TARGET_SECONDS.map(seconds=><option key={seconds} value={seconds}>{seconds/60} min</option>)}</select>
     {target>0&&<span className="bar" style={{width:110}}><i className={over?'over':''} style={{width:`${Math.min(100,total/target*100)}%`}}/></span>}</div>}
   </div>

@@ -34,7 +34,7 @@ function NoticeLine({kind,notice,onAct}:{kind:PlanJobKind;notice?:Notice;onAct(k
  * The Plan tab: the package on the left, the scenes on the right. Titles, hooks and scripts are written by the real jobs;
  * the lines above the columns show what is running, what was replaced (Undo), and what is waiting (Use it).
  */
-export function Plan({video,plan,known,focusId,onFocus,onTitle,onRecordScene}:{video:Video;plan:PlanState;known:readonly VideoScene[]|undefined;focusId:string|null;onFocus(sceneId:string):void;onTitle(title:string):void;onRecordScene(sceneId:string):void}){
+export function Plan({video,plan,known,focusId,onFocus,onTitle,onTarget,onRecordScene}:{video:Video;plan:PlanState;known:readonly VideoScene[]|undefined;focusId:string|null;onFocus(sceneId:string):void;onTitle(title:string):void;onTarget(seconds:number):void;onRecordScene(sceneId:string):void}){
  if(plan.load.status==='loading')return <div className="grow" style={{display:'flex',alignItems:'center',justifyContent:'center',padding:'64px 0'}}><Spinner label="Loading the plan" size={20}/></div>;
  if(plan.load.status==='error')return <div style={{maxWidth:720,margin:'0 auto',padding:'32px 24px'}}><ErrorLine message={plan.load.message} onRetry={plan.reload}/></div>;
  const packaging=plan.packageJob.phase==='running',outlining=plan.outlineJob.phase==='running',scripting=plan.scriptJob.phase==='running';
@@ -54,7 +54,7 @@ export function Plan({video,plan,known,focusId,onFocus,onTitle,onRecordScene}:{v
   {lines.length>0&&<div style={{display:'flex',flexDirection:'column',gap:8,padding:'12px 40px 0'}}>{lines}</div>}
   <div className="plan" style={{flex:1}}>
    <PackageColumn videoId={video.id} videoTitle={video.title} pkg={plan.pkg} running={packaging} onEdit={plan.editPackage} onWrite={plan.writePackage} onPickTitle={onTitle}/>
-   <ScenesColumn videoId={video.id} hasRecording={!!video.recorderProjectId} outline={plan.outline} known={known} focusId={focusId}
+   <ScenesColumn target={video.targetSeconds??0} onTarget={onTarget} hasRecording={!!video.recorderProjectId} outline={plan.outline} known={known} focusId={focusId}
     drafting={outlining} draftLine={plan.outlineJob.phase==='running'?plan.outlineJob.line:undefined} scripting={scripting} scriptingScene={plan.scriptScene}
     onEdit={plan.editOutline} onFocus={onFocus} onDraft={plan.createOutline} onWriteFull={()=>plan.writeScript()} onWriteScene={plan.writeScript} onSceneScript={plan.saveSceneScript} onRecord={onRecordScene}/>
   </div>

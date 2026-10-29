@@ -328,19 +328,62 @@ test('Package it reads the idea and research, and fixes titles that break the ru
   assert.equal((await call('PUT', `/videos/${video.id}/package`, { ...edited, titles: ['one'] })).status, 400);
 });
 
-test('running Package it again replaces the hand edits, and Undo brings them back', async () => {
-  const fresh = { ...goodPackage, angle: 'A fresh angle' };
+test('running Package it again fills only what is empty on the server, keeps the hand edits, and Undo brings the earlier package back', async () => {
+  const fresh = { ...goodPackage, angle: 'A fresh angle', twist: 'A fresh twist', titles: ['Fresh one', 'Fresh two', 'Fresh three'] as [string, string, string] };
+  await call('PUT', `/videos/${video.id}/package`, { ...goodPackage, angle: 'My own angle', twist: '', titles: ['My title', '', 'C'] });
   answers.Package = [fresh];
   const job = await finish((await call('POST', `/videos/${video.id}/package`)).body.id);
-  assert.deepEqual(job.result.value, fresh);
+  const merged = { ...goodPackage, angle: 'My own angle', twist: 'A fresh twist', titles: ['My title', 'Fresh two', 'C'] };
+  assert.deepEqual(job.result.value, merged, 'what the person wrote stays; empty places take the run');
+  assert.deepEqual((await call('GET', `/videos/${video.id}/plan`)).body.package, merged, 'and that is what is saved: no second save by the page');
   assert.match(job.result.replaced, /^\d{4}-\d{2}-\d{2}T/, 'the earlier package was set aside');
   assert.ok((await videoFiles()).includes(`package-earlier-${job.result.replaced}.json`));
   const undone = await call('POST', `/videos/${video.id}/package/undo`, { token: job.result.replaced });
   assert.equal(undone.status, 200, JSON.stringify(undone.body));
-  assert.equal(undone.body.package.angle, 'My own angle', 'the hand edits are back');
+  assert.equal(undone.body.package.angle, 'My own angle');
+  assert.deepEqual(undone.body.package.titles, ['My title', '', 'C'], 'the package as it was before the run');
   assert.ok((await videoFiles()).some((name) => /^package-undone-.*\.json$/.test(name)), 'the replacing version is kept too');
   assert.equal((await call('POST', `/videos/${video.id}/package/undo`, { token: job.result.replaced })).status, 404, 'an undo happens once');
   assert.equal((await call('POST', `/videos/${video.id}/package/undo`, { token: '../../x' })).status, 404);
+});
+
+test('Write titles again with a group to replace takes the whole group, and nothing else that was written', async () => {
+  const fresh = { ...goodPackage, angle: 'Ignored angle', titles: ['R1', 'R2', 'R3'] as [string, string, string] };
+  await call('PUT', `/videos/${video.id}/package`, { ...goodPackage, angle: 'Kept angle', titles: ['A', 'B', 'C'] });
+  answers.Package = [fresh];
+  assert.equal((await call('POST', `/videos/${video.id}/package`, { replace: 'nope' })).status, 400);
+  const job = await finish((await call('POST', `/videos/${video.id}/package`, { replace: 'titles' })).body.id);
+  assert.equal(job.status, 'done', JSON.stringify(job));
+  assert.deepEqual(job.result.value.titles, ['R1', 'R2', 'R3']);
+  assert.equal(job.result.value.angle, 'Kept angle');
+  assert.deepEqual(job.result.value.hook, goodPackage.hook);
+  await call('PUT', `/videos/${video.id}/package`, { ...goodPackage, angle: 'My own angle' });
+});
+
+test('the video\'s planning flags follow what exists: package once it has a title and a spoken hook, outline once it has scenes', async () => {
+  const flags = async () => ((await call('GET', `/videos/${video.id}`)).body as Video).planning;
+  const fresh = (await call('POST', '/videos', { title: 'Flags' })).body as Video;
+  const get = async () => ((await call('GET', `/videos/${fresh.id}`)).body as Video).planning;
+  assert.deepEqual(await get(), { research: false, package: false, outline: false });
+  await call('PUT', `/videos/${fresh.id}/package`, { ...goodPackage, titles: ['', '', ''] });
+  assert.equal((await get()).package, false, 'no title yet');
+  await call('PUT', `/videos/${fresh.id}/package`, { ...goodPackage, hook: { visual: '', spoken: '', text: '' } });
+  assert.equal((await get()).package, false, 'no spoken hook yet');
+  await call('PUT', `/videos/${fresh.id}/package`, goodPackage);
+  assert.equal((await get()).package, true);
+  await call('PUT', `/videos/${fresh.id}/outline`, { scenes: [scene('Opening', 60)] });
+  assert.deepEqual(await get(), { research: false, package: true, outline: true });
+  await call('DELETE', `/videos/${fresh.id}/package`);
+  assert.deepEqual(await get(), { research: false, package: false, outline: true });
+  assert.ok(await flags(), 'the other video is untouched');
+});
+
+test('a video keeps its target length: set by PUT, validated, cleared with null', async () => {
+  const set = await call('PUT', `/videos/${video.id}`, { targetSeconds: 600 });
+  assert.equal(set.body.targetSeconds, 600);
+  assert.equal(((await call('GET', `/videos/${video.id}`)).body as Video).targetSeconds, 600);
+  for (const bad of [0, 59, 36001, 90.5, '10']) assert.equal((await call('PUT', `/videos/${video.id}`, { targetSeconds: bad })).status, 400, String(bad));
+  assert.equal('targetSeconds' in (await call('PUT', `/videos/${video.id}`, { targetSeconds: null })).body, false);
 });
 
 test('Create outline follows the break down it came from and repairs an outline that breaks the rules once', async () => {
@@ -464,7 +507,7 @@ test('Continue to recording creates the recording project and moves the video to
   const saved = moved.body as Video;
   assert.equal(saved.stage, 'recording');
   assert.ok(saved.stageDates.recording);
-  assert.deepEqual(saved.planning, { research: false, package: false, outline: true });
+  assert.deepEqual(saved.planning, { research: false, package: true, outline: true }, 'the package was written earlier in this file');
   const projectFile = path.join(process.env.SCENEFORGE_DATA_DIR!, 'projects', `${saved.recorderProjectId}.json`);
   const project = JSON.parse(await readFile(projectFile, 'utf8')) as Project;
   assert.equal(project.name, 'Build it fast');

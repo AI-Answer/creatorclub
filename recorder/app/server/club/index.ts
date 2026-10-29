@@ -58,6 +58,8 @@ const videoPatchBody = z.object({
   views: z.number().int().nonnegative().nullable(),
   viewsCheckedAt: z.string().nullable(),
   hidden: hidden.nullable(),
+  // The length the person is aiming for, in seconds.
+  targetSeconds: z.number().int().min(60).max(36_000).nullable(),
   idea: ideaPatchBody,
 }).partial().strict();
 
@@ -164,6 +166,7 @@ const boardMessages = z
   .max(400);
 const packageUseBody = z.object({ kind: z.enum(['hook', 'title']), text: z.string().trim().min(1).max(2000) }).strict();
 const sceneScriptBody = z.object({ text: z.string().max(200_000) }).strict();
+const packageRunBody = z.object({ replace: z.enum(['titles', 'hook']).optional() }).strict();
 const scriptRunBody = z.object({ sceneId: z.string().regex(SCENE_ID).optional() }).strict();
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { files: 1, fileSize: 50 * 1024 * 1024 } });
@@ -507,7 +510,8 @@ export function clubRouter({ ai = {}, transcribe, runAI, readViews = ytDlpViews(
         if (!outline) throw new ClubError('Create the outline first.');
         if (sceneId && !outline.scenes.some((scene) => scene.id === sceneId)) throw notFound('scene');
       }
-      res.status(202).json(startPlanJob(slug, id, kind, plan, sceneId));
+      const replace = kind === 'package' ? packageRunBody.parse(req.body ?? {}).replace : undefined;
+      res.status(202).json(startPlanJob(slug, id, kind, plan, sceneId, replace));
     }));
     // "Replaced the outline · Undo" puts back what a run replaced; "New outline ready · Use it" takes a result that was held.
     for (const action of ['undo', 'use'] as const) {

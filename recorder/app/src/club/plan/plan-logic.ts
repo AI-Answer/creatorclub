@@ -1,4 +1,6 @@
-import type {ConceptRating,Outline,OutlineScene,Package} from '../../../shared/club';
+import type {Outline,OutlineScene,Package} from '../../../shared/club';
+import type {PackageGroup} from '../../../shared/package-merge';
+export {mergePackage,type PackageGroup} from '../../../shared/package-merge';
 
 /*
  * The Plan tab's rules that need no screen: the package's empty shape and what a package run may change, how scenes are
@@ -16,36 +18,11 @@ export const titleTooLong=(title:string)=>wordCount(title)>7||[...title].length>
 /** The option that is the video's title, or -1. A video's title is its chosen one. */
 export const chosenTitle=(titles:readonly string[],videoTitle:string)=>titles.findIndex(title=>!!title.trim()&&title.trim()===videoTitle.trim());
 
-export type PackageGroup='titles'|'hook';
-
 /** Whether the group has an empty place a run could fill. */
 export const hasEmptyPlace=(pkg:Package|null,group:PackageGroup)=>!pkg||(group==='titles'?pkg.titles.some(title=>!title.trim()):Object.values(pkg.hook).some(part=>!part.trim()));
 
 /** True when nothing in the package was written yet. */
 export const packageIsEmpty=(pkg:Package|null)=>!pkg||(!pkg.angle.trim()&&!pkg.twist.trim()&&!pkg.thumbnailText.trim()&&pkg.titles.every(title=>!title.trim())&&Object.values(pkg.hook).every(part=>!part.trim())&&!pkg.demand&&!pkg.gap&&!pkg.show);
-
-const fill=(have:string,wanted:string)=>have.trim()?have:wanted;
-const rating=(have:ConceptRating|undefined,wanted:ConceptRating|undefined)=>have??wanted;
-
-/**
- * What a package run changes: only the fields that are empty take its words. With `replace`, the given group takes the run's words
- * whole as well (the person asked to write it again). Without an earlier package the run's package is used as it is.
- */
-export function mergePackage(earlier:Package|null,written:Package,replace?:PackageGroup):Package{
- if(!earlier)return written;
- const merged:Package={
-  angle:fill(earlier.angle,written.angle),twist:fill(earlier.twist,written.twist),thumbnailText:fill(earlier.thumbnailText,written.thumbnailText),
-  titles:[0,1,2].map(i=>fill(earlier.titles[i],written.titles[i])) as Package['titles'],
-  hook:{visual:fill(earlier.hook.visual,written.hook.visual),spoken:fill(earlier.hook.spoken,written.hook.spoken),text:fill(earlier.hook.text,written.hook.text)},
- };
- const demand=rating(earlier.demand,written.demand),gap=rating(earlier.gap,written.gap),show=rating(earlier.show,written.show);
- if(demand)merged.demand=demand;if(gap)merged.gap=gap;if(show)merged.show=show;
- if(replace==='titles')merged.titles=written.titles;
- if(replace==='hook')merged.hook=written.hook;
- return merged;
-}
-
-export const samePackage=(a:Package,b:Package)=>JSON.stringify(a)===JSON.stringify(b);
 
 /** A new scene's id, made here so the scene keeps it from its first save (the server keeps ids it is given). */
 export const newSceneId=()=>`s_${[...crypto.getRandomValues(new Uint8Array(4))].map(byte=>byte.toString(16).padStart(2,'0')).join('')}`;

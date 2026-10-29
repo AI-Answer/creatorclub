@@ -3,6 +3,7 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { z } from 'zod';
 import { PLAN_JOB_KINDS, type AiProvider, type JobSnapshot, type Outline, type OutlineScene, type Package, type PackageUseResult, type PlanData, type PlanJobKind, type PlanJobResult, type Video } from '../../shared/club.js';
+import { mergePackage, type PackageGroup } from '../../shared/package-merge.js';
 import { AiError, aiLabel, runAI, type RunAIOptions } from './ai.js';
 import { readBreakdown } from './breakdown.js';
 import type { ChannelData } from './channel.js';
@@ -45,6 +46,8 @@ export const scriptFile = (slug: string, id: string) => path.join(store.videoDir
 /** Tests pass `runAI` to answer without a real model. */
 export interface PlanOptions extends Pick<RunAIOptions, 'extraDirs'> {
   runAI?: typeof runAI;
+  /** Package run only: the group (titles or hook) the person asked to write again; it is replaced whole. Everything else fills only what is empty. */
+  replace?: PackageGroup;
 }
 
 // ---------------------------------------------------------------- shapes
@@ -196,10 +199,22 @@ export async function readPackage(slug: string, id: string): Promise<Package | n
   return parsed.success ? parsed.data : null;
 }
 
+/**
+ * Keeps the video's `planning` flags true to what exists: the package is done once it has a title and a spoken hook, the outline
+ * once it has scenes. Read by the card's status line.
+ */
+export async function syncPlanningFlags(slug: string, id: string): Promise<void> {
+  const [video, pkg, outline] = await Promise.all([store.readVideo(slug, id), readPackage(slug, id), readOutline(slug, id)]);
+  const packaged = !!pkg && pkg.titles.some((title) => title.trim()) && !!pkg.hook.spoken.trim();
+  const outlined = !!outline?.scenes.length;
+  if (video.planning.package !== packaged || video.planning.outline !== outlined) await store.updateVideo(slug, id, { planning: { ...video.planning, package: packaged, outline: outlined } });
+}
+
 export async function savePackage(slug: string, id: string, pkg: unknown): Promise<Package> {
   await store.readVideo(slug, id);
   const parsed = packageShape.parse(pkg);
   await store.writeJSON(packageFile(slug, id), parsed);
+  await syncPlanningFlags(slug, id);
   return parsed;
 }
 
@@ -230,6 +245,7 @@ export function usePackageText(slug: string, id: string, kind: 'hook' | 'title',
 export async function deletePackage(slug: string, id: string): Promise<void> {
   await store.readVideo(slug, id);
   await setAside(packageFile(slug, id), 'unused');
+  await syncPlanningFlags(slug, id);
 }
 
 const readText = (file: string) => fs.readFile(file, 'utf8').catch((error: NodeJS.ErrnoException) => (error.code === 'ENOENT' ? undefined : Promise.reject(error)));
@@ -278,6 +294,7 @@ export async function saveOutline(slug: string, id: string, outline: unknown): P
   const previous = (await readOutline(slug, id))?.scenes ?? [];
   if (existing !== undefined && !existing.startsWith(MARKER)) await setAside(file, 'board');
   await store.writeFileAtomic(file, formatOutline({ scenes: adoptSceneIds(parsed.scenes, previous) }));
+  await syncPlanningFlags(slug, id);
   return (await readOutline(slug, id)) ?? parsed;
 }
 
@@ -339,6 +356,7 @@ async function commitResult(slug: string, id: string, kind: PlanJobKind, before:
   let replaced = await setAside(file, 'earlier', token);
   if (kind === 'outline') replaced = (await setAside(scriptFile(slug, id), 'earlier', token)) || replaced;
   await store.writeFileAtomic(file, content);
+  await syncPlanningFlags(slug, id);
   return replaced ? { replaced: token } : {};
 }
 
@@ -361,6 +379,7 @@ export async function undoReplace(slug: string, id: string, kind: PlanJobKind, t
     await setAside(item.file, 'undone', now);
     if (found[index]) await fs.rename(item.earlier, item.file);
   }
+  await syncPlanningFlags(slug, id);
 }
 
 /** Use it: a held result becomes the current version; the current one is set aside. */
@@ -392,6 +411,7 @@ export async function useHeld(slug: string, id: string, kind: PlanJobKind, token
     await store.writeFileAtomic(file, content);
   }
   await setAside(held, 'used', now);
+  await syncPlanningFlags(slug, id);
 }
 
 /** Held results newer than the step's current file, by step: the newest token of each. */
@@ -425,7 +445,7 @@ const jobKey = (slug: string, id: string, kind: PlanJobKind) => `${slug}/${id}/$
  * Starts a Plan step for a video, or returns the run of that step already going, so a second click never pays twice.
  * Write full script instead takes a `sceneId` to write one scene. The script is one file, so only one script run goes at a time per video.
  */
-export function startPlanJob(slug: string, id: string, kind: PlanJobKind, options: PlanOptions = {}, sceneId?: string): JobSnapshot {
+export function startPlanJob(slug: string, id: string, kind: PlanJobKind, options: PlanOptions = {}, sceneId?: string, replace?: PackageGroup): JobSnapshot {
   const key = jobKey(slug, id, kind);
   const running = runningJobs.get(key);
   const job = running ? getJob(running) : undefined;
@@ -435,7 +455,7 @@ export function startPlanJob(slug: string, id: string, kind: PlanJobKind, option
   }
   const run: (slug: string, id: string, context: JobContext, options?: PlanOptions) => Promise<unknown> = sceneId && kind === 'script' ? (s, i, context, opts) => runSceneScript(s, i, sceneId, context, opts) : { package: runPackage, outline: runOutline, script: runScript }[kind];
   const started = startJob(kind, (context) =>
-    run(slug, id, context, options).finally(() => {
+    run(slug, id, context, replace ? { ...options, replace } : options).finally(() => {
       if (runningJobs.get(key) !== started.id) return;
       runningJobs.delete(key);
       runningScenes.delete(key);
@@ -610,7 +630,8 @@ export async function runPackage(slug: string, id: string, context: JobContext, 
     if (packageProblems(second).length <= problems.length) pkg = second;
   }
   stopped(context);
-  const value = packageShape.parse(pkg);
+  // Only what is empty takes the run's words; what the person wrote stays, even if they wrote it while the run went.
+  const value = mergePackage(await readPackage(slug, id), packageShape.parse(pkg), options.replace);
   return { value, ...(await commitResult(slug, id, 'package', before, JSON.stringify(value, null, 2) + '\n')) };
 }
 

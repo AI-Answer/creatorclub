@@ -90,6 +90,7 @@ export function Workspace({video,tab,back,navigate,onVideo}:{video:Video;tab:Vid
   <div className="ws-body" key={tab}>
    {tab==='board'&&<Board video={video} scenes={list} onDrafted={draftedNow}/>}
    {tab==='plan'&&<Plan video={video} plan={plan} known={list} focusId={focusId} onFocus={setFocusId} onTitle={saveTitle}
+    onTarget={seconds=>{clubFetch<Video>(`/videos/${id}`,{method:'PUT',body:{targetSeconds:seconds>0?seconds:null}}).then(onVideo,reason=>toast(errorMessage(reason,"Couldn't save the target.")));}}
     onRecordScene={sceneId=>{setFocusId(sceneId);navigate(tabRoute('record'));}}/>}
    {(tab==='record'||tab==='edit')&&(video.recorderProjectId
     ?<ClubRecorder projectId={video.recorderProjectId} mode={tab==='record'?'Record':'Edit'} onBack={()=>navigate({name:'production',view:'board'})}

@@ -6,7 +6,7 @@ export type Notice={type:'replaced'|'held';token:string};
 type Notices=Partial<Record<PlanJobKind,Notice>>;
 import {clubFetch,errorMessage} from './api';
 import {useJobRun} from './useJobRun';
-import {mergePackage,samePackage,withServerScripts,type PackageGroup} from './plan/plan-logic';
+import {withServerScripts,type PackageGroup} from './plan/plan-logic';
 
 const SAVE_DELAY_MS=600;
 
@@ -45,7 +45,6 @@ export function usePlan(video:Video,{onVideo,onRecord}:{onVideo(video:Video):voi
  const [pkg,setPkg]=useState<Package|null>(null),[outline,setOutline]=useState<Outline|null>(null),[changedScene,setChangedScene]=useState<number|undefined>();
  const [continuing,setContinuing]=useState(false),[continueError,setContinueError]=useState('');
  const [notices,setNotices]=useState<Notices>({});
- const pkgRef=useRef<Package|null>(null);pkgRef.current=pkg;
 
  const reload=useCallback(()=>{
   setLoad({status:'loading'});
@@ -94,34 +93,28 @@ export function usePlan(video:Video,{onVideo,onRecord}:{onVideo(video:Video):voi
 
  const packageJob=useJobRun(),outlineJob=useJobRun(),scriptJob=useJobRun();
  const jobs={package:packageJob,outline:outlineJob,script:scriptJob};
- /** What the running package run was asked for: the package it started from and the group to write again, so its result fills only what was empty. */
- const packageRun=useRef<{earlier:Package|null;replace?:PackageGroup}>({earlier:null});
  /** The scene a script run writes; none while it writes the whole script. */
  const [scriptScene,setScriptScene]=useState<string|undefined>();
  /** A finished run: shown at once, with Undo when it replaced something; held behind "Use it" when the step changed while it ran. */
  const finished=useCallback((kind:PlanJobKind,raw:unknown)=>{
   const result=raw as PlanJobResult<Package|Outline>;
   if(result.held){setNotices(current=>({...current,[kind]:{type:'held',token:result.held!}}));return;}
-  if(kind==='package'){
-   const written=result.value as Package;
-   const merged=mergePackage(packageRun.current.earlier,written,packageRun.current.replace);
-   setPkg(merged);
-   if(!samePackage(merged,written))clubFetch(`/videos/${id}/package`,{method:'PUT',body:merged}).catch(()=>{});
-  }else{setOutline(result.value as Outline);refreshChanged();}
+  // The server already filled only what was empty, so its package is the one to show.
+  if(kind==='package')setPkg(result.value as Package);
+  else{setOutline(result.value as Outline);refreshChanged();}
   setNotices(current=>{const {[kind]:_old,...rest}=current;return result.replaced?{...rest,[kind]:{type:'replaced',token:result.replaced}}:rest;});
- },[id,refreshChanged]);
+ },[refreshChanged]);
  const attachRef=useRef<(kind:PlanJobKind,jobId:string)=>void>(()=>{});
  attachRef.current=(kind,jobId)=>{void jobs[kind].attach(jobId,result=>finished(kind,result));};
  /** Saves what is waiting first, so the run starts from what is on screen, then runs the step (the server reuses a run already going). */
- const start=useCallback(async(kind:PlanJobKind,flush:()=>Promise<void>,body?:{sceneId:string})=>{
+ const start=useCallback(async(kind:PlanJobKind,flush:()=>Promise<void>,body?:{sceneId:string}|{replace:PackageGroup})=>{
   try{await flush();}catch{return;}
   setNotices(({[kind]:_old,...rest})=>rest);
   void jobs[kind].run(()=>clubFetch(`/videos/${id}/${kind}`,{method:'POST',...(body?{body}:{})}),result=>finished(kind,result));
  },[id,finished,packageJob.run,outlineJob.run,scriptJob.run]);
  /** Write titles and Write hooks run the whole package; the result fills what is empty, and `replace` also takes the group the person asked to write again. */
  const writePackage=useCallback((replace?:PackageGroup)=>{
-  packageRun.current={earlier:pkgRef.current,replace};
-  void start('package',packageSaver.flush);
+  void start('package',packageSaver.flush,replace?{replace}:undefined);
  },[start,packageSaver.flush]);
  const createOutline=useCallback(()=>{void start('outline',outlineSaver.flush);},[start,outlineSaver.flush]);
  /** Write full script, or with a scene id that scene's script. */

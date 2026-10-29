@@ -66,6 +66,8 @@ export interface Video {
   /** ISO time `views` was last read. */
   viewsCheckedAt?: string;
   hidden?: 'later' | 'skipped';
+  /** The length the person is aiming for, in seconds. Unset for none. */
+  targetSeconds?: number;
   /** Set on videos imported from the old board. */
   idea?: IdeaNotes;
   /**

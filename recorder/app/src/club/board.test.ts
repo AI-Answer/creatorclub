@@ -8,7 +8,7 @@ const video=(over:Partial<Video>={}):Video=>({id:`v${++n}`,title:`Video ${n}`,st
 
 test('status lines name the stage and only count what is known',()=>{
  assert.equal(statusLine(video()),'Idea');
- assert.equal(statusLine(video({stage:'planning',planning:{research:true,package:true,outline:false}})),'Planning · 2 of 3');
+ assert.equal(statusLine(video({stage:'planning',planning:{research:true,package:true,outline:false}})),'Planning · 1 of 2');
  assert.equal(statusLine(video({stage:'recording'})),'Recording');
  assert.equal(statusLine(video({stage:'recording'}),{scenes:5,recorded:2}),'Recording · 2 of 5 scenes');
  assert.equal(statusLine(video({stage:'recording'}),{scenes:1,recorded:0}),'Recording · 0 of 1 scene');

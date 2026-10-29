@@ -65,7 +65,7 @@ const three:Outline={scenes:[scene('a','First'),scene('b','Second',{script:'Seco
 
 function scenesProps(over:Partial<Parameters<typeof ScenesColumn>[0]>={}){
  const edits:Outline[]=[];
- const props:Parameters<typeof ScenesColumn>[0]={videoId:'v1',hasRecording:false,outline:three,known:undefined,focusId:null,drafting:false,scripting:false,onEdit:next=>edits.push(next),onFocus(){},onDraft(){},onWriteFull(){},onWriteScene(){},onSceneScript(){},onRecord(){},...over};
+ const props:Parameters<typeof ScenesColumn>[0]={target:0,onTarget(){},hasRecording:false,outline:three,known:undefined,focusId:null,drafting:false,scripting:false,onEdit:next=>edits.push(next),onFocus(){},onDraft(){},onWriteFull(){},onWriteScene(){},onSceneScript(){},onRecord(){},...over};
  return {props,edits};
 }
 const withToasts=(props:Parameters<typeof ScenesColumn>[0])=>createElement(ToastProvider,null,createElement(ScenesColumn,props));
@@ -103,7 +103,8 @@ test('Scenes column: cards, total length, arrow keys reorder, remove has Undo, a
 });
 
 test('Scenes column: a typed scene length is saved, a bad one goes back, the target shows the total against it',async()=>{
- const {props,edits}=scenesProps();
+ const targets:number[]=[];
+ const {props,edits}=scenesProps({onTarget:seconds=>targets.push(seconds)});
  const ui=await mountUI(withToasts(props));
  try{
   const c=ui.container;
@@ -115,8 +116,12 @@ test('Scenes column: a typed scene length is saved, a bad one goes back, the tar
   assert.equal(edits.length,count);assert.equal(dur.value,'1:00');
   const select=named(c,'Target length') as HTMLSelectElement;
   assert.equal(c.querySelector('.len .bar'),null,'no target, no bar');
-  await act(async()=>{select.value='120';select.dispatchEvent(new Event('change',{bubbles:true}));});
-  assert.equal(c.querySelector('.len .bar i.over')!==null,false);
+  await act(async()=>{select.value='600';select.dispatchEvent(new Event('change',{bubbles:true}));});
+  assert.deepEqual(targets,[600],'the choice goes to the video, not the browser');
+  await ui.render(withToasts({...props,target:120}));
+  assert.equal(c.querySelector('.len .bar i.over')!==null,true,'3:00 is over a 2 minute target');
+  await ui.render(withToasts({...props,target:600}));
+  assert.equal(c.querySelector('.len .bar i.over'),null);assert.equal(c.querySelector('.len .bar i')!.getAttribute('style')?.includes('30'),true);
  }finally{await ui.close();}
 });
 
@@ -162,7 +167,7 @@ test('Scenes column: Write script is in the scene menu, a scene being written sh
 const video:Video={id:'v1',title:'Two',stage:'planning',order:1,createdAt:'',updatedAt:'',stageDates:{},planning:{research:true,package:false,outline:false}};
 function Harness({events}:{events:string[]}){
  const plan=usePlan(video,{onVideo:()=>events.push('video'),onRecord:()=>events.push('record')});
- return createElement(ToastProvider,null,createElement(Plan,{video,plan,known:undefined,focusId:null,onFocus(){},onTitle:title=>events.push(`title:${title}`),onRecordScene(){}}),
+ return createElement(ToastProvider,null,createElement(Plan,{video,plan,known:undefined,focusId:null,onFocus(){},onTitle:title=>events.push(`title:${title}`),onTarget:seconds=>events.push(`target:${seconds}`),onRecordScene(){}}),
   createElement('button',{onClick:()=>plan.continueAction?.run()},'Continue now'));
 }
 async function withPlan(reply:(call:FakeCall)=>FakeReply|Promise<FakeReply>,run:(c:Element,calls:FakeCall[],events:string[])=>Promise<void>){
@@ -172,20 +177,31 @@ async function withPlan(reply:(call:FakeCall)=>FakeReply|Promise<FakeReply>,run:
 }
 const planReply=(plan:object)=>(call:FakeCall):FakeReply=>{if(call.method==='GET'&&call.path==='/videos/v1/plan')return {body:{running:{},ready:{},...plan}};};
 
-test('Plan tab: Write titles fills only the empty titles and keeps the rest of the package, saving the merge',async()=>{
+test('Plan tab: Write titles shows the package the server merged, and makes no save of its own',async()=>{
  const earlier:Package={...empty,angle:'Mine',titles:['Mine','',''],hook:{visual:'',spoken:'My line',text:''}};
- const written:Package={...full,angle:'Theirs',titles:['N1','N2','N3'],hook:{visual:'nv',spoken:'ns',text:'nt'}};
+ const merged:Package={...full,angle:'Mine',titles:['Mine','N2','N3'],hook:{visual:'nv',spoken:'My line',text:'nt'}};
  await withPlan(call=>{
-  if(call.method==='POST'&&call.path==='/videos/v1/package')return {body:{value:written,replaced:'2026-10-28T22-50-18-485Z'}};
-  if(call.method==='PUT'&&call.path==='/videos/v1/package')return {body:call.body};
+  if(call.method==='POST'&&call.path==='/videos/v1/package')return {body:{value:merged,replaced:'2026-10-28T22-50-18-485Z'}};
   return planReply({package:earlier,outline:null})(call);
  },async(c,calls)=>{
   await press(buttonNamed(c,'Write titles'));await flush();
   assert.deepEqual([...c.querySelectorAll('.topt [role="textbox"]')].map(t=>t.textContent),['Mine','N2','N3']);
-  const saved=calls.filter(call=>call.method==='PUT'&&call.path==='/videos/v1/package').at(-1)!.body as Package;
-  assert.equal(saved.angle,'Mine');assert.deepEqual(saved.titles,['Mine','N2','N3']);assert.equal(saved.hook.spoken,'My line');assert.equal(saved.hook.visual,'nv');
-  assert.equal(saved.demand?.level,'high');
+  assert.deepEqual(calls.filter(call=>call.method==='POST'&&call.path==='/videos/v1/package').map(call=>call.body),[undefined]);
+  assert.equal(calls.some(call=>call.method==='PUT'),false,'nothing is saved over the server\'s merge');
   assert.match(c.textContent!,/Replaced the package/);
+ });
+});
+
+test('Plan tab: writing a full group again asks, then tells the server which group to replace',async()=>{
+ await withPlan(call=>{
+  if(call.method==='POST'&&call.path==='/videos/v1/package')return {body:{value:{...full,titles:['R1','R2','R3']}}};
+  return planReply({package:full,outline:null})(call);
+ },async(c,calls)=>{
+  await press(buttonNamed(c,'Write titles'));
+  assert.equal(calls.some(call=>call.method==='POST'),false,'asked first');
+  await press([...c.ownerDocument.querySelectorAll('[role="dialog"] button')].find(b=>b.textContent==='Write titles')!);await flush();
+  assert.deepEqual(calls.filter(call=>call.method==='POST').map(call=>call.body),[{replace:'titles'}]);
+  assert.deepEqual([...c.querySelectorAll('.topt [role="textbox"]')].map(t=>t.textContent),['R1','R2','R3']);
  });
 });
 
