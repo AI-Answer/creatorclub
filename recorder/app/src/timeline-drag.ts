@@ -1,7 +1,7 @@
 import type {Project} from '../shared/types';
 /** Geometry used by pointer dragging. Times stay unrounded until an actual snap. */
 export interface TimelineSpan {id:string;start:number;duration:number}
-export interface SnapTarget {time:number;kind:'playhead'|'edge'|'scene'|'origin';id?:string}
+export interface SnapTarget {time:number;kind:'playhead'|'edge'|'scene'|'origin'|'marker';id?:string}
 export interface SnapResult {delta:number;guide:SnapTarget|null}
 export const SNAP_VIEWPORT_RATIO=.015;
 export const snapDistancePixels=(viewportWidth:number)=>Math.max(0,viewportWidth)*SNAP_VIEWPORT_RATIO;
@@ -11,13 +11,14 @@ export function timelinePointerDelta(initialX:number,currentX:number,initialScro
  return (currentX-initialX+currentScroll-initialScroll)/scale;
 }
 
-export function snapTargets(spans:readonly TimelineSpan[],movingIds:ReadonlySet<string>,playhead:number,sceneEdges:readonly number[]=[]):SnapTarget[]{
+export function snapTargets(spans:readonly TimelineSpan[],movingIds:ReadonlySet<string>,playhead:number,sceneEdges:readonly number[]=[],markers:readonly number[]=[]):SnapTarget[]{
  const targets:SnapTarget[]=[{time:0,kind:'origin'},{time:playhead,kind:'playhead'}];
  for(const span of spans)if(!movingIds.has(span.id)){targets.push({time:span.start,kind:'edge',id:span.id},{time:span.start+span.duration,kind:'edge',id:span.id});}
  for(const time of sceneEdges)targets.push({time,kind:'scene'});
+ for(const time of markers)targets.push({time,kind:'marker'});
  return targets.filter(t=>Number.isFinite(t.time)&&t.time>=0).sort((a,b)=>a.time-b.time||priority(a)-priority(b)||(a.id??'').localeCompare(b.id??'')).filter((target,index,list)=>index===0||target.time!==list[index-1].time);
 }
-const priority=(target:SnapTarget)=>({playhead:0,edge:1,scene:2,origin:3})[target.kind];
+const priority=(target:SnapTarget)=>({playhead:0,marker:1,edge:2,scene:3,origin:4})[target.kind];
 const lowerBound=(targets:readonly SnapTarget[],time:number)=>{let lo=0,hi=targets.length;while(lo<hi){const mid=(lo+hi)>>>1;if(targets[mid].time<time)lo=mid+1;else hi=mid;}return lo;};
 
 /** Every selected clip receives this same delta, including when stopped at time zero. */
