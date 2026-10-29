@@ -23,7 +23,7 @@ test('routes have the hashes the sidebar and the palette link to',()=>{
 });
 
 test('an empty hash, an unknown one or a malformed one is the overview',()=>{
- for(const hash of ['','#','#/','#/nope','#/overview/extra','#/settings/x','#/production/gantt','#/production/table/extra','#/video','#/video/','#/video/v-1/film','#/video/v-1/plan/extra','#/video/%E0%A4%A/plan','#/welcome/x'])assert.deepEqual(parseRoute(hash),{name:'overview'},hash);
+ for(const hash of ['','#','#/','#/nope','#/overview/extra','#/settings/x','#/production/gantt','#/production/table/extra','#/video','#/video/','#/video/v-1/plan/extra','#/video/%E0%A4%A/plan','#/welcome/x'])assert.deepEqual(parseRoute(hash),{name:'overview'},hash);
  assert.deepEqual(parseRoute('#video/v-1/record'),{name:'video',id:'v-1',tab:'record'});
 });
 
@@ -75,4 +75,8 @@ test('Welcome opens at a step and Settings at a section; an unknown step or sect
  assert.deepEqual(parseRoute('#/welcome?step=x'),{name:'welcome'});
  assert.deepEqual(parseRoute('#/settings/channel'),{name:'settings',section:'channel'});
  assert.deepEqual(parseRoute('#/settings/nope'),{name:'overview'});
+});
+
+test('a video link with an unknown tab opens the video on the tab for its stage',()=>{
+ assert.deepEqual(parseRoute('#/video/v-1/film'),{name:'video',id:'v-1'});
 });

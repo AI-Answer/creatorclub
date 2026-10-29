@@ -759,12 +759,13 @@ async function reusableOutline(slug: string, video: Video): Promise<string[] | u
 export async function runOutline(slug: string, id: string, context: JobContext, options: PlanOptions = {}): Promise<PlanJobResult<Outline>> {
   const say = (message: string) => context.emit({ message });
   const video = await store.readVideo(slug, id);
+  say('Reading your idea, package and research board…');
   const before = await snapshotOf(slug, id, 'outline');
   const previous = (await readOutline(slug, id))?.scenes ?? [];
   const [channel, pkg, shape] = await Promise.all([loadChannelContext(slug), readPackage(slug, id), reusableOutline(slug, video)]);
   const built = await buildOutlinePrompt(channel, { idea: ideaFor(video), pkg: pkg ?? undefined, reusableOutline: shape });
   const ai = await asker(context, options);
-  say(shape ? 'Following the shape of the video you broke down…' : 'Writing the scenes…');
+  say(shape ? 'Following the shape of the video you broke down. This takes about a minute…' : 'Writing the scenes. This takes about a minute…');
   let outline = parseAnswer(outlineShape, (await ai.ask(built, OUTLINE_BUDGET_USD)).json, ai.who, 'outline');
   stopped(context);
   const problems = outlineProblems(outline);

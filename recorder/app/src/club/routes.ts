@@ -49,7 +49,7 @@ export const defaultTab=(stage:VideoStage):VideoTab=>({ideas:'board',planning:'p
 /**
  * Reads `#/overview`, `#/ideas?filter=later&open=<id>`, `#/production/table`, `#/video/<id>/<tab>`, `#/settings/followed`, `#/welcome?step=2` and the rest.
  * The old `#/board` is Production, `#/onboarding` is `#/welcome`, and `#/video/<id>/<step>` links keep working because
- * the old steps are tabs too. Anything else is the overview.
+ * the old steps are tabs too. A video's unknown tab opens the tab for its stage. Anything else is the overview.
  */
 export function parseRoute(hash:string):Route{
  const [path,query='']=hash.replace(/^#\/?/,'').split('?');
@@ -58,7 +58,7 @@ export function parseRoute(hash:string):Route{
   if(!id||segments.length>3)return OVERVIEW;
   let decoded:string;try{decoded=decodeURIComponent(id);}catch{return OVERVIEW;}
   if(segments.length===2)return {name:'video',id:decoded};
-  return isTab(tab)?{name:'video',id:decoded,tab}:OVERVIEW;
+  return isTab(tab)?{name:'video',id:decoded,tab}:{name:'video',id:decoded};
  }
  if(name==='production'){
   if(segments.length===1)return {name:'production',view:'board'};

@@ -55,7 +55,7 @@ export function TrendingScreen({navigate}:{navigate(route:Route):void}){
    ?feed.seeding?<Spinner label="Searching YouTube for your topics" size={20}/>
    :<div className="card">{followed===0
     ?<Empty icon="TrendingUp" title="No channels followed yet" action={<button type="button" className="btn" onClick={()=>navigate({name:'settings',section:'followed'})}>Open Settings</button>}>Follow channels in Settings. The videos beating their usual views show up here.</Empty>
-    :<Empty icon="TrendingUp" title="Nothing read yet" action={<button type="button" className="btn primary" onClick={refresh}><Icon name="RotateCcw" size={15}/>Refresh</button>}>Refresh to read the channels you follow.</Empty>}</div>
+    :<Empty icon="TrendingUp" title="Nothing read yet" action={feed.job.phase==='running'?undefined:<button type="button" className="btn primary" onClick={refresh}><Icon name="RotateCcw" size={15}/>Refresh</button>}>{feed.job.phase==='running'?(feed.job.line??'Reading the channels you follow…'):'Refresh to read the channels you follow.'}</Empty>}</div>
    :<>
     <div className="row" style={{marginBottom:10,gap:12}}>
      <div className="seg">{([['fit','For you'],['followed','Followed'],['all','All']] as const).map(([key,label])=><button key={key} type="button" className={show===key?'on':''} aria-pressed={show===key} onClick={()=>setShow(key)}>{label} <span className="n">{counts[key]}</span></button>)}</div>
