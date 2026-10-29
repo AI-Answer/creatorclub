@@ -15,7 +15,7 @@ import {Foot,Header,Strip} from './Frame';
 import {Publish} from './Publish';
 import {Teleprompter} from './Teleprompter';
 import {outlineSceneFor,promptScene,recorderSceneFor} from './record-logic';
-import {continueIsPrimary,pickJumpsToPlan,nextTab,stageForContinue,tabDone,TAB_LABEL,type TabFacts} from './rules';
+import {TAKE_NOT_ADDED,takesWaiting,continueIsPrimary,pickJumpsToPlan,nextTab,stageForContinue,tabDone,TAB_LABEL,type TabFacts} from './rules';
 import {originLabel} from '../routes';
 
 /**
@@ -67,8 +67,20 @@ export function Workspace({video,tab,back,navigate,onVideo}:{video:Video;tab:Vid
 
  /** Continue to the next tab: the card moves forward when the tab's stage is further along than the card, then the tab opens. */
  const next=nextTab(tab);
+ // Leaving Record first adds a take still under review to the timeline, the same as the preview's Continue.
+ const leaveGuard=useRef<(()=>Promise<boolean>)|null>(null);
+ const registerLeaveGuard=useCallback((guard:(()=>Promise<boolean>)|null)=>{leaveGuard.current=guard;},[]);
+ const addReviewedTake=async()=>{
+  if(tab!=='record'||!leaveGuard.current)return true;
+  const added=await leaveGuard.current();
+  reloadScenes();
+  if(added)return true;
+  setMoveError(TAKE_NOT_ADDED);return false;
+ };
+ const goToTab=async(target:VideoTab)=>{if(target!=='record'&&!(await addReviewedTake()))return;navigate(tabRoute(target));};
  const continueToNext=async()=>{
   if(!next)return;
+  if(!(await addReviewedTake()))return;
   const stage=stageForContinue(video.stage,next);
   setMoving(true);setMoveError('');
   try{
@@ -84,6 +96,8 @@ export function Workspace({video,tab,back,navigate,onVideo}:{video:Video;tab:Vid
   reloadPlan();reloadScenes();
   navigate(tabRoute('plan'));
  },[id,onVideo,navigate,tabRoute,reloadPlan,reloadScenes]);
+ // The scenes' takes change while recording and editing (a take added, pauses cut); the strip and the notice read them again when Record or Edit opens.
+ useEffect(()=>{if(tab==='record'||tab==='edit')reloadScenes();},[tab,reloadScenes]);
  // The Board can write the package (Use as hook, Ask Claude): Plan and Publish read it again when they open.
  const refreshPlan=plan.refresh;
  useEffect(()=>{if(tab==='plan'||tab==='publish')void refreshPlan();},[tab,refreshPlan]);
@@ -92,6 +106,7 @@ export function Workspace({video,tab,back,navigate,onVideo}:{video:Video;tab:Vid
  // Recording shows the focused scene's talking points beside the recorder; Edit has no teleprompter.
  const prompting=tab==='record'?promptScene(plan.outline,list,focusId):undefined;
  // Record needs scenes and then a recording project; Edit needs something recorded. Until then the tab says what comes first, and offers no Continue.
+ const waiting=takesWaiting(list);
  const hasScenes=!!list?.length,hasTakes=!!list?.some(scene=>scene.takes.length>0);
  const unplanned=(tab==='record'&&!video.recorderProjectId)||(tab==='edit'&&(!video.recorderProjectId||(!!list&&!hasTakes)));
 
@@ -106,7 +121,7 @@ export function Workspace({video,tab,back,navigate,onVideo}:{video:Video;tab:Vid
  const backLabel=`Back to ${originLabel(back).toLowerCase()}`;
 
  return <div className="ws">
-  <Header video={video} tab={tab} back={back} facts={facts} onTitle={saveTitle} onStage={stage=>void moveTo(stage,video.stage)} onTab={next=>navigate(tabRoute(next))}/>
+  <Header video={video} tab={tab} back={back} facts={facts} onTitle={saveTitle} onStage={stage=>void moveTo(stage,video.stage)} onTab={target=>void goToTab(target)}/>
   <Strip scenes={scenes.state} focusId={focusId} tab={tab} onRetry={scenes.reload} onPick={sceneId=>{setFocusId(sceneId);setPickN(n=>n+1);if(pickJumpsToPlan(tab))navigate(tabRoute('plan'));}}/>
   {moveError&&<div className="ws-body" style={{flex:'none',padding:'8px 18px'}}><ErrorLine message={moveError} onRetry={()=>void continueToNext()}/></div>}
   <div className="ws-body" key={tab}>
@@ -114,10 +129,11 @@ export function Workspace({video,tab,back,navigate,onVideo}:{video:Video;tab:Vid
    {tab==='plan'&&<Plan video={video} plan={plan} known={list} focusId={focusId} onFocus={setFocusId} onTitle={saveTitle}
     onTarget={seconds=>{clubFetch<Video>(`/videos/${id}`,{method:'PUT',body:{targetSeconds:seconds>0?seconds:null}}).then(onVideo,reason=>toast(errorMessage(reason,"Couldn't save the target.")));}}
     onRecordScene={sceneId=>{setFocusId(sceneId);navigate(tabRoute('record'));}}/>}
+   {tab==='edit'&&!unplanned&&waiting.length>0&&<div className="ws-body" style={{flex:'none',padding:'8px 18px'}}><div className="ws-notice" role="status"><span>{waiting.length===1?`The take for “${waiting[0]}” isn't on the timeline yet.`:`${waiting.length} takes aren't on the timeline yet.`}</span><Button variant="primary" size="sm" onClick={()=>navigate(tabRoute('record'))}>Open the take</Button></div></div>}
    {(tab==='record'||tab==='edit')&&(!unplanned&&video.recorderProjectId
     ?<div className={prompting?'rec with-prompter':'rec with-embed'}>
      <div className="rec-left"><ClubRecorder projectId={video.recorderProjectId} mode={tab==='record'?'Record':'Edit'} onBack={()=>navigate({name:'production',view:'board'})}
-      onMode={mode=>{if(mode==='Edit'&&tab==='record')void continueToNext();else navigate(tabRoute(mode==='Edit'?'edit':'record'));}} onProgress={onProgress} onExported={tab==='edit'?onExported:undefined}
+      registerLeaveGuard={registerLeaveGuard} onMode={mode=>{if(mode==='Edit'&&tab==='record')void continueToNext();else navigate(tabRoute(mode==='Edit'?'edit':'record'));}} onProgress={onProgress} onExported={tab==='edit'?onExported:undefined}
       onRestart={plan.continueAction?.run}
       sceneId={tab==='record'?recorderSceneFor(video,focusId)??undefined:undefined} sceneNonce={pickN} onSceneChange={tab==='record'?recorderScene:undefined} onChanged={reloadScenes}/></div>
      {prompting&&<Teleprompter index={prompting.index} scene={prompting.scene}/>}
@@ -132,6 +148,6 @@ export function Workspace({video,tab,back,navigate,onVideo}:{video:Video;tab:Vid
    {tab==='publish'&&<Publish video={video} pkg={plan.pkg} scenes={list} onVideo={onVideo} onGoTo={target=>navigate(tabRoute(target))}
     saveError={plan.saveError} onRetry={plan.retrySave} onDescription={description=>plan.editPackage({...(pkgNow.current??EMPTY_PACKAGE),description})}/>}
   </div>
-  <Foot tab={tab} back={back} backLabel={backLabel} facts={facts} onTab={next=>navigate(tabRoute(next))} next={nextButton}/>
+  <Foot tab={tab} back={back} backLabel={backLabel} facts={facts} onTab={target=>void goToTab(target)} next={nextButton}/>
  </div>;
 }

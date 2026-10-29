@@ -8,7 +8,7 @@ const {VIDEOS_CHANGED}=await import('./api');
 const {toProgress,useSceneProgress}=await import('./scenes');
 
 const video=(id:string,stage:Video['stage']):Video=>({id,title:id,stage,order:0,createdAt:'2026-10-01T00:00:00.000Z',updatedAt:'2026-10-01T00:00:00.000Z',stageDates:{},planning:{research:false,package:false,outline:false}});
-const scene=(id:string,kept:boolean[],extra:Partial<VideoScene>={}):VideoScene=>({id,title:id,seconds:30,takes:kept.map((k,i)=>({id:`${id}${i}`,seconds:10,kept:k})),status:'x',...extra});
+const scene=(id:string,kept:boolean[],extra:Partial<VideoScene>={}):VideoScene=>({id,title:id,seconds:30,takes:kept.map((k,i)=>({id:`${id}${i}`,seconds:10,kept:k,retained:false})),status:'x',...extra});
 const flush=()=>act(async()=>{await new Promise(resolve=>setTimeout(resolve,0));});
 
 test('the dots of a video come from its takes in the order they were recorded, with the seconds cut',()=>{

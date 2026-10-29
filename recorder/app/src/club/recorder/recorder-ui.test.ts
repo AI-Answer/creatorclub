@@ -171,6 +171,23 @@ function serveProject(){
  return {p,saved:()=>saved,restore:()=>{globalThis.fetch=originalFetch;}};
 }
 
+test('leaving Record for Edit with a take still under review puts the take on the timeline first',async()=>{
+ localStorage.clear();
+ const server=serveProject(),leave:{guard:(()=>Promise<boolean>)|null}={guard:null};
+ const ui=await mountUI(createElement(ClubRecorder,{projectId:server.p.id,mode:'Record',onBack:()=>{},registerLeaveGuard:next=>{leave.guard=next;}}));
+ try{
+  await flush();await flush();
+  assert.deepEqual(footerLabels(ui.container),['Delete take','Record another take','Continue'],'the take is still under review');
+  assert.ok(leave.guard,'the club can ask before it leaves');
+  assert.equal(server.saved(),null,'nothing is on the timeline yet');
+  assert.equal(await leave.guard!(),true,'the take was added');
+  await flush();
+  assert.ok(server.saved()?.clips.some(clip=>clip.recordingTakeId==='t1'),'the take is on the timeline');
+  assert.equal(Boolean(ui.container.querySelector('footer.club-take-footer')),false,'the preview closes');
+  assert.equal(await leave.guard!(),true,'asking again with the take already on the timeline changes nothing');
+ }finally{server.restore();await ui.close();}
+});
+
 test('inside CreatorClub, Continue confirms the take, selects the next scene and reports progress',async()=>{
  localStorage.clear();
  const server=serveProject(),progress:string[]=[];
@@ -187,7 +204,7 @@ test('inside CreatorClub, Continue confirms the take, selects the next scene and
   assert.equal(progress.at(-1),'1/2');
   assert.ok(c.querySelector('.rsc-take-badge')?.textContent==='Take 1 (00:07)','the take shows as a thumbnail');
   assert.ok(!c.textContent?.includes('Edit & export'),'the bottom bar, not a second button, leads to editing');
-  assert.ok(!c.textContent?.includes('Style video')&&!c.textContent?.includes('Remove pauses'),'no scene quick actions in the club');
+  assert.ok(c.textContent?.includes('Remove pauses'),'a scene with a take can have its pauses removed');
  }finally{server.restore();await ui.close();}
 });
 

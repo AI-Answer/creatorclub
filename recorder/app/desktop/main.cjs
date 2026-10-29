@@ -140,7 +140,7 @@ async function startService(){
  const entry=path.join(projectRoot,'server-dist/index.mjs');
  // Recordings and edits use SceneForge's storage format in CreatorClub's own folder; SCENEFORGE_DATA_DIR still overrides it.
  // Only a launcher inside this app is offered for MCP; without one (the dev app) none is advertised, never SceneForge's.
- const env=runtimeEnvironment({root:projectRoot,data:paths.studio,port:PORT});env.SCENEFORGE_MCP_COMMAND??='';
+ const env=runtimeEnvironment({root:projectRoot,data:paths.studio,modelsDir:paths.models,port:PORT});env.SCENEFORGE_MCP_COMMAND??='';
  if(fs.existsSync(entry))service=utilityProcess.fork(entry,[],{env,stdio:'pipe',serviceName:'CreatorClub media service'});
  else service=spawn(process.env.SCENEFORGE_NODE||process.env.npm_node_execpath||'node',['--import','tsx',path.join(projectRoot,'server/index.ts')],{cwd:projectRoot,env,stdio:'pipe'});
  ownService=true;

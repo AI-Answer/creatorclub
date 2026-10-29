@@ -43,6 +43,6 @@ export function fakeScenes(videos:readonly Video[],data:{projects?:readonly {id:
  return Object.fromEntries(videos.filter(video=>video.stage!=='published'&&!data.unreadable?.includes(video.id)).map(video=>{
   const project=data.projects?.find(candidate=>candidate.id===video.recorderProjectId);
   const count=project?.sceneCount??data.outlines?.[video.id]??0,kept=project?.recordedSceneCount??0;
-  return [video.id,Array.from({length:count},(_,index)=>({id:`s${index}`,title:`S${index}`,seconds:30,takes:index<kept?[{id:`t${index}`,seconds:20,kept:true}]:[],status:index<kept?'Kept take 1':'Not recorded'}))];
+  return [video.id,Array.from({length:count},(_,index)=>({id:`s${index}`,title:`S${index}`,seconds:30,takes:index<kept?[{id:`t${index}`,seconds:20,kept:true,retained:false}]:[],status:index<kept?'Kept take 1':'Not recorded'}))];
  }));
 }

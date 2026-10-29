@@ -63,10 +63,10 @@ test('embedded Edit: one suggestion, Ask Claude as the one AI entry, no Borumi, 
   const header=ui.container.querySelector('.project-header')!;
   assert.ok(header.textContent?.includes('Remove 3m 12s of pauses and repeats?'),'the duration comes from the plan: 120 s + 72 s');
   const visible=ui.container.textContent??'';
-  for(const word of ['Borumi','Automate','Edit with your AI','Style video','Remove pauses','Auto-cut'])assert.ok(!visible.includes(word),`no "${word}"`);
+  for(const word of ['Borumi','Edit with your AI'])assert.ok(!visible.includes(word),`no "${word}"`);
   assert.ok(!/project/i.test(visible),`no "project" in the embedded editor: ${visible.match(/.{0,40}project.{0,40}/i)?.[0]}`);
   const rail=[...ui.container.querySelectorAll('.panel-rail button')].map(b=>b.textContent?.trim());
-  assert.deepEqual(rail,['Canvas','Layout','Clip','Zoom','Elements','Music','Captions','Cursor'],'labelled icons, no Automate');
+  assert.deepEqual(rail,['Canvas','Layout','Clip','Zoom','Elements','Music','Captions','Cursor','Automate'],'labelled icons, with Automate for pauses and filler words');
   assert.equal(ui.container.querySelector('.inspector'),null,'panels start collapsed');
   assert.equal([...header.querySelectorAll('button')].filter(b=>b.textContent?.trim()==='Ask Claude').length,1);
   assert.equal(server.calls.filter(c=>c.url.endsWith('/quick-action')).length,0,'a plan already exists: none is started');

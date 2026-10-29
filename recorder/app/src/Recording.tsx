@@ -80,7 +80,7 @@ export type RecordingProgress={recorded:number;total:number};
  * moves to the next scene to record after Continue, and reports progress through `onProgress`. Hiding the `Edit & export` banner and the
  * scene quick actions is up to the caller (it leaves out `onEdit`, `onAutoCut` and `onVisualize`). Recording itself is the same in both.
  */
-export function Recording({project,change,commit,onRecorded,onError,onImport,onSetup,onEdit,onAutoCut,onVisualize,club=false,onProgress,selectSceneId,selectNonce,onSceneChange}:{project:Project;change:(fn:(p:Project)=>void,opts?:{coalesce?:string})=>void;commit?:(fn:(p:Project)=>void)=>Promise<void>;onRecorded:(media:Media[],tracks:TrackKind[],offsets?:number[],options?:ConfirmTakeOptions)=>string|void|Promise<string|void>;onError:(error:string)=>void;onImport?:(sceneId?:string)=>void;onSetup?:()=>void;onEdit?:()=>void;onAutoCut?:(sceneId:string)=>void|Promise<void>;onVisualize?:(sceneId:string)=>void|Promise<void>;club?:boolean;onProgress?:(progress:RecordingProgress)=>void;/** The scene to select, chosen outside the recorder (the club's scene strip). Ignored while a take is being recorded. */selectSceneId?:string;selectNonce?:number;/** Told whenever the selected scene changes, so the club can follow it. */onSceneChange?:(sceneId:string)=>void}){
+export function Recording({project,change,commit,onRecorded,onError,onImport,onSetup,onEdit,onAutoCut,onVisualize,club=false,onProgress,selectSceneId,selectNonce,onSceneChange,registerLeaveGuard}:{project:Project;change:(fn:(p:Project)=>void,opts?:{coalesce?:string})=>void;commit?:(fn:(p:Project)=>void)=>Promise<void>;onRecorded:(media:Media[],tracks:TrackKind[],offsets?:number[],options?:ConfirmTakeOptions)=>string|void|Promise<string|void>;onError:(error:string)=>void;onImport?:(sceneId?:string)=>void;onSetup?:()=>void;onEdit?:()=>void;onAutoCut?:(sceneId:string)=>void|Promise<void>;onVisualize?:(sceneId:string)=>void|Promise<void>;club?:boolean;onProgress?:(progress:RecordingProgress)=>void;/** The scene to select, chosen outside the recorder (the club's scene strip). Ignored while a take is being recorded. */selectSceneId?:string;selectNonce?:number;/** Told whenever the selected scene changes, so the club can follow it. */onSceneChange?:(sceneId:string)=>void;registerLeaveGuard?:(guard:(()=>Promise<boolean>)|null)=>void}){
  const [recordSceneId,setRecordSceneId]=useState(project.scenes[0]?.id||''),[savedTakes,setSavedTakes]=useState(()=>loadSavedTakes(project.id)),[reviewId,setReviewId]=useState<string|null>(()=>[...loadSavedTakes(project.id),...(project.recordedTakes||[])].reverse().find(t=>!t.retained&&!t.confirmedAt)?.id||null);
  const [confirming,setConfirming]=useState(false),confirmingRef=useRef(false);
  const [countdown,setCountdown]=useState<number|null>(null),[countdownEnabled,setCountdownEnabled]=useState(()=>{try{return localStorage.getItem('sceneforge.recording-countdown')!=='false';}catch{return true;}});
@@ -165,6 +165,14 @@ export function Recording({project,change,commit,onRecorded,onError,onImport,onS
   const next=nextSceneToRecord(project.scenes.map(scene=>scene.id),id=>id===sceneId||Boolean(recordedScenes?.has(id)),sceneId);
   if(next)setRecordSceneId(next);
  };
+ // Leaving for Edit adds a take still under review to the timeline first, the same as the preview's Continue; a take already on it just stays.
+ const leaveRef=useRef<()=>Promise<boolean>>(async()=>true);
+ leaveRef.current=async()=>{
+  if(!reviewTake||project.clips.some(clip=>clip.recordingTakeId===reviewTake.id||reviewTake.clipIds?.includes(clip.id)))return true;
+  await confirmReview('record');
+  return !reviewRef.current;
+ };
+ useEffect(()=>{if(!registerLeaveGuard)return;registerLeaveGuard(()=>leaveRef.current());return()=>registerLeaveGuard(null);},[registerLeaveGuard]);
  const cancelStart=()=>countdownAbort.current?.abort();
  useEffect(()=>{try{localStorage.setItem('sceneforge.recording-countdown',String(countdownEnabled));}catch{}},[countdownEnabled]);
  const refreshDevices=()=>navigator.mediaDevices?.enumerateDevices().then(list=>{if(mounted.current)setDevices(old=>sameDeviceList(old,list)?old:list);}).catch(()=>{});

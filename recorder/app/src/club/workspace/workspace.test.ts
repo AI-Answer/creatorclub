@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {clockTime} from '../video-plan';
-import {nextTab,previousTab,scenesLine,stageForContinue,tabDone,allScenesKept,continueIsPrimary,pickJumpsToPlan} from './rules';
+import {takesWaiting,TAKE_NOT_ADDED,nextTab,previousTab,scenesLine,stageForContinue,tabDone,allScenesKept,continueIsPrimary,pickJumpsToPlan} from './rules';
 import {canvasSize,clampZoom,dragTo,keyMove,moveBy,tileBox} from './board-layout';
 import {historyOf,markUsed,noteText,undoRequest} from './chat';
 
@@ -15,7 +15,7 @@ test('the tabs follow each other, and Continue moves the card to the stage of th
 });
 
 test('a tab is done when its job is: scenes for Board, kept takes for Record, an export for Edit, published for Publish',()=>{
- const kept=[{takes:[{id:'a',seconds:1,kept:true}]}],unkept=[{takes:[{id:'a',seconds:1,kept:false}]}];
+ const kept=[{takes:[{id:'a',seconds:1,kept:true,retained:false}]}],unkept=[{takes:[{id:'a',seconds:1,kept:false,retained:false}]}];
  assert.equal(tabDone('board',{stage:'ideas'}),false);
  assert.equal(tabDone('board',{stage:'ideas',scenes:kept}),true);
  assert.equal(tabDone('plan',{stage:'planning'}),false,'no outline yet');
@@ -107,4 +107,12 @@ test('a new tile takes the free place nearest the middle of the view, never abov
  assert.ok(next.x+280+24<=860||next.x>=860+280+24||next.y+380+24<=610||next.y>=610+380+24,'it does not sit on the tile that is there');
  assert.ok(Math.hypot(next.x-860,next.y-610)<500,'and it is close to the middle');
  assert.deepEqual(nearestFree([],280,{x:0,y:0}),{x:0,y:0},'the canvas has no negative places');
+});
+
+test('a recorded take that is neither on the timeline nor set aside is waiting; a kept or retained one is not',()=>{
+ const scene=(title:string,...takes:Array<[boolean,boolean]>)=>({title,takes:takes.map(([kept,retained])=>({kept,retained}))});
+ assert.deepEqual(takesWaiting([scene('Opening',[false,false]),scene('Level 1',[true,false]),scene('Level 2',[false,true]),scene('Level 3')]),['Opening']);
+ assert.deepEqual(takesWaiting([scene('Opening',[true,false],[false,false])]),[],'a scene with a take on the timeline is not waiting');
+ assert.deepEqual(takesWaiting(undefined),[]);
+ assert.match(TAKE_NOT_ADDED,/timeline/);
 });

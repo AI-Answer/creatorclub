@@ -36,7 +36,7 @@ export function mergeScenes(outline: Outline | null, project: Project | undefine
   return outline.scenes.map((scene, index) => {
     const id = scene.id ?? `s_${index + 1}`;
     const recorded = [...(bySceneId.get(recorderIds.get(id) ?? '') ?? [])].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-    const takes: SceneTakeInfo[] = recorded.map((take) => ({ id: take.id, seconds: takeSeconds(take), kept: live.has(take.id) }));
+    const takes: SceneTakeInfo[] = recorded.map((take) => ({ id: take.id, seconds: takeSeconds(take), kept: live.has(take.id), retained: take.retained === true }));
     return { id, title: scene.title, seconds: scene.seconds, takes, status: sceneStatus({ takes: takes.map((take, n) => ({ n: n + 1, kept: take.kept })) }).label };
   });
 }

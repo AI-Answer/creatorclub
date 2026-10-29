@@ -536,7 +536,10 @@ export interface PackageUseResult {
 export interface SceneTakeInfo {
   id: string;
   seconds: number;
+  /** On the timeline. */
   kept: boolean;
+  /** Set aside on purpose (Close, Record another take); it is not waiting to be added. */
+  retained: boolean;
 }
 
 /** One outline scene with what the recording project holds for it. */

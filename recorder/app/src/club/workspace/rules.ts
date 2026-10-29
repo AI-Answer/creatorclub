@@ -59,3 +59,11 @@ export const pickJumpsToPlan=(tab:VideoTab)=>tab==='board';
 export function scenesLine(scenes:readonly Pick<VideoScene,'seconds'>[],clock:(seconds:number)=>string):string{
  return `${scenes.length} ${scenes.length===1?'scene':'scenes'} · ${clock(scenes.reduce((sum,scene)=>sum+scene.seconds,0))}`;
 }
+
+/** What the page says when a take under review could not be added to the timeline on the way out of Record. */
+export const TAKE_NOT_ADDED="Couldn't add your take to the timeline. Press Continue under the take to try again.";
+
+/** The titles of scenes whose recorded take is not on the timeline and was not set aside on purpose. */
+export function takesWaiting(scenes: Array<{title:string;takes:Array<{kept:boolean;retained:boolean}>}>|undefined):string[]{
+ return (scenes??[]).filter(scene=>scene.takes.length>0&&!scene.takes.some(take=>take.kept)&&scene.takes.some(take=>!take.retained)).map(scene=>scene.title);
+}

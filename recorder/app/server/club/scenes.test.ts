@@ -87,7 +87,7 @@ test('takes are found through the scene mapping, numbered in the order they were
   );
   const scenes = mergeScenes(outline, project, mapping([['o1', 'r1'], ['o2', 'r2'], ['o3', 'r3']]));
   assert.deepEqual(words(scenes), ['Kept take 1', 'Kept take 2', '2 takes']);
-  assert.deepEqual(scenes[1].takes, [{ id: 'early', seconds: 9.5, kept: false }, { id: 'late', seconds: 12.3, kept: true }], 'oldest first; a take is as long as its latest source ends');
+  assert.deepEqual(scenes[1].takes, [{ id: 'early', seconds: 9.5, kept: false, retained: false }, { id: 'late', seconds: 12.3, kept: true, retained: false }], 'oldest first; a take is as long as its latest source ends');
   assert.deepEqual(scenes[2].takes.map((t) => t.kept), [false, false]);
   assert.equal('cutSeconds' in scenes[0], false, 'no cut seconds: the recording project does not keep them per scene');
 });
@@ -136,7 +136,7 @@ test('GET /videos/scenes is the batch: every video not published, in one request
   assert.deepEqual(found[none.id], [], 'no outline: known to have no scenes');
   assert.deepEqual(words(found[planned.id]), ['Not recorded', 'Not recorded'], 'a plan with no recording project is the outline alone');
   assert.deepEqual(words(found[recording.id]), ['Kept take 2', 'Not recorded']);
-  assert.deepEqual(found[recording.id][0].takes, [{ id: 't1', seconds: 14, kept: false }, { id: 't2', seconds: 16, kept: true }]);
+  assert.deepEqual(found[recording.id][0].takes, [{ id: 't1', seconds: 14, kept: false, retained: false }, { id: 't2', seconds: 16, kept: true, retained: false }]);
   assert.deepEqual(found[recording.id].map((s) => [s.title, s.seconds]), [['Opening', 60], ['Build', 120]]);
 
   const one = await call('GET', `/videos/${recording.id}/scenes`);

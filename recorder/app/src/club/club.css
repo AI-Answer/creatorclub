@@ -961,6 +961,9 @@
 .club-embed .app-shell { height: 100%; min-width: 0; }
 .club-embed .workspace-nav { position: relative; left: auto; right: auto; bottom: auto; }
 
+/* A line under the tabs that says what is waiting, with the one action. */
+.club-root .ws-notice { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 12px; border: 1px solid var(--cc-line-strong); border-radius: 10px; background: var(--cc-bg-sunk); color: var(--cc-text); font-size: 13px; }
+
 /* Utilities from club files only, matching only inside the club shell. */
 :where(.club-root) {
   @tailwind utilities source(none);

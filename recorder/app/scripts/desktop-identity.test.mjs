@@ -7,7 +7,7 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const {CREATORCLUB, creatorClubPaths, isCreatorClubService, methodologyDir, privacyAppName, runtimeEnvironment} = createRequire(import.meta.url)('../desktop/runtime.cjs');
+const {CREATORCLUB, creatorClubPaths, isCreatorClubService, methodologyDir, privacyAppName, runtimeEnvironment, whisperModel} = createRequire(import.meta.url)('../desktop/runtime.cjs');
 const main = await readFile(path.join(root, 'desktop/main.cjs'), 'utf8');
 const mcp = await readFile(path.join(root, 'desktop/mcp-entry.mjs'), 'utf8');
 const pack = await readFile(path.join(root, 'scripts/package.mjs'), 'utf8');
@@ -17,7 +17,7 @@ test('CreatorClub has its own name, port, user-data folder and studio folder, an
  assert.equal(CREATORCLUB.name, 'CreatorClub');
  assert.notEqual(CREATORCLUB.port, 4174, 'never the SceneForge port');
  const appData = '/Users/x/Library/Application Support';
- assert.deepEqual(creatorClubPaths({appData, env: {}}), {userData: `${appData}/CreatorClub`, studio: `${appData}/CreatorClub/studio`});
+ assert.deepEqual(creatorClubPaths({appData, env: {}}), {userData: `${appData}/CreatorClub`, studio: `${appData}/CreatorClub/studio`, models: `${appData}/CreatorClub/models`});
  assert.equal(creatorClubPaths({appData, env: {SCENEFORGE_DATA_DIR: '/data/studio'}}).studio, '/data/studio');
 });
 
@@ -79,4 +79,21 @@ test('the privacy name is the running app bundle, so setup names what macOS list
  assert.equal(privacyAppName('/Users/me/Applications/CreatorClub Dev.app/Contents/MacOS/Electron'), 'CreatorClub Dev');
  assert.equal(privacyAppName('/Applications/CreatorClub.app/Contents/MacOS/CreatorClub'), 'CreatorClub');
  assert.equal(privacyAppName('/usr/local/bin/electron'), CREATORCLUB.name);
+});
+
+test('the speech model is the bundled one, else a speech model in the models folder, never a voice-activity model', async () => {
+ const dir = await mkdtemp(path.join(os.tmpdir(), 'cc-models-'));
+ try {
+  const bundled = path.join(dir, 'bundled.bin'), models = path.join(dir, 'models');
+  assert.equal(whisperModel({bundled, modelsDir: models}), undefined, 'no model, no models folder');
+  await mkdir(models);
+  await writeFile(path.join(models, 'ggml-silero-v5.1.2.bin'), 'v'); await writeFile(path.join(models, 'notes.txt'), 'n');
+  assert.equal(whisperModel({bundled, modelsDir: models}), undefined, 'a voice-activity model is not a speech model');
+  await writeFile(path.join(models, 'ggml-base.bin'), 'b');
+  assert.equal(whisperModel({bundled, modelsDir: models}), path.join(models, 'ggml-base.bin'));
+  await writeFile(bundled, 'x');
+  assert.equal(whisperModel({bundled, modelsDir: models}), bundled, 'the bundled model wins');
+  const env = runtimeEnvironment({root: dir, data: '/data', port: 1, modelsDir: models, env: {PATH: '/bin'}});
+  assert.equal(env.SCENEFORGE_WHISPER_MODEL, path.join(models, 'ggml-base.bin'));
+ } finally { await rm(dir, {recursive: true, force: true}); }
 });

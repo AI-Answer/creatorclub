@@ -4,7 +4,7 @@ import type {Outline,Package,Video,VideoScene} from '../../../shared/club';
 import {clockTime} from '../video-plan';
 import {outlineSceneFor,buildDescription,pausesRemoved,promptScene,recorderSceneFor,sceneRunSeconds,shortLink,videoSeconds} from './record-logic';
 
-const scene=(id:string,seconds:number,takes:{seconds:number;kept:boolean}[]=[],cutSeconds?:number):VideoScene=>({id,title:`Scene ${id}`,seconds,takes:takes.map((take,i)=>({id:`${id}t${i}`,...take})),status:'',...(cutSeconds?{cutSeconds}:{})});
+const scene=(id:string,seconds:number,takes:{seconds:number;kept:boolean}[]=[],cutSeconds?:number):VideoScene=>({id,title:`Scene ${id}`,seconds,takes:takes.map((take,i)=>({id:`${id}t${i}`,retained:false,...take})),status:'',...(cutSeconds?{cutSeconds}:{})});
 const outline:Outline={scenes:['a','b','c'].map(id=>({id,title:`Scene ${id}`,talkingPoints:['x'],show:'',seconds:30}))};
 const pkg:Package={angle:'The angle.',twist:'',titles:['','',''],thumbnailText:'',hook:{visual:'',spoken:'You never opened this.',text:''}};
 
