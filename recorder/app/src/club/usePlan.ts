@@ -16,12 +16,18 @@ function useSaver<T>(save:(value:T)=>Promise<unknown>,onSaved?:()=>void){
  const saveRef=useRef(save);saveRef.current=save;
  const savedRef=useRef(onSaved);savedRef.current=onSaved;
  const [error,setError]=useState('');
+ const inflight=useRef<Promise<unknown>|null>(null);
  const flush=useCallback(async()=>{
   clearTimeout(timer.current);
+  // A save already on its way finishes first, so what comes after it (a read, the next save) sees its result.
+  if(inflight.current)await inflight.current.catch(()=>{});
   const waiting=pending.current;if(!waiting)return;
   pending.current=null;
-  try{await saveRef.current(waiting.value);setError('');savedRef.current?.();}
+  const run=saveRef.current(waiting.value);
+  inflight.current=run;
+  try{await run;setError('');savedRef.current?.();}
   catch(reason){if(!pending.current)pending.current=waiting;setError(errorMessage(reason,"Couldn't save your changes."));throw reason;}
+  finally{if(inflight.current===run)inflight.current=null;}
  },[]);
  const queue=useCallback((value:T)=>{
   pending.current={value};clearTimeout(timer.current);

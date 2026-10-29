@@ -222,7 +222,6 @@ export function packageFromOldOutline(markdown: string): Package | null {
 }
 
 const isBlank = (value: string | undefined) => !value?.trim();
-const packageBlank = (pkg: Package | null) => !pkg || (isBlank(pkg.angle) && isBlank(pkg.twist) && isBlank(pkg.thumbnailText) && pkg.titles.every(isBlank) && Object.values(pkg.hook).every(isBlank) && !pkg.demand && !pkg.gap && !pkg.show);
 
 /** `base` with every empty place filled from `seed`. Nothing that has words or a rating is changed. */
 function fillEmpty(base: Package, seed: Package): Package {
@@ -240,24 +239,26 @@ function fillEmpty(base: Package, seed: Package): Package {
 }
 
 /**
- * A video whose package has nothing in it starts from what it already has, without an AI call: an old board outline's promise, titles and hook,
- * then the idea's angle, twist, hook and ratings. Only empty places are filled, and a package with anything written is left alone.
+ * A video that has no package yet starts from what it already has, without an AI call: an old board outline's promise, titles and hook,
+ * then the idea's angle, twist, hook and ratings. Once made, the package is never started again.
  */
-export async function ensurePackage(slug: string, video: Video): Promise<Package | null> {
+export function ensurePackage(slug: string, video: Video): Promise<Package | null> {
   const id = video.id;
-  const pkg = await readPackage(slug, id);
-  if (!packageBlank(pkg)) return pkg;
-  const idea = video.idea;
-  const old = await readText(outlineFile(slug, id));
-  const seeds: Package[] = [];
-  const fromOutline = old === undefined ? null : packageFromOldOutline(old);
-  if (fromOutline) seeds.push(fromOutline);
-  if (idea && (idea.angle || idea.twist || idea.hook || idea.demand || idea.gap || idea.show)) {
-    seeds.push({ ...emptyPackage(), angle: idea.angle ?? '', twist: idea.twist ?? '', hook: { visual: '', spoken: idea.hook ?? '', text: '' }, ...(idea.demand ? { demand: idea.demand } : {}), ...(idea.gap ? { gap: idea.gap } : {}), ...(idea.show ? { show: idea.show } : {}) });
-  }
-  if (!seeds.length) return pkg;
-  const filled = seeds.reduce(fillEmpty, pkg ?? emptyPackage());
-  return savePackage(slug, id, filled);
+  // Under the package lock, so a save arriving at the same time is never overwritten. Only a package that was never made is started:
+  // one the person cleared (the file exists) stays as they left it.
+  return store.withLock(`package:${packageFile(slug, id)}`, async () => {
+    if ((await store.readJSON<unknown>(packageFile(slug, id))) !== undefined) return readPackage(slug, id);
+    const idea = video.idea;
+    const old = await readText(outlineFile(slug, id));
+    const seeds: Package[] = [];
+    const fromOutline = old === undefined ? null : packageFromOldOutline(old);
+    if (fromOutline) seeds.push(fromOutline);
+    if (idea && (idea.angle || idea.twist || idea.hook || idea.demand || idea.gap || idea.show)) {
+      seeds.push({ ...emptyPackage(), angle: idea.angle ?? '', twist: idea.twist ?? '', hook: { visual: '', spoken: idea.hook ?? '', text: '' }, ...(idea.demand ? { demand: idea.demand } : {}), ...(idea.gap ? { gap: idea.gap } : {}), ...(idea.show ? { show: idea.show } : {}) });
+    }
+    if (!seeds.length) return null;
+    return savePackage(slug, id, seeds.reduce(fillEmpty, emptyPackage()));
+  });
 }
 
 const titleKey = (title: string) => squash(title).toLowerCase();
@@ -312,10 +313,10 @@ export async function savePackage(slug: string, id: string, pkg: unknown): Promi
   return parsed;
 }
 
-const packagePatch = z.object({ ...packageShape.shape, hook: packageShape.shape.hook.partial() }).partial().strict();
+const packagePatch = z.object({ ...packageShape.shape, hook: packageShape.shape.hook.partial(), titles: z.array(text(200).nullable()).length(3) }).partial().strict();
 
 /**
- * Saves part of the package: only the fields sent change, so a page that is behind cannot put back what it did not edit.
+ * Saves part of the package: only the fields sent change (a title slot sent as null stays), so a page that is behind cannot put back what it did not edit.
  * A whole package (every field a package needs) replaces it, which is what Undo sends.
  */
 export function patchPackage(slug: string, id: string, body: unknown): Promise<Package> {
@@ -323,8 +324,10 @@ export function patchPackage(slug: string, id: string, body: unknown): Promise<P
     if (packageShape.safeParse(body).success) return savePackage(slug, id, body);
     const patch = packagePatch.parse(body);
     const base = (await readPackage(slug, id)) ?? emptyPackage();
-    const { hook, ...rest } = patch;
-    return savePackage(slug, id, { ...base, ...rest, ...(hook ? { hook: { ...base.hook, ...hook } } : {}) });
+    const { hook, titles, ...rest } = patch;
+    // A title slot sent as null is not being changed.
+    const merged = titles ? (base.titles.map((title, i) => titles[i] ?? title) as Package['titles']) : base.titles;
+    return savePackage(slug, id, { ...base, ...rest, titles: merged, ...(hook ? { hook: { ...base.hook, ...hook } } : {}) });
   });
 }
 

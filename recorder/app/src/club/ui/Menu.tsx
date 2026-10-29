@@ -24,7 +24,10 @@ export function Menu({button,items,align='left',width,label}:{button(toggle:()=>
  useEffect(()=>{
   if(!open)return;
   const close=()=>setOpen(false);
-  window.addEventListener('resize',close);return()=>window.removeEventListener('resize',close);
+  // Scrolling anywhere but inside the menu closes it, since it is placed from the button's edges when it opens.
+  const scrolled=(event:Event)=>{if(!menu.current?.contains(event.target as Node))setOpen(false);};
+  window.addEventListener('resize',close);window.addEventListener('scroll',scrolled,true);
+  return()=>{window.removeEventListener('resize',close);window.removeEventListener('scroll',scrolled,true);};
  },[open]);
  const toggle=()=>{
   if(!open&&ref.current){
@@ -34,7 +37,13 @@ export function Menu({button,items,align='left',width,label}:{button(toggle:()=>
   }
   setOpen(current=>!current);
  };
- return <span ref={ref} style={{position:'relative',display:'inline-flex'}}>
+ // The menu is drawn elsewhere in the page, so Tab from the button would skip it: it moves focus to the first item instead.
+ const enter=(event:{key:string;shiftKey:boolean;preventDefault():void})=>{
+  if(!open||event.key!=='Tab'||event.shiftKey)return;
+  const first=menu.current?.querySelector<HTMLElement>('button');
+  if(first){event.preventDefault();first.focus();}
+ };
+ return <span ref={ref} onKeyDown={enter} style={{position:'relative',display:'inline-flex'}}>
   {button(toggle,open)}
   {open&&inRoot(host,<div ref={menu} className="menu" role="menu" aria-label={label} style={{position:'fixed',...place,minWidth:width}}>
    {items.map((item,index)=>item==='-'?<div key={index} className="sep"/>

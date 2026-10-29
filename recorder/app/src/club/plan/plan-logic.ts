@@ -31,15 +31,17 @@ export const newSceneId=()=>`s_${[...crypto.getRandomValues(new Uint8Array(4))].
  * What changed in the package since the server's copy: only those fields (the hook field by field). The server changes nothing else,
  * so a page that is behind cannot put back what it did not edit. Without a server copy it is the whole package.
  */
-export function packageDiff(server:Package|null,next:Package):Partial<Package>{
+export function packageDiff(server:Package|null,next:Package):Partial<Omit<Package,'titles'>>&{titles?:(string|null)[]}|Package{
  if(!server)return next;
  const out:Record<string,unknown>={};
- for(const key of ['demand','gap','show','angle','twist','titles','thumbnailText','description'] as const)
+ for(const key of ['demand','gap','show','angle','twist','thumbnailText','description'] as const)
   if(next[key]!==undefined&&JSON.stringify(server[key])!==JSON.stringify(next[key]))out[key]=next[key];
+ // Title slots: only the ones that changed are sent, the others as null.
+ if(next.titles.some((title,i)=>title!==server.titles[i]))out.titles=next.titles.map((title,i)=>title!==server.titles[i]?title:null);
  const hook:Partial<Package['hook']>={};
  for(const key of ['visual','spoken','text'] as const)if(server.hook[key]!==next.hook[key])hook[key]=next.hook[key];
  if(Object.keys(hook).length)out.hook=hook;
- return out as Partial<Package>;
+ return out as Partial<Omit<Package,'titles'>>&{titles?:(string|null)[]};
 }
 
 /** The element id of a scene's card, for scrolling to it. */

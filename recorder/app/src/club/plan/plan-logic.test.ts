@@ -86,6 +86,6 @@ test('the package diff is only what changed, the hook field by field, and the wh
  assert.deepEqual(packageDiff(server,{...server}),{});
  assert.deepEqual(packageDiff(server,{...server,angle:'new'}),{angle:'new'});
  assert.deepEqual(packageDiff(server,{...server,hook:{...server.hook,spoken:'edited'}}),{hook:{spoken:'edited'}});
- assert.deepEqual(packageDiff(server,{...server,titles:['1','two','3']}),{titles:['1','two','3']});
+ assert.deepEqual(packageDiff(server,{...server,titles:['1','two','3']}),{titles:[null,'two',null]},'only the slot that changed');
  assert.equal(packageDiff(null,server),server);
 });

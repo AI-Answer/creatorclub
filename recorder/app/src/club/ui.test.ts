@@ -207,3 +207,17 @@ test('a menu inside a card that lifts on hover is drawn in the club root, outsid
   assert.equal(c.querySelector('[role="menu"]'),null);
  }finally{await ui.close();}
 });
+
+test('an open menu closes when the page scrolls, and Tab from its button moves focus to its first item',async()=>{
+ const ui=await mountUI(createElement('div',{className:'club-root'},
+  createElement(Menu,{items:[{label:'First',fn(){}},{label:'Second',fn(){}}],button:(toggle)=>createElement('button',{onClick:toggle},'Open')})));
+ try{
+  const c=ui.container;
+  await press(button(c,'Open'));await tick();
+  assert.ok(c.querySelector('[role="menu"]'));
+  await act(async()=>{button(c,'Open').dispatchEvent(new KeyboardEvent('keydown',{key:'Tab',bubbles:true,cancelable:true}));});
+  assert.equal(document.activeElement?.textContent,'First');
+  await act(async()=>{window.dispatchEvent(new Event('scroll'));});
+  assert.equal(c.querySelector('[role="menu"]'),null);
+ }finally{await ui.close();}
+});

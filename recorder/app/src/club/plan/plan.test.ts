@@ -268,3 +268,30 @@ test('Plan: a package written elsewhere (Use as hook) shows when Plan opens agai
   assert.equal(server.hook.spoken,'written again');
  }finally{await ui.close();fake.restore();}
 });
+
+test('Plan: a refresh waits for a save that is already on its way, so an older read cannot put the old value back',async()=>{
+ let latest!:ReturnType<typeof usePlan>;
+ const Probe=()=>{latest=usePlan(video,{onVideo(){},onRecord(){}});return createElement('span',null,latest.pkg?.angle??'none');};
+ let server:Package={...full,angle:'old'};
+ let releaseSave:()=>void=()=>{};
+ const gate=new Promise<void>(resolve=>{releaseSave=resolve;});
+ FakeEventSource.install();
+ const fake=installFetch(async call=>{
+  if(call.method==='GET'&&call.path==='/videos/v1/plan')return {body:{running:{},ready:{},package:server,outline:null}};
+  if(call.method==='PUT'&&call.path==='/videos/v1/package'){await gate;server={...server,...(call.body as object)};return {body:server};}
+ });
+ const ui=await mountUI(createElement(Probe));
+ try{
+  await flush();
+  await act(async()=>{latest.editPackage({...latest.pkg!,angle:'mine'});});
+  await act(async()=>{await new Promise(resolve=>setTimeout(resolve,700));});
+  assert.equal(fake.calls.filter(call=>call.method==='PUT').length,1,'the save is on its way');
+  let done=false;
+  const refreshing=act(async()=>{await latest.refresh();done=true;});
+  await new Promise(resolve=>setTimeout(resolve,50));
+  assert.equal(fake.calls.filter(call=>call.method==='GET'&&call.path==='/videos/v1/plan').length,1,'it has not read yet: it waits for the save');
+  releaseSave();await refreshing;
+  assert.ok(done);
+  assert.equal(ui.container.textContent,'mine','the edit was not reverted');
+ }finally{releaseSave();await ui.close();fake.restore();}
+});

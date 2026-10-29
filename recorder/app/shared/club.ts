@@ -452,6 +452,9 @@ export interface SignalsConfig {
   maxPerSource?: number;
 }
 
+/** A channel that follows fewer channels than this has Working now filled from a YouTube search on its topics. Server and screen use this one number. */
+export const SEED_BELOW = 3;
+
 /** Result of the job behind `POST /api/club/trending/refresh`. `failed` lists followed channels that could not be read (their earlier videos stay). */
 export interface TrendingRefreshResult {
   videos: number;

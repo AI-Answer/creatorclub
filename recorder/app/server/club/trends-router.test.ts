@@ -285,3 +285,17 @@ test('saving signal sources keeps the lists that are not sent', async () => {
   assert.deepEqual(merged.body, { x: ['AnthropicAI'], xTopics: [], reddit: ['vibecoding'], minXLikes: 800, maxAgeDays: 7 });
   assert.deepEqual((await call('PUT', '/signals-config', { x: [] })).body, { x: [], xTopics: [], reddit: ['vibecoding'], minXLikes: 800, maxAgeDays: 7 }, 'an empty list clears a source');
 });
+
+test('a channel following fewer than three channels reads the ones it follows and then searches its topics, in one refresh', async () => {
+  const two = await store.createWorkspace({ name: 'Two follows', handle: '', channelUrl: '', topics: ['Cooking'], about: '', cta: '' });
+  await writeFile(path.join(store.workspaceDir(two.slug), 'followed.json'), JSON.stringify([{ name: 'Alpha', handle: '@alpha' }, { name: 'Beta', handle: '@beta' }]));
+  await call('POST', `/workspaces/${two.slug}/current`);
+  const readsBefore = youtubeCalls;
+  const searchesBefore = searched.length;
+  const job = await finished((await call('POST', '/trending/refresh')).body.id);
+  assert.equal(job.status, 'done', JSON.stringify(job));
+  assert.equal(youtubeCalls - readsBefore, 2, 'both followed channels were read');
+  assert.deepEqual(searched.slice(searchesBefore), ['Cooking'], 'and the topic was searched');
+  const ids = ((await call('GET', '/trending')).body as TrendingResponse).items.map((item) => item.videoId);
+  assert.ok(ids.includes('seedvideo001') && ids.some((id) => id.startsWith('vid_')), 'followed videos and searched ones are both listed');
+});

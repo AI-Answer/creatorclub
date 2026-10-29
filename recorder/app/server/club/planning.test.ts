@@ -356,6 +356,7 @@ test('PUT /package changes only the fields it is sent, so a page that is behind 
   assert.equal(edited.angle, 'My angle');
   assert.equal(edited.hook.spoken, 'A hook from the board.', 'the hook the page never saw stays');
   assert.deepEqual((await call('PUT', `/videos/${fresh.id}/package`, { hook: { text: 'NEW' } })).body.hook, { visual: 'The result', spoken: 'A hook from the board.', text: 'NEW' });
+  assert.deepEqual((await call('PUT', `/videos/${fresh.id}/package`, { titles: [null, 'Second', null] })).body.titles, [goodPackage.titles[0], 'Second', goodPackage.titles[2]], 'a title slot sent as null stays');
   assert.equal((await call('PUT', `/videos/${fresh.id}/package`, { surprise: 1 })).status, 400);
   assert.equal((await call('PUT', `/videos/${fresh.id}/package`, { titles: ['only one'] })).status, 400);
   assert.deepEqual((await call('PUT', `/videos/${fresh.id}/package`, goodPackage)).body, goodPackage, 'a whole package still replaces it (Undo)');
@@ -374,6 +375,11 @@ test('an empty package starts from the idea (angle, twist, hook, ratings), filli
   await store.updateVideo(slug, fresh.id, { idea: { angle: 'Changed later', twist: 'T2' } });
   const again = (await call('GET', `/videos/${fresh.id}/plan`)).body.package as Package;
   assert.deepEqual([again.angle, again.twist], ['Mine', 'The idea twist'], 'a package with words in it is not touched again');
+  // Cleared on purpose: the package exists, so it is not started again from the idea.
+  await call('PUT', `/videos/${fresh.id}/package`, { angle: '', twist: '', hook: { spoken: '' }, demand: undefined });
+  await store.updateVideo(slug, fresh.id, { idea: { angle: 'Back again', twist: 'Again', hook: 'Again' } });
+  const cleared = (await call('GET', `/videos/${fresh.id}/plan`)).body.package as Package;
+  assert.deepEqual([cleared.angle, cleared.twist, cleared.hook.spoken], ['', '', ''], 'what the person emptied stays empty');
 });
 
 test('running Package it again fills only what is empty on the server, keeps the hand edits, and Undo brings the earlier package back', async () => {

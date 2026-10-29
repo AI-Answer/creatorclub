@@ -1,4 +1,4 @@
-import type {TrendingEntry,TrendingResponse} from '../../shared/club';
+import {SEED_BELOW,type TrendingEntry,type TrendingResponse} from '../../shared/club';
 
 /** The three lists on Working now. */
 export type TrendShow='fit'|'followed'|'all';
@@ -34,8 +34,6 @@ export function trendList(items:readonly TrendingEntry[],show:TrendShow,sort:Tre
 /** "New": first seen in the last refresh and still under two days old. */
 export const isNew=(item:Pick<TrendingEntry,'firstSeen'|'ageDays'>,updatedAt:string|null)=>!!updatedAt&&item.firstSeen===updatedAt.slice(0,10)&&item.ageDays<2;
 
-/** A channel that follows fewer channels than this has Working now filled from a search on its topics. Same number as the server's. */
-export const SEED_BELOW=3;
 /** Whether Working now was never filled and the channel follows too few channels to fill it by reading them: the search on its topics should run. */
 export const needsSeed=(data:Pick<TrendingResponse,'items'|'updatedAt'|'followed'>)=>data.followed<SEED_BELOW&&data.items.length===0&&data.updatedAt===null;
 

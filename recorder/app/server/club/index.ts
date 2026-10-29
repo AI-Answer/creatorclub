@@ -1,7 +1,7 @@
 import express, { Router, type NextFunction, type Request, type Response } from 'express';
 import multer from 'multer';
 import { z } from 'zod';
-import { BOARD_ITEM_KINDS, HELP_STEPS, PLAN_JOB_KINDS, TILE_KINDS, VIDEO_STAGES, type Workspace } from '../../shared/club.js';
+import { SEED_BELOW, BOARD_ITEM_KINDS, HELP_STEPS, PLAN_JOB_KINDS, TILE_KINDS, VIDEO_STAGES, type Workspace } from '../../shared/club.js';
 import { aiStatus } from './ai.js';
 import { startConnect, type ConnectOptions } from './connect.js';
 import { ClubError, GENERIC_FAILURE, notFound } from './errors.js';
@@ -366,8 +366,8 @@ export function clubRouter({ ai = {}, transcribe, runAI, readViews = ytDlpViews(
   }));
   router.post('/trending/refresh', handler(async (_req, res) => {
     const slug = await requireWorkspace();
-    // A channel that follows nobody reads a YouTube search on its topics instead.
-    res.status(202).json((await readFollowed(slug)).length ? startTrendingRefresh(slug, uploads) : startTrendingSeed(slug, search));
+    // A channel that follows fewer than SEED_BELOW channels also reads a YouTube search on its topics.
+    res.status(202).json((await readFollowed(slug)).length < SEED_BELOW ? startTrendingSeed(slug, search, uploads) : startTrendingRefresh(slug, uploads));
   }));
   router.post('/trending/idea', handler(async (req, res) => {
     const { videoId } = trendingIdeaBody.parse(req.body);

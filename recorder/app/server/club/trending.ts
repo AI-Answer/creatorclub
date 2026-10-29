@@ -1,5 +1,5 @@
 import path from 'node:path';
-import type { FollowedChannel, JobSnapshot, TrendingEntry, TrendingItem, TrendingRefreshResult, TrendingResponse, Workspace } from '../../shared/club.js';
+import { SEED_BELOW, type FollowedChannel, JobSnapshot, TrendingEntry, TrendingItem, TrendingRefreshResult, TrendingResponse, Workspace } from '../../shared/club.js';
 import { parseChannelInput, pool } from './channel.js';
 import { ClubError } from './errors.js';
 import { startJobOnce, type JobContext } from './jobs.js';
@@ -219,8 +219,7 @@ export const startTrendingRefresh = (slug: string, makeSource: UploadsSourceFact
 
 // ---------------------------------------------------------------- seeding from search
 
-/** A channel that follows fewer channels than this has Working now filled from a YouTube search on its topics. */
-export const SEED_BELOW = 3;
+export { SEED_BELOW };
 const SEED_TOPICS = 3;
 const SEED_RESULTS = 10;
 const SEED_KEEP = 12;
@@ -306,6 +305,19 @@ export async function seedTrending(slug: string, context: JobContext, makeSearch
   return { videos: items.length, added: seeded.filter((item) => !known.has(item.videoId)).length, channels: 0, failed: [] };
 }
 
-/** Starts the seed as the channel's refresh job. A second start while one runs gets the running one. */
-export const startTrendingSeed = (slug: string, makeSearch: SearchSourceFactory): JobSnapshot =>
-  startJobOnce(`trending:${store.workspaceDir(slug)}`, 'trending-refresh', (context) => seedTrending(slug, context, makeSearch));
+/**
+ * Starts the refresh for a channel that follows fewer than `SEED_BELOW` channels, as one job: the channels it does follow are read first
+ * (a failure there does not stop the search), then the search on its topics fills the rest. A second start while one runs gets the running one.
+ */
+export const startTrendingSeed = (slug: string, makeSearch: SearchSourceFactory, makeUploads?: UploadsSourceFactory): JobSnapshot =>
+  startJobOnce(`trending:${store.workspaceDir(slug)}`, 'trending-refresh', async (context) => {
+    if (makeUploads && (await readFollowed(slug)).length) {
+      try {
+        await refreshTrending(slug, context, makeUploads);
+      } catch (error) {
+        if (context.signal.aborted) throw error;
+        console.error('[club] trending: could not read the followed channels:', error instanceof Error ? error.message : error);
+      }
+    }
+    return seedTrending(slug, context, makeSearch);
+  });
