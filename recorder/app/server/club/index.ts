@@ -7,7 +7,7 @@ import { startConnect, type ConnectOptions } from './connect.js';
 import { ClubError, GENERIC_FAILURE, notFound } from './errors.js';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
-import { addConceptToBoard, breakdownDir, newBreakdownId, readBreakdown, runBreakdown, thumbnailFile, type Transcriber } from './breakdown.js';
+import { addConceptToBoard, breakdownDir, listBreakdowns, newBreakdownId, readBreakdown, runBreakdown, thumbnailFile, type Transcriber } from './breakdown.js';
 import { cancelJob, getJob, snapshot, startJob, watchJob } from './jobs.js';
 import { parseChannelInput } from './channel.js';
 import { FILE_TOO_BIG, MAX_FILE_BYTES, detectSource } from './source.js';
@@ -37,6 +37,11 @@ const newVideoBody = z.object({
   planning: planning.optional(),
 }).strict();
 
+const ideaText = z.string().max(5000).nullable();
+const ideaRating = z.object({ level: z.enum(['high', 'mid', 'low']), note: z.string().max(2000) }).strict();
+// What the idea drawer edits in place. A field set to null is removed.
+const ideaPatchBody = z.object({ why: ideaText, angle: ideaText, twist: ideaText, hook: ideaText, note: ideaText, dropReason: ideaText, demand: ideaRating, gap: ideaRating, show: ideaRating }).partial().strict();
+
 // null clears an optional field. Stage changes go through /move so the stage date is recorded.
 const videoPatchBody = z.object({
   title: z.string().trim().min(1).max(300),
@@ -50,6 +55,7 @@ const videoPatchBody = z.object({
   views: z.number().int().nonnegative().nullable(),
   viewsCheckedAt: z.string().nullable(),
   hidden: hidden.nullable(),
+  idea: ideaPatchBody,
 }).partial().strict();
 
 const workspaceFields = {
@@ -483,6 +489,7 @@ export function clubRouter({ ai = {}, transcribe, runAI, readViews = ytDlpViews(
     start({ slug, id, url });
   }));
 
+  router.get('/breakdowns', handler(async (_req, res) => res.json(await listBreakdowns(await requireWorkspace()))));
   router.get('/breakdowns/:id', handler(async (req, res) => res.json(await readBreakdown(await requireWorkspace(), param(req, 'id')))));
   router.get('/breakdowns/:id/thumbnail', handler(async (req, res) => {
     const slug = await requireWorkspace();

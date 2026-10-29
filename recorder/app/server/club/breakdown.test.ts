@@ -258,6 +258,9 @@ test('a YouTube link is read from its details, captions, comments and thumbnail 
   assert.equal((await call('POST', `/breakdowns/${result.id}/concepts/7/add`)).status, 404);
   assert.equal((await call('POST', '/breakdowns/bd_000000000000/concepts/0/add')).status, 404);
 
+  // The list tells which videos already have a breakdown, so the UI can open one instead of running it again.
+  const listed = await call('GET', '/breakdowns');
+  assert.deepEqual(listed.body, [{ id: result.id, url: result.url, platform: result.platform, createdAt: result.createdAt, title: 'How I built it', channel: 'Source Channel' }]);
   assert.deepEqual((await call('GET', `/breakdowns/${result.id}`)).body, result);
   const thumb = await fetch(`${base}/breakdowns/${result.id}/thumbnail`);
   assert.equal(thumb.status, 200);

@@ -37,3 +37,18 @@ export const isVideoFile=(file:{name:string})=>EXTENSIONS.test(file.name);
 export type BreakdownSource={kind:'link';url:string}|{kind:'file';file:File};
 
 export const PLATFORM_LABEL:Record<string,string>={youtube:'YouTube',instagram:'Instagram',file:'Video file'};
+
+/** The four steps shown while a breakdown runs. */
+export const BREAKDOWN_STEPS=['Reading the video','Reading the transcript','Reading the comments','Writing concepts'] as const;
+
+/** The step a progress line from the server belongs to, or -1 for lines that do not move the list (tool set-up, "how it did against the channel"). */
+export function breakdownStep(line:string):number{
+ if(/finding what made/i.test(line))return 3;
+ if(/comment/i.test(line))return 2;
+ if(/transcript|transcrib|caption/i.test(line))return 1;
+ if(/video details/i.test(line))return 0;
+ return -1;
+}
+
+/** How many comments a progress line says were read ("Reading 40 comments…"). */
+export const commentsRead=(line:string)=>{const found=line.match(/Reading (\d+) comments?/i);return found?Number(found[1]):undefined;};

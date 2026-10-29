@@ -65,6 +65,13 @@ test('video lifecycle: create, update, move, list, delete', async () => {
   assert.equal((await call('PUT', `/videos/${id}`, { stage: 'editing' })).status, 400, 'stage only changes through move');
   assert.ok(!('hidden' in (await call('PUT', `/videos/${id}`, { hidden: null })).body));
 
+  // The idea drawer edits notes in place: only the sent notes change, null removes one.
+  assert.deepEqual((await call('PUT', `/videos/${id}`, { idea: { why: 'It is useful', demand: { level: 'mid', note: 'Some' } } })).body.idea, { why: 'It is useful', demand: { level: 'mid', note: 'Some' } });
+  assert.deepEqual((await call('PUT', `/videos/${id}`, { hidden: 'skipped', idea: { dropReason: 'Too generic', why: null } })).body.idea, { dropReason: 'Too generic', demand: { level: 'mid', note: 'Some' } });
+  assert.equal((await call('PUT', `/videos/${id}`, { idea: { lane: 'nope' } })).status, 400, 'only the notes the drawer edits');
+  assert.equal((await call('PUT', `/videos/${id}`, { idea: { demand: { level: 'huge', note: '' } } })).status, 400);
+  await call('PUT', `/videos/${id}`, { hidden: null, idea: { dropReason: null } });
+
   const moved = await call('POST', `/videos/${id}/move`, { stage: 'planning' });
   assert.equal(moved.body.stage, 'planning');
   assert.ok(moved.body.stageDates.planning);

@@ -47,6 +47,13 @@ test('videos are created, ordered per stage, updated and moved with stage dates 
   assert.equal(cleared.youtubeUrl, 'https://youtu.be/x');
   assert.ok(cleared.updatedAt >= a.updatedAt);
 
+  // An idea's notes merge field by field: sent fields replace, null removes, the rest stay.
+  const noted = await store.updateVideo('samin-yasar', a.id, { idea: { why: 'Because', hook: 'Hello', demand: { level: 'high', note: 'Asked a lot' } } });
+  assert.deepEqual(noted.idea, { why: 'Because', hook: 'Hello', demand: { level: 'high', note: 'Asked a lot' } });
+  const edited = await store.updateVideo('samin-yasar', a.id, { idea: { hook: null, twist: 'Live', dropReason: 'Too generic' } });
+  assert.deepEqual(edited.idea, { why: 'Because', twist: 'Live', demand: { level: 'high', note: 'Asked a lot' }, dropReason: 'Too generic' });
+  assert.ok(!('idea' in (await store.updateVideo('samin-yasar', a.id, { idea: null })) ), 'null on idea itself still removes all of it');
+
   assert.deepEqual((await store.listVideos('samin-yasar')).map((v) => v.title), ['B', 'A']);
   await store.deleteVideo('samin-yasar', b.id);
   await assert.rejects(store.readVideo('samin-yasar', b.id), /not found/);

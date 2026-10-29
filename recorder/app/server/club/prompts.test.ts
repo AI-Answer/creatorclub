@@ -164,6 +164,14 @@ test('voice summary stops before section 3 and drops club and community sentence
   assert.equal(p.voiceSummary(''), '(none yet)');
 });
 
+test('break down talks to the channel in the second person and keeps its name out of why it worked', async () => {
+  const built = await p.buildBreakdownPrompt({ ...ctx, workspace: { ...ctx.workspace, name: 'Maya Lopez' } }, { title: 't', channel: 'c', transcript: 'some words', comments: [], existingTitles: [] });
+  assert.match(built.prompt, /Talk to Maya in the second person/);
+  assert.match(built.prompt, /twist: what makes it yours/);
+  assert.match(built.prompt, /leave Maya's name and numbers out of it/);
+  assert.doesNotMatch(built.prompt, /Samin/);
+});
+
 test('break down: sections, facts, top 40 comments by likes, transcript cut at 12,000 words, board titles, schema', async () => {
   const comments = Array.from({ length: 50 }, (_, i) => ({ likes: i, text: `comment number ${i}` }));
   const built = await p.buildBreakdownPrompt(ctx, {

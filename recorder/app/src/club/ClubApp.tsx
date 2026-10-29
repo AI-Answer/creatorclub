@@ -5,7 +5,10 @@ import {Sidebar} from './Sidebar';
 import {autoCollapses,defaultTab,routePath,stepForTab,useHashRoute,type Route,type VideoStep,type VideoTab} from './routes';
 import {BoardScreen} from './screens/BoardScreen';
 import {OnboardingScreen} from './screens/OnboardingScreen';
-import {PlaceholderScreen} from './screens/PlaceholderScreen';
+import {IdeasScreen} from './screens/IdeasScreen';
+import {OverviewScreen} from './screens/OverviewScreen';
+import {SignalsScreen} from './screens/SignalsScreen';
+import {TrendingScreen} from './screens/TrendingScreen';
 import {SettingsScreen} from './screens/SettingsScreen';
 import {VideoScreen} from './screens/VideoScreen';
 import {Help} from './shell/Help';
@@ -97,14 +100,15 @@ function Shell(){
  const switched=useCallback(()=>{setChannelEpoch(n=>n+1);navigate({name:'overview'});},[navigate]);
  const openProduction=useCallback(()=>navigate({name:'production',view:'board'}),[navigate]);
  const addChannel=useCallback(()=>navigate({name:'welcome'}),[navigate]);
+ const openNewVideo=useCallback(()=>setNewOpen(true),[]);
 
  let screen;
  switch(route.name){
   case 'welcome':screen=<OnboardingScreen onBoard={openProduction} onDone={finishOnboarding}/>;break;
-  case 'overview':screen=<PlaceholderScreen title="Overview" icon="House"/>;break;
-  case 'ideas':screen=<PlaceholderScreen title="Ideas" icon="Lightbulb"/>;break;
-  case 'trending':screen=<PlaceholderScreen title="Working now" icon="TrendingUp"/>;break;
-  case 'signals':screen=<PlaceholderScreen title="Signals" icon="MessagesSquare"/>;break;
+  case 'overview':screen=<OverviewScreen navigate={navigate} onNewVideo={openNewVideo}/>;break;
+  case 'ideas':screen=<IdeasScreen route={route} navigate={navigate}/>;break;
+  case 'trending':screen=<TrendingScreen navigate={navigate}/>;break;
+  case 'signals':screen=<SignalsScreen navigate={navigate}/>;break;
   case 'production':screen=<BoardScreen onOpenVideo={(id,step)=>navigate({name:'video',id,tab:step})}/>;break;
   case 'video':screen=<VideoRoute id={route.id} tab={route.tab} navigate={navigate}/>;break;
   case 'settings':screen=<SettingsScreen onAddChannel={addChannel}/>;break;

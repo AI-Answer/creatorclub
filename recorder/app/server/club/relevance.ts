@@ -5,10 +5,9 @@
  * any other topic or audience matches on its own longer words.
  */
 
-/** The topics Welcome offers, in the spelling shown to the person. */
-export const TOPIC_LABELS = ['Claude', 'AI agents', 'Vibe coding', 'AI for small business', 'Automation', 'ChatGPT', 'AI video', 'Making money with AI', 'Productivity'];
-/** The audiences Welcome offers. */
-export const AUDIENCE_LABELS = ['Complete beginners', 'Small-business owners', 'Creators', 'Developers', 'Students'];
+import { AUDIENCE_LABELS, TOPIC_LABELS } from '../../shared/club.js';
+
+export { AUDIENCE_LABELS, TOPIC_LABELS };
 
 const TOPIC_KEYS: Record<string, string[]> = {
   claude: ['claude', 'anthropic', 'cowork', 'duet'],
@@ -31,15 +30,15 @@ const AUDIENCE_KEYS: Record<string, string[]> = {
 };
 
 const sentence = (text: string) => (text ? text.charAt(0).toUpperCase() + text.slice(1) : text);
-const label = (value: string, known: string[]) => known.find((item) => item.toLowerCase() === value.toLowerCase()) ?? sentence(value);
+const label = (value: string, known: readonly string[]) => known.find((item) => item.toLowerCase() === value.toLowerCase()) ?? sentence(value);
 const words = (value: string) => value.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter((word) => word.length > 3);
 
 /** The first topic, then the first audience, whose keywords appear in the text. Null when none does. */
 export function matchLabel(text: string, topics: string[] = [], audience: string[] = []): string | null {
   const haystack = ` ${String(text || '').toLowerCase()} `;
-  const tries: [string, Record<string, string[]>, string[]][] = [
-    ...topics.map((topic): [string, Record<string, string[]>, string[]] => [topic, TOPIC_KEYS, TOPIC_LABELS]),
-    ...audience.map((item): [string, Record<string, string[]>, string[]] => [item, AUDIENCE_KEYS, AUDIENCE_LABELS]),
+  const tries: [string, Record<string, string[]>, readonly string[]][] = [
+    ...topics.map((topic): [string, Record<string, string[]>, readonly string[]] => [topic, TOPIC_KEYS, TOPIC_LABELS]),
+    ...audience.map((item): [string, Record<string, string[]>, readonly string[]] => [item, AUDIENCE_KEYS, AUDIENCE_LABELS]),
   ];
   for (const [value, keys, labels] of tries) {
     const name = String(value).trim();

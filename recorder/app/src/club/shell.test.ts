@@ -37,6 +37,9 @@ const serve=(server:Server)=>(call:FakeCall):FakeReply=>{
  if(path==='/videos'&&method==='GET')return {body:server.current?server.videos:[]};
  if(path==='/videos'&&method==='POST'){const created=video('new1',(call.body as {title:string}).title,'ideas');server.videos=[...server.videos,created];return {status:201,body:created};}
  if(path==='/recent')return {body:[]};
+ if(path==='/trending')return {body:{items:[],updatedAt:null,followed:0}};
+ if(path==='/signals')return {body:{items:[],updatedAt:null,errors:[]}};
+ if(path==='/breakdowns'&&method==='GET')return {body:[]};
  if(path==='/settings')return {body:{defaultAi:'claude',welcomed:server.welcomed}};
  const move=path.match(/^\/videos\/(\w+)\/move$/);
  if(move){server.videos=server.videos.map(v=>v.id===move[1]?{...v,stage:(call.body as {stage:Video['stage']}).stage}:v);return {body:server.videos.find(v=>v.id===move[1])};}
@@ -76,11 +79,11 @@ test('the sidebar counts and orders from the videos it is given',()=>{
  assert.deepEqual(inProduction([]),[]);
 });
 
-test('Ideas, Working now and Signals open on the Empty placeholder with their title; nothing is made up',async()=>{
- for(const [hash,title,item] of [['#/overview','Overview','Overview'],['#/ideas','Ideas','Ideas'],['#/trending','Working now','Working now'],['#/signals','Signals','Signals']]){
+test('Overview, Ideas, Working now and Signals open their own screens, with the sidebar on the right place',async()=>{
+ for(const [hash,title,item] of [['#/overview','Good','Overview'],['#/ideas','Ideas','Ideas'],['#/trending','Working now','Working now'],['#/signals','Signals','Signals']]){
   await withApp(hash,async ui=>{
    const c=ui.container;
-   assert.equal(c.querySelector('main .empty h3')!.textContent,title,hash);
+   assert.match(c.querySelector('main h1')!.textContent!,new RegExp(`^${title}`),hash);
    assert.equal(c.querySelector('.sidebar a[aria-current="page"] .label')!.textContent,item);
   });
  }
@@ -190,8 +193,16 @@ test('New video: a link opens Break down in Ideas, a title creates a real video 
   assert.ok(dialog(),'the dialog stays so the link can be fixed');
   await type(dialog()!.querySelector('input')!,'https://youtu.be/dQw4w9WgXcQ?si=x');
   await press(button(dialog()!,'Break down'));
-  assert.equal(dialog(),null);assert.equal(window.location.hash,'#/ideas?bd=dQw4w9WgXcQ');
+  assert.equal(dialog(),null);assert.equal(window.location.hash,'#/ideas','Ideas starts the breakdown and leaves the address');
+  assert.deepEqual(calls.filter(call=>call.method==='POST'&&call.path==='/breakdowns').map(call=>call.body),[{url:'https://www.youtube.com/watch?v=dQw4w9WgXcQ'}]);
   assert.equal(calls.filter(call=>call.method==='POST'&&call.path==='/videos').length,0,'a link creates nothing by itself');
+
+  await keyDown(window,'k',{metaKey:true});
+  await type(c.querySelector('.palette input')!,'new video');
+  await keyDown(c.querySelector('.palette input')!,'Enter');
+  await type(dialog()!.querySelector('input')!,'https://www.instagram.com/reel/C8aBcD_eFgH/');
+  await press(button(dialog()!,'Break down'));
+  assert.deepEqual(calls.filter(call=>call.method==='POST'&&call.path==='/breakdowns').map(call=>call.body).at(-1),{url:'https://www.instagram.com/reel/C8aBcD_eFgH/'},'an Instagram link works too');
 
   await keyDown(window,'k',{metaKey:true});
   await type(c.querySelector('.palette input')!,'new video');

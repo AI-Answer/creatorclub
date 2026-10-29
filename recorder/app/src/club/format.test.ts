@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {avatarColor,band,cleanTitle,fmtClock,fmtDate,fmtDays,fmtHours,fmtMS,fmtMult,fmtNum,hashOf,initials,parseClock,sentence,thumbGradient,ytThumb} from './format';
+import {avatarColor,band,cleanTitle,fmtClock,fmtDate,fmtDays,fmtHours,fmtMS,fmtMult,fmtNum,hashOf,initials,parseClock,sentence,thumbGradient,topicLabel,ytThumb} from './format';
 
 test('fmtNum shortens thousands, millions and billions, and shows a dash for nothing',()=>{
  const cases:Array<[number|null|undefined,string]>=[[0,'0'],[999,'999'],[1000,'1K'],[1234,'1.2K'],[9999,'10K'],[12345,'12K'],[999999,'1000K'],[1500000,'1.5M'],[12000000,'12M'],[2400000000,'2.4B'],[null,'—'],[undefined,'—'],[Number.NaN,'—']];
@@ -45,4 +45,9 @@ test('the same name always gets the same avatar colour and the same draft thumbn
  assert.equal(hashOf('Samin'),hashOf('Samin'));assert.notEqual(hashOf('Samin'),hashOf('Dani'));
  assert.equal(avatarColor('Samin'),avatarColor('Samin'));assert.match(avatarColor('Samin'),/^#[0-9a-f]{6}$/);
  assert.deepEqual(thumbGradient('v-1'),thumbGradient('v-1'));assert.equal(thumbGradient('v-1').length,2);
+});
+
+test('a topic or audience is written the way Welcome offers it, else with a capital',()=>{
+ assert.deepEqual(['ai agents','CLAUDE','vibe coding','small-business owners'].map(topicLabel),['AI agents','Claude','Vibe coding','Small-business owners']);
+ assert.deepEqual(['  podcasting ','n8n flows'].map(topicLabel),['Podcasting','N8n flows'],'anything else only gets a capital letter');
 });

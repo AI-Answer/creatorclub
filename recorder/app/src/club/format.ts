@@ -1,3 +1,4 @@
+import {AUDIENCE_LABELS,TOPIC_LABELS} from '../../shared/club';
 import {formatMultiplier,outlierBand} from './outlier';
 
 /** Display helpers, ported from the prototype's core.js. Pure, so the words and numbers they produce are tested once. */
@@ -70,6 +71,12 @@ export const ytThumb=(id:string)=>`https://i.ytimg.com/vi/${id}/mqdefault.jpg`;
 
 /** Upper-cases the first letter. */
 export const sentence=(text:string)=>text?text.charAt(0).toUpperCase()+text.slice(1):text;
+
+/** The creator's name in a channel title like "Duncan Rogoff | AI Automation": what is before the first bar. */
+export const creatorName=(channel:string|null|undefined)=>String(channel||'').split('|')[0].trim();
+
+/** A topic or audience as it is written to the person: the spelling Welcome offers when it is one of those ("ai agents" is "AI agents"), else with a capital first letter. */
+export const topicLabel=(value:string)=>[...TOPIC_LABELS,...AUDIENCE_LABELS].find(label=>label.toLowerCase()===value.trim().toLowerCase())??sentence(value.trim());
 
 /** A title without a trailing "(…)" note. */
 export const cleanTitle=(title:string|null|undefined)=>String(title||'').replace(/\s*\([^)]*\)\s*$/,'').trim();

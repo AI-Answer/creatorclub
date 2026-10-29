@@ -1,7 +1,7 @@
 import {useCallback,useEffect,useRef,useState} from 'react';
 import type {Video,Workspace} from '../../shared/club';
-import type {ProjectSummary} from '../../shared/types';
 import {clubFetch,errorMessage} from './api';
+import {loadProgress} from './scenes';
 import {STAGE_LABEL,applyMove,formatDay,isSamePlace,nextInStage,type ProjectProgress} from './board';
 import type {VideoStage} from '../../shared/club';
 
@@ -10,16 +10,6 @@ export type Undoable={message:string;undo():Promise<void>};
 
 type Loaded={workspace:Workspace|null;videos:Video[];progress:Record<string,ProjectProgress>;recent:string[]};
 export type BoardState={status:'loading'}|{status:'error';message:string}|({status:'ready'}&Loaded);
-
-/** SceneForge's own list of recording projects, for scene counts and thumbnails. The board works without it. */
-async function loadProgress():Promise<Record<string,ProjectProgress>>{
- try{
-  const response=await fetch('/api/projects');
-  if(!response.ok)return {};
-  const projects=await response.json() as ProjectSummary[];
-  return Object.fromEntries(projects.map(project=>[project.id,{scenes:project.sceneCount,recorded:project.recordedSceneCount??0,thumbnailMediaId:project.thumbnailMediaId}]));
- }catch{return {};}
-}
 
 async function load():Promise<Loaded>{
  const [list,videos,recent,progress]=await Promise.all([

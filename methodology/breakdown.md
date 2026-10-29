@@ -35,12 +35,13 @@ Task
 4. concepts: 3 concepts for {first} that pass the criteria and are not already on the board. Give fewer only when fewer pass. For each:
    - title: a working title of 7 words or fewer and 60 characters or fewer, a bold claim or a fix, never a question.
    - angle: what the video does, one sentence.
-   - twist: what makes it {first}'s: what {first} would show or do differently.
+   - twist: what makes it yours: what you would show or do differently.
    - hook: the first sentence {first} would say, in their voice, under 25 words, with no invented facts.
    - demand, gap, show: each a level (high, mid or low) and a note of one short sentence. Demand is evidence people want it; gap is how open the topic is (high means little competition); show is how easily {first} can demonstrate it with their own hands. Say "not checked" in the note when the input gives no evidence (for example how crowded the topic is) and rate it mid.
-   - why: a short reason this concept works, in one sentence.
+   - why: a short reason this concept works for you, in one sentence.
 
 Rules
+- Talk to {first} in the second person. In angle, twist and why write "you" and "your" ("You show your own setup…"), never {first}'s name and never "he", "she" or "they" for {first}. The hook is what you would say, so it is first person. whyItWorked is about the source video only: call its creator "the creator" or use the channel's name, and leave {first}'s name and numbers out of it.
 - Use only numbers and facts from the source video above. Never invent results or claims.
 - If a viewer question gives a concept its angle, say so in the angle.
 - No income or return claims. No mention of any club, community, product or partnership.

@@ -2,20 +2,21 @@ import {useState} from 'react';
 import type {Video} from '../../../shared/club';
 import {clubFetch,errorMessage} from '../api';
 import {youtubeId} from '../board';
+import {looksLikeVideoLink} from '../breakdown';
 import type {Route} from '../routes';
 import {Button,Dialog,Icon,useToast,type IconName} from '../ui';
 
 type Mode='link'|'title';
 
 const OPTIONS:ReadonlyArray<readonly [Mode,IconName,string,string]>=[
- ['link','Link','Break down a video','Paste a YouTube link. Keep the concept you like.'],
+ ['link','Link','Break down a video','Paste a YouTube or Instagram link. Keep the concept you like.'],
  ['title','Type','Start from a title','You already know the video. Add it to ideas.'],
 ];
 const PLACEHOLDER:Record<Mode,string>={link:'youtube.com/watch?v=…',title:'e.g. Claude does my receipts automatically'};
 const ACTION:Record<Mode,string>={link:'Break down',title:'Add idea'};
 
 /**
- * The New video dialog. A link opens Break down in Ideas; a title creates the video and opens its Board.
+ * The New video dialog. A link (YouTube or Instagram) opens Break down in Ideas; a title creates the video and opens its Board.
  * Recording straight away is not offered: a video can only be recorded once it has an outline.
  */
 export function NewVideo({onClose,onOpen}:{onClose():void;onOpen(route:Route):void}){
@@ -25,9 +26,8 @@ export function NewVideo({onClose,onOpen}:{onClose():void;onOpen(route:Route):vo
   const text=value.trim();
   if(!text||busy)return;
   if(mode==='link'){
-   const id=youtubeId(text);
-   if(!id){toast("That doesn't look like a video link. Paste the full address.");return;}
-   onClose();onOpen({name:'ideas',bd:id});return;
+   if(!looksLikeVideoLink(text)){toast("That doesn't look like a video link. Paste the full address.");return;}
+   onClose();onOpen({name:'ideas',bd:youtubeId(text)??text});return;
   }
   setBusy(true);
   try{

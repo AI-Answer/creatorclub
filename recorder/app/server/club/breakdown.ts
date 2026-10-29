@@ -2,7 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { z } from 'zod';
-import type { AiProvider, Breakdown, BreakdownResult, Video } from '../../shared/club.js';
+import type { AiProvider, Breakdown, BreakdownResult, BreakdownSummary, Video } from '../../shared/club.js';
 import { AiError, aiLabel, runAI, watchWithGemini } from './ai.js';
 import { json3ToText, pickCaptionLanguage, ytdlpTwice, type ChannelData } from './channel.js';
 import { loadChannelContext } from './context.js';
@@ -68,6 +68,16 @@ export async function readBreakdown(slug: string, id: string): Promise<Breakdown
   const found = await store.readJSON<Breakdown>(breakdownFile(slug, id));
   if (!found) throw notFound('breakdown');
   return found;
+}
+
+/** Every finished breakdown of a channel, newest first. A folder with no `breakdown.json` yet (one still running) is left out. */
+export async function listBreakdowns(slug: string): Promise<BreakdownSummary[]> {
+  const ids = (await fs.readdir(store.breakdownsDir(slug)).catch(() => [] as string[])).filter((id) => BAD_ID.test(id));
+  const found = await Promise.all(ids.map((id) => store.readJSON<Breakdown>(breakdownFile(slug, id)).catch(() => undefined)));
+  return found
+    .filter((breakdown): breakdown is Breakdown => !!breakdown)
+    .map(({ id, url, platform, createdAt, video }) => ({ id, url, platform, createdAt, title: video.title, channel: video.channel }))
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
 // ---------------------------------------------------------------- what the AI sends back

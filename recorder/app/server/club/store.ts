@@ -8,6 +8,7 @@ import {
   PLAN_STEPS,
   VIDEO_STAGES,
   type AiProvider,
+  type IdeaNotes,
   type PlanStep,
   type ResearchTile,
   type TileKind,
@@ -351,14 +352,23 @@ export function importVideo(slug: string, video: Video): Promise<Video> {
   );
 }
 
-export type VideoPatch = Partial<Omit<Video, 'id' | 'stage' | 'createdAt' | 'updatedAt' | 'stageDates'>>;
+export type VideoPatch = Partial<Omit<Video, 'id' | 'stage' | 'createdAt' | 'updatedAt' | 'stageDates' | 'idea'>>;
+/** Changes to an idea's notes: a field that is sent replaces the stored one, `null` removes it, a field left out stays. */
+export type IdeaPatch = { [K in keyof IdeaNotes]?: IdeaNotes[K] | null };
 
-/** Merges a patch; a null value clears an optional field. */
-export function updateVideo(slug: string, id: string, patch: { [K in keyof VideoPatch]: VideoPatch[K] | null }): Promise<Video> {
+/** Merges a patch; a null value clears an optional field. `idea` is merged field by field (see `IdeaPatch`), so two edits to different notes never undo each other. */
+export function updateVideo(slug: string, id: string, patch: { [K in keyof VideoPatch]: VideoPatch[K] | null } & { idea?: IdeaPatch | null }): Promise<Video> {
   return videoLock(slug, id, async () => {
     const video: Record<string, unknown> = { ...(await readVideo(slug, id)) };
     for (const [key, value] of Object.entries(patch)) {
-      if (value === null) delete video[key];
+      if (key === 'idea' && value) {
+        const notes: Record<string, unknown> = { ...(video.idea as IdeaNotes | undefined) };
+        for (const [field, note] of Object.entries(value)) {
+          if (note === null) delete notes[field];
+          else if (note !== undefined) notes[field] = note;
+        }
+        video.idea = notes;
+      } else if (value === null) delete video[key];
       else if (value !== undefined) video[key] = value;
     }
     const updated = { ...video, updatedAt: now() } as unknown as Video;

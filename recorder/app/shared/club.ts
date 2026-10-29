@@ -15,6 +15,11 @@ export interface Workspace {
   createdAt: string;
 }
 
+/** The topics Welcome offers, in the spelling shown to the person. */
+export const TOPIC_LABELS = ['Claude', 'AI agents', 'Vibe coding', 'AI for small business', 'Automation', 'ChatGPT', 'AI video', 'Making money with AI', 'Productivity'] as const;
+/** The audiences Welcome offers. */
+export const AUDIENCE_LABELS = ['Complete beginners', 'Small-business owners', 'Creators', 'Developers', 'Students'] as const;
+
 export const VIDEO_STAGES = ['ideas', 'planning', 'recording', 'editing', 'publishing', 'published'] as const;
 export type VideoStage = (typeof VIDEO_STAGES)[number];
 
@@ -203,6 +208,17 @@ export interface Breakdown {
     show: ConceptRating;
     why: string;
   }[];
+}
+
+/** A finished breakdown in `GET /api/club/breakdowns`, enough to tell which video it is about and to open it. */
+export interface BreakdownSummary {
+  id: string;
+  /** The link it was made from. Empty for a dropped video file. */
+  url: string;
+  platform: string;
+  createdAt: string;
+  title: string;
+  channel: string;
 }
 
 /** What the Break down prompt returns. The app adds the rest (id, url, platform, video, createdAt). */
