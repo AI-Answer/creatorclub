@@ -1,6 +1,6 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
-import type { AiProvider, VoiceAnswers } from '../../shared/club.js';
+import type { AiProvider, VoiceAnswers, VoiceGuideSummary } from '../../shared/club.js';
 import { runAI, type Lookup } from './ai.js';
 import { transcriptsDir, type Transcript } from './channel.js';
 import { ClubError } from './errors.js';
@@ -46,6 +46,33 @@ export async function hasVoiceGuide(slug: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+const plain = (line: string) => line.replace(/^[\s>*-]+/, '').replace(/\*\*([^*]+)\*\*:?/g, '$1:').replace(/[*_`]/g, '').trim();
+
+/** The voice guide's opening, for Settings: its first lines without headings or markdown, about 400 characters, and how many transcripts it was built from. Null when there is no guide. */
+export async function voiceSummary(slug: string): Promise<VoiceGuideSummary | null> {
+  let guide: string;
+  try {
+    guide = await fs.readFile(voiceFile(slug), 'utf8');
+  } catch {
+    return null;
+  }
+  const lines = guide.split('\n').filter((line) => line.trim() && !/^\s*#/.test(line)).map(plain).filter(Boolean);
+  let summary = '';
+  for (const line of lines) {
+    if (summary.length >= 300) break;
+    summary = summary ? `${summary} ${line}` : line;
+  }
+  if (!summary) return null;
+  if (summary.length > 400) summary = `${summary.slice(0, 397).trimEnd()}…`;
+  let transcripts = 0;
+  try {
+    transcripts = (await fs.readdir(transcriptsDir(slug))).filter((name) => name.endsWith('.md') && !name.startsWith('.')).length;
+  } catch {
+    // no transcripts folder: written from answers
+  }
+  return { summary, transcripts };
 }
 
 /** Saves transcripts as `own-channel/transcripts/<id>.md`. */

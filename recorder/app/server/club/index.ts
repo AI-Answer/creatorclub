@@ -22,7 +22,8 @@ import { videoScenes, videosScenes } from './scenes.js';
 import { POSITION_MAX, WIDTH_MAX, WIDTH_MIN } from './tile-layout.js';
 import { findTregCall, hasSources, NO_SOURCES, rankedSignals, readSignalsConfig, startSignalsRefresh, writeSignalsConfig, type SignalsSources } from './signals.js';
 import { ideaFromSignal, ideaFromTrending } from './trend-ideas.js';
-import { rankedTrending, readFollowed, startTrendingRefresh, writeFollowed, ytDlpSource, type UploadsSourceFactory } from './trending.js';
+import { voiceSummary } from './voice.js';
+import { rankedTrending, readFollowed, startTrendingRefresh, startTrendingSeed, writeFollowed, ytDlpSearchSource, ytDlpSource, type SearchSourceFactory, type UploadsSourceFactory } from './trending.js';
 import * as store from './store.js';
 import type { ToolOptions } from './tools.js';
 
@@ -217,11 +218,13 @@ export interface ClubRouterOptions {
   readViews?: ViewsReader;
   /** Where Working now reads followed channels from. Defaults to yt-dlp, metadata only. Tests pass a stand-in. */
   uploads?: UploadsSourceFactory;
+  /** Where Working now searches topics for a channel that follows nobody yet. Defaults to yt-dlp `ytsearch`, metadata only. Tests pass a stand-in. */
+  search?: SearchSourceFactory;
   /** Where Signals reads from: `fetch` for Reddit's public listing and `treg` for X. Tests pass stand-ins. */
   signals?: Partial<SignalsSources>;
 }
 
-export function clubRouter({ ai = {}, transcribe, runAI, readViews = ytDlpViews(ai), uploads = ytDlpSource(ai), signals = {} }: ClubRouterOptions = {}): Router {
+export function clubRouter({ ai = {}, transcribe, runAI, readViews = ytDlpViews(ai), uploads = ytDlpSource(ai), search = ytDlpSearchSource(ai), signals = {} }: ClubRouterOptions = {}): Router {
   const signalSources: SignalsSources = { treg: findTregCall(ai), ...signals };
   const plan: PlanOptions = { extraDirs: ai.extraDirs, runAI };
   const router = Router();
@@ -336,6 +339,11 @@ export function clubRouter({ ai = {}, transcribe, runAI, readViews = ytDlpViews(
     await store.writeWorkspace(updated);
     res.json(updated);
   }));
+  router.get('/workspaces/:slug/voice', handler(async (req, res) => {
+    const slug = param(req, 'slug');
+    await store.readWorkspace(slug);
+    res.json(await voiceSummary(slug));
+  }));
   router.post('/workspaces/:slug/voice', handler(async (req, res) => {
     const slug = param(req, 'slug');
     await store.readWorkspace(slug);
@@ -354,8 +362,8 @@ export function clubRouter({ ai = {}, transcribe, runAI, readViews = ytDlpViews(
   }));
   router.post('/trending/refresh', handler(async (_req, res) => {
     const slug = await requireWorkspace();
-    if (!(await readFollowed(slug)).length) throw new ClubError('Follow a channel first.', 409);
-    res.status(202).json(startTrendingRefresh(slug, uploads));
+    // A channel that follows nobody reads a YouTube search on its topics instead.
+    res.status(202).json((await readFollowed(slug)).length ? startTrendingRefresh(slug, uploads) : startTrendingSeed(slug, search));
   }));
   router.post('/trending/idea', handler(async (req, res) => {
     const { videoId } = trendingIdeaBody.parse(req.body);

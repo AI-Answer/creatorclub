@@ -119,6 +119,14 @@ export function statsArgs(ids: string[]): string[] {
   return ['--skip-download', '--no-warnings', '--ignore-errors', '--no-playlist', '--print', '%(id)s\t%(view_count)s\t%(like_count)s\t%(comment_count)s\t%(timestamp)s\t%(upload_date)s', ...ids.map((id) => `https://www.youtube.com/watch?v=${id}`)];
 }
 
+/** YouTube's "this month" upload filter on a search results page (`sp`). Checked against yt-dlp: every result is from the last month, where `ytsearchN:` also returns years-old videos. */
+const THIS_MONTH = 'EgQIBBAB';
+
+/** One YouTube search for a topic, metadata only: the top `count` results from the last month, one tab separated line each (see `parseSearchLines`). */
+export function searchArgs(topic: string, count: number): string[] {
+  return ['--skip-download', '--no-warnings', '--ignore-errors', '--playlist-end', String(count), '--print', '%(id)s\t%(view_count)s\t%(like_count)s\t%(comment_count)s\t%(timestamp)s\t%(upload_date)s\t%(channel_id)s\t%(channel)s\t%(title)s', `https://www.youtube.com/results?search_query=${encodeURIComponent(topic)}&sp=${THIS_MONTH}`];
+}
+
 export interface VideoStats {
   views: number;
   likes: number | null;
@@ -140,6 +148,28 @@ export function parseStatLines(output: string): Map<string, VideoStats> {
     stats.set(id, { views: viewCount, likes: count(likes), comments: count(comments), ...(uploadedAt === undefined ? {} : { uploadedAt }) });
   }
   return stats;
+}
+
+export interface SearchHit extends VideoStats {
+  id: string;
+  title: string;
+  channel: string;
+  /** Set when YouTube gave a channel id. */
+  channelId?: string;
+}
+
+/** Reads `searchArgs` output. A video with no view count, no channel or no title is left out. */
+export function parseSearchLines(output: string): SearchHit[] {
+  const hits: SearchHit[] = [];
+  for (const line of output.split('\n')) {
+    const columns = line.replace(/\r$/, '').split('\t');
+    const [id, , , , , , channelId, channel] = columns;
+    const title = columns.slice(8).join(' ').trim();
+    const stat = parseStatLines(columns.slice(0, 6).join('\t')).get(id);
+    if (!stat || !channel || channel === 'NA' || !title || title === 'NA') continue;
+    hits.push({ id, title, channel, ...(/^UC[\w-]{22}$/.test(channelId ?? '') ? { channelId } : {}), ...stat });
+  }
+  return hits;
 }
 
 // ---------------------------------------------------------------- outlier maths

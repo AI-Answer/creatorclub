@@ -320,6 +320,11 @@ export interface AddChannelResult {
   workspace: Workspace;
   voice: 'built' | 'needs-answers';
 }
+/** What `GET /workspaces/:slug/voice` says about the voice guide: its opening lines, and how many transcripts it was built from (0 when it was written from the person's answers). */
+export interface VoiceGuideSummary {
+  summary: string;
+  transcripts: number;
+}
 /** Result of the job behind `POST /workspaces/:slug/voice`. */
 export interface VoiceResult {
   voice: 'built' | 'needs-answers';
@@ -369,6 +374,10 @@ export interface TrendingItem {
   /** YYYY-MM-DD. */
   firstSeen: string;
   fit: boolean;
+  /** The channel's id, when known, so the video's channel can be followed. */
+  channelId?: string;
+  /** The topic whose YouTube search found the video (a channel that follows nobody yet). */
+  topic?: string;
 }
 
 /** A trending video as `GET /api/club/trending` returns it: ranked for the current channel. `fit` is true when its text matches the channel's topics or audience, and `reason` says which ("Because you picked Claude"). */

@@ -14,7 +14,9 @@ process.env.CREATORCLUB_SECRETS_DIR = path.join(temp, 'app-support');
 after(() => rm(temp, { recursive: true, force: true }));
 
 const store = await import('./store.js');
-const { refreshTrending, rankedTrending, followedUrl, readFollowed, ytDlpUploads } = await import('./trending.js');
+const { refreshTrending, rankedTrending, followedUrl, readFollowed, seedTrending, ytDlpSearch, ytDlpUploads } = await import('./trending.js');
+const { parseSearchLines, searchArgs } = await import('./source.js');
+type SearchHit = import('./source.js').SearchHit;
 type Source = import('./trending.js').UploadsSource;
 type UploadsSourceFactory = import('./trending.js').UploadsSourceFactory;
 
@@ -285,4 +287,74 @@ if (args.includes('--flat-playlist')) {
   for (const call of calls.slice(1)) assert.ok(call.includes('--skip-download') && call.includes('--print'));
   const joined = calls.flat().join(' ');
   assert.doesNotMatch(joined, /(^| )(-f|-x|--format|--extract-audio|--write-[\w-]+|--audio-format|--download-sections)( |$)/, 'no video, audio, subtitle or thumbnail is requested');
+});
+
+const hit = (id: string, extra: Partial<SearchHit> = {}): SearchHit => ({ id, title: `Title ${id}`, channel: 'Chan', views: 9000, likes: 5, comments: 1, uploadedAt: NOW - 3 * DAY, ...extra });
+
+test('seeding: one search per topic (first three), recent videos by views per day, mult null unless the usual is known, existing videos stay', async () => {
+  const asked: string[] = [];
+  const answers = new Map<string, SearchHit[]>([
+    ['Claude', [hit('claude000001', { views: 3000, channel: 'Known' }), hit('shared000001', { views: 6000 }), hit('stale0000001', { uploadedAt: NOW - 40 * DAY }), hit('nodate000001', { uploadedAt: undefined })]],
+    ['Automation', [hit('shared000001', { views: 99 }), hit('auto00000001', { views: 12_000, channelId: 'UCFeFVytEkT8kaqPCJZGFswg' })]],
+    ['Cooking', []],
+  ]);
+  const search = async () => ({ async search(topic: string) { asked.push(topic); const found = answers.get(topic); if (!found) throw new Error('no'); return found; } });
+  const workspace = await store.createWorkspace({ name: 'Seed', handle: '', channelUrl: '', topics: ['Claude', 'Automation', 'Cooking', 'Fourth'], about: '', cta: '' });
+  const dir = store.workspaceDir(workspace.slug);
+  await store.writeJSON(path.join(dir, 'followed.json'), [{ name: 'Known', handle: '@known', median: 1000 }]);
+  const earlier: TrendingItem = { videoId: 'old000000001', title: 'Earlier', channel: 'Old', kind: 'followed', views: 1000, likes: null, comments: null, published: '2026-10-25', ageDays: 4, vpd: 5, mult: 1.1, history: [], firstSeen: '2026-10-25', fit: true };
+  await store.writeJSON(path.join(dir, 'trending.json'), [earlier]);
+
+  const run = context();
+  const result = await seedTrending(workspace.slug, run.context, search, NOW);
+  assert.deepEqual(asked, ['Claude', 'Automation', 'Cooking'], 'one search per topic, capped at three');
+  assert.deepEqual(result, { videos: 4, added: 3, channels: 0, failed: [] });
+  const saved = await items(workspace.slug);
+  assert.deepEqual(saved.map((item) => item.videoId), ['auto00000001', 'shared000001', 'claude000001', 'old000000001'], 'most views per day first; the stale and undated videos are left out');
+  assert.deepEqual(saved.map((item) => item.kind), ['creator', 'creator', 'creator', 'followed']);
+  const claude = saved.find((item) => item.videoId === 'claude000001')!;
+  assert.equal(claude.mult, 3, '3000 views over a known usual of 1000');
+  assert.equal(claude.topic, 'Claude');
+  assert.equal(saved.find((item) => item.videoId === 'shared000001')!.mult, null, 'a channel whose usual is unknown has no number');
+  assert.equal(saved.find((item) => item.videoId === 'shared000001')!.views, 6000, 'the first topic that found a video keeps it');
+  assert.equal(saved[0].channelId, 'UCFeFVytEkT8kaqPCJZGFswg');
+  const ranked = await rankedTrending(workspace.slug, workspace);
+  assert.deepEqual(ranked.items.slice(0, 3).map((item) => [item.fit, item.reason]), [[true, 'Because you picked Automation'], [true, 'Because you picked Claude'], [true, 'Because you picked Claude']]);
+  assert.ok(ranked.updatedAt, 'a seeded list counts as read');
+});
+
+test('seeding: a channel without topics is told to add one, and when every search fails nothing is written', async () => {
+  const bare = await store.createWorkspace({ name: 'Bare', handle: '', channelUrl: '', topics: [], about: '', cta: '' });
+  await assert.rejects(seedTrending(bare.slug, context().context, async () => ({ async search() { return []; } }), NOW), { message: 'Add a topic in Settings first.' });
+  const topical = await store.createWorkspace({ name: 'Offline', handle: '', channelUrl: '', topics: ['Claude'], about: '', cta: '' });
+  const logged = console.error;
+  console.error = () => {};
+  try {
+    await assert.rejects(seedTrending(topical.slug, context().context, async () => ({ async search() { throw new Error('offline'); } }), NOW), { message: "Couldn't search YouTube. Check your connection and try again." });
+  } finally {
+    console.error = logged;
+  }
+  assert.deepEqual(await items(topical.slug), []);
+  assert.equal((await rankedTrending(topical.slug, topical)).updatedAt, null);
+});
+
+test('the yt-dlp search reads metadata only: a search page with --skip-download --print, nothing downloaded', async () => {
+  const bin = path.join(temp, 'bin-search');
+  const log = path.join(temp, 'ytdlp-search.log');
+  await (await import('node:fs/promises')).mkdir(bin, { recursive: true });
+  const file = path.join(bin, 'yt-dlp');
+  await writeFile(file, `#!/usr/bin/env node
+require('node:fs').appendFileSync(${JSON.stringify(log)}, JSON.stringify(process.argv.slice(2)) + '\\n');
+console.log(['aaaaaaaaaaa', '1500', '30', 'NA', '1793226009', '20261028', 'UCFeFVytEkT8kaqPCJZGFswg', 'Chan', 'A title'].join('\\t'));
+console.log(['bbbbbbbbbbb', 'NA', 'NA', 'NA', 'NA', 'NA', 'NA', 'Chan', 'No views'].join('\\t'));
+`);
+  await chmod(file, 0o755);
+  const hits = await ytDlpSearch(file, { extraDirs: [] }).search('home cooking');
+  assert.deepEqual(hits, [{ id: 'aaaaaaaaaaa', title: 'A title', channel: 'Chan', channelId: 'UCFeFVytEkT8kaqPCJZGFswg', views: 1500, likes: 30, comments: null, uploadedAt: 1793226009000 }]);
+  const calls = (await readFile(log, 'utf8')).trim().split('\n').map((line) => JSON.parse(line) as string[]);
+  assert.deepEqual(calls, [searchArgs('home cooking', 10)]);
+  assert.equal(calls[0].at(-1), 'https://www.youtube.com/results?search_query=home%20cooking&sp=EgQIBBAB');
+  assert.ok(calls[0].includes('--skip-download') && calls[0].includes('--print'));
+  assert.doesNotMatch(calls.flat().join(' '), /(^| )(-f|-x|--format|--extract-audio|--write-[\w-]+|--audio-format|--download-sections)( |$)/);
+  assert.deepEqual(parseSearchLines('x\n\n'), [], 'junk lines are skipped');
 });

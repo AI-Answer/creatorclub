@@ -4,7 +4,7 @@ import { parseChannelInput, pool } from './channel.js';
 import { ClubError } from './errors.js';
 import { startJobOnce, type JobContext } from './jobs.js';
 import { reasonFor, trendText } from './relevance.js';
-import { listingArgs, outlierMultiplier, parseStatLines, statsArgs, usualViews, type VideoStats } from './source.js';
+import { listingArgs, outlierMultiplier, parseSearchLines, parseStatLines, searchArgs, statsArgs, usualViews, type SearchHit, type VideoStats } from './source.js';
 import * as store from './store.js';
 import { prepareYtDlp, runTool, toolEnv, type ToolOptions } from './tools.js';
 
@@ -73,11 +73,14 @@ export function followedUrl(channel: FollowedChannel): string | undefined {
 
 // ---------------------------------------------------------------- reading
 
+/** A video found by searching a topic still fits while that topic is one the channel picked. */
+const pickedTopic = (item: TrendingItem, topics: string[]) => (item.topic && topics.some((topic) => topic.toLowerCase() === item.topic!.toLowerCase()) ? `Because you picked ${item.topic}` : null);
+
 /** Working now for a channel: every video, ranked for it. Videos that match its topics or audience come first, each with its reason; the rest have `fit: false`. */
 export async function rankedTrending(slug: string, workspace: Pick<Workspace, 'topics' | 'audience'>): Promise<TrendingResponse> {
   const [items, updatedAt, followed] = await Promise.all([readItems(slug), lastRefresh(slug), readFollowed(slug)]);
   const entries: TrendingEntry[] = items.map((item) => {
-    const reason = reasonFor(trendText(item), workspace.topics, workspace.audience);
+    const reason = reasonFor(trendText(item), workspace.topics, workspace.audience) ?? pickedTopic(item, workspace.topics);
     return { ...item, mult: item.mult ?? null, fit: reason !== null, reason };
   });
   entries.sort((a, b) => Number(b.fit) - Number(a.fit) || b.vpd - a.vpd);
@@ -213,3 +216,96 @@ export async function refreshTrending(slug: string, context: JobContext, makeSou
 /** Starts the refresh job. A second start while one runs gets the running one. */
 export const startTrendingRefresh = (slug: string, makeSource: UploadsSourceFactory): JobSnapshot =>
   startJobOnce(`trending:${store.workspaceDir(slug)}`, 'trending-refresh', (context) => refreshTrending(slug, context, makeSource));
+
+// ---------------------------------------------------------------- seeding from search
+
+/** A channel that follows fewer channels than this has Working now filled from a YouTube search on its topics. */
+export const SEED_BELOW = 3;
+const SEED_TOPICS = 3;
+const SEED_RESULTS = 10;
+const SEED_KEEP = 12;
+
+/** Where the seed reads from. Tests pass a stand-in. */
+export interface SearchSource {
+  /** Recent videos for a topic, with their numbers. */
+  search(topic: string, signal?: AbortSignal): Promise<SearchHit[]>;
+}
+export type SearchSourceFactory = (say: (message: string) => void) => Promise<SearchSource>;
+
+/** yt-dlp on YouTube's search results page (this month), metadata only (`--skip-download --print`): nothing is downloaded. */
+export function ytDlpSearch(ytdlp: string, options: ToolOptions = {}): SearchSource {
+  return {
+    async search(topic, signal) {
+      const result = await runTool(ytdlp, searchArgs(topic, SEED_RESULTS), { env: toolEnv(options), signal, timeoutMs: 240_000 });
+      return parseSearchLines(result.stdout);
+    },
+  };
+}
+
+export const ytDlpSearchSource = (options: ToolOptions): SearchSourceFactory => async (say) => ytDlpSearch(await prepareYtDlp(say, options), options);
+
+/**
+ * Fills Working now from one YouTube search per topic (the first three), for a channel that follows nobody yet. Videos from the last 30 days,
+ * most views per day first. The multiplier is set only when the video's channel is followed and its usual views are known; otherwise it is null.
+ * Videos already there stay. Nothing is written when every search failed.
+ */
+export async function seedTrending(slug: string, context: JobContext, makeSearch: SearchSourceFactory, nowMs = Date.now()): Promise<TrendingRefreshResult> {
+  const workspace = await store.readWorkspace(slug);
+  const topics = workspace.topics.map((topic) => topic.trim()).filter(Boolean).slice(0, SEED_TOPICS);
+  if (!topics.length) throw new ClubError('Add a topic in Settings first.', 409);
+  const say = (message: string) => context.emit({ message });
+  const source = await makeSearch(say);
+  const [existing, followed] = await Promise.all([readItems(slug), readFollowed(slug)]);
+  const known = new Map(existing.map((item) => [item.videoId, item]));
+  const usualByChannel = new Map(followed.flatMap((channel) => (channel.median ? [[channel.name.toLowerCase(), channel.median] as const] : [])));
+  const today = isoDay(nowMs);
+
+  const found = new Map<string, TrendingItem>();
+  let failed = 0;
+  for (const [index, topic] of topics.entries()) {
+    say(`Searching for ${topic} (${index + 1} of ${topics.length})…`);
+    try {
+      for (const hit of await source.search(topic, context.signal)) {
+        if (found.has(hit.id) || known.get(hit.id)?.kind === 'followed' || hit.uploadedAt === undefined) continue;
+        const ageDays = Math.max(0, (nowMs - hit.uploadedAt) / DAY);
+        if (ageDays > KEEP_DAYS) continue;
+        found.set(hit.id, {
+          videoId: hit.id,
+          title: hit.title,
+          channel: hit.channel,
+          kind: 'creator',
+          views: hit.views,
+          likes: hit.likes,
+          comments: hit.comments,
+          published: isoDay(hit.uploadedAt),
+          ageDays: round1(ageDays),
+          vpd: Math.round(hit.views / Math.max(ageDays, 0.25)),
+          mult: outlierMultiplier(hit.views, usualByChannel.get(hit.channel.toLowerCase())) ?? null,
+          history: addReading(known.get(hit.id)?.history ?? [], today, hit.views),
+          firstSeen: known.get(hit.id)?.firstSeen ?? today,
+          fit: true,
+          topic,
+          ...(hit.channelId ? { channelId: hit.channelId } : {}),
+        });
+      }
+    } catch (error) {
+      if (context.signal.aborted) throw error;
+      console.error(`[club] trending: could not search ${topic}:`, error instanceof Error ? error.message : error);
+      failed++;
+    }
+  }
+  if (context.signal.aborted) throw new ClubError('That was stopped.');
+  if (failed === topics.length) throw new ClubError("Couldn't search YouTube. Check your connection and try again.", 502);
+
+  const seeded = [...found.values()].sort((a, b) => b.vpd - a.vpd).slice(0, SEED_KEEP);
+  const seededIds = new Set(seeded.map((item) => item.videoId));
+  const kept = existing.filter((item) => !seededIds.has(item.videoId) && nowMs - Date.parse(item.published) <= KEEP_DAYS * DAY);
+  const items = [...seeded, ...kept].sort((a, b) => b.vpd - a.vpd);
+  await store.writeJSON(trendingFile(slug), items);
+  await store.writeJSON(metaFile(slug), { lastRefresh: new Date(nowMs).toISOString(), newVideos: seeded.filter((item) => !known.has(item.videoId)).length });
+  return { videos: items.length, added: seeded.filter((item) => !known.has(item.videoId)).length, channels: 0, failed: [] };
+}
+
+/** Starts the seed as the channel's refresh job. A second start while one runs gets the running one. */
+export const startTrendingSeed = (slug: string, makeSearch: SearchSourceFactory): JobSnapshot =>
+  startJobOnce(`trending:${store.workspaceDir(slug)}`, 'trending-refresh', (context) => seedTrending(slug, context, makeSearch));

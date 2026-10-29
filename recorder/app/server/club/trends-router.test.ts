@@ -17,6 +17,7 @@ const store = await import('./store.js');
 
 const DAY = 86_400_000;
 let youtubeCalls = 0;
+const searched: string[] = [];
 let redditCalls = 0;
 let releaseListing: () => void = () => {};
 const gate = new Promise<void>((resolve) => (releaseListing = resolve));
@@ -34,6 +35,12 @@ app.use(
       },
       async stats(ids) {
         return new Map(ids.map((id, i) => [id, { views: 1000 * (i + 1) * (i === 2 ? 5 : 1), likes: 5, comments: 1, uploadedAt: Date.now() - (i + 1) * DAY }]));
+      },
+    }),
+    search: async () => ({
+      async search(topic) {
+        searched.push(topic);
+        return [{ id: 'seedvideo001', title: 'Something else entirely', channel: 'Someone', channelId: 'UCFeFVytEkT8kaqPCJZGFswg', views: 9000, likes: 10, comments: 2, uploadedAt: Date.now() - 2 * DAY }];
       },
     }),
     signals: {
@@ -123,6 +130,8 @@ test('a channel with no link rebuilds its voice from answers and does not try to
   assert.deepEqual(answered.result, { voice: 'built' });
   assert.match(await readFile(path.join(store.workspaceDir('ana-perez-2'), 'voice.md'), 'utf8'), /Signature moves:\*\* End on a recap/);
   assert.equal((await call('GET', '/workspaces/ana-perez-2')).body.about, 'Developers');
+  assert.deepEqual((await call('GET', '/workspaces/ana-perez-2/voice')).body, { summary: 'Voice: Dry and honest Audience: Developers Signature moves: End on a recap', transcripts: 0 });
+  assert.equal((await call('GET', '/workspaces/nobody-here/voice')).status, 404);
 });
 
 test('a channel saved before audiences existed reads with an empty audience, and keeps it when other details are saved', async () => {
@@ -161,7 +170,17 @@ test('followed channels and signal sources: read, replace and validate', async (
 
 test('Working now: refresh is a job with progress, the read ranks for the channel, and a second start joins the running job', async () => {
   await call('POST', '/workspaces/ana-perez-2/current');
-  assert.deepEqual((await call('POST', '/trending/refresh')).body, { error: 'Follow a channel first.' });
+  // A channel that follows nobody reads a search on its topics (the stand-in above) instead of followed channels.
+  const noTopics = await finished((await call('POST', '/trending/refresh')).body.id);
+  assert.equal(noTopics.status, 'failed');
+  assert.equal(noTopics.error, 'Add a topic in Settings first.');
+  const topical = await store.createWorkspace({ name: 'Seeded', handle: '', channelUrl: '', topics: ['Automation'], about: '', cta: '' });
+  await call('POST', `/workspaces/${topical.slug}/current`);
+  assert.equal((await finished((await call('POST', '/trending/refresh')).body.id)).status, 'done');
+  assert.deepEqual(searched, ['Automation']);
+  const seed = (await call('GET', '/trending')).body as TrendingResponse;
+  assert.deepEqual(seed.items.map((item) => [item.videoId, item.kind, item.reason, item.mult]), [['seedvideo001', 'creator', 'Because you picked Automation', null]]);
+  assert.equal(youtubeCalls, 0, 'no followed channel was read');
   await call('POST', '/workspaces/ana-perez/current');
   assert.deepEqual((await call('GET', '/trending')).body, { items: [], updatedAt: null, followed: 3 });
 
