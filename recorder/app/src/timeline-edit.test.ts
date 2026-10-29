@@ -100,7 +100,7 @@ test('effects move without overlapping and resize within their neighbours',()=>{
 test('linked trims move together; a ripple trim moves everything after, a plain one stops at the neighbour',()=>{
  const p=project([...take(1,0,10,2),...take(2,10,10)]);p.markers=[{id:'m',time:15}];
  const ids=linkedIds(p.clips,['screen1']);
- assert.deepEqual(trimBounds(p,ids,'left',true),{min:-0,max:9.9});
+ assert.deepEqual(trimBounds(p,ids,'left',true),{min:-2,max:9.9},'a ripple trim can bring back the 2 s before the source in point');
  assert.deepEqual(trimBounds(p,ids,'right',false),{min:-9.9,max:0},'take 2 sits right after');
  trimClips(p,ids,'left',2,true);
  assert.deepEqual(p.clips.filter(c=>ids.has(c.id)).map(c=>[c.start,c.sourceIn,clipDuration(c)]),[[0,4,8],[0,4,8],[0,4,8]]);

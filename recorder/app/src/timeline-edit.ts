@@ -15,18 +15,22 @@ const gapTracks:ReadonlySet<TrackKind>=new Set(['screen','camera','audio','overl
 
 /* ---------- Linked clips ---------- */
 
-/** The link group of every clip: an explicit `linkId`, or, for a take's clips that were never linked explicitly, the clips of that take that overlap in time. Unlinked clips are alone. */
+/** Whether the clips form one connected run in time (each one overlaps the run before it). */
+function connected(clips:readonly Clip[]){const sorted=[...clips].sort((a,b)=>a.start-b.start);let reach=-Infinity;return sorted.every((c,i)=>{const ok=i===0||c.start<reach-EPS;reach=Math.max(reach,end(c));return ok;});}
+/**
+ * The link group of every clip. Clips that share an explicit `linkId`, or (when they were never linked explicitly) a recorded take, are linked
+ * only while they overlap in time: each connected run is its own group. So the pieces that a cut, a split or a transcript delete leaves
+ * (which keep their `linkId`) never stay linked across the gap between them. Unlinked clips are alone.
+ */
 export function linkGroups(clips:readonly Clip[]):Map<string,string>{
- const groups=new Map<string,string>(),implicit=new Map<string,Clip[]>();
+ const groups=new Map<string,string>(),buckets=new Map<string,Clip[]>();
  for(const c of clips){
-  if(c.linkId!==undefined)groups.set(c.id,'link:'+c.linkId);
-  else if(c.recordingTakeId){const list=implicit.get(c.recordingTakeId)??[];list.push(c);implicit.set(c.recordingTakeId,list);}
-  else groups.set(c.id,'clip:'+c.id);
+  const base=c.linkId!==undefined?'link:'+c.linkId:c.recordingTakeId?'take:'+c.recordingTakeId:'';
+  if(!base){groups.set(c.id,'clip:'+c.id);continue;}const list=buckets.get(base)??[];list.push(c);buckets.set(base,list);
  }
- for(const [take,list] of implicit){
-  // Connected runs of overlapping clips: sort by start and sweep, so split pieces of one take stay separate groups.
+ for(const [base,list] of buckets){
   const sorted=[...list].sort((a,b)=>a.start-b.start||a.id.localeCompare(b.id));let key='',reach=-Infinity;
-  for(const c of sorted){if(c.start>=reach-EPS){key=`take:${take}:${c.id}`;reach=end(c);}else reach=Math.max(reach,end(c));groups.set(c.id,key);}
+  for(const c of sorted){if(c.start>=reach-EPS){key=`${base}:${c.id}`;reach=end(c);}else reach=Math.max(reach,end(c));groups.set(c.id,key);}
  }
  return groups;
 }
@@ -48,9 +52,9 @@ export function ensureLinks(p:Project,newId:()=>string=makeId){
 export function unlinkClips(p:Project,ids:Iterable<string>,newId:()=>string=makeId){
  const all=linkedIds(p.clips,ids);let n=0;for(const c of p.clips)if(all.has(c.id)){c.linkId=newId();n++;}return n;
 }
-/** Links the chosen clips (at least two) into one group. */
+/** Links the chosen clips (at least two, lined up so they overlap in time) into one group. */
 export function linkClips(p:Project,ids:Iterable<string>,newId:()=>string=makeId){
- const chosen=new Set(ids),clips=p.clips.filter(c=>chosen.has(c.id));if(clips.length<2)return false;const id=newId();for(const c of clips)c.linkId=id;return true;
+ const chosen=new Set(ids),clips=p.clips.filter(c=>chosen.has(c.id));if(clips.length<2||!connected(clips))return false;const id=newId();for(const c of clips)c.linkId=id;return true;
 }
 
 /* ---------- Split ---------- */
@@ -113,6 +117,27 @@ export function openRange(p:Project,at:number,length:number){
  for(const s of p.scenes)if(later(s.start)&&s.start>0)s.start+=length;
  for(const m of p.markers??[])if(later(m.time))m.time+=length;
 }
+/** Opens `length` seconds at `at` for an insert: clips on `rows` (all rows when omitted) that run across `at` are cut there first, so what is inserted overlaps nothing. */
+export function insertGap(p:Project,at:number,length:number,rows?:ReadonlySet<string>,newId:()=>string=makeId){
+ for(const c of [...p.clips]){
+  if(!(c.start+EPS<at&&end(c)-EPS>at)||rows&&!rows.has(clipLayerRowId(c,p)))continue;
+  const cut=c.sourceIn+(at-c.start)*c.speed,origin=clipEffectTiming(c);c.effectTiming={sourceIn:origin.sourceIn,sourceOut:origin.sourceOut};
+  p.clips.push({...plainClone(plainView(c)),id:newId(),start:at,sourceIn:cut});c.sourceOut=cut;
+ }
+ openRange(p,at,length);
+}
+/** Each recorded scene spans its takes' clips on the timeline (screen, camera, audio, overlay), so scene tags, chips and later ripples follow moves and trims. */
+export function syncScenesToTakes(p:Project){
+ const sceneOf=new Map((p.recordedTakes??[]).map(t=>[t.id,t.sceneId])),extent=new Map<string,[number,number]>();
+ for(const c of p.clips){const scene=c.recordingTakeId?sceneOf.get(c.recordingTakeId):undefined;if(!scene||!gapTracks.has(c.track))continue;const e=extent.get(scene);extent.set(scene,e?[Math.min(e[0],c.start),Math.max(e[1],end(c))]:[c.start,end(c)]);}
+ for(const s of p.scenes){const e=extent.get(s.id);if(e&&(Math.abs(s.start-e[0])>1e-9||Math.abs(s.duration-(e[1]-e[0]))>1e-9)){s.start=e[0];s.duration=e[1]-e[0];}}
+}
+/** True when two items on one row overlap. */
+export function rowsOverlap(items:readonly RowItem[]){
+ const rows=new Map<string,RowItem[]>();for(const i of items){const list=rows.get(i.row)??[];list.push(i);rows.set(i.row,list);}
+ for(const list of rows.values()){const sorted=[...list].sort((a,b)=>a.start-b.start);for(let i=1;i<sorted.length;i++)if(sorted[i].start<sorted[i-1].start+sorted[i-1].duration-EPS)return true;}
+ return false;
+}
 /** Pasted or duplicated clips get link groups of their own, keeping which of them belong together. */
 export function remapLinks(p:Project,ids:ReadonlySet<string>,newId:()=>string=makeId){
  const map=new Map<string,string>();for(const c of p.clips)if(ids.has(c.id)&&c.linkId!==undefined){if(!map.has(c.linkId))map.set(c.linkId,newId());c.linkId=map.get(c.linkId);}
@@ -159,7 +184,9 @@ export function planClipMove(p:Project,ids:ReadonlySet<string>,want:number,point
  const items=rowItems(p),moving=items.filter(i=>ids.has(i.id));if(!moving.length)return {kind:'none',starts:new Map(),delta:0};
  const clipsOnly=moving.every(m=>p.clips.some(c=>c.id===m.id));
  if(!collides(moving,want,items))return {kind:Math.abs(want)<1e-9?'none':'move',starts:new Map(moving.map(m=>[m.id,m.start+want])),delta:want};
- if(clipsOnly){const plan=insertPlan(moving,pointer,items);if(plan){if(Math.abs(plan.at-plan.from)<EPS)return {kind:'none',starts:new Map(),delta:0,at:plan.at};return {kind:'insert',starts:plan.starts,delta:plan.at-plan.from,at:plan.at};}}
+ if(clipsOnly){const plan=insertPlan(moving,pointer,items);
+  // Rows of a linked group can have different boundaries: an insert that would still overlap somewhere falls back to sliding into a gap.
+  if(plan&&!rowsOverlap(items.map(i=>plan.starts.has(i.id)?{...i,start:plan.starts.get(i.id)!}:i))){if(Math.abs(plan.at-plan.from)<EPS)return {kind:'none',starts:new Map(),delta:0,at:plan.at};return {kind:'insert',starts:plan.starts,delta:plan.at-plan.from,at:plan.at};}}
  const delta=freeDelta(moving,want,items);
  return {kind:Math.abs(delta)<1e-9?'none':'slide',starts:new Map(moving.map(m=>[m.id,m.start+delta])),delta};
 }
@@ -185,23 +212,29 @@ export function trimBounds(p:Project,ids:ReadonlySet<string>,side:'left'|'right'
  const clips=p.clips.filter(c=>ids.has(c.id));let min=-Infinity,max=Infinity;
  for(const c of clips){
   const length=clipDuration(c),row=clipLayerRowId(c,p),neighbours=p.clips.filter(o=>!ids.has(o.id)&&clipLayerRowId(o,p)===row);
-  if(side==='left'){min=Math.max(min,-c.sourceIn/c.speed,-c.start);max=Math.min(max,length-.1);if(!ripple)min=Math.max(min,...neighbours.filter(o=>end(o)<=c.start+EPS).map(o=>end(o)-c.start));}
+  if(side==='left'){min=Math.max(min,-c.sourceIn/c.speed);max=Math.min(max,length-.1);if(!ripple)min=Math.max(min,-c.start,...neighbours.filter(o=>end(o)<=c.start+EPS).map(o=>end(o)-c.start));}
   else{min=Math.max(min,.1-length);const source=media.get(c.mediaId)?.duration;max=Math.min(max,source&&source>0?(source-c.sourceOut)/c.speed:3600);if(!ripple)max=Math.min(max,...neighbours.filter(o=>o.start>=end(c)-EPS).map(o=>o.start-end(c)));}
  }
  return {min:Math.min(0,min),max:Math.max(0,max)};
 }
-/** Trims one edge of linked clips by `delta`. With `ripple`, a left trim keeps the start and everything after the clips moves by the length change; a right trim moves everything after too. Without it the edge moves in place. */
+/**
+ * Trims one edge of linked clips by `delta` (timeline seconds; positive moves the edge later). Without `ripple` the edge moves in place.
+ * With `ripple` the time the trim removes is closed on every track, or the time it adds is opened on every track, through the same
+ * closeRange/openRange as deletes and inserts: later clips, captions, graphics, zooms, scenes and markers follow, and nothing overlaps.
+ * A left ripple trim therefore keeps the clips' start.
+ */
 export function trimClips(p:Project,ids:ReadonlySet<string>,side:'left'|'right',delta:number,ripple:boolean){
  const clips=p.clips.filter(c=>ids.has(c.id));if(!clips.length||!delta)return;
- const after=Math.max(...clips.map(end)),shift=side==='left'?-delta:delta;
- if(ripple){
-  for(const c of p.clips)if(!ids.has(c.id)&&c.start>=after-EPS)c.start=Math.max(0,c.start+shift);
-  for(const e of p.elements)if(e.start>=after-EPS)e.start=Math.max(0,e.start+shift);
-  for(const z of p.zooms)if(z.start>=after-EPS)z.start=Math.max(0,z.start+shift);
-  for(const c of p.captions)if(c.start>=after-EPS){c.start+=shift;c.end+=shift;if(c.words)c.words=c.words.map(w=>({...w,start:w.start+shift,end:w.end+shift}));}
-  for(const m of p.markers??[])if(m.time>=after-EPS)m.time=Math.max(0,m.time+shift);
+ if(!ripple){for(const c of clips){if(side==='left'){c.sourceIn+=delta*c.speed;c.start+=delta;}else c.sourceOut+=delta*c.speed;}return;}
+ if(side==='right'){
+  const edge=Math.max(...clips.map(end));
+  if(delta<0){for(const c of clips)c.sourceOut+=delta*c.speed;closeRange(p,edge+delta,edge);}
+  else{openRange(p,edge,delta);for(const c of p.clips)if(ids.has(c.id))c.sourceOut+=delta*c.speed;}
+  return;
  }
- for(const c of clips){if(side==='left'){c.sourceIn+=delta*c.speed;if(!ripple)c.start+=delta;}else c.sourceOut+=delta*c.speed;}
+ const edge=Math.min(...clips.map(c=>c.start));
+ if(delta>0){for(const c of clips){c.sourceIn+=delta*c.speed;c.start+=delta;}closeRange(p,edge,edge+delta);}
+ else{const length=-delta;openRange(p,edge,length);for(const c of p.clips)if(ids.has(c.id)){c.start-=length;c.sourceIn-=length*c.speed;}}
 }
 /** Resizes an element, caption or zoom edge within [0, neighbours] and keeps at least a tenth of a second. */
 export function resizeEffect(p:Project,id:string,side:'left'|'right',delta:number){
