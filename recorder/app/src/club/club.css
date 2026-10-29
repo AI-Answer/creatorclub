@@ -429,28 +429,25 @@
 :where(.club-root) .tthumb .face:where(:not(.club-embed *))::before { content: ""; position: absolute; left: 22%; right: 22%; top: 8%; aspect-ratio: 1; border-radius: 50%; background: rgba(255,255,255,.4); }
 /* ---------- Overview ---------- */
 :where(.club-root) .greet h1:where(:not(.club-embed *)) { font-size: 30px; letter-spacing: -0.028em; }
-:where(.club-root) .resume:where(:not(.club-embed *)) { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 16px; }
-:where(.club-root) .resume .card:where(:not(.club-embed *)) { padding: 12px; display: flex; flex-direction: column; gap: 12px; }
-:where(.club-root) .resume .body:where(:not(.club-embed *)) { padding: 0 2px 2px; display: flex; flex-direction: column; gap: 8px; flex: 1; }
-:where(.club-root) .resume .title:where(:not(.club-embed *)) { font-weight: 600; font-size: 15px; letter-spacing: -0.01em; line-height: 1.3; }
-:where(.club-root) .ov-cols:where(:not(.club-embed *)) { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 28px; align-items: start; }
-:where(.club-root) .pipeline:where(:not(.club-embed *)) { padding: 6px; }
-:where(.club-root) .pipe-row:where(:not(.club-embed *)) { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px; cursor: pointer; }
-:where(.club-root) .pipe-row:hover:where(:not(.club-embed *)) { background: var(--cc-hover); }
-:where(.club-root) .pipe-row .bar:where(:not(.club-embed *)) { flex: 1; height: 6px; border-radius: 4px; background: var(--cc-bg-sunk); overflow: hidden; }
-:where(.club-root) .pipe-row .bar i:where(:not(.club-embed *)) { display: block; height: 100%; border-radius: 4px; background: currentColor; opacity: .8; }
-:where(.club-root) .pipe-row .n:where(:not(.club-embed *)) { width: 22px; text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
+:where(.club-root) .nextup:where(:not(.club-embed *)) { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 20px; padding: 14px; cursor: pointer; }
+:where(.club-root) .nextup .body:where(:not(.club-embed *)) { display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 4px 4px 4px 0; }
+:where(.club-root) .nextup .title:where(:not(.club-embed *)) { font-weight: 650; font-size: 20px; letter-spacing: -0.015em; line-height: 1.25; }
 :where(.club-root) .list-card:where(:not(.club-embed *)) { padding: 4px; }
 :where(.club-root) .li:where(:not(.club-embed *)) { display: flex; gap: 12px; align-items: center; padding: 10px; border-radius: 8px; cursor: pointer; transition: background .15s; }
 :where(.club-root) .li:hover:where(:not(.club-embed *)) { background: var(--cc-hover); }
 :where(.club-root) .li .lt:where(:not(.club-embed *)) { width: 88px; flex: none; border-radius: 6px; }
 :where(.club-root) .li .tt:where(:not(.club-embed *)) { font-weight: 550; font-size: 13.5px; line-height: 1.3; }
 /* trend card */
-:where(.club-root) .trend:where(:not(.club-embed *)) { padding: 10px; display: flex; flex-direction: column; gap: 10px; }
+:where(.club-root) .trend:where(:not(.club-embed *)) { padding: 10px; display: flex; flex-direction: column; gap: 10px; position: relative; }
 :where(.club-root) .trend .meta:where(:not(.club-embed *)) { display: flex; gap: 8px; align-items: center; font-size: 12.5px; color: var(--cc-text-2); }
 :where(.club-root) .trend .tt:where(:not(.club-embed *)) { font-weight: 600; font-size: 14px; line-height: 1.32; letter-spacing: -0.005em; }
 :where(.club-root) .trend .foot:where(:not(.club-embed *)) { display: flex; gap: 6px; margin-top: auto; padding-top: 2px; }
 :where(.club-root) .trend .foot .btn:where(:not(.club-embed *)) { flex: 1; }
+:where(.club-root) .trend .rank:where(:not(.club-embed *)) { font-size: 12px; font-weight: 650; color: var(--cc-text-3); font-variant-numeric: tabular-nums; min-width: 14px; }
+:where(.club-root) .trend .reason:where(:not(.club-embed *)) { color: var(--cc-text-3); font-weight: 450; }
+:where(.club-root) .trend .idea-pin:where(:not(.club-embed *)) { position: absolute; top: 16px; right: 16px; background: var(--cc-surface); box-shadow: var(--cc-shadow-1); display: none; }
+:where(.club-root) .trend:hover .idea-pin:where(:not(.club-embed *)) { display: inline-flex; }
+:where(.club-root) .trend:focus-within .idea-pin:where(:not(.club-embed *)) { display: inline-flex; }
 /* signal card */
 :where(.club-root) .sig-cols:where(:not(.club-embed *)) { columns: 3; column-gap: 16px; }
 :where(.club-root) .sig:where(:not(.club-embed *)) { break-inside: avoid; margin-bottom: 16px; padding: 14px 16px 12px; display: flex; flex-direction: column; gap: 10px; }
@@ -459,6 +456,10 @@
 :where(.club-root) .sig .who .h:where(:not(.club-embed *)) { font-size: 12.5px; color: var(--cc-text-3); }
 :where(.club-root) .sig .text:where(:not(.club-embed *)) { font-size: 14px; line-height: 1.5; color: var(--cc-text); white-space: pre-line; overflow-wrap: anywhere; }
 :where(.club-root) .sig .media:where(:not(.club-embed *)) { display: block; width: 100%; max-height: 260px; object-fit: cover; border-radius: 8px; border: 1px solid var(--cc-line); background: var(--cc-bg-sunk); }
+:where(.club-root) .sig .reason:where(:not(.club-embed *)) { color: var(--cc-text-3); font-weight: 450; }
+:where(.club-root) .sig .open-post:where(:not(.club-embed *)) { display: none; }
+:where(.club-root) .sig:hover .open-post:where(:not(.club-embed *)) { display: inline-flex; }
+:where(.club-root) .sig:focus-within .open-post:where(:not(.club-embed *)) { display: inline-flex; }
 :where(.club-root) .sig .foot:where(:not(.club-embed *)) { display: flex; align-items: center; gap: 12px; padding-top: 8px; border-top: 1px solid var(--cc-line); }
 :where(.club-root) .src-ic:where(:not(.club-embed *)) { width: 20px; height: 20px; border-radius: 5px; display: inline-flex; align-items: center; justify-content: center; color: #fff; font-size: 12px; font-weight: 800; flex: none; }
 :where(.club-root) .src-x:where(:not(.club-embed *)) { background: #111; }
@@ -468,10 +469,6 @@
 :where(.club-root) .breakbar .input:where(:not(.club-embed *)) { height: 40px; border: 0; box-shadow: none; padding-left: 4px; font-size: 14.5px; }
 :where(.club-root) .breakbar .input:focus:where(:not(.club-embed *)) { box-shadow: none; }
 :where(.club-root) .breakbar .lead:where(:not(.club-embed *)) { width: 36px; height: 36px; border-radius: 8px; background: var(--cc-bg-sunk); display: flex; align-items: center; justify-content: center; color: var(--cc-text-2); flex: none; margin-left: 4px; }
-:where(.club-root) .try:where(:not(.club-embed *)) { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 0 16px 12px 60px; font-size: 12.5px; color: var(--cc-text-3); }
-:where(.club-root) .try button:where(:not(.club-embed *)) { border: 1px solid var(--cc-line); background: var(--cc-surface-2); border-radius: 999px; height: 24px; padding: 0 9px 0 4px; display: inline-flex; gap: 6px; align-items: center; font-size: 12px; color: var(--cc-text-2); cursor: pointer; }
-:where(.club-root) .try button:hover:where(:not(.club-embed *)) { border-color: var(--cc-line-strong); color: var(--cc-text); }
-:where(.club-root) .try img:where(:not(.club-embed *)) { width: 26px; height: 16px; border-radius: 3px; object-fit: cover; }
 :where(.club-root) .bd:where(:not(.club-embed *)) { border-top: 1px solid var(--cc-line); padding: 20px 22px 22px; animation: cc-pageIn .4s var(--cc-ease); }
 :where(.club-root) .bd-steps:where(:not(.club-embed *)) { display: flex; flex-direction: column; gap: 10px; padding: 6px 0; }
 :where(.club-root) .bd-step:where(:not(.club-embed *)) { display: flex; align-items: center; gap: 10px; color: var(--cc-text-3); font-size: 13.5px; transition: color .2s; }
@@ -494,15 +491,34 @@
 :where(.club-root) .kv:where(:not(.club-embed *)) { font-size: 13px; color: var(--cc-text-2); line-height: 1.5; }
 :where(.club-root) .kv b:where(:not(.club-embed *)) { color: var(--cc-text); font-weight: 600; }
 :where(.club-root) .hookq:where(:not(.club-embed *)) { font-size: 13.5px; line-height: 1.5; color: var(--cc-text); padding-left: 12px; border-left: 1px solid var(--cc-line-strong); }
-:where(.club-root) .idea:where(:not(.club-embed *)) { display: flex; flex-direction: column; overflow: hidden; }
-:where(.club-root) .idea .thumb:where(:not(.club-embed *)) { border-radius: 0; }
-:where(.club-root) .idea .body:where(:not(.club-embed *)) { padding: 14px 16px 12px; display: flex; flex-direction: column; gap: 10px; flex: 1; }
-:where(.club-root) .idea .tt:where(:not(.club-embed *)) { font-weight: 600; font-size: 15px; letter-spacing: -0.012em; line-height: 1.3; }
-:where(.club-root) .idea .why:where(:not(.club-embed *)) { font-size: 13.5px; color: var(--cc-text-2); line-height: 1.5; }
-:where(.club-root) .idea .sigs:where(:not(.club-embed *)) { display: flex; gap: 6px; flex-wrap: wrap; }
-:where(.club-root) .idea .src:where(:not(.club-embed *)) { font-size: 12.5px; color: var(--cc-text-3); display: flex; align-items: center; gap: 6px; min-width: 0; }
-:where(.club-root) .idea .foot:where(:not(.club-embed *)) { display: flex; gap: 6px; padding: 10px 12px; border-top: 1px solid var(--cc-line); background: var(--cc-surface-2); align-items: center; flex-wrap: wrap; }
-:where(.club-root) .idea .foot .btn:where(:not(.club-embed *)) { white-space: nowrap; }
+/* idea row: a compact list; Start planning always shows, the "..." menu under the pointer, on focus or while open */
+:where(.club-root) .ilist:where(:not(.club-embed *)) { padding: 4px; }
+:where(.club-root) .irow:where(:not(.club-embed *)) { display: grid; grid-template-columns: 88px minmax(0, 1fr) auto; gap: 14px; align-items: center; padding: 10px 12px; border-radius: 8px; cursor: pointer; transition: background .15s; position: relative; }
+:where(.club-root) .irow:hover:where(:not(.club-embed *)) { background: var(--cc-hover); }
+:where(.club-root) .irow:focus-visible:where(:not(.club-embed *)) { outline: 2px solid var(--cc-accent); outline-offset: -2px; }
+:where(.club-root) .irow.new:where(:not(.club-embed *)) { background: var(--cc-accent-soft); }
+:where(.club-root) .irow .pic:where(:not(.club-embed *)) { align-self: start; }
+:where(.club-root) .irow .pic .thumb:where(:not(.club-embed *)) { border-radius: 6px; }
+:where(.club-root) .irow .main:where(:not(.club-embed *)) { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+:where(.club-root) .irow .tt:where(:not(.club-embed *)) { font-weight: 600; font-size: 14.5px; letter-spacing: -0.01em; line-height: 1.3; }
+:where(.club-root) .irow .itag:where(:not(.club-embed *)) { display: inline-block; margin-left: 8px; font-size: 11.5px; font-weight: 600; letter-spacing: 0; color: var(--cc-accent-text); vertical-align: 1px; }
+:where(.club-root) .irow .itag.warm:where(:not(.club-embed *)) { color: var(--cc-text-3); }
+:where(.club-root) .irow .why:where(:not(.club-embed *)) { font-size: 13px; color: var(--cc-text-2); line-height: 1.45; }
+:where(.club-root) .irow .src:where(:not(.club-embed *)) { font-size: 12px; color: var(--cc-text-3); display: flex; align-items: center; gap: 5px; min-width: 0; }
+:where(.club-root) .irow .src .reason-off:where(:not(.club-embed *)) { white-space: nowrap; }
+:where(.club-root) .irow .acts:where(:not(.club-embed *)) { display: flex; align-items: center; gap: 4px; flex: none; }
+:where(.club-root) .irow.held .tt:where(:not(.club-embed *)) { color: var(--cc-text-2); }
+:where(.club-root) .irow .more:where(:not(.club-embed *)) { visibility: hidden; }
+/* the menu is drawn elsewhere in the page, so while it is open the pointer is off the row: the open trigger keeps the button shown */
+:where(.club-root) .irow:hover .more:where(:not(.club-embed *)) { visibility: visible; }
+:where(.club-root) .irow:focus-within .more:where(:not(.club-embed *)) { visibility: visible; }
+:where(.club-root) .irow:has(.menu-open) .more:where(:not(.club-embed *)) { visibility: visible; }
+/* no pointer to hover with: the quiet buttons of rows and cards always show */
+@media (hover: none) {
+:where(.club-root) .irow .more:where(:not(.club-embed *)) { visibility: visible; }
+:where(.club-root) .trend .idea-pin:where(:not(.club-embed *)) { display: inline-flex; }
+:where(.club-root) .sig .open-post:where(:not(.club-embed *)) { display: inline-flex; }
+}
 /* ---------- Drawer & dialogs ---------- */
 :where(.club-root) .scrim:where(:not(.club-embed *)) { position: fixed; inset: 0; background: rgba(28, 25, 21, .28); z-index: 40; animation: cc-fade .2s ease; }
 @keyframes cc-fade { from { opacity: 0; } }
@@ -905,7 +921,6 @@
 :where(.club-root) .help-steps .hs span:where(:not(.club-embed *)) { font-size: 12.5px; color: var(--cc-text-2); line-height: 1.45; display: block; }
 @media (max-width: 1360px) {
   :where(.club-root) .g4:where(:not(.club-embed *)) { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  :where(.club-root) .ov-cols:where(:not(.club-embed *)) { grid-template-columns: minmax(0, 1fr) 300px; }
   :where(.club-root) .sig-cols:where(:not(.club-embed *)) { columns: 2; }
 }
 @media (prefers-reduced-motion: reduce) {

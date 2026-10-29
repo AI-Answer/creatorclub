@@ -5,8 +5,8 @@ import {act,createElement} from 'react';
 import type {SignalEntry,TrendingEntry,Video} from '../../shared/club';
 import type {SceneProgress} from './scene-status';
 import {installFetch,type FakeCall} from './test-fakes';
-const {ideaCounts,ideasIn,ideaLead,ideaSourceVideoId,videoThumbId,breakdownUrl,tabOf}=await import('./ideas');
-const {greeting,standing,isFresh,overviewLede,resumeVideos,stageCounts,progressText,nextAction,firstName}=await import('./overview');
+const {ideaCounts,ideasIn,ideaWhy,showSourceThumbs,ideaSourceVideoId,videoThumbId,breakdownUrl,tabOf}=await import('./ideas');
+const {greeting,standing,isFresh,overviewLede,resumeVideos,progressText,nextAction,firstName}=await import('./overview');
 const {trendList,trendCounts,offTopic,growthPerDay,isNew}=await import('./trending-view');
 const {signalList,signalCounts}=await import('./signals-view');
 const {breakdownStep,commentsRead,BREAKDOWN_STEPS}=await import('./breakdown');
@@ -32,12 +32,22 @@ test('ideas: counts per list, the list in order with the new one first, and what
  assert.deepEqual(ideasIn(videos,'new','a').map(v=>v.id),['a','b'],'the idea just added first');
  assert.deepEqual(ideasIn(videos,'later').map(v=>v.id),['c']);assert.deepEqual(ideasIn(videos,'skipped').map(v=>v.id),['d']);
  assert.equal(tabOf(undefined),'new');assert.equal(tabOf('later'),'later');
- assert.deepEqual(ideaLead(video('x','ideas',{idea:{hook:'Hello',why:'Because'}})),{kind:'hook',text:'Hello'});
- assert.deepEqual(ideaLead(video('x','ideas',{idea:{why:'Because',angle:'A'}})),{kind:'text',text:'Because'});
- assert.deepEqual(ideaLead(video('x','ideas',{idea:{note:'From a post'}})),{kind:'text',text:'From a post'});
- assert.equal(ideaLead(video('x','ideas')),null);
+ assert.equal(ideaWhy(video('x','ideas',{idea:{hook:'Hello',why:'Because',angle:'A'}})),'Because','the reason comes before the hook');
+ assert.equal(ideaWhy(video('x','ideas',{idea:{angle:'A',hook:'Hello'}})),'A');
+ assert.equal(ideaWhy(video('x','ideas',{idea:{note:'From a post'}})),'From a post');
+ assert.equal(ideaWhy(video('x','ideas',{idea:{hook:'Hello'}})),'Hello');
+ assert.equal(ideaWhy(video('x','ideas')),'');
  assert.equal(ideaSourceVideoId(video('x','ideas',{idea:{sources:[{label:'v',url:'https://www.youtube.com/watch?v=dQw4w9WgXcQ'}]}})),'dQw4w9WgXcQ');
  assert.equal(ideaSourceVideoId(video('x','ideas',{idea:{sources:[{label:'r',url:'https://www.reddit.com/r/x/1'}]}})),undefined);
+});
+
+test('ideas show the source picture once for a run of ideas from the same video, and none for a source that is not on YouTube',()=>{
+ const from=(id:string,url?:string)=>video(id,'ideas',{idea:{sources:url?[{label:'s',url}]:[]}});
+ const a='https://www.youtube.com/watch?v=dQw4w9WgXcQ',b='https://www.youtube.com/watch?v=aaaaaaaaaaa';
+ assert.deepEqual(showSourceThumbs([from('1',a),from('2',a),from('3',a),from('4',b),from('5',b),from('6',a)]),[true,false,false,true,false,true],'a picture again when the video differs from the row above');
+ assert.deepEqual(showSourceThumbs([from('1'),from('2','https://www.reddit.com/r/x/1'),from('3',a)]),[false,false,true]);
+ assert.deepEqual(showSourceThumbs([from('1',a),from('2'),from('3',a)]),[true,false,true],'a row between breaks the run');
+ assert.deepEqual(showSourceThumbs([]),[]);
 });
 
 test('only ideas and published videos show a picture from YouTube; videos in production show a draft',()=>{
@@ -71,7 +81,7 @@ test('overview: greeting, what is in production, fresh channels, the lede and wh
  // The video opened last comes first, then the other videos in production by when they were touched.
  assert.deepEqual(resumeVideos(videos,['p1','gone','d1','i1']).map(v=>v.id),['p1','r1','e1'],'published and ideas are not picked up; unknown ids are skipped');
  assert.deepEqual(resumeVideos(videos,[],2).map(v=>v.id),['r1','e1']);
- assert.deepEqual(stageCounts(videos,['ideas','planning','published']),[{stage:'ideas',count:2},{stage:'planning',count:1},{stage:'published',count:1}]);
+ assert.deepEqual(resumeVideos(videos,[],standing(videos).active.length).map(v=>v.id),['r1','e1','p1'],'every video in production when the limit is the count');
 });
 
 test('overview: progress words and the next action come from the scenes that are known',()=>{
@@ -104,6 +114,18 @@ test('unknown scenes are not zero scenes: only the stage is said until they are 
  assert.equal(nextAction(video('a','planning'),empty).label,'Draft scenes from board');
  assert.equal(nextAction(video('a','recording'),empty).label,'Draft scenes from board','a known empty outline has nothing to record');
  assert.equal(progressText(video('a','planning'),empty),'Planning · no scenes yet');
+});
+
+test('Working now lists a video the feed has twice once, and the counts say the same as the cards',()=>{
+ const first=trend('a',{vpd:1000}),again=trend('a',{vpd:900,kind:'creator'}),other=trend('b',{vpd:500});
+ const items=[first,again,other];
+ assert.deepEqual(trendList(items,'all','vpd'),[first,other],'the first copy is kept');
+ assert.deepEqual(trendCounts(items),{fit:2,followed:2,all:2},'"All 2", not 3');
+ assert.equal(offTopic(items),0);
+ // The copy that qualifies is the one a list keeps, so a list never loses a video to a copy that does not belong in it.
+ const off=trend('c',{fit:false,reason:null,vpd:800}),on=trend('c',{vpd:700});
+ assert.deepEqual(trendList([off,on],'fit','vpd'),[on]);assert.deepEqual(trendList([off,on],'all','vpd'),[off]);
+ assert.deepEqual(trendCounts([off,on]),{fit:1,followed:1,all:1});
 });
 
 test('Working now: For you, Followed and All, three sorts, growth per day and New',()=>{

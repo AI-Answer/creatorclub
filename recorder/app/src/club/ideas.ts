@@ -32,12 +32,24 @@ export function videoThumbId(video:Video):string|undefined{
  return video.stage==='published'?youtubeId(video.youtubeUrl):undefined;
 }
 
-/** The line a card shows under the title: the hook, else why it works, else the angle, else the note it was made from. */
-export function ideaLead(video:Video):{kind:'hook'|'text';text:string}|null{
+/** The one line a row of the Ideas list shows under the title: why it could work, else the angle, the note it was made from or the hook. */
+export const ideaWhy=(video:Pick<Video,'idea'>):string=>{
  const notes=video.idea;
- if(notes?.hook)return {kind:'hook',text:notes.hook};
- const text=notes?.why||notes?.angle||notes?.note;
- return text?{kind:'text',text}:null;
+ return notes?.why||notes?.angle||notes?.note||notes?.hook||'';
+};
+
+/**
+ * For each idea of a list, whether its row shows the source video's picture: when it has one, and it is not the picture of the row above.
+ * Ideas from one video sit together in the list, so the picture shows once for the group instead of on every row.
+ */
+export function showSourceThumbs(videos:readonly Video[]):boolean[]{
+ let previous:string|undefined;
+ return videos.map(video=>{
+  const id=ideaSourceVideoId(video);
+  const show=!!id&&id!==previous;
+  previous=id;
+  return show;
+ });
 }
 
 const YOUTUBE_ID=/^[\w-]{11}$/;

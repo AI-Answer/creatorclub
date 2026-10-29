@@ -1,10 +1,11 @@
 import type {TrendingEntry,Video} from '../../shared/club';
+import {ErrorLine} from './ErrorLine';
 import {FollowChannel} from './FollowChannel';
 import {creatorName,fmtNum} from './format';
 import {Empty,Icon,MultChip,Spinner,Thumb} from './ui';
 
-/** The first-video checklist a channel sees until it has a video in production: connect, say what your space is, pick an idea, then the five steps. */
-export function FirstSteps({ideas,hasTopics,start,onBreak,onOpenIdea,onIdeas}:{ideas:readonly Video[];hasTopics:boolean;start:readonly TrendingEntry[]|null;onBreak(item:TrendingEntry):void;onOpenIdea(video:Video):void;onIdeas():void}){
+/** The first-video checklist a channel sees until it has a video in production: connect, say what your space is, pick an idea, then the five steps. `error` is why the videos to start from could not be read, with `onRetry`. */
+export function FirstSteps({ideas,hasTopics,start,error,onRetry,onBreak,onOpenIdea,onIdeas}:{ideas:readonly Video[];hasTopics:boolean;start:readonly TrendingEntry[]|null;error?:string|null;onRetry():void;onBreak(item:TrendingEntry):void;onOpenIdea(video:Video):void;onIdeas():void}){
  const done=(key:string)=>key==='ai'||(key==='space'&&hasTopics)||(key==='idea'&&ideas.length>0);
  const steps=[
   {key:'ai',title:'Connect your AI',text:'Your AI is connected.'},
@@ -25,7 +26,7 @@ export function FirstSteps({ideas,hasTopics,start,onBreak,onOpenIdea,onIdeas}:{i
   </div>
   <div>
    {(start===null||start.length>0)&&<div className="row" style={{marginBottom:10}}><b style={{fontSize:14}}>Start here: break one of these down</b></div>}
-   {start===null?<Spinner label="Loading what's working" size={18}/>:start.length?<>
+   {error?<ErrorLine message={error} onRetry={onRetry}/>:start===null?<Spinner label="Loading what's working" size={18}/>:start.length?<>
     <div className="grid g3" style={{gap:12}}>{start.map(item=><div key={item.videoId} className="card trend hov" onClick={()=>onBreak(item)}>
      <Thumb videoId={item.videoId} seed={item.videoId} chip={<MultChip m={item.mult} who={creatorName(item.channel)} onThumb dash/>}/>
      <div className="tt clamp2" style={{fontSize:13}}>{item.title}</div>
