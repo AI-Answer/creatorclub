@@ -13,9 +13,11 @@ const hasFiles=(event:DragEvent)=>[...(event.dataTransfer?.types??[])].includes(
 /**
  * Break down one video: its progress while the job runs, one plain sentence with Try again (and a place to drop a video file) when it fails,
  * and the result: why it worked, what viewers ask and three concepts to add to your ideas.
- * `videoId` and `title` are shown while it runs, when the caller already knows them. `onAdded` gets the new idea's id.
+ * `videoId` and `title` are shown while it runs, when the caller already knows them.
+ * `multiplier` is the video's number from Working now when it is listed there (null when its usual is not known): the card and this panel must say the same thing,
+ * and the breakdown's own number was read at another time. Without it the breakdown's own number shows. `onAdded` gets the new idea's id.
  */
-export function BreakdownPanel({target,videoId,title,videos,onAdded,onCancel}:{target:BreakdownTarget;videoId?:string|null;title?:string;videos:readonly Video[];onAdded(videoId:string):void;onCancel?():void}){
+export function BreakdownPanel({target,videoId,title,multiplier,videos,onAdded,onCancel}:{target:BreakdownTarget;videoId?:string|null;title?:string;multiplier?:number|null;videos:readonly Video[];onAdded(videoId:string):void;onCancel?():void}){
  const {state,step,comments,retry,tryFile}=useBreakdownRun(target);
  const [over,setOver]=useState(false),[dropError,setDropError]=useState('');
  const failed=state.phase==='failed';
@@ -28,7 +30,7 @@ export function BreakdownPanel({target,videoId,title,videos,onAdded,onCancel}:{t
   setDropError('');tryFile(file);
  };
 
- if(state.phase==='done')return <BreakdownResult breakdown={state.result as Breakdown} videos={videos} onAdded={onAdded}/>;
+ if(state.phase==='done')return <BreakdownResult breakdown={state.result as Breakdown} multiplier={multiplier} videos={videos} onAdded={onAdded}/>;
  if(failed)return <div className="bd" onDragOver={event=>{if(hasFiles(event)){event.preventDefault();setOver(true);}}} onDragLeave={()=>setOver(false)} onDrop={drop}>
   <ErrorLine message={dropError||state.message} onRetry={()=>{setDropError('');retry();}}/>
   <p className={cn('mt-4 rounded-lg border border-dashed px-4 py-6 text-center text-base',over?'border-accent bg-accent-soft text-accent':'border-line text-muted')}>Drop a video file here</p>
@@ -46,13 +48,14 @@ export function BreakdownPanel({target,videoId,title,videos,onAdded,onCancel}:{t
  </div></div>;
 }
 
-function BreakdownResult({breakdown,videos,onAdded}:{breakdown:Breakdown;videos:readonly Video[];onAdded(videoId:string):void}){
+function BreakdownResult({breakdown,multiplier,videos,onAdded}:{breakdown:Breakdown;multiplier?:number|null;videos:readonly Video[];onAdded(videoId:string):void}){
  const {video,whyItWorked:why}=breakdown;
+ const mult=multiplier===undefined?video.multiplier:multiplier;
  const who=creatorName(video.channel)||undefined;
  const known=breakdown.platform!=='file';
  const [more,setMore]=useState(false);
  const source=youtubeId(breakdown.url);
- const picture=<Thumb videoId={source} src={source?undefined:video.thumbnail} seed={breakdown.id} chip={<MultChip m={video.multiplier} who={who} onThumb dash/>}/>;
+ const picture=<Thumb videoId={source} src={source?undefined:video.thumbnail} seed={breakdown.id} chip={<MultChip m={mult} who={who} onThumb dash/>}/>;
  return <div className="bd">
   <div className="bd-head">
    {breakdown.url?<a href={breakdown.url} target="_blank" rel="noopener noreferrer" style={{width:220,flex:'none'}}>{picture}</a>:<div style={{width:220,flex:'none'}}>{picture}</div>}
@@ -60,7 +63,7 @@ function BreakdownResult({breakdown,videos,onAdded}:{breakdown:Breakdown;videos:
     <div style={{fontWeight:650,fontSize:17,letterSpacing:'-0.015em',lineHeight:1.3}}>{video.title}</div>
     <div className="row" style={{marginTop:8,gap:8}}>{video.channel&&<><Avatar name={video.channel} size="sm"/><span className="muted">{video.channel}</span></>}<span className="faint small">{PLATFORM_LABEL[breakdown.platform]??breakdown.platform}</span></div>
     <div className="row" style={{marginTop:14,gap:8,flexWrap:'wrap'}}>
-     <MultChip m={video.multiplier} who={who} label dash/>
+     <MultChip m={mult} who={who} label dash/>
      {known&&video.views>0&&<span className="chip outline"><Icon name="Eye" size={12}/>{fmtNum(video.views)} views</span>}
      {known&&video.likes>0&&<span className="chip outline"><Icon name="Heart" size={12}/>{fmtNum(video.likes)}</span>}
      {known&&video.comments>0&&<span className="chip outline"><Icon name="MessageCircle" size={12}/>{fmtNum(video.comments)}</span>}

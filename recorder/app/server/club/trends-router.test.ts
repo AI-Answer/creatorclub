@@ -95,6 +95,8 @@ test('start fresh: a channel with no YouTube link, its profile, and a voice guid
   assert.deepEqual(workspace.topics, ['Claude', 'Automation']);
   assert.deepEqual(workspace.audience, ['Small-business owners']);
   assert.equal(workspace.about, 'Shop owners who are not technical');
+  assert.equal(workspace.person, 'Ana Perez', 'a fresh channel is a person, so greetings can use the name');
+  assert.equal((await call('PUT', '/workspaces/ana-perez', { person: 'Ana' })).body.person, 'Ana', 'and Settings can change it');
   assert.deepEqual(JSON.parse(await readFile(path.join(store.workspaceDir('ana-perez'), 'profile.json'), 'utf8')).audience, ['Small-business owners']);
   const voice = await readFile(path.join(store.workspaceDir('ana-perez'), 'voice.md'), 'utf8');
   assert.equal(voice, '# Ana Perez: Voice Guide\n\n## Voice DNA\n- **Voice:** Calm and clear, like a teacher\n- **Audience:** Shop owners who are not technical\n');

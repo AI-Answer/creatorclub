@@ -76,6 +76,7 @@ export async function startFresh(input: FreshChannel): Promise<Workspace> {
   const answered = Object.values(answers).some((value) => value?.trim());
   const workspace = await store.createWorkspace({
     name: input.name,
+    person: input.name,
     handle: '',
     channelUrl: '',
     topics: input.topics,

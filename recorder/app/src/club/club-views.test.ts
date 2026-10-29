@@ -12,6 +12,7 @@ const {sceneProgress}=await import('./scenes');
 const {breakdownStep,commentsRead,BREAKDOWN_STEPS}=await import('./breakdown');
 const {creatorName}=await import('./format');
 const {deleteLater,usePendingDeletes}=await import('./pending-delete');
+const {useVideos}=await import('./useVideos');
 const {ideaFromSource,trendingUrl}=await import('./useIdeaFrom');
 const {savedBreakdown}=await import('./useBreakdowns');
 
@@ -159,9 +160,32 @@ test('deleting an idea waits so Undo can take it back; nothing is sent when it i
   assert.equal(calls.length,0,'and it is never deleted');
 
   await act(async()=>{deleteLater('v2',message=>failures.push(message),20);});
-  await eventually(()=>calls.length===1&&seen.at(-1)!.length===0);
+  await eventually(()=>calls.length===1);
   assert.deepEqual(calls.map(c=>`${c.method} ${c.path}`),['DELETE /videos/v2'],'sent once the time is up');
-  assert.deepEqual(seen.at(-1),[],'and forgotten afterwards');assert.deepEqual(failures,[]);
+  assert.deepEqual(seen.at(-1),['v2'],'and it stays hidden');assert.deepEqual(failures,[]);
+ }finally{await ui.close();fake.restore();}
+});
+
+test('a deleted idea stays hidden when a list that was read before the delete lands after it',async()=>{
+ const stale:Video[]=[video('v9','ideas'),video('v8','ideas')];
+ const fake=installFetch(call=>{
+  if(call.method==='DELETE')return {status:204};
+  if(call.path==='/videos')return {body:stale};// the list still has it: it was read before the delete finished
+  if(call.path==='/recent')return {body:[]};
+ });
+ const shown:string[][]=[];
+ const Probe=()=>{const {state}=useVideos();shown.push(state.status==='ready'?state.videos.map(v=>v.id):[]);return null;};
+ const ui=await mountUI(createElement(Probe));
+ try{
+  await eventually(()=>shown.at(-1)!.length===2);
+  let undo=()=>{};
+  await act(async()=>{undo=deleteLater('v9',()=>{},10);});
+  await eventually(()=>fake.calls.some(c=>c.method==='DELETE'));
+  await eventually(()=>fake.calls.filter(c=>c.path==='/videos').length>=2);
+  await act(async()=>{await new Promise(resolve=>setTimeout(resolve,50));});
+  assert.deepEqual(shown.at(-1),['v8'],'the reload that follows the delete does not bring it back');
+  assert.equal(shown.some((ids,index)=>index>0&&shown[index-1].length===1&&ids.includes('v9')),false,'not even for a moment');
+  undo();
  }finally{await ui.close();fake.restore();}
 });
 
@@ -174,7 +198,7 @@ test('a delete the server refuses brings the idea back and says why in one sente
   let undo=()=>{};
   await act(async()=>{undo=deleteLater('v3',message=>failures.push(message),10);});
   await eventually(()=>failures.length===1&&seen.at(-1)!.length===0);
-  assert.deepEqual(failures,['That video is being recorded.']);assert.deepEqual(seen.at(-1),[]);
+  assert.deepEqual(failures,['That video is being recorded.']);assert.equal(seen.at(-1)!.includes('v3'),false,'it is back');
   undo();
  }finally{await ui.close();fake.restore();}
 });

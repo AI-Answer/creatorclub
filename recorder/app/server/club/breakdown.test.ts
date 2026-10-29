@@ -498,11 +498,11 @@ test('with a Gemini key a YouTube link is watched from its link, and the result 
 
 test('when Gemini cannot watch (private video, quota, bad answer, no network) Claude takes over with no Gemini tag and no sign of the failure', async () => {
   await setYt({});
-  for (const failure of ['private', 'quota', 'junk', 'offline'] as const) {
+  for (const [n, failure] of (['private', 'quota', 'junk', 'offline'] as const).entries()) {
     gemini = failure;
     geminiCalls.length = 0;
     const claudeBefore = (await claudeCalls()).length;
-    const { id, job } = await breakdown('https://www.youtube.com/watch?v=jjjjjjjjjjj');
+    const { id, job } = await breakdown(`https://www.youtube.com/watch?v=jjjjjjjjjj${n}`);
     assert.equal(job.status, 'done', `${failure}: ${JSON.stringify(job)}`);
     assert.equal(geminiCalls.length, 1, failure);
     assert.equal(job.result.watchedWith, undefined, failure);
@@ -516,13 +516,42 @@ test('when Gemini cannot watch (private video, quota, bad answer, no network) Cl
 test('Gemini is only for YouTube links: Instagram and dropped files never reach it, and removing the key goes back to Claude', async () => {
   await setYt({});
   geminiCalls.length = 0;
-  assert.equal((await breakdown('https://www.instagram.com/reel/C8aBcD_eFgH/')).job.status, 'done');
+  assert.equal((await breakdown('https://www.instagram.com/reel/C8aBcD_eFgI/')).job.status, 'done');
   assert.equal((await drop('clip.mp4')).job!.status, 'done');
   assert.equal(geminiCalls.length, 0);
   await call('DELETE', '/settings/gemini-key');
   const { job } = await breakdown('https://www.youtube.com/watch?v=kkkkkkkkkkk');
   assert.equal(geminiCalls.length, 0);
   assert.equal(job.result.watchedWith, undefined);
+});
+
+test('a video is broken down once: a finished breakdown of it is returned as it is, a running one is joined', async () => {
+  await setYt({ slow: 400 });
+  await setClaude('ok');
+  const url = 'https://www.youtube.com/watch?v=mmmmmmmmmmm';
+  const first = await call('POST', '/breakdowns', { url });
+  assert.equal(first.status, 202);
+  // The same video again, in another form of the link, while it runs: the same job, no second folder.
+  const foldersWhileRunning = await folders();
+  const joined = await call('POST', '/breakdowns', { url: 'https://youtu.be/mmmmmmmmmmm?si=x' });
+  assert.equal(joined.status, 202);
+  assert.equal(joined.body.id, first.body.id);
+  assert.deepEqual(await folders(), foldersWhileRunning);
+  const done = await finish(first.body.id);
+  assert.equal(done.status, 'done');
+
+  const claudeBefore = (await claudeCalls()).length;
+  const again = await call('POST', '/breakdowns', { url: 'https://www.youtube.com/watch?v=mmmmmmmmmmm&t=30s' });
+  assert.equal(again.status, 200, 'a finished breakdown is returned, not a job');
+  assert.deepEqual(again.body, done.result);
+  assert.equal((await claudeCalls()).length, claudeBefore, 'and nothing is asked of the AI again');
+  assert.equal((await folders()).filter((name) => name === done.result.id).length, 1);
+
+  // Another video is its own breakdown, and a failed run leaves nothing behind to return.
+  const other = await call('POST', '/breakdowns', { url: 'https://www.youtube.com/watch?v=nnnnnnnnnnn' });
+  assert.equal(other.status, 202);
+  assert.notEqual(other.body.id, first.body.id);
+  await finish(other.body.id);
 });
 
 test('stopping a breakdown stops it quietly and removes its folder', async () => {

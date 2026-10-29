@@ -47,7 +47,7 @@ export function OverviewScreen({navigate,onNewVideo}:{navigate(route:Route):void
 
  return <div className="page">
   <div className="page-head greet">
-   <div><h1>{profile?`${greeting()}, ${firstName(profile.name)}`:greeting()}</h1><div className="lede">{overviewLede(now)}</div></div>
+   <div><h1>{profile?.person?`${greeting()}, ${firstName(profile.person)}`:greeting()}</h1><div className="lede">{overviewLede(now)}</div></div>
    <div className="actions"><button type="button" className={`btn${fresh?'':' primary'}`} onClick={onNewVideo}><Icon name="Plus" size={15}/>New video</button></div>
   </div>
 
@@ -106,6 +106,6 @@ export function OverviewScreen({navigate,onNewVideo}:{navigate(route:Route):void
      :<div className="card"><Empty icon="MessagesSquare" title="No posts about your topics yet">Refresh Signals to read X and Reddit.</Empty></div>}
    </div>
   </div>
-  {breakdown&&<BreakdownDrawer videoId={breakdown.videoId} title={breakdown.title} channel={breakdown.channel} saved={saved} videos={videos} onAdded={id=>navigate({name:'ideas',new:id})} onClose={()=>setBreakdown(null)}/>}
+  {breakdown&&<BreakdownDrawer videoId={breakdown.videoId} title={breakdown.title} channel={breakdown.channel} multiplier={breakdown.mult} saved={saved} videos={videos} onAdded={id=>navigate({name:'ideas',new:id})} onClose={()=>setBreakdown(null)}/>}
  </div>;
 }

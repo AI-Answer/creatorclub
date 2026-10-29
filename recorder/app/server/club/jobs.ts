@@ -97,10 +97,16 @@ export const getJob = (id: string) => jobs.get(id);
 
 const onceKeys = new Map<string, string>();
 
+/** The job started with this key that is still running, if any. */
+export function runningOnce(key: string): JobSnapshot | undefined {
+  const running = onceKeys.get(key) ? jobs.get(onceKeys.get(key)!) : undefined;
+  return running?.status === 'running' ? snapshot(running) : undefined;
+}
+
 /** `startJob`, but a second start with the same key while its job still runs gets that running job instead. */
 export function startJobOnce<T>(key: string, kind: string, work: (context: JobContext) => Promise<T>): JobSnapshot {
-  const running = onceKeys.get(key) ? jobs.get(onceKeys.get(key)!) : undefined;
-  if (running?.status === 'running') return snapshot(running);
+  const running = runningOnce(key);
+  if (running) return running;
   const started = startJob(kind, work);
   onceKeys.set(key, started.id);
   return started;

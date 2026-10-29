@@ -8,7 +8,7 @@ import { ClubError, GENERIC_FAILURE, notFound } from './errors.js';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { addConceptToBoard, breakdownDir, listBreakdowns, newBreakdownId, readBreakdown, runBreakdown, thumbnailFile, type Transcriber } from './breakdown.js';
-import { cancelJob, getJob, snapshot, startJob, watchJob } from './jobs.js';
+import { cancelJob, getJob, runningOnce, snapshot, startJob, startJobOnce, watchJob } from './jobs.js';
 import { parseChannelInput } from './channel.js';
 import { FILE_TOO_BIG, MAX_FILE_BYTES, detectSource } from './source.js';
 import { addChannel, rebuildVoice, startFresh } from './onboard.js';
@@ -60,6 +60,7 @@ const videoPatchBody = z.object({
 
 const workspaceFields = {
   name: z.string().trim().min(1).max(120),
+  person: z.string().trim().max(120).optional(),
   handle: z.string().trim().max(120).default(''),
   channelUrl: z.string().trim().max(500).default(''),
   topics: z.array(z.string().trim().min(1)).default([]),
@@ -485,8 +486,25 @@ export function clubRouter({ ai = {}, transcribe, runAI, readViews = ytDlpViews(
       return;
     }
     const { url } = breakdownBody.parse(req.body);
-    detectSource(url);
-    start({ slug, id, url });
+    // A video is broken down once at a time and once in all: a finished breakdown of it is returned as it is, and one that is still running is joined.
+    const ref = detectSource(url);
+    const finished = (await listBreakdowns(slug)).find((found) => found.url === ref.url);
+    if (finished) {
+      res.json(await readBreakdown(slug, finished.id));
+      return;
+    }
+    const key = `breakdown:${slug}:${ref.url}`;
+    const running = runningOnce(key);
+    if (running) {
+      res.status(202).json(running);
+      return;
+    }
+    if (!req.complete || res.socket?.destroyed) return;
+    const job = startJobOnce(key, 'breakdown', (context) => runBreakdown({ slug, id, url }, context, work));
+    res.once('close', () => {
+      if (!res.writableFinished) cancelJob(job.id);
+    });
+    res.status(202).json(job);
   }));
 
   router.get('/breakdowns', handler(async (_req, res) => res.json(await listBreakdowns(await requireWorkspace()))));

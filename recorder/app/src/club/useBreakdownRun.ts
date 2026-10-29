@@ -3,6 +3,7 @@ import type {Breakdown} from '../../shared/club';
 import {clubFetch,clubUpload} from './api';
 import {breakdownStep,commentsRead,type BreakdownSource} from './breakdown';
 import {isStartedJob} from './jobs';
+import {notifyBreakdownsChanged} from './useBreakdowns';
 import {useJobRun,type JobRun} from './useJobRun';
 
 /** What to show a breakdown of: a link or a dropped video file (both run a job), or a breakdown that was already made. */
@@ -57,7 +58,7 @@ export function useBreakdownRun(initial:BreakdownTarget):BreakdownRun{
     jobId.current=job.id;
    }
    return job;
-  });
+  },()=>notifyBreakdownsChanged());
   return()=>{
    mine.gone=true;controller.abort();
    const id=jobId.current;jobId.current=undefined;

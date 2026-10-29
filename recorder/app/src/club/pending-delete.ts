@@ -9,15 +9,18 @@ import {TOAST_MS} from './ui';
  */
 
 const pending=new Map<string,ReturnType<typeof setTimeout>>();
+// Ideas the server has deleted. They stay hidden for the rest of the session: lists load again just after a delete, and one that was read
+// before the delete finished would bring the idea back for a moment. Ids are random, so none is ever reused.
+const deleted=new Set<string>();
 let snapshot:ReadonlySet<string>=new Set();
 const listeners=new Set<()=>void>();
-const publish=()=>{snapshot=new Set(pending.keys());listeners.forEach(listener=>listener());};
+const publish=()=>{snapshot=new Set([...pending.keys(),...deleted]);listeners.forEach(listener=>listener());};
 const subscribe=(listener:()=>void)=>{listeners.add(listener);return()=>{listeners.delete(listener);};};
 
 /** How long the delete waits: the time a toast with a button stays up. */
 export const DELETE_DELAY_MS=TOAST_MS.withButton;
 
-/** Ids of videos that are deleted soon unless undone. Lists leave these out. */
+/** Ids of videos that are deleted soon unless undone, or already deleted. Lists leave these out. */
 export const usePendingDeletes=()=>useSyncExternalStore(subscribe,()=>snapshot);
 
 /** Hides a video and deletes it after `delay`. Returns Undo. `onFailed` gets one sentence when the server refuses; the video comes back then. */
@@ -26,7 +29,7 @@ export function deleteLater(id:string,onFailed:(message:string)=>void,delay=DELE
  let sent=false;
  const timer=setTimeout(()=>{
   sent=true;
-  clubFetch(`/videos/${encodeURIComponent(id)}`,{method:'DELETE'}).then(()=>{},reason=>onFailed(errorMessage(reason,"Couldn't delete that idea."))).finally(()=>{pending.delete(id);publish();});
+  clubFetch(`/videos/${encodeURIComponent(id)}`,{method:'DELETE'}).then(()=>{deleted.add(id);},reason=>onFailed(errorMessage(reason,"Couldn't delete that idea."))).finally(()=>{pending.delete(id);publish();});
  },delay);
  pending.set(id,timer);publish();
  return()=>{

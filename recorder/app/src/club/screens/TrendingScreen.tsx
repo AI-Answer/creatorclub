@@ -70,6 +70,6 @@ export function TrendingScreen({navigate}:{navigate(route:Route):void}){
      :<div className="card"><Empty icon="TrendingUp" title={show==='followed'?'Nothing from the channels you follow':'Nothing matches your topics this week'} action={show==='followed'?undefined:<button type="button" className="btn" onClick={everything}>Show everything</button>}>{show==='followed'?'Refresh to read them again.':"Add a topic in Settings, or look at everything that's working."}</Empty></div>}
     {show==='fit'&&hidden>0&&list.length>0&&<div style={{textAlign:'center',marginTop:20}}><button type="button" className="btn" onClick={everything}><Icon name="Eye" size={15}/>Show everything ({hidden} more, not about your topics)</button></div>}
    </>}
-  {breakdown&&<BreakdownDrawer videoId={breakdown.videoId} title={breakdown.title} channel={breakdown.channel} saved={saved} videos={videos} onAdded={id=>navigate({name:'ideas',new:id})} onClose={()=>setBreakdown(null)}/>}
+  {breakdown&&<BreakdownDrawer videoId={breakdown.videoId} title={breakdown.title} channel={breakdown.channel} multiplier={breakdown.mult} saved={saved} videos={videos} onAdded={id=>navigate({name:'ideas',new:id})} onClose={()=>setBreakdown(null)}/>}
  </div>;
 }

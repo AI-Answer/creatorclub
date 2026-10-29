@@ -52,6 +52,9 @@ export function IdeasScreen({route,navigate}:{route:IdeasRoute;navigate(route:Ro
  const list=useMemo(()=>ideasIn(videos,tab,newId),[videos,tab,newId]);
  const trends=useMemo(()=>new Map((trending?.items??[]).map(item=>[item.videoId,item])),[trending]);
  const suggestions=useMemo(()=>(trending?.items??[]).filter(item=>item.fit).slice(0,3),[trending]);
+ // On an empty New list the empty state has the primary button, so the link bar's is a plain one.
+ const empty=tab==='new'&&list.length===0;
+ const listed=run?trends.get(youtubeId(run.url)??''):undefined;
  const newIdea=newId?videos.find(video=>video.id===newId&&video.stage==='ideas'):undefined;
  const open=drawer?videos.find(video=>video.id===drawer):undefined;
 
@@ -77,12 +80,12 @@ export function IdeasScreen({route,navigate}:{route:IdeasRoute;navigate(route:Ro
    <form className="breakbar" onSubmit={submit}>
     <span className="lead"><Icon name="Link" size={17}/></span>
     <input className="input" value={url} onChange={event=>setUrl(event.target.value)} placeholder="Paste a YouTube or Instagram link to break it down" aria-label="Video link"/>
-    <button type="submit" className={`btn${newIdea?'':' primary'}`} disabled={!url.trim()}><Icon name="Sparkles" size={15}/>Break down</button>
+    <button type="submit" className={`btn${newIdea||empty?'':' primary'}`} disabled={!url.trim()}><Icon name="Sparkles" size={15}/>Break down</button>
    </form>
    {!run&&suggestions.length>0&&<div className="try">Try one that's working now:{suggestions.map(item=><button key={item.videoId} type="button" onClick={()=>tryOne(item)}><img src={ytThumb(item.videoId)} alt=""/>{creatorName(item.channel)}</button>)}</div>}
    {run&&<div style={{position:'relative'}}>
     <button type="button" className="btn ghost sm" style={{position:'absolute',right:12,top:12,zIndex:2}} onClick={()=>{setRun(null);setUrl('');}}><Icon name="X" size={14}/>Close</button>
-    <BreakdownPanel key={run.key} target={{kind:'link',url:run.url}} videoId={youtubeId(run.url)} videos={videos} onAdded={added}/>
+    <BreakdownPanel key={run.key} target={{kind:'link',url:run.url}} videoId={youtubeId(run.url)} multiplier={listed?.mult} videos={videos} onAdded={added}/>
    </div>}
   </div>
 

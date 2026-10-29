@@ -18,7 +18,7 @@ const base=(id:string,title:string,stage:Video['stage'],extra:Partial<Video>={})
 const rated=(level:'high'|'mid'|'low',note:string)=>({level,note});
 const trend=(videoId:string,title:string,extra:Partial<TrendingEntry>={}):TrendingEntry=>({videoId,title,channel:'Duncan Rogoff | AI',kind:'followed',views:120000,likes:4000,comments:300,published:'2026-10-24',ageDays:4,vpd:30000,mult:3.2,history:[],firstSeen:'2026-10-20',fit:true,reason:'Because you picked Claude',...extra});
 const post=(id:string,text:string,extra:Partial<SignalEntry>={}):SignalEntry=>({id,source:'x',author:'Alex Finn',handle:'alexfinn',text,url:`https://x.com/alexfinn/status/${id}`,likes:1200,replies:80,media:null,createdAt:'2026-10-28T00:00:00.000Z',ageHours:5,fit:true,reason:'Because you picked Claude',flair:null,...extra});
-const profile=(name:string,topics=['Claude'],audience:string[]=[]):Workspace=>({slug:name.toLowerCase().replace(/\W+/g,'-'),name,handle:'',channelUrl:'',topics,audience,about:'',cta:'',createdAt:'2026-01-01T00:00:00.000Z'});
+const profile=(name:string,topics=['Claude'],audience:string[]=[],person:string|null=name):Workspace=>({slug:name.toLowerCase().replace(/\W+/g,'-'),name,...(person&&{person}),handle:'',channelUrl:'',topics,audience,about:'',cta:'',createdAt:'2026-01-01T00:00:00.000Z'});
 const breakdown=(over:Partial<Breakdown>={}):Breakdown=>({
  id:'bd_aaaaaaaaaaaa',url:VIDEO_URL,platform:'youtube',createdAt:'2026-10-28T00:00:00.000Z',
  video:{title:'How I built it',channel:'Duncan Rogoff | AI',views:7_600_000,likes:140_000,comments:12_000,ageDays:3,thumbnail:'',multiplier:2.84},
@@ -640,6 +640,15 @@ test('Overview with only published videos says nothing is in production, and vid
  });
 });
 
+test('the greeting uses the person of the channel, and no name when only the channel name is known',async()=>{
+ await mount(navigate=>createElement(OverviewScreen,{navigate,onNewVideo:()=>{}}),server({workspace:profile('AI Business Lab',['Claude'],[],null)}),async ui=>{
+  assert.match(text(ui.container.querySelector('h1')),/^Good (morning|afternoon|evening)$/,'not "Good morning, AI"');
+ });
+ await mount(navigate=>createElement(OverviewScreen,{navigate,onNewVideo:()=>{}}),server({workspace:{...profile('Maya\'s AI Lab',['Claude'],[],'Maya Lopez')}}),async ui=>{
+  assert.match(text(ui.container.querySelector('h1')),/, Maya$/);
+ });
+});
+
 test('Overview with an idea but no video in production says to open it and start planning',async()=>{
  const s=server({videos:[base('i1','Claude for receipts','ideas')],workspace:profile('Maya Lopez')});
  await mount(navigate=>createElement(OverviewScreen,{navigate,onNewVideo:()=>{}}),s,async (ui,_s,_calls,routes)=>{
@@ -648,5 +657,64 @@ test('Overview with an idea but no video in production says to open it and start
   assert.match(text(c.querySelector('.card')),/You have an idea\. Open it and start planning\./);
   await press(button(c,'Open "Claude for receipts"'));assert.deepEqual(routes.at(-1),{name:'ideas',new:'i1'});
   assert.equal(text(c.querySelector('.empty h3')),'No videos to start from yet');
+ });
+});
+
+// ---------------------------------------------------------------- review fixes
+
+test('a breakdown that finished is found the next time its card opens, so it does not run (and cost) again',async()=>{
+ const s=trendServer();
+ await mount(navigate=>createElement(TrendingScreen,{navigate}),s,async (ui,state,calls)=>{
+  const c=ui.container,card=()=>c.querySelector('.card.trend')!;
+  await press(button(card(),'Break down'));
+  assert.equal(writes(calls).filter(w=>w.startsWith('POST /breakdowns')).length,1);
+  // The server now has it.
+  state.breakdowns=[{id:'bd_aaaaaaaaaaaa',url:'https://www.youtube.com/watch?v=aaaaaaaaaaa',platform:'youtube',createdAt:'2026-10-28T00:00:00.000Z',title:'t',channel:'c'}];
+  state.saved={bd_aaaaaaaaaaaa:breakdown({url:'https://www.youtube.com/watch?v=aaaaaaaaaaa'})};
+  await emit('done',breakdown({url:'https://www.youtube.com/watch?v=aaaaaaaaaaa'}));
+  await settle();
+  await press(c.querySelector('.drawer [aria-label="Close"]')!);
+  assert.equal(text(card().querySelector('.foot .btn')),'Open breakdown');
+  await press(button(card(),'Open breakdown'));
+  assert.equal(writes(calls).filter(w=>w.startsWith('POST /breakdowns')).length,1,'no second run');
+  assert.deepEqual(texts(c.querySelector('.drawer')!,'.concept .tt'),['Concept 1','Concept 2','Concept 3']);
+ });
+});
+
+test('a link whose breakdown the server already has shows it at once',async()=>{
+ const s=server();
+ await mount(navigate=>createElement(IdeasScreen,{route:{name:'ideas'},navigate}),s,async (ui,_s,calls)=>{
+  const c=ui.container;
+  const inner=globalThis.fetch;
+  globalThis.fetch=(async(input:RequestInfo|URL,init?:RequestInit)=>String(input)==='/api/club/breakdowns'&&init?.method==='POST'
+   ?new Response(JSON.stringify(breakdown()),{status:200,headers:{'content-type':'application/json'}}):inner(input,init)) as typeof fetch;
+  await type(c.querySelector('.breakbar input')!,VIDEO_URL);
+  await press(button(c,'Break down'));
+  assert.deepEqual(texts(c,'.concept .tt'),['Concept 1','Concept 2','Concept 3']);
+  assert.equal(FakeEventSource.all.length,0,'no job to follow');
+  globalThis.fetch=inner;void calls;
+ });
+});
+
+test('on an empty New list there is one primary button, and the empty state has it',async()=>{
+ await mount(navigate=>createElement(IdeasScreen,{route:{name:'ideas'},navigate}),server({trending:{items:[trend('dQw4w9WgXcQ','Receipts with Claude')],updatedAt:null,followed:1}}),async ui=>{
+  const primaries=[...ui.container.querySelectorAll('.btn.primary')];
+  assert.deepEqual(primaries.map(text),["Break down a video that's working"]);
+ });
+});
+
+test('a Working now card and its breakdown say the same multiplier, even when the breakdown read another one',async()=>{
+ const items=[trend('aaaaaaaaaaa','Claude Code in 20 minutes',{mult:6.4}),trend('bbbbbbbbbbb','Agents that run a shop',{mult:null,channel:'Metics Media'})];
+ const s=server({trending:{items,updatedAt:null,followed:2},workspace:profile('Maya Lopez'),
+  breakdowns:[{id:'bd_aaaaaaaaaaaa',url:'https://youtu.be/aaaaaaaaaaa',platform:'youtube',createdAt:'',title:'t',channel:'c'},{id:'bd_bbbbbbbbbbbb',url:'https://youtu.be/bbbbbbbbbbb',platform:'youtube',createdAt:'',title:'t',channel:'c'}],
+  saved:{bd_aaaaaaaaaaaa:breakdown({url:'https://youtu.be/aaaaaaaaaaa',video:{...breakdown().video,multiplier:2.84}}),bd_bbbbbbbbbbbb:breakdown({id:'bd_bbbbbbbbbbbb',url:'https://youtu.be/bbbbbbbbbbb',video:{...breakdown().video,multiplier:9.5}})}});
+ await mount(navigate=>createElement(TrendingScreen,{navigate}),s,async ui=>{
+  const c=ui.container;
+  const [first,second]=c.querySelectorAll('.card.trend');
+  await press(button(first,'Open breakdown'));
+  assert.deepEqual(texts(c.querySelector('.drawer')!,'.bd-head .chip.mult'),['6.40×',"6.40× vs Duncan Rogoff's usual"],'the card says 6.40×');
+  await press(c.querySelector('.drawer [aria-label="Close"]')!);
+  await press(button(second,'Open breakdown'));
+  assert.deepEqual(texts(c.querySelector('.drawer')!,'.bd-head .chip.mult'),['—','— usual'],'a card with a dash is a dash here too');
  });
 });

@@ -3,6 +3,8 @@
 export interface Workspace {
   slug: string;
   name: string;
+  /** The person the channel belongs to, for greetings. Unset when only the channel's name is known (a channel added from its link). */
+  person?: string;
   handle: string;
   channelUrl: string;
   topics: string[];
