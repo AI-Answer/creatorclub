@@ -50,9 +50,9 @@ export function scheduleTime(value:string,now:Date):{iso:string;date:Date}|{mess
 export function publishProblem(input:{connected:boolean;channel:boolean;exported:boolean;stale?:boolean;kids:'yes'|'no'|null;title:string}):string|null{
  if(!input.connected)return 'Connect Postiz first.';
  if(!input.channel)return 'Choose the YouTube channel first.';
- if(!input.exported)return input.stale?'Export the video again first. It was edited after the last export.':'Export the video first.';
+ if(!input.exported)return input.stale?'Export the video again first, because it was edited after the last export.':'Export the video first.';
  if(!input.title.trim())return 'Add a title first.';
- if(!input.kids)return "Choose whether it's made for kids. YouTube requires an answer.";
+ if(!input.kids)return "Choose whether it's made for kids, which YouTube requires.";
  return null;
 }
 
@@ -83,8 +83,17 @@ export function progressRows(progress:PublishProgress|null,failed:boolean,schedu
 /** The title and the sentence under it on the result card. */
 export type ResultInfo={state:PublishRecord['state'];visibility:PublishVisibility;scheduledFor?:string;url?:string;postizUrl?:string;unconfirmed?:boolean};
 export function resultWords(record:ResultInfo):{title:string;line:string;done:boolean}{
- if(record.unconfirmed)return {title:"Postiz didn't confirm it",line:"It may or may not be there. Check again, or open Postiz to see.",done:false};
+ if(record.unconfirmed)return {title:"Postiz didn't confirm it",line:"It may or may not be there, so check again or open Postiz to see.",done:false};
  if(record.state==='published')return {title:"It's on YouTube",line:`It is live as ${visibilityWord(record.visibility).toLowerCase()}. YouTube may take a few minutes to show it in HD.`,done:true};
  if(record.scheduledFor)return {title:"It's scheduled",line:`Postiz will put it on YouTube on ${whenText(new Date(record.scheduledFor))}. Your laptop can be closed.`,done:true};
  return {title:'Postiz has it',line:'Postiz is sending it to YouTube. This can take a few minutes, and your laptop can be closed.',done:false};
+}
+
+const REMINDER_KEY='creatorclub.postizCheckReminder';
+/** The reminder to check the first Postiz publish on YouTube is shown until it is dismissed or a Postiz publish has gone through. */
+export function reminderSeen():boolean{
+ try{return localStorage.getItem(REMINDER_KEY)==='seen';}catch{return false;}
+}
+export function markReminderSeen():void{
+ try{localStorage.setItem(REMINDER_KEY,'seen');}catch{/* The reminder shows again next time. */}
 }

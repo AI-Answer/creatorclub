@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {IN_THE_FUTURE,TAGS_MAX_CHARS,addTags,defaultSchedule,localInputValue,progressOf,progressRows,publishProblem,resultWords,scheduleTime,whenText} from './publish-logic';
+import {IN_THE_FUTURE,TAGS_MAX_CHARS,addTags,defaultSchedule,localInputValue,markReminderSeen,progressOf,progressRows,publishProblem,reminderSeen,resultWords,scheduleTime,whenText} from './publish-logic';
 
 test('tags are split on commas and new lines, trimmed, without a leading #, and never repeated whatever their case',()=>{
  assert.deepEqual(addTags([],'claude, #ai agents\n  mods ,,'),['claude','ai agents','mods']);
@@ -38,7 +38,7 @@ test('what stands in the way of Publish is said once, in the order the person fi
  assert.equal(publishProblem({...ready,connected:false,channel:false,exported:false,kids:null}),'Connect Postiz first.');
  assert.equal(publishProblem({...ready,channel:false,exported:false}),'Choose the YouTube channel first.');
  assert.equal(publishProblem({...ready,exported:false}),'Export the video first.');
- assert.match(publishProblem({...ready,exported:false,stale:true})!,/^Export the video again first\./);
+ assert.match(publishProblem({...ready,exported:false,stale:true})!,/^Export the video again first, because/);
  assert.equal(publishProblem({...ready,title:'  ',kids:null}),'Add a title first.');
  assert.match(publishProblem({...ready,kids:null})!,/made for kids/);
 });
@@ -68,4 +68,20 @@ test('the result says where the video is: on YouTube, scheduled, or with Postiz'
  assert.equal(scheduled.title,"It's scheduled");
  assert.match(scheduled.line,/Sat 31 Oct, 15:00/);
  assert.deepEqual(resultWords({state:'queued',visibility:'public'}).done,false);
+});
+
+test('the first-publish reminder is remembered once dismissed, and a missing store only shows it again',()=>{
+ const had=Object.getOwnPropertyDescriptor(globalThis,'localStorage');
+ const data=new Map<string,string>();
+ Object.defineProperty(globalThis,'localStorage',{configurable:true,value:{getItem:(key:string)=>data.get(key)??null,setItem:(key:string,value:string)=>void data.set(key,value)}});
+ try{
+  assert.equal(reminderSeen(),false);
+  markReminderSeen();
+  assert.equal(reminderSeen(),true);
+  Object.defineProperty(globalThis,'localStorage',{configurable:true,get(){throw new Error('blocked');}});
+  assert.equal(reminderSeen(),false);
+  assert.doesNotThrow(()=>markReminderSeen());
+ }finally{
+  if(had)Object.defineProperty(globalThis,'localStorage',had);else delete (globalThis as {localStorage?:unknown}).localStorage;
+ }
 });

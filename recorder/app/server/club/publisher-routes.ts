@@ -48,25 +48,25 @@ const startBody = z
   .strict();
 
 const THUMBNAIL_MAX = 2 * 1024 * 1024;
-const THUMBNAIL_EXTENSIONS = ['png', 'jpg', 'webp'] as const;
-const THUMBNAIL_TYPE: Record<(typeof THUMBNAIL_EXTENSIONS)[number], string> = { png: 'image/png', jpg: 'image/jpeg', webp: 'image/webp' };
-const NOT_AN_IMAGE = 'Use a PNG, JPG or WebP image, up to 2 MB.';
+const THUMBNAIL_EXTENSIONS = ['png', 'jpg'] as const;
+const THUMBNAIL_TYPE: Record<(typeof THUMBNAIL_EXTENSIONS)[number], string> = { png: 'image/png', jpg: 'image/jpeg' };
+const NOT_AN_IMAGE = 'Use a PNG or JPG image of up to 2 MB.';
 
-/** What the bytes are, whatever the client called them: PNG, JPEG or WebP by their first bytes. */
+/** What the bytes are, whatever the client called them: PNG or JPEG by their first bytes (the types YouTube accepts for a thumbnail). */
 export function imageKind(bytes: Buffer): (typeof THUMBNAIL_EXTENSIONS)[number] | undefined {
   if (bytes.length >= 8 && bytes.subarray(0, 8).equals(Buffer.from('89504e470d0a1a0a', 'hex'))) return 'png';
   if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return 'jpg';
-  if (bytes.length >= 12 && bytes.subarray(0, 4).toString('latin1') === 'RIFF' && bytes.subarray(8, 12).toString('latin1') === 'WEBP') return 'webp';
   return undefined;
 }
 const thumbnailUpload = multer({ storage: multer.memoryStorage(), limits: { files: 1, fileSize: THUMBNAIL_MAX } });
 const NEEDS_EXPORT = 'Export the video again, then publish.';
 const WAITING = 'Postiz is uploading it to YouTube.';
-export const ALREADY_SENT = 'Postiz already has this video. Check again to see where it is.';
-export const ALREADY_UNCONFIRMED = 'Postiz may already have this video. Check again to see whether it is there.';
-/** An unconfirmed post that Postiz still does not list after this long is taken as not made, so it can be sent again. */
-const UNCONFIRMED_GIVE_UP_MS = 10 * 60 * 1000;
-export const NOT_THERE = "Postiz doesn't have it. You can send it again.";
+export const ALREADY_SENT = 'Postiz already has this video, so check again to see where it is.';
+export const ALREADY_UNCONFIRMED = 'Postiz may already have this video, so check again to see whether it is there.';
+export const FORGOTTEN = 'You said it is not in Postiz, so this video can be sent again.';
+export const CANT_FORGET_PUBLISHED = 'This video is already published, so there is nothing to send again.';
+export const STILL_SENDING = 'Postiz is still being sent this video, so wait for it to finish.';
+export const NOTHING_SENT = 'This video has not been sent to Postiz.';
 
 const sleep = (ms: number, signal: AbortSignal) =>
   new Promise<void>((resolve) => {
@@ -201,6 +201,21 @@ export function publishingRoutes(router: Router, deps: { handler: (fn: (req: Req
     res.json(record);
   }));
 
+  // "I checked Postiz and it is not there": the only way a queued or unconfirmed record is let go, so one the person deleted in Postiz never blocks the video.
+  // It changes the record to failed and nothing else, and never for a video that is published.
+  router.post('/videos/:id/postiz/forget', handler(async (req, res) => {
+    const slug = await requireWorkspace();
+    const id = param(req, 'id');
+    await store.readVideo(slug, id);
+    if (runningOnce(`postiz:${slug}:${id}`)) throw new ClubError(STILL_SENDING, 409);
+    const record = await store.readJSON<PublishRecord>(recordFile(slug, id));
+    if (!record) throw new ClubError(NOTHING_SENT, 409);
+    if (record.state === 'published') throw new ClubError(CANT_FORGET_PUBLISHED, 409);
+    const next: PublishRecord = { ...record, state: 'failed', message: FORGOTTEN };
+    await store.writeJSON(recordFile(slug, id), next);
+    res.json(next);
+  }));
+
   router.post('/videos/:id/postiz', handler(async (req, res) => {
     const slug = await requireWorkspace();
     const id = param(req, 'id');
@@ -218,7 +233,7 @@ export function publishingRoutes(router: Router, deps: { handler: (fn: (req: Req
     const { publisher, address } = await connectedPublisher(options);
     const exported = await options.exportFile?.(body.exportId);
     if (!exported || !video.recorderProjectId || exported.projectId !== video.recorderProjectId) throw new ClubError(NEEDS_EXPORT, 409);
-    if (exported.size > MAX_VIDEO_BYTES) throw new PublisherError(`Postiz takes videos up to 1 GB. This one is ${(exported.size / 1024 ** 3).toFixed(1)} GB.`, 400);
+    if (exported.size > MAX_VIDEO_BYTES) throw new PublisherError(`Postiz takes videos up to 1 GB, and this one is ${(exported.size / 1024 ** 3).toFixed(1)} GB.`, 400);
     const file: LocalFile = { path: exported.path, name: exported.name, size: exported.size, type: 'video/mp4', version: body.exportId };
     const channelId = settings.channel.id;
     res.status(202).json(startJobOnce(`postiz:${slug}:${id}`, 'publish', async ({ emit, signal }) => {
@@ -263,10 +278,6 @@ async function refresh(slug: string, id: string, record: PublishRecord, publishe
       const { unconfirmed: _found, message: _none, ...known } = record;
       record = { ...known, postId: status.postId };
       await store.writeJSON(recordFile(slug, id), record);
-    } else if (Date.now() - new Date(record.sentAt).getTime() > UNCONFIRMED_GIVE_UP_MS) {
-      const gone: PublishRecord = { ...record, state: 'failed', message: NOT_THERE };
-      await store.writeJSON(recordFile(slug, id), gone);
-      return gone;
     } else return record;
   }
   return settle(slug, id, record, status, readViews);

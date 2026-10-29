@@ -79,7 +79,7 @@ test('with more than one YouTube channel the person picks which one; with none P
  });
  await withSettings(({path})=>path==='/publishing'?{body:{postiz:{connected:true,address:null,channel:null},defaultVisibility:'public'}}:path==='/publishing/postiz/channels'?{body:{channels:[]}}:undefined,async ui=>{
   const c=ui.container;
-  assert.ok(c.textContent?.includes('Postiz has no YouTube channel yet. Connect one in Postiz, then check again.'));
+  assert.ok(c.textContent?.includes('Postiz has no YouTube channel yet, so connect one in Postiz and check again.'));
   assert.ok(button(c,'Check again'));
  });
 });

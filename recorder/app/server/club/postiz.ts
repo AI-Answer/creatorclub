@@ -18,13 +18,13 @@ export const POSTIZ_CLOUD_APP = 'https://platform.postiz.com';
 export const MAX_VIDEO_BYTES = 1024 ** 3;
 export const POSTS_PER_HOUR = 90;
 
-export const BAD_ADDRESS = 'Use a web address like https://postiz.example.com, without a username or password. Plain http only works for this computer or your own network.';
-export const BAD_KEY = "Postiz didn't accept that key. Copy it again from Postiz, Settings, Public API.";
+export const BAD_ADDRESS = 'Use a web address like https://postiz.example.com with no username or password, or an http one for this computer or your own network.';
+export const BAD_KEY = "Postiz didn't accept that key, so copy it again from Postiz, Settings, Public API.";
 export const CANT_REACH_POSTIZ = "Couldn't reach Postiz. Check your connection.";
 const POSTIZ_DOWN = 'Postiz had a problem on its side.';
-const POST_REJECTED = 'Postiz rejected the post. Check the title, tags and time.';
+const POST_REJECTED = 'Postiz rejected the post, so check the title, tags and time.';
 const NOT_PROCESSED = "Postiz couldn't process the video.";
-const TOO_BIG = 'Postiz takes videos up to 1 GB.';
+const TOO_BIG = 'Postiz takes videos up to 1 GB';
 export const UNCONFIRMED = "Postiz didn't confirm the post, so it may or may not be there.";
 
 /** Postiz answered the post without saying it was made. The post may exist, so nothing may be sent again until it is known. */
@@ -140,27 +140,33 @@ export class PostizPublisher implements Publisher {
     this.fetcher = options.fetch ?? fetch;
   }
 
-  private async request(path: string, init: RequestInit & { headers?: Record<string, string>; duplex?: 'half' } = {}): Promise<unknown> {
+  /**
+   * `unsure` is for the request that creates a post: when the answer does not say whether the post was made (the connection broke,
+   * Postiz failed on its side, or it answered with something unreadable) it gives the error to throw, so the post is never taken as not made.
+   */
+  private async request(path: string, init: RequestInit & { headers?: Record<string, string>; duplex?: 'half' } = {}, unsure?: () => Error): Promise<unknown> {
     let response: Response;
     try {
       response = await this.fetcher(this.base + path, { ...init, headers: { Authorization: this.options.apiKey, ...init.headers } });
     } catch (error) {
+      if (unsure) throw unsure();
       if (init.signal?.aborted) throw error;
       throw new PublisherError(CANT_REACH_POSTIZ);
     }
     if (response.ok) {
-      const text = await response.text();
+      const text = await response.text().catch(() => undefined);
       try {
+        if (text === undefined) throw new Error('unreadable');
         return text ? JSON.parse(text) : null;
       } catch {
-        throw new PublisherError(NOT_PROCESSED);
+        throw unsure ? unsure() : new PublisherError(NOT_PROCESSED);
       }
     }
     await response.arrayBuffer().catch(() => undefined);
     if (response.status === 401 || response.status === 403) throw new PublisherError(BAD_KEY, 400);
-    if (response.status === 413) throw new PublisherError(`${TOO_BIG} This one was too big for it.`);
+    if (response.status === 413) throw new PublisherError(`${TOO_BIG}, and this one was too big.`);
     if (response.status === 429) throw new PublisherError(limitMessage(retryAfter(response)), 429);
-    if (response.status >= 500) throw new PublisherError(POSTIZ_DOWN);
+    if (response.status >= 500) throw unsure ? unsure() : new PublisherError(POSTIZ_DOWN);
     throw new PublisherError(path.startsWith('/upload') ? NOT_PROCESSED : POST_REJECTED);
   }
 
@@ -203,7 +209,7 @@ export class PostizPublisher implements Publisher {
   }
 
   async publish(request: PublishRequest, progress: (event: PublishProgress) => void, signal?: AbortSignal): Promise<SentPost> {
-    if (request.video.size > MAX_VIDEO_BYTES) throw new PublisherError(`${TOO_BIG} This one is ${(request.video.size / 1024 ** 3).toFixed(1)} GB.`);
+    if (request.video.size > MAX_VIDEO_BYTES) throw new PublisherError(`${TOO_BIG}, and this one is ${(request.video.size / 1024 ** 3).toFixed(1)} GB.`);
     checkHourly();
     let last = -1;
     const report = (percent: number) => {
@@ -216,6 +222,10 @@ export class PostizPublisher implements Publisher {
     const thumbnail = request.thumbnail ? await this.upload(request.thumbnail, () => {}, signal) : undefined;
     progress({ step: 'post', message: request.scheduledFor ? 'Scheduling it in Postiz' : 'Asking Postiz to publish it' });
     const date = request.scheduledFor ?? new Date();
+    const unsure = () => {
+      sent.push(Date.now());
+      return new UnconfirmedPostError(date);
+    };
     const answer = await this.request('/posts', {
       method: 'POST',
       signal,
@@ -240,11 +250,11 @@ export class PostizPublisher implements Publisher {
           },
         ],
       }),
-    });
+    }, unsure);
     const first = Array.isArray(answer) ? answer[0] : answer;
     const postId = first?.postId ?? first?.id;
+    if (typeof postId !== 'string' || !postId) throw unsure();
     sent.push(Date.now());
-    if (typeof postId !== 'string' || !postId) throw new UnconfirmedPostError(date);
     return { postId, date, channelId: request.channelId };
   }
 

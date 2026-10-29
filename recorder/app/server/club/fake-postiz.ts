@@ -21,6 +21,11 @@ export interface FakePostiz {
   fail: Partial<Record<'integrations' | 'upload' | 'posts' | 'status', { status: number; headers?: Record<string, string>; body?: unknown; sticky?: boolean }>>;
   /** What the upload answers when it works, to simulate a video Postiz could not process. */
   uploadAnswer?: unknown;
+  /**
+   * The next post is made, and then the answer goes wrong the way a real network or server can: the connection is dropped, Postiz answers 502,
+   * or it answers 200 with something that is not JSON. The sender cannot tell whether the post exists. Used once.
+   */
+  failAfterCreate?: 'drop' | 'bad-gateway' | 'garbage';
   /** What the next post answers when it works, to simulate an answer with no post id (the post is still made). Used once. */
   postAnswer?: unknown;
   /** The YouTube link a post reports once published. Undefined for a post that reports none. */
@@ -102,6 +107,20 @@ export async function startFakePostiz(options: { key?: string; port?: number; ch
     }
     const id = `post_${fake.posts.length + 1}`;
     fake.posts.push({ id, body, state: fake.newState, ...(fake.newState === 'PUBLISHED' && fake.releaseURL ? { releaseURL: fake.releaseURL } : {}) });
+    const broken = fake.failAfterCreate;
+    fake.failAfterCreate = undefined;
+    if (broken === 'drop') {
+      res.socket?.destroy();
+      return;
+    }
+    if (broken === 'bad-gateway') {
+      res.status(502).json({ message: 'Bad gateway' });
+      return;
+    }
+    if (broken === 'garbage') {
+      res.status(200).type('text').send('<html>upstream hiccup');
+      return;
+    }
     const answer = fake.postAnswer;
     fake.postAnswer = undefined;
     res.json(answer ?? [{ postId: id, integration: post.integration.id }]);

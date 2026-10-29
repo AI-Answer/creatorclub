@@ -73,7 +73,7 @@ test('Publish now needs the made-for-kids answer; then it sends the form and fol
   const c=ui.container;
   await click(button(c,'Publish now'));
   assert.equal(posts(server.calls).length,0,'nothing is sent without the answer');
-  assert.ok(c.textContent?.includes("Choose one. YouTube won't accept the video without it."));
+  assert.ok(c.textContent?.includes("Choose one, because YouTube won't accept the video without it."));
   await type(c.querySelector('#pub-tags')!,'claude');await key(c.querySelector('#pub-tags')!,'Enter');
   await type(c.querySelector('#pub-tags')!,'ai agents, mods');await key(c.querySelector('#pub-tags')!,'Enter');
   assert.deepEqual([...c.querySelectorAll('.tagsbox .chip')].map(chip=>chip.textContent),['claude','ai agents','mods']);
@@ -201,7 +201,44 @@ test('a post Postiz did not confirm shows Check again and Open in Postiz, and ne
  });
 });
 
+test("I checked Postiz, it isn't there: Allow sending again lets a queued or unconfirmed post go, and the form comes back",async()=>{
+ const unconfirmed={...sent,postId:'',unconfirmed:true,state:'queued',url:undefined};
+ await withPublish({record:unconfirmed,reply:({method,path})=>path==='/videos/v1/postiz/forget'&&method==='POST'?{body:{...unconfirmed,unconfirmed:undefined,state:'failed',message:'You said it is not in Postiz, so this video can be sent again.'}}:undefined},async(ui,server)=>{
+  const c=ui.container;
+  assert.ok(c.textContent?.includes("Postiz didn't confirm it"));
+  assert.equal(c.querySelector('#pub-title'),null);
+  const forget=like(c,/^I checked Postiz, it isn't there\. Allow sending again$/);
+  assert.ok(!forget.classList.contains('primary'),'a secondary button');
+  await click(forget);await flush();
+  assert.equal(server.calls.filter(call=>call.method==='POST'&&call.path==='/videos/v1/postiz/forget').length,1);
+  assert.ok(c.querySelector('#pub-title'),'the form is back, so it can be sent again');
+  assert.equal(posts(server.calls).length,0,'forgetting sends nothing');
+ });
+});
+
+test('a published video has no way to forget; a queued one has',async()=>{
+ await withPublish({record:{...sent,state:'queued',url:undefined}},async ui=>{assert.ok(like(ui.container,/Allow sending again/));});
+ await withPublish({props:{video:{...video,stage:'published',youtubeUrl:sent.url}},record:sent},async ui=>{assert.equal([...ui.container.querySelectorAll('button')].some(b=>/Allow sending again/.test(b.textContent??'')),false);});
+});
+
+test('the first-publish reminder shows until it is dismissed or a Postiz publish has gone through, not on every card',async()=>{
+ localStorage.clear();
+ const reminder='Open the video on YouTube once and check that the made-for-kids answer and the thumbnail are as you set them.';
+ await withPublish({record:{...sent,state:'queued',url:undefined}},async ui=>{
+  const c=ui.container;
+  assert.ok(c.textContent?.includes(reminder));
+  await click(button(c,'Got it'));
+  assert.ok(!c.textContent?.includes(reminder));
+ });
+ await withPublish({record:{...sent,state:'queued',url:undefined}},async ui=>assert.ok(!ui.container.textContent?.includes(reminder),'dismissed for good'));
+ localStorage.clear();
+ await withPublish({props:{video:{...video,stage:'published',youtubeUrl:sent.url}},record:sent},async ui=>assert.ok(ui.container.textContent?.includes(reminder),'shown on the first published card'));
+ await withPublish({record:{...sent,state:'queued',url:undefined}},async ui=>assert.ok(!ui.container.textContent?.includes(reminder),'and not after a Postiz publish has gone through'));
+ localStorage.clear();
+});
+
 test('Postiz saying published is not "on YouTube" until the video really is Published; until then the paste-the-link form is there',async()=>{
+ localStorage.clear();
  await withPublish({record:{...sent,state:'published'},reply:({method,path})=>path==='/videos/v1'&&method==='GET'?{body:video}:undefined},async ui=>{
   const c=ui.container;
   assert.ok(!c.textContent?.includes("It's on YouTube"),'no green claim');
@@ -260,7 +297,7 @@ test('your own thumbnail is uploaded with the video and can be removed',async()=
   const c=ui.container;
   assert.ok(c.textContent?.includes('YouTube picks a frame unless you add one.'));
   const input=c.querySelector('input[type=file]') as HTMLInputElement;
-  assert.equal(input.accept,'image/png,image/jpeg,image/webp');
+  assert.equal(input.accept,'image/png,image/jpeg');
   Object.defineProperty(input,'files',{configurable:true,value:[new File([new Uint8Array([1,2,3])],'mine.png',{type:'image/png'})]});
   await act(async()=>{input.dispatchEvent(new Event('change',{bubbles:true}));});await flush();
   assert.equal(server.calls.filter(call=>call.method==='POST'&&call.path==='/videos/v1/thumbnail').length,1);

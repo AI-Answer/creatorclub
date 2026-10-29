@@ -11,8 +11,8 @@ process.env.CREATORCLUB_DIR = temp;
 delete process.env.CREATORCLUB_POSTIZ_URL;
 const { clubRouter } = await import('./index.js');
 const { startFakePostiz } = await import('./fake-postiz.js');
-const { BAD_ADDRESS, BAD_KEY, CANT_REACH_POSTIZ, MAX_VIDEO_BYTES, POSTIZ_CLOUD_API, POSTS_PER_HOUR, PostizPublisher, UNCONFIRMED, isPrivateHost, normalizeAddress, postizApiBase, postizAppUrl, resetPostizState } = await import('./postiz.js');
-const { ALREADY_SENT, ALREADY_UNCONFIRMED, NOT_THERE, effectiveAddress, imageKind } = await import('./publisher-routes.js');
+const { BAD_ADDRESS, BAD_KEY, CANT_REACH_POSTIZ, MAX_VIDEO_BYTES, POSTIZ_CLOUD_API, POSTS_PER_HOUR, PostizPublisher, UNCONFIRMED, UnconfirmedPostError, isPrivateHost, normalizeAddress, postizApiBase, postizAppUrl, resetPostizState } = await import('./postiz.js');
+const { ALREADY_SENT, ALREADY_UNCONFIRMED, CANT_FORGET_PUBLISHED, FORGOTTEN, NOTHING_SENT, effectiveAddress, imageKind } = await import('./publisher-routes.js');
 const { PublisherError } = await import('./publisher.js');
 const store = await import('./store.js');
 
@@ -33,6 +33,7 @@ beforeEach(() => {
   fake.newState = 'QUEUE';
   fake.releaseURL = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ';
   fake.postAnswer = undefined;
+  fake.failAfterCreate = undefined;
   resetPostizState();
 });
 
@@ -56,8 +57,8 @@ test('an address with a username or password is refused, and plain http is only 
     assert.throws(() => postizApiBase(bad), { message: BAD_ADDRESS }, bad);
     assert.throws(() => postizAppUrl(bad), { message: BAD_ADDRESS }, bad);
   }
-  assert.match(BAD_ADDRESS, /without a username or password/);
-  assert.match(BAD_ADDRESS, /Plain http only works for this computer or your own network/);
+  assert.match(BAD_ADDRESS, /no username or password/);
+  assert.match(BAD_ADDRESS, /an http one for this computer or your own network/);
   for (const ok of ['http://localhost:5000', 'http://127.0.0.1:5000', 'http://[::1]:5000', 'http://10.0.0.2', 'http://172.20.1.1', 'http://192.168.1.5', 'http://169.254.1.1', 'http://postiz.local', 'https://postiz.example.com']) assert.doesNotThrow(() => normalizeAddress(ok), ok);
   assert.equal(isPrivateHost('[fd12:3456::1]'), true);
   assert.equal(isPrivateHost('2606:4700::1'), false);
@@ -102,7 +103,7 @@ test('an upload that was kept is reused only for the same content', async () => 
 test('images are told apart by their first bytes, not by what the client called them', () => {
   assert.equal(imageKind(Buffer.from('89504e470d0a1a0a00', 'hex')), 'png');
   assert.equal(imageKind(Buffer.from('ffd8ffe000104a46', 'hex')), 'jpg');
-  assert.equal(imageKind(Buffer.concat([Buffer.from('RIFF'), Buffer.alloc(4), Buffer.from('WEBPVP8 ')])), 'webp');
+  assert.equal(imageKind(Buffer.concat([Buffer.from('RIFF'), Buffer.alloc(4), Buffer.from('WEBPVP8 ')])), undefined, 'WebP is not one of the types YouTube accepts for a thumbnail');
   for (const bad of [Buffer.from('GIF89a'), Buffer.from('<svg></svg>'), Buffer.alloc(0), Buffer.from('RIFF....WAVE')]) assert.equal(imageKind(bad), undefined);
 });
 
@@ -191,7 +192,7 @@ test('every way Postiz can refuse is one sentence, never its own words', async (
   await rejects(publisher.publish(request({ video: file({ name: 'other.mp4', version: 'b' }) }), noProgress), "Postiz couldn't process the video.");
   fake.uploadAnswer = undefined;
   fake.fail.posts = { status: 400, body: { message: 'title is too long: a raw detail' } };
-  await rejects(publisher.publish(request(), noProgress), 'Postiz rejected the post. Check the title, tags and time.');
+  await rejects(publisher.publish(request(), noProgress), 'Postiz rejected the post, so check the title, tags and time.');
   fake.fail.posts = { status: 429, headers: { 'Retry-After': '60' } };
   await rejects(publisher.publish(request(), noProgress), /Try again in a minute\./);
   fake.fail.posts = { status: 200, body: { nothing: true } };
@@ -200,9 +201,36 @@ test('every way Postiz can refuse is one sentence, never its own words', async (
   await rejects(publisher.publish(request({ video: file({ name: 'third.mp4', version: 'c' }) }), noProgress), BAD_KEY);
 });
 
+test('a post whose answer is lost (dropped connection, 502, unreadable 200) is unconfirmed, while a 400 and a 429 are plain failures', async () => {
+  const publisher = new PostizPublisher({ apiKey: fake.key, address: fake.url });
+  const sendIt = () => publisher.publish(request({ video: file({ name: 'ambiguous.mp4', version: 'amb' }) }), noProgress);
+  for (const mode of ['drop', 'bad-gateway', 'garbage'] as const) {
+    fake.failAfterCreate = mode;
+    const before = fake.posts.length;
+    await assert.rejects(sendIt(), (error: Error) => error instanceof UnconfirmedPostError && error.message === UNCONFIRMED, mode);
+    assert.equal(fake.posts.length, before + 1, `${mode}: Postiz did make the post`);
+  }
+  fake.fail.posts = { status: 400, body: { message: 'bad' } };
+  await assert.rejects(sendIt(), (error: Error) => error instanceof PublisherError && !(error instanceof UnconfirmedPostError));
+  fake.fail.posts = { status: 429, headers: { 'Retry-After': '60' } };
+  await assert.rejects(sendIt(), (error: Error) => error instanceof PublisherError && !(error instanceof UnconfirmedPostError));
+  fake.fail.posts = { status: 401 };
+  await assert.rejects(sendIt(), (error: Error) => error.message === BAD_KEY);
+  // The upload and the key check are not the post: a dropped one is a plain failure.
+  await assert.rejects(new PostizPublisher({ apiKey: fake.key, address: 'http://127.0.0.1:1' }).publish(request({ video: file({ name: 'nowhere.mp4', version: 'x' }) }), noProgress), (error: Error) => error.message === CANT_REACH_POSTIZ);
+});
+
+test('a lost answer counts toward the 90 posts an hour', async () => {
+  const publisher = new PostizPublisher({ apiKey: fake.key, address: fake.url });
+  for (let i = 0; i < POSTS_PER_HOUR - 1; i++) await publisher.publish(request({ video: file({ name: 'count.mp4', version: 'count' }) }), noProgress);
+  fake.failAfterCreate = 'garbage';
+  await assert.rejects(publisher.publish(request({ video: file({ name: 'count.mp4', version: 'count' }) }), noProgress), UnconfirmedPostError);
+  await rejects(publisher.publish(request({ video: file({ name: 'count.mp4', version: 'count' }) }), noProgress), /Postiz allows 90 posts an hour/);
+});
+
 test('a video over 1 GB is refused before anything is sent', async () => {
   fake.log.length = 0;
-  await rejects(new PostizPublisher({ apiKey: fake.key, address: fake.url }).publish(request({ video: file({ size: MAX_VIDEO_BYTES + 1.5 * 1024 ** 3 }) }), noProgress), 'Postiz takes videos up to 1 GB. This one is 2.5 GB.');
+  await rejects(new PostizPublisher({ apiKey: fake.key, address: fake.url }).publish(request({ video: file({ size: MAX_VIDEO_BYTES + 1.5 * 1024 ** 3 }) }), noProgress), 'Postiz takes videos up to 1 GB, and this one is 2.5 GB.');
   assert.deepEqual(fake.log, []);
 });
 
@@ -398,6 +426,34 @@ test('a link that shows up later (no link at first) settles the record and moves
   assert.equal((await call('GET', `/videos/${id}`)).body.stage, 'published');
 });
 
+test('a lost answer to the post leaves an unconfirmed record, and nothing is sent again; a 400 or 429 leaves none and can be tried again', async () => {
+  await connect();
+  for (const mode of ['drop', 'bad-gateway', 'garbage'] as const) {
+    fake.posts.length = 0;
+    const id = await newVideo();
+    fake.failAfterCreate = mode;
+    const job = await publishNow(id);
+    assert.equal(job.status, 'failed', mode);
+    assert.equal(job.error, UNCONFIRMED, mode);
+    const record = JSON.parse(await readFile(recordPath(id), 'utf8'));
+    assert.equal(record.unconfirmed, true, mode);
+    assert.equal(record.state, 'queued');
+    assert.equal(fake.posts.length, 1);
+    assert.equal((await call('POST', `/videos/${id}/postiz`, start())).body.error, ALREADY_UNCONFIRMED, mode);
+    assert.equal(fake.posts.length, 1, 'no second post');
+  }
+  for (const failure of [{ status: 400, body: { message: 'bad' } }, { status: 429, headers: { 'Retry-After': '60' } }]) {
+    fake.posts.length = 0;
+    const id = await newVideo();
+    fake.fail.posts = failure;
+    const job = await publishNow(id);
+    assert.equal(job.status, 'failed');
+    assert.notEqual(job.error, UNCONFIRMED);
+    assert.equal((await call('GET', `/videos/${id}/postiz`)).body, null, 'no record: Postiz said no');
+    assert.equal((await publishNow(id)).status, 'done', 'Try again works');
+  }
+});
+
 test('a post Postiz did not confirm is kept as unconfirmed, nothing more is sent until Check again settles it, and it is found by its channel and time', async () => {
   await connect();
   fake.posts.length = 0;
@@ -430,23 +486,69 @@ test('a post Postiz did not confirm is kept as unconfirmed, nothing more is sent
   assert.equal((await call('GET', `/videos/${id}/postiz`)).body.state, 'published');
 });
 
-test('an unconfirmed post Postiz still does not list after ten minutes is taken as not made, and can be sent again', async () => {
+test('Check again never creates a post and never fails a record by itself, however old the record is', async () => {
   await connect();
   fake.posts.length = 0;
   const id = await newVideo();
   fake.postAnswer = { created: true };
   await publishNow(id);
-  fake.posts.length = 0; // Postiz has nothing for it
-  const young = (await call('GET', `/videos/${id}/postiz`)).body;
-  assert.equal(young.unconfirmed, true, 'not yet: it may still turn up');
+  fake.posts.length = 0; // Postiz lists nothing for it
   const saved = JSON.parse(await readFile(recordPath(id), 'utf8'));
-  await writeFile(recordPath(id), JSON.stringify({ ...saved, sentAt: new Date(Date.now() - 11 * 60_000).toISOString() }));
-  const gone = (await call('GET', `/videos/${id}/postiz`)).body;
-  assert.equal(gone.state, 'failed');
-  assert.equal(gone.message, NOT_THERE);
-  const again = await publishNow(id);
-  assert.equal(again.status, 'done');
+  await writeFile(recordPath(id), JSON.stringify({ ...saved, sentAt: new Date(Date.now() - 3 * 3600_000).toISOString() }));
+  fake.log.length = 0;
+  for (let i = 0; i < 3; i++) {
+    const again = (await call('GET', `/videos/${id}/postiz`)).body;
+    assert.equal(again.state, 'queued', 'not failed by waiting');
+    assert.equal(again.unconfirmed, true);
+  }
+  assert.deepEqual(fake.log.filter((line) => line.startsWith('POST')), [], 'nothing was posted');
+  assert.equal(fake.posts.length, 0);
+  assert.equal((await call('POST', `/videos/${id}/postiz`, start())).body.error, ALREADY_UNCONFIRMED, 'still blocked');
+  // A queued record whose post is not found is not failed either.
+  const queued = await newVideo();
+  fake.posts.length = 0;
+  await publishNow(queued);
+  fake.posts.length = 0;
+  assert.equal((await call('GET', `/videos/${queued}/postiz`)).body.state, 'queued');
+});
+
+test('forget lets a queued or unconfirmed record go, and nothing else changes; it is refused for a published video; then a new post is allowed', async () => {
+  await connect();
+  fake.posts.length = 0;
+  // unconfirmed
+  const unconfirmed = await newVideo();
+  fake.postAnswer = { created: true };
+  await publishNow(unconfirmed);
+  fake.log.length = 0;
+  const forgotten = await call('POST', `/videos/${unconfirmed}/postiz/forget`);
+  assert.equal(forgotten.status, 200);
+  assert.equal(forgotten.body.state, 'failed');
+  assert.equal(forgotten.body.message, FORGOTTEN);
+  assert.deepEqual(fake.log, [], 'forgetting does not call Postiz');
+  assert.equal((await call('GET', `/videos/${unconfirmed}`)).body.stage, 'publishing', 'the video is untouched');
+  fake.posts.length = 0;
+  assert.equal((await publishNow(unconfirmed)).status, 'done', 'it can be sent again');
   assert.equal(fake.posts.length, 1);
+  // queued (the person deleted the post in Postiz)
+  const queued = await newVideo();
+  await publishNow(queued);
+  assert.equal((await call('POST', `/videos/${queued}/postiz`, start())).body.error, ALREADY_SENT);
+  fake.posts.length = 0;
+  assert.equal((await call('POST', `/videos/${queued}/postiz/forget`)).body.state, 'failed');
+  assert.equal((await call('GET', `/videos/${queued}/postiz`)).body.state, 'failed');
+  assert.equal((await publishNow(queued)).status, 'done');
+  // published: refused, and nothing changes
+  fake.newState = 'PUBLISHED';
+  const published = await newVideo();
+  await publishNow(published);
+  const refused = await call('POST', `/videos/${published}/postiz/forget`);
+  assert.equal(refused.status, 409);
+  assert.equal(refused.body.error, CANT_FORGET_PUBLISHED);
+  assert.equal((await call('GET', `/videos/${published}/postiz`)).body.state, 'published');
+  assert.equal((await call('GET', `/videos/${published}`)).body.stage, 'published');
+  // never sent
+  const never = await newVideo();
+  assert.equal((await call('POST', `/videos/${never}/postiz/forget`)).body.error, NOTHING_SENT);
 });
 
 test('once Postiz has the video (queued or published) a second post is refused, and a failed one can be sent again', async () => {
@@ -567,6 +669,9 @@ test('the thumbnail is saved with the video, only as a PNG or JPG up to 2 MB, an
   assert.equal((await send(Buffer.from('GIF89a'), 'image/gif', 'a.gif')).status, 400);
   assert.equal((await send(Buffer.from('GIF89a'), 'image/png', 'lie.png')).status, 400, 'a GIF called a PNG is still a GIF');
   assert.equal((await send(Buffer.from('<svg/>'), 'image/jpeg', 'lie.jpg')).status, 400);
+  const webp = await send(Buffer.concat([Buffer.from('RIFF'), Buffer.alloc(4), Buffer.from('WEBPVP8 ')]), 'image/webp', 'a.webp');
+  assert.equal(webp.status, 400);
+  assert.equal((await webp.json()).error, 'Use a PNG or JPG image of up to 2 MB.');
   assert.equal((await send(Buffer.alloc(2 * 1024 * 1024 + 1), 'image/png', 'big.png')).status, 400);
   assert.equal((await send(Buffer.from('89504e470d0a1a0a', 'hex'), 'image/jpeg', 'mine.jpg')).status, 204, 'a PNG called a JPEG is saved as what it is');
   assert.equal((await call('GET', `/videos/${id}/thumbnail`)).status, 200);

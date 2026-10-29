@@ -3,7 +3,7 @@ import type {PublishProgress,PublishVisibility,Video} from '../../../shared/club
 import {ClubApiError,clubFetch,errorMessage} from '../api';
 import {ErrorLine} from '../ErrorLine';
 import {fmtDate} from '../format';
-import {addTags,progressRows,resultWords,visibilityWord,whenText,type ResultInfo} from '../publishing/publish-logic';
+import {addTags,markReminderSeen,progressRows,reminderSeen,resultWords,visibilityWord,whenText,type ResultInfo} from '../publishing/publish-logic';
 import {Button,Card,Icon,Input,Spinner,Thumb} from '../ui';
 import {shortLink} from './record-logic';
 
@@ -53,10 +53,13 @@ export function ProgressCard({progress,failure,scheduled,onRetry}:{progress:Publ
 }
 
 /** Where the video is: queued in Postiz, scheduled, or on YouTube with its link and views. */
-export function ResultCard({record,video,onCheck,children}:{record:ResultInfo;video:Video;onCheck?():Promise<void>;children?:ReactNode}){
+export function ResultCard({record,video,onCheck,onForget,children}:{record:ResultInfo;video:Video;onCheck?():Promise<void>;/** Lets a queued or unconfirmed post go, once the person has checked Postiz and it is not there. */onForget?():Promise<void>;children?:ReactNode}){
  const words=resultWords(record);
  const link=record.url??video.youtubeUrl;
- const [checking,setChecking]=useState(false);
+ const [checking,setChecking]=useState(false),[forgetError,setForgetError]=useState('');
+ // Shown until it is dismissed or a Postiz publish has gone through, not on every card.
+ const [reminder,setReminder]=useState(()=>!reminderSeen());
+ useEffect(()=>{if(record.state==='published'&&record.postizUrl)markReminderSeen();},[record.state,record.postizUrl]);
  return <Card className="pubx-ok">
   <span className={`chip ${words.done?'b-green':'outline'}`}>{words.done&&<Icon name="Check" size={12}/>}{record.unconfirmed?'Not confirmed':record.state==='published'?'Published':record.scheduledFor?'Scheduled':'Sent to Postiz'}</span>
   <h2>{words.title}</h2>
@@ -71,7 +74,9 @@ export function ResultCard({record,video,onCheck,children}:{record:ResultInfo;vi
   </div>
   {record.state!=='published'&&<p className="small muted" style={{margin:0}}>Already on YouTube? Paste its link to finish.</p>}
   {children&&<div className="row" style={{width:'100%'}}>{children}</div>}
-  {record.postizUrl&&<p className="small muted" style={{margin:0}}>Postiz publishing is new here. Open the video on YouTube once and check that the made-for-kids answer and the thumbnail are as you set them.</p>}
+  {onForget&&<div className="row"><Button size="sm" onClick={()=>{setForgetError('');void onForget().catch(reason=>setForgetError(errorMessage(reason)));}}>I checked Postiz, it isn't there. Allow sending again</Button></div>}
+  {forgetError&&<p role="alert" className="small" style={{color:'var(--cc-rec)',margin:0}}>{forgetError}</p>}
+  {record.postizUrl&&reminder&&<p className="small muted" style={{margin:0}}>Postiz publishing is new here. Open the video on YouTube once and check that the made-for-kids answer and the thumbnail are as you set them. <button type="button" className="linkish" onClick={()=>{markReminderSeen();setReminder(false);}}>Got it</button></p>}
  </Card>;
 }
 

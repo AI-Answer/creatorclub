@@ -4,7 +4,7 @@ import {clubFetch,errorMessage} from '../api';
 import {Button,Input} from '../ui';
 
 export const PASTE_KEY_FIRST='Paste your key first.';
-export const NO_YOUTUBE_CHANNEL='Postiz has no YouTube channel yet. Connect one in Postiz, then check again.';
+export const NO_YOUTUBE_CHANNEL='Postiz has no YouTube channel yet, so connect one in Postiz and check again.';
 
 /**
  * Connect Postiz once: paste the API key and pick the YouTube channel. Used in Publish and in Settings.

@@ -139,7 +139,8 @@ export function Publish({video,pkg,scenes,onVideo,onDescription,onGoTo,saveError
  </div>{summary}</div></div>;
 
  if(result)return <div className="pubx">{head}<div className="pubx-grid"><div>
-  <ResultCard record={result.info} video={video} onCheck={record&&waiting?()=>loadRecord().catch(()=>{}):undefined}>
+  <ResultCard record={result.info} video={video} onCheck={record&&waiting?()=>loadRecord().catch(()=>{}):undefined}
+   onForget={record?.state==='queued'?async()=>{setRecord(await clubFetch<PublishRecord>(`/videos/${encodeURIComponent(video.id)}/postiz/forget`,{body:{}}));}:undefined}>
    <PasteLinkForm video={video} published={published} onVideo={onVideo}/>
   </ResultCard></div>{summary}</div></div>;
 
@@ -164,13 +165,13 @@ export function Publish({video,pkg,scenes,onVideo,onDescription,onGoTo,saveError
      {saveError&&<ErrorLine message="Couldn't save the description." onRetry={onRetry}/>}</div>
     <div className="full"><label className="field" htmlFor="pub-tags">Tags</label><TagsField tags={tags} onChange={setTags}/></div>
     <div className="full"><div className="field">Thumbnail</div><div className="small muted">{thumbnail?'Your own image. ':'YouTube picks a frame unless you add one. '}
-     <label className="linkish" style={{cursor:'pointer'}}>{thumbnail?'Use another image':'Upload an image'}<input type="file" className="sr-only" accept="image/png,image/jpeg,image/webp" onChange={event=>{void pick(event.target.files?.[0]);event.target.value='';}}/></label>
+     <label className="linkish" style={{cursor:'pointer'}}>{thumbnail?'Use another image':'Upload an image'}<input type="file" className="sr-only" accept="image/png,image/jpeg" onChange={event=>{void pick(event.target.files?.[0]);event.target.value='';}}/></label>
      {thumbnail&&<> <button type="button" className="linkish" onClick={dropThumbnail}>Remove image</button></>}</div>
      {thumbError&&<p role="alert" className="small pz-err">{thumbError}</p>}</div>
     <div><label className="field" htmlFor="pub-vis">Who can watch</label><select id="pub-vis" className="select" value={visibility} onChange={event=>setChosen(event.target.value as PublishVisibility)}>{VISIBILITY_OPTIONS.map(option=><option key={option.value} value={option.value}>{option.label}</option>)}</select></div>
     <div className={tried&&!kids?'has-err':''}><div className="field" id="pub-kids-l">Made for kids? <span className="faint" style={{fontWeight:450}}>· Required by YouTube</span></div>
      <div className="radios" role="radiogroup" aria-labelledby="pub-kids-l" ref={kidsField}>{(['no','yes'] as const).map(value=><label key={value} className="rad"><input type="radio" name="kids" value={value} checked={kids===value} onChange={()=>setKids(value)}/>{value==='no'?'No':'Yes'}</label>)}</div>
-     {tried&&!kids&&<p role="alert" className="small pz-err">Choose one. YouTube won't accept the video without it.</p>}</div>
+     {tried&&!kids&&<p role="alert" className="small pz-err">Choose one, because YouTube won't accept the video without it.</p>}</div>
     <div><label className="field" htmlFor="pub-when">When</label><select id="pub-when" className="select" value={when} onChange={event=>setWhen(event.target.value as 'now'|'schedule')}><option value="now">Publish now</option><option value="schedule">Schedule for later</option></select></div>
     {when==='schedule'&&<div><label className="field" htmlFor="pub-at">Date and time</label><Input id="pub-at" type="datetime-local" value={at} aria-invalid={schedule&&'message' in schedule?true:undefined} onChange={event=>setAt(event.target.value)}/></div>}
    </Card>
