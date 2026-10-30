@@ -35,6 +35,8 @@
 /* With the companion docked beside Edit the toolbar is narrower: its buttons stay on one line and the suggestion's sentence gives way first. */
 .club-embed .app-shell[data-mode=Edit] .project-header :is(.club-edit-suggestion,.project-header-controls) button{white-space:nowrap;flex-shrink:0}
 .club-embed .app-shell[data-mode=Edit] .project-header-controls{flex-shrink:0}
+/* In a narrow window (the companion beside a 1100 px window) Auto-edit and Style & more show their icons only; their names stay as label and tooltip. */
+@media (max-width:1279px){.club-embed .app-shell[data-mode=Edit] .project-header-controls .club-label{display:none}}
 .club-embed .app-shell[data-mode=Edit] .club-edit-suggestion.is-quiet{border-color:transparent;background:transparent;padding-left:0;color:var(--cc-muted);font-size:13px}
 .club-embed .app-shell[data-mode=Edit] .club-edit-dismiss{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:8px;color:var(--cc-muted)}
 .club-embed .app-shell[data-mode=Edit] .club-edit-dismiss:hover{background:var(--cc-subtle);color:var(--cc-ink)}
