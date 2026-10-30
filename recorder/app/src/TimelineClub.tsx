@@ -9,7 +9,7 @@ import {hasWaveform,waveformMediaKey,waveformBars,waveformEnvelopePath,timelineW
 import {sameTimelineWindow,timelineWindow} from './timeline-viewport';
 import {groupMove,hitLayerDrop,snapTargets,snapTimelineDelta,timelinePointerDelta,type LayerDrop,type SnapTarget} from './timeline-drag';
 import {rectangleBetween,itemsInRectangle,type SelectionItem,type SelectionRect} from './timeline-selection';
-import {syncScenesToTakes,anchoredScroll,applyClipStarts,clampScale,ensureLinks,filmstripTiles,fitScale,freeDelta,linkGroups,linkedIds,moveEffects,moveMarker,planClipMove,removeMarker,resizeEffect,rowItems,rulerTicks,rulerLabel,trimBounds,trimClips} from './timeline-edit';
+import {syncScenesToTakes,anchoredScroll,applyClipStarts,clampScale,ensureLinks,filmstripTiles,fitScale,freeDelta,linkGroups,linkedIds,moveEffects,moveMarker,planClipMove,removeMarker,resizeEffect,rowItems,rulerTicks,rulerLabel,trimBounds,trimClips,trimGroup,DRAG_DEAD_ZONE_PX} from './timeline-edit';
 import type {Playhead} from './playhead';
 
 /**
@@ -61,11 +61,11 @@ const ClubClip=memo(function ClubClip({clip:c,media,row,preview,selected,linked,
  const wave=useMemo(()=>media&&peaks?.length&&audioRow?waveformEnvelopePath(waveformBars(geometry,media,peaks,scale,from,to,4096,1),h/2,h/2-2):'',[media,peaks,audioRow,geometry.start,geometry.sourceIn,geometry.sourceOut,scale,from,to,h]);
  const shift=(geometry.start-start)*scale;
  return <div data-clip-id={c.id} className={`timeline-clip club-clip clip-${c.track} ${selected?'selected':''} ${c.muted?'muted':''} ${preview?'clip-drag-preview':''} ${linked?'is-linked':'is-unlinked'}`} style={{left:start*scale,width,top:3,height:h,transform:preview?.dy?`translateY(${preview.dy}px)`:undefined}}
-  onPointerDown={e=>onBegin(e,c.id,'move')} onDoubleClick={()=>onOpen(c.id)} title={`${c.name} · ${fmt(duration)}${linked?' · linked':''}. Drag to move, edges to trim, double-click for settings.`}>
+  onPointerDown={e=>onBegin(e,c.id,'move')} onDoubleClick={()=>onOpen(c.id)} title={`${c.name} · ${fmt(duration)}${linked?' · linked':''}. Click to move the playhead, drag the name to move, edges to trim, double-click for settings.`}>
   {video&&<div className="club-filmstrip" aria-hidden>{tiles.map(t=><i key={t.left} style={{left:t.left+shift,width:tileW,height:h,backgroundImage:`url(/api/media/${media.id}/filmstrip)`,backgroundSize:`${count*tileW}px ${h}px`,backgroundPosition:`${-t.index*tileW}px 0`}}/>)}</div>}
   {media?.kind==='image'&&<div className="club-filmstrip is-image" aria-hidden style={{backgroundImage:`url(/api/media/${media.id}/thumbnail)`,backgroundSize:`auto ${h}px`}}/>}
   {wave&&<svg className="club-wave" viewBox={`0 0 ${width} ${h}`} preserveAspectRatio="none" aria-hidden><path d={wave}/></svg>}
-  {label&&<span className="club-clip-label">{linked&&<Link2 size={11} aria-hidden/>}{label}</span>}
+  {label&&<span className="club-clip-label club-move-handle" title="Drag to move">{linked&&<Link2 size={11} aria-hidden/>}{label}</span>}
   {width>=18&&<><i className="trim-handle left" onPointerDown={e=>onBegin(e,c.id,'left')}/><i className="trim-handle right" onPointerDown={e=>onBegin(e,c.id,'right')}/></>}
  </div>;
 });
@@ -121,9 +121,9 @@ export const TimelineClub=memo(function TimelineClub({project:p,playhead,scale,o
  const snapTime=(time:number,moving:ReadonlySet<string>=new Set())=>{const el=ref.current;if(!el||!latest.current.settings.snap)return {time,guide:null as number|null};const r=snapTimelineDelta({delta:0,anchors:[time],targets:targets(moving),scale,thresholdPx:SNAP_PX});return {time:time+r.delta,guide:r.guide?.time??null};};
 
  /** Runs one pointer gesture: `move` on each pointer move (with scroll at the edges), `drop` on release. Escape, pointer cancel and window blur cancel it. */
- function run(e:React.PointerEvent,move:(x:number,y:number,ev:PointerEvent)=>void,drop:(moved:boolean,ev:PointerEvent)=>void){
+ function run(e:React.PointerEvent,move:(x:number,y:number,ev:PointerEvent)=>void,drop:(moved:boolean,ev:PointerEvent)=>void,dead=3){
   gesture.current?.();const el=ref.current!;let last={x:e.clientX,y:e.clientY},moved=false,frame=0,closed=false,lastEvent:PointerEvent=e.nativeEvent as PointerEvent;const id=e.pointerId;
-  const update=(ev:PointerEvent)=>{moved||=Math.abs(last.x-e.clientX)>=3||Math.abs(last.y-e.clientY)>=3;if(moved)move(last.x,last.y,ev);};
+  const update=(ev:PointerEvent)=>{moved||=Math.abs(last.x-e.clientX)>=dead||Math.abs(last.y-e.clientY)>=dead;if(moved)move(last.x,last.y,ev);};
   const onMove=(ev:PointerEvent)=>{if(ev.pointerId!==id)return;last={x:ev.clientX,y:ev.clientY};lastEvent=ev;update(ev);};
   const close=()=>{if(closed)return;closed=true;cancelAnimationFrame(frame);window.removeEventListener('pointermove',onMove);window.removeEventListener('pointerup',onUp);window.removeEventListener('pointercancel',cancel);window.removeEventListener('keydown',key,true);window.removeEventListener('blur',cancel);cancelAnimationFrame(dragFrame.current);dragFrame.current=0;pendingDrag.current=null;shownDrag.current='';setDrag(null);setMarquee(null);gesture.current=null;};
   // Escape ends only the drag: it is caught before the editor's own keys (which would also close a sheet).
@@ -151,7 +151,7 @@ export const TimelineClub=memo(function TimelineClub({project:p,playhead,scale,o
     drop=null;let dy=0;
     if(clip&&Math.abs(y-y0)>=18&&Math.abs(y-y0)>Math.abs(x-x0)*1.25&&ids.size===1){const hit=hitLayerDrop(y-el.getBoundingClientRect().top+el.scrollTop,clipLayerKind(clip),measured);if(hit?.kind==='existing'&&hit.rowId!==item.row){drop=hit;dy=rowById.get(hit.rowId)!.top-rowById.get(item.row)!.top;}}
     const previews=new Map(moving.map(m=>[m.id,{start:m.start+(drop?0:delta),duration:m.duration,dy}]));let label='',insert:number|null=null;
-    if(clip){plan=drop?null:planClipMove(base,ids,delta,pointer);if(plan?.kind==='insert'){insert=plan.at!;label='Drop to move it here · the rest shifts to make room';}else if(plan?.kind==='slide')label='Overlaps · it slides to the nearest gap';else if(plan?.kind==='none'&&plan.at!==undefined)label='Overlaps · drop it on another clip to insert it there';else if(drop)label=`Move to ${rowById.get((drop as {rowId:string}).rowId)?.name} · time unchanged`;else label=`${delta>=0?'+':'−'}${fmt(Math.abs(delta))}`;}
+    if(clip){plan=drop?null:planClipMove(base,ids,delta,pointer);if(plan?.kind==='insert'){insert=plan.at!;label='Drop to move it here · the rest shifts to make room';}else if(plan?.kind==='slide')label='Overlaps · it slides to the nearest gap';else if(plan?.kind==='none'&&plan.at!==undefined)label='Overlaps · drop it on another clip to insert it there';else if(plan?.kind==='none'&&Math.abs(delta)>1e-6)label='The video starts here · drop it on another clip to move it';else if(drop)label=`Move to ${rowById.get((drop as {rowId:string}).rowId)?.name} · time unchanged`;else label=`${delta>=0?'+':'−'}${fmt(Math.abs(delta))}`;}
     else{effectDelta=freeDelta(moving,delta,items);if(Math.abs(effectDelta-delta)>1e-6)label='Overlaps · it slides to the nearest gap';else label=`${delta>=0?'+':'−'}${fmt(Math.abs(delta))}`;}
     showDrag({items:previews,ghosts:moving.map(m=>({row:m.row,start:m.start,duration:m.duration})),guide:insert===null?snap.guide?.time??null:null,insert,label});
    },(moved,ev)=>{
@@ -163,12 +163,12 @@ export const TimelineClub=memo(function TimelineClub({project:p,playhead,scale,o
      // Every clip the plan moves (an insert shifts the rest of the row) must still be where it was when the drag began.
      change(d=>{if(!sameClips(chosen.starts.keys(),base)){changed=true;return;}ensureLinks(d);applyClipStarts(d,chosen.starts);syncScenesToTakes(d);});if(changed)onNotice?.(STALE_DROP);
     }else if(Math.abs(effectDelta)>1e-9){const d=effectDelta;change(draft=>moveEffects(draft,ids,d));}
-   });
+   },DRAG_DEAD_ZONE_PX);
    return;
   }
-  // Trims: a clip's linked clips that share the edge trim with it; ripple unless Alt is held.
+  // Trims: every clip linked to the clip trims by the same amount (camera and audio stay together); ripple unless Alt is held.
   if(clip){
-   const edge=mode==='left'?clip.start:clip.start+clipDuration(clip),ids=new Set([...linkedIds(base.clips,[id])].filter(i=>{const c=base.clips.find(x=>x.id===i)!;return Math.abs((mode==='left'?c.start:c.start+clipDuration(c))-edge)<1e-3;}));
+   const edge=mode==='left'?clip.start:clip.start+clipDuration(clip),ids=trimGroup(base.clips,id);
    const snaps=targets(ids);let delta=0,ripple=!e.altKey;
    run(e,(x,_y,ev)=>{
     ripple=!ev.altKey;const bounds=trimBounds(base,ids,mode,ripple),raw=timelinePointerDelta(x0,x,left0,el.scrollLeft,scale);

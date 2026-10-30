@@ -215,8 +215,25 @@ export function insertPlan(moving:readonly RowItem[],pointer:number,others:reado
  for(const m of moving)starts.set(m.id,at+(m.start-from));
  return {at,from,length,starts};
 }
-/** Where a move of clips by `want` ends up: in place, slid to the nearest gap, or inserted. */
-export function planClipMove(p:Project,ids:ReadonlySet<string>,want:number,pointer:number):{kind:'move'|'slide'|'insert'|'none';starts:Map<string,number>;delta:number;at?:number}{
+/** A press on a clip body becomes a move only after the pointer travels this far, so a click or a small slip never slides a clip. */
+export const DRAG_DEAD_ZONE_PX=6;
+type MovePlan={kind:'move'|'slide'|'insert'|'none';starts:Map<string,number>;delta:number;at?:number};
+/** Where the first screen, camera, audio or overlay clip starts once `starts` are applied. */
+function firstStart(p:Project,starts:ReadonlyMap<string,number>){const list=p.clips.filter(c=>gapTracks.has(c.track)).map(c=>starts.get(c.id)??c.start);return list.length?Math.min(...list):0;}
+/**
+ * Where a move of clips by `want` ends up: in place, slid to the nearest gap, or inserted.
+ * A move never opens a gap before the first clip: a video that starts at 0 keeps starting at 0 (a sole clip cannot be dragged away from 0);
+ * a move that would leave one is pulled back so the earliest clip sits at 0, or not done when that does not fit.
+ */
+export function planClipMove(p:Project,ids:ReadonlySet<string>,want:number,pointer:number):MovePlan{
+ const plan=planClipMoveFree(p,ids,want,pointer),lead=firstStart(p,plan.starts);
+ if(plan.kind==='none'||lead<=EPS||firstStart(p,new Map())>EPS)return plan;
+ if(plan.kind==='insert')return {kind:'none',starts:new Map(),delta:0};
+ const delta=plan.delta-lead,items=rowItems(p),moving=items.filter(i=>ids.has(i.id));
+ if(Math.abs(delta)<1e-9||collides(moving,delta,items))return {kind:'none',starts:new Map(),delta:0};
+ return {kind:'slide',starts:new Map(moving.map(m=>[m.id,m.start+delta])),delta};
+}
+function planClipMoveFree(p:Project,ids:ReadonlySet<string>,want:number,pointer:number):MovePlan{
  const items=rowItems(p),moving=items.filter(i=>ids.has(i.id));if(!moving.length)return {kind:'none',starts:new Map(),delta:0};
  const clipsOnly=moving.every(m=>p.clips.some(c=>c.id===m.id));
  if(!collides(moving,want,items))return {kind:Math.abs(want)<1e-9?'none':'move',starts:new Map(moving.map(m=>[m.id,m.start+want])),delta:want};
@@ -249,8 +266,10 @@ export function moveEffects(p:Project,ids:ReadonlySet<string>,delta:number){
 
 /* ---------- Trims ---------- */
 
-/** A ripple trim at the start keeps the clips where they are and plays their content later, so every clip of the take does it together (an offset camera too), or the take would drift apart. */
-const trimmed=(p:Project,ids:ReadonlySet<string>,side:'left'|'right',ripple:boolean):ReadonlySet<string>=>ripple&&side==='left'?linkedIds(p.clips,ids):ids;
+/** The clips a trim of `id` moves: its whole link group, whatever their edges (an offset camera, an audio that runs longer). */
+export function trimGroup(clips:readonly Clip[],id:string):Set<string>{return linkedIds(clips,[id]);}
+/** Every clip of a link group trims by the same amount, ripple or not, so camera and audio never come apart. */
+const trimmed=(p:Project,ids:ReadonlySet<string>,_side:'left'|'right',_ripple:boolean):ReadonlySet<string>=>linkedIds(p.clips,ids);
 /** The delta range a trim of these clips' `side` edge allows: source limits, a tenth of a second minimum, and, without ripple, the neighbours on each clip's row. */
 export function trimBounds(p:Project,chosen:ReadonlySet<string>,side:'left'|'right',ripple:boolean,media:ReadonlyMap<string,Media>=new Map(p.media.map(m=>[m.id,m]))){
  const ids=trimmed(p,chosen,side,ripple),clips=p.clips.filter(c=>ids.has(c.id));let min=-Infinity,max=Infinity;

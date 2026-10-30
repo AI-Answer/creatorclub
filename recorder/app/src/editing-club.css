@@ -132,7 +132,8 @@
 .club-embed .app-shell[data-mode=Edit] .club-row{position:absolute;left:0;right:0;background:none;border:0;margin:0;cursor:default}
 .club-embed .app-shell[data-mode=Edit] .club-row::before{display:none}
 .club-embed .app-shell[data-mode=Edit] .club-row:nth-of-type(odd){background:var(--tl-row)}
-.club-embed .app-shell[data-mode=Edit] .club-timeline .timeline-clip.club-clip{position:absolute;display:block;padding:0;border:1px solid var(--tl-shade-soft);border-radius:6px;overflow:hidden;background:var(--kind-screen);color:var(--kind-ink);box-shadow:none;cursor:grab;user-select:none}
+.club-embed .app-shell[data-mode=Edit] .club-timeline .timeline-clip.club-clip{position:absolute;display:block;padding:0;border:1px solid var(--tl-shade-soft);border-radius:6px;overflow:hidden;background:var(--kind-screen);color:var(--kind-ink);box-shadow:none;cursor:default;user-select:none}
+.club-embed .app-shell[data-mode=Edit] .club-timeline .club-clip-label.club-move-handle{pointer-events:auto;cursor:grab}
 .club-embed .app-shell[data-mode=Edit] .club-timeline .timeline-clip.club-clip.clip-camera{background:var(--kind-camera)}
 .club-embed .app-shell[data-mode=Edit] .club-timeline .timeline-clip.club-clip:is(.clip-audio,.clip-music){background:color-mix(in srgb,var(--kind-audio) 22%,var(--cc-card));color:var(--cc-ink)}
 .club-embed .app-shell[data-mode=Edit] .club-timeline .timeline-clip.club-clip.clip-music{background:color-mix(in srgb,var(--kind-audio) 12%,var(--cc-card))}
@@ -150,7 +151,7 @@
 .club-embed .app-shell[data-mode=Edit] .club-timeline .trim-handle.left{left:0}
 .club-embed .app-shell[data-mode=Edit] .club-timeline .trim-handle.right{right:0}
 .club-embed .app-shell[data-mode=Edit] .club-timeline :is(.club-clip,.club-effect):hover .trim-handle{background:color-mix(in srgb,var(--kind-ink) 35%,transparent)}
-.club-embed .app-shell[data-mode=Edit] .club-timeline .timeline-effect.club-effect{position:absolute;top:3px;bottom:3px;height:auto;padding:0 8px;border-radius:5px;border:0;background:var(--kind-graphics);color:var(--kind-ink);font-size:11.5px;font-weight:500;line-height:20px;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:grab;user-select:none}
+.club-embed .app-shell[data-mode=Edit] .club-timeline .timeline-effect.club-effect{position:absolute;top:3px;bottom:3px;height:auto;padding:0 8px;border-radius:5px;border:0;background:var(--kind-graphics);color:var(--kind-ink);font-size:11.5px;font-weight:500;line-height:20px;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:default;user-select:none}
 .club-embed .app-shell[data-mode=Edit] .club-timeline .row-captions .club-effect{background:var(--kind-captions)}
 .club-embed .app-shell[data-mode=Edit] .club-timeline .row-zooms .club-effect{background:var(--kind-zoom)}
 .club-embed .app-shell[data-mode=Edit] .club-effect>span{pointer-events:none}

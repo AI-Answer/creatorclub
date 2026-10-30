@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createProject,defaultEffects,defaultTransform,clipDuration,type Clip,type Media,type Project} from '../shared/types';
 import {applyProjectChange} from './project-draft';
-import {addMarker,anchoredScroll,openRange,remapLinks,applyClipStarts,closeRange,collides,deleteItems,ensureLinks,filmstripTiles,fitScale,freeDelta,insertPlan,isLinked,linkClips,linkGroups,linkedIds,moveEffects,moveMarker,planClipMove,removeMarker,resizeEffect,rowItems,rulerLabel,rulerTicks,splitLinked,timelineGaps,trimBounds,trimClips,uncovered,unlinkClips} from './timeline-edit';
+import {addMarker,anchoredScroll,openRange,remapLinks,applyClipStarts,closeRange,collides,deleteItems,ensureLinks,filmstripTiles,fitScale,freeDelta,insertPlan,isLinked,linkClips,linkGroups,linkedIds,moveEffects,moveMarker,planClipMove,removeMarker,resizeEffect,rowItems,rulerLabel,rulerTicks,splitLinked,timelineGaps,trimBounds,trimClips,trimGroup,rowsOverlap,uncovered,unlinkClips,DRAG_DEAD_ZONE_PX} from './timeline-edit';
 
 const media=(id:string,duration=600):Media=>({id,name:id,path:`/tmp/${id}.mov`,kind:'video',duration,width:1920,height:1080,hasAudio:true});
 const clip=(id:string,track:Clip['track'],start:number,length:number,extra:Partial<Clip>={}):Clip=>({id,mediaId:track==='camera'?'cam':track==='audio'?'mic':'scr',name:id,track,start,sourceIn:0,sourceOut:length,speed:1,gain:1,muted:false,transform:defaultTransform(),effects:defaultEffects(),...extra});
@@ -139,4 +139,27 @@ test('filmstrip tiles cover the visible part of a clip and point at frames of it
  const tiles=filmstripTiles({start:10,sourceIn:30,sourceOut:60,speed:1},60,60,10,50,0,100);
  assert.equal(tiles.length,6);assert.deepEqual(tiles[0],{left:0,index:32});assert.deepEqual(tiles.at(-1),{left:250,index:57});
  assert.equal(filmstripTiles({start:10,sourceIn:30,sourceOut:60,speed:1},60,60,10,50,30,100)[0].left,200,'starts at the window');
+});
+
+test('Task 14: trimming one clip of a link group trims every clip of the group by the same amount, even when their edges differ',()=>{
+ // A take whose audio runs 1 s longer than its camera (and starts 0.5 s earlier): the edges do not line up.
+ const p=project([clip('cam','camera',.5,8,{linkId:'L'}),clip('mic','audio',0,10,{linkId:'L'}),clip('next','camera',12,4)]);
+ const ids=trimGroup(p.clips,'cam');assert.deepEqual([...ids].sort(),['cam','mic']);
+ trimClips(p,ids,'right',-2,false);
+ assert.deepEqual(p.clips.filter(c=>c.linkId==='L').map(c=>clipDuration(c)),[6,8],'camera and audio both lose 2 s');
+ const q=project([clip('cam','camera',.5,8,{linkId:'L'}),clip('mic','audio',0,10,{linkId:'L'})]);
+ trimClips(q,new Set(['cam']),'right',-2,true);
+ assert.deepEqual(q.clips.map(c=>clipDuration(c)),[6,8],'a ripple trim of one clip also takes its linked clips along');
+ trimClips(q,new Set(['cam']),'left',1,false);
+ assert.deepEqual(q.clips.map(c=>[c.start,clipDuration(c)]),[[1.5,5],[1,7]]);
+ assert.ok(!rowsOverlap(rowItems(q)),'no overlap on a row');assert.ok(q.clips.every(c=>c.start>=0),'no negative start');
+});
+
+test('Task 14: a move never opens a gap before the first clip; a sole clip cannot leave 0',()=>{
+ const sole=project(take(1,0,10)),ids=linkedIds(sole.clips,['screen1']);
+ assert.equal(planClipMove(sole,ids,4.4,6).kind,'none','the only take stays at 0');
+ const two=project([...take(1,0,10),...take(2,14,6)]),first=linkedIds(two.clips,['screen1']);
+ const plan=planClipMove(two,first,2,3);assert.ok(Math.min(...[...plan.starts.values()],...two.clips.filter(c=>!first.has(c.id)).map(c=>c.start))<=1e-9||plan.kind==='none','nothing starts after 0 alone');
+ const second=linkedIds(two.clips,['screen2']);assert.equal(planClipMove(two,second,2,16).kind,'move','a later take still moves freely');
+ assert.equal(DRAG_DEAD_ZONE_PX,6);
 });
