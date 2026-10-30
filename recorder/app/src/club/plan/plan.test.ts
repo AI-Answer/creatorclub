@@ -21,7 +21,7 @@ const menuItem=(container:Element,text:string)=>[...container.querySelectorAll('
 const empty:Package={angle:'',twist:'',titles:['','',''],thumbnailText:'',hook:{visual:'',spoken:'',text:''}};
 const full:Package={demand:{level:'high',note:'many ask'},angle:'a',twist:'t',titles:['One','Two','Three'],thumbnailText:'THUMB',hook:{visual:'v',spoken:'s',text:'x'}};
 
-test('Package column: titles, thumbnail text and the hook line first, the rest one click away under More; no ratings stay Not rated; picking a level saves only that one; the chosen title is the video title',async()=>{
+test('Package column: titles as a list with the video title ticked, thumbnail text and the hook line first, the rest one click away under More; no ratings stay Not rated; picking a level saves only that one',async()=>{
  const seen:Package[]=[],picked:string[]=[];
  const ui=await mountUI(createElement(PackageColumn,{videoId:'v1',videoTitle:'Two',pkg:{...empty,titles:['One','Two',''],hook:{visual:'',spoken:'A hook',text:''}},running:false,onEdit:next=>seen.push(next),onPickTitle:title=>picked.push(title)}));
  try{
@@ -30,17 +30,49 @@ test('Package column: titles, thumbnail text and the hook line first, the rest o
   assert.equal(c.querySelectorAll('.hook-row').length,0,'what the hook shows is folded');
   assert.ok(c.textContent?.includes('A hook'),'the spoken hook is shown');
   const more=c.querySelector('.pkg-more')!;assert.equal(more.getAttribute('aria-expanded'),'false');
+  const label=more.textContent;
   await press(more);assert.equal(more.getAttribute('aria-expanded'),'true');
+  assert.equal(more.textContent,label,'the disclosure keeps its name; its state is aria-expanded');
   assert.equal(c.querySelectorAll('.hook-row').length,2);
   assert.equal(c.querySelectorAll('.dgs-row')[0].textContent?.includes('Not rated'),true);
   assert.equal(c.querySelectorAll('.dgs-row [role="textbox"]').length,0,'no note to write for a rating that was never given');
   await press(c.querySelector('[role="radiogroup"][aria-label="Demand"] button'));
   assert.deepEqual(seen.at(-1)?.demand,{level:'high',note:''});assert.equal('gap' in seen.at(-1)!,false);
-  const radios=[...c.querySelectorAll('.topt')];
-  assert.deepEqual(radios.map(radio=>radio.getAttribute('aria-checked')),['false','true','false']);
-  await press(radios[0]);assert.deepEqual(picked,['One']);
-  await press(radios[2]);assert.deepEqual(picked,['One'],'an empty option cannot be picked');
-  assert.equal(c.querySelector('.prev-thumb .tt')?.textContent,'');
+  // The titles: only the written ones, no radio buttons and no counters; the video's title is ticked, the others offer Use this title.
+  const rows=[...c.querySelectorAll('.tline')];
+  assert.deepEqual(rows.map(row=>row.querySelector('[role="textbox"]')!.textContent),['One','Two']);
+  assert.deepEqual(rows.map(row=>row.classList.contains('on')),[false,true]);
+  assert.equal(c.querySelectorAll('.tlist [role="radio"],.tlist .radio').length,0,'no radio buttons on the titles');
+  assert.doesNotMatch(c.textContent!,/\dw · \d+\/60/);
+  assert.equal(buttonNamed(rows[1] as Element,'Use this title'),null,'the chosen title offers nothing');
+  await press(buttonNamed(rows[0] as Element,'Use this title'));assert.deepEqual(picked,['One']);
+  // The empty third slot is behind Add a title.
+  await press(buttonNamed(c,'Add a title'));
+  assert.equal(c.querySelectorAll('.tline').length,3);
+  assert.equal(c.querySelector('.prev-thumb'),null,'no made-up thumbnail without a real picture');
+ }finally{await ui.close();}
+});
+
+test('Package column: empty, it is one sentence and one action, and "or fill it in yourself" opens the fields; a long title says why in words',async()=>{
+ const writes:Array<string|undefined>=[];
+ const props={videoId:'v1',videoTitle:'X',pkg:{...empty,demand:{level:'high' as const,note:'many'}},running:false,onEdit(){},onPickTitle(){},onWrite:(group?:string)=>{writes.push(group);}};
+ const ui=await mountUI(createElement(PackageColumn,props));
+ try{
+  const c=ui.container;
+  assert.equal(c.querySelectorAll('[role="textbox"]').length,0,'no empty fields');
+  assert.equal(c.querySelectorAll('.pkg-empty p').length,1);
+  assert.deepEqual([...c.querySelectorAll('button')].map(b=>b.textContent?.trim()),['Write the package with Claude','or fill it in yourself']);
+  assert.equal(c.querySelector('.btn.primary'),null,'not a second black primary beside Draft scenes from the board');
+  await press(buttonNamed(c,'Write the package with Claude'));assert.deepEqual(writes,[undefined]);
+  await ui.render(createElement(PackageColumn,{...props,running:true}));
+  assert.ok(c.querySelector('[aria-label="Writing the package"]'),'a skeleton while the first package is written');
+  await ui.render(createElement(PackageColumn,props));
+  await press(buttonNamed(c,'or fill it in yourself'));
+  assert.ok(c.querySelector('.tline [role="textbox"]'),'a first title to type');
+  assert.ok(buttonNamed(c,'Write with Claude'),'the one Write with Claude menu sits in the heading');
+  await ui.render(createElement(PackageColumn,{...props,pkg:{...empty,titles:['A title that goes on and on well past what a search result shows','Short','']}}));
+  assert.match(c.querySelector('.tline')!.textContent!,/64 characters, too long for a search result/);
+  assert.equal([...c.querySelectorAll('.tline')][1].textContent?.includes('too long'),false);
  }finally{await ui.close();}
 });
 
@@ -147,16 +179,26 @@ test('Scenes column: a typed scene length is saved, a bad one goes back, the tar
  }finally{await ui.close();}
 });
 
-test('Scenes column: no scenes shows the prototype empty state with Draft scenes from board, and shimmer while drafting',async()=>{
- let drafted=0;
- const {props}=scenesProps({outline:null,onDraft:()=>{drafted++;}});
+test('Scenes column: no scenes is one sentence and Draft scenes from the board, shimmer while drafting; with scenes the heading offers Redraft, which asks first',async()=>{
+ let drafted=0,all=0;
+ const {props}=scenesProps({outline:null,onDraft:()=>{drafted++;},onWriteAll:()=>{all++;}});
  const ui=await mountUI(withToasts(props));
  try{
   const c=ui.container;
-  assert.match(c.textContent!,/No scenes yet/);
-  await press(buttonNamed(c,'Draft scenes from board'));assert.equal(drafted,1);
+  assert.equal(c.querySelectorAll('.plan-empty p').length,1);
+  assert.deepEqual([...c.querySelectorAll('button')].map(b=>b.textContent?.trim()),['Draft scenes from the board'],'one action, and no menu over nothing');
+  await press(buttonNamed(c,'Draft scenes from the board'));assert.equal(drafted,1);
   await ui.render(withToasts({...props,drafting:true,draftLine:'Reading the board…'}));
-  assert.equal(c.querySelectorAll('.shimmer').length,4);assert.equal(buttonNamed(c,'Draft scenes from board'),null);
+  assert.equal(c.querySelectorAll('.shimmer').length,4);assert.equal(buttonNamed(c,'Draft scenes from the board'),null);
+  await ui.render(withToasts({...props,outline:three}));
+  assert.equal(buttonNamed(c,'Draft scenes from the board'),null);
+  await press(buttonNamed(c,'Write with Claude'));
+  assert.deepEqual([...c.ownerDocument.querySelectorAll('[role="menuitem"]')].map(item=>item.textContent?.trim()),['Write the full script','Redraft the scenes']);
+  await press(menuItem(c.ownerDocument.body,'Redraft the scenes'));
+  assert.equal(drafted,1,'asked first');
+  assert.match(c.ownerDocument.querySelector('[role="dialog"]')!.textContent!,/Replace the scenes\?/);
+  await press(buttonNamed(c.ownerDocument.body,'Replace 3 scenes'));assert.equal(drafted,2);
+  await press(buttonNamed(c,'Write with Claude'));await press(menuItem(c.ownerDocument.body,'Write the full script'));assert.equal(all,1);
  }finally{await ui.close();}
 });
 
@@ -210,7 +252,7 @@ test('Plan tab: Write titles shows the package the server merged, and makes no s
   return planReply({package:earlier,outline:null})(call);
  },async(c,calls)=>{
   await press(buttonNamed(c,'Write with Claude'));await press(menuItem(c.ownerDocument.body,'Write titles'));await flush();
-  assert.deepEqual([...c.querySelectorAll('.topt [role="textbox"]')].map(t=>t.textContent),['Mine','N2','N3']);
+  assert.deepEqual([...c.querySelectorAll('.tline [role="textbox"]')].map(t=>t.textContent),['Mine','N2','N3']);
   assert.deepEqual(calls.filter(call=>call.method==='POST'&&call.path==='/videos/v1/package').map(call=>call.body),[undefined]);
   assert.equal(calls.some(call=>call.method==='PUT'),false,'nothing is saved over the server\'s merge');
   assert.match(c.textContent!,/Replaced the package/);
@@ -222,11 +264,15 @@ test('Plan tab: writing a full group again asks, then tells the server which gro
   if(call.method==='POST'&&call.path==='/videos/v1/package')return {body:{value:{...full,titles:['R1','R2','R3']}}};
   return planReply({package:full,outline:null})(call);
  },async(c,calls)=>{
-  await press(buttonNamed(c,'Write with Claude'));await press(menuItem(c.ownerDocument.body,'Write titles'));
+  await press(buttonNamed(c,'Write with Claude'));await press(menuItem(c.ownerDocument.body,'Write titles again'));
   assert.equal(calls.some(call=>call.method==='POST'),false,'asked first');
   await press([...c.ownerDocument.querySelectorAll('[role="dialog"] button')].find(b=>b.textContent==='Write titles')!);await flush();
   assert.deepEqual(calls.filter(call=>call.method==='POST').map(call=>call.body),[{replace:'titles'}]);
-  assert.deepEqual([...c.querySelectorAll('.topt [role="textbox"]')].map(t=>t.textContent),['R1','R2','R3']);
+  assert.deepEqual([...c.querySelectorAll('.tline [role="textbox"]')].map(t=>t.textContent),['R1','R2','R3']);
+  await press(buttonNamed(c,'Write with Claude'));await press(menuItem(c.ownerDocument.body,'Write thumbnail text again'));
+  assert.match(c.ownerDocument.querySelector('[role="dialog"]')!.textContent!,/Write the thumbnail text again\?/);
+  await press([...c.ownerDocument.querySelectorAll('[role="dialog"] button')].find(b=>b.textContent==='Write thumbnail text')!);await flush();
+  assert.deepEqual(calls.filter(call=>call.method==='POST').map(call=>call.body).at(-1),{replace:'thumbnail'});
  });
 });
 

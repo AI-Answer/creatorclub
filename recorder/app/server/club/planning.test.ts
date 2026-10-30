@@ -440,6 +440,12 @@ test('Write titles again with a group to replace takes the whole group, and noth
   assert.deepEqual(job.result.value.titles, ['R1', 'R2', 'R3']);
   assert.equal(job.result.value.angle, 'Kept angle');
   assert.deepEqual(job.result.value.hook, goodPackage.hook);
+  // The thumbnail text is a group of its own (Plan's "Write thumbnail text again").
+  answers.Package = [{ ...goodPackage, thumbnailText: 'NEW WORDS', titles: ['X1', 'X2', 'X3'] as [string, string, string] }];
+  const thumb = await finish((await call('POST', `/videos/${video.id}/package`, { replace: 'thumbnail' })).body.id);
+  assert.equal(thumb.status, 'done', JSON.stringify(thumb));
+  assert.equal(thumb.result.value.thumbnailText, 'NEW WORDS');
+  assert.deepEqual(thumb.result.value.titles, ['R1', 'R2', 'R3'], 'the titles stay');
   await call('PUT', `/videos/${video.id}/package`, { ...goodPackage, angle: 'My own angle' });
 });
 

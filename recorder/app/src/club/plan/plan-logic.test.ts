@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type {Outline,Package} from '../../../shared/club';
-import {packageDiff,EMPTY_PACKAGE,blankScene,chosenTitle,editPoint,hasEmptyPlace,insertScene,mergePackage,moveScene,packageIsEmpty,parseClock,removeScene,titleTooLong,totalSeconds,withServerScripts,wordCount} from './plan-logic';
+import {packageDiff,EMPTY_PACKAGE,blankScene,chosenTitle,editPoint,hasEmptyPlace,insertScene,mergePackage,moveScene,packageIsEmpty,packageView,parseClock,removeScene,shownTitles,titleTooLong,titleWarning,totalSeconds,withServerScripts,wordCount} from './plan-logic';
 
 const written:Package={demand:{level:'high',note:'new'},angle:'new angle',twist:'new twist',titles:['N1','N2','N3'],thumbnailText:'NEW',hook:{visual:'new v',spoken:'new s',text:'new t'}};
 
@@ -88,4 +88,30 @@ test('the package diff is only what changed, the hook field by field, and the wh
  assert.deepEqual(packageDiff(server,{...server,hook:{...server.hook,spoken:'edited'}}),{hook:{spoken:'edited'}});
  assert.deepEqual(packageDiff(server,{...server,titles:['1','two','3']}),{titles:[null,'two',null]},'only the slot that changed');
  assert.equal(packageDiff(null,server),server);
+});
+
+test('the Package column is empty (one sentence, one action) until something it shows is written; ratings from the idea do not count',()=>{
+ const rated:Package={...EMPTY_PACKAGE,demand:{level:'high',note:'asked a lot'}};
+ assert.equal(packageView(null,{running:false,manual:false}),'empty');
+ assert.equal(packageView(rated,{running:false,manual:false}),'empty','ratings carried over from the idea leave it empty');
+ assert.equal(packageView(rated,{running:true,manual:false}),'writing','the first run shows a skeleton');
+ assert.equal(packageView(rated,{running:false,manual:true}),'filled','or fill it in yourself opens the fields');
+ assert.equal(packageView({...EMPTY_PACKAGE,thumbnailText:'X'},{running:true,manual:false}),'filled','a run over a written package keeps it on screen');
+ assert.equal(packageView({...EMPTY_PACKAGE,twist:'t'},{running:false,manual:false}),'filled');
+});
+
+test('only written titles show, plus the one being added; a title too long for a search result says so in words, a fitting one says nothing',()=>{
+ assert.deepEqual(shownTitles(['A','','C'],null).map(t=>t.index),[0,2]);
+ assert.deepEqual(shownTitles(['A','',''],1).map(t=>t.index),[0,1]);
+ assert.deepEqual(shownTitles(['','',''],null),[]);
+ assert.equal(titleWarning('Seven words or fewer fit just fine'),undefined);
+ assert.equal(titleWarning('One two three four five six seven eight'),'8 words, too long for a search result');
+ assert.equal(titleWarning('x'.repeat(61)),'61 characters, too long for a search result');
+});
+
+test('the thumbnail text is a group of its own: a run fills it while empty, and writing it again replaces only it',()=>{
+ const earlier:Package={...EMPTY_PACKAGE,titles:['Mine','',''],thumbnailText:'OLD',hook:{visual:'v',spoken:'s',text:'t'}};
+ assert.equal(hasEmptyPlace(earlier,'thumbnail'),false);assert.equal(hasEmptyPlace({...earlier,thumbnailText:' '},'thumbnail'),true);
+ const again=mergePackage(earlier,written,'thumbnail');
+ assert.equal(again.thumbnailText,'NEW');assert.deepEqual(again.titles,['Mine','N2','N3']);assert.deepEqual(again.hook,earlier.hook);
 });

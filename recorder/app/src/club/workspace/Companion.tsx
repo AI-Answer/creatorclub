@@ -6,7 +6,7 @@ import {describeEditAction,type SilencePlan} from '../../editing-actions';
 import {clubFetch} from '../api';
 import {ErrorLine} from '../ErrorLine';
 import {Button,CompanionMark,Icon,Spinner,cn} from '../ui';
-import {atBottom,elapsed,lookingAt,previewOf,stepSummary,suggestions,withDividers} from './companion-logic';
+import {atBottom,elapsed,greeting,lookingAt,previewOf,stepSummary,suggestions,withDividers} from './companion-logic';
 import {Markdown} from './Markdown';
 import {ReplaceScenes} from './ReplaceScenes';
 import {useCompanion,type Live} from './useCompanion';
@@ -108,7 +108,11 @@ export function Companion({videoId,tab,scene,screen,pkg,outline,scenes,onChanged
  </aside>;
 
  const items=messages?withDividers(messages,tab):[];
- const ideas=suggestions(tab,{scenes:outline?.scenes.length??0,scene,selected:editor?.state?.selected});
+ const sceneCount=outline?.scenes.length??0;
+ const ideas=suggestions(tab,{scenes:sceneCount,scene,selected:editor?.state?.selected,hook:!!pkg?.hook.spoken.trim(),longest:Math.max(0,...(outline?.scenes??[]).map(one=>one.seconds||0))});
+ // Nothing asked yet: a short greeting for this step with the best prompts right under it, instead of a blank column.
+ const fresh=!!messages&&!messages.length&&!live&&!companion.loadError;
+ const chips=ideas.length>0&&<div className={cn('cmp-sugg',fresh&&'fresh')} aria-label="Suggestions">{ideas.map(idea=><button key={idea} type="button" onClick={()=>void ask(idea)}>{idea}</button>)}</div>;
  const selected=tab==='edit'?editor?.state?.selected??0:0;
  return <aside className={cn('cmp',narrow&&'over')} aria-label={title} onKeyDown={onPanelKey}>
   <header className="cmp-head">
@@ -124,9 +128,9 @@ export function Companion({videoId,tab,scene,screen,pkg,outline,scenes,onChanged
   <div className="cmp-log" ref={log} onScroll={onScroll} role="log" aria-live="off" aria-busy={working}>
    {companion.loadError?<ErrorLine message={companion.loadError} onRetry={companion.reload}/>
     :!messages?<div className="cmp-loading"><Spinner label="Loading the conversation" size={16}/></div>
-    :!messages.length&&!live&&<div className="cmp-reply">
-     <div className="cmp-who"><CompanionMark size={14}/>{name}</div>
-     <div className="cmp-md"><p>I&apos;m with you on this video from the board to publishing. Ask anything, or tell me what to change: each change comes as a card you can apply and undo.</p></div>
+    :fresh&&<div className="cmp-hello">
+     <p>{greeting(tab,{scenes:sceneCount})}</p>
+     {chips}
     </div>}
    {items.map(item=>item.kind==='divider'?<div key={item.key} className="cmp-divider" role="separator">{item.label}</div>
     :item.message.role==='user'?<div key={item.key} className="cmp-me">{item.message.text}</div>
@@ -137,7 +141,7 @@ export function Companion({videoId,tab,scene,screen,pkg,outline,scenes,onChanged
   </div>
   {behind&&<button type="button" className="cmp-jump" onClick={toBottom}><Icon name="ArrowDown" size={13}/>Jump to latest</button>}
   <div className="cmp-foot">
-   {!working&&ideas.length>0&&<div className="cmp-sugg" aria-label="Suggestions">{ideas.map(idea=><button key={idea} type="button" onClick={()=>void ask(idea)}>{idea}</button>)}</div>}
+   {!working&&!fresh&&chips}
    <form className="cmp-input" onSubmit={event=>{event.preventDefault();void ask(text);}}>
     <textarea ref={input} rows={1} value={text} onChange={event=>setText(event.target.value)} onKeyDown={onKeyDown} placeholder="Ask, or tell me what to change" aria-label={`Message to ${name}`}/>
     {working

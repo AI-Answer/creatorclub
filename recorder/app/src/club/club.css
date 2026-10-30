@@ -890,12 +890,13 @@
 .club-root .pkg-hint { margin: -4px 0 8px; color: var(--cc-text-2); font-size: var(--cc-text-sm); line-height: 1.45; }
 .club-root .pkg .ed:empty::before, .club-root .scn .ed:empty::before { font-size: var(--cc-text-sm); font-weight: 400; font-style: italic; letter-spacing: 0; color: var(--cc-placeholder); }
 .club-root .tlist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
-.club-root .tline { display: flex; align-items: flex-start; gap: 8px; padding: 6px 6px 6px 2px; border-radius: var(--cc-r); }
+.club-root .tline { position: relative; display: flex; align-items: flex-start; gap: 8px; padding: 6px 6px 6px 2px; border-radius: var(--cc-r); }
 .club-root .tline .ed { font-size: 15px; font-weight: 550; letter-spacing: -0.01em; color: var(--cc-text-2); }
 .club-root .tline.on .ed { font-weight: 650; color: var(--cc-text); }
 .club-root .tmark { width: 18px; height: 24px; flex: none; display: inline-flex; align-items: center; justify-content: center; color: var(--cc-ok); }
-.club-root .tline .tuse { opacity: 0; flex: none; }
+.club-root .tline .tuse { position: absolute; right: 4px; top: 4px; opacity: 0; background: var(--cc-surface); box-shadow: var(--cc-shadow-1), 0 0 0 1px var(--cc-line); }
 .club-root .tline:hover .tuse, .club-root .tline:focus-within .tuse { opacity: 1; }
-.club-root .pkg-add { display: inline-flex; align-items: center; gap: 5px; margin: 6px 0 0 26px; font-size: var(--cc-text-sm); }
+.club-root .pkg-add { display: inline-flex; align-items: center; gap: 5px; margin-top: 4px; font-size: var(--cc-text-sm); }
+.club-root .pkg-add.under { margin-left: 28px; }
 .club-root .pkg-thumb-text { font-size: 17px; font-weight: 700; letter-spacing: -0.02em; }
 .club-root .prev-thumb .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }

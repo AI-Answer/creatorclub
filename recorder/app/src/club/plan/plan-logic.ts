@@ -28,13 +28,16 @@ export function titleWarning(title:string):string|undefined{
  return characters>60?`${characters} characters, too long for a search result`:`${words} words, too long for a search result`;
 }
 
+/** True when nothing the package shows first (titles, thumbnail text, hook) is written. Ratings carried over from the idea do not count. */
+export const packageFrontIsEmpty=(pkg:Package|null)=>!pkg||(!pkg.thumbnailText.trim()&&pkg.titles.every(title=>!title.trim())&&Object.values(pkg.hook).every(part=>!part.trim())&&!pkg.angle.trim()&&!pkg.twist.trim());
+
 /**
- * What the Package column shows: `empty` (one sentence and one action) until something is written, typed, or the person chose to
- * fill it in themselves; `writing` while the first package run is going; then the package itself.
+ * What the Package column shows: `empty` (one sentence and one action) until a title, the thumbnail text, the hook, the angle or the
+ * twist is written, or the person chose to fill it in themselves; `writing` while the first package run is going; then the package itself.
  */
 export type PackageView='empty'|'writing'|'filled';
 export function packageView(pkg:Package|null,{running,manual}:{running:boolean;manual:boolean}):PackageView{
- if(!packageIsEmpty(pkg)||manual)return 'filled';
+ if(!packageFrontIsEmpty(pkg)||manual)return 'filled';
  return running?'writing':'empty';
 }
 

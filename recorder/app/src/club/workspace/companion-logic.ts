@@ -13,15 +13,46 @@ export function lookingAt(tab:CompanionTab,scene?:{index:number;title:string}):s
  return scene?`${STEP_NAME[tab]} · Scene ${scene.index+1}`:STEP_NAME[tab];
 }
 
-/** Three things to ask on each step, depending on what the video has. */
-export function suggestions(tab:CompanionTab,facts:{scenes:number;scene?:{index:number};selected?:number}):string[]{
+/** What the companion knows about the video when it suggests what to ask. */
+export type SuggestionFacts={
+ scenes:number;scene?:{index:number};selected?:number;
+ /** The package's spoken hook is written. */
+ hook?:boolean;
+ /** The longest scene's length, in seconds. */
+ longest?:number;
+};
+
+/**
+ * The three best things to ask on each step for the video as it is now. They never repeat a button the screen shows (Plan's
+ * Draft scenes from the board, Write the package): they are what the screen cannot do, such as three options to choose from,
+ * a tighter scene, or a second opinion.
+ */
+export function suggestions(tab:CompanionTab,facts:SuggestionFacts):string[]{
  const scene=facts.scene?`scene ${facts.scene.index+1}`:undefined;
  switch(tab){
   case 'board':return ['Write three hooks from this board','Suggest three titles','What do these have in common?'];
-  case 'plan':return [facts.scenes?scene?`Tighten ${scene}`:'Tighten the first scene':'Draft the scenes','Write three hooks','Suggest three titles'];
+  case 'plan':{
+   const ideas=facts.scenes
+    ?[scene?`Tighten ${scene}`:'Tighten the first scene',...((facts.longest??0)>90?['Cut the longest scene to 90 seconds']:[]),...(facts.hook?[]:['Write three hooks']),'Suggest three titles','What is missing before I record?']
+    :[...(facts.hook?['Make the hook sharper']:['Write three hooks']),'Suggest three titles','What should the video open with?'];
+   return ideas.slice(0,3);
+  }
   case 'record':return [scene?`Shorten ${scene} to fit its time`:'Shorten this scene to fit its time','Give me a warm-up line','What should I show on screen?'];
   case 'publish':return ['Write the description','Suggest thumbnail text','Is the title ready to publish?'];
   case 'edit':return [facts.selected?'Trim the selected clip to the speech':'Cut the pauses','Remove the filler words','Add a title at the start'];
+ }
+}
+
+/** The companion's first words on a step, before anything was asked there: one or two sentences about this step and this video. */
+export function greeting(tab:CompanionTab,facts:{scenes:number}):string{
+ switch(tab){
+  case 'board':return 'This board is the research for the video. Ask what the videos on it have in common, or for hooks and titles drawn from them.';
+  case 'plan':return facts.scenes
+   ?'The scenes are drafted. I can tighten any of them, or write hooks and titles for you to choose from.'
+   :'Plan the scenes first: they become your teleprompter when you record. I can write hooks and titles for you to choose from meanwhile.';
+  case 'record':return 'Record one scene at a time, with its talking points beside you. Ask me to shorten a scene or give you a line to warm up with.';
+  case 'edit':return 'I see the timeline, its transcript and what you select. Each change I suggest comes as a card you can preview, apply and undo.';
+  case 'publish':return 'Check the title, the thumbnail and the description before it goes out. Ask me for a second opinion on any of them.';
  }
 }
 

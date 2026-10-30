@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import {act,createElement} from 'react';
 import type {Outline,Package,VideoScene} from '../../../shared/club';
 import type {CompanionChanged,CompanionMessage,CompanionReplyMessage} from '../../../shared/companion';
-import {atBottom,elapsed,lookingAt,previewOf,screenSummary,stepSummary,suggestions,withDividers} from './companion-logic';
+import {atBottom,elapsed,greeting,lookingAt,previewOf,screenSummary,stepSummary,suggestions,withDividers} from './companion-logic';
 import {blocks} from './Markdown';
 import {normalizeThread,withPendingStops,withStep,withText} from './useCompanion';
 const {Companion}=await import('./Companion');
@@ -20,13 +20,30 @@ const outline:Outline={scenes:[{id:'s1',title:'Opening',talkingPoints:['Show it'
 test('it says what it is looking at, and the suggestions follow the step',()=>{
  assert.equal(lookingAt('plan',{index:1,title:'Level 1'}),'Plan · Scene 2');
  assert.equal(lookingAt('board'),'Board');
- assert.deepEqual(suggestions('plan',{scenes:0}),['Draft the scenes','Write three hooks','Suggest three titles']);
+ // Plan never repeats the buttons it shows (Draft scenes from the board, Write the package): what is left is options to choose from and opinions.
+ assert.deepEqual(suggestions('plan',{scenes:0}),['Write three hooks','Suggest three titles','What should the video open with?']);
+ assert.deepEqual(suggestions('plan',{scenes:0,hook:true}),['Make the hook sharper','Suggest three titles','What should the video open with?']);
  assert.equal(suggestions('plan',{scenes:2,scene:{index:1}})[0],'Tighten scene 2');
+ assert.deepEqual(suggestions('plan',{scenes:2,longest:150}),['Tighten the first scene','Cut the longest scene to 90 seconds','Write three hooks']);
+ assert.deepEqual(suggestions('plan',{scenes:2,longest:60,hook:true}),['Tighten the first scene','Suggest three titles','What is missing before I record?']);
+ for(const tab of ['board','plan','record','edit','publish'] as const)for(const facts of [{scenes:0},{scenes:3}]){
+  assert.equal(suggestions(tab,facts).length,3);
+  assert.equal(suggestions(tab,facts).some(idea=>/^Draft the scenes|package/i.test(idea)),false,`${tab} offers no chip that repeats a button on the page`);
+ }
  assert.equal(suggestions('record',{scenes:2,scene:{index:0}})[0],'Shorten scene 1 to fit its time');
  assert.equal(suggestions('publish',{scenes:2})[0],'Write the description');
  assert.equal(suggestions('edit',{scenes:2})[0],'Cut the pauses');
  assert.equal(suggestions('edit',{scenes:2,selected:3})[0],'Trim the selected clip to the speech');
  assert.notDeepEqual(suggestions('board',{scenes:0}),suggestions('plan',{scenes:0}));
+});
+
+test('each step greets with its own one or two sentences, and Plan says what comes first until there are scenes',()=>{
+ const tabs=['board','plan','record','edit','publish'] as const;
+ const lines=tabs.map(tab=>greeting(tab,{scenes:0}));
+ assert.equal(new Set(lines).size,tabs.length,'no two steps say the same');
+ for(const line of lines){assert.ok(line.split(/(?<=\.)\s/).length<=2,line);assert.doesNotMatch(line,/with you on this video|!|please/i);}
+ assert.match(greeting('plan',{scenes:0}),/^Plan the scenes first/);
+ assert.match(greeting('plan',{scenes:4}),/^The scenes are drafted/);
 });
 
 test('a divider marks each change of step, and "Now on" when the screen moved on',()=>{
@@ -105,11 +122,17 @@ test('asking streams: the steps with their time, a skeleton before the first wor
   const c=ui.container;
   assert.match(text(c),/Looking at: Plan · Scene 2/);
   assert.match(text(c),/Ask Claude/);
-  await act(async()=>button(c,'Write three hooks').click());await flush();
+  // Nothing asked yet: the step's greeting with its three prompts right under it, not a blank column and not the old welcome.
+  const hello=c.querySelector('.cmp-log .cmp-hello')!;
+  assert.match(text(hello),/^The scenes are drafted\./);
+  assert.deepEqual([...hello.querySelectorAll('.cmp-sugg button')].map(b=>b.textContent),['Tighten scene 2','Cut the longest scene to 90 seconds','Suggest three titles']);
+  assert.equal(c.querySelector('.cmp-foot .cmp-sugg'),null,'the prompts are not repeated at the bottom');
+  assert.doesNotMatch(text(c),/with you on this video/);
+  await act(async()=>button(c,'Tighten scene 2').click());await flush();
   const asked=server.calls.find(call=>call.method==='POST'&&call.path==='/videos/v1/companion')!;
-  assert.deepEqual(asked.body,{message:'Write three hooks',context:{tab:'plan',sceneId:'s2',sceneTitle:'Level 1',screen:'Package'}},'the screen goes with the question');
+  assert.deepEqual(asked.body,{message:'Tighten scene 2',context:{tab:'plan',sceneId:'s2',sceneTitle:'Level 1',screen:'Package'}},'the screen goes with the question');
   assert.equal(FakeEventSource.last().url,'/api/club/jobs/j1/events','the reply is followed over SSE');
-  assert.ok(c.querySelector('.cmp-me')?.textContent==='Write three hooks','your message shows at once');
+  assert.ok(c.querySelector('.cmp-me')?.textContent==='Tighten scene 2','your message shows at once');
   assert.ok(c.querySelector('.cmp-skel'),'a skeleton before the first words');
   assert.ok(c.querySelector('button[aria-label="Stop (Esc)"]'),'Send becomes Stop');
   assert.equal(c.querySelector('.cmp-sugg'),null,'suggestions wait while it works');
@@ -181,12 +204,12 @@ test('Esc stops a reply and keeps what had arrived; a failure says so and Try ag
   assert.match(text(c),/Half an answer/);
   assert.equal(c.querySelector('.cmp-note')?.textContent,'Stopped');
 
-  await act(async()=>button(c,'Write three hooks').click());await flush();
+  await act(async()=>button(c,'Tighten scene 2').click());await flush();
   await act(async()=>FakeEventSource.last().emit('failed',{message:'Claude is not signed in.'}));
   assert.match(c.querySelector('[role="alert"]')?.textContent??'',/Claude is not signed in\.Try again/);
   await act(async()=>button(c,'Try again').click());await flush();
   const retried=server.calls.filter(call=>call.method==='POST'&&call.path==='/videos/v1/companion').at(-1)!;
-  assert.deepEqual((retried.body as {retryOf?:string;message:string}),{message:'Write three hooks',context:{tab:'plan',sceneId:'s2',sceneTitle:'Level 1',screen:'Package'},retryOf:'q1'});
+  assert.deepEqual((retried.body as {retryOf?:string;message:string}),{message:'Tighten scene 2',context:{tab:'plan',sceneId:'s2',sceneTitle:'Level 1',screen:'Package'},retryOf:'q1'});
   assert.equal(c.querySelectorAll('.cmp-me').length,2,'the question is not shown twice');
  }finally{server.restore();await ui.close();}
 });
@@ -239,7 +262,7 @@ test('a dropped connection is not a failure while the reply still runs; Try agai
  try{
   await flush();
   const c=ui.container;
-  await act(async()=>button(c,'Write three hooks').click());await flush();
+  await act(async()=>button(c,'Tighten scene 2').click());await flush();
   await act(async()=>FakeEventSource.last().emit('progress',{type:'text',at:0,text:'Some '}));
   const first=FakeEventSource.last();
   // The browser gave up on the stream: the job is asked about, found running, and followed again.

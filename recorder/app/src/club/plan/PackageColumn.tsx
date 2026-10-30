@@ -124,7 +124,7 @@ export function PackageColumn({videoId,videoTitle,pkg,running,onEdit,onPickTitle
     })}
     {spin('titles')&&value.titles.filter(title=>!title.trim()).map((_,i)=><li key={`s${i}`} className="tline"><span className="tmark"/><div className="shimmer grow" style={{height:20}}/></li>)}
    </ul>
-   {!spin('titles')&&emptySlot>=0&&adding===null&&<button type="button" className="linkish quiet pkg-add" onClick={()=>setAdding(emptySlot)}><Icon name="add" size={13}/>Add a title</button>}
+   {!spin('titles')&&emptySlot>=0&&adding===null&&<button type="button" className={cn("linkish quiet pkg-add",titles.length>0&&"under")} onClick={()=>setAdding(emptySlot)}><Icon name="add" size={13}/>Add a title</button>}
   </div>
 
   <div className="blk"><div className="blk-h"><h4>Thumbnail text</h4></div>

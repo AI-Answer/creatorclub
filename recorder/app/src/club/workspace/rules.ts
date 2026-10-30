@@ -70,11 +70,12 @@ const RECORD_FIRST:TabLock={reason:'Record a scene first',unlock:'record'};
 /**
  * Whether a step cannot work yet, and what unlocks it: always the first thing missing, so its step is never locked itself.
  * Board and Plan never lock. Record needs scenes. Edit and Publish need a recorded take (Publish exports on its own, so it
- * does not wait for an edit). A published video locks nothing, and nothing locks while the scenes are not known.
+ * does not wait for an edit). A published video locks nothing, and nothing locks while the scenes are not known. A video with a
+ * recording project is never sent back to Plan: the recording is the authority on its scenes even when the scene list reads empty.
  */
 export function tabLock(tab:VideoTab,{stage,scenes,hasRecording}:LockFacts):TabLock|undefined{
  if(tab==='board'||tab==='plan'||!scenes||stage==='published')return undefined;
- if(!scenes.length)return PLAN_FIRST;
+ if(!scenes.length)return hasRecording?undefined:PLAN_FIRST;
  if(tab==='record')return undefined;
  return hasRecording&&scenes.some(scene=>scene.takes.length>0)?undefined:RECORD_FIRST;
 }
