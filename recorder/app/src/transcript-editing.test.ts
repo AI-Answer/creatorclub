@@ -18,3 +18,9 @@ test('Task 14: a transcript cut is named by its words',async()=>{
  p.captions[0].words!.push(...['a','b','c'].map((text,i)=>({text,start:3+i,end:4+i})));p.captions[0].text+=' a b c';p.captions[0].end=6;
  assert.equal(cutWordsLabel(p,{anchor:0,focus:6}),'Cut 7 words');
 });
+
+test('Task 14: cutting the first word leaves no black sliver before the first clip',()=>{
+ const p=fixture();p.captions[0].words![0]={text:'Keep',start:.06,end:.5};
+ deleteTranscriptSelection(p,{anchor:0,focus:0});
+ assert.ok(p.clips.every(c=>c.start===0),`clips start at ${p.clips.map(c=>c.start)}`);
+});
