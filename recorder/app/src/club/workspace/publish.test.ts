@@ -18,7 +18,8 @@ const pkg:Package={angle:'Most people use one feature.',twist:'',titles:['A','B'
 const scenes:VideoScene[]=[{id:'a',title:'Opening',seconds:60,takes:[{id:'t',seconds:60,kept:true,retained:false}],status:'Kept take 1'},{id:'b',title:'Level 1',seconds:90,takes:[],status:'Not recorded'}];
 const output='/Users/me/SceneForge/exports/Hidden features-e1.mp4';
 const exported:ExportRecord={id:'e1',type:'export',status:'complete',progress:1,message:'',outputPath:output,startedAt:'2026-10-28T10:00:00.000Z',completedAt:'2026-10-28T10:01:00.000Z',projectId:'p1',projectName:'Hidden features',projectRevision:'r',snapshotCreatedAt:'',options:{format:'mp4'},updatedAt:'',revision:1,output:{status:'available'},recovery:{status:'available',runtimeChanged:false}};
-const props={video,pkg,scenes,onVideo:()=>{},onDescription:()=>{},onTags:()=>{},onGoTo:()=>{},onRetry:()=>{}};
+const settingsAsked:string[]=[];
+const props={video,pkg,scenes,onVideo:()=>{},onDescription:()=>{},onTags:()=>{},onGoTo:()=>{},onSettings:()=>{settingsAsked.push('publishing');},onRetry:()=>{}};
 
 const connected={postiz:{connected:true,address:null,channel:{id:'int_yt1',name:'Samin Yasar'}},defaultVisibility:'public'};
 const notConnected={postiz:{connected:false,address:null,channel:null},defaultVisibility:'public'};
@@ -145,15 +146,9 @@ test('Schedule for later asks for a time, refuses one that has passed, and sends
  });
 });
 
-test('without Postiz connected Publish says so and the key is entered once, right there',async()=>{
- let state:object=notConnected;
- await withPublish({reply:({method,path,body})=>{
-  if(path==='/publishing')return {body:state};
-  if(method==='PUT'&&path==='/publishing/postiz'){
-   if((body as {key:string}).key==='wrong')return {status:400,body:{error:"Postiz didn't accept that key. Copy it again from Postiz, Settings, Public API."}};
-   state=connected;return {body:{state:connected,channels:[{id:'int_yt1',name:'Samin Yasar'}]}};
-  }
- }},async(ui,server)=>{
+test('without Postiz connected Publish says so and sends you to Settings: the key is never asked for here',async()=>{
+ settingsAsked.length=0;
+ await withPublish({state:notConnected},async(ui,server)=>{
   const c=ui.container;
   await click(c.querySelector('input[name=kids][value=no]'));
   assert.equal(button(c,'Publish now').disabled,true,'Publish now looks and is unavailable until Postiz is connected');
@@ -161,16 +156,10 @@ test('without Postiz connected Publish says so and the key is entered once, righ
   assert.equal(button(c,'Publish now').getAttribute('aria-describedby'),'pub-why');
   await click(button(c,'Publish now'));
   assert.equal(posts(server.calls).length,0);
-  const input=field(c,'postiz-key');
-  assert.equal(input.type,'password');
-  await click(button(c,'Connect'));
-  assert.ok(c.textContent?.includes('Paste your key first.'));
-  await type(input,'wrong');await click(button(c,'Connect'));await flush();
-  assert.ok(c.textContent?.includes("Postiz didn't accept that key."));
-  await type(input,'walkthrough-postiz-key-123');await click(button(c,'Connect'));await flush();
-  assert.deepEqual(server.calls.filter(call=>call.method==='PUT').at(-1)?.body,{key:'walkthrough-postiz-key-123'});
-  assert.ok(c.textContent?.includes('Postiz connected.'));
-  assert.ok(!c.querySelector('#postiz-key')&&!c.textContent?.includes('walkthrough-postiz-key'),'the key is not shown again');
+  assert.ok(c.textContent?.includes("Publishing isn't set up yet"));
+  assert.equal(c.querySelector('#postiz-key'),null,'no key field on Publish: it lives in Settings');
+  await click(button(c,'Set up publishing'));
+  assert.deepEqual(settingsAsked,['publishing'],'the button opens Settings at Publishing');
  });
 });
 

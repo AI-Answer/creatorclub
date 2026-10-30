@@ -7,7 +7,6 @@ import {ClubExport} from '../recorder/ClubExport';
 import {clubFetch,clubUpload,errorMessage,notifyVideosChanged} from '../api';
 import {ErrorLine} from '../ErrorLine';
 import {watchJob,failureMessage} from '../jobs';
-import {PostizSetup} from '../publishing/PostizSetup';
 import {TITLE_MAX,VISIBILITY_OPTIONS,unrecordedWarning,defaultSchedule,progressOf,publishProblem,scheduleTime,whenText,type ResultInfo} from '../publishing/publish-logic';
 import {usePublishing} from '../publishing/usePublishing';
 import {exportFileName,latestVideoExport} from '../recorder/edit-steps';
@@ -29,7 +28,7 @@ type Run={phase:'idle'}|{phase:'running';progress:PublishProgress|null}|{phase:'
  * The Publish step. The exported video, the package as YouTube will show it, Postiz connected once, and the form YouTube asks for
  * (title, description, tags, thumbnail, who can watch, made for kids, now or later). One button sends it; progress and the result follow.
  */
-export function Publish({video,pkg,scenes,onVideo,onDescription,onTags,onGoTo,saveError,onRetry}:{video:Video;pkg:Package|null;scenes:readonly VideoScene[]|undefined;onVideo(video:Video):void;onDescription(text:string):void;/** Saves the tags on the package at once, like the description. */onTags(tags:string[]):void;onGoTo(tab:'plan'|'record'|'edit'):void;saveError?:string;onRetry():void}){
+export function Publish({video,pkg,scenes,onVideo,onDescription,onTags,onGoTo,onSettings,saveError,onRetry}:{video:Video;pkg:Package|null;scenes:readonly VideoScene[]|undefined;onVideo(video:Video):void;onDescription(text:string):void;/** Saves the tags on the package at once, like the description. */onTags(tags:string[]):void;onGoTo(tab:'plan'|'record'|'edit'):void;/** Opens Settings at Publishing, where the Postiz key is entered once. */onSettings():void;saveError?:string;onRetry():void}){
  const publishing=usePublishing();
  const published=video.stage==='published'&&Boolean(video.youtubeUrl);
 
@@ -166,8 +165,10 @@ export function Publish({video,pkg,scenes,onVideo,onDescription,onTags,onGoTo,sa
    <div className="pubx-export">{exportLine}</div>
    {unrecorded&&<p className="small pubx-warn" role="status">{unrecorded}</p>}
    <Card className="pubx-route">
-    <div className="rh"><span className="logo logo-postiz">P</span><div><div className="rt">Publish with Postiz</div><div className="rd">Schedules the upload for you. A paid service, from $29 a month.</div></div></div>
-    {publishing.error?<ErrorLine message={publishing.error} onRetry={publishing.reload}/>:publishing.state?<PostizSetup state={publishing.state} onState={publishing.setState}/>:<Spinner label="Loading"/>}
+    {publishing.error?<ErrorLine message={publishing.error} onRetry={publishing.reload}/>:!publishing.state?<Spinner label="Loading"/>
+     :publishing.state.postiz.connected
+      ?<div className="rh"><span className="logo logo-postiz">P</span><div><div className="rt"><b>Postiz connected.</b>{publishing.state.postiz.channel&&<> Posts to {publishing.state.postiz.channel.name} on YouTube.</>}</div><div className="rd">Uploads it for you, now or at the time you pick.</div></div><button type="button" className="linkish" style={{marginLeft:'auto'}} onClick={onSettings}>Change in Settings</button></div>
+      :<div className="rh"><span className="logo logo-postiz">P</span><div><div className="rt">Publishing isn't set up yet</div><div className="rd">Connect Postiz once in Settings. Your video and details are kept, and you can finish them first.</div></div><Button size="sm" style={{marginLeft:'auto'}} onClick={onSettings}>Set up publishing</Button></div>}
    </Card>
    <Card className="pubx-form">
     <div className="full"><label className="field" htmlFor="pub-title">Title</label><Input id="pub-title" maxLength={TITLE_MAX} value={title} onChange={event=>setTitle(event.target.value)}/></div>
