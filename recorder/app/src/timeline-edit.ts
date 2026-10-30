@@ -1,4 +1,4 @@
-import {clipDuration,clipEffectTiming,makeId,narrationPriority,type Clip,type Media,type Project,type TrackKind} from '../shared/types';
+import {clipDuration,clipEffectTiming,makeId,narrationPriority,type Clip,type Element,type Media,type Project,type TrackKind} from '../shared/types';
 import {cutTimelineRange,minimumPiece,relinkSlices} from '../shared/timeline-edits';
 import {clipLayerRowId} from '../shared/timeline-layers';
 import {plainClone,plainView} from './project-draft';
@@ -295,6 +295,10 @@ export function resizeEffect(p:Project,id:string,side:'left'|'right',delta:numbe
 
 /* ---------- Markers ---------- */
 
+/** A new text or graphic element with the editor's defaults (the Elements panel and the companion's text both use it). */
+export function newElement(type:Element['type'],start:number,id:string=makeId(),overrides:Partial<Element>={}):Element{
+ return {id,type,start,duration:5,text:type==='text'?'Your story, beautifully told.':'',x:.15,y:.65,width:.7,height:type==='text'?.16:.22,color:'#ffffff',background:type==='highlight'?'#bba6ff66':type==='text'?'#171b27bb':'transparent',fontSize:64,opacity:1,rotation:0,...overrides};
+}
 export function addMarker(p:Project,time:number,newId:()=>string=makeId){const id=newId();(p.markers??=[]).push({id,time:Math.max(0,time)});p.markers.sort((a,b)=>a.time-b.time);return id;}
 export function moveMarker(p:Project,id:string,time:number){const m=p.markers?.find(x=>x.id===id);if(m)m.time=Math.max(0,time);p.markers?.sort((a,b)=>a.time-b.time);}
 export function removeMarker(p:Project,id:string){if(!p.markers)return;p.markers=p.markers.filter(m=>m.id!==id);if(!p.markers.length)delete p.markers;}

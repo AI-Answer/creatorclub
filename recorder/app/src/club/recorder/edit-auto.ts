@@ -37,6 +37,11 @@ export function pauseRanges(job:AutomationJob|undefined,level:PauseLevel,padding
   const a=c.start!-PLAN_MARGIN,b=c.end!+PLAN_MARGIN;if(b-a<PAUSE_LEVELS[level])return [];const start=a+pad,end=b-pad;return end-start>=MIN_CUT?[[start,end] as Range]:[];
  }));
 }
+/** The silences a ready plan heard (each plan change widened back by its margin), for the companion's cut of pauses. */
+export function planSilenceRanges(job:AutomationJob|undefined):Range[]{
+ if(job?.status!=='ready'||!job.proposal)return [];
+ return mergeRanges(job.proposal.changes.filter(c=>c.category==='silence'&&c.start!==undefined&&c.end!==undefined).map(c=>[c.start!-PLAN_MARGIN,c.end!+PLAN_MARGIN] as Range));
+}
 const FILLER=/^(um+|uh+|erm+|hmm+|ah+|uhm+)[,.!?]?$/i;
 /** Hesitation words ("um", "uh") from the word timings, and repeated phrases the plan found. */
 export function fillerRanges(p:Project,job?:AutomationJob,stale=false):Range[]{

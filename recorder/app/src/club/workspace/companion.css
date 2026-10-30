@@ -85,6 +85,10 @@
 .club-root .cmp-card-a { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .club-root .cmp-result { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; font-weight: 600; color: var(--cc-ok); margin-right: auto; }
 .club-root .cmp-faint { color: var(--cc-text-3); font-size: 12px; }
+.club-root .cmp-card-est { margin-top: 6px; font-size: 12.5px; color: var(--cc-text-2); display: flex; gap: 6px; align-items: flex-start; }
+/* Amber only for a warning: a cut that takes a quarter of the video or more, or a card that no longer fits the timeline. */
+.club-root .cmp-card-est.warn { color: var(--cc-text); }
+.club-root .cmp-card-est.warn .icon { flex: none; margin-top: 2px; color: var(--cc-warn); }
 .club-root .cmp-card-err { font-size: 12.5px; line-height: 1.45; color: var(--cc-text-2); display: flex; gap: 6px; align-items: flex-start; }
 .club-root .cmp-card-err .icon { flex: none; margin-top: 2px; color: var(--cc-text-3); }
 /* Read by screen readers only. */
@@ -122,3 +126,6 @@
 /* Record in a narrow window: the open panel lies over the step, so the recorder keeps its width. */
 .club-root .ws-row { position: relative; }
 .club-root .cmp.over:not(.collapsed) { position: absolute; top: 0; right: 0; bottom: 0; z-index: 20; box-shadow: var(--cc-shadow-3); }
+
+/* Below 1440 px the step beside the panel needs the room (Edit's stage, transcript and timeline): the panel opens at 320 px. */
+@media (max-width: 1439px) { .club-root .cmp { width: 320px; } }

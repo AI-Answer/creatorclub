@@ -90,3 +90,59 @@ test('our own save echo leaves text being typed alone; other changes commit it f
  assert.ok(commits>0);assert.equal(app.studio.project!.name,'Typed');assert.equal(app.studio.conflicted,true,'pending text counts as an unsaved edit');
  stop();await app.unmount();
 });
+
+test('a server change (a companion card) saves pending edits first, becomes one undo step, and its own echo is not a conflict',async()=>{
+ const app=await mount(project()),source=FakeSource.last!;
+ await act(async()=>{app.studio.change(p=>{p.name='Typed';});});
+ let seen='';
+ await act(async()=>{await app.studio.commitServer(async revision=>{
+  seen=revision;
+  // The server saves the card's change; its event arrives before the reply does.
+  const echo=app.server.external(p=>{p.clips[0].sourceOut=3;});
+  source.dispatchEvent(new MessageEvent('project',{data:JSON.stringify({id:app.studio.project!.id,revision:echo,action:'saved'})}));
+  return {project:JSON.parse(JSON.stringify(app.server.stored)) as Project,revision:echo.replaceAll('"','')};
+ });});
+ await wait(20);
+ assert.equal(seen,'rev-2','the pending name was saved first, and the card was sent that revision');
+ assert.equal(app.studio.project!.clips[0].sourceOut,3,'the card is on screen');
+ assert.equal(app.studio.conflicted,false,'its own save is not taken for someone else\'s');
+ assert.equal(app.studio.canUndo,true);
+ await act(async()=>{app.studio.undo();});
+ assert.equal(app.studio.project!.clips[0].sourceOut,5,'the editor\'s Undo takes the card back');
+ assert.equal(app.studio.project!.name,'Typed','and only the card');
+ await wait(800);
+ assert.equal(app.server.stored.clips[0].sourceOut,5,'saved on the card\'s revision');
+ assert.equal(app.studio.conflicted,false);
+ await act(async()=>{app.studio.redo();});
+ assert.equal(app.studio.project!.clips[0].sourceOut,3);
+ await app.unmount();
+});
+
+test('an edit made while a server change is applied is replayed onto it: both are kept and saved, each its own undo step',async()=>{
+ const app=await mount(project()),source=FakeSource.last!;
+ await act(async()=>{await app.studio.commitServer(async()=>{
+  const echo=app.server.external(p=>{p.clips[0].sourceOut=3;});
+  source.dispatchEvent(new MessageEvent('project',{data:JSON.stringify({id:app.studio.project!.id,revision:echo,action:'saved'})}));
+  // The person presses a key while the card is being applied: the edit lands on the version without the card.
+  app.studio.change(p=>{p.name='Renamed meanwhile';});
+  app.studio.undo();// Undo waits until the card is in.
+  return {project:JSON.parse(JSON.stringify(app.server.stored)) as Project,revision:echo.replaceAll('"','')};
+ });});
+ assert.equal(app.studio.project!.clips[0].sourceOut,3,'the card is kept');
+ assert.equal(app.studio.project!.name,'Renamed meanwhile','and so is the edit');
+ assert.equal(app.studio.conflicted,false,'saving is not paused');
+ await wait(800);
+ assert.equal(app.server.stored.name,'Renamed meanwhile','the edit is saved on top of the card');
+ assert.equal(app.server.stored.clips[0].sourceOut,3);
+ await act(async()=>{app.studio.undo();});
+ assert.deepEqual([app.studio.project!.name,app.studio.project!.clips[0].sourceOut],['Studio',3],'Undo takes the edit back first');
+ await act(async()=>{app.studio.undo();});
+ assert.deepEqual([app.studio.project!.name,app.studio.project!.clips[0].sourceOut],['Studio',5],'then the card');
+ // Another window changing the project while there are unsaved edits still pauses saving and says so.
+ await act(async()=>{app.studio.change(p=>{p.name='Mine';});});
+ const other=app.server.external(p=>{p.name='Theirs';});
+ await act(async()=>{source.dispatchEvent(new MessageEvent('project',{data:JSON.stringify({id:app.studio.project!.id,revision:other,action:'saved'})}));});
+ await wait(50);
+ assert.equal(app.studio.conflicted,true,'a real conflict still shows the banner');
+ await app.unmount();
+});

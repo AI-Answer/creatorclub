@@ -54,7 +54,7 @@ function serve(jobs:(p:Project)=>AutomationJob[]){
  return {p,calls,restore:()=>{globalThis.fetch=originalFetch;}};
 }
 
-test('embedded Edit: one toolbar, panels and Ask Claude behind Style & more, the transcript open, no Borumi, and Remove them applies every cut',async()=>{
+test('embedded Edit: one toolbar, panels behind Style & more, the transcript open, no Borumi, and Remove them applies every cut',async()=>{
  localStorage.clear();
  const server=serve(p=>[plan(p)]),exported:boolean[]=[];
  const ui=await mountUI(createElement(ClubRecorder,{projectId:server.p.id,mode:'Edit',onBack:()=>{},onExported:(done:boolean)=>exported.push(done)}));
@@ -72,7 +72,8 @@ test('embedded Edit: one toolbar, panels and Ask Claude behind Style & more, the
   assert.ok(ui.container.querySelector('.club-edit-side:not([hidden]) .transcript-panel'),'the transcript is open beside the preview');
   await act(async()=>button(header,'Style & more').click());
   const menu=[...document.querySelectorAll('[role="menu"] button')].map(b=>b.textContent?.trim());
-  for(const item of ['Canvas','Layout','Clip','Zoom','Elements','Music','Captions','Cursor','Import media','Ask Claude','Settings…'])assert.ok(menu.includes(item),`Style & more has ${item}`);
+  for(const item of ['Canvas','Layout','Clip','Zoom','Elements','Music','Captions','Cursor','Import media','Settings…'])assert.ok(menu.includes(item),`Style & more has ${item}`);
+  assert.ok(!menu.includes('Ask Claude'),'the docked companion replaces the editor chat');
   assert.ok(!menu.includes('Automate'),'Automate lives in the Auto-edit and style sheet only');
   await act(async()=>[...document.querySelectorAll<HTMLButtonElement>('[role="menu"] button')].find(b=>b.textContent?.trim()==='Captions')!.click());
   assert.equal(ui.container.querySelector('.club-edit-side .inspector h2')?.textContent,'Captions','a panel opens as a sheet over the side');
@@ -151,4 +152,20 @@ test('the Removed line ends with the next edit, and can be dismissed',async()=>{
   await act(async()=>next.container.querySelector<HTMLButtonElement>('button[title^="Magnetic snapping"]')!.click());
   assert.ok(!header.textContent?.includes('Removed'),'an edit after the removal ends the Undo line');
  }finally{await next.close();again.restore();}
+});
+
+test('keys pressed in the companion panel stay there: M, S and Delete do nothing to the timeline',async()=>{
+ localStorage.clear();
+ const server=serve(()=>[]);
+ const ui=await mountUI(createElement('div',null,createElement(ClubRecorder,{projectId:server.p.id,mode:'Edit',onBack:()=>{}}),createElement('aside',{className:'cmp'},createElement('button',{type:'button'},'Cut them'))));
+ try{
+  await flush();await flush();
+  const inPanel=ui.container.querySelector<HTMLButtonElement>('.cmp button')!;
+  const press=(target:Element,key:string)=>act(async()=>{target.dispatchEvent(new KeyboardEvent('keydown',{key,bubbles:true,cancelable:true}));});
+  for(const key of ['m','s','Delete'])await press(inPanel,key);
+  assert.ok(!ui.container.textContent?.includes('Marker added'),'M in the panel adds no marker');
+  assert.ok(!ui.container.textContent?.includes('Move the playhead'),'S in the panel does not split');
+  await press(document.body,'m');
+  assert.ok(ui.container.textContent?.includes('Marker added'),'the same key on the editor still works');
+ }finally{await ui.close();server.restore();}
 });

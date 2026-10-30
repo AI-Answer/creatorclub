@@ -1,6 +1,7 @@
 import {useCallback,useEffect,useRef,useState} from 'react';
 import type {JobSnapshot} from '../../../shared/club';
-import type {CompanionApplied,CompanionAsked,CompanionChanged,CompanionContext,CompanionEvent,CompanionMessage,CompanionReplyMessage,CompanionTab,CompanionThread} from '../../../shared/companion';
+import {isEditAction,type CompanionApplied,type CompanionAsked,type CompanionChanged,type CompanionContext,type CompanionEvent,type CompanionMessage,type CompanionReplyMessage,type CompanionTab,type CompanionThread} from '../../../shared/companion';
+import type {EditorBridge} from '../../App';
 import {clubFetch,errorMessage} from '../api';
 import {LOST_JOB,failureMessage,watchJob} from '../jobs';
 
@@ -60,7 +61,9 @@ export function withText(text:string,at:number,piece:string):string{
  * connection or when the panel reopens while one runs), Stop, Try again, and applying or undoing a card. `onChanged` hears what an
  * apply or undo changed. `announce` is one short line for screen readers: the current step, "Reply ready", or the failure.
  */
-export function useCompanion(videoId:string,{onChanged,beforeApply}:{onChanged(changed:CompanionChanged[]):void;beforeApply?():Promise<void>}){
+export function useCompanion(videoId:string,{onChanged,beforeApply,editor}:{onChanged(changed:CompanionChanged[]):void;beforeApply?():Promise<void>;
+ /** The open editor, when Edit is on screen: a timeline card is applied through it, so the change is one step of the editor's own Undo. */
+ editor?():EditorBridge|null}){
  const base=`/videos/${encodeURIComponent(videoId)}/companion`;
  const [messages,setMessages]=useState<CompanionMessage[]|null>(null);
  const [loadError,setLoadError]=useState('');
@@ -71,6 +74,8 @@ export function useCompanion(videoId:string,{onChanged,beforeApply}:{onChanged(c
  const stopFollowing=useRef<(()=>void)|null>(null);
  const liveRef=useRef(live);liveRef.current=live;
  const changedRef=useRef(onChanged);changedRef.current=onChanged;
+ const editorRef=useRef(editor);editorRef.current=editor;
+ const messagesRef=useRef(messages);messagesRef.current=messages;
  const loadRef=useRef<()=>void>(()=>{});
  /** Stopped replies shown locally until the server's copy arrives, by job. */
  const pendingStops=useRef(new Map<string,{questionId:string;message:CompanionMessage;tries:number}>());
@@ -195,7 +200,12 @@ export function useCompanion(videoId:string,{onChanged,beforeApply}:{onChanged(c
   setBusyCard(key);
   try{
    if(action==='apply')await beforeApply?.();
-   const result=await clubFetch<CompanionApplied>(`${base}/${encodeURIComponent(messageId)}/cards/${index}/${action}`,{method:'POST'});
+   const url=`${base}/${encodeURIComponent(messageId)}/cards/${index}/${action}`;
+   const card=messagesRef.current?.find((message):message is CompanionReplyMessage=>message.id===messageId&&message.role==='assistant')?.cards[index];
+   const bridge=card&&isEditAction(card.action)?editorRef.current?.()??null:null;
+   // A timeline card goes through the open editor: it saves first, sends the revision it saved, and takes the result as one undo step.
+   if(bridge)bridge.preview(null,key);
+   const result=bridge?await bridge.commit(revision=>clubFetch<CompanionApplied>(url,{body:{revision}})):await clubFetch<CompanionApplied>(url,{method:'POST'});
    setMessages(current=>current&&current.map(message=>message.id===messageId?result.message:message));
    changedRef.current(result.changed);
    return '';

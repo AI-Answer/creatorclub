@@ -2,7 +2,11 @@ import { randomBytes } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { z } from 'zod';
-import { CHANGED_SINCE, TAB_ACTIONS, type CompanionAction, type CompanionActionType, type CompanionChanged, type CompanionTab } from '../../shared/companion.js';
+import { CHANGED_SINCE, TAB_ACTIONS, isEditAction, type CompanionAction, type CompanionActionType, type CompanionChanged, type CompanionTab, type EditAction } from '../../shared/companion.js';
+import type { Project } from '../../shared/types.js';
+import { editActionProblem } from '../../src/editing-actions.js';
+import { applyEdit, undoEdit, type TimelineUndo } from './companion-edit.js';
+import type { EditOptions } from '../../src/editing-actions.js';
 import { addNote, hydrate, removeNote } from './board-docs.js';
 import { ClubError } from './errors.js';
 import type { Package, VideoScene } from '../../shared/club.js';
@@ -21,6 +25,11 @@ const squash = (text: string) => text.replace(/\s+/g, ' ').trim();
 const line = (max: number) => z.string().transform(squash).pipe(z.string().min(1).max(max));
 const block = (max: number) => z.string().transform((text) => text.trim()).pipe(z.string().min(1).max(max));
 const SCENE_ID = /^[A-Za-z0-9_-]{1,40}$/;
+/** Timeline seconds: finite, never negative, at most ten hours. Whether a time lies inside the video is checked against the timeline. */
+const time = z.number().finite().min(0).max(36_000);
+const CLIP_ID = z.string().min(1).max(100);
+const COLOR = z.string().regex(/^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$/);
+const POSITION = z.enum(['top', 'center', 'bottom']);
 
 const draftScene = z
   .object({
@@ -39,7 +48,24 @@ export const actionShape = z.discriminatedUnion('type', [
   z.object({ type: z.literal('set_scene'), sceneId: z.string().regex(SCENE_ID), title: line(300).optional(), talkingPoints: z.array(line(2000)).min(1).max(60).optional() }).strict(),
   z.object({ type: z.literal('draft_scenes'), scenes: z.array(draftScene).min(1).max(20) }).strict(),
   z.object({ type: z.literal('set_description'), text: block(5000) }).strict(),
-]).refine((action) => action.type !== 'set_scene' || action.title !== undefined || action.talkingPoints !== undefined, { message: 'changes nothing' });
+  // Edit: sizes are capped here; clip ids and times are checked against the timeline (`editActionProblem`).
+  z.object({ type: z.literal('cut_pauses'), level: z.enum(['gentle', 'balanced', 'tight']).default('balanced') }).strict(),
+  z.object({ type: z.literal('remove_fillers') }).strict(),
+  z.object({ type: z.literal('close_gaps') }).strict(),
+  z.object({ type: z.literal('split_at'), time, clipId: CLIP_ID.optional() }).strict(),
+  z.object({ type: z.literal('trim_clip'), clipId: CLIP_ID, side: z.enum(['start', 'end']), time }).strict(),
+  z.object({ type: z.literal('delete_range'), start: time, end: time }).strict(),
+  z
+    .object({ type: z.literal('set_caption_style'), enabled: z.boolean().optional(), fontSize: z.number().int().min(12).max(160).optional(), color: COLOR.optional(), background: COLOR.optional(), position: POSITION.optional(), maxWords: z.number().int().min(1).max(20).optional() })
+    .strict(),
+  z.object({ type: z.literal('add_caption'), start: time, end: time, text: line(300) }).strict(),
+  z.object({ type: z.literal('add_text'), start: time, duration: z.number().min(0.2).max(60), text: line(200), position: POSITION.optional() }).strict(),
+  z.object({ type: z.literal('set_zoom'), start: time, duration: z.number().min(0.3).max(120), scale: z.number().min(1.05).max(4), x: z.number().min(0).max(1).optional(), y: z.number().min(0).max(1).optional(), target: z.enum(['screen', 'camera']).optional() }).strict(),
+  z.object({ type: z.literal('normalize_audio') }).strict(),
+])
+  .refine((action) => action.type !== 'set_scene' || action.title !== undefined || action.talkingPoints !== undefined, { message: 'changes nothing' })
+  .refine((action) => (action.type !== 'delete_range' && action.type !== 'add_caption') || action.end > action.start, { message: 'ends before it starts' })
+  .refine((action) => action.type !== 'add_caption' || action.end - action.start <= 30, { message: 'longer than 30 seconds' });
 
 export const MAX_CARDS = 6;
 
@@ -47,7 +73,7 @@ export const MAX_CARDS = 6;
  * The model's actions that the screen can apply: known types offered on this step, in a valid shape, naming scenes that exist.
  * Everything else is left out and listed in `rejected` with the reason, for the log.
  */
-export function validateActions(raw: readonly unknown[], { tab, sceneIds }: { tab: CompanionTab; sceneIds: readonly string[] }): { actions: CompanionAction[]; rejected: string[] } {
+export function validateActions(raw: readonly unknown[], { tab, sceneIds, project, editOptions }: { tab: CompanionTab; sceneIds: readonly string[]; project?: Project; editOptions?: EditOptions }): { actions: CompanionAction[]; rejected: string[] } {
   const actions: CompanionAction[] = [];
   const rejected: string[] = [];
   const seen = new Set<string>();
@@ -66,6 +92,14 @@ export function validateActions(raw: readonly unknown[], { tab, sceneIds }: { ta
     if (action.type === 'set_scene' && !sceneIds.includes(action.sceneId)) {
       rejected.push(`${type}: no scene ${action.sceneId}`);
       continue;
+    }
+    // An Edit action is offered only when it applies to the timeline as it is: its clips exist, its times are inside the video.
+    if (isEditAction(action)) {
+      const problem = project ? editActionProblem(project, action, editOptions) : 'no recording';
+      if (problem) {
+        rejected.push(`${type}: ${problem}`);
+        continue;
+      }
     }
     const key = JSON.stringify(action).toLowerCase();
     if (seen.has(key)) continue;
@@ -98,8 +132,9 @@ interface SceneText {
   talkingPoints: string[];
 }
 
-/** What Undo needs, by the kind of change. Edit's actions (3b) add a kind for their project transactions. */
+/** What Undo needs, by the kind of change. */
 type Undo =
+  | TimelineUndo
   | { kind: 'package-field'; field: PackageField; before: string | null; after: string }
   | { kind: 'title'; title: string; dropped?: string; before: string[]; after: string[] }
   | { kind: 'scene'; sceneId: string; before: SceneText; after: SceneText }
@@ -133,6 +168,8 @@ function partOf(undo: Undo): string {
       return 'outline';
     case 'tile':
       return `tile:${undo.tileId}`;
+    case 'timeline':
+      return `timeline:${undo.projectId}`;
   }
 }
 
@@ -151,10 +188,31 @@ function withField(pkg: Package, field: PackageField, value: string | null): Pac
   return value === null ? rest : { ...rest, description: value };
 }
 
+/** A timeline change also returns the project as saved and its revision, for the open editor. */
+interface Applied {
+  result: string;
+  undo: Undo;
+  project?: Project;
+  revision?: string;
+  /** A timeline card: the timeline it was applied on, kept on the card. */
+  appliedOn?: string;
+}
 interface Handler<T extends CompanionAction> {
   changed: CompanionChanged[];
-  apply: (slug: string, id: string, action: T) => Promise<{ result: string; undo: Undo }>;
+  apply: (slug: string, id: string, action: T, options: ApplyOptions) => Promise<Applied>;
 }
+/** `revision`: the revision of the recording project the editor saved last (timeline cards). `appliedOn`: applying an undone timeline card again, only on this timeline. */
+export interface ApplyOptions {
+  revision?: string;
+  appliedOn?: string;
+}
+const edit: Handler<EditAction> = {
+  changed: ['timeline'],
+  apply: async (slug, id, action, options) => {
+    const done = await applyEdit(slug, id, action, options.revision, options.appliedOn);
+    return { ...done, appliedOn: done.undo.beforeHash };
+  },
+};
 
 /** Sets one package field, keeping what it held for Undo. */
 const setField = (field: PackageField, result: string) => async (slug: string, id: string, action: { text: string }) => {
@@ -214,6 +272,17 @@ const HANDLERS: { [K in CompanionActionType]: Handler<Extract<CompanionAction, {
       };
     },
   },
+  cut_pauses: edit,
+  remove_fillers: edit,
+  close_gaps: edit,
+  split_at: edit,
+  trim_clip: edit,
+  delete_range: edit,
+  set_caption_style: edit,
+  add_caption: edit,
+  add_text: edit,
+  set_zoom: edit,
+  normalize_audio: edit,
 };
 
 export const changedBy = (type: CompanionActionType) => HANDLERS[type].changed;
@@ -232,21 +301,23 @@ async function prune(slug: string, id: string) {
 export const lock = (slug: string, id: string) => `companion-apply:${store.videoDir(slug, id)}`;
 
 /** Applies one action and saves its version. Returns the version id and a line saying what changed. */
-export async function applyAction(slug: string, id: string, action: CompanionAction): Promise<{ version: string; result: string; changed: CompanionChanged[] }> {
+export async function applyAction(slug: string, id: string, action: CompanionAction, options: ApplyOptions = {}): Promise<{ version: string; result: string; changed: CompanionChanged[]; project?: Project; revision?: string; appliedOn?: string }> {
   const handler = HANDLERS[action.type] as Handler<CompanionAction>;
   return store.withLock(lock(slug, id), async () => {
-    const { result, undo } = await handler.apply(slug, id, action);
+    const { result, undo, project, revision, appliedOn } = await handler.apply(slug, id, action, options);
     const version = `cv_${randomBytes(6).toString('hex')}`;
     const saved: Version = { action: action.type, at: new Date().toISOString(), order: nextOrder(), changed: handler.changed, undo };
     await store.writeJSON(path.join(versionsDir(slug, id), `${version}.json`), saved);
     await prune(slug, id);
-    return { version, result, changed: handler.changed };
+    return { version, result, changed: handler.changed, ...(project ? { project, revision } : {}), ...(appliedOn ? { appliedOn } : {}) };
   });
 }
 
 /** Puts back what the version changed, or refuses with CHANGED_SINCE when that part changed after it. */
-async function undoChange(slug: string, id: string, version: string, undo: Undo): Promise<void> {
+async function undoChange(slug: string, id: string, version: string, undo: Undo, options: ApplyOptions): Promise<{ project: Project; revision: string } | void> {
   switch (undo.kind) {
+    case 'timeline':
+      return undoEdit(slug, id, undo, options.revision);
     case 'package-field':
       return store.withLock(packageLock(slug, id), async () => {
         const pkg = await readPackage(slug, id);
@@ -339,17 +410,17 @@ export const versionExists = (slug: string, id: string, version: string) =>
  * Undo of one applied card. Each card's Undo stands on its own: it puts back only its own part, and refuses when that part
  * changed since, by hand or by a newer card that is still applied.
  */
-export async function undoVersion(slug: string, id: string, version: string): Promise<CompanionChanged[]> {
+export async function undoVersion(slug: string, id: string, version: string, options: ApplyOptions = {}): Promise<{ changed: CompanionChanged[]; project?: Project; revision?: string }> {
   if (!VERSION_ID.test(version)) throw new ClubError('That version was not found.', 404);
   return store.withLock(lock(slug, id), async () => {
     const file = path.join(versionsDir(slug, id), `${version}.json`);
     const saved = await store.readJSON<Version>(file).catch(() => undefined);
     if (!saved?.undo) throw new ClubError('That version was not found.', 404);
     if (await newerOnSamePart(slug, id, version, saved)) throw new ClubError(CHANGED_SINCE, 409);
-    await undoChange(slug, id, version, saved.undo);
+    const put = await undoChange(slug, id, version, saved.undo, options);
     await store.writeJSON(file, { ...saved, undone: true });
-    await syncPlanningFlags(slug, id);
-    return saved.changed;
+    if (saved.undo.kind !== 'timeline') await syncPlanningFlags(slug, id);
+    return { changed: saved.changed, ...(put ? put : {}) };
   });
 }
 

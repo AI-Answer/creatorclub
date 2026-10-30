@@ -8,6 +8,7 @@ import {
   COMPANION_ACTION_TYPES,
   COMPANION_TABS,
   TAB_ACTIONS,
+  isEditAction,
   type CompanionAction,
   type CompanionApplied,
   type CompanionAsked,
@@ -26,6 +27,7 @@ import { boardTiles } from './board-docs.js';
 import { boardText, readBoardChat } from './board-chat.js';
 import { actionShape, applyAction, undoVersion, validateActions, versionExists } from './companion-actions.js';
 import { chunkText, parseReply, ReplySplitter } from './companion-reply.js';
+import { editOptions, editProject, timelineText } from './companion-edit.js';
 import { loadChannelContext } from './context.js';
 import { ClubError, notFound } from './errors.js';
 import { runningOnce, startJobOnce, type JobContext } from './jobs.js';
@@ -41,6 +43,7 @@ import * as store from './store.js';
  */
 
 export const COMPANION_BUDGET_USD = 0.5;
+export const CODEX_ON_EDIT = 'Editing with the companion needs Claude: choose Claude as your AI in Settings.';
 const MESSAGES_KEPT = 400;
 const BOARD_CHARS_HERE = 24_000;
 /** Off the Board the board still informs the answer, at a smaller size. */
@@ -62,7 +65,12 @@ const contextShape = z
     sceneTitle: z.string().max(300).optional(),
     screen: z.string().max(1000).optional(),
     playhead: z.number().min(0).max(360_000).optional(),
-    selection: z.array(z.string().max(80)).max(200).optional(),
+    selection: z.array(z.string().max(100)).max(200).optional(),
+    items: z
+      .array(z.object({ id: z.string().max(100), kind: z.enum(['caption', 'text', 'zoom', 'marker']), start: z.number().min(0).max(360_000), end: z.number().min(0).max(360_000), text: z.string().max(200).optional() }).strict())
+      .max(100)
+      .optional(),
+    range: z.object({ start: z.number().min(0).max(360_000), end: z.number().min(0).max(360_000) }).strict().optional(),
   })
   .strict();
 
@@ -88,6 +96,7 @@ const cardShape = z
     state: z.enum(['offered', 'applied', 'undone']).catch('offered'),
     version: z.string().max(40).optional().catch(undefined),
     result: capped(300).optional().catch(undefined),
+    appliedOn: z.string().max(80).optional().catch(undefined),
     tooOld: z.literal(true).optional().catch(undefined),
   })
   .strip();
@@ -208,7 +217,7 @@ export async function readThread(slug: string, id: string): Promise<CompanionThr
 // ---------------------------------------------------------------- what the companion is told
 
 const STEP_NAME: Record<CompanionTab, string> = { board: 'Board', plan: 'Plan', record: 'Record', edit: 'Edit', publish: 'Publish' };
-const READING: Record<CompanionTab, string> = { board: 'Reading the board', plan: 'Reading the plan', record: 'Reading the scenes', edit: 'Reading the edit', publish: 'Reading the package' };
+const READING: Record<CompanionTab, string> = { board: 'Reading the board', plan: 'Reading the plan', record: 'Reading the scenes', edit: 'Reading the timeline', publish: 'Reading the package' };
 const clock = (seconds: number) => `${Math.floor(seconds / 60)}:${String(Math.round(seconds % 60)).padStart(2, '0')}`;
 
 const ideaFor = (video: Video): PromptIdea => {
@@ -223,7 +232,6 @@ export function screenText(context: CompanionContext, video: Pick<Video, 'title'
   if (scene >= 0) lines.push(`Scene in focus: ${scene + 1}. ${outline!.scenes[scene].title} (id: ${context.sceneId})`);
   if (video.targetSeconds) lines.push(`Target length: ${clock(video.targetSeconds)}`);
   if (context.screen?.trim()) lines.push(`On screen: ${context.screen.trim()}`);
-  if (context.tab === 'edit' && context.playhead !== undefined) lines.push(`Playhead: ${clock(context.playhead)}`);
   if (takes) lines.push(`Takes: ${takes}`);
   return lines.join('\n');
 }
@@ -294,12 +302,16 @@ async function writeReply(slug: string, id: string, input: AskInput, context: Jo
           () => undefined,
         )
       : undefined;
+  // Edit reads the recording project's timeline: its clips, scenes, selection and transcript.
+  const timeline = async () => (tab === 'edit' ? editProject(slug, id).then(({ project }) => project, () => undefined) : undefined);
+  const editing = await timeline();
+  const screen = screenText(input.message.context, video, outline, takes) + (tab !== 'edit' ? '' : editing ? `\n${timelineText(editing, input.message.context, await editOptions(editing))}` : '\nThis video has nothing recorded yet.');
   const built = await buildCompanionPrompt(channel, {
     idea: ideaFor(video),
     pkg: pkg ?? undefined,
     outline: outline ?? undefined,
     board: await boardText(slug, id, tiles, tab === 'board' ? BOARD_CHARS_HERE : BOARD_CHARS_ELSEWHERE),
-    screen: screenText(input.message.context, video, outline, takes),
+    screen,
     history: input.history.map((message) => ({ role: message.role, text: historyText(message) })),
     message: input.message.text,
     actions: TAB_ACTIONS[tab],
@@ -379,7 +391,9 @@ async function writeReply(slug: string, id: string, input: AskInput, context: Jo
     if (!parsed.reply && !parsed.actions.length) throw new AiError('bad-answer', `${aiLabel(provider)} sent back no answer.`);
     const sceneIds = (outline?.scenes ?? []).map((scene) => scene.id).filter((sceneId): sceneId is string => !!sceneId);
     if (parsed.actions.length) steps.start('Checking the changes');
-    const { actions, rejected } = validateActions(parsed.actions, { tab, sceneIds });
+    // Edit's actions are checked against the timeline as it is now, not as it was when the question was asked.
+    const now = parsed.actions.length ? await timeline() : undefined;
+    const { actions, rejected } = validateActions(parsed.actions, { tab, sceneIds, project: now, editOptions: now ? await editOptions(now) : undefined });
     if (rejected.length) console.error('[club] companion actions left out:', rejected.slice(0, 5).join('; '));
     steps.close();
     const reply: CompanionReplyMessage = {
@@ -425,6 +439,10 @@ export async function askCompanion(slug: string, id: string, body: z.infer<typeo
   await store.readVideo(slug, id);
   const key = jobKey(slug, id);
   if (runningOnce(key)) throw new ClubError('Wait for the reply, or stop it first.', 409);
+  // Codex reads the MCP servers the person added to it, and no setting turns them all off for one run (an override of
+  // mcp_servers is merged, and plugin servers cannot be overridden). A transcript fed to it could then reach editing tools
+  // such as SceneForge's without Apply, so Edit's companion runs on Claude only, which is run with no MCP servers at all.
+  if (body.context.tab === 'edit' && (await store.defaultAi()) === 'codex') throw new ClubError(CODEX_ON_EDIT, 409);
   const { message, history } = await changeThread(slug, id, (messages) => {
     const last = messages[messages.length - 1];
     if (body.retryOf && last?.role === 'user' && last.id === body.retryOf) return { messages, result: { message: last, history: messages.slice(0, -1) } };
@@ -444,17 +462,19 @@ export async function askCompanion(slug: string, id: string, body: z.infer<typeo
 
 // ---------------------------------------------------------------- applying and undoing a card
 
+type CardChange = Omit<CompanionApplied, 'message'> & { card: CompanionCard };
+
 /** Reading the card, changing it and saving its state happen under one lock per video, so a double click or two windows apply once. */
-function changeCard(slug: string, id: string, messageId: string, index: number, change: (card: CompanionCard) => Promise<{ card: CompanionCard; changed: CompanionApplied['changed'] }>): Promise<CompanionApplied> {
+function changeCard(slug: string, id: string, messageId: string, index: number, change: (card: CompanionCard) => Promise<CardChange>): Promise<CompanionApplied> {
   return store.withLock(`companion-card:${store.videoDir(slug, id)}`, () => changeCardNow(slug, id, messageId, index, change));
 }
 
-async function changeCardNow(slug: string, id: string, messageId: string, index: number, change: (card: CompanionCard) => Promise<{ card: CompanionCard; changed: CompanionApplied['changed'] }>): Promise<CompanionApplied> {
+async function changeCardNow(slug: string, id: string, messageId: string, index: number, change: (card: CompanionCard) => Promise<CardChange>): Promise<CompanionApplied> {
   const thread = await readThread(slug, id);
   const message = thread.messages.find((each): each is CompanionReplyMessage => each.id === messageId && each.role === 'assistant');
   const card = message?.cards[index];
   if (!message || !card) throw notFound('card');
-  const { card: next, changed } = await change(card);
+  const { card: next, ...rest } = await change(card);
   const updated = await changeThread(slug, id, (messages) => {
     let saved: CompanionReplyMessage | undefined;
     const list = messages.map((each) => {
@@ -465,25 +485,30 @@ async function changeCardNow(slug: string, id: string, messageId: string, index:
     return { messages: list, result: saved };
   });
   if (!updated) throw notFound('card');
-  return { message: updated, changed };
+  return { message: updated, ...rest };
 }
 
-export function applyCard(slug: string, id: string, messageId: string, index: number): Promise<CompanionApplied> {
+/** `revision` (timeline cards): the recording project's revision the editor saved last. */
+export const cardBody = z.object({ revision: z.string().max(200).optional() }).strip();
+
+export function applyCard(slug: string, id: string, messageId: string, index: number, options: z.infer<typeof cardBody> = {}): Promise<CompanionApplied> {
   return changeCard(slug, id, messageId, index, async (card) => {
     if (card.state === 'applied') throw new ClubError('That is already applied.', 409);
     const checked = actionShape.safeParse(card.action);
     if (!checked.success) throw new ClubError("That change can't be applied.", 409);
-    const { version, result, changed } = await applyAction(slug, id, checked.data as CompanionAction);
-    return { card: { ...card, state: 'applied', version, result }, changed };
+    // A timeline card applied again after its Undo goes only onto the timeline it was first applied on.
+    const again = card.state === 'undone' && isEditAction(card.action) && card.appliedOn ? { appliedOn: card.appliedOn } : {};
+    const { version, result, appliedOn, ...rest } = await applyAction(slug, id, checked.data as CompanionAction, { ...options, ...again });
+    return { card: { ...card, state: 'applied', version, result, ...(appliedOn ? { appliedOn } : {}) }, ...rest };
   });
 }
 
-export function undoCard(slug: string, id: string, messageId: string, index: number): Promise<CompanionApplied> {
+export function undoCard(slug: string, id: string, messageId: string, index: number, options: z.infer<typeof cardBody> = {}): Promise<CompanionApplied> {
   return changeCard(slug, id, messageId, index, async (card) => {
     if (card.state !== 'applied' || !card.version) throw new ClubError('There is nothing to undo.', 409);
     if (!(await versionExists(slug, id, card.version))) throw new ClubError('This was applied too long ago to undo.', 409);
-    const changed = await undoVersion(slug, id, card.version);
+    const undone = await undoVersion(slug, id, card.version, options);
     const { version: _version, result: _result, ...rest } = card;
-    return { card: { ...rest, state: 'undone' }, changed };
+    return { card: { ...rest, state: 'undone' }, ...undone };
   });
 }

@@ -11,7 +11,8 @@ import {usePlan} from '../usePlan';
 import {EMPTY_PACKAGE} from '../plan/plan-logic';
 import {STAGE_LABEL} from '../board';
 import {Board} from './Board';
-import {Companion} from './Companion';
+import {Companion,type CompanionEditor} from './Companion';
+import type {EditorBridge,EditorState} from '../../App';
 import {screenSummary} from './companion-logic';
 import type {CompanionChanged} from '../../../shared/companion';
 import {Foot,Header,Strip} from './Frame';
@@ -120,19 +121,24 @@ export function Workspace({video,tab,back,navigate,onVideo}:{video:Video;tab:Vid
   nextButton={label:`Continue to ${TAB_LABEL[next].toLowerCase()}`,run:()=>void continueToNext(),disabled:moving,primary:continueIsPrimary(tabDone(tab,facts),false)};
  }
 
- // The companion is docked beside every step but Edit, which keeps its own editor chat until the editor's tools join it.
+ // The companion is docked beside every step. On Edit it works through the open editor: it reads the playhead and selection,
+ // previews a card on the stage and applies it as one of the editor's undo steps.
  const [boardKey,setBoardKey]=useState(0);
+ const editorRef=useRef<EditorBridge|null>(null),[editState,setEditState]=useState<EditorState|null>(null);
+ const onEditor=useCallback((bridge:EditorBridge|null)=>{editorRef.current=bridge;if(!bridge)setEditState(null);},[]);
+ const companionEditor=useMemo<CompanionEditor|undefined>(()=>tab==='edit'?{get:()=>editorRef.current,state:editState}:undefined,[tab,editState]);
  const refresh=plan.refresh;
  const companionChanged=useCallback((changed:CompanionChanged[])=>{
   if(changed.includes('package')||changed.includes('outline'))void refresh();
   if(changed.includes('outline')){reloadScenes();clubFetch<Video>(`/videos/${id}`).then(onVideo,()=>{});}
   if(changed.includes('board'))setBoardKey(key=>key+1);
+  if(changed.includes('timeline'))reloadScenes();
  },[refresh,reloadScenes,id,onVideo]);
  const scenesInPlan=plan.outline?.scenes;
  const focusIndex=focusId&&scenesInPlan?scenesInPlan.findIndex(scene=>scene.id===focusId):-1;
  const companionScene=useMemo(()=>(tab==='plan'||tab==='record')&&focusIndex>=0&&scenesInPlan?{id:focusId!,index:focusIndex,title:scenesInPlan[focusIndex].title}:undefined,[tab,focusId,focusIndex,scenesInPlan]);
  const recorded=list?.filter(scene=>scene.takes.some(take=>take.kept)).length;
- const screen=tab==='edit'?'':screenSummary(tab,{pkg:plan.pkg,outline:plan.outline,recorded});
+ const screen=screenSummary(tab,{pkg:plan.pkg,outline:plan.outline,recorded});
 
  return <div className="ws">
   <Header video={video} tab={tab} back={back} facts={facts} onTitle={saveTitle} onStage={stage=>void moveTo(stage,video.stage)} onTab={target=>void goToTab(target)}/>
@@ -150,7 +156,8 @@ export function Workspace({video,tab,back,navigate,onVideo}:{video:Video;tab:Vid
      <div className="rec-left"><ClubRecorder projectId={video.recorderProjectId} mode={tab==='record'?'Record':'Edit'} onBack={()=>navigate({name:'videos',view:'board'})}
       registerLeaveGuard={registerLeaveGuard} onMode={mode=>{if(mode==='Edit'&&tab==='record')void continueToNext();else navigate(tabRoute(mode==='Edit'?'edit':'record'));}} onProgress={onProgress} onExported={tab==='edit'?onExported:undefined}
       onRestart={plan.continueAction?.run}
-      sceneId={tab==='record'?recorderSceneFor(video,focusId)??undefined:undefined} sceneNonce={pickN} onSceneChange={tab==='record'?recorderScene:undefined} onChanged={reloadScenes}/></div>
+      sceneId={tab==='record'?recorderSceneFor(video,focusId)??undefined:undefined} sceneNonce={pickN} onSceneChange={tab==='record'?recorderScene:undefined} onChanged={reloadScenes}
+      onEditor={tab==='edit'?onEditor:undefined} onEditState={tab==='edit'?setEditState:undefined}/></div>
      {prompting&&<Teleprompter index={prompting.index} scene={prompting.scene}/>}
     </div>
     :tab==='edit'?<EmptyState icon={<Icon name="cut"/>} title="Nothing recorded yet" description="Record a scene first. Then you can edit it here."
@@ -165,7 +172,7 @@ export function Workspace({video,tab,back,navigate,onVideo}:{video:Video;tab:Vid
   </div>
   <Foot next={nextButton}/>
   </div>
-  {tab!=='edit'&&<Companion videoId={video.id} tab={tab} scene={companionScene} screen={screen} pkg={plan.pkg} outline={plan.outline} scenes={list} onChanged={companionChanged} beforeApply={plan.flush} roomy={tab==='record'}/>}
+  <Companion videoId={video.id} tab={tab} scene={companionScene} screen={screen} pkg={plan.pkg} outline={plan.outline} scenes={list} onChanged={companionChanged} beforeApply={plan.flush} editor={companionEditor} roomy={tab==='record'}/>
   </div>
  </div>;
 }
