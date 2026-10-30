@@ -901,3 +901,7 @@
 .club-root .research { position: relative; }
 .club-root .research .ws-top { gap: 14px; }
 .club-root .research-title { margin: 0; font-size: 15px; font-weight: 650; letter-spacing: -0.012em; }
+.club-root .blink-head.sel { fill: var(--cc-accent); }
+/* The folder line sits over the top left of a Board: the canvas starts below it, so a frame's name or a card's head is never under it. */
+.club-root .canvas-room { margin-top: 48px; }
+.club-root .board-wrap:focus { outline: none; }

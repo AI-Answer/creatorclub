@@ -160,8 +160,8 @@ export function frameAround(tiles: readonly Pick<ResearchTile, 'id' | 'kind' | '
   return { x, y, w: Math.max(FRAME_MIN, Math.round(right + FRAME_PAD - x)), h: Math.max(FRAME_MIN, Math.round(bottom + FRAME_PAD - y)) };
 }
 
-/** Whether a card belongs to a frame: its top left corner is inside the frame's rectangle. */
+/** Whether a card belongs to a frame: its top edge is inside the frame from side to side (how tall a card is drawn is not known here, so the bottom does not count). */
 export const inFrame = (frame: Box, tile: Pick<ResearchTile, 'kind' | 'pos'>) => {
   const box = boxOf(tile);
-  return box.x >= frame.x && box.y >= frame.y && box.x < frame.x + frame.w && box.y < frame.y + frame.h;
+  return box.x >= frame.x && box.x + box.w <= frame.x + frame.w && box.y >= frame.y && box.y < frame.y + frame.h;
 };

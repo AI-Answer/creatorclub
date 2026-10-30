@@ -98,9 +98,12 @@ export function inRect(rect:Box,tiles:readonly Pick<ResearchTile,'id'|'kind'|'po
  return tiles.filter(tile=>touches(rect,boxOf(tile,heights))).map(tile=>tile.id);
 }
 
-/** The cards a frame groups: those whose top left corner is inside it (the same rule the server uses). */
+/**
+ * The cards a frame groups: those whose top edge lies inside it from side to side (the same rule the server uses; it does not know how tall a card is
+ * drawn, so the bottom does not count). A card only touching the frame is not in it.
+ */
 export function inFrame(frame:Box,tiles:readonly Pick<ResearchTile,'id'|'kind'|'pos'>[]):string[]{
- return tiles.filter(tile=>{const box=tileBox(tile);return box.x>=frame.x&&box.y>=frame.y&&box.x<frame.x+frame.w&&box.y<frame.y+frame.h;}).map(tile=>tile.id);
+ return tiles.filter(tile=>{const box=tileBox(tile);return box.x>=frame.x&&box.x+box.w<=frame.x+frame.w&&box.y>=frame.y&&box.y<frame.y+frame.h;}).map(tile=>tile.id);
 }
 
 /** A frame's rectangle drawn around these cards, with room for its name above them. */

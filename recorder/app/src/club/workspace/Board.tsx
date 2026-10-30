@@ -43,7 +43,7 @@ export async function addFromText(add:(body:{kind:ResearchTile['kind'];url?:stri
 
 /** A gesture on the canvas in progress: moving cards, moving or resizing a frame, a selection rectangle, or a connection being drawn. */
 type Gesture=
- |{kind:'tiles';sx:number;sy:number;starts:Map<string,{x:number;y:number}>}
+ |{kind:'tiles';sx:number;sy:number;starts:Map<string,{x:number;y:number}>;pressed:string}
  |{kind:'frame';id:string;sx:number;sy:number;start:{x:number;y:number};members:Map<string,{x:number;y:number}>}
  |{kind:'resize';id:string;sx:number;sy:number;start:{w:number;h:number}}
  |{kind:'marquee';start:{x:number;y:number};add:string[]}
@@ -88,7 +88,7 @@ export function Board({video,board:boardProp,scenes,onDrafted=()=>{},refreshKey=
  const [tip,setTip]=useState<null|'first'|'again'>(null),[fresh,setFresh]=useState<string|null>(null);
  const [breakdown,setBreakdown]=useState<string|null>(null),[openNote,setOpenNote]=useState<string|null>(null),[madeNote,setMadeNote]=useState<string|null>(null),[folderOpen,setFolderOpen]=useState(false),[filesTick,setFilesTick]=useState(0);
  const [drawer,setDrawer]=useState<string|null>(null),[starting,setStarting]=useState(false);
- const scroller=useRef<HTMLDivElement>(null),fileInput=useRef<HTMLInputElement>(null),canvasEl=useRef<HTMLDivElement>(null);
+ const wrap=useRef<HTMLDivElement>(null),scroller=useRef<HTMLDivElement>(null),fileInput=useRef<HTMLInputElement>(null),canvasEl=useRef<HTMLDivElement>(null);
  const gesture=useRef<Gesture|null>(null);
  const tiles=board.tiles;
  const count=tiles?.length??0;
@@ -148,7 +148,10 @@ export function Board({video,board:boardProp,scenes,onDrafted=()=>{},refreshKey=
    if(!now)return;
    const dx=event.clientX-(('sx' in now)?now.sx:event.clientX),dy=event.clientY-(('sy' in now)?now.sy:event.clientY);
    if(now.kind==='tiles'){
-    for(const [id,from] of now.starts){const at=dragTo(from,dx,dy,zoom);if(at.x!==from.x||at.y!==from.y)board.place(id,at,'now');}
+    let moved=false;
+    for(const [id,from] of now.starts){const at=dragTo(from,dx,dy,zoom);if(at.x!==from.x||at.y!==from.y){moved=true;board.place(id,at,'now');}}
+    // A press on one card of a selection that did not move it picks that card alone.
+    if(!moved&&now.starts.size>1)setSel([now.pressed]);
    }else if(now.kind==='frame'){
     const at=dragTo(now.start,dx,dy,zoom);
     if(at.x!==now.start.x||at.y!==now.start.y){
@@ -189,13 +192,15 @@ export function Board({video,board:boardProp,scenes,onDrafted=()=>{},refreshKey=
   const moving=selNow.current.includes(id)?selNow.current:[id];
   if(!selNow.current.includes(id))setSel([id]);
   setDragId(id);
-  follow({kind:'tiles',sx:event.clientX,sy:event.clientY,starts:new Map(moving.flatMap(each=>{const tile=tiles?.find(item=>item.id===each);return tile?[[each,{x:tileBox(tile).x,y:tileBox(tile).y}] as const]:[];}))});
+  follow({kind:'tiles',sx:event.clientX,sy:event.clientY,pressed:id,starts:new Map(moving.flatMap(each=>{const tile=tiles?.find(item=>item.id===each);return tile?[[each,{x:tileBox(tile).x,y:tileBox(tile).y}] as const]:[];}))});
  };
  const onCanvasDown=(event:ReactPointerEvent<HTMLDivElement>)=>{
   const target=event.target as HTMLElement;
   // The empty canvas, or the inside of a frame: a selection rectangle.
   if(event.button!==0||(target!==event.currentTarget&&!target.classList.contains('bframe')))return;
   setEditLink(null);
+  // Keys (Delete, Esc, arrows) go to the Board from here on.
+  wrap.current?.focus({preventScroll:true});
   follow({kind:'marquee',start:toCanvas(event.clientX,event.clientY),add:event.shiftKey?selNow.current:[]});
  };
  const onFrameDown=(event:ReactPointerEvent<HTMLElement>,frame:BoardFrame)=>{
@@ -355,10 +360,10 @@ export function Board({video,board:boardProp,scenes,onDrafted=()=>{},refreshKey=
  const addMenu=(primary=false)=><Menu label="Add to the board" items={addItems} button={(toggle,open)=><button type="button" className={cn('btn sm',primary&&'primary')} aria-haspopup="menu" aria-expanded={open} onClick={toggle}><Icon name="add" size={15}/>Add to board</button>}/>;
  const emptyResearch=research&&tiles?.length===0&&!frames.length;
 
- return <div className="board-wrap" onPaste={paste} onDragOver={event=>event.preventDefault()} onDrop={drop} onKeyDown={onBoardKey} onClick={event=>{if(event.target===event.currentTarget)clear();}}>
+ return <div className="board-wrap" ref={wrap} tabIndex={-1} onPaste={paste} onDragOver={event=>event.preventDefault()} onDrop={drop} onKeyDown={onBoardKey} onClick={event=>{if(event.target===event.currentTarget)clear();}}>
   {board.loadError?<div style={{padding:24}}><ErrorLine message={board.loadError} onRetry={board.reload}/></div>:!tiles?<div className="flex flex-1 items-center justify-center"><Spinner label="Loading the board" size={20}/></div>:
   <div className="canvas-scroll" ref={scroller}>
-   <div style={{width:frameSize.width*zoom,height:frameSize.height*zoom,position:'relative'}}>
+   <div className="canvas-room" style={{width:frameSize.width*zoom,height:frameSize.height*zoom,position:'relative'}}>
     <div className={cn('canvas',connectFrom&&'connecting')} ref={canvasEl} style={{width:frameSize.width,height:frameSize.height,transform:`scale(${zoom})`}} onPointerDown={onCanvasDown}>
      {tiles.length===0&&!research&&<p className="muted" style={{position:'absolute',left:60,top:70,maxWidth:380,fontSize:14,lineHeight:1.55}}>Drop links, screenshots, notes and Markdown files here. Claude reads the whole board when it drafts your scenes. Anything saved in this video's folder shows up here too.</p>}
      {frames.map(frame=><div key={frame.id} className={cn('bframe',selFrame===frame.id&&'sel')} style={{left:frame.x,top:frame.y,width:frame.w,height:frame.h}} data-frame={frame.id}>
@@ -380,11 +385,14 @@ export function Board({video,board:boardProp,scenes,onDrafted=()=>{},refreshKey=
         onPointerDown={event=>{event.stopPropagation();setSelLink(each.id);setSel([]);setSelFrame(null);}} onDoubleClick={()=>setEditLink(each.id)}
         onFocus={()=>{setSelLink(each.id);setSel([]);setSelFrame(null);}} onKeyDown={event=>{if(event.key==='Enter'){event.preventDefault();setEditLink(each.id);}}}>
         <line className="hit" x1={line.from.x} y1={line.from.y} x2={line.to.x} y2={line.to.y}/>
-        <line className="ln" x1={line.from.x} y1={line.from.y} x2={line.to.x} y2={line.to.y} markerEnd="url(#blink-end)"/>
+        <line className="ln" x1={line.from.x} y1={line.from.y} x2={line.to.x} y2={line.to.y} markerEnd={selLink===each.id?'url(#blink-end-sel)':'url(#blink-end)'}/>
        </g>;
       })}
       {drawing&&boxes.get(drawing.from)&&(()=>{const start=edgePoint(boxes.get(drawing.from)!,drawing.to);return <line className="ln drawing" x1={start.x} y1={start.y} x2={drawing.to.x} y2={drawing.to.y}/>;})()}
-      <defs><marker id="blink-end" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 1 L9 5 L0 9 z" className="blink-head"/></marker></defs>
+      <defs>
+       <marker id="blink-end" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 1 L9 5 L0 9 z" className="blink-head"/></marker>
+       <marker id="blink-end-sel" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 1 L9 5 L0 9 z" className="blink-head sel"/></marker>
+      </defs>
      </svg>
      {shownLinks.map(each=>{
       const line=linkLine(boxes.get(each.from)!,boxes.get(each.to)!);
