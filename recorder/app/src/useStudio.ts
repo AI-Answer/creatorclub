@@ -17,15 +17,18 @@ export function useStudio(){
  // `saved` is the object that matches the server file; `sent` is the local object it replaced. Both are compared by identity.
  const [history]=useState(()=>new EditHistory<Project>()),current=useRef<Project|null>(null),saved=useRef<Project|null>(null),sent=useRef<Project|null>(null),size=useRef(0),saveQueue=useRef(Promise.resolve()),revision=useRef(Promise.resolve('')),conflict=useRef(false),[historyTick,setHistoryTick]=useState(0),[resave,setResave]=useState(0);
  current.current=project;
+ // While a server change (a companion card) is being applied: the person's edits made meanwhile, to replay onto the server's result,
+ // and where the undo history stood. Projects those edits produced are superseded once replayed, so they are never saved.
+ const inFlight=useRef<{edits:Array<(p:Project)=>void>;made:Project[];past:number}|null>(null),superseded=useRef(new WeakSet<Project>());
  const refresh=useCallback(async()=>{setProjects(await api<ProjectSummary[]>('/projects'));},[]);
  useEffect(()=>{Promise.all([refresh(),api<Capabilities>('/health').then(setCapabilities)]).catch(e=>setError(e.message)).finally(()=>setLoading(false));},[refresh]);
  const select=useCallback((p:Project,etag?:string|null)=>{commitPendingEdits();saved.current=p;sent.current=null;size.current=0;revision.current=etag?Promise.resolve(etag):projectRevision(p);conflict.current=false;setConflicted(false);current.current=p;setProject(p);history.reset();setHistoryTick(x=>x+1);setSaveState('Saved locally');},[history]);
  // The byte size from the last save bounds undo memory; it is measured once when no save has happened yet.
  const historyLimit=(p:Project)=>()=>{if(!size.current)size.current=JSON.stringify(p).length;return Math.max(2,Math.min(80,Math.floor(24_000_000/Math.max(1,size.current))));};
- const change=useCallback<ProjectChange>((fn,opts)=>{const p=current.current;if(!p)return;const next=applyProjectChange(p,fn);history.record(p,historyLimit(p),opts?.coalesce);current.current=next;setProject(next);setHistoryTick(x=>x+1);setSaveState('Saving…');},[history]);
- const undo=useCallback(()=>{commitPendingEdits();if(!current.current)return;const prev=history.undo(current.current);if(!prev)return;current.current=prev;setProject(prev);setHistoryTick(x=>x+1);},[history]);
- const redo=useCallback(()=>{commitPendingEdits();if(!current.current)return;const next=history.redo(current.current);if(!next)return;current.current=next;setProject(next);setHistoryTick(x=>x+1);},[history]);
- const flush=useCallback(async()=>{commitPendingEdits();const p=current.current;if(!p)return;if(conflict.current)throw new Error('Autosave is paused because this project changed externally. Reload the server version before continuing.');const task=saveQueue.current.catch(()=>{}).then(async()=>{if(conflict.current)throw new Error('Project conflict: autosave is paused.');if(saved.current===p||sent.current===p)return;try{const expected=await revision.current,json=JSON.stringify(p);size.current=json.length;const result=await apiResult<unknown>(`/projects/${p.id}`,new JSONBody(json),'PUT',{'If-Match':expected,Prefer:'return=minimal'});if(result.etag)revision.current=Promise.resolve(result.etag);const adopted=adoptSavedProject(p,result.data);if(!result.etag)revision.current=projectRevision(adopted);saved.current=adopted;if(current.current===p){sent.current=p;current.current=adopted;setProject(adopted);setSaveState('Saved locally');}else{sent.current=null;setResave(x=>x+1);}}catch(e){if(e instanceof APIError&&e.status===409){conflict.current=true;setConflicted(true);setSaveState('Autosave paused');}throw e;}});saveQueue.current=task;await task;return current.current??p;},[]);
+ const change=useCallback<ProjectChange>((fn,opts)=>{const p=current.current;if(!p)return;const next=applyProjectChange(p,fn);history.record(p,historyLimit(p),opts?.coalesce);if(inFlight.current){inFlight.current.edits.push(fn);inFlight.current.made.push(next);}current.current=next;setProject(next);setHistoryTick(x=>x+1);setSaveState('Saving…');},[history]);
+ const undo=useCallback(()=>{commitPendingEdits();if(!current.current||inFlight.current)return;const prev=history.undo(current.current);if(!prev)return;current.current=prev;setProject(prev);setHistoryTick(x=>x+1);},[history]);
+ const redo=useCallback(()=>{commitPendingEdits();if(!current.current||inFlight.current)return;const next=history.redo(current.current);if(!next)return;current.current=next;setProject(next);setHistoryTick(x=>x+1);},[history]);
+ const flush=useCallback(async()=>{commitPendingEdits();const p=current.current;if(!p)return;if(conflict.current)throw new Error('Autosave is paused because this project changed externally. Reload the server version before continuing.');const task=saveQueue.current.catch(()=>{}).then(async()=>{if(conflict.current)throw new Error('Project conflict: autosave is paused.');if(saved.current===p||sent.current===p||superseded.current.has(p))return;try{const expected=await revision.current,json=JSON.stringify(p);size.current=json.length;const result=await apiResult<unknown>(`/projects/${p.id}`,new JSONBody(json),'PUT',{'If-Match':expected,Prefer:'return=minimal'});if(result.etag)revision.current=Promise.resolve(result.etag);const adopted=adoptSavedProject(p,result.data);if(!result.etag)revision.current=projectRevision(adopted);saved.current=adopted;if(current.current===p){sent.current=p;current.current=adopted;setProject(adopted);setSaveState('Saved locally');}else{sent.current=null;setResave(x=>x+1);}}catch(e){if(e instanceof APIError&&e.status===409){conflict.current=true;setConflicted(true);setSaveState('Autosave paused');}throw e;}});saveQueue.current=task;await task;return current.current??p;},[]);
  useEffect(()=>{if(!project||conflicted)return;if(project===saved.current){setSaveState('Saved locally');return;}setSaveState('Saving…');const timer=setTimeout(()=>{void flush().catch(e=>{if(!conflict.current)setSaveState('Save failed');setError(e.message);});},650);return()=>clearTimeout(timer);},[project,flush,conflicted,resave]);
  useEffect(()=>{
   let disposed=false,queue=Promise.resolve(),listTimer:ReturnType<typeof setTimeout>|undefined;
@@ -54,17 +57,31 @@ export function useStudio(){
  /**
   * A change the server makes to the open project (the companion's Edit cards): pending edits are saved first, then `run` gets the saved revision,
   * and the project it returns becomes the current one as one undo step, so the editor's Undo and Redo work on it. It runs in the save queue,
-  * so the server's own save is never taken for someone else's change. An edit made while it ran pauses autosave rather than being lost.
+  * so the server's own save is never taken for someone else's change. Edits the person makes while it runs are replayed onto the server's
+  * project (the card first, then those edits, each its own undo step) and saved; Undo and Redo wait until it is done.
   */
  const commitServer=useCallback(async<T extends {project?:Project;revision?:string}>(run:(revision:string)=>Promise<T>):Promise<T>=>{
   const snapshot=await flush();
+  const flight={edits:[] as Array<(p:Project)=>void>,made:[] as Project[],past:history.past.length};
+  inFlight.current=flight;
   const task=saveQueue.current.catch(()=>{}).then(async()=>{
-   const result=await run((await revision.current).replace(/^W\//,'').replaceAll('"',''));
-   const next=result.project;if(!next||!result.revision||!snapshot||next.id!==snapshot.id)return result;
-   commitPendingEdits();
-   if(current.current!==snapshot){conflict.current=true;setConflicted(true);setSaveState('Autosave paused');return result;}
-   history.record(snapshot,historyLimit(snapshot));saved.current=next;sent.current=null;revision.current=Promise.resolve(`"${result.revision.replace(/^W\//,'').replaceAll('"','')}"`);current.current=next;setProject(next);setHistoryTick(x=>x+1);setSaveState('Saved locally');
-   return result;
+   try{
+    const result=await run((await revision.current).replace(/^W\//,'').replaceAll('"',''));
+    const next=result.project;if(!next||!result.revision||!snapshot||next.id!==snapshot.id||current.current?.id!==snapshot.id)return result;
+    commitPendingEdits();inFlight.current=null;
+    let shown=next,lost=0;
+    if(current.current!==snapshot){
+     // Not one of this tab's own edits (it changed some other way): keep it and pause saving, as before.
+     if(!flight.edits.length){conflict.current=true;setConflicted(true);setSaveState('Autosave paused');return result;}
+     for(const edit of flight.edits){try{shown=applyProjectChange(shown,edit);}catch{lost++;}}
+     for(const made of flight.made)superseded.current.add(made);
+     history.past.splice(flight.past);
+    }
+    history.record(snapshot,historyLimit(snapshot));if(shown!==next)history.record(next,historyLimit(next));
+    saved.current=next;sent.current=null;revision.current=Promise.resolve(`"${result.revision.replace(/^W\//,'').replaceAll('"','')}"`);current.current=shown;setProject(shown);setHistoryTick(x=>x+1);setSaveState(shown===next?'Saved locally':'Saving…');
+    if(lost)setError(lost===1?'One edit you made while the change was applied could not be kept.':`${lost} edits you made while the change was applied could not be kept.`);
+    return result;
+   }finally{if(inFlight.current===flight)inFlight.current=null;}
   });
   saveQueue.current=task.then(()=>{});await task;return task;
  },[flush,history]);

@@ -42,6 +42,7 @@ import * as store from './store.js';
  */
 
 export const COMPANION_BUDGET_USD = 0.5;
+export const CODEX_ON_EDIT = 'Editing with the companion needs Claude: choose Claude as your AI in Settings.';
 const MESSAGES_KEPT = 400;
 const BOARD_CHARS_HERE = 24_000;
 /** Off the Board the board still informs the answer, at a smaller size. */
@@ -431,6 +432,10 @@ export async function askCompanion(slug: string, id: string, body: z.infer<typeo
   await store.readVideo(slug, id);
   const key = jobKey(slug, id);
   if (runningOnce(key)) throw new ClubError('Wait for the reply, or stop it first.', 409);
+  // Codex reads the MCP servers the person added to it, and no setting turns them all off for one run (an override of
+  // mcp_servers is merged, and plugin servers cannot be overridden). A transcript fed to it could then reach editing tools
+  // such as SceneForge's without Apply, so Edit's companion runs on Claude only, which is run with no MCP servers at all.
+  if (body.context.tab === 'edit' && (await store.defaultAi()) === 'codex') throw new ClubError(CODEX_ON_EDIT, 409);
   const { message, history } = await changeThread(slug, id, (messages) => {
     const last = messages[messages.length - 1];
     if (body.retryOf && last?.role === 'user' && last.id === body.retryOf) return { messages, result: { message: last, history: messages.slice(0, -1) } };
