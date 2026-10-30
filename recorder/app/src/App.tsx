@@ -43,6 +43,7 @@ import {ACTION_TITLE,type EditAction,type SelectedItem} from '../shared/companio
 import type {EditOptions} from './editing-actions';
 import {Menu,useToast,type MenuItem} from './club/ui';
 import {CutPlayback} from './CutPlayback';
+import {recallEditView,rememberEditView} from './edit-session';
 import {timelineContextItems,timelineMoreItems,type TimelineMenuActions} from './edit-menus';
 import {TimelineClub,rowsHeight,usedRows,type TimelineControls} from './TimelineClub';
 import {type Deleted,addMarker,applyClipStarts,clampScale,deleteItems,ensureLinks,freeDelta,insertGap,mergeRanges,moveEffects,rowItems,isLinked,linkClips,linkedIds,remapLinks,selectionCount,zoomSlider,syncScenesToTakes,rulerLabel,lengthLabel,showTenths,splitLinked,unlinkClips} from './timeline-edit';
@@ -121,7 +122,7 @@ export default function App({embedded}:{embedded?:EmbeddedRecorder}={}){
  const studio=useStudio(),p=studio.project,change:Change=studio.change;
  useEffect(()=>{if(embedded&&studio.project?.id!==embedded.projectId)void studio.open(embedded.projectId);},[embedded?.projectId]);
  // The club unmounts an embedded editor when you change step; save what the autosave debounce has not written yet.
- useEffect(()=>embedded?()=>{void studio.flush().catch(e=>console.error(e));}:undefined,[Boolean(embedded),studio.flush]);
+ useEffect(()=>embedded?()=>{const view=keptView.current;if(view.id)rememberEditView(view.id,{zoom:view.zoom,playhead:playhead.get(),selectedIds:[...view.ids],selected:view.selected});void studio.flush().catch(e=>console.error(e));}:undefined,[Boolean(embedded),studio.flush]);
  // Playback time lives outside React state: a tick re-renders only the components that read the playhead.
  const [playhead]=useState(createPlayhead);
  const [recoveryRefresh,setRecoveryRefresh]=useState(0);
@@ -148,7 +149,9 @@ export default function App({embedded}:{embedded?:EmbeddedRecorder}={}){
  const clipboard=useRef<TimelineClipboard|null>(null),initialProjectMode=useRef<{id:string;mode:'Record'|'Edit'}|null>(null);
  // Pick a newly opened project's workspace in the same render, so the previous mode's workspace never mounts for it. The project effect clears the ref.
  const [modeFor,setModeFor]=useState<string>();
- if(p?.id!==modeFor){setModeFor(p?.id);if(p)setModeState(embedded?embedded.mode:initialProjectMode.current?.id===p.id?initialProjectMode.current.mode:p.clips.length?'Edit':'Script');}
+ // Edit's zoom, playhead and selection for this video, from an earlier visit in this session.
+ const kept=useMemo(()=>embedded&&p?recallEditView(p.id):undefined,[p?.id]);
+ if(p?.id!==modeFor){setModeFor(p?.id);if(p)setModeState(embedded?embedded.mode:initialProjectMode.current?.id===p.id?initialProjectMode.current.mode:p.clips.length?'Edit':'Script');if(kept){setZoom(kept.zoom);playhead.set(kept.playhead);}}
  else if(embedded&&mode!==embedded.mode)setModeState(embedded.mode);
  // An embedded project that cannot be opened is reported to the club, which shows one sentence and Try again.
  const openFailed=Boolean(embedded&&studio.error&&(!p||p.id!==embedded.projectId));
@@ -163,7 +166,7 @@ export default function App({embedded}:{embedded?:EmbeddedRecorder}={}){
  const duration=p?projectDuration(p):0;
  const [cutMarks,setCutMarks]=useState<number[]>([]);useEffect(()=>{if(!cutMarks.length)return;const t=setTimeout(()=>setCutMarks([]),6000);return()=>clearTimeout(t);},[cutMarks]);
  const clubToast=useToast(),toastRef=useRef<(message:string)=>void>(()=>{}),notify=useCallback((s:string)=>{toastRef.current(s);},[]);
- useEffect(()=>{if(p?.id!==projectId.current){projectId.current=p?.id||'';setModal(value=>value==='media-recovery'?null:value);timelineSeek.cancel();setSelectedRange(null);playhead.set(0);setPlaying(false);setSelected(null);setSelectedIds(new Set());setTool('select');setScrubbing(false);setPlaybackRate(1);setPanel(null);setSide('transcript');setPreview(null);if(p)initialProjectMode.current=null;}},[p?.id]);
+ useEffect(()=>{if(p?.id!==projectId.current){projectId.current=p?.id||'';setModal(value=>value==='media-recovery'?null:value);timelineSeek.cancel();setSelectedRange(null);playhead.set(kept?.playhead??0);setPlaying(false);setSelected(kept?.selected??null);setSelectedIds(new Set(kept?.selectedIds.filter(id=>p&&[...p.clips,...p.elements,...p.captions,...p.zooms,...(p.markers??[])].some(x=>x.id===id))??[]));setTool('select');setScrubbing(false);setPlaybackRate(1);setPanel(null);setSide('transcript');setPreview(null);if(p)initialProjectMode.current=null;}},[p?.id]);
  // The clock advances from the stored playhead every frame, so unrelated renders can never rewind it.
  useEffect(()=>{if(!playing)return;let frame=0,last=performance.now();const tick=(now:number)=>{const elapsed=(now-last)/1000;last=now;const next=playhead.get()+elapsed*playbackRate;if(next>=duration){playhead.set(duration);setPlaying(false);return;}playhead.set(next);frame=requestAnimationFrame(tick);};if(playhead.get()>=duration)playhead.set(0);frame=requestAnimationFrame(tick);return()=>cancelAnimationFrame(frame);},[playing,duration,playbackRate,playhead]);
  const seek=useEvent((n:number)=>{playhead.set(Math.max(0,Math.min(duration,n)));});
@@ -183,6 +186,7 @@ export default function App({embedded}:{embedded?:EmbeddedRecorder}={}){
  const shownDuration=useRef(duration);
  useEffect(()=>{const before=shownDuration.current;shownDuration.current=duration;if(duration<before||playhead.get()>duration){const next=clampToEnd(playhead.get(),duration,p?.canvas.fps??30);if(next!==playhead.get()){playhead.set(next);setPlaying(false);}}},[duration,playhead]);
  const selection=selectedIds.size?selectedIds:new Set(selected?[selected]:[]);
+ const keptView=useRef({id:'',zoom,ids:selectedIds as ReadonlySet<string>,selected});keptView.current={id:p?.id??'',zoom,ids:selectedIds,selected};
  const split=(at=playhead.get(),onlyId?:string)=>{if(!p)return;if(!p.clips.some(c=>(!onlyId||c.id===onlyId)&&c.start+.0001<at&&c.start+clipDuration(c)-.0001>at)){notify(embedded?'Move the playhead over a clip to split it.':'Place the playhead inside a clip to split it.');return;}studio.change(p=>{if(embedded)splitLinked(p,at,selection,onlyId);else splitAt(p,at,selection,onlyId);});};
  // In the club a delete takes the linked clips along and closes the gap on every track; Shift keeps the gap.
  const deleteSelected=(ripple=embedded?true:p?.settings.ripple??true)=>{if(!p)return;if(!selection.size){if(embedded)notify('Select a clip first.');return;}let done:Deleted|undefined;studio.change(p=>{if(embedded){done=deleteItems(p,selection,ripple);syncScenesToTakes(p);}else deleteSelection(p,selection,ripple);});setSelected(null);setSelectedIds(new Set());
@@ -327,7 +331,7 @@ export default function App({embedded}:{embedded?:EmbeddedRecorder}={}){
    {shortcutsOpen&&<ShortcutsPopover onClose={closeShortcuts}/>}
   </div>
   <TimelineResize storageKey="creatorclub.timeline-height" auto={timelineAuto}/>
-  <TimelineClub project={p} playhead={playhead} scale={zoom} onScale={setZoom} selectedIds={selection} onSelectMany={selectMany} onSeek={timelineSeek.run} change={studio.change} onDropMedia={dropMedia} tool={tool} onSplit={splitClip} follow={follow} showWaveforms={showWaveforms} previewRanges={preview?.ranges} cutMarks={cutMarks} onOpen={openItem} onContextMenu={openContext} onNotice={notify} controls={timelineControls}/>
+  <TimelineClub project={p} playhead={playhead} scale={zoom} autoFit={!kept} onScale={setZoom} selectedIds={selection} onSelectMany={selectMany} onSeek={timelineSeek.run} change={studio.change} onDropMedia={dropMedia} tool={tool} onSplit={splitClip} follow={follow} showWaveforms={showWaveforms} previewRanges={preview?.ranges} cutMarks={cutMarks} onOpen={openItem} onContextMenu={openContext} onNotice={notify} controls={timelineControls}/>
   {contextAt&&<ContextMenu at={contextAt} items={contextItems} onClose={closeContext}/>}
  </div>;};
  const timelineAuto=useMemo(()=>p&&embedded?Math.min(420,rowsHeight(usedRows(p))):undefined,[p?.clips,p?.elements,p?.captions,p?.zooms,p?.timelineLayers,embedded]);
