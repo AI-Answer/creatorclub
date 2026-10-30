@@ -43,6 +43,7 @@ import {ACTION_TITLE,type EditAction,type SelectedItem} from '../shared/companio
 import type {EditOptions} from './editing-actions';
 import {Menu,useToast,type MenuItem} from './club/ui';
 import {CutPlayback} from './CutPlayback';
+import {timelineContextItems,timelineMoreItems,type TimelineMenuActions} from './edit-menus';
 import {TimelineClub,rowsHeight,usedRows,type TimelineControls} from './TimelineClub';
 import {type Deleted,addMarker,applyClipStarts,clampScale,deleteItems,ensureLinks,freeDelta,insertGap,mergeRanges,moveEffects,rowItems,isLinked,linkClips,linkedIds,remapLinks,zoomSlider,syncScenesToTakes,rulerLabel,lengthLabel,showTenths,splitLinked,unlinkClips} from './timeline-edit';
 
@@ -85,11 +86,13 @@ function ContextMenu({at,items,onClose}:{at:{x:number;y:number};items:readonly M
  </div>;
  return host?createPortal(menu,host):menu;
 }
-/** The "?" popover: it takes focus, Escape closes it and focus goes back to where it was. */
-function ShortcutsPopover({onClose}:{onClose:()=>void}){
- const ref=useRef<HTMLDivElement>(null);
+/** The "?" popover: it takes focus, Escape closes it and focus goes back to where it was. It fits above the timeline bar and scrolls, with a cue while more is below. */
+export function ShortcutsPopover({onClose}:{onClose:()=>void}){
+ const ref=useRef<HTMLDivElement>(null),[more,setMore]=useState(false),[room,setRoom]=useState<number|undefined>();
+ const measure=useCallback(()=>{const el=ref.current;if(el)setMore(el.scrollHeight-el.clientHeight-el.scrollTop>4);},[]);
+ useLayoutEffect(()=>{const bar=ref.current?.parentElement?.getBoundingClientRect();if(bar&&bar.top>0)setRoom(Math.max(160,Math.min(560,bar.top-24)));measure();},[measure]);
  useEffect(()=>{const before=document.activeElement as HTMLElement|null;ref.current?.focus();const key=(event:KeyboardEvent)=>{if(event.key==='Escape'||event.key==='?'){event.preventDefault();event.stopPropagation();onClose();}};window.addEventListener('keydown',key,true);return()=>{window.removeEventListener('keydown',key,true);if(before?.isConnected)before.focus();};},[onClose]);
- return <div ref={ref} tabIndex={-1} className="club-shortcuts" role="dialog" aria-label="Keyboard shortcuts"><header><b>Shortcuts</b><button type="button" className="club-sheet-close" aria-label="Close shortcuts" onClick={onClose}><X size={14}/></button></header><dl>{SHORTCUTS.map(([keys,what])=><div key={keys}><dt>{keys}</dt><dd>{what}</dd></div>)}</dl></div>;
+ return <div ref={ref} tabIndex={-1} className={`club-shortcuts ${more?'has-more':''}`} role="dialog" aria-label="Keyboard shortcuts" style={room?{maxHeight:room}:undefined} onScroll={measure}><header><b>Shortcuts</b><button type="button" className="club-sheet-close" aria-label="Close shortcuts" onClick={onClose}><X size={14}/></button></header><dl>{SHORTCUTS.map(([keys,what])=><div key={keys}><dt>{keys}</dt><dd>{what}</dd></div>)}</dl>{more&&<div className="club-shortcuts-more" aria-hidden>More below <ChevronDown size={13}/></div>}</div>;
 }
 const SHORTCUTS:Array<[string,string]>=[['Space','Play or pause'],['S','Split at the playhead'],['Delete','Delete and close the gap'],['Shift Delete','Delete, keep the gap'],['⌘D','Duplicate'],['⌘C / ⌘V','Copy / paste at the playhead'],['⌘A','Select all'],['M','Add a marker'],['N','Snapping on or off'],['B / A','Blade / select tool'],['⌘G','Link or unlink screen, camera and audio'],['← →','Nudge the selection a frame (Shift: 1 s), or move the playhead'],['↑ ↓','Previous / next cut'],['+ / −','Zoom at the playhead'],['⌘ scroll, pinch','Zoom at the pointer'],['Shift Z','Fit the whole video'],['Alt while trimming','Keep the gap'],['⌘Z / ⇧⌘Z','Undo / redo'],['?','These shortcuts']];
 function Toasts({bind}:{bind:{current:(message:string)=>void}}){const [toast,setToast]=useState('');useLayoutEffect(()=>{bind.current=setToast;},[bind]);useEffect(()=>{if(!toast)return;const t=setTimeout(()=>setToast(''),4200);return()=>clearTimeout(t);},[toast]);return toast?<div className="toast" role="status"><Check size={16}/>{toast}</div>:null;}
@@ -259,11 +262,10 @@ export default function App({embedded}:{embedded?:EmbeddedRecorder}={}){
  const openPanel=(name:Panel)=>{setPanel(name);},openSide=(next:'transcript'|'media')=>{setPanel(null);setSide(next);};
  const openItem=useEvent((id:string)=>{if(!p)return;select(id);setPanel(p.elements.some(e=>e.id===id)?'Elements':p.zooms.some(z=>z.id===id)?'Zoom':p.captions.some(c=>c.id===id)?'Captions':'Clip');});
  const styleItems:MenuItem[]=[{header:'Style'},...panels.filter(({name})=>name!=='Automate').map(({name})=>({label:name,fn:()=>openPanel(name)})),'-',{label:'Transcript',fn:()=>openSide('transcript')},{label:'Media in this video',fn:()=>openSide('media')},{label:'Import media',icon:'Upload',fn:()=>beginImport()},'-',{label:'Settings…',icon:'Settings',fn:()=>openModal('settings')}];
- const timelineItems:MenuItem[]=p?[{label:'Split at playhead · S',icon:'Scissors',fn:()=>split()},{label:'Delete and close the gap · ⌫',icon:'Trash2',fn:()=>deleteSelected(true)},{label:'Delete, keep the gap · ⇧⌫',fn:()=>deleteSelected(false)},{label:'Duplicate · ⌘D',icon:'Copy',fn:duplicateSelected},{label:'Copy · ⌘C',fn:copy},{label:'Paste at playhead · ⌘V',fn:paste},{label:'Select all · ⌘A',fn:()=>{const ids=[...p.clips,...p.elements,...p.captions,...p.zooms].map(x=>x.id);setSelectedIds(new Set(ids));setSelected(ids[0]||null);}},'-',
-  {label:'Add marker at playhead · M',icon:'Bookmark',fn:addMarkerAtPlayhead},{label:'Previous cut · ↑',fn:()=>boundary(-1)},{label:'Next cut · ↓',fn:()=>boundary(1)},'-',
-  {label:selectionLinked?'Unlink screen, camera and audio · ⌘G':'Link selected clips · ⌘G',icon:'Link',fn:toggleLink},{label:'Magnetic snapping · N',check:p.settings.snap,fn:()=>studio.change(d=>{d.settings.snap=!d.settings.snap;})},{label:'Blade tool · B',check:tool==='blade',fn:()=>setTool(v=>v==='blade'?'select':'blade')},{label:'Waveforms · E',check:showWaveforms,fn:()=>setShowWaveforms(v=>!v)},'-',
-  {label:'Zoom in · +',fn:()=>setZoom(v=>clampScale(v*1.4))},{label:'Zoom out · −',fn:()=>setZoom(v=>clampScale(v/1.4))},{label:'Fit the whole video · ⇧Z',fn:()=>timelineControls.current?.fit()},'-',
-  {label:'Add video layer',icon:'Layers',fn:()=>studio.change(d=>{addTimelineLayer(d,'video');})},{label:'Add audio layer',icon:'Music',fn:()=>studio.change(d=>{addTimelineLayer(d,'audio');})}]:[];
+ const menuActions:TimelineMenuActions|null=p?{split:()=>split(),deleteClose:()=>deleteSelected(true),deleteKeepGap:()=>deleteSelected(false),duplicate:duplicateSelected,copy,paste,selectAll:()=>{const ids=[...p.clips,...p.elements,...p.captions,...p.zooms].map(x=>x.id);setSelectedIds(new Set(ids));setSelected(ids[0]||null);},
+  addMarker:addMarkerAtPlayhead,previousCut:()=>boundary(-1),nextCut:()=>boundary(1),toggleLink,linked:selectionLinked,blade:tool==='blade',toggleBlade:()=>setTool(v=>v==='blade'?'select':'blade'),waveforms:showWaveforms,toggleWaveforms:()=>setShowWaveforms(v=>!v),
+  addVideoLayer:()=>studio.change(d=>{addTimelineLayer(d,'video');}),addAudioLayer:()=>studio.change(d=>{addTimelineLayer(d,'audio');})}:null;
+ const timelineItems:MenuItem[]=menuActions?timelineMoreItems(menuActions):[],contextItems:MenuItem[]=menuActions?timelineContextItems(menuActions):[];
  /* The companion docked beside Edit: it reads the playhead and the selection when a message is sent, previews a card on the stage
     (cuts with the same before/after playback as Auto-edit, other changes as the frame after them) and applies a card as one undo step. */
  const editorContext=useEvent(():EditorContext=>{
@@ -320,13 +322,13 @@ export default function App({embedded}:{embedded?:EmbeddedRecorder}={}){
    <span className="club-bar-grow"/>
    <input className="club-zoom" type="range" aria-label="Zoom timeline" title="Zoom at the playhead (+ / −); ⌘ scroll and pinch zoom at the pointer" min={zoomRange.min} max={zoomRange.max} step={zoomRange.step} value={zoomRange.fromScale(zoom)} onChange={e=>setZoom(zoomRange.toScale(+e.target.value))}/>
    <button type="button" className="club-tool" title="Fit the whole video (Shift+Z)" onClick={()=>timelineControls.current?.fit()}><Maximize2 size={15}/>Fit</button>
-   <Menu label="Timeline actions" align="right" width={250} items={timelineItems} button={(toggle,open)=><button type="button" className="club-tool is-icon" aria-label="More timeline actions" title="More timeline actions (or right-click a clip)" aria-haspopup="menu" aria-expanded={open} onClick={toggle}><MoreHorizontal size={16}/></button>}/>
+   <Menu label="Timeline actions" align="right" below width={250} items={timelineItems} button={(toggle,open)=><button type="button" className="club-tool is-icon" aria-label="More timeline actions" title="More timeline actions (or right-click a clip)" aria-haspopup="menu" aria-expanded={open} onClick={toggle}><MoreHorizontal size={16}/></button>}/>
    <button type="button" className="club-tool is-icon" aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)" aria-expanded={shortcutsOpen} onClick={()=>setShortcutsOpen(v=>!v)}>?</button>
    {shortcutsOpen&&<ShortcutsPopover onClose={closeShortcuts}/>}
   </div>
   <TimelineResize storageKey="creatorclub.timeline-height" auto={timelineAuto}/>
   <TimelineClub project={p} playhead={playhead} scale={zoom} onScale={setZoom} selectedIds={selection} onSelectMany={selectMany} onSeek={timelineSeek.run} change={studio.change} onDropMedia={dropMedia} tool={tool} onSplit={splitClip} follow={follow} showWaveforms={showWaveforms} previewRanges={preview?.ranges} cutMarks={cutMarks} onOpen={openItem} onContextMenu={openContext} onNotice={notify} controls={timelineControls}/>
-  {contextAt&&<ContextMenu at={contextAt} items={timelineItems} onClose={closeContext}/>}
+  {contextAt&&<ContextMenu at={contextAt} items={contextItems} onClose={closeContext}/>}
  </div>;};
  const timelineAuto=useMemo(()=>p&&embedded?Math.min(420,rowsHeight(usedRows(p))):undefined,[p?.clips,p?.elements,p?.captions,p?.zooms,p?.timelineLayers,embedded]);
  const clubEdit=clubEditView();

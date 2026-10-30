@@ -242,3 +242,12 @@ test('a take chip names its kinds in the timeline order, with the timeline\'s co
  assert.equal(trackKind('music'),'audio');
  assert.equal(KIND_COLOR[trackKind('camera')].color,'var(--kind-camera)','the same token the timeline paints with');
 });
+
+test('Task 14: a Menu with below opens under its button even near the bottom of the window, scrolling inside',async()=>{
+ const ui=await mountUI(createElement(Menu,{below:true,items:Array.from({length:30},(_,i)=>({label:`Item ${i}`,fn(){}})),button:toggle=>createElement('button',{onClick:toggle},'Open')}));
+ try{
+  const trigger=ui.container.querySelector('button')!;(trigger.parentElement as HTMLElement).getBoundingClientRect=()=>({top:600,bottom:630,left:10,right:60,width:50,height:30,x:10,y:600,toJSON(){}}) as DOMRect;
+  await act(async()=>{trigger.click();});
+  const menu=document.querySelector<HTMLElement>('[role=menu]')!;assert.equal(menu.style.top,'636px');assert.equal(menu.style.bottom,'');assert.equal(menu.style.overflowY,'auto');
+ }finally{await ui.close();}
+});
