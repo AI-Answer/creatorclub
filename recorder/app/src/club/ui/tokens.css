@@ -4,7 +4,7 @@
   A test (`ui/tokens.test.ts`) fails when a raw colour literal appears anywhere in `src/club/**` outside this file.
 
   The colour rule (docs/v2/PLAN.md, "Revised rulings"):
-  - one accent (blue) for focus, selection and the primary action;
+  - one accent (blue) for focus, selection and links; the primary action is the dark button (as in the approved prototype);
   - red only for recording and destructive actions;
   - green only for done or ok;
   - amber only for warnings and problems to fix;
@@ -33,15 +33,16 @@
   --cc-text-3: #736e66;
   --cc-placeholder: #9a958d;
   --cc-text-faint: #b2ada5;
-  /* Accent: focus, selection, the primary action */
+  /* Accent: focus, selection, links */
   --cc-accent: #2563eb;
   --cc-accent-hover: #1d4ed8;
   --cc-accent-soft: #eaf0fe;
   --cc-accent-text: #1d4ed8;
   --cc-on-accent: #ffffff;
-  --cc-primary: var(--cc-accent);
-  --cc-primary-hover: var(--cc-accent-hover);
-  --cc-on-primary: var(--cc-on-accent);
+  /* The primary action: the dark button of the approved prototype */
+  --cc-primary: #151413;
+  --cc-primary-hover: #2c2a28;
+  --cc-on-primary: #ffffff;
   /* Status: recording and destructive, done, warning */
   --cc-rec: #e5484d;
   --cc-rec-soft: #fdecec;
@@ -153,6 +154,10 @@
 }
 
 .club-root:where([data-theme=dark], [data-theme=dark] *) {
+  /* The primary action on a dark surface: the light button */
+  --cc-primary: #f3f1ed;
+  --cc-primary-hover: #ffffff;
+  --cc-on-primary: #191817;
   --cc-bg: #161615;
   --cc-bg-sunk: #121211;
   --cc-surface: #1e1e1d;
