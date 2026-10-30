@@ -40,9 +40,13 @@ export type EditAction =
   | { type: 'set_zoom'; start: number; duration: number; scale: number; x?: number; y?: number; target?: 'screen' | 'camera' }
   /** An animated graphic on the Motion row: `text` is its main line (title, name, label or chapter title), `detail` the second (subtitle, role, chapter number), `x`/`y` a callout's point. */
   | { type: 'add_motion_block'; template: MotionTemplateId; style?: string; start: number; duration?: number; text: string; detail?: string; x?: number; y?: number }
+  /** Changes the motion graphic that is on screen at `at`: its words, style, point, start or length. Leave out what stays. */
+  | { type: 'update_motion_block'; at: number; text?: string; detail?: string; style?: string; start?: number; duration?: number; x?: number; y?: number }
+  /** Removes the motion graphic that is on screen at `at`. */
+  | { type: 'remove_motion_block'; at: number }
   | { type: 'normalize_audio' };
 export type EditActionType = EditAction['type'];
-export const EDIT_ACTION_TYPES = ['cut_pauses', 'remove_fillers', 'close_gaps', 'split_at', 'trim_clip', 'delete_range', 'set_caption_style', 'add_caption', 'add_text', 'set_zoom', 'add_motion_block', 'normalize_audio'] as const satisfies readonly EditActionType[];
+export const EDIT_ACTION_TYPES = ['cut_pauses', 'remove_fillers', 'close_gaps', 'split_at', 'trim_clip', 'delete_range', 'set_caption_style', 'add_caption', 'add_text', 'set_zoom', 'add_motion_block', 'update_motion_block', 'remove_motion_block', 'normalize_audio'] as const satisfies readonly EditActionType[];
 export const isEditAction = (action: { type: string }): action is EditAction => (EDIT_ACTION_TYPES as readonly string[]).includes(action.type);
 
 export type CompanionAction =
@@ -94,6 +98,8 @@ export const ACTION_TITLE: Record<CompanionActionType, string> = {
   add_text: 'Text on screen',
   set_zoom: 'Zoom',
   add_motion_block: 'Motion graphic',
+  update_motion_block: 'Change a graphic',
+  remove_motion_block: 'Remove a graphic',
   normalize_audio: 'Even out loudness',
 };
 
@@ -119,6 +125,8 @@ export const ACTION_STEP: Record<CompanionActionType, string> = {
   add_text: 'Writing text',
   set_zoom: 'Planning a zoom',
   add_motion_block: 'Placing a graphic',
+  update_motion_block: 'Changing a graphic',
+  remove_motion_block: 'Finding the graphic',
   normalize_audio: 'Checking loudness',
 };
 
@@ -144,6 +152,8 @@ export const ACTION_VERB: Record<CompanionActionType, string> = {
   add_text: 'Add it',
   set_zoom: 'Add zoom',
   add_motion_block: 'Add it',
+  update_motion_block: 'Change it',
+  remove_motion_block: 'Remove it',
   normalize_audio: 'Even it out',
 };
 

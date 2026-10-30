@@ -4,7 +4,8 @@ import {minimumPiece} from '../shared/timeline-edits';
 import {clipsFingerprint,fillerRanges,gapRanges,rangesSeconds} from './club/recorder/edit-auto';
 import {plainView} from './project-draft';
 import {addMotionBlock,closeRange,ensureLinks,linkedIds,mergeRanges,motionAt,newElement,nextMotionStart,rowItems,splitLinked,syncScenesToTakes,trimBounds,trimClips} from './timeline-edit';
-import {MOTION_TEMPLATES,motionPropsFrom,newMotionBlock} from '../shared/motion/templates';
+import {MOTION_TEMPLATES,motionPropsFrom,newMotionBlock,normalizeMotionProps} from '../shared/motion/templates';
+import type {MotionTemplateId} from '../shared/types';
 
 /**
  * The companion's Edit actions as pure functions over a project (or a draft of one). Every change goes through the editor's own timeline
@@ -145,9 +146,27 @@ export function editActionProblem(p:Project,action:EditAction,options:EditOption
    if(room<template.minDuration-1e-9)return room<length-action.start?`There is no room for a ${template.label.toLowerCase()} there: the next motion block starts too soon.`:'That is too close to the end of the video.';
    return;
   }
+  case 'update_motion_block':{
+   const block=blockAt(p,action.at);if(!block)return NO_BLOCK;
+   const template=MOTION_TEMPLATES[block.template];
+   if(action.style!==undefined&&!template.styles.some(s=>s.id===action.style))return `A ${template.label.toLowerCase()} has no style called "${action.style}".`;
+   if((action.x!==undefined||action.y!==undefined)&&block.template!=='callout')return 'Only a callout has a point.';
+   const start=action.start??block.start,asked=action.duration??block.duration;
+   if(!inRange(start))return 'That time is outside the video.';
+   const others=(p.motion??[]).filter(m=>m.id!==block.id);
+   const clash=others.find(m=>start<m.start+m.duration-1e-6&&start+Math.min(asked,template.minDuration)>m.start+1e-6);
+   if(clash)return 'Another motion graphic is already there at that time.';
+   return;
+  }
+  case 'remove_motion_block':return blockAt(p,action.at)?undefined:NO_BLOCK;
   case 'normalize_audio':return p.clips.some(c=>!c.effects.normalize)?undefined:'Loudness is already evened out.';
  }
 }
+const NO_BLOCK='There is no motion graphic at that time.';
+/** Which prop of each template holds the card's main line and its second line. */
+const PROP_KEYS:Record<MotionTemplateId,{text:string;detail?:string}>={'title-card':{text:'title',detail:'subtitle'},'lower-third':{text:'name',detail:'role'},callout:{text:'label'},'chapter-label':{text:'title',detail:'number'}};
+/** The motion graphic that is on screen at `time`. */
+const blockAt=(p:Project,time:number)=>(p.motion??[]).find(m=>time>=m.start-1e-6&&time<=m.start+m.duration+1e-6);
 /** The block an `add_motion_block` card adds: its template's defaults, the card's text, and its length cut to the room on the Motion row and in the video. */
 export function motionBlockFor(p:Project,action:Extract<EditAction,{type:'add_motion_block'}>,id:string){
  const template=MOTION_TEMPLATES[action.template],room=Math.min(projectDuration(p),nextMotionStart(p,action.start))-action.start;
@@ -217,6 +236,28 @@ export function applyEditAction(p:Project,action:EditAction,options:EditOptions=
    result=`${MOTION_TEMPLATES[action.template].label} added at ${clock(action.start)}`;
    break;
   }
+  case 'update_motion_block':{
+   const block=blockAt(p,action.at)!,template=MOTION_TEMPLATES[block.template];
+   const start=Math.max(0,action.start??block.start);
+   const others=(p.motion??[]).filter(m=>m.id!==block.id),next=others.filter(m=>m.start>=start-1e-6).reduce((at,m)=>Math.min(at,m.start),Infinity);
+   const room=Math.min(projectDuration(p),next)-start;
+   block.start=start;block.duration=Math.max(template.minDuration,Math.min(action.duration??block.duration,template.maxDuration,room));
+   if(action.style!==undefined)block.style=action.style;
+   const keys=PROP_KEYS[block.template],changed:Record<string,string|number>={};
+   if(action.text!==undefined&&keys.text)changed[keys.text]=action.text;
+   if(action.detail!==undefined&&keys.detail)changed[keys.detail]=action.detail;
+   if(action.x!==undefined)changed.x=action.x;if(action.y!==undefined)changed.y=action.y;
+   block.props=normalizeMotionProps(block.template,{...block.props,...changed});
+   p.motion=(p.motion??[]).sort((a,b)=>a.start-b.start);
+   result=`${template.label} changed at ${clock(block.start)}`;
+   break;
+  }
+  case 'remove_motion_block':{
+   const block=blockAt(p,action.at)!;
+   p.motion=(p.motion??[]).filter(m=>m.id!==block.id);
+   result=`${MOTION_TEMPLATES[block.template].label} removed from ${clock(block.start)}`;
+   break;
+  }
   case 'normalize_audio':{
    let n=0;for(const c of p.clips)if(!c.effects.normalize){c.effects={...c.effects,normalize:true};n++;}
    result=`Loudness evened out on ${plural(n,'clip')} when you export`;
@@ -252,6 +293,12 @@ export function describeEditAction(action:EditAction,p?:Project):string{
    const template=MOTION_TEMPLATES[action.template],style=template?.styles.find(s=>s.id===action.style)??template?.styles[0];
    return `${template?.label??'Motion graphic'} (${style?.label.toLowerCase()??'default'}) “${action.text}”${action.detail?` · ${action.detail}`:''} at ${clock(action.start)} for ${secs(action.duration??template?.defaultDuration??3)}.`;
   }
+  case 'update_motion_block':{
+   const block=p?blockAt(p,action.at):undefined,label=block?MOTION_TEMPLATES[block.template].label.toLowerCase():'graphic';
+   const what=[action.text!==undefined?`reword it “${action.text}”`:'',action.style!==undefined?`style ${action.style}`:'',action.start!==undefined?`move it to ${clock(action.start)}`:'',action.duration!==undefined?`${secs(action.duration)} long`:'',action.x!==undefined||action.y!==undefined?'move its point':''].filter(Boolean);
+   return `The ${label} at ${clock(action.at)}: ${what.join(', ')||'no change'}.`;
+  }
+  case 'remove_motion_block':{const block=p?blockAt(p,action.at):undefined;return `Remove the ${block?MOTION_TEMPLATES[block.template].label.toLowerCase():'graphic'} at ${clock(action.at)}.`;}
   case 'normalize_audio':return 'Even out the loudness of every clip when you export.';
  }
 }

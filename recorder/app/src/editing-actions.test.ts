@@ -267,3 +267,25 @@ test('random sequences of cards, Undo and the person\'s own edits keep rows, lin
  assert.ok(motionCards>100&&motionSteps>200,`motion cards ${motionCards}, motion edits ${motionSteps}`);
  t.diagnostic(`${steps} steps in 300 sequences: ${applied} cards applied (${motionCards} motion blocks), ${refused} refused, ${undone} undone, ${undoRefused} undos refused after later changes, ${motionSteps} motion edits by hand`);
 });
+
+test('update_motion_block rewords, restyles, moves and resizes the graphic on screen at that time; remove_motion_block takes it away',()=>{
+ const p=make();
+ const {next}=apply(p,{type:'add_motion_block',template:'lower-third',style:'block',start:12,duration:4,text:'Samin Yasar',detail:'Founder'});
+ const id=next.motion![0].id;
+ const changed=apply(next,{type:'update_motion_block',at:13,text:'Dani',style:'glass',start:20,duration:6});
+ const block=changed.next.motion!.find(m=>m.id===id)!;
+ assert.equal(block.props.name,'Dani');
+ assert.equal(block.props.role,'Founder','what was not given stays');
+ assert.equal(block.style,'glass');
+ assert.equal(block.start,20);
+ assert.equal(block.duration,6);
+ assert.match(changed.result,/changed at 0:20/);
+ assert.match(describeEditAction({type:'update_motion_block',at:13,text:'Dani',start:20},next),/lower third at 0:13.*reword it “Dani”.*move it to 0:20/i);
+ assert.equal(editActionProblem(next,{type:'update_motion_block',at:40,text:'x'}),'There is no motion graphic at that time.');
+ assert.match(editActionProblem(next,{type:'update_motion_block',at:13,style:'neon'})!,/no style called "neon"/);
+ assert.equal(editActionProblem(next,{type:'update_motion_block',at:13,x:.2}),'Only a callout has a point.');
+ const gone=apply(next,{type:'remove_motion_block',at:14});
+ assert.equal(gone.next.motion!.length,0);
+ assert.match(gone.result,/removed from 0:12/);
+ assert.equal(editActionProblem(gone.next,{type:'remove_motion_block',at:14}),'There is no motion graphic at that time.');
+});

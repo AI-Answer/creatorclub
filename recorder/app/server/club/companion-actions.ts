@@ -71,6 +71,10 @@ export const actionShape = z.discriminatedUnion('type', [
   z
     .object({ type: z.literal('add_motion_block'), template: z.enum(MOTION_TEMPLATE_IDS as [MotionTemplateId, ...MotionTemplateId[]]), style: z.string().max(20).optional(), start: time, duration: z.number().min(1).max(20).optional(), text: line(80), detail: line(120).optional(), x: z.number().min(0).max(1).optional(), y: z.number().min(0).max(1).optional() })
     .strict(),
+  z
+    .object({ type: z.literal('update_motion_block'), at: time, text: line(80).optional(), detail: line(120).optional(), style: z.string().max(20).optional(), start: time.optional(), duration: z.number().min(1).max(20).optional(), x: z.number().min(0).max(1).optional(), y: z.number().min(0).max(1).optional() })
+    .strict(),
+  z.object({ type: z.literal('remove_motion_block'), at: time }).strict(),
   z.object({ type: z.literal('normalize_audio') }).strict(),
 ])
   .refine((action) => action.type !== 'set_scene' || action.title !== undefined || action.talkingPoints !== undefined, { message: 'changes nothing' })
@@ -338,6 +342,8 @@ const HANDLERS: { [K in CompanionActionType]: Handler<Extract<CompanionAction, {
   add_text: edit,
   set_zoom: edit,
   add_motion_block: edit,
+  update_motion_block: edit,
+  remove_motion_block: edit,
   normalize_audio: edit,
 };
 

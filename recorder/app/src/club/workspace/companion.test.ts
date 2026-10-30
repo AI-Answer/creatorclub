@@ -426,9 +426,9 @@ test('on Edit: a message carries the playhead and selection, a timeline card pre
   assert.equal(log.filter(entry=>entry==='commit').length,2,'Undo goes through the editor too');
   assert.deepEqual(server.calls.find(call=>call.path==='/videos/v1/companion/r1/cards/0/undo')!.body,{revision:'rev-1'});
 
-  await act(async()=>button(c,'Remove the filler words').click());await flush();
+  await act(async()=>button(c,'Add a lower third with my name').click());await flush();
   const asked=server.calls.find(call=>call.method==='POST'&&call.path==='/videos/v1/companion')!;
-  assert.deepEqual(asked.body,{message:'Remove the filler words',context:{tab:'edit',screen:'The editor',playhead:6.5,selection:['screen-1'],range:{start:0,end:20}}},'the editor saves first, then its playhead and selection go with the question');
+  assert.deepEqual(asked.body,{message:'Add a lower third with my name',context:{tab:'edit',screen:'The editor',playhead:6.5,selection:['screen-1'],range:{start:0,end:20}}},'the editor saves first, then its playhead and selection go with the question');
   assert.ok(log.includes('flush'));
  }finally{server.restore();await ui.close();}
 });

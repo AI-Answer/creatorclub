@@ -53,7 +53,7 @@ export function suggestions(tab:CompanionTab,facts:SuggestionFacts):string[]{
    ?['What should I say first?','Write a stronger hook','Build the talking points']
    :[scene?`Shorten ${scene} to fit its time`:'Shorten this scene to fit its time','Write a stronger hook','Write the call to action'];
   case 'publish':return ['Write the description',facts.thumbnail?'Is the thumbnail text clear?':'Suggest thumbnail text',...(facts.titled===false?[]:['Is the title ready?'])];
-  case 'edit':return facts.recorded===0?[]:[facts.selected?'Trim the selected clip to the speech':'Cut the pauses','Remove the filler words','Add a title at the start'];
+  case 'edit':return facts.recorded===0?[]:[facts.selected?'Trim the selected clip to the speech':'Cut the pauses','Add a lower third with my name','Add a title at the start'];
   case 'research':return facts.selected?['What do these have in common?','Group these in a frame','Start a video from these']:['What themes do you see here?','Group the cards by theme','Which of these could be a video?'];
  }
 }
@@ -72,7 +72,7 @@ export function greeting(tab:CompanionTab,facts:{scenes:number;tiles?:number;rec
    :'Record one scene at a time, with its talking points beside you. Ask me to shorten a scene, or to write a hook or a call to action with your own writing skills.';
   case 'edit':return facts.recorded===0
    ?'Nothing is recorded yet. Once a scene is, I can cut its pauses and filler words as cards you preview, apply and undo.'
-   :'I see the timeline, its transcript and what you select. Each change I suggest comes as a card you can preview, apply and undo.';
+   :'Tell me what to change, in your own words: add a lower third, move a graphic later, reword a title, zoom in on a point. Each change comes as a card you can preview, apply and undo.';
   case 'publish':return 'Check the title, the thumbnail and the description before it goes out. Ask me for a second opinion on any of them.';
   case 'research':return 'This is your channel\'s own board. Ask what the cards have in common, or ask me to group them or start a video from them: each change comes as a card you can apply and undo.';
  }
