@@ -1,6 +1,7 @@
 import {useCallback,useEffect,useRef,useState} from 'react';
 import type {AiStatus,ClubSettings,Video,Workspace} from '../../shared/club';
 import {setAppearance} from '../appearance';
+import {rememberAiStatus} from './ai-status';
 import {clubFetch} from './api';
 import {Sidebar} from './Sidebar';
 import {autoCollapses,defaultTab,routePath,useHashRoute,videoBackRoute,type Route,type VideoTab} from './routes';
@@ -26,8 +27,12 @@ import {Workspace as VideoWorkspace} from './workspace/Workspace';
 export async function needsOnboarding():Promise<boolean>{
  try{
   if((await clubFetch<ClubSettings>('/settings')).welcomed)return false;
-  const [status,{workspaces}]=await Promise.all([clubFetch<AiStatus>('/ai/status'),clubFetch<{workspaces:Workspace[]}>('/workspaces')]);
-  if(workspaces.length>0&&(status.claude.signedIn||status.codex.signedIn)){
+  const {workspaces}=await clubFetch<{workspaces:Workspace[]}>('/workspaces');
+  // No channel means setup is needed whatever the AI says, so the slow check of the AI accounts (about 15 seconds) is not waited for here: Welcome runs it itself.
+  if(!workspaces.length)return true;
+  const status=await clubFetch<AiStatus>('/ai/status');
+  rememberAiStatus(status);
+  if(status.claude.signedIn||status.codex.signedIn){
    await clubFetch('/settings/welcomed',{method:'POST'}).catch(()=>{});
    return false;
   }
@@ -68,7 +73,9 @@ export default function ClubApp(){
 
 function Shell(){
  const [route,navigate]=useHashRoute();
- const [paletteOpen,setPaletteOpen]=useState(false),[newOpen,setNewOpen]=useState(false),[helpOpen,setHelpOpen]=useState(false);
+ const [paletteOpen,setPaletteOpen]=useState(false),[newOpen,setNewOpen]=useState(false);
+ // `null` is closed; the topic is where Help opens (a step, a word, the shortcuts), empty for the top.
+ const [help,setHelp]=useState<{topic?:string}|null>(null);
  // Bumped when you switch channels, so the sidebar and the screen beside it load that channel afresh.
  const [channelEpoch,setChannelEpoch]=useState(0);
  // `null` follows the route (folded on Record and Edit); true or false is a choice made with the collapse button, kept until you go elsewhere.
@@ -99,9 +106,8 @@ function Shell(){
  },[]);
 
  const switched=useCallback(()=>{setChannelEpoch(n=>n+1);navigate({name:'home'});},[navigate]);
- const addChannel=useCallback(()=>navigate({name:'welcome',step:2}),[navigate]);
- // With no channel, Welcome opens at step 2, where you add yours or start fresh.
- const startChannel=useCallback(()=>navigate({name:'welcome',step:2}),[navigate]);
+ // Adding a channel has one entry: Welcome from its first step, from the channel menu, Settings and the empty screens alike. Step 1 is quick when the AI is already known to be connected.
+ const addChannel=useCallback(()=>navigate({name:'welcome'}),[navigate]);
  const openNewVideo=useCallback(()=>setNewOpen(true),[]);
 
  let screen;
@@ -113,16 +119,16 @@ function Shell(){
   case 'video':screen=<VideoRoute id={route.id} tab={route.tab} navigate={navigate}/>;break;
   case 'settings':screen=<SettingsScreen section={route.section} onSetup={addChannel}/>;break;
  }
- if(needsChannel(route)&&channel!=='ready')screen=channel==='none'?<NoChannel onStart={startChannel}/>:<div className="flex flex-1 items-center justify-center"><Spinner label="Loading" size={20}/></div>;
+ if(needsChannel(route)&&channel!=='ready')screen=channel==='none'?<NoChannel onStart={addChannel}/>:<div className="flex flex-1 items-center justify-center"><Spinner label="Loading" size={20}/></div>;
  const collapsed=sidebarOpen===null?autoCollapses(route):!sidebarOpen;
  return <div className="shell">
-  {route.name!=='welcome'&&<Sidebar route={route} collapsed={collapsed} onToggle={()=>setSidebarOpen(collapsed)} onSearch={()=>setPaletteOpen(true)} onHelp={()=>setHelpOpen(true)} onSwitched={switched} onAdd={addChannel} videos={videos} epoch={channelEpoch}/>}
+  {route.name!=='welcome'&&<Sidebar route={route} collapsed={collapsed} onToggle={()=>setSidebarOpen(collapsed)} onSearch={()=>setPaletteOpen(true)} onHelp={()=>setHelp({})} onSwitched={switched} onAdd={addChannel} videos={videos} epoch={channelEpoch}/>}
   <div className="main-col">
    {window.sceneForge&&<div className="club-drag main-drag" aria-hidden/>}
    <main key={channelEpoch} ref={main} className="main" id="main"><ScreenBoundary key={route.name==='video'?`video/${route.id}`:path}>{screen}</ScreenBoundary></main>
   </div>
-  {paletteOpen&&<Palette videos={videos} onClose={()=>setPaletteOpen(false)} onOpen={navigate} onNewVideo={()=>setNewOpen(true)}/>}
+  {paletteOpen&&<Palette videos={videos} openId={route.name==='video'?route.id:null} onClose={()=>setPaletteOpen(false)} onOpen={navigate} onNewVideo={()=>setNewOpen(true)} onHelp={topic=>setHelp({topic})}/>}
   {newOpen&&<NewVideo onClose={()=>setNewOpen(false)} onOpen={navigate}/>}
-  {helpOpen&&<Help onClose={()=>setHelpOpen(false)}/>}
+  {help&&<Help topic={help.topic} onClose={()=>setHelp(null)}/>}
  </div>;
 }

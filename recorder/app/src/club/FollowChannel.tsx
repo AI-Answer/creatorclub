@@ -21,5 +21,5 @@ export function FollowChannel({item}:{item:Pick<TrendingEntry,'kind'|'channel'|'
   setState('busy');
   follow(target).then(()=>setState('done'),()=>setState('failed'));
  };
- return <button type="button" className="linkish small follow-channel" disabled={state==='busy'} onClick={click}>{state==='failed'?"Couldn't follow. Try again":'Follow this channel'}</button>;
+ return <button type="button" className="linkish small follow-channel" title="Adds this channel to the ones CreatorClub reads for new videos" disabled={state==='busy'} onClick={click}>{state==='failed'?"Couldn't follow. Try again":'Follow this channel'}</button>;
 }
