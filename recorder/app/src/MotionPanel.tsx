@@ -23,7 +23,7 @@ export function MotionPanel({project:p,selected,playhead,change,select,notify,cl
  };
  return <>
   <section className="inspector-section"><h3>Add at the playhead</h3><p className="hint">Animated graphics on their own Motion row. The preview plays them as the export renders them.</p>
-   <div className="element-grid">{MOTION_TEMPLATE_IDS.map(id=><button key={id} type="button" onClick={()=>add(id)}><span>{id==='title-card'?'T':id==='lower-third'?'▁':id==='callout'?'↘':'#'}</span>{MOTION_TEMPLATES[id].label}</button>)}</div>
+   <div className="element-grid motion-gallery">{MOTION_TEMPLATE_IDS.map(id=><button key={id} type="button" onClick={()=>add(id)}><span className={`motion-mini mm-${id}`} aria-hidden="true"><i/><i/></span><b>{MOTION_TEMPLATES[id].label}</b></button>)}</div>
   </section>
   {block?<BlockFields key={block.id} project={p} block={block} change={change}/>:
    <section className="inspector-section"><h3>{club?'In this video':'In this project'}</h3>{(p.motion??[]).map(m=><button key={m.id} type="button" className="list-item" onClick={()=>select(m.id)}><span>{MOTION_TEMPLATES[m.template]?.label}: {motionText(m)}</span><small>{timecode(m.start)}</small></button>)}{!p.motion?.length&&<p className="hint">Nothing yet. Add one above, or ask the companion: “add a lower third at 0:12”.</p>}</section>}

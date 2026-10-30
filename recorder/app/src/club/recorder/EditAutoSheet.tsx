@@ -96,8 +96,8 @@ export function EditAutoSheet({project:p,jobs,merge,reload,flush,change,refresh,
   onClick={event=>{if((event.target as HTMLElement).closest('button,input'))return;setPin(option);}} onKeyDown={event=>keys(event,option)}>
   <div className="club-auto-title">{icon}{title}</div><div className="club-auto-desc">{describe(option)}</div>{extra}
  </div>;
- return <aside className="club-sheet club-auto-sheet" aria-label="Auto-edit and style">
-  <header><b>Auto-edit and style</b><button type="button" className="club-sheet-close" aria-label="Close auto-edit and style" onClick={onClose}><Icon name="close" size={16}/></button></header>
+ return <aside className="club-sheet club-auto-sheet" aria-label="Auto-edit">
+  <header><b>Auto-edit</b><button type="button" className="club-sheet-close" aria-label="Close auto-edit" onClick={onClose}><Icon name="close" size={16}/></button></header>
   <p className="club-sheet-hint">Hover to preview · click to choose · Enter to apply</p>
   <div className="club-sheet-body" ref={list} role="list">
    {row('pauses',<Icon name="cut" size={15}/>,'Remove pauses',<>

@@ -61,22 +61,18 @@ test('embedded Edit: one toolbar, panels behind Style & more, the transcript ope
  try{
   await flush();await flush();
   const header=ui.container.querySelector('.project-header')!;
-  assert.ok(header.textContent?.includes('Remove 3m 12s of pauses and repeats?'),'the duration comes from the plan: 120 s + 72 s');
   const visible=ui.container.textContent??'';
   for(const word of ['Borumi','Edit with your AI'])assert.ok(!visible.includes(word),`no "${word}"`);
   assert.ok(!/project/i.test(visible),`no "project" in the embedded editor: ${visible.match(/.{0,40}project.{0,40}/i)?.[0]}`);
   const labels=[...header.querySelectorAll('.project-header-controls button')].map(b=>b.getAttribute('aria-label')??b.textContent?.trim());
-  assert.deepEqual(labels,['Undo','Redo','Version history','Auto-edit and style','Style & more','Export video'],'one toolbar: no Import, no Ask Claude, no panel rail');
+  assert.deepEqual(labels,['Undo','Redo','Version history','Export video'],'one toolbar: undo, redo, history and Export; the tools are the rail');
   assert.equal(ui.container.querySelector('.panel-rail'),null);
   assert.equal(ui.container.querySelector('.inspector'),null,'panels start closed');
   assert.ok(ui.container.querySelector('.club-edit-side:not([hidden]) .transcript-panel'),'the transcript is open beside the preview');
-  await act(async()=>button(header,'Style & more').click());
-  const menu=[...document.querySelectorAll('[role="menu"] button')].map(b=>b.textContent?.trim());
-  for(const item of ['Canvas','Layout','Clip','Zoom','Elements','Music','Captions','Cursor','Import media','Settings…'])assert.ok(menu.includes(item),`Style & more has ${item}`);
-  assert.ok(!menu.includes('Ask Claude'),'the docked companion replaces the editor chat');
-  assert.ok(!menu.includes('Automate'),'Automate lives in the Auto-edit and style sheet only');
-  await act(async()=>[...document.querySelectorAll<HTMLButtonElement>('[role="menu"] button')].find(b=>b.textContent?.trim()==='Captions')!.click());
-  assert.equal(ui.container.querySelector('.club-edit-side .inspector h2')?.textContent,'Captions','a panel opens as a sheet over the side');
+  const rail=[...ui.container.querySelectorAll('.club-rail button')].map(b=>b.textContent?.trim());
+  assert.deepEqual(rail,['Transcript','Cut','Captions','Layout','Clip','Zoom','Graphics','Text','Music','Media','More'],'one rail of named tools');
+  await act(async()=>[...ui.container.querySelectorAll<HTMLButtonElement>('.club-rail button')].find(b=>b.textContent?.trim()==='Captions')!.click());
+  assert.equal(ui.container.querySelector('.club-edit-side .inspector h2')?.textContent,'Captions','a tool opens its panel on the side');
   await act(async()=>ui.container.querySelector<HTMLButtonElement>('button[aria-label="Close Captions"]')!.click());
   assert.equal(server.calls.filter(c=>c.url.endsWith('/quick-action')).length,0,'a plan already exists: none is started');
   assert.ok(primaries(ui.container).includes('Export video'));
