@@ -28,14 +28,15 @@ export const VIDEO_STEPS:readonly StepInfo[]=videoTabs.map(tab=>({tab,name:TAB_L
 export const FIND_IDEA={name:'Discover',does:'See which videos in your topics are doing well and keep the concept you would make.'};
 
 /** One sentence naming the five steps, for places that only have room for that. */
-export const STEPS_SENTENCE=`Every video goes through ${VIDEO_STEPS.length} steps: ${VIDEO_STEPS.map(step=>step.name).join(', ')}.`;
+export const STEP_NAMES=VIDEO_STEPS.map(step=>step.name).join(', ');
+export const STEPS_SENTENCE=`Every video goes through five steps: ${STEP_NAMES}.`;
 
 export interface Term{term:string;means:string}
 
 /** The words the app uses, in the order a beginner meets them. */
 export const GLOSSARY:readonly Term[]=[
  {term:'Channel',means:'The YouTube channel you make videos for. CreatorClub learns its topics and how you talk, then looks for ideas that fit.'},
- {term:'Idea',means:'A video you might make. It waits in the first lane of Videos until you start planning it.'},
+ {term:'Idea',means:'A video you might make. It waits in the first column of Videos until you start planning it.'},
  {term:'Video',means:'One card that goes from idea to published. It has a board, a plan, scenes, takes and an export.'},
  {term:'Board',means:'A canvas for one video where you gather links, notes, screenshots and files, and ask Claude about them.'},
  {term:'Package',means:'The title, the thumbnail text and the hook that make people click and keep watching.'},

@@ -174,7 +174,7 @@ test('Cmd+K opens search over actions, steps, places, settings and videos; typin
   assert.equal(c.querySelector('.palette'),null);
   await keyDown(window,'k',{metaKey:true});
   assert.ok(c.querySelector('.palette'));assert.ok(document.activeElement===c.querySelector('.palette input'));
-  const options=()=>[...c.querySelectorAll('.palette .po .lbl')].map(o=>o.textContent);
+  const options=()=>[...c.querySelectorAll('.palette .po .po-label')].map(o=>o.textContent);
   const kinds=()=>[...c.querySelectorAll('.palette .po .k')].map(o=>o.textContent);
   assert.deepEqual(options().slice(0,3),['New video','Add a channel','Help']);
   assert.ok(options().includes('Record')&&options().includes('Publish'),'the steps are listed');
@@ -203,12 +203,12 @@ test('search finds steps, settings groups, actions and help words, and a step op
   const first=()=>c.querySelector('.palette .po')!;
   for(const [word,expected] of [['help','Help'],['record','Record'],['publish','Publish'],['scene','Scene'],['channel','Channel']] as const){
    await type(input(),word);
-   const labels=[...c.querySelectorAll('.palette .po .lbl')].map(o=>o.textContent);
+   const labels=[...c.querySelectorAll('.palette .po .po-label')].map(o=>o.textContent);
    assert.ok(labels.length>0,`"${word}" finds something`);
    assert.ok(labels.includes(expected),`"${word}" finds ${expected}: ${labels.join(', ')}`);
   }
   await type(input(),'publish');
-  assert.equal(first().querySelector('.lbl')!.textContent,'Publish');
+  assert.equal(first().querySelector('.po-label')!.textContent,'Publish');
   assert.match(first().textContent!,/Open it on "Agents for small shops"/);
   await keyDown(input(),'Enter');
   assert.equal(window.location.hash,'#/video/r1/publish','the step opens on the open video');
@@ -218,7 +218,7 @@ test('search finds steps, settings groups, actions and help words, and a step op
   assert.equal(window.location.hash,'#/settings/followed','a settings group opens that section');
   await keyDown(window,'k',{metaKey:true});
   await type(input(),'scene');
-  const scene=[...c.querySelectorAll('.palette .po')].find(o=>o.querySelector('.lbl')!.textContent==='Scene')!;
+  const scene=[...c.querySelectorAll('.palette .po')].find(o=>o.querySelector('.po-label')!.textContent==='Scene')!;
   await press(scene);
   assert.equal(c.querySelector('.palette'),null);
   assert.match(c.querySelector('[role="dialog"]')!.textContent!,/How CreatorClub works/,'a word of help opens Help');

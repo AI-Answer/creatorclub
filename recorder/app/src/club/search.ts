@@ -41,7 +41,7 @@ export function fixedOptions(videos:readonly Video[],openId?:string|null):Search
   {id:'action:new-video',label:'New video',kind:'Action',icon:'add',hint:'Start from a title or break down a link',words:'create idea start make',target:{action:'new-video'}},
   {id:'action:add-channel',label:'Add a channel',kind:'Action',icon:'youtube',hint:'Add your YouTube channel or start fresh',words:'setup welcome first launch connect new',target:{route:{name:'welcome'}}},
   {id:'action:help',label:'Help',kind:'Action',icon:'help',hint:'How CreatorClub works',words:'how guide steps glossary shortcuts where things live learn',target:{action:'help'}},
-  {id:'action:shortcuts',label:'Keyboard shortcuts',kind:'Action',icon:'keyboard',hint:SHORTCUTS[0].keys+' and more',words:'keys hotkeys',target:{action:'help',topic:'shortcuts'}},
+  {id:'action:shortcuts',label:'Keyboard shortcuts',kind:'Action',icon:'keyboard',hint:SHORTCUTS[0].keys+' and more',words:'help keys hotkeys keyboard',target:{action:'help',topic:'shortcuts'}},
   ...steps,
   {id:'page:home',label:'Home',kind:'Page',icon:'home',hint:'What to do next',words:'overview next',target:{route:{name:'home'}}},
   {id:'page:discover',label:FIND_IDEA.name,kind:'Page',icon:'trending',hint:'What works outside your channel',words:'trending signals outliers youtube x reddit find idea',target:{route:{name:'discover'}}},
@@ -49,7 +49,7 @@ export function fixedOptions(videos:readonly Video[],openId?:string|null):Search
   {id:'page:table',label:'Videos table',kind:'Page',icon:'table',words:'list',target:{route:{name:'videos',view:'table'}}},
   {id:'page:calendar',label:'Videos calendar',kind:'Page',icon:'calendar',words:'schedule publish date',target:{route:{name:'videos',view:'calendar'}}},
   {id:'page:settings',label:'Settings',kind:'Page',icon:'settings',hint:'Your AI, channel and publishing',words:'preferences',target:{route:{name:'settings'}}},
-  ...SETTINGS.map<SearchOption>(item=>({id:`settings:${item.section}`,label:item.label,kind:'Settings',icon:'settings',words:item.words,target:{route:{name:'settings',section:item.section}}})),
+  ...SETTINGS.map<SearchOption>(item=>({id:`settings:${item.section}`,label:item.label,kind:'Settings',icon:'settings',words:`settings ${item.words}`,target:{route:{name:'settings',section:item.section}}})),
   ...GLOSSARY.map<SearchOption>(item=>({id:`help:${item.term}`,label:item.term,kind:'Help',icon:'help',hint:item.means,words:'meaning glossary what is',target:{action:'help',topic:`term:${item.term}`}})),
  ];
 }
@@ -70,7 +70,7 @@ const norm=(text:string)=>text.toLowerCase();
 export function scoreOption(option:SearchOption,query:string):number|null{
  const words=norm(query).split(/\s+/).filter(Boolean);
  if(!words.length)return 0;
- const label=norm(option.label),rest=norm(`${option.hint??''} ${option.words??''} ${option.kind}`);
+ const label=norm(option.label),rest=norm(`${option.hint??''} ${option.words??''}`);
  let score=0;
  for(const [index,word] of words.entries()){
   if(label.startsWith(word)||label.split(/\s+/).some(part=>part.startsWith(word)))score+=index===0&&label.startsWith(word)?30:20;

@@ -40,7 +40,7 @@ export function Palette({videos,openId,onClose,onOpen,onNewVideo,onHelp}:{videos
    </div>
    <div className="pl" id={listId} role="listbox" aria-label="Results">
     {options.length?options.map((option,at)=><div key={option.id} id={optionId(at)} role="option" aria-selected={at===index} className={`po${at===index?' on':''}`} ref={element=>{if(at===index)element?.scrollIntoView?.({block:'nearest'});}} onMouseEnter={()=>setIndex(at)} onClick={()=>pick(option)}>
-     <Icon name={option.icon} size={16} className="faint"/><span className="lbl">{option.label}</span>{option.hint&&<span className="hint ellipsis">{option.hint}</span>}<span className="k">{option.kind}</span>
+     <Icon name={option.icon} size={16} className="faint"/><span className="po-label">{option.label}</span>{option.hint&&<span className="po-hint">{option.hint}</span>}<span className="k">{option.kind}</span>
     </div>):<div className="po faint">Nothing matches "{query}". Try a step, a setting or a word from the title.</div>}
    </div>
   </div>

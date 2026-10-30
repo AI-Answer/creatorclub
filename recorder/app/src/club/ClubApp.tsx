@@ -112,7 +112,7 @@ function Shell(){
 
  let screen;
  switch(route.name){
-  case 'welcome':screen=<WelcomeScreen navigate={navigate} initialStep={route.step}/>;break;
+  case 'welcome':screen=<WelcomeScreen navigate={navigate} initialStep={route.step??1}/>;break;
   case 'home':screen=<HomeScreen navigate={navigate} onNewVideo={openNewVideo}/>;break;
   case 'discover':screen=<DiscoverScreen show={route.show} navigate={navigate}/>;break;
   case 'videos':screen=<VideosScreen route={route} navigate={navigate} onNewVideo={openNewVideo}/>;break;
