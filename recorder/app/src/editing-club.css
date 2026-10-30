@@ -23,21 +23,22 @@
 /* Toolbar: the video's name is in the breadcrumb; SceneForge's own title bar and workspace tabs are hidden. */
 .club-embed .app-shell[data-mode=Edit] .titlebar,
 .club-embed .app-shell[data-mode=Edit] .workspace-nav{display:none}
-.club-embed .app-shell[data-mode=Edit] .project-header{background:var(--cc-card);border-color:var(--cc-line);min-height:52px;height:52px;padding:0 16px;gap:16px}
+/* The suggestion keeps room for its sentence (two lines at most); when the toolbar is too narrow for both, the controls drop to a row of their own instead of squeezing it. */
+.club-embed .app-shell[data-mode=Edit] .project-header{background:var(--cc-card);border-color:var(--cc-line);min-height:52px;height:auto;padding:4px 16px;gap:4px 16px;flex-wrap:wrap}
 .club-embed .app-shell[data-mode=Edit] .project-header-controls{gap:4px}
 .club-embed .app-shell[data-mode=Edit] .project-header-controls .button.subtle{font-size:13px;min-height:32px;border-radius:8px;color:var(--cc-ink);gap:6px}
 .club-embed .app-shell[data-mode=Edit] .project-header-controls .button.subtle.is-active{background:var(--cc-subtle)}
 .club-embed .app-shell[data-mode=Edit] .project-header-controls .icon-button{color:var(--cc-muted);border-radius:8px}
 
 /* The one suggestion, and Export video. */
-.club-embed .app-shell[data-mode=Edit] .club-edit-suggestion{display:flex;align-items:center;gap:10px;min-width:0;padding:6px 6px 6px 12px;border:1px solid var(--cc-line);border-radius:12px;background:var(--cc-page);font-size:14px;color:var(--cc-ink)}
+.club-embed .app-shell[data-mode=Edit] .club-edit-suggestion{flex:1 1 420px;max-width:560px;display:flex;align-items:center;gap:10px;min-width:0;padding:6px 6px 6px 12px;border:1px solid var(--cc-line);border-radius:12px;background:var(--cc-page);font-size:14px;color:var(--cc-ink)}
 .club-embed .app-shell[data-mode=Edit] .club-edit-suggestion>span{min-width:0;line-height:1.25;overflow-wrap:anywhere}
 /* With the companion docked beside Edit the toolbar is narrower: its buttons stay on one line and the suggestion's sentence gives way first. */
 .club-embed .app-shell[data-mode=Edit] .project-header :is(.club-edit-suggestion,.project-header-controls) button{white-space:nowrap;flex-shrink:0}
-.club-embed .app-shell[data-mode=Edit] .project-header-controls{flex-shrink:0}
+.club-embed .app-shell[data-mode=Edit] .project-header-controls{flex-shrink:0;margin-left:auto}
 /* In a narrow window (the companion beside a 1100 px window) Auto-edit and Style & more show their icons only; their names stay as label and tooltip. */
 @media (max-width:1279px){.club-embed .app-shell[data-mode=Edit] .project-header-controls .club-label{display:none}}
-.club-embed .app-shell[data-mode=Edit] .club-edit-suggestion.is-quiet{border-color:transparent;background:transparent;padding-left:0;color:var(--cc-muted);font-size:13px}
+.club-embed .app-shell[data-mode=Edit] .club-edit-suggestion.is-quiet{flex:0 1 auto;border-color:transparent;background:transparent;padding-left:0;color:var(--cc-muted);font-size:13px}
 .club-embed .app-shell[data-mode=Edit] .club-edit-dismiss{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:8px;color:var(--cc-muted)}
 .club-embed .app-shell[data-mode=Edit] .club-edit-dismiss:hover{background:var(--cc-subtle);color:var(--cc-ink)}
 .club-embed .app-shell[data-mode=Edit] .club-export{display:flex;align-items:center;gap:8px;margin-left:8px;font-size:13px;color:var(--cc-muted)}
@@ -202,3 +203,8 @@
 .club-embed .app-shell[data-mode=Edit] .comparison-switch [aria-pressed=true]{background:var(--cc-accent);border-color:var(--cc-accent);color:var(--cc-on-accent)}
 .club-embed .app-shell[data-mode=Edit] .button.subtle.is-active{border-color:var(--cc-line-strong)}
 .club-embed .app-shell[data-mode=Edit] :is(.icon-button,.button).is-active:not(.subtle){color:var(--cc-accent-text);background:var(--cc-accent-soft)}
+
+/* A short window (the companion beside a 700 px tall one): the captions notice scrolls inside its own box and the transcript keeps its place, so the two never overlap. */
+.club-embed .app-shell[data-mode=Edit] .transcript-panel .transcription-status{flex:0 1 auto;max-height:34%;min-height:0;overflow:auto}
+.club-embed .app-shell[data-mode=Edit] .transcript-panel .transcript-editor{min-height:0;overflow:hidden}
+.club-embed .app-shell[data-mode=Edit] .transcript-panel .transcript-word-list{min-height:0;padding-bottom:12px}
