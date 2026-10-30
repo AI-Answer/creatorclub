@@ -25,6 +25,8 @@ export type ExportLookup = (exportId: string) => Promise<ExportedFile | undefine
 export interface PublishingOptions {
   /** Finds a finished export. Without it, nothing can be published. */
   exportFile?: ExportLookup;
+  /** Whether a recording project has a finished MP4 export, for the rule on moving a video to Publishing. Without it, none has. */
+  projectExported?: (projectId: string) => Promise<boolean>;
   readViews: ViewsReader;
   /** How long Publish now waits for Postiz to report the video on YouTube, and how often it asks. */
   waitMs?: number;

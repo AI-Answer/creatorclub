@@ -16,5 +16,15 @@ export function sceneStatus(scene: SceneProgress, pausesRemoved = false): { k: S
   return { k: 'none', label: 'Not recorded' };
 }
 
+/**
+ * Whether a scene is recorded: it has a kept take (one on the timeline). A take that was recorded but not kept does not count,
+ * because the video does not use it. The one rule behind every "scenes recorded" count (Home, the cards, the table, the strip, Publish).
+ */
+export const isSceneRecorded = <T extends { kept?: boolean }>(scene: { takes: readonly T[] }) => scene.takes.some((take) => take.kept);
+
 /** How many scenes have a kept take. */
-export const recordedCount = (scenes: readonly SceneProgress[]) => scenes.filter((scene) => scene.takes.some((take) => take.kept)).length;
+export const recordedCount = <T extends { kept?: boolean }>(scenes: readonly { takes: readonly T[] }[]) => scenes.filter(isSceneRecorded).length;
+
+/** "1 of 4 scenes recorded". */
+export const recordedLine = <T extends { kept?: boolean }>(scenes: readonly { takes: readonly T[] }[]) =>
+  `${recordedCount(scenes)} of ${scenes.length} ${scenes.length === 1 ? 'scene' : 'scenes'} recorded`;

@@ -48,7 +48,7 @@ export const scriptFile = (slug: string, id: string) => path.join(store.videoDir
 /** Tests pass `runAI` to answer without a real model. */
 export interface PlanOptions extends Pick<RunAIOptions, 'extraDirs'> {
   runAI?: typeof runAI;
-  /** Package run only: the group (titles or hook) the person asked to write again; it is replaced whole. Everything else fills only what is empty. */
+  /** Package run only: the group (titles, thumbnail text or hook) the person asked to write again; it is replaced whole. Everything else fills only what is empty. */
   replace?: PackageGroup;
 }
 
@@ -68,6 +68,7 @@ export const packageShape = z
     thumbnailText: text(200),
     hook: z.object({ visual: text(2000), spoken: text(2000), text: text(500) }).strict(),
     description: text(5000).optional(),
+    tags: z.array(z.string().trim().min(1).max(60)).max(30).optional(),
   })
   .strict();
 

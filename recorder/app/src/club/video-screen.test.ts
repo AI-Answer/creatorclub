@@ -55,27 +55,27 @@ test('a video walks from an empty Plan through Write titles and Draft scenes int
  try{
   await flush();
   const c=ui.container;
-  assert.ok(hasText(c,'Why this video gets clicked.'));
-  assert.deepEqual(primaries(c),['Draft scenes from board'],'one primary: the thing to do first');
-  await act(async()=>button(c,'Write with Claude').click());await flush();
-  await act(async()=>[...c.ownerDocument.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(item=>item.textContent==='Write titles')!.click());await flush();
+  assert.ok(hasText(c,'decide whether people click'),'the empty package is one sentence');
+  assert.deepEqual(primaries(c),['Draft scenes from the board'],'one primary: the thing to do first');
+  assert.equal(c.querySelectorAll('.pkg [role="textbox"]').length,0,'an empty package is not a form of empty fields');
+  await act(async()=>button(c,'Write the package with Claude').click());await flush();
   await act(async()=>FakeEventSource.last().emit('progress',{message:'Writing the package…'}));
   assert.ok(hasText(c,'Writing the package…'),'progress streams in');
   const before=announced;
   await act(async()=>FakeEventSource.last().emit('done',{value:pkg}));
   assert.equal(announced,before+1,'a finished plan job tells the sidebar and scene dots to reload');
-  const titles=()=>[...c.querySelectorAll('.topt [role="textbox"]')].map(t=>t.textContent);
+  const titles=()=>[...c.querySelectorAll('.tline:not(.own) [role="textbox"]')].map(t=>t.textContent);
   assert.deepEqual(titles(),pkg.titles,'the package fills editable fields');
-  await edit(c.querySelector('.topt [role="textbox"]'),'Claude Code features nobody uses');
-  await act(async()=>[...c.querySelectorAll<HTMLElement>('.topt')][1].click());await flush();
+  await edit(c.querySelector('.tline:not(.own) [role="textbox"]'),'Claude Code features nobody uses');
+  await act(async()=>button(c.querySelectorAll('.tline:not(.own)')[1],'Use this title').click());await flush();
   assert.equal(state.video.title,'Seven hidden Claude Code tricks','picking a title makes it the video title');
-  assert.equal(c.querySelectorAll('.topt')[1].getAttribute('aria-checked'),'true');
-  assert.deepEqual(primaries(c),['Draft scenes from board']);
+  assert.ok(c.querySelectorAll('.tline:not(.own)')[1].classList.contains('on'),'and ticks it');
+  assert.deepEqual(primaries(c),['Draft scenes from the board']);
 
-  await act(async()=>button(c,'Draft scenes from board').click());await flush();
+  await act(async()=>button(c,'Draft scenes from the board').click());await flush();
   await act(async()=>FakeEventSource.last().emit('done',{value:outline}));await flush();
   assert.equal(c.querySelectorAll('.scene').length,4,'four scene rows in the outline');
-  assert.ok(button(c,'Write with Claude'),'the script is written from the one Write with Claude menu');
+  assert.equal(c.querySelectorAll('.scn .doc-h button').length,1,'the scenes heading has one Write with Claude menu (script, redraft)');
   await act(async()=>c.querySelectorAll<HTMLElement>('.scene-open')[1].click());await flush();
   await edit(c.querySelector('.scene.open .ed.t'),'Level 1: settings');
   assert.deepEqual(primaries(c),['Continue to recording']);
@@ -111,7 +111,7 @@ test('an AI step can be stopped, a page opened mid-run follows it, and a replace
   await act(async()=>FakeEventSource.last().emit('cancelled',{}));
   assert.ok(!hasText(c,'Starting…'));
 
-  await act(async()=>button(c,'Draft scenes from board').click());await flush();
+  await act(async()=>button(c,'Draft scenes from the board').click());await flush();
   await act(async()=>FakeEventSource.last().emit('done',{value:outline,replaced:'2026-10-29T10-00-00-000Z'}));
   assert.deepEqual(sceneTitles(c),['Opening','Level 1','Where this falls short','Ending']);
   assert.ok(hasText(c,'Replaced the outline'));
@@ -164,28 +164,75 @@ test('a changed outline is flagged',async()=>{
  }finally{await ui.close();server.restore();}
 });
 
-test('Record and Edit without a recording project say what comes first, with one primary button and no Continue',async()=>{
+test('steps that cannot work yet are locked, not dead pages: the step bar says what unlocks them, and choosing one or opening its link goes there and says why',async()=>{
  const editing:Video={...planned,stage:'editing',planning:{research:true,package:true,outline:false}};
  const server=installFetch(call=>{
   if(call.path==='/videos/v1/plan')return {body:{package:null,outline:null}};
   if(call.path==='/videos/v1/scenes')return {body:[]};
   if(call.path==='/settings')return {body:{helpSeen:[]}};
  });
- const seen:VideoTab[]=[];
- const ui=await mountUI(createElement(Workspace,{video:editing,tab:'record',back,navigate:route=>{if(route.name==='video')seen.push(route.tab!);},onVideo:()=>{}}));
+ const {ToastProvider}=await import('./ui');
+ const seen:Array<[VideoTab,boolean]>=[];
+ const page=(tab:VideoTab)=>createElement(ToastProvider,null,createElement(Workspace,{video:editing,tab,back,navigate:(route,options)=>{if(route.name==='video')seen.push([route.tab!,!!options?.replace]);},onVideo:()=>{}}));
+ const ui=await mountUI(page('plan'));
  try{
-  await flush();
+  await flush();await flush();
   const c=ui.container;
-  for(const [tab,title,action,goes] of [['record','Plan the scenes first','Open plan','plan'],['edit','Nothing recorded yet','Open record','record']] as const){
-   await ui.render(createElement(Workspace,{video:editing,tab,back,navigate:route=>{if(route.name==='video')seen.push(route.tab!);},onVideo:()=>{}}));await flush();
-   assert.ok(hasText(c,title),`${tab} explains what is missing`);
-   assert.ok(!hasText(c,'Create the outline first'));
-   assert.deepEqual(primaries(c),[action],`${tab} has one primary`);
-   assert.ok(![...c.querySelectorAll('button,a')].some(b=>b.textContent?.trim().startsWith('Continue to')),`${tab} offers no Continue`);
-   await act(async()=>button(c,action).click());
-   assert.equal(seen.at(-1),goes);
+  const step=(name:string)=>[...c.querySelectorAll<HTMLAnchorElement>('.tabs a')].find(a=>a.textContent===name)!;
+  for(const name of ['Record','Edit','Publish']){
+   assert.equal(step(name).getAttribute('aria-disabled'),'true',`${name} is locked`);
+   assert.equal(step(name).getAttribute('aria-description'),'Plan the scenes first');
+   assert.ok(step(name).querySelector('.lk'),'with a quiet lock');
+  }
+  assert.equal(step('Board').getAttribute('aria-disabled'),null);
+  // The Continue rule: named, disabled, and the reason beside it.
+  const next=button(c,'Continue to recording');
+  assert.equal(next.disabled,true);assert.equal(next.classList.contains('primary'),false);
+  assert.equal(c.querySelector(`#${next.getAttribute('aria-describedby')}`)?.textContent,'Draft the scenes first');
+  // Choosing a locked step while on the step that unlocks it only explains.
+  await act(async()=>step('Edit').click());await flush();
+  assert.deepEqual(seen,[],'Plan is what unlocks Edit, so the page stays');
+  assert.ok(hasText(c.ownerDocument.body,'Plan the scenes first. Edit opens after that.'));
+  // A link to a locked step opens the step that unlocks it instead, and says why.
+  for(const tab of ['record','edit','publish'] as const){
+   seen.length=0;
+   await ui.render(page(tab));await flush();await flush();
+   assert.deepEqual(seen,[['plan',true]],`${tab} goes to Plan`);
+   assert.ok(!hasText(c,'Open plan')&&!hasText(c,'Nothing recorded yet')&&!hasText(c,'Nothing to publish yet'),'no dead-end page');
   }
   assert.ok(!server.calls.some(call=>call.path==='/videos/v1/move'),'the card is never moved');
+ }finally{await ui.close();server.restore();}
+});
+
+test('the video\'s one menu moves it to a stage or deletes it, asking first; the stage beside the title is not a second menu',async()=>{
+ const server=installFetch(call=>{
+  if(call.path==='/videos/v1/plan')return {body:{package:null,outline:null}};
+  if(call.path==='/videos/v1/scenes')return {body:[]};
+  if(call.path==='/settings')return {body:{helpSeen:[]}};
+  if(call.path==='/videos/v1/move')return {body:{...planned,stage:(call.body as {stage:Video['stage']}).stage}};
+ });
+ const {ToastProvider}=await import('./ui');
+ const routes:Route[]=[];
+ const ui=await mountUI(createElement(ToastProvider,null,createElement(Workspace,{video:planned,tab:'plan',back,navigate:route=>{routes.push(route);},onVideo:()=>{}})));
+ try{
+  await flush();
+  const c=ui.container,doc=c.ownerDocument;
+  assert.equal(c.querySelector('[aria-label="Change stage"]'),null);
+  assert.equal(c.querySelectorAll('.ws-top [aria-label="More for this video"]').length,1);
+  const items=async()=>{await act(async()=>(c.querySelector('[aria-label="More for this video"]') as HTMLElement).click());await flush();return [...doc.querySelectorAll(`[role^="menuitem"]`)] as HTMLElement[];};
+  const labels=(await items()).map(item=>item.textContent?.trim());
+  assert.equal(labels.length,7,'the six stages, then Delete video');assert.equal(labels.at(-1),'Delete video');
+  assert.ok(!labels.some(label=>/Copy link/.test(label!)),'no link to a page that only opens on this computer');
+  await act(async()=>[...doc.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(item=>item.textContent?.trim()==='Delete video')?.click());await flush();
+  assert.match(doc.querySelector('[role="dialog"]')!.textContent!,/Delete this video\?/);
+  await act(async()=>button(doc.body,'Keep it').click());await flush();
+  assert.equal(routes.length,0,'kept: nothing happens');
+  await act(async()=>[...(await items())].find(item=>item.textContent?.trim()==='Delete video')!.click());await flush();
+  await act(async()=>button(doc.querySelector('[role="dialog"]')!,'Delete video').click());await flush();
+  assert.deepEqual(routes.at(-1),back,'back where it was opened from');
+  assert.ok(doc.body.textContent!.includes('Deleted “Hidden features in Claude Code”'));
+  assert.equal(server.calls.some(call=>call.method==='DELETE'),false,'not before the Undo has had its time');
+  await act(async()=>button(doc.body,'Undo').click());
  }finally{await ui.close();server.restore();}
 });
 
@@ -227,10 +274,10 @@ test('Continue on Record moves the card to Editing, and never moves it back',asy
  const ui=await mountUI(createElement(Workspace,{video:recording,tab:'record',back,navigate:route=>{if(route.name==='video')seen.push(route.tab!);},onVideo:()=>{}}));
  try{
   await flush();
-  await act(async()=>button(ui.container,'Continue to edit').click());await flush();
+  await act(async()=>button(ui.container,'Continue to editing').click());await flush();
   assert.deepEqual(moves,[{stage:'editing'}]);assert.deepEqual(seen,['edit']);
   await ui.render(createElement(Workspace,{video:{...recording,stage:'published'},tab:'edit',back,navigate:route=>{if(route.name==='video')seen.push(route.tab!);},onVideo:()=>{}}));
-  await act(async()=>button(ui.container,'Continue to publish').click());await flush();
+  await act(async()=>button(ui.container,'Continue to publishing').click());await flush();
   assert.equal(moves.length,1,'a published video is not moved back');assert.deepEqual(seen,['edit','publish']);
  }finally{await ui.close();server.restore();}
 });
@@ -340,4 +387,48 @@ test('a recording project that is not on this computer says so and offers to sta
   await act(async()=>button(ui.container,'Start the recording again from the plan').click());
   assert.equal(restarted,1);
  }finally{globalThis.fetch=originalFetch;await ui.close();}
+});
+
+test('Publish tags are saved on the package: they are still there after switching step and after reopening the video',async()=>{
+ FakeEventSource.install();
+ const publishing:Video={...planned,stage:'publishing',recorderProjectId:'p1',planning:{research:true,package:true,outline:true}};
+ const scenes=[{id:'a',title:'Opening',seconds:60,takes:[{id:'t1',seconds:30,kept:true,retained:false}],status:'Kept take 1'}];
+ let saved:Package={...pkg};
+ const server=installFetch(({method,path,body})=>{
+  if(path==='/settings')return {body:{helpSeen:[]}};
+  if(path==='/videos/v1/plan')return {body:{running:{},ready:{},package:saved,outline:{scenes:[{id:'a',title:'Opening',talkingPoints:['x'],show:'',seconds:60}]}}};
+  // The server keeps only the fields sent, as PUT /package does.
+  if(path==='/videos/v1/package'&&method==='PUT'){saved={...saved,...(body as Partial<Package>)};return {body:saved};}
+  if(path==='/videos/v1/scenes')return {body:scenes};
+  if(path==='/publishing')return {body:{postiz:{connected:false,address:null,channel:null},defaultVisibility:'public'}};
+  if(path==='/videos/v1/postiz')return {body:null};
+  if(path.startsWith('/api/exports'))return {body:{jobs:[],nextOffset:null}};
+ });
+ const tags=(root:Element)=>[...root.querySelectorAll('.tagsbox .chip')].map(chip=>chip.textContent);
+ const tabs:VideoTab[]=[];
+ let ui=await mountUI(createElement(Harness,{initial:publishing,tabs,start:'publish'}));
+ try{
+  await flush();
+  const c=ui.container;
+  const input=c.querySelector('#pub-tags') as HTMLInputElement;
+  assert.ok(input,'the Publish form');
+  await act(async()=>{Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value')!.set!.call(input,'claude code, ai');input.dispatchEvent(new Event('input',{bubbles:true}));});
+  await act(async()=>{input.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}));});await flush();
+  assert.deepEqual(tags(c),['claude code','ai']);
+  assert.deepEqual(saved.tags,['claude code','ai'],'saved at once, not only when the page is left');
+  assert.deepEqual(server.calls.filter(call=>call.method==='PUT'&&call.path==='/videos/v1/package').at(-1)?.body,{tags:['claude code','ai']},'only the tags are sent');
+  // Switch step and come back.
+  await act(async()=>[...c.querySelectorAll<HTMLElement>('.tabs a, .tabs button')].find(tab=>tab.textContent?.trim().endsWith('Plan'))!.click());await flush();
+  assert.equal(tabs.at(-1),'plan');
+  assert.equal(c.querySelector('#pub-tags'),null,'Plan is open');
+  await act(async()=>[...c.querySelectorAll<HTMLElement>('.tabs a, .tabs button')].find(tab=>tab.textContent?.trim().endsWith('Publish'))!.click());await flush();
+  assert.deepEqual(tags(c),['claude code','ai'],'after switching step');
+  // Remove one: that is saved too.
+  await act(async()=>(c.querySelector('button[aria-label="Remove ai"]') as HTMLElement).click());await flush();
+  assert.deepEqual(saved.tags,['claude code']);
+ }finally{await ui.close();}
+ // Reopen: a new page reads the package from the server.
+ ui=await mountUI(createElement(Harness,{initial:publishing,tabs,start:'publish'}));
+ try{await flush();assert.deepEqual(tags(ui.container),['claude code'],'after reopening');}
+ finally{await ui.close();server.restore();}
 });

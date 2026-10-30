@@ -227,6 +227,8 @@ export interface Package {
   hook: { visual: string; spoken: string; text: string };
   /** The YouTube description as edited in Publish. Unset until it is edited: Publish then starts from the hook, the angle and the chapters. */
   description?: string;
+  /** The YouTube tags as edited in Publish. Unset until a tag is added. */
+  tags?: string[];
 }
 
 export interface OutlineScene {
@@ -513,6 +515,8 @@ export interface SignalsResponse {
   errors: string[];
   /** How many sources are set up (X accounts, X searches and subreddits). Zero means Refresh has nothing to read. */
   sources: number;
+  /** The same, by where they are read: X accounts and searches, and subreddits. */
+  sourcesBy: { x: number; reddit: number };
 }
 
 /** Where Signals reads from (`signals-config.json`). Every number has a default. */
@@ -544,8 +548,10 @@ export interface SignalsRefreshResult {
   posts: number;
   added: number;
   errors: string[];
-  /** How many sources were tried. When it equals the number in `errors`, nothing could be read. */
+  /** How many sources were tried. When it equals the number in `failed`, nothing could be read. */
   tried: number;
+  /** The sources tried this time that could not be read (`errors` also keeps those not tried this time). */
+  failed: string[];
   note?: string;
 }
 

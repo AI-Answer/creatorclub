@@ -18,7 +18,7 @@ const pkg:Package={angle:'Most people use one feature.',twist:'',titles:['A','B'
 const scenes:VideoScene[]=[{id:'a',title:'Opening',seconds:60,takes:[{id:'t',seconds:60,kept:true,retained:false}],status:'Kept take 1'},{id:'b',title:'Level 1',seconds:90,takes:[],status:'Not recorded'}];
 const output='/Users/me/SceneForge/exports/Hidden features-e1.mp4';
 const exported:ExportRecord={id:'e1',type:'export',status:'complete',progress:1,message:'',outputPath:output,startedAt:'2026-10-28T10:00:00.000Z',completedAt:'2026-10-28T10:01:00.000Z',projectId:'p1',projectName:'Hidden features',projectRevision:'r',snapshotCreatedAt:'',options:{format:'mp4'},updatedAt:'',revision:1,output:{status:'available'},recovery:{status:'available',runtimeChanged:false}};
-const props={video,pkg,scenes,onVideo:()=>{},onDescription:()=>{},onGoTo:()=>{},onRetry:()=>{}};
+const props={video,pkg,scenes,onVideo:()=>{},onDescription:()=>{},onTags:()=>{},onGoTo:()=>{},onRetry:()=>{}};
 
 const connected={postiz:{connected:true,address:null,channel:{id:'int_yt1',name:'Samin Yasar'}},defaultVisibility:'public'};
 const notConnected={postiz:{connected:false,address:null,channel:null},defaultVisibility:'public'};
@@ -45,8 +45,13 @@ async function withPublish(options:{state?:object;record?:object|null;reply?:Par
   if(call.path==='/videos/v1/thumbnail')return {status:204};
   if(call.path==='/videos/v1'&&call.method==='GET')return {body:{...video,stage:'published',youtubeUrl:sent.url,publishedAt:'2026-10-29T12:00:00.000Z'}};
  });
- // The app keeps the video and hands the new one down when it changes, as the workspace does.
- const Harness=()=>{const [current,setCurrent]=useState<Video>((options.props as {video?:Video}|undefined)?.video??video);return createElement(Publish,{...props,...options.props,video:current,onVideo:(next:Video)=>{changes.push(next);setCurrent(next);}});};
+ // The app keeps the video and the package and hands the new ones down when they change, as the workspace does.
+ const Harness=()=>{
+  const given=options.props as {video?:Video;pkg?:Package|null}|undefined;
+  const [current,setCurrent]=useState<Video>(given?.video??video);
+  const [shown,setShown]=useState<Package|null>(given&&'pkg' in given?given.pkg??null:pkg);
+  return createElement(Publish,{...props,...options.props,video:current,pkg:shown,onTags:(tags:string[])=>setShown(was=>({...(was??pkg),tags})),onVideo:(next:Video)=>{changes.push(next);setCurrent(next);}});
+ };
  const ui=await mountUI(createElement(Harness));
  try{await flush();await run(ui,server,changes);}finally{await ui.close();server.restore();}
 }
@@ -58,7 +63,7 @@ test('Publish: the export line, Postiz connected, the form YouTube asks for, and
   assert.ok(text.includes('Video exported')&&text.includes('Hidden features-e1.mp4'),'the newest export');
   assert.ok(text.includes('Postiz connected.')&&text.includes('Posts to Samin Yasar on YouTube.'));
   assert.equal(field(c,'pub-title').value,video.title);
-  assert.equal((c.querySelector('#pub-desc') as HTMLTextAreaElement).value,'You never opened this.\n\nMost people use one feature.\n\nChapters\n0:00 Opening\n1:00 Level 1');
+  assert.equal((c.querySelector('#pub-desc') as HTMLTextAreaElement).value,'You never opened this.\n\nMost people use one feature.','no chapters until the timeline is read');
   assert.equal((c.querySelector('#pub-vis') as HTMLSelectElement).value,'public');
   assert.deepEqual([...c.querySelectorAll('input[name=kids]')].map(input=>(input as HTMLInputElement).checked),[false,false],'made for kids has no default');
   assert.deepEqual(primaries(c),['Publish now']);
@@ -71,9 +76,10 @@ test('Publish: the export line, Postiz connected, the form YouTube asks for, and
 test('Publish now needs the made-for-kids answer; then it sends the form and follows the job to the link',async()=>{
  await withPublish({},async(ui,server,changes)=>{
   const c=ui.container;
+  assert.equal(button(c,'Publish now').disabled,true,'it cannot be pressed without the answer');
+  assert.equal(c.querySelector('#pub-why')?.textContent,"Choose whether it's made for kids, which YouTube requires.",'and says why beside it');
   await click(button(c,'Publish now'));
   assert.equal(posts(server.calls).length,0,'nothing is sent without the answer');
-  assert.ok(c.textContent?.includes("Choose one, because YouTube won't accept the video without it."));
   await type(c.querySelector('#pub-tags')!,'claude');await key(c.querySelector('#pub-tags')!,'Enter');
   await type(c.querySelector('#pub-tags')!,'ai agents, mods');await key(c.querySelector('#pub-tags')!,'Enter');
   assert.deepEqual([...c.querySelectorAll('.tagsbox .chip')].map(chip=>chip.textContent),['claude','ai agents','mods']);
@@ -81,7 +87,7 @@ test('Publish now needs the made-for-kids answer; then it sends the form and fol
   await click(c.querySelector('input[name=kids][value=no]'));
   await type(field(c,'pub-title'),'A better title');
   await click(button(c,'Publish now'));await flush();
-  assert.deepEqual(posts(server.calls)[0].body,{exportId:'e1',title:'A better title',description:'You never opened this.\n\nMost people use one feature.\n\nChapters\n0:00 Opening\n1:00 Level 1',tags:['claude','ai agents','mods'],visibility:'unlisted',madeForKids:false});
+  assert.deepEqual(posts(server.calls)[0].body,{exportId:'e1',title:'A better title',description:'You never opened this.\n\nMost people use one feature.',tags:['claude','ai agents','mods'],visibility:'unlisted',madeForKids:false});
   assert.equal(FakeEventSource.last().url,'/api/club/jobs/j1/events');
   assert.ok(c.textContent?.includes('Exported the video')&&!c.querySelector('#pub-title'),'the form gives way to the progress');
   await act(async()=>{FakeEventSource.last().emit('progress',{step:'upload',message:'x',percent:42});});
@@ -123,6 +129,7 @@ test('Schedule for later asks for a time, refuses one that has passed, and sends
   assert.match(like(c,/^Schedule for/).textContent!,/^Schedule for \w{3} \d+ \w{3}, 15:00$/);
   await click(c.querySelector('input[name=kids][value=no]'));
   await type(at,'2020-01-01T10:00');
+  assert.equal(like(c,/^Schedule for/).disabled,true);
   await click(like(c,/^Schedule for/));
   assert.ok(c.textContent?.includes('Pick a time in the future.'));
   assert.equal(posts(server.calls).length,0);
@@ -149,8 +156,10 @@ test('without Postiz connected Publish says so and the key is entered once, righ
  }},async(ui,server)=>{
   const c=ui.container;
   await click(c.querySelector('input[name=kids][value=no]'));
+  assert.equal(button(c,'Publish now').disabled,true,'Publish now looks and is unavailable until Postiz is connected');
+  assert.equal(c.querySelector('#pub-why')?.textContent,'Connect Postiz first.');
+  assert.equal(button(c,'Publish now').getAttribute('aria-describedby'),'pub-why');
   await click(button(c,'Publish now'));
-  assert.ok(c.textContent?.includes('Connect Postiz first.'));
   assert.equal(posts(server.calls).length,0);
   const input=field(c,'postiz-key');
   assert.equal(input.type,'password');
@@ -331,6 +340,22 @@ test('Publish before anything is recorded leads back to Record, or to Plan witho
  ui=await mountUI(createElement(Publish,{...props,scenes:[],onGoTo:(tab:string)=>goes.push(tab)}));
  try{await flush();await act(async()=>button(ui.container,'Open plan').click());}finally{await ui.close();server.restore();}
  assert.deepEqual(goes,['record','plan']);
+});
+
+test('with the timeline read, the chapters are where the scenes are cut, and unrecorded scenes are named before it goes out',async()=>{
+ const {projectRevision}=await import('../../api');
+ // Planned 1:00 and 1:30, but the cut has the opening at 0:00 only: Level 1 is not recorded.
+ const project={id:'p1',clips:[{id:'c1',start:0.5,recordingTakeId:'t'},{id:'c2',start:0.5,recordingTakeId:'t'}]};
+ const revision=(await projectRevision(project as never)).replaceAll('"','');
+ await withPublish({reply:({path})=>path==='/api/projects/p1'?{body:project}:path.startsWith('/api/exports?projectId=p1')?{body:{jobs:[{...exported,projectRevision:revision}],nextOffset:null}}:undefined},async(ui,server)=>{
+  const c=ui.container;await flush();
+  assert.equal((c.querySelector('#pub-desc') as HTMLTextAreaElement).value,'You never opened this.\n\nMost people use one feature.\n\nChapters\n0:00 Opening');
+  assert.equal(c.querySelector('.pubx-warn[role=status]')?.textContent,"1 of 2 scenes isn't recorded yet, so it isn't in the video.");
+  await click(c.querySelector('input[name=kids][value=no]'));
+  assert.equal(button(c,'Publish now').disabled,false,'a warning, not a block');
+  await click(button(c,'Publish now'));await flush();
+  assert.equal((posts(server.calls)[0].body as {description:string}).description,'You never opened this.\n\nMost people use one feature.\n\nChapters\n0:00 Opening');
+ });
 });
 
 test('the teleprompter shows the scene\'s talking points, steps through them and sizes the text',async()=>{

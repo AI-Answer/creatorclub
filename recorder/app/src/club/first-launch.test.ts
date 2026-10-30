@@ -396,6 +396,31 @@ test('Settings: Claude and ChatGPT with their status and Connect or Reconnect, a
  });
 });
 
+test('Settings: a skeleton while the saved settings are read; the page shows without waiting for the slow AI check, whose rows follow',async()=>{
+ let answerStatus:(()=>void)|undefined,answerSettings:(()=>void)|undefined;
+ await withServer(call=>{
+  if(call.path==='/ai/status')return new Promise<FakeReply>(resolve=>{answerStatus=()=>resolve({body:claudeIn});});
+  if(call.path==='/settings'&&call.method==='GET')return new Promise<FakeReply>(resolve=>{answerSettings=()=>resolve({body:{defaultAi:null,appearance:null,geminiKey:null}});});
+  if(call.path==='/workspaces'&&call.method==='GET')return {body:one};
+  if(call.path==='/workspaces/samin')return {body:workspace};
+ },async calls=>{
+  const ui=await mountUI(createElement(SettingsScreen,{onSetup(){}}));
+  try{
+   await flush();const c=ui.container;
+   assert.ok(c.querySelector('[aria-busy="true"][aria-label="Loading settings"] .shimmer'),'a skeleton of the page, not a bare spinner');
+   assert.equal(c.querySelector('[role="progressbar"],.spinner'),null);
+   assert.ok(calls.some(call=>call.path==='/ai/status')&&calls.some(call=>call.path==='/settings'),'both are asked at once');
+   await act(async()=>answerSettings!());await flush();
+   assert.deepEqual([...c.querySelectorAll('h2')].map(h=>h.textContent),['Connected AI','Channel','Publishing and look'],'the page is there before the AI check answers');
+   assert.ok(c.querySelector('[aria-label="Checking Claude"]')&&c.querySelector('[aria-label="Checking ChatGPT"]'),'the AI rows wait as skeletons');
+   assert.ok(c.querySelector('input[aria-label="Gemini API key"]'),'what needs no check shows');
+   await act(async()=>answerStatus!());await flush();
+   assert.equal(c.querySelector('[aria-label="Checking Claude"]'),null);
+   assert.match(text(c),/Connected as dani@example\.com/);
+  }finally{await ui.close();}
+ });
+});
+
 test('Settings: the Gemini key is saved, shown masked and removed, and the full key is never shown',async()=>{
  let saved:string|null=null;
  await withServer(call=>{

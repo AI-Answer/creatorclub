@@ -146,3 +146,10 @@ export function cancelAllJobs(): number {
   }
   return stopped;
 }
+
+/** "about 2 min left", from the time the parts read so far took (a refresh reads sources one by one). Nothing before the first is read. */
+export function timeLeft(elapsedMs: number, done: number, total: number): string | undefined {
+  if (done <= 0 || done >= total) return undefined;
+  const seconds = Math.round(((elapsedMs / done) * (total - done)) / 1000);
+  return seconds < 60 ? 'under a minute left' : `about ${Math.round(seconds / 60)} min left`;
+}
