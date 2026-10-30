@@ -34,3 +34,8 @@ export function slashSkill(text:string):string|undefined{
   const match=/^\/([A-Za-z0-9][A-Za-z0-9_-]*)(?:\s|$)/.exec(text.trim());
   return match?.[1];
 }
+
+/** The few skills the "/" list shows first: the writing skills from the chips and the video and motion skills. Typing a name finds any other installed skill. */
+export const FEATURED_SKILLS=['write-hook','write-setup','build-points','write-cta','reel-editor','motion-graphics','motion-showreel'] as const;
+/** The featured skills that are installed, in the order above. */
+export const featuredSkills=(skills:readonly InstalledSkill[]):InstalledSkill[]=>FEATURED_SKILLS.flatMap(name=>skills.filter(s=>s.name===name));

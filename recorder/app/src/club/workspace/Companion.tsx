@@ -4,8 +4,7 @@ import {ACTION_TITLE,ACTION_VERB,isEditAction,type CompanionCard,type CompanionC
 import type {EditorBridge,EditorState} from '../../App';
 import {describeEditAction,type SilencePlan} from '../../editing-actions';
 import {clubFetch} from '../api';
-import {matchSkills,slashQuery,type InstalledSkill} from '../../../shared/skills';
-import {SkillPreview} from './SkillPreview';
+import {featuredSkills,matchSkills,slashQuery,type InstalledSkill} from '../../../shared/skills';
 import {ErrorLine} from '../ErrorLine';
 import {Button,CompanionMark,Icon,Spinner,cn} from '../ui';
 import {atBottom,elapsed,greeting,lookingAt,previewOf,stepSummary,suggestions,withDividers} from './companion-logic';
@@ -117,8 +116,12 @@ export function Companion({videoId,videoTitle,tab,scene,screen,selection,pkg,out
  const [dismissed,setDismissed]=useState(false);
  const query=slashQuery(text);
  useEffect(()=>{if(query===undefined||skills)return;let live=true;clubFetch<InstalledSkill[]>('/skills').then(list=>{if(live)setSkills(list);}).catch(()=>{if(live)setSkills([]);});return()=>{live=false;};},[query,skills]);
- useEffect(()=>{setPick(0);setDismissed(false);},[query]);
- const choices=query!==undefined&&skills&&!dismissed?matchSkills(skills,query):[];
+ useEffect(()=>{setPick(0);setDismissed(false);if(query===undefined)setShowAll(false);},[query]);
+ const [showAll,setShowAll]=useState(false);
+ // "/" alone lists a short set; typing searches every installed skill, and "Show all" lists them all.
+ const short=skills?featuredSkills(skills):[];
+ const choices=query!==undefined&&skills&&!dismissed?(query!==''||showAll||!short.length?matchSkills(skills,query):short):[];
+ const hidden=query===''&&!showAll&&skills&&short.length>0?skills.length-short.length:0;
  const pickerOpen=query!==undefined&&!dismissed&&!working;
  const choose=(skill:InstalledSkill)=>{setText(`/${skill.name} `);input.current?.focus();};
  const onKeyDown=(event:KeyboardEvent<HTMLTextAreaElement>)=>{
@@ -178,13 +181,13 @@ export function Companion({videoId,videoTitle,tab,scene,screen,selection,pkg,out
    {!working&&!fresh&&chips}
    {pickerOpen&&<div className="cmp-skills" role="listbox" aria-label="Your skills">
     <div className="cmp-skills-head">Your skills</div>
-    {choices[Math.min(pick,choices.length-1)]?.previews.length>0&&<SkillPreview skill={choices[Math.min(pick,choices.length-1)]}/>}
     <div className="cmp-skills-list">
     {!skills?<div className="cmp-skills-empty">Looking for your skills…</div>
      :!choices.length?<div className="cmp-skills-empty">{skills.length?'No skill with that name.':'No skills are installed in your Claude Code yet.'}</div>
      :choices.map((skill,at)=><button key={skill.name} type="button" role="option" aria-selected={at===pick} className={cn('cmp-skill',at===pick&&'on')} onMouseEnter={()=>setPick(at)} onMouseDown={event=>event.preventDefault()} onClick={()=>choose(skill)}>
-       <span className="cmp-skill-name">/{skill.name}{skill.previews.length>0&&<span className="cmp-skill-tag">Preview</span>}</span><span className="cmp-skill-what">{skill.description}</span>
+       <span className="cmp-skill-name">/{skill.name}</span><span className="cmp-skill-what">{skill.description}</span>
       </button>)}
+     {hidden>0&&<button type="button" className="cmp-skills-more" onMouseDown={event=>event.preventDefault()} onClick={()=>setShowAll(true)}>Show all {skills!.length} skills, or type a name</button>}
     </div>
    </div>}
    <form className="cmp-input" onSubmit={event=>{event.preventDefault();void ask(text);}}>

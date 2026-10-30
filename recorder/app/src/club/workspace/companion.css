@@ -135,7 +135,7 @@
 /* Below 1440 px the step beside the panel needs the room (Edit's stage, transcript and timeline): the panel opens at 320 px. */
 @media (max-width: 1439px) { .club-root .cmp { width: 320px; } }
 
-.club-root .cmp-skills { max-height: 420px; display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--cc-line-strong); border-radius: 12px; background: var(--cc-surface); padding: 4px; }
+.club-root .cmp-skills { max-height: 320px; display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--cc-line-strong); border-radius: 12px; background: var(--cc-surface); padding: 4px; }
 .club-root .cmp-skills-head { font-size: 11.5px; font-weight: 600; color: var(--cc-text-3); padding: 4px 8px 2px; }
 .club-root .cmp-skills-empty { font-size: 12.5px; color: var(--cc-text-2); padding: 8px; }
 .club-root .cmp-skill { all: unset; box-sizing: border-box; display: flex; flex-direction: column; gap: 1px; width: 100%; cursor: pointer; padding: 6px 8px; border-radius: 8px; }
@@ -155,3 +155,6 @@
 .club-root .cmp-prev-nav { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
 .club-root .cmp-prev-nav button { all: unset; cursor: pointer; display: inline-flex; padding: 3px; border-radius: 6px; }
 .club-root .cmp-prev-nav button:hover { background: var(--cc-accent-soft); }
+
+.club-root .cmp-skills-more { all: unset; box-sizing: border-box; display: block; width: 100%; cursor: pointer; padding: 8px; font-size: 12.5px; color: var(--cc-accent-text); border-radius: 8px; }
+.club-root .cmp-skills-more:hover { background: var(--cc-accent-soft); }

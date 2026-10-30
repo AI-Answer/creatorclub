@@ -4,7 +4,7 @@ import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { findPreviews, listSkills, oneLine, previewFile, withPlayer, withSkills } from './skills.js';
-import { matchSkills, slashQuery, slashSkill } from '../../shared/skills.js';
+import { featuredSkills, matchSkills, slashQuery, slashSkill } from '../../shared/skills.js';
 
 const home = await mkdtemp(path.join(os.tmpdir(), 'creatorclub-skills-'));
 after(() => rm(home, { recursive: true, force: true }));
@@ -73,4 +73,10 @@ test('a preview page is served with a player that loops its timelines and report
   assert.match(out, /skillPreviewSize/);
   assert.ok(out.indexOf('<script>') < out.indexOf('</body>'));
   assert.match(withPlayer('<p>no body tag</p>'), /<p>no body tag<\/p><script>/);
+});
+
+test('the "/" list starts with the few featured skills that are installed, in a fixed order', () => {
+  const all = ['zeta', 'write-cta', 'reel-editor', 'write-hook', 'alpha'].map((name) => ({ name, description: '', previews: [] }));
+  assert.deepEqual(featuredSkills(all).map((s) => s.name), ['write-hook', 'write-cta', 'reel-editor']);
+  assert.deepEqual(featuredSkills([]), []);
 });
