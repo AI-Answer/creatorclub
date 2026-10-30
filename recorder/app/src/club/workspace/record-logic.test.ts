@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type {Outline,Package,Video,VideoScene} from '../../../shared/club';
+import {readFileSync} from 'node:fs';
 import {clockTime} from '../video-plan';
 import {outlineSceneFor,buildDescription,pausesRemoved,promptScene,recorderSceneFor,sceneRunSeconds,shortLink,videoSeconds} from './record-logic';
 
@@ -55,4 +56,26 @@ test('the recorder\'s own scene maps back to the outline scene',()=>{
  assert.equal(outlineSceneFor(video,'r9'),undefined);
  assert.equal(outlineSceneFor({},'r1'),undefined);
  for(const id of ['a','b'])assert.equal(outlineSceneFor(video,recorderSceneFor(video,id)!),id,'a round trip');
+});
+
+test('a description draft never carries text about the brief, however it got into the angle',()=>{
+ const noisy:Package={...pkg,angle:'Viewers learn one thing. Brief was empty, so I chose title, viewer, format and proof myself. The format is a Shape 1 screen tutorial.'};
+ const text=buildDescription(noisy,[scene('a',60)],clockTime);
+ assert.doesNotMatch(text,/Brief was/i);
+ assert.equal(text,'You never opened this.\n\nViewers learn one thing.\n\nChapters\n0:00 Scene a');
+ // Notes alone leave no angle: the draft is the hook and the chapters.
+ assert.equal(buildDescription({...pkg,angle:'The brief is empty, so I picked the format.'},[scene('a',60)],clockTime),'You never opened this.\n\nChapters\n0:00 Scene a');
+ // An ordinary angle, even one that says "brief", is untouched.
+ assert.equal(buildDescription({...pkg,angle:'A brief tour of three hidden settings.'},undefined,clockTime),'You never opened this.\n\nA brief tour of three hidden settings.');
+});
+
+test('the real package of "hidden-features" (angle with the planner\'s notes, no hook) gives a clean draft',()=>{
+ const real=JSON.parse(readFileSync(new URL('./fixtures/hidden-features.package.json',import.meta.url),'utf8')) as Package;
+ assert.match(real.angle,/Brief was empty/,'the sample still carries the notes, as the app stored them');
+ const titles=['Why this matters','Level 1: one-click features','Level 2: a workflow that changes how you work','Level 3: set it up once, reuse it'];
+ const scenes=titles.map((title,i)=>({...scene(`s${i}`,120),title}));
+ const text=buildDescription(real,scenes,clockTime);
+ assert.doesNotMatch(text,/Brief was/i);
+ assert.doesNotMatch(text,/I chose|Shape 1|The format is|The proof is/);
+ assert.equal(text,"By the end, the viewer knows how to find the features in their AI tool they've never used, and has tried three of them, from a one-click setting to a repeatable setup.\n\nChapters\n0:00 Why this matters\n2:00 Level 1: one-click features\n4:00 Level 2: a workflow that changes how you work\n6:00 Level 3: set it up once, reuse it");
 });

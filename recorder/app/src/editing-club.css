@@ -4,8 +4,8 @@
   Layout (prototype A): one toolbar (the suggestion; undo, redo, history, Auto-edit and style, Style & more, Export video),
   the stage with the transcript (or a sheet: a panel, Auto-edit and style, media, Ask Claude) beside it, the timeline bar, and the timeline.
   The club timeline (TimelineClub) is styled here only, so the older timeline stylesheets do not reach into it.
-  Colours: one accent (blue) for focus, selection and the playhead; red only for destructive actions; the kinds of things on the timeline
-  each have one hue, defined once in the token block below. No other raw colours in this file.
+  Colours: one accent (blue) for focus, selection and the playhead; the primary action is the dark button; red only for destructive actions;
+  the kinds of things on the timeline each have one hue (`--kind-*` in club/ui/tokens.css). No raw colour in this file (a test checks it).
   Imported from main.tsx after recording-club.css.
 */
 .club-embed .app-shell[data-mode=Edit]{
@@ -13,10 +13,10 @@
   --primary:var(--cc-primary);--primary-foreground:var(--cc-primary-ink);
   --secondary:var(--cc-subtle);--input:var(--cc-subtle);--line:var(--cc-line);--muted:var(--cc-muted);
   --accent:var(--cc-primary);--accent-soft:var(--cc-subtle);--danger:var(--cc-danger);
-  /* Timeline kinds: one hue each, the same wherever a kind is drawn. Lift into the central token file when there is one. */
-  --kind-screen:#1f7a80;--kind-camera:#6b55c4;--kind-audio:#4f6d8a;--kind-graphics:#b8457d;--kind-captions:#6b7a2a;--kind-zoom:#9a5a2c;--kind-marker:var(--cc-ink);
-  --kind-ink:#ffffff;--tl-select:var(--cc-accent);--tl-row:var(--cc-subtle);
-  --tl-shadow-ink:#000000;--tl-shade-soft:color-mix(in srgb,var(--tl-shadow-ink) 12%,transparent);--tl-shade:color-mix(in srgb,var(--tl-shadow-ink) 35%,transparent);--tl-shade-strong:color-mix(in srgb,var(--tl-shadow-ink) 60%,transparent);
+  /* The kinds on the timeline (--kind-screen, camera, audio, graphics, captions, zoom, marker, --kind-ink) come from ui/tokens.css, so a clip here,
+     a scene chip and a take chip are the same colour. Shades over clips are tokens too. */
+  --tl-select:var(--cc-accent);--tl-row:var(--cc-subtle);
+  --tl-shade-soft:var(--cc-shade-soft);--tl-shade:var(--cc-shade);--tl-shade-strong:var(--cc-shade-strong);
   font-family:var(--font-sans);font-size:14px;color:var(--cc-ink);background:var(--cc-page);padding-bottom:0;
 }
 
@@ -31,7 +31,7 @@
 
 /* The one suggestion, and Export video. */
 .club-embed .app-shell[data-mode=Edit] .club-edit-suggestion{display:flex;align-items:center;gap:10px;min-width:0;padding:6px 6px 6px 12px;border:1px solid var(--cc-line);border-radius:12px;background:var(--cc-page);font-size:14px;color:var(--cc-ink)}
-.club-embed .app-shell[data-mode=Edit] .club-edit-suggestion>span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.club-embed .app-shell[data-mode=Edit] .club-edit-suggestion>span{min-width:0;line-height:1.25;overflow-wrap:anywhere}
 /* With the companion docked beside Edit the toolbar is narrower: its buttons stay on one line and the suggestion's sentence gives way first. */
 .club-embed .app-shell[data-mode=Edit] .project-header :is(.club-edit-suggestion,.project-header-controls) button{white-space:nowrap;flex-shrink:0}
 .club-embed .app-shell[data-mode=Edit] .project-header-controls{flex-shrink:0}
@@ -125,8 +125,8 @@
 .club-embed .app-shell[data-mode=Edit] .club-ruler{position:sticky;top:0;z-index:7;background:var(--cc-card);border-bottom:1px solid var(--cc-line);cursor:ew-resize;user-select:none}
 .club-embed .app-shell[data-mode=Edit] .club-ruler .tick{position:absolute;bottom:0;width:1px;height:6px;background:var(--cc-line)}
 .club-embed .app-shell[data-mode=Edit] .club-ruler .tick.major{height:12px;background:var(--cc-muted)}
-.club-embed .app-shell[data-mode=Edit] .club-ruler .tick>b{position:absolute;left:4px;bottom:2px;font-size:11px;font-weight:500;color:var(--cc-muted);white-space:nowrap;font-variant-numeric:tabular-nums}
-.club-embed .app-shell[data-mode=Edit] .club-scene-tag{position:absolute;top:2px;max-width:200px;height:15px;padding:0 6px;border-radius:4px;background:var(--cc-subtle);color:var(--cc-ink);font-size:11px;font-weight:600;line-height:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;z-index:1}
+.club-embed .app-shell[data-mode=Edit] .club-ruler .tick>b{position:absolute;left:4px;bottom:1px;font-size:11px;font-weight:500;line-height:12px;color:var(--cc-muted);white-space:nowrap;font-variant-numeric:tabular-nums}
+.club-embed .app-shell[data-mode=Edit] .club-scene-tag{position:absolute;top:1px;max-width:200px;height:14px;padding:0 6px;border-radius:4px;background:var(--cc-subtle);color:var(--cc-ink);font-size:11px;font-weight:600;line-height:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;z-index:1}
 .club-embed .app-shell[data-mode=Edit] .club-marker{position:absolute;top:2px;width:10px;height:12px;margin-left:-5px;background:var(--kind-marker);clip-path:polygon(0 0,100% 0,100% 65%,50% 100%,0 65%);cursor:grab;z-index:2}
 .club-embed .app-shell[data-mode=Edit] .club-row{position:absolute;left:0;right:0;background:none;border:0;margin:0;cursor:default}
 .club-embed .app-shell[data-mode=Edit] .club-row::before{display:none}
@@ -182,3 +182,23 @@
 /* Modals opened from Edit (Import, history): the same calm sizes. */
 .club-embed .app-shell[data-mode=Edit] :is(.modal>header p,.modal .field,.modal .field>input,.modal .field>select,.modal .field>textarea,.modal-actions>span,.modal .button,.upload-area p,.modal-footnote,.inline-success,.inline-error,.quick-proposal small,.quick-proposal p,.quick-advanced summary,.semantic-cut-option small,.quick-job-summary span,.quick-action-warnings li,.quick-proposal-heading button){font-size:12px}
 .club-embed .app-shell[data-mode=Edit] .modal{border-radius:12px;border-color:var(--cc-line)}
+
+/* The colour rule inside SceneForge's own parts (the transcript, the Inspector panels, the Auto-edit sheet, dialogs):
+   selection and "on" are the accent blue, the primary action is the dark button, and nothing else is coloured. */
+.club-embed .app-shell[data-mode=Edit] :is(button,a,input,select,textarea,summary):focus-visible{outline:2px solid var(--cc-accent);outline-offset:2px}
+.club-embed .app-shell[data-mode=Edit] .timeline.club-timeline{--tl-row:var(--cc-subtle)}
+.club-embed .app-shell[data-mode=Edit] .transcript-editor{--transcript-selection:var(--cc-accent-soft);--transcript-current:var(--cc-accent);--transcript-current-text:var(--cc-on-accent);--transcript-muted:var(--cc-text-3);--transcript-faint:var(--cc-placeholder);--transcript-hover:var(--cc-hover);--transcript-danger:var(--cc-danger);--transcript-danger-hover:var(--cc-danger-soft)}
+.club-embed .app-shell[data-mode=Edit] .transcript-editor:focus-visible{box-shadow:inset 0 0 0 2px var(--cc-accent)}
+.club-embed .app-shell[data-mode=Edit] .inspector-heading{min-height:44px;padding:8px 10px 8px 16px;border-bottom:1px solid var(--cc-line)}
+.club-embed .app-shell[data-mode=Edit] .inspector-heading .eyebrow{display:none}
+.club-embed .app-shell[data-mode=Edit] .inspector-heading h2{margin:0;font-family:inherit;font-size:14px;font-weight:600;color:var(--cc-ink)}
+.club-embed .app-shell[data-mode=Edit] .inspector-empty{color:var(--cc-muted)}
+.club-embed .app-shell[data-mode=Edit] .inspector-empty svg{stroke:currentColor}
+.club-embed .app-shell[data-mode=Edit] :is(.format-card,.export-presets>button).active{border-color:var(--cc-accent);background:var(--cc-accent-soft);color:var(--cc-accent-text)}
+.club-embed .app-shell[data-mode=Edit] :is(.list-item,.transcript-captions>button,.selected-tool):is(.active,:hover){background:var(--cc-subtle);color:var(--cc-ink)}
+.club-embed .app-shell[data-mode=Edit] :is(.list-item,.transcript-captions>button,.selected-tool).active{background:var(--cc-accent-soft);color:var(--cc-accent-text)}
+.club-embed .app-shell[data-mode=Edit] .toggle-field input:checked+.toggle-track{background:var(--cc-accent)}
+.club-embed .app-shell[data-mode=Edit] .toggle-field input:checked+.toggle-track::after{background:var(--cc-on-accent)}
+.club-embed .app-shell[data-mode=Edit] .comparison-switch [aria-pressed=true]{background:var(--cc-accent);border-color:var(--cc-accent);color:var(--cc-on-accent)}
+.club-embed .app-shell[data-mode=Edit] .button.subtle.is-active{border-color:var(--cc-line-strong)}
+.club-embed .app-shell[data-mode=Edit] :is(.icon-button,.button).is-active:not(.subtle){color:var(--cc-accent-text);background:var(--cc-accent-soft)}

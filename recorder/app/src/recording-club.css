@@ -142,7 +142,7 @@
 .club-embed .app-shell[data-mode=Record] .take-review>header .take-title-row h1{margin:2px 0 0;font-size:20px;line-height:28px;font-weight:600}
 .club-embed .app-shell[data-mode=Record] .take-review>header .take-title-row>span{color:inherit;font-size:12px;font-weight:500}
 .club-embed .app-shell[data-mode=Record] .take-review-sources{padding-inline:24px}
-.club-embed .app-shell[data-mode=Record] .take-source{border-color:var(--cc-line);border-radius:12px;background:#111110}
+.club-embed .app-shell[data-mode=Record] .take-source{border-color:var(--cc-line);border-radius:12px;background:var(--cc-dark-stage)}
 .club-embed .app-shell[data-mode=Record] .take-source.take-audio{background:var(--cc-card)}
 .club-embed .app-shell[data-mode=Record] .take-source.take-audio svg{fill:var(--cc-accent)}
 .club-embed .app-shell[data-mode=Record] .take-source-label{font-size:12px}
@@ -153,4 +153,15 @@
 .club-embed .app-shell[data-mode=Record] .take-review>footer.club-take-footer{padding:16px 24px;gap:12px;border-top:1px solid var(--cc-line);background:var(--cc-card);flex-wrap:nowrap}
 .club-embed .app-shell[data-mode=Record] .take-settings{border-color:var(--cc-line);border-radius:12px;background:var(--cc-card)}
 .club-embed .app-shell[data-mode=Record] .take-settings :is(p,label,small){font-size:13px}
+/* A take chip marks the kinds it holds with the same colours as the timeline (screen, camera, audio). */
+.club-embed .app-shell[data-mode=Record] .rsc-kinds{position:absolute;top:5px;left:5px;display:flex;gap:3px;pointer-events:none}
+.club-embed .app-shell[data-mode=Record] .rsc-kind{width:8px;height:8px;border-radius:2px;box-shadow:0 0 0 1px var(--cc-shade-soft)}
+.club-embed .app-shell[data-mode=Record] .rsc-kind-screen{background:var(--kind-screen)}
+.club-embed .app-shell[data-mode=Record] .rsc-kind-camera{background:var(--kind-camera)}
+.club-embed .app-shell[data-mode=Record] .rsc-kind-audio{background:var(--kind-audio)}
+.club-embed .app-shell[data-mode=Record] .rsc-kind-graphics{background:var(--kind-graphics)}
+.club-embed .app-shell[data-mode=Record] .rsc-waveform{fill:var(--kind-audio)}
 .club-embed .app-shell[data-mode=Record] .rsc-no-takes{margin:0;font-size:13px;color:var(--cc-muted)}
+
+/* Focus is the accent blue everywhere in Record. */
+.club-embed .app-shell[data-mode=Record] :is(button,a,input,select,textarea,summary):focus-visible{outline:2px solid var(--cc-accent);outline-offset:2px}
