@@ -651,20 +651,23 @@ export function clubRouter({ ai = {}, transcribe, runAI, readViews = ytDlpViews(
   router.get('/videos/:id/scenes', handler(async (req, res) => res.json(await videoScenes(await requireWorkspace(), param(req, 'id')))));
 
   // ---- the companion: one conversation per video across the steps. The reply streams through /jobs/:id/events.
-  router.get('/videos/:id/companion', handler(async (req, res) => res.json(await readThread(await requireWorkspace(), param(req, 'id')))));
-  router.post('/videos/:id/companion', handler(async (req, res) => {
-    res.status(202).json(await askCompanion(await requireWorkspace(), param(req, 'id'), askBody.parse(req.body), plan));
-  }));
+  // Research has a conversation of its own, at /channel/companion.
+  for (const [prefix, boardOf] of boards) {
+    router.get(`${prefix}/companion`, handler(async (req, res) => res.json(await readThread(await requireWorkspace(), boardOf(req)))));
+    router.post(`${prefix}/companion`, handler(async (req, res) => {
+      res.status(202).json(await askCompanion(await requireWorkspace(), boardOf(req), askBody.parse(req.body), plan));
+    }));
+    for (const action of ['apply', 'undo'] as const) {
+      router.post(`${prefix}/companion/:messageId/cards/:index/${action}`, handler(async (req, res) => {
+        const index = Number(param(req, 'index'));
+        if (!Number.isInteger(index) || index < 0 || index > 19) throw notFound('card');
+        const run = action === 'apply' ? applyCard : undoCard;
+        res.json(await run(await requireWorkspace(), boardOf(req), param(req, 'messageId'), index, cardBody.parse(req.body ?? {})));
+      }));
+    }
+  }
   // The audio plan the editor previews a cut of pauses with, so the preview matches what Apply does.
   router.get('/videos/:id/companion/silences', handler(async (req, res) => res.json(await editSilences(await requireWorkspace(), param(req, 'id')))));
-  for (const action of ['apply', 'undo'] as const) {
-    router.post(`/videos/:id/companion/:messageId/cards/:index/${action}`, handler(async (req, res) => {
-      const index = Number(param(req, 'index'));
-      if (!Number.isInteger(index) || index < 0 || index > 19) throw notFound('card');
-      const run = action === 'apply' ? applyCard : undoCard;
-      res.json(await run(await requireWorkspace(), param(req, 'id'), param(req, 'messageId'), index, cardBody.parse(req.body ?? {})));
-    }));
-  }
 
   // ---- breakdowns
   // JSON {url} for a link, or a multipart upload with a video `file`. Either starts a job whose result is the breakdown.
