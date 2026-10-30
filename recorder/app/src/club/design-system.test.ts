@@ -20,10 +20,10 @@ const RAW_COLOUR=/(?:^|[\s:,('"`])#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{
 const TOKENS='club/ui/tokens.css';
 
 /**
- * The editor's and recorder's own stylesheets still carry raw colours. They are outside `src/club` and owned by the editor
- * work: Task 7b moves them onto the tokens (and points the timeline's kind colours at `ui/kinds.ts`).
+ * The editor's and recorder's own stylesheets restyle SceneForge's screens from outside `src/club`, and follow the same rule.
+ * `original-theme.css` is SceneForge's standalone theme: it has no club-mode rule, and any rule that names a club class must use tokens too.
  */
-export const EDITOR_COLOUR_TODO=['editing-club.css','recording-club.css','original-theme.css'];
+const EDITOR_STYLES=['editing-club.css','recording-club.css'];
 
 function rawColours(file:string){
  return fs.readFileSync(file,'utf8').split('\n').flatMap((line,index)=>{
@@ -48,9 +48,24 @@ test('the tokens file defines every colour the rule allows, light and dark',()=>
  assert.match(tokens,/data-theme=dark[^}]*--cc-primary: #f3f1ed/s);
 });
 
-test('editor stylesheets still to move onto the tokens (Task 7b)',{todo:`raw colours remain in ${EDITOR_COLOUR_TODO.join(', ')}`},()=>{
- const found=EDITOR_COLOUR_TODO.flatMap(name=>rawColours(path.join(src,name)));
- assert.deepEqual(found,[]);
+test('no raw colour in the editor and recorder club stylesheets',()=>{
+ const found=EDITOR_STYLES.flatMap(name=>rawColours(path.join(src,name)));
+ assert.deepEqual(found,[],`Use a token from ${TOKENS} instead:\n${found.join('\n')}`);
+});
+
+test('club-mode rules of original-theme.css use tokens',()=>{
+ // The file is minified (many rules per line), so rules are read as `selector{body}`, nested at-rules aside.
+ const rules=[...fs.readFileSync(path.join(src,'original-theme.css'),'utf8').replace(/\/\*[\s\S]*?\*\//g,'').matchAll(/([^{}]+)\{([^{}]*)\}/g)];
+ const found=rules.filter(([,selector,body])=>/club-(root|embed)|\.club-/.test(selector)&&RAW_COLOUR.test(body)).map(([,selector,body])=>`${selector.trim()}{${body.slice(0,80)}}`);
+ assert.deepEqual(found,[],`Use a token from ${TOKENS} instead.`);
+});
+
+test('the timeline, the scene chips and the take chips paint a kind with the one shared token, and the editor defines no kind colour of its own',()=>{
+ const editor=fs.readFileSync(path.join(src,'editing-club.css'),'utf8').replace(/\/\*[\s\S]*?\*\//g,'');
+ assert.doesNotMatch(editor,/--kind-[a-z-]+\s*:/,'editing-club.css reads --kind-* from tokens.css and does not redefine it');
+ for(const kind of ['screen','camera','audio','graphics','captions','zoom','marker'])assert.match(editor,new RegExp(`var\\(--kind-${kind}\\)`),`the timeline uses --kind-${kind}`);
+ const recorder=fs.readFileSync(path.join(src,'recording-club.css'),'utf8');
+ for(const kind of ['screen','camera','audio'])assert.match(recorder,new RegExp(`var\\(--kind-${kind}\\)`),`take chips use --kind-${kind}`);
 });
 
 test('nothing in src/club imports lucide-react except the icon registry',()=>{

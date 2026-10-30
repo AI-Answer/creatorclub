@@ -6,13 +6,14 @@ import {describeEditAction,type SilencePlan} from '../../editing-actions';
 import {clubFetch} from '../api';
 import {ErrorLine} from '../ErrorLine';
 import {Button,CompanionMark,Icon,Spinner,cn} from '../ui';
-import {atBottom,elapsed,lookingAt,previewOf,stepSummary,suggestions,withDividers} from './companion-logic';
+import {atBottom,elapsed,greeting,lookingAt,previewOf,stepSummary,suggestions,withDividers} from './companion-logic';
 import {Markdown} from './Markdown';
 import {ReplaceScenes} from './ReplaceScenes';
 import {useCompanion,type Live} from './useCompanion';
 import './companion.css';
 
 const OPEN_KEY='cc.companion.open';
+const TILE_RECOUNT_MS=8000;
 const readOpen=()=>{try{return localStorage.getItem(OPEN_KEY)!=='0';}catch{return true;}};
 const saveOpen=(open:boolean)=>{try{localStorage.setItem(OPEN_KEY,open?'1':'0');}catch{/* the panel still works, it just forgets */}};
 
@@ -24,8 +25,10 @@ export type CompanionEditor={get():EditorBridge|null;state:EditorState|null};
  * The companion, docked on the right of a video's steps: one conversation per video, what it is looking at, suggestions for the step,
  * replies that stream in with their steps, and cards that apply a change with Preview and Undo. Collapses to a rail and remembers it.
  */
-export function Companion({videoId,tab,scene,screen,pkg,outline,scenes,onChanged,beforeApply,editor,roomy=false}:{
- videoId:string;tab:CompanionTab;scene?:CompanionScene;screen:string;pkg:Package|null;outline:Outline|null;
+export function Companion({videoId,videoTitle,tab,scene,screen,pkg,outline,scenes,onChanged,beforeApply,editor,roomy=false,boardKey=0}:{
+ videoId:string;videoTitle?:string;tab:CompanionTab;scene?:CompanionScene;screen:string;pkg:Package|null;outline:Outline|null;
+ /** Changes when the board changed through the companion: its tiles are counted again. */
+ boardKey?:number;
  /** The video's scenes with their takes: replacing scenes that have takes asks first. */
  scenes?:readonly VideoScene[];
  onChanged(changed:CompanionChanged[]):void;beforeApply?():Promise<void>;
@@ -50,6 +53,15 @@ export function Companion({videoId,tab,scene,screen,pkg,outline,scenes,onChanged
   const timer=setTimeout(()=>{clubFetch<SilencePlan|null>(`/videos/${encodeURIComponent(videoId)}/companion/silences`).then(plan=>setSilences(plan&&Array.isArray(plan.ranges)?plan:null),()=>setSilences(null));},timelineVersion?800:0);
   return()=>clearTimeout(timer);
  },[onEdit,videoId,timelineVersion]);
+ // On Board the suggestions follow whether anything is on it yet: the tiles are counted when Board opens and every few seconds while it is open.
+ const [tiles,setTiles]=useState<number|undefined>();
+ useEffect(()=>{
+  if(tab!=='board')return;
+  let alive=true;
+  const count=()=>clubFetch<unknown[]>(`/videos/${encodeURIComponent(videoId)}/research`).then(list=>{if(alive&&Array.isArray(list))setTiles(list.length);},()=>{});
+  void count();const timer=setInterval(()=>void count(),TILE_RECOUNT_MS);
+  return()=>{alive=false;clearInterval(timer);};
+ },[tab,videoId,boardKey]);
  const companion=useCompanion(videoId,{onChanged,beforeApply,editor:()=>editorNow.current?.get()??null});
  const {messages,live}=companion;
  const working=live?.phase==='working';
@@ -108,7 +120,13 @@ export function Companion({videoId,tab,scene,screen,pkg,outline,scenes,onChanged
  </aside>;
 
  const items=messages?withDividers(messages,tab):[];
- const ideas=suggestions(tab,{scenes:outline?.scenes.length??0,scene,selected:editor?.state?.selected});
+ const sceneCount=outline?.scenes.length??0;
+ const recorded=scenes?scenes.filter(one=>one.takes.length>0).length:undefined;
+ const ideas=suggestions(tab,{scenes:sceneCount,scene,selected:editor?.state?.selected,hook:!!pkg?.hook.spoken.trim(),longest:Math.max(0,...(outline?.scenes??[]).map(one=>one.seconds||0)),
+  tiles:tab==='board'?tiles:undefined,recorded,titled:!!videoTitle?.trim()||!!pkg?.titles.some(one=>one.trim()),thumbnail:!!pkg?.thumbnailText.trim()});
+ // Nothing asked yet: a short greeting for this step with the best prompts right under it, instead of a blank column.
+ const fresh=!!messages&&!messages.length&&!live&&!companion.loadError;
+ const chips=ideas.length>0&&<div className={cn('cmp-sugg',fresh&&'fresh')} aria-label="Suggestions">{ideas.map(idea=><button key={idea} type="button" onClick={()=>void ask(idea)}>{idea}</button>)}</div>;
  const selected=tab==='edit'?editor?.state?.selected??0:0;
  return <aside className={cn('cmp',narrow&&'over')} aria-label={title} onKeyDown={onPanelKey}>
   <header className="cmp-head">
@@ -124,9 +142,9 @@ export function Companion({videoId,tab,scene,screen,pkg,outline,scenes,onChanged
   <div className="cmp-log" ref={log} onScroll={onScroll} role="log" aria-live="off" aria-busy={working}>
    {companion.loadError?<ErrorLine message={companion.loadError} onRetry={companion.reload}/>
     :!messages?<div className="cmp-loading"><Spinner label="Loading the conversation" size={16}/></div>
-    :!messages.length&&!live&&<div className="cmp-reply">
-     <div className="cmp-who"><CompanionMark size={14}/>{name}</div>
-     <div className="cmp-md"><p>I&apos;m with you on this video from the board to publishing. Ask anything, or tell me what to change: each change comes as a card you can apply and undo.</p></div>
+    :fresh&&<div className="cmp-hello">
+     <p>{greeting(tab,{scenes:sceneCount,tiles:tab==='board'?tiles:undefined,recorded})}</p>
+     {chips||null}
     </div>}
    {items.map(item=>item.kind==='divider'?<div key={item.key} className="cmp-divider" role="separator">{item.label}</div>
     :item.message.role==='user'?<div key={item.key} className="cmp-me">{item.message.text}</div>
@@ -137,7 +155,7 @@ export function Companion({videoId,tab,scene,screen,pkg,outline,scenes,onChanged
   </div>
   {behind&&<button type="button" className="cmp-jump" onClick={toBottom}><Icon name="ArrowDown" size={13}/>Jump to latest</button>}
   <div className="cmp-foot">
-   {!working&&ideas.length>0&&<div className="cmp-sugg" aria-label="Suggestions">{ideas.map(idea=><button key={idea} type="button" onClick={()=>void ask(idea)}>{idea}</button>)}</div>}
+   {!working&&!fresh&&chips}
    <form className="cmp-input" onSubmit={event=>{event.preventDefault();void ask(text);}}>
     <textarea ref={input} rows={1} value={text} onChange={event=>setText(event.target.value)} onKeyDown={onKeyDown} placeholder="Ask, or tell me what to change" aria-label={`Message to ${name}`}/>
     {working

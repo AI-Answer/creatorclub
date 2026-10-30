@@ -1,6 +1,6 @@
 import type {Video,VideoStage} from '../../shared/club';
 import {fmtDate,fmtNum} from './format';
-import {recordedCount,type SceneProgress} from './scene-status';
+import {isSceneRecorded,recordedCount,recordedLine,type SceneProgress} from './scene-status';
 import type {IconName} from './ui';
 import type {VideoTab} from './routes';
 
@@ -65,7 +65,7 @@ export function progressText(video:Video,scenes:readonly SceneProgress[]|undefin
   case 'ideas':return 'Idea';
   case 'planning':return total?`Planning · ${total} ${total===1?'scene':'scenes'} drafted`:'Planning · no scenes yet';
   case 'recording':return total?`Recording · ${recorded} of ${total} ${total===1?'scene':'scenes'}`:'Recording';
-  case 'editing':return total?`Editing · ${total} ${total===1?'scene':'scenes'} recorded`:'Editing';
+  case 'editing':return total?`Editing · ${recordedLine(scenes)}`:'Editing';
   case 'publishing':return 'Publishing · ready to upload';
   case 'published':return video.publishedAt?`Published ${fmtDate(video.publishedAt)}`:'Published';
  }
@@ -87,10 +87,17 @@ export function nextAction(video:Video,scenes:readonly SceneProgress[]|undefined
   case 'planning':return known.length?{label:'Continue to recording',tab:'record',icon:'microphone'}:{label:'Draft scenes from board',tab:'board',icon:'ai'};
   case 'recording':{
    if(!known.length)return {label:'Draft scenes from board',tab:'board',icon:'ai'};
-   const next=known.findIndex(scene=>!scene.takes.some(take=>take.kept));
+   const next=known.findIndex(scene=>!isSceneRecorded(scene));
    return next<0?{label:'Continue to editing',tab:'edit',icon:'cut'}:{label:`Record scene ${next+1}`,tab:'record',icon:'microphone'};
   }
-  case 'editing':return {label:'Keep editing',tab:'edit',icon:'cut'};
+  case 'editing':{
+   // Nothing on the timeline yet: there is nothing to edit, so the next thing is to record.
+   if(scenes&&!recordedCount(known)){
+    if(!known.length)return {label:'Draft scenes from board',tab:'board',icon:'ai'};
+    return {label:'Record scene 1',tab:'record',icon:'microphone'};
+   }
+   return {label:'Keep editing',tab:'edit',icon:'cut'};
+  }
   case 'publishing':return {label:'Publish it',tab:'publish',icon:'upload'};
   case 'published':return {label:video.views!==undefined?`${fmtNum(video.views)} views`:'Open',tab:'publish',icon:'preview'};
  }

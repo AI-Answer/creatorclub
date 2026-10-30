@@ -62,19 +62,24 @@ test('Discover: two ranked lists become one, each card where its rank sits in it
  assert.deepEqual(interleave([],[p('1')]).map(feedKey),['p:1']);assert.deepEqual(interleave([v('a')],[]).map(feedKey),['v:a']);
 });
 
-test('Discover: chips, one sort per chip, the topics filter and Show everything',()=>{
+test('Discover: chips, one sort per chip, the topics filter and Show everything; For you holds every followed video',()=>{
  const videos=[trend('fit1',{vpd:900,ageDays:2}),trend('fit2',{vpd:100,ageDays:1,kind:'creator',mult:null}),trend('under',{mult:0.5,vpd:5000}),trend('off',{fit:false,kind:'creator',vpd:4000})];
  const posts=[post('x1',{likes:50,ageHours:30}),post('x2',{likes:5,ageHours:1}),post('r1',{source:'reddit',likes:20,ageHours:10}),post('xoff',{fit:false,likes:999})];
  const keys=(show:Parameters<typeof discoverFeed>[2],sort:Parameters<typeof discoverFeed>[3],everything=false)=>{const {shown,off}=discoverFeed(videos,posts,show,sort,everything);return {keys:shown.map(feedKey),off};};
- assert.deepEqual(keys('fit','top'),{keys:['v:fit1','p:x1','p:r1','v:fit2','p:x2'],off:3},'For you mixes both, ranked, about your topics only');
- assert.deepEqual(keys('fit','new'),{keys:['p:x2','p:r1','v:fit2','p:x1','v:fit1'],off:3},'Newest puts videos and posts in one order of age');
+ assert.deepEqual(keys('fit','top'),{keys:['v:fit1','p:x1','v:fit2','p:r1','v:under','p:x2'],off:2},'For you mixes both, ranked: about your topics, and every video of a channel you follow');
+ assert.deepEqual(keys('fit','new'),{keys:['p:x2','p:r1','v:fit2','p:x1','v:fit1','v:under'],off:2},'Newest puts videos and posts in one order of age');
  assert.deepEqual(keys('fit','top',true).keys,['v:fit1','p:x1','v:fit2','p:r1','v:under','p:x2','v:off','p:xoff'],'Show everything adds the rest after');
- assert.deepEqual(keys('youtube','vpd'),{keys:['v:fit1','v:fit2'],off:2});
- assert.deepEqual(keys('youtube','views').keys,['v:fit1','v:fit2']);
+ assert.deepEqual(keys('youtube','vpd'),{keys:['v:fit1','v:fit2','v:under'],off:1});
+ assert.deepEqual(keys('youtube','views').keys,['v:fit1','v:fit2','v:under']);
  assert.deepEqual(keys('followed','vpd'),{keys:['v:under','v:fit1'],off:0},'Followed lists every video from the channels you follow');
  assert.deepEqual(keys('x','top'),{keys:['p:x1','p:x2'],off:1});assert.deepEqual(keys('x','new').keys,['p:x2','p:x1']);
  assert.deepEqual(keys('reddit','top'),{keys:['p:r1'],off:0});
- assert.deepEqual(discoverCounts(videos,posts),{fit:5,followed:2,youtube:2,x:2,reddit:1});
+ assert.deepEqual(discoverCounts(videos,posts),{fit:6,followed:2,youtube:3,x:2,reddit:1});
+ // The walk's numbers: 115 followed videos, most of them off your topics or under their usual, never more than For you.
+ const many=[...Array.from({length:115},(_,i)=>trend(`f${i}`,{fit:i<20,mult:i%2?0.9:1.5})),trend('search',{kind:'creator'})];
+ const counted=discoverCounts(many,[]);
+ assert.equal(counted.followed,115);assert.ok(counted.fit>=counted.followed,`For you ${counted.fit} holds Followed ${counted.followed}`);
+ for(const show of ['fit','followed','youtube','x','reddit'] as const)assert.equal(discoverCounts(videos,posts)[show],discoverFeed(videos,posts,show,'top',false).shown.length,`${show}: the count is the list`);
  assert.deepEqual(sortsFor('fit').map(([key])=>key),['top','new']);assert.deepEqual(sortsFor('youtube').map(([key])=>key),['vpd','views','outlier','new']);assert.deepEqual(sortsFor('reddit').map(([key])=>key),['top','new']);
  assert.equal(sortFor('youtube','top'),'vpd','a sort the chip does not offer falls back to its first');assert.equal(sortFor('fit','views'),'top');assert.equal(sortFor('x','new'),'new');
  assert.equal(latestRead(null,'2026-10-26T19:00:00.000Z','2026-10-26T22:00:00.000Z'),'2026-10-26T22:00:00.000Z');assert.equal(latestRead(null,undefined),null);
@@ -120,7 +125,7 @@ test('overview: progress words and the next action come from the scenes that are
  assert.equal(progressText(video('a','planning'),three),'Planning · 3 scenes drafted');
  assert.equal(progressText(video('a','planning'),sceneProgress(1,0)),'Planning · 1 scene drafted');
  assert.equal(progressText(video('a','recording'),three),'Recording · 1 of 3 scenes');
- assert.equal(progressText(video('a','editing'),all),'Editing · 2 scenes recorded');
+ assert.equal(progressText(video('a','editing'),all),'Editing · 2 of 2 scenes recorded');
  assert.equal(progressText(video('a','publishing'),all),'Publishing · ready to upload');
  assert.equal(progressText(video('a','published',{publishedAt:'2026-10-02'}),none),'Published Oct 2');
  assert.equal(progressText(video('a','ideas'),none),'Idea');
@@ -131,6 +136,34 @@ test('overview: progress words and the next action come from the scenes that are
  assert.equal(nextAction(video('a','editing'),all).tab,'edit');assert.equal(nextAction(video('a','publishing'),all).tab,'publish');
  assert.equal(nextAction(video('a','published',{views:12400}),none).label,'12K views');
  assert.deepEqual(sceneProgress(3,1).map(scene=>scene.takes.some(take=>take.kept)),[true,false,false]);
+});
+
+test('Home, the board cards, the table and the strip count "scenes recorded" with one rule, over the real shapes',async()=>{
+ const {recordedCount,recordedLine,sceneStatus,isSceneRecorded}=await import('./scene-status');
+ const {scenesLine}=await import('./production');
+ const {toProgress}=await import('./scenes');
+ const {allScenesKept}=await import('./workspace/rules');
+ // As GET /videos/scenes sends them: recorded but not kept (set aside, or waiting), kept, none.
+ const scene=(id:string,takes:{kept:boolean;retained?:boolean}[])=>({id,title:id,seconds:60,status:'',takes:takes.map((take,i)=>({id:`${id}${i}`,seconds:20,retained:false,...take}))});
+ const hidden=[scene('a',[{kept:false,retained:true},{kept:true}]),scene('b',[{kept:false}]),scene('c',[]),scene('d',[])];
+ const progress=toProgress(hidden);
+ assert.deepEqual(progress.map(item=>isSceneRecorded(item)),[true,false,false,false],'a take that was recorded but not kept is not a recorded scene');
+ assert.deepEqual(progress.map(item=>sceneStatus(item).label),['Kept take 2','1 take','Not recorded','Not recorded'],'the strip');
+ assert.equal(recordedCount(hidden),1);assert.equal(recordedCount(progress),1,'the same count from the server shape and the dots');
+ assert.equal(progressText(video('h','editing'),progress),'Editing · 1 of 4 scenes recorded','Home');
+ assert.equal(scenesLine(recordedCount(progress),progress.length),'1 of 4 scenes','the board card and the table');
+ assert.equal(recordedLine(progress),'1 of 4 scenes recorded');
+ assert.equal(allScenesKept(hidden),false);
+ // Nothing on the timeline: Home and the board say 0, and the next step is Record, not Keep editing.
+ const still=[scene('a',[{kept:false}]),scene('b',[]),scene('c',[])];
+ assert.equal(progressText(video('s','editing'),toProgress(still)),'Editing · 0 of 3 scenes recorded');
+ assert.deepEqual(nextAction(video('s','editing'),toProgress(still)),{label:'Record scene 1',tab:'record',icon:'microphone'});
+ assert.equal(nextAction(video('s','editing'),toProgress([])).label,'Draft scenes from board');
+ assert.equal(nextAction(video('s','editing'),progress).label,'Keep editing','one scene on the timeline is something to edit');
+ // Scenes added to the outline after recording: they count as not recorded, so the total grows and the count stays.
+ const grown=[...hidden,scene('e',[])];
+ assert.equal(progressText(video('h','editing'),toProgress(grown)),'Editing · 1 of 5 scenes recorded');
+ assert.equal(allScenesKept([scene('a',[{kept:true}])]),true);
 });
 
 test('unknown scenes are not zero scenes: only the stage is said until they are known, and a known empty outline says so',()=>{

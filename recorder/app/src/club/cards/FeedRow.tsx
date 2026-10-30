@@ -6,31 +6,32 @@ import {Avatar,Icon,MultChip,SourceIcon,Thumb} from '../ui';
 
 const LONG=260;
 
-/** The one action every card of Discover has: Turn into idea, or, once it is an idea, a quiet button that opens it. */
+/** The one action every card of Discover has: Turn into idea, or, once it is an idea, a quiet button that opens it. The accessible name starts with the visible words. */
 function IdeaButton({title,inIdeas,onIdea}:{title:string;inIdeas:boolean;onIdea():void}){
  return inIdeas
-  ?<button type="button" className="btn sm ghost in-ideas" onClick={onIdea} aria-label={`Open the idea made from ${title}`}><Icon name="check" size={14}/>In ideas</button>
-  :<button type="button" className="btn sm" onClick={onIdea} aria-label={`Turn ${title} into an idea`}><Icon name="idea" size={14}/>Turn into idea</button>;
+  ?<button type="button" className="btn sm ghost in-ideas" onClick={onIdea} aria-label={`In ideas: open the idea made from ${title}`}><Icon name="check" size={14}/>In ideas</button>
+  :<button type="button" className="btn sm" onClick={onIdea} aria-label={`Turn into idea: ${title}`}><Icon name="idea" size={14}/>Turn into idea</button>;
 }
 
 /**
  * A video doing better than usual, one row of Discover at its `rank`. The row opens its breakdown (Enter too); its one button makes it an idea.
- * "Follow this channel" (for a video found by a search) shows under the pointer or on focus. `reason` is the server's sentence, shown small.
+ * The multiplier sits in the numbers line with its own words ("2.8× vs Ana's usual"), never on the picture; with no usual known there is none.
+ * "Follow this channel" (for a video found by a search) is always there, and "Following <channel>" once it is. `reason` is the server's sentence, shown small.
  */
-export function VideoRow({item,rank,isNew,reason,hasBreakdown,inIdeas,onBreak,onIdea}:{item:TrendingEntry;rank:number;isNew?:boolean;reason?:string|null;hasBreakdown?:boolean;inIdeas:boolean;onBreak(item:TrendingEntry):void;onIdea(item:TrendingEntry):void}){
+export function VideoRow({item,rank,isNew,reason,hasBreakdown,inIdeas,onBreak,onIdea,onFollowed}:{item:TrendingEntry;rank:number;isNew?:boolean;reason?:string|null;hasBreakdown?:boolean;inIdeas:boolean;onBreak(item:TrendingEntry):void;onIdea(item:TrendingEntry):void;onFollowed?():void}){
  const who=creatorName(item.channel);
  const open=()=>onBreak(item);
  return <div className="frow hov" data-kind="video" onClick={open} tabIndex={0} title={hasBreakdown?'Open the breakdown':'Break it down to see why it works'} onKeyDown={(event:KeyboardEvent)=>{if(event.key==='Enter'&&event.target===event.currentTarget)open();}}>
   <span className="rank" title={`Number ${rank} of the list`}>{rank}</span>
-  <Thumb videoId={item.videoId} seed={item.videoId} className="fpic" chip={<MultChip m={item.mult} who={who} onThumb dash/>}>{isNew&&<span className="chip solid br">New</span>}</Thumb>
+  <Thumb videoId={item.videoId} seed={item.videoId} className="fpic">{isNew&&<span className="chip solid br">New</span>}</Thumb>
   <div className="main">
    <div className="tt clamp2">{item.title}</div>
    <div className="meta"><Icon name="youtube" size={13}/><span className="ellipsis">{item.channel}</span>
-    <span title="Total views">{fmtNum(item.views)} views</span><span title="Views per day since it went up">{fmtNum(item.vpd)}/day</span><span>{fmtDays(item.ageDays)}</span>
-    {item.kind==='followed'&&<span>Followed</span>}
+    {item.mult!=null&&item.mult>0&&<MultChip m={item.mult} who={who} label/>}
+    <span title="Total views">{fmtNum(item.views)} views</span><span title="Views per day since it went up">{fmtNum(item.vpd)} views a day</span><span>{fmtDays(item.ageDays)}</span>
     {hasBreakdown&&<span className="ready"><Icon name="script" size={12}/>Breakdown ready</span>}</div>
    {reason&&<div className="reason">{reason}</div>}
-   <div className="quiet" onClick={event=>event.stopPropagation()}><FollowChannel item={item}/></div>
+   <div className="follow" onClick={event=>event.stopPropagation()}><FollowChannel item={item} showFollowing onFollowed={onFollowed}/></div>
   </div>
   <div className="acts" onClick={event=>event.stopPropagation()}><IdeaButton title={item.title} inIdeas={inIdeas} onIdea={()=>onIdea(item)}/></div>
  </div>;

@@ -8,7 +8,7 @@ export function RefreshActions({updatedAt,summary,job,onRefresh,disabled,why}:{u
  return <>
   <span className="faint small" aria-live="polite">{running
    ?<><span className="spin" style={{display:'inline-block',verticalAlign:'-3px',marginRight:6,width:14,height:14}}/>{job.line||'Refreshing'}</>
-   :<><Icon name="retry" size={12}/> {updatedAt?`Updated ${fmtDate(updatedAt)} · ${summary}`:'Not refreshed yet'}</>}</span>
+   :<>{updatedAt?`Updated ${fmtDate(updatedAt)} · ${summary}`:'Not refreshed yet'}</>}</span>
   <button type="button" className="btn" onClick={onRefresh} disabled={running||disabled} title={disabled?why:undefined}><Icon name="retry" size={15}/>Refresh</button>
  </>;
 }

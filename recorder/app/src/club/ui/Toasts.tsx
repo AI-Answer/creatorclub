@@ -2,6 +2,8 @@ import {createContext,useCallback,useContext,useEffect,useMemo,useRef,useState,t
 import {Icon} from './icons';
 
 export type ToastOptions={
+ /** Says why something was not done: no check mark (that means done). */
+ refused?:boolean;
  /** Adds an Undo button that runs this. */
  undo?():void;
  /** Adds a button with this label, for "Open" or similar. */
@@ -37,7 +39,7 @@ export function ToastProvider({children}:{children:ReactNode}){
   {children}
   <div className="cc-toasts" role="status" aria-live="polite">
    {toasts.map(toast=><div key={toast.id} className="cc-toast">
-    <Icon name="check" size={15} className="ok"/>{toast.message}
+    {!toast.options.refused&&<Icon name="check" size={15} className="ok"/>}{toast.message}
     {toast.options.undo&&<button type="button" onClick={()=>{toast.options.undo?.();dismiss(toast.id);}}>Undo</button>}
     {toast.options.action&&<button type="button" onClick={()=>{toast.options.action?.fn();dismiss(toast.id);}}>{toast.options.action.label}</button>}
    </div>)}

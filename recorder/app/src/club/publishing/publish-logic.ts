@@ -56,6 +56,14 @@ export function publishProblem(input:{connected:boolean;channel:boolean;exported
  return null;
 }
 
+/** The warning when some scenes have no kept take, so they are not in the exported video. Null when every scene is recorded. */
+export function unrecordedWarning(total:number,recorded:number):string|null{
+ const missing=total-recorded;
+ if(missing<=0)return null;
+ if(missing===total)return total===1?"The scene isn't recorded yet, so the video has nothing in it.":`None of the ${total} scenes is recorded yet, so the video has nothing in it.`;
+ return missing===1?`1 of ${total} scenes isn't recorded yet, so it isn't in the video.`:`${missing} of ${total} scenes aren't recorded yet, so they aren't in the video.`;
+}
+
 export const progressOf=(data:unknown):PublishProgress|null=>{
  if(typeof data!=='object'||data===null)return null;
  const {step,message,percent}=data as Partial<PublishProgress>;

@@ -34,7 +34,7 @@ export function ChannelSection({workspace,focus,onSaved,onSetup}:{workspace:Work
      lead={<Avatar name={workspace.name} size="lg"/>} verb="Edit" noun="channel" open={open.includes('channel')} onToggle={()=>toggle('channel')}>
      <ChannelForm key={workspace.slug} workspace={workspace} onSaved={onSaved} onSetup={onSetup}/>
     </Fold>
-    <Fold id="set-followed" title="Channels you follow" summary="Working now and Signals look here for what is doing well." verb="Manage" noun="follows" open={open.includes('follow')} onToggle={()=>toggle('follow')}>
+    <Fold id="set-followed" title="Channels you follow" summary="Discover looks here for what is doing well." verb="Manage" noun="follows" open={open.includes('follow')} onToggle={()=>toggle('follow')}>
      <div className="fold-pad"><FollowedChannels key={`followed-${workspace.slug}`} focus={focus==='followed'}/><SignalSources key={`signals-${workspace.slug}`} focus={focus==='sources'} topics={workspace.topics}/></div>
     </Fold>
     <Fold title="How you sound" summary="How CreatorClub writes like you." verb="Edit" noun="voice" open={open.includes('voice')} onToggle={()=>toggle('voice')}>

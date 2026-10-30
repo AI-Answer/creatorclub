@@ -7,14 +7,17 @@ import {connectLabel} from '../useConnect';
 import {Button,Icon,Input,Tabs,type Tab} from '../ui';
 
 /** Claude and ChatGPT sign in with your own accounts. Gemini is optional and takes your own API key. Which AI writes is chosen here too. */
-export function ConnectedAiSection({status,settings,onStatus,onSettings}:{status:AiStatus;settings:ClubSettings;onStatus():void;onSettings(next:Partial<ClubSettings>):void}){
+export function ConnectedAiSection({status,statusError,settings,onStatus,onSettings}:{status:AiStatus|null;statusError?:string;settings:ClubSettings;onStatus():void;onSettings(next:Partial<ClubSettings>):void}){
+ // Checking the AIs runs their command-line tools and takes a second or more: their rows wait as skeletons, everything else shows at once.
+ const pending=(label:string)=><div className="srow set-skel" aria-busy="true" aria-label={`Checking ${label}`}><span className="logo shimmer"/><div className="grow" style={{display:'flex',flexDirection:'column',gap:6}}><div className="shimmer" style={{height:14,width:'40%'}}/><div className="shimmer" style={{height:12,width:'70%'}}/></div></div>;
  return <section className="set-group" id="set-ai" aria-labelledby="set-ai-title"><h2 id="set-ai-title">Connected AI</h2><p>CreatorClub uses your own Claude or ChatGPT account. Nothing is billed here.</p>
   <div className="card">
-   <AiRow settings provider="claude" status={status.claude} description="Used for ideas, packaging, scenes and scripts." onChanged={onStatus}/>
-   <AiRow settings provider="codex" status={status.codex} description="Optional. Works the same way, if that is the account you have." onChanged={onStatus}/>
+   {status?<AiRow settings provider="claude" status={status.claude} description="Used for ideas, packaging, scenes and scripts." onChanged={onStatus}/>:pending('Claude')}
+   {status?<AiRow settings provider="codex" status={status.codex} description="Optional. Works the same way, if that is the account you have." onChanged={onStatus}/>:pending('ChatGPT')}
    <GeminiRow saved={settings.geminiKey} onChanged={geminiKey=>onSettings({geminiKey})}/>
   </div>
-  <DefaultAi status={status} saved={settings.defaultAi} onSaved={defaultAi=>onSettings({defaultAi})}/>
+  {statusError&&<div style={{marginTop:10}}><ErrorLine message={statusError} onRetry={onStatus}/></div>}
+  {status&&<DefaultAi status={status} saved={settings.defaultAi} onSaved={defaultAi=>onSettings({defaultAi})}/>}
  </section>;
 }
 

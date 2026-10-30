@@ -79,19 +79,19 @@
   --cc-thumb-3-to: #8a847b;
   --cc-thumb-4-from: #3f3c38;
   --cc-thumb-4-to: #736e66;
-  /* Outlier multipliers: the higher, the stronger the accent. Under 1x is muted. */
+  /* Outlier multipliers: neutral only (blue is for focus, selection and links). The higher, the stronger the ink; the top bands are inverted. Under 1x is muted. */
   --cc-band-grey: var(--cc-text-3);
   --cc-band-grey-soft: var(--cc-bg-sunk);
   --cc-band-blue: var(--cc-text-2);
   --cc-band-blue-soft: var(--cc-bg-sunk);
-  --cc-band-green: var(--cc-accent-text);
-  --cc-band-green-soft: var(--cc-accent-soft);
-  --cc-band-amber: var(--cc-accent-text);
-  --cc-band-amber-soft: var(--cc-accent-soft);
-  --cc-band-orange: var(--cc-on-accent);
-  --cc-band-orange-soft: var(--cc-accent);
-  --cc-band-red: var(--cc-on-accent);
-  --cc-band-red-soft: var(--cc-accent);
+  --cc-band-green: var(--cc-text);
+  --cc-band-green-soft: var(--cc-bg-sunk);
+  --cc-band-amber: var(--cc-text);
+  --cc-band-amber-soft: var(--cc-bg-sunk);
+  --cc-band-orange: var(--cc-surface);
+  --cc-band-orange-soft: var(--cc-text);
+  --cc-band-red: var(--cc-surface);
+  --cc-band-red-soft: var(--cc-text);
   /* Timeline kinds: one hue each, the same wherever a kind is drawn (timeline, scene chips, take chips). */
   --kind-screen: #1f7a80;
   --kind-camera: #6b55c4;
@@ -101,6 +101,10 @@
   --kind-zoom: #9a5a2c;
   --kind-marker: var(--cc-text);
   --kind-ink: #ffffff;
+  /* Shades on top of a clip or a stage: a hairline edge, a label plate, a drag shadow. Black at three strengths, in both themes. */
+  --cc-shade-soft: rgb(0 0 0 / 0.12);
+  --cc-shade: rgb(0 0 0 / 0.35);
+  --cc-shade-strong: rgb(0 0 0 / 0.6);
   --kind-screen-soft: color-mix(in srgb, var(--kind-screen) 14%, var(--cc-surface));
   --kind-camera-soft: color-mix(in srgb, var(--kind-camera) 14%, var(--cc-surface));
   --kind-audio-soft: color-mix(in srgb, var(--kind-audio) 14%, var(--cc-surface));

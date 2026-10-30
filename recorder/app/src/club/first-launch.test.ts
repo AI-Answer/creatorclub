@@ -221,7 +221,7 @@ test('Welcome with a channel: add it, see how you talk, break a video down, and 
  });
 });
 
-test('Welcome with a channel that has too few captions asks the voice questions and writes the guide from them; Skip questions leaves them out',async()=>{
+test('Welcome with a channel that has too few captions asks the voice questions and writes the guide from them; Continue with nothing typed leaves them out',async()=>{
  for(const skip of [false,true]){
   await withServer(call=>{
    if(call.path==='/ai/status')return {body:claudeIn};
@@ -243,7 +243,8 @@ test('Welcome with a channel that has too few captions asks the voice questions 
     assert.equal(c.querySelectorAll('textarea').length,2,'two written questions and one with choices');
     assert.match(text(c),/All three are optional/);
     if(skip){
-     await click(c,'Skip questions');
+     assert.ok(![...c.querySelectorAll('button')].some(b=>b.textContent==='Skip questions'),'one way on: Continue, and one way out: Skip setup');
+     await click(c,'Continue');
      assert.equal(calls.some(call=>call.path==='/workspaces/quiet/voice'),false);
     }else{
      const areas=[...c.querySelectorAll('textarea')];
@@ -266,6 +267,7 @@ test('Welcome starting fresh: name, topics and who it is for create the channel 
   if(call.path==='/ai/status')return {body:claudeIn};
   if(call.path==='/workspaces/fresh')return {status:201,body:{...workspace,slug:'ana',name:'Ana',person:'Ana',topics:['Claude','Woodworking'],audience:['Creators']}};
   if(call.path==='/workspaces/ana'&&call.method==='PUT')return {body:{...workspace,slug:'ana',name:'Ana Studio',person:'Ana'}};
+  if(call.path==='/workspaces/ana/voice')return {status:202,body:{id:'j_voice',kind:'voice',status:'running',createdAt:''}};
   if(call.path==='/trending')return {body:{items:[],updatedAt:'2026-10-28T00:00:00.000Z',followed:0}};
   if(call.path==='/breakdowns'&&call.method==='GET')return {body:[]};
   if(call.path==='/breakdowns'&&call.method==='POST')return {status:202,body:{id:'j_bd',kind:'breakdown',status:'running',createdAt:''}};
@@ -307,8 +309,25 @@ test('Welcome starting fresh: name, topics and who it is for create the channel 
    assert.deepEqual(routes.at(-1),{name:'settings',section:'followed'});
    await click(c,'Back');
    assert.equal(c.querySelector('h1')!.textContent,'How you talk');
-   assert.match(text(c),/Your voice guide is saved/);
+   assert.equal(c.querySelector('textarea')!.value,'I show beginners real AI work.','Back keeps the answers, and they stay editable');
+   assert.equal(button(c,'Calm and clear, like a teacher').getAttribute('aria-pressed'),'true');
+   assert.match(text(c),/Saved\. Change an answer and Continue saves it\./);
    assert.equal(calls.filter(call=>call.path==='/workspaces/fresh').length,1,'going back never creates it twice');
+   await click(c,'Continue');
+   assert.equal(calls.some(call=>call.path==='/workspaces/ana/voice'),false,'nothing changed, nothing is written again');
+   await click(c,'Back');
+   await typeArea(c.querySelector('textarea')!,'I show beginners real AI work every day.');
+   await click(c,'Continue');
+   assert.deepEqual(calls.find(call=>call.path==='/workspaces/ana/voice')?.body,{answers:{voice:'Calm and clear, like a teacher',audience:'I show beginners real AI work every day.'}},'a changed answer writes the guide again');
+   await emit('done',{voice:'built'});
+   assert.match(text(c),/Step 4 of 4/);
+   await click(c,'Back');await click(c,'Back');
+   assert.equal(c.querySelector('h1')!.textContent,'Do you have a YouTube channel?');
+   assert.equal((c.querySelector('#w-name') as HTMLInputElement).value,'Ana','the fresh start keeps its fields too');
+   await type(c.querySelector('#w-name')!,'Ana B');
+   await click(c,'Continue');
+   assert.deepEqual(calls.filter(call=>call.path==='/workspaces/ana'&&call.method==='PUT').at(-1)?.body,{person:'Ana B',name:'Ana Studio',topics:['Claude','Woodworking'],audience:['Creators']},'a change here updates the channel, never creates a second');
+   assert.equal(calls.filter(call=>call.path==='/workspaces/fresh').length,1);
   }finally{await ui.close();}
  });
 });
@@ -327,13 +346,13 @@ test('Welcome: a failed create shows one sentence with Try again; Skip setup sav
    await flush();const c=ui.container;
    await click(c,'Continue');await pressLabeled(c,"I'm starting fresh");
    await type(c.querySelector('#w-name')!,'Ana');await click(c,'Claude');await click(c,'Creators');
-   await click(c,'Continue');await click(c,'Skip questions');
+   await click(c,'Continue');await click(c,'Continue');
    assert.match(text(c),/Some details were not valid\./);
    assert.equal(c.querySelector('h1')!.textContent,'How you talk','stays on the step');
    fail=false;await click(c,'Try again');
    assert.match(text(c),/Step 4 of 4/);
    assert.equal(calls.find(call=>call.path==='/workspaces/fresh'&&!(call.body as {voice?:unknown}).voice)!==undefined,true,'skipped questions send no voice');
-   await click(c,"Look around");
+   await click(c,"Go to Home");
    assert.deepEqual(routes.at(-1),{name:'home'});
   }finally{await ui.close();}
  });
@@ -373,6 +392,31 @@ test('Settings: Claude and ChatGPT with their status and Connect or Reconnect, a
    assert.equal(c.querySelector('[aria-label="Default AI"] [aria-selected="true"]')!.textContent,'Claude','falls back to the connected AI');
    assert.deepEqual([...c.querySelectorAll('[aria-label="Theme"] button')].map(b=>b.textContent),['Light','Dark']);
    assert.equal(c.querySelector('[aria-label="Theme"] [aria-pressed="true"]')!.textContent,'Light','light by default');
+  }finally{await ui.close();}
+ });
+});
+
+test('Settings: a skeleton while the saved settings are read; the page shows without waiting for the slow AI check, whose rows follow',async()=>{
+ let answerStatus:(()=>void)|undefined,answerSettings:(()=>void)|undefined;
+ await withServer(call=>{
+  if(call.path==='/ai/status')return new Promise<FakeReply>(resolve=>{answerStatus=()=>resolve({body:claudeIn});});
+  if(call.path==='/settings'&&call.method==='GET')return new Promise<FakeReply>(resolve=>{answerSettings=()=>resolve({body:{defaultAi:null,appearance:null,geminiKey:null}});});
+  if(call.path==='/workspaces'&&call.method==='GET')return {body:one};
+  if(call.path==='/workspaces/samin')return {body:workspace};
+ },async calls=>{
+  const ui=await mountUI(createElement(SettingsScreen,{onSetup(){}}));
+  try{
+   await flush();const c=ui.container;
+   assert.ok(c.querySelector('[aria-busy="true"][aria-label="Loading settings"] .shimmer'),'a skeleton of the page, not a bare spinner');
+   assert.equal(c.querySelector('[role="progressbar"],.spinner'),null);
+   assert.ok(calls.some(call=>call.path==='/ai/status')&&calls.some(call=>call.path==='/settings'),'both are asked at once');
+   await act(async()=>answerSettings!());await flush();
+   assert.deepEqual([...c.querySelectorAll('h2')].map(h=>h.textContent),['Connected AI','Channel','Publishing and look'],'the page is there before the AI check answers');
+   assert.ok(c.querySelector('[aria-label="Checking Claude"]')&&c.querySelector('[aria-label="Checking ChatGPT"]'),'the AI rows wait as skeletons');
+   assert.ok(c.querySelector('input[aria-label="Gemini API key"]'),'what needs no check shows');
+   await act(async()=>answerStatus!());await flush();
+   assert.equal(c.querySelector('[aria-label="Checking Claude"]'),null);
+   assert.match(text(c),/Connected as dani@example\.com/);
   }finally{await ui.close();}
  });
 });
@@ -593,7 +637,7 @@ test('Welcome: a failed rename after creating a fresh channel retries only the r
    await click(c,'Continue');await pressLabeled(c,"I'm starting fresh");
    await type(c.querySelector('#w-name')!,'Ana');await click(c,'Claude');await click(c,'Creators');
    await type(c.querySelector('#w-ch')!,'Ana Studio');
-   await click(c,'Continue');await click(c,'Skip questions');
+   await click(c,'Continue');await click(c,'Continue');
    assert.match(text(c),/That did not work\./);
    putFails=false;await click(c,'Try again');
    assert.match(text(c),/Step 4 of 4/);

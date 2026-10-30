@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {IN_THE_FUTURE,TAGS_MAX_CHARS,addTags,defaultSchedule,localInputValue,markReminderSeen,progressOf,progressRows,publishProblem,reminderSeen,resultWords,scheduleTime,whenText} from './publish-logic';
+import {IN_THE_FUTURE,TAGS_MAX_CHARS,addTags,defaultSchedule,localInputValue,markReminderSeen,progressOf,progressRows,publishProblem,reminderSeen,resultWords,scheduleTime,unrecordedWarning,whenText} from './publish-logic';
 
 test('tags are split on commas and new lines, trimmed, without a leading #, and never repeated whatever their case',()=>{
  assert.deepEqual(addTags([],'claude, #ai agents\n  mods ,,'),['claude','ai agents','mods']);
@@ -84,4 +84,13 @@ test('the first-publish reminder is remembered once dismissed, and a missing sto
  }finally{
   if(had)Object.defineProperty(globalThis,'localStorage',had);else delete (globalThis as {localStorage?:unknown}).localStorage;
  }
+});
+
+test('the unrecorded warning names how many scenes are not in the video',()=>{
+ assert.equal(unrecordedWarning(4,4),null);
+ assert.equal(unrecordedWarning(0,0),null);
+ assert.equal(unrecordedWarning(4,3),"1 of 4 scenes isn't recorded yet, so it isn't in the video.");
+ assert.equal(unrecordedWarning(4,1),"3 of 4 scenes aren't recorded yet, so they aren't in the video.");
+ assert.equal(unrecordedWarning(3,0),'None of the 3 scenes is recorded yet, so the video has nothing in it.');
+ assert.equal(unrecordedWarning(1,0),"The scene isn't recorded yet, so the video has nothing in it.");
 });

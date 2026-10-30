@@ -2,6 +2,7 @@ import express, { Router, type NextFunction, type Request, type Response } from 
 import multer from 'multer';
 import { z } from 'zod';
 import { SEED_BELOW, HELP_STEPS, PLAN_JOB_KINDS, TILE_KINDS, VIDEO_STAGES, type Workspace } from '../../shared/club.js';
+import { PACKAGE_GROUPS } from '../../shared/package-merge.js';
 import { aiStatus } from './ai.js';
 import { startConnect, type ConnectOptions } from './connect.js';
 import { ClubError, GENERIC_FAILURE, notFound } from './errors.js';
@@ -23,7 +24,8 @@ import { subscribeBoard } from './board-watch.js';
 import { applyCard, askBody, askCompanion, cardBody, readThread, undoCard } from './companion.js';
 import { lock as companionLock } from './companion-actions.js';
 import { editSilences } from './companion-edit.js';
-import { videoScenes, videosScenes } from './scenes.js';
+import { moveFacts, videoScenes, videosMoveFacts, videosScenes } from './scenes.js';
+import { MOVE_REFUSED_STATUS, moveProblem } from '../../shared/club-move.js';
 import { POSITION_MAX, WIDTH_MAX, WIDTH_MIN } from './tile-layout.js';
 import { findTregCall, hasSources, NO_SOURCES, rankedSignals, readSignalsConfig, startSignalsRefresh, writeSignalsConfig, type SignalsSources } from './signals.js';
 import { ideaFromSignal, ideaFromTrending } from './trend-ideas.js';
@@ -164,7 +166,7 @@ const tilePatchBody = z
   .refine((patch) => Object.keys(patch).length > 0, { message: 'nothing to change' });
 const packageUseBody = z.object({ kind: z.enum(['hook', 'title']), text: z.string().trim().min(1).max(2000) }).strict();
 const sceneScriptBody = z.object({ text: z.string().max(200_000) }).strict();
-const packageRunBody = z.object({ replace: z.enum(['titles', 'hook']).optional() }).strict();
+const packageRunBody = z.object({ replace: z.enum(PACKAGE_GROUPS).optional() }).strict();
 const scriptRunBody = z.object({ sceneId: z.string().regex(SCENE_ID).optional() }).strict();
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { files: 1, fileSize: 50 * 1024 * 1024 } });
@@ -203,6 +205,7 @@ async function requireWorkspace(): Promise<string> {
 
 const connectBody = z.object({ provider: z.enum(['claude', 'codex']), reconnect: z.boolean().optional() }).strict();
 const stageDates = z.record(stage, z.string()).refine((dates) => Object.keys(dates).length > 0);
+const signalsRefreshBody = z.object({ only: z.array(z.string().trim().min(1).max(200)).min(1).max(100).optional() }).strict();
 const moveBody = z.object({ stage, beforeId: z.string().nullable().optional(), stageDates: stageDates.optional() }).strict();
 const geminiKeyBody = z.object({ key: z.string().trim().min(20).max(200).regex(/^[\w-]+$/) }).strict();
 const settingsBody = z.object({ defaultAi: z.enum(['claude', 'codex']), appearance: z.enum(['light', 'dark']) }).partial().strict().refine((body) => Object.keys(body).length > 0, { message: 'nothing to save' });
@@ -377,10 +380,12 @@ export function clubRouter({ ai = {}, transcribe, runAI, readViews = ytDlpViews(
     const slug = await requireWorkspace();
     res.json(await rankedSignals(slug, await store.readWorkspace(slug)));
   }));
-  router.post('/signals/refresh', handler(async (_req, res) => {
+  // `only` reads just the sources that failed last time (Try again beside their error); the others keep their posts.
+  router.post('/signals/refresh', handler(async (req, res) => {
     const slug = await requireWorkspace();
     if (!hasSources(await readSignalsConfig(slug))) throw new ClubError(NO_SOURCES, 409);
-    res.status(202).json(startSignalsRefresh(slug, signalSources));
+    const { only } = signalsRefreshBody.parse(req.body ?? {});
+    res.status(202).json(startSignalsRefresh(slug, signalSources, only));
   }));
   router.post('/signals/idea', handler(async (req, res) => {
     const { id } = signalIdeaBody.parse(req.body);
@@ -415,6 +420,8 @@ export function clubRouter({ ai = {}, transcribe, runAI, readViews = ytDlpViews(
   router.get('/recent', handler(async (_req, res) => res.json(await store.recentVideoIds(await requireWorkspace()))));
   // Every video that is not published, in one request. Registered before /videos/:id so "scenes" is not read as an id.
   router.get('/videos/scenes', handler(async (_req, res) => res.json(await videosScenes(await requireWorkspace()))));
+  // What a move by hand depends on, for every video: the board refuses a move the server would refuse, before it is tried.
+  router.get('/videos/move-facts', handler(async (_req, res) => res.json(await videosMoveFacts(await requireWorkspace(), publishing.projectExported))));
   router.get('/videos/:id', handler(async (req, res) => res.json(await store.readVideo(await requireWorkspace(), param(req, 'id')))));
   router.put('/videos/:id', handler(async (req, res) => {
     res.json(await store.updateVideo(await requireWorkspace(), param(req, 'id'), videoPatchBody.parse(req.body)));
@@ -425,7 +432,12 @@ export function clubRouter({ ai = {}, transcribe, runAI, readViews = ytDlpViews(
   }));
   router.post('/videos/:id/move', handler(async (req, res) => {
     const { stage: target, ...options } = moveBody.parse(req.body);
-    res.json(await store.moveVideo(await requireWorkspace(), param(req, 'id'), target, options));
+    const slug = await requireWorkspace();
+    const video = await store.readVideo(slug, param(req, 'id'));
+    // The server is the authority on moves by hand: forward only when the video has what that stage works on. Back is always allowed.
+    const problem = moveProblem(video.stage, target, await moveFacts(slug, video, publishing.projectExported));
+    if (problem) throw new ClubError(problem, MOVE_REFUSED_STATUS);
+    res.json(await store.moveVideo(slug, video.id, target, options));
   }));
   // Mark as published: the YouTube link and the date are saved and the card moves to Published. Views are read once afterwards.
   router.post('/videos/:id/publish', handler(async (req, res) => {
