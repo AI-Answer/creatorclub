@@ -64,7 +64,7 @@ export function PackageColumn({videoId,videoTitle,pkg,running,onEdit,onPickTitle
     <div className="prev-thumb sm"><div className="thumb"><DraftThumb text={value.thumbnailText} seed={videoId} small/></div></div>
    </div></div>
 
-  <div className="blk"><div className="blk-h"><h4>Hook</h4><span className="faint small">The first line you say</span></div>
+  <div className="blk"><div className="blk-h"><h4>Hook</h4><span className="faint small">The first 10 seconds</span></div>
    {hookField('spoken','The first line you say')}
   </div>
 
