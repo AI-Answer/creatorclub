@@ -1,0 +1,363 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Edit — one tool rail, one primary button</title>
+<style>
+:root{
+  --bg:#f8f7f4;--sunk:#f2f0ec;--surface:#fff;--surface-2:#fbfaf8;--hover:#f3f1ed;--line:#e9e6e1;--line-strong:#dcd8d1;
+  --text:#191817;--text-2:#57534d;--text-3:#736e66;--faint:#b2ada5;
+  --accent:#2563eb;--accent-soft:#eaf0fe;--accent-text:#1d4ed8;
+  --primary:#151413;--primary-hover:#2c2a28;--on-primary:#fff;
+  --ok:#18794e;--ok-soft:#e7f5ec;--warn:#a35200;--warn-soft:#fdf1df;--danger:#b42318;
+  --stage:#1b1a19;
+  --k-camera:#6b55c4;--k-audio:#6b6258;--k-captions:#9c7c00;--k-graphics:#b8457d;--k-zoom:#9a5a2c;--k-screen:#1f7a80;
+  --r:8px;--r-sm:6px;
+  font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:13.5px;color:var(--text);
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg)}
+button{font:inherit;color:inherit;cursor:pointer}
+svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.app{display:grid;grid-template-rows:56px minmax(0,1fr) 56px;height:100vh;min-width:1100px}
+
+/* one button vocabulary: .btn (outline), .btn.primary (black, once per screen), .ibtn (icon only), .link */
+.btn{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border:1px solid var(--line-strong);background:var(--surface);border-radius:var(--r-sm);font-weight:550;white-space:nowrap}
+.btn:hover{background:var(--hover)}
+.btn.primary{background:var(--primary);border-color:var(--primary);color:var(--on-primary)}
+.btn.primary:hover{background:var(--primary-hover)}
+.btn.sm{height:28px;padding:0 10px;font-size:12.5px}
+.btn:disabled{opacity:.45;cursor:default}
+.ibtn{display:inline-grid;place-items:center;width:32px;height:32px;border:0;background:transparent;border-radius:var(--r-sm);color:var(--text-2)}
+.ibtn:hover{background:var(--hover);color:var(--text)}
+.ibtn:focus-visible,.btn:focus-visible,.rail button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+[data-tip]{position:relative}
+[data-tip]:hover::after{content:attr(data-tip);position:absolute;left:50%;top:calc(100% + 6px);transform:translateX(-50%);background:#1d1c1a;color:#f4f2ee;padding:5px 8px;border-radius:6px;font-size:12px;font-weight:500;white-space:nowrap;z-index:50;pointer-events:none}
+
+/* top bar */
+.top{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;padding:0 16px;background:var(--surface);border-bottom:1px solid var(--line)}
+.crumb{display:flex;align-items:center;gap:10px;min-width:0}
+.crumb b{font-size:14.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.crumb .muted{color:var(--text-3)}
+.chip{font-size:12px;font-weight:550;padding:2px 8px;border-radius:999px;background:var(--sunk);color:var(--text-2)}
+.steps{display:flex;gap:2px;background:var(--sunk);padding:3px;border-radius:10px}
+.steps a{display:flex;align-items:center;gap:5px;padding:5px 12px;border-radius:7px;color:var(--text-2);font-weight:550;text-decoration:none}
+.steps a.done{color:var(--text-2)}
+.steps a.on{background:var(--surface);color:var(--text);box-shadow:0 1px 2px rgb(0 0 0/.08)}
+.steps svg{width:13px;height:13px;color:var(--ok)}
+.top-r{display:flex;justify-content:flex-end;align-items:center;gap:4px}
+.top-r .sep{width:1px;height:20px;background:var(--line);margin:0 8px}
+
+/* main grid: rail | panel | centre | companion */
+.main{display:grid;grid-template-columns:76px 308px minmax(0,1fr) 320px;min-height:0}
+.rail{background:var(--surface);border-right:1px solid var(--line);padding:10px 8px;display:flex;flex-direction:column;gap:2px}
+.rail button{display:flex;flex-direction:column;align-items:center;gap:4px;padding:9px 0 7px;border:0;background:transparent;border-radius:var(--r);color:var(--text-2);font-size:11.5px;font-weight:550}
+.rail button svg{width:20px;height:20px}
+.rail button:hover{background:var(--hover);color:var(--text)}
+.rail button[aria-pressed=true]{background:var(--accent-soft);color:var(--accent-text)}
+.rail .gap{flex:1}
+.panel{background:var(--surface-2);border-right:1px solid var(--line);overflow:auto;padding:16px}
+.panel h2{margin:0 0 4px;font-size:15px}
+.panel .sub{margin:0 0 14px;color:var(--text-3);line-height:1.45}
+.field{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:10px 0;color:var(--text-2)}
+select,input[type=text]{height:30px;border:1px solid var(--line-strong);border-radius:var(--r-sm);background:var(--surface);padding:0 8px;font:inherit;color:var(--text)}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:10px 12px;margin-bottom:8px}
+.prop{display:flex;gap:10px;align-items:flex-start}
+.prop input{margin-top:3px;accent-color:var(--accent)}
+.prop .t{font-weight:600}
+.prop .why{color:var(--text-3);font-size:12.5px;margin-top:2px;line-height:1.4}
+.prop .when{margin-left:auto;color:var(--text-3);font-variant-numeric:tabular-nums;font-size:12.5px;cursor:pointer;background:none;border:0;padding:0}
+.prop .when:hover{color:var(--accent-text);text-decoration:underline}
+.panel .actions{display:flex;gap:8px;margin-top:12px}
+.note{display:flex;gap:8px;padding:9px 11px;border-radius:var(--r);background:var(--warn-soft);color:var(--warn);line-height:1.4;margin-bottom:12px}
+.opt{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.opt button{border:1px solid var(--line-strong);background:var(--surface);border-radius:var(--r);padding:8px;text-align:left;font-weight:550}
+.opt button[aria-pressed=true]{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent);background:var(--accent-soft)}
+.opt i{display:block;height:34px;border-radius:5px;background:var(--stage);margin-bottom:6px;position:relative}
+.opt i::after{content:"";position:absolute;right:5px;bottom:5px;width:18px;height:14px;border-radius:3px;background:var(--k-camera)}
+.opt i.full::after{inset:4px;width:auto;height:auto;background:#3a3836}
+.opt i.side::after{right:auto;left:5px;bottom:auto;top:5px;width:40%;height:24px}
+.switch{display:inline-flex;align-items:center;gap:8px}
+.tog{width:34px;height:20px;border-radius:999px;background:var(--line-strong);position:relative;border:0;padding:0}
+.tog::after{content:"";position:absolute;left:2px;top:2px;width:16px;height:16px;border-radius:50%;background:#fff;transition:.15s}
+.tog[aria-checked=true]{background:var(--accent)}
+.tog[aria-checked=true]::after{left:16px}
+
+/* transcript */
+.words{line-height:2;font-size:15px}
+.w{padding:1px 2px;border-radius:4px;cursor:pointer}
+.w:hover{background:var(--hover)}
+.w.now{background:var(--accent-soft);color:var(--accent-text)}
+.w.cut{text-decoration:line-through;color:var(--faint)}
+.w.hl{background:var(--warn-soft)}
+.hint{color:var(--text-3);font-size:12px;margin-top:12px;line-height:1.5}
+
+/* centre */
+.centre{overflow:hidden;display:grid;grid-template-rows:minmax(0,1fr) auto auto;min-width:0;min-height:0;background:var(--bg)}
+.stagewrap{display:grid;place-items:center;padding:14px 20px 10px;min-height:0;overflow:hidden}
+.stage{aspect-ratio:16/9;height:100%;width:auto;max-width:100%;background:var(--stage);border-radius:10px;position:relative;overflow:hidden;display:grid;place-items:end center}
+.person{position:absolute;inset:0;background:radial-gradient(ellipse at 50% 38%,#a98f7a 0 10%,transparent 10.5%),radial-gradient(ellipse at 50% 100%,#2e3d52 0 34%,transparent 34.5%),linear-gradient(#d9d4cc,#b9b2a8)}
+.cap{position:relative;margin-bottom:6%;background:rgb(20 19 18/.78);color:#fff;font-weight:650;font-size:17px;padding:5px 12px;border-radius:6px;max-width:80%;text-align:center}
+.transport{display:flex;align-items:center;gap:6px;padding:6px 16px;border-top:1px solid var(--line);background:var(--surface)}
+.play{width:34px;height:34px;border-radius:50%;border:0;background:var(--primary);color:#fff;display:grid;place-items:center}
+.time{font-variant-numeric:tabular-nums;font-weight:600;margin:0 8px 0 6px}
+.time span{color:var(--text-3);font-weight:500}
+.vdiv{width:1px;height:20px;background:var(--line);margin:0 6px}
+.grow{flex:1}
+.menu{position:absolute;background:var(--surface);border:1px solid var(--line-strong);border-radius:var(--r);box-shadow:0 8px 24px rgb(0 0 0/.14);padding:6px;min-width:210px;z-index:40}
+.menu button,.menu label{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;border:0;background:none;padding:7px 10px;border-radius:6px;text-align:left;cursor:pointer}
+.menu button:hover,.menu label:hover{background:var(--hover)}
+.menu small{color:var(--text-3)}
+.menu hr{border:0;border-top:1px solid var(--line);margin:5px 0}
+.tl{background:var(--surface);border-top:1px solid var(--line);padding:0 16px 14px 0;user-select:none}
+.ruler{margin-left:96px;height:24px;position:relative;border-bottom:1px solid var(--line);cursor:pointer}
+.ruler .tick{position:absolute;top:6px;font-size:11px;color:var(--text-3);padding-left:4px;border-left:1px solid var(--line-strong);height:18px;font-variant-numeric:tabular-nums}
+.scene{position:absolute;top:0;height:5px;background:var(--text);opacity:.8;border-radius:0 0 3px 3px}
+.row{display:flex;align-items:stretch;height:36px;margin-top:6px}
+.row .lab{width:96px;display:flex;align-items:center;gap:6px;padding-left:14px;font-size:12px;color:var(--text-2);font-size:12.5px;flex:none}
+.row .lane{position:relative;flex:1;background:var(--surface-2);border-radius:6px}
+.clip{position:absolute;top:3px;bottom:3px;border-radius:5px;color:#fff;font-size:11.5px;font-weight:600;padding:0 7px;display:flex;align-items:center;white-space:nowrap;overflow:hidden}
+.clip.camera{background:var(--k-camera)}
+.clip.audio{background:repeating-linear-gradient(90deg,var(--k-audio) 0 2px,transparent 2px 5px);background-color:#e5e1da;color:var(--text)}
+.clip.cc{background:var(--k-captions)}
+.cutband{position:absolute;top:0;bottom:0;background:repeating-linear-gradient(135deg,rgb(24 21 19/.55) 0 4px,rgb(24 21 19/.35) 4px 8px);border-left:1px solid #fff;border-right:1px solid #fff;z-index:2}
+.marker{position:absolute;top:0;bottom:0;background:var(--warn-soft);border:1px dashed var(--warn);z-index:1;opacity:.9}
+.head{position:absolute;top:0;bottom:0;width:2px;background:var(--accent);z-index:5;pointer-events:none}
+.head::before{content:"";position:absolute;top:-4px;left:-5px;width:12px;height:8px;background:var(--accent);clip-path:polygon(0 0,100% 0,50% 100%)}
+
+/* companion */
+.comp{background:var(--surface);border-left:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+.comp header{padding:14px 16px;border-bottom:1px solid var(--line);display:flex;gap:10px;align-items:center}
+.mark{width:26px;height:26px;border-radius:8px;background:var(--accent);display:grid;place-items:center;color:#fff}
+.comp header b{display:block}.comp header small{color:var(--text-3)}
+.comp .body{flex:1;padding:16px;color:var(--text-2);line-height:1.5;overflow:auto}
+.sugg{display:grid;gap:8px;margin-top:12px}
+.sugg button{text-align:left;border:1px solid var(--line-strong);background:var(--surface);border-radius:var(--r);padding:9px 12px;font-weight:550}
+.sugg button:hover{background:var(--hover)}
+.ask{margin:12px;border:1px solid var(--line-strong);border-radius:12px;padding:10px 12px;color:var(--text-3);display:flex;justify-content:space-between;align-items:center}
+.scope{margin:0 12px 12px;color:var(--text-3);font-size:12px}
+
+/* bottom bar */
+.bottom{display:flex;align-items:center;justify-content:space-between;padding:0 20px;background:var(--surface);border-top:1px solid var(--line)}
+.toast{position:fixed;right:344px;top:68px;background:#1d1c1a;color:#f4f2ee;padding:10px 12px 10px 14px;border-radius:10px;display:none;gap:14px;align-items:center;z-index:60;box-shadow:0 8px 24px rgb(0 0 0/.25)}
+.toast button{background:rgb(255 255 255/.12);color:#fff;border:0;border-radius:6px;padding:4px 10px;font-weight:600}
+.tag{position:fixed;left:50%;transform:translateX(-50%);bottom:16px;background:#fff;border:1px solid var(--line-strong);border-radius:8px;padding:6px 10px;font-size:12px;color:var(--text-3);z-index:30}
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- TOP: where you are, the five steps, undo/redo/history, Export. Nothing else. -->
+  <div class="top">
+    <div class="crumb"><span class="muted">Videos</span><span class="muted">›</span><b>Still Using Claude Like It's 2024?</b><span class="chip">Editing</span></div>
+    <nav class="steps" aria-label="Steps">
+      <a class="done" href="#"><svg viewBox="0 0 24 24"><path d="M5 12l5 5L20 7"/></svg>Board</a>
+      <a class="done" href="#"><svg viewBox="0 0 24 24"><path d="M5 12l5 5L20 7"/></svg>Plan</a>
+      <a class="done" href="#"><svg viewBox="0 0 24 24"><path d="M5 12l5 5L20 7"/></svg>Record</a>
+      <a class="on" href="#">Edit</a>
+      <a href="#">Publish</a>
+    </nav>
+    <div class="top-r">
+      <button class="ibtn" data-tip="Undo (⌘Z)" id="undo"><svg viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 010 12h-3"/></svg></button>
+      <button class="ibtn" data-tip="Redo (⇧⌘Z)"><svg viewBox="0 0 24 24"><path d="M15 14l5-5-5-5"/><path d="M20 9H10a6 6 0 000 12h3"/></svg></button>
+      <button class="ibtn" data-tip="Version history"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></button>
+      <span class="sep"></span>
+      <div style="position:relative">
+        <button class="btn" id="exportBtn" aria-haspopup="menu">Export <svg viewBox="0 0 24 24" style="width:13px;height:13px"><path d="M6 9l6 6 6-6"/></svg></button>
+        <div class="menu" id="exportMenu" hidden style="right:0;top:38px">
+          <button>Video file (MP4)<small>1080p</small></button>
+          <button>Audio only<small>WAV</small></button>
+          <button>Captions<small>SRT</small></button>
+          <button>Transcript<small>Text</small></button>
+          <hr><button>Export history…</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="main">
+    <!-- LEFT RAIL: seven named tools. Each one opens one panel. -->
+    <nav class="rail" aria-label="Edit tools" id="rail"></nav>
+    <section class="panel" id="panel" aria-live="polite"></section>
+
+    <!-- CENTRE: the picture, the transport, the timeline -->
+    <div class="centre">
+      <div class="stagewrap"><div class="stage"><div class="person"></div><div class="cap" id="cap">Round one: drop the old habit</div></div></div>
+      <div class="transport">
+        <button class="play" id="play" aria-label="Play"><svg viewBox="0 0 24 24" style="stroke:none;fill:#fff"><path d="M8 5v14l11-7z"/></svg></button>
+        <div class="time"><b id="clock">0:00</b> <span>/ 0:13</span></div>
+        <span class="vdiv"></span>
+        <button class="btn sm" data-tip="Split at the playhead (⌘B)"><svg viewBox="0 0 24 24"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M20 4L8.1 15.9M14.5 14.5L20 20M8.1 8.1L12 12"/></svg>Split</button>
+        <button class="btn sm" id="del" data-tip="Delete the selected clip (⌫)"><svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>Delete</button>
+        <span class="grow"></span>
+        <div style="position:relative">
+          <button class="btn sm" id="viewBtn" aria-haspopup="menu"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/></svg>View <svg viewBox="0 0 24 24" style="width:12px;height:12px"><path d="M6 9l6 6 6-6"/></svg></button>
+          <div class="menu" id="viewMenu" hidden style="right:0;bottom:36px">
+            <label>Snap to edges<span class="tog" role="switch" aria-checked="true" tabindex="0"></span></label>
+            <label>Follow the playhead<span class="tog" role="switch" aria-checked="false" tabindex="0"></span></label>
+            <hr><button>Zoom in<small>⌘+</small></button><button>Zoom out<small>⌘−</small></button><button>Fit the whole video<small>⇧Z</small></button>
+            <hr><button>Keyboard shortcuts<small>?</small></button>
+          </div>
+        </div>
+      </div>
+      <div class="tl">
+        <div class="ruler" id="ruler"></div>
+        <div class="row"><div class="lab"><svg viewBox="0 0 24 24" style="color:var(--k-camera)"><rect x="3" y="7" width="13" height="10" rx="2"/><path d="M16 11l5-3v8l-5-3"/></svg>Camera</div><div class="lane" id="laneCam"></div></div>
+        <div class="row"><div class="lab"><svg viewBox="0 0 24 24" style="color:var(--k-audio)"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0014 0M12 18v3"/></svg>Audio</div><div class="lane" id="laneAud"></div></div>
+        <div class="row"><div class="lab"><svg viewBox="0 0 24 24" style="color:var(--k-captions)"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 11h4M7 15h8"/></svg>Captions</div><div class="lane" id="laneCap"></div></div>
+      </div>
+    </div>
+
+    <!-- RIGHT: the companion, as everywhere else -->
+    <aside class="comp">
+      <header><div class="mark"><svg viewBox="0 0 24 24" style="stroke:#fff"><circle cx="9" cy="12" r="5"/><circle cx="15" cy="12" r="5"/></svg></div><div><b>Ask Claude</b><small>Looking at: Edit · Entire video</small></div></header>
+      <div class="body">I can see the timeline, the transcript and what you select. Each change I suggest comes as a card you can preview, apply and undo.
+        <div class="sugg"><button data-go="cut">Cut the pauses</button><button data-go="cut">Remove the filler words</button><button data-go="graphics">Add a title at the start</button></div>
+      </div>
+      <div class="ask"><span>Ask, or tell me what to change</span><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></div>
+      <div class="scope">Nothing is selected, so I'll look at the entire video.</div>
+    </aside>
+  </div>
+
+  <!-- BOTTOM: back, and the ONE primary button -->
+  <div class="bottom">
+    <button class="btn"><svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg>Back to Record</button>
+    <button class="btn primary">Continue to publishing <svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></button>
+  </div>
+</div>
+<div class="toast" id="toast"><span id="toastMsg"></span><button id="toastUndo">Undo</button></div>
+<div class="tag">Mock-up of the redesigned Edit screen · click the tools on the left · not the real app</div>
+
+<script>
+const DUR=13;
+const I={
+ text:'<path d="M5 6h14M5 12h14M5 18h9"/>',
+ cut:'<circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M20 4L8.1 15.9M14.5 14.5L20 20M8.1 8.1L12 12"/>',
+ captions:'<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 11h4M7 15h8"/>',
+ layout:'<rect x="3" y="4" width="18" height="16" rx="2"/><rect x="12" y="11" width="7" height="6" rx="1"/>',
+ zoom:'<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3M11 8v6M8 11h6"/>',
+ graphics:'<path d="M12 3l2.6 5.6 6.1.7-4.5 4.2 1.2 6L12 16.4 6.6 19.5l1.2-6L3.3 9.3l6.1-.7z"/>',
+ music:'<path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/>'
+};
+const TOOLS=[['text','Transcript'],['cut','Cut'],['captions','Captions'],['layout','Layout'],['zoom','Zoom'],['graphics','Graphics'],['music','Music']];
+const WORDS=[[0,'Round'],[.4,'one,'],[.8,'drop'],[1.1,'the'],[1.3,'old'],[1.6,'habit'],[2,'and'],[2.2,'see'],[2.5,'the'],[2.7,'first'],[3,'difference.'],
+ [4.5,'Most'],[4.9,'people'],[5.3,'open'],[5.6,'a'],[5.8,'new'],[6,'chat'],[6.3,'for'],[6.5,'every'],[6.8,'task.'],[7,'Um,'],[7.5,'stop'],[7.8,'that.'],
+ [8.2,'Keep'],[8.5,'one'],[8.8,'chat'],[9,'keep'],[9.3,'one'],[9.6,'chat'],[10,'running'],[10.5,'all'],[10.8,'day.']];
+const PROPS=[
+ {id:'p1',t:'Pause',why:'Nobody speaks for 1.4 s.',from:3.1,to:4.5,on:true},
+ {id:'p2',t:'Filler word “um”',why:'A filler, 0.4 s.',from:7,to:7.45,on:true},
+ {id:'p3',t:'Repeated line',why:'“keep one chat” is said twice; the first take is cut.',from:9,to:9.9,on:true}];
+const S={tool:'text',head:0,playing:false,applied:new Set(),picked:new Set(PROPS.map(p=>p.id)),cutWords:new Set(),captions:true,layout:'side'};
+const $=s=>document.querySelector(s);
+const fmt=t=>{t=Math.max(0,t);return Math.floor(t/60)+':'+String(Math.floor(t%60)).padStart(2,'0')};
+const pct=t=>(t/DUR*100)+'%';
+const svg=p=>`<svg viewBox="0 0 24 24">${p}</svg>`;
+
+/* rail */
+$('#rail').innerHTML=TOOLS.map(([k,l])=>`<button data-tool="${k}" aria-pressed="${k===S.tool}">${svg(I[k])}${l}</button>`).join('');
+$('#rail').addEventListener('click',e=>{const b=e.target.closest('[data-tool]');if(b)open(b.dataset.tool)});
+document.addEventListener('click',e=>{const g=e.target.closest('[data-go]');if(g)open(g.dataset.go)});
+function open(k){S.tool=k;document.querySelectorAll('#rail button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.tool===k));panel();timeline()}
+
+/* panels: each tool shows only its own controls */
+function panel(){
+ const el=$('#panel');
+ if(S.tool==='text'){
+  el.innerHTML=`<h2>Transcript</h2><p class="sub">Click a word to jump there. Click it again, or press Delete, to cut it from the video.</p><div class="words">${WORDS.map(([t,w],i)=>`<span class="w ${S.cutWords.has(i)?'cut':''} ${S.head>=t&&(i===WORDS.length-1||S.head<WORDS[i+1][0])?'now':''}" data-i="${i}">${w}</span>`).join(' ')}</div><p class="hint">The spoken word is highlighted while it plays. Blank audio and sound tags such as [BLANK_AUDIO] are never shown here.</p>`;
+  el.onclick=e=>{const w=e.target.closest('.w');if(!w)return;const i=+w.dataset.i;if(e.detail>1||S.cutWords.has(i)){S.cutWords.has(i)?S.cutWords.delete(i):(S.cutWords.add(i),toast('Cut “'+WORDS[i][1].replace(/[.,]/g,'')+'”'));}else{seek(WORDS[i][0])}panel();timeline()};
+ }
+ if(S.tool==='cut'){
+  const left=PROPS.filter(p=>!S.applied.has(p.id));
+  el.onclick=null;
+  el.innerHTML=`<h2>Cut</h2><p class="sub">${left.length?`I found ${left.length} thing${left.length>1?'s':''} you may want to cut. Tick the ones you want, then apply.`:'Nothing left to cut.'}</p>
+  <div class="field"><span>Pauses longer than</span><select><option>0.7 s</option><option selected>1 s</option><option>1.5 s</option></select></div>
+  ${left.map(p=>`<div class="card"><label class="prop"><input type="checkbox" data-p="${p.id}" ${S.picked.has(p.id)?'checked':''}><div><div class="t">${p.t}</div><div class="why">${p.why}</div></div><button class="when" data-seek="${p.from}">${fmt(p.from)}</button></label></div>`).join('')}
+  ${left.length?`<div class="actions"><button class="btn" data-act="preview">Preview cuts</button><button class="btn primary" data-act="apply" ${S.picked.size?'':'disabled'}>Apply ${S.picked.size} cut${S.picked.size===1?'':'s'}</button></div>`:''}
+  <p class="hint">Applied cuts can be undone from the message that appears, or with ⌘Z.</p>`;
+  el.onclick=e=>{
+   const c=e.target.closest('[data-p]');if(c){c.checked?S.picked.add(c.dataset.p):S.picked.delete(c.dataset.p);panel();timeline();return}
+   const s=e.target.closest('[data-seek]');if(s){e.preventDefault();seek(+s.dataset.seek);return}
+   const a=e.target.closest('[data-act]');if(!a)return;
+   if(a.dataset.act==='preview'){const f=PROPS.find(p=>S.picked.has(p.id));if(f)seek(Math.max(0,f.from-1));play(true)}
+   if(a.dataset.act==='apply'){const ids=[...S.picked];ids.forEach(i=>S.applied.add(i));S.picked.clear();toast(`Cut ${ids.length} thing${ids.length>1?'s':''} · ${ids.reduce((n,i)=>{const p=PROPS.find(x=>x.id===i);return n+p.to-p.from},0).toFixed(1)} s shorter`,()=>{ids.forEach(i=>{S.applied.delete(i);S.picked.add(i)});panel();timeline()});panel();timeline()}
+  };
+ }
+ if(S.tool==='captions'){
+  el.onclick=null;
+  el.innerHTML=`<h2>Captions</h2><p class="sub">Words appear on the picture as they are spoken.</p>
+  <div class="field"><span>Show captions</span><button class="tog" role="switch" aria-checked="${S.captions}" id="capTog"></button></div>
+  <div class="field"><span>Style</span><select><option>Bold, bottom</option><option>Plain</option><option>Highlight word</option></select></div>
+  <div class="field"><span>Size</span><select><option>Medium</option><option>Large</option></select></div>
+  <p class="hint">2 captions from the speech. Edit a caption by clicking it in the timeline.</p>`;
+  $('#capTog').onclick=e=>{S.captions=!S.captions;e.currentTarget.setAttribute('aria-checked',S.captions);$('#cap').style.display=S.captions?'':'none';timeline()};
+ }
+ if(S.tool==='layout'){
+  el.onclick=e=>{const b=e.target.closest('[data-l]');if(b){S.layout=b.dataset.l;panel()}};
+  el.innerHTML=`<h2>Layout</h2><p class="sub">How the camera and the screen share the picture.</p><div class="opt">
+   ${[['full','Camera only'],['side','Camera and screen'],['pip','Screen, camera small']].map(([k,l])=>`<button data-l="${k}" aria-pressed="${S.layout===k}"><i class="${k==='pip'?'':k}"></i>${l}</button>`).join('')}</div>
+   <p class="hint">This recording has no screen source, so only “Camera only” changes the picture.</p>`;
+ }
+ if(S.tool==='zoom'){
+  el.onclick=null;
+  el.innerHTML=`<h2>Zoom</h2><p class="sub">Move in on part of the picture for a few seconds.</p><button class="btn" style="width:100%;justify-content:center">Add a zoom at ${fmt(S.head)}</button>
+  <div class="field" style="margin-top:16px"><span>How close</span><select><option>1.5×</option><option>2×</option></select></div>
+  <p class="hint">No zooms yet. A zoom is drawn as a bar on its own row of the timeline.</p>`;
+ }
+ if(S.tool==='graphics'){
+  el.onclick=null;
+  el.innerHTML=`<h2>Graphics</h2><p class="sub">Titles and labels over the picture. They appear on their own row of the timeline.</p>
+  ${['Title','Lower third','Callout','Arrow'].map(n=>`<div class="card" style="display:flex;justify-content:space-between;align-items:center"><b>${n}</b><button class="btn sm">Add at ${fmt(S.head)}</button></div>`).join('')}
+  <p class="hint">Or ask Claude: “add a lower third at 0:12”.</p>`;
+ }
+ if(S.tool==='music'){
+  el.onclick=null;
+  el.innerHTML=`<h2>Music</h2><p class="sub">Add a soundtrack you own or may use.</p><button class="btn" style="width:100%;justify-content:center">Import music…</button><div class="field" style="margin-top:16px"><span>Volume under speech</span><select><option>Low</option><option>Medium</option></select></div>`;
+ }
+}
+
+/* timeline */
+function timeline(){
+ const r=$('#ruler');let h='';
+ for(let t=0;t<=DUR;t+=2)h+=`<div class="tick" style="left:${pct(t)}">${fmt(t)}</div>`;
+ h+=`<div class="scene" style="left:0;width:${pct(DUR)}" data-tip="Scene 1 · Round 1, drop the old habit"></div>`;
+ r.innerHTML=h;
+ const band=(a,b)=>`<div class="cutband" style="left:${pct(a)};width:${pct(b-a)}"></div>`;
+ const mark=(a,b)=>`<div class="marker" style="left:${pct(a)};width:${pct(b-a)}"></div>`;
+ const applied=PROPS.filter(p=>S.applied.has(p.id)),pending=S.tool==='cut'?PROPS.filter(p=>S.picked.has(p.id)):[];
+ const over=applied.map(p=>band(p.from,p.to)).join('')+pending.map(p=>mark(p.from,p.to)).join('');
+ $('#laneCam').innerHTML=`<div class="clip camera" style="left:0;width:100%">Scene 1 · Round 1, drop the old habit</div>${over}`;
+ $('#laneAud').innerHTML=`<div class="clip audio" style="left:0;width:100%"></div>${over}`;
+ $('#laneCap').innerHTML=(S.captions?`<div class="clip cc" style="left:0;width:${pct(4.4)}">Round one, drop the old habit</div><div class="clip cc" style="left:${pct(4.6)};width:${pct(8.2)}">Most people open a new chat for every task</div>`:'')+over;
+ head();
+}
+function head(){
+ document.querySelectorAll('.head').forEach(n=>n.remove());
+ for(const id of ['laneCam','laneAud','laneCap']){const l=document.getElementById(id);const d=document.createElement('div');d.className='head';d.style.left=pct(S.head);l.appendChild(d)}
+ $('#clock').textContent=fmt(S.head);
+ const cur=[...WORDS].reverse().find(([t])=>t<=S.head);$('#cap').textContent=cur?WORDS.filter(([t])=>t>=Math.floor(S.head/4.5)*4.5&&t<Math.floor(S.head/4.5)*4.5+4.5).map(x=>x[1]).join(' ').slice(0,60):'';
+}
+function seek(t){S.head=Math.max(0,Math.min(DUR,t));head();if(S.tool==='text')panel()}
+$('#ruler').addEventListener('click',e=>{const b=e.currentTarget.getBoundingClientRect();seek((e.clientX-b.left)/b.width*DUR)});
+['laneCam','laneAud','laneCap'].forEach(id=>document.getElementById(id).addEventListener('click',e=>{const b=e.currentTarget.getBoundingClientRect();seek((e.clientX-b.left)/b.width*DUR)}));
+
+/* play */
+let timer=null;
+function play(on){S.playing=on;$('#play').innerHTML=on?`<svg viewBox="0 0 24 24" style="stroke:none;fill:#fff"><rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/></svg>`:`<svg viewBox="0 0 24 24" style="stroke:none;fill:#fff"><path d="M8 5v14l11-7z"/></svg>`;
+ clearInterval(timer);if(on)timer=setInterval(()=>{S.head+=.1;const skip=PROPS.find(p=>S.applied.has(p.id)&&S.head>=p.from&&S.head<p.to);if(skip)S.head=skip.to;if(S.head>=DUR){S.head=DUR;play(false)}head();if(S.tool==='text'&&Math.round(S.head*10)%3===0)panel()},100)}
+$('#play').onclick=()=>play(!S.playing);
+
+/* menus */
+function menu(btn,m){btn.onclick=e=>{e.stopPropagation();const o=!m.hidden;document.querySelectorAll('.menu').forEach(x=>x.hidden=true);m.hidden=o}}
+menu($('#exportBtn'),$('#exportMenu'));menu($('#viewBtn'),$('#viewMenu'));
+document.addEventListener('click',e=>{if(!e.target.closest('.menu'))document.querySelectorAll('.menu').forEach(x=>x.hidden=true)});
+document.querySelectorAll('.tog[role=switch]').forEach(t=>t.addEventListener('click',e=>{e.stopPropagation();t.setAttribute('aria-checked',t.getAttribute('aria-checked')!=='true')}));
+
+/* toast with Undo */
+let tt=null,undoFn=null;
+function toast(msg,undo){$('#toastMsg').textContent=msg;undoFn=undo||null;$('#toastUndo').style.display=undo?'':'none';$('#toast').style.display='flex';clearTimeout(tt);tt=setTimeout(()=>$('#toast').style.display='none',6000)}
+$('#toastUndo').onclick=()=>{if(undoFn)undoFn();$('#toast').style.display='none'};
+
+panel();timeline();
+</script>
+</body>
+</html>
