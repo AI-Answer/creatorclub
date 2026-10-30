@@ -36,7 +36,7 @@ export function FirstSteps({ideas,hasTopics,start,error,onRetry,onBreak,onOpenId
      <button type="button" className="btn sm" onClick={event=>{event.stopPropagation();onBreak(item);}}><Icon name="ai" size={14}/>Break this down</button>
     </div>)}</div>
     <div className="small muted" style={{marginTop:12}}>A breakdown shows why the video worked, what viewers asked, and three concepts you could make.</div>
-   </>:<Empty icon="trending" title="No videos to start from yet" action={<button type="button" className="btn" onClick={onIdeas}>Go to Ideas</button>}>Paste a link on Ideas to break down any video that's working.</Empty>}
+   </>:<Empty icon="trending" title="No videos to start from yet" action={<button type="button" className="btn" onClick={onIdeas}>Follow channels</button>}>Follow a few channels in your space and the videos beating their usual views show up here.</Empty>}
   </div>
  </div>;
 }

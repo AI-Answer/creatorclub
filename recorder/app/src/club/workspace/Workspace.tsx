@@ -147,7 +147,7 @@ export function Workspace({video,tab,back,navigate,onVideo}:{video:Video;tab:Vid
    {tab==='edit'&&!unplanned&&waiting.length>0&&<div className="ws-body" style={{flex:'none',padding:'8px 18px'}}><div className="ws-notice" role="status"><span>{waiting.length===1?`The take for “${waiting[0]}” isn't on the timeline yet.`:`${waiting.length} takes aren't on the timeline yet.`}</span><Button variant="primary" size="sm" onClick={()=>navigate(tabRoute('record'))}>Open the take</Button></div></div>}
    {(tab==='record'||tab==='edit')&&(!unplanned&&video.recorderProjectId
     ?<div className={prompting?'rec with-prompter':'rec with-embed'}>
-     <div className="rec-left"><ClubRecorder projectId={video.recorderProjectId} mode={tab==='record'?'Record':'Edit'} onBack={()=>navigate({name:'production',view:'board'})}
+     <div className="rec-left"><ClubRecorder projectId={video.recorderProjectId} mode={tab==='record'?'Record':'Edit'} onBack={()=>navigate({name:'videos',view:'board'})}
       registerLeaveGuard={registerLeaveGuard} onMode={mode=>{if(mode==='Edit'&&tab==='record')void continueToNext();else navigate(tabRoute(mode==='Edit'?'edit':'record'));}} onProgress={onProgress} onExported={tab==='edit'?onExported:undefined}
       onRestart={plan.continueAction?.run}
       sceneId={tab==='record'?recorderSceneFor(video,focusId)??undefined:undefined} sceneNonce={pickN} onSceneChange={tab==='record'?recorderScene:undefined} onChanged={reloadScenes}/></div>

@@ -6,25 +6,22 @@ import {ACTIVE_STAGES} from './overview';
 import {defaultTab,type Route,type VideoTab} from './routes';
 
 /*
- * The logic behind Production: which videos each board column shows and where a dragged card lands, the order of the table,
+ * The logic behind Videos: which videos each board column shows and where a dragged card lands, the order of the table,
  * and which day each video sits on in the calendar. Pure, so the screens only draw it.
  */
 
 const byOrder=(a:Video,b:Video)=>a.order-b.order||a.createdAt.localeCompare(b.createdAt);
 const byPublished=(a:Video,b:Video)=>(b.publishedAt??'').localeCompare(a.publishedAt??'')||byOrder(a,b);
 
-/** Where a card opens: an idea in the Ideas drawer, any other video on the tab for its stage. */
+/** Where a card opens: an idea in its drawer on Videos, any other video on the tab for its stage. */
 export function openRoute(video:Video,tab?:VideoTab):Route{
- return video.stage==='ideas'?{name:'ideas',open:video.id}:{name:'video',id:video.id,tab:tab??defaultTab(video.stage)};
+ return video.stage==='ideas'?{name:'videos',view:'board',open:video.id}:{name:'video',id:video.id,tab:tab??defaultTab(video.stage)};
 }
 
 /** "2 of 5 scenes". */
 export const scenesLine=(recorded:number,total:number)=>`${recorded} of ${total} ${total===1?'scene':'scenes'}`;
 
 // ---------------------------------------------------------------- board
-
-/** How many ideas the Ideas column shows before "View all". */
-export const IDEAS_SHOWN=6;
 
 /** What an empty column says. */
 export const COLUMN_EMPTY:Record<VideoStage,string>={
@@ -36,16 +33,19 @@ export const COLUMN_EMPTY:Record<VideoStage,string>={
  published:'Videos land here once they are on YouTube.',
 };
 
-/** `all` is every video the column holds, `shown` the ones drawn (the first few ideas). Later and Skipped ideas are in neither. */
+/** `all` is every video the column holds, `shown` the ones drawn in board order. Later and Skipped ideas are in neither; the Ideas lane draws its ideas in groups (`ideaGroups`). */
 export interface BoardColumn{stage:VideoStage;all:Video[];shown:Video[]}
 
 /** The six columns: board order, except Published, which has the latest first. */
 export function boardColumns(videos:readonly Video[]):BoardColumn[]{
  return VIDEO_STAGES.map(stage=>{
   const all=videos.filter(video=>video.stage===stage&&!video.hidden).sort(stage==='published'?byPublished:byOrder);
-  return {stage,all,shown:stage==='ideas'?all.slice(0,IDEAS_SHOWN):all};
+  return {stage,all,shown:all};
  });
 }
+
+/** Lanes whose order is not yours to set: Ideas are grouped and ranked, Published has the latest first. A card dropped on them goes in, never between two cards. */
+export const unordered=(stage:VideoStage)=>stage==='ideas'||stage==='published';
 
 /** Where a dragged card lands: the index of the first card whose middle is below the pointer, else the end. */
 export const dropIndex=(middles:readonly number[],pointerY:number)=>{const at=middles.findIndex(middle=>pointerY<middle);return at<0?middles.length:at;};
@@ -53,10 +53,10 @@ export const dropIndex=(middles:readonly number[],pointerY:number)=>{const at=mi
 /**
  * The card a dropped card goes before, given the index it was dropped at among the column's drawn cards (without the dragged one).
  * Dropped at the end of a column that shows only part of its videos, it goes before the first one that is not drawn, so it stays in view.
- * Null means last. Published has no order of its own, so it is always last.
+ * Null means last. Ideas and Published have no order of their own (`unordered`), so it is always last there.
  */
 export function beforeIdAt(column:BoardColumn,dragId:string,index:number):string|null{
- if(column.stage==='published')return null;
+ if(unordered(column.stage))return null;
  const drawn=column.shown.filter(video=>video.id!==dragId);
  if(index<drawn.length)return drawn[index].id;
  return column.all.filter(video=>video.id!==dragId)[drawn.length]?.id??null;
@@ -93,14 +93,14 @@ export const nextInStage=(videos:readonly Video[],id:string):string|null=>{
 export interface Move{message:string;previous:{stage:VideoStage;beforeId:string|null;stageDates:Video['stageDates']}}
 
 /**
- * The move of `id` to `stage`, just before `beforeId` or last, or null when it would change nothing (a card dropped where it is, or reordered in Published).
+ * The move of `id` to `stage`, just before `beforeId` or last, or null when it would change nothing (a card dropped where it is, or within Ideas or Published).
  * Ideas put off or skipped are out of sight, so they do not count: a card dropped after the last one you see stays where it is.
  */
 export function planMove(videos:readonly Video[],id:string,stage:VideoStage,beforeId:string|null):Move|null{
  const video=videos.find(v=>v.id===id);
  if(!video)return null;
  const within=video.stage===stage;
- if(within&&(stage==='published'||isSamePlace(videos.filter(v=>!v.hidden||v.id===id),id,stage,beforeId)))return null;
+ if(within&&(unordered(stage)||isSamePlace(videos.filter(v=>!v.hidden||v.id===id),id,stage,beforeId)))return null;
  const unrecorded=!within&&stage==='publishing'&&!video.recorderProjectId;
  return {message:within?`Moved in ${STAGE_LABEL[stage]}`:unrecorded?'Moved to Publishing, but nothing is recorded yet':`Moved to ${STAGE_LABEL[stage]}`,previous:{stage:video.stage,beforeId:nextInStage(videos,id),stageDates:video.stageDates}};
 }

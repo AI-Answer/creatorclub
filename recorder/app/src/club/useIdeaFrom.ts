@@ -10,13 +10,13 @@ export const ideaFromSource=(videos:readonly Video[],url:string)=>videos.find(vi
 export const trendingUrl=(videoId:string)=>`https://www.youtube.com/watch?v=${videoId}`;
 
 /**
- * "Turn into idea" for a Working now video or a Signals post. Says it was added, with a button that opens the idea;
+ * "Turn into idea" for a video or a post on Discover. Says it was added, with a button that opens the idea;
  * a source that already is an idea only says so.
  */
 export function useIdeaFrom(videos:readonly Video[],navigate:(route:Route)=>void){
  const toast=useToast();
  return useCallback(async(source:{kind:'trending';videoId:string}|{kind:'signal';id:string;url:string})=>{
-  const open=(id:string)=>({label:'Open',fn:()=>navigate({name:'ideas',new:id})});
+  const open=(id:string)=>({label:'Open',fn:()=>navigate({name:'videos',view:'board',new:id})});
   const url=source.kind==='trending'?trendingUrl(source.videoId):source.url;
   const existing=ideaFromSource(videos,url);
   if(existing){toast('Already in your ideas',{action:open(existing.id)});return;}

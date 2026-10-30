@@ -57,10 +57,9 @@ test('nothing in src/club imports lucide-react except the icon registry',()=>{
  assert.deepEqual(found,[],'Add the icon to ui/icons.tsx under a semantic name and use <Icon name="…"/>.');
 });
 
-/** Files another task is rewriting (Discover and Videos screens, the companion). They keep the prototype's icon names until it merges. */
+/** Files another task is rewriting (the companion). They keep the prototype's icon names until it merges. */
 export const LEGACY_ICON_FILES=[
- 'club/screens/IdeasScreen.tsx','club/screens/TrendingScreen.tsx','club/screens/SignalsScreen.tsx','club/screens/ProductionScreen.tsx','club/screens/OverviewScreen.tsx',
- 'club/Sidebar.tsx','club/workspace/Companion.tsx',
+ 'club/workspace/Companion.tsx',
 ];
 
 test('icons are asked for by meaning; the old picture names stay only in the files still being rewritten',async()=>{

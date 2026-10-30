@@ -1,5 +1,8 @@
 # CreatorClub UX problems (live app, 1440x900, Samin's data, 2026-10-29)
 
+> **Superseded by v2 Task 5b (2026-10-30):** Overview is now **Home** (`#/home`), Working now and Signals are one **Discover** (`#/discover?show=youtube|x|reddit|followed`), Ideas and Production are one **Videos** pipeline with Ideas as its first lane (`#/videos`, `#/videos/table`, `#/videos/calendar`, query `group=later|skipped`, `open`, `new`, `bd`). The sidebar is Home, Discover, Videos, then Settings, Help and Collapse as icons. Every old hash below redirects to its new place.
+
+
 Visible controls per screen (buttons, links, inputs, tabs): Overview 21, Ideas 32, Working now 35, Signals 35, Production 27, Video Board 43, Plan 47, Record 70, Edit 70, Publish 41, Settings 28.
 
 1. **Three navigation systems on the video page.** The top tabs (Board, Plan, Record, Edit, Publish), a second step bar at the bottom with the same five steps, and a scene strip under the header, all beside the app sidebar.

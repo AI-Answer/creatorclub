@@ -42,9 +42,9 @@ const breakdown={
 };
 const trendItem={videoId:'abcdefghijk',title:'How I built it',channel:'Duncan Rogoff | AI',kind:'followed',views:760000,likes:null,comments:null,published:'2026-10-24',ageDays:3,vpd:200000,mult:2.84,fit:true,reason:'Because you picked Claude'};
 
-test('opening the overview before setup was finished goes to first launch; a finished setup, an existing install or an unreachable server does not',async()=>{
+test('opening Home before setup was finished goes to first launch; a finished setup, an existing install or an unreachable server does not',async()=>{
  const posts:string[]=[];
- for(const [welcomed,status,workspaces,expected] of [[false,signedOut,none,'#/welcome'],[false,claudeIn,none,'#/welcome'],[false,signedOut,one,'#/welcome'],[true,signedOut,none,'#/overview'],[false,claudeIn,one,'#/overview']] as const){
+ for(const [welcomed,status,workspaces,expected] of [[false,signedOut,none,'#/welcome'],[false,claudeIn,none,'#/welcome'],[false,signedOut,one,'#/welcome'],[true,signedOut,none,'#/home'],[false,claudeIn,one,'#/home']] as const){
   await withServer(call=>{
    if(call.path==='/settings')return {body:{defaultAi:null,welcomed,appearance:null,geminiKey:null,helpSeen:[]}};
    if(call.path==='/settings/welcomed'){posts.push(call.method);return {body:{welcomed:true}};}
@@ -57,7 +57,7 @@ test('opening the overview before setup was finished goes to first launch; a fin
  assert.deepEqual(posts,['POST'],'an install that already has a channel and an AI is marked as set up, once');
  FakeEventSource.install();const original=globalThis.fetch;globalThis.fetch=(async()=>{throw new TypeError('offline');}) as typeof fetch;
  window.location.hash='';const ui=await mountUI(createElement(ClubApp));
- try{await flush();assert.equal(window.location.hash,'#/overview');}finally{globalThis.fetch=original;await ui.close();window.location.hash='';}
+ try{await flush();assert.equal(window.location.hash,'#/home');}finally{globalThis.fetch=original;await ui.close();window.location.hash='';}
 });
 
 test('the theme saved in settings is applied when the app opens',async()=>{
@@ -216,7 +216,7 @@ test('Welcome with a channel: add it, see how you talk, break a video down, and 
    const adds=[...c.querySelectorAll('button')].filter(b=>b.textContent==='Add to my ideas');
    assert.equal(adds.length,3);
    await act(async()=>adds[1].click());await flush();
-   assert.deepEqual(routes.at(-1),{name:'ideas',new:'v_new'});
+   assert.deepEqual(routes.at(-1),{name:'videos',view:'board',new:'v_new'});
   }finally{await ui.close();}
  });
 });
@@ -334,7 +334,7 @@ test('Welcome: a failed create shows one sentence with Try again; Skip setup sav
    assert.match(text(c),/Step 4 of 4/);
    assert.equal(calls.find(call=>call.path==='/workspaces/fresh'&&!(call.body as {voice?:unknown}).voice)!==undefined,true,'skipped questions send no voice');
    await click(c,"Look around");
-   assert.deepEqual(routes.at(-1),{name:'overview'});
+   assert.deepEqual(routes.at(-1),{name:'home'});
   }finally{await ui.close();}
  });
  await withServer(call=>{
@@ -346,7 +346,7 @@ test('Welcome: a failed create shows one sentence with Try again; Skip setup sav
   try{
    await flush();await click(ui.container,'Skip setup');
    assert.equal(calls.filter(call=>call.path==='/settings/welcomed'&&call.method==='POST').length,1);
-   assert.deepEqual(routes2,[{name:'overview'}]);
+   assert.deepEqual(routes2,[{name:'home'}]);
   }finally{await ui.close();}
  });
 });
@@ -616,7 +616,7 @@ test('Welcome: leaving waits for setup to be saved; a failed save shows one sent
    assert.deepEqual(routes,[]);
    assert.match(text(c),/That did not work\./);
    fail=false;await click(c,'Try again');
-   assert.deepEqual(routes,[{name:'overview'}]);
+   assert.deepEqual(routes,[{name:'home'}]);
    assert.equal(c.querySelector('[role="alert"]'),null);
   }finally{await ui.close();}
  });

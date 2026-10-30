@@ -1,7 +1,7 @@
 import {useEffect,useState} from 'react';
 import type {Breakdown,Video} from '../../shared/club';
 import {clubFetch} from './api';
-import type {IdeaActionSet} from './cards/IdeaRow';
+import type {IdeaActionSet} from './production/IdeaLane';
 import {ytThumb} from './format';
 import {LEVEL_WORD,ideaSourceVideoId,isTimely} from './ideas';
 import {Drawer,Ed,Icon,Level,StagePill,Thumb} from './ui';

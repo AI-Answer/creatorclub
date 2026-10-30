@@ -21,7 +21,7 @@ const withServer=async(reply:(call:FakeCall)=>FakeReply|Promise<FakeReply>,run:(
 };
 const emit=(type:string,data?:unknown)=>act(async()=>{FakeEventSource.last().emit(type,data);});
 
-const sidebar=(props:Partial<Parameters<typeof Sidebar>[0]>={})=>createElement(Sidebar,{route:{name:'overview'},collapsed:false,onToggle(){},onSearch(){},onHelp(){},onSwitched(){},onAdd(){},videos:[],epoch:0,...props});
+const sidebar=(props:Partial<Parameters<typeof Sidebar>[0]>={})=>createElement(Sidebar,{route:{name:'home'},collapsed:false,onToggle(){},onSearch(){},onHelp(){},onSwitched(){},onAdd(){},videos:[],epoch:0,...props});
 
 test('channel switcher: shows the current channel, lists all of them, switches, and offers Add a channel',async()=>{
  await withServer(call=>{

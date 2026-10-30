@@ -7,8 +7,8 @@ The design system it uses is in `recorder/app/src/club/ui/` (tokens, icons, prim
 
 | Place | What lives there | What never lives there |
 |---|---|---|
-| **Sidebar** (left; a rail inside a video) | The channel and its menu (switch, add a channel), Search (⌘K), the screens (Overview, Ideas, Working now, Signals, Production; Task 5b turns these into Discover and Videos), the videos in production, Settings, How CreatorClub works, collapse | Anything about one video |
-| **Video header** (top of a video) | Back to where the video was opened from (named: "Production ›"), the title (click to rename), the stage (menu, Move to), the five steps, the publish date, More for this video (Copy link) | A second set of steps, a Back button |
+| **Sidebar** (left; a rail inside a video) | The channel and its menu (switch, add a channel), Search (⌘K), the three places (Home, Discover, Videos with the number of videos in progress), then three icons with tooltips: Settings, Help (How CreatorClub works), Collapse | Anything about one video; a list of videos (Home and Videos have them); a place twice |
+| **Video header** (top of a video) | Back to where the video was opened from (named: "Videos ›"), the title (click to rename), the stage (menu, Move to), the five steps, the publish date, More for this video (Copy link) | A second set of steps, a Back button |
 | **Step rail** (Board · Plan · Record · Edit · Publish, in the header) | The only way between steps, ticked once a step's job is done | — |
 | **Bottom bar** (a video step) | Continue to the next step, on the right; primary once the step's job is done. No bar on Publish | Back (the step rail is the way back), the steps again |
 | **Scene chips** (under the header, Record and Edit only) | The scenes with their status word (Not recorded, Kept take 1…), the one scene picker | The script |
@@ -17,6 +17,16 @@ The design system it uses is in `recorder/app/src/club/ui/` (tokens, icons, prim
 | **Dialog** | A question before something that replaces or deletes ("Write the titles again?") | Forms that belong on the page |
 | **Menu** (`Menu`) | Actions on one thing: a scene's options, a card's Move to, Write with Claude | The page's one primary action |
 | **Toast** (bottom) | What just happened, with Undo when it can be undone | Errors (they stay on the page as one sentence with Try again) |
+
+## The places
+
+| Place | First sight | One click away |
+|---|---|---|
+| **Home** (`#/home`) | The next thing to do on the video you worked on last, the other videos in production with one button each, New video. A channel with nothing in production: the first-video checklist | The video |
+| **Discover** (`#/discover`) | One ranked feed of what works outside: YouTube videos beating their usual and posts from X and Reddit, chips For you, Followed, YouTube, X, Reddit (with counts), one sort (the orders that fit the chip), Refresh (reads all of them, with its progress), Your ideas (a count that opens Videos). Every card has one button, Turn into idea (In ideas once it is one) | A video's breakdown (press the row), Show everything (what is off topic), Show more, Open post (under the pointer), Follow this channel (under the pointer) |
+| **Videos** (`#/videos`, `/table`, `/calendar`) | Board, Table, Calendar; New video. The board's first lane is Ideas, grouped Timely, Evergreen (best rated first), Later and Skipped (folded, with counts); then Planning, Recording, Editing, Publishing, Published. An idea card has Start planning | An idea's drawer (press it), its menu (Later, Skip with a reason, Move to, Delete), Show all in a group, a breakdown from New video (a sheet) |
+
+Old links still work: `#/overview` is Home, `#/trending` is Discover on YouTube, `#/signals` is Discover, `#/ideas?filter=later&open=…` is `#/videos?group=later&open=…`, `#/production/<view>` and `#/board` are Videos.
 
 ## The steps of a video
 

@@ -13,7 +13,7 @@ const {VIDEOS_CHANGED}=await import('./api');
 const flush=()=>act(async()=>{await new Promise(resolve=>setTimeout(resolve,0));});
 const primaries=(root:Element)=>[...root.querySelectorAll('button')].filter(b=>b.classList.contains('primary')&&!b.disabled).map(b=>b.textContent?.trim());
 const hasText=(root:Element,text:string)=>(root.textContent??'').includes(text);
-const back:Route={name:'production',view:'board'};
+const back:Route={name:'videos',view:'board'};
 
 const planned:Video={id:'v1',title:'Hidden features in Claude Code',stage:'planning',order:0,createdAt:'2026-10-01T00:00:00.000Z',updatedAt:'2026-10-01T00:00:00.000Z',stageDates:{ideas:'2026-10-01T00:00:00.000Z'},planning:{research:true,package:false,outline:false}};
 const pkg:Package={demand:{level:'high',note:'Asked a lot'},gap:{level:'mid',note:'Few show it'},show:{level:'high',note:'Screen only'},angle:'Angle',twist:'Twist',titles:['Claude Code features you missed','Seven hidden Claude Code tricks','Stop using Claude Code wrong'],thumbnailText:'Hidden features',hook:{visual:'A menu',spoken:'You never opened this.',text:'HIDDEN'}};

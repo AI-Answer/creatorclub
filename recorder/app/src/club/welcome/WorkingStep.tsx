@@ -54,6 +54,6 @@ export function WorkingStep({items,searching,loadError,onReload,saved,videos,onA
     <button type="button" className="btn sm" onClick={event=>{event.stopPropagation();choose(item);}}><Icon name={has?'script':'ai'} size={14}/>{has?'Open breakdown':'Break this down'}</button>
    </div>;
   })}</div>
-  <div className="small muted" style={{marginTop:12}}>The chip on each thumbnail compares the video with that channel's usual views: blue 1 to 3×, green 3 to 5×, amber 5 to 10×, orange 10× and up. A dash means the channel's usual isn't tracked yet. You'll find more in Working now.</div>
+  <div className="small muted" style={{marginTop:12}}>The chip on each thumbnail compares the video with that channel's usual views: blue 1 to 3×, green 3 to 5×, amber 5 to 10×, orange 10× and up. A dash means the channel's usual isn't tracked yet. You'll find more in Discover.</div>
  </div>;
 }

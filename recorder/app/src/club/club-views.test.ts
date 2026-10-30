@@ -5,7 +5,8 @@ import {act,createElement} from 'react';
 import type {SignalEntry,TrendingEntry,Video} from '../../shared/club';
 import type {SceneProgress} from './scene-status';
 import {installFetch,type FakeCall} from './test-fakes';
-const {ideaCounts,ideasIn,ideaWhy,showSourceThumbs,ideaSourceVideoId,videoThumbId,breakdownUrl,tabOf}=await import('./ideas');
+const {ideaGroups,ideaGroupOf,ideaScore,openIdeas,ideaWhy,ideaSourceVideoId,videoThumbId,breakdownUrl}=await import('./ideas');
+const {discoverFeed,discoverCounts,interleave,sortFor,sortsFor,latestRead,feedKey}=await import('./discover');
 const {greeting,standing,isFresh,overviewLede,resumeVideos,progressText,nextAction,firstName}=await import('./overview');
 const {trendList,trendCounts,offTopic,growthPerDay,isNew}=await import('./trending-view');
 const {signalList,signalCounts}=await import('./signals-view');
@@ -23,15 +24,29 @@ const sceneProgress=(scenes:number,recorded:number):SceneProgress[]=>Array.from(
 const trend=(videoId:string,extra:Partial<TrendingEntry>={}):TrendingEntry=>({videoId,title:videoId,channel:'Ch',kind:'followed',views:1000,likes:1,comments:1,published:'2026-10-20',ageDays:3,vpd:300,mult:2,history:[],firstSeen:'2026-10-20',fit:true,reason:'Because you picked Claude',...extra});
 const post=(id:string,extra:Partial<SignalEntry>={}):SignalEntry=>({id,source:'x',author:'A',handle:'a',text:'t',url:`https://x.com/${id}`,likes:10,replies:1,media:null,createdAt:'2026-10-28T00:00:00.000Z',ageHours:5,fit:true,reason:'Because you picked Claude',...extra});
 
-test('ideas: counts per list, the list in order with the new one first, and what a card shows',()=>{
+const rate=(level:'high'|'mid'|'low')=>({level,note:''});
+
+test('ideas: four groups on Videos, each idea in exactly one, in the order of its group',()=>{
  const videos=[
-  video('a','ideas',{createdAt:'2026-10-02T00:00:00.000Z'}),video('b','ideas',{createdAt:'2026-10-05T00:00:00.000Z'}),video('c','ideas',{hidden:'later'}),video('d','ideas',{hidden:'skipped'}),video('e','planning'),
+  video('t-old','ideas',{createdAt:'2026-10-02T00:00:00.000Z',idea:{lane:'timely'}}),video('t-new','ideas',{createdAt:'2026-10-05T00:00:00.000Z',idea:{lane:'both'}}),
+  video('e-best','ideas',{createdAt:'2026-10-01T00:00:00.000Z',idea:{lane:'evergreen',demand:rate('high'),gap:rate('high'),show:rate('high')}}),
+  video('e-mid','ideas',{createdAt:'2026-10-06T00:00:00.000Z',idea:{demand:rate('mid'),gap:rate('mid')}}),
+  video('e-none','ideas',{createdAt:'2026-10-07T00:00:00.000Z'}),
+  video('held','ideas',{hidden:'later',idea:{lane:'timely'}}),video('skip','ideas',{hidden:'skipped'}),video('p','planning',{idea:{lane:'timely'}}),
  ];
- assert.deepEqual(ideaCounts(videos),{new:2,later:1,skipped:1});
- assert.deepEqual(ideasIn(videos,'new').map(v=>v.id),['b','a'],'newest first');
- assert.deepEqual(ideasIn(videos,'new','a').map(v=>v.id),['a','b'],'the idea just added first');
- assert.deepEqual(ideasIn(videos,'later').map(v=>v.id),['c']);assert.deepEqual(ideasIn(videos,'skipped').map(v=>v.id),['d']);
- assert.equal(tabOf(undefined),'new');assert.equal(tabOf('later'),'later');
+ const groups=ideaGroups(videos);
+ assert.deepEqual(Object.fromEntries(Object.entries(groups).map(([key,list])=>[key,list.map(v=>v.id)])),{
+  timely:['t-new','t-old'],evergreen:['e-best','e-mid','e-none'],later:['held'],skipped:['skip'],
+ },'timely newest first, evergreen by score, a held idea only in its held group even when it is timely');
+ assert.deepEqual(ideaGroups(videos,'e-none').evergreen.map(v=>v.id),['e-none','e-best','e-mid'],'the idea just added leads its group');
+ assert.equal(ideaGroupOf(videos[5]),'later');assert.equal(ideaGroupOf(videos[1]),'timely');assert.equal(ideaGroupOf(videos[3]),'evergreen');
+ assert.equal(ideaScore(videos[2]),9);assert.equal(ideaScore(videos[3]),4);assert.equal(ideaScore(videos[4]),0);
+ assert.deepEqual(openIdeas(videos).map(v=>v.id),['t-old','t-new','e-best','e-mid','e-none']);
+ const all=Object.values(groups).flat().map(v=>v.id);
+ assert.equal(new Set(all).size,all.length,'no idea in two groups');
+});
+
+test('ideas: what a card shows',()=>{
  assert.equal(ideaWhy(video('x','ideas',{idea:{hook:'Hello',why:'Because',angle:'A'}})),'Because','the reason comes before the hook');
  assert.equal(ideaWhy(video('x','ideas',{idea:{angle:'A',hook:'Hello'}})),'A');
  assert.equal(ideaWhy(video('x','ideas',{idea:{note:'From a post'}})),'From a post');
@@ -41,13 +56,28 @@ test('ideas: counts per list, the list in order with the new one first, and what
  assert.equal(ideaSourceVideoId(video('x','ideas',{idea:{sources:[{label:'r',url:'https://www.reddit.com/r/x/1'}]}})),undefined);
 });
 
-test('ideas show the source picture once for a run of ideas from the same video, and none for a source that is not on YouTube',()=>{
- const from=(id:string,url?:string)=>video(id,'ideas',{idea:{sources:url?[{label:'s',url}]:[]}});
- const a='https://www.youtube.com/watch?v=dQw4w9WgXcQ',b='https://www.youtube.com/watch?v=aaaaaaaaaaa';
- assert.deepEqual(showSourceThumbs([from('1',a),from('2',a),from('3',a),from('4',b),from('5',b),from('6',a)]),[true,false,false,true,false,true],'a picture again when the video differs from the row above');
- assert.deepEqual(showSourceThumbs([from('1'),from('2','https://www.reddit.com/r/x/1'),from('3',a)]),[false,false,true]);
- assert.deepEqual(showSourceThumbs([from('1',a),from('2'),from('3',a)]),[true,false,true],'a row between breaks the run');
- assert.deepEqual(showSourceThumbs([]),[]);
+test('Discover: two ranked lists become one, each card where its rank sits in its own list',()=>{
+ const v=(id:string)=>({kind:'video' as const,item:trend(id)}),p=(id:string)=>({kind:'post' as const,item:post(id)});
+ assert.deepEqual(interleave([v('a'),v('b')],[p('1'),p('2'),p('3'),p('4')]).map(feedKey),['v:a','p:1','p:2','v:b','p:3','p:4'],'a video first on a tie, then at its share of the list');
+ assert.deepEqual(interleave([],[p('1')]).map(feedKey),['p:1']);assert.deepEqual(interleave([v('a')],[]).map(feedKey),['v:a']);
+});
+
+test('Discover: chips, one sort per chip, the topics filter and Show everything',()=>{
+ const videos=[trend('fit1',{vpd:900,ageDays:2}),trend('fit2',{vpd:100,ageDays:1,kind:'creator',mult:null}),trend('under',{mult:0.5,vpd:5000}),trend('off',{fit:false,kind:'creator',vpd:4000})];
+ const posts=[post('x1',{likes:50,ageHours:30}),post('x2',{likes:5,ageHours:1}),post('r1',{source:'reddit',likes:20,ageHours:10}),post('xoff',{fit:false,likes:999})];
+ const keys=(show:Parameters<typeof discoverFeed>[2],sort:Parameters<typeof discoverFeed>[3],everything=false)=>{const {shown,off}=discoverFeed(videos,posts,show,sort,everything);return {keys:shown.map(feedKey),off};};
+ assert.deepEqual(keys('fit','top'),{keys:['v:fit1','p:x1','p:r1','v:fit2','p:x2'],off:3},'For you mixes both, ranked, about your topics only');
+ assert.deepEqual(keys('fit','new'),{keys:['p:x2','p:r1','v:fit2','p:x1','v:fit1'],off:3},'Newest puts videos and posts in one order of age');
+ assert.deepEqual(keys('fit','top',true).keys,['v:fit1','p:x1','v:fit2','p:r1','v:under','p:x2','v:off','p:xoff'],'Show everything adds the rest after');
+ assert.deepEqual(keys('youtube','vpd'),{keys:['v:fit1','v:fit2'],off:2});
+ assert.deepEqual(keys('youtube','views').keys,['v:fit1','v:fit2']);
+ assert.deepEqual(keys('followed','vpd'),{keys:['v:under','v:fit1'],off:0},'Followed lists every video from the channels you follow');
+ assert.deepEqual(keys('x','top'),{keys:['p:x1','p:x2'],off:1});assert.deepEqual(keys('x','new').keys,['p:x2','p:x1']);
+ assert.deepEqual(keys('reddit','top'),{keys:['p:r1'],off:0});
+ assert.deepEqual(discoverCounts(videos,posts),{fit:5,followed:2,youtube:2,x:2,reddit:1});
+ assert.deepEqual(sortsFor('fit').map(([key])=>key),['top','new']);assert.deepEqual(sortsFor('youtube').map(([key])=>key),['vpd','views','outlier','new']);assert.deepEqual(sortsFor('reddit').map(([key])=>key),['top','new']);
+ assert.equal(sortFor('youtube','top'),'vpd','a sort the chip does not offer falls back to its first');assert.equal(sortFor('fit','views'),'top');assert.equal(sortFor('x','new'),'new');
+ assert.equal(latestRead(null,'2026-10-26T19:00:00.000Z','2026-10-26T22:00:00.000Z'),'2026-10-26T22:00:00.000Z');assert.equal(latestRead(null,undefined),null);
 });
 
 test('only ideas and published videos show a picture from YouTube; videos in production show a draft',()=>{

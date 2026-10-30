@@ -5,9 +5,9 @@ import {act,createElement} from 'react';
 import type {Video} from '../../shared/club';
 import {arrangeColumn} from '../../shared/club-board';
 import {fakeScenes,installFetch,type FakeCall,type FakeReply} from './test-fakes';
-import type {ProductionView,Route} from './routes';
+import type {Route,VideosView} from './routes';
 const {ToastProvider}=await import('./ui');
-const {ProductionScreen}=await import('./screens/ProductionScreen');
+const {VideosScreen}=await import('./screens/VideosScreen');
 const {default:ClubApp}=await import('./ClubApp');
 
 const ws={slug:'maya',name:'Maya Lopez',handle:'',channelUrl:'',topics:[],about:'',cta:'',createdAt:'2026-01-01T00:00:00.000Z'};
@@ -43,6 +43,7 @@ function serve(server:Server){
   if(path==='/settings'&&method==='GET')return {body:{defaultAi:'claude',welcomed:server.welcomed}};
   if(path==='/settings/welcomed')return {body:{welcomed:true}};
   if(path==='/ai/status')return {body:{claude:{installed:true,version:'2',signedIn:true},codex:{installed:false,version:null,signedIn:false}}};
+  if(path==='/breakdowns'&&method==='GET')return {body:[]};
   if(path==='/videos/scenes')return server.holdScenes?server.holdScenes.then(scenesReply):scenesReply();
   const move=path.match(/^\/videos\/(\w+)\/move$/);
   if(move){
@@ -59,22 +60,22 @@ function serve(server:Server){
   }
  };
 }
-const withBoard=async(server:Partial<Server>,view:ProductionView,run:(ui:Awaited<ReturnType<typeof mountUI>>,calls:FakeCall[],routes:Route[],state:Server,opened:{count:number})=>Promise<void>)=>{
+const withBoard=async(server:Partial<Server>,view:VideosView,run:(ui:Awaited<ReturnType<typeof mountUI>>,calls:FakeCall[],routes:Route[],state:Server,opened:{count:number})=>Promise<void>)=>{
  const state:Server={videos:base(),welcomed:true,failMove:false,failLoad:false,outlines:{p:3},...server},fake=installFetch(serve(state));
  const routes:Route[]=[],opened={count:0};
- const ui=await mountUI(createElement(ToastProvider,null,createElement(ProductionScreen,{view,navigate:route=>routes.push(route),onNewVideo:()=>{opened.count++;}})));
+ const ui=await mountUI(createElement(ToastProvider,null,createElement(VideosScreen,{route:{name:'videos',view},navigate:route=>routes.push(route),onNewVideo:()=>{opened.count++;}})));
  try{await settle();await run(ui,fake.calls,routes,state,opened);}finally{await ui.close();fake.restore();}
 };
 
-test('Board: six columns with counts, cards with scene dots and the next action, and nothing that is put off',async()=>{
+test('Board: six lanes with counts, Ideas first, cards with scene dots and the next action, and nothing that is put off',async()=>{
  await withBoard({},'board',async(ui,calls,routes,_state,opened)=>{
   const c=ui.container;
-  assert.equal(text(c.querySelector('h1')),'Production');
+  assert.equal(text(c.querySelector('h1')),'Videos');
   assert.equal(text(c.querySelector('.lede')),'Every video from idea to published. Drag a card to move it.');
   assert.deepEqual([...c.querySelectorAll('[role="tab"]')].map(text),['Board','Table','Calendar']);
   assert.equal(c.querySelector('[role="tab"][aria-selected="true"]')!.textContent,'Board');
   assert.deepEqual([...c.querySelectorAll('.col')].map(col=>[col.getAttribute('aria-label'),text(col.querySelector('.col-h .n'))]),[['Ideas','2'],['Planning','1'],['Recording','1'],['Editing','0'],['Publishing','0'],['Published','1']]);
-  assert.deepEqual(cardIds(column(c,'ideas')),['a','b'],'Later and Skipped are out of sight');
+  assert.deepEqual(cardIds(column(c,'ideas')),['a','b'],'Later and Skipped are folded');
   assert.equal(text(column(c,'editing').querySelector('.col-empty')),'Recorded videos land here.');
   assert.equal(text(column(c,'published').querySelector('.col-empty')),'');
   const planned=card(c,'Planned');
@@ -92,20 +93,22 @@ test('Board: six columns with counts, cards with scene dots and the next action,
   assert.deepEqual(calls.filter(call=>/scenes|\/plan$|api\/projects/.test(call.path)).map(call=>call.path),['/videos/scenes'],'the scenes of every card come in one request');
   assert.equal(c.querySelectorAll('.btn.primary').length,1,'one primary button');
   await press(button(c,'New video'));assert.equal(opened.count,1);
-  await press(recorded);await press(card(c,'Alpha'));await press(card(c,'Live'));await press(planned);
-  assert.deepEqual(routes,[{name:'video',id:'r',tab:'record'},{name:'ideas',open:'a'},{name:'video',id:'x',tab:'publish'},{name:'video',id:'p',tab:'plan'}]);
+  await press(recorded);await press(card(c,'Live'));await press(planned);
+  assert.deepEqual(routes,[{name:'video',id:'r',tab:'record'},{name:'video',id:'x',tab:'publish'},{name:'video',id:'p',tab:'plan'}]);
+  await press(card(c,'Alpha'));
+  assert.equal(text(c.querySelector('.drawer h2')),'Alpha','an idea opens in its drawer, here');assert.equal(routes.length,3);
  });
 });
 
-test('Board: the Ideas column shows six and View all opens Ideas',async()=>{
+test('Board: the Ideas lane shows every idea in its group, five at first, with Show all; nothing sends you elsewhere',async()=>{
  const ideas=Array.from({length:8},(_,i)=>mk(`i${i}`,{title:`Idea ${i}`,order:i}));
  await withBoard({videos:ideas},'board',async(ui,_calls,routes)=>{
   const c=ui.container;
-  assert.equal(cardIds(column(c,'ideas')).length,6);assert.equal(text(column(c,'ideas').querySelector('.col-h .n')),'8');
-  await press(button(c,'View all 8 ideas'));
-  assert.deepEqual(routes,[{name:'ideas'}]);
+  assert.equal(cardIds(column(c,'ideas')).length,5);assert.equal(text(column(c,'ideas').querySelector('.col-h .n')),'8');
+  await press(button(column(c,'ideas'),'Show all 8'));
+  assert.equal(cardIds(column(c,'ideas')).length,8);assert.deepEqual(routes,[]);
  });
- await withBoard({videos:ideas.slice(0,3)},'board',async ui=>{assert.equal([...ui.container.querySelectorAll('button')].some(b=>/View all/.test(b.textContent||'')),false);});
+ await withBoard({videos:ideas.slice(0,3)},'board',async ui=>{assert.equal([...ui.container.querySelectorAll('button')].some(b=>/Show all|View all/.test(b.textContent||'')),false);});
 });
 
 test('Board: dragging a card to another column moves it at once, saves it and offers Undo',async()=>{
@@ -133,21 +136,30 @@ test('Board: a card can go to Recording without a recording project; the video p
  });
 });
 
-test('Board: dropping above another card places it before that card; dropping where it already is does nothing',async()=>{
- await withBoard({},'board',async(ui,calls)=>{
+test('Board: dropping above another card places it before that card; dropping where it already is does nothing; Ideas take a card without a line',async()=>{
+ const videos=[mk('a',{title:'Alpha',order:0}),mk('p1',{title:'Plan one',stage:'planning',order:0}),mk('p2',{title:'Plan two',stage:'planning',order:1})];
+ await withBoard({videos},'board',async(ui,calls)=>{
   const c=ui.container;
-  for(const el of c.querySelectorAll<HTMLElement>('[data-column="ideas"] [data-card]'))el.getBoundingClientRect=()=>({top:el.dataset.cardId==='a'?0:100,height:40} as DOMRect);
-  await drag(card(c,'Bravo'),'dragstart');await drag(column(c,'ideas'),'dragover',5);
+  for(const el of c.querySelectorAll<HTMLElement>('[data-column="planning"] [data-card]'))el.getBoundingClientRect=()=>({top:el.dataset.cardId==='p1'?0:100,height:40} as DOMRect);
+  await drag(card(c,'Plan two'),'dragstart');await drag(column(c,'planning'),'dragover',5);
   assert.equal(c.querySelectorAll('[data-drop-line]').length,1,'a line shows where it will land');
-  assert.equal(column(c,'ideas').querySelector('[data-drop-line]')!.nextElementSibling!.querySelector('[data-card]')!.getAttribute('data-card-id'),'a');
-  await drag(column(c,'ideas'),'drop',5);await drag(card(c,'Bravo'),'dragend');await settle();
-  assert.deepEqual(calls.filter(call=>call.method==='POST').map(call=>call.body),[{stage:'ideas',beforeId:'a'}]);
-  assert.deepEqual(toasts(c),['Moved in IdeasUndo']);
-  assert.deepEqual(cardIds(column(c,'ideas')),['b','a']);
+  assert.equal(column(c,'planning').querySelector('[data-drop-line]')!.nextElementSibling!.querySelector('[data-card]')!.getAttribute('data-card-id'),'p1');
+  await drag(column(c,'planning'),'drop',5);await drag(card(c,'Plan two'),'dragend');await settle();
+  assert.deepEqual(calls.filter(call=>call.method==='POST').map(call=>call.body),[{stage:'planning',beforeId:'p1'}]);
+  assert.deepEqual(toasts(c),['Moved in PlanningUndo']);
+  assert.deepEqual(cardIds(column(c,'planning')),['p2','p1']);
   assert.equal(c.querySelectorAll('[data-drop-line]').length,0,'the line goes when the drop is done');
   const writes=()=>calls.filter(call=>call.method!=='GET').length,before=writes();
-  await dragTo(card(c,'Alpha'),column(c,'ideas'),10_000);
+  await dragTo(card(c,'Plan one'),column(c,'planning'),10_000);
   assert.equal(writes(),before,'dropping a card in its own place saves nothing');
+  await drag(card(c,'Plan one'),'dragstart');await drag(column(c,'ideas'),'dragover',5);
+  assert.equal(c.querySelectorAll('[data-drop-line]').length,0,'Ideas are grouped, so no line between cards');assert.ok(column(c,'ideas').classList.contains('over'));
+  await drag(column(c,'ideas'),'drop',5);await drag(card(c,'Plan one'),'dragend');await settle();
+  assert.deepEqual(calls.filter(call=>call.method==='POST').slice(-1).map(call=>call.body),[{stage:'ideas',beforeId:null}]);
+  assert.ok(column(c,'ideas').querySelector('[data-card-id="p1"]'),'back among the ideas');
+  const now=writes();
+  await dragTo(card(c,'Alpha'),column(c,'ideas'),10_000);
+  assert.equal(writes(),now,'an idea dropped in Ideas stays where it is');
  });
 });
 
@@ -244,7 +256,7 @@ test('the view switch goes to the table and the calendar',async()=>{
   const c=ui.container;
   await press([...c.querySelectorAll('[role="tab"]')].find(tab=>tab.textContent==='Table')!);
   await press([...c.querySelectorAll('[role="tab"]')].find(tab=>tab.textContent==='Calendar')!);
-  assert.deepEqual(routes,[{name:'production',view:'table'},{name:'production',view:'calendar'}]);
+  assert.deepEqual(routes,[{name:'videos',view:'table'},{name:'videos',view:'calendar'}]);
  });
 });
 
@@ -258,14 +270,14 @@ test('a board that cannot load says one sentence with Try again',async()=>{
  });
 });
 
-test('an existing install is not sent to Welcome or shown the how-it-works dialog; for everyone else ? opens that dialog and closing it saves nothing',async()=>{
+test('an existing install is not sent to Welcome or shown the how-it-works dialog; for everyone else Help opens that dialog and closing it saves nothing',async()=>{
  window.location.hash='';
  const state:Server={videos:base(),welcomed:false,failMove:false,failLoad:false,outlines:{}};
  const fake=installFetch(serve(state));
  const ui=await mountUI(createElement(ClubApp));
  try{
   await settle();
-  assert.equal(window.location.hash,'#/overview');
+  assert.equal(window.location.hash,'#/home');
   assert.equal(ui.container.querySelector('[role="dialog"]'),null);
  }finally{await ui.close();fake.restore();window.location.hash='';}
  window.location.hash='';
@@ -276,7 +288,7 @@ test('an existing install is not sent to Welcome or shown the how-it-works dialo
   await settle();
   const dialog=()=>second.container.querySelector('[role="dialog"]');
   assert.equal(dialog(),null,'no dialog on its own');
-  await press(second.container.querySelector('[aria-label="How CreatorClub works"]')!);
+  await press(second.container.querySelector('.sidebar [aria-label="Help"]')!);
   assert.match(text(dialog()),/How CreatorClub works/);
   await press(button(dialog()!,'Start'));
   assert.equal(dialog(),null);
@@ -284,18 +296,18 @@ test('an existing install is not sent to Welcome or shown the how-it-works dialo
  }finally{await second.close();again.restore();window.location.hash='';}
 });
 
-test('Production in the app: the Production page, New video, and a card that opens its video',async()=>{
+test('Videos in the app: an old Production link lands on Videos, the views switch, New video opens its dialog',async()=>{
  window.location.hash='#/production/table';
  const state:Server={videos:base(),welcomed:true,failMove:false,failLoad:false,outlines:{}};
  const fake=installFetch(serve(state));
  const ui=await mountUI(createElement(ClubApp));
  try{
   await settle();
-  assert.equal(window.location.hash,'#/production/table');
-  assert.equal(text(ui.container.querySelector('h1')),'Production');
+  assert.equal(window.location.hash,'#/videos/table','the old link is rewritten');
+  assert.equal(text(ui.container.querySelector('h1')),'Videos');
   assert.equal(ui.container.querySelector('[role="tab"][aria-selected="true"]')!.textContent,'Table');
   await press([...ui.container.querySelectorAll('[role="tab"]')].find(tab=>tab.textContent==='Board')!);
-  assert.equal(window.location.hash,'#/production');
+  assert.equal(window.location.hash,'#/videos');
   assert.ok(ui.container.querySelector('.kanban'));
   await press(button(ui.container.querySelector('.page-head')!,'New video'));
   assert.ok(ui.container.querySelector('[role="dialog"]'),'New video opens its dialog');
@@ -333,29 +345,29 @@ test('Board: scenes that are loading or could not be read say nothing about scen
 test('Board: Move to on a card is a button you can reach with the keyboard; it moves the video like a drag, with Undo',async()=>{
  await withBoard({},'board',async(ui,calls)=>{
   const c=ui.container;
-  const trigger=c.querySelector<HTMLButtonElement>('button[aria-label="Move Alpha to…"]')!;
+  const trigger=c.querySelector<HTMLButtonElement>('button[aria-label="Move Planned to…"]')!;
   assert.ok(trigger&&trigger.tabIndex>=0&&trigger.tagName==='BUTTON');
   assert.equal(trigger.closest('[data-card]'),null,'it is not inside the card, so pressing it does not open the video');
   await press(trigger);
   const menu=c.querySelector('.menu')!;
   assert.deepEqual([...menu.querySelectorAll('.hd,button')].map(text),['Move to','Ideas','Planning','Recording','Editing','Publishing','Published']);
-  assert.equal(menu.querySelector('[aria-checked="true"]')!.textContent,'Ideas','the stage it is in is marked');
-  await press([...menu.querySelectorAll('button')].find(b=>text(b)==='Ideas')!);
+  assert.equal(menu.querySelector('[aria-checked="true"]')!.textContent,'Planning','the stage it is in is marked');
+  await press([...menu.querySelectorAll('button')].find(b=>text(b)==='Planning')!);
   assert.equal(calls.filter(call=>call.method==='POST').length,0,'its own stage does nothing');
   await press(trigger);
   await press([...c.querySelectorAll('.menu button')].find(b=>text(b)==='Recording')!);
-  assert.deepEqual(calls.filter(call=>call.method==='POST').map(call=>[call.path,call.body]),[['/videos/a/move',{stage:'recording',beforeId:null}]]);
-  assert.ok(column(c,'recording').querySelector('[data-card-id="a"]'));
+  assert.deepEqual(calls.filter(call=>call.method==='POST').map(call=>[call.path,call.body]),[['/videos/p/move',{stage:'recording',beforeId:null}]]);
+  assert.ok(column(c,'recording').querySelector('[data-card-id="p"]'));
   assert.deepEqual(toasts(c),['Moved to RecordingUndo']);
   await press(button(c.querySelector('.cc-toast')!,'Undo'));
-  assert.deepEqual(cardIds(column(c,'ideas')),['a','b']);
+  assert.deepEqual(cardIds(column(c,'planning')),['p']);
   assert.equal(c.querySelector('.menu'),null,'the menu closes after a choice');
  });
  await withBoard({failMove:true},'board',async ui=>{
   const c=ui.container;
-  await press(c.querySelector('button[aria-label="Move Alpha to…"]')!);
+  await press(c.querySelector('button[aria-label="Move Planned to…"]')!);
   await press([...c.querySelectorAll('.menu button')].find(b=>text(b)==='Editing')!);
-  assert.deepEqual(toasts(c),["Couldn't save that."]);assert.ok(column(c,'ideas').querySelector('[data-card-id="a"]'));
+  assert.deepEqual(toasts(c),["Couldn't save that."]);assert.ok(column(c,'planning').querySelector('[data-card-id="p"]'));
  });
 });
 
