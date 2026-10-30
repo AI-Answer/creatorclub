@@ -32,6 +32,9 @@
 /* The one suggestion, and Export video. */
 .club-embed .app-shell[data-mode=Edit] .club-edit-suggestion{display:flex;align-items:center;gap:10px;min-width:0;padding:6px 6px 6px 12px;border:1px solid var(--cc-line);border-radius:12px;background:var(--cc-page);font-size:14px;color:var(--cc-ink)}
 .club-embed .app-shell[data-mode=Edit] .club-edit-suggestion>span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* With the companion docked beside Edit the toolbar is narrower: its buttons stay on one line and the suggestion's sentence gives way first. */
+.club-embed .app-shell[data-mode=Edit] .project-header :is(.club-edit-suggestion,.project-header-controls) button{white-space:nowrap;flex-shrink:0}
+.club-embed .app-shell[data-mode=Edit] .project-header-controls{flex-shrink:0}
 .club-embed .app-shell[data-mode=Edit] .club-edit-suggestion.is-quiet{border-color:transparent;background:transparent;padding-left:0;color:var(--cc-muted);font-size:13px}
 .club-embed .app-shell[data-mode=Edit] .club-edit-dismiss{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:8px;color:var(--cc-muted)}
 .club-embed .app-shell[data-mode=Edit] .club-edit-dismiss:hover{background:var(--cc-subtle);color:var(--cc-ink)}
@@ -56,7 +59,7 @@
 /* The right side: the transcript by default, or one sheet. */
 .club-embed .app-shell[data-mode=Edit] .club-edit-side{grid-row:1;grid-column:2;min-width:0;min-height:0;display:flex;flex-direction:column;border-left:1px solid var(--cc-line);background:var(--cc-card);overflow:hidden}
 .club-embed .app-shell[data-mode=Edit] .club-edit-side[hidden]{display:none}
-.club-embed .app-shell[data-mode=Edit] .club-edit-side>:is(.inspector,.club-sheet,.agent-chat,.transcript-panel){flex:1;min-height:0;width:auto;border:0;grid-column:auto;grid-row:auto}
+.club-embed .app-shell[data-mode=Edit] .club-edit-side>:is(.inspector,.club-sheet,.transcript-panel){flex:1;min-height:0;width:auto;border:0;grid-column:auto;grid-row:auto}
 .club-embed .app-shell[data-mode=Edit] .club-sheet{display:flex;flex-direction:column;min-height:0;overflow:hidden}
 .club-embed .app-shell[data-mode=Edit] .club-sheet>header,.club-embed .app-shell[data-mode=Edit] .transcript-panel.club-sheet>header{display:flex;align-items:center;gap:8px;height:auto;min-height:44px;padding:8px 10px 8px 16px;border-bottom:1px solid var(--cc-line)}
 .club-embed .app-shell[data-mode=Edit] .club-sheet>header>b{font-size:14px;font-weight:600}

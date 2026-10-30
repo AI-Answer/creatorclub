@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { CHANGED_SINCE, TIMELINE_MOVED, type CompanionContext, type EditAction } from '../../shared/companion.js';
 import { clipDuration, projectDuration, type Project } from '../../shared/types.js';
-import { applyEditAction, editActionProblem, hasTranscript } from '../../src/editing-actions.js';
+import { applyEditAction, editActionProblem, editRanges, hasTranscript, wordPauseRanges } from '../../src/editing-actions.js';
 import { applyProjectChange } from '../../src/project-draft.js';
 import { ClubError } from './errors.js';
 import { sceneforge } from './recorder.js';
@@ -116,6 +116,14 @@ export function timelineText(p: Project, context: CompanionContext): string {
   const selected = (context.selection ?? []).filter((clipId) => known.has(clipId));
   if (selected.length) lines.push(`Selected clips: ${selected.join(', ')}${context.range ? ` (${context.range.start.toFixed(2)} s to ${context.range.end.toFixed(2)} s)` : ''}`);
   else lines.push('Nothing selected.');
+  if (hasTranscript(p)) {
+    // What cut_pauses and remove_fillers would find, so a card is offered at a level that cuts something.
+    const found = (['gentle', 'balanced', 'tight'] as const).map((level) => {
+      const ranges = wordPauseRanges(p, level);
+      return `${level} ${ranges.length} (${ranges.reduce((n, [a, b]) => n + b - a, 0).toFixed(1)} s)`;
+    });
+    lines.push(`Pauses between words that cut_pauses would cut: ${found.join(', ')}. Filler words: ${editRanges(p, { type: 'remove_fillers' })!.length}.`);
+  }
   const scenes = p.scenes.filter((scene) => scene.duration > 0);
   if (scenes.length) lines.push('Scenes on the timeline:', ...scenes.map((scene, index) => `${index + 1}. ${scene.name}: ${scene.start.toFixed(2)} s to ${(scene.start + scene.duration).toFixed(2)} s`));
   const clips = [...p.clips].sort((a, b) => a.start - b.start);

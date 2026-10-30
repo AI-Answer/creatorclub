@@ -93,6 +93,7 @@ test('on Edit the prompt reads the timeline: playhead, selection, scenes, clips,
   assert.match(prompt, /Step: Edit/);
   assert.match(prompt, /Timeline: 0:20\.0 long; clips: 1 screen, 1 camera; a transcript with word timings/);
   assert.match(prompt, /Playhead: 0:06\.5/);
+  assert.match(prompt, /Pauses between words that cut_pauses would cut: gentle 1 \(4\.1 s\), balanced 1 \(4\.1 s\), tight 1 \(4\.1 s\)\. Filler words: 0\./);
   assert.match(prompt, /Selected clips: screen-1 \(0\.00 s to 20\.00 s\)/);
   assert.match(prompt, /1\. Opening: 0\.00 s to 20\.00 s/);
   assert.match(prompt, /- camera-1 camera 0\.00 to 20\.00/);
