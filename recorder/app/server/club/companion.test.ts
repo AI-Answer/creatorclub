@@ -651,3 +651,16 @@ test('a scene script card writes the script of that scene, can be undone, and an
   assert.equal((await undo(reply, 0)).status, 200);
   assert.equal(await scriptOf(), before, 'Undo puts the earlier script back');
 });
+
+test('a question card needs 2 to 4 short answers, is offered on every step, and cannot be applied', async () => {
+  const reply = await replyWith([
+    { type: 'ask_choice', question: 'Who is this video for?', options: ['Beginners', 'Developers'] },
+    { type: 'ask_choice', question: 'Only one answer?', options: ['Yes'] },
+    { type: 'ask_choice', question: 'Too many?', options: ['a', 'b', 'c', 'd', 'e'] },
+  ]);
+  assert.deepEqual(reply.cards.map((card) => card.action), [{ type: 'ask_choice', question: 'Who is this video for?', options: ['Beginners', 'Developers'] }]);
+  const refused = await apply(reply, 0);
+  assert.equal(refused.status, 400);
+  const onEdit = await replyWith([{ type: 'ask_choice', question: 'How long?', options: ['Short', 'Long'] }], 'edit');
+  assert.equal(onEdit.cards.length, 1);
+});

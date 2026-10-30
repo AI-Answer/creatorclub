@@ -185,7 +185,7 @@ export function Companion({videoId,videoTitle,tab,scene,screen,selection,pkg,out
    {hiddenCount>0&&<button type="button" className="cmp-earlier" onClick={()=>setShowEarlier(true)}>Earlier on other steps · {hiddenCount} {hiddenCount===1?'message':'messages'}<span>Show</span></button>}
    {items.map(item=>item.kind==='divider'?<div key={item.key} className="cmp-divider" role="separator">{item.label}</div>
     :item.message.role==='user'?<div key={item.key} className="cmp-me">{item.message.text}</div>
-    :<Reply key={item.key} name={name} message={item.message} pkg={pkg} outline={outline} scenes={scenes} busy={companion.busyCard} editor={editor} silences={silences}
+    :<Reply key={item.key} name={name} message={item.message} answered={working||(messages?.at(-1)?.id!==item.message.id)} onChoose={answer=>void ask(answer)} pkg={pkg} outline={outline} scenes={scenes} busy={companion.busyCard} editor={editor} silences={silences}
       onApply={index=>companion.apply(item.message.id,index)} onUndo={index=>companion.undo(item.message.id,index)}/>)}
    {live&&<LiveReply name={name} live={live} now={now} onRetry={()=>void contextNow().then(companion.retry)}/>}
    {companion.sendError&&<ErrorLine message={companion.sendError} onRetry={()=>void ask(text)}/>}
@@ -230,7 +230,7 @@ function useNarrow(roomy:boolean){
 }
 
 /** A finished reply: who, the one-line summary of its steps (opens to the list), the text, and its cards. */
-function Reply({name,message,pkg,outline,scenes,busy,editor,silences,onApply,onUndo}:{name:string;message:CompanionReplyMessage;pkg:Package|null;outline:Outline|null;scenes?:readonly VideoScene[];busy:string|null;editor?:CompanionEditor;silences?:SilencePlan|null;onApply(index:number):Promise<string>;onUndo(index:number):Promise<string>}){
+function Reply({name,message,pkg,outline,scenes,busy,editor,silences,answered,onChoose,onApply,onUndo}:{name:string;message:CompanionReplyMessage;answered:boolean;onChoose(answer:string):void;pkg:Package|null;outline:Outline|null;scenes?:readonly VideoScene[];busy:string|null;editor?:CompanionEditor;silences?:SilencePlan|null;onApply(index:number):Promise<string>;onUndo(index:number):Promise<string>}){
  // Several proposals in one reply: one button applies them all, one after another, and stops at the first that cannot be applied.
  const canEdit=!!editor?.get();
  const offered=message.cards.map((card,index)=>({card,index})).filter(({card})=>card.state!=='applied'&&((isEditAction(card.action)&&canEdit)||card.action.type==='set_scene_script'));
@@ -242,7 +242,7 @@ function Reply({name,message,pkg,outline,scenes,busy,editor,silences,onApply,onU
   {message.text&&<div className="cmp-md"><Markdown text={message.text}/></div>}
   {message.status==='stopped'&&<div className="cmp-note">Stopped</div>}
   {offered.length>1&&<div className="cmp-all"><Button size="sm" variant="primary" disabled={!!busy||allBusy} onClick={()=>void addAll()}>{allBusy?<span className="spin"/>:null}Add all {offered.length}</Button><span className="cmp-faint">or choose one below</span></div>}
-  {message.cards.map((card,index)=><Card key={index} id={`${message.id}:${index}`} card={card} pkg={pkg} outline={outline} scenes={scenes} busy={busy===`${message.id}:${index}`} editor={editor} silences={silences} onApply={()=>onApply(index)} onUndo={()=>onUndo(index)}/>)}
+  {message.cards.map((card,index)=><Card key={index} answered={answered} onChoose={onChoose} id={`${message.id}:${index}`} card={card} pkg={pkg} outline={outline} scenes={scenes} busy={busy===`${message.id}:${index}`} editor={editor} silences={silences} onApply={()=>onApply(index)} onUndo={()=>onUndo(index)}/>)}
  </div>;
 }
 
@@ -281,7 +281,7 @@ const cardTitle=(action:CompanionAction)=>action.type==='add_motion_block'?`Add 
 const scenesClock=(seconds:number)=>`${Math.floor(seconds/60)}:${String(Math.round(seconds%60)).padStart(2,'0')}`;
 
 /** One change the reply offers: what it is, Apply (or what it changed and Undo), and Preview of before and after. */
-function Card({id,card,pkg,outline,scenes,busy,editor,silences,onApply,onUndo}:{id:string;card:CompanionCard;pkg:Package|null;outline:Outline|null;scenes?:readonly VideoScene[];busy:boolean;editor?:CompanionEditor;silences?:SilencePlan|null;onApply():Promise<string>;onUndo():Promise<string>}){
+function Card({id,card,pkg,outline,scenes,busy,editor,silences,answered,onChoose,onApply,onUndo}:{answered:boolean;onChoose(answer:string):void;id:string;card:CompanionCard;pkg:Package|null;outline:Outline|null;scenes?:readonly VideoScene[];busy:boolean;editor?:CompanionEditor;silences?:SilencePlan|null;onApply():Promise<string>;onUndo():Promise<string>}){
  const [textPreview,setTextPreview]=useState(false);
  const [error,setError]=useState('');
  const [confirm,setConfirm]=useState<'apply'|'undo'|null>(null);
@@ -289,6 +289,8 @@ function Card({id,card,pkg,outline,scenes,busy,editor,silences,onApply,onUndo}:{
  // Applying it, or undoing it, replaces the scenes: with takes on any scene, that asks first (the server refuses what would lose takes).
  const asks=card.action.type==='draft_scenes'&&!!scenes?.some(scene=>scene.takes.length>0);
  const action=card.action;
+ // A question: tapping an answer sends it as the creator's next message. Once something was said after it, the answers are settled.
+ if(action.type==='ask_choice')return <div className="cmp-card cmp-choice"><div className="cmp-choice-q">{action.question}</div><div className="cmp-choice-opts">{action.options.map(option=><button key={option} type="button" className="btn sm" disabled={answered} onClick={()=>onChoose(option)}>{option}</button>)}</div></div>;
  // A timeline card previews on the editor's stage (pressed while its preview is the one shown); the others show Now and After here.
  const timeline=isEditAction(action);
  const stage=timeline?editor?.get()??null:null;

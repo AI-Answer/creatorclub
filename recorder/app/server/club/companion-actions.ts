@@ -51,6 +51,7 @@ export const actionShape = z.discriminatedUnion('type', [
   z.object({ type: z.literal('add_note'), text: block(20_000) }).strict(),
   z.object({ type: z.literal('set_scene'), sceneId: z.string().regex(SCENE_ID), title: line(300).optional(), talkingPoints: z.array(line(2000)).min(1).max(60).optional() }).strict(),
   z.object({ type: z.literal('set_scene_script'), sceneId: z.string().regex(SCENE_ID), script: z.string().trim().min(1).max(12000) }).strict(),
+  z.object({ type: z.literal('ask_choice'), question: line(200), options: z.array(line(60)).min(2).max(4) }).strict(),
   z.object({ type: z.literal('draft_scenes'), scenes: z.array(draftScene).min(1).max(20) }).strict(),
   z.object({ type: z.literal('set_description'), text: block(5000) }).strict(),
   // Research: the cards are named by their ids on the channel's Board; that they are there is checked against the Board.
@@ -308,6 +309,13 @@ const HANDLERS: { [K in CompanionActionType]: Handler<Extract<CompanionAction, {
       const before = outline.scenes[index].script ?? '';
       await saveSceneScript(slug, id, action.sceneId, action.script);
       return { result: `Wrote the script for scene ${index + 1}`, undo: { kind: 'script', sceneId: action.sceneId, before, after: action.script.trim() } };
+    },
+  },
+  // A question is answered by tapping an answer in the chat, which sends it as the next message: there is nothing to apply.
+  ask_choice: {
+    changed: [],
+    apply: async () => {
+      throw new ClubError('This is a question. Tap an answer in the chat.', 400);
     },
   },
   draft_scenes: {

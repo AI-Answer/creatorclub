@@ -58,6 +58,8 @@ export type CompanionAction =
   /** The words the creator says out loud in one scene that exists. */
   | { type: 'set_scene_script'; sceneId: string; script: string }
   | { type: 'draft_scenes'; scenes: DraftScene[] }
+  /** One question with two to four answers to tap, when one decision from the creator would change the work. The tapped answer is sent as their next message. */
+  | { type: 'ask_choice'; question: string; options: string[] }
   | { type: 'set_description'; text: string }
   /** Research: a frame named `title` around these cards. */
   | { type: 'group_tiles'; title: string; tileIds: string[] }
@@ -66,16 +68,16 @@ export type CompanionAction =
   | EditAction;
 export type CompanionActionType = CompanionAction['type'];
 
-export const COMPANION_ACTION_TYPES = ['use_hook', 'use_title', 'set_thumbnail_text', 'add_note', 'set_scene', 'set_scene_script', 'draft_scenes', 'set_description', 'group_tiles', 'start_video', ...EDIT_ACTION_TYPES] as const satisfies readonly CompanionActionType[];
+export const COMPANION_ACTION_TYPES = ['use_hook', 'use_title', 'set_thumbnail_text', 'add_note', 'set_scene', 'set_scene_script', 'draft_scenes', 'ask_choice', 'set_description', 'group_tiles', 'start_video', ...EDIT_ACTION_TYPES] as const satisfies readonly CompanionActionType[];
 
 /** The actions the companion may offer on each step. */
 export const TAB_ACTIONS: Record<CompanionTab, readonly CompanionActionType[]> = {
-  board: ['use_hook', 'use_title', 'add_note', 'draft_scenes'],
-  plan: ['use_hook', 'use_title', 'set_thumbnail_text', 'set_scene', 'set_scene_script', 'draft_scenes', 'add_note'],
-  record: ['set_scene', 'add_note'],
-  edit: EDIT_ACTION_TYPES,
-  publish: ['set_description', 'use_title', 'set_thumbnail_text'],
-  research: ['add_note', 'group_tiles', 'start_video'],
+  board: ['use_hook', 'use_title', 'add_note', 'draft_scenes', 'ask_choice'],
+  plan: ['use_hook', 'use_title', 'set_thumbnail_text', 'set_scene', 'set_scene_script', 'draft_scenes', 'add_note', 'ask_choice'],
+  record: ['set_scene', 'add_note', 'ask_choice'],
+  edit: [...EDIT_ACTION_TYPES, 'ask_choice'],
+  publish: ['set_description', 'use_title', 'set_thumbnail_text', 'ask_choice'],
+  research: ['add_note', 'group_tiles', 'start_video', 'ask_choice'],
 };
 
 /** What a card is called, by its action. */
@@ -87,6 +89,7 @@ export const ACTION_TITLE: Record<CompanionActionType, string> = {
   set_scene: 'Scene',
   set_scene_script: 'Scene script',
   draft_scenes: 'Scenes',
+  ask_choice: 'Question',
   set_description: 'Description',
   group_tiles: 'Frame',
   start_video: 'New video',
@@ -115,6 +118,7 @@ export const ACTION_STEP: Record<CompanionActionType, string> = {
   set_scene: 'Rewriting the scene',
   set_scene_script: 'Writing the script',
   draft_scenes: 'Drafting scenes',
+  ask_choice: 'Asking you',
   set_description: 'Writing the description',
   group_tiles: 'Grouping cards',
   start_video: 'Planning a video',
@@ -143,6 +147,7 @@ export const ACTION_VERB: Record<CompanionActionType, string> = {
   set_scene: 'Apply',
   set_scene_script: 'Use this script',
   draft_scenes: 'Apply',
+  ask_choice: 'Choose',
   set_description: 'Use it',
   group_tiles: 'Group them',
   start_video: 'Start the video',

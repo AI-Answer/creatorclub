@@ -436,3 +436,22 @@ test('on Edit: a message carries the playhead and selection, a timeline card pre
   assert.ok(log.includes('flush'));
  }finally{server.restore();await ui.close();}
 });
+
+test('a question from Claude shows its answers as buttons; tapping one sends it as the next message and settles the question',async()=>{
+ FakeEventSource.install();
+ const reply:CompanionReplyMessage={id:'r1',role:'assistant',text:'One thing first.',tab:'plan',cards:[{action:{type:'ask_choice',question:'Who is this video for?',options:['Beginners','People who already use it','Developers']},state:'offered'}]};
+ const state={messages:[{id:'q0',role:'user',text:'Write the hook',context:{tab:'plan'}},reply] as CompanionMessage[]},server=serve(state);
+ const ui=await mount();
+ try{
+  await flush();
+  const c=ui.container;
+  assert.equal(c.querySelector('.cmp-choice-q')?.textContent,'Who is this video for?');
+  assert.deepEqual([...c.querySelectorAll('.cmp-choice-opts button')].map(b=>b.textContent),['Beginners','People who already use it','Developers']);
+  assert.equal(c.querySelector('.cmp-card-a'),null,'a question has no Apply or Preview');
+  assert.equal([...c.querySelectorAll('.cmp-sugg button')].length,0,'the suggestions step aside while a question waits');
+  await act(async()=>button(c,'Beginners').click());await flush();
+  const asked=server.calls.filter(call=>call.method==='POST'&&call.path==='/videos/v1/companion').at(-1)?.body as {message:string};
+  assert.equal(asked.message,'Beginners');
+  assert.ok([...c.querySelectorAll('.cmp-choice-opts button')].every(b=>(b as HTMLButtonElement).disabled),'once answered, the answers are settled');
+ }finally{await ui.close();server.restore();}
+});
