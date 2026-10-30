@@ -89,3 +89,9 @@ test('Task 14: a press on the body moves a clip only past a 6 px dead zone; a cl
   assert.equal(state.project.clips[0].start,0,'a 120 px drag of the only clip leaves it at 0');
  }finally{await ui.close();}
 });
+
+test('Task 14: a transcript cut shows a mark on the timeline where it happened',async()=>{
+ const {state,element}=harness(project([clip('a','screen',0,4)]));
+ const ui=await mountUI(createElement(TimelineClub,{...element(state.project).props,cutMarks:[1.5]}));
+ try{const mark=ui.container.querySelector<HTMLElement>('.club-cut-mark');assert.ok(mark,'a cut mark is drawn');assert.equal(mark!.style.left,'75px');}finally{await ui.close();}
+});

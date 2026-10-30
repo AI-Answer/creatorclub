@@ -9,3 +9,12 @@ test('middle phrase deletion ripples all tracks, source speed, captions, scenes,
 test('padding stays inside adjacent word gaps, backward selection works, untimed text remains whole-caption',()=>{const p=fixture();let words=transcriptWords(p),range=selectedTranscriptRange(p,words,{anchor:4,focus:3})!;near(range.start,2.3);near(range.end,3.02);p.captions[0].text='Manually rewritten sentence';words=transcriptWords(p);assert.equal(words.length,1);assert.equal(words[0].timed,false);assert.equal(selectedTranscriptRange(p,words,{anchor:0,focus:0})?.wholeCaptions,true);assert.equal(selectedTranscriptRange(p,words,{anchor:0,focus:9}),null);});
 test('repeated ripple cuts preserve original fade/processing phase and undo snapshot remains exact',()=>{const p=fixture(),before=structuredClone(p),original=p.clips[0];cutTimelineRange(p,2,3);cutTimelineRange(p,3,3.5);const last=p.clips.filter(c=>c.track==='audio').at(-1)!;const timing=clipEffectTiming(last);near(timing.duration,6);near(timing.offset,4.5);near(previewClipGain(last,3.25),previewClipGain(original,4.75));const head=p.clips[0];near(previewClipGain(head,.5),previewClipGain(original,.5));assert.equal(before.clips.length,3);assert.equal(before.captions[0].words!.length,7);});
 test('deleting the entire transcript empties tracks safely and leaves a usable scene',()=>{const p=fixture();cutTimelineRange(p,0,6);assert.equal(p.clips.length,0);assert.equal(p.captions.length,0);assert.equal(p.elements.length,0);assert.equal(p.zooms.length,0);assert.equal(p.scenes.length,1);assert.equal(p.scenes[0].duration,0);assert.equal(projectDuration(p),0);});
+
+test('Task 14: a transcript cut is named by its words',async()=>{
+ const {cutWordsLabel}=await import('./transcript-editing');
+ const p=createProject('Words');p.captions=[{id:'c',start:0,end:3,text:'so um basically yes',words:[{text:'so',start:0,end:.5},{text:'um',start:.5,end:1},{text:'basically',start:1,end:2},{text:'yes',start:2,end:3}]}];
+ assert.equal(cutWordsLabel(p,{anchor:1,focus:1}),"Cut 'um'");
+ assert.equal(cutWordsLabel(p,{anchor:2,focus:0}),"Cut 'so um basically'");
+ p.captions[0].words!.push(...['a','b','c'].map((text,i)=>({text,start:3+i,end:4+i})));p.captions[0].text+=' a b c';p.captions[0].end=6;
+ assert.equal(cutWordsLabel(p,{anchor:0,focus:6}),'Cut 7 words');
+});

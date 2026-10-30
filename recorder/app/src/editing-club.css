@@ -158,6 +158,8 @@
 .club-embed .app-shell[data-mode=Edit] .club-timeline .clip-drag-preview{opacity:.9;box-shadow:0 4px 12px var(--tl-shade);cursor:grabbing;z-index:6}
 .club-embed .app-shell[data-mode=Edit] .club-ghost{position:absolute;top:3px;bottom:3px;border:1px dashed var(--cc-muted);border-radius:6px;pointer-events:none}
 .club-embed .app-shell[data-mode=Edit] .club-preview-cut{position:absolute;z-index:5;pointer-events:none;background:repeating-linear-gradient(135deg,color-mix(in srgb,var(--cc-danger) 30%,transparent) 0 4px,transparent 4px 8px);border-left:1px solid var(--cc-danger);border-right:1px solid var(--cc-danger)}
+.club-embed .app-shell[data-mode=Edit] .club-cut-mark{position:absolute;z-index:5;width:0;margin-left:-1px;border-left:2px dashed var(--cc-danger);pointer-events:none}
+.club-embed .app-shell[data-mode=Edit] .club-cut-mark::before{content:"";position:absolute;top:-6px;left:-5px;width:8px;height:8px;border-radius:50%;background:var(--cc-danger)}
 .club-embed .app-shell[data-mode=Edit] .club-snap{position:absolute;top:0;bottom:0;width:0;margin-left:-1px;border-left:2px solid var(--tl-select);z-index:9;pointer-events:none;background:none}
 .club-embed .app-shell[data-mode=Edit] .club-snap>span{display:none}
 .club-embed .app-shell[data-mode=Edit] .club-insert-line{position:absolute;top:0;bottom:0;width:3px;margin-left:-1px;background:var(--tl-select);z-index:9;pointer-events:none}
