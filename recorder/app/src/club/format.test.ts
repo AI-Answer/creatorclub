@@ -43,7 +43,7 @@ test('text helpers: sentence, cleanTitle, ytThumb',()=>{
 
 test('the same name always gets the same avatar colour and the same draft thumbnail',()=>{
  assert.equal(hashOf('Samin'),hashOf('Samin'));assert.notEqual(hashOf('Samin'),hashOf('Dani'));
- assert.equal(avatarColor('Samin'),avatarColor('Samin'));assert.match(avatarColor('Samin'),/^#[0-9a-f]{6}$/);
+ assert.equal(avatarColor('Samin'),avatarColor('Samin'));assert.match(avatarColor('Samin'),/^var\(--cc-avatar-\d\)$/);
  assert.deepEqual(thumbGradient('v-1'),thumbGradient('v-1'));assert.equal(thumbGradient('v-1').length,2);
 });
 

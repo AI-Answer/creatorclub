@@ -1,6 +1,6 @@
 import {useCallback,useEffect,useRef,useState,type CSSProperties,type ReactNode} from 'react';
 import {createPortal} from 'react-dom';
-import {Icon,type IconName} from './Icon';
+import {Icon,type IconName} from './icons';
 import {useClickAway} from './useClickAway';
 
 export type MenuItem=
@@ -66,8 +66,8 @@ export function Menu({button,items,align='left',width,label,restoreFocus}:{butto
   {open&&inRoot(host,<div ref={placeMenu} className="menu" role="menu" aria-label={label} style={{position:'fixed',...place,minWidth:width}}>
    {items.map((item,index)=>item==='-'?<div key={index} className="sep"/>
     :'header' in item?<div key={index} className="hd">{item.header}</div>
-    :<button key={index} type="button" role={item.check===undefined?'menuitem':'menuitemradio'} aria-checked={item.check} onClick={()=>{giveBack.current=true;setOpen(false);item.fn();}} style={item.danger?{color:'var(--cc-rec)'}:undefined}>
-      {item.icon&&<Icon name={item.icon} size={15}/>}<span className="grow">{item.label}</span>{item.check&&<Icon name="Check" size={15}/>}
+    :<button key={index} type="button" role={item.check===undefined?'menuitem':'menuitemradio'} aria-checked={item.check} onClick={()=>{giveBack.current=true;setOpen(false);item.fn();}} style={item.danger?{color:'var(--cc-danger)'}:undefined}>
+      {item.icon&&<Icon name={item.icon} size={15}/>}<span className="grow">{item.label}</span>{item.check&&<Icon name="check" size={15}/>}
      </button>)}
   </div>)}
  </span>;

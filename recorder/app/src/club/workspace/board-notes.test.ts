@@ -46,12 +46,12 @@ test('the toolbar has one Add menu for every kind of tile, and each icon-only bu
  try{
   await flush();await flush();
   const toolbar=ui.container.querySelector('.btoolbar')!;
-  assert.deepEqual([...toolbar.querySelectorAll('button')].map(item=>item.getAttribute('aria-label')||item.textContent?.trim()),['Add','Zoom out','Zoom in','Fit']);
-  await act(async()=>button(toolbar,'Add').click());
+  assert.deepEqual([...toolbar.querySelectorAll('button')].map(item=>item.getAttribute('aria-label')||item.textContent?.trim()),['Add to board','Zoom out','Zoom in','Fit the board and go to its start']);
+  await act(async()=>button(toolbar,'Add to board').click());
   const items=[...document.querySelectorAll('[role=menuitem]')].map(item=>item.textContent);
   assert.deepEqual(items,['Note','Link','Image or Markdown file','Notes folder']);
   for(const icon of ui.container.querySelectorAll('.btn.icon-only')){
-   assert.ok(icon.getAttribute('aria-label'),'a name');assert.equal(icon.getAttribute('title'),icon.getAttribute('aria-label'),'a tooltip that says the same');
+   assert.ok(icon.getAttribute('aria-label'),'a name');assert.ok(icon.hasAttribute('data-tooltip'),'an IconButton: its tooltip shows the same name');
   }
   assert.equal(server.calls.filter(call=>call.method==='POST').length,0);
  }finally{await ui.close();}
@@ -69,7 +69,7 @@ test('Add, Note makes a note that is a file and opens it to write in; closing it
  const ui=await mount();
  try{
   await flush();await flush();
-  await act(async()=>button(ui.container.querySelector('.btoolbar')!,'Add').click());
+  await act(async()=>button(ui.container.querySelector('.btoolbar')!,'Add to board').click());
   await act(async()=>(document.querySelector('[role=menuitem]') as HTMLButtonElement).click());
   await flush();await flush();
   assert.deepEqual(server.calls.find(call=>call.method==='POST')?.body,{kind:'note',text:''});
@@ -94,7 +94,7 @@ test('a note card shows its Markdown, names its file, opens the writer on a clic
   assert.equal(cards[0].querySelector('.note-file')?.textContent,'notes/hooks.md');
   assert.match(cards[1].textContent!,/not in its folder any more/);
   assert.match(cards[2].textContent!,/Note from your Notes folder/);
-  assert.ok(cards.every(card=>card.querySelector('[aria-label="Remove from the board"]')?.getAttribute('title')==='Remove from the board'));
+  assert.ok(cards.every(card=>card.querySelector('[aria-label="Remove from the board"]')?.hasAttribute('data-tooltip')),'named, with a tooltip');
   await act(async()=>cards[0].querySelector<HTMLElement>('[role=button]')!.click());await flush();
   assert.equal(document.querySelector('[role=dialog]')?.getAttribute('aria-label'),'Note: Hooks');
   assert.equal(document.querySelector('.md-editor h1')?.textContent,'Hooks');
@@ -166,7 +166,7 @@ test('the Notes folder: the dialog lists its files, pins one to the board, and s
  const ui=await mount();
  try{
   await flush();await flush();
-  await act(async()=>button(ui.container.querySelector('.btoolbar')!,'Add').click());
+  await act(async()=>button(ui.container.querySelector('.btoolbar')!,'Add to board').click());
   await act(async()=>[...document.querySelectorAll<HTMLButtonElement>('[role=menuitem]')].find(item=>item.textContent==='Notes folder')!.click());
   await flush();
   const dialog=document.querySelector('[role=dialog]')!;
@@ -228,12 +228,12 @@ test('a link in a note card opens in the browser, not in the app, and does not o
   assert.deepEqual(opened,['https://example.com/docs'],'an address that is not a web address opens nothing');
   const other=ui.container.querySelectorAll('.tile.note')[1];
   assert.match(other.textContent!,/not the current one/);assert.match(other.textContent!,/\/Users\/me\/old-vault/);
-  await act(async()=>button(ui.container.querySelector('.btoolbar')!,'Add').click());
+  await act(async()=>button(ui.container.querySelector('.btoolbar')!,'Add to board').click());
   const item=[...document.querySelectorAll<HTMLButtonElement>('[role=menuitem]')].find(entry=>entry.textContent==='Show hidden files (2)')!;
   assert.ok(item,'the menu offers the hidden files');
   await act(async()=>item.click());await flush();
   assert.equal(shown,1);
-  await act(async()=>button(ui.container.querySelector('.btoolbar')!,'Add').click());
+  await act(async()=>button(ui.container.querySelector('.btoolbar')!,'Add to board').click());
   assert.equal([...document.querySelectorAll('[role=menuitem]')].some(entry=>/Show hidden/.test(entry.textContent??'')),false,'and stops offering them once shown');
  }finally{window.open=original;await ui.close();}
 });
@@ -244,6 +244,6 @@ test('a failed save and a refused Notes folder are warnings, not errors: amber w
  const panel=(await import('node:fs')).readFileSync(new URL('./NotePanel.tsx',import.meta.url),'utf8');
  const folder=(await import('node:fs')).readFileSync(new URL('./NotesFolder.tsx',import.meta.url),'utf8');
  for(const source of [panel,folder])assert.doesNotMatch(source,/--cc-rec|danger-text/);
- const closes=[...(await import('node:fs')).readFileSync(new URL('../ui/Drawer.tsx',import.meta.url),'utf8').matchAll(/aria-label="Close"[^>]*>/g)].map(match=>match[0]);
- assert.ok(closes.length&&closes.every(tag=>/title="Close"/.test(tag)),'the close button has a tooltip');
+ const sheet=(await import('node:fs')).readFileSync(new URL('../ui/Sheet.tsx',import.meta.url),'utf8');
+ assert.match(sheet,/<IconButton icon="close" label="Close"/,'the close button is an IconButton: named, with a tooltip');
 });

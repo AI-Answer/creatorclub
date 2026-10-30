@@ -85,7 +85,7 @@ test('the scene strip is the only scene list: Record shows just the selected sce
   const c=ui.container,cards=[...c.querySelectorAll('.rsc-scene')];
   assert.equal(cards.length,1,'one block, for the selected scene only');
   assert.equal(cards[0].querySelector('.rsc-scene-title')?.textContent,'Takes');
-  assert.equal(cards[0].querySelector('.rsc-status-text')?.textContent,'Not recorded');
+  assert.equal(cards[0].querySelector('.rsc-status-text'),null,'the status word is on the strip chip only, once per scene');
   assert.equal(cards[0].querySelector('.rsc-no-takes')?.textContent,'No takes yet. Record one above.');
   for(const name of ['Opening','Level 1','Level 2'])assert.equal(c.textContent?.includes(name),false,`${name} is only in the strip, not repeated here`);
   assert.equal(c.textContent?.includes(SCRIPT_ONE),false,'the script is not here: only the teleprompter shows it');
@@ -188,13 +188,15 @@ test('the scene a page opens on (chosen in Plan) is selected when Record opens',
  }finally{await close();}
 });
 
-test('the bottom bar has Back and Continue only, with no second set of steps',async()=>{
+test('the bottom bar has Continue only (the steps above are the way back), and no bar without a next step',async()=>{
  const calls:string[]=[];
- const ui=await mountUI(createElement(Foot,{tab:'record',backLabel:'Back to production',back:{name:'production',view:'board'},onTab:tab=>calls.push(tab),next:{label:'Continue to edit',run:()=>calls.push('next'),disabled:false,primary:true}}));
+ const ui=await mountUI(createElement(Foot,{next:{label:'Continue to edit',run:()=>calls.push('next'),disabled:false,primary:true}}));
  try{
-  assert.deepEqual([...ui.container.querySelectorAll('button,a')].map(el=>el.textContent?.trim()),['Back to plan','Continue to edit']);
+  assert.deepEqual([...ui.container.querySelectorAll('button,a')].map(el=>el.textContent?.trim()),['Continue to edit']);
   assert.equal(ui.container.querySelector('.steps'),null);
-  await click(button(ui.container,'Back to plan'));await click(button(ui.container,'Continue to edit'));
-  assert.deepEqual(calls,['plan','next']);
+  await click(button(ui.container,'Continue to edit'));
+  assert.deepEqual(calls,['next']);
+  await ui.render(createElement(Foot,{}));
+  assert.equal(ui.container.querySelector('.ws-foot'),null);
  }finally{await ui.close();}
 });

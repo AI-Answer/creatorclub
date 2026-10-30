@@ -78,20 +78,20 @@ export interface NextAction{label:string;tab:VideoTab;icon:IconName}
  */
 export function nextAction(video:Video,scenes:readonly SceneProgress[]|undefined):NextAction{
  if(!scenes){
-  if(video.stage==='planning')return {label:'Continue planning',tab:'plan',icon:'ArrowRight'};
-  if(video.stage==='recording')return {label:'Continue recording',tab:'record',icon:'Mic'};
+  if(video.stage==='planning')return {label:'Continue planning',tab:'plan',icon:'next'};
+  if(video.stage==='recording')return {label:'Continue recording',tab:'record',icon:'microphone'};
  }
  const known=scenes??[];
  switch(video.stage){
-  case 'ideas':return {label:'Start planning',tab:'board',icon:'ArrowRight'};
-  case 'planning':return known.length?{label:'Continue to recording',tab:'record',icon:'Mic'}:{label:'Draft scenes from board',tab:'board',icon:'Sparkles'};
+  case 'ideas':return {label:'Start planning',tab:'board',icon:'next'};
+  case 'planning':return known.length?{label:'Continue to recording',tab:'record',icon:'microphone'}:{label:'Draft scenes from board',tab:'board',icon:'ai'};
   case 'recording':{
-   if(!known.length)return {label:'Draft scenes from board',tab:'board',icon:'Sparkles'};
+   if(!known.length)return {label:'Draft scenes from board',tab:'board',icon:'ai'};
    const next=known.findIndex(scene=>!scene.takes.some(take=>take.kept));
-   return next<0?{label:'Continue to editing',tab:'edit',icon:'Scissors'}:{label:`Record scene ${next+1}`,tab:'record',icon:'Mic'};
+   return next<0?{label:'Continue to editing',tab:'edit',icon:'cut'}:{label:`Record scene ${next+1}`,tab:'record',icon:'microphone'};
   }
-  case 'editing':return {label:'Keep editing',tab:'edit',icon:'Scissors'};
-  case 'publishing':return {label:'Paste YouTube link',tab:'publish',icon:'Upload'};
-  case 'published':return {label:video.views!==undefined?`${fmtNum(video.views)} views`:'Open',tab:'publish',icon:'Eye'};
+  case 'editing':return {label:'Keep editing',tab:'edit',icon:'cut'};
+  case 'publishing':return {label:'Publish it',tab:'publish',icon:'upload'};
+  case 'published':return {label:video.views!==undefined?`${fmtNum(video.views)} views`:'Open',tab:'publish',icon:'preview'};
  }
 }

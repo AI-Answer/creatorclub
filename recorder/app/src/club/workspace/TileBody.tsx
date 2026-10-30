@@ -1,12 +1,11 @@
 import {useEffect,useMemo,useState} from 'react';
-import {Image as ImageIcon,X} from 'lucide-react';
 import type {Breakdown,ResearchTile,TranscriptChapter} from '../../../shared/club';
 import {clubFetch,errorMessage} from '../api';
 import {clockTime,linkHost} from '../video-plan';
 import {youtubeId} from '../board';
 import {ErrorLine} from '../ErrorLine';
 import {creatorName,fmtDays,fmtNum} from '../format';
-import {Avatar,Icon,Level,MultChip,SourceIcon,Spinner,Thumb,type IconName} from '../ui';
+import {Avatar,Icon,IconButton,Level,MultChip,SourceIcon,Spinner,Thumb,type IconName} from '../ui';
 import {markdownToHtml} from '../markdown';
 import {openInBrowser} from '../markdown/MarkdownEditor';
 import type {Reading} from './useBoard';
@@ -19,7 +18,7 @@ export function tileImage(videoId:string,tile:ResearchTile):string|undefined{
 
 /** The head of a tile: its label, and a quiet remove button. */
 function TileHead({icon,label,onRemove}:{icon:IconName;label:string;onRemove():void}){
- return <div className="th"><Icon name={icon} size={13}/>{label}<button type="button" className="btn ghost sm icon-only x" onClick={onRemove} aria-label="Remove from the board" title="Remove from the board" style={{width:22,height:22}}><X aria-hidden size={13}/></button></div>;
+ return <div className="th"><Icon name={icon} size={13}/>{label}<IconButton icon="close" iconSize={13} label="Remove from the board" className="x" onClick={onRemove} style={{width:22,height:22}}/></div>;
 }
 
 export interface TileBodyProps{
@@ -53,7 +52,7 @@ function NoteTile({tile,onRemove,onOpen}:TileBodyProps){
  const html=useMemo(()=>markdownToHtml(text),[text]);
  const label=doc?.root==='folder'?'Note from your Notes folder':'Note';
  return <>
-  <TileHead icon="StickyNote" label={label} onRemove={onRemove}/>
+  <TileHead icon="note" label={label} onRemove={onRemove}/>
   <div className="tb">
    {doc?.missing?<div className="small muted">{doc.root==='folder'?<>This note is from a Notes folder that is not the current one: <span className="note-path">{doc.folder??'an earlier folder'}</span>. It shows again if you choose that folder.</>:'This file is not in its folder any more. Put it back and it shows here again, or remove the card.'}</div>
     :doc?.tooLarge?<div className="small muted">This file is over 1 MB, so it is not shown. It stays in its folder.</div>
@@ -74,7 +73,7 @@ function NoteTile({tile,onRemove,onOpen}:TileBodyProps){
 function IdeaTile({tile,onRemove}:TileBodyProps){
  const {meta}=tile,ratings=[['Demand',meta.demand],['Gap',meta.gap],['Easy to show',meta.show]] as const;
  return <>
-  <TileHead icon="Lightbulb" label="The idea" onRemove={onRemove}/>
+  <TileHead icon="idea" label="The idea" onRemove={onRemove}/>
   <div className="tb">
    {tile.text&&<p style={{margin:'0 0 10px',fontSize:13.5,lineHeight:1.5}}>{tile.text}</p>}
    <div style={{display:'flex',flexDirection:'column',gap:6}}>{ratings.map(([label,rating])=>rating&&<div key={label}><Level label={label} d={rating}/>{rating.note&&<div className="small muted" style={{marginTop:2}}>{rating.note}</div>}</div>)}</div>
@@ -83,7 +82,7 @@ function IdeaTile({tile,onRemove}:TileBodyProps){
 }
 
 function TextTile({tile,onRemove}:TileBodyProps){
- return <><TileHead icon="FileText" label="Text" onRemove={onRemove}/><div className="tb"><p style={{margin:0,whiteSpace:'pre-wrap',fontSize:13.5,lineHeight:1.5}}>{tile.text}</p></div></>;
+ return <><TileHead icon="script" label="Text" onRemove={onRemove}/><div className="tb"><p style={{margin:0,whiteSpace:'pre-wrap',fontSize:13.5,lineHeight:1.5}}>{tile.text}</p></div></>;
 }
 
 function VideoTile({tile,videoId,reading,onRemove,onRetryRead,onBreakdown}:TileBodyProps){
@@ -96,7 +95,7 @@ function VideoTile({tile,videoId,reading,onRemove,onRetryRead,onBreakdown}:TileB
   clubFetch<TranscriptChapter[]>(`/videos/${encodeURIComponent(videoId)}/research/${encodeURIComponent(tile.id)}/transcript`).then(setChapters,reason=>setError(errorMessage(reason,"Couldn't load the transcript.")));
  },[open,chapters,meta.transcript,videoId,tile.id]);
  return <>
-  <TileHead icon="Youtube" label="YouTube" onRemove={onRemove}/>
+  <TileHead icon="youtube" label="YouTube" onRemove={onRemove}/>
   <div className="tb">
    <Thumb videoId={source} src={source?undefined:picture} seed={tile.id} chip={<MultChip m={meta.multiplier} who={creator||undefined} onThumb dash/>}/>
    <div style={{fontWeight:600,fontSize:13.5,lineHeight:1.35,margin:'10px 0 6px'}} className="clamp2">{tile.title??linkHost(tile.url??'')}</div>
@@ -104,8 +103,8 @@ function VideoTile({tile,videoId,reading,onRemove,onRetryRead,onBreakdown}:TileB
    {unread?(reading?.phase==='failed'?<ErrorLine message={reading.message} onRetry={onRetryRead}/>:<div className="small muted row"><Spinner size={13} label="Reading the video"/>Reading the video…</div>)
     :meta.views!==undefined?<div className="stats"><span><b>{fmtNum(meta.views)}</b> views</span>{meta.ageDays!==undefined&&<span>{fmtDays(meta.ageDays)}</span>}</div>:null}
    <div className="row" style={{marginTop:8,gap:6,flexWrap:'wrap'}}>
-    {tile.url&&<a className="btn sm ghost" href={tile.url} target="_blank" rel="noopener noreferrer"><Icon name="ArrowUpRight" size={13}/>Open</a>}
-    {source&&<button type="button" className="btn sm ghost" onClick={()=>onBreakdown(source)}><Icon name="FileText" size={13}/>Breakdown</button>}
+    {tile.url&&<a className="btn sm ghost" href={tile.url} target="_blank" rel="noopener noreferrer"><Icon name="open-external" size={13}/>Open</a>}
+    {source&&<button type="button" className="btn sm ghost" onClick={()=>onBreakdown(source)}><Icon name="script" size={13}/>Breakdown</button>}
     {meta.transcript&&<button type="button" className="btn sm ghost" aria-expanded={open} onClick={()=>setOpen(current=>!current)}>{open?'Hide transcript':'Transcript'}</button>}
    </div>
    {open&&(error?<div style={{marginTop:8}}><ErrorLine message={error} onRetry={()=>{setError('');setChapters(null);}}/></div>
@@ -123,17 +122,17 @@ function BreakdownTile({tile,videoId,onRemove,onBreakdown}:TileBodyProps){
   if(!tile.meta.breakdownId)return;
   clubFetch<Breakdown>(`/breakdowns/${encodeURIComponent(tile.meta.breakdownId)}`).then(setFound,()=>setFound(null));
  },[tile.meta.breakdownId]);
- if(found===undefined)return <><TileHead icon="Sparkles" label="Breakdown" onRemove={onRemove}/><div className="tb"><Spinner label="Loading the breakdown" size={14}/></div></>;
- if(!found)return <><TileHead icon="Sparkles" label="Breakdown" onRemove={onRemove}/><div className="tb small muted">This breakdown is no longer saved.</div></>;
+ if(found===undefined)return <><TileHead icon="ai" label="Breakdown" onRemove={onRemove}/><div className="tb"><Spinner label="Loading the breakdown" size={14}/></div></>;
+ if(!found)return <><TileHead icon="ai" label="Breakdown" onRemove={onRemove}/><div className="tb small muted">This breakdown is no longer saved.</div></>;
  const why=found.whyItWorked;
  const source=youtubeId(found.url);
  return <>
-  <TileHead icon="Sparkles" label={`Breakdown · ${creatorName(found.video.channel)}`} onRemove={onRemove}/>
+  <TileHead icon="ai" label={`Breakdown · ${creatorName(found.video.channel)}`} onRemove={onRemove}/>
   <div className="tb">
    <div className="row" style={{gap:10,marginBottom:10}}><img src={found.video.thumbnail} alt="" style={{width:72,height:40,borderRadius:5,objectFit:'cover'}}/><div style={{fontWeight:600,fontSize:13,lineHeight:1.3}} className="clamp2">{found.video.title}</div></div>
    <div className="small faint" style={{marginBottom:6}}>Why it worked</div>
    <ol style={{margin:0,paddingLeft:18,fontSize:13,lineHeight:1.5,color:'var(--cc-text-2)',display:'flex',flexDirection:'column',gap:6}}>{[why.titlePackaging,why.hookSpeed,why.retention].filter(Boolean).slice(0,3).map((line,index)=><li key={index}>{line}</li>)}</ol>
-   {source&&<button type="button" className="btn sm ghost" style={{marginTop:8}} onClick={()=>onBreakdown(source)}><Icon name="FileText" size={13}/>Open breakdown</button>}
+   {source&&<button type="button" className="btn sm ghost" style={{marginTop:8}} onClick={()=>onBreakdown(source)}><Icon name="script" size={13}/>Open breakdown</button>}
   </div>
  </>;
 }
@@ -141,12 +140,12 @@ function BreakdownTile({tile,videoId,onRemove,onBreakdown}:TileBodyProps){
 function SignalTile({tile,onRemove}:TileBodyProps){
  const {meta}=tile,source=meta.source??'x',label=source==='x'?'Post on X':'Reddit post';
  return <>
-  <TileHead icon="MessagesSquare" label={label} onRemove={onRemove}/>
+  <TileHead icon="signals" label={label} onRemove={onRemove}/>
   <div className="tb">
    <div className="row" style={{marginBottom:8}}><Avatar name={meta.author??'?'} size="sm"/><b style={{fontSize:13}} className="ellipsis">{meta.author}</b><span className="grow"/><SourceIcon source={source}/></div>
    <div className="clamp3" style={{fontSize:13,lineHeight:1.5}}>{tile.text}</div>
-   <div className="stats" style={{marginTop:8}}>{meta.likes!==undefined&&<span><Icon name="Heart" size={12}/><b>{fmtNum(meta.likes)}</b></span>}{meta.replies!==undefined&&<span><Icon name="MessageCircle" size={12}/><b>{fmtNum(meta.replies)}</b></span>}</div>
-   {tile.url&&<a className="btn sm ghost" style={{marginTop:6}} href={tile.url} target="_blank" rel="noopener noreferrer"><Icon name="ArrowUpRight" size={13}/>Open post</a>}
+   <div className="stats" style={{marginTop:8}}>{meta.likes!==undefined&&<span><Icon name="like" size={12}/><b>{fmtNum(meta.likes)}</b></span>}{meta.replies!==undefined&&<span><Icon name="comment" size={12}/><b>{fmtNum(meta.replies)}</b></span>}</div>
+   {tile.url&&<a className="btn sm ghost" style={{marginTop:6}} href={tile.url} target="_blank" rel="noopener noreferrer"><Icon name="open-external" size={13}/>Open post</a>}
   </div>
  </>;
 }
@@ -154,7 +153,7 @@ function SignalTile({tile,onRemove}:TileBodyProps){
 function LinkTile({tile,onRemove}:TileBodyProps){
  const host=linkHost(tile.url??'');
  return <>
-  <TileHead icon="Link" label="Link" onRemove={onRemove}/>
+  <TileHead icon="link" label="Link" onRemove={onRemove}/>
   <div className="tb row" style={{alignItems:'flex-start',gap:10}}>
    <span style={{width:32,height:32,borderRadius:8,background:'var(--cc-bg-sunk)',fontWeight:700,color:'var(--cc-text-2)',display:'inline-flex',alignItems:'center',justifyContent:'center',flex:'none'}}>{host.charAt(0).toUpperCase()}</span>
    <div style={{minWidth:0}}><div style={{fontWeight:600,fontSize:13.5,lineHeight:1.35}}>{tile.title??host}</div><a href={tile.url} target="_blank" rel="noopener noreferrer" className="small ellipsis" style={{color:'var(--cc-accent-text)',display:'block'}}>{host}</a></div>
@@ -165,9 +164,9 @@ function LinkTile({tile,onRemove}:TileBodyProps){
 function ImageTile({tile,videoId,onRemove}:TileBodyProps){
  const picture=tileImage(videoId,tile);
  return <>
-  <TileHead icon="Image" label="Screenshot" onRemove={onRemove}/>
+  <TileHead icon="image" label="Screenshot" onRemove={onRemove}/>
   <div className="tb">
-   {picture?<img src={picture} alt={tile.title??''} style={{width:'100%',aspectRatio:'16/10',objectFit:'cover',borderRadius:8,border:'1px solid var(--cc-line)'}}/>:<div className="small muted"><ImageIcon size={14}/> Image not found</div>}
+   {picture?<img src={picture} alt={tile.title??''} style={{width:'100%',aspectRatio:'16/10',objectFit:'cover',borderRadius:8,border:'1px solid var(--cc-line)'}}/>:<div className="small muted"><Icon name="image" size={14}/> Image not found</div>}
    <div className="small muted" style={{marginTop:8}}>{tile.title??'Screenshot'}</div>
   </div>
  </>;

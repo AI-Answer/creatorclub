@@ -18,12 +18,12 @@ export function SignalCard({item,reason,inIdeas,onIdea}:{item:SignalEntry;reason
   {(item.flair||reason)&&<div className="row" style={{gap:6,flexWrap:'wrap'}}>{item.flair&&<span className="chip">{item.flair}</span>}{reason&&<span className="reason">{reason}</span>}</div>}
   <div className="text">{long&&!more?`${item.text.slice(0,250).trim()}…`:item.text}{long&&<button type="button" className="linkish" style={{marginLeft:4}} onClick={()=>setMore(open=>!open)}>{more?'Show less':'Show more'}</button>}</div>
   {item.media?.type==='image'&&item.media.url&&!broken&&<img className="media" src={item.media.url} alt="" loading="lazy" onError={()=>setBroken(true)}/>}
-  {item.media?.type==='video'&&<a className="btn sm" href={item.url} target="_blank" rel="noopener noreferrer"><Icon name="Play" size={14}/>Watch the video</a>}
+  {item.media?.type==='video'&&<a className="btn sm" href={item.url} target="_blank" rel="noopener noreferrer"><Icon name="play" size={14}/>Watch the video</a>}
   <div className="foot">
-   <span className="stats"><span title="Likes"><Icon name="Heart" size={13}/><b>{fmtNum(item.likes)}</b></span><span title="Replies"><Icon name="MessageCircle" size={13}/><b>{fmtNum(item.replies)}</b></span>{item.views?<span title="Views"><Icon name="Eye" size={13}/><b>{fmtNum(item.views)}</b></span>:null}</span>
+   <span className="stats"><span title="Likes"><Icon name="like" size={13}/><b>{fmtNum(item.likes)}</b></span><span title="Replies"><Icon name="comment" size={13}/><b>{fmtNum(item.replies)}</b></span>{item.views?<span title="Views"><Icon name="preview" size={13}/><b>{fmtNum(item.views)}</b></span>:null}</span>
    <span className="grow"/>
-   <a className="btn sm ghost icon-only open-post" href={item.url} target="_blank" rel="noopener noreferrer" aria-label="Open post" title="Open post"><Icon name="ArrowUpRight" size={15}/></a>
-   {inIdeas?<span className="chip b-green"><Icon name="Check" size={12}/>In ideas</span>:<button type="button" className="btn sm" onClick={()=>onIdea(item)}><Icon name="Lightbulb" size={14}/>Turn into idea</button>}
+   <a className="btn sm ghost icon-only open-post" href={item.url} target="_blank" rel="noopener noreferrer" aria-label="Open post" title="Open post"><Icon name="open-external" size={15}/></a>
+   {inIdeas?<span className="chip b-green"><Icon name="check" size={12}/>In ideas</span>:<button type="button" className="btn sm" onClick={()=>onIdea(item)}><Icon name="idea" size={14}/>Turn into idea</button>}
   </div>
  </div>;
 }

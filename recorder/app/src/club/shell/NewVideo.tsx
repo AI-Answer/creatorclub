@@ -9,8 +9,8 @@ import {Button,Dialog,Icon,useToast,type IconName} from '../ui';
 type Mode='link'|'title';
 
 const OPTIONS:ReadonlyArray<readonly [Mode,IconName,string,string]>=[
- ['link','Link','Break down a video','Paste a YouTube or Instagram link. Keep the concept you like.'],
- ['title','Type','Start from a title','You already know the video. Add it to ideas.'],
+ ['link','link','Break down a video','Paste a YouTube or Instagram link. Keep the concept you like.'],
+ ['title','text','Start from a title','You already know the video. Add it to ideas.'],
 ];
 const PLACEHOLDER:Record<Mode,string>={link:'youtube.com/watch?v=…',title:'e.g. Claude does my receipts automatically'};
 const ACTION:Record<Mode,string>={link:'Break down',title:'Add idea'};

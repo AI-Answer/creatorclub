@@ -1,9 +1,9 @@
 import {Button,Dialog,Icon,type IconName} from '../ui';
 
 const STEPS:ReadonlyArray<readonly [IconName,string,string]>=[
- ['Lightbulb','1 Find the idea',"Break down what's working. Keep the concept you'd make."],
- ['Layers','2 Plan it','Gather references on its board, package it, draft the scenes.'],
- ['Mic','3 Record, edit, publish','Talk through each scene, remove pauses, paste the YouTube link.'],
+ ['idea','1 Find the idea',"Break down what's working. Keep the concept you'd make."],
+ ['scenes','2 Plan it','Gather references on its board, package it, draft the scenes.'],
+ ['microphone','3 Record, edit, publish','Talk through each scene, remove pauses, then publish with Postiz.'],
 ];
 
 /** The first-visit dialog; it opens again from How it works in the sidebar. */

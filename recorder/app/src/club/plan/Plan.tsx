@@ -2,9 +2,9 @@ import {PLAN_JOB_KINDS,type PlanJobKind,type Video,type VideoScene} from '../../
 import {ErrorLine} from '../ErrorLine';
 import type {JobRun} from '../useJobRun';
 import type {Notice,Plan as PlanState} from '../usePlan';
-import {Button,Spinner} from '../ui';
+import {Button,Icon,Menu,Spinner,type MenuItem} from '../ui';
 import {changedSceneLine} from '../video-plan';
-import {PackageColumn} from './PackageColumn';
+import {PackageColumn,usePackageWrite} from './PackageColumn';
 import {ScenesColumn} from './ScenesColumn';
 
 const STARTING='Starting…';
@@ -26,15 +26,17 @@ function NoticeLine({kind,notice,onAct}:{kind:PlanJobKind;notice?:Notice;onAct(k
  if(!notice)return null;
  const replaced=notice.type==='replaced';
  return <p role="status" className="small muted">
-  {replaced?`Replaced the ${WHAT[kind]}`:`New ${WHAT[kind]} ready`} · <button type="button" className="linkish" onClick={()=>onAct(kind)} style={{background:'none',border:0,padding:'0 2px',font:'inherit',fontWeight:600,color:'var(--cc-accent-text)',cursor:'pointer'}}>{replaced?'Undo':'Use it'}</button>
+  {replaced?`Replaced the ${WHAT[kind]}`:`New ${WHAT[kind]} ready`} · <button type="button" className="linkish" onClick={()=>onAct(kind)} style={{font:'inherit',fontWeight:600,padding:'0 2px'}}>{replaced?'Undo':'Use it'}</button>
  </p>;
 }
 
 /**
- * The Plan tab: the package on the left, the scenes on the right. Titles, hooks and scripts are written by the real jobs;
- * the lines above the columns show what is running, what was replaced (Undo), and what is waiting (Use it).
+ * The Plan tab: the package on the left, the scenes on the right. Titles, hooks and scripts are written by the real jobs, all from
+ * one "Write with Claude" menu (the companion beside the page takes anything else); the lines above the columns show what is running,
+ * what was replaced (Undo), and what is waiting (Use it).
  */
 export function Plan({video,plan,known,focusId,onFocus,onTitle,onTarget,onRecordScene}:{video:Video;plan:PlanState;known:readonly VideoScene[]|undefined;focusId:string|null;onFocus(sceneId:string):void;onTitle(title:string):void;onTarget(seconds:number):void;onRecordScene(sceneId:string):void}){
+ const packageWrite=usePackageWrite(plan.pkg,plan.writePackage);
  if(plan.load.status==='loading')return <div className="grow" style={{display:'flex',alignItems:'center',justifyContent:'center',padding:'64px 0'}}><Spinner label="Loading the plan" size={20}/></div>;
  if(plan.load.status==='error')return <div style={{maxWidth:720,margin:'0 auto',padding:'32px 24px'}}><ErrorLine message={plan.load.message} onRetry={plan.reload}/></div>;
  const packaging=plan.packageJob.phase==='running',outlining=plan.outlineJob.phase==='running',scripting=plan.scriptJob.phase==='running';
@@ -50,13 +52,21 @@ export function Plan({video,plan,known,focusId,onFocus,onTitle,onTarget,onRecord
   <NoticeLine key="outline-notice" kind="outline" notice={plan.notices.outline} onAct={plan.resolveNotice}/>,
   <NoticeLine key="script-notice" kind="script" notice={plan.notices.script} onAct={plan.resolveNotice}/>,
  ].filter(Boolean);
+ const hasScenes=!!plan.outline?.scenes.length;
+ const writes:MenuItem[]=[
+  ...(packaging?[]:[{label:'Write titles',icon:'ai' as const,fn:()=>packageWrite.write('titles')},{label:'Write the hook',icon:'ai' as const,fn:()=>packageWrite.write('hook')}]),
+  ...(hasScenes&&!scripting&&!outlining?[{label:'Write the full script',icon:'script' as const,fn:()=>plan.writeScript()}]:[]),
+ ];
+ const writeMenu=<Menu align="right" label="Write with Claude" items={writes} button={(toggle,open)=><Button size="sm" className="ai" aria-expanded={open} aria-haspopup="menu" disabled={!writes.length} onClick={toggle}>
+  {packaging||scripting?<span className="spin" role="status" aria-label="Writing"/>:<Icon name="ai" size={14}/>}Write with Claude<Icon name="expand" size={13}/></Button>}/>;
  return <div style={{display:'flex',flexDirection:'column',minHeight:'100%'}}>
   {lines.length>0&&<div style={{display:'flex',flexDirection:'column',gap:8,padding:'12px 40px 0'}}>{lines}</div>}
   <div className="plan" style={{flex:1}}>
-   <PackageColumn videoId={video.id} videoTitle={video.title} pkg={plan.pkg} running={packaging} onEdit={plan.editPackage} onWrite={plan.writePackage} onPickTitle={onTitle}/>
+   <PackageColumn videoId={video.id} videoTitle={video.title} pkg={plan.pkg} running={packaging} onEdit={plan.editPackage} onPickTitle={onTitle}/>
    <ScenesColumn target={video.targetSeconds??0} onTarget={onTarget} hasRecording={!!video.recorderProjectId} outline={plan.outline} known={known} focusId={focusId}
     drafting={outlining} draftLine={plan.outlineJob.phase==='running'?plan.outlineJob.line:undefined} scripting={scripting} scriptingScene={plan.scriptScene}
-    onEdit={plan.editOutline} onFocus={onFocus} onDraft={plan.createOutline} onWriteFull={()=>plan.writeScript()} onWriteScene={plan.writeScript} onSceneScript={plan.saveSceneScript} onRecord={onRecordScene}/>
+    onEdit={plan.editOutline} onFocus={onFocus} onDraft={plan.createOutline} onWriteScene={plan.writeScript} onSceneScript={plan.saveSceneScript} onRecord={onRecordScene} tools={writeMenu}/>
   </div>
+  {packageWrite.dialog}
  </div>;
 }

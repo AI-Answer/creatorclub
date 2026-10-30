@@ -31,6 +31,6 @@ export function KanbanCard({video,scenes,dragging,onOpen,onMove,onDragStart,onDr
    </div>
   </div>
   <div className="kmove"><Menu align="right" label="Move to" items={stages} button={(toggle,open)=>
-   <button type="button" className="btn sm icon-only" aria-label={`Move ${video.title} to…`} aria-haspopup="menu" aria-expanded={open} onClick={toggle}><Icon name="MoreHorizontal" size={15}/></button>}/></div>
+   <button type="button" className="btn sm icon-only" aria-label={`Move ${video.title} to…`} title="Move to another stage" aria-haspopup="menu" aria-expanded={open} onClick={toggle}><Icon name="more" size={15}/></button>}/></div>
  </div>;
 }

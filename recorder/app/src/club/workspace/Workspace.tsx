@@ -19,7 +19,6 @@ import {Publish} from './Publish';
 import {Teleprompter} from './Teleprompter';
 import {outlineSceneFor,promptScene,recorderSceneFor} from './record-logic';
 import {TAKE_NOT_ADDED,takesWaiting,continueIsPrimary,showsStrip,nextTab,stageForContinue,tabDone,TAB_LABEL,type TabFacts} from './rules';
-import {originLabel} from '../routes';
 
 /**
  * One video's page: the frame (header with the one set of step tabs, scene chips on Record and Edit, a bottom bar with Back and Continue) around the tab's own content. Board is the research canvas;
@@ -121,8 +120,6 @@ export function Workspace({video,tab,back,navigate,onVideo}:{video:Video;tab:Vid
   nextButton={label:`Continue to ${TAB_LABEL[next].toLowerCase()}`,run:()=>void continueToNext(),disabled:moving,primary:continueIsPrimary(tabDone(tab,facts),false)};
  }
 
- const backLabel=`Back to ${originLabel(back).toLowerCase()}`;
-
  // The companion is docked beside every step but Edit, which keeps its own editor chat until the editor's tools join it.
  const [boardKey,setBoardKey]=useState(0);
  const refresh=plan.refresh;
@@ -156,17 +153,17 @@ export function Workspace({video,tab,back,navigate,onVideo}:{video:Video;tab:Vid
       sceneId={tab==='record'?recorderSceneFor(video,focusId)??undefined:undefined} sceneNonce={pickN} onSceneChange={tab==='record'?recorderScene:undefined} onChanged={reloadScenes}/></div>
      {prompting&&<Teleprompter index={prompting.index} scene={prompting.scene}/>}
     </div>
-    :tab==='edit'?<EmptyState icon={<Icon name="Scissors"/>} title="Nothing recorded yet" description="Record a scene first. Then you can edit it here."
+    :tab==='edit'?<EmptyState icon={<Icon name="cut"/>} title="Nothing recorded yet" description="Record a scene first. Then you can edit it here."
       action={<Button variant="primary" size="md" onClick={()=>navigate(tabRoute('record'))}>Open record</Button>}/>
     :list===undefined?<div className="flex flex-1 items-center justify-center"><Spinner label="Loading the scenes" size={20}/></div>
-    :!hasScenes?<EmptyState icon={<Icon name="FileText"/>} title="Plan the scenes first" description="Each scene is recorded on its own, so the scenes come first."
+    :!hasScenes?<EmptyState icon={<Icon name="script"/>} title="Plan the scenes first" description="Each scene is recorded on its own, so the scenes come first."
       action={<Button variant="primary" size="md" onClick={()=>navigate(tabRoute('plan'))}>Open plan</Button>}/>
-    :<EmptyState icon={<Icon name="Video"/>} title="Ready to record" description="Start the recording for these scenes."
+    :<EmptyState icon={<Icon name="camera"/>} title="Ready to record" description="Start the recording for these scenes."
       action={<Button variant="primary" size="md" disabled={!plan.continueAction||plan.continueAction.disabled} onClick={()=>plan.continueAction?.run()}>Start recording</Button>}/>)}
    {tab==='publish'&&<Publish video={video} pkg={plan.pkg} scenes={list} onVideo={onVideo} onGoTo={target=>navigate(tabRoute(target))}
     saveError={plan.saveError} onRetry={plan.retrySave} onDescription={description=>plan.editPackage({...(pkgNow.current??EMPTY_PACKAGE),description})}/>}
   </div>
-  <Foot tab={tab} back={back} backLabel={backLabel} onTab={target=>void goToTab(target)} next={nextButton}/>
+  <Foot next={nextButton}/>
   </div>
   {tab!=='edit'&&<Companion videoId={video.id} tab={tab} scene={companionScene} screen={screen} pkg={plan.pkg} outline={plan.outline} scenes={list} onChanged={companionChanged} beforeApply={plan.flush} roomy={tab==='record'}/>}
   </div>

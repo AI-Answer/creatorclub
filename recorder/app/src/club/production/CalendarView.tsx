@@ -27,8 +27,8 @@ export function CalendarView({videos,onOpen,onOpenPublish,onSchedule,today=new D
  return <div>
   <div className="row" style={{marginBottom:12}}>
    <h2 className="sec" style={{fontSize:17}}>{monthTitle(month)}</h2>
-   <button type="button" className="btn sm icon-only" aria-label="Previous month" onClick={()=>setMonth(shiftMonth(month,-1))}><Icon name="ChevronLeft" size={15}/></button>
-   <button type="button" className="btn sm icon-only" aria-label="Next month" onClick={()=>setMonth(shiftMonth(month,1))}><Icon name="ChevronRight" size={15}/></button>
+   <button type="button" className="btn sm icon-only" aria-label="Previous month" onClick={()=>setMonth(shiftMonth(month,-1))}><Icon name="back" size={15}/></button>
+   <button type="button" className="btn sm icon-only" aria-label="Next month" onClick={()=>setMonth(shiftMonth(month,1))}><Icon name="forward" size={15}/></button>
    <button type="button" className="btn sm" onClick={()=>setMonth(monthOf(today))}>Today</button>
    <span className="grow"/>
    {unscheduled.length>0&&<span className="small muted row" style={{flexWrap:'wrap',justifyContent:'flex-end'}} role="group" aria-label="Not scheduled">Not scheduled:{' '}{unscheduled.map(video=><span key={video.id} className="row" style={{gap:6}}>

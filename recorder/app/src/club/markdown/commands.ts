@@ -12,20 +12,20 @@ export interface Command {
   hint: string;
   /** Other words that find it in the `/` menu. */
   words: string[];
-  icon: 'Pilcrow' | 'Heading1' | 'Heading2' | 'Heading3' | 'List' | 'ListOrdered' | 'ListChecks' | 'Quote' | 'Code' | 'Minus';
+  icon: 'paragraph' | 'heading-1' | 'heading-2' | 'heading-3' | 'list' | 'list-numbered' | 'checklist' | 'quote' | 'code' | 'divider';
 }
 
 export const COMMANDS: readonly Command[] = [
-  { id: 'text', label: 'Text', hint: '', words: ['paragraph', 'plain', 'normal'], icon: 'Pilcrow' },
-  { id: 'h1', label: 'Heading 1', hint: '#', words: ['title', 'big', 'h1'], icon: 'Heading1' },
-  { id: 'h2', label: 'Heading 2', hint: '##', words: ['subtitle', 'h2', 'section'], icon: 'Heading2' },
-  { id: 'h3', label: 'Heading 3', hint: '###', words: ['small', 'h3'], icon: 'Heading3' },
-  { id: 'bullets', label: 'Bullet list', hint: '-', words: ['bullets', 'points', 'ul', 'list', 'unordered'], icon: 'List' },
-  { id: 'numbers', label: 'Numbered list', hint: '1.', words: ['numbers', 'steps', 'ol', 'ordered', 'list'], icon: 'ListOrdered' },
-  { id: 'tasks', label: 'Checklist', hint: '[]', words: ['todo', 'tasks', 'check', 'checkbox', 'list'], icon: 'ListChecks' },
-  { id: 'quote', label: 'Quote', hint: '>', words: ['blockquote', 'callout'], icon: 'Quote' },
-  { id: 'code', label: 'Code block', hint: '```', words: ['snippet', 'pre', 'monospace'], icon: 'Code' },
-  { id: 'divider', label: 'Divider', hint: '---', words: ['line', 'rule', 'hr', 'separator'], icon: 'Minus' },
+  { id: 'text', label: 'Text', hint: '', words: ['paragraph', 'plain', 'normal'], icon: 'paragraph' },
+  { id: 'h1', label: 'Heading 1', hint: '#', words: ['title', 'big', 'h1'], icon: 'heading-1' },
+  { id: 'h2', label: 'Heading 2', hint: '##', words: ['subtitle', 'h2', 'section'], icon: 'heading-2' },
+  { id: 'h3', label: 'Heading 3', hint: '###', words: ['small', 'h3'], icon: 'heading-3' },
+  { id: 'bullets', label: 'Bullet list', hint: '-', words: ['bullets', 'points', 'ul', 'list', 'unordered'], icon: 'list' },
+  { id: 'numbers', label: 'Numbered list', hint: '1.', words: ['numbers', 'steps', 'ol', 'ordered', 'list'], icon: 'list-numbered' },
+  { id: 'tasks', label: 'Checklist', hint: '[]', words: ['todo', 'tasks', 'check', 'checkbox', 'list'], icon: 'checklist' },
+  { id: 'quote', label: 'Quote', hint: '>', words: ['blockquote', 'callout'], icon: 'quote' },
+  { id: 'code', label: 'Code block', hint: '```', words: ['snippet', 'pre', 'monospace'], icon: 'code' },
+  { id: 'divider', label: 'Divider', hint: '---', words: ['line', 'rule', 'hr', 'separator'], icon: 'divider' },
 ];
 
 /** The commands the `/` menu offers for what was typed after the slash: those whose name starts with it, then those that contain it or have a word that starts with it. */

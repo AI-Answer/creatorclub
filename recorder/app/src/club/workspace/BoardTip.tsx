@@ -1,9 +1,9 @@
 import {Button,Dialog,Icon,type IconName} from '../ui';
 
 const STEPS:ReadonlyArray<readonly [IconName,string,string]>=[
- ['StickyNote','1 Gather','Add links, videos, notes and screenshots. Paste a link anywhere on the board.'],
- ['Sparkles','2 Ask','Ask Claude about what you gathered. Use its hooks and titles, or add an answer to the board.'],
- ['Wand2','3 Draft','Draft scenes from the board. You review them in Plan before you record.'],
+ ['note','1 Gather','Add links, videos, notes and screenshots. Paste a link anywhere on the board.'],
+ ['companion','2 Ask','Ask Claude about what you gathered. Use its hooks and titles, or add an answer to the board.'],
+ ['draft','3 Draft','Draft scenes from the board. You review them in Plan before you record.'],
 ];
 
 /** How the Board works. Shown once per channel, and again from the ? button. */

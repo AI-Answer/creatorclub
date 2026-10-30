@@ -1,6 +1,6 @@
 import {useId,type ReactNode} from 'react';
 import {cn} from './cn';
-import {Icon} from './Icon';
+import {IconButton} from './IconButton';
 import {useEscape,useFocusPanel} from './overlay';
 
 /**
@@ -21,7 +21,7 @@ function DialogPanel({onClose,title,description,children,footer,width,className}
   <div ref={panel} tabIndex={-1} className={cn('dialog',className)} role="dialog" aria-modal="true" aria-labelledby={titleId} aria-describedby={description?descriptionId:undefined} style={width?{width}:undefined}>
    <div className="dh" style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:12}}>
     <div><h3 id={titleId}>{title}</h3>{description&&<p id={descriptionId} className="muted" style={{marginTop:4}}>{description}</p>}</div>
-    <button type="button" className="btn ghost sm icon-only" style={{marginRight:-6,marginTop:-2}} onClick={onClose} aria-label="Close" title="Close"><Icon name="X" size={16}/></button>
+    <IconButton icon="close" label="Close" shortcut="Esc" style={{marginRight:-6,marginTop:-2}} onClick={onClose}/>
    </div>
    <div className="db">{children}</div>
    {footer&&<div className="df">{footer}</div>}

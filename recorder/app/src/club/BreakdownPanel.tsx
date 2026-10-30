@@ -40,7 +40,7 @@ export function BreakdownPanel({target,videoId,title,multiplier,videos,onAdded,o
   <div className="grow">
    <div style={{fontWeight:600,fontSize:15,marginBottom:12}}>{title||'Reading the link'}</div>
    <div className="bd-steps">{BREAKDOWN_STEPS.map((label,index)=><div key={label} className={`bd-step${step===index?' on':step>index?' done':''}`}>
-    {step>index?<Icon name="CircleCheck" size={16} style={{color:'var(--cc-ok)'}}/>:step===index?<span className="spin"/>:<Icon name="Circle" size={16}/>}
+    {step>index?<Icon name="done" size={16} style={{color:'var(--cc-ok)'}}/>:step===index?<span className="spin"/>:<Icon name="pending" size={16}/>}
     {label}{index===2&&step>2&&comments?` · ${fmtNum(comments)} comments`:''}
    </div>)}</div>
    {onCancel&&<button type="button" className="btn ghost sm" style={{marginTop:14}} onClick={onCancel}>Cancel</button>}
@@ -64,17 +64,17 @@ function BreakdownResult({breakdown,multiplier,videos,onAdded}:{breakdown:Breakd
     <div className="row" style={{marginTop:8,gap:8}}>{video.channel&&<><Avatar name={video.channel} size="sm"/><span className="muted">{video.channel}</span></>}<span className="faint small">{PLATFORM_LABEL[breakdown.platform]??breakdown.platform}</span></div>
     <div className="row" style={{marginTop:14,gap:8,flexWrap:'wrap'}}>
      <MultChip m={mult} who={who} label dash/>
-     {known&&video.views>0&&<span className="chip outline"><Icon name="Eye" size={12}/>{fmtNum(video.views)} views</span>}
-     {known&&video.likes>0&&<span className="chip outline"><Icon name="Heart" size={12}/>{fmtNum(video.likes)}</span>}
-     {known&&video.comments>0&&<span className="chip outline"><Icon name="MessageCircle" size={12}/>{fmtNum(video.comments)}</span>}
-     {known&&<span className="chip outline"><Icon name="Clock" size={12}/>{fmtDays(video.ageDays)}</span>}
+     {known&&video.views>0&&<span className="chip outline"><Icon name="preview" size={12}/>{fmtNum(video.views)} views</span>}
+     {known&&video.likes>0&&<span className="chip outline"><Icon name="like" size={12}/>{fmtNum(video.likes)}</span>}
+     {known&&video.comments>0&&<span className="chip outline"><Icon name="comment" size={12}/>{fmtNum(video.comments)}</span>}
+     {known&&<span className="chip outline"><Icon name="duration" size={12}/>{fmtDays(video.ageDays)}</span>}
     </div>
     {breakdown.watchedWith==='gemini'&&<div className="faint small" style={{marginTop:8}}>Watched with Gemini</div>}
    </div>
   </div>
   <div className="bd-grid">
    <div>
-    <h3><Icon name="Sparkles" size={15} style={{color:'var(--cc-accent)'}}/>Why it worked</h3>
+    <h3><Icon name="ai" size={15} style={{color:'var(--cc-accent)'}}/>Why it worked</h3>
     <ol>{why.short.map((point,index)=><li key={index}>{point}</li>)}</ol>
     <button type="button" className="linkish" style={{marginTop:12}} aria-expanded={more} onClick={()=>setMore(open=>!open)}>{more?'Hide the full breakdown':'Show the full breakdown'}</button>
     {more&&<div style={{display:'flex',flexDirection:'column',gap:10,marginTop:12}}>
@@ -87,12 +87,12 @@ function BreakdownResult({breakdown,multiplier,videos,onAdded}:{breakdown:Breakd
     </div>}
    </div>
    <div>
-    <h3><Icon name="MessagesSquare" size={15}/>What viewers ask</h3>
-    {breakdown.viewerQuestions.length?breakdown.viewerQuestions.slice(0,6).map((item,index)=><div key={index} className="q"><span>{item.question}</span>{item.likes>0&&<span className="likes"><Icon name="Heart" size={12}/>{item.likes}</span>}</div>)
+    <h3><Icon name="signals" size={15}/>What viewers ask</h3>
+    {breakdown.viewerQuestions.length?breakdown.viewerQuestions.slice(0,6).map((item,index)=><div key={index} className="q"><span>{item.question}</span>{item.likes>0&&<span className="likes"><Icon name="like" size={12}/>{item.likes}</span>}</div>)
      :<div className="muted small">No questions in the comments.</div>}
    </div>
   </div>
-  <h3 style={{marginTop:26}}><Icon name="Lightbulb" size={15}/>Concepts for you</h3>
+  <h3 style={{marginTop:26}}><Icon name="idea" size={15}/>Concepts for you</h3>
   <div className="concepts">{breakdown.concepts.map((concept,index)=><ConceptCard key={index} breakdown={breakdown} index={index} videos={videos} onAdded={onAdded}/>)}</div>
  </div>;
 }
@@ -120,7 +120,7 @@ function ConceptCard({breakdown,index,videos,onAdded}:{breakdown:Breakdown;index
   <div className="kv"><b>Twist.</b> {concept.twist}</div>
   <div className="row" style={{flexWrap:'wrap',gap:6}}><Level label="Demand" d={concept.demand}/><Level label="Gap" d={concept.gap}/><Level label="Easy to show" d={concept.show}/></div>
   <div style={{marginTop:'auto'}}>{existing
-   ?<button type="button" className="btn sm" style={{width:'100%'}} onClick={()=>onAdded(existing.id)}><Icon name="Check" size={14} style={{color:'var(--cc-ok)'}}/>In your ideas · Open</button>
-   :<button type="button" className="btn sm" style={{width:'100%'}} disabled={busy} onClick={()=>void add()}><Icon name="Plus" size={14}/>Add to my ideas</button>}</div>
+   ?<button type="button" className="btn sm" style={{width:'100%'}} onClick={()=>onAdded(existing.id)}><Icon name="check" size={14} style={{color:'var(--cc-ok)'}}/>In your ideas · Open</button>
+   :<button type="button" className="btn sm" style={{width:'100%'}} disabled={busy} onClick={()=>void add()}><Icon name="add" size={14}/>Add to my ideas</button>}</div>
  </div>;
 }

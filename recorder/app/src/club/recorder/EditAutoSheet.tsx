@@ -1,12 +1,11 @@
 import {useEffect,useMemo,useRef,useState} from 'react';
-import {AudioLines,Image,LoaderCircle,MoveHorizontal,Scissors,SlidersHorizontal,X} from 'lucide-react';
 import type {AutomationJob,AutomationMutation,CutReview,QuickActionRequest} from '../../../shared/automation';
 import type {Project} from '../../../shared/types';
 import {projectDuration} from '../../../shared/types';
 import {api} from '../../api';
 import {automationRunning} from '../../automation-state';
 import {closeRange} from '../../timeline-edit';
-import {Button} from '../ui';
+import {Button,Icon} from '../ui';
 import {UNKNOWN_PLAN,clipsFingerprint,cutReview,fillerRanges,gapRanges,latestCutJob,latestStyleJob,PAUSE_LEVEL_NAMES,pauseRanges,planIsStale,rangesSeconds,type PauseLevel,type Range} from './edit-auto';
 import {formatCutDuration} from './edit-steps';
 
@@ -97,21 +96,21 @@ export function EditAutoSheet({project:p,jobs,merge,reload,flush,change,refresh,
   <div className="club-auto-title">{icon}{title}</div><div className="club-auto-desc">{describe(option)}</div>{extra}
  </div>;
  return <aside className="club-sheet club-auto-sheet" aria-label="Auto-edit and style">
-  <header><b>Auto-edit and style</b><button type="button" className="club-sheet-close" aria-label="Close auto-edit and style" onClick={onClose}><X size={16}/></button></header>
+  <header><b>Auto-edit and style</b><button type="button" className="club-sheet-close" aria-label="Close auto-edit and style" onClick={onClose}><Icon name="close" size={16}/></button></header>
   <p className="club-sheet-hint">Hover to preview · click to choose · Enter to apply</p>
   <div className="club-sheet-body" ref={list} role="list">
-   {row('pauses',<Scissors size={15}/>,'Remove pauses',<>
-    {(!cutJob||stale||cutJob.status!=='ready'&&!automationRunning(cutJob))&&<Button size="sm" disabled={!!busy||!p.clips.length} onClick={()=>void plan('auto-cut')}>{busy==='auto-cut'&&<LoaderCircle className="spin" aria-hidden/>}{cutJob?'Find pauses again':'Find pauses'}</Button>}
+   {row('pauses',<Icon name="cut" size={15}/>,'Remove pauses',<>
+    {(!cutJob||stale||cutJob.status!=='ready'&&!automationRunning(cutJob))&&<Button size="sm" disabled={!!busy||!p.clips.length} onClick={()=>void plan('auto-cut')}>{busy==='auto-cut'&&<Icon name="loading" className="spin" aria-hidden/>}{cutJob?'Find pauses again':'Find pauses'}</Button>}
     {cutJob?.status==='ready'&&!stale&&<><div className="club-auto-control"><span className="club-seg" role="group" aria-label="How much to cut">{(Object.keys(PAUSE_LEVEL_NAMES) as PauseLevel[]).map(l=><button key={l} type="button" aria-pressed={level===l} onClick={()=>{setLevel(l);setPin('pauses');}}>{PAUSE_LEVEL_NAMES[l]}</button>)}</span></div>
      <label className="club-auto-control"><span>Keep</span><input type="range" min={.05} max={.5} step={.01} value={padding} aria-label="Breathing room kept around each cut" onChange={event=>{setPadding(+event.target.value);setPin('pauses');}}/><span className="tnum">{padding.toFixed(2)}s</span><span className="faint">around each cut</span></label></>}
    </>)}
-   {row('fillers',<AudioLines size={15}/>,'Review filler words')}
-   {row('gaps',<MoveHorizontal size={15}/>,'Close gaps')}
-   {row('normalize',<SlidersHorizontal size={15}/>,'Normalize loudness')}
-   {row('style',<Image size={15}/>,'Style video',(!styleJob||styleJob.status!=='ready')&&<Button size="sm" disabled={!!busy||!p.clips.length||!!styleJob&&automationRunning(styleJob)} onClick={()=>void plan('visualize')}>{(busy==='visualize'||styleJob&&automationRunning(styleJob))&&<LoaderCircle className="spin" aria-hidden/>}{styleJob?'Plan again':'Plan a style'}</Button>)}
+   {row('fillers',<Icon name="audio" size={15}/>,'Review filler words')}
+   {row('gaps',<Icon name="slide" size={15}/>,'Close gaps')}
+   {row('normalize',<Icon name="adjust" size={15}/>,'Normalize loudness')}
+   {row('style',<Icon name="image" size={15}/>,'Style video',(!styleJob||styleJob.status!=='ready')&&<Button size="sm" disabled={!!busy||!p.clips.length||!!styleJob&&automationRunning(styleJob)} onClick={()=>void plan('visualize')}>{(busy==='visualize'||styleJob&&automationRunning(styleJob))&&<Icon name="loading" className="spin" aria-hidden/>}{styleJob?'Plan again':'Plan a style'}</Button>)}
   </div>
   {error&&<p className="club-sheet-error" role="alert">{error} <button type="button" onClick={()=>{setError('');retry.current();}}>Try again</button></p>}
   {pin&&<footer className="club-sheet-pin"><span>Previewing <b>{pin==='pauses'?`Remove pauses (${PAUSE_LEVEL_NAMES[level].toLowerCase()})`:pin==='fillers'?'Remove filler words':pin==='gaps'?'Close gaps':pin==='normalize'?'Normalize loudness':'Style video'}</b></span>
-   <Button size="sm" variant="ghost" onClick={()=>setPin(null)}>Cancel</Button><Button size="sm" variant="primary" disabled={!!busy} onClick={()=>void apply(pin)}>{busy==='style'&&<LoaderCircle className="spin" aria-hidden/>}Apply</Button></footer>}
+   <Button size="sm" variant="ghost" onClick={()=>setPin(null)}>Cancel</Button><Button size="sm" variant="primary" disabled={!!busy} onClick={()=>void apply(pin)}>{busy==='style'&&<Icon name="loading" className="spin" aria-hidden/>}Apply</Button></footer>}
  </aside>;
 }

@@ -55,9 +55,10 @@ test('a video walks from an empty Plan through Write titles and Draft scenes int
  try{
   await flush();
   const c=ui.container;
-  assert.ok(hasText(c,'Decide why this video gets clicked.'));
+  assert.ok(hasText(c,'Why this video gets clicked.'));
   assert.deepEqual(primaries(c),['Draft scenes from board'],'one primary: the thing to do first');
-  await act(async()=>button(c,'Write titles').click());await flush();
+  await act(async()=>button(c,'Write with Claude').click());await flush();
+  await act(async()=>[...c.ownerDocument.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(item=>item.textContent==='Write titles')!.click());await flush();
   await act(async()=>FakeEventSource.last().emit('progress',{message:'Writing the package…'}));
   assert.ok(hasText(c,'Writing the package…'),'progress streams in');
   const before=announced;
@@ -73,9 +74,10 @@ test('a video walks from an empty Plan through Write titles and Draft scenes int
 
   await act(async()=>button(c,'Draft scenes from board').click());await flush();
   await act(async()=>FakeEventSource.last().emit('done',{value:outline}));await flush();
-  assert.equal(c.querySelectorAll('.scene').length,4,'four scene cards in the outline');
-  assert.ok(button(c,'Write full script'));
-  await edit(c.querySelectorAll('.scene .t')[1],'Level 1: settings');
+  assert.equal(c.querySelectorAll('.scene').length,4,'four scene rows in the outline');
+  assert.ok(button(c,'Write with Claude'),'the script is written from the one Write with Claude menu');
+  await act(async()=>c.querySelectorAll<HTMLElement>('.scene-open')[1].click());await flush();
+  await edit(c.querySelector('.scene.open .ed.t'),'Level 1: settings');
   assert.deepEqual(primaries(c),['Continue to recording']);
   await act(async()=>button(c,'Continue to recording').click());await flush();
   assert.equal(state.pkg?.titles[0],'Claude Code features nobody uses','edits are saved before moving on');
