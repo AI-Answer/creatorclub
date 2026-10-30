@@ -135,7 +135,7 @@ export function DiscoverScreen({show='fit',navigate}:{show?:DiscoverShow;navigat
  /** What an empty feed says: how to fill the source it shows, or that the topics filter left nothing. */
  function emptyFeed(){
   const noVideos=!videoItems?.length,noPosts=!postItems?.length;
-  const settings=<button type="button" className="btn primary" onClick={()=>navigate({name:'settings',section:'followed'})}>Open Settings</button>;
+  const settings=<button type="button" className="btn primary" onClick={()=>navigate({name:'settings',section:'followed'})}>Follow channels</button>;
   if((show==='youtube'||show==='followed'||(show==='fit'&&noPosts))&&noVideos&&trending.seeding)return <Spinner label="Searching YouTube for your topics" size={20}/>;
   if((show==='youtube'||show==='followed')&&noVideos)return <div className="card">{followed===0
    ?<Empty icon="TrendingUp" title="No channels followed yet" action={settings}>Follow channels in Settings. The videos beating their usual views show up here.</Empty>

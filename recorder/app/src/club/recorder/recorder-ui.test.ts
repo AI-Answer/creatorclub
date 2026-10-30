@@ -217,7 +217,7 @@ test('the bottom bar makes Continue to edit the primary only once every scene ha
  const original=globalThis.fetch;
  globalThis.fetch=async(input,init)=>{const url=String(input);if(url.startsWith('/api/club/videos/v1/plan'))return Response.json({package:null,outline:null});if(url==='/api/club/settings')return Response.json({helpSeen:[]});return original(input,init);};
  const video={id:'v1',title:'Hidden features',stage:'recording' as const,order:0,createdAt:'2026-10-01T00:00:00.000Z',updatedAt:'2026-10-01T00:00:00.000Z',stageDates:{},planning:{research:true,package:true,outline:true},recorderProjectId:server.p.id};
- const ui=await mountUI(createElement(Workspace,{video,tab:'record',back:{name:'production',view:'board'},navigate:()=>{},onVideo:()=>{}}));
+ const ui=await mountUI(createElement(Workspace,{video,tab:'record',back:{name:'videos',view:'board'},navigate:()=>{},onVideo:()=>{}}));
  const bar=()=>button(ui.container,'Continue to edit');
  try{
   await flush();await flush();
@@ -234,7 +234,7 @@ test('the bottom bar makes Continue to edit the primary only once every scene ha
  all.p.recordedTakes![0].confirmedAt='2026-10-02T00:00:01.000Z';
  const original2=globalThis.fetch;
  globalThis.fetch=async(input,init)=>{const url=String(input);if(url.startsWith('/api/club/videos/v1/plan'))return Response.json({package:null,outline:null});if(url==='/api/club/settings')return Response.json({helpSeen:[]});return original2(input,init);};
- const done=await mountUI(createElement(Workspace,{video:{...video,recorderProjectId:all.p.id},tab:'record',back:{name:'production',view:'board'},navigate:()=>{},onVideo:()=>{}}));
+ const done=await mountUI(createElement(Workspace,{video:{...video,recorderProjectId:all.p.id},tab:'record',back:{name:'videos',view:'board'},navigate:()=>{},onVideo:()=>{}}));
  try{
   await flush();await flush();
   assert.ok(button(done.container,'Continue to edit').classList.contains('primary'),'after the last scene, Continue to edit is the primary');

@@ -190,7 +190,7 @@ test('the scene a page opens on (chosen in Plan) is selected when Record opens',
 
 test('the bottom bar has Back and Continue only, with no second set of steps',async()=>{
  const calls:string[]=[];
- const ui=await mountUI(createElement(Foot,{tab:'record',backLabel:'Back to production',back:{name:'production',view:'board'},onTab:tab=>calls.push(tab),next:{label:'Continue to edit',run:()=>calls.push('next'),disabled:false,primary:true}}));
+ const ui=await mountUI(createElement(Foot,{tab:'record',backLabel:'Back to videos',back:{name:'videos',view:'board'},onTab:tab=>calls.push(tab),next:{label:'Continue to edit',run:()=>calls.push('next'),disabled:false,primary:true}}));
  try{
   assert.deepEqual([...ui.container.querySelectorAll('button,a')].map(el=>el.textContent?.trim()),['Back to plan','Continue to edit']);
   assert.equal(ui.container.querySelector('.steps'),null);

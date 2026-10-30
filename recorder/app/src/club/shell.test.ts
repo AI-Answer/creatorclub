@@ -5,7 +5,8 @@ import {act,createElement} from 'react';
 import type {Video} from '../../shared/club';
 import {FakeEventSource,installFetch,type FakeCall,type FakeReply} from './test-fakes';
 const {default:ClubApp}=await import('./ClubApp');
-const {Sidebar,inProduction,openIdeas}=await import('./Sidebar');
+const {Sidebar,inProduction}=await import('./Sidebar');
+const {openIdeas}=await import('./ideas');
 const {paletteOptions}=await import('./shell/Palette');
 const {ScreenBoundary}=await import('./shell/ScreenBoundary');
 const {VIDEOS_CHANGED,changesVideos,clubFetch}=await import('./api');
@@ -59,18 +60,34 @@ const withApp=async(hash:string,run:(ui:Awaited<ReturnType<typeof mountUI>>,serv
 };
 const navItems=(c:Element)=>[...c.querySelectorAll('.sidebar a.nav-item')].map(a=>a.querySelector('.label')!.textContent);
 
-test('the sidebar lists the five places, then Settings, with counts for ideas and videos in production',async()=>{
- await withApp('#/overview',async ui=>{
-  const c=ui.container;
-  assert.deepEqual(navItems(c),['Overview','Ideas','Working now','Signals','Production','Settings']);
-  assert.deepEqual([...c.querySelectorAll('.sidebar .nav-item')].map(a=>a.getAttribute('href')),['#/overview','#/ideas','#/trending','#/signals','#/production','#/settings',null,null]);
-  const counts=Object.fromEntries([...c.querySelectorAll('.sidebar a.nav-item')].map(a=>[a.querySelector('.label')!.textContent,a.querySelector('.count')?.textContent]));
-  assert.deepEqual(counts,{Overview:undefined,Ideas:'1',['Working now']:undefined,Signals:undefined,Production:'2',Settings:undefined});
-  assert.equal(c.querySelector('.sidebar a[aria-current="page"]')!.textContent,'Overview');
-  assert.deepEqual([...c.querySelectorAll('.sb-video .t')].map(t=>t.textContent),['Agents for small shops','Hidden features in Claude Code'],'in production, the video touched last first');
-  assert.equal(c.querySelector('.sb-label')!.textContent,'In production');
+test('the sidebar is the switcher, Search, three places (Home, Discover, Videos with the videos in progress), then Settings, Help and Collapse as icons',async()=>{
+ await withApp('#/home',async ui=>{
+  const c=ui.container,bar=c.querySelector('.sidebar')!;
+  assert.deepEqual(navItems(c),['Home','Discover','Videos']);
+  assert.deepEqual([...bar.querySelectorAll('a.nav-item')].map(a=>a.getAttribute('href')),['#/home','#/discover','#/videos']);
+  const counts=Object.fromEntries([...bar.querySelectorAll('a.nav-item')].map(a=>[a.querySelector('.label')!.textContent,a.querySelector('.count')?.textContent]));
+  assert.deepEqual(counts,{Home:undefined,Discover:undefined,Videos:'2'},'only Videos has a number: the videos in progress');
+  assert.equal(bar.querySelector('a[aria-current="page"]')!.textContent,'Home');
+  assert.deepEqual([...bar.querySelectorAll('.sb-bottom > *')].map(el=>[el.tagName,el.getAttribute('aria-label'),el.getAttribute('title')]),[
+   ['A','Settings','Settings'],['BUTTON','Help','Help: how CreatorClub works'],['BUTTON','Collapse sidebar','Collapse sidebar'],
+  ],'three icons with tooltips, no text rows');
+  assert.equal(bar.querySelector('.sb-bottom')!.textContent,'','no text rows');
+  assert.equal(bar.querySelectorAll('.sb-video, .sb-label').length,0,'no list of videos: Videos and Home have them');
+  assert.equal(bar.querySelectorAll('.sb-search').length,1,'Search once');
+  const labels=[...bar.querySelectorAll('a,button')].map(el=>el.getAttribute('aria-label')||el.querySelector('.label')?.textContent||el.textContent!.trim());
+  assert.equal(new Set(labels).size,labels.length,`nothing twice: ${labels.join(', ')}`);
   assert.match(c.querySelector('.channel-btn')!.textContent!,/Samin Yasar@samin/);
  });
+});
+
+test('no place appears twice on a screen: Home, Discover and Videos link to no other place by its name',async()=>{
+ for(const hash of ['#/home','#/discover','#/videos']){
+  await withApp(hash,async ui=>{
+   const main=ui.container.querySelector('main')!;
+   const named=[...main.querySelectorAll('a,button')].map(el=>(el.textContent??'').trim()).filter(label=>/^(Open )?(Home|Discover|Videos|Settings|Production|Ideas|Working now|Signals|Overview)$/.test(label));
+   assert.deepEqual(named,[],hash);
+  });
+ }
 });
 
 test('the sidebar counts and orders from the videos it is given',()=>{
@@ -79,10 +96,13 @@ test('the sidebar counts and orders from the videos it is given',()=>{
  assert.deepEqual(inProduction([]),[]);
 });
 
-test('Overview, Ideas, Working now and Signals open their own screens, with the sidebar on the right place',async()=>{
- for(const [hash,title,item] of [['#/overview','Good','Overview'],['#/ideas','Ideas','Ideas'],['#/trending','Working now','Working now'],['#/signals','Signals','Signals']]){
+test('Home, Discover and Videos open their own screens, and every old link lands on the new one with the sidebar on the right place',async()=>{
+ for(const [hash,title,item,canonical] of [['#/home','Good','Home','#/home'],['#/discover','Discover','Discover','#/discover'],['#/videos','Videos','Videos','#/videos'],
+  ['#/overview','Good','Home','#/home'],['#/ideas?filter=later','Videos','Videos','#/videos?group=later'],['#/trending','Discover','Discover','#/discover?show=youtube'],
+  ['#/signals','Discover','Discover','#/discover'],['#/production/calendar','Videos','Videos','#/videos/calendar']]){
   await withApp(hash,async ui=>{
    const c=ui.container;
+   assert.equal(window.location.hash,canonical,hash);
    assert.match(c.querySelector('main h1')!.textContent!,new RegExp(`^${title}`),hash);
    assert.equal(c.querySelector('.sidebar a[aria-current="page"] .label')!.textContent,item);
   });
@@ -90,16 +110,17 @@ test('Overview, Ideas, Working now and Signals open their own screens, with the 
 });
 
 test('the collapse button folds the sidebar to icons and back, and a new page forgets the choice',async()=>{
- await withApp('#/overview',async ui=>{
+ await withApp('#/home',async ui=>{
   const c=ui.container;
   assert.equal(c.querySelector('.sidebar.collapsed'),null);
   await press(c.querySelector('[aria-label="Collapse sidebar"]')!);
   assert.ok(c.querySelector('.sidebar.collapsed'));
-  assert.equal(c.querySelector('.sidebar a[href="#/ideas"]')!.getAttribute('aria-label'),'Ideas','an icon with no label still has a name');
+  assert.equal(c.querySelector('.sidebar a[href="#/videos"]')!.getAttribute('aria-label'),'Videos','an icon with no label still has a name');
+  assert.equal(c.querySelector('.sidebar a[href="#/videos"]')!.getAttribute('title'),'Videos','and a tooltip');
   await press(c.querySelector('[aria-label="Expand sidebar"]')!);
   assert.equal(c.querySelector('.sidebar.collapsed'),null);
   await press(c.querySelector('[aria-label="Collapse sidebar"]')!);
-  await hashTo('#/ideas');
+  await hashTo('#/discover');
   assert.equal(c.querySelector('.sidebar.collapsed'),null,'going elsewhere opens it again');
  });
 });
@@ -109,7 +130,6 @@ test('a video opens on the tab for its stage, the sidebar folds itself on every 
   const c=ui.container;
   assert.equal(window.location.hash,'#/video/p1/plan','planning opens on Plan');
   assert.ok(c.querySelector('.sidebar.collapsed'),'the sidebar is the rail on Plan too');
-  assert.equal(c.querySelector('.sb-video.active .t')!.textContent,'Hidden features in Claude Code');
   await hashTo('#/video/r1');
   assert.equal(window.location.hash,'#/video/r1/record','recording opens on Record');
   assert.ok(c.querySelector('.sidebar.collapsed'),'and folds the sidebar');
@@ -120,24 +140,24 @@ test('a video opens on the tab for its stage, the sidebar folds itself on every 
  });
 });
 
-test('the old board and onboarding links land on Production and the welcome screen',async()=>{
+test('the old board and onboarding links land on Videos and the welcome screen',async()=>{
  await withApp('#/board',async ui=>{
-  assert.equal(window.location.hash,'#/production');
-  assert.equal(ui.container.querySelector('.sidebar a[aria-current="page"] .label')!.textContent,'Production');
+  assert.equal(window.location.hash,'#/videos');
+  assert.equal(ui.container.querySelector('.sidebar a[aria-current="page"] .label')!.textContent,'Videos');
   await hashTo('#/onboarding');
   assert.equal(window.location.hash,'#/welcome');
   assert.equal(ui.container.querySelector('.sidebar'),null,'first launch uses the whole window');
  });
 });
 
-test('switching channel tells the server, reloads the sidebar and goes to the overview',async()=>{
- await withApp('#/ideas',async (ui,server,calls)=>{
+test('switching channel tells the server, reloads the sidebar and goes Home',async()=>{
+ await withApp('#/videos',async (ui,server,calls)=>{
   const c=ui.container;
   await press(c.querySelector('.channel-btn')!);
   await press([...c.querySelectorAll('[role="menuitemradio"]')].find(i=>i.textContent!.trim()==='Ana')!);
   assert.deepEqual(calls.filter(call=>call.method==='POST').map(call=>call.path),['/workspaces/ana/current']);
   assert.equal(server.current,'ana');
-  assert.equal(window.location.hash,'#/overview');
+  assert.equal(window.location.hash,'#/home');
   assert.match(c.querySelector('.channel-btn')!.textContent!,/AnaStarting fresh/,'a channel with no handle says so');
   await press(c.querySelector('.channel-btn')!);
   await press([...c.querySelectorAll('[role="menuitem"]')].find(i=>i.textContent!.trim()==='Add a channel')!);
@@ -146,13 +166,13 @@ test('switching channel tells the server, reloads the sidebar and goes to the ov
 });
 
 test('Cmd+K opens search over pages and videos; typing filters, arrows and Enter open one, Escape closes',async()=>{
- await withApp('#/overview',async ui=>{
+ await withApp('#/home',async ui=>{
   const c=ui.container;
   assert.equal(c.querySelector('.palette'),null);
   await keyDown(window,'k',{metaKey:true});
   assert.ok(c.querySelector('.palette'));assert.equal(document.activeElement,c.querySelector('.palette input'));
   const options=()=>[...c.querySelectorAll('.palette .po')].map(o=>o.textContent);
-  assert.ok(options().includes('New videoAction'));assert.ok(options().includes('Hidden features in Claude CodePlanning'));assert.ok(options().includes('Claude for receiptsIdeas'));
+  assert.ok(options().includes('New videoAction'));assert.deepEqual(options().filter(o=>o.endsWith('Page')),['HomePage','DiscoverPage','VideosPage','Videos calendarPage','SettingsPage','First launch setupPage']);assert.ok(options().includes('Hidden features in Claude CodePlanning'));assert.ok(options().includes('Claude for receiptsIdeas'));
   await type(c.querySelector('.palette input')!,'hidden');
   assert.deepEqual(options(),['Hidden features in Claude CodePlanning']);
   await keyDown(c.querySelector('.palette input')!,'Enter');
@@ -167,9 +187,9 @@ test('Cmd+K opens search over pages and videos; typing filters, arrows and Enter
  });
 });
 
-test('search sends an idea to Ideas and any other video to the tab for its stage',()=>{
+test('search opens an idea in its drawer on Videos and any other video on the tab for its stage',()=>{
  const routes=Object.fromEntries(paletteOptions(videos,'').filter(option=>option.kind!=='Page'&&option.kind!=='Action').map(option=>[option.label,option.route]));
- assert.deepEqual(routes['Claude for receipts'],{name:'ideas',open:'i1'});
+ assert.deepEqual(routes['Claude for receipts'],{name:'videos',view:'board',open:'i1'});
  assert.deepEqual(routes['Hidden features in Claude Code'],{name:'video',id:'p1',tab:'plan'});
  assert.deepEqual(routes['Agents for small shops'],{name:'video',id:'r1',tab:'record'});
  assert.deepEqual(routes['Already out'],{name:'video',id:'d1',tab:'publish'});
@@ -177,13 +197,13 @@ test('search sends an idea to Ideas and any other video to the tab for its stage
  assert.equal(paletteOptions(Array.from({length:60},(_,n)=>video(`v${n}`,`Video ${n}`,'ideas')),'video').length,40,'at most forty results');
 });
 
-test('New video: a link opens Break down in Ideas, a title creates a real video and lands on Ideas',async()=>{
- await withApp('#/overview',async (ui,server,calls)=>{
+test('New video: a link opens Break down on Videos, a title creates a real video and lands in the Ideas lane',async()=>{
+ await withApp('#/home',async (ui,server,calls)=>{
   const c=ui.container;
   await keyDown(window,'k',{metaKey:true});
   await type(c.querySelector('.palette input')!,'new video');
   await keyDown(c.querySelector('.palette input')!,'Enter');
-  const dialog=()=>c.querySelector('[role="dialog"]');
+  const dialog=()=>c.querySelector('[role="dialog"]:not(.drawer)');
   assert.match(dialog()!.textContent!,/New video/);
   assert.deepEqual([...dialog()!.querySelectorAll('.topt b')].map(b=>b.textContent),['Break down a video','Start from a title']);
   assert.equal((button(dialog()!,'Break down') as HTMLButtonElement).disabled,true,'nothing to break down yet');
@@ -193,7 +213,8 @@ test('New video: a link opens Break down in Ideas, a title creates a real video 
   assert.ok(dialog(),'the dialog stays so the link can be fixed');
   await type(dialog()!.querySelector('input')!,'https://youtu.be/dQw4w9WgXcQ?si=x');
   await press(button(dialog()!,'Break down'));
-  assert.equal(dialog(),null);assert.equal(window.location.hash,'#/ideas','Ideas starts the breakdown and leaves the address');
+  assert.equal(dialog(),null);assert.equal(window.location.hash,'#/videos','Videos starts the breakdown and leaves the address');
+  assert.ok(c.querySelector('.drawer .bd'),'in a drawer');
   assert.deepEqual(calls.filter(call=>call.method==='POST'&&call.path==='/breakdowns').map(call=>call.body),[{url:'https://www.youtube.com/watch?v=dQw4w9WgXcQ'}]);
   assert.equal(calls.filter(call=>call.method==='POST'&&call.path==='/videos').length,0,'a link creates nothing by itself');
 
@@ -211,7 +232,7 @@ test('New video: a link opens Break down in Ideas, a title creates a real video 
   await type(dialog()!.querySelector('input')!,'  Claude does my taxes  ');
   await press(button(dialog()!,'Add idea'));
   assert.deepEqual(calls.filter(call=>call.method==='POST'&&call.path==='/videos').map(call=>call.body),[{title:'Claude does my taxes'}]);
-  assert.equal(dialog(),null);assert.equal(window.location.hash,'#/ideas?new=new1','a title lands on Ideas with the new idea highlighted');
+  assert.equal(dialog(),null);assert.equal(window.location.hash,'#/videos?new=new1','a title lands on Videos with the new idea marked');
   assert.ok(server.videos.some(v=>v.id==='new1'));
  });
 });
@@ -220,7 +241,7 @@ test('New video: a failed save says one sentence and keeps what was typed',async
  FakeEventSource.install();
  const server:Server={videos,workspaces:[ws('samin','Samin')],current:'samin',welcomed:true};
  const fake=installFetch(call=>call.path==='/videos'&&call.method==='POST'?{status:500,body:{error:"Couldn't save that."}}:serve(server)(call));
- window.location.hash='#/overview';
+ window.location.hash='#/home';
  const ui=await mountUI(createElement(ClubApp));
  try{
   await flush();const c=ui.container;
@@ -230,16 +251,17 @@ test('New video: a failed save says one sentence and keeps what was typed',async
   await press(button(c.querySelector('[role="dialog"]')!,'Add idea'));
   assert.match(c.querySelector('.cc-toast')!.textContent!,/Couldn't save that\./);
   assert.equal((c.querySelector('[role="dialog"] input') as HTMLInputElement).value,'My video');
-  assert.equal(window.location.hash,'#/overview');
+  assert.equal(window.location.hash,'#/home');
  }finally{await ui.close();fake.restore();window.location.hash='';}
 });
 
-test('How it works opens the dialog from the sidebar',async()=>{
- await withApp('#/overview',async ui=>{
+test('Help in the sidebar opens How CreatorClub works',async()=>{
+ await withApp('#/home',async ui=>{
   const c=ui.container;
   assert.equal(c.querySelector('[role="dialog"]'),null);
-  await press(c.querySelector('[aria-label="How CreatorClub works"]')!);
+  await press(c.querySelector('.sidebar [aria-label="Help"]')!);
   assert.match(c.querySelector('[role="dialog"]')!.textContent!,/How CreatorClub works/);
+  assert.match(c.querySelector('[role="dialog"]')!.textContent!,/Open this again with Help/);
   await press(button(c.querySelector('[role="dialog"]')!,'Start'));
   assert.equal(c.querySelector('[role="dialog"]'),null);
  });
@@ -259,14 +281,15 @@ test('a screen that fails to draw shows one sentence and Try again, never the er
  }finally{console.error=error;await ui.close();}
 });
 
-test('the sidebar rail keeps every place reachable by name',async()=>{
- const ui=await mountUI(createElement(Sidebar,{route:{name:'production',view:'board'},collapsed:true,onToggle(){},onSearch(){},onHelp(){},onSwitched(){},onAdd(){},videos,epoch:0}));
+test('the sidebar rail keeps every place reachable by name and tooltip',async()=>{
+ const ui=await mountUI(createElement(Sidebar,{route:{name:'videos',view:'board'},collapsed:true,onToggle(){},onSearch(){},onHelp(){},onSwitched(){},onAdd(){},videos,epoch:0}));
  const fake=installFetch(()=>undefined);
  try{
   await flush();
   const rail=ui.container.querySelector('.sidebar.collapsed')!;
-  assert.deepEqual([...rail.querySelectorAll('a.nav-item')].map(a=>a.getAttribute('aria-label')),['Overview','Ideas','Working now','Signals','Production','Settings']);
-  assert.equal(rail.querySelector('a[aria-current="page"]')!.getAttribute('aria-label'),'Production');
+  assert.deepEqual([...rail.querySelectorAll('a.nav-item')].map(a=>[a.getAttribute('aria-label'),a.getAttribute('title')]),[['Home','Home'],['Discover','Discover'],['Videos','Videos']]);
+  assert.deepEqual([...rail.querySelectorAll('.sb-bottom > *')].map(el=>el.getAttribute('aria-label')),['Settings','Help','Expand sidebar']);
+  assert.equal(rail.querySelector('a[aria-current="page"]')!.getAttribute('aria-label'),'Videos');
  }finally{await ui.close();fake.restore();}
 });
 
@@ -277,16 +300,14 @@ test('which writes count as changing a video',()=>{
  for(const [method,path] of no)assert.equal(changesVideos(method,path),false,`${method} ${path}`);
 });
 
-test('the sidebar counts follow a change saved to a video, without leaving the page',async()=>{
- await withApp('#/production',async (ui,_server,calls)=>{
+test('the sidebar count follows a change saved to a video, without leaving the page',async()=>{
+ await withApp('#/videos',async (ui,_server,calls)=>{
   const c=ui.container;
   const count=(label:string)=>c.querySelector(`.sidebar a[href="#/${label}"] .count`)?.textContent;
-  assert.equal(count('ideas'),'1');assert.equal(count('production'),'2');
-  assert.deepEqual([...c.querySelectorAll('.sb-video .t')].map(t=>t.textContent),['Agents for small shops','Hidden features in Claude Code']);
+  assert.equal(count('videos'),'2');
   await act(async()=>{await clubFetch('/videos/i1/move',{body:{stage:'planning'}});});await flush();
-  assert.equal(window.location.hash,'#/production','the route did not change');
-  assert.equal(count('ideas'),undefined);assert.equal(count('production'),'3');
-  assert.equal(c.querySelectorAll('.sb-video').length,3);
+  assert.equal(window.location.hash,'#/videos','the route did not change');
+  assert.equal(count('videos'),'3');
   const loads=calls.filter(call=>call.path==='/videos'&&call.method==='GET').length;
   await act(async()=>{await clubFetch('/videos');});await flush();
   assert.equal(calls.filter(call=>call.path==='/videos'&&call.method==='GET').length,loads+1,'reading videos does not reload the sidebar');
@@ -302,10 +323,10 @@ test('a failed write does not announce a change',async()=>{
 
 test('on the desktop app one drag strip sits ahead of every screen; in a browser there is none',async()=>{
  const bridge=Object.getOwnPropertyDescriptor(window,'sceneForge');
- await withApp('#/overview',async ui=>{assert.equal(ui.container.querySelector('.main-drag'),null);});
+ await withApp('#/home',async ui=>{assert.equal(ui.container.querySelector('.main-drag'),null);});
  Object.assign(window,{sceneForge:{}});
  try{
-  for(const hash of ['#/overview','#/ideas','#/production']){
+  for(const hash of ['#/home','#/discover','#/videos']){
    await withApp(hash,async ui=>{
     const col=ui.container.querySelector('.main-col')!;
     assert.ok(ui.container.querySelector('.club-root')!.classList.contains('club-desktop'));
@@ -318,12 +339,12 @@ test('on the desktop app one drag strip sits ahead of every screen; in a browser
 });
 
 test('with no channel every screen shows one friendly state whose button opens Welcome at step 2, and nothing that needs a channel is fetched',async()=>{
- await withApp('#/overview',async (ui,_server,calls)=>{
+ await withApp('#/home',async (ui,_server,calls)=>{
   const c=ui.container;
   assert.equal(c.querySelector('.empty-state h2, h2')!.textContent,'Add your channel or start fresh');
   assert.equal(c.querySelector('[role="alert"]'),null,'no red error');
   assert.equal(calls.some(call=>['/videos','/trending','/signals','/recent'].includes(call.path)),false,'no request that needs a channel');
-  await hashTo('#/signals');
+  await hashTo('#/discover');
   assert.equal(c.querySelector('h2')!.textContent,'Add your channel or start fresh');
   await press(button(c,'Add your channel'));
   assert.equal(window.location.hash,'#/welcome?step=2');
@@ -337,7 +358,7 @@ test('before the channels load the switcher shows a neutral skeleton, never the 
  FakeEventSource.install();
  const inner=serve({videos,workspaces:[ws('samin','Samin Yasar')],current:'samin',welcomed:true});
  const fake=installFetch(async call=>{if(call.path==='/workspaces'&&call.method==='GET')await gate;return inner(call);});
- window.location.hash='#/ideas';
+ window.location.hash='#/videos';
  const ui=await mountUI(createElement(ClubApp));
  try{
   await flush();

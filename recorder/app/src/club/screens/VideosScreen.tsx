@@ -32,12 +32,13 @@ export function VideosScreen({route,navigate,onNewVideo}:{route:VideosRoute;navi
  const saved=useBreakdowns();
  const {view,group,bd,new:newId}=route;
  const [drawer,setDrawer]=useState<string|null>(route.open??null);
- const [link,setLink]=useState<string|null>(null);
+ // The link being broken down; `key` starts a new run for each link sent, even while a drawer is open.
+ const [link,setLink]=useState<{url:string;key:number}|null>(null);
 
  // A link from New video starts its breakdown once and leaves the address, so a reload does not run it again.
  useEffect(()=>{
   if(!bd)return;
-  setLink(breakdownUrl(bd));
+  setLink(current=>({url:breakdownUrl(bd),key:(current?.key??0)+1}));
   navigate({name:'videos',view,...(group&&{group})},{replace:true});
  },[bd,view,group,navigate]);
  useEffect(()=>{if(route.open)setDrawer(route.open);},[route.open]);
@@ -75,6 +76,6 @@ export function VideosScreen({route,navigate,onNewVideo}:{route:VideosRoute;navi
   {view==='table'&&<TableView videos={videos} scenes={scenes} onOpen={open}/>}
   {view==='calendar'&&<CalendarView videos={videos} onOpen={open} onOpenPublish={video=>navigate(openRoute(video,'publish'))} onSchedule={(id,day)=>void schedule(id,day)}/>}
   {idea&&<IdeaDrawer video={idea} actions={actions} onClose={closeDrawer} onRemove={video=>{closeDrawer();actions.remove(video);}}/>}
-  {link&&<BreakdownDrawer videoId={youtubeId(link)} url={link} saved={saved} videos={videos} onAdded={added} onClose={()=>setLink(null)}/>}
+  {link&&<BreakdownDrawer key={link.key} videoId={youtubeId(link.url)} url={link.url} saved={saved} videos={videos} onAdded={added} onClose={()=>setLink(null)}/>}
  </div>;
 }

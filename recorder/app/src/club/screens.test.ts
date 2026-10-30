@@ -479,7 +479,7 @@ test('Discover empty states: nothing on your topics offers everything; no channe
   const c=ui.container;
   assert.equal(text(c.querySelector('.empty h3')),'No channels followed yet');
   assert.equal((button(c.querySelector('.actions')!,'Refresh') as HTMLButtonElement).disabled,false,'with nobody followed, Refresh searches your topics');
-  await press(button(c,'Open Settings'));assert.deepEqual(routes.at(-1),{name:'settings',section:'followed'});
+  await press(button(c,'Follow channels'));assert.deepEqual(routes.at(-1),{name:'settings',section:'followed'});
  });
  await mount(discoverAt(),server({trending:{items:[],updatedAt:'2026-10-28T00:00:00.000Z',followed:0},signals:{items:[],updatedAt:null,errors:[],sources:0}}),async ui=>{
   assert.equal(text(ui.container.querySelector('.empty h3')),'Nothing to read yet');
