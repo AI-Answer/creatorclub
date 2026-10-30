@@ -79,3 +79,14 @@ Seen across all of them: each tool is a coloured tile with its name under it; th
 - Pages play in a sandbox (no access to the app or its data). Their animation timelines are started on a loop by the server, which does not change the skill's file. Vertical pages are shown at their real shape.
 - The rail keeps five tools (Transcript, Cut, Captions, Layout, Graphics); Clip, Zoom, Text, Music, Media, background and cursor sit under More. The ruler no longer repeats the scene names.
 - Checked in a browser against the running app's server (screenshot of the preview playing). In the desktop app itself I could not type, because macOS secure input was blocking keystrokes.
+
+## Sixth pass (2026-10-30): timeline tested on a scratch copy
+A copy of the club folder and the recorder's data (copy-on-write, in the session's scratch folder) was run on a second server (port 4391) so drags could be tried without touching your real video. The copied export lock was moved aside in the copy only. The real data was not written. The second server has been stopped.
+
+Seen on the copy:
+- The ruler ran on to about 0:55 for a 0:32 video: the zoom was not fitted. **Fixed:** the timeline now opens fitted to the whole video, once per video.
+- A drag of the camera clip did nothing and said nothing. This is by design (clips stay joined end to end; the video starts at 0:00; with one recorded clip there is nothing to reorder), but it felt broken. **Fixed:** dropping where it cannot go now says "Clips stay joined end to end. Drag a clip onto another one to change the order."
+- Caption chips sit edge to edge, so they cannot slide either (same rule).
+- A graphic added from the Graphics panel dragged fine (moved 100 px).
+- There was no plain way to add things from the timeline. **Added:** an "Add" button on the timeline bar: Clip from a file, Text and shapes, Animated graphic, Music (each opens the existing panel or the import).
+Tests: timeline-edit, edit-chrome and edit-menus (24 pass).

@@ -27,7 +27,7 @@ interface Row {id:string;name:string;icon:typeof Camera;height:number;top:number
 interface Preview {start:number;duration:number;sourceIn?:number;dy?:number}
 interface Drag {items:Map<string,Preview>;ghosts:Array<{row:string;start:number;duration:number}>;guide:number|null;insert:number|null;label:string;markers?:Map<string,number>}
 /** Snapping reaches 8 px on screen, whatever the zoom, so a short neighbour does not pull an edit away from where it was dropped. */
-const RULER=30,SNAP_PX=8,STALE_DROP='The timeline changed during the drag, so nothing moved. Try again.';
+const RULER=30,SNAP_PX=8,STALE_DROP='The timeline changed during the drag, so nothing moved. Try again.',NOT_MOVED='Clips stay joined end to end. Drag a clip onto another one to change the order.';
 const icons:Record<TrackKind,typeof Camera>={screen:Monitor,camera:Camera,audio:Mic,music:Music,overlay:Layers};
 const heights:Record<TrackKind,number>={screen:50,camera:38,audio:40,music:32,overlay:38};
 const effectRows:Array<{id:Effect;name:string;icon:typeof Camera}>=[{id:'motion',name:'Motion',icon:Clapperboard},{id:'elements',name:'Graphics',icon:Type},{id:'captions',name:'Captions',icon:AudioLines},{id:'zooms',name:'Zoom',icon:ZoomIn}];
@@ -153,11 +153,11 @@ export const TimelineClub=memo(function TimelineClub({project:p,playhead,scale,o
   const el=ref.current!,thresholdPx=SNAP_PX,x0=e.clientX,left0=el.scrollLeft,y0=e.clientY;
   if(mode==='move'){
    const ids=clip?linkedIds(base.clips,[...selection].filter(s=>base.clips.some(c=>c.id===s))):new Set([...selection].filter(s=>items.some(i=>i.id===s&&!base.clips.some(c=>c.id===s))));
-   const moving=items.filter(i=>ids.has(i.id)),snaps=targets(ids);let plan:ReturnType<typeof planClipMove>|null=null,effectDelta=0,drop:LayerDrop|null=null;
+   const moving=items.filter(i=>ids.has(i.id)),snaps=targets(ids);let plan:ReturnType<typeof planClipMove>|null=null,effectDelta=0,lastDelta=0,drop:LayerDrop|null=null;
    const measured=rows.filter(r=>r.layer).map(r=>({id:r.id,kind:r.layer!.kind,top:r.top,bottom:r.top+r.height}));
    run(e,(x,y)=>{
     const raw=timelinePointerDelta(x0,x,left0,el.scrollLeft,scale),snap=groupMove(moving,raw,snaps,scale,base.settings.snap,thresholdPx),delta=snap.delta,pointer=contentX(x)/scale;
-    drop=null;let dy=0;
+    lastDelta=delta;drop=null;let dy=0;
     if(clip&&Math.abs(y-y0)>=18&&Math.abs(y-y0)>Math.abs(x-x0)*1.25&&ids.size===1){const hit=hitLayerDrop(y-el.getBoundingClientRect().top+el.scrollTop,clipLayerKind(clip),measured);if(hit?.kind==='existing'&&hit.rowId!==item.row){drop=hit;dy=rowById.get(hit.rowId)!.top-rowById.get(item.row)!.top;}}
     const previews=new Map(moving.map(m=>[m.id,{start:m.start+(drop?0:delta),duration:m.duration,dy}]));let label='',insert:number|null=null;
     if(clip){plan=drop?null:planClipMove(base,ids,delta,pointer);if(plan?.kind==='insert'){insert=plan.at!;label='Drop to move it here · the rest shifts to make room';}else if(plan?.kind==='slide')label='Overlaps · it slides to the nearest gap';else if(plan?.kind==='none'&&plan.at!==undefined)label='Overlaps · drop it on another clip to insert it there';else if(plan?.kind==='none'&&Math.abs(delta)>1e-6)label='The video starts here · drop it on another clip to move it';else if(drop)label=`Move to ${rowById.get((drop as {rowId:string}).rowId)?.name} · time unchanged`;else label=`${delta>=0?'+':'−'}${fmtLen(Math.abs(delta))}`;}
@@ -168,7 +168,7 @@ export const TimelineClub=memo(function TimelineClub({project:p,playhead,scale,o
     if(clip){
      let changed=false;
      if(drop){const target=drop;change(d=>{if(!sameClips(ids,base)){changed=true;return;}moveClipsToLayer(d,ids,id,target);});if(changed)onNotice?.(STALE_DROP);return;}
-     const chosen=plan;if(!chosen||chosen.kind==='none')return;
+     const chosen=plan;if(!chosen||chosen.kind==='none'){if(Math.abs(lastDelta)>1e-6)onNotice?.(NOT_MOVED);return;}
      // Every clip the plan moves (an insert shifts the rest of the row) must still be where it was when the drag began.
      change(d=>{if(!sameClips(chosen.starts.keys(),base)){changed=true;return;}ensureLinks(d);applyClipStarts(d,chosen.starts);syncScenesToTakes(d);});if(changed)onNotice?.(STALE_DROP);
     }else if(Math.abs(effectDelta)>1e-9){const d=effectDelta;change(draft=>moveEffects(draft,ids,d));}

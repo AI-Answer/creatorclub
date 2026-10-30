@@ -308,6 +308,9 @@ export default function App({embedded}:{embedded?:EmbeddedRecorder}={}){
   showPreview({key,label,summary:describeEditAction(action,p),after});return;
  });
  /** Pointing at a graphic in the Graphics panel shows it on the video at the playhead (a second in, once its way in has played); moving away puts the playhead back. */
+ // The timeline opens fitted to the whole video, once per video, so it does not run on empty past the end.
+ const fittedFor=useRef<string|null>(null);
+ useEffect(()=>{if(!p||!embedded||duration<=0||fittedFor.current===p.id)return;fittedFor.current=p.id;const frame=requestAnimationFrame(()=>timelineControls.current?.fit());return()=>cancelAnimationFrame(frame);},[p?.id,embedded,duration>0]);
  const hoverFrom=useRef<number|null>(null);
  const hoverMotion=useEvent((template:MotionTemplateId|null)=>{
   if(!template||!p){setPreview(current=>{if(current?.key.startsWith('hover:')&&hoverFrom.current!==null){seek(hoverFrom.current);hoverFrom.current=null;return null;}return current?.key.startsWith('hover:')?null:current;});return;}
@@ -353,6 +356,7 @@ const formatLabel=(w:number,h:number)=>({'1920x1080':'16:9','1080x1920':'9:16','
    <button type="button" className="club-play" aria-label={playing?'Pause':'Play'} title="Play or pause (Space)" disabled={duration<=0} onClick={()=>setPlaying(v=>!v)}>{playing?<Pause size={16} fill="currentColor"/>:<Play size={16} fill="currentColor"/>}</button>
    <ClubTime playhead={playhead} duration={duration} fine={showTenths((timelineControls.current?.width()||1000)/zoom)}/>
    <span className="club-bar-sep" aria-hidden/>
+   <Menu label="Add" align="left" width={230} items={[{label:'Clip from a file',icon:'Upload',fn:()=>beginImport()},{label:'Text and shapes',fn:()=>openPanel('Elements')},{label:'Animated graphic',fn:()=>openPanel('Motion')},{label:'Music',fn:()=>openPanel('Music')}]} button={(toggle,open)=><button type="button" className="club-tool" aria-haspopup="menu" aria-expanded={open} title="Add a clip, text, a graphic or music" onClick={toggle}><Plus size={15}/>Add</button>}/>
    <button type="button" className="club-tool" title="Split at the playhead (S)" onClick={()=>split()}><Scissors size={15}/>Split</button>
    <button type="button" className="club-tool" title="Delete and close the gap (Delete). Shift+Delete keeps the gap." disabled={!selection.size} onClick={()=>deleteSelected(true)}><Trash2 size={15}/>Delete</button>
    <span className="club-bar-grow"/>
