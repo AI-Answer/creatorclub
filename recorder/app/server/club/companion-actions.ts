@@ -2,7 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { z } from 'zod';
-import { CHANGED_SINCE, TAB_ACTIONS, isEditAction, type CompanionAction, type CompanionActionType, type CompanionChanged, type CompanionTab, type EditAction } from '../../shared/companion.js';
+import { CHANGED_SINCE, DEFAULT_PAUSE_LEVEL, TAB_ACTIONS, isEditAction, type CompanionAction, type CompanionActionType, type CompanionChanged, type CompanionTab, type EditAction } from '../../shared/companion.js';
 import type { MotionTemplateId, Project } from '../../shared/types.js';
 import { MOTION_TEMPLATES, MOTION_TEMPLATE_IDS } from '../../shared/motion/templates.js';
 import { editActionProblem } from '../../src/editing-actions.js';
@@ -56,7 +56,7 @@ export const actionShape = z.discriminatedUnion('type', [
   z.object({ type: z.literal('group_tiles'), title: line(FRAME_TITLE_MAX), tileIds: z.array(TILE_ID).min(2).max(40) }).strict(),
   z.object({ type: z.literal('start_video'), title: line(300), tileIds: z.array(TILE_ID).min(1).max(40) }).strict(),
   // Edit: sizes are capped here; clip ids and times are checked against the timeline (`editActionProblem`).
-  z.object({ type: z.literal('cut_pauses'), level: z.enum(['gentle', 'balanced', 'tight']).default('balanced') }).strict(),
+  z.object({ type: z.literal('cut_pauses'), level: z.enum(['gentle', 'balanced', 'tight']).default(DEFAULT_PAUSE_LEVEL) }).strict(),
   z.object({ type: z.literal('remove_fillers') }).strict(),
   z.object({ type: z.literal('close_gaps') }).strict(),
   z.object({ type: z.literal('split_at'), time, clipId: CLIP_ID.optional() }).strict(),

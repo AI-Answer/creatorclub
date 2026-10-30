@@ -29,3 +29,4 @@ button,.nav-icon,.toggle-track{transition:background-color var(--motion-fast) ea
 @keyframes dialog-arrive{from{opacity:.65;transform:translateY(6px) scale(.992)}to{opacity:1;transform:translateY(0) scale(1)}}
 @keyframes menu-arrive{from{opacity:.65;transform:translateY(-3px)}to{opacity:1;transform:translateY(0)}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
+.color-swatches{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0}.color-swatch{width:22px;height:22px;padding:0;border-radius:50%;border:1px solid #0002;font-size:11px;background:#fff}.color-swatch.is-none{background:linear-gradient(135deg,transparent 45%,#c33 45% 55%,transparent 55%),#fff}.color-swatch[aria-pressed=true]{outline:2px solid #9c73cb;outline-offset:2px}

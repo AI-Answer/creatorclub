@@ -1,4 +1,4 @@
-import type {EditAction,PauseLevel,TextPosition} from '../shared/companion';
+import {PAUSE_SECONDS,type EditAction,type PauseLevel,type TextPosition} from '../shared/companion';
 import {clipDuration,makeId,projectDuration,type Clip,type Project} from '../shared/types';
 import {minimumPiece} from '../shared/timeline-edits';
 import {clipsFingerprint,fillerRanges,gapRanges,rangesSeconds} from './club/recorder/edit-auto';
@@ -15,7 +15,7 @@ import {MOTION_TEMPLATES,motionPropsFrom,newMotionBlock} from '../shared/motion/
 
 export type Range=[number,number];
 /** The shortest pause between words each level cuts, in seconds. */
-export const PAUSE_SECONDS:Record<PauseLevel,number>={gentle:2,balanced:1,tight:.5};
+export {PAUSE_SECONDS};
 /** Breath kept on each side of a cut pause, and the shortest cut worth making. */
 export const PAUSE_KEEP=.15;
 const MIN_CUT=.25;

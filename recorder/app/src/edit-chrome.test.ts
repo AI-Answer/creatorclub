@@ -1,0 +1,24 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+
+/* Edit's chrome rules from the Task 14 walk, checked on the source: the player is never replaced by a preview, toasts never cover the timeline, narrow windows keep labels and chips readable. */
+const read=(file:string)=>fs.readFileSync(new URL(file,import.meta.url),'utf8');
+
+test('Task 14: a hover preview never replaces the player: it is a badge over it and a small inset',()=>{
+ const app=read('./App.tsx'),css=read('./editing-club.css');
+ assert.doesNotMatch(app,/<Keep visible=\{!preview\?\.review\}><Stage/,'the stage is not hidden while previewing');
+ assert.match(app,/className="club-preview-inset"/);
+ assert.match(css,/\.club-preview-inset\{position:absolute;[^}]*width:min\(300px,38%\)/,'the before/after plays in a corner inset');
+ assert.match(css,/\.club-preview-badges\{position:absolute;/,'badges sit over the player');
+ assert.match(css,/\.club-sheet \.btn:not\(\.primary\):not\(\.ghost\)\{[^}]*border:1px solid/,'"Plan a style" and the sheet\'s other actions look like buttons');
+});
+
+test('Task 14: toasts sit top-right, never over the timeline or Continue; 1280 px keeps labels, transcript room and every scene chip',()=>{
+ const css=read('./editing-club.css'),club=read('./club/club.css');
+ assert.match(css,/\.club-root:has\(\.club-embed\) \.cc-toasts\{top:72px;right:20px;bottom:auto/);
+ assert.match(css,/\.club-embed \.toast\{top:72px;right:20px;bottom:auto/);
+ assert.match(css,/\.club-edit-suggestion>span\{flex:1 1 150px;min-width:150px/,'the suggestion keeps its words while exporting');
+ assert.match(css,/has-side\{grid-template-columns:minmax\(0,1fr\) minmax\(310px,36%\)\}/,'the transcript is not cramped at 1280');
+ assert.match(club,/@media \(max-width:1439px\)\{:where\(\.club-root\) \.strip:where\(:not\(\.club-embed \*\)\)\{flex-wrap:wrap/,'scene chips wrap instead of being clipped');
+});

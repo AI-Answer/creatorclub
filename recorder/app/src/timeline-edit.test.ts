@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createProject,defaultEffects,defaultTransform,clipDuration,type Clip,type Media,type Project} from '../shared/types';
 import {applyProjectChange} from './project-draft';
-import {addMarker,anchoredScroll,openRange,remapLinks,applyClipStarts,closeRange,collides,deleteItems,ensureLinks,filmstripTiles,fitScale,freeDelta,insertPlan,isLinked,linkClips,linkGroups,linkedIds,moveEffects,moveMarker,planClipMove,removeMarker,resizeEffect,rowItems,rulerLabel,rulerTicks,splitLinked,timelineGaps,trimBounds,trimClips,uncovered,unlinkClips} from './timeline-edit';
+import {addMarker,anchoredScroll,openRange,remapLinks,applyClipStarts,closeRange,collides,deleteItems,ensureLinks,filmstripTiles,fitScale,freeDelta,insertPlan,isLinked,linkClips,linkGroups,linkedIds,moveEffects,moveMarker,planClipMove,removeMarker,resizeEffect,rowItems,rulerLabel,rulerTicks,splitLinked,timelineGaps,trimBounds,trimClips,trimGroup,rowsOverlap,uncovered,unlinkClips,DRAG_DEAD_ZONE_PX,showTenths,lengthLabel,MAX_SCALE} from './timeline-edit';
 
 const media=(id:string,duration=600):Media=>({id,name:id,path:`/tmp/${id}.mov`,kind:'video',duration,width:1920,height:1080,hasAudio:true});
 const clip=(id:string,track:Clip['track'],start:number,length:number,extra:Partial<Clip>={}):Clip=>({id,mediaId:track==='camera'?'cam':track==='audio'?'mic':'scr',name:id,track,start,sourceIn:0,sourceOut:length,speed:1,gain:1,muted:false,transform:defaultTransform(),effects:defaultEffects(),...extra});
@@ -128,15 +128,66 @@ test('zoom keeps the playhead where it is on screen, or the view centre when the
  assert.equal(fitScale(380,1240),3.1578947368421053);assert.equal(fitScale(0,800),152);
 });
 
-test('ruler ticks: labelled majors at least 70 px apart, minors between, frames at high zoom',()=>{
- const coarse=rulerTicks(0,60,10,30);assert.ok(coarse.filter(t=>t.major).every(t=>t.time%10===0));assert.equal(coarse.find(t=>t.time===10)?.label,'0:10');assert.ok(coarse.some(t=>!t.major));
- const fine=rulerTicks(1,1.5,1500,30),majors=fine.filter(t=>t.major);
- assert.ok(majors.length>=4);assert.equal(majors.find(t=>Math.abs(t.time-1.2)<1e-9)?.label,'0:01:06');
- assert.equal(rulerLabel(65.5,30,true),'1:05:15');assert.equal(rulerLabel(65.5,30,false),'1:05');
+test('ruler ticks: labelled majors at least 70 px apart, minors between, tenths (never frames) at high zoom',()=>{
+ const coarse=rulerTicks(0,60,10);assert.ok(coarse.filter(t=>t.major).every(t=>t.time%10===0));assert.equal(coarse.find(t=>t.time===10)?.label,'0:10');assert.ok(coarse.some(t=>!t.major));
+ const fine=rulerTicks(1,1.5,1500),majors=fine.filter(t=>t.major);
+ assert.ok(majors.length>=4);assert.equal(majors.find(t=>Math.abs(t.time-1.2)<1e-9)?.label,'0:01.2');
+ assert.ok(fine.every(t=>!t.label||/^\d+:\d\d(\.\d)?$/.test(t.label)),'m:ss or m:ss.t only');
+});
+
+test('Task 14: one time format: m:ss, tenths only when less than 10 s is in view; lengths in seconds',()=>{
+ assert.equal(rulerLabel(65.5),'1:05');assert.equal(rulerLabel(65.5,true),'1:05.5');assert.equal(rulerLabel(9.96,true),'0:09.9');
+ assert.equal(showTenths(9.5),true);assert.equal(showTenths(12),false);
+ assert.equal(lengthLabel(.4),'0.4 s');assert.equal(lengthLabel(12.3),'12 s');assert.equal(lengthLabel(64),'1 min 4 s');
 });
 
 test('filmstrip tiles cover the visible part of a clip and point at frames of its source',()=>{
  const tiles=filmstripTiles({start:10,sourceIn:30,sourceOut:60,speed:1},60,60,10,50,0,100);
  assert.equal(tiles.length,6);assert.deepEqual(tiles[0],{left:0,index:32});assert.deepEqual(tiles.at(-1),{left:250,index:57});
  assert.equal(filmstripTiles({start:10,sourceIn:30,sourceOut:60,speed:1},60,60,10,50,30,100)[0].left,200,'starts at the window');
+});
+
+test('Task 14: trimming one clip of a link group trims every clip of the group by the same amount, even when their edges differ',()=>{
+ // A take whose audio runs 1 s longer than its camera (and starts 0.5 s earlier): the edges do not line up.
+ const p=project([clip('cam','camera',.5,8,{linkId:'L'}),clip('mic','audio',0,10,{linkId:'L'}),clip('next','camera',12,4)]);
+ const ids=trimGroup(p.clips,'cam');assert.deepEqual([...ids].sort(),['cam','mic']);
+ trimClips(p,ids,'right',-2,false);
+ assert.deepEqual(p.clips.filter(c=>c.linkId==='L').map(c=>clipDuration(c)),[6,8],'camera and audio both lose 2 s');
+ const q=project([clip('cam','camera',.5,8,{linkId:'L'}),clip('mic','audio',0,10,{linkId:'L'})]);
+ trimClips(q,new Set(['cam']),'right',-2,true);
+ assert.deepEqual(q.clips.map(c=>clipDuration(c)),[6,8],'a ripple trim of one clip also takes its linked clips along');
+ trimClips(q,new Set(['cam']),'left',1,false);
+ assert.deepEqual(q.clips.map(c=>[c.start,clipDuration(c)]),[[1.5,5],[1,7]]);
+ assert.ok(!rowsOverlap(rowItems(q)),'no overlap on a row');assert.ok(q.clips.every(c=>c.start>=0),'no negative start');
+});
+
+test('Task 14: a move never opens a gap before the first clip; a sole clip cannot leave 0',()=>{
+ const sole=project(take(1,0,10)),ids=linkedIds(sole.clips,['screen1']);
+ assert.equal(planClipMove(sole,ids,4.4,6).kind,'none','the only take stays at 0');
+ const two=project([...take(1,0,10),...take(2,14,6)]),first=linkedIds(two.clips,['screen1']);
+ const plan=planClipMove(two,first,2,3);assert.ok(Math.min(...[...plan.starts.values()],...two.clips.filter(c=>!first.has(c.id)).map(c=>c.start))<=1e-9||plan.kind==='none','nothing starts after 0 alone');
+ const second=linkedIds(two.clips,['screen2']);assert.equal(planClipMove(two,second,2,16).kind,'move','a later take still moves freely');
+ const sliver=project(take(1,.03,10));assert.equal(planClipMove(sliver,linkedIds(sliver.clips,['screen1']),4.4,6).kind,'none','a sliver left by an earlier cut does not let the only take drift');
+ assert.equal(planClipMove(sliver,linkedIds(sliver.clips,['screen1']),-.03,0).kind,'move','closing that sliver is fine');
+ assert.equal(DRAG_DEAD_ZONE_PX,6);
+});
+
+test('Task 14: ⌘ scroll zooms at the pointer; the zoom slider is linear in the seconds in view, with a sensible maximum',async()=>{
+ const {pointerScroll,zoomSlider}=await import('./timeline-edit');
+ // 10 s sits under the pointer 300 px into the view; after zooming from 50 to 100 px/s it is still there.
+ const scroll=pointerScroll({time:10,screen:300,to:100});assert.equal(10*100-scroll,300);
+ assert.equal(pointerScroll({time:1,screen:300,to:100}),0,'never scrolls before 0');
+ assert.ok(MAX_SCALE<=600,'zoom stops where a frame is still a few pixels wide, not at thousands of px/s');
+ const z=zoomSlider(1000,60);
+ assert.equal(z.toScale(z.max),MAX_SCALE,'right end is the closest zoom');
+ const a=1000/z.toScale(z.min),b=1000/z.toScale((z.min+z.max)/2),c=1000/z.toScale(z.max);
+ assert.ok(Math.abs((a-b)-(b-c))<1e-6,'equal slider steps change the seconds in view by equal amounts');
+ assert.ok(Math.abs(z.toScale(z.fromScale(80))-80)<1e-9,'round trip');
+});
+
+test('Task 14: a selection counts a link group as one clip',async()=>{
+ const {selectionCount}=await import('./timeline-edit');
+ const p=project([...take(1,0,10),...take(2,10,10)]);
+ assert.equal(selectionCount(p.clips,['screen1','camera1','audio1']),1);
+ assert.equal(selectionCount(p.clips,['screen1','camera1','audio1','screen2','z9']),3,'two takes and one caption');
 });

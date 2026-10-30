@@ -51,7 +51,7 @@ export function EditSuggestion({project,jobs,merge,reload,flush,refresh,onReview
   try{
    const fresh=await flush();
    if(!fresh||fresh.id!==project.id)throw new Error('project changed');
-   const result=await api<AutomationMutation>(`/automation/${suggestion.job.id}/apply`,{changeIds:suggestion.job.proposal!.changes.map(c=>c.id)});
+   const result=await api<AutomationMutation>(`/automation/${suggestion.job.id}/apply`,{changeIds:suggestion.changeIds});
    merge(result.job);
    setRemoved({job:result.job,seconds:suggestion.seconds,before:fresh.updatedAt,after:result.project.updatedAt});
    await Promise.all([reload().catch(()=>{}),refresh().catch(()=>{})]);

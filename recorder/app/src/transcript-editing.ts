@@ -19,5 +19,10 @@ export function selectedTranscriptRange(p:Project,words:TranscriptWord[],selecti
  return {start,end,text:chosen.map(w=>w.text).join(' '),wordCount:chosen.length,wholeCaptions:chosen.some(w=>!w.timed),limited:start>first+.000001||end<last-.000001};
 }
 /** Cuts through a plain view; see cutTimelineRange about nested objects shared with the previous state. */
-export function deleteTranscriptSelection(p:Project,selection:WordSelection,padding=.02){const view=plainView(p),words=transcriptWords(view),range=selectedTranscriptRange(view,words,selection,padding);if(!range)throw Error('Select words with usable timing before deleting.');cutTimelineRange(p,range.start,range.end,true,view);return range;}
+export function deleteTranscriptSelection(p:Project,selection:WordSelection,padding=.02){const view=plainView(p),words=transcriptWords(view),range=selectedTranscriptRange(view,words,selection,padding);if(!range)throw Error('Select words with usable timing before deleting.');
+ // A cut that starts within a tenth of a second of the video's start begins at 0, so no black sliver is left before the first clip.
+ if(range.start>0&&range.start<=.1)range.start=0;cutTimelineRange(p,range.start,range.end,true,view);return range;}
 export function sentenceSelection(words:TranscriptWord[],index:number):WordSelection{let a=index,b=index;const end=(w:TranscriptWord)=>/[.!?。！？][”"')\]]*$/.test(w.text)||!w.timed;while(a>0&&!end(words[a-1]))a--;while(b<words.length-1&&!end(words[b]))b++;return {anchor:a,focus:b};}
+/** What a transcript cut is called in its toast: "Cut 'um'", "Cut 'so um basically'", or "Cut 7 words" for more than four. */
+export function cutWordsLabel(p:Project,selection:WordSelection){const words=transcriptWords(p),a=Math.max(0,Math.min(selection.anchor,selection.focus)),b=Math.min(words.length-1,Math.max(selection.anchor,selection.focus)),chosen=words.slice(a,b+1);
+ if(!chosen.length)return 'Cut';if(chosen.length>4)return `Cut ${chosen.length} words`;return `Cut '${chosen.map(w=>w.text.replace(/[.,!?;:]+$/,'')).join(' ')}'`;}

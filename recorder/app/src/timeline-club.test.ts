@@ -27,7 +27,8 @@ test('rows exist only when used: an empty video shows Screen and Audio, a camera
 });
 
 test('a drag survives a background save or reload of the project and drops on the project as it is then',async()=>{
- const {state,element}=harness(project([clip('a','screen',2,4)]));
+ // A camera clip holds the start of the video, so moving the screen clip opens no gap before the first clip.
+ const {state,element}=harness(project([clip('b','camera',0,1),clip('a','screen',2,4)]));
  const ui=await mountUI(element(state.project));
  try{
   const node=ui.container.querySelector('[data-clip-id="a"]')!;
@@ -39,12 +40,12 @@ test('a drag survives a background save or reload of the project and drops on th
   state.project=saved;await ui.render(element(saved));
   assert.ok(ui.container.querySelector('.clip-drag-preview'),'the save did not cancel the drag');
   await act(async()=>{pointer('pointerup',210);});
-  assert.equal(state.changes,1);assert.equal(state.project.clips[0].start,4,'moved by 100 px at 50 px/s');
+  assert.equal(state.changes,1);assert.equal(state.project.clips.find(c=>c.id==='a')!.start,4,'moved by 100 px at 50 px/s');
  }finally{await ui.close();}
 });
 
 test('Escape cancels a drag; a linked take moves as one',async()=>{
- const {state,element}=harness(project([clip('s','screen',0,4,'t'),clip('c','camera',0,4,'t'),clip('o','screen',10,2)]));
+ const {state,element}=harness(project([clip('o','camera',0,1),clip('s','screen',0,4,'t'),clip('c','camera',1,4,'t')]));
  const ui=await mountUI(element(state.project));
  try{
   await act(async()=>{pointer('pointerdown',10,ui.container.querySelector('[data-clip-id="s"]')!);pointer('pointermove',60);});
@@ -52,7 +53,7 @@ test('Escape cancels a drag; a linked take moves as one',async()=>{
   await act(async()=>{pointer('pointerup',60);});
   assert.equal(state.changes,0,'cancelled by the person');
   await act(async()=>{pointer('pointerdown',10,ui.container.querySelector('[data-clip-id="s"]')!);pointer('pointermove',60);pointer('pointerup',60);});
-  assert.deepEqual(state.project.clips.map(c=>[c.id,c.start]),[['s',1],['c',1],['o',10]],'camera follows the screen');
+  assert.deepEqual(state.project.clips.map(c=>[c.id,c.start]),[['o',0],['s',1],['c',2]],'camera follows the screen');
  }finally{await ui.close();}
 });
 
@@ -67,13 +68,31 @@ test('Escape ends only the drag: the editor\'s own keys never see it',async()=>{
 });
 
 test('a drop on clips that changed during the drag applies nothing and says so',async()=>{
- const {state,element}=harness(project([clip('a','screen',2,4),clip('b','screen',8,4)]));const ui=await mountUI(element(state.project));
+ const {state,element}=harness(project([clip('c','camera',0,1),clip('a','screen',2,4),clip('b','screen',8,4)]));const ui=await mountUI(element(state.project));
  try{
   await act(async()=>{pointer('pointerdown',110,ui.container.querySelector('[data-clip-id="a"]')!);pointer('pointermove',150);});await frame();
   // Another window (or Claude) moved clip a meanwhile.
   const remote:Project={...state.project,clips:state.project.clips.map(c=>c.id==='a'?{...c,start:0}:{...c})};state.project=remote;await ui.render(element(remote));
   await act(async()=>{pointer('pointerup',150);});
-  assert.equal(state.changes,1,'one change call, which made no edit');assert.deepEqual(state.project.clips.map(c=>c.start),[0,8]);
+  assert.equal(state.changes,1,'one change call, which made no edit');assert.deepEqual(state.project.clips.map(c=>c.start),[0,0,8]);
   assert.deepEqual(state.notices,['The timeline changed during the drag, so nothing moved. Try again.']);
  }finally{await ui.close();}
+});
+
+test('Task 14: a press on the body moves a clip only past a 6 px dead zone; a click seeks; the only clip stays at 0',async()=>{
+ const {state,element}=harness(project([clip('a','screen',0,4)]));let seeks=0;
+ const ui=await mountUI(createElement(TimelineClub,{...element(state.project).props,onSeek:()=>{seeks++;}}));
+ try{
+  const node=ui.container.querySelector('[data-clip-id="a"]')!;
+  await act(async()=>{pointer('pointerdown',100,node);pointer('pointermove',105);pointer('pointerup',105);});
+  assert.equal(state.changes,0,'5 px is a click, not a move');assert.equal(seeks,1,'a click on the body seeks');
+  await act(async()=>{pointer('pointerdown',100,node);pointer('pointermove',220);});await frame();await act(async()=>{pointer('pointerup',220);});
+  assert.equal(state.project.clips[0].start,0,'a 120 px drag of the only clip leaves it at 0');
+ }finally{await ui.close();}
+});
+
+test('Task 14: a transcript cut shows a mark on the timeline where it happened',async()=>{
+ const {state,element}=harness(project([clip('a','screen',0,4)]));
+ const ui=await mountUI(createElement(TimelineClub,{...element(state.project).props,cutMarks:[1.5]}));
+ try{const mark=ui.container.querySelector<HTMLElement>('.club-cut-mark');assert.ok(mark,'a cut mark is drawn');assert.equal(mark!.style.left,'75px');}finally{await ui.close();}
 });

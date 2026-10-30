@@ -17,7 +17,7 @@ const inRoot=(host:Element|null,menu:ReactNode)=>host?createPortal(menu,host):me
  * `restoreFocus` returns focus to the trigger when the menu closes by Escape or by choosing an item.
  * It is placed with `position:fixed` from the button's edges and drawn in the club's root when there is one (outside the trigger's parents), so neither a parent with `overflow:hidden` (the sidebar) nor a transform (a card lifting on hover, which would make `fixed` relative to the card) can clip or move it; it closes if the window is resized.
  */
-export function Menu({button,items,align='left',width,label,restoreFocus}:{button(toggle:()=>void,open:boolean):ReactNode;items:readonly MenuItem[];align?:'left'|'right';width?:number;label?:string;restoreFocus?:boolean}){
+export function Menu({button,items,align='left',width,label,restoreFocus,below=false}:{button(toggle:()=>void,open:boolean):ReactNode;items:readonly MenuItem[];align?:'left'|'right';width?:number;label?:string;restoreFocus?:boolean;/** Always opens below the button (scrolling inside when the window is short), never upward over what sits above it. */below?:boolean}){
  const [open,setOpen]=useState(false);
  const [place,setPlace]=useState<CSSProperties>({}),[host,setHost]=useState<Element|null>(null);
  const ref=useRef<HTMLSpanElement>(null),menu=useRef<HTMLDivElement>(null);
@@ -42,16 +42,16 @@ export function Menu({button,items,align='left',width,label,restoreFocus}:{butto
  // Measured when the menu element itself mounts (wherever it is drawn), so it never depends on effect timing.
  const placeMenu=useCallback((node:HTMLDivElement|null)=>{
   menu.current=node;
-  if(!node||!anchor.current)return;
+  if(!node||!anchor.current||below)return;
   const height=node.getBoundingClientRect().height,{top,bottom}=anchor.current;
   if(height>0&&bottom+6+height>window.innerHeight-8&&top>window.innerHeight-bottom)setPlace(current=>{const {top:_below,...rest}=current;return {...rest,bottom:window.innerHeight-top+6};});
- },[]);
+ },[below]);
  const toggle=()=>{
   if(!open&&ref.current){
    const box=ref.current.getBoundingClientRect();
    anchor.current={top:box.top,bottom:box.bottom};
    setHost(ref.current.closest('.club-root'));
-   setPlace({top:box.bottom+6,...(align==='left'?{left:box.left}:{right:window.innerWidth-box.right})});
+   setPlace({top:box.bottom+6,...(align==='left'?{left:box.left}:{right:window.innerWidth-box.right}),...(below?{maxHeight:Math.max(120,window.innerHeight-box.bottom-14),overflowY:'auto' as const}:{})});
   }
   setOpen(current=>!current);
  };
