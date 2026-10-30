@@ -307,21 +307,25 @@ test('Plan tab: a scene script is saved on its own route as soon as it is edited
  });
 });
 
-test('Plan tab: Write script for one scene posts its id, Write full script posts none, and Continue to recording syncs and opens Record',async()=>{
+test('Plan tab: Write script asks the chat (for one scene, or for every scene), and Continue to recording syncs and opens Record',async()=>{
  const outline:Outline={scenes:[scene('a','First'),scene('b','Second')]};
- await withPlan(call=>{
-  if(call.method==='POST'&&call.path==='/videos/v1/script')return {body:{value:{...outline,scriptState:'partial'}}};
-  if(call.method==='POST'&&call.path==='/videos/v1/recorder')return {body:{...video,recorderProjectId:'p1'}};
-  return planReply({package:null,outline})(call);
- },async(c,calls,events)=>{
-  await openScene(c,'Second');
-  await press(c.querySelector('[aria-label="Scene options"]'));await press(menuItem(c,'Write script for this scene'));
-  await press(buttonNamed(c,'Write with Claude'));await press(menuItem(c,'Write the full script'));
-  assert.deepEqual(calls.filter(call=>call.path==='/videos/v1/script').map(call=>call.body),[{sceneId:'b'},undefined]);
-  await press(buttonNamed(c,'Continue now'));
-  assert.ok(calls.some(call=>call.method==='POST'&&call.path==='/videos/v1/recorder'));
-  assert.deepEqual(events,['video','record']);
- });
+ const asked:string[]=[];const hear=(event:Event)=>{asked.push((event as CustomEvent<{text:string}>).detail.text);};
+ window.addEventListener(ASK_CLAUDE,hear);
+ try{
+  await withPlan(call=>{
+   if(call.method==='POST'&&call.path==='/videos/v1/recorder')return {body:{...video,recorderProjectId:'p1'}};
+   return planReply({package:null,outline})(call);
+  },async(c,calls,events)=>{
+   await openScene(c,'Second');
+   await press(c.querySelector('[aria-label="Scene options"]'));await press(menuItem(c,'Write script for this scene'));
+   await press(buttonNamed(c,'Write with Claude'));await press(menuItem(c,'Write the full script'));
+   assert.deepEqual(asked,['Write the script for scene 2, “Second”.','Write the script for every scene, one card per scene.']);
+   assert.equal(calls.some(call=>call.path==='/videos/v1/script'&&call.method==='POST'),false,'no script job is started behind the scenes');
+   await press(buttonNamed(c,'Continue now'));
+   assert.ok(calls.some(call=>call.method==='POST'&&call.path==='/videos/v1/recorder'));
+   assert.deepEqual(events,['video','record']);
+  });
+ }finally{window.removeEventListener(ASK_CLAUDE,hear);}
 });
 
 test('Plan: a package written elsewhere (Use as hook) shows when Plan opens again, and the next edit sends only the field that was edited',async()=>{

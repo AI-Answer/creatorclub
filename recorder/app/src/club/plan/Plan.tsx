@@ -28,6 +28,7 @@ const PACKAGE_PROMPTS:Record<PackageGroup,string>={
  hook:'Write the hook for this video: the first line I say, and what it shows.'};
 const packagePrompt=(group?:PackageGroup)=>group?PACKAGE_PROMPTS[group]:'Write three title options, the thumbnail text and the hook for this video.';
 const DRAFT_PROMPT='Draft the scenes for this video from the board.';
+const SCRIPT_ALL_PROMPT='Write the script for every scene, one card per scene.';
 
 const WHAT:Record<PlanJobKind,string>={package:'package',outline:'outline',script:'script'};
 
@@ -68,7 +69,7 @@ export function Plan({video,plan,known,focusId,onFocus,onTitle,onTarget,onRecord
    <PackageColumn videoId={video.id} videoTitle={video.title} pkg={plan.pkg} running={packaging} onEdit={plan.editPackage} onPickTitle={onTitle} onWrite={group=>askClaude(packagePrompt(group))} save={plan.packageSave} onSaveNow={plan.flushPackage} onRetrySave={plan.retrySave}/>
    <ScenesColumn target={video.targetSeconds??0} onTarget={onTarget} hasRecording={!!video.recorderProjectId} outline={plan.outline} known={known} focusId={focusId}
     drafting={outlining} draftLine={plan.outlineJob.phase==='running'?plan.outlineJob.line:undefined} scripting={scripting} scriptingScene={plan.scriptScene}
-    onEdit={plan.editOutline} onFocus={onFocus} onDraft={()=>askClaude(DRAFT_PROMPT)} onWriteScene={plan.writeScript} onWriteAll={()=>plan.writeScript()} onSceneScript={plan.saveSceneScript} onRecord={onRecordScene} onSaveNow={()=>void plan.flush().catch(()=>{})}/>
+    onEdit={plan.editOutline} onFocus={onFocus} onDraft={()=>askClaude(DRAFT_PROMPT)} onWriteScene={id=>{const scenes=plan.outline?.scenes??[],at=scenes.findIndex(scene=>scene.id===id);askClaude(at>=0?`Write the script for scene ${at+1}, “${scenes[at].title}”.`:SCRIPT_ALL_PROMPT);}} onWriteAll={()=>askClaude(SCRIPT_ALL_PROMPT)} onSceneScript={plan.saveSceneScript} onRecord={onRecordScene} onSaveNow={()=>void plan.flush().catch(()=>{})}/>
   </div>
  </div>;
 }

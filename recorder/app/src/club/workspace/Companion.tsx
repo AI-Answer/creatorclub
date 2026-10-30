@@ -233,7 +233,7 @@ function useNarrow(roomy:boolean){
 function Reply({name,message,pkg,outline,scenes,busy,editor,silences,onApply,onUndo}:{name:string;message:CompanionReplyMessage;pkg:Package|null;outline:Outline|null;scenes?:readonly VideoScene[];busy:string|null;editor?:CompanionEditor;silences?:SilencePlan|null;onApply(index:number):Promise<string>;onUndo(index:number):Promise<string>}){
  // Several proposals in one reply: one button applies them all, one after another, and stops at the first that cannot be applied.
  const canEdit=!!editor?.get();
- const offered=canEdit?message.cards.map((card,index)=>({card,index})).filter(({card})=>isEditAction(card.action)&&card.state!=='applied'):[];
+ const offered=message.cards.map((card,index)=>({card,index})).filter(({card})=>card.state!=='applied'&&((isEditAction(card.action)&&canEdit)||card.action.type==='set_scene_script'));
  const [allBusy,setAllBusy]=useState(false);
  const addAll=async()=>{setAllBusy(true);try{for(const {index} of offered){const failed=await onApply(index);if(failed)break;}}finally{setAllBusy(false);}};
  return <div className="cmp-reply">
@@ -311,6 +311,9 @@ function Card({id,card,pkg,outline,scenes,busy,editor,silences,onApply,onUndo}:{
   const index=outline?.scenes.findIndex(scene=>scene.id===action.sceneId)??-1;
   body=<div className="cmp-card-text"><div className="cmp-card-sub">Scene {index>=0?index+1:''}{action.title?` · ${action.title}`:index>=0?` · ${outline!.scenes[index].title}`:''}</div>
    {action.talkingPoints&&<ul>{action.talkingPoints.map((point,at)=><li key={at}>{point}</li>)}</ul>}</div>;
+ }else if(action.type==='set_scene_script'){
+  const index=outline?.scenes.findIndex(scene=>scene.id===action.sceneId)??-1;
+  body=<div className="cmp-card-text long"><div className="cmp-card-sub">Scene {index>=0?index+1:''}{index>=0?` · ${outline!.scenes[index].title}`:''}</div>{action.script}</div>;
  }else if(action.type==='group_tiles'||action.type==='start_video'){
   body=<div className="cmp-card-text"><div className="cmp-card-sub">{action.tileIds.length} {action.tileIds.length===1?'card':'cards'}</div>{action.title}</div>;
  }else body=<div className={cn('cmp-card-text',action.type==='set_description'&&'long')}>{action.text}</div>;

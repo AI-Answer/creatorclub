@@ -635,3 +635,19 @@ test('the reply splitter holds back what could be the tag, and the parser reads 
   assert.equal(chunkText('').length, 0);
   assert.equal(chunkText('a b c d e f g h i j k l m n o p q r s t u v w x y z').join(''), 'a b c d e f g h i j k l m n o p q r s t u v w x y z');
 });
+
+test('a scene script card writes the script of that scene, can be undone, and an unknown scene is left out', async () => {
+  const reply = await replyWith([
+    { type: 'set_scene_script', sceneId: 's_missing', script: 'Never shown.' },
+    { type: 'set_scene_script', sceneId: s1, script: '  Most people only use a sliver of their AI tool.\n\nHere is the first thing to try.  ' },
+  ]);
+  assert.deepEqual(reply.cards.map((card) => card.action), [{ type: 'set_scene_script', sceneId: s1, script: 'Most people only use a sliver of their AI tool.\n\nHere is the first thing to try.' }]);
+  const scriptOf = async () => ((await call<{ outline: { scenes: Array<{ id: string; script?: string }> } }>('GET', `/videos/${video.id}/plan`)).body.outline.scenes.find((scene) => scene.id === s1)?.script ?? '').trim();
+  const before = await scriptOf();
+  const applied = await apply(reply, 0);
+  assert.equal(applied.status, 200);
+  assert.match(applied.body.message.cards[0].result ?? '', /Wrote the script for scene 1/);
+  assert.equal(await scriptOf(), 'Most people only use a sliver of their AI tool.\n\nHere is the first thing to try.');
+  assert.equal((await undo(reply, 0)).status, 200);
+  assert.equal(await scriptOf(), before, 'Undo puts the earlier script back');
+});

@@ -138,6 +138,12 @@ export function previewOf(action:CompanionAction,pkg:Package|null,outline:Outlin
    if(!scene)return {field:'Scene',now:['This scene is no longer in the plan.'],after:[]};
    return {field:`Scene ${index+1}`,now:[scene.title,...scene.talkingPoints.map(point=>`• ${point}`)],after:[action.title??scene.title,...(action.talkingPoints??scene.talkingPoints).map(point=>`• ${point}`)]};
   }
+  case 'set_scene_script':{
+   const index=outline?.scenes.findIndex(scene=>scene.id===action.sceneId)??-1;
+   const scene=index>=0?outline!.scenes[index]:undefined;
+   if(!scene)return {field:'Script',now:['This scene is no longer in the plan.'],after:[]};
+   return {field:`Script · Scene ${index+1}`,now:[scene.script?.trim()||none],after:[action.script]};
+  }
   case 'draft_scenes':{
    let at=0;
    const after=action.scenes.map((scene,index)=>{const line=`${index+1}. ${scene.title} (${clock(at)})`;at+=scene.seconds;return line;});

@@ -55,6 +55,8 @@ export type CompanionAction =
   | { type: 'set_thumbnail_text'; text: string }
   | { type: 'add_note'; text: string }
   | { type: 'set_scene'; sceneId: string; title?: string; talkingPoints?: string[] }
+  /** The words the creator says out loud in one scene that exists. */
+  | { type: 'set_scene_script'; sceneId: string; script: string }
   | { type: 'draft_scenes'; scenes: DraftScene[] }
   | { type: 'set_description'; text: string }
   /** Research: a frame named `title` around these cards. */
@@ -64,12 +66,12 @@ export type CompanionAction =
   | EditAction;
 export type CompanionActionType = CompanionAction['type'];
 
-export const COMPANION_ACTION_TYPES = ['use_hook', 'use_title', 'set_thumbnail_text', 'add_note', 'set_scene', 'draft_scenes', 'set_description', 'group_tiles', 'start_video', ...EDIT_ACTION_TYPES] as const satisfies readonly CompanionActionType[];
+export const COMPANION_ACTION_TYPES = ['use_hook', 'use_title', 'set_thumbnail_text', 'add_note', 'set_scene', 'set_scene_script', 'draft_scenes', 'set_description', 'group_tiles', 'start_video', ...EDIT_ACTION_TYPES] as const satisfies readonly CompanionActionType[];
 
 /** The actions the companion may offer on each step. */
 export const TAB_ACTIONS: Record<CompanionTab, readonly CompanionActionType[]> = {
   board: ['use_hook', 'use_title', 'add_note', 'draft_scenes'],
-  plan: ['use_hook', 'use_title', 'set_thumbnail_text', 'set_scene', 'draft_scenes', 'add_note'],
+  plan: ['use_hook', 'use_title', 'set_thumbnail_text', 'set_scene', 'set_scene_script', 'draft_scenes', 'add_note'],
   record: ['set_scene', 'add_note'],
   edit: EDIT_ACTION_TYPES,
   publish: ['set_description', 'use_title', 'set_thumbnail_text'],
@@ -83,6 +85,7 @@ export const ACTION_TITLE: Record<CompanionActionType, string> = {
   set_thumbnail_text: 'Thumbnail text',
   add_note: 'Note for the board',
   set_scene: 'Scene',
+  set_scene_script: 'Scene script',
   draft_scenes: 'Scenes',
   set_description: 'Description',
   group_tiles: 'Frame',
@@ -110,6 +113,7 @@ export const ACTION_STEP: Record<CompanionActionType, string> = {
   set_thumbnail_text: 'Writing thumbnail text',
   add_note: 'Writing a note',
   set_scene: 'Rewriting the scene',
+  set_scene_script: 'Writing the script',
   draft_scenes: 'Drafting scenes',
   set_description: 'Writing the description',
   group_tiles: 'Grouping cards',
@@ -137,6 +141,7 @@ export const ACTION_VERB: Record<CompanionActionType, string> = {
   set_thumbnail_text: 'Use it',
   add_note: 'Add to board',
   set_scene: 'Apply',
+  set_scene_script: 'Use this script',
   draft_scenes: 'Apply',
   set_description: 'Use it',
   group_tiles: 'Group them',

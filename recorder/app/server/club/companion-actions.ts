@@ -13,7 +13,7 @@ import { addFrame, FRAME_TITLE_MAX, frameAround, readCanvas, removeFrame } from 
 import { startVideoFrom, videoSignature } from './research-board.js';
 import { ClubError } from './errors.js';
 import type { BoardFrame, Package, VideoScene } from '../../shared/club.js';
-import { outlineFile, packageFile, parseOutline, patchPackage, readOutline, readPackage, saveOutline, savePackage, saveScript, scriptFile, syncPlanningFlags, usePackageText } from './planning.js';
+import { outlineFile, packageFile, parseOutline, patchPackage, readOutline, readPackage, saveOutline, savePackage, saveScript, saveSceneScript, scriptFile, syncPlanningFlags, usePackageText } from './planning.js';
 import { videoScenes } from './scenes.js';
 import { titleProblems } from './prompts.js';
 import * as store from './store.js';
@@ -50,6 +50,7 @@ export const actionShape = z.discriminatedUnion('type', [
   z.object({ type: z.literal('set_thumbnail_text'), text: line(200) }).strict(),
   z.object({ type: z.literal('add_note'), text: block(20_000) }).strict(),
   z.object({ type: z.literal('set_scene'), sceneId: z.string().regex(SCENE_ID), title: line(300).optional(), talkingPoints: z.array(line(2000)).min(1).max(60).optional() }).strict(),
+  z.object({ type: z.literal('set_scene_script'), sceneId: z.string().regex(SCENE_ID), script: z.string().trim().min(1).max(12000) }).strict(),
   z.object({ type: z.literal('draft_scenes'), scenes: z.array(draftScene).min(1).max(20) }).strict(),
   z.object({ type: z.literal('set_description'), text: block(5000) }).strict(),
   // Research: the cards are named by their ids on the channel's Board; that they are there is checked against the Board.
@@ -108,7 +109,7 @@ export function validateActions(
       rejected.push(`${type}: not offered on ${tab}`);
       continue;
     }
-    if (action.type === 'set_scene' && !sceneIds.includes(action.sceneId)) {
+    if ((action.type === 'set_scene' || action.type === 'set_scene_script') && !sceneIds.includes(action.sceneId)) {
       rejected.push(`${type}: no scene ${action.sceneId}`);
       continue;
     }
@@ -169,6 +170,7 @@ type Undo =
   | { kind: 'package-field'; field: PackageField; before: string | null; after: string }
   | { kind: 'title'; title: string; dropped?: string; before: string[]; after: string[] }
   | { kind: 'scene'; sceneId: string; before: SceneText; after: SceneText }
+  | { kind: 'script'; sceneId: string; before: string; after: string }
   | { kind: 'tile'; tileId: string; text: string }
   | { kind: 'frame'; frame: BoardFrame }
   | { kind: 'video'; videoId: string; signature: string }
@@ -197,6 +199,7 @@ function partOf(undo: Undo): string {
     case 'title':
       return 'package:titles';
     case 'scene':
+    case 'script':
     case 'outline':
       return 'outline';
     case 'tile':
@@ -294,6 +297,17 @@ const HANDLERS: { [K in CompanionActionType]: Handler<Extract<CompanionAction, {
       const scenes = outline.scenes.map(({ script: _script, ...scene }, at) => (at === index ? { ...scene, ...next } : scene));
       await saveOutline(slug, id, { scenes });
       return { result: `Updated scene ${index + 1}`, undo: { kind: 'scene', sceneId: action.sceneId, before: { title: old.title, talkingPoints: old.talkingPoints }, after: next } };
+    },
+  },
+  set_scene_script: {
+    changed: ['outline'],
+    apply: async (slug, id, action) => {
+      const outline = await readOutline(slug, id);
+      const index = outline?.scenes.findIndex((scene) => scene.id === action.sceneId) ?? -1;
+      if (!outline || index < 0) throw new ClubError('That scene is no longer in the plan.', 409);
+      const before = outline.scenes[index].script ?? '';
+      await saveSceneScript(slug, id, action.sceneId, action.script);
+      return { result: `Wrote the script for scene ${index + 1}`, undo: { kind: 'script', sceneId: action.sceneId, before, after: action.script.trim() } };
     },
   },
   draft_scenes: {
@@ -409,6 +423,13 @@ async function undoChange(slug: string, id: string, version: string, undo: Undo,
       const scene = index >= 0 ? outline!.scenes[index] : undefined;
       if (!scene || scene.title !== undo.after.title || !same(scene.talkingPoints, undo.after.talkingPoints)) throw new ClubError(CHANGED_SINCE, 409);
       await saveOutline(slug, id, { scenes: outline!.scenes.map(({ script: _script, ...each }, at) => (at === index ? { ...each, ...undo.before } : each)) });
+      return;
+    }
+    case 'script': {
+      const outline = await readOutline(slug, id);
+      const scene = outline?.scenes.find((each) => each.id === undo.sceneId);
+      if (!scene || (scene.script ?? '').trim() !== undo.after) throw new ClubError(CHANGED_SINCE, 409);
+      await saveSceneScript(slug, id, undo.sceneId, undo.before);
       return;
     }
     case 'tile': {
