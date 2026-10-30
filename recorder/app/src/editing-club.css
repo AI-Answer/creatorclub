@@ -318,3 +318,17 @@
 
 /* The scene names are in the row under the timeline, so the ruler keeps only the time. */
 .club-embed .app-shell[data-mode=Edit] .club-scene-tag{display:none}
+
+/* A calmer Edit: the top strip is gone (undo, history and Export live on the timeline bar), the scene row has no scrollbar,
+   the video sits on a soft shadow, and the timeline bar groups its tools. */
+.club-embed .app-shell[data-mode=Edit] .project-header{display:none}
+.club-embed .app-shell[data-mode=Edit] .club-timeline-bar .club-tool.icon{width:30px;padding:0;justify-content:center}
+.club-embed .app-shell[data-mode=Edit] .club-timeline-bar .club-zoom{flex:0 1 120px;min-width:56px}
+.club-embed .app-shell[data-mode=Edit] .club-timeline-bar .club-bar-sep{height:18px;margin:0 4px}
+.club-embed .app-shell[data-mode=Edit] .club-edit-stage .stage{box-shadow:0 6px 24px rgba(0,0,0,.14)}
+:where(.club-root) .strip.at-bottom { scrollbar-width: none; }
+:where(.club-root) .strip.at-bottom::-webkit-scrollbar { display: none; }
+/* Export sits at the end of the timeline bar as the one outlined button. */
+.club-embed .app-shell[data-mode=Edit] .club-timeline-bar .club-export{margin-left:0}
+.club-embed .app-shell[data-mode=Edit] .club-timeline-bar .club-export .btn{height:32px;padding:0 14px;border:1px solid var(--cc-line-strong);border-radius:8px;background:var(--cc-surface);color:var(--cc-text);font-weight:550;white-space:nowrap}
+.club-embed .app-shell[data-mode=Edit] .club-timeline-bar .club-export .btn:hover{background:var(--cc-hover)}

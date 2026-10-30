@@ -90,3 +90,11 @@ Seen on the copy:
 - A graphic added from the Graphics panel dragged fine (moved 100 px).
 - There was no plain way to add things from the timeline. **Added:** an "Add" button on the timeline bar: Clip from a file, Text and shapes, Animated graphic, Music (each opens the existing panel or the import).
 Tests: timeline-edit, edit-chrome and edit-menus (24 pass).
+
+## Seventh pass (2026-10-30): styling
+- The empty strip across the top of Edit (it only held Undo, Redo, History and Export) is gone. Undo, Redo and History sit on the timeline bar after Delete; **Export video** is the one outlined button at the end of that bar. The video and the timeline get that height back.
+- The scene row under the timeline no longer shows a scrollbar.
+- The video sits on a soft shadow.
+- The timeline bar has thin separators between its groups (Add, Split, Delete | Undo, Redo, History | zoom, Fit, View | Export) and its zoom slider shrinks before anything wraps.
+- Tests updated to match the new places (edit-ui: the rail is five tools plus More, the toolbar items are on the timeline bar): 40 pass across the Edit, workspace, record-screen and skills tests.
+- Checked by screenshot of the desktop app.
