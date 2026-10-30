@@ -1,8 +1,8 @@
 import {useEffect,useRef,useState,type ReactNode} from 'react';
 import type {ConceptLevel,ConceptRating,Package} from '../../../shared/club';
-import {Button,Dialog,Ed,Icon,Menu,cn,type IconName,type MenuItem} from '../ui';
+import {Button,Ed,Icon,Menu,cn,type IconName,type MenuItem} from '../ui';
 import {SAVE_DELAY_MS,type SaveStatus} from '../usePlan';
-import {EMPTY_PACKAGE,chosenTitle,hasEmptyPlace,packageIsEmpty,packageView,shownTitles,titleWarning,type PackageGroup} from './plan-logic';
+import {EMPTY_PACKAGE,chosenTitle,hasEmptyPlace,packageView,shownTitles,titleWarning,type PackageGroup} from './plan-logic';
 
 const LEVELS:{value:ConceptLevel;label:string}[]=[{value:'high',label:'High'},{value:'mid',label:'Mid'},{value:'low',label:'Low'}];
 const WHY:{key:'demand'|'gap'|'show';label:string}[]=[{key:'demand',label:'Demand'},{key:'gap',label:'Gap'},{key:'show',label:'Easy to show'}];
@@ -12,25 +12,13 @@ const HOOK_MORE:{key:'visual'|'text';label:string;icon:IconName;ph:string}[]=[
  {key:'text',label:'On-screen',icon:'text',ph:'Text on screen'},
 ];
 
-/** The question before a run writes a group again, and its answer. */
-const AGAIN:Record<PackageGroup,{title:string;description:string;confirm:string}>={
- titles:{title:'Write the titles again?',description:'All three titles are written. New ones replace them, and you can undo that.',confirm:'Write titles'},
- thumbnail:{title:'Write the thumbnail text again?',description:'Your thumbnail text is written. New text replaces it, and you can undo that.',confirm:'Write thumbnail text'},
- hook:{title:'Write the hook again?',description:'Your hook is written. A new one replaces it, and you can undo that.',confirm:'Write the hook'},
-};
-
 /**
- * Asking before a write replaces a full group: `write(group)` runs the package job at once while the group has an empty place,
- * and otherwise opens a question first. `dialog` is the question, to render once.
+ * Writing a group is a question to the chat, so nothing is replaced until the creator uses one of Claude's cards: `write(group)` just asks.
+ * The empty package asks for all three groups at once (`write()` with no group).
  */
-export function usePackageWrite(pkg:Package|null,onWrite:(replace?:PackageGroup)=>void){
- const [ask,setAsk]=useState<PackageGroup|null>(null);
- const write=(group:PackageGroup)=>{if(hasEmptyPlace(pkg,group)||packageIsEmpty(pkg))onWrite();else setAsk(group);};
- const confirm=()=>{const group=ask;setAsk(null);if(group)onWrite(group);};
- const words=ask?AGAIN[ask]:AGAIN.titles;
- const dialog=<Dialog open={ask!==null} onClose={()=>setAsk(null)} title={words.title} description={words.description}
-  footer={<><Button onClick={()=>setAsk(null)}>Cancel</Button><Button variant="primary" onClick={confirm}>{words.confirm}</Button></>}/>;
- return {write,dialog};
+export function usePackageWrite(_pkg:Package|null,onWrite:(group?:PackageGroup)=>void){
+ const write=(group?:PackageGroup)=>onWrite(group);
+ return {write};
 }
 
 /** The uploaded thumbnail of the video, when there is one: the only picture the Package shows (never a made-up one). */
@@ -201,6 +189,6 @@ export function PackageColumn({videoId,videoTitle,pkg,running,onEdit,onPickTitle
    <div className="blk"><div className="blk-h"><h4>Angle</h4></div><Ed multiline live onLeave={leave} value={value.angle} ph="What this video does that others don't" onChange={text=>set('angle',text)} style={{lineHeight:1.55}}/></div>
    <div className="blk"><div className="blk-h"><h4>Twist</h4></div><Ed multiline live onLeave={leave} value={value.twist} ph="The unexpected part" onChange={text=>set('twist',text)} style={{lineHeight:1.55}}/></div>
   </div>}
-  {writer.dialog}
+  
  </section>;
 }

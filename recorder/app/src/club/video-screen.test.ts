@@ -5,6 +5,7 @@ import {act,createElement,useState} from 'react';
 import type {Outline,Package,Video} from '../../shared/club';
 import {createProject,defaultEffects,defaultTransform} from '../../shared/types';
 import type {Route,VideoTab} from './routes';
+import {ASK_CLAUDE} from './workspace/ask-claude';
 const {Workspace}=await import('./workspace/Workspace');
 const {ClubRecorder,OPEN_FAILED,NOT_ON_THIS_COMPUTER}=await import('./ClubRecorder');
 const {FakeEventSource,installFetch}=await import('./test-fakes');
@@ -47,35 +48,38 @@ function Harness({initial,tabs,start='plan'}:{initial:Video;tabs:VideoTab[];star
 const edit=async(element:Element|null,value:string)=>{assert.ok(element,'field to edit');await act(async()=>{(element as HTMLElement).innerText=value;element!.dispatchEvent(new Event('focusout',{bubbles:true}));});};
 const sceneTitles=(root:Element)=>[...root.querySelectorAll('.scene .t')].map(t=>t.textContent);
 
-test('a video walks from an empty Plan through Write titles and Draft scenes into recording',async()=>{
+test('on an empty Plan, Write with Claude and Draft scenes ask the chat instead of running a hidden job',async()=>{
  FakeEventSource.install();
- const state:Server={video:planned,pkg:null,outline:null,help:['research']},server=serve(state),tabs:VideoTab[]=[];
- const ui=await mountUI(createElement(Harness,{initial:planned,tabs}));
- let announced=0;const listen=()=>{announced++;};window.addEventListener(VIDEOS_CHANGED,listen);
+ const state:Server={video:planned,pkg:null,outline:null,help:['research']},server=serve(state);
+ const ui=await mountUI(createElement(Harness,{initial:planned,tabs:[]}));
+ const asked:string[]=[];const hear=(event:Event)=>{asked.push((event as CustomEvent<{text:string}>).detail.text);};window.addEventListener(ASK_CLAUDE,hear);
  try{
   await flush();
   const c=ui.container;
   assert.ok(hasText(c,'decide whether people click'),'the empty package is one sentence');
   assert.deepEqual(primaries(c),['Draft scenes from the board'],'one primary: the thing to do first');
-  assert.equal(c.querySelectorAll('.pkg [role="textbox"]').length,0,'an empty package is not a form of empty fields');
   await act(async()=>button(c,'Write the package with Claude').click());await flush();
-  await act(async()=>FakeEventSource.last().emit('progress',{message:'Writing the package…'}));
-  assert.ok(hasText(c,'Writing the package…'),'progress streams in');
-  const before=announced;
-  await act(async()=>FakeEventSource.last().emit('done',{value:pkg}));
-  assert.equal(announced,before+1,'a finished plan job tells the sidebar and scene dots to reload');
+  assert.deepEqual(asked,['Write three title options, the thumbnail text and the hook for this video.'],'the chat is asked, in plain words');
+  await act(async()=>button(c,'Draft scenes from the board').click());await flush();
+  assert.equal(asked.at(-1),'Draft the scenes for this video from the board.');
+  assert.ok(!server.calls.some(call=>call.method==='POST'&&/\/(package|outline)$/.test(call.path)),'no job was started behind the scenes');
+ }finally{window.removeEventListener(ASK_CLAUDE,hear);await ui.close();server.restore();}
+});
+
+test('a drafted Plan: pick a title, edit a scene, continue to recording',async()=>{
+ FakeEventSource.install();
+ const state:Server={video:planned,pkg,outline,help:['research']},server=serve(state),tabs:VideoTab[]=[];
+ const ui=await mountUI(createElement(Harness,{initial:planned,tabs}));
+ try{
+  await flush();
+  const c=ui.container;
   const titles=()=>[...c.querySelectorAll('.tline:not(.own) [role="textbox"]')].map(t=>t.textContent);
   assert.deepEqual(titles(),pkg.titles,'the package fills editable fields');
   await edit(c.querySelector('.tline:not(.own) [role="textbox"]'),'Claude Code features nobody uses');
   await act(async()=>button(c.querySelectorAll('.tline:not(.own)')[1],'Use this title').click());await flush();
   assert.equal(state.video.title,'Seven hidden Claude Code tricks','picking a title makes it the video title');
   assert.ok(c.querySelectorAll('.tline:not(.own)')[1].classList.contains('on'),'and ticks it');
-  assert.deepEqual(primaries(c),['Draft scenes from the board']);
-
-  await act(async()=>button(c,'Draft scenes from the board').click());await flush();
-  await act(async()=>FakeEventSource.last().emit('done',{value:outline}));await flush();
   assert.equal(c.querySelectorAll('.scene').length,4,'four scene rows in the outline');
-  assert.equal(c.querySelectorAll('.scn .doc-h button').length,1,'the scenes heading has one Write with Claude menu (script, redraft)');
   await act(async()=>c.querySelectorAll<HTMLElement>('.scene-open')[1].click());await flush();
   await edit(c.querySelector('.scene.open .ed.t'),'Level 1: settings');
   assert.deepEqual(primaries(c),['Continue to recording']);
@@ -85,7 +89,7 @@ test('a video walks from an empty Plan through Write titles and Draft scenes int
   assert.deepEqual(tabs,['record'],'Record opens');
   assert.equal(state.video.stage,'recording');
   assert.equal(state.video.recorderProjectId,'p1');
- }finally{window.removeEventListener(VIDEOS_CHANGED,listen);await ui.close();server.restore();}
+ }finally{await ui.close();server.restore();}
 });
 
 test('an AI step can be stopped, a page opened mid-run follows it, and a replaced outline can be undone',async()=>{
@@ -111,14 +115,6 @@ test('an AI step can be stopped, a page opened mid-run follows it, and a replace
   await act(async()=>FakeEventSource.last().emit('cancelled',{}));
   assert.ok(!hasText(c,'Starting…'));
 
-  await act(async()=>button(c,'Draft scenes from the board').click());await flush();
-  await act(async()=>FakeEventSource.last().emit('done',{value:outline,replaced:'2026-10-29T10-00-00-000Z'}));
-  assert.deepEqual(sceneTitles(c),['Opening','Level 1','Where this falls short','Ending']);
-  assert.ok(hasText(c,'Replaced the outline'));
-  await act(async()=>button(c,'Undo').click());await flush();
-  assert.equal(state.undone,1);
-  assert.equal(c.querySelectorAll('.scene').length,0,'Undo brings back what was there');
-  assert.ok(!hasText(c,'Replaced the outline'));
  }finally{await ui.close();server.restore();}
 });
 

@@ -7,6 +7,7 @@ import {MOTION_TEMPLATES} from '../../../shared/motion/templates';
 import {clubFetch} from '../api';
 import {featuredSkills,matchSkills,slashQuery,type InstalledSkill} from '../../../shared/skills';
 import {ErrorLine} from '../ErrorLine';
+import {ASK_CLAUDE} from './ask-claude';
 import {Button,CompanionMark,Icon,Spinner,cn} from '../ui';
 import {atBottom,elapsed,greeting,lookingAt,previewOf,stepSummary,suggestions,tabOf,withDividers} from './companion-logic';
 import {Markdown} from './Markdown';
@@ -128,6 +129,9 @@ export function Companion({videoId,videoTitle,tab,scene,screen,selection,pkg,out
  const hidden=query===''&&!showAll&&skills&&short.length>0?skills.length-short.length:0;
  const pickerOpen=query!==undefined&&!dismissed&&!working;
  const choose=(skill:InstalledSkill)=>{setText(`/${skill.name} `);input.current?.focus();};
+ // A button elsewhere on the page can ask the chat something for the creator: it opens, sends the question and the answer comes back as cards.
+ const askRef=useRef(ask),toggleRef=useRef(toggle);askRef.current=ask;toggleRef.current=toggle;
+ useEffect(()=>{const hear=(event:Event)=>{const text=(event as CustomEvent<{text:string}>).detail?.text;if(!text)return;toggleRef.current(true);void askRef.current(text);};window.addEventListener(ASK_CLAUDE,hear);return()=>window.removeEventListener(ASK_CLAUDE,hear);},[]);
  const onKeyDown=(event:KeyboardEvent<HTMLTextAreaElement>)=>{
   if(pickerOpen&&choices.length){
    if(event.key==='ArrowDown'||event.key==='ArrowUp'){event.preventDefault();setPick(i=>(i+(event.key==='ArrowDown'?1:choices.length-1))%choices.length);return;}

@@ -1,3 +1,4 @@
+import {ASK_CLAUDE} from '../workspace/ask-claude';
 import {mountUI} from '../../test-dom';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -76,29 +77,18 @@ test('Package column: empty, it is one sentence and one action, and "or fill it 
  }finally{await ui.close();}
 });
 
-test('Writing the package: titles are written at once while a title is empty, asked first when all are written, and the hook the same',async()=>{
+test('Writing the package is a plain ask: each group asks for itself, with nothing to confirm',async()=>{
  const writes:Array<string|undefined>=[];
  function Writer({pkg}:{pkg:Package|null}){
-  const w=usePackageWrite(pkg,replace=>{writes.push(replace);});
-  return createElement('div',null,createElement('button',{onClick:()=>w.write('titles')},'Write titles'),createElement('button',{onClick:()=>w.write('hook')},'Write the hook'),w.dialog);
+  const w=usePackageWrite(pkg,group=>{writes.push(group);});
+  return createElement('div',null,createElement('button',{onClick:()=>w.write('titles')},'Write titles'),createElement('button',{onClick:()=>w.write('hook')},'Write the hook'),createElement('button',{onClick:()=>w.write()},'Write all'));
  }
- const ui=await mountUI(createElement(Writer,{pkg:{...full,titles:['One','','']}}));
+ const ui=await mountUI(createElement(Writer,{pkg:full}));
  try{
   const c=ui.container;
-  const confirm=(text:string)=>[...c.ownerDocument.querySelectorAll('[role="dialog"] button')].find(b=>b.textContent===text)!;
-  await press(buttonNamed(c,'Write titles'));assert.deepEqual(writes,[undefined]);
-  await press(buttonNamed(c,'Write the hook'));
-  assert.equal(c.ownerDocument.querySelector('[role="dialog"]')?.textContent?.includes('Write the hook again?'),true,'the hook is complete: asks before replacing');
-  assert.deepEqual(writes,[undefined]);
-  await press(buttonNamed(c.ownerDocument.body,'Cancel'));assert.deepEqual(writes,[undefined]);
-  await press(buttonNamed(c,'Write the hook'));await press(confirm('Write the hook'));
-  assert.deepEqual(writes,[undefined,'hook']);
-  await ui.render(createElement(Writer,{pkg:full}));
-  await press(buttonNamed(c,'Write titles'));assert.equal(c.ownerDocument.querySelector('[role="dialog"]')?.textContent?.includes('Write the titles again?'),true);
-  await press(confirm('Write titles'));
-  assert.deepEqual(writes.slice(2),['titles']);
-  await ui.render(createElement(Writer,{pkg:null}));
-  await press(buttonNamed(c,'Write the hook'));assert.deepEqual(writes.slice(3),[undefined],'nothing written yet: no question');
+  await press(buttonNamed(c,'Write titles'));await press(buttonNamed(c,'Write the hook'));await press(buttonNamed(c,'Write all'));
+  assert.deepEqual(writes,['titles','hook',undefined]);
+  assert.equal(c.ownerDocument.querySelector('[role="dialog"]'),null,'nothing is replaced by asking, so there is nothing to confirm');
  }finally{await ui.close();}
 });
 
@@ -244,37 +234,21 @@ async function withPlan(reply:(call:FakeCall)=>FakeReply|Promise<FakeReply>,run:
 }
 const planReply=(plan:object)=>(call:FakeCall):FakeReply=>{if(call.method==='GET'&&call.path==='/videos/v1/plan')return {body:{running:{},ready:{},...plan}};};
 
-test('Plan tab: Write titles shows the package the server merged, and makes no save of its own',async()=>{
- const earlier:Package={...empty,angle:'Mine',titles:['Mine','',''],hook:{visual:'',spoken:'My line',text:''}};
- const merged:Package={...full,angle:'Mine',titles:['Mine','N2','N3'],hook:{visual:'nv',spoken:'My line',text:'nt'}};
- await withPlan(call=>{
-  if(call.method==='POST'&&call.path==='/videos/v1/package')return {body:{value:merged,replaced:'2026-10-28T22-50-18-485Z'}};
-  return planReply({package:earlier,outline:null})(call);
- },async(c,calls)=>{
-  await press(buttonNamed(c,'Write with Claude'));await press(menuItem(c.ownerDocument.body,'Write titles'));await flush();
-  assert.deepEqual([...c.querySelectorAll('.tline:not(.own) [role="textbox"]')].map(t=>t.textContent),['Mine','N2','N3']);
-  assert.deepEqual(calls.filter(call=>call.method==='POST'&&call.path==='/videos/v1/package').map(call=>call.body),[undefined]);
-  assert.equal(calls.some(call=>call.method==='PUT'),false,'nothing is saved over the server\'s merge');
-  assert.match(c.textContent!,/Replaced the package/);
- });
+test('Plan tab: each Write with Claude item asks the chat for just that part, and starts no job',async()=>{
+ const asked:string[]=[];const hear=(event:Event)=>{asked.push((event as CustomEvent<{text:string}>).detail.text);};
+ window.addEventListener(ASK_CLAUDE,hear);
+ try{
+  await withPlan(planReply({package:full,outline:null}),async(c,calls)=>{
+   await press(buttonNamed(c,'Write with Claude'));await press(menuItem(c.ownerDocument.body,'Write titles again'));
+   await press(buttonNamed(c,'Write with Claude'));await press(menuItem(c.ownerDocument.body,'Write thumbnail text again'));
+   await press(buttonNamed(c,'Write with Claude'));await press(menuItem(c.ownerDocument.body,'Write the hook again'));
+   assert.deepEqual(asked,['Write three title options for this video.','Write the thumbnail text for this video: two to five words about one real thing, readable on a phone.','Write the hook for this video: the first line I say, and what it shows.']);
+   assert.equal(calls.some(call=>call.method==='POST'),false,'no job was started');
+   assert.equal(c.ownerDocument.querySelector('[role="dialog"]'),null,'nothing to confirm: Claude only proposes');
+  });
+ }finally{window.removeEventListener(ASK_CLAUDE,hear);}
 });
 
-test('Plan tab: writing a full group again asks, then tells the server which group to replace',async()=>{
- await withPlan(call=>{
-  if(call.method==='POST'&&call.path==='/videos/v1/package')return {body:{value:{...full,titles:['R1','R2','R3']}}};
-  return planReply({package:full,outline:null})(call);
- },async(c,calls)=>{
-  await press(buttonNamed(c,'Write with Claude'));await press(menuItem(c.ownerDocument.body,'Write titles again'));
-  assert.equal(calls.some(call=>call.method==='POST'),false,'asked first');
-  await press([...c.ownerDocument.querySelectorAll('[role="dialog"] button')].find(b=>b.textContent==='Write titles')!);await flush();
-  assert.deepEqual(calls.filter(call=>call.method==='POST').map(call=>call.body),[{replace:'titles'}]);
-  assert.deepEqual([...c.querySelectorAll('.tline:not(.own) [role="textbox"]')].map(t=>t.textContent),['R1','R2','R3']);
-  await press(buttonNamed(c,'Write with Claude'));await press(menuItem(c.ownerDocument.body,'Write thumbnail text again'));
-  assert.match(c.ownerDocument.querySelector('[role="dialog"]')!.textContent!,/Write the thumbnail text again\?/);
-  await press([...c.ownerDocument.querySelectorAll('[role="dialog"] button')].find(b=>b.textContent==='Write thumbnail text')!);await flush();
-  assert.deepEqual(calls.filter(call=>call.method==='POST').map(call=>call.body).at(-1),{replace:'thumbnail'});
- });
-});
 
 test('Plan tab: every field saves as it is typed, half a second after the last keystroke, with Saving… then Saved; a reload shows it',async()=>{
  let stored:Package={...full,hook:{visual:'v',spoken:'',text:'x'}};

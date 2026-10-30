@@ -1,3 +1,4 @@
+import {askClaude} from '../workspace/ask-claude';
 import {PLAN_JOB_KINDS,type PlanJobKind,type Video,type VideoScene} from '../../../shared/club';
 import {ErrorLine} from '../ErrorLine';
 import type {JobRun} from '../useJobRun';
@@ -5,6 +6,7 @@ import type {Notice,Plan as PlanState} from '../usePlan';
 import {Button,Spinner} from '../ui';
 import {changedSceneLine} from '../video-plan';
 import {PackageColumn} from './PackageColumn';
+import type {PackageGroup} from './plan-logic';
 import {ScenesColumn} from './ScenesColumn';
 
 const STARTING='Starting…';
@@ -18,6 +20,14 @@ function JobLine({state,onRetry,onStop}:{state:JobRun;onRetry():void;onStop():vo
  if(state.phase==='failed')return <ErrorLine message={state.message} onRetry={onRetry}/>;
  return null;
 }
+
+/** What the Write with Claude buttons ask the chat, in the creator's own words. The answer comes back as cards that can be used or ignored. */
+const PACKAGE_PROMPTS:Record<PackageGroup,string>={
+ titles:'Write three title options for this video.',
+ thumbnail:'Write the thumbnail text for this video: two to five words about one real thing, readable on a phone.',
+ hook:'Write the hook for this video: the first line I say, and what it shows.'};
+const packagePrompt=(group?:PackageGroup)=>group?PACKAGE_PROMPTS[group]:'Write three title options, the thumbnail text and the hook for this video.';
+const DRAFT_PROMPT='Draft the scenes for this video from the board.';
 
 const WHAT:Record<PlanJobKind,string>={package:'package',outline:'outline',script:'script'};
 
@@ -55,10 +65,10 @@ export function Plan({video,plan,known,focusId,onFocus,onTitle,onTarget,onRecord
  return <div className="plan-page">
   {lines.length>0&&<div className="plan-lines">{lines}</div>}
   <div className="plan">
-   <PackageColumn videoId={video.id} videoTitle={video.title} pkg={plan.pkg} running={packaging} onEdit={plan.editPackage} onPickTitle={onTitle} onWrite={plan.writePackage} save={plan.packageSave} onSaveNow={plan.flushPackage} onRetrySave={plan.retrySave}/>
+   <PackageColumn videoId={video.id} videoTitle={video.title} pkg={plan.pkg} running={packaging} onEdit={plan.editPackage} onPickTitle={onTitle} onWrite={group=>askClaude(packagePrompt(group))} save={plan.packageSave} onSaveNow={plan.flushPackage} onRetrySave={plan.retrySave}/>
    <ScenesColumn target={video.targetSeconds??0} onTarget={onTarget} hasRecording={!!video.recorderProjectId} outline={plan.outline} known={known} focusId={focusId}
     drafting={outlining} draftLine={plan.outlineJob.phase==='running'?plan.outlineJob.line:undefined} scripting={scripting} scriptingScene={plan.scriptScene}
-    onEdit={plan.editOutline} onFocus={onFocus} onDraft={plan.createOutline} onWriteScene={plan.writeScript} onWriteAll={()=>plan.writeScript()} onSceneScript={plan.saveSceneScript} onRecord={onRecordScene} onSaveNow={()=>void plan.flush().catch(()=>{})}/>
+    onEdit={plan.editOutline} onFocus={onFocus} onDraft={()=>askClaude(DRAFT_PROMPT)} onWriteScene={plan.writeScript} onWriteAll={()=>plan.writeScript()} onSceneScript={plan.saveSceneScript} onRecord={onRecordScene} onSaveNow={()=>void plan.flush().catch(()=>{})}/>
   </div>
  </div>;
 }
