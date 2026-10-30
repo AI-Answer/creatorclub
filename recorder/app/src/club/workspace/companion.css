@@ -134,3 +134,12 @@
 
 /* Below 1440 px the step beside the panel needs the room (Edit's stage, transcript and timeline): the panel opens at 320 px. */
 @media (max-width: 1439px) { .club-root .cmp { width: 320px; } }
+
+.club-root .cmp-skills { max-height: 220px; overflow-y: auto; border: 1px solid var(--cc-line-strong); border-radius: 12px; background: var(--cc-surface); padding: 4px; }
+.club-root .cmp-skills-head { font-size: 11.5px; font-weight: 600; color: var(--cc-text-3); padding: 4px 8px 2px; }
+.club-root .cmp-skills-empty { font-size: 12.5px; color: var(--cc-text-2); padding: 8px; }
+.club-root .cmp-skill { all: unset; box-sizing: border-box; display: flex; flex-direction: column; gap: 1px; width: 100%; cursor: pointer; padding: 6px 8px; border-radius: 8px; }
+.club-root .cmp-skill.on { background: var(--cc-accent-soft); }
+.club-root .cmp-skill:focus-visible { outline: 2px solid var(--cc-accent); outline-offset: -2px; }
+.club-root .cmp-skill-name { font-size: 13px; font-weight: 600; color: var(--cc-text); }
+.club-root .cmp-skill-what { font-size: 12px; color: var(--cc-text-2); line-height: 1.35; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

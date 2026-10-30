@@ -4,6 +4,7 @@ import {ACTION_TITLE,ACTION_VERB,isEditAction,type CompanionCard,type CompanionC
 import type {EditorBridge,EditorState} from '../../App';
 import {describeEditAction,type SilencePlan} from '../../editing-actions';
 import {clubFetch} from '../api';
+import {matchSkills,slashQuery,type InstalledSkill} from '../../../shared/skills';
 import {ErrorLine} from '../ErrorLine';
 import {Button,CompanionMark,Icon,Spinner,cn} from '../ui';
 import {atBottom,elapsed,greeting,lookingAt,previewOf,stepSummary,suggestions,withDividers} from './companion-logic';
@@ -109,7 +110,22 @@ export function Companion({videoId,videoTitle,tab,scene,screen,selection,pkg,out
   const sent=await companion.send(question,await contextNow());
   if(sent)setText('');
  };
+ // Typing "/" lists the person's own skills; choosing one puts its name in the message, and sending it runs the skill.
+ const [skills,setSkills]=useState<InstalledSkill[]|null>(null);
+ const [pick,setPick]=useState(0);
+ const [dismissed,setDismissed]=useState(false);
+ const query=slashQuery(text);
+ useEffect(()=>{if(query===undefined||skills)return;let live=true;clubFetch<InstalledSkill[]>('/skills').then(list=>{if(live)setSkills(list);}).catch(()=>{if(live)setSkills([]);});return()=>{live=false;};},[query,skills]);
+ useEffect(()=>{setPick(0);setDismissed(false);},[query]);
+ const choices=query!==undefined&&skills&&!dismissed?matchSkills(skills,query):[];
+ const pickerOpen=query!==undefined&&!dismissed&&!working;
+ const choose=(skill:InstalledSkill)=>{setText(`/${skill.name} `);input.current?.focus();};
  const onKeyDown=(event:KeyboardEvent<HTMLTextAreaElement>)=>{
+  if(pickerOpen&&choices.length){
+   if(event.key==='ArrowDown'||event.key==='ArrowUp'){event.preventDefault();setPick(i=>(i+(event.key==='ArrowDown'?1:choices.length-1))%choices.length);return;}
+   if((event.key==='Enter'||event.key==='Tab')&&!event.shiftKey&&!event.nativeEvent.isComposing){event.preventDefault();choose(choices[Math.min(pick,choices.length-1)]);return;}
+  }
+  if(pickerOpen&&event.key==='Escape'){event.preventDefault();event.stopPropagation();setDismissed(true);return;}
   if(event.key==='Enter'&&!event.shiftKey&&!event.nativeEvent.isComposing){event.preventDefault();void ask(text);}
  };
  useLayoutEffect(()=>{const area=input.current;if(!area)return;area.style.height='auto';area.style.height=`${Math.min(140,area.scrollHeight)}px`;},[text,open]);
@@ -158,8 +174,16 @@ export function Companion({videoId,videoTitle,tab,scene,screen,selection,pkg,out
   {behind&&<button type="button" className="cmp-jump" onClick={toBottom}><Icon name="ArrowDown" size={13}/>Jump to latest</button>}
   <div className="cmp-foot">
    {!working&&!fresh&&chips}
+   {pickerOpen&&<div className="cmp-skills" role="listbox" aria-label="Your skills">
+    <div className="cmp-skills-head">Your skills</div>
+    {!skills?<div className="cmp-skills-empty">Looking for your skills…</div>
+     :!choices.length?<div className="cmp-skills-empty">{skills.length?'No skill with that name.':'No skills are installed in your Claude Code yet.'}</div>
+     :choices.map((skill,at)=><button key={skill.name} type="button" role="option" aria-selected={at===pick} className={cn('cmp-skill',at===pick&&'on')} onMouseEnter={()=>setPick(at)} onMouseDown={event=>event.preventDefault()} onClick={()=>choose(skill)}>
+       <span className="cmp-skill-name">/{skill.name}</span><span className="cmp-skill-what">{skill.description}</span>
+      </button>)}
+   </div>}
    <form className="cmp-input" onSubmit={event=>{event.preventDefault();void ask(text);}}>
-    <textarea ref={input} rows={1} value={text} onChange={event=>setText(event.target.value)} onKeyDown={onKeyDown} placeholder="Ask, or tell me what to change" aria-label={`Message to ${name}`}/>
+    <textarea ref={input} rows={1} value={text} onChange={event=>setText(event.target.value)} onKeyDown={onKeyDown} placeholder="Ask, or type / for your skills" aria-label={`Message to ${name}`}/>
     {working
      ?<button type="button" className="cmp-send stop" onClick={stop} aria-label="Stop (Esc)" title="Stop (Esc)"><Icon name="Square" size={12} stroke={2.4}/></button>
      :<button type="submit" className="cmp-send" disabled={!text.trim()} aria-label="Send (Enter)" title="Send (Enter)"><Icon name="ArrowUp" size={15} stroke={2.2}/></button>}

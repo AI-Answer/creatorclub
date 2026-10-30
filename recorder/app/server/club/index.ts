@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { CHANNEL_BOARD, SEED_BELOW, HELP_STEPS, PLAN_JOB_KINDS, TILE_KINDS, VIDEO_STAGES, type Workspace } from '../../shared/club.js';
 import { PACKAGE_GROUPS } from '../../shared/package-merge.js';
 import { aiStatus } from './ai.js';
+import { listSkills } from './skills.js';
 import { startConnect, type ConnectOptions } from './connect.js';
 import { ClubError, GENERIC_FAILURE, notFound } from './errors.js';
 import { promises as fs } from 'node:fs';
@@ -241,6 +242,9 @@ export function clubRouter({ ai = {}, transcribe, runAI, readViews = ytDlpViews(
 
   // ---- Recorder: free space where takes are saved, for the low-disk warning.
   router.get('/disk', handler(async (_req, res) => res.json(await recordingsDiskSpace())));
+
+  // ---- the person's own Claude Code skills, for the companion's "/" picker
+  router.get('/skills', handler(async (_req, res) => res.json(await listSkills())));
 
   // ---- AI
   router.get('/ai/status', handler(async (_req, res) => res.json(await aiStatus(ai))));
