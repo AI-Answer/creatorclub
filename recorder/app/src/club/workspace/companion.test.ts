@@ -21,11 +21,11 @@ test('it says what it is looking at, and the suggestions follow the step',()=>{
  assert.equal(lookingAt('plan',{index:1,title:'Level 1'}),'Plan · Scene 2');
  assert.equal(lookingAt('board'),'Board');
  // Plan never repeats the buttons it shows (Draft scenes from the board, Write the package): what is left is options to choose from and opinions.
- assert.deepEqual(suggestions('plan',{scenes:0}),['Write three hooks','Suggest three titles','What should the video open with?']);
- assert.deepEqual(suggestions('plan',{scenes:0,hook:true}),['Make the hook sharper','Suggest three titles','What should the video open with?']);
+ assert.deepEqual(suggestions('plan',{scenes:0}),['What should the video open with?','Who is this video for?','What is the one thing a viewer should remember?']);
+ assert.deepEqual(suggestions('plan',{scenes:0,hook:true}),['What should the video open with?','Who is this video for?','What is the one thing a viewer should remember?']);
  assert.equal(suggestions('plan',{scenes:2,scene:{index:1}})[0],'Tighten scene 2');
- assert.deepEqual(suggestions('plan',{scenes:2,longest:150}),['Tighten the first scene','Cut the longest scene to 90 seconds','Write three hooks']);
- assert.deepEqual(suggestions('plan',{scenes:2,longest:60,hook:true}),['Tighten the first scene','Suggest three titles','What is missing before I record?']);
+ assert.deepEqual(suggestions('plan',{scenes:2,longest:150}),['Tighten the first scene','Cut the longest scene to 90 seconds','What is missing before I record?']);
+ assert.deepEqual(suggestions('plan',{scenes:2,longest:60,hook:true}),['Tighten the first scene','Make the hook sharper','What is missing before I record?']);
  for(const tab of ['board','plan','record','edit','publish'] as const)for(const facts of [{scenes:0},{scenes:3}]){
   assert.equal(suggestions(tab,facts).length,3);
   assert.equal(suggestions(tab,facts).some(idea=>/^Draft the scenes|package/i.test(idea)),false,`${tab} offers no chip that repeats a button on the page`);

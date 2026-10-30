@@ -43,9 +43,10 @@ export function suggestions(tab:CompanionTab,facts:SuggestionFacts):string[]{
    ?['What should this video cover?','Who is this video for?','Suggest three titles']
    :['Write three hooks from this board','Suggest three titles','What do these have in common?'];
   case 'plan':{
+   // Titles, hooks and scenes are written from the Package and Scenes buttons, so the chips here are for thinking and tightening.
    const ideas=facts.scenes
-    ?[scene?`Tighten ${scene}`:'Tighten the first scene',...((facts.longest??0)>90?['Cut the longest scene to 90 seconds']:[]),...(facts.hook?[]:['Write three hooks']),'Suggest three titles','What is missing before I record?']
-    :[...(facts.hook?['Make the hook sharper']:['Write three hooks']),'Suggest three titles','What should the video open with?'];
+    ?[scene?`Tighten ${scene}`:'Tighten the first scene',...((facts.longest??0)>90?['Cut the longest scene to 90 seconds']:[]),...(facts.hook?['Make the hook sharper']:[]),'What is missing before I record?']
+    :['What should the video open with?','Who is this video for?','What is the one thing a viewer should remember?'];
    return ideas.slice(0,3);
   }
   case 'record':return facts.recorded===0
