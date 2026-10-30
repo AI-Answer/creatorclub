@@ -341,3 +341,47 @@ test('a recording project that is not on this computer says so and offers to sta
   assert.equal(restarted,1);
  }finally{globalThis.fetch=originalFetch;await ui.close();}
 });
+
+test('Publish tags are saved on the package: they are still there after switching step and after reopening the video',async()=>{
+ FakeEventSource.install();
+ const publishing:Video={...planned,stage:'publishing',recorderProjectId:'p1',planning:{research:true,package:true,outline:true}};
+ const scenes=[{id:'a',title:'Opening',seconds:60,takes:[{id:'t1',seconds:30,kept:true,retained:false}],status:'Kept take 1'}];
+ let saved:Package={...pkg};
+ const server=installFetch(({method,path,body})=>{
+  if(path==='/settings')return {body:{helpSeen:[]}};
+  if(path==='/videos/v1/plan')return {body:{running:{},ready:{},package:saved,outline:{scenes:[{id:'a',title:'Opening',talkingPoints:['x'],show:'',seconds:60}]}}};
+  // The server keeps only the fields sent, as PUT /package does.
+  if(path==='/videos/v1/package'&&method==='PUT'){saved={...saved,...(body as Partial<Package>)};return {body:saved};}
+  if(path==='/videos/v1/scenes')return {body:scenes};
+  if(path==='/publishing')return {body:{postiz:{connected:false,address:null,channel:null},defaultVisibility:'public'}};
+  if(path==='/videos/v1/postiz')return {body:null};
+  if(path.startsWith('/api/exports'))return {body:{jobs:[],nextOffset:null}};
+ });
+ const tags=(root:Element)=>[...root.querySelectorAll('.tagsbox .chip')].map(chip=>chip.textContent);
+ const tabs:VideoTab[]=[];
+ let ui=await mountUI(createElement(Harness,{initial:publishing,tabs,start:'publish'}));
+ try{
+  await flush();
+  const c=ui.container;
+  const input=c.querySelector('#pub-tags') as HTMLInputElement;
+  assert.ok(input,'the Publish form');
+  await act(async()=>{Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value')!.set!.call(input,'claude code, ai');input.dispatchEvent(new Event('input',{bubbles:true}));});
+  await act(async()=>{input.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}));});await flush();
+  assert.deepEqual(tags(c),['claude code','ai']);
+  assert.deepEqual(saved.tags,['claude code','ai'],'saved at once, not only when the page is left');
+  assert.deepEqual(server.calls.filter(call=>call.method==='PUT'&&call.path==='/videos/v1/package').at(-1)?.body,{tags:['claude code','ai']},'only the tags are sent');
+  // Switch step and come back.
+  await act(async()=>[...c.querySelectorAll<HTMLElement>('.tabs a, .tabs button')].find(tab=>tab.textContent?.trim().endsWith('Plan'))!.click());await flush();
+  assert.equal(tabs.at(-1),'plan');
+  assert.equal(c.querySelector('#pub-tags'),null,'Plan is open');
+  await act(async()=>[...c.querySelectorAll<HTMLElement>('.tabs a, .tabs button')].find(tab=>tab.textContent?.trim().endsWith('Publish'))!.click());await flush();
+  assert.deepEqual(tags(c),['claude code','ai'],'after switching step');
+  // Remove one: that is saved too.
+  await act(async()=>(c.querySelector('button[aria-label="Remove ai"]') as HTMLElement).click());await flush();
+  assert.deepEqual(saved.tags,['claude code']);
+ }finally{await ui.close();}
+ // Reopen: a new page reads the package from the server.
+ ui=await mountUI(createElement(Harness,{initial:publishing,tabs,start:'publish'}));
+ try{await flush();assert.deepEqual(tags(ui.container),['claude code'],'after reopening');}
+ finally{await ui.close();server.restore();}
+});

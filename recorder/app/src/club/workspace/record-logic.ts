@@ -1,5 +1,6 @@
 import type {Outline,OutlineScene,Package,Video,VideoScene} from '../../../shared/club';
 import {describeAngle} from '../../../shared/description';
+import type {Clip} from '../../../shared/types';
 
 /*
  * The parts of Record and Publish that need no screen: which recording-project scene a strip choice means, which outline scene the
@@ -31,12 +32,25 @@ export const sceneRunSeconds=(scene:VideoScene):number=>{
 };
 
 /**
- * The description to start from: the hook, the angle, then a chapter line per scene ("0:00 Opening"). YouTube needs the first chapter at 0:00.
+ * The chapters of the video as it is cut: each scene whose kept take is on the timeline, at the time its first clip starts there, in timeline order.
+ * Scenes not recorded are not in the video, so they have no chapter. YouTube needs the first chapter at 0:00.
+ */
+export function timelineChapters(scenes:readonly VideoScene[]|undefined,clips:readonly Pick<Clip,'start'|'recordingTakeId'>[]):{title:string;start:number}[]{
+ const found=(scenes??[]).flatMap(scene=>{
+  const kept=new Set(scene.takes.filter(take=>take.kept).map(take=>take.id));
+  const starts=clips.filter(clip=>clip.recordingTakeId&&kept.has(clip.recordingTakeId)).map(clip=>clip.start);
+  return starts.length?[{title:scene.title,start:Math.min(...starts)}]:[];
+ }).sort((a,b)=>a.start-b.start);
+ return found.map((chapter,index)=>index===0?{...chapter,start:0}:chapter);
+}
+
+/**
+ * The description to start from: the hook, the angle, then a chapter line per scene on the timeline ("0:00 Opening", see `timelineChapters`).
+ * Without the timeline (`clips` not known) there are no chapters: planned seconds are not where the scenes are.
  * Nothing comes from the outline's promise, and the angle is cut before any sentence of the planner's own notes about the brief (`describeAngle`).
  */
-export function buildDescription(pkg:Package|null,scenes:readonly VideoScene[]|undefined,clock:(seconds:number)=>string):string{
- let at=0;
- const chapters=(scenes??[]).map(scene=>{const line=`${clock(at)} ${scene.title}`;at+=sceneRunSeconds(scene);return line;});
+export function buildDescription(pkg:Package|null,scenes:readonly VideoScene[]|undefined,clock:(seconds:number)=>string,clips?:readonly Pick<Clip,'start'|'recordingTakeId'>[]):string{
+ const chapters=clips?timelineChapters(scenes,clips).map(chapter=>`${clock(chapter.start)} ${chapter.title}`):[];
  const parts=[pkg?.hook.spoken.trim(),describeAngle(pkg?.angle??''),chapters.length?`Chapters\n${chapters.join('\n')}`:''].filter(Boolean);
  return parts.join('\n\n');
 }

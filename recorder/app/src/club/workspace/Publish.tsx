@@ -8,13 +8,14 @@ import {clubFetch,clubUpload,errorMessage,notifyVideosChanged} from '../api';
 import {ErrorLine} from '../ErrorLine';
 import {watchJob,failureMessage} from '../jobs';
 import {PostizSetup} from '../publishing/PostizSetup';
-import {TITLE_MAX,VISIBILITY_OPTIONS,defaultSchedule,progressOf,publishProblem,scheduleTime,whenText,type ResultInfo} from '../publishing/publish-logic';
+import {TITLE_MAX,VISIBILITY_OPTIONS,unrecordedWarning,defaultSchedule,progressOf,publishProblem,scheduleTime,whenText,type ResultInfo} from '../publishing/publish-logic';
 import {usePublishing} from '../publishing/usePublishing';
 import {exportFileName,latestVideoExport} from '../recorder/edit-steps';
 import {clockTime} from '../video-plan';
 import {Button,Card,EmptyState,Icon,Input,Spinner,Textarea} from '../ui';
 import {PackageSummary,PasteLinkForm,ProgressCard,ResultCard,SELF_UPLOAD_LINE,SelfUpload,TagsField} from './PublishParts';
 import {buildDescription} from './record-logic';
+import {recordedCount} from '../scene-status';
 
 export const PUBLISH_LINE='Postiz uploads it to YouTube at the time you pick, even if your laptop is closed.';
 /** What the server keeps of a description. */
@@ -66,7 +67,8 @@ export function Publish({video,pkg,scenes,onVideo,onDescription,onTags,onGoTo,sa
 
  // ---- the form
  const [title,setTitle]=useState(video.title);
- const built=useMemo(()=>buildDescription(pkg,scenes,clockTime),[pkg,scenes]);
+ // Chapters come from the timeline as it is cut, once the recording project is read.
+ const built=useMemo(()=>buildDescription(pkg,scenes,clockTime,project?.clips),[pkg,scenes,project]);
  const [edited,setEdited]=useState<string|undefined>(undefined);
  const description=edited??pkg?.description??built;
  useEffect(()=>{if(edited!==undefined&&edited===pkg?.description)setEdited(undefined);},[pkg?.description,edited]);
@@ -130,6 +132,8 @@ export function Publish({video,pkg,scenes,onVideo,onDescription,onTags,onGoTo,sa
   action={<Button variant="primary" size="md" onClick={()=>onGoTo(scenes.length?'record':'plan')}><Icon name={scenes.length?'microphone':'scenes'} size={15}/>{scenes.length?'Open record':'Open plan'}</Button>}/></div></div>;
 
  const scheduledDate=schedule&&'date' in schedule?schedule.date:null;
+ // Scenes without a kept take are not on the timeline, so not in the exported video: said before it goes out.
+ const unrecorded=scenes?unrecordedWarning(scenes.length,recordedCount(scenes)):null;
  const summary=<PackageSummary video={video} thumbnailText={pkg?.thumbnailText} thumbnailUrl={thumbnail} channel={publishing.state?.postiz.channel?.name} visibility={visibility} when={scheduledDate} title={title} description={description} tags={tags}/>;
  // Green "on YouTube" only when the video really is Published. Postiz saying so is not enough until it has moved.
  const result:{info:ResultInfo}|null=published?{info:{state:'published',visibility:record?.visibility??'public',url:video.youtubeUrl,postizUrl:record?.postizUrl}}
@@ -160,6 +164,7 @@ export function Publish({video,pkg,scenes,onVideo,onDescription,onTags,onGoTo,sa
  return <div className="pubx">{head}
   <div className="pubx-grid"><div>
    <div className="pubx-export">{exportLine}</div>
+   {unrecorded&&<p className="small pubx-warn" role="status">{unrecorded}</p>}
    <Card className="pubx-route">
     <div className="rh"><span className="logo logo-postiz">P</span><div><div className="rt">Publish with Postiz</div><div className="rd">Schedules the upload for you. A paid service, from $29 a month.</div></div></div>
     {publishing.error?<ErrorLine message={publishing.error} onRetry={publishing.reload}/>:publishing.state?<PostizSetup state={publishing.state} onState={publishing.setState}/>:<Spinner label="Loading"/>}
@@ -182,9 +187,9 @@ export function Publish({video,pkg,scenes,onVideo,onDescription,onTags,onGoTo,sa
     {when==='schedule'&&<div><label className="field" htmlFor="pub-at">Date and time</label><Input id="pub-at" type="datetime-local" value={at} aria-invalid={schedule&&'message' in schedule?true:undefined} onChange={event=>setAt(event.target.value)}/></div>}
    </Card>
    <div className="pubx-foot">
-    <div className="fi">{problem?<span className="pubx-warn" role={tried?'alert':undefined}>{problem}</span>:<span>The exported video goes to Postiz, then to YouTube.</span>}</div>
-    {/* One primary per view: until there is an export, Export video is the primary and this waits. */}
-    <Button variant={exported?'primary':'secondary'} size="md" onClick={()=>void submit()}><Icon name={when==='now'?'upload':'calendar'} size={15}/>{when==='now'?'Publish now':`Schedule for ${scheduledDate?whenText(scheduledDate):'later'}`}</Button>
+    <div className="fi">{problem?<span className="pubx-warn" id="pub-why" role="status">{problem}</span>:<span>The exported video goes to Postiz, then to YouTube.</span>}</div>
+    {/* One primary per view: until there is an export, Export video is the primary and this waits. It cannot be pressed while something stands in the way, and the reason sits beside it. */}
+    <Button variant={exported?'primary':'secondary'} size="md" disabled={Boolean(problem)} aria-describedby={problem?'pub-why':undefined} onClick={()=>void submit()}><Icon name={when==='now'?'upload':'calendar'} size={15}/>{when==='now'?'Publish now':`Schedule for ${scheduledDate?whenText(scheduledDate):'later'}`}</Button>
    </div>
    {publishing.state&&!postizReady&&<div className="pubx-alt"><SelfUpload video={video} onVideo={onVideo}/></div>}
   </div>{summary}</div>

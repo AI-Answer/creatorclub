@@ -120,7 +120,7 @@ test('overview: progress words and the next action come from the scenes that are
  assert.equal(progressText(video('a','planning'),three),'Planning · 3 scenes drafted');
  assert.equal(progressText(video('a','planning'),sceneProgress(1,0)),'Planning · 1 scene drafted');
  assert.equal(progressText(video('a','recording'),three),'Recording · 1 of 3 scenes');
- assert.equal(progressText(video('a','editing'),all),'Editing · 2 scenes recorded');
+ assert.equal(progressText(video('a','editing'),all),'Editing · 2 of 2 scenes recorded');
  assert.equal(progressText(video('a','publishing'),all),'Publishing · ready to upload');
  assert.equal(progressText(video('a','published',{publishedAt:'2026-10-02'}),none),'Published Oct 2');
  assert.equal(progressText(video('a','ideas'),none),'Idea');
@@ -131,6 +131,34 @@ test('overview: progress words and the next action come from the scenes that are
  assert.equal(nextAction(video('a','editing'),all).tab,'edit');assert.equal(nextAction(video('a','publishing'),all).tab,'publish');
  assert.equal(nextAction(video('a','published',{views:12400}),none).label,'12K views');
  assert.deepEqual(sceneProgress(3,1).map(scene=>scene.takes.some(take=>take.kept)),[true,false,false]);
+});
+
+test('Home, the board cards, the table and the strip count "scenes recorded" with one rule, over the real shapes',async()=>{
+ const {recordedCount,recordedLine,sceneStatus,isSceneRecorded}=await import('./scene-status');
+ const {scenesLine}=await import('./production');
+ const {toProgress}=await import('./scenes');
+ const {allScenesKept}=await import('./workspace/rules');
+ // As GET /videos/scenes sends them: recorded but not kept (set aside, or waiting), kept, none.
+ const scene=(id:string,takes:{kept:boolean;retained?:boolean}[])=>({id,title:id,seconds:60,status:'',takes:takes.map((take,i)=>({id:`${id}${i}`,seconds:20,retained:false,...take}))});
+ const hidden=[scene('a',[{kept:false,retained:true},{kept:true}]),scene('b',[{kept:false}]),scene('c',[]),scene('d',[])];
+ const progress=toProgress(hidden);
+ assert.deepEqual(progress.map(item=>isSceneRecorded(item)),[true,false,false,false],'a take that was recorded but not kept is not a recorded scene');
+ assert.deepEqual(progress.map(item=>sceneStatus(item).label),['Kept take 2','1 take','Not recorded','Not recorded'],'the strip');
+ assert.equal(recordedCount(hidden),1);assert.equal(recordedCount(progress),1,'the same count from the server shape and the dots');
+ assert.equal(progressText(video('h','editing'),progress),'Editing · 1 of 4 scenes recorded','Home');
+ assert.equal(scenesLine(recordedCount(progress),progress.length),'1 of 4 scenes','the board card and the table');
+ assert.equal(recordedLine(progress),'1 of 4 scenes recorded');
+ assert.equal(allScenesKept(hidden),false);
+ // Nothing on the timeline: Home and the board say 0, and the next step is Record, not Keep editing.
+ const still=[scene('a',[{kept:false}]),scene('b',[]),scene('c',[])];
+ assert.equal(progressText(video('s','editing'),toProgress(still)),'Editing · 0 of 3 scenes recorded');
+ assert.deepEqual(nextAction(video('s','editing'),toProgress(still)),{label:'Record scene 1',tab:'record',icon:'microphone'});
+ assert.equal(nextAction(video('s','editing'),toProgress([])).label,'Draft scenes from board');
+ assert.equal(nextAction(video('s','editing'),progress).label,'Keep editing','one scene on the timeline is something to edit');
+ // Scenes added to the outline after recording: they count as not recorded, so the total grows and the count stays.
+ const grown=[...hidden,scene('e',[])];
+ assert.equal(progressText(video('h','editing'),toProgress(grown)),'Editing · 1 of 5 scenes recorded');
+ assert.equal(allScenesKept([scene('a',[{kept:true}])]),true);
 });
 
 test('unknown scenes are not zero scenes: only the stage is said until they are known, and a known empty outline says so',()=>{
