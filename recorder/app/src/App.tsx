@@ -160,7 +160,7 @@ export default function App({embedded}:{embedded?:EmbeddedRecorder}={}){
  const duration=p?projectDuration(p):0;
  const clubToast=useToast(),toastRef=useRef<(message:string)=>void>(()=>{}),notify=useCallback((s:string)=>{toastRef.current(s);},[]);
  /** Why something was not done: in the club a toast without the check mark that means done. */
- const refuse=useCallback((s:string)=>{if(embedded)clubToast(s,{refused:true});else toastRef.current(s);},[embedded,clubToast]);
+ const inClub=Boolean(embedded),refuse=useCallback((s:string)=>{if(inClub)clubToast(s,{refused:true});else toastRef.current(s);},[inClub,clubToast]);
  useEffect(()=>{if(p?.id!==projectId.current){projectId.current=p?.id||'';setModal(value=>value==='media-recovery'?null:value);timelineSeek.cancel();setSelectedRange(null);playhead.set(0);setPlaying(false);setSelected(null);setSelectedIds(new Set());setTool('select');setScrubbing(false);setPlaybackRate(1);setPanel(null);setSide('transcript');setPreview(null);if(p)initialProjectMode.current=null;}},[p?.id]);
  // The clock advances from the stored playhead every frame, so unrelated renders can never rewind it.
  useEffect(()=>{if(!playing)return;let frame=0,last=performance.now();const tick=(now:number)=>{const elapsed=(now-last)/1000;last=now;const next=playhead.get()+elapsed*playbackRate;if(next>=duration){playhead.set(duration);setPlaying(false);return;}playhead.set(next);frame=requestAnimationFrame(tick);};if(playhead.get()>=duration)playhead.set(0);frame=requestAnimationFrame(tick);return()=>cancelAnimationFrame(frame);},[playing,duration,playbackRate,playhead]);
