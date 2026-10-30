@@ -900,3 +900,13 @@
 .club-root .pkg-add.under { margin-left: 28px; }
 .club-root .pkg-thumb-text { font-size: 17px; font-weight: 700; letter-spacing: -0.02em; }
 .club-root .prev-thumb .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.club-root .plan .doc-h { flex-wrap: wrap; row-gap: 8px; }
+.club-root .plan .scn { container-type: inline-size; }
+@container (max-width: 460px) {
+  .club-root .scene-open .decide-count { display: none; }
+}
+@media (max-width: 1279px) {
+  .club-root .plan .pkg { padding: 24px 22px 48px 24px; }
+  .club-root .plan .scn { padding: 24px 20px 48px; }
+  .club-root .plan-lines { padding: 12px 24px 0; }
+}

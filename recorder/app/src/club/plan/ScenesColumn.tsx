@@ -93,8 +93,8 @@ export function ScenesColumn({target,onTarget,hasRecording,outline,known,focusId
    {scenes.length>0&&<Menu align="right" label="Write with Claude" items={writes} button={(toggle,open)=><Button size="sm" aria-expanded={open} aria-haspopup="menu" disabled={!writes.length} onClick={toggle}>
     {busy?<span className="spin" role="status" aria-label="Writing"/>:<Icon name="ai" size={14}/>}Write with Claude<Icon name="expand" size={13}/></Button>}/>}
   </div>
-  {scenes.length>0&&<div className="row" style={{marginBottom:14,gap:14}}>
-   <span className="doc-sub" style={{margin:0,whiteSpace:'nowrap'}}>Talk through each one when you record.</span><span className="grow"/>
+  {scenes.length>0&&<div className="row" style={{marginBottom:14,gap:'8px 14px',flexWrap:'wrap'}}>
+   <span className="doc-sub" style={{margin:0}}>Talk through each one when you record.</span><span className="grow"/>
    <div className="len" style={{whiteSpace:'nowrap'}}><span className="tnum"><b style={{color:over?'var(--cc-warn)':'var(--cc-text)'}}>{clockTime(total)}</b>{target>0?' of':''}</span>
     <select className="select" style={{height:26,fontSize:12.5}} value={target} onChange={event=>onTarget(Number(event.target.value))} aria-label="Target length">
      <option value={0}>No target</option>{TARGET_SECONDS.map(seconds=><option key={seconds} value={seconds}>{seconds/60} min</option>)}</select>
@@ -122,7 +122,7 @@ export function ScenesColumn({target,onTarget,hasRecording,outline,known,focusId
      <button type="button" className="scene-open" aria-expanded={false} aria-label={`Scene ${i+1}: ${scene.title}`} aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"
       onClick={()=>open(id)} onKeyDown={event=>moveKeys(event,i,true)}>
       <span className="n">{i+1}</span><span className="t ellipsis">{scene.title||'Untitled'}</span>
-      {decide.length>0&&<span className="faint small">{decide.length} to decide</span>}
+      {decide.length>0&&<span className="faint small decide-count">{decide.length} to decide</span>}
       {writing&&<span className="spin" role="status" aria-label="Writing the script"/>}
       {status}<span className="tnum small muted">{clockTime(scene.seconds)}</span>
      </button>
