@@ -34,6 +34,13 @@ export interface Element {
  id:string; type:'text'|'rectangle'|'ellipse'|'arrow'|'highlight'|'blur'; start:number; duration:number; text:string;
  x:number;y:number;width:number;height:number;color:string;background:string;fontSize:number;opacity:number;rotation:number;
 }
+/** The animated graphics templates (`shared/motion/`): the same template renders the preview and the export. */
+export type MotionTemplateId='title-card'|'lower-third'|'callout'|'chapter-label';
+/**
+ * An animated title, lower third, callout or chapter label on the timeline's Motion row. Blocks may overlap clips of other rows but never
+ * each other. `props` holds the template's text and positions (`shared/motion/templates.ts` names and limits them).
+ */
+export interface MotionBlock { id:string; template:MotionTemplateId; style:string; start:number; duration:number; props:Record<string,string|number>; }
 export interface Zoom { id:string; start:number; duration:number; scale:number; x:number;y:number; target:'screen'|'camera'; easing:'linear'|'smooth'; effectTiming?:{offset:number;duration:number}; }
 export interface CursorPoint { time:number;x:number;y:number;pressed?:boolean;visible?:boolean; }
 export interface CursorSettings { enabled:boolean; size:number; color:string; highlight:boolean; smoothing:number; points:CursorPoint[]; }
@@ -50,6 +57,8 @@ export interface Project {
  version:1; id:string; name:string; createdAt:string; updatedAt:string;
  canvas:Canvas; scenes:Scene[]; media:Media[]; clips:Clip[]; captions:Caption[]; captionStyle:CaptionStyle;
  elements:Element[]; zooms:Zoom[]; cursor:CursorSettings; notes:string;
+ /** Animated graphics blocks; absent on projects made before motion blocks (read as none). */
+ motion?:MotionBlock[];
  recordedTakes?:RecordedTake[];
  /** Points the editor marks on the timeline (M), in timeline seconds. */
  markers?:Array<{id:string;time:number;name?:string}>;
@@ -75,6 +84,6 @@ export const clipDuration=(clip:Clip)=>Math.max(0,(clip.sourceOut-clip.sourceIn)
 /** Legacy untagged sources retain their original track priority. */
 export function narrationPriority(clip:Clip,media?:Media){const role=clip.audioRole??media?.audioRole;return role==='microphone'?-1:role==='system'?4:({audio:0,camera:1,screen:2,overlay:3,music:4})[clip.track];}
 export function clipEffectTiming(clip:Clip){const sourceIn=Math.min(clip.sourceIn,clip.effectTiming?.sourceIn??clip.sourceIn),sourceOut=Math.max(clip.sourceOut,clip.effectTiming?.sourceOut??clip.sourceOut);return {sourceIn,sourceOut,offset:(clip.sourceIn-sourceIn)/clip.speed,duration:(sourceOut-sourceIn)/clip.speed};}
-export const projectDuration=(p:Project)=>Math.max(0,...p.clips.map(c=>c.start+clipDuration(c)),...p.elements.map(e=>e.start+e.duration),...p.scenes.map(s=>s.start+s.duration));
+export const projectDuration=(p:Project)=>Math.max(0,...p.clips.map(c=>c.start+clipDuration(c)),...p.elements.map(e=>e.start+e.duration),...(p.motion??[]).map(m=>m.start+m.duration),...p.scenes.map(s=>s.start+s.duration));
 export const makeId=()=>globalThis.crypto.randomUUID();
 export function createProject(name='Untitled project'):Project {const now=new Date().toISOString();return {version:1,id:makeId(),name,createdAt:now,updatedAt:now,canvas:{width:1920,height:1080,fps:30,background:'#121212',backgroundPattern:'moving-dots',padding:48,radius:20},scenes:[{id:makeId(),name:'Scene 1',script:'',notes:'',start:0,duration:0}],media:[],clips:[],captions:[],captionStyle:{enabled:true,fontSize:48,color:'#ffffff',background:'#10131ccc',position:'bottom',maxWords:7},elements:[],zooms:[],cursor:{enabled:false,size:24,color:'#ffffff',highlight:false,smoothing:.5,points:[]},notes:'',settings:{previewQuality:'proxy',snap:true,ripple:true,teleprompterSpeed:30,teleprompterFontSize:42,teleprompterMirror:false}};}

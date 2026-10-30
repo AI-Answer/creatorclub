@@ -9,6 +9,8 @@ const {createRecordingHud}=require('./recording-hud.cjs');
 const {createNativeRecordingManager}=require('./native-recording.cjs');
 const {createCaptureBorder}=require('./capture-border.cjs');
 const {createMediaPermissionRequests}=require('./media-permissions.cjs');
+const {createMotionRenderer}=require('./motion-render.cjs');
+let motionRenderer=null;
 let mainWindow, service, captureManager, recordingHud, nativeRecording, captureBorder, ownService = false, quitting = false;
 // CreatorClub's own port: SceneForge's service on its default port is never used or disturbed.
 const PORT=CREATORCLUB.port, base=`http://127.0.0.1:${PORT}`;
@@ -141,9 +143,15 @@ async function startService(){
  // Recordings and edits use SceneForge's storage format in CreatorClub's own folder; SCENEFORGE_DATA_DIR still overrides it.
  // Only a launcher inside this app is offered for MCP; without one (the dev app) none is advertised, never SceneForge's.
  const env=runtimeEnvironment({root:projectRoot,data:paths.studio,modelsDir:paths.models,port:PORT});env.SCENEFORGE_MCP_COMMAND??='';
+ // The service asks this process to capture motion blocks (see below); without the variable it uses Chrome, as in development.
+ env.CREATORCLUB_MOTION_BRIDGE='1';
  if(fs.existsSync(entry))service=utilityProcess.fork(entry,[],{env,stdio:'pipe',serviceName:'CreatorClub media service'});
- else service=spawn(process.env.SCENEFORGE_NODE||process.env.npm_node_execpath||'node',['--import','tsx',path.join(projectRoot,'server/index.ts')],{cwd:projectRoot,env,stdio:'pipe'});
+ else service=spawn(process.env.SCENEFORGE_NODE||process.env.npm_node_execpath||'node',['--import','tsx',path.join(projectRoot,'server/index.ts')],{cwd:projectRoot,env,stdio:['pipe','pipe','pipe','ipc']});
  ownService=true;
+ // Motion blocks are captured here, in offscreen windows, for the service (which cannot open windows): it asks over its message channel.
+ motionRenderer??=createMotionRenderer({BrowserWindow,session});
+ const post=message=>{try{if(typeof service.postMessage==='function')service.postMessage(message);else if(service.connected)service.send(message);}catch(error){console.error(error);}};
+ service.on('message',message=>{motionRenderer.handle(message,post);});
  service.stdout?.on('data',d=>console.log(d.toString()));service.stderr?.on('data',d=>console.error(d.toString()));
  for(const deadline=Date.now()+30000;Date.now()<deadline;){try{if(await serviceAnswers())return;}catch{}await new Promise(r=>setTimeout(r,40));}
  throw new Error(`The local media service did not start. Reopen CreatorClub and check that port ${PORT} is available.`);
@@ -201,4 +209,4 @@ app.whenReady().then(async()=>{
  try{await mainWindow.loadURL(base);}finally{if(mainWindow&&!mainWindow.isDestroyed()&&!mainWindow.isVisible())mainWindow.show();}
 });
 app.on('window-all-closed',()=>app.quit());
-app.on('before-quit',e=>{if(quitting)return;e.preventDefault();quitting=true;captureBorder?.clear();recordingHud?.dispose();captureManager?.dispose();clearGlobalShortcuts();Promise.resolve(nativeRecording?.dispose()).catch(console.error).finally(()=>{if(ownService)service?.kill();app.quit();});});
+app.on('before-quit',e=>{if(quitting)return;e.preventDefault();quitting=true;captureBorder?.clear();recordingHud?.dispose();captureManager?.dispose();clearGlobalShortcuts();motionRenderer?.dispose();Promise.resolve(nativeRecording?.dispose()).catch(console.error).finally(()=>{if(ownService)service?.kill();app.quit();});});
