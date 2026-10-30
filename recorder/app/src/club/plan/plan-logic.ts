@@ -34,7 +34,7 @@ export const newSceneId=()=>`s_${[...crypto.getRandomValues(new Uint8Array(4))].
 export function packageDiff(server:Package|null,next:Package):Partial<Omit<Package,'titles'>>&{titles?:(string|null)[]}|Package{
  if(!server)return next;
  const out:Record<string,unknown>={};
- for(const key of ['demand','gap','show','angle','twist','thumbnailText','description'] as const)
+ for(const key of ['demand','gap','show','angle','twist','thumbnailText','description','tags'] as const)
   if(next[key]!==undefined&&JSON.stringify(server[key])!==JSON.stringify(next[key]))out[key]=next[key];
  // Title slots: only the ones that changed are sent, the others as null.
  if(next.titles.some((title,i)=>title!==server.titles[i]))out.titles=next.titles.map((title,i)=>title!==server.titles[i]?title:null);

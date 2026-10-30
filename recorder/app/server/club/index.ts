@@ -23,7 +23,8 @@ import { subscribeBoard } from './board-watch.js';
 import { applyCard, askBody, askCompanion, cardBody, readThread, undoCard } from './companion.js';
 import { lock as companionLock } from './companion-actions.js';
 import { editSilences } from './companion-edit.js';
-import { videoScenes, videosScenes } from './scenes.js';
+import { moveFacts, videoScenes, videosMoveFacts, videosScenes } from './scenes.js';
+import { MOVE_REFUSED_STATUS, moveProblem } from '../../shared/club-move.js';
 import { POSITION_MAX, WIDTH_MAX, WIDTH_MIN } from './tile-layout.js';
 import { findTregCall, hasSources, NO_SOURCES, rankedSignals, readSignalsConfig, startSignalsRefresh, writeSignalsConfig, type SignalsSources } from './signals.js';
 import { ideaFromSignal, ideaFromTrending } from './trend-ideas.js';
@@ -415,6 +416,8 @@ export function clubRouter({ ai = {}, transcribe, runAI, readViews = ytDlpViews(
   router.get('/recent', handler(async (_req, res) => res.json(await store.recentVideoIds(await requireWorkspace()))));
   // Every video that is not published, in one request. Registered before /videos/:id so "scenes" is not read as an id.
   router.get('/videos/scenes', handler(async (_req, res) => res.json(await videosScenes(await requireWorkspace()))));
+  // What a move by hand depends on, for every video: the board refuses a move the server would refuse, before it is tried.
+  router.get('/videos/move-facts', handler(async (_req, res) => res.json(await videosMoveFacts(await requireWorkspace(), publishing.projectExported))));
   router.get('/videos/:id', handler(async (req, res) => res.json(await store.readVideo(await requireWorkspace(), param(req, 'id')))));
   router.put('/videos/:id', handler(async (req, res) => {
     res.json(await store.updateVideo(await requireWorkspace(), param(req, 'id'), videoPatchBody.parse(req.body)));
@@ -425,7 +428,12 @@ export function clubRouter({ ai = {}, transcribe, runAI, readViews = ytDlpViews(
   }));
   router.post('/videos/:id/move', handler(async (req, res) => {
     const { stage: target, ...options } = moveBody.parse(req.body);
-    res.json(await store.moveVideo(await requireWorkspace(), param(req, 'id'), target, options));
+    const slug = await requireWorkspace();
+    const video = await store.readVideo(slug, param(req, 'id'));
+    // The server is the authority on moves by hand: forward only when the video has what that stage works on. Back is always allowed.
+    const problem = moveProblem(video.stage, target, await moveFacts(slug, video, publishing.projectExported));
+    if (problem) throw new ClubError(problem, MOVE_REFUSED_STATUS);
+    res.json(await store.moveVideo(slug, video.id, target, options));
   }));
   // Mark as published: the YouTube link and the date are saved and the card moves to Published. Views are read once afterwards.
   router.post('/videos/:id/publish', handler(async (req, res) => {

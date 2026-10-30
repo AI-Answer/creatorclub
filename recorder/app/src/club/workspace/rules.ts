@@ -1,6 +1,7 @@
 import type {VideoScene,VideoStage} from '../../../shared/club';
 import {videoTabs,type VideoTab} from '../routes';
 import {movesForward,stageReached} from '../video-plan';
+import {isSceneRecorded} from '../scene-status';
 
 /*
  * The rules of a video's workspace that need no screen: the tabs and their words, where Continue moves the card,
@@ -32,7 +33,7 @@ export interface TabFacts{
 }
 
 /** True when every scene has a kept take. A video with no scenes has recorded nothing. */
-export const allScenesKept=(scenes:readonly Pick<VideoScene,'takes'>[]|undefined)=>!!scenes?.length&&scenes.every(scene=>scene.takes.some(take=>take.kept));
+export const allScenesKept=(scenes:readonly Pick<VideoScene,'takes'>[]|undefined)=>!!scenes?.length&&scenes.every(isSceneRecorded);
 
 /**
  * Whether the tab's own job is done. Board and Plan: there are scenes. Record: every scene has a kept take.

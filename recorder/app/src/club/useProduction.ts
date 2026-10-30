@@ -1,10 +1,32 @@
-import {useCallback,useRef,useState} from 'react';
+import {useCallback,useEffect,useRef,useState} from 'react';
 import type {Video,VideoStage} from '../../shared/club';
-import {clubFetch,errorMessage} from './api';
+import {moveProblem,type MoveFacts} from '../../shared/club-move';
+import {VIDEOS_CHANGED,clubFetch,errorMessage} from './api';
 import {formatDay} from './board';
 import {applyMove,planMove} from './production';
 import {useToast} from './ui';
 import {useVideos,type VideosState} from './useVideos';
+
+/**
+ * What each video has for the move rule (`moveProblem`), by id: read with the videos and again after any change to one.
+ * A video missing from it (not read yet, or unreadable) is moved and left to the server, which refuses with the same sentence.
+ */
+export function useMoveFacts():Record<string,MoveFacts>{
+ const [facts,setFacts]=useState<Record<string,MoveFacts>>({});
+ useEffect(()=>{
+  let latest=0,alive=true;
+  const load=()=>{const mine=++latest;clubFetch<Record<string,MoveFacts>>('/videos/move-facts').then(found=>{if(alive&&mine===latest)setFacts(found);},()=>{});};
+  load();window.addEventListener(VIDEOS_CHANGED,load);
+  return()=>{alive=false;window.removeEventListener(VIDEOS_CHANGED,load);};
+ },[]);
+ return facts;
+}
+
+/** Why the move cannot be made, from what is known of the video, or null when it can (or nothing is known: then the server decides). */
+export const knownMoveProblem=(video:Pick<Video,'id'|'stage'>|undefined,stage:VideoStage,facts:Record<string,MoveFacts>)=>{
+ const known=video&&facts[video.id];
+ return known?moveProblem(video.stage,stage,known):null;
+};
 
 /**
  * The videos of Production and the changes it makes to them: moving a card and giving a video a publish day.
@@ -13,6 +35,8 @@ import {useVideos,type VideosState} from './useVideos';
  */
 export function useProduction():{state:VideosState;videos:Video[]|null;reload():void;move(id:string,stage:VideoStage,beforeId:string|null):Promise<void>;schedule(id:string,day:string):Promise<void>}{
  const {state,reload}=useVideos();
+ const facts=useMoveFacts();
+ const factsRef=useRef(facts);factsRef.current=facts;
  const toast=useToast();
  const loaded=state.status==='ready'?state.videos:null;
  // What is shown until the videos are read again: the loaded list they were made from, and the list with the changes in it.
@@ -39,6 +63,9 @@ export function useProduction():{state:VideosState;videos:Video[]|null;reload():
  const move=useCallback(async(id:string,stage:VideoStage,beforeId:string|null)=>{
   const current=latest.current,plan=current&&planMove(current,id,stage,beforeId);
   if(!plan)return;
+  // The same rule the server holds to: a move it would refuse is not shown, and the sentence says what is missing.
+  const problem=knownMoveProblem(current.find(video=>video.id===id),stage,factsRef.current);
+  if(problem){toast(problem);return;}
   try{await place(id,stage,beforeId);}catch(reason){sayFailed(reason,"Couldn't save that change.");return;}
   const {previous}=plan;
   toast(plan.message,{undo:()=>{place(id,previous.stage,previous.beforeId,previous.stageDates).catch(reason=>sayFailed(reason,"Couldn't undo that."));}});

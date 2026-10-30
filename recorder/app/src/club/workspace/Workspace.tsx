@@ -1,6 +1,7 @@
 import {useCallback,useEffect,useMemo,useRef,useState} from 'react';
 import type {Video,VideoStage} from '../../../shared/club';
-import {clubFetch,errorMessage} from '../api';
+import {ClubApiError,clubFetch,errorMessage} from '../api';
+import {MOVE_REFUSED_STATUS} from '../../../shared/club-move';
 import {ClubRecorder} from '../ClubRecorder';
 import {ErrorLine} from '../ErrorLine';
 import {Plan} from '../plan/Plan';
@@ -10,6 +11,7 @@ import {Button,EmptyState,Icon,Spinner,useToast} from '../ui';
 import {usePlan} from '../usePlan';
 import {EMPTY_PACKAGE} from '../plan/plan-logic';
 import {STAGE_LABEL} from '../board';
+import {recordedCount} from '../scene-status';
 import {Board} from './Board';
 import {Companion,type CompanionEditor} from './Companion';
 import type {EditorBridge,EditorState} from '../../App';
@@ -87,7 +89,8 @@ export function Workspace({video,tab,back,navigate,onVideo}:{video:Video;tab:Vid
   const stage=stageForContinue(video.stage,next);
   setMoving(true);setMoveError('');
   try{
-   if(stage)onVideo(await clubFetch<Video>(`/videos/${id}/move`,{body:{stage}}));
+   // The server refuses a move the video is not ready for (no take to edit, no export to publish): the step still opens, and the card stays where it is.
+   if(stage)onVideo(await clubFetch<Video>(`/videos/${id}/move`,{body:{stage}}).catch(reason=>{if(reason instanceof ClubApiError&&reason.status===MOVE_REFUSED_STATUS)return video;throw reason;}));
    navigate(tabRoute(next));
   }catch(reason){setMoveError(errorMessage(reason,"Couldn't move the video."));}
   finally{setMoving(false);}
@@ -137,7 +140,7 @@ export function Workspace({video,tab,back,navigate,onVideo}:{video:Video;tab:Vid
  const scenesInPlan=plan.outline?.scenes;
  const focusIndex=focusId&&scenesInPlan?scenesInPlan.findIndex(scene=>scene.id===focusId):-1;
  const companionScene=useMemo(()=>(tab==='plan'||tab==='record')&&focusIndex>=0&&scenesInPlan?{id:focusId!,index:focusIndex,title:scenesInPlan[focusIndex].title}:undefined,[tab,focusId,focusIndex,scenesInPlan]);
- const recorded=list?.filter(scene=>scene.takes.some(take=>take.kept)).length;
+ const recorded=list&&recordedCount(list);
  const screen=screenSummary(tab,{pkg:plan.pkg,outline:plan.outline,recorded});
 
  return <div className="ws">
@@ -168,7 +171,8 @@ export function Workspace({video,tab,back,navigate,onVideo}:{video:Video;tab:Vid
     :<EmptyState icon={<Icon name="camera"/>} title="Ready to record" description="Start the recording for these scenes."
       action={<Button variant="primary" size="md" disabled={!plan.continueAction||plan.continueAction.disabled} onClick={()=>plan.continueAction?.run()}>Start recording</Button>}/>)}
    {tab==='publish'&&<Publish video={video} pkg={plan.pkg} scenes={list} onVideo={onVideo} onGoTo={target=>navigate(tabRoute(target))}
-    saveError={plan.saveError} onRetry={plan.retrySave} onDescription={description=>plan.editPackage({...(pkgNow.current??EMPTY_PACKAGE),description})}/>}
+    saveError={plan.saveError} onRetry={plan.retrySave} onDescription={description=>plan.editPackage({...(pkgNow.current??EMPTY_PACKAGE),description})}
+    onTags={tags=>{plan.editPackage({...(pkgNow.current??EMPTY_PACKAGE),tags});void plan.flush().catch(()=>{});}}/>}
   </div>
   <Foot next={nextButton}/>
   </div>

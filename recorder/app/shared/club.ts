@@ -227,6 +227,8 @@ export interface Package {
   hook: { visual: string; spoken: string; text: string };
   /** The YouTube description as edited in Publish. Unset until it is edited: Publish then starts from the hook, the angle and the chapters. */
   description?: string;
+  /** The YouTube tags as edited in Publish. Unset until a tag is added. */
+  tags?: string[];
 }
 
 export interface OutlineScene {

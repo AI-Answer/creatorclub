@@ -68,6 +68,7 @@ export const packageShape = z
     thumbnailText: text(200),
     hook: z.object({ visual: text(2000), spoken: text(2000), text: text(500) }).strict(),
     description: text(5000).optional(),
+    tags: z.array(z.string().trim().min(1).max(60)).max(30).optional(),
   })
   .strict();
 

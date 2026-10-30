@@ -28,7 +28,7 @@ type Run={phase:'idle'}|{phase:'running';progress:PublishProgress|null}|{phase:'
  * The Publish step. The exported video, the package as YouTube will show it, Postiz connected once, and the form YouTube asks for
  * (title, description, tags, thumbnail, who can watch, made for kids, now or later). One button sends it; progress and the result follow.
  */
-export function Publish({video,pkg,scenes,onVideo,onDescription,onGoTo,saveError,onRetry}:{video:Video;pkg:Package|null;scenes:readonly VideoScene[]|undefined;onVideo(video:Video):void;onDescription(text:string):void;onGoTo(tab:'plan'|'record'|'edit'):void;saveError?:string;onRetry():void}){
+export function Publish({video,pkg,scenes,onVideo,onDescription,onTags,onGoTo,saveError,onRetry}:{video:Video;pkg:Package|null;scenes:readonly VideoScene[]|undefined;onVideo(video:Video):void;onDescription(text:string):void;/** Saves the tags on the package at once, like the description. */onTags(tags:string[]):void;onGoTo(tab:'plan'|'record'|'edit'):void;saveError?:string;onRetry():void}){
  const publishing=usePublishing();
  const published=video.stage==='published'&&Boolean(video.youtubeUrl);
 
@@ -70,7 +70,8 @@ export function Publish({video,pkg,scenes,onVideo,onDescription,onGoTo,saveError
  const [edited,setEdited]=useState<string|undefined>(undefined);
  const description=edited??pkg?.description??built;
  useEffect(()=>{if(edited!==undefined&&edited===pkg?.description)setEdited(undefined);},[pkg?.description,edited]);
- const [tags,setTags]=useState<string[]>([]);
+ // The tags live on the package, so they are there after switching step or reopening the app.
+ const tags=pkg?.tags??[];
  const [chosen,setChosen]=useState<PublishVisibility|null>(null);
  const visibility=chosen??publishing.state?.defaultVisibility??'public';
  const [kids,setKids]=useState<'yes'|'no'|null>(null),[tried,setTried]=useState(false);
@@ -168,7 +169,7 @@ export function Publish({video,pkg,scenes,onVideo,onDescription,onGoTo,saveError
     <div className="full"><label className="field" htmlFor="pub-desc">Description</label><Textarea id="pub-desc" rows={5} maxLength={DESCRIPTION_MAX} placeholder="What the viewer gets, then chapters." value={description}
      onChange={event=>setEdited(event.target.value)} onBlur={()=>{if(edited!==undefined&&edited!==pkg?.description)onDescription(edited);}}/>
      {saveError&&<ErrorLine message="Couldn't save the description." onRetry={onRetry}/>}</div>
-    <div className="full"><label className="field" htmlFor="pub-tags">Tags</label><TagsField tags={tags} onChange={setTags}/></div>
+    <div className="full"><label className="field" htmlFor="pub-tags">Tags</label><TagsField tags={tags} onChange={onTags}/></div>
     <div className="full"><div className="field">Thumbnail</div><div className="small muted">{thumbnail?'Your own image. ':'YouTube picks a frame unless you add one. '}
      <label className="linkish" style={{cursor:'pointer'}}>{thumbnail?'Use another image':'Upload an image'}<input type="file" className="sr-only" accept="image/png,image/jpeg" onChange={event=>{void pick(event.target.files?.[0]);event.target.value='';}}/></label>
      {thumbnail&&<> <button type="button" className="linkish" onClick={dropThumbnail}>Remove image</button></>}</div>
