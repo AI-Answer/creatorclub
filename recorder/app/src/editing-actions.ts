@@ -290,8 +290,8 @@ export function describeEditAction(action:EditAction,p?:Project):string{
    return `Zoom ${action.scale}× on the ${action.target??'screen'} at ${clock(action.start)} for ${secs(action.duration)}${gone.length?`, replacing ${gone.map(z=>`the ${z.scale}× zoom at ${clock(z.start)}`).join(' and ')}`:''}.`;
   }
   case 'add_motion_block':{
-   const template=MOTION_TEMPLATES[action.template],style=template?.styles.find(s=>s.id===action.style)??template?.styles[0];
-   return `${template?.label??'Motion graphic'} (${style?.label.toLowerCase()??'default'}) “${action.text}”${action.detail?` · ${action.detail}`:''} at ${clock(action.start)} for ${secs(action.duration??template?.defaultDuration??3)}.`;
+   const template=MOTION_TEMPLATES[action.template],end=action.start+(action.duration??template?.defaultDuration??3);
+   return `${template?.label??'Graphic'} “${action.text}”${action.detail?` · ${action.detail}`:''} · ${clock(action.start)} to ${clock(end)}.`;
   }
   case 'update_motion_block':{
    const block=p?blockAt(p,action.at):undefined,label=block?MOTION_TEMPLATES[block.template].label:'Graphic';

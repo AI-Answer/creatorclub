@@ -164,7 +164,7 @@ test('add a motion block: on the Motion row over clips, never inside another blo
  assert.equal(editActionProblem(p,{type:'add_motion_block',template:'chapter-label',start:projectDuration(p)+3,text:'X'}),'That time is outside the video.');
  const callout=apply(p,{type:'add_motion_block',template:'callout',style:'ring',start:3,duration:2,text:'Click here',x:.25,y:.7}).next.motion![0];
  assert.deepEqual(callout.props,{label:'Click here',x:.25,y:.7});
- assert.equal(describeEditAction({type:'add_motion_block',template:'lower-third',start:12,text:'Samin Yasar',detail:'Founder'}),'Lower third (block) “Samin Yasar” · Founder at 0:12 for 5 s.');
+ assert.equal(describeEditAction({type:'add_motion_block',template:'lower-third',start:12,text:'Samin Yasar',detail:'Founder'}),'Lower third “Samin Yasar” · Founder · 0:12 to 0:17.');
  // A ripple delete before the block moves it up; a delete across it shortens it; deleting it removes only it.
  const cut=apply(next,{type:'delete_range',start:2,end:4}).next;assert.deepEqual(cut.motion!.map(m=>[m.start,m.duration]),[[10,5]]);
  const across=apply(next,{type:'delete_range',start:14,end:16}).next;assert.deepEqual(across.motion!.map(m=>[m.start,m.duration]),[[12,3]]);

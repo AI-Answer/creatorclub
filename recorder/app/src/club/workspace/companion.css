@@ -172,3 +172,10 @@
 .club-root .inline-text .md-editor h1 { font-size: 1.25em; margin: .6em 0 .3em; }
 .club-root .inline-text .md-editor h2, .club-root .inline-text .md-editor h3 { font-size: 1.1em; margin: .6em 0 .3em; }
 .club-root .inline-text-err { color: var(--cc-warn); margin-top: 4px; }
+/* Several proposals at once: one button to take them all. */
+.club-root .cmp-all { display: flex; align-items: center; gap: 10px; }
+
+/* What was said on other steps: one quiet line, opened on request. */
+.club-root .cmp-earlier { all: unset; box-sizing: border-box; cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; padding: 8px 10px; border: 1px dashed var(--cc-line-strong); border-radius: 10px; font-size: 12.5px; color: var(--cc-text-2); }
+.club-root .cmp-earlier span { color: var(--cc-accent-text); font-weight: 600; }
+.club-root .cmp-earlier:hover { background: var(--cc-accent-soft); }

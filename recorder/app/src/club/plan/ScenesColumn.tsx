@@ -44,8 +44,10 @@ export function ScenesColumn({target,onTarget,hasRecording,outline,known,focusId
  const total=totalSeconds(scenes),over=target>0&&total>target;
  const knownById=new Map((known??[]).map(scene=>[scene.id,scene]));
 
- // Picking a scene in the strip brings its row into view.
+ // Picking a scene in the strip brings its row into view. Opening Plan does not: it starts at the top, with the title and hook.
+ const opened=useRef(true);
  useEffect(()=>{
+  if(opened.current){opened.current=false;return;}
   if(focusId)document.getElementById(sceneCardId(focusId))?.scrollIntoView?.({behavior:'smooth',block:'center'});
  },[focusId]);
 

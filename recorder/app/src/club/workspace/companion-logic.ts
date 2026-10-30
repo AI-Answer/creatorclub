@@ -78,7 +78,7 @@ export function greeting(tab:CompanionTab,facts:{scenes:number;tiles?:number;rec
  }
 }
 
-const tabOf=(message:CompanionMessage)=>message.role==='user'?message.context.tab:message.tab;
+export const tabOf=(message:CompanionMessage)=>message.role==='user'?message.context.tab:message.tab;
 const day=(at:string|undefined)=>{
  if(!at)return '';
  const date=new Date(at);

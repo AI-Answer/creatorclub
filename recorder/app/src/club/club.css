@@ -1009,3 +1009,9 @@
 .club-root .plan .scn { margin-top: 20px; padding-top: 36px; border-top: 1px solid var(--cc-line); }
 .club-root .plan .doc-h h2 { font-size: 22px; font-weight: 650; letter-spacing: -0.02em; }
 .club-root .plan .doc-h { margin-bottom: 6px; }
+
+/* The scene row never shows a scrollbar line, on Record or Edit. Empty Plan fields look like fields. */
+:where(.club-root) .strip { scrollbar-width: none; }
+:where(.club-root) .strip::-webkit-scrollbar { display: none; }
+.club-root .pkg .ed:empty { border: 1px dashed var(--cc-line-strong); border-radius: 8px; padding: 8px 10px; min-height: 38px; }
+.club-root .pkg .ed:empty:hover, .club-root .pkg .ed:empty:focus { border-color: var(--cc-accent); background: var(--cc-card); }

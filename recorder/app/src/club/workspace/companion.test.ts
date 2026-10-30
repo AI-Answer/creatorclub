@@ -244,7 +244,9 @@ test('a reopened panel finds the reply still being written, and the panel rememb
   await act(async()=>FakeEventSource.last().emit('progress',{type:'text',at:4,text:' of the reply'}));
   assert.equal(c.querySelector('.cmp-md.streaming')?.textContent,'Half of the reply');
   assert.equal(c.querySelectorAll('.cmp-steps.live li').length,2);
-  assert.match(text(c),/Board/,'a divider names the step it was asked on');
+  assert.match(text(c),/Earlier on other steps · 1 message/,'what was asked on another step is one quiet line');
+  await act(async()=>(c.querySelector('.cmp-earlier') as HTMLElement).click());
+  assert.match(text(c),/Board/,'opened, a divider names the step it was asked on');
   await act(async()=>(c.querySelector('button[aria-label="Hide Ask Claude"]') as HTMLElement).click());
   assert.ok(c.querySelector('.cmp.collapsed'));
   for(let i=0;i<50&&document.activeElement!==c.querySelector('.cmp-rail');i++)await act(async()=>{await new Promise(resolve=>setTimeout(resolve,10));});

@@ -1,13 +1,14 @@
 import {useCallback,useEffect,useLayoutEffect,useMemo,useRef,useState,type KeyboardEvent} from 'react';
 import type {Outline,Package,VideoScene} from '../../../shared/club';
-import {ACTION_TITLE,ACTION_VERB,isEditAction,type CompanionCard,type CompanionChanged,type CompanionContext,type CompanionReplyMessage,type CompanionStep,type CompanionTab} from '../../../shared/companion';
+import {ACTION_TITLE,ACTION_VERB,isEditAction,type CompanionAction,type CompanionCard,type CompanionChanged,type CompanionContext,type CompanionReplyMessage,type CompanionStep,type CompanionTab} from '../../../shared/companion';
 import type {EditorBridge,EditorState} from '../../App';
 import {describeEditAction,type SilencePlan} from '../../editing-actions';
+import {MOTION_TEMPLATES} from '../../../shared/motion/templates';
 import {clubFetch} from '../api';
 import {featuredSkills,matchSkills,slashQuery,type InstalledSkill} from '../../../shared/skills';
 import {ErrorLine} from '../ErrorLine';
 import {Button,CompanionMark,Icon,Spinner,cn} from '../ui';
-import {atBottom,elapsed,greeting,lookingAt,previewOf,stepSummary,suggestions,withDividers} from './companion-logic';
+import {atBottom,elapsed,greeting,lookingAt,previewOf,stepSummary,suggestions,tabOf,withDividers} from './companion-logic';
 import {Markdown} from './Markdown';
 import {ReplaceScenes} from './ReplaceScenes';
 import {useCompanion,type Live} from './useCompanion';
@@ -118,6 +119,9 @@ export function Companion({videoId,videoTitle,tab,scene,screen,selection,pkg,out
  useEffect(()=>{if(query===undefined||skills)return;let live=true;clubFetch<InstalledSkill[]>('/skills').then(list=>{if(live)setSkills(list);}).catch(()=>{if(live)setSkills([]);});return()=>{live=false;};},[query,skills]);
  useEffect(()=>{setPick(0);setDismissed(false);if(query===undefined)setShowAll(false);},[query]);
  const [showAll,setShowAll]=useState(false);
+ // What was said on other steps is one line, opened on request (a hook, so it sits above the collapsed panel's early return).
+ const [showEarlier,setShowEarlier]=useState(false);
+ useEffect(()=>setShowEarlier(false),[tab,videoId]);
  // "/" alone lists a short set; typing searches every installed skill, and "Show all" lists them all.
  const short=skills?featuredSkills(skills):[];
  const choices=query!==undefined&&skills&&!dismissed?(query!==''||showAll||!short.length?matchSkills(skills,query):short):[];
@@ -141,13 +145,18 @@ export function Companion({videoId,videoTitle,tab,scene,screen,selection,pkg,out
   </button>
  </aside>;
 
- const items=messages?withDividers(messages,tab):[];
+ // The conversation is one per video, but each step shows its own: what was said on other steps is one line, opened on request.
+ const here=messages?(showEarlier?messages:messages.filter(message=>tabOf(message)===tab)):undefined;
+ const hiddenCount=messages&&here?messages.length-here.length:0;
+ const items=here?withDividers(here,tab):[];
  const sceneCount=outline?.scenes.length??0;
  const recorded=scenes?scenes.filter(one=>one.takes.length>0).length:undefined;
  const ideas=suggestions(tab,{scenes:sceneCount,scene,selected:tab==='research'?selection?.length:editor?.state?.selected,hook:!!pkg?.hook.spoken.trim(),longest:Math.max(0,...(outline?.scenes??[]).map(one=>one.seconds||0)),
   tiles:tab==='board'?tiles:undefined,recorded,titled:!!videoTitle?.trim()||!!pkg?.titles.some(one=>one.trim()),thumbnail:!!pkg?.thumbnailText.trim()});
  // Nothing asked yet: a short greeting for this step with the best prompts right under it, instead of a blank column.
- const fresh=!!messages&&!messages.length&&!live&&!companion.loadError;
+ const fresh=!!here&&!here.length&&!live&&!companion.loadError;
+ // Proposals are waiting for a choice: the suggestions step aside so the cards are the one thing to act on.
+ const lastMessage=messages?.at(-1),awaiting=!!lastMessage&&'cards' in lastMessage&&lastMessage.cards.some(card=>card.state==='offered'&&(tab==='edit'||!isEditAction(card.action)));
  const chips=ideas.length>0&&<div className={cn('cmp-sugg',fresh&&'fresh')} aria-label="Suggestions">{ideas.map(idea=><button key={idea} type="button" onClick={()=>void ask(idea)}>{idea}</button>)}</div>;
  const selected=tab==='edit'?editor?.state?.selected??0:tab==='research'?selection?.length??0:0;
  return <aside className={cn('cmp',narrow&&'over')} aria-label={title} onKeyDown={onPanelKey}>
@@ -169,6 +178,7 @@ export function Companion({videoId,videoTitle,tab,scene,screen,selection,pkg,out
      <p>{greeting(tab,{scenes:sceneCount,tiles:tab==='board'?tiles:undefined,recorded})}</p>
      {chips||null}
     </div>}
+   {hiddenCount>0&&<button type="button" className="cmp-earlier" onClick={()=>setShowEarlier(true)}>Earlier on other steps · {hiddenCount} {hiddenCount===1?'message':'messages'}<span>Show</span></button>}
    {items.map(item=>item.kind==='divider'?<div key={item.key} className="cmp-divider" role="separator">{item.label}</div>
     :item.message.role==='user'?<div key={item.key} className="cmp-me">{item.message.text}</div>
     :<Reply key={item.key} name={name} message={item.message} pkg={pkg} outline={outline} scenes={scenes} busy={companion.busyCard} editor={editor} silences={silences}
@@ -178,7 +188,7 @@ export function Companion({videoId,videoTitle,tab,scene,screen,selection,pkg,out
   </div>
   {behind&&<button type="button" className="cmp-jump" onClick={toBottom}><Icon name="ArrowDown" size={13}/>Jump to latest</button>}
   <div className="cmp-foot">
-   {!working&&!fresh&&chips}
+   {!working&&!fresh&&!awaiting&&chips}
    {pickerOpen&&<div className="cmp-skills" role="listbox" aria-label="Your skills">
     <div className="cmp-skills-head">Your skills</div>
     <div className="cmp-skills-list">
@@ -217,11 +227,17 @@ function useNarrow(roomy:boolean){
 
 /** A finished reply: who, the one-line summary of its steps (opens to the list), the text, and its cards. */
 function Reply({name,message,pkg,outline,scenes,busy,editor,silences,onApply,onUndo}:{name:string;message:CompanionReplyMessage;pkg:Package|null;outline:Outline|null;scenes?:readonly VideoScene[];busy:string|null;editor?:CompanionEditor;silences?:SilencePlan|null;onApply(index:number):Promise<string>;onUndo(index:number):Promise<string>}){
+ // Several proposals in one reply: one button applies them all, one after another, and stops at the first that cannot be applied.
+ const canEdit=!!editor?.get();
+ const offered=canEdit?message.cards.map((card,index)=>({card,index})).filter(({card})=>isEditAction(card.action)&&card.state!=='applied'):[];
+ const [allBusy,setAllBusy]=useState(false);
+ const addAll=async()=>{setAllBusy(true);try{for(const {index} of offered){const failed=await onApply(index);if(failed)break;}}finally{setAllBusy(false);}};
  return <div className="cmp-reply">
   <div className="cmp-who"><CompanionMark size={14}/>{name}</div>
   {message.steps&&message.steps.length>0&&<Steps steps={message.steps}/>}
   {message.text&&<div className="cmp-md"><Markdown text={message.text}/></div>}
   {message.status==='stopped'&&<div className="cmp-note">Stopped</div>}
+  {offered.length>1&&<div className="cmp-all"><Button size="sm" variant="primary" disabled={!!busy||allBusy} onClick={()=>void addAll()}>{allBusy?<span className="spin"/>:null}Add all {offered.length}</Button><span className="cmp-faint">or choose one below</span></div>}
   {message.cards.map((card,index)=><Card key={index} id={`${message.id}:${index}`} card={card} pkg={pkg} outline={outline} scenes={scenes} busy={busy===`${message.id}:${index}`} editor={editor} silences={silences} onApply={()=>onApply(index)} onUndo={()=>onUndo(index)}/>)}
  </div>;
 }
@@ -254,6 +270,9 @@ function LiveReply({name,live,now,onRetry}:{name:string;live:Live;now:number;onR
   {!working&&live.error&&<ErrorLine message={live.error} onRetry={onRetry}/>}
  </div>;
 }
+
+/** What a card is called: for a new graphic, what it adds ("Add a title card"); otherwise the action's own name. */
+const cardTitle=(action:CompanionAction)=>action.type==='add_motion_block'?`Add a ${MOTION_TEMPLATES[action.template]?.label.toLowerCase()??'graphic'}`:ACTION_TITLE[action.type];
 
 const scenesClock=(seconds:number)=>`${Math.floor(seconds/60)}:${String(Math.round(seconds%60)).padStart(2,'0')}`;
 
@@ -292,7 +311,7 @@ function Card({id,card,pkg,outline,scenes,busy,editor,silences,onApply,onUndo}:{
   body=<div className="cmp-card-text"><div className="cmp-card-sub">{action.tileIds.length} {action.tileIds.length===1?'card':'cards'}</div>{action.title}</div>;
  }else body=<div className={cn('cmp-card-text',action.type==='set_description'&&'long')}>{action.text}</div>;
  return <div className={cn('cmp-card',card.state)}>
-  <div className="cmp-card-h"><span>{ACTION_TITLE[action.type]}{action.type==='draft_scenes'?` · ${action.scenes.length}`:''}</span></div>
+  <div className="cmp-card-h"><span>{cardTitle(action)}{action.type==='draft_scenes'?` · ${action.scenes.length}`:''}</span></div>
   {body}
   {shown&&<div className="cmp-preview">
    <div className="cmp-preview-col"><div className="cmp-preview-h">Now</div>{shown.now.length?shown.now.map((line,index)=><div key={index}>{line}</div>):<div className="cmp-faint">Nothing yet</div>}</div>
@@ -303,6 +322,7 @@ function Card({id,card,pkg,outline,scenes,busy,editor,silences,onApply,onUndo}:{
     ?<><span className="cmp-result"><Icon name="Check" size={13} stroke={2.4}/>{card.result??'Applied'}</span>
      {card.version&&<button type="button" className="btn ghost sm" disabled={busy} onClick={()=>{if(asks)setConfirm('undo');else void run(onUndo);}}><Icon name="Undo2" size={14}/>Undo</button>}
      {card.tooOld&&<span className="cmp-faint">Too old to undo</span>}</>
+    :timeline&&!stage?<span className="cmp-faint">This is a change to the timeline. Open Edit to add it.</span>
     :<><Button size="sm" variant="secondary" disabled={busy} onClick={()=>{if(asks)setConfirm('apply');else void run(onApply);}}>{busy?<span className="spin"/>:null}{card.state==='undone'?'Apply again':ACTION_VERB[action.type]}</Button>
      {(!timeline||stage)&&<button type="button" className="btn ghost sm" aria-pressed={preview} onClick={()=>setPreview(!preview)}><Icon name={preview?'EyeOff':'Eye'} size={14}/>{preview?'Hide preview':'Preview'}</button>}
      {card.state==='undone'&&<span className="cmp-faint">Undone</span>}</>}
