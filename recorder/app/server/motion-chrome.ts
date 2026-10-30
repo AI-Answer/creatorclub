@@ -66,7 +66,8 @@ async function launch(): Promise<Browser> {
   child.once("exit", () => {
     failAll(new Error("Chrome closed while rendering motion graphics."));
     running = undefined;
-    void fs.rm(profile, { recursive: true, force: true });
+    // Chrome may still be flushing its profile as it exits: retry, and never let a leftover folder reach the service as an error.
+    void fs.rm(profile, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }).catch(() => {});
   });
   child.once("error", (error) => failAll(error));
   return {
