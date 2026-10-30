@@ -43,8 +43,9 @@ test('the tokens file defines every colour the rule allows, light and dark',()=>
  for(const name of ['--cc-accent','--cc-rec','--cc-ok','--cc-warn','--cc-surface','--cc-text','--cc-line','--kind-screen','--kind-camera','--kind-audio','--kind-graphics','--kind-captions','--kind-zoom','--kind-marker','--cc-shadow-1','--cc-r','--cc-dur'])
   assert.match(tokens,new RegExp(`${name}:`),`${name} is defined`);
  assert.match(tokens,/data-theme=dark/,'a dark set');
- // The primary action is the accent, not a separate colour.
- assert.match(tokens,/--cc-primary: var\(--cc-accent\)/);
+ // The primary action is the dark button of the approved prototype (light in dark mode); blue is for focus, selection and links.
+ assert.match(tokens,/--cc-primary: #151413/);
+ assert.match(tokens,/data-theme=dark[^}]*--cc-primary: #f3f1ed/s);
 });
 
 test('editor stylesheets still to move onto the tokens (Task 7b)',{todo:`raw colours remain in ${EDITOR_COLOUR_TODO.join(', ')}`},()=>{
