@@ -405,7 +405,7 @@ export function Board({video,board:boardProp,scenes,onDrafted=()=>{},refreshKey=
      {tiles.map(tile=>{const box=tileBox(tile);const selected=sel.includes(tile.id);return <div key={tile.id} data-tile={tile.id} tabIndex={0} role="group" aria-label={`${KIND_NAME[tile.kind]} card${tile.title?`: ${tile.title}`:''}. Arrow keys move it, C connects it.`}
       className={cn('tile',tile.kind,selected&&'sel',dragId===tile.id&&'drag',fresh===tile.id&&'fresh',connectFrom===tile.id&&'connect-from')} style={{left:box.x,top:box.y,width:box.w}}
       onPointerDown={event=>onTileDown(event,tile.id)} onKeyDown={event=>onTileKey(event,tile.id)} onFocus={()=>{if(pointing.current){pointing.current=false;return;}if(!sel.includes(tile.id))setSel([tile.id]);setSelLink(null);setSelFrame(null);}}>
-      <TileBody tile={tile} videoId={boardId} reading={board.reading[tile.id]} onRemove={()=>board.remove(tile)} onOpen={()=>setOpenNote(tile.id)}
+      <TileBody tile={tile} videoId={boardId} reading={board.reading[tile.id]} onRemove={()=>board.remove(tile)} onOpen={()=>setOpenNote(tile.id)} onSaveText={tile.kind==='idea'||tile.kind==='text'?text=>board.saveNote(tile.id,text):undefined}
        onRetryRead={()=>board.read(tile)} onBreakdown={setBreakdown} mine={tile.kind==='mine'?(ready?listed.find(each=>each.id===tile.meta.videoId)??null:undefined):undefined} onOpenVideo={openVideo}/>
       <span className="connect-handle" onPointerDown={event=>onHandleDown(event,tile.id)}>
        <IconButton icon="connect" iconSize={12} label="Connect to another card (C)" onClick={()=>{setConnectFrom(tile.id);toast('Pick the card to connect to: drag to it, or focus it and press Enter. Esc cancels.');}}/>

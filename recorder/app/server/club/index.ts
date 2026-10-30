@@ -504,7 +504,7 @@ export function clubRouter({ ai = {}, transcribe, runAI, readViews = ytDlpViews(
       const { pos, base, ...rest } = tilePatchBody.parse(req.body);
       const id = boardOf(req);
       let tile = await store.readTile(slug, id, param(req, 'tileId'));
-      if (rest.text !== undefined && tile.kind !== 'note' && tile.kind !== 'text') throw new ClubError('Only notes can be edited.');
+      if (rest.text !== undefined && tile.kind !== 'note' && tile.kind !== 'text' && tile.kind !== 'idea') throw new ClubError('Only notes, text and ideas can be edited.');
       if (tile.kind === 'note' && !tile.doc) {
         await boardDocs.syncBoard(slug, id);
         tile = await store.readTile(slug, id, tile.id);

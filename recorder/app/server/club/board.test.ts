@@ -103,7 +103,12 @@ test('PATCH moves a tile, renames it and edits a note; it checks the numbers and
 
   assert.equal((await call('PATCH', url(link), { title: 'Renamed' })).body.title, 'Renamed');
   assert.equal((await call('PATCH', url(link), { text: 'x' })).status, 400, 'only notes have text to edit');
-  assert.equal((await call('PATCH', url(link), { text: 'x' })).body.error, 'Only notes can be edited.');
+  assert.equal((await call('PATCH', url(link), { text: 'x' })).body.error, 'Only notes, text and ideas can be edited.');
+  // Text and idea cards are written on the card itself, so their text can be saved too.
+  const idea = (await call('POST', `/videos/${video.id}/research`, { kind: 'idea', text: 'Works for phones' })).body as ResearchTile;
+  const words = (await call('POST', `/videos/${video.id}/research`, { kind: 'text', text: 'A line' })).body as ResearchTile;
+  assert.equal((await call('PATCH', url(idea), { text: 'Works for phones, thin in AI' })).body.text, 'Works for phones, thin in AI');
+  assert.equal((await call('PATCH', url(words), { text: 'A better line' })).body.text, 'A better line');
 
   for (const bad of [{}, { pos: { x: -1, y: 0 } }, { pos: { x: 0, y: 20_001 } }, { pos: { x: 'a', y: 0 } }, { pos: { x: 0 } }, { pos: { x: 0, y: 0, w: 50 } }, { pos: { x: 0, y: 0, w: 5000 } }, { pos: { x: null, y: 0 } }, { kind: 'video' }, { id: 'other' }]) {
     assert.equal((await call('PATCH', url(note), bad)).status, 400, JSON.stringify(bad));

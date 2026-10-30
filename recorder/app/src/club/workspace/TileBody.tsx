@@ -7,6 +7,7 @@ import {ErrorLine} from '../ErrorLine';
 import {creatorName,fmtDays,fmtNum} from '../format';
 import {Avatar,Icon,IconButton,MultChip,SourceIcon,Spinner,StagePill,Thumb,type IconName} from '../ui';
 import {ideaWhy} from '../ideas';
+import {InlineText} from './InlineText';
 import {boardBase} from './board-base';
 import {markdownToHtml} from '../markdown';
 import {openInBrowser} from '../markdown/MarkdownEditor';
@@ -34,6 +35,8 @@ export interface TileBodyProps{
  /** `mine` tiles: the channel's idea or video the card stands for (undefined while the list loads, null when it is gone), and opening it. */
  mine?:Video|null;
  onOpenVideo?(video:Video):void;
+ /** Saves text written on the card itself (ideas and text cards). */
+ onSaveText?(text:string):Promise<unknown>;
 }
 
 /** One tile on the Board, drawn per kind as the prototype does. */
@@ -79,12 +82,12 @@ function NoteTile({tile,onRemove,onOpen}:TileBodyProps){
 const RATING_WORD:Record<string,string>={high:'Strong',mid:'Okay',low:'Weak'};
 
 /** "The idea": why it could work and how it was rated, from the idea the video started as. */
-function IdeaTile({tile,onRemove}:TileBodyProps){
+function IdeaTile({tile,onRemove,onSaveText}:TileBodyProps){
  const {meta}=tile,ratings=[['Demand',meta.demand],['Gap',meta.gap],['Easy to show',meta.show]] as const;
  return <>
   <TileHead icon="idea" label="The idea" onRemove={onRemove}/>
   <div className="tb">
-   {tile.text&&<p style={{margin:'0 0 10px',fontSize:13.5,lineHeight:1.5}}>{tile.text}</p>}
+   {onSaveText?<InlineText value={tile.text??''} label="The idea" placeholder="Write the idea" save={onSaveText}/>:tile.text&&<p style={{margin:'0 0 10px',fontSize:13.5,lineHeight:1.5}}>{tile.text}</p>}
    <div style={{display:'flex',flexDirection:'column',gap:8}}>{ratings.map(([label,rating])=>rating&&<div key={label} className="idea-rating"><div style={{fontSize:13,fontWeight:600}}>{label} <span className="muted" style={{fontWeight:500}}>· {RATING_WORD[rating.level||'mid']}</span></div>{rating.note&&<div className="small muted" style={{marginTop:2,lineHeight:1.45}}>{rating.note}</div>}</div>)}</div>
   </div>
  </>;
@@ -106,8 +109,8 @@ function MineTile({tile,mine,onRemove,onOpenVideo}:TileBodyProps){
  </>;
 }
 
-function TextTile({tile,onRemove}:TileBodyProps){
- return <><TileHead icon="script" label="Text" onRemove={onRemove}/><div className="tb"><p style={{margin:0,whiteSpace:'pre-wrap',fontSize:13.5,lineHeight:1.5}}>{tile.text}</p></div></>;
+function TextTile({tile,onRemove,onSaveText}:TileBodyProps){
+ return <><TileHead icon="script" label="Text" onRemove={onRemove}/><div className="tb">{onSaveText?<InlineText value={tile.text??''} label="Text" placeholder="Write here" save={onSaveText}/>:<p style={{margin:0,whiteSpace:'pre-wrap',fontSize:13.5,lineHeight:1.5}}>{tile.text}</p>}</div></>;
 }
 
 function VideoTile({tile,videoId,reading,onRemove,onRetryRead,onBreakdown}:TileBodyProps){
