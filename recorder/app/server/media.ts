@@ -15,6 +15,7 @@ import { clipShadow } from "../shared/clip-shadow.ts";
 import { canvasBackgroundBMP, canvasBackgroundGeometry, canvasBackgroundRepeatSize, MOVING_DOTS } from "../shared/canvas-background.ts";
 import { zoomTiming } from "../shared/zoom-timing.ts";
 import { filmstripCount, FILMSTRIP_HEIGHT, FILMSTRIP_WIDTH } from "../shared/filmstrip.ts";
+import { renderMotionBlock } from "./motion-render.ts";
 import {
   clipDuration,
   clipEffectTiming,
@@ -24,7 +25,10 @@ import {
   type ExportOptions,
   type Job,
   type Clip,
+  type MotionBlock,
 } from "../shared/types.ts";
+/** A motion block cut by a chunk or an export range: `_offset` seconds into the block, which is `_length` seconds long in all. */
+type SlicedMotion = MotionBlock & { _offset?: number; _length?: number };
 
 const FFMPEG = process.env.SCENEFORGE_FFMPEG || "ffmpeg",
   FFPROBE = process.env.SCENEFORGE_FFPROBE || "ffprobe";
@@ -1261,6 +1265,21 @@ async function executeExport(
         );
         base = `base${n}`;
       }
+      // Motion blocks, under texts and captions as in the preview: each rendered once at this size and frame rate (cached), started
+      // `_offset` into the block when a chunk or range begins inside it, shifted to its start and overlaid in its box.
+      for (const m of (p.motion ?? []) as SlicedMotion[]) {
+        if (!(m.duration > 0)) continue;
+        const { _offset: offset = 0, _length: length = m.duration, ...block } = m;
+        const r = await renderMotionBlock({ ...block, duration: length }, w, h, fps);
+        const first = Math.min(r.frames - 1, Math.round(offset * fps)), count = Math.max(1, Math.round(m.duration * fps));
+        args.push("-i", r.file);
+        const n = ++layer;
+        filters.push(
+          `[${input++}:v]trim=start_frame=${first}:end_frame=${first + count},setpts=PTS-STARTPTS+${seconds(m.start)}/TB,format=rgba[motion${n}]`,
+          `[${base}][motion${n}]overlay=${r.x}:${r.y}:eof_action=pass:format=auto[base${n}]`,
+        );
+        base = `base${n}`;
+      }
       const graphics = await createGraphics(
         p,
         w,
@@ -1537,6 +1556,16 @@ function sliceProject(p: Project, start: number, end: number): Project {
       start: cleanTime(Math.max(0, e.start - start)),
       duration: cleanTime(Math.min(end, e.start + e.duration) - Math.max(start, e.start)),
     }));
+  if (p.motion)
+    q.motion = (p.motion as SlicedMotion[])
+      .filter((m) => Math.min(end, m.start + m.duration) - Math.max(start, m.start) > TIME_EPSILON)
+      .map((m) => ({
+        ...m,
+        start: cleanTime(Math.max(0, m.start - start)),
+        duration: cleanTime(Math.min(end, m.start + m.duration) - Math.max(start, m.start)),
+        _offset: (m._offset ?? 0) + Math.max(0, start - m.start),
+        _length: m._length ?? m.duration,
+      }));
   q.zooms = p.zooms
     .filter((z) => Math.min(end, z.start + z.duration) - Math.max(start, z.start) > TIME_EPSILON)
     .map((z) => ({ ...z, start: z.start - start }));
@@ -1597,7 +1626,7 @@ export function startExport(
     const fps = clamp(o.fps || p.canvas.fps, 1, 120);
     const totalFrames = frameCountFor(duration, fps);
     const burnCaptions = o.burnCaptions !== false && p.captionStyle.enabled;
-    const graphicCount = (q: Project) => (burnCaptions ? q.captions.reduce((sum, c) => sum + captionParts(c, q.captionStyle.maxWords).length, 0) : 0) + q.elements.length;
+    const graphicCount = (q: Project) => (burnCaptions ? q.captions.reduce((sum, c) => sum + captionParts(c, q.captionStyle.maxWords).length, 0) : 0) + q.elements.length + (q.motion?.length ?? 0);
     const visualCount = (q: Project) => q.clips.filter((c) => c.track !== "audio" && c.track !== "music").length;
     if (
       !["mp4", "webm", "wav"].includes(o.format) ||

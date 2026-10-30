@@ -1,7 +1,11 @@
-import {clipDuration,clipEffectTiming,makeId,narrationPriority,type Clip,type Element,type Media,type Project,type TrackKind} from '../shared/types';
+import {clipDuration,clipEffectTiming,makeId,narrationPriority,type Clip,type Element,type Media,type MotionBlock,type Project,type TrackKind} from '../shared/types';
 import {cutTimelineRange,minimumPiece,relinkSlices} from '../shared/timeline-edits';
 import {clipLayerRowId} from '../shared/timeline-layers';
 import {plainClone,plainView} from './project-draft';
+import {MOTION_TEMPLATES} from '../shared/motion/templates';
+
+/** The timeline row of motion blocks: they may overlap clips of other rows, never each other. */
+export const MOTION_ROW='motion';
 
 /**
  * Timeline editing rules of CreatorClub's embedded editor, as pure functions over a project (or a draft of one):
@@ -101,6 +105,7 @@ export interface Deleted {closed:Array<[number,number]>;swept:string[]}
 export function deleteItems(p:Project,ids:Iterable<string>,ripple:boolean):Deleted{
  const all=linkedIds(p.clips,ids),removed=p.clips.filter(c=>all.has(c.id)).map(c=>[c.start,end(c)] as [number,number]);
  p.clips=p.clips.filter(c=>!all.has(c.id));p.elements=p.elements.filter(e=>!all.has(e.id));p.captions=p.captions.filter(c=>!all.has(c.id));p.zooms=p.zooms.filter(z=>!all.has(z.id));
+ if(p.motion)p.motion=p.motion.filter(m=>!all.has(m.id));
  if(p.markers)p.markers=p.markers.filter(m=>!all.has(m.id));
  if(!ripple)return {closed:[],swept:[]};
  // Ripple removes the time the deleted clips leave empty from every row, like Remove pauses: nothing is left behind as a black hole.
@@ -125,6 +130,7 @@ export function openRange(p:Project,at:number,length:number){
  for(const c of p.clips)if(later(c.start))c.start+=length;
  for(const e of p.elements)if(later(e.start))e.start+=length;
  for(const z of p.zooms)if(later(z.start))z.start+=length;
+ for(const m of p.motion??[])if(later(m.start))m.start+=length;
  for(const c of p.captions)if(later(c.start)){c.start+=length;c.end+=length;if(c.words)c.words=c.words.map(w=>({...w,start:w.start+length,end:w.end+length}));}
  for(const s of p.scenes)if(later(s.start)&&s.start>0)s.start+=length;
  for(const m of p.markers??[])if(later(m.time))m.time+=length;
@@ -181,11 +187,12 @@ export function remapLinks(p:Project,ids:ReadonlySet<string>,newId:()=>string=ma
 
 /* ---------- Moves without overlaps ---------- */
 
-/** One timeline item for row checks: a clip on its layer row, or an element, caption or zoom on its own row. */
+/** One timeline item for row checks: a clip on its layer row, or an element, caption, zoom or motion block on its own row. */
 export interface RowItem {id:string;row:string;start:number;duration:number}
 export function rowItems(p:Project):RowItem[]{
  return [...p.clips.map(c=>({id:c.id,row:clipLayerRowId(c,p),start:c.start,duration:clipDuration(c)})),...p.elements.map(e=>({id:e.id,row:'elements',start:e.start,duration:e.duration})),
-  ...p.captions.map(c=>({id:c.id,row:'captions',start:c.start,duration:c.end-c.start})),...p.zooms.map(z=>({id:z.id,row:'zooms',start:z.start,duration:z.duration}))];
+  ...p.captions.map(c=>({id:c.id,row:'captions',start:c.start,duration:c.end-c.start})),...p.zooms.map(z=>({id:z.id,row:'zooms',start:z.start,duration:z.duration})),
+  ...(p.motion??[]).map(m=>({id:m.id,row:MOTION_ROW,start:m.start,duration:m.duration}))];
 }
 /** True when the moving items, shifted by `delta`, start before zero or overlap a still item on their row. */
 export function collides(moving:readonly RowItem[],delta:number,others:readonly RowItem[]){
@@ -240,9 +247,10 @@ export function applyClipStarts(p:Project,starts:ReadonlyMap<string,number>,medi
  for(const c of p.clips){const next=starts.get(c.id);if(next!==undefined)c.start=Math.max(0,next);}
  for(const cap of p.captions){const d=shifts.get(cap.id);if(d===undefined)continue;cap.start+=d;cap.end+=d;if(cap.words)cap.words=cap.words.map(w=>({...w,start:w.start+d,end:w.end+d}));}
 }
-/** Moves elements, captions or zooms by one delta (start only; length unchanged). */
+/** Moves elements, captions, zooms or motion blocks by one delta (start only; length unchanged). */
 export function moveEffects(p:Project,ids:ReadonlySet<string>,delta:number){
  for(const e of p.elements)if(ids.has(e.id))e.start=Math.max(0,e.start+delta);
+ for(const m of p.motion??[])if(ids.has(m.id))m.start=Math.max(0,m.start+delta);
  for(const z of p.zooms)if(ids.has(z.id))z.start=Math.max(0,z.start+delta);
  for(const c of p.captions)if(ids.has(c.id)){const d=Math.max(-c.start,delta);c.start+=d;c.end+=d;if(c.words)c.words=c.words.map(w=>({...w,start:w.start+d,end:w.end+d}));}
 }
@@ -282,15 +290,16 @@ export function trimClips(p:Project,chosen:ReadonlySet<string>,side:'left'|'righ
  if(side==='right'){openRange(p,Math.min(...clips.map(end)),delta);for(const c of p.clips)if(ids.has(c.id))c.sourceOut+=delta*c.speed;return;}
  const length=-delta;openRange(p,Math.min(...clips.map(c=>c.start)),length);for(const c of p.clips)if(ids.has(c.id)){c.start-=length;c.sourceIn-=length*c.speed;}
 }
-/** Resizes an element, caption or zoom edge within [0, neighbours] and keeps at least a tenth of a second. */
+/** Resizes an element, caption, zoom or motion block edge within [0, neighbours] and keeps at least a tenth of a second (a motion block, its template's shortest length). */
 export function resizeEffect(p:Project,id:string,side:'left'|'right',delta:number){
  const items=rowItems(p),item=items.find(i=>i.id===id);if(!item)return;
  const others=items.filter(i=>i.row===item.row&&i.id!==id),stop=item.start+item.duration;
- const lo=side==='left'?Math.max(-item.start,...others.filter(o=>o.start+o.duration<=item.start+EPS).map(o=>o.start+o.duration-item.start)):.1-item.duration;
- const hi=side==='left'?item.duration-.1:Math.min(3600,...others.filter(o=>o.start>=stop-EPS).map(o=>o.start-stop));
+ const block=p.motion?.find(x=>x.id===id),shortest=block?Math.min(item.duration,MOTION_TEMPLATES[block.template]?.minDuration??.1):.1;
+ const lo=side==='left'?Math.max(-item.start,...others.filter(o=>o.start+o.duration<=item.start+EPS).map(o=>o.start+o.duration-item.start)):shortest-item.duration;
+ const hi=side==='left'?item.duration-shortest:Math.min(3600,...others.filter(o=>o.start>=stop-EPS).map(o=>o.start-stop));
  const d=Math.max(lo,Math.min(hi,delta)),start=side==='left'?item.start+d:item.start,length=side==='left'?item.duration-d:item.duration+d;
  const e=p.elements.find(x=>x.id===id),z=p.zooms.find(x=>x.id===id),c=p.captions.find(x=>x.id===id);
- if(e){e.start=start;e.duration=length;}if(z){z.start=start;z.duration=length;}if(c){c.start=start;c.end=start+length;}
+ if(e){e.start=start;e.duration=length;}if(z){z.start=start;z.duration=length;}if(c){c.start=start;c.end=start+length;}if(block){const m=p.motion!.find(x=>x.id===id)!;m.start=start;m.duration=length;}
 }
 
 /* ---------- Markers ---------- */
@@ -299,6 +308,25 @@ export function resizeEffect(p:Project,id:string,side:'left'|'right',delta:numbe
 export function newElement(type:Element['type'],start:number,id:string=makeId(),overrides:Partial<Element>={}):Element{
  return {id,type,start,duration:5,text:type==='text'?'Your story, beautifully told.':'',x:.15,y:.65,width:.7,height:type==='text'?.16:.22,color:'#ffffff',background:type==='highlight'?'#bba6ff66':type==='text'?'#171b27bb':'transparent',fontSize:64,opacity:1,rotation:0,...overrides};
 }
+/* ---------- Motion blocks ---------- */
+
+/** The block that runs across `time` on the Motion row (other than `except`), if any. */
+export const motionAt=(p:Pick<Project,'motion'>,time:number,except?:string)=>(p.motion??[]).find(m=>m.id!==except&&time>=m.start-EPS&&time<m.start+m.duration-EPS);
+/** Where the next block after `time` starts on the Motion row (Infinity when none does). */
+export const nextMotionStart=(p:Pick<Project,'motion'>,time:number,except?:string)=>(p.motion??[]).filter(m=>m.id!==except&&m.start>=time+EPS).reduce((at,m)=>Math.min(at,m.start),Infinity);
+/**
+ * Adds a block to the Motion row without overlapping another: it starts at its time, or after the block already there when `slide`,
+ * and stops where the next block starts. Returns the block as added, or the sentence that says why it does not fit.
+ */
+export function addMotionBlock(p:Project,block:MotionBlock,slide=false):{block:MotionBlock}|{problem:string}{
+ let start=Math.max(0,block.start);
+ for(let on=motionAt(p,start);on;on=motionAt(p,start)){if(!slide)return {problem:'Another motion block is already there at that time.'};start=on.start+on.duration;}
+ const shortest=MOTION_TEMPLATES[block.template].minDuration,duration=Math.min(block.duration,nextMotionStart(p,start)-start);
+ if(duration<shortest-1e-9)return {problem:`There is no room for a ${MOTION_TEMPLATES[block.template].label.toLowerCase()} there: the next block starts too soon.`};
+ const placed={...block,start,duration};(p.motion??=[]).push(placed);p.motion.sort((a,b)=>a.start-b.start);
+ return {block:placed};
+}
+
 export function addMarker(p:Project,time:number,newId:()=>string=makeId){const id=newId();(p.markers??=[]).push({id,time:Math.max(0,time)});p.markers.sort((a,b)=>a.time-b.time);return id;}
 export function moveMarker(p:Project,id:string,time:number){const m=p.markers?.find(x=>x.id===id);if(m)m.time=Math.max(0,time);p.markers?.sort((a,b)=>a.time-b.time);}
 export function removeMarker(p:Project,id:string){if(!p.markers)return;p.markers=p.markers.filter(m=>m.id!==id);if(!p.markers.length)delete p.markers;}

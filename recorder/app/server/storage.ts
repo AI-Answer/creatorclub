@@ -5,6 +5,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import {EventEmitter} from 'node:events';
 import { createProject, projectDuration, isAudioRole, type Project, type Media, type AISettings } from '../shared/types.js';
 import type {TrashProjectSummary,TrashRestoreResult} from '../shared/recovery.js';
+import {motionBlockProblem} from '../shared/motion/templates.js';
 
 export const DATA_DIR=path.resolve(process.env.SCENEFORGE_DATA_DIR||path.join(os.homedir(),'Library/Application Support/SceneForge/studio'));
 export const CACHE_DIR=path.join(DATA_DIR,'cache');
@@ -161,6 +162,7 @@ export function validateProject(value:unknown):Project{
  }
  for(const s of p.scenes){if(!Number.isFinite(s.start)||!Number.isFinite(s.duration)||s.start<0||s.duration<0||typeof s.script!=='string')throw new Error('Invalid scene');}
  for(const e of p.elements){if(![e.start,e.duration,e.x,e.y,e.width,e.height,e.fontSize,e.opacity,e.rotation].every(Number.isFinite)||e.start<0||e.duration<0)throw new Error('Invalid element');}
+ if(p.motion!==undefined){if(!Array.isArray(p.motion)||p.motion.length>10000)throw new Error('Invalid motion');for(const m of p.motion){const problem=motionBlockProblem(m);if(problem)throw new Error(problem);}}
  for(const z of p.zooms){if(![z.start,z.duration,z.scale,z.x,z.y].every(Number.isFinite)||z.start<0||z.duration<=0||z.scale<1)throw new Error('Invalid zoom');if(z.effectTiming!==undefined){const timing=z.effectTiming;if(!timing||typeof timing!=='object'||Array.isArray(timing)||![timing.offset,timing.duration].every(Number.isFinite)||timing.offset<0||timing.duration<=0||timing.offset>86400||timing.duration>86400)throw new Error('Invalid zoom effect timing');}}
  if(!p.cursor||!Array.isArray(p.cursor.points)||!p.settings||!p.captionStyle)throw new Error('Project settings are missing');
  if(p.recordedTakes!==undefined){

@@ -1,6 +1,7 @@
 import {memo,useCallback,useEffect,useLayoutEffect,useMemo,useRef,useState} from 'react';
 import {flushSync} from 'react-dom';
-import {AudioLines,Camera,Layers,Link2,Mic,Monitor,Music,Type,ZoomIn} from 'lucide-react';
+import {AudioLines,Camera,Clapperboard,Layers,Link2,Mic,Monitor,Music,Type,ZoomIn} from 'lucide-react';
+import {motionLabel} from '../shared/motion/templates';
 import type {Clip,Media,Project,TrackKind} from '../shared/types';
 import {clipDuration,projectDuration} from '../shared/types';
 import {clipLayerKind,clipLayerRowId,moveClipsToLayer,timelineRows,type TimelineLayerRow} from '../shared/timeline-layers';
@@ -20,7 +21,7 @@ import type {Playhead} from './playhead';
  */
 type Change=(fn:(project:Project)=>void,opts?:{coalesce?:string})=>void;
 export interface TimelineControls {fit():void;width():number}
-type Effect='elements'|'captions'|'zooms';
+type Effect='motion'|'elements'|'captions'|'zooms';
 interface Row {id:string;name:string;icon:typeof Camera;height:number;top:number;layer?:TimelineLayerRow;effect?:Effect;linked?:boolean}
 interface Preview {start:number;duration:number;sourceIn?:number;dy?:number}
 interface Drag {items:Map<string,Preview>;ghosts:Array<{row:string;start:number;duration:number}>;guide:number|null;insert:number|null;label:string;markers?:Map<string,number>}
@@ -28,7 +29,7 @@ interface Drag {items:Map<string,Preview>;ghosts:Array<{row:string;start:number;
 const RULER=30,SNAP_PX=8,STALE_DROP='The timeline changed during the drag, so nothing moved. Try again.';
 const icons:Record<TrackKind,typeof Camera>={screen:Monitor,camera:Camera,audio:Mic,music:Music,overlay:Layers};
 const heights:Record<TrackKind,number>={screen:50,camera:38,audio:40,music:32,overlay:38};
-const effectRows:Array<{id:Effect;name:string;icon:typeof Camera}>=[{id:'elements',name:'Graphics',icon:Type},{id:'captions',name:'Captions',icon:AudioLines},{id:'zooms',name:'Zoom',icon:ZoomIn}];
+const effectRows:Array<{id:Effect;name:string;icon:typeof Camera}>=[{id:'motion',name:'Motion',icon:Clapperboard},{id:'elements',name:'Graphics',icon:Type},{id:'captions',name:'Captions',icon:AudioLines},{id:'zooms',name:'Zoom',icon:ZoomIn}];
 const fmt=(t:number)=>rulerLabel(t,100,false)+'.'+String(Math.floor((Math.max(0,t)%1)*10+1e-6));
 
 /** Rows that have something on them (custom layers always), in display order; an empty timeline shows Screen and Audio as drop targets. */
@@ -39,7 +40,7 @@ export function usedRows(p:Project):Row[]{
  const rows:Row[]=[];let top=RULER;
  const linkedRow=(id:string)=>p.clips.some(c=>clipLayerRowId(c,p)===id&&sizes.get(groups.get(c.id)!)!>1);
  for(const l of layers){const height=l.track?heights[l.track]:l.kind==='video'?44:34;rows.push({id:l.id,name:l.track==='screen'?'Screen':l.name,icon:l.track?icons[l.track]:l.kind==='video'?Layers:Music,height,top,layer:l,linked:linkedRow(l.id)});top+=height;}
- for(const e of effectRows){if(!p[e.id].length)continue;rows.push({id:e.id,name:e.name,icon:e.icon,height:26,top,effect:e.id});top+=26;}
+ for(const e of effectRows){if(!(p[e.id]??[]).length)continue;rows.push({id:e.id,name:e.name,icon:e.icon,height:26,top,effect:e.id});top+=26;}
  return rows;
 }
 export const rowsHeight=(rows:readonly Row[])=>RULER+rows.reduce((n,r)=>n+r.height,0)+10;
@@ -79,7 +80,7 @@ export const TimelineClub=memo(function TimelineClub({project:p,playhead,scale,o
  const mediaById=useMemo(()=>new Map(p.media.map(m=>[m.id,m])),[p.media]),groups=useMemo(()=>linkGroups(p.clips),[p.clips]);
  const groupSize=useMemo(()=>{const n=new Map<string,number>();for(const key of groups.values())n.set(key,(n.get(key)??0)+1);return n;},[groups]);
  const start=win.left/scale,end=win.right/scale;
- const effects=useMemo(()=>{const rows=new Map<string,Array<{id:string;start:number;duration:number;name:string}>>([['elements',p.elements.map(e=>({id:e.id,start:e.start,duration:e.duration,name:e.text||e.type}))],['captions',p.captions.map(c=>({id:c.id,start:c.start,duration:c.end-c.start,name:c.text}))],['zooms',p.zooms.map(z=>({id:z.id,start:z.start,duration:z.duration,name:`Zoom ${z.scale}×`}))]]);return rows;},[p.elements,p.captions,p.zooms]);
+ const effects=useMemo(()=>{const rows=new Map<string,Array<{id:string;start:number;duration:number;name:string}>>([['motion',(p.motion??[]).map(m=>({id:m.id,start:m.start,duration:m.duration,name:motionLabel(m)}))],['elements',p.elements.map(e=>({id:e.id,start:e.start,duration:e.duration,name:e.text||e.type}))],['captions',p.captions.map(c=>({id:c.id,start:c.start,duration:c.end-c.start,name:c.text}))],['zooms',p.zooms.map(z=>({id:z.id,start:z.start,duration:z.duration,name:`Zoom ${z.scale}×`}))]]);return rows;},[p.motion,p.elements,p.captions,p.zooms]);
  // A gesture lives in refs and closes over ids, not over project arrays: only the person ends it, and the drop applies to the project as it is then.
  const gesture=useRef<(()=>void)|null>(null),latest=useRef(p);latest.current=p;
  useEffect(()=>()=>gesture.current?.(),[]);
@@ -183,7 +184,7 @@ export const TimelineClub=memo(function TimelineClub({project:p,playhead,scale,o
   }
   const edge=mode==='left'?item.start:item.start+item.duration,snaps=targets(new Set([id]));let delta=0;
   run(e,x=>{const raw=timelinePointerDelta(x0,x,left0,el.scrollLeft,scale),snap=snapTimelineDelta({delta:raw,anchors:[edge],targets:snaps,scale,enabled:base.settings.snap,thresholdPx});
-   const trial:Project={...base,elements:base.elements.map(v=>({...v})),zooms:base.zooms.map(v=>({...v})),captions:base.captions.map(v=>({...v}))};resizeEffect(trial,id,mode,snap.delta);const after=rowItems(trial).find(i=>i.id===id)!;delta=mode==='left'?after.start-item.start:after.duration-item.duration;
+   const trial:Project={...base,elements:base.elements.map(v=>({...v})),zooms:base.zooms.map(v=>({...v})),captions:base.captions.map(v=>({...v})),...(base.motion?{motion:base.motion.map(v=>({...v}))}:{})};resizeEffect(trial,id,mode,snap.delta);const after=rowItems(trial).find(i=>i.id===id)!;delta=mode==='left'?after.start-item.start:after.duration-item.duration;
    showDrag({items:new Map([[id,{start:after.start,duration:after.duration}]]),ghosts:[],guide:snap.guide?.time??null,insert:null,label:`Length ${fmt(after.duration)}`});
   },moved=>{if(!moved||!delta)return;const d=delta;change(draft=>resizeEffect(draft,id,mode,d));});
  }

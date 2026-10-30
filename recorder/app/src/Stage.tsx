@@ -11,6 +11,7 @@ import {canvasBackgroundStyle} from '../shared/canvas-background';
 import {zoomScaleAt} from '../shared/zoom-timing';
 import {usePlayheadTime,type Playhead} from './playhead';
 import {clipFilterCss,cursorPointLookup,stageIndex,stageSlots} from './stage-view';
+import {MotionLayer} from './MotionLayer';
 
 /** `visible` is false for a pre-rolled upcoming clip: it stays mounted, paused, silent and transparent, with no vision or face-tracking work. */
 function ClipView({clip,media,time,visible,playing,quality,onSelect,project:p,pixelScale,playbackRate}:{clip:Clip;media:Media;time:number;visible:boolean;playing:boolean;quality:boolean;onSelect:()=>void;project:Project;pixelScale:number;playbackRate:number}){
@@ -69,6 +70,8 @@ export const Stage=memo(function Stage({project:p,playhead,playing,playbackRate=
    {visual.map(({clip:c,key,visible})=>{const m=mediaById.get(c.mediaId);return m?<div key={key} className="stage-layer" style={{zIndex:index.rank.get(c)!-index.clips.length}}><ClipView clip={c} media={m} time={time} visible={visible} playing={playing} quality={p.settings.previewQuality==='proxy'} onSelect={()=>onSelect(c.id)} project={p} pixelScale={scale} playbackRate={playbackRate}/></div>:null;})}
    {audio.map(({clip:c,key,visible})=>{const m=mediaById.get(c.mediaId);return m?<ClipView key={key} clip={c} media={m} time={time} visible={visible} playing={playing} quality={false} onSelect={()=>onSelect(c.id)} project={p} pixelScale={scale} playbackRate={playbackRate}/>:null;})}
   </div>
+  {/* Motion blocks sit above the clips and under texts and captions, as in the export. The stage is their container (cqw). */}
+  <MotionLayer blocks={p.motion} time={time}/>
   {p.elements.filter(e=>time>=e.start&&time<e.start+e.duration).map(e=><div key={e.id} className={`stage-element element-${e.type}`} onClick={event=>{event.stopPropagation();onSelect(e.id);}} style={{left:`${e.x*100}%`,top:`${e.y*100}%`,width:`${e.width*100}%`,height:`${e.height*100}%`,fontSize:e.fontSize*scale,color:e.color,background:e.type==='arrow'?'transparent':e.background,opacity:e.opacity,transform:`rotate(${e.rotation}deg)`,border:e.type==='rectangle'||e.type==='ellipse'?`${Math.max(1,3*scale)}px solid ${e.color}`:undefined,backdropFilter:e.type==='blur'?'blur(12px)':undefined}}>{e.type==='text'?e.text:e.type==='arrow'?<svg viewBox="0 0 100 40" preserveAspectRatio="none"><path d="M2 20H90 M72 4L94 20L72 36" fill="none" stroke={e.color} strokeWidth="4"/></svg>:null}</div>)}
   {caption&&<div className={`stage-caption caption-${p.captionStyle.position}`} style={{fontSize:p.captionStyle.fontSize*scale,color:p.captionStyle.color}}><span style={{background:p.captionStyle.background}}>{caption.text}</span></div>}
   {p.cursor.enabled&&point&&point.visible!==false&&<div className={`stage-cursor ${p.cursor.highlight?'has-highlight':''}`} style={{left:`${point.x*100}%`,top:`${point.y*100}%`,width:p.cursor.size*scale,color:p.cursor.color}}><svg viewBox="0 0 24 32"><path d="M2 1v27l7-7 6 10 5-3-6-10 10-1z" fill="currentColor" stroke="#171b27"/></svg></div>}

@@ -16,10 +16,11 @@ import * as store from './store.js';
  */
 
 /** The parts of a project an Edit action can change. Undo puts these back and compares them; the rest (media, takes, name) is never touched. */
-const TIMELINE_KEYS = ['clips', 'captions', 'captionStyle', 'elements', 'zooms', 'scenes', 'markers', 'cursor'] as const;
+const TIMELINE_KEYS = ['clips', 'captions', 'captionStyle', 'elements', 'motion', 'zooms', 'scenes', 'markers', 'cursor'] as const;
 export type Timeline = Partial<Pick<Project, (typeof TIMELINE_KEYS)[number]>>;
 
-export const timelineOf = (p: Project): Timeline => Object.fromEntries(TIMELINE_KEYS.map((key) => [key, p[key] ?? null])) as Timeline;
+// Motion blocks are left out while a project has none, so the timelines of projects made before them hash as they did.
+export const timelineOf = (p: Project): Timeline => Object.fromEntries(TIMELINE_KEYS.filter((key) => key !== 'motion' || p.motion !== undefined).map((key) => [key, p[key] ?? null])) as Timeline;
 export const timelineHash = (p: Project) => createHash('sha256').update(JSON.stringify(timelineOf(p))).digest('hex');
 
 function withTimeline(p: Project, timeline: Timeline): Project {
