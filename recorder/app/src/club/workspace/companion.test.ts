@@ -3,7 +3,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {act,createElement} from 'react';
 import type {Outline,Package,VideoScene} from '../../../shared/club';
-import type {CompanionChanged,CompanionMessage,CompanionReplyMessage} from '../../../shared/companion';
+import type {CompanionChanged,CompanionMessage,CompanionReplyMessage,EditAction} from '../../../shared/companion';
+import {describeEditAction} from '../../editing-actions';
 import {atBottom,elapsed,greeting,lookingAt,previewOf,screenSummary,stepSummary,suggestions,withDividers} from './companion-logic';
 import {blocks} from './Markdown';
 import {normalizeThread,withPendingStops,withStep,withText} from './useCompanion';
@@ -401,6 +402,7 @@ test('on Edit: a message carries the playhead and selection, a timeline card pre
   flush:async()=>{log.push('flush');},
   preview:(action:unknown,key:string)=>{log.push(action?`preview ${(action as {type:string}).type}`:'preview off');previewKey=action?key:undefined;return undefined;},
   estimate:()=>({text:'3 cuts · 0.9 s shorter'}),
+  describe:(action:EditAction)=>describeEditAction(action),
   commit:async<T,>(run:(revision:string)=>Promise<T>)=>{log.push('commit');return run('rev-1');},
  };
  const changed:CompanionChanged[][]=[];

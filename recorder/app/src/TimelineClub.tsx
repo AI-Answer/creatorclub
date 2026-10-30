@@ -32,6 +32,20 @@ const icons:Record<TrackKind,typeof Camera>={screen:Monitor,camera:Camera,audio:
 const heights:Record<TrackKind,number>={screen:50,camera:38,audio:40,music:32,overlay:38};
 const effectRows:Array<{id:Effect;name:string;icon:typeof Camera}>=[{id:'motion',name:'Motion',icon:Clapperboard},{id:'elements',name:'Graphics',icon:Type},{id:'captions',name:'Captions',icon:AudioLines},{id:'zooms',name:'Zoom',icon:ZoomIn}];
 
+/** The items on the effect rows (graphics, text, captions, zooms) with the words the timeline shows on them. */
+const effectsOf=(p:Project)=>new Map<string,Array<{id:string;start:number;duration:number;name:string}>>([['motion',(p.motion??[]).map(m=>({id:m.id,start:m.start,duration:m.duration,name:motionLabel(m)}))],['elements',p.elements.map(e=>({id:e.id,start:e.start,duration:e.duration,name:e.text||e.type}))],['captions',p.captions.filter(c=>!isSoundTag(c.text)).map(c=>({id:c.id,start:c.start,duration:c.end-c.start,name:c.text}))],['zooms',p.zooms.map(z=>({id:z.id,start:z.start,duration:z.duration,name:`Zoom ${z.scale}×`}))]]);
+type FxGhost={row:string;id:string;start:number;duration:number;name:string;kind:'new'|'changed'|'removed'};
+/** What a previewed change would add, move, reword or remove on the effect rows, to draw over the timeline before it is applied. */
+function fxGhosts(now:Project,after:Project):FxGhost[]{
+ const before=effectsOf(now),next=effectsOf(after),out:FxGhost[]=[];
+ for(const row of ['motion','elements','captions','zooms']){
+  const was=new Map((before.get(row)??[]).map(i=>[i.id,i])),will=new Map((next.get(row)??[]).map(i=>[i.id,i]));
+  for(const [id,i] of will){const old=was.get(id);if(!old)out.push({row,...i,kind:'new'});else if(Math.abs(old.start-i.start)>1e-6||Math.abs(old.duration-i.duration)>1e-6||old.name!==i.name)out.push({row,...i,kind:'changed'});}
+  for(const [id,i] of was)if(!will.has(id))out.push({row,...i,kind:'removed'});
+ }
+ return out;
+}
+
 /** Rows that have something on them (custom layers always), in display order; an empty timeline shows Screen and Audio as drop targets. */
 export function usedRows(p:Project):Row[]{
  const counts=new Map<string,number>();for(const c of p.clips){const id=clipLayerRowId(c,p);counts.set(id,(counts.get(id)??0)+1);}
@@ -72,12 +86,14 @@ const ClubClip=memo(function ClubClip({clip:c,media,row,preview,selected,linked,
  </div>;
 });
 
-export const TimelineClub=memo(function TimelineClub({project:p,playhead,scale,onScale,selectedIds,onSelectMany,onSeek,change,onDropMedia,tool,onSplit,follow,showWaveforms,previewRanges,cutMarks,onOpen,onContextMenu,onNotice,controls,autoFit=true}:{project:Project;playhead:Playhead;scale:number;onScale:(scale:number)=>void;selectedIds:ReadonlySet<string>;onSelectMany:(ids:string[])=>void;onSeek:(time:number)=>void;change:Change;onDropMedia:(id:string,track:TrackKind,time:number,layerId?:string)=>void;tool:'select'|'blade';onSplit:(id:string,time:number)=>void;follow:boolean;showWaveforms:boolean;previewRanges?:ReadonlyArray<readonly [number,number]>|null;/** Where words were just cut from the transcript: a short-lived mark on the timeline. */cutMarks?:readonly number[];onOpen:(id:string)=>void;onContextMenu?:(x:number,y:number)=>void;/** One sentence when a drop could not be applied. */onNotice?:(message:string)=>void;controls?:React.MutableRefObject<TimelineControls|null>;/** False when Edit brings back this video's zoom from an earlier visit: the timeline keeps it and scrolls to the playhead instead of fitting. */autoFit?:boolean}){
+export const TimelineClub=memo(function TimelineClub({project:p,playhead,scale,onScale,selectedIds,onSelectMany,onSeek,change,onDropMedia,tool,onSplit,follow,showWaveforms,previewAfter,previewRanges,cutMarks,onOpen,onContextMenu,onNotice,controls,autoFit=true}:{project:Project;playhead:Playhead;scale:number;onScale:(scale:number)=>void;selectedIds:ReadonlySet<string>;onSelectMany:(ids:string[])=>void;onSeek:(time:number)=>void;change:Change;onDropMedia:(id:string,track:TrackKind,time:number,layerId?:string)=>void;tool:'select'|'blade';onSplit:(id:string,time:number)=>void;follow:boolean;showWaveforms:boolean;previewRanges?:ReadonlyArray<readonly [number,number]>|null;/** The video as a previewed change would leave it: what it adds or moves on the effect rows is drawn as a dashed block. */previewAfter?:Project|null;/** Where words were just cut from the transcript: a short-lived mark on the timeline. */cutMarks?:readonly number[];onOpen:(id:string)=>void;onContextMenu?:(x:number,y:number)=>void;/** One sentence when a drop could not be applied. */onNotice?:(message:string)=>void;controls?:React.MutableRefObject<TimelineControls|null>;/** False when Edit brings back this video's zoom from an earlier visit: the timeline keeps it and scrolls to the playhead instead of fitting. */autoFit?:boolean}){
  const ref=useRef<HTMLDivElement>(null),heads=useRef<HTMLDivElement>(null),[win,setWin]=useState(()=>timelineWindow(0,1000)),winRef=useRef(win),[drag,setDrag]=useState<Drag|null>(null),[marquee,setMarquee]=useState<SelectionRect|null>(null);
  const view=useCallback((left:number,width:number)=>{const next=timelineWindow(left,width);if(!sameTimelineWindow(next,winRef.current)){winRef.current=next;setWin(next);}},[]);
  const page=useCallback((el:HTMLElement)=>{queueMicrotask(()=>flushSync(()=>view(el.scrollLeft,el.clientWidth)));},[view]);
  const duration=useMemo(()=>projectDuration(p),[p]),extent=Math.max(duration+3,(ref.current?.clientWidth??1000)/scale),width=extent*scale;
- const rows=useMemo(()=>usedRows(p),[p]),rowById=useMemo(()=>new Map(rows.map(r=>[r.id,r])),[rows]),contentHeight=rowsHeight(rows);
+ const ghosts=useMemo(()=>previewAfter?fxGhosts(p,previewAfter):[],[p,previewAfter]);
+ // A previewed graphic on a row that does not exist yet (the first one) gets its row while it is previewed.
+ const rowsNow=useMemo(()=>usedRows(p),[p]),rows=useMemo(()=>ghosts.some(g=>g.kind!=='removed'&&!rowsNow.some(r=>r.id===g.row))?usedRows(previewAfter!):rowsNow,[ghosts,rowsNow,previewAfter]),rowById=useMemo(()=>new Map(rows.map(r=>[r.id,r])),[rows]),contentHeight=rowsHeight(rows);
  const mediaById=useMemo(()=>new Map(p.media.map(m=>[m.id,m])),[p.media]),groups=useMemo(()=>linkGroups(p.clips),[p.clips]);
  const groupSize=useMemo(()=>{const n=new Map<string,number>();for(const key of groups.values())n.set(key,(n.get(key)??0)+1);return n;},[groups]);
  const start=win.left/scale,end=win.right/scale,tenths=showTenths(end-start),[hover,setHover]=useState<number|null>(null);
@@ -88,7 +104,7 @@ export const TimelineClub=memo(function TimelineClub({project:p,playhead,scale,o
   const count=filmstripCount(m.duration),h=54,w=Math.round(h*(m.width>0&&m.height>0?Math.min(2.4,Math.max(.5,m.width/m.height)):16/9)),index=Math.max(0,Math.min(count-1,Math.floor((c.sourceIn+(t-c.start)*c.speed)/m.duration*count)));
   return <i className="club-hover-frame" style={{width:w,height:h,backgroundImage:`url(/api/media/${m.id}/filmstrip)`,backgroundSize:`${count*w}px ${h}px`,backgroundPosition:`${-index*w}px 0`}}/>;
  };
- const effects=useMemo(()=>{const rows=new Map<string,Array<{id:string;start:number;duration:number;name:string}>>([['motion',(p.motion??[]).map(m=>({id:m.id,start:m.start,duration:m.duration,name:motionLabel(m)}))],['elements',p.elements.map(e=>({id:e.id,start:e.start,duration:e.duration,name:e.text||e.type}))],['captions',p.captions.filter(c=>!isSoundTag(c.text)).map(c=>({id:c.id,start:c.start,duration:c.end-c.start,name:c.text}))],['zooms',p.zooms.map(z=>({id:z.id,start:z.start,duration:z.duration,name:`Zoom ${z.scale}×`}))]]);return rows;},[p.motion,p.elements,p.captions,p.zooms]);
+ const effects=useMemo(()=>effectsOf(p),[p.motion,p.elements,p.captions,p.zooms]);
  // A gesture lives in refs and closes over ids, not over project arrays: only the person ends it, and the drop applies to the project as it is then.
  const gesture=useRef<(()=>void)|null>(null),latest=useRef(p);latest.current=p;
  useEffect(()=>()=>gesture.current?.(),[]);
@@ -225,7 +241,7 @@ export const TimelineClub=memo(function TimelineClub({project:p,playhead,scale,o
     <div className="club-ruler" style={{height:RULER}} onPointerDown={beginRuler} onPointerMove={e=>{if(e.buttons)return;const box=e.currentTarget.getBoundingClientRect();setHover(Math.max(0,(e.clientX-box.left)/scale));}} onPointerLeave={()=>setHover(null)} title="Click or drag to move the playhead">
      {hover!==null&&<span className="club-hover" style={{left:hover*scale}} aria-hidden><b>{rulerLabel(hover,tenths)}</b>{hoverFrame(hover)}</span>}
      {ticks.map(t=><span key={t.time} className={t.major?'tick major':'tick'} style={{left:t.time*scale}}>{t.label&&<b>{t.label}</b>}</span>)}
-     {p.scenes.map((s,i)=>visible(s.start,Math.max(1,s.duration))&&<div key={s.id} className="club-scene-tag" style={{left:s.start*scale}} title={`Scene ${i+1}: ${s.name}`} onPointerDown={e=>{e.stopPropagation();onSeek(s.start);}}>{i+1} {s.name}</div>)}
+     {p.scenes.map((s,i)=>s.duration>0&&visible(s.start,Math.max(1,s.duration))&&<div key={s.id} className={`club-scene-tag${i%2?' alt':''}`} style={{left:s.start*scale,width:Math.max(24,s.duration*scale-2)}} title={`Scene ${i+1}: ${s.name}`} onPointerDown={e=>{e.stopPropagation();onSeek(s.start);}}>{i+1} {s.name}</div>)}
      {(p.markers??[]).map(m=>{const time=drag?.markers?.get(m.id)??m.time;return visible(time,0)&&<div key={m.id} className="club-marker" style={{left:time*scale}} title={`Marker at ${rulerLabel(time,tenths)} · drag to move · double-click to remove`} onPointerDown={e=>beginMarker(e,m.id)} onDoubleClick={()=>change(d=>removeMarker(d,m.id))}/>;})}
     </div>
     {rows.map(r=><div key={r.id} className={`timeline-row club-row row-${r.layer?.track??r.effect??'layer'}`} data-track={r.id} style={{top:r.top,height:r.height}} onPointerDown={e=>{if(e.target===e.currentTarget)beginEmpty(e);}}
@@ -237,6 +253,7 @@ export const TimelineClub=memo(function TimelineClub({project:p,playhead,scale,o
       const name=i.name;
       return <div key={i.id} data-effect-id={i.id} className={`timeline-effect club-effect ${selectedIds.has(i.id)?'selected':''} ${pv?'clip-drag-preview':''}`} style={{left:s*scale,width:Math.max(6,d*scale)}} title={`${name} · drag to move, edges to resize, double-click to edit`} onPointerDown={e=>beginItem(e,i.id,'move')} onDoubleClick={()=>onOpen(i.id)}>
        <span>{name}</span>{d*scale>=14&&<><i className="trim-handle left" onPointerDown={e=>beginItem(e,i.id,'left')}/><i className="trim-handle right" onPointerDown={e=>beginItem(e,i.id,'right')}/></>}</div>;})}
+     {ghosts.filter(g=>g.row===r.id).map(g=><div key={`${g.kind}:${g.id}`} className={`club-fx-ghost ${g.kind}`} style={{left:g.start*scale,width:Math.max(8,g.duration*scale)}} aria-hidden><span>{g.name}</span></div>)}
      {drag?.ghosts.filter(g=>g.row===r.id).map((g,i)=><div key={i} className="club-ghost" style={{left:g.start*scale,width:Math.max(4,g.duration*scale)}}/>)}
     </div>)}
     {previewRanges?.map(([a,b],i)=><div key={i} className="club-preview-cut" style={{left:a*scale,width:Math.max(1,(b-a)*scale),top:RULER,height:contentHeight-RULER}}/>)}

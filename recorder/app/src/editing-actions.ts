@@ -34,7 +34,7 @@ export interface EditOptions {silences?:SilencePlan|null}
 const SPEECH:ReadonlySet<Clip['track']>=new Set(['screen','camera','audio']);
 const EPS=1e-6;
 const end=(c:Clip)=>c.start+clipDuration(c);
-const clock=(t:number)=>{const s=Math.max(0,t);return `${Math.floor(s/60)}:${(s%60).toFixed(1).padStart(4,'0')}`;};
+const clock=(t:number)=>{const s=Math.max(0,t),whole=Math.abs(s%1)<.05||Math.abs(s%1)>.95;return whole?`${Math.floor((s+.05)/60)}:${String(Math.round(s)%60).padStart(2,'0')}`:`${Math.floor(s/60)}:${(s%60).toFixed(1).padStart(4,'0')}`;};
 const secs=(n:number)=>n>=60?`${Math.floor(n/60)} min ${Math.round(n%60)} s`:`${n<10?Math.round(n*10)/10:Math.round(n)} s`;
 const plural=(n:number,word:string)=>`${n} ${word}${n===1?'':'s'}`;
 
@@ -294,9 +294,9 @@ export function describeEditAction(action:EditAction,p?:Project):string{
    return `${template?.label??'Motion graphic'} (${style?.label.toLowerCase()??'default'}) “${action.text}”${action.detail?` · ${action.detail}`:''} at ${clock(action.start)} for ${secs(action.duration??template?.defaultDuration??3)}.`;
   }
   case 'update_motion_block':{
-   const block=p?blockAt(p,action.at):undefined,label=block?MOTION_TEMPLATES[block.template].label.toLowerCase():'graphic';
-   const what=[action.text!==undefined?`reword it “${action.text}”`:'',action.style!==undefined?`style ${action.style}`:'',action.start!==undefined?`move it to ${clock(action.start)}`:'',action.duration!==undefined?`${secs(action.duration)} long`:'',action.x!==undefined||action.y!==undefined?'move its point':''].filter(Boolean);
-   return `The ${label} at ${clock(action.at)}: ${what.join(', ')||'no change'}.`;
+   const block=p?blockAt(p,action.at):undefined,label=block?MOTION_TEMPLATES[block.template].label:'Graphic';
+   const what=[action.start!==undefined&&(!block||Math.abs(action.start-block.start)>1e-6)?`move to ${clock(action.start)}`:'',action.duration!==undefined?`make it ${secs(action.duration)} long`:'',action.text!==undefined?`say “${action.text}”`:'',action.detail!==undefined?`second line “${action.detail}”`:'',action.style!==undefined?`${action.style} style`:'',action.x!==undefined||action.y!==undefined?'move its point':''].filter(Boolean);
+   return `${label} at ${clock(block?.start??action.at)}: ${what.join(', ')||'no change'}.`;
   }
   case 'remove_motion_block':{const block=p?blockAt(p,action.at):undefined;return `Remove the ${block?MOTION_TEMPLATES[block.template].label.toLowerCase():'graphic'} at ${clock(action.at)}.`;}
   case 'normalize_audio':return 'Even out the loudness of every clip when you export.';

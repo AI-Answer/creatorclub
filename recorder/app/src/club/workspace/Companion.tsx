@@ -280,7 +280,7 @@ function Card({id,card,pkg,outline,scenes,busy,editor,silences,onApply,onUndo}:{
  let body;
  // What it would do to the timeline as it is now, while it is still on offer: the cuts and seconds, the share of the video, the zoom it replaces.
  const estimate=timeline&&stage&&card.state!=='applied'?stage.estimate(action,{silences}):undefined;
- if(timeline)body=<div className="cmp-card-text">{describeEditAction(action)}{estimate&&<div className={cn('cmp-card-est',estimate.warn&&'warn')}>{estimate.warn&&<Icon name="TriangleAlert" size={12}/>}{estimate.text}</div>}</div>;
+ if(timeline)body=<div className="cmp-card-text">{stage?stage.describe(action):describeEditAction(action)}{estimate&&<div className={cn('cmp-card-est',estimate.warn&&'warn')}>{estimate.warn&&<Icon name="TriangleAlert" size={12}/>}{estimate.text}</div>}</div>;
  else if(action.type==='draft_scenes'){
   let at=0;
   body=<ol className="cmp-card-scenes">{action.scenes.map((scene,index)=>{const start=at;at+=scene.seconds;return <li key={index}><span>{scene.title}</span><span className="cmp-t">{scenesClock(start)}</span></li>;})}</ol>;

@@ -134,13 +134,13 @@ test('a pause is cut only where one recording holds the words on both sides, nev
 
 test('a long delete is said on the card and capped; a zoom says which zoom it replaces; one element factory',()=>{
  const p=make(),length=projectDuration(p);
- assert.equal(describeEditAction({type:'delete_range',start:10,end:14.8}),'Delete 0:10.0 to 0:14.8 (4.8 s) from every row; the rest moves up.');
+ assert.equal(describeEditAction({type:'delete_range',start:10,end:14.8}),'Delete 0:10 to 0:14.8 (4.8 s) from every row; the rest moves up.');
  assert.deepEqual(editEstimate(p,{type:'delete_range',start:10,end:14.8}),{text:'1 cut · 4.8 s shorter (7% of the video)'});
  const big=editEstimate(p,{type:'delete_range',start:10,end:30})!;assert.equal(big.warn,true);assert.match(big.text,/That is 29% of the video\.$/);
  assert.equal(editActionProblem(p,{type:'delete_range',start:0,end:length*.6}),'That would delete more than half the video: select it on the timeline and delete it there.');
  const zoomed=applyProjectChange(p,d=>{applyEditAction(d,{type:'set_zoom',start:20,duration:4,scale:1.5});});
- assert.equal(describeEditAction({type:'set_zoom',start:22,duration:4,scale:2},zoomed),'Zoom 2× on the screen at 0:22.0 for 4 s, replacing the 1.5× zoom at 0:20.0.');
- assert.deepEqual(editEstimate(zoomed,{type:'set_zoom',start:22,duration:4,scale:2}),{text:'Replaces the 1.5× zoom at 0:20.0.'});
+ assert.equal(describeEditAction({type:'set_zoom',start:22,duration:4,scale:2},zoomed),'Zoom 2× on the screen at 0:22 for 4 s, replacing the 1.5× zoom at 0:20.');
+ assert.deepEqual(editEstimate(zoomed,{type:'set_zoom',start:22,duration:4,scale:2}),{text:'Replaces the 1.5× zoom at 0:20.'});
  assert.deepEqual(editEstimate(p,{type:'split_at',time:500}),{text:'That time is outside the video.',warn:true});
  const text=newElement('text',3,'t1',{text:'Hi'});assert.deepEqual([text.id,text.start,text.duration,text.text,text.fontSize,text.background],['t1',3,5,'Hi',64,'#171b27bb']);
  assert.equal(newElement('highlight',0).background,'#bba6ff66');
@@ -149,12 +149,12 @@ test('a long delete is said on the card and capped; a zoom says which zoom it re
 test('add a motion block: on the Motion row over clips, never inside another block, shortened to the room it has',()=>{
  const p=make();
  const {next,result}=apply(p,{type:'add_motion_block',template:'lower-third',start:12,text:'Samin Yasar',detail:'Founder'});
- assert.equal(result,'Lower third added at 0:12.0');
+ assert.equal(result,'Lower third added at 0:12');
  assert.deepEqual(next.motion!.map(m=>[m.template,m.style,m.start,m.duration,m.props.name,m.props.role]),[['lower-third','block',12,5,'Samin Yasar','Founder']]);
  assert.equal(next.clips.length,p.clips.length,'clips untouched');
  assert.equal(editActionProblem(next,{type:'add_motion_block',template:'title-card',start:14,text:'T'}),'Another motion block is already there at that time.');
  // Starts before the block at 12 s: it stops where that one starts, and the card says so.
- assert.deepEqual(editEstimate(next,{type:'add_motion_block',template:'title-card',start:9,text:'T'}),{text:'Shortened to 3 s: it stops at 0:12.0, where the next motion block starts.'});
+ assert.deepEqual(editEstimate(next,{type:'add_motion_block',template:'title-card',start:9,text:'T'}),{text:'Shortened to 3 s: it stops at 0:12, where the next motion block starts.'});
  const two=apply(next,{type:'add_motion_block',template:'title-card',start:9,text:'T'}).next;
  assert.deepEqual(two.motion!.map(m=>[m.start,m.duration]),[[9,3],[12,5]]);
  assert.equal(editActionProblem(two,{type:'add_motion_block',template:'callout',start:11.5,text:'Here',x:.2,y:.3}),'Another motion block is already there at that time.');
@@ -164,7 +164,7 @@ test('add a motion block: on the Motion row over clips, never inside another blo
  assert.equal(editActionProblem(p,{type:'add_motion_block',template:'chapter-label',start:projectDuration(p)+3,text:'X'}),'That time is outside the video.');
  const callout=apply(p,{type:'add_motion_block',template:'callout',style:'ring',start:3,duration:2,text:'Click here',x:.25,y:.7}).next.motion![0];
  assert.deepEqual(callout.props,{label:'Click here',x:.25,y:.7});
- assert.equal(describeEditAction({type:'add_motion_block',template:'lower-third',start:12,text:'Samin Yasar',detail:'Founder'}),'Lower third (block) “Samin Yasar” · Founder at 0:12.0 for 5 s.');
+ assert.equal(describeEditAction({type:'add_motion_block',template:'lower-third',start:12,text:'Samin Yasar',detail:'Founder'}),'Lower third (block) “Samin Yasar” · Founder at 0:12 for 5 s.');
  // A ripple delete before the block moves it up; a delete across it shortens it; deleting it removes only it.
  const cut=apply(next,{type:'delete_range',start:2,end:4}).next;assert.deepEqual(cut.motion!.map(m=>[m.start,m.duration]),[[10,5]]);
  const across=apply(next,{type:'delete_range',start:14,end:16}).next;assert.deepEqual(across.motion!.map(m=>[m.start,m.duration]),[[12,3]]);
@@ -280,7 +280,7 @@ test('update_motion_block rewords, restyles, moves and resizes the graphic on sc
  assert.equal(block.start,20);
  assert.equal(block.duration,6);
  assert.match(changed.result,/changed at 0:20/);
- assert.match(describeEditAction({type:'update_motion_block',at:13,text:'Dani',start:20},next),/lower third at 0:13.*reword it “Dani”.*move it to 0:20/i);
+ assert.match(describeEditAction({type:'update_motion_block',at:13,text:'Dani',start:20},next),/Lower third at 0:12: move to 0:20, say “Dani”/);
  assert.equal(editActionProblem(next,{type:'update_motion_block',at:40,text:'x'}),'There is no motion graphic at that time.');
  assert.match(editActionProblem(next,{type:'update_motion_block',at:13,style:'neon'})!,/no style called "neon"/);
  assert.equal(editActionProblem(next,{type:'update_motion_block',at:13,x:.2}),'Only a callout has a point.');

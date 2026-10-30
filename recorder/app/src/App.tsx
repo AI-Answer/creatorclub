@@ -116,6 +116,8 @@ export interface EditorBridge{
  preview(action:EditAction|null,key:string,options?:EditOptions):string|undefined;
  /** One line on what a card would do now (cuts and seconds, the share of the video, the zoom it replaces), or why it cannot. */
  estimate(action:EditAction,options?:EditOptions):{text:string;warn?:boolean}|undefined;
+ /** One plain sentence for what a card would do, naming the graphic it refers to. */
+ describe(action:EditAction):string;
  commit<T extends {project?:Project;revision?:string}>(run:(revision:string)=>Promise<T>):Promise<T>;
 }
 export type EmbeddedRecorder={projectId:string;mode:'Record'|'Edit';onBack():void;onMode?(mode:'Record'|'Edit'):void;onOpenFailed?():void;onProgress?(progress:RecordingProgress):void;onExported?(exported:boolean):void;/** The recording project's scene to select while recording (the strip's choice). */sceneId?:string;/** Changes on every strip click, so choosing the scene that is already chosen applies it again. */sceneNonce?:number;/** The recorder's own scene choice (its scene cards, or the next scene after Continue). */onSceneChange?(sceneId:string):void;/** The club asks this before it leaves Record for Edit: a take still under review is added to the timeline first. It resolves false when that failed, and the club stays. */registerLeaveGuard?(guard:(()=>Promise<boolean>)|null):void;/** Pauses were removed or put back, so the scenes' state changed. */onChanged?():void;/** Edit registers itself for the companion while it is open (null when it closes). */onEditor?(editor:EditorBridge|null):void;/** Edit's selection and stage preview, as they change. */onEditState?(state:EditorState):void};
@@ -304,7 +306,7 @@ export default function App({embedded}:{embedded?:EmbeddedRecorder}={}){
   if(ranges){const merged=mergeRanges(ranges),total=rangesSeconds(merged);showPreview({key,label,summary:`${merged.length} ${merged.length===1?'cut':'cuts'} · ${seconds(total)} shorter`,ranges:merged,review:cutReview(p,merged,label)});return;}
   let after:Project;try{after=applyProjectChange(p,d=>{applyEditAction(d,action,options);});}catch(e){return (e as Error).message;}
   // A motion block is shown a second in, once its way in has played; anything else just after it starts.
-  const at='time' in action?action.time:'start' in action?action.start:undefined;if(at!==undefined)seek(at+(action.type==='add_motion_block'?Math.min(1,(action.duration??2)/2):.05));
+  const at='time' in action?action.time:'start' in action&&action.start!==undefined?action.start:'at' in action?action.at:undefined;const motion=action.type==='add_motion_block'||action.type==='update_motion_block';if(at!==undefined)seek(at+(motion?Math.min(1,(('duration' in action&&action.duration)||2)/2):action.type==='remove_motion_block'?0:.05));
   showPreview({key,label,summary:describeEditAction(action,p),after});return;
  });
  /** Pointing at a graphic in the Graphics panel shows it on the video at the playhead (a second in, once its way in has played); moving away puts the playhead back. */
@@ -320,10 +322,11 @@ export default function App({embedded}:{embedded?:EmbeddedRecorder}={}){
   setPlaying(false);seek(start+Math.min(1,spec.defaultDuration/2));
   showPreview({key:`hover:${template}`,label:spec.label,summary:'How it looks at the playhead. Click to add it.',after});
  });
+ const describeEdit=useEvent((action:EditAction)=>describeEditAction(action,p??undefined));
  const estimateEdit=useEvent((action:EditAction,options:EditOptions={})=>p?editEstimate(p,action,options):undefined);
  const editorFlush=useEvent(()=>studio.flush());
  const onEditor=embedded?.onEditor,editOpen=Boolean(p&&embedded&&mode==='Edit'&&p.id===embedded.projectId);
- useEffect(()=>{if(!onEditor||!editOpen)return;onEditor({context:editorContext,flush:editorFlush,preview:previewEdit,estimate:estimateEdit,commit:studio.commitServer});return()=>onEditor(null);},[onEditor,editOpen,studio.commitServer]);
+ useEffect(()=>{if(!onEditor||!editOpen)return;onEditor({context:editorContext,flush:editorFlush,preview:previewEdit,estimate:estimateEdit,describe:describeEdit,commit:studio.commitServer});return()=>onEditor(null);},[onEditor,editOpen,studio.commitServer]);
  const onEditState=embedded?.onEditState,selectedCount=p?selectionCount(p.clips,selection):selection.size,previewKey=preview?.key,timelineVersion=p?.updatedAt;
  useEffect(()=>{if(editOpen)onEditState?.({selected:selectedCount,previewKey,version:timelineVersion});},[onEditState,editOpen,selectedCount,previewKey,timelineVersion]);
  /** The video's shape in plain terms: its ratio when it is a usual one, else its size. */
@@ -372,7 +375,7 @@ const formatLabel=(w:number,h:number)=>({'1920x1080':'16:9','1080x1920':'9:16','
    {shortcutsOpen&&<ShortcutsPopover onClose={closeShortcuts}/>}
   </div>
   <TimelineResize storageKey="creatorclub.timeline-height" auto={timelineAuto}/>
-  <TimelineClub project={p} playhead={playhead} scale={zoom} autoFit={!kept} onScale={setZoom} selectedIds={selection} onSelectMany={selectMany} onSeek={timelineSeek.run} change={studio.change} onDropMedia={dropMedia} tool={tool} onSplit={splitClip} follow={follow} showWaveforms={showWaveforms} previewRanges={preview?.ranges} cutMarks={cutMarks} onOpen={openItem} onContextMenu={openContext} onNotice={notify} controls={timelineControls}/>
+  <TimelineClub project={p} playhead={playhead} scale={zoom} autoFit={!kept} onScale={setZoom} selectedIds={selection} onSelectMany={selectMany} onSeek={timelineSeek.run} change={studio.change} onDropMedia={dropMedia} tool={tool} onSplit={splitClip} follow={follow} showWaveforms={showWaveforms} previewRanges={preview?.ranges} previewAfter={preview?.after&&previewPhase==='after'?preview.after:null} cutMarks={cutMarks} onOpen={openItem} onContextMenu={openContext} onNotice={notify} controls={timelineControls}/>
   {contextAt&&<ContextMenu at={contextAt} items={contextItems} onClose={closeContext}/>}
  </div>;};
  const timelineAuto=useMemo(()=>p&&embedded?Math.min(420,rowsHeight(usedRows(p))):undefined,[p?.clips,p?.elements,p?.captions,p?.zooms,p?.timelineLayers,embedded]);

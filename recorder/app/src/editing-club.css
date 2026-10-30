@@ -316,8 +316,9 @@
 .club-embed .app-shell[data-mode=Edit] .club-auto-actions{display:flex;gap:8px;margin-top:4px}
 .club-embed .app-shell[data-mode=Edit] .club-auto-actions .btn{flex:1;align-self:stretch;justify-content:center}
 
-/* The scene names are in the row under the timeline, so the ruler keeps only the time. */
-.club-embed .app-shell[data-mode=Edit] .club-scene-tag{display:none}
+/* Each scene is a labelled band along the top of the ruler, as wide as the scene, so the scenes can be read at a glance. */
+.club-embed .app-shell[data-mode=Edit] .club-scene-tag{max-width:none;box-sizing:border-box;overflow:hidden;text-overflow:ellipsis;background:color-mix(in srgb,var(--cc-accent) 14%,var(--cc-card));color:var(--cc-accent-text)}
+.club-embed .app-shell[data-mode=Edit] .club-scene-tag.alt{background:color-mix(in srgb,var(--cc-accent) 8%,var(--cc-card))}
 
 /* A calmer Edit: the top strip is gone (undo, history and Export live on the timeline bar), the scene row has no scrollbar,
    the video sits on a soft shadow, and the timeline bar groups its tools. */
@@ -332,3 +333,12 @@
 .club-embed .app-shell[data-mode=Edit] .club-timeline-bar .club-export{margin-left:0}
 .club-embed .app-shell[data-mode=Edit] .club-timeline-bar .club-export .btn{height:32px;padding:0 14px;border:1px solid var(--cc-line-strong);border-radius:8px;background:var(--cc-surface);color:var(--cc-text);font-weight:550;white-space:nowrap}
 .club-embed .app-shell[data-mode=Edit] .club-timeline-bar .club-export .btn:hover{background:var(--cc-hover)}
+
+/* A previewed change drawn on the timeline before it is applied: dashed, in the accent colour; a removal is hatched. */
+.club-embed .app-shell[data-mode=Edit] .club-fx-ghost{position:absolute;top:3px;bottom:3px;z-index:4;pointer-events:none;display:flex;align-items:center;padding:0 8px;border-radius:6px;font-size:11.5px;font-weight:550;overflow:hidden;white-space:nowrap;border:1.5px dashed var(--cc-accent);background:color-mix(in srgb,var(--cc-accent) 14%,var(--cc-card));color:var(--cc-accent-text);animation:fxGhost 1.6s ease-in-out infinite}
+.club-embed .app-shell[data-mode=Edit] .club-fx-ghost.removed{border-color:var(--cc-danger);color:var(--cc-danger);text-decoration:line-through;background:repeating-linear-gradient(135deg,color-mix(in srgb,var(--cc-danger) 22%,transparent) 0 4px,transparent 4px 8px)}
+@keyframes fxGhost{0%,100%{opacity:1}50%{opacity:.72}}
+@media (prefers-reduced-motion:reduce){.club-embed .app-shell[data-mode=Edit] .club-fx-ghost{animation:none}}
+/* The note on the video while a change is previewed stays short and inside the stage. */
+.club-embed .app-shell[data-mode=Edit] .club-preview-badges{max-width:calc(100% - 24px)}
+.club-embed .app-shell[data-mode=Edit] .club-preview-badges .club-pill{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
