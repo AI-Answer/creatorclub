@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {clockTime} from '../video-plan';
-import {takesWaiting,TAKE_NOT_ADDED,nextTab,previousTab,scenesLine,stageForContinue,tabDone,allScenesKept,continueIsPrimary,showsStrip} from './rules';
+import {takesWaiting,TAKE_NOT_ADDED,nextTab,previousTab,scenesLine,stageForContinue,tabDone,allScenesKept,continueIsPrimary,showsStrip,tabLock,tabState,continueFor,lockedLine,POSTIZ_LINE} from './rules';
 import {canvasSize,clampZoom,dragTo,keyMove,moveBy,tileBox} from './board-layout';
 
 test('the tabs follow each other, and Continue moves the card to the stage of the next tab only when that is further along',()=>{
@@ -98,4 +98,53 @@ test('a recorded take that is neither on the timeline nor set aside is waiting; 
  assert.deepEqual(takesWaiting([scene('Opening',[true,false],[false,false])]),[],'a scene with a take on the timeline is not waiting');
  assert.deepEqual(takesWaiting(undefined),[]);
  assert.match(TAKE_NOT_ADDED,/timeline/);
+});
+
+const take=(kept:boolean)=>({id:'t',seconds:1,kept,retained:false});
+const noScenes={stage:'planning' as const,scenes:[],hasRecording:false};
+const planned={stage:'planning' as const,scenes:[{takes:[]},{takes:[]}],hasRecording:false};
+const started={stage:'recording' as const,scenes:[{takes:[take(true)]},{takes:[]}],hasRecording:true};
+
+test('a step is locked until what it needs exists, and says the first thing missing; nothing locks on a guess',()=>{
+ for(const tab of ['board','plan'] as const)assert.equal(tabLock(tab,noScenes),undefined,`${tab} never locks`);
+ assert.deepEqual(tabLock('record',noScenes),{reason:'Plan the scenes first',unlock:'plan'});
+ assert.deepEqual(tabLock('edit',noScenes),{reason:'Plan the scenes first',unlock:'plan'},'the first thing missing, so the step it sends you to is open');
+ assert.deepEqual(tabLock('publish',noScenes),{reason:'Plan the scenes first',unlock:'plan'});
+ assert.equal(tabLock('record',planned),undefined,'scenes open Record (it can start the recording itself)');
+ assert.deepEqual(tabLock('edit',planned),{reason:'Record a scene first',unlock:'record'});
+ assert.deepEqual(tabLock('publish',planned),{reason:'Record a scene first',unlock:'record'});
+ assert.deepEqual(tabLock('edit',{...planned,hasRecording:true}),{reason:'Record a scene first',unlock:'record'},'a recording project with no take is still nothing to edit');
+ assert.equal(tabLock('edit',started),undefined);assert.equal(tabLock('publish',started),undefined);
+ for(const tab of ['record','edit','publish'] as const)assert.equal(tabLock(tab,{...noScenes,hasRecording:true}),undefined,`a recording project keeps ${tab} open even when the scene list reads empty`);
+ assert.equal(tabLock('edit',{stage:'editing',hasRecording:true}),undefined,'scenes not known yet: not locked');
+ assert.equal(tabLock('publish',{...noScenes,stage:'published'}),undefined,'a published video locks nothing');
+ for(const tab of ['record','edit','publish'] as const)for(const facts of [noScenes,planned]){const lock=tabLock(tab,facts);if(lock)assert.equal(tabLock(lock.unlock,facts),undefined,'the unlocking step is open');}
+});
+
+test('the step bar shows each step as done, current, next, locked or open',()=>{
+ assert.deepEqual((['board','plan','record','edit','publish'] as const).map(key=>tabState(key,'plan',noScenes)),['open','current','locked','locked','locked']);
+ assert.deepEqual((['board','plan','record','edit','publish'] as const).map(key=>tabState(key,'plan',planned)),['done','current','next','locked','locked']);
+ assert.deepEqual((['board','plan','record','edit','publish'] as const).map(key=>tabState(key,'record',started)),['done','done','current','next','open']);
+});
+
+test('one Continue rule: it names the next step, is disabled with the reason when that step is locked, and is primary only when this step is done and has no primary of its own',()=>{
+ assert.deepEqual(continueFor('board',noScenes),{label:'Continue to planning',disabled:false,primary:false});
+ assert.deepEqual(continueFor('plan',noScenes),{label:'Continue to recording',disabled:true,reason:'Draft the scenes first',primary:false},'on Plan the scenes are its own job');
+ assert.deepEqual(continueFor('plan',planned),{label:'Continue to recording',disabled:false,primary:true});
+ assert.deepEqual(continueFor('plan',planned,{busy:true}),{label:'Continue to recording',disabled:true,reason:'Claude is still writing',primary:false});
+ assert.deepEqual(continueFor('record',planned,{ownPrimary:true}),{label:'Continue to editing',disabled:true,reason:'Record a scene first',primary:false});
+ assert.deepEqual(continueFor('record',started),{label:'Continue to editing',disabled:false,primary:false},'scenes left to record: the Record button stays the primary');
+ assert.deepEqual(continueFor('record',{...started,allRecorded:true}),{label:'Continue to editing',disabled:false,primary:true});
+ assert.deepEqual(continueFor('edit',started),{label:'Continue to publishing',disabled:false,primary:false});
+ assert.deepEqual(continueFor('edit',{...started,exported:true}),{label:'Continue to publishing',disabled:false,primary:true});
+ assert.equal(continueFor('publish',started),undefined,'the last step has no Continue');
+ assert.deepEqual(continueFor('record',{stage:'recording',hasRecording:true}),{label:'Continue to editing',disabled:true,primary:false},'scenes not known yet: it waits, with nothing to explain');
+});
+
+test('a locked step says why and what opens after it; a locked Publish also names the paid Postiz while it is not connected',()=>{
+ const lock={reason:'Record a scene first',unlock:'record' as const};
+ assert.equal(lockedLine('edit',lock),'Record a scene first. Edit opens after that.');
+ assert.equal(lockedLine('publish',lock,{postizConnected:true}),'Record a scene first. Publish opens after that.');
+ assert.equal(lockedLine('publish',lock,{postizConnected:false}),`Record a scene first. Publish opens after that. ${POSTIZ_LINE}`);
+ assert.match(POSTIZ_LINE,/^Publishing uses Postiz, a paid service from \$29 a month: connect it in Settings\.$/);
 });

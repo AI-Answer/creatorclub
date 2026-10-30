@@ -35,6 +35,6 @@ test('an empty strip says to draft the scenes from the board',async()=>{
  const scenes={status:'ready' as const,scenes:[]};
  const ui=await mountUI(createElement(Strip,{scenes,focusId:null,onPick(){},onRetry(){}}));
  try{
-  assert.match(ui.container.textContent!,/No scenes yet\. Draft them from the board\./);
+  assert.match(ui.container.textContent!,/No scenes yet\. Plan the scenes first\./);
  }finally{await ui.close();}
 });

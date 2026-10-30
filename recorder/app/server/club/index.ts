@@ -2,6 +2,7 @@ import express, { Router, type NextFunction, type Request, type Response } from 
 import multer from 'multer';
 import { z } from 'zod';
 import { SEED_BELOW, HELP_STEPS, PLAN_JOB_KINDS, TILE_KINDS, VIDEO_STAGES, type Workspace } from '../../shared/club.js';
+import { PACKAGE_GROUPS } from '../../shared/package-merge.js';
 import { aiStatus } from './ai.js';
 import { startConnect, type ConnectOptions } from './connect.js';
 import { ClubError, GENERIC_FAILURE, notFound } from './errors.js';
@@ -164,7 +165,7 @@ const tilePatchBody = z
   .refine((patch) => Object.keys(patch).length > 0, { message: 'nothing to change' });
 const packageUseBody = z.object({ kind: z.enum(['hook', 'title']), text: z.string().trim().min(1).max(2000) }).strict();
 const sceneScriptBody = z.object({ text: z.string().max(200_000) }).strict();
-const packageRunBody = z.object({ replace: z.enum(['titles', 'hook']).optional() }).strict();
+const packageRunBody = z.object({ replace: z.enum(PACKAGE_GROUPS).optional() }).strict();
 const scriptRunBody = z.object({ sceneId: z.string().regex(SCENE_ID).optional() }).strict();
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { files: 1, fileSize: 50 * 1024 * 1024 } });

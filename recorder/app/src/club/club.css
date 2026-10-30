@@ -872,3 +872,50 @@
 .club-root .decide li span { flex: 1; }
 .club-root .linkish.quiet { color: var(--cc-text-2); font-weight: 500; }
 .club-root .linkish.quiet:hover { color: var(--cc-text); }
+
+/* ---- The step bar says where each step stands; the bottom bar says why Continue waits. */
+.club-root .tabs a.locked { color: var(--cc-text-3); cursor: default; }
+.club-root .tabs a.locked:hover { color: var(--cc-text-2); }
+.club-root .tabs a .lk { color: var(--cc-text-3); }
+.club-root .tabs a.next { color: var(--cc-text); }
+.club-root .tabs a .nx { width: 5px; height: 5px; border-radius: 50%; background: var(--cc-text-2); flex: none; }
+.club-root .tabs a:focus-visible { outline: 2px solid var(--cc-accent); outline-offset: 1px; }
+.club-root .ws-foot .r { display: flex; align-items: center; gap: 12px; }
+.club-root .ws-why { white-space: nowrap; }
+
+/* ---- Plan: one scroll area per column, empty columns as one sentence and one action, a compact package. */
+.club-root .plan-page { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.club-root .plan-lines { flex: none; display: flex; flex-direction: column; gap: 8px; padding: 12px 40px 0; }
+.club-root .plan { flex: 1; min-height: 0; grid-template-rows: minmax(0, 1fr); }
+.club-root .plan > section { min-height: 0; overflow-y: auto; }
+.club-root .pkg-empty, .club-root .plan-empty { margin-top: 18px; display: flex; flex-direction: column; align-items: flex-start; gap: 16px; }
+.club-root .pkg-empty p, .club-root .plan-empty p { margin: 0; max-width: 46ch; color: var(--cc-text-2); font-size: 14px; line-height: 1.55; }
+.club-root .pkg-hint { margin: -4px 0 8px; color: var(--cc-text-2); font-size: var(--cc-text-sm); line-height: 1.45; }
+.club-root .pkg .ed:empty::before, .club-root .scn .ed:empty::before { font-size: var(--cc-text-sm); font-weight: 400; font-style: italic; letter-spacing: 0; color: var(--cc-placeholder); }
+.club-root .tlist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.club-root .tline { position: relative; display: flex; align-items: flex-start; gap: 8px; padding: 6px 6px 6px 2px; border-radius: var(--cc-r); }
+.club-root .tline .ed { font-size: 15px; font-weight: 550; letter-spacing: -0.01em; color: var(--cc-text-2); }
+.club-root .tline.on .ed { font-weight: 650; color: var(--cc-text); }
+.club-root .tmark { width: 18px; height: 24px; flex: none; display: inline-flex; align-items: center; justify-content: center; color: var(--cc-ok); }
+.club-root .tline .tuse { position: absolute; right: 4px; top: 4px; opacity: 0; background: var(--cc-surface); box-shadow: var(--cc-shadow-1), 0 0 0 1px var(--cc-line); }
+.club-root .tline:hover .tuse, .club-root .tline:focus-within .tuse { opacity: 1; }
+.club-root .pkg-add { display: inline-flex; align-items: center; gap: 5px; margin-top: 4px; font-size: var(--cc-text-sm); }
+.club-root .pkg-add.under { margin-left: 28px; }
+.club-root .pkg-thumb-text { font-size: 17px; font-weight: 700; letter-spacing: -0.02em; }
+.club-root .prev-thumb .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.club-root .plan .doc-h { flex-wrap: wrap; row-gap: 8px; }
+.club-root .plan .scn { container-type: inline-size; }
+@container (max-width: 460px) {
+  .club-root .scene-open .decide-count { display: none; }
+}
+@media (max-width: 1279px) {
+  .club-root .plan .pkg { padding: 24px 22px 48px 24px; }
+  .club-root .plan .scn { padding: 24px 20px 48px; }
+  .club-root .plan-lines { padding: 12px 24px 0; }
+}
+.club-root .pkg-save { font-size: var(--cc-text-xs); color: var(--cc-text-3); white-space: nowrap; }
+.club-root .pkg-save.bad { color: var(--cc-warn); }
+.club-root .pkg-save .linkish { font-size: var(--cc-text-xs); }
+.club-root .tline .tnote { flex: none; padding-top: 3px; }
+.club-root .pkg-thumb { position: relative; overflow: hidden; }
+.club-root .pkg-thumb-tt { position: absolute; left: 8px; right: 8px; bottom: 6px; color: var(--cc-on-media); font-weight: 800; font-size: 13px; line-height: 1.05; letter-spacing: -0.02em; text-shadow: var(--cc-media-text-shadow); }
