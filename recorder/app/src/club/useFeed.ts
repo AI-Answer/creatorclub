@@ -9,9 +9,10 @@ export type Feed<Data,Result>={
  data:Data|null;
  /** One sentence when it could not be read, with nothing to show. */
  loadError:string|null;
- reload():void;
- /** Starts the refresh job (or joins the one already running) and loads the list again when it is done. */
- refresh(onDone?:(result:Result)=>void):void;
+ /** Reads the list again; resolves once it is on screen (or could not be read). */
+ reload():Promise<void>;
+ /** Starts the refresh job (or joins the one already running) and loads the list again when it is done. `body` narrows it (posts: `{only}`, the sources to read again). */
+ refresh(onDone?:(result:Result)=>void,body?:object):void;
  job:JobRun;
 };
 
@@ -23,11 +24,12 @@ function useFeed<Data,Result>(path:string,fallback:string):Feed<Data,Result>{
  const {state,run}=useJobRun();
  const reload=useCallback(()=>{
   const mine=++latest.current;
-  clubFetch<Data>(path).then(found=>{if(mine===latest.current){setData(found);setLoadError(null);}},reason=>{if(mine===latest.current)setLoadError(errorMessage(reason,fallback));});
+  return clubFetch<Data>(path).then(found=>{if(mine===latest.current){setData(found);setLoadError(null);}},reason=>{if(mine===latest.current)setLoadError(errorMessage(reason,fallback));});
  },[path,fallback]);
- useEffect(()=>{reload();return()=>{latest.current++;};},[reload]);
- const refresh=useCallback((onDone?:(result:Result)=>void)=>{
-  void run(()=>clubFetch(`${path}/refresh`,{method:'POST'}),result=>{reload();onDone?.(result as Result);});
+ useEffect(()=>{void reload();return()=>{latest.current++;};},[reload]);
+ const refresh=useCallback((onDone?:(result:Result)=>void,body?:object)=>{
+  // The finished callback runs once the new list is on screen, so whoever waits for it sees the new results.
+  void run(()=>clubFetch(`${path}/refresh`,{method:'POST',...(body?{body}:{})}),result=>{void reload().then(()=>onDone?.(result as Result));});
  },[path,reload,run]);
  return {data,loadError,reload,refresh,job:state};
 }

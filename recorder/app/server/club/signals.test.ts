@@ -105,7 +105,7 @@ test('refresh reads Reddit top of the week with a real User-Agent, keeps the bes
   assert.deepEqual(file.items.map((i) => i.id), ['r-p1', 'r-p2', 'r-q1'], 'ranked by likes and replies; the duplicate is dropped and r/ClaudeAI is capped at 2');
   assert.equal(file.updatedAt, '2026-10-29T12:00:00.000Z');
   assert.deepEqual(file.errors, []);
-  assert.deepEqual(result, { posts: 3, added: 3, errors: [], tried: 2 }, 'no note when no X source is set up');
+  assert.deepEqual(result, { posts: 3, added: 3, errors: [], tried: 2, failed: [] }, 'no note when no X source is set up');
   assert.ok(!(await readdir(store.workspaceDir(slug))).some((name) => name.endsWith('.tmp')));
 });
 
@@ -161,7 +161,7 @@ test('a source that fails keeps its earlier posts and is listed; other sources a
 
   assert.deepEqual(result.errors, ['r/ClaudeAI', 'X @BadAccount', 'X search vibe coding']);
   const ids = (await saved(slug)).items.map((i) => i.id).sort();
-  assert.deepEqual(ids, ['r-old', 'r-v1', 'x-900', 'x-bad-old', 'x-topic-old']);
+  assert.deepEqual(ids, ['r-ancient', 'r-old', 'r-v1', 'x-900', 'x-bad-old', 'x-topic-old'], 'a failed source keeps every earlier post, however old');
   assert.deepEqual((await saved(slug)).errors, result.errors);
 
   const thrown = await channel({ reddit: ['ClaudeAI'] }, [keptReddit]);
@@ -172,6 +172,55 @@ test('a source that fails keeps its earlier posts and is listed; other sources a
   const notJson = await channel({ reddit: ['ClaudeAI'] });
   const garbage = await refreshSignals(notJson, context(), { fetch: fakeFetch({ ClaudeAI: { data: 'nope' } }).impl, treg: noTreg.treg }, NOW);
   assert.deepEqual(garbage.errors, ['r/ClaudeAI']);
+});
+
+const SUBS = ['ClaudeAI', 'ClaudeCode', 'vibecoding', 'AI_Agents', 'OpenAI', 'codex', 'ChatGPT', 'ArtificialInteligence', 'artificial'];
+/** What a channel read on Oct 26 has: five posts in each of nine subreddits, now four days older, plus X posts. */
+const earlier = SUBS.flatMap((sub) => Array.from({ length: 5 }, (_, n) => stored({ id: `r-${sub}-${n}`, source: 'reddit', author: `r/${sub}`, handle: 'u', likes: 100 + n, createdAt: new Date(NOW - (4 + n) * 86_400_000).toISOString() })));
+
+test('Reddit failing on all nine subreddits replaces nothing: every post stays, each source is listed, and the next good read clears them', async () => {
+  const slug = await channel({ reddit: SUBS, x: ['AnthropicAI'] }, [...earlier, stored({ id: 'x-kept' })]);
+  const lines: unknown[] = [];
+  const failing = fakeFetch(Object.fromEntries(SUBS.map((sub) => [sub, 429])));
+  const result = await refreshSignals(slug, { emit: (data: unknown) => lines.push(data), signal: new AbortController().signal }, { fetch: failing.impl, treg: noTreg.treg }, NOW);
+  assert.equal(failing.requests.length, 9);
+  assert.deepEqual(result.failed, SUBS.map((sub) => `r/${sub}`));
+  assert.equal(result.tried, 9);
+  const file = await saved(slug);
+  assert.equal(file.items.filter((item) => item.source === 'reddit').length, 45, 'all 45 earlier Reddit posts stay, the 8-day-old ones too');
+  assert.ok(file.items.some((item) => item.id === 'x-kept'), 'X is untouched');
+  assert.deepEqual(file.errors, SUBS.map((sub) => `r/${sub}`), 'each failed source, for the error line after a reload');
+  // Progress: which source, how many of how many, and the time left once one is read.
+  assert.deepEqual((lines[0] as { done: number; total: number }).done, 0);
+  assert.match((lines[0] as { message: string }).message, /^Reading r\/ClaudeAI \(1 of 9\)…$/);
+  assert.match((lines[8] as { message: string }).message, /^Reading r\/artificial \(9 of 9\) · (under a minute|about \d+ min) left…$/);
+
+  // Try again on two of them: only those are read; the other seven keep their posts and their errors.
+  const two = fakeFetch({ ClaudeAI: listing(redditPost({ id: 'fresh1' })), ClaudeCode: 503 });
+  const retried = await refreshSignals(slug, context(), { fetch: two.impl, treg: noTreg.treg }, { only: ['r/ClaudeAI', 'r/ClaudeCode'], nowMs: NOW });
+  assert.deepEqual(two.requests.map((r) => r.url.split('/r/')[1].split('/')[0]), ['ClaudeAI', 'ClaudeCode']);
+  assert.deepEqual(retried.failed, ['r/ClaudeCode']);
+  assert.equal(retried.tried, 2);
+  const after = await saved(slug);
+  assert.deepEqual(after.errors, SUBS.filter((sub) => sub !== 'ClaudeAI').map((sub) => `r/${sub}`), 'r/ClaudeAI read, so its error is gone; the rest stay listed');
+  const fromClaudeAI = after.items.filter((item) => item.author === 'r/ClaudeAI').map((item) => item.id);
+  assert.deepEqual(fromClaudeAI, ['r-fresh1'], 'a source that reads replaces its own posts');
+  assert.equal(after.items.filter((item) => item.author === 'r/vibecoding').length, 5, 'a source not read this time is untouched');
+
+  // Everything reads: no error is left.
+  const good = fakeFetch(Object.fromEntries(SUBS.map((sub) => [sub, listing(redditPost({ id: `ok-${sub}`, subreddit: sub }))])));
+  const fine = await refreshSignals(slug, context(), { fetch: good.impl, treg: noTreg.treg }, NOW);
+  assert.deepEqual(fine.failed, []);
+  assert.deepEqual((await saved(slug)).errors, []);
+});
+
+test('the time left comes from the sources read so far', async () => {
+  const { timeLeft } = await import('./signals.js');
+  assert.equal(timeLeft(10_000, 0, 9), undefined, 'nothing to go on before the first');
+  assert.equal(timeLeft(10_000, 1, 9), 'about 1 min left');
+  assert.equal(timeLeft(60_000, 1, 9), 'about 8 min left');
+  assert.equal(timeLeft(5_000, 5, 9), 'under a minute left');
+  assert.equal(timeLeft(5_000, 9, 9), undefined);
 });
 
 test('a refresh needs a source, and a subreddit name that is not one is never requested', async () => {
@@ -204,7 +253,7 @@ test('read for a channel: posts about its topics and audience first with a reaso
   assert.deepEqual(ranked.errors, ['r/gone']);
 
   const none = await store.createWorkspace({ name: 'No signals yet', handle: '', channelUrl: '', topics: [], about: '', cta: '' });
-  assert.deepEqual(await rankedSignals(none.slug, none), { items: [], updatedAt: null, errors: [], sources: 0 });
+  assert.deepEqual(await rankedSignals(none.slug, none), { items: [], updatedAt: null, errors: [], sources: 0, sourcesBy: { x: 0, reddit: 0 } });
   assert.equal(ranked.sources, 0, 'no sources set up');
 });
 

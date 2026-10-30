@@ -2,7 +2,7 @@ import path from 'node:path';
 import { SEED_BELOW, type FollowedChannel, JobSnapshot, TrendingEntry, TrendingItem, TrendingRefreshResult, TrendingResponse, Workspace } from '../../shared/club.js';
 import { parseChannelInput, pool } from './channel.js';
 import { ClubError } from './errors.js';
-import { startJobOnce, type JobContext } from './jobs.js';
+import { startJobOnce, timeLeft, type JobContext } from './jobs.js';
 import { reasonFor, trendText } from './relevance.js';
 import { listingArgs, outlierMultiplier, parseSearchLines, parseStatLines, searchArgs, statsArgs, usualViews, type SearchHit, type VideoStats } from './source.js';
 import * as store from './store.js';
@@ -79,9 +79,13 @@ const pickedTopic = (item: TrendingItem, topics: string[]) => (item.topic && top
 /** Working now for a channel: every video, ranked for it. Videos that match its topics or audience come first, each with its reason; the rest have `fit: false`. */
 export async function rankedTrending(slug: string, workspace: Pick<Workspace, 'topics' | 'audience'>): Promise<TrendingResponse> {
   const [items, updatedAt, followed] = await Promise.all([readItems(slug), lastRefresh(slug), readFollowed(slug)]);
+  // A video from a channel followed since it was found counts as followed at once, so Followed and its count change as soon as you follow.
+  const ids = new Set(followed.flatMap((channel) => (channel.channelId ? [channel.channelId] : [])));
+  const names = new Set(followed.map((channel) => channel.name.trim().toLowerCase()));
+  const isFollowed = (item: TrendingItem) => item.kind === 'followed' || (item.channelId ? ids.has(item.channelId) : false) || names.has(item.channel.trim().toLowerCase());
   const entries: TrendingEntry[] = items.map((item) => {
     const reason = reasonFor(trendText(item), workspace.topics, workspace.audience) ?? pickedTopic(item, workspace.topics);
-    return { ...item, mult: item.mult ?? null, fit: reason !== null, reason };
+    return { ...item, kind: isFollowed(item) ? 'followed' : item.kind, mult: item.mult ?? null, fit: reason !== null, reason };
   });
   entries.sort((a, b) => Number(b.fit) - Number(a.fit) || b.vpd - a.vpd);
   return { items: entries, updatedAt, followed: followed.length };
@@ -152,9 +156,11 @@ export async function refreshTrending(slug: string, context: JobContext, makeSou
   const fresh = new Map<string, TrendingItem>();
   const medians = new Map<FollowedChannel, number>();
   const failed: string[] = [];
+  const started = Date.now();
   for (const [index, channel] of followed.entries()) {
     if (context.signal.aborted) throw new ClubError('That was stopped.');
-    say(`Reading ${channel.name} (${index + 1} of ${followed.length})…`);
+    const left = timeLeft(Date.now() - started, index, followed.length);
+    say(`Reading ${channel.name} (${index + 1} of ${followed.length})${left ? ` · ${left}` : ''}…`);
     const url = followedUrl(channel);
     try {
       if (!url) throw new Error('no usable link');

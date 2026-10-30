@@ -62,19 +62,24 @@ test('Discover: two ranked lists become one, each card where its rank sits in it
  assert.deepEqual(interleave([],[p('1')]).map(feedKey),['p:1']);assert.deepEqual(interleave([v('a')],[]).map(feedKey),['v:a']);
 });
 
-test('Discover: chips, one sort per chip, the topics filter and Show everything',()=>{
+test('Discover: chips, one sort per chip, the topics filter and Show everything; For you holds every followed video',()=>{
  const videos=[trend('fit1',{vpd:900,ageDays:2}),trend('fit2',{vpd:100,ageDays:1,kind:'creator',mult:null}),trend('under',{mult:0.5,vpd:5000}),trend('off',{fit:false,kind:'creator',vpd:4000})];
  const posts=[post('x1',{likes:50,ageHours:30}),post('x2',{likes:5,ageHours:1}),post('r1',{source:'reddit',likes:20,ageHours:10}),post('xoff',{fit:false,likes:999})];
  const keys=(show:Parameters<typeof discoverFeed>[2],sort:Parameters<typeof discoverFeed>[3],everything=false)=>{const {shown,off}=discoverFeed(videos,posts,show,sort,everything);return {keys:shown.map(feedKey),off};};
- assert.deepEqual(keys('fit','top'),{keys:['v:fit1','p:x1','p:r1','v:fit2','p:x2'],off:3},'For you mixes both, ranked, about your topics only');
- assert.deepEqual(keys('fit','new'),{keys:['p:x2','p:r1','v:fit2','p:x1','v:fit1'],off:3},'Newest puts videos and posts in one order of age');
+ assert.deepEqual(keys('fit','top'),{keys:['v:fit1','p:x1','v:fit2','p:r1','v:under','p:x2'],off:2},'For you mixes both, ranked: about your topics, and every video of a channel you follow');
+ assert.deepEqual(keys('fit','new'),{keys:['p:x2','p:r1','v:fit2','p:x1','v:fit1','v:under'],off:2},'Newest puts videos and posts in one order of age');
  assert.deepEqual(keys('fit','top',true).keys,['v:fit1','p:x1','v:fit2','p:r1','v:under','p:x2','v:off','p:xoff'],'Show everything adds the rest after');
- assert.deepEqual(keys('youtube','vpd'),{keys:['v:fit1','v:fit2'],off:2});
- assert.deepEqual(keys('youtube','views').keys,['v:fit1','v:fit2']);
+ assert.deepEqual(keys('youtube','vpd'),{keys:['v:fit1','v:fit2','v:under'],off:1});
+ assert.deepEqual(keys('youtube','views').keys,['v:fit1','v:fit2','v:under']);
  assert.deepEqual(keys('followed','vpd'),{keys:['v:under','v:fit1'],off:0},'Followed lists every video from the channels you follow');
  assert.deepEqual(keys('x','top'),{keys:['p:x1','p:x2'],off:1});assert.deepEqual(keys('x','new').keys,['p:x2','p:x1']);
  assert.deepEqual(keys('reddit','top'),{keys:['p:r1'],off:0});
- assert.deepEqual(discoverCounts(videos,posts),{fit:5,followed:2,youtube:2,x:2,reddit:1});
+ assert.deepEqual(discoverCounts(videos,posts),{fit:6,followed:2,youtube:3,x:2,reddit:1});
+ // The walk's numbers: 115 followed videos, most of them off your topics or under their usual, never more than For you.
+ const many=[...Array.from({length:115},(_,i)=>trend(`f${i}`,{fit:i<20,mult:i%2?0.9:1.5})),trend('search',{kind:'creator'})];
+ const counted=discoverCounts(many,[]);
+ assert.equal(counted.followed,115);assert.ok(counted.fit>=counted.followed,`For you ${counted.fit} holds Followed ${counted.followed}`);
+ for(const show of ['fit','followed','youtube','x','reddit'] as const)assert.equal(discoverCounts(videos,posts)[show],discoverFeed(videos,posts,show,'top',false).shown.length,`${show}: the count is the list`);
  assert.deepEqual(sortsFor('fit').map(([key])=>key),['top','new']);assert.deepEqual(sortsFor('youtube').map(([key])=>key),['vpd','views','outlier','new']);assert.deepEqual(sortsFor('reddit').map(([key])=>key),['top','new']);
  assert.equal(sortFor('youtube','top'),'vpd','a sort the chip does not offer falls back to its first');assert.equal(sortFor('fit','views'),'top');assert.equal(sortFor('x','new'),'new');
  assert.equal(latestRead(null,'2026-10-26T19:00:00.000Z','2026-10-26T22:00:00.000Z'),'2026-10-26T22:00:00.000Z');assert.equal(latestRead(null,undefined),null);

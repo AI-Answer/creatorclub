@@ -204,6 +204,7 @@ async function requireWorkspace(): Promise<string> {
 
 const connectBody = z.object({ provider: z.enum(['claude', 'codex']), reconnect: z.boolean().optional() }).strict();
 const stageDates = z.record(stage, z.string()).refine((dates) => Object.keys(dates).length > 0);
+const signalsRefreshBody = z.object({ only: z.array(z.string().trim().min(1).max(200)).min(1).max(100).optional() }).strict();
 const moveBody = z.object({ stage, beforeId: z.string().nullable().optional(), stageDates: stageDates.optional() }).strict();
 const geminiKeyBody = z.object({ key: z.string().trim().min(20).max(200).regex(/^[\w-]+$/) }).strict();
 const settingsBody = z.object({ defaultAi: z.enum(['claude', 'codex']), appearance: z.enum(['light', 'dark']) }).partial().strict().refine((body) => Object.keys(body).length > 0, { message: 'nothing to save' });
@@ -378,10 +379,12 @@ export function clubRouter({ ai = {}, transcribe, runAI, readViews = ytDlpViews(
     const slug = await requireWorkspace();
     res.json(await rankedSignals(slug, await store.readWorkspace(slug)));
   }));
-  router.post('/signals/refresh', handler(async (_req, res) => {
+  // `only` reads just the sources that failed last time (Try again beside their error); the others keep their posts.
+  router.post('/signals/refresh', handler(async (req, res) => {
     const slug = await requireWorkspace();
     if (!hasSources(await readSignalsConfig(slug))) throw new ClubError(NO_SOURCES, 409);
-    res.status(202).json(startSignalsRefresh(slug, signalSources));
+    const { only } = signalsRefreshBody.parse(req.body ?? {});
+    res.status(202).json(startSignalsRefresh(slug, signalSources, only));
   }));
   router.post('/signals/idea', handler(async (req, res) => {
     const { id } = signalIdeaBody.parse(req.body);
