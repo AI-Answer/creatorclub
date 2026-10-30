@@ -91,7 +91,7 @@ export function nextAction(video:Video,scenes:readonly SceneProgress[]|undefined
    return next<0?{label:'Continue to editing',tab:'edit',icon:'cut'}:{label:`Record scene ${next+1}`,tab:'record',icon:'microphone'};
   }
   case 'editing':return {label:'Keep editing',tab:'edit',icon:'cut'};
-  case 'publishing':return {label:'Paste YouTube link',tab:'publish',icon:'upload'};
+  case 'publishing':return {label:'Publish it',tab:'publish',icon:'upload'};
   case 'published':return {label:video.views!==undefined?`${fmtNum(video.views)} views`:'Open',tab:'publish',icon:'preview'};
  }
 }
