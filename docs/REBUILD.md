@@ -44,6 +44,9 @@ Dani approved the clickable prototype in `docs/prototype/`. This plan rebuilds t
 
 ## Task 1: Design system and app shell
 
+> **Superseded by v2 Task 5b (2026-10-30):** Overview is now **Home** (`#/home`), Working now and Signals are one **Discover** (`#/discover?show=youtube|x|reddit|followed`), Ideas and Production are one **Videos** pipeline with Ideas as its first lane (`#/videos`, `#/videos/table`, `#/videos/calendar`, query `group=later|skipped`, `open`, `new`, `bd`). The sidebar is Home, Discover, Videos, then Settings, Help and Collapse as icons. Every old hash below redirects to its new place.
+
+
 Port the prototype's foundation and frame.
 
 - **Styles:** port `docs/prototype/styles.css` (tokens, layout, cards, chips, buttons, inputs, menus, dialogs, drawers, toasts, sidebar, kanban, board canvas, workspace frame, scene strip, bottom bar, record and edit layouts) into `src/club/club.css`, scoped under `.club-root`. Keep the existing Tailwind setup working; the ported CSS can be plain CSS classes. Keep `src/recording-club.css` and `src/editing-club.css` working for the embedded recorder and editor.
