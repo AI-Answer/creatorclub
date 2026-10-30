@@ -1,7 +1,7 @@
 import express, { Router, type NextFunction, type Request, type Response } from 'express';
 import multer from 'multer';
 import { z } from 'zod';
-import { SEED_BELOW, HELP_STEPS, PLAN_JOB_KINDS, TILE_KINDS, VIDEO_STAGES, type Workspace } from '../../shared/club.js';
+import { CHANNEL_BOARD, SEED_BELOW, HELP_STEPS, PLAN_JOB_KINDS, TILE_KINDS, VIDEO_STAGES, type Workspace } from '../../shared/club.js';
 import { aiStatus } from './ai.js';
 import { startConnect, type ConnectOptions } from './connect.js';
 import { ClubError, GENERIC_FAILURE, notFound } from './errors.js';
@@ -20,6 +20,8 @@ import { recordingsDiskSpace } from './disk.js';
 import { readTranscript, startTileRead } from './research.js';
 import * as boardDocs from './board-docs.js';
 import { subscribeBoard } from './board-watch.js';
+import * as canvas from './board-canvas.js';
+import { addToResearch, addToResearchBody, startVideoBody, startVideoFrom } from './research-board.js';
 import { applyCard, askBody, askCompanion, cardBody, readThread, undoCard } from './companion.js';
 import { lock as companionLock } from './companion-actions.js';
 import { editSilences } from './companion-edit.js';
@@ -134,6 +136,7 @@ const tileMeta = z
     author: z.string().max(200),
     replies: z.number(),
     breakdownId: z.string().regex(/^bd_[a-f0-9]{12}$/),
+    videoId: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/),
     demand: ratingShape,
     gap: ratingShape,
     show: ratingShape,
@@ -438,113 +441,144 @@ export function clubRouter({ ai = {}, transcribe, runAI, readViews = ytDlpViews(
     res.status(204).end();
   }));
 
-  // ---- research tiles
-  router.get('/videos/:id/research', handler(async (req, res) => {
-    const slug = await requireWorkspace();
-    const id = param(req, 'id');
-    res.json(await boardDocs.boardTiles(slug, id));
-  }));
-  router.post('/videos/:id/research', upload.single('file'), handler(async (req, res) => {
-    const slug = await requireWorkspace();
-    const body = newTileBody.parse(req.body);
-    const file = req.file ? { name: req.file.originalname, data: req.file.buffer } : undefined;
-    // A note can be added empty: it lands on the Board ready to be written in.
-    const needs = { link: body.url, video: body.url, text: body.text, note: true, image: file ?? body.url, signal: body.text, breakdown: body.meta?.breakdownId, idea: body.text }[body.kind];
-    if (!needs) throw new ClubError(body.kind === 'text' ? 'Add some text first.' : body.kind === 'signal' ? 'Add the post first.' : body.kind === 'breakdown' ? 'Pick a breakdown first.' : 'Add a link or a file first.');
-    if (body.kind === 'breakdown') await readBreakdown(slug, body.meta!.breakdownId!);
-    // A note is a Markdown file in the video's folder.
-    if (body.kind === 'note') return res.status(201).json(await boardDocs.addNote(slug, param(req, 'id'), body.text));
-    res.status(201).json(await store.addTile(slug, param(req, 'id'), { ...body, file }));
-  }));
-  // Moves a tile on the Board, renames it, or edits a note. Writes only what was sent.
-  router.patch('/videos/:id/research/:tileId', handler(async (req, res) => {
-    const slug = await requireWorkspace();
-    const { pos, base, ...rest } = tilePatchBody.parse(req.body);
-    const id = param(req, 'id');
-    let tile = await store.readTile(slug, id, param(req, 'tileId'));
-    if (rest.text !== undefined && tile.kind !== 'note' && tile.kind !== 'text') throw new ClubError('Only notes can be edited.');
-    if (tile.kind === 'note' && !tile.doc) {
-      await boardDocs.syncBoard(slug, id);
-      tile = await store.readTile(slug, id, tile.id);
-    }
-    // A note's text is saved to its file, not to the tile. If the file changed since the editor read it, the other version is kept and the answer says so.
-    if (tile.doc) {
-      let conflict: { copy: string } | undefined;
-      if (rest.text !== undefined) ({ conflict } = await boardDocs.saveNote(slug, id, tile, rest.text, base));
-      const placed = pos ? await store.updateTile(slug, id, tile.id, { pos: { ...tile.pos, ...pos } }) : tile;
-      const [shown] = await boardDocs.hydrate(slug, id, [placed]);
-      res.json({ ...shown, ...(conflict ? { conflict } : {}) });
-      return;
-    }
-    res.json(await store.updateTile(slug, id, tile.id, { ...rest, ...(pos ? { pos: { ...tile.pos, ...pos } } : {}) }));
-  }));
-  router.get('/videos/:id/research/:tileId/file', handler(async (req, res) => {
-    const slug = await requireWorkspace();
-    const tile = await store.readTile(slug, param(req, 'id'), param(req, 'tileId'));
-    const file = store.tileFilePath(slug, param(req, 'id'), tile);
-    if (!file) throw notFound('file');
-    res.sendFile(file, { dotfiles: 'allow' });
-  }));
-  // A YouTube or Instagram tile's details, outlier chip and transcript are read in the background.
-  router.post('/videos/:id/research/:tileId/read', handler(async (req, res) => {
-    const slug = await requireWorkspace();
-    const tile = await store.readTile(slug, param(req, 'id'), param(req, 'tileId'));
-    if (tile.kind !== 'video' || !tile.url) throw new ClubError('Only video tiles can be read.');
-    detectSource(tile.url);
-    res.status(202).json(startTileRead(slug, param(req, 'id'), tile.id, ai));
-  }));
-  router.get('/videos/:id/research/:tileId/transcript', handler(async (req, res) => {
-    res.json(await readTranscript(await requireWorkspace(), param(req, 'id'), param(req, 'tileId')));
-  }));
-  router.delete('/videos/:id/research/:tileId', handler(async (req, res) => {
-    await boardDocs.removeNote(await requireWorkspace(), param(req, 'id'), param(req, 'tileId'));
-    res.status(204).end();
-  }));
-
-  // ---- the Board's files: where the video's folder is, the Notes folder, files dropped or pinned, and news when a file changes
-  router.get('/videos/:id/board/files', handler(async (req, res) => {
-    const slug = await requireWorkspace();
-    await store.readVideo(slug, param(req, 'id'));
-    res.json(await boardDocs.boardFiles(slug, param(req, 'id')));
-  }));
+  // ---- Boards: a video's (`/videos/:id/…`) and the channel's own, Research (`/channel/…`). The same routes serve both; `CHANNEL_BOARD` is never a video id,
+  // so a video route can never reach Research.
+  router.param('id', (_req, _res, next, id) => next(id === CHANNEL_BOARD ? notFound('video') : undefined));
   router.put('/board/notes-folder', handler(async (req, res) => {
     const { path: folder } = notesFolderBody.parse(req.body);
     res.json({ path: await boardDocs.setNotesFolder(await requireWorkspace(), folder) });
   }));
-  router.post('/videos/:id/board/import', docsUpload.array('files', 20), handler(async (req, res) => {
-    const slug = await requireWorkspace();
-    await store.readVideo(slug, param(req, 'id'));
-    const files = ((req.files as Express.Multer.File[] | undefined) ?? []).map((file) => ({ name: file.originalname, data: file.buffer }));
-    if (!files.length) throw new ClubError('Drop a Markdown or text file.');
-    res.status(201).json(await boardDocs.importFiles(slug, param(req, 'id'), files));
+  const boards: readonly (readonly [string, (req: Request) => string])[] = [['/videos/:id', (req) => param(req, 'id')], ['/channel', () => CHANNEL_BOARD]];
+  for (const [prefix, boardOf] of boards) {
+    // ---- research tiles
+    router.get(`${prefix}/research`, handler(async (req, res) => {
+      const slug = await requireWorkspace();
+      const id = boardOf(req);
+      res.json(await boardDocs.boardTiles(slug, id));
+    }));
+    router.post(`${prefix}/research`, upload.single('file'), handler(async (req, res) => {
+      const slug = await requireWorkspace();
+      const body = newTileBody.parse(req.body);
+      const file = req.file ? { name: req.file.originalname, data: req.file.buffer } : undefined;
+      // A note can be added empty: it lands on the Board ready to be written in.
+      const needs = { link: body.url, video: body.url, text: body.text, note: true, image: file ?? body.url, signal: body.text, breakdown: body.meta?.breakdownId, idea: body.text, mine: body.meta?.videoId }[body.kind];
+      if (!needs) throw new ClubError(body.kind === 'text' ? 'Add some text first.' : body.kind === 'signal' ? 'Add the post first.' : body.kind === 'breakdown' ? 'Pick a breakdown first.' : body.kind === 'mine' ? 'Pick one of your videos first.' : 'Add a link or a file first.');
+      if (body.kind === 'breakdown') await readBreakdown(slug, body.meta!.breakdownId!);
+      if (body.kind === 'mine') await store.readVideo(slug, body.meta!.videoId!);
+      // A note is a Markdown file in the video's folder.
+      if (body.kind === 'note') return res.status(201).json(await boardDocs.addNote(slug, boardOf(req), body.text));
+      res.status(201).json(await store.addTile(slug, boardOf(req), { ...body, file }));
+    }));
+    // Moves a tile on the Board, renames it, or edits a note. Writes only what was sent.
+    router.patch(`${prefix}/research/:tileId`, handler(async (req, res) => {
+      const slug = await requireWorkspace();
+      const { pos, base, ...rest } = tilePatchBody.parse(req.body);
+      const id = boardOf(req);
+      let tile = await store.readTile(slug, id, param(req, 'tileId'));
+      if (rest.text !== undefined && tile.kind !== 'note' && tile.kind !== 'text') throw new ClubError('Only notes can be edited.');
+      if (tile.kind === 'note' && !tile.doc) {
+        await boardDocs.syncBoard(slug, id);
+        tile = await store.readTile(slug, id, tile.id);
+      }
+      // A note's text is saved to its file, not to the tile. If the file changed since the editor read it, the other version is kept and the answer says so.
+      if (tile.doc) {
+        let conflict: { copy: string } | undefined;
+        if (rest.text !== undefined) ({ conflict } = await boardDocs.saveNote(slug, id, tile, rest.text, base));
+        const placed = pos ? await store.updateTile(slug, id, tile.id, { pos: { ...tile.pos, ...pos } }) : tile;
+        const [shown] = await boardDocs.hydrate(slug, id, [placed]);
+        res.json({ ...shown, ...(conflict ? { conflict } : {}) });
+        return;
+      }
+      res.json(await store.updateTile(slug, id, tile.id, { ...rest, ...(pos ? { pos: { ...tile.pos, ...pos } } : {}) }));
+    }));
+    router.get(`${prefix}/research/:tileId/file`, handler(async (req, res) => {
+      const slug = await requireWorkspace();
+      const tile = await store.readTile(slug, boardOf(req), param(req, 'tileId'));
+      const file = store.tileFilePath(slug, boardOf(req), tile);
+      if (!file) throw notFound('file');
+      res.sendFile(file, { dotfiles: 'allow' });
+    }));
+    // A YouTube or Instagram tile's details, outlier chip and transcript are read in the background.
+    router.post(`${prefix}/research/:tileId/read`, handler(async (req, res) => {
+      const slug = await requireWorkspace();
+      const tile = await store.readTile(slug, boardOf(req), param(req, 'tileId'));
+      if (tile.kind !== 'video' || !tile.url) throw new ClubError('Only video tiles can be read.');
+      detectSource(tile.url);
+      res.status(202).json(startTileRead(slug, boardOf(req), tile.id, ai));
+    }));
+    router.get(`${prefix}/research/:tileId/transcript`, handler(async (req, res) => {
+      res.json(await readTranscript(await requireWorkspace(), boardOf(req), param(req, 'tileId')));
+    }));
+    router.delete(`${prefix}/research/:tileId`, handler(async (req, res) => {
+      const slug = await requireWorkspace();
+      await boardDocs.removeNote(slug, boardOf(req), param(req, 'tileId'));
+      await canvas.pruneLinks(slug, boardOf(req), [param(req, 'tileId')]);
+      res.status(204).end();
+    }));
+
+    // ---- the Board's connections (lines between two cards, with an optional label) and frames (named rectangles that group cards)
+    router.get(`${prefix}/board/canvas`, handler(async (req, res) => res.json(await canvas.readCanvas(await requireWorkspace(), boardOf(req)))));
+    router.post(`${prefix}/board/links`, handler(async (req, res) => res.status(201).json(await canvas.addLink(await requireWorkspace(), boardOf(req), canvas.linkBody.parse(req.body)))));
+    router.patch(`${prefix}/board/links/:linkId`, handler(async (req, res) => res.json(await canvas.updateLink(await requireWorkspace(), boardOf(req), param(req, 'linkId'), canvas.linkPatchBody.parse(req.body)))));
+    router.delete(`${prefix}/board/links/:linkId`, handler(async (req, res) => {
+      await canvas.removeLink(await requireWorkspace(), boardOf(req), param(req, 'linkId'));
+      res.status(204).end();
+    }));
+    router.post(`${prefix}/board/frames`, handler(async (req, res) => res.status(201).json(await canvas.addFrame(await requireWorkspace(), boardOf(req), canvas.frameBody.parse(req.body)))));
+    router.patch(`${prefix}/board/frames/:frameId`, handler(async (req, res) => res.json(await canvas.updateFrame(await requireWorkspace(), boardOf(req), param(req, 'frameId'), canvas.framePatchBody.parse(req.body)))));
+    router.delete(`${prefix}/board/frames/:frameId`, handler(async (req, res) => {
+      await canvas.removeFrame(await requireWorkspace(), boardOf(req), param(req, 'frameId'));
+      res.status(204).end();
+    }));
+
+    // ---- the Board's files: where the video's folder is, the Notes folder, files dropped or pinned, and news when a file changes
+    router.get(`${prefix}/board/files`, handler(async (req, res) => {
+      const slug = await requireWorkspace();
+      await store.requireBoard(slug, boardOf(req));
+      res.json(await boardDocs.boardFiles(slug, boardOf(req)));
+    }));
+    router.post(`${prefix}/board/import`, docsUpload.array('files', 20), handler(async (req, res) => {
+      const slug = await requireWorkspace();
+      await store.requireBoard(slug, boardOf(req));
+      const files = ((req.files as Express.Multer.File[] | undefined) ?? []).map((file) => ({ name: file.originalname, data: file.buffer }));
+      if (!files.length) throw new ClubError('Drop a Markdown or text file.');
+      res.status(201).json(await boardDocs.importFiles(slug, boardOf(req), files));
+    }));
+    // Cards removed from the Board for files that are still in the video's folder come back.
+    router.post(`${prefix}/board/hidden/show`, handler(async (req, res) => {
+      const slug = await requireWorkspace();
+      await store.requireBoard(slug, boardOf(req));
+      res.json({ shown: await boardDocs.showHidden(slug, boardOf(req)) });
+    }));
+    router.post(`${prefix}/board/pin`, handler(async (req, res) => {
+      const slug = await requireWorkspace();
+      await store.requireBoard(slug, boardOf(req));
+      res.status(201).json(await boardDocs.pinNote(slug, boardOf(req), pinBody.parse(req.body).path));
+    }));
+    // One message, "files", each time a Markdown or text file in the video's folder or the Notes folder appears, changes or goes.
+    router.get(`${prefix}/board/events`, handler(async (req, res) => {
+      const slug = await requireWorkspace();
+      const id = boardOf(req);
+      await store.requireBoard(slug, id);
+      res.set({ 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache, no-transform', Connection: 'keep-alive' });
+      res.flushHeaders();
+      res.write('retry: 2000\n\n');
+      const stop = subscribeBoard(slug, id, () => res.write('event: files\ndata: {}\n\n'));
+      const heartbeat = setInterval(() => res.write(': keepalive\n\n'), 15_000);
+      heartbeat.unref();
+      res.on('close', () => {
+        clearInterval(heartbeat);
+        stop();
+      });
+    }));
+  }
+
+  // ---- Research: cards from Discover and Videos, and a new video from a selection
+  router.post('/channel/research/add', handler(async (req, res) => {
+    const added = await addToResearch(await requireWorkspace(), addToResearchBody.parse(req.body));
+    res.status(added.created ? 201 : 200).json(added);
   }));
-  // Cards removed from the Board for files that are still in the video's folder come back.
-  router.post('/videos/:id/board/hidden/show', handler(async (req, res) => {
-    const slug = await requireWorkspace();
-    await store.readVideo(slug, param(req, 'id'));
-    res.json({ shown: await boardDocs.showHidden(slug, param(req, 'id')) });
-  }));
-  router.post('/videos/:id/board/pin', handler(async (req, res) => {
-    const slug = await requireWorkspace();
-    await store.readVideo(slug, param(req, 'id'));
-    res.status(201).json(await boardDocs.pinNote(slug, param(req, 'id'), pinBody.parse(req.body).path));
-  }));
-  // One message, "files", each time a Markdown or text file in the video's folder or the Notes folder appears, changes or goes.
-  router.get('/videos/:id/board/events', handler(async (req, res) => {
-    const slug = await requireWorkspace();
-    const id = param(req, 'id');
-    await store.readVideo(slug, id);
-    res.set({ 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache, no-transform', Connection: 'keep-alive' });
-    res.flushHeaders();
-    res.write('retry: 2000\n\n');
-    const stop = subscribeBoard(slug, id, () => res.write('event: files\ndata: {}\n\n'));
-    const heartbeat = setInterval(() => res.write(': keepalive\n\n'), 15_000);
-    heartbeat.unref();
-    res.on('close', () => {
-      clearInterval(heartbeat);
-      stop();
-    });
-  }));
+  router.post('/channel/research/start-video', handler(async (req, res) => res.status(201).json(await startVideoFrom(await requireWorkspace(), startVideoBody.parse(req.body)))));
 
   // ---- planning: package, outline, full script, and the hand-off to the recorder
   router.get('/videos/:id/plan', handler(async (req, res) => {

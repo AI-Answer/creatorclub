@@ -126,7 +126,7 @@ export function Companion({videoId,tab,scene,screen,pkg,outline,scenes,onChanged
     :!messages?<div className="cmp-loading"><Spinner label="Loading the conversation" size={16}/></div>
     :!messages.length&&!live&&<div className="cmp-reply">
      <div className="cmp-who"><CompanionMark size={14}/>{name}</div>
-     <div className="cmp-md"><p>I&apos;m with you on this video from the board to publishing. Ask anything, or tell me what to change: each change comes as a card you can apply and undo.</p></div>
+     <div className="cmp-md"><p>{tab==='research'?'I see the cards on Research. Ask what they have in common, or ask me to group them or start a video from them: each change comes as a card you can apply and undo.':'I\'m with you on this video from the board to publishing. Ask anything, or tell me what to change: each change comes as a card you can apply and undo.'}</p></div>
     </div>}
    {items.map(item=>item.kind==='divider'?<div key={item.key} className="cmp-divider" role="separator">{item.label}</div>
     :item.message.role==='user'?<div key={item.key} className="cmp-me">{item.message.text}</div>
@@ -236,6 +236,8 @@ function Card({id,card,pkg,outline,scenes,busy,editor,silences,onApply,onUndo}:{
   const index=outline?.scenes.findIndex(scene=>scene.id===action.sceneId)??-1;
   body=<div className="cmp-card-text"><div className="cmp-card-sub">Scene {index>=0?index+1:''}{action.title?` · ${action.title}`:index>=0?` · ${outline!.scenes[index].title}`:''}</div>
    {action.talkingPoints&&<ul>{action.talkingPoints.map((point,at)=><li key={at}>{point}</li>)}</ul>}</div>;
+ }else if(action.type==='group_tiles'||action.type==='start_video'){
+  body=<div className="cmp-card-text"><div className="cmp-card-sub">{action.tileIds.length} {action.tileIds.length===1?'card':'cards'}</div>{action.title}</div>;
  }else body=<div className={cn('cmp-card-text',action.type==='set_description'&&'long')}>{action.text}</div>;
  return <div className={cn('cmp-card',card.state)}>
   <div className="cmp-card-h"><span>{ACTION_TITLE[action.type]}{action.type==='draft_scenes'?` · ${action.scenes.length}`:''}</span></div>

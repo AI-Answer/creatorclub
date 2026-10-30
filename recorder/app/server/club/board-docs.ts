@@ -344,7 +344,7 @@ const shorten = (full: string) => (full === os.homedir() || full.startsWith(os.h
 
 /** The folder a note's file is in, when the card may use it: a pinned file only while its Notes folder is still the Notes folder. */
 async function rootOf(slug: string, videoId: string, doc: TileDoc): Promise<string | undefined> {
-  if (doc.root === 'video') return store.videoDir(slug, videoId);
+  if (doc.root === 'video') return store.boardDir(slug, videoId);
   const folder = await notesFolder(slug);
   return folder && doc.folder === folder ? folder : undefined;
 }
@@ -383,7 +383,7 @@ async function writeNew(videoDir: string, rel: string, text: string) {
  */
 export function syncBoard(slug: string, videoId: string): Promise<void> {
   return store.boardLock(slug, videoId, async () => {
-    const dir = store.videoDir(slug, videoId);
+    const dir = store.boardDir(slug, videoId);
     const tiles = await store.listTiles(slug, videoId);
     for (const tile of tiles) {
       if (tile.kind === 'note' && !tile.doc) {
@@ -425,7 +425,7 @@ export async function boardTiles(slug: string, videoId: string): Promise<Researc
 /** A new note on the Board, as a file. */
 export function addNote(slug: string, videoId: string, text = ''): Promise<ResearchTile> {
   return store.boardLock(slug, videoId, async () => {
-    const dir = store.videoDir(slug, videoId);
+    const dir = store.boardDir(slug, videoId);
     const rel = await createDoc(dir, text);
     const tile = newDocTile(await store.listTiles(slug, videoId), { root: 'video', path: rel });
     await store.writeTile(slug, videoId, tile);
@@ -438,7 +438,7 @@ export async function saveNote(slug: string, videoId: string, tile: ResearchTile
   if (!tile.doc) throw new ClubError('That note has no file yet.');
   const root = await rootOf(slug, videoId, tile.doc);
   if (!root) throw new ClubError("That file is in a Notes folder that is not the current one, so it can't be saved here.");
-  const saved = await saveDoc(store.videoDir(slug, videoId), root, tile.doc.path, text, base);
+  const saved = await saveDoc(store.boardDir(slug, videoId), root, tile.doc.path, text, base);
   const [shown] = await hydrate(slug, videoId, [tile]);
   return { tile: shown, ...(saved.conflict ? { conflict: saved.conflict } : {}) };
 }
@@ -450,7 +450,7 @@ export async function saveNote(slug: string, videoId: string, tile: ResearchTile
  */
 export function removeNote(slug: string, videoId: string, tileId: string): Promise<void> {
   return store.boardLock(slug, videoId, async () => {
-    const dir = store.videoDir(slug, videoId);
+    const dir = store.boardDir(slug, videoId);
     const tile = await store.readTile(slug, videoId, tileId);
     if (tile.doc?.root === 'video') {
       const rel = tile.doc.path;
@@ -467,7 +467,7 @@ export function removeNote(slug: string, videoId: string, tileId: string): Promi
 /** Brings back the cards of files that were removed from the Board but are still in the video's folder. Returns how many files that is. */
 export function showHidden(slug: string, videoId: string): Promise<number> {
   return store.boardLock(slug, videoId, async () => {
-    const dir = store.videoDir(slug, videoId);
+    const dir = store.boardDir(slug, videoId);
     const { dismissed } = await readManifest(dir);
     await updateManifest(dir, (manifest) => void (manifest.dismissed = []));
     return dismissed.length;
@@ -484,7 +484,7 @@ const importStem = (name: string, ext: string) => path.basename(name, ext).repla
 /** Dropped files become notes in the video's `notes` folder, each with its own card. Anything but Markdown and text, or too large, is skipped with the reason. */
 export function importFiles(slug: string, videoId: string, files: readonly { name: string; data: Buffer }[]): Promise<ImportResult> {
   return store.boardLock(slug, videoId, async () => {
-    const dir = store.videoDir(slug, videoId);
+    const dir = store.boardDir(slug, videoId);
     const tiles = await store.listTiles(slug, videoId);
     const result: ImportResult = { tiles: [], skipped: [] };
     for (const file of files) {
@@ -522,7 +522,7 @@ export function pinNote(slug: string, videoId: string, rel: string): Promise<Res
 
 /** Where the video's folder is, and what the Notes folder holds. */
 export async function boardFiles(slug: string, videoId: string): Promise<BoardFiles> {
-  const dir = store.videoDir(slug, videoId);
+  const dir = store.boardDir(slug, videoId);
   const { dismissed } = await readManifest(dir);
   const hidden = (await Promise.all(dismissed.map((rel) => readDoc(dir, rel)))).filter((read) => !('missing' in read)).length;
   const result: BoardFiles = { folder: { path: dir, display: shorten(dir), hidden }, notes: null };

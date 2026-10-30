@@ -17,7 +17,7 @@ const TILE_CHARS_MAX = 3000;
 const TILE_CHARS_MIN = 400;
 const TILES_KEPT = 60;
 
-const chatFile = (slug: string, id: string) => path.join(store.videoDir(slug, id), 'board-chat.json');
+const chatFile = (slug: string, id: string) => path.join(store.boardDir(slug, id), 'board-chat.json');
 
 const squash = (text: string) => text.replace(/\s+/g, ' ').trim();
 const cut = (text: string, max: number) => (text.length > max ? `${text.slice(0, max).trimEnd()}…` : text);
@@ -40,6 +40,12 @@ async function tileText(slug: string, videoId: string, tile: ResearchTile): Prom
     }
     case 'idea':
       return `The idea: ${squash(tile.text ?? '') || '(no reason given)'}`;
+    case 'mine': {
+      const video = meta.videoId ? await store.readVideo(slug, meta.videoId).catch(() => undefined) : undefined;
+      if (!video) return `One of your videos: ${tile.title ?? 'untitled'} (no longer in the channel)`;
+      const why = video.idea?.why ? `: ${squash(video.idea.why)}` : '';
+      return video.stage === 'ideas' ? `Your idea "${video.title}"${why}` : `Your video "${video.title}" (${video.stage})${why}`;
+    }
     case 'link':
       return `Link: ${[tile.title, tile.url].filter(Boolean).join(' ')}`;
     case 'image':
@@ -72,11 +78,11 @@ async function tileText(slug: string, videoId: string, tile: ResearchTile): Prom
 }
 
 /** The board's tiles as numbered text. Each tile is cut to its share of the room, so a long transcript or many tiles never grow the prompt. */
-export async function boardText(slug: string, videoId: string, tiles: readonly ResearchTile[], chars = BOARD_CHARS): Promise<string> {
+export async function boardText(slug: string, videoId: string, tiles: readonly ResearchTile[], chars = BOARD_CHARS, { ids = false }: { /** Name each tile by its id (Research, where the companion groups cards and starts videos from them). */ ids?: boolean } = {}): Promise<string> {
   const kept = tiles.slice(-TILES_KEPT);
   if (!kept.length) return '';
   const each = Math.max(TILE_CHARS_MIN, Math.min(TILE_CHARS_MAX, Math.floor(chars / kept.length)));
-  const lines = await Promise.all(kept.map(async (tile, index) => `${index + 1}. ${cut(await tileText(slug, videoId, tile), each)}`));
+  const lines = await Promise.all(kept.map(async (tile, index) => `${ids ? `[${tile.id}]` : `${index + 1}.`} ${cut(await tileText(slug, videoId, tile), each)}`));
   const left = tiles.length - kept.length;
   return [...(left ? [`(${left} older ${left === 1 ? 'tile is' : 'tiles are'} left out)`] : []), ...lines].join('\n\n');
 }
@@ -105,7 +111,7 @@ const messageShape = z
 
 /** The old Board chat, oldest first. Empty when there is none, or when the file cannot be read. The file is never written. */
 export async function readBoardChat(slug: string, id: string): Promise<OldBoardMessage[]> {
-  await store.readVideo(slug, id);
+  await store.requireBoard(slug, id);
   const saved = await store.readJSON<unknown>(chatFile(slug, id)).catch(() => undefined);
   const parsed = z.array(messageShape).safeParse(saved);
   return parsed.success ? parsed.data : [];
