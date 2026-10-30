@@ -97,7 +97,7 @@ export function EditAutoSheet({project:p,jobs,merge,reload,flush,change,refresh,
   <div className="club-auto-title">{icon}{title}</div><div className="club-auto-desc">{describe(option)}</div>{extra}
  </div>;
  return <aside className="club-sheet club-auto-sheet" aria-label="Auto-edit">
-  <header><b>Auto-edit</b><button type="button" className="club-sheet-close" aria-label="Close auto-edit" onClick={onClose}><Icon name="close" size={16}/></button></header>
+  <header><b>Cut and tidy</b><button type="button" className="club-sheet-close" aria-label="Close auto-edit" onClick={onClose}><Icon name="close" size={16}/></button></header>
   <p className="club-sheet-hint">Choose one to see what it would do on the video. Nothing changes until you press Apply.</p>
   <div className="club-sheet-body" ref={list} role="list">
    {row('pauses',<Icon name="cut" size={15}/>,'Remove pauses',<>
