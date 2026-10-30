@@ -286,6 +286,7 @@ export default function App({embedded}:{embedded?:EmbeddedRecorder}={}){
   addMarker:addMarkerAtPlayhead,previousCut:()=>boundary(-1),nextCut:()=>boundary(1),toggleLink,linked:selectionLinked,blade:tool==='blade',toggleBlade:()=>setTool(v=>v==='blade'?'select':'blade'),waveforms:showWaveforms,toggleWaveforms:()=>setShowWaveforms(v=>!v),
   addVideoLayer:()=>studio.change(d=>{addTimelineLayer(d,'video');}),addAudioLayer:()=>studio.change(d=>{addTimelineLayer(d,'audio');})}:null;
  const timelineItems:MenuItem[]=menuActions?timelineMoreItems(menuActions):[],contextItems:MenuItem[]=menuActions?timelineContextItems(menuActions):[];
+ const viewItems:MenuItem[]=p?[{label:'Snap to edges',check:p.settings.snap,fn:()=>studio.change(d=>{d.settings.snap=!d.settings.snap;})},{label:'Follow the playhead while playing',check:follow,fn:()=>setFollow(v=>!v)},'-',{header:'Timeline actions'},...timelineItems,'-',{label:'Keyboard shortcuts',fn:()=>setShortcutsOpen(v=>!v)}]:[];
  /* The companion docked beside Edit: it reads the playhead and the selection when a message is sent, previews a card on the stage
     (cuts with the same before/after playback as Auto-edit, other changes as the frame after them) and applies a card as one undo step. */
  const editorContext=useEvent(():EditorContext=>{
@@ -346,13 +347,10 @@ export default function App({embedded}:{embedded?:EmbeddedRecorder}={}){
    <span className="club-bar-sep" aria-hidden/>
    <button type="button" className="club-tool" title="Split at the playhead (S)" onClick={()=>split()}><Scissors size={15}/>Split</button>
    <button type="button" className="club-tool" title="Delete and close the gap (Delete). Shift+Delete keeps the gap." disabled={!selection.size} onClick={()=>deleteSelected(true)}><Trash2 size={15}/>Delete</button>
-   <button type="button" className="club-tool" aria-pressed={p.settings.snap} title="Magnetic snapping (N)" onClick={()=>studio.change(d=>{d.settings.snap=!d.settings.snap;})}><Magnet size={15}/>Snap</button>
-   <button type="button" className="club-tool" aria-pressed={follow} title="Keep the playhead in view while playing" onClick={()=>setFollow(v=>!v)}><ArrowRight size={15}/>Follow</button>
    <span className="club-bar-grow"/>
    <input className="club-zoom" type="range" aria-label="Zoom timeline" title="Zoom at the playhead (+ / −); ⌘ scroll and pinch zoom at the pointer" min={zoomRange.min} max={zoomRange.max} step={zoomRange.step} value={zoomRange.fromScale(zoom)} onChange={e=>setZoom(zoomRange.toScale(+e.target.value))}/>
    <button type="button" className="club-tool" title="Fit the whole video (Shift+Z)" onClick={()=>timelineControls.current?.fit()}><Maximize2 size={15}/>Fit</button>
-   <Menu label="Timeline actions" align="right" below width={250} items={timelineItems} button={(toggle,open)=><button type="button" className="club-tool is-icon" aria-label="More timeline actions" title="More timeline actions (or right-click a clip)" aria-haspopup="menu" aria-expanded={open} onClick={toggle}><MoreHorizontal size={16}/></button>}/>
-   <button type="button" className="club-tool is-icon" aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)" aria-expanded={shortcutsOpen} onClick={()=>setShortcutsOpen(v=>!v)}>?</button>
+   <Menu label="View" align="right" width={260} items={viewItems} button={(toggle,open)=><button type="button" className="club-tool" aria-haspopup="menu" aria-expanded={open} title="Snapping, following the playhead, shortcuts and more timeline actions" onClick={toggle}>View<ChevronDown size={13}/></button>}/>
    {shortcutsOpen&&<ShortcutsPopover onClose={closeShortcuts}/>}
   </div>
   <TimelineResize storageKey="creatorclub.timeline-height" auto={timelineAuto}/>

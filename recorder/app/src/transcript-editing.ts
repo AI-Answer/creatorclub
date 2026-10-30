@@ -1,10 +1,11 @@
 import {projectDuration,type Project} from '../shared/types';
 import {cutTimelineRange} from '../shared/timeline-edits';
+import {isSoundTag} from '../shared/sound-tags';
 import {plainView} from './project-draft';
 export interface TranscriptWord {id:string;captionId:string;text:string;start:number;end:number;timed:boolean;}
 export interface WordSelection {anchor:number;focus:number;}
 const normalized=(s:string)=>s.replace(/\s+/g,' ').trim();
-export function transcriptWords(p:Project):TranscriptWord[]{return p.captions.flatMap(c=>{
+export function transcriptWords(p:Project):TranscriptWord[]{return p.captions.filter(c=>!isSoundTag(c.text)).flatMap(c=>{
  const words=c.words?.filter(w=>Number.isFinite(w.start)&&Number.isFinite(w.end)&&w.end>w.start);
  if(words?.length&&normalized(words.map(w=>w.text).join(' '))===normalized(c.text))return words.map((w,i)=>({...w,id:`${c.id}:${i}`,captionId:c.id,timed:true}));
  return [{id:c.id,captionId:c.id,text:c.text,start:c.start,end:c.end,timed:false}];

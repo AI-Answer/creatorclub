@@ -145,7 +145,8 @@ test('the Removed line ends with the next edit, and can be dismissed',async()=>{
   const header=next.container.querySelector('.project-header')!;
   await act(async()=>button(header,'Remove them').click());for(let i=0;i<3;i++)await flush();
   assert.ok(header.textContent?.includes('Removed 3m 12s'));
-  await act(async()=>next.container.querySelector<HTMLButtonElement>('button[title^="Magnetic snapping"]')!.click());
+  await act(async()=>next.container.querySelector<HTMLButtonElement>('button[title^="Snapping"]')!.click());
+  await act(async()=>[...document.querySelectorAll<HTMLButtonElement>('[role="menu"] button')].find(b=>b.textContent?.includes('Snap to edges'))!.click());
   assert.ok(!header.textContent?.includes('Removed'),'an edit after the removal ends the Undo line');
  }finally{await next.close();again.restore();}
 });

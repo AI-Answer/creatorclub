@@ -11,6 +11,7 @@ import type { FaceTrack } from "../shared/face-tracking.ts";
 import { filterSum } from "./filter-expression.ts";
 import { mediaCapabilityProbe } from "./media-capabilities.ts";
 import { clipCompositeOrder } from "../shared/timeline-layers.ts";
+import { isSoundTag } from "../shared/sound-tags.ts";
 import { clipShadow } from "../shared/clip-shadow.ts";
 import { canvasBackgroundBMP, canvasBackgroundGeometry, canvasBackgroundRepeatSize, MOVING_DOTS } from "../shared/canvas-background.ts";
 import { zoomTiming } from "../shared/zoom-timing.ts";
@@ -617,6 +618,7 @@ function stamp(t: number, sep = ",") {
 }
 export function subtitleText(p: Project) {
   return p.captions
+    .filter((c) => !isSoundTag(c.text))
     .map(
       (c, i) =>
         `${i + 1}\n${stamp(c.start)} --> ${stamp(c.end)}\n${c.text.replace(/\r/g, "")}\n`,
@@ -707,7 +709,7 @@ async function createGraphics(
   }
   if (burn && p.captionStyle.enabled)
     for (const c of p.captions) {
-      if (c.end <= c.start || !c.text.trim()) continue;
+      if (c.end <= c.start || !c.text.trim() || isSoundTag(c.text)) continue;
       for (const part of captionParts(c, p.captionStyle.maxWords)) {
         const y =
           p.captionStyle.position === "top"

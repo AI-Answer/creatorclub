@@ -4,6 +4,7 @@ import path from 'node:path';
 import { setPriority } from 'node:os';
 import { constants } from 'node:fs';
 import { makeId, clipDuration, narrationPriority, type AISettings, type AISuggestion, type Caption, type Media, type Project } from '../shared/types.js';
+import {isSoundTag} from '../shared/sound-tags.js';
 
 async function executable(name:string):Promise<string|undefined>{
  for(const entry of name.includes('/')?[name]:(process.env.PATH??'').split(path.delimiter).map(p=>path.join(p,name)))try{await access(entry,constants.X_OK);return entry}catch{}
@@ -30,7 +31,7 @@ async function run(command:string,args:string[],timeout=30*60*1000,signal?:Abort
 export async function transcriptionCapabilities(){const command=await executable('whisper-cli');return {local:!!command,command,providers:['local','openai','openai-compatible','elevenlabs','openrouter']}}
 type Word={text:string;start:number;end:number};
 export function captionsFromWords(words:Word[],maxWords=7):Caption[]{
- const clean=words.filter(w=>w.text.trim()&&Number.isFinite(w.start)&&Number.isFinite(w.end)&&w.end>w.start).sort((a,b)=>a.start-b.start);const captions:Caption[]=[];let group:Word[]=[];
+ const clean=words.filter(w=>w.text.trim()&&!isSoundTag(w.text)&&Number.isFinite(w.start)&&Number.isFinite(w.end)&&w.end>w.start).sort((a,b)=>a.start-b.start);const captions:Caption[]=[];let group:Word[]=[];
  const flush=()=>{if(!group.length)return;captions.push({id:makeId(),start:group[0].start,end:group[group.length-1].end,text:group.map(w=>w.text.trim()).join(' '),words:group});group=[]};
  for(const w of clean){if(group.length&&(group.length>=maxWords||w.start-group[group.length-1].end>.65||w.end-group[0].start>4))flush();group.push(w)}flush();return captions;
 }

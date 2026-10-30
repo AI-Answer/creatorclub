@@ -12,6 +12,7 @@ import {groupMove,hitLayerDrop,snapTargets,snapTimelineDelta,timelinePointerDelt
 import {rectangleBetween,itemsInRectangle,type SelectionItem,type SelectionRect} from './timeline-selection';
 import {syncScenesToTakes,anchoredScroll,applyClipStarts,clampScale,ensureLinks,filmstripTiles,fitScale,freeDelta,linkGroups,linkedIds,moveEffects,moveMarker,planClipMove,removeMarker,resizeEffect,rowItems,rulerTicks,rulerLabel,lengthLabel,pointerScroll,showTenths,trimBounds,trimClips,trimGroup,DRAG_DEAD_ZONE_PX} from './timeline-edit';
 import type {Playhead} from './playhead';
+import {isSoundTag} from '../shared/sound-tags';
 
 /**
  * The embedded (CreatorClub) timeline. Rows exist only when used; a take's screen, camera and audio are linked;
@@ -87,7 +88,7 @@ export const TimelineClub=memo(function TimelineClub({project:p,playhead,scale,o
   const count=filmstripCount(m.duration),h=54,w=Math.round(h*(m.width>0&&m.height>0?Math.min(2.4,Math.max(.5,m.width/m.height)):16/9)),index=Math.max(0,Math.min(count-1,Math.floor((c.sourceIn+(t-c.start)*c.speed)/m.duration*count)));
   return <i className="club-hover-frame" style={{width:w,height:h,backgroundImage:`url(/api/media/${m.id}/filmstrip)`,backgroundSize:`${count*w}px ${h}px`,backgroundPosition:`${-index*w}px 0`}}/>;
  };
- const effects=useMemo(()=>{const rows=new Map<string,Array<{id:string;start:number;duration:number;name:string}>>([['motion',(p.motion??[]).map(m=>({id:m.id,start:m.start,duration:m.duration,name:motionLabel(m)}))],['elements',p.elements.map(e=>({id:e.id,start:e.start,duration:e.duration,name:e.text||e.type}))],['captions',p.captions.map(c=>({id:c.id,start:c.start,duration:c.end-c.start,name:c.text}))],['zooms',p.zooms.map(z=>({id:z.id,start:z.start,duration:z.duration,name:`Zoom ${z.scale}×`}))]]);return rows;},[p.motion,p.elements,p.captions,p.zooms]);
+ const effects=useMemo(()=>{const rows=new Map<string,Array<{id:string;start:number;duration:number;name:string}>>([['motion',(p.motion??[]).map(m=>({id:m.id,start:m.start,duration:m.duration,name:motionLabel(m)}))],['elements',p.elements.map(e=>({id:e.id,start:e.start,duration:e.duration,name:e.text||e.type}))],['captions',p.captions.filter(c=>!isSoundTag(c.text)).map(c=>({id:c.id,start:c.start,duration:c.end-c.start,name:c.text}))],['zooms',p.zooms.map(z=>({id:z.id,start:z.start,duration:z.duration,name:`Zoom ${z.scale}×`}))]]);return rows;},[p.motion,p.elements,p.captions,p.zooms]);
  // A gesture lives in refs and closes over ids, not over project arrays: only the person ends it, and the drop applies to the project as it is then.
  const gesture=useRef<(()=>void)|null>(null),latest=useRef(p);latest.current=p;
  useEffect(()=>()=>gesture.current?.(),[]);

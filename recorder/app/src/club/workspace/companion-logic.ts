@@ -50,8 +50,8 @@ export function suggestions(tab:CompanionTab,facts:SuggestionFacts):string[]{
    return ideas.slice(0,3);
   }
   case 'record':return facts.recorded===0
-   ?['What should I say first?','Give me a warm-up line',scene?`Shorten ${scene} to fit its time`:'What should I show on screen?']
-   :[scene?`Shorten ${scene} to fit its time`:'Shorten this scene to fit its time','Give me a warm-up line','What should I show on screen?'];
+   ?['What should I say first?','Write a stronger hook','Build the talking points']
+   :[scene?`Shorten ${scene} to fit its time`:'Shorten this scene to fit its time','Write a stronger hook','Write the call to action'];
   case 'publish':return ['Write the description',facts.thumbnail?'Is the thumbnail text clear?':'Suggest thumbnail text',...(facts.titled===false?[]:['Is the title ready?'])];
   case 'edit':return facts.recorded===0?[]:[facts.selected?'Trim the selected clip to the speech':'Cut the pauses','Remove the filler words','Add a title at the start'];
   case 'research':return facts.selected?['What do these have in common?','Group these in a frame','Start a video from these']:['What themes do you see here?','Group the cards by theme','Which of these could be a video?'];
@@ -68,8 +68,8 @@ export function greeting(tab:CompanionTab,facts:{scenes:number;tiles?:number;rec
    ?'The scenes are drafted. I can tighten any of them, or write hooks and titles for you to choose from.'
    :'Plan the scenes first: they become your teleprompter when you record. I can write hooks and titles for you to choose from meanwhile.';
   case 'record':return facts.recorded===0
-   ?'Record one scene at a time, with its talking points beside you. Ask me how to open, or for a line to warm up with.'
-   :'Record one scene at a time, with its talking points beside you. Ask me to shorten a scene or give you a line to warm up with.';
+   ?'Record one scene at a time, with its talking points beside you. Ask me how to open, or to write a hook or the talking points with your own writing skills.'
+   :'Record one scene at a time, with its talking points beside you. Ask me to shorten a scene, or to write a hook or a call to action with your own writing skills.';
   case 'edit':return facts.recorded===0
    ?'Nothing is recorded yet. Once a scene is, I can cut its pauses and filler words as cards you preview, apply and undo.'
    :'I see the timeline, its transcript and what you select. Each change I suggest comes as a card you can preview, apply and undo.';

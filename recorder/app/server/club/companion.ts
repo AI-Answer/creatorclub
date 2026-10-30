@@ -1,4 +1,5 @@
 import { randomBytes } from 'node:crypto';
+import { withSkills } from './skills.js';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { z } from 'zod';
@@ -391,7 +392,7 @@ async function writeReply(slug: string, id: string, input: AskInput, context: Jo
       extraDirs: options.extraDirs,
       provider,
       prompt: built.prompt,
-      system: built.system,
+      system: await withSkills(built.system, input.message.text),
       model: provider === 'claude' ? 'sonnet' : undefined,
       budgetUsd: COMPANION_BUDGET_USD,
       stream: true,

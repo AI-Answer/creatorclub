@@ -2,6 +2,7 @@ import {memo,useEffect,useLayoutEffect,useMemo,useRef,useState} from 'react';
 import {Film,Plus} from './Icons';
 import type {Clip,Media,Project} from '../shared/types';
 import {clipEffectTiming} from '../shared/types';
+import {isSoundTag} from '../shared/sound-tags';
 import {mediaUrl} from './api';
 import {useVisionPreview} from './useVisionPreview';
 import {useFaceTracking} from './useFaceTracking';
@@ -53,7 +54,7 @@ export const Stage=memo(function Stage({project:p,playhead,playing,playbackRate=
  useEffect(()=>{if(!scrubbing)return;const timer=setTimeout(()=>wake(n=>n+1),Math.max(0,still.current.at+250-performance.now()));return()=>clearTimeout(timer);},[scrubbing,time,wakes]);
  useEffect(()=>{previewAudioMixer.transport(playing);},[playing]);
  useEffect(()=>()=>previewAudioMixer.release(),[]);
- const scale=width/p.canvas.width,caption=p.captionStyle.enabled?p.captions.find(c=>time>=c.start&&time<c.end):null;
+ const scale=width/p.canvas.width,caption=p.captionStyle.enabled?p.captions.find(c=>time>=c.start&&time<c.end&&!isSoundTag(c.text)):null;
  const pattern=p.canvas.backgroundPattern==='moving-dots',pixelRatio=typeof window==='undefined'?1:window.devicePixelRatio||1;
  const pointAt=useMemo(()=>p.cursor.enabled?cursorPointLookup(p.cursor.points):null,[p.cursor.enabled,p.cursor.points]),point=pointAt?.(time);
  const mediaById=useMemo(()=>new Map(p.media.map(m=>[m.id,m])),[p.media]);

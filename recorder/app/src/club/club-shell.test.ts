@@ -113,7 +113,8 @@ test('leaving a video step saves edits the autosave has not written yet',async()
  const ui=await mountUI(createElement(ClubRecorder,{projectId:p.id,mode:'Edit',onBack:()=>{}}));
  try{
   await act(async()=>{await new Promise(resolve=>setTimeout(resolve,0));});
-  await act(async()=>ui.container.querySelector<HTMLButtonElement>('button[title^="Magnetic snapping"]')!.click());
+  await act(async()=>ui.container.querySelector<HTMLButtonElement>('button[title^="Snapping"]')!.click());
+  await act(async()=>[...document.querySelectorAll<HTMLButtonElement>('[role="menu"] button')].find(b=>b.textContent?.includes('Snap to edges'))!.click());
   assert.deepEqual(saved,[],'still inside the autosave debounce');
   await ui.render(createElement('div'));
   await new Promise(resolve=>setTimeout(resolve,20));
