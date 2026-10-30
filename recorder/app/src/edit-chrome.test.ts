@@ -9,7 +9,7 @@ test('Task 14: a hover preview never replaces the player: it is a badge over it 
  const app=read('./App.tsx'),css=read('./editing-club.css');
  assert.doesNotMatch(app,/<Keep visible=\{!preview\?\.review\}><Stage/,'the stage is not hidden while previewing');
  assert.match(app,/className="club-preview-inset"/);
- assert.match(css,/\.club-preview-inset\{position:absolute;[^}]*width:min\(360px,44%\)/,'the before/after plays in a corner inset');
+ assert.match(css,/\.club-preview-inset\{position:absolute;[^}]*width:min\(300px,38%\)/,'the before/after plays in a corner inset');
  assert.match(css,/\.club-preview-badges\{position:absolute;/,'badges sit over the player');
  assert.match(css,/\.club-sheet \.btn:not\(\.primary\):not\(\.ghost\)\{[^}]*border:1px solid/,'"Plan a style" and the sheet\'s other actions look like buttons');
 });

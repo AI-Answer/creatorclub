@@ -224,14 +224,15 @@ type MovePlan={kind:'move'|'slide'|'insert'|'none';starts:Map<string,number>;del
 function firstStart(p:Project,starts:ReadonlyMap<string,number>){const list=p.clips.filter(c=>gapTracks.has(c.track)).map(c=>starts.get(c.id)??c.start);return list.length?Math.min(...list):0;}
 /**
  * Where a move of clips by `want` ends up: in place, slid to the nearest gap, or inserted.
- * A move never opens a gap before the first clip: a video that starts at 0 keeps starting at 0 (a sole clip cannot be dragged away from 0);
- * a move that would leave one is pulled back so the earliest clip sits at 0, or not done when that does not fit.
+ * A move never opens or lengthens a gap before the first clip: a video that starts at 0 keeps starting at 0 (a sole clip cannot be dragged away from 0);
+ * a move that would is pulled back so the first clip starts where it did, or not done when that does not fit.
  */
 export function planClipMove(p:Project,ids:ReadonlySet<string>,want:number,pointer:number):MovePlan{
- const plan=planClipMoveFree(p,ids,want,pointer),lead=firstStart(p,plan.starts);
- if(plan.kind==='none'||lead<=EPS||firstStart(p,new Map())>EPS)return plan;
+ const plan=planClipMoveFree(p,ids,want,pointer),lead=firstStart(p,plan.starts),was=firstStart(p,new Map());
+ // Only a move that makes the gap before the first clip longer is held back (a sliver left by an earlier cut does not free the take to drift).
+ if(plan.kind==='none'||lead<=Math.max(EPS,was+EPS))return plan;
  if(plan.kind==='insert')return {kind:'none',starts:new Map(),delta:0};
- const delta=plan.delta-lead,items=rowItems(p),moving=items.filter(i=>ids.has(i.id));
+ const delta=plan.delta-(lead-was),items=rowItems(p),moving=items.filter(i=>ids.has(i.id));
  if(Math.abs(delta)<1e-9||collides(moving,delta,items))return {kind:'none',starts:new Map(),delta:0};
  return {kind:'slide',starts:new Map(moving.map(m=>[m.id,m.start+delta])),delta};
 }

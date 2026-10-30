@@ -167,6 +167,8 @@ test('Task 14: a move never opens a gap before the first clip; a sole clip canno
  const two=project([...take(1,0,10),...take(2,14,6)]),first=linkedIds(two.clips,['screen1']);
  const plan=planClipMove(two,first,2,3);assert.ok(Math.min(...[...plan.starts.values()],...two.clips.filter(c=>!first.has(c.id)).map(c=>c.start))<=1e-9||plan.kind==='none','nothing starts after 0 alone');
  const second=linkedIds(two.clips,['screen2']);assert.equal(planClipMove(two,second,2,16).kind,'move','a later take still moves freely');
+ const sliver=project(take(1,.03,10));assert.equal(planClipMove(sliver,linkedIds(sliver.clips,['screen1']),4.4,6).kind,'none','a sliver left by an earlier cut does not let the only take drift');
+ assert.equal(planClipMove(sliver,linkedIds(sliver.clips,['screen1']),-.03,0).kind,'move','closing that sliver is fine');
  assert.equal(DRAG_DEAD_ZONE_PX,6);
 });
 

@@ -27,7 +27,8 @@ test('rows exist only when used: an empty video shows Screen and Audio, a camera
 });
 
 test('a drag survives a background save or reload of the project and drops on the project as it is then',async()=>{
- const {state,element}=harness(project([clip('a','screen',2,4)]));
+ // A camera clip holds the start of the video, so moving the screen clip opens no gap before the first clip.
+ const {state,element}=harness(project([clip('b','camera',0,1),clip('a','screen',2,4)]));
  const ui=await mountUI(element(state.project));
  try{
   const node=ui.container.querySelector('[data-clip-id="a"]')!;
@@ -39,7 +40,7 @@ test('a drag survives a background save or reload of the project and drops on th
   state.project=saved;await ui.render(element(saved));
   assert.ok(ui.container.querySelector('.clip-drag-preview'),'the save did not cancel the drag');
   await act(async()=>{pointer('pointerup',210);});
-  assert.equal(state.changes,1);assert.equal(state.project.clips[0].start,4,'moved by 100 px at 50 px/s');
+  assert.equal(state.changes,1);assert.equal(state.project.clips.find(c=>c.id==='a')!.start,4,'moved by 100 px at 50 px/s');
  }finally{await ui.close();}
 });
 
@@ -67,13 +68,13 @@ test('Escape ends only the drag: the editor\'s own keys never see it',async()=>{
 });
 
 test('a drop on clips that changed during the drag applies nothing and says so',async()=>{
- const {state,element}=harness(project([clip('a','screen',2,4),clip('b','screen',8,4)]));const ui=await mountUI(element(state.project));
+ const {state,element}=harness(project([clip('c','camera',0,1),clip('a','screen',2,4),clip('b','screen',8,4)]));const ui=await mountUI(element(state.project));
  try{
   await act(async()=>{pointer('pointerdown',110,ui.container.querySelector('[data-clip-id="a"]')!);pointer('pointermove',150);});await frame();
   // Another window (or Claude) moved clip a meanwhile.
   const remote:Project={...state.project,clips:state.project.clips.map(c=>c.id==='a'?{...c,start:0}:{...c})};state.project=remote;await ui.render(element(remote));
   await act(async()=>{pointer('pointerup',150);});
-  assert.equal(state.changes,1,'one change call, which made no edit');assert.deepEqual(state.project.clips.map(c=>c.start),[0,8]);
+  assert.equal(state.changes,1,'one change call, which made no edit');assert.deepEqual(state.project.clips.map(c=>c.start),[0,0,8]);
   assert.deepEqual(state.notices,['The timeline changed during the drag, so nothing moved. Try again.']);
  }finally{await ui.close();}
 });

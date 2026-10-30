@@ -161,7 +161,7 @@
 .club-embed .app-shell[data-mode=Edit] .club-ghost{position:absolute;top:3px;bottom:3px;border:1px dashed var(--cc-muted);border-radius:6px;pointer-events:none}
 .club-embed .app-shell[data-mode=Edit] .club-preview-cut{position:absolute;z-index:5;pointer-events:none;background:repeating-linear-gradient(135deg,color-mix(in srgb,var(--cc-danger) 30%,transparent) 0 4px,transparent 4px 8px);border-left:1px solid var(--cc-danger);border-right:1px solid var(--cc-danger)}
 .club-embed .app-shell[data-mode=Edit] .club-cut-mark{position:absolute;z-index:5;width:0;margin-left:-1px;border-left:2px dashed var(--cc-danger);pointer-events:none}
-.club-embed .app-shell[data-mode=Edit] .club-cut-mark::before{content:"";position:absolute;top:-6px;left:-5px;width:8px;height:8px;border-radius:50%;background:var(--cc-danger)}
+.club-embed .app-shell[data-mode=Edit] .club-cut-mark::before{content:"Cut";position:absolute;top:2px;left:2px;padding:0 5px;border-radius:4px;background:var(--cc-danger);color:var(--kind-ink);font-size:10.5px;font-weight:600;line-height:15px}
 .club-embed .app-shell[data-mode=Edit] .club-snap{position:absolute;top:0;bottom:0;width:0;margin-left:-1px;border-left:2px solid var(--tl-select);z-index:9;pointer-events:none;background:none}
 .club-embed .app-shell[data-mode=Edit] .club-snap>span{display:none}
 .club-embed .app-shell[data-mode=Edit] .club-insert-line{position:absolute;top:0;bottom:0;width:3px;margin-left:-1px;background:var(--tl-select);z-index:9;pointer-events:none}
@@ -217,7 +217,7 @@
 .club-embed .app-shell[data-mode=Edit] .color-swatch{width:22px;height:22px;padding:0;border-radius:50%;border:1px solid var(--cc-line);box-shadow:inset 0 0 0 1px var(--tl-shade-soft);display:inline-flex;align-items:center;justify-content:center;font-size:11px;color:var(--cc-muted);background:var(--cc-card)}
 .club-embed .app-shell[data-mode=Edit] .color-swatch.is-none{background:linear-gradient(135deg,transparent 45%,var(--cc-danger) 45% 55%,transparent 55%),var(--cc-card)}
 .club-embed .app-shell[data-mode=Edit] .color-swatch[aria-pressed=true]{outline:2px solid var(--tl-select);outline-offset:2px}
-.club-embed .app-shell[data-mode=Edit] .club-preview-inset{position:absolute;right:28px;bottom:18px;z-index:6;width:min(360px,44%);max-height:calc(100% - 70px);overflow:auto;padding:10px;border:1px solid var(--cc-line);border-radius:12px;background:var(--cc-card);box-shadow:var(--cc-shadow-3)}
+.club-embed .app-shell[data-mode=Edit] .club-preview-inset{position:absolute;right:28px;bottom:18px;z-index:6;width:min(300px,38%);max-height:calc(100% - 70px);overflow:auto;padding:10px;border:1px solid var(--cc-line);border-radius:12px;background:var(--cc-card);box-shadow:var(--cc-shadow-3)}
 .club-embed .app-shell[data-mode=Edit] .club-preview-inset .cut-playback{border:0;padding:0;background:transparent;font-size:12px}
 .club-embed .app-shell[data-mode=Edit] .club-sheet .btn:not(.primary):not(.ghost){display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 10px;border:1px solid var(--cc-line-strong);border-radius:8px;background:var(--cc-card);color:var(--cc-ink);font-size:13px;font-weight:500}
 .club-embed .app-shell[data-mode=Edit] .club-sheet .btn:not(.primary):not(.ghost):hover:not(:disabled){background:var(--cc-subtle)}
