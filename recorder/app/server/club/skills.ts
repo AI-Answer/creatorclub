@@ -1,10 +1,72 @@
-import { readdir, readFile, stat } from 'node:fs/promises';
+import { readdir, readFile, realpath, stat } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { SKILL_NAME, skillsAsked, slashSkill, type InstalledSkill } from '../../shared/skills.js';
+import { PREVIEW_EXT, SKILL_NAME, skillsAsked, slashSkill, type InstalledSkill } from '../../shared/skills.js';
 
 const MAX_SKILL_CHARS = 8000;
 const MAX_DESCRIPTION_CHARS = 120;
+const MAX_PREVIEWS = 6;
+const PREVIEW_DEPTH = 4;
+const PREVIEW_SKIP = new Set(['node_modules', '.git', 'workspace', 'headshots', 'shots', 'scripts', 'fixtures', 'tests']);
+/** A file counts as a preview when its name says it shows a result, or it sits in a folder made for that. */
+const PREVIEW_NAME = /preview|sample|demo|example|showcase|hero|reference-output/i;
+const PREVIEW_FOLDER = /^(previews?|samples?|examples?|templates|frame-presets)$/i;
+export const isPreview = (rel: string): boolean => {
+  const parts = rel.split('/');
+  return PREVIEW_NAME.test(parts[parts.length - 1]) || parts.slice(0, -1).some((part) => PREVIEW_FOLDER.test(part) || PREVIEW_NAME.test(part));
+};
+const MAX_PREVIEW_BYTES = 20 * 1024 * 1024;
+
+/** How well a file's name says "this shows the result": a file called preview first, then samples, demos and examples, then the rest. */
+function previewRank(file: string): number {
+  const name = path.basename(file).toLowerCase();
+  if (name.startsWith('preview')) return 0;
+  if (/sample|demo|example|showcase|reference-output/.test(file.toLowerCase())) return 1;
+  return 2;
+}
+
+/** Files inside a skill that show what it makes: pages, GIFs, images and short videos, found up to four folders deep (relative paths, best first). */
+export async function findPreviews(dir: string): Promise<string[]> {
+  const found: string[] = [];
+  const walk = async (current: string, depth: number): Promise<void> => {
+    let names: string[];
+    try {
+      names = await readdir(current);
+    } catch {
+      return;
+    }
+    for (const name of names.sort()) {
+      if (PREVIEW_SKIP.has(name) || name.startsWith('.')) continue;
+      const full = path.join(current, name);
+      try {
+        const info = await stat(full);
+        if (info.isDirectory()) {
+          if (depth < PREVIEW_DEPTH) await walk(full, depth + 1);
+        } else if (info.isFile() && PREVIEW_EXT.test(name) && info.size <= MAX_PREVIEW_BYTES) {
+          const rel = path.relative(dir, full).split(path.sep).join('/');
+          if (isPreview(rel)) found.push(rel);
+        }
+      } catch {
+        /* unreadable: not a preview */
+      }
+    }
+  };
+  await walk(dir, 0);
+  return found.sort((a, b) => previewRank(a) - previewRank(b) || a.localeCompare(b)).slice(0, MAX_PREVIEWS);
+}
+
+/** A preview file of an installed skill, as an absolute path: only a plain file of an allowed kind that really sits inside that skill's folder. */
+export async function previewFile(name: string, file: string, home = os.homedir()): Promise<string | undefined> {
+  if (!SKILL_NAME.test(name) || !PREVIEW_EXT.test(file)) return undefined;
+  try {
+    const base = await realpath(path.join(home, '.claude', 'skills', name));
+    const target = await realpath(path.join(base, file));
+    if (!target.startsWith(base + path.sep) || !(await stat(target)).isFile()) return undefined;
+    return target;
+  } catch {
+    return undefined;
+  }
+}
 
 /** The `description:` of a skill's front matter, as one short line: folded or block text joined, cut at its first sentence. */
 export function oneLine(raw: string): string {
@@ -37,7 +99,7 @@ export async function listSkills(home = os.homedir()): Promise<InstalledSkill[]>
     try {
       const file = path.join(root, name, 'SKILL.md');
       if (!(await stat(file)).isFile()) continue;
-      found.push({ name, description: oneLine(await readFile(file, 'utf8')) });
+      found.push({ name, description: oneLine(await readFile(file, 'utf8')), previews: await findPreviews(path.join(root, name)) });
     } catch {
       /* not a skill */
     }
@@ -72,3 +134,10 @@ export async function withSkills(system: string | undefined, message: string, ho
   if (!bodies.length) return system;
   return `${system ?? 'You are a precise writing assistant.'}\n\nThe person asked for one of their own skills. Follow its method below. Do not ask the clarifying questions it lists: answer them yourself from the board, the package, the outline and the transcript above, and say which assumption you made. Reply with the finished text, as cards the person can apply where the actions allow.\n\n${bodies.join('\n\n')}`;
 }
+
+/**
+ * A skill's preview page is often an animation that waits for a player to start it (its GSAP timelines sit in `window.__timelines`).
+ * Served for the preview, the page also starts those timelines on a loop and tells the panel its real size. The skill's file is not changed.
+ */
+const PLAYER = `<script>(function(){function go(){var T=window.__timelines;if(T){Object.keys(T).forEach(function(k){try{T[k].repeat(-1).play(0);}catch(e){}});}var r=document.getElementById('root')||document.body,b=r.getBoundingClientRect();parent.postMessage({skillPreviewSize:[Math.round(b.width)||1280,Math.round(b.height)||720]},'*');}window.addEventListener('load',function(){setTimeout(go,300);});})();</script>`;
+export const withPlayer = (html: string): string => (/<\/body>/i.test(html) ? html.replace(/<\/body>/i, `${PLAYER}</body>`) : html + PLAYER);

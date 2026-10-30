@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { CHANNEL_BOARD, SEED_BELOW, HELP_STEPS, PLAN_JOB_KINDS, TILE_KINDS, VIDEO_STAGES, type Workspace } from '../../shared/club.js';
 import { PACKAGE_GROUPS } from '../../shared/package-merge.js';
 import { aiStatus } from './ai.js';
-import { listSkills } from './skills.js';
+import { listSkills, previewFile, withPlayer } from './skills.js';
 import { startConnect, type ConnectOptions } from './connect.js';
 import { ClubError, GENERIC_FAILURE, notFound } from './errors.js';
 import { promises as fs } from 'node:fs';
@@ -245,6 +245,19 @@ export function clubRouter({ ai = {}, transcribe, runAI, readViews = ytDlpViews(
 
   // ---- the person's own Claude Code skills, for the companion's "/" picker
   router.get('/skills', handler(async (_req, res) => res.json(await listSkills())));
+  // A file from inside one of the person's skills that shows what it makes. A page runs sandboxed: no access to the app, its data or its cookies.
+  router.get('/skills/:name/preview', handler(async (req, res) => {
+    const file = typeof req.query.file === 'string' ? req.query.file : '';
+    const found = await previewFile(param(req, 'name'), file);
+    if (!found) throw notFound('preview');
+    res.setHeader('Content-Security-Policy', 'sandbox allow-scripts');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    if (/\.html?$/i.test(found)) {
+      res.type('html').send(withPlayer(await fs.readFile(found, 'utf8')));
+      return;
+    }
+    res.sendFile(found, { dotfiles: 'allow' });
+  }));
 
   // ---- AI
   router.get('/ai/status', handler(async (_req, res) => res.json(await aiStatus(ai))));

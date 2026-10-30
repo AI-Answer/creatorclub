@@ -275,13 +275,9 @@ export default function App({embedded}:{embedded?:EmbeddedRecorder}={}){
   {id:'cut',label:'Cut',tip:'Find pauses, filler words and repeated lines to cut',icon:Scissors,open:()=>openAuto()},
   {id:'Captions',label:'Captions',tip:'Words on the picture as they are spoken',icon:Subtitles,open:()=>openPanel('Captions')},
   {id:'Layout',label:'Layout',tip:'How the camera and the screen share the picture',icon:LayoutTemplate,open:()=>openPanel('Layout')},
-  {id:'Clip',label:'Clip',tip:'Speed, volume and look of the selected clip',icon:Clapperboard,open:()=>openPanel('Clip')},
-  {id:'Zoom',label:'Zoom',tip:'Move in on part of the picture for a few seconds',icon:ZoomIn,open:()=>openPanel('Zoom')},
-  {id:'Motion',label:'Graphics',tip:'Animated titles, lower thirds and labels',icon:Sparkles,open:()=>openPanel('Motion')},
-  {id:'Elements',label:'Text',tip:'Plain text, shapes, arrows and images over the picture',icon:Type,open:()=>openPanel('Elements')},
-  {id:'Music',label:'Music',tip:'A soundtrack under the speech',icon:Music,open:()=>openPanel('Music')}];
+  {id:'Motion',label:'Graphics',tip:'Animated titles, lower thirds and labels',icon:Sparkles,open:()=>openPanel('Motion')}];
  const railActive=panel??(side==='auto'?'cut':side??'');
- const moreItems:MenuItem[]=[{label:'Canvas background',fn:()=>openPanel('Canvas')},{label:'Cursor',fn:()=>openPanel('Cursor')},'-',{label:'Import media',icon:'Upload',fn:()=>beginImport()}];
+ const moreItems:MenuItem[]=[{label:'Clip: speed, volume, look',fn:()=>openPanel('Clip')},{label:'Zoom',fn:()=>openPanel('Zoom')},{label:'Text and shapes',fn:()=>openPanel('Elements')},{label:'Music',fn:()=>openPanel('Music')},{label:'Media in this video',fn:()=>openSide('media')},'-',{label:'Canvas background',fn:()=>openPanel('Canvas')},{label:'Cursor',fn:()=>openPanel('Cursor')},'-',{label:'Import media',icon:'Upload',fn:()=>beginImport()}];
  const menuActions:TimelineMenuActions|null=p?{split:()=>split(),deleteClose:()=>deleteSelected(true),deleteKeepGap:()=>deleteSelected(false),duplicate:duplicateSelected,copy,paste,selectAll:()=>{const ids=[...p.clips,...p.elements,...p.captions,...p.zooms].map(x=>x.id);setSelectedIds(new Set(ids));setSelected(ids[0]||null);},
   addMarker:addMarkerAtPlayhead,previousCut:()=>boundary(-1),nextCut:()=>boundary(1),toggleLink,linked:selectionLinked,blade:tool==='blade',toggleBlade:()=>setTool(v=>v==='blade'?'select':'blade'),waveforms:showWaveforms,toggleWaveforms:()=>setShowWaveforms(v=>!v),
   addVideoLayer:()=>studio.change(d=>{addTimelineLayer(d,'video');}),addAudioLayer:()=>studio.change(d=>{addTimelineLayer(d,'audio');})}:null;
@@ -333,8 +329,7 @@ const formatLabel=(w:number,h:number)=>({'1920x1080':'16:9','1080x1920':'9:16','
   <nav className="club-rail" aria-label="Edit tools">
    {railTools.map(({id,label,tip,icon:Icon,open})=><button key={id} data-tool={id} type="button" aria-pressed={railActive===id} title={tip} onClick={()=>railActive===id?(setPanel(null),setSide(null)):open()}><Icon size={20}/>{label}</button>)}
    <span className="club-rail-grow"/>
-   <button type="button" data-tool="media" aria-pressed={railActive==='media'} title="The recordings and files in this video" onClick={()=>railActive==='media'?setSide(null):openSide('media')}><Film size={20}/>Media</button>
-   <Menu label="More edit tools" align="left" width={210} items={moreItems} button={(toggle,open)=><button type="button" data-tool="more" aria-haspopup="menu" aria-expanded={open} title="Canvas background, cursor and importing" onClick={toggle}><MoreHorizontal size={20}/>More</button>}/>
+   <Menu label="More edit tools" align="left" width={210} items={moreItems} button={(toggle,open)=><button type="button" data-tool="more" aria-haspopup="menu" aria-expanded={open} aria-pressed={['Clip','Zoom','Elements','Music','Canvas','Cursor','media'].includes(railActive)} title="Clip, zoom, text, music, media, background and cursor" onClick={toggle}><MoreHorizontal size={20}/>More</button>}/>
   </nav>
   <main className="club-edit-stage">
    {/* The player always stays; a preview is a badge over it, and a cut's before/after plays in a small inset in the corner. */}

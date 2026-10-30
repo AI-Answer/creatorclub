@@ -315,3 +315,6 @@
 .club-embed .app-shell[data-mode=Edit] .club-auto-sheet .club-auto-desc{font-size:12.5px;line-height:1.4}
 .club-embed .app-shell[data-mode=Edit] .club-auto-actions{display:flex;gap:8px;margin-top:4px}
 .club-embed .app-shell[data-mode=Edit] .club-auto-actions .btn{flex:1;align-self:stretch;justify-content:center}
+
+/* The scene names are in the row under the timeline, so the ruler keeps only the time. */
+.club-embed .app-shell[data-mode=Edit] .club-scene-tag{display:none}

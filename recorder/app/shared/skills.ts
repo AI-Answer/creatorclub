@@ -12,7 +12,9 @@ export function skillsAsked(text:string):WritingSkill[]{
 }
 
 /** One of the person's installed skills, as the picker lists it. */
-export type InstalledSkill={name:string;description:string};
+export type InstalledSkill={name:string;description:string;/** Files inside the skill that show what it makes (a page, a GIF, an image, a short video), best first. */previews:string[]};
+/** The kinds of file a skill's preview can be. */
+export const PREVIEW_EXT=/\.(html?|gif|webp|png|jpe?g|mp4|webm)$/i;
 /** A skill name is a folder name: letters, digits, dashes, underscores. Anything else never reaches the disk. */
 export const SKILL_NAME=/^[A-Za-z0-9][A-Za-z0-9_-]*$/;
 /** While the message is only "/" and a few letters, what was typed after the slash; otherwise undefined (the picker is closed). */

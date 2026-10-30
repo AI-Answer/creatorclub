@@ -5,6 +5,7 @@ import type {EditorBridge,EditorState} from '../../App';
 import {describeEditAction,type SilencePlan} from '../../editing-actions';
 import {clubFetch} from '../api';
 import {matchSkills,slashQuery,type InstalledSkill} from '../../../shared/skills';
+import {SkillPreview} from './SkillPreview';
 import {ErrorLine} from '../ErrorLine';
 import {Button,CompanionMark,Icon,Spinner,cn} from '../ui';
 import {atBottom,elapsed,greeting,lookingAt,previewOf,stepSummary,suggestions,withDividers} from './companion-logic';
@@ -177,11 +178,14 @@ export function Companion({videoId,videoTitle,tab,scene,screen,selection,pkg,out
    {!working&&!fresh&&chips}
    {pickerOpen&&<div className="cmp-skills" role="listbox" aria-label="Your skills">
     <div className="cmp-skills-head">Your skills</div>
+    {choices[Math.min(pick,choices.length-1)]?.previews.length>0&&<SkillPreview skill={choices[Math.min(pick,choices.length-1)]}/>}
+    <div className="cmp-skills-list">
     {!skills?<div className="cmp-skills-empty">Looking for your skills…</div>
      :!choices.length?<div className="cmp-skills-empty">{skills.length?'No skill with that name.':'No skills are installed in your Claude Code yet.'}</div>
      :choices.map((skill,at)=><button key={skill.name} type="button" role="option" aria-selected={at===pick} className={cn('cmp-skill',at===pick&&'on')} onMouseEnter={()=>setPick(at)} onMouseDown={event=>event.preventDefault()} onClick={()=>choose(skill)}>
-       <span className="cmp-skill-name">/{skill.name}</span><span className="cmp-skill-what">{skill.description}</span>
+       <span className="cmp-skill-name">/{skill.name}{skill.previews.length>0&&<span className="cmp-skill-tag">Preview</span>}</span><span className="cmp-skill-what">{skill.description}</span>
       </button>)}
+    </div>
    </div>}
    <form className="cmp-input" onSubmit={event=>{event.preventDefault();void ask(text);}}>
     <textarea ref={input} rows={1} value={text} onChange={event=>setText(event.target.value)} onKeyDown={onKeyDown} placeholder="Ask, or type / for your skills" aria-label={`Message to ${name}`}/>

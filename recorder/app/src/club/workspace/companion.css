@@ -135,7 +135,7 @@
 /* Below 1440 px the step beside the panel needs the room (Edit's stage, transcript and timeline): the panel opens at 320 px. */
 @media (max-width: 1439px) { .club-root .cmp { width: 320px; } }
 
-.club-root .cmp-skills { max-height: 220px; overflow-y: auto; border: 1px solid var(--cc-line-strong); border-radius: 12px; background: var(--cc-surface); padding: 4px; }
+.club-root .cmp-skills { max-height: 420px; display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--cc-line-strong); border-radius: 12px; background: var(--cc-surface); padding: 4px; }
 .club-root .cmp-skills-head { font-size: 11.5px; font-weight: 600; color: var(--cc-text-3); padding: 4px 8px 2px; }
 .club-root .cmp-skills-empty { font-size: 12.5px; color: var(--cc-text-2); padding: 8px; }
 .club-root .cmp-skill { all: unset; box-sizing: border-box; display: flex; flex-direction: column; gap: 1px; width: 100%; cursor: pointer; padding: 6px 8px; border-radius: 8px; }
@@ -143,3 +143,15 @@
 .club-root .cmp-skill:focus-visible { outline: 2px solid var(--cc-accent); outline-offset: -2px; }
 .club-root .cmp-skill-name { font-size: 13px; font-weight: 600; color: var(--cc-text); }
 .club-root .cmp-skill-what { font-size: 12px; color: var(--cc-text-2); line-height: 1.35; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.club-root .cmp-skills-list { overflow-y: auto; min-height: 0; flex: 1; }
+.club-root .cmp-skill-tag { margin-left: 8px; font-size: 11px; font-weight: 600; color: var(--cc-accent-text); background: var(--cc-accent-soft); border-radius: 999px; padding: 1px 7px; }
+.club-root .cmp-prev { padding: 4px 4px 8px; }
+.club-root .cmp-prev-box { position: relative; overflow: hidden; border-radius: 10px; background: var(--cc-dark-stage, #111); }
+.club-root .cmp-prev-box iframe { position: absolute; top: 0; left: 0; border: 0; transform-origin: 0 0; pointer-events: none; }
+.club-root .cmp-prev-box :is(img, video) { display: block; width: 100%; height: 100%; object-fit: contain; }
+.club-root .cmp-prev-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 4px 0; font-size: 12px; color: var(--cc-text-2); }
+.club-root .cmp-prev-name { font-weight: 600; text-transform: capitalize; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.club-root .cmp-prev-nav { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.club-root .cmp-prev-nav button { all: unset; cursor: pointer; display: inline-flex; padding: 3px; border-radius: 6px; }
+.club-root .cmp-prev-nav button:hover { background: var(--cc-accent-soft); }
