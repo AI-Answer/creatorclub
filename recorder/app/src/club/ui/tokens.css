@@ -95,11 +95,13 @@
   /* Timeline kinds: one hue each, the same wherever a kind is drawn (timeline, scene chips, take chips). */
   --kind-screen: #1f7a80;
   --kind-camera: #6b55c4;
-  --kind-audio: #4f6d8a;
+  /* Audio is a warm graphite (not blue: blue means selection); captions gold (not olive, which read as "done" green); markers purple, visible on the ruler in both themes. */
+  --kind-audio: #6b6258;
   --kind-graphics: #b8457d;
-  --kind-captions: #6b7a2a;
+  --kind-captions: #9c7c00;
   --kind-zoom: #9a5a2c;
-  --kind-marker: var(--cc-text);
+  --kind-markers: #9b3fc2;
+  --kind-marker: var(--kind-markers);
   --kind-ink: #ffffff;
   /* Shades on top of a clip or a stage: a hairline edge, a label plate, a drag shadow. Black at three strengths, in both themes. */
   --cc-shade-soft: rgb(0 0 0 / 0.12);
