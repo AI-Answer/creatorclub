@@ -23,7 +23,7 @@ Structure and wording only. No Tella code or assets were copied.
 
 - **Tella does:** top bar with title, undo/redo, View, Download and one purple primary "Share". Left rail of eight tools (Setup, Library, Layout, Cut, Effect, Overlay, Style, Subs), each opening a panel beside it. Stage in the middle with a small row of pills under it (size, crop, background, resolution). Chat docked on the right. Clips strip along the bottom with "Add clip", playback speed and a scrubber.
 - **We do:** left rail (Transcript, Cut, Captions, Layout, Clip, Zoom, Graphics, Text, Music), one outline Export, one black Continue, chat on the right, timeline with tracks.
-- **Takeaways (inference):** the structure is the same, which is a good sign for ours. Tella puts the stage settings (size, crop, background) as a pill row right under the video; ours keep them in the rail. That is the one layout idea worth testing next. Not built.
+- **Takeaways (inference):** the structure is the same, which is a good sign for ours. Tella puts the stage settings (size, crop, background) as a pill row right under the video; ours keep them in the rail. That is the one layout idea worth testing. **Built:** four pills under our video — Format (shows the current shape, e.g. 16:9), Background, Layout, Cursor — each opens the existing panel on the right. Size and crop were not added; we have no crop control to point at.
 
 ## 3. Recorder window (observed)
 
@@ -33,4 +33,3 @@ Structure and wording only. No Tella code or assets were copied.
 
 ## Open items
 - Start a recording in Tella yourself and leave the island up, and I can screenshot it.
-- Decide whether to try Tella's stage-settings pill row under our video.

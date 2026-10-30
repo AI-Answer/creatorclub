@@ -317,6 +317,8 @@ export default function App({embedded}:{embedded?:EmbeddedRecorder}={}){
  useEffect(()=>{if(!onEditor||!editOpen)return;onEditor({context:editorContext,flush:editorFlush,preview:previewEdit,estimate:estimateEdit,commit:studio.commitServer});return()=>onEditor(null);},[onEditor,editOpen,studio.commitServer]);
  const onEditState=embedded?.onEditState,selectedCount=p?selectionCount(p.clips,selection):selection.size,previewKey=preview?.key,timelineVersion=p?.updatedAt;
  useEffect(()=>{if(editOpen)onEditState?.({selected:selectedCount,previewKey,version:timelineVersion});},[onEditState,editOpen,selectedCount,previewKey,timelineVersion]);
+ /** The video's shape in plain terms: its ratio when it is a usual one, else its size. */
+const formatLabel=(w:number,h:number)=>({'1920x1080':'16:9','1080x1920':'9:16','1080x1080':'1:1','1080x1350':'4:5'} as Record<string,string>)[`${w}x${h}`]??`${w}×${h}`;
  const clubEditView=()=>{if(!p||!embedded)return null;const zoomRange=zoomSlider(timelineControls.current?.width()||1000,duration);const stageProject=preview?.after&&previewPhase==='after'?preview.after:p;return <div className={`edit-workspace club-edit ${sideView?'has-side':''}`}>
   <nav className="club-rail" aria-label="Edit tools">
    {railTools.map(({id,label,tip,icon:Icon,open})=><button key={id} type="button" aria-pressed={railActive===id} title={tip} onClick={()=>railActive===id?(setPanel(null),setSide(null)):open()}><Icon size={20}/>{label}</button>)}
@@ -327,6 +329,7 @@ export default function App({embedded}:{embedded?:EmbeddedRecorder}={}){
   <main className="club-edit-stage">
    {/* The player always stays; a preview is a badge over it, and a cut's before/after plays in a small inset in the corner. */}
    <Stage project={stageProject} playhead={playhead} playing={playing} playbackRate={playbackRate} onSelect={select} onImport={importMedia}/>
+   <div className="club-stage-pills" role="toolbar" aria-label="Video look">{([['Canvas',`Format · ${formatLabel(p.canvas.width,p.canvas.height)}`,'Shape of the video'],['Canvas','Background','Background behind the video'],['Layout','Layout','Where the camera and screen sit'],['Cursor','Cursor','How the cursor looks']] as const).map(([name,label,tip])=><button key={label} type="button" title={tip} aria-pressed={panel===name&&label!=='Background'} onClick={()=>panel===name?(setPanel(null),setSide(null)):openPanel(name)}>{label}</button>)}</div>
    {preview?.review&&<div className="club-preview-inset" role="region" aria-label="Before and after this cut"><CutPlayback key={preview.key} review={preview.review} labels={{before:'Before',after:'After'}} note="This preview does not change your video."/></div>}
    {preview&&<div className="club-preview-badges" role="status"><span className="club-pill">Previewing at lower quality</span><span className="club-pill">{preview.label} · {preview.summary}</span>
     {preview.after&&<span className="club-seg" role="group" aria-label="Before or after">{(['before','after'] as const).map(v=><button key={v} type="button" aria-pressed={previewPhase===v} onClick={()=>setPreviewPhase(v)}>{v==='before'?'Before':'After'}</button>)}</span>}</div>}
