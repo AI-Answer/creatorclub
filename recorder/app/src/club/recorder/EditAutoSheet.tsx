@@ -54,9 +54,9 @@ export function EditAutoSheet({project:p,jobs,merge,reload,flush,change,refresh,
  // The preview follows the pinned or hovered choice.
  useEffect(()=>{
   if(!active){onPreview(null);return;}
-  if(active==='pauses'||active==='fillers'||active==='gaps'){const r=ranges[active];if(!r.length){onPreview(null);return;}const label=active==='pauses'?`Remove pauses (${PAUSE_LEVEL_NAMES[level].toLowerCase()})`:active==='fillers'?'Remove filler words':'Close gaps';
+  if(active==='pauses'||active==='fillers'||active==='gaps'){const r=ranges[active];if(!r.length){onPreview(null);return;}const label=active==='pauses'?`Remove pauses (${PAUSE_LEVEL_NAMES[level].toLowerCase()})`:active==='fillers'?'Remove filler words':'Close gaps between clips';
    onPreview({key:`${active}:${level}:${padding}:${r.length}`,label,summary:`${seconds(rangesSeconds(r))} shorter · ${projectDuration(p)>0?formatCutDuration(projectDuration(p)-rangesSeconds(r)):'0s'} long`,ranges:r,review:cutReview(p,r,active==='pauses'?'Pause':active==='fillers'?'Filler':'Gap')});return;}
-  if(active==='style'&&styleJob?.status==='ready'){if(styled?.jobId===styleJob.id)onPreview({key:`style:${styleJob.id}`,label:'Style video',summary:styleJob.proposal?.summary??'',after:styled.after});else onPreview(null);return;}
+  if(active==='style'&&styleJob?.status==='ready'){if(styled?.jobId===styleJob.id)onPreview({key:`style:${styleJob.id}`,label:'Suggest a layout and titles',summary:styleJob.proposal?.summary??'',after:styled.after});else onPreview(null);return;}
   onPreview(null);
  },[active,ranges,level,padding,styled,styleJob?.id,styleJob?.status]);
  useEffect(()=>()=>onPreview(null),[]);
@@ -98,20 +98,20 @@ export function EditAutoSheet({project:p,jobs,merge,reload,flush,change,refresh,
  </div>;
  return <aside className="club-sheet club-auto-sheet" aria-label="Auto-edit">
   <header><b>Auto-edit</b><button type="button" className="club-sheet-close" aria-label="Close auto-edit" onClick={onClose}><Icon name="close" size={16}/></button></header>
-  <p className="club-sheet-hint">Hover to preview · click to choose · Enter to apply</p>
+  <p className="club-sheet-hint">Choose one to see what it would do on the video. Nothing changes until you press Apply.</p>
   <div className="club-sheet-body" ref={list} role="list">
    {row('pauses',<Icon name="cut" size={15}/>,'Remove pauses',<>
     {(!cutJob||stale||cutJob.status!=='ready'&&!automationRunning(cutJob))&&<Button size="sm" disabled={!!busy||!p.clips.length} onClick={()=>void plan('auto-cut')}>{busy==='auto-cut'&&<Icon name="loading" className="spin" aria-hidden/>}{cutJob?'Find pauses again':'Find pauses'}</Button>}
     {cutJob?.status==='ready'&&!stale&&<><div className="club-auto-control"><span className="club-seg" role="group" aria-label="How much to cut">{(Object.keys(PAUSE_LEVEL_NAMES) as PauseLevel[]).map(l=><button key={l} type="button" aria-pressed={level===l} onClick={()=>{setLevel(l);setPin('pauses');}}>{PAUSE_LEVEL_NAMES[l]}</button>)}</span></div>
      <label className="club-auto-control"><span>Keep</span><input type="range" min={.05} max={.5} step={.01} value={padding} aria-label="Breathing room kept around each cut" onChange={event=>{setPadding(+event.target.value);setPin('pauses');}}/><span className="tnum">{padding.toFixed(2)}s</span><span className="faint">around each cut</span></label></>}
    </>)}
-   {row('fillers',<Icon name="audio" size={15}/>,'Review filler words')}
-   {row('gaps',<Icon name="slide" size={15}/>,'Close gaps')}
-   {row('normalize',<Icon name="adjust" size={15}/>,'Normalize loudness')}
-   {row('style',<Icon name="image" size={15}/>,'Style video',(!styleJob||styleJob.status!=='ready')&&<Button size="sm" disabled={!!busy||!p.clips.length||!!styleJob&&automationRunning(styleJob)} onClick={()=>void plan('visualize')}>{(busy==='visualize'||styleJob&&automationRunning(styleJob))&&<Icon name="loading" className="spin" aria-hidden/>}{styleJob?'Plan again':'Plan a style'}</Button>)}
+   {row('fillers',<Icon name="audio" size={15}/>,'Remove filler words')}
+   {row('gaps',<Icon name="slide" size={15}/>,'Close gaps between clips')}
+   {row('normalize',<Icon name="adjust" size={15}/>,'Even out the volume')}
+   {row('style',<Icon name="image" size={15}/>,'Suggest a layout and titles',(!styleJob||styleJob.status!=='ready')&&<Button size="sm" disabled={!!busy||!p.clips.length||!!styleJob&&automationRunning(styleJob)} onClick={()=>void plan('visualize')}>{(busy==='visualize'||styleJob&&automationRunning(styleJob))&&<Icon name="loading" className="spin" aria-hidden/>}{styleJob?'Plan again':'Plan a style'}</Button>)}
   </div>
   {error&&<p className="club-sheet-error" role="alert">{error} <button type="button" onClick={()=>{setError('');retry.current();}}>Try again</button></p>}
-  {pin&&<footer className="club-sheet-pin"><span>Previewing <b>{pin==='pauses'?`Remove pauses (${PAUSE_LEVEL_NAMES[level].toLowerCase()})`:pin==='fillers'?'Remove filler words':pin==='gaps'?'Close gaps':pin==='normalize'?'Normalize loudness':'Style video'}</b></span>
+  {pin&&<footer className="club-sheet-pin"><span>Previewing <b>{pin==='pauses'?`Remove pauses (${PAUSE_LEVEL_NAMES[level].toLowerCase()})`:pin==='fillers'?'Remove filler words':pin==='gaps'?'Close gaps between clips':pin==='normalize'?'Even out the volume':'Suggest a layout and titles'}</b></span>
    <Button size="sm" variant="ghost" onClick={()=>setPin(null)}>Cancel</Button><Button size="sm" variant="primary" disabled={!!busy} onClick={()=>void apply(pin)}>{busy==='style'&&<Icon name="loading" className="spin" aria-hidden/>}Apply</Button></footer>}
  </aside>;
 }
