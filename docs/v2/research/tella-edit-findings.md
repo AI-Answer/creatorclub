@@ -33,3 +33,8 @@ Structure and wording only. No Tella code or assets were copied.
 
 ## Open items
 - Start a recording in Tella yourself and leave the island up, and I can screenshot it.
+
+## Layout change (2026-10-30, second pass)
+Order is now rail, then the tool's panel, then the video with one joined bar under it (Format, Background, Layout, Cursor), then the chat. Before, the panel opened on the right of the video. Checked by screenshot of the real app.
+
+Still different from Tella (observed, not changed): Tella's timeline is one waveform with the spoken words on it and a row of clips below; ours has Camera, Audio and Captions rows. Tella has one slim top bar; ours has the step tabs, the scene strip and a toolbar. Tella's rail icons are coloured; ours are plain outlines.

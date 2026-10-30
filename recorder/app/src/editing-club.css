@@ -265,8 +265,14 @@
 
 .club-embed .app-shell[data-mode=Edit] .club-sheet-hint{white-space:normal;overflow:visible;text-overflow:clip;line-height:1.4}
 
-.club-embed .app-shell[data-mode=Edit] .club-stage-pills{display:flex;justify-content:center;gap:6px;padding:0 20px 10px;flex-shrink:0}
-.club-embed .app-shell[data-mode=Edit] .club-stage-pills button{all:unset;box-sizing:border-box;cursor:pointer;font-size:12.5px;font-weight:500;color:var(--cc-text-2);border:1px solid var(--cc-line);background:var(--cc-surface);border-radius:999px;padding:4px 11px;line-height:1.35}
-.club-embed .app-shell[data-mode=Edit] .club-stage-pills button:hover{border-color:var(--cc-accent);color:var(--cc-text)}
-.club-embed .app-shell[data-mode=Edit] .club-stage-pills button[aria-pressed=true]{background:var(--cc-accent-soft);border-color:var(--cc-accent);color:var(--cc-text)}
-.club-embed .app-shell[data-mode=Edit] .club-stage-pills button:focus-visible{outline:2px solid var(--cc-accent);outline-offset:1px}
+/* Tella-type layout: the tool's panel sits beside the rail, left of the video; the pills are one joined bar under it. */
+.club-embed .app-shell[data-mode=Edit] .edit-workspace.club-edit.has-side{grid-template-columns:340px minmax(0,1fr)}
+@media (max-width:1439px){.club-embed .app-shell[data-mode=Edit] .edit-workspace.club-edit.has-side{grid-template-columns:minmax(290px,300px) minmax(0,1fr)}}
+.club-embed .app-shell[data-mode=Edit] .edit-workspace.club-edit.has-side .club-edit-side{grid-column:1;border-left:0;border-right:1px solid var(--cc-line)}
+.club-embed .app-shell[data-mode=Edit] .edit-workspace.club-edit.has-side .club-edit-stage{grid-column:2}
+.club-embed .app-shell[data-mode=Edit] .club-stage-pills{display:flex;align-self:center;margin:0 20px 12px;flex-shrink:0;border:1px solid var(--cc-line);border-radius:12px;background:var(--cc-surface);box-shadow:0 1px 3px rgba(0,0,0,.06);overflow:hidden}
+.club-embed .app-shell[data-mode=Edit] .club-stage-pills button{all:unset;box-sizing:border-box;cursor:pointer;font-size:13px;font-weight:550;color:var(--cc-text-2);padding:8px 16px;line-height:1.2;border-left:1px solid var(--cc-line)}
+.club-embed .app-shell[data-mode=Edit] .club-stage-pills button:first-child{border-left:0}
+.club-embed .app-shell[data-mode=Edit] .club-stage-pills button:hover{background:var(--cc-hover);color:var(--cc-text)}
+.club-embed .app-shell[data-mode=Edit] .club-stage-pills button[aria-pressed=true]{background:var(--cc-accent-soft);color:var(--cc-accent-text)}
+.club-embed .app-shell[data-mode=Edit] .club-stage-pills button:focus-visible{outline:2px solid var(--cc-accent);outline-offset:-2px}
