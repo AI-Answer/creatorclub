@@ -1,4 +1,4 @@
-import {clipDuration,clipEffectTiming,makeId,narrationPriority,type Clip,type Element,type Media,type MotionBlock,type Project,type TrackKind} from '../shared/types';
+import {clipDuration,clipEffectTiming,makeId,narrationPriority,projectDuration,type Clip,type Element,type Media,type MotionBlock,type Project,type TrackKind} from '../shared/types';
 import {cutTimelineRange,minimumPiece,relinkSlices} from '../shared/timeline-edits';
 import {clipLayerRowId} from '../shared/timeline-layers';
 import {plainClone,plainView} from './project-draft';
@@ -316,13 +316,17 @@ export const motionAt=(p:Pick<Project,'motion'>,time:number,except?:string)=>(p.
 export const nextMotionStart=(p:Pick<Project,'motion'>,time:number,except?:string)=>(p.motion??[]).filter(m=>m.id!==except&&m.start>=time+EPS).reduce((at,m)=>Math.min(at,m.start),Infinity);
 /**
  * Adds a block to the Motion row without overlapping another: it starts at its time, or after the block already there when `slide`,
- * and stops where the next block starts. Returns the block as added, or the sentence that says why it does not fit.
+ * and stops where the next block starts (and, with `keepLength`, where the video ends). Returns the block as added, or the sentence that
+ * says why it does not fit.
  */
-export function addMotionBlock(p:Project,block:MotionBlock,slide=false):{block:MotionBlock}|{problem:string}{
+export function addMotionBlock(p:Project,block:MotionBlock,slide=false,keepLength=false):{block:MotionBlock}|{problem:string}{
+ const videoEnd=keepLength?projectDuration(plainView(p)):Infinity;
  let start=Math.max(0,block.start);
  for(let on=motionAt(p,start);on;on=motionAt(p,start)){if(!slide)return {problem:'Another motion block is already there at that time.'};start=on.start+on.duration;}
- const shortest=MOTION_TEMPLATES[block.template].minDuration,duration=Math.min(block.duration,nextMotionStart(p,start)-start);
- if(duration<shortest-1e-9)return {problem:`There is no room for a ${MOTION_TEMPLATES[block.template].label.toLowerCase()} there: the next motion block starts too soon.`};
+ const shortest=MOTION_TEMPLATES[block.template].minDuration,label=MOTION_TEMPLATES[block.template].label.toLowerCase(),next=nextMotionStart(p,start);
+ if(next-start<shortest-1e-9)return {problem:`There is no room for a ${label} there: the next motion block starts too soon.`};
+ if(videoEnd-start<shortest-.01)return {problem:`There is no room for a ${label} before the end of the video.`};
+ const duration=Math.max(Math.min(shortest,next-start),Math.min(block.duration,next-start,videoEnd-start));
  const placed={...block,start,duration};(p.motion??=[]).push(placed);p.motion.sort((a,b)=>a.start-b.start);
  return {block:placed};
 }

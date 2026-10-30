@@ -91,6 +91,10 @@ test('the Motion row: blocks over clips, never over each other; ripple, delete, 
   assert.deepEqual(addMotionBlock(d,newMotionBlock('title-card',4,'b')),{problem:'Another motion block is already there at that time.'});
   const slid=addMotionBlock(d,newMotionBlock('title-card',4,'b'),true);assert.ok('block' in slid&&slid.block.start===7);
   assert.deepEqual(addMotionBlock(d,newMotionBlock('chapter-label',1.5,'c')),{problem:'There is no room for a chapter label there: the next motion block starts too soon.'});
+  // From the panel the video keeps its length (30 s here): a block stops at the end, and none starts in the last second.
+  const late=addMotionBlock(d,newMotionBlock('title-card',28,'late'),true,true);assert.ok('block' in late&&late.block.duration===2);
+  assert.deepEqual(addMotionBlock(d,newMotionBlock('chapter-label',29.5,'end'),true,true),{problem:'There is no room for a chapter label before the end of the video.'});
+  d.motion=d.motion!.filter(m=>m.id!=='late');
  });
  assert.deepEqual(p.motion!.map(m=>[m.id,m.start,m.duration]),[['a',2,5],['b',7,4]]);
  const items=rowItems(p);assert.deepEqual(items.filter(i=>i.row===MOTION_ROW).map(i=>i.id),['a','b']);assert.equal(rowsOverlap(items),false);

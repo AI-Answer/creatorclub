@@ -1,5 +1,5 @@
 import type {MotionBlock,MotionTemplateId,Project} from '../shared/types';
-import {makeId,projectDuration} from '../shared/types';
+import {makeId} from '../shared/types';
 import {MOTION_TEMPLATES,MOTION_TEMPLATE_IDS,motionText,newMotionBlock,normalizeMotionProps} from '../shared/motion/templates';
 import {addMotionBlock,nextMotionStart} from './timeline-edit';
 import {timecode} from './api';
@@ -17,9 +17,8 @@ export function MotionPanel({project:p,selected,playhead,change,select,notify,cl
  const block=p.motion?.find(m=>m.id===selected);
  const add=(template:MotionTemplateId)=>{
   const id=makeId(),start=playhead.get();let problem='';
-  // A new block keeps the video's length: it stops at the end of the video when there is room for it there.
-  change(d=>{const t=MOTION_TEMPLATES[template],room=projectDuration(d)-start,duration=room>=t.minDuration?Math.min(t.defaultDuration,room):t.defaultDuration;
-   const r=addMotionBlock(d,newMotionBlock(template,start,id,{duration}),true);if('problem' in r)problem=r.problem;});
+  // A new block keeps the video's length: it stops where the video ends.
+  change(d=>{const r=addMotionBlock(d,newMotionBlock(template,start,id),true,true);if('problem' in r)problem=r.problem;});
   if(problem)notify?.(problem);else select(id);
  };
  return <>
