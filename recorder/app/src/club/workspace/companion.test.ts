@@ -137,7 +137,7 @@ test('asking streams: the steps with their time, a skeleton before the first wor
   // Nothing asked yet: the step's greeting with its three prompts right under it, not a blank column and not the old welcome.
   const hello=c.querySelector('.cmp-log .cmp-hello')!;
   assert.match(text(hello),/^The scenes are drafted\./);
-  assert.deepEqual([...hello.querySelectorAll('.cmp-sugg button')].map(b=>b.textContent),['Tighten scene 2','Cut the longest scene to 90 seconds','Suggest three titles']);
+  assert.deepEqual([...hello.querySelectorAll('.cmp-sugg button')].map(b=>b.textContent),['Tighten scene 2','Cut the longest scene to 90 seconds','Make the hook sharper']);
   assert.equal(c.querySelector('.cmp-foot .cmp-sugg'),null,'the prompts are not repeated at the bottom');
   assert.doesNotMatch(text(c),/with you on this video/);
   await act(async()=>button(c,'Tighten scene 2').click());await flush();
@@ -192,7 +192,7 @@ test('Esc stops a reply and keeps what had arrived; a failure says so and Try ag
  try{
   await flush();
   const c=ui.container;
-  await act(async()=>button(c,'Suggest three titles').click());await flush();
+  await act(async()=>button(c,'Cut the longest scene to 90 seconds').click());await flush();
   await act(async()=>FakeEventSource.last().emit('progress',{type:'step',label:'Thinking it through',index:0}));
   await act(async()=>FakeEventSource.last().emit('progress',{type:'text',at:0,text:'Half an answer'}));
   const deletes=()=>server.calls.filter(call=>call.method==='DELETE').length;
@@ -305,7 +305,7 @@ test("after Stop the server's copy replaces the local one, so a reply that had a
  try{
   await flush();
   const c=ui.container;
-  await act(async()=>button(c,'Suggest three titles').click());await flush();
+  await act(async()=>button(c,'Cut the longest scene to 90 seconds').click());await flush();
   await act(async()=>FakeEventSource.last().emit('progress',{type:'text',at:0,text:'Three titles'}));
   // The reply finished on the server just as Stop was pressed.
   state.messages.push({id:'r9',role:'assistant',text:'Three titles below.',tab:'plan',cards:[]});
