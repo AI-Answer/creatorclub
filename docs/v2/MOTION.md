@@ -51,3 +51,11 @@ Risks: the media service cannot open windows (needs a bridge to the main process
 5. Auto zoom on by default, or a suggestion to review.
 6. Is about 1 s of export per second of motion acceptable.
 7. Lottie imports: recommended deferred.
+
+## Alpha spike in Electron 44 (Task 9, 2026-10-30): alpha survives
+Electron 44.7.1 (Chromium 152), a 2-second 1080p30 lower third (Inter, two styles: `block` opaque, `glass` 35 % fill with a soft shadow, no backdrop blur), `webContents.debugger` with `Emulation.setDeviceMetricsOverride` (1920×1080, scale 1), `Emulation.setDefaultBackgroundColorOverride` (alpha 0) and `Page.captureScreenshot` clipped to 1100×460, seek by pausing every animation and setting `currentTime`. Scripts and frames: `scratchpad/t9/`.
+- **Alpha is preserved.** Frame 30 of `glass`: 64 % clear, 1.6 % opaque, 34 % partial alpha; `block` mid-animation 14 % partial. qtrle decodes back to the PNGs bit for bit (PSNR r/g/b/a inf); overlay from qtrle equals overlay from the PNGs (inf); the overlaid frame equals the alpha blend of the PNG over the video within 1 level of 255 (mean, yuv420 rounding).
+- **Use an offscreen window (`webPreferences.offscreen: true`), not a hidden one.** A hidden (`show:false`) window converts colours to the display profile (`#2563eb` came out `(55,98,227)`) and `app.commandLine.appendSwitch('force-color-profile','srgb')` did not change it; offscreen frames are exact sRGB (`(37,99,235)`) and match Chrome 156 via Playwright at 55.7 dB minimum (block) and 67 dB (glass), and 1 page vs 4 pages are identical (block) or 66 dB (glass, tiny alpha differences).
+- **Speed (60 frames, capture only):** offscreen 1 page 67–68 ms/frame (4.1 s), 4 pages 17.6–20 ms/frame (1.1–1.2 s); hidden 1 page 49 ms, 4 pages 12 ms (but wrong colours). Window setup 0.2–3.2 s (first GPU start; the app keeps a warm pool). Whole Electron process for one block with 4 offscreen pages: 2.1–3.1 s wall.
+- **Encode and size:** qtrle 0.48 s / 1.0 MB (block), 1.44 s / 4.5 MB (glass); PNGs 1.6 / 4.8 MB. Overlay export of a 4 s 1080p sample with one block: 2.6 s (block), 7.1 s (glass, veryfast crf 12).
+- The installed `node_modules/electron/dist` has no `Electron.app` (only `version` and licences); the spike ran the cached `electron-v44.7.1-darwin-arm64.zip` unzipped in the scratchpad.
