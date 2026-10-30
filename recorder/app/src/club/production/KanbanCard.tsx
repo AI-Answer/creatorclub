@@ -26,7 +26,7 @@ export function KanbanCard({video,scenes,dragging,onOpen,onMove,onResearch,onDra
    <Thumb videoId={videoThumbId(video)} text={video.title} seed={video.id}/>
    <div className="tt clamp2">{video.title}</div>
    {scenes&&scenes.length>0&&<div className="na"><SceneDots scenes={scenes}/><span>{scenesLine(recordedCount(scenes),scenes.length)}</span></div>}
-   <div className="na" style={{color:published?'var(--cc-text-2)':'var(--cc-accent-text)',fontWeight:550}}>
+   <div className="na" style={{color:published?'var(--cc-text-2)':'var(--cc-text)',fontWeight:550}}>
     <Icon name={next.icon} size={13}/>{next.label}
     {day&&<span className="faint" style={{marginLeft:'auto',fontWeight:500}}>{fmtDate(day)}</span>}
    </div>
