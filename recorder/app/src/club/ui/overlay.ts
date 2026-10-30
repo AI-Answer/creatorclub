@@ -1,4 +1,4 @@
-import {useEffect,useRef} from 'react';
+import {useEffect,useRef,useState} from 'react';
 
 /** Calls `onClose` on Escape for as long as the component is mounted. */
 export function useEscape(onClose:()=>void){
@@ -34,8 +34,9 @@ export function trapTab(panel:HTMLElement,active:Element|null,shift:boolean):HTM
  */
 export function useFocusPanel(){
  const panel=useRef<HTMLDivElement>(null);
+ // Read while rendering: a field inside with `autoFocus` takes focus before effects run, and would be remembered instead of what opened the panel.
+ const [before]=useState(()=>document.activeElement as HTMLElement|null);
  useEffect(()=>{
-  const before=document.activeElement as HTMLElement|null;
   if(panel.current&&!panel.current.contains(document.activeElement))panel.current.focus({preventScroll:true});
   const key=(event:KeyboardEvent)=>{
    if(event.key!=='Tab'||!panel.current)return;
@@ -45,7 +46,13 @@ export function useFocusPanel(){
    if(target){event.preventDefault();target.focus({preventScroll:true});}
   };
   document.addEventListener('keydown',key);
-  return()=>{document.removeEventListener('keydown',key);if(before?.isConnected)before.focus?.({preventScroll:true});};
- },[]);
+  const node=panel.current;
+  return()=>{
+   document.removeEventListener('keydown',key);
+   // Only when focus was still ours (or lost): another panel that opened as this one closed (search handing over to New video) keeps the focus it took.
+   const now=document.activeElement;
+   if(before?.isConnected&&(!now||now===document.body||!!node?.contains(now)))before.focus?.({preventScroll:true});
+  };
+ },[before]);
  return panel;
 }

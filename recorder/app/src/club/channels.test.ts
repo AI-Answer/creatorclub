@@ -53,7 +53,7 @@ test('channel switcher: shows the current channel, lists all of them, switches, 
  });
 });
 
-test('channel switcher: a failed switch says one sentence and keeps the current channel; with no channels it is a plain Add a channel link',async()=>{
+test('channel switcher: a failed switch says one sentence and keeps the current channel; with no channels it only says so, and the one way to add one is the button beside',async()=>{
  await withServer(call=>{
   if(call.path==='/workspaces'&&call.method==='GET')return {body:two};
  },async()=>{
@@ -70,7 +70,12 @@ test('channel switcher: a failed switch says one sentence and keeps the current 
   if(call.path==='/workspaces'&&call.method==='GET')return {body:{current:null,workspaces:[]}};
  },async()=>{
   const ui=await mountUI(sidebar());
-  try{await flush();const link=ui.container.querySelector<HTMLAnchorElement>('a[aria-label="Add a channel"]')!;assert.equal(link.getAttribute('href'),'#/welcome?step=2');assert.equal(ui.container.querySelector('[aria-haspopup="menu"]'),null);}finally{await ui.close();}
+  try{
+   await flush();const c=ui.container;
+   assert.match(text(c.querySelector('.channel-btn')!),/No channel yet/);
+   assert.equal(c.querySelector('a[href^="#/welcome"]'),null,'no second entry to Welcome');
+   assert.equal(c.querySelector('[aria-haspopup="menu"]'),null);
+  }finally{await ui.close();}
  });
 });
 

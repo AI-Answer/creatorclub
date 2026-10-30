@@ -6,9 +6,9 @@ import {Icon,Textarea} from '../ui';
 
 /**
  * Step 3: three optional voice questions, or what was learned from the channel's videos. Questions are sent by Continue, not here, and stay editable:
- * coming Back shows what was answered, and Continue saves a change. `incomplete` says a change cannot be saved yet (the guide needs the first two answers).
+ * coming Back shows what was answered, and Continue saves a change. `saved` says answers were written, and `incomplete` that a change cannot be saved yet (the guide needs the first two answers).
  */
-export function VoiceStep({path,channel,fromVideos,draft,onDraft,save,onRetry,incomplete}:{path:WelcomePath|null;channel:WelcomeChannel|null;fromVideos:boolean;draft:VoiceDraft;onDraft(next:VoiceDraft):void;save:JobRun;onRetry():void;incomplete:boolean}){
+export function VoiceStep({path,channel,fromVideos,draft,onDraft,save,onRetry,incomplete,saved}:{path:WelcomePath|null;channel:WelcomeChannel|null;fromVideos:boolean;draft:VoiceDraft;onDraft(next:VoiceDraft):void;save:JobRun;onRetry():void;incomplete:boolean;saved:boolean}){
  if(fromVideos)return <div className="card" style={{padding:18}}>
   <div className="row" style={{marginBottom:10}}><Icon name="done" size={16} style={{color:'var(--cc-ok)'}}/><b>Learned from your videos</b></div>
   {channel?.about&&<div className="muted" style={{lineHeight:1.6,fontSize:14}}>{channel.about}</div>}
@@ -26,7 +26,7 @@ export function VoiceStep({path,channel,fromVideos,draft,onDraft,save,onRetry,in
      :<Textarea rows={2} value={value} placeholder={question.ph} aria-label={question.q} onChange={event=>onDraft({...draft,[question.key]:event.target.value})}/>}
    </div>;
   })}
-  <div className="small faint">{channel&&!incomplete?'Saved. Change an answer and Continue saves it.':incomplete?'To save a change, answer the first two questions.':"All three are optional. Continue leaves out any you don't fill in."}</div>
+  <div className="small faint">{saved&&!incomplete?'Saved. Change an answer and Continue saves it.':incomplete?'To save a change, answer the first two questions.':"All three are optional. Continue leaves out any you don't fill in."}</div>
   {save.phase==='running'&&<ProgressLine label="Writing your voice guide" line={save.line??'Writing your voice guide…'} estimate="a few seconds"/>}
   {save.phase==='failed'&&<ErrorLine message={save.message} onRetry={onRetry}/>}
  </div>;

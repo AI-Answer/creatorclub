@@ -161,7 +161,7 @@ export function WelcomeScreen({navigate,initialStep}:{navigate(route:Route,optio
     <p className="muted" style={{margin:'0 0 22px',fontSize:15,lineHeight:1.55,maxWidth:600}}>{info.why}</p>
     {shown===0&&<ConnectStep check={check} onReload={recheck} onConnected={result=>connected(result?.provider??'claude',result?.account)}/>}
     {shown===1&&<ChannelStep path={path} onPath={setPath} url={url} onUrl={setUrl} job={add.state} onAdd={addChannel} block={block} onConnect={()=>goTo(0)} channel={channel} fresh={fresh} onFresh={setFresh}/>}
-    {shown===2&&<VoiceStep path={path} channel={channel} fromVideos={fromVideos} draft={voice} onDraft={setVoice} save={save.state} onRetry={finishVoice} incomplete={incomplete}/>}
+    {shown===2&&<VoiceStep path={path} channel={channel} fromVideos={fromVideos} draft={voice} onDraft={setVoice} save={save.state} onRetry={finishVoice} incomplete={incomplete} saved={savedVoice!==null}/>}
     {channel&&<WorkingData visible={shown===3} onAdded={id=>void leave({name:'videos',view:'board',new:id})} onSettings={()=>void leave({name:'settings',section:'followed'})} onScan={onScan}/>}
     {shown===1&&editFailed&&<div style={{marginTop:14}}><ErrorLine message={editFailed} onRetry={finishChannel}/></div>}
     {leaveError&&<div style={{marginTop:14}}><ErrorLine message={leaveError.message} onRetry={()=>void leave(leaveError.route)}/></div>}
