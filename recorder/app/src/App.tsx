@@ -13,6 +13,7 @@ import {cutWordsLabel,deleteTranscriptSelection,type WordSelection} from './tran
 import {Timeline} from './Timeline';
 import {TimelineResize} from './TimelineResize';
 import {Inspector,Panel,Field,type Change} from './Inspector';
+import {MarkerNote} from './MarkerNote';
 import {MOTION_TEMPLATES,motionText,newMotionBlock} from '../shared/motion/templates';
 import {AgentChat} from './AgentChat';
 import {QuickActionButtons,QuickActionDialog,TranscriptionStatus} from './QuickActions';
@@ -47,7 +48,7 @@ import {CutPlayback} from './CutPlayback';
 import {recallEditView,rememberEditView} from './edit-session';
 import {timelineContextItems,timelineMoreItems,type TimelineMenuActions} from './edit-menus';
 import {TimelineClub,rowsHeight,usedRows,type TimelineControls} from './TimelineClub';
-import {type Deleted,addMarker,addMotionBlock,applyClipStarts,clampScale,deleteItems,ensureLinks,freeDelta,insertGap,mergeRanges,moveEffects,rowItems,isLinked,linkClips,linkedIds,remapLinks,selectionCount,zoomSlider,syncScenesToTakes,rulerLabel,lengthLabel,showTenths,splitLinked,unlinkClips} from './timeline-edit';
+import {type Deleted,addMarker,addMotionBlock,noteMarker,removeMarker,applyClipStarts,clampScale,deleteItems,ensureLinks,freeDelta,insertGap,mergeRanges,moveEffects,rowItems,isLinked,linkClips,linkedIds,remapLinks,selectionCount,zoomSlider,syncScenesToTakes,rulerLabel,lengthLabel,showTenths,splitLinked,unlinkClips} from './timeline-edit';
 
 const panels:Array<{name:Panel;icon:typeof Film}>=[{name:'Canvas',icon:Image},{name:'Layout',icon:LayoutTemplate},{name:'Clip',icon:Clapperboard},{name:'Zoom',icon:ZoomIn},{name:'Motion',icon:Sparkles},{name:'Elements',icon:Elements},{name:'Music',icon:Music},{name:'Captions',icon:Subtitles},{name:'Cursor',icon:MousePointer2},{name:'Automate',icon:WandSparkles}];
 const MediaRecoveryNotice=memo(MediaRecoveryBanner),RecordingWorkspace=memo(Recording),ScriptWorkspace=memo(ScriptEditor);
@@ -107,7 +108,7 @@ function Toasts({bind}:{bind:{current:(message:string)=>void}}){const [toast,set
  */
 export type EditorContext={playhead:number;selection:string[];items?:SelectedItem[];range?:{start:number;end:number}};
 /** What the editor shows the companion as it changes: how many items are selected, which card's preview is on the stage, and the timeline's version (cards re-measure on it). */
-export type EditorState={selected:number;previewKey?:string;version?:string};
+export type EditorState={selected:number;previewKey?:string;version?:string;/** Moments the creator marked as not liked. */notes?:number};
 /** The editor, as the companion uses it: what it is looking at, saving before a question, a card's preview on the stage, and a server change taken as one undo step. */
 export interface EditorBridge{
  context():EditorContext;
@@ -148,6 +149,9 @@ export default function App({embedded}:{embedded?:EmbeddedRecorder}={}){
  const [side,setSide]=useState<'transcript'|'auto'|'media'|null>('transcript'),[autoInitial,setAutoInitial]=useState<AutoOption|undefined>(),[preview,setPreview]=useState<EditPreview|null>(null),[previewPhase,setPreviewPhase]=useState<'before'|'after'>('after');
  const timelineControls=useRef<TimelineControls|null>(null),[shortcutsOpen,setShortcutsOpen]=useState(false),[contextAt,setContextAt]=useState<{x:number;y:number}|null>(null);
  const closeShortcuts=useCallback(()=>setShortcutsOpen(false),[]),closeContext=useCallback(()=>setContextAt(null),[]),openContext=useCallback((x:number,y:number)=>setContextAt({x,y}),[]);
+ // The note being written on a marker, and where it opens.
+ const [note,setNote]=useState<{id:string;left:number;top:number}|null>(null);
+ const openNote=useCallback((id:string,box:DOMRect)=>setNote({id,left:box.left+box.width/2,top:box.top}),[]);
  const showPreview=useCallback((next:EditPreview|null)=>{setPreview(next);setPreviewPhase('after');},[]);
  const clipboard=useRef<TimelineClipboard|null>(null),initialProjectMode=useRef<{id:string;mode:'Record'|'Edit'}|null>(null);
  // Pick a newly opened project's workspace in the same render, so the previous mode's workspace never mounts for it. The project effect clears the ref.
@@ -201,7 +205,7 @@ export default function App({embedded}:{embedded?:EmbeddedRecorder}={}){
  const nudge=(direction:-1|1,big:boolean)=>{if(!p)return;const want=direction*(big?1:1/p.canvas.fps),clipIds=linkedIds(p.clips,[...selection].filter(id=>p.clips.some(c=>c.id===id))),effectIds=new Set([...selection].filter(id=>!p.clips.some(c=>c.id===id)&&!p.markers?.some(m=>m.id===id)));
   studio.change(d=>{const items=rowItems(d);if(clipIds.size){const moving=items.filter(i=>clipIds.has(i.id)),delta=freeDelta(moving,want,items);if(delta){ensureLinks(d);applyClipStarts(d,new Map(moving.map(m=>[m.id,m.start+delta])));syncScenesToTakes(d);}}
    if(effectIds.size){const moving=items.filter(i=>effectIds.has(i.id)),delta=freeDelta(moving,want,items);if(delta)moveEffects(d,effectIds,delta);}},{coalesce:'timeline.nudge'});};
- const addMarkerAtPlayhead=()=>{if(!p)return;const time=playhead.get();studio.change(d=>{addMarker(d,time);});notify(`Marker added at ${rulerLabel(time,showTenths((timelineControls.current?.width()||1000)/zoom))}.`);};
+ const addMarkerAtPlayhead=()=>{if(!p)return;const time=playhead.get();let id='';studio.change(d=>{id=addMarker(d,time);});requestAnimationFrame(()=>requestAnimationFrame(()=>{const box=document.querySelector(`[data-marker-id="${id}"]`)?.getBoundingClientRect();if(box)openNote(id,box);}));};
  const selectionLinked=Boolean(p&&[...selection].some(id=>isLinked(p.clips,id)));
  const toggleLink=()=>{if(!p)return;const clips=[...selection].filter(id=>p.clips.some(c=>c.id===id));if(selectionLinked){studio.change(d=>{unlinkClips(d,clips);});notify('Unlinked. Move or trim them separately.');}else if(clips.length>1){let linked=false;studio.change(d=>{linked=linkClips(d,clips);});notify(linked?'Linked. They move and trim together.':'They no longer line up, so they cannot be linked.');}else notify('Select two or more clips to link them.');};
  const copy=()=>{if(!p)return;const ids=embedded?linkedIds(p.clips,selection):selection;clipboard.current=copySelection(p,ids);if(clipboard.current)notify(`Copied ${ids.size} timeline items.`);};
@@ -328,7 +332,8 @@ export default function App({embedded}:{embedded?:EmbeddedRecorder}={}){
  const onEditor=embedded?.onEditor,editOpen=Boolean(p&&embedded&&mode==='Edit'&&p.id===embedded.projectId);
  useEffect(()=>{if(!onEditor||!editOpen)return;onEditor({context:editorContext,flush:editorFlush,preview:previewEdit,estimate:estimateEdit,describe:describeEdit,commit:studio.commitServer});return()=>onEditor(null);},[onEditor,editOpen,studio.commitServer]);
  const onEditState=embedded?.onEditState,selectedCount=p?selectionCount(p.clips,selection):selection.size,previewKey=preview?.key,timelineVersion=p?.updatedAt;
- useEffect(()=>{if(editOpen)onEditState?.({selected:selectedCount,previewKey,version:timelineVersion});},[onEditState,editOpen,selectedCount,previewKey,timelineVersion]);
+ const dislikes=p?.markers?.filter(m=>m.tag==='dislike').length??0;
+ useEffect(()=>{if(editOpen)onEditState?.({selected:selectedCount,previewKey,version:timelineVersion,notes:dislikes});},[onEditState,editOpen,selectedCount,previewKey,timelineVersion,dislikes]);
  /** The video's shape in plain terms: its ratio when it is a usual one, else its size. */
 const formatLabel=(w:number,h:number)=>({'1920x1080':'16:9','1080x1920':'9:16','1080x1080':'1:1','1080x1350':'4:5'} as Record<string,string>)[`${w}x${h}`]??`${w}×${h}`;
  const clubEditView=()=>{if(!p||!embedded)return null;const zoomRange=zoomSlider(timelineControls.current?.width()||1000,duration);const stageProject=preview?.after&&previewPhase==='after'?preview.after:p;return <div className={`edit-workspace club-edit ${sideView?'has-side':''}`}>
@@ -359,7 +364,7 @@ const formatLabel=(w:number,h:number)=>({'1920x1080':'16:9','1080x1920':'9:16','
    <button type="button" className="club-play" aria-label={playing?'Pause':'Play'} title="Play or pause (Space)" disabled={duration<=0} onClick={()=>setPlaying(v=>!v)}>{playing?<Pause size={16} fill="currentColor"/>:<Play size={16} fill="currentColor"/>}</button>
    <ClubTime playhead={playhead} duration={duration} fine={showTenths((timelineControls.current?.width()||1000)/zoom)}/>
    <span className="club-bar-sep" aria-hidden/>
-   <Menu label="Add" align="left" width={230} items={[{label:'Clip from a file',icon:'Upload',fn:()=>beginImport()},{label:'Text and shapes',fn:()=>openPanel('Elements')},{label:'Animated graphic',fn:()=>openPanel('Motion')},{label:'Music',fn:()=>openPanel('Music')}]} button={(toggle,open)=><button type="button" className="club-tool" aria-haspopup="menu" aria-expanded={open} title="Add a clip, text, a graphic or music" onClick={toggle}><Plus size={15}/>Add</button>}/>
+   <Menu label="Add" align="left" width={230} items={[{label:'Note at the playhead',icon:'Bookmark',fn:addMarkerAtPlayhead},{label:'Clip from a file',icon:'Upload',fn:()=>beginImport()},{label:'Text and shapes',fn:()=>openPanel('Elements')},{label:'Animated graphic',fn:()=>openPanel('Motion')},{label:'Music',fn:()=>openPanel('Music')}]} button={(toggle,open)=><button type="button" className="club-tool" aria-haspopup="menu" aria-expanded={open} title="Add a clip, text, a graphic or music" onClick={toggle}><Plus size={15}/>Add</button>}/>
    <button type="button" className="club-tool" title="Split at the playhead (S)" onClick={()=>split()}><Scissors size={15}/>Split</button>
    <button type="button" className="club-tool" title="Delete and close the gap (Delete). Shift+Delete keeps the gap." disabled={!selection.size} onClick={()=>deleteSelected(true)}><Trash2 size={15}/>Delete</button>
    <span className="club-bar-sep" aria-hidden/>
@@ -374,8 +379,9 @@ const formatLabel=(w:number,h:number)=>({'1920x1080':'16:9','1080x1920':'9:16','
    <ClubExport key={p.id} project={p} flush={studio.flush} onExported={embedded.onExported}/>
    {shortcutsOpen&&<ShortcutsPopover onClose={closeShortcuts}/>}
   </div>
+  {note&&(()=>{const m=p.markers?.find(x=>x.id===note.id);return m?<MarkerNote time={rulerLabel(m.time,showTenths((timelineControls.current?.width()||1000)/zoom))} name={m.name??''} tag={m.tag} anchor={note} onChange={patch=>studio.change(d=>noteMarker(d,note.id,patch),{coalesce:`note:${note.id}`})} onDelete={()=>{studio.change(d=>removeMarker(d,note.id));setNote(null);}} onClose={()=>setNote(null)}/>:null;})()}
   <TimelineResize storageKey="creatorclub.timeline-height" auto={timelineAuto}/>
-  <TimelineClub project={p} playhead={playhead} scale={zoom} autoFit={!kept} onScale={setZoom} selectedIds={selection} onSelectMany={selectMany} onSeek={timelineSeek.run} change={studio.change} onDropMedia={dropMedia} tool={tool} onSplit={splitClip} follow={follow} showWaveforms={showWaveforms} previewRanges={preview?.ranges} previewAfter={preview?.after&&previewPhase==='after'?preview.after:null} cutMarks={cutMarks} onOpen={openItem} onContextMenu={openContext} onNotice={notify} controls={timelineControls}/>
+  <TimelineClub project={p} playhead={playhead} scale={zoom} autoFit={!kept} onScale={setZoom} selectedIds={selection} onSelectMany={selectMany} onSeek={timelineSeek.run} change={studio.change} onDropMedia={dropMedia} tool={tool} onSplit={splitClip} follow={follow} showWaveforms={showWaveforms} previewRanges={preview?.ranges} previewAfter={preview?.after&&previewPhase==='after'?preview.after:null} onOpenMarker={openNote} cutMarks={cutMarks} onOpen={openItem} onContextMenu={openContext} onNotice={notify} controls={timelineControls}/>
   {contextAt&&<ContextMenu at={contextAt} items={contextItems} onClose={closeContext}/>}
  </div>;};
  const timelineAuto=useMemo(()=>p&&embedded?Math.min(420,rowsHeight(usedRows(p))):undefined,[p?.clips,p?.elements,p?.captions,p?.zooms,p?.timelineLayers,embedded]);

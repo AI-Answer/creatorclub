@@ -455,3 +455,8 @@ test('a question from Claude shows its answers as buttons; tapping one sends it 
   assert.ok([...c.querySelectorAll('.cmp-choice-opts button')].every(b=>(b as HTMLButtonElement).disabled),'once answered, the answers are settled');
  }finally{await ui.close();server.restore();}
 });
+
+test('on Edit, a moment marked as not liked puts Fix the parts I marked first',()=>{
+ assert.deepEqual(suggestions('edit',{scenes:2,notes:1}),['Fix the parts I marked','Cut the pauses','Add a lower third with my name']);
+ assert.equal(suggestions('edit',{scenes:2,notes:0})[0],'Cut the pauses');
+});

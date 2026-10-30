@@ -342,3 +342,25 @@
 /* The note on the video while a change is previewed stays short and inside the stage. */
 .club-embed .app-shell[data-mode=Edit] .club-preview-badges{max-width:calc(100% - 24px)}
 .club-embed .app-shell[data-mode=Edit] .club-preview-badges .club-pill{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* A note on a moment: the pin takes the colour of how it was marked, a hairline runs down through the tracks, and the note opens beside the pin. */
+.club-embed .app-shell[data-mode=Edit] .club-marker.tag-dislike{background:var(--cc-danger)}
+.club-embed .app-shell[data-mode=Edit] .club-marker.tag-keep{background:var(--cc-success)}
+.club-embed .app-shell[data-mode=Edit] .club-marker.tag-idea{background:var(--cc-accent)}
+.club-embed .app-shell[data-mode=Edit] .club-marker.has-note{width:12px;height:14px;margin-left:-6px}
+.club-embed .app-shell[data-mode=Edit] .club-note-line{position:absolute;z-index:5;width:0;margin-left:-.5px;border-left:1.5px dashed var(--kind-markers);pointer-events:none;opacity:.7}
+.club-embed .app-shell[data-mode=Edit] .club-note-line.tag-dislike{border-left-color:var(--cc-danger)}
+.club-embed .app-shell[data-mode=Edit] .club-note-line.tag-keep{border-left-color:var(--cc-success)}
+.club-embed .app-shell[data-mode=Edit] .club-note-line.tag-idea{border-left-color:var(--cc-accent)}
+.marker-note{position:fixed;z-index:60;width:280px;padding:12px;display:flex;flex-direction:column;gap:10px;border:1px solid var(--cc-line-strong);border-radius:12px;background:var(--cc-card);box-shadow:0 10px 30px rgba(0,0,0,.18)}
+.marker-note-h{font-size:13px;color:var(--cc-text)}
+.marker-note textarea{width:100%;resize:vertical;min-height:64px;padding:8px 10px;border:1px solid var(--cc-line-strong);border-radius:8px;background:var(--cc-surface);color:var(--cc-text);font:inherit;font-size:13.5px;line-height:1.45}
+.marker-note textarea:focus{outline:2px solid var(--cc-accent);outline-offset:1px}
+.marker-note-tags{display:flex;flex-wrap:wrap;gap:6px}
+.marker-tag{all:unset;box-sizing:border-box;cursor:pointer;padding:4px 10px;border:1px solid var(--cc-line-strong);border-radius:999px;font-size:12.5px;font-weight:550;color:var(--cc-text-2)}
+.marker-tag:hover{border-color:var(--cc-accent);color:var(--cc-text)}
+.marker-tag.on.dislike{background:color-mix(in srgb,var(--cc-danger) 14%,var(--cc-card));border-color:var(--cc-danger);color:var(--cc-danger)}
+.marker-tag.on.keep{background:color-mix(in srgb,var(--cc-success) 14%,var(--cc-card));border-color:var(--cc-success);color:var(--cc-success)}
+.marker-tag.on.idea{background:var(--cc-accent-soft);border-color:var(--cc-accent);color:var(--cc-accent-text)}
+.marker-note-a{display:flex;align-items:center;gap:8px}
+.marker-note-a .grow{flex:1}

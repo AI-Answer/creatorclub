@@ -17,6 +17,8 @@ import * as store from './store.js';
  */
 
 /** The parts of a project an Edit action can change. Undo puts these back and compares them; the rest (media, takes, name) is never touched. */
+const NOTES_LISTED = 40;
+const NOTE_MOOD = { dislike: 'does not like this', keep: 'wants to keep this', idea: 'an idea' } as const;
 const TIMELINE_KEYS = ['clips', 'captions', 'captionStyle', 'elements', 'motion', 'zooms', 'scenes', 'markers', 'cursor'] as const;
 export type Timeline = Partial<Pick<Project, (typeof TIMELINE_KEYS)[number]>>;
 
@@ -166,6 +168,12 @@ export function timelineText(p: Project, context: CompanionContext, options: Edi
   }
   const scenes = p.scenes.filter((scene) => scene.duration > 0);
   if (scenes.length) lines.push('Scenes on the timeline:', ...scenes.map((scene, index) => `${index + 1}. ${scene.name}: ${scene.start.toFixed(2)} s to ${(scene.start + scene.duration).toFixed(2)} s`));
+  // The creator's own notes on the timeline: their words are quoted as material, never as instructions.
+  const notes = [...(p.markers ?? [])].filter((m) => m.name?.trim() || m.tag).sort((a, b) => a.time - b.time);
+  if (notes.length) {
+    lines.push('Notes the creator left on the timeline (time, how they feel, their words). A note that says they do not like something means: propose a fix for what is there at that time, as cards. Refer to a note by its time:');
+    for (const note of notes.slice(0, NOTES_LISTED)) lines.push(`- ${note.time.toFixed(2)} s${note.tag ? `, ${NOTE_MOOD[note.tag]}` : ''}${note.name?.trim() ? `, "${note.name.replace(/<\/?[a-z][a-z0-9_-]*[^<>]*>/gi, '').replace(/\s+/g, ' ').trim().slice(0, 300)}"` : ''}`);
+  }
   const blocks = [...(p.motion ?? [])].sort((a, b) => a.start - b.start);
   if (blocks.length) lines.push('Motion blocks on the Motion row (template, style, start to end in seconds); a new block may not start inside one:', ...blocks.slice(0, CLIPS_LISTED).map((m) => `- ${m.id} ${m.template} ${m.style} ${m.start.toFixed(2)} to ${(m.start + m.duration).toFixed(2)} "${motionText(m).replace(/<\/?[a-z][a-z0-9_-]*[^<>]*>/gi, '').replace(/\s+/g, ' ').trim()}"`));
   const clips = [...p.clips].sort((a, b) => a.start - b.start);

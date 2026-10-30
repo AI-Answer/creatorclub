@@ -28,6 +28,8 @@ export type SuggestionFacts={
  titled?:boolean;
  /** The package's thumbnail text is written. */
  thumbnail?:boolean;
+ /** Edit: how many moments the creator marked as not liked. */
+ notes?:number;
 };
 
 /**
@@ -53,7 +55,7 @@ export function suggestions(tab:CompanionTab,facts:SuggestionFacts):string[]{
    ?['What should I say first?','Write a stronger hook','Build the talking points']
    :[scene?`Shorten ${scene} to fit its time`:'Shorten this scene to fit its time','Write a stronger hook','Write the call to action'];
   case 'publish':return ['Write the description',facts.thumbnail?'Is the thumbnail text clear?':'Suggest thumbnail text',...(facts.titled===false?[]:['Is the title ready?'])];
-  case 'edit':return facts.recorded===0?[]:[facts.selected?'Trim the selected clip to the speech':'Cut the pauses','Add a lower third with my name','Add a title at the start'];
+  case 'edit':return facts.recorded===0?[]:[...(facts.notes?['Fix the parts I marked']:[]),facts.selected?'Trim the selected clip to the speech':'Cut the pauses','Add a lower third with my name','Add a title at the start'].slice(0,3);
   case 'research':return facts.selected?['What do these have in common?','Group these in a frame','Start a video from these']:['What themes do you see here?','Group the cards by theme','Which of these could be a video?'];
  }
 }

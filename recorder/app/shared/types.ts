@@ -61,7 +61,7 @@ export interface Project {
  motion?:MotionBlock[];
  recordedTakes?:RecordedTake[];
  /** Points the editor marks on the timeline (M), in timeline seconds. */
- markers?:Array<{id:string;time:number;name?:string}>;
+ markers?:Array<{id:string;time:number;/** The creator's note for this moment. */name?:string;/** How they feel about it, when they said. */tag?:MarkerTag}>;
  /** Ordered rows created by dragging clips between timeline layers. */
  timelineLayers?:Array<{id:string;name:string;kind:'video'|'audio';order:number}>;
  settings:{previewQuality:'original'|'proxy';snap:boolean;ripple:boolean;teleprompterSpeed:number;teleprompterFontSize:number;teleprompterMirror:boolean};
@@ -87,3 +87,8 @@ export function clipEffectTiming(clip:Clip){const sourceIn=Math.min(clip.sourceI
 export const projectDuration=(p:Project)=>Math.max(0,...p.clips.map(c=>c.start+clipDuration(c)),...p.elements.map(e=>e.start+e.duration),...(p.motion??[]).map(m=>m.start+m.duration),...p.scenes.map(s=>s.start+s.duration));
 export const makeId=()=>globalThis.crypto.randomUUID();
 export function createProject(name='Untitled project'):Project {const now=new Date().toISOString();return {version:1,id:makeId(),name,createdAt:now,updatedAt:now,canvas:{width:1920,height:1080,fps:30,background:'#121212',backgroundPattern:'moving-dots',padding:48,radius:20},scenes:[{id:makeId(),name:'Scene 1',script:'',notes:'',start:0,duration:0}],media:[],clips:[],captions:[],captionStyle:{enabled:true,fontSize:48,color:'#ffffff',background:'#10131ccc',position:'bottom',maxWords:7},elements:[],zooms:[],cursor:{enabled:false,size:24,color:'#ffffff',highlight:false,smoothing:.5,points:[]},notes:'',settings:{previewQuality:'proxy',snap:true,ripple:true,teleprompterSpeed:30,teleprompterFontSize:42,teleprompterMirror:false}};}
+
+/** How a creator marks a moment on the timeline, and the words shown for each. */
+export const MARKER_TAGS = ['dislike', 'keep', 'idea'] as const;
+export type MarkerTag = (typeof MARKER_TAGS)[number];
+export const MARKER_TAG_LABEL: Record<MarkerTag, string> = { dislike: "I don't like this", keep: 'Keep this', idea: 'Idea' };

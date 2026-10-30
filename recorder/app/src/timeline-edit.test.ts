@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createProject,defaultEffects,defaultTransform,clipDuration,type Clip,type Media,type Project} from '../shared/types';
 import {applyProjectChange} from './project-draft';
-import {addMarker,anchoredScroll,openRange,remapLinks,applyClipStarts,closeRange,collides,deleteItems,ensureLinks,filmstripTiles,fitScale,freeDelta,insertPlan,isLinked,linkClips,linkGroups,linkedIds,moveEffects,moveMarker,planClipMove,removeMarker,resizeEffect,rowItems,rulerLabel,rulerTicks,splitLinked,timelineGaps,trimBounds,trimClips,trimGroup,rowsOverlap,uncovered,unlinkClips,DRAG_DEAD_ZONE_PX,showTenths,lengthLabel,MAX_SCALE} from './timeline-edit';
+import {noteMarker,addMarker,anchoredScroll,openRange,remapLinks,applyClipStarts,closeRange,collides,deleteItems,ensureLinks,filmstripTiles,fitScale,freeDelta,insertPlan,isLinked,linkClips,linkGroups,linkedIds,moveEffects,moveMarker,planClipMove,removeMarker,resizeEffect,rowItems,rulerLabel,rulerTicks,splitLinked,timelineGaps,trimBounds,trimClips,trimGroup,rowsOverlap,uncovered,unlinkClips,DRAG_DEAD_ZONE_PX,showTenths,lengthLabel,MAX_SCALE} from './timeline-edit';
 
 const media=(id:string,duration=600):Media=>({id,name:id,path:`/tmp/${id}.mov`,kind:'video',duration,width:1920,height:1080,hasAudio:true});
 const clip=(id:string,track:Clip['track'],start:number,length:number,extra:Partial<Clip>={}):Clip=>({id,mediaId:track==='camera'?'cam':track==='audio'?'mic':'scr',name:id,track,start,sourceIn:0,sourceOut:length,speed:1,gain:1,muted:false,transform:defaultTransform(),effects:defaultEffects(),...extra});
@@ -190,4 +190,13 @@ test('Task 14: a selection counts a link group as one clip',async()=>{
  const p=project([...take(1,0,10),...take(2,10,10)]);
  assert.equal(selectionCount(p.clips,['screen1','camera1','audio1']),1);
  assert.equal(selectionCount(p.clips,['screen1','camera1','audio1','screen2','z9']),3,'two takes and one caption');
+});
+
+test('a marker can hold the creator\'s note and how they feel about it; empty words and a null mood take them off',()=>{
+ let n=0;const id=()=>`m${++n}`;const p=project([]);const at=addMarker(p,4,id);
+ noteMarker(p,at,{name:'cut this part ',tag:'dislike'});
+ assert.deepEqual(p.markers![0],{id:at,time:4,name:'cut this part ',tag:'dislike'},'the words stay as typed');
+ noteMarker(p,at,{tag:null});assert.equal(p.markers![0].tag,undefined);
+ noteMarker(p,at,{name:'   '});assert.equal(p.markers![0].name,undefined,'only spaces is no note');
+ noteMarker(p,'missing',{name:'x'});assert.equal(p.markers!.length,1);
 });

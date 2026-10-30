@@ -161,9 +161,9 @@ test('keys pressed in the companion panel stay there: M, S and Delete do nothing
   const inPanel=ui.container.querySelector<HTMLButtonElement>('.cmp button')!;
   const press=(target:Element,key:string)=>act(async()=>{target.dispatchEvent(new KeyboardEvent('keydown',{key,bubbles:true,cancelable:true}));});
   for(const key of ['m','s','Delete'])await press(inPanel,key);
-  assert.ok(!ui.container.textContent?.includes('Marker added'),'M in the panel adds no marker');
+  assert.equal(ui.container.querySelectorAll('.club-marker').length,0,'M in the panel adds no marker');
   assert.ok(!ui.container.textContent?.includes('Move the playhead'),'S in the panel does not split');
   await press(document.body,'m');
-  assert.ok(ui.container.textContent?.includes('Marker added'),'the same key on the editor still works');
+  assert.equal(ui.container.querySelectorAll('.club-marker').length,1,'the same key on the editor still adds one');
  }finally{await ui.close();server.restore();}
 });

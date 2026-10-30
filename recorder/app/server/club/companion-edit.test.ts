@@ -258,7 +258,7 @@ test('"add a lower third at 0:12": a closed shape, checked against the Motion ro
   assert.equal((JSON.parse(before.json) as Project).motion, undefined, 'the recording had no motion blocks');
   const applied = await card(message, 0, 'apply', { revision: before.revision });
   assert.equal(applied.status, 200, JSON.stringify(applied.body));
-  assert.equal(applied.body.message.cards[0].result, 'Lower third added at 0:12.0');
+  assert.equal(applied.body.message.cards[0].result, 'Lower third added at 0:12');
   const block = applied.body.project!.motion![0];
   assert.deepEqual([block.template, block.style, block.start, block.duration, block.props], ['lower-third', 'glass', 12, 5, { name: 'Maya Lopez', role: 'Creator, @maya' }]);
   assert.deepEqual(applied.body.project!.clips, JSON.parse(before.json).clips, 'the clips are untouched: a block sits over them');
@@ -271,4 +271,18 @@ test('"add a lower third at 0:12": a closed shape, checked against the Motion ro
   const undone = await card(message, 0, 'undo', { revision: applied.body.revision });
   assert.equal(undone.status, 200, JSON.stringify(undone.body));
   assert.equal((JSON.parse((await state()).json) as Project).motion, undefined, 'Undo puts back the timeline without motion blocks');
+});
+
+test('the prompt lists the creator\'s notes on the timeline by time, with how they feel, and leaves out markers with nothing written', async () => {
+  const { timelineText } = await import('./companion-edit.js');
+  const p = createProject('notes');
+  p.markers = [
+    { id: 'a', time: 12.5, name: 'This graphic is ugly <b>now</b>', tag: 'dislike' },
+    { id: 'b', time: 3, tag: 'keep' },
+    { id: 'c', time: 20 },
+  ];
+  const text = timelineText(p, { tab: 'edit' });
+  assert.match(text, /Notes the creator left on the timeline/);
+  assert.match(text, /- 3\.00 s, wants to keep this\n- 12\.50 s, does not like this, "This graphic is ugly now"/);
+  assert.ok(!text.includes('20.00 s'), 'a marker with no note and no mood is not a note');
 });

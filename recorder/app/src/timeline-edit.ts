@@ -1,4 +1,4 @@
-import {clipDuration,clipEffectTiming,makeId,narrationPriority,projectDuration,type Clip,type Element,type Media,type MotionBlock,type Project,type TrackKind} from '../shared/types';
+import {clipDuration,clipEffectTiming,makeId,narrationPriority,projectDuration,type Clip,type Element,type MarkerTag,type Media,type MotionBlock,type Project,type TrackKind} from '../shared/types';
 import {cutTimelineRange,minimumPiece,relinkSlices} from '../shared/timeline-edits';
 import {clipLayerRowId} from '../shared/timeline-layers';
 import {plainClone,plainView} from './project-draft';
@@ -355,6 +355,12 @@ export function addMotionBlock(p:Project,block:MotionBlock,slide=false,keepLengt
 
 export function addMarker(p:Project,time:number,newId:()=>string=makeId){const id=newId();(p.markers??=[]).push({id,time:Math.max(0,time)});p.markers.sort((a,b)=>a.time-b.time);return id;}
 export function moveMarker(p:Project,id:string,time:number){const m=p.markers?.find(x=>x.id===id);if(m)m.time=Math.max(0,time);p.markers?.sort((a,b)=>a.time-b.time);}
+/** Writes the creator's note and mood on a marker. Empty words or a null mood take them off; the words are kept as typed. */
+export function noteMarker(p:Project,id:string,patch:{name?:string;tag?:MarkerTag|null}){
+ const m=p.markers?.find(x=>x.id===id);if(!m)return;
+ if(patch.name!==undefined){if(patch.name.trim())m.name=patch.name;else delete m.name;}
+ if(patch.tag!==undefined){if(patch.tag)m.tag=patch.tag;else delete m.tag;}
+}
 export function removeMarker(p:Project,id:string){if(!p.markers)return;p.markers=p.markers.filter(m=>m.id!==id);if(!p.markers.length)delete p.markers;}
 
 /* ---------- Zoom, ruler, filmstrip ---------- */
