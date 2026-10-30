@@ -79,7 +79,7 @@ export const TimelineClub=memo(function TimelineClub({project:p,playhead,scale,o
  const rows=useMemo(()=>usedRows(p),[p]),rowById=useMemo(()=>new Map(rows.map(r=>[r.id,r])),[rows]),contentHeight=rowsHeight(rows);
  const mediaById=useMemo(()=>new Map(p.media.map(m=>[m.id,m])),[p.media]),groups=useMemo(()=>linkGroups(p.clips),[p.clips]);
  const groupSize=useMemo(()=>{const n=new Map<string,number>();for(const key of groups.values())n.set(key,(n.get(key)??0)+1);return n;},[groups]);
- const start=win.left/scale,end=win.right/scale,tenths=showTenths(end-start);
+ const start=win.left/scale,end=win.right/scale,tenths=showTenths(end-start),[hover,setHover]=useState<number|null>(null);
  const effects=useMemo(()=>{const rows=new Map<string,Array<{id:string;start:number;duration:number;name:string}>>([['motion',(p.motion??[]).map(m=>({id:m.id,start:m.start,duration:m.duration,name:motionLabel(m)}))],['elements',p.elements.map(e=>({id:e.id,start:e.start,duration:e.duration,name:e.text||e.type}))],['captions',p.captions.map(c=>({id:c.id,start:c.start,duration:c.end-c.start,name:c.text}))],['zooms',p.zooms.map(z=>({id:z.id,start:z.start,duration:z.duration,name:`Zoom ${z.scale}×`}))]]);return rows;},[p.motion,p.elements,p.captions,p.zooms]);
  // A gesture lives in refs and closes over ids, not over project arrays: only the person ends it, and the drop applies to the project as it is then.
  const gesture=useRef<(()=>void)|null>(null),latest=useRef(p);latest.current=p;
@@ -214,13 +214,15 @@ export const TimelineClub=memo(function TimelineClub({project:p,playhead,scale,o
   <div className="club-tl-heads" aria-hidden><div ref={heads}><div className="club-tl-head is-ruler" style={{height:RULER}}/>{rows.map(r=><div key={r.id} className={`club-tl-head ${r.linked?'is-linked':''}`} style={{height:r.height}} title={r.name}><r.icon size={13}/><span>{r.name}</span></div>)}</div></div>
   <div className="timeline-scroll" ref={ref} tabIndex={-1} onScroll={e=>{const el=e.currentTarget;placeHeads();view(el.scrollLeft,el.clientWidth);}}>
    <div className="timeline-content" style={{width,height:contentHeight}}>
-    <div className="club-ruler" style={{height:RULER}} onPointerDown={beginRuler} title="Click or drag to move the playhead">
+    <div className="club-ruler" style={{height:RULER}} onPointerDown={beginRuler} onPointerMove={e=>{if(e.buttons)return;const box=e.currentTarget.getBoundingClientRect();setHover(Math.max(0,(e.clientX-box.left)/scale));}} onPointerLeave={()=>setHover(null)} title="Click or drag to move the playhead">
+     {hover!==null&&<span className="club-hover" style={{left:hover*scale}} aria-hidden><b>{rulerLabel(hover,tenths)}</b></span>}
      {ticks.map(t=><span key={t.time} className={t.major?'tick major':'tick'} style={{left:t.time*scale}}>{t.label&&<b>{t.label}</b>}</span>)}
      {p.scenes.map((s,i)=>visible(s.start,Math.max(1,s.duration))&&<div key={s.id} className="club-scene-tag" style={{left:s.start*scale}} title={`Scene ${i+1}: ${s.name}`} onPointerDown={e=>{e.stopPropagation();onSeek(s.start);}}>{i+1} {s.name}</div>)}
      {(p.markers??[]).map(m=>{const time=drag?.markers?.get(m.id)??m.time;return visible(time,0)&&<div key={m.id} className="club-marker" style={{left:time*scale}} title={`Marker at ${rulerLabel(time,tenths)} · drag to move · double-click to remove`} onPointerDown={e=>beginMarker(e,m.id)} onDoubleClick={()=>change(d=>removeMarker(d,m.id))}/>;})}
     </div>
     {rows.map(r=><div key={r.id} className={`timeline-row club-row row-${r.layer?.track??r.effect??'layer'}`} data-track={r.id} style={{top:r.top,height:r.height}} onPointerDown={e=>{if(e.target===e.currentTarget)beginEmpty(e);}}
      onDragOver={e=>{if(r.layer)e.preventDefault();}} onDrop={e=>{e.preventDefault();const id=e.dataTransfer.getData('application/sceneforge-media'),media=mediaById.get(id);if(media&&r.layer&&(media.kind==='audio'?'audio':'video')===r.layer.kind)onDropMedia(id,r.layer.track??(r.layer.kind==='audio'?'audio':'screen'),snapTime(Math.max(0,contentX(e.clientX)/scale)).time,r.id);}}>
+     {r.layer?.track==='audio'&&scale>=50&&p.captions.flatMap(c=>c.words??[]).filter(w=>visible(w.start,Math.max(.05,w.end-w.start))).map((w,i)=><span key={`${w.start}:${i}`} className="club-word" aria-hidden style={{left:w.start*scale,width:Math.max(8,(w.end-w.start)*scale)}}>{w.text}</span>)}
      {r.layer&&p.clips.filter(c=>clipLayerRowId(c,p)===r.id).map(c=>{const pv=drag?.items.get(c.id),s=pv?.start??c.start,d=pv?.duration??clipDuration(c);if(!pv&&!visible(c.start,clipDuration(c)))return null;const m=mediaById.get(c.mediaId);
       return <ClubClip key={c.id} clip={c} media={m} row={r} preview={pv} selected={selectedIds.has(c.id)} linked={(groupSize.get(groups.get(c.id)!)??1)>1} label={labels.get(c.id)??''} peaks={showWaveforms&&m?waveforms[waveformMediaKey(m)]:undefined} scale={scale} from={Math.max(start,s)} to={Math.min(end,s+d)} onBegin={beginItem} onOpen={onOpen}/>;})}
      {r.effect&&(effects.get(r.id)??[]).map(i=>{const pv=drag?.items.get(i.id),s=pv?.start??i.start,d=pv?.duration??i.duration;if(!pv&&!visible(i.start,i.duration))return null;
