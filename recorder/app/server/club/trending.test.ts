@@ -252,6 +252,20 @@ test('ranked for the channel: matches come first with a reason, the rest have fi
   assert.deepEqual(await rankedTrending(empty.slug, empty), { items: [], updatedAt: null, followed: 0 });
 });
 
+test('a video found by a search counts as followed as soon as its channel is followed, so Followed and its count change at once', async () => {
+  const found = (videoId: string, channel: string, channelId?: string): TrendingItem => ({
+    videoId, title: `Claude ${videoId}`, channel, kind: 'creator', views: 1000, likes: null, comments: null, published: '2026-10-28', ageDays: 1, vpd: 1000, mult: null, history: [], firstSeen: '2026-10-28', fit: true, topic: 'claude', ...(channelId ? { channelId } : {}),
+  });
+  const slug = await channel([], [found('a1', 'InsideAI', 'UCFeFVytEkT8kaqPCJZGFswg'), found('b1', 'Other', 'UCaaaaaaaaaaaaaaaaaaaaaa'), found('c1', 'Named Only')]);
+  const workspace = await store.readWorkspace(slug);
+  assert.deepEqual((await rankedTrending(slug, workspace)).items.map((item) => item.kind), ['creator', 'creator', 'creator']);
+  await store.writeJSON(path.join(store.workspaceDir(slug), 'followed.json'), [{ name: 'InsideAI', channelId: 'UCFeFVytEkT8kaqPCJZGFswg' }, { name: 'named only', url: 'https://www.youtube.com/@namedonly' }]);
+  const ranked = await rankedTrending(slug, workspace);
+  assert.deepEqual(ranked.items.map((item) => [item.videoId, item.kind]).sort(), [['a1', 'followed'], ['b1', 'creator'], ['c1', 'followed']], 'by channel id, else by name');
+  assert.equal(ranked.followed, 2);
+  assert.equal((await items(slug)).find((item) => item.videoId === 'a1')!.kind, 'creator', 'the stored file is not rewritten by reading it');
+});
+
 test('the yt-dlp source lists with a flat playlist and reads numbers with --print: metadata only, nothing downloaded', async () => {
   const bin = path.join(temp, 'bin');
   const log = path.join(temp, 'ytdlp-args.log');

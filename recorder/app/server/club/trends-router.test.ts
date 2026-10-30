@@ -223,6 +223,10 @@ test('Signals: refresh reads Reddit, notes that X waits for treg, and the read i
   assert.equal(job.status, 'done');
   assert.deepEqual(job.result, { posts: 1, added: 1, errors: [], tried: 2, failed: [], note: 'X posts refresh when treg is connected.' });
   assert.equal(redditCalls, 2, 'one request per subreddit');
+  assert.equal((await call('POST', '/signals/refresh', { only: 'r/ClaudeAI' })).status, 400, 'only is a list of sources');
+  const one = await finished((await call('POST', '/signals/refresh', { only: ['r/vibecoding'] })).body.id);
+  assert.equal(one.result.tried, 1, 'Try again reads just the sources named');
+  assert.equal(redditCalls, 3);
 
   const read = (await call('GET', '/signals')).body as SignalsResponse;
   assert.equal(read.items.length, 1);

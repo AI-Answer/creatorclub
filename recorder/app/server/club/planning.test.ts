@@ -108,6 +108,7 @@ async function finish(jobId: string) {
 const { adoptSceneIds, formatOutline, packageFromOldOutline, parseOutline, scriptSections, takeDecisions, withScript } = await import('./planning.js');
 const { changedSceneNumber, recorderScenes, syncProject } = await import('./recorder.js');
 const { chapterize, timedCaptions } = await import('./research.js');
+const { mergePackage } = await import('../../shared/package-merge.js');
 const { validateScenes } = await import('../../src/recording-scenes.js');
 
 await call('POST', '/workspaces', { name: 'Samin', handle: '@s', topics: ['ai'] });
@@ -397,6 +398,18 @@ test('PUT /package changes only the fields it is sent, so a page that is behind 
   assert.equal((await call('PUT', `/videos/${fresh.id}/package`, { surprise: 1 })).status, 400);
   assert.equal((await call('PUT', `/videos/${fresh.id}/package`, { titles: ['only one'] })).status, 400);
   assert.deepEqual((await call('PUT', `/videos/${fresh.id}/package`, goodPackage)).body, goodPackage, 'a whole package still replaces it (Undo)');
+});
+
+test('Publish tags are saved on the package, kept through an edit of another field and a package run, and checked', async () => {
+  const fresh = (await call('POST', '/videos', { title: 'Tagged' })).body as Video;
+  await call('PUT', `/videos/${fresh.id}/package`, goodPackage);
+  assert.deepEqual((await call('PUT', `/videos/${fresh.id}/package`, { tags: ['claude code', 'ai'] })).body.tags, ['claude code', 'ai']);
+  await call('PUT', `/videos/${fresh.id}/package`, { description: 'What you get.' });
+  assert.deepEqual((await call('GET', `/videos/${fresh.id}/plan`)).body.package.tags, ['claude code', 'ai'], 'another field saved later leaves them');
+  assert.equal((await call('PUT', `/videos/${fresh.id}/package`, { tags: ['x'.repeat(61)] })).status, 400, 'a tag is at most 60 characters');
+  assert.equal((await call('PUT', `/videos/${fresh.id}/package`, { tags: Array.from({ length: 31 }, (_, i) => `t${i}`) })).status, 400, 'at most 30 tags');
+  assert.deepEqual((await call('PUT', `/videos/${fresh.id}/package`, { tags: [] })).body.tags, [], 'all removed is saved too');
+  assert.deepEqual(mergePackage({ ...goodPackage, tags: ['kept'] }, goodPackage).tags, ['kept'], 'a package run keeps them');
 });
 
 test('an empty package starts from the idea (angle, twist, hook, ratings), filling only empty places, with no AI call', async () => {
