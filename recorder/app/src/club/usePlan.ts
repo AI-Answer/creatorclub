@@ -188,6 +188,8 @@ export function usePlan(video:Video,{onVideo,onRecord}:{onVideo(video:Video):voi
   saveError:packageSaver.error||outlineSaver.error||sceneError,
   retrySave:()=>{if(sceneError)retrySceneScript();void Promise.all([packageSaver.flush(),outlineSaver.flush()]).catch(()=>{});},
   continueAction,continueError,
+  /** A package, outline or script run is going: Continue waits for it. */
+  busy,
  };
 }
 

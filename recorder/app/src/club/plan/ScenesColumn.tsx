@@ -1,28 +1,32 @@
-import {useEffect,useRef,useState,type KeyboardEvent,type PointerEvent,type ReactNode} from 'react';
+import {useEffect,useRef,useState,type KeyboardEvent,type PointerEvent} from 'react';
 import type {Outline,OutlineScene,VideoScene} from '../../../shared/club';
 import {toProgress} from '../scenes';
 import {Button,Ed,Icon,IconButton,Menu,SceneStatus,cn,useToast,type MenuItem} from '../ui';
 import {clockTime} from '../video-plan';
+import {ReplaceScenes} from '../workspace/ReplaceScenes';
 import {blankScene,editPoint,insertScene,moveScene,parseClock,removeScene,sceneCardId,totalSeconds,TARGET_SECONDS} from './plan-logic';
 
 /**
  * The right column of Plan: the outline's scenes as rows (number, title, status, length). One scene is open at a time, and the open one
  * shows its talking points, what to show, its script and what is left to decide, all editable in place. Drag a row, press Alt+↑/↓ on it,
- * or use the scene's menu to reorder; add, remove with Undo, and write a scene's script from the same menu.
+ * or use the scene's menu to reorder; add, remove with Undo, and write a scene's script from the same menu. With no scenes the column is
+ * one sentence and Draft scenes from the board; with scenes its heading's "Write with Claude" menu writes the full script or redrafts
+ * the scenes (asking first, since a redraft replaces them).
  */
-export function ScenesColumn({target,onTarget,hasRecording,outline,known,focusId,drafting,draftLine,scriptingScene,scripting,onEdit,onFocus,onDraft,onWriteScene,onSceneScript,onRecord,tools}:{
+export function ScenesColumn({target,onTarget,hasRecording,outline,known,focusId,drafting,draftLine,scriptingScene,scripting,onEdit,onFocus,onDraft,onWriteScene,onWriteAll,onSceneScript,onRecord}:{
  target:number;onTarget(seconds:number):void;hasRecording:boolean;outline:Outline|null;known:readonly VideoScene[]|undefined;focusId:string|null;
  drafting:boolean;draftLine?:string;
  /** The scene a script run is writing, or none while it writes the whole script. */
  scriptingScene?:string;scripting:boolean;
  onEdit(next:Outline):void;onFocus(sceneId:string):void;onDraft():void;onWriteScene(sceneId:string):void;onSceneScript(sceneId:string,text:string):void;onRecord(sceneId:string):void;
- /** The page's tools beside the heading (the "Write with Claude" menu). */
- tools?:ReactNode;
+ /** Writes the script of every scene. Without it the menu offers only the redraft. */
+ onWriteAll?():void;
 }){
  const toast=useToast();
  const scenes=outline?.scenes??[];
  const [dragIndex,setDragIndex]=useState<number|null>(null),[overIndex,setOverIndex]=useState<number|null>(null);
  const [added,setAdded]=useState<string|null>(null);
+ const [redraft,setRedraft]=useState(false);
  // One scene open at a time: the focused one (picked in the strip, the companion, or here), until it is closed.
  const [openId,setOpenId]=useState<string|null>(focusId);
  useEffect(()=>{if(focusId)setOpenId(focusId);},[focusId]);
@@ -78,24 +82,33 @@ export function ScenesColumn({target,onTarget,hasRecording,outline,known,focusId
   {label:'Delete scene',icon:'delete',danger:true,fn:()=>remove(i)},
  ];
 
+ const writes:MenuItem[]=drafting||scripting?[]:[
+  ...(onWriteAll?[{label:outline?.fullScript||scenes.every(scene=>scene.script)?'Write the full script again':'Write the full script',icon:'script' as const,fn:onWriteAll}]:[]),
+  {label:'Redraft the scenes',icon:'draft',fn:()=>setRedraft(true)},
+ ];
+ const busy=drafting||scripting;
  return <section className="scn" aria-label="Scenes">
   <div className="doc-h"><Icon name="scenes" size={18}/><h2>Scenes</h2>{scenes.length>0&&<span className="chip">{scenes.length}</span>}
-   <span className="grow"/>{tools}
+   <span className="grow"/>
+   {scenes.length>0&&<Menu align="right" label="Write with Claude" items={writes} button={(toggle,open)=><Button size="sm" aria-expanded={open} aria-haspopup="menu" disabled={!writes.length} onClick={toggle}>
+    {busy?<span className="spin" role="status" aria-label="Writing"/>:<Icon name="ai" size={14}/>}Write with Claude<Icon name="expand" size={13}/></Button>}/>}
   </div>
-  <div className="row" style={{marginBottom:14,gap:14}}>
+  {scenes.length>0&&<div className="row" style={{marginBottom:14,gap:14}}>
    <span className="doc-sub" style={{margin:0,whiteSpace:'nowrap'}}>Talk through each one when you record.</span><span className="grow"/>
-   {scenes.length>0&&<div className="len" style={{whiteSpace:'nowrap'}}><span className="tnum"><b style={{color:over?'var(--cc-warn)':'var(--cc-text)'}}>{clockTime(total)}</b>{target>0?' of':''}</span>
+   <div className="len" style={{whiteSpace:'nowrap'}}><span className="tnum"><b style={{color:over?'var(--cc-warn)':'var(--cc-text)'}}>{clockTime(total)}</b>{target>0?' of':''}</span>
     <select className="select" style={{height:26,fontSize:12.5}} value={target} onChange={event=>onTarget(Number(event.target.value))} aria-label="Target length">
      <option value={0}>No target</option>{TARGET_SECONDS.map(seconds=><option key={seconds} value={seconds}>{seconds/60} min</option>)}</select>
-    {target>0&&<span className="bar" style={{width:110}}><i className={over?'over':''} style={{width:`${Math.min(100,total/target*100)}%`}}/></span>}</div>}
-  </div>
+    {target>0&&<span className="bar" style={{width:110}}><i className={over?'over':''} style={{width:`${Math.min(100,total/target*100)}%`}}/></span>}</div>
+  </div>}
+  {redraft&&<ReplaceScenes scenes={known?.length?known:scenes.map((scene,i)=>({id:scene.id??String(i),title:scene.title,seconds:scene.seconds,takes:[],status:''}))} action="Drafting again" undoLine="You can undo it from the line above the scenes."
+   onKeep={()=>setRedraft(false)} onReplace={()=>{setRedraft(false);onDraft();}}/>}
 
   {!scenes.length
-   ?<div className="card">{drafting
-    ?<div style={{padding:16,display:'flex',flexDirection:'column',gap:10}} role="status" aria-label={draftLine??'Drafting scenes'}>{[0,1,2,3].map(i=><div key={i} className="shimmer" style={{height:74}}/>)}{draftLine&&<span className="faint small">{draftLine}</span>}</div>
-    :<div className="empty"><div className="ic"><Icon name="scenes" size={20}/></div><h3>No scenes yet</h3>
-      <p>Claude reads the board and the package, then writes 4 to 7 scenes with talking points. You can edit every word.</p>
-      <Button variant="primary" onClick={onDraft}><Icon name="draft" size={15}/>Draft scenes from board</Button></div>}</div>
+   ?(drafting
+    ?<div className="card" style={{padding:16,display:'flex',flexDirection:'column',gap:10}} role="status" aria-label={draftLine??'Drafting scenes'}>{[0,1,2,3].map(i=><div key={i} className="shimmer" style={{height:74}}/>)}{draftLine&&<span className="faint small">{draftLine}</span>}</div>
+    :<div className="plan-empty">
+      <p>Claude reads the board and writes the scenes you will talk through, and you can edit every word.</p>
+      <Button variant="primary" onClick={onDraft}><Icon name="draft" size={15}/>Draft scenes from the board</Button></div>)
    :scenes.map((scene,i)=>{
     const id=scene.id??String(i);
     const progress=knownById.get(id);

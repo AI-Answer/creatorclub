@@ -2,7 +2,7 @@ import type {CSSProperties} from 'react';
 import {
  AArrowDown,AArrowUp,ArrowDown,ArrowLeft,ArrowRight,ArrowUp,ArrowUpRight,AudioLines,BetweenHorizontalStart,Bookmark,Bot,Calendar,Camera,Captions,Check,ChevronDown,ChevronLeft,ChevronRight,ChevronUp,ChevronsUpDown,
  Circle,CircleCheck,CircleDot,CircleHelp,Clapperboard,Clock,Code,Copy,CornerDownRight,Download,Expand,Eye,EyeOff,FileText,Film,Flag,Folder,FolderOpen,GripVertical,Heading1,Heading2,Heading3,Heart,History,House,Image,Keyboard,Layers,LayoutTemplate,Lightbulb,
- Link,List,ListChecks,ListOrdered,LoaderCircle,Magnet,Maximize2,MessageCircle,MessagesSquare,Mic,Minus,Monitor,MoreHorizontal,MoveHorizontal,Music,Package,PanelLeftClose,PanelLeftOpen,PanelRightClose,PanelRightOpen,Pause,Pencil,Pilcrow,Play,Plus,Quote,Redo2,RotateCcw,
+ Link,List,ListChecks,ListOrdered,LoaderCircle,Lock,Magnet,Maximize2,MessageCircle,MessagesSquare,Mic,Minus,Monitor,MoreHorizontal,MoveHorizontal,Music,Package,PanelLeftClose,PanelLeftOpen,PanelRightClose,PanelRightOpen,Pause,Pencil,Pilcrow,Play,Plus,Quote,Redo2,RotateCcw,
  Scissors,Search,Send,Settings,Settings2,SlidersHorizontal,Sparkles,Sprout,Square,SquareKanban,SquareSplitHorizontal,StickyNote,Sun,Table,Trash2,TrendingUp,TriangleAlert,Type,Undo2,Upload,Video,Wand2,X,Youtube,ZoomIn,ZoomOut,
  type LucideIcon,
 } from 'lucide-react';
@@ -30,7 +30,7 @@ const glyphs={
  help:CircleHelp,keyboard:Keyboard,theme:Sun,youtube:Youtube,comment:MessageCircle,like:Heart,assistant:Bot,'first-steps':Sprout,code:Code,
  preview:Eye,hide:EyeOff,'sidebar-close':PanelLeftClose,'sidebar-open':PanelLeftOpen,'panel-close':PanelRightClose,'panel-open':PanelRightOpen,
  // States
- done:CircleCheck,pending:Circle,warning:TriangleAlert,loading:LoaderCircle,
+ done:CircleCheck,pending:Circle,warning:TriangleAlert,loading:LoaderCircle,locked:Lock,
  // Writing (the Markdown editor's commands)
  'heading-1':Heading1,'heading-2':Heading2,'heading-3':Heading3,list:List,'list-numbered':ListOrdered,checklist:ListChecks,quote:Quote,paragraph:Pilcrow,divider:Minus,
 } satisfies Record<string,LucideIcon>;
