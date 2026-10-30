@@ -126,6 +126,45 @@ select,input[type=text]{height:30px;border:1px solid var(--line-strong);border-r
 .head{position:absolute;top:0;bottom:0;width:2px;background:var(--accent);z-index:5;pointer-events:none}
 .head::before{content:"";position:absolute;top:-4px;left:-5px;width:12px;height:8px;background:var(--accent);clip-path:polygon(0 0,100% 0,50% 100%)}
 
+/* motion gallery */
+.gal{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.tpl{border:1px solid var(--line-strong);background:var(--surface);border-radius:var(--r);padding:6px;text-align:left;cursor:pointer}
+.tpl[aria-pressed=true]{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.tpl .mini{aspect-ratio:16/9;background:var(--stage);border-radius:5px;position:relative;overflow:hidden;margin-bottom:5px}
+.tpl b{font-size:12.5px}
+.tpl small{display:block;color:var(--text-3);font-size:11.5px}
+.mini i{position:absolute;display:block}
+.m-lower i.bar{left:8%;bottom:16%;height:22%;width:56%;background:#fff;border-radius:3px;animation:slideIn 1.8s infinite}
+.m-lower i.ln{left:8%;bottom:10%;height:3px;width:30%;background:var(--accent);animation:slideIn 1.8s .15s infinite}
+.m-title i{left:50%;top:50%;width:60%;height:18%;margin:-9% 0 0 -30%;background:#fff;border-radius:3px;animation:pop 1.8s infinite}
+.m-call i{left:55%;top:25%;width:28%;height:28%;border:2px solid #fff;border-radius:50%;animation:pop 1.8s infinite}
+.m-arrow i{left:20%;top:48%;height:3px;width:50%;background:#fff;transform-origin:left;animation:draw 1.8s infinite}
+.m-arrow i.hd{left:68%;top:40%;width:10px;height:10px;background:none;border-top:3px solid #fff;border-right:3px solid #fff;transform:rotate(45deg);animation:fade 1.8s infinite}
+.m-chap i{left:10%;top:38%;width:80%;height:24%;background:rgb(255 255 255/.92);border-radius:3px;animation:slideUp 1.8s infinite}
+.m-sub i{left:30%;top:40%;width:40%;height:20%;background:var(--accent);border-radius:99px;animation:pop 1.8s infinite}
+@keyframes slideIn{0%{transform:translateX(-120%);opacity:0}25%,80%{transform:none;opacity:1}100%{opacity:0}}
+@keyframes slideUp{0%{transform:translateY(60%);opacity:0}25%,80%{transform:none;opacity:1}100%{opacity:0}}
+@keyframes pop{0%{transform:scale(.6);opacity:0}25%,80%{transform:none;opacity:1}100%{opacity:0}}
+@keyframes draw{0%{transform:scaleX(0)}40%,85%{transform:scaleX(1)}100%{opacity:0}}
+@keyframes fade{0%,35%{opacity:0}50%,85%{opacity:1}100%{opacity:0}}
+.ta{width:100%;min-height:58px;border:1px solid var(--line-strong);border-radius:var(--r-sm);padding:8px;font:inherit;resize:vertical;background:var(--surface)}
+.sugg-card{border:1px solid var(--accent);background:var(--accent-soft);border-radius:var(--r);padding:10px 12px;margin-top:10px}
+.sugg-card .mini{margin:8px 0}
+.ba{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:8px 0}
+.ba div{aspect-ratio:16/9;border-radius:5px;background:var(--stage);position:relative;overflow:hidden;font-size:10.5px;color:#fff}
+.ba span{position:absolute;left:5px;top:4px;background:rgb(0 0 0/.5);padding:1px 5px;border-radius:4px}
+.ba .lt{position:absolute;left:8%;bottom:12%;background:#fff;color:var(--text);padding:3px 8px;border-radius:3px;font-weight:700;font-size:11px}
+input[type=range]{width:120px;accent-color:var(--accent)}
+.clip.sel{outline:2px solid var(--accent);outline-offset:1px;z-index:3}
+.clip.gfx{background:var(--k-graphics)}
+.handle{position:absolute;top:0;bottom:0;width:6px;background:rgb(255 255 255/.55);cursor:ew-resize}
+.handle.l{left:0;border-radius:5px 0 0 5px}.handle.r{right:0;border-radius:0 5px 5px 0}
+.wlab{position:absolute;top:2px;font-size:9.5px;color:var(--text);background:rgb(255 255 255/.8);border-radius:3px;padding:0 2px;pointer-events:none}
+.scenes{position:relative;height:18px;margin-left:96px}
+.scenes div{position:absolute;top:2px;bottom:2px;border-radius:4px;background:var(--sunk);border:1px solid var(--line-strong);font-size:11px;font-weight:600;padding:0 6px;display:flex;align-items:center;color:var(--text-2);overflow:hidden;white-space:nowrap}
+.scenes div.on{background:var(--text);color:#fff;border-color:var(--text)}
+.hov{position:absolute;top:0;bottom:0;width:1px;background:var(--text-3);z-index:4;pointer-events:none;display:none}
+.hovt{position:absolute;top:-22px;background:#1d1c1a;color:#fff;font-size:11px;padding:2px 6px;border-radius:4px;transform:translateX(-50%);white-space:nowrap}
 /* companion */
 .comp{background:var(--surface);border-left:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
 .comp header{padding:14px 16px;border-bottom:1px solid var(--line);display:flex;gap:10px;align-items:center}
@@ -201,9 +240,11 @@ select,input[type=text]{height:30px;border:1px solid var(--line-strong);border-r
         </div>
       </div>
       <div class="tl">
-        <div class="ruler" id="ruler"></div>
+        <div class="scenes" id="scenes"></div>
+        <div class="ruler" id="ruler"><div class="hov" id="hov"><span class="hovt" id="hovt"></span></div></div>
         <div class="row"><div class="lab"><svg viewBox="0 0 24 24" style="color:var(--k-camera)"><rect x="3" y="7" width="13" height="10" rx="2"/><path d="M16 11l5-3v8l-5-3"/></svg>Camera</div><div class="lane" id="laneCam"></div></div>
         <div class="row"><div class="lab"><svg viewBox="0 0 24 24" style="color:var(--k-audio)"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0014 0M12 18v3"/></svg>Audio</div><div class="lane" id="laneAud"></div></div>
+        <div class="row" id="rowGfx" style="display:none"><div class="lab"><svg viewBox="0 0 24 24" style="color:var(--k-graphics)"><path d="M12 3l2.6 5.6 6.1.7-4.5 4.2 1.2 6L12 16.4 6.6 19.5l1.2-6L3.3 9.3l6.1-.7z"/></svg>Graphics</div><div class="lane" id="laneGfx"></div></div>
         <div class="row"><div class="lab"><svg viewBox="0 0 24 24" style="color:var(--k-captions)"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 11h4M7 15h8"/></svg>Captions</div><div class="lane" id="laneCap"></div></div>
       </div>
     </div>
@@ -237,9 +278,10 @@ const I={
  layout:'<rect x="3" y="4" width="18" height="16" rx="2"/><rect x="12" y="11" width="7" height="6" rx="1"/>',
  zoom:'<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3M11 8v6M8 11h6"/>',
  graphics:'<path d="M12 3l2.6 5.6 6.1.7-4.5 4.2 1.2 6L12 16.4 6.6 19.5l1.2-6L3.3 9.3l6.1-.7z"/>',
+ clip:'<rect x="3" y="6" width="18" height="12" rx="2"/><path d="M8 6v12M16 6v12"/>',
  music:'<path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/>'
 };
-const TOOLS=[['text','Transcript'],['cut','Cut'],['captions','Captions'],['layout','Layout'],['zoom','Zoom'],['graphics','Graphics'],['music','Music']];
+const TOOLS=[['text','Transcript'],['cut','Cut'],['captions','Captions'],['layout','Layout'],['clip','Clip'],['zoom','Zoom'],['graphics','Graphics'],['music','Music']];
 const WORDS=[[0,'Round'],[.4,'one,'],[.8,'drop'],[1.1,'the'],[1.3,'old'],[1.6,'habit'],[2,'and'],[2.2,'see'],[2.5,'the'],[2.7,'first'],[3,'difference.'],
  [4.5,'Most'],[4.9,'people'],[5.3,'open'],[5.6,'a'],[5.8,'new'],[6,'chat'],[6.3,'for'],[6.5,'every'],[6.8,'task.'],[7,'Um,'],[7.5,'stop'],[7.8,'that.'],
  [8.2,'Keep'],[8.5,'one'],[8.8,'chat'],[9,'keep'],[9.3,'one'],[9.6,'chat'],[10,'running'],[10.5,'all'],[10.8,'day.']];
@@ -247,7 +289,7 @@ const PROPS=[
  {id:'p1',t:'Pause',why:'Nobody speaks for 1.4 s.',from:3.1,to:4.5,on:true},
  {id:'p2',t:'Filler word “um”',why:'A filler, 0.4 s.',from:7,to:7.45,on:true},
  {id:'p3',t:'Repeated line',why:'“keep one chat” is said twice; the first take is cut.',from:9,to:9.9,on:true}];
-const S={tool:'text',head:0,playing:false,applied:new Set(),picked:new Set(PROPS.map(p=>p.id)),cutWords:new Set(),captions:true,layout:'side'};
+const S={sel:null,tpl:'lower',gfx:[],ask:false,speed:'1×',tool:'text',head:0,playing:false,applied:new Set(),picked:new Set(PROPS.map(p=>p.id)),cutWords:new Set(),captions:true,layout:'side'};
 const $=s=>document.querySelector(s);
 const fmt=t=>{t=Math.max(0,t);return Math.floor(t/60)+':'+String(Math.floor(t%60)).padStart(2,'0')};
 const pct=t=>(t/DUR*100)+'%';
@@ -303,11 +345,40 @@ function panel(){
   <div class="field" style="margin-top:16px"><span>How close</span><select><option>1.5×</option><option>2×</option></select></div>
   <p class="hint">No zooms yet. A zoom is drawn as a bar on its own row of the timeline.</p>`;
  }
- if(S.tool==='graphics'){
+ if(S.tool==='clip'){
   el.onclick=null;
-  el.innerHTML=`<h2>Graphics</h2><p class="sub">Titles and labels over the picture. They appear on their own row of the timeline.</p>
-  ${['Title','Lower third','Callout','Arrow'].map(n=>`<div class="card" style="display:flex;justify-content:space-between;align-items:center"><b>${n}</b><button class="btn sm">Add at ${fmt(S.head)}</button></div>`).join('')}
-  <p class="hint">Or ask Claude: “add a lower third at 0:12”.</p>`;
+  el.innerHTML=S.sel?`<h2>Clip properties</h2><p class="sub">${S.sel==='cam'?'Camera · Scene 1':S.sel==='aud'?'Audio · Scene 1':S.sel==='cap1'?'Caption 1':'Graphic'}</p>
+  <div class="field"><span>Starts at</span><input type="text" value="0:00.0" size="6"></div>
+  <div class="field"><span>Length</span><input type="text" value="0:13.0" size="6"></div>
+  <div class="field"><span>Speed</span><select><option>0.5×</option><option selected>1×</option><option>1.25×</option><option>1.5×</option><option>2×</option></select></div>
+  <div class="field"><span>Volume</span><input type="range" min="0" max="100" value="80"></div>
+  <div class="field"><span>Remove background</span><button class="tog" role="switch" aria-checked="false"></button></div>
+  <div class="field"><span>Keep my face centred</span><button class="tog" role="switch" aria-checked="true"></button></div>
+  <p class="hint">Changes apply to this clip and its linked audio. Trim by dragging the handles on the clip's ends.</p>`
+  :`<h2>Clip</h2><p class="sub">Select a clip in the timeline to change its speed, volume and look.</p>`;
+  document.querySelectorAll('#panel .tog').forEach(t=>t.onclick=()=>t.setAttribute('aria-checked',t.getAttribute('aria-checked')!=='true'));
+ }
+ if(S.tool==='graphics'){
+  const T=[['lower','m-lower','Lower third','Name and role','<i class="bar"></i><i class="ln"></i>'],['title','m-title','Title card','Opening or section','<i></i>'],['call','m-call','Highlight ring','Point at something','<i></i>'],['arrow','m-arrow','Arrow','Draws itself in','<i></i><i class="hd"></i>'],['chap','m-chap','Chapter banner','New topic','<i></i>'],['sub','m-sub','Subscribe pill','End of video','<i></i>']];
+  const mini=(c,h)=>`<div class="mini ${c}">${h}</div>`;
+  el.innerHTML=`<h2>Graphics</h2><p class="sub">Titles and labels that animate in over the picture. Pick one, or describe what you want.</p>
+  <div class="gal">${T.map(([k,c,n,d,h])=>`<button class="tpl" data-t="${k}" aria-pressed="${S.tpl===k}">${mini(c,h)}<b>${n}</b><small>${d}</small></button>`).join('')}</div>
+  <div class="actions"><button class="btn primary" data-add style="flex:1;justify-content:center">Add at ${fmt(S.head)}</button></div>
+  <div class="field" style="margin-top:18px;display:block"><b style="color:var(--text)">Or describe it</b>
+  <textarea class="ta" id="askTa" placeholder="A lower third with my name and “Founder” at 0:12, lasting 3 seconds">A lower third with my name and “Founder” at 0:12, lasting 3 seconds</textarea>
+  <div class="actions"><button class="btn" data-ask>Ask Claude</button></div></div>
+  ${S.ask?`<div class="sugg-card"><b>Claude suggests</b><div style="color:var(--text-2);margin-top:2px">Lower third “Samin Yasar · Founder” from 0:12 to 0:15, bottom left.</div>
+   ${mini('m-lower','<i class="bar"></i><i class="ln"></i>')}
+   <div class="ba"><div><span>Before</span></div><div><span>After</span><b class="lt">Samin Yasar</b></div></div>
+   <div class="actions" style="margin-top:6px"><button class="btn sm" data-prev>Preview</button><button class="btn sm primary" data-apply>Apply</button><button class="btn sm" data-dismiss>Dismiss</button></div></div>`:''}`;
+  el.onclick=e=>{
+   const t=e.target.closest('[data-t]');if(t){S.tpl=t.dataset.t;panel();return}
+   if(e.target.closest('[data-add]')){S.gfx.push({a:S.head,b:Math.min(DUR,S.head+3),n:(T.find(x=>x[0]===S.tpl)||[])[2]});toast('Added “'+(T.find(x=>x[0]===S.tpl)[2])+'” at '+fmt(S.head),()=>{S.gfx.pop();timeline()});timeline();return}
+   if(e.target.closest('[data-ask]')){S.ask=true;panel();return}
+   if(e.target.closest('[data-prev]')){seek(11.5);play(true);return}
+   if(e.target.closest('[data-apply]')){S.gfx.push({a:12,b:13,n:'Lower third · Samin Yasar'});S.ask=false;toast('Added a lower third at 0:12',()=>{S.gfx.pop();timeline()});panel();timeline();return}
+   if(e.target.closest('[data-dismiss]')){S.ask=false;panel()}
+  };
  }
  if(S.tool==='music'){
   el.onclick=null;
@@ -317,28 +388,34 @@ function panel(){
 
 /* timeline */
 function timeline(){
- const r=$('#ruler');let h='';
+ $('#scenes').innerHTML=`<div class="on" style="left:0;width:${pct(DUR)}">1 · Round 1, drop the old habit</div>`;
+ const r=$('#ruler');let h='<div class="hov" id="hov"><span class="hovt" id="hovt"></span></div>';
  for(let t=0;t<=DUR;t+=2)h+=`<div class="tick" style="left:${pct(t)}">${fmt(t)}</div>`;
- h+=`<div class="scene" style="left:0;width:${pct(DUR)}" data-tip="Scene 1 · Round 1, drop the old habit"></div>`;
+ 
  r.innerHTML=h;
  const band=(a,b)=>`<div class="cutband" style="left:${pct(a)};width:${pct(b-a)}"></div>`;
  const mark=(a,b)=>`<div class="marker" style="left:${pct(a)};width:${pct(b-a)}"></div>`;
  const applied=PROPS.filter(p=>S.applied.has(p.id)),pending=S.tool==='cut'?PROPS.filter(p=>S.picked.has(p.id)):[];
  const over=applied.map(p=>band(p.from,p.to)).join('')+pending.map(p=>mark(p.from,p.to)).join('');
- $('#laneCam').innerHTML=`<div class="clip camera" style="left:0;width:100%">Scene 1 · Round 1, drop the old habit</div>${over}`;
- $('#laneAud').innerHTML=`<div class="clip audio" style="left:0;width:100%"></div>${over}`;
- $('#laneCap').innerHTML=(S.captions?`<div class="clip cc" style="left:0;width:${pct(4.4)}">Round one, drop the old habit</div><div class="clip cc" style="left:${pct(4.6)};width:${pct(8.2)}">Most people open a new chat for every task</div>`:'')+over;
+ const hd='<span class="handle l"></span><span class="handle r"></span>';
+ $('#laneCam').innerHTML=`<div class="clip camera ${S.sel==='cam'?'sel':''}" data-sel="cam" style="left:0;width:100%">Round 1, drop the old habit${hd}</div>${over}`;
+ $('#laneAud').innerHTML=`<div class="clip audio ${S.sel==='aud'?'sel':''}" data-sel="aud" style="left:0;width:100%">${hd}${WORDS.filter((_,i)=>i%3===0).map(([t,w])=>`<span class="wlab" style="left:${pct(t)}">${w.replace(/[.,]/g,'')}</span>`).join('')}</div>${over}`;
+ $('#rowGfx').style.display=S.gfx.length?'flex':'none';
+ $('#laneGfx').innerHTML=S.gfx.map(g=>`<div class="clip gfx" style="left:${pct(g.a)};width:${pct(g.b-g.a)}" title="${g.n}">${g.n}</div>`).join('');
+ $('#laneCap').innerHTML=(S.captions?`<div class="clip cc ${S.sel==='cap1'?'sel':''}" data-sel="cap1" style="left:0;width:${pct(4.4)}">Round one, drop the old habit</div><div class="clip cc" style="left:${pct(4.6)};width:${pct(8.2)}">Most people open a new chat for every task</div>`:'')+over;
  head();
 }
 function head(){
  document.querySelectorAll('.head').forEach(n=>n.remove());
- for(const id of ['laneCam','laneAud','laneCap']){const l=document.getElementById(id);const d=document.createElement('div');d.className='head';d.style.left=pct(S.head);l.appendChild(d)}
+ for(const id of ['laneCam','laneAud','laneCap','laneGfx']){const l=document.getElementById(id);const d=document.createElement('div');d.className='head';d.style.left=pct(S.head);l.appendChild(d)}
  $('#clock').textContent=fmt(S.head);
  const cur=[...WORDS].reverse().find(([t])=>t<=S.head);$('#cap').textContent=cur?WORDS.filter(([t])=>t>=Math.floor(S.head/4.5)*4.5&&t<Math.floor(S.head/4.5)*4.5+4.5).map(x=>x[1]).join(' ').slice(0,60):'';
 }
 function seek(t){S.head=Math.max(0,Math.min(DUR,t));head();if(S.tool==='text')panel()}
 $('#ruler').addEventListener('click',e=>{const b=e.currentTarget.getBoundingClientRect();seek((e.clientX-b.left)/b.width*DUR)});
-['laneCam','laneAud','laneCap'].forEach(id=>document.getElementById(id).addEventListener('click',e=>{const b=e.currentTarget.getBoundingClientRect();seek((e.clientX-b.left)/b.width*DUR)}));
+['laneCam','laneAud','laneCap'].forEach(id=>document.getElementById(id).addEventListener('click',e=>{const c=e.target.closest('[data-sel]');if(c&&!e.target.classList.contains('handle')){S.sel=c.dataset.sel;open('clip');return}const b=e.currentTarget.getBoundingClientRect();seek((e.clientX-b.left)/b.width*DUR)}));
+$('#ruler').addEventListener('mousemove',e=>{const b=$('#ruler').getBoundingClientRect();const t=(e.clientX-b.left)/b.width*DUR;const h=$('#hov');h.style.display='block';h.style.left=(t/DUR*100)+'%';$('#hovt').textContent=fmt(t)+'.'+Math.floor(t%1*10)});
+$('#ruler').addEventListener('mouseleave',()=>{const h=$('#hov');if(h)h.style.display='none'});
 
 /* play */
 let timer=null;
