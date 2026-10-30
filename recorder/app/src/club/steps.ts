@@ -39,6 +39,7 @@ export const GLOSSARY:readonly Term[]=[
  {term:'Idea',means:'A video you might make. It waits in the first column of Videos until you start planning it.'},
  {term:'Video',means:'One card that goes from idea to published. It has a board, a plan, scenes, takes and an export.'},
  {term:'Board',means:'A canvas for one video where you gather links, notes, screenshots and files, and ask Claude about them.'},
+ {term:'Research',means:'Your channel\'s own board, before any video: put Discover cards, ideas, links and notes on it, connect and group them, and start a video from the ones that belong together.'},
  {term:'Package',means:'The title, the thumbnail text and the hook that make people click and keep watching.'},
  {term:'Hook',means:'The first line you say. It decides whether people stay.'},
  {term:'Scene',means:'One part of the video with its own talking points. You plan the scenes, then record them one at a time.'},
