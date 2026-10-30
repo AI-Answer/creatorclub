@@ -63,7 +63,7 @@ export function Workspace({video,tab,back,navigate,onVideo}:{video:Video;tab:Vid
  const moveTo=useCallback(async(stage:VideoStage,undoTo?:VideoStage)=>{
   if(stage===video.stage)return;
   try{onVideo(await clubFetch<Video>(`/videos/${id}/move`,{body:{stage}}));}
-  catch(reason){toast(errorMessage(reason,"Couldn't move the video."));return;}
+  catch(reason){toast(errorMessage(reason,"Couldn't move the video."),{refused:true});return;}
   if(undoTo)toast(`Moved to ${STAGE_LABEL[stage]}`,{undo:()=>void moveTo(undoTo)});
  },[id,video.stage,onVideo,toast]);
 

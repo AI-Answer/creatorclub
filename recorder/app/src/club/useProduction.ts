@@ -49,7 +49,7 @@ export function useProduction():{state:VideosState;videos:Video[]|null;reload():
   latest.current=next;
   if(base.current)setShadow({base:base.current,videos:next});
  },[]);
- const sayFailed=useCallback((reason:unknown,fallback:string)=>toast(errorMessage(reason,fallback)),[toast]);
+ const sayFailed=useCallback((reason:unknown,fallback:string)=>toast(errorMessage(reason,fallback),{refused:true}),[toast]);
 
  const place=useCallback(async(id:string,stage:VideoStage,beforeId:string|null,stageDates?:Video['stageDates']):Promise<void>=>{
   const before=latest.current;
@@ -65,7 +65,7 @@ export function useProduction():{state:VideosState;videos:Video[]|null;reload():
   if(!plan)return;
   // The same rule the server holds to: a move it would refuse is not shown, and the sentence says what is missing.
   const problem=knownMoveProblem(current.find(video=>video.id===id),stage,factsRef.current);
-  if(problem){toast(problem);return;}
+  if(problem){toast(problem,{refused:true});return;}
   try{await place(id,stage,beforeId);}catch(reason){sayFailed(reason,"Couldn't save that change.");return;}
   const {previous}=plan;
   toast(plan.message,{undo:()=>{place(id,previous.stage,previous.beforeId,previous.stageDates).catch(reason=>sayFailed(reason,"Couldn't undo that."));}});
