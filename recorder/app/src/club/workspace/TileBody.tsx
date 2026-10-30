@@ -5,7 +5,7 @@ import {clockTime,linkHost} from '../video-plan';
 import {youtubeId} from '../board';
 import {ErrorLine} from '../ErrorLine';
 import {creatorName,fmtDays,fmtNum} from '../format';
-import {Avatar,Icon,IconButton,Level,MultChip,SourceIcon,Spinner,StagePill,Thumb,type IconName} from '../ui';
+import {Avatar,Icon,IconButton,MultChip,SourceIcon,Spinner,StagePill,Thumb,type IconName} from '../ui';
 import {ideaWhy} from '../ideas';
 import {boardBase} from './board-base';
 import {markdownToHtml} from '../markdown';
@@ -75,6 +75,9 @@ function NoteTile({tile,onRemove,onOpen}:TileBodyProps){
  </>;
 }
 
+/** The words the card uses for a rating, instead of bars. */
+const RATING_WORD:Record<string,string>={high:'Strong',mid:'Okay',low:'Weak'};
+
 /** "The idea": why it could work and how it was rated, from the idea the video started as. */
 function IdeaTile({tile,onRemove}:TileBodyProps){
  const {meta}=tile,ratings=[['Demand',meta.demand],['Gap',meta.gap],['Easy to show',meta.show]] as const;
@@ -82,7 +85,7 @@ function IdeaTile({tile,onRemove}:TileBodyProps){
   <TileHead icon="idea" label="The idea" onRemove={onRemove}/>
   <div className="tb">
    {tile.text&&<p style={{margin:'0 0 10px',fontSize:13.5,lineHeight:1.5}}>{tile.text}</p>}
-   <div style={{display:'flex',flexDirection:'column',gap:6}}>{ratings.map(([label,rating])=>rating&&<div key={label}><Level label={label} d={rating}/>{rating.note&&<div className="small muted" style={{marginTop:2}}>{rating.note}</div>}</div>)}</div>
+   <div style={{display:'flex',flexDirection:'column',gap:8}}>{ratings.map(([label,rating])=>rating&&<div key={label} className="idea-rating"><div style={{fontSize:13,fontWeight:600}}>{label} <span className="muted" style={{fontWeight:500}}>· {RATING_WORD[rating.level||'mid']}</span></div>{rating.note&&<div className="small muted" style={{marginTop:2,lineHeight:1.45}}>{rating.note}</div>}</div>)}</div>
   </div>
  </>;
 }
