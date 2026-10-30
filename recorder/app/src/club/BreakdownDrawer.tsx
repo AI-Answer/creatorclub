@@ -10,7 +10,7 @@ import {Drawer,Icon,Spinner} from './ui';
 export function BreakdownDrawer({videoId,url,title,channel,multiplier,saved,videos,onAdded,onClose}:{videoId?:string|null;url?:string;title?:string;channel?:string;multiplier?:number|null;saved:readonly BreakdownSummary[]|null;videos:readonly Video[];onAdded(videoId:string):void;onClose():void}){
  const found=saved&&videoId?savedBreakdown(saved,videoId):undefined;
  const link=url??`https://www.youtube.com/watch?v=${videoId}`;
- return <Drawer onClose={onClose} label="Breakdown" header={<div className="row"><Icon name="FileText" size={16}/><b>Breakdown</b>{channel&&<span className="faint small ellipsis" style={{maxWidth:260}}>· {channel}</span>}</div>}>
+ return <Drawer onClose={onClose} label="Breakdown" header={<div className="row"><Icon name="script" size={16}/><b>Breakdown</b>{channel&&<span className="faint small ellipsis" style={{maxWidth:260}}>· {channel}</span>}</div>}>
   <div className="bd-narrow" style={{margin:'-20px -22px'}}>
    {saved===null?<div className="bd"><Spinner label="Looking for a saved breakdown" size={18}/></div>:<BreakdownPanel target={found?{kind:'saved',id:found.id}:{kind:'link',url:link}} videoId={videoId} title={title} multiplier={multiplier} videos={videos} onAdded={onAdded}/>}
   </div>

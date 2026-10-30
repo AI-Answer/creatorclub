@@ -27,12 +27,12 @@ export function WorkingStep({items,searching,loadError,onReload,saved,videos,onA
   setPick({target:{kind:'link',url},videoId:youtubeId(url)??null});
  };
  if(pick)return <div className="card" style={{overflow:'hidden'}}>
-  <div className="row" style={{padding:'10px 14px',borderBottom:'1px solid var(--cc-line)'}}><button type="button" className="btn ghost sm" onClick={()=>setPick(null)}><Icon name="ChevronLeft" size={14}/>Pick another video</button><span className="grow"/><span className="small muted">Add the concept you'd make. That's your first idea.</span></div>
+  <div className="row" style={{padding:'10px 14px',borderBottom:'1px solid var(--cc-line)'}}><button type="button" className="btn ghost sm" onClick={()=>setPick(null)}><Icon name="back" size={14}/>Pick another video</button><span className="grow"/><span className="small muted">Add the concept you'd make. That's your first idea.</span></div>
   <BreakdownPanel key={pick.videoId??'link'} target={pick.target} videoId={pick.videoId} title={pick.title} multiplier={pick.multiplier} videos={videos} onAdded={onAdded} onCancel={()=>setPick(null)}/>
  </div>;
  if(loadError)return <ErrorLine message={loadError} onRetry={onReload}/>;
  if(items===null||saved===null||searching)return <Spinner label={searching?'Searching YouTube for your topics':"Loading what's working"} size={18}/>;
- if(!items.length)return <div className="card"><Empty icon="TrendingUp" title="Nothing to start from yet">
+ if(!items.length)return <div className="card"><Empty icon="trending" title="Nothing to start from yet">
   Paste a link to any video that's working and we'll break it down. To see what's working in your space each day, follow channels in Settings.
   <form onSubmit={paste} className="row" style={{marginTop:14,width:'100%',maxWidth:460}}>
    <Input aria-label="Video link" value={link} autoComplete="off" spellCheck={false} placeholder="youtube.com/watch?v=…" onChange={event=>setLink(event.target.value)}/>
@@ -49,9 +49,9 @@ export function WorkingStep({items,searching,loadError,onReload,saved,videos,onA
     <div className="meta"><span className="ellipsis">{item.channel}</span></div>
     <div className="tt clamp2" style={{fontSize:13.5}}>{item.title}</div>
     <div className="stats"><span><b>{fmtNum(item.views)}</b> views</span><span><b>{fmtNum(item.vpd)}</b>/day</span></div>
-    {item.reason&&<div className="reason"><Icon name="Sparkles" size={12}/>{item.reason}</div>}
+    {item.reason&&<div className="reason"><Icon name="ai" size={12}/>{item.reason}</div>}
     <FollowChannel item={item}/>
-    <button type="button" className="btn sm" onClick={event=>{event.stopPropagation();choose(item);}}><Icon name={has?'FileText':'Sparkles'} size={14}/>{has?'Open breakdown':'Break this down'}</button>
+    <button type="button" className="btn sm" onClick={event=>{event.stopPropagation();choose(item);}}><Icon name={has?'script':'ai'} size={14}/>{has?'Open breakdown':'Break this down'}</button>
    </div>;
   })}</div>
   <div className="small muted" style={{marginTop:12}}>The chip on each thumbnail compares the video with that channel's usual views: blue 1 to 3×, green 3 to 5×, amber 5 to 10×, orange 10× and up. A dash means the channel's usual isn't tracked yet. You'll find more in Discover.</div>

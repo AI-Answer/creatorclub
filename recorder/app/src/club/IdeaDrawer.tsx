@@ -28,13 +28,13 @@ export function IdeaDrawer({video,actions,onClose,onRemove}:{video:Video;actions
  const notes=video.idea??{};
  const reasons=useBreakdownReasons(video);
  const ratings=[['Demand','demand',notes.demand],['Gap','gap',notes.gap],['Easy to show','show',notes.show]] as const;
- const remove=<button type="button" className="btn ghost sm" onClick={()=>onRemove(video)}><Icon name="Trash2" size={14}/>Delete</button>;
+ const remove=<button type="button" className="btn ghost sm" onClick={()=>onRemove(video)}><Icon name="delete" size={14}/>Delete</button>;
  return <Drawer onClose={onClose} label={video.title}
   header={<div className="row"><StagePill stage={video.stage}/>{isTimely(video)&&<span className="chip b-amber">Timely</span>}</div>}
   footer={video.hidden
-   ?<><button type="button" className="btn sm" onClick={()=>void actions.restore(video)}><Icon name="RotateCcw" size={14}/>Restore</button><span className="grow"/>{remove}</>
-   :<><button type="button" className="btn ghost sm" onClick={()=>{void actions.later(video);onClose();}}><Icon name="Bookmark" size={14}/>Later</button>{remove}<span className="grow"/>
-    <button type="button" className="btn primary" onClick={()=>void actions.startPlanning(video)}><Icon name="ArrowRight" size={15}/>Start planning</button></>}>
+   ?<><button type="button" className="btn sm" onClick={()=>void actions.restore(video)}><Icon name="retry" size={14}/>Restore</button><span className="grow"/>{remove}</>
+   :<><button type="button" className="btn ghost sm" onClick={()=>{void actions.later(video);onClose();}}><Icon name="save" size={14}/>Later</button>{remove}<span className="grow"/>
+    <button type="button" className="btn primary" onClick={()=>void actions.startPlanning(video)}><Icon name="next" size={15}/>Start planning</button></>}>
   <Thumb videoId={ideaSourceVideoId(video)} text={video.title} seed={video.id}/>
   <Ed tag="h2" value={video.title} ph="Title" style={{fontSize:21,letterSpacing:'-0.02em',margin:'18px 0 8px',lineHeight:1.25,fontWeight:600}} onChange={title=>actions.rename(video,title)}/>
   <Ed tag="p" multiline className="muted" value={notes.why} ph="Why it could work" style={{margin:'0 0 18px',lineHeight:1.55}} onChange={text=>void actions.edit(video,{why:none(text)})}/>
@@ -51,7 +51,7 @@ export function IdeaDrawer({video,actions,onClose,onRemove}:{video:Video;actions
   {!!notes.sources?.length&&<div><div className="small faint" style={{marginBottom:8}}>Sources</div>{notes.sources.map((source,index)=>{
    const id=youtubeId(source.url);
    return <div key={index} className="row" style={{padding:'6px 0',fontSize:13.5}}>
-    {id?<img src={ytThumb(id)} alt="" style={{width:48,height:27,borderRadius:4,objectFit:'cover'}}/>:<span className="src-ic" style={{background:'var(--cc-bg-sunk)',color:'var(--cc-text-2)'}}><Icon name="Link" size={12}/></span>}
+    {id?<img src={ytThumb(id)} alt="" style={{width:48,height:27,borderRadius:4,objectFit:'cover'}}/>:<span className="src-ic" style={{background:'var(--cc-bg-sunk)',color:'var(--cc-text-2)'}}><Icon name="link" size={12}/></span>}
     {source.url?<a href={source.url} target="_blank" rel="noopener noreferrer" className="ellipsis" style={{color:'var(--cc-accent-text)'}}>{source.label}</a>:<span className="ellipsis">{source.label}</span>}
    </div>;})}</div>}
   {reasons.length>0&&<div style={{marginTop:18}}><div className="small faint" style={{marginBottom:6}}>From the breakdown</div>

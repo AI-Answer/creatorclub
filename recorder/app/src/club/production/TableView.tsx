@@ -14,7 +14,7 @@ export function TableView({videos,scenes,onOpen}:{videos:readonly Video[];scenes
   const rows=useMemo(()=>tableRows(videos,sort,video=>recordedCount(scenes[video.id]??NONE)),[videos,sort,scenes]);
  const descending=isDescending(sort);
  const press=(key:TableSort['key'])=>setSort(current=>clickSort(current,key));
- if(!rows.length)return <div className="card"><Empty icon="Table" title="No videos yet">Break down a video to get your first idea.</Empty></div>;
+ if(!rows.length)return <div className="card"><Empty icon="table" title="No videos yet">Break down a video to get your first idea.</Empty></div>;
  return <div className="card" style={{overflow:'hidden'}}><table className="table">
   <thead><tr>{TABLE_HEAD.map(([key,label])=>{
    const on=sort.key===key;

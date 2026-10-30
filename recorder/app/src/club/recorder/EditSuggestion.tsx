@@ -1,9 +1,8 @@
 import {useEffect,useRef,useState} from 'react';
-import {LoaderCircle,Scissors,X} from 'lucide-react';
 import type {AutomationJob,AutomationMutation,QuickActionRequest} from '../../../shared/automation';
 import type {Project} from '../../../shared/types';
 import {api} from '../../api';
-import {Button} from '../ui';
+import {Button,Icon} from '../ui';
 import {cutSuggestion,formatCutDuration} from './edit-steps';
 import {planIsStale,UNKNOWN_PLAN} from './edit-auto';
 import {usePlanBase} from './EditAutoSheet';
@@ -75,20 +74,20 @@ export function EditSuggestion({project,jobs,merge,reload,flush,refresh,onReview
  // The plan was made for an older version of the timeline, or the apply failed: plan again, then the card asks again.
  const retry=async()=>{setFailed('');setBusy(true);try{await plan();}catch{setFailed('remove');}finally{setBusy(false);}};
 
- if(failed)return <div className="club-edit-suggestion" role="alert"><span className="text-danger">{failed==='undo'?UNDO_FAILED:REMOVE_FAILED}</span><Button size="sm" onClick={()=>void (failed==='undo'?undo():retry())}>Try again</Button></div>;
+ if(failed)return <div className="club-edit-suggestion" role="alert"><span className="text-warn">{failed==='undo'?UNDO_FAILED:REMOVE_FAILED}</span><Button size="sm" onClick={()=>void (failed==='undo'?undo():retry())}>Try again</Button></div>;
  // Shown while the timeline is still the one the removal saved (or the editor has not caught up with it yet): any other edit ends it.
  if(removed&&(project.updatedAt===removed.after||project.updatedAt===removed.before))return <div className="club-edit-suggestion is-quiet" role="status">
   <span>Removed {formatCutDuration(removed.seconds)}</span><span aria-hidden>·</span>
-  <Button size="sm" variant="ghost" disabled={busy} onClick={()=>void undo()}>{busy&&<LoaderCircle aria-hidden className="spin"/>}Undo</Button>
-  <button type="button" className="club-edit-dismiss" aria-label="Dismiss" disabled={busy} onClick={()=>setRemoved(null)}><X aria-hidden size={14}/></button>
+  <Button size="sm" variant="ghost" disabled={busy} onClick={()=>void undo()}>{busy&&<Icon name="loading" className="spin"/>}Undo</Button>
+  <button type="button" className="club-edit-dismiss" aria-label="Dismiss" disabled={busy} onClick={()=>setRemoved(null)}><Icon name="close" size={14}/></button>
  </div>;
- if(suggestion.state==='running')return <div className="club-edit-suggestion is-quiet" role="status"><LoaderCircle aria-hidden className="spin" size={15}/><span>Looking for pauses and repeats…</span></div>;
+ if(suggestion.state==='running')return <div className="club-edit-suggestion is-quiet" role="status"><Icon name="loading" className="spin" size={15}/><span>Looking for pauses and repeats…</span></div>;
  // A plan from before the latest edit no longer matches the timeline; the Auto-edit and style sheet offers to look again.
  if(suggestion.state!=='ready'||base!==UNKNOWN_PLAN&&planIsStale(base,project))return null;
  return <div className="club-edit-suggestion" role="group" aria-label="Suggestion">
-  <Scissors aria-hidden size={15}/>
+  <Icon name="cut" size={15}/>
   <span>{suggestion.label}</span>
-  <Button size="sm" disabled={busy} onClick={()=>void removeAll()}>{busy&&<LoaderCircle aria-hidden className="spin"/>}Remove them</Button>
+  <Button size="sm" disabled={busy} onClick={()=>void removeAll()}>{busy&&<Icon name="loading" className="spin"/>}Remove them</Button>
   <Button size="sm" variant="ghost" disabled={busy} onClick={onReview}>Review first</Button>
  </div>;
 }

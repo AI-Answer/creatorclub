@@ -1,6 +1,6 @@
 import {useRef,type KeyboardEvent} from 'react';
 import {cn} from './cn';
-import {Icon,type IconName} from './Icon';
+import {Icon,type IconName} from './icons';
 
 export type Tab<T extends string=string>={id:T;label:string;icon?:IconName};
 

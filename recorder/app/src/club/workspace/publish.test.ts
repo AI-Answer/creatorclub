@@ -193,7 +193,8 @@ test('a post Postiz did not confirm shows Check again and Open in Postiz, and ne
   assert.ok(c.querySelector('a[href^="https://platform.postiz.com"]'),'Open in Postiz');
   assert.equal([...c.querySelectorAll('button')].some(b=>b.textContent==='Try again'),false,'no Try again');
   assert.equal(c.querySelector('#pub-title'),null,'no form to send it again');
-  assert.ok(c.textContent?.includes('Already on YouTube? Paste its link to finish.'));
+  await click(button(c,'I uploaded it myself'));
+  assert.ok(c.textContent?.includes('Add the link so CreatorClub can mark it Published.'),'a quiet way out for an unconfirmed post');
   assert.equal(posts(server.calls).length,1);
   record={...sent,state:'queued',url:undefined};
   await click(button(c,'Check again'));await flush();
@@ -243,20 +244,28 @@ test('Postiz saying published is not "on YouTube" until the video really is Publ
   const c=ui.container;
   assert.ok(!c.textContent?.includes("It's on YouTube"),'no green claim');
   assert.ok(c.textContent?.includes('Postiz has it'));
-  assert.ok(button(c,'Mark as published'),'a way out');
+  assert.ok(button(c,'Mark as published'),'a way out, open at once');
+  assert.ok(c.textContent?.includes("Postiz says it's published, but the YouTube link didn't come back. Add the link so CreatorClub can mark it Published."),'labelled plainly');
   assert.ok(c.textContent?.includes('Open the video on YouTube once and check that the made-for-kids answer and the thumbnail are as you set them.'),'the first-publish reminder');
  });
 });
 
-test('the way before Postiz still works: paste the link of a video you uploaded yourself',async()=>{
- await withPublish({reply:({method,path,body})=>{
+test('with Postiz connected and working, the form never offers adding a link by hand',async()=>{
+ await withPublish({},async ui=>{
+  assert.equal([...ui.container.querySelectorAll('button')].some(b=>/uploaded it myself|Paste the link/i.test(b.textContent??'')),false);
+ });
+});
+
+test('without Postiz, a video uploaded outside CreatorClub can still be marked Published with its link',async()=>{
+ await withPublish({state:notConnected,reply:({method,path,body})=>{
   if(method==='POST'&&path==='/videos/v1/publish'){
    if(!(body as {youtubeUrl:string}).youtubeUrl.includes('youtu'))return {status:400,body:{error:'Paste the YouTube link of the uploaded video.'}};
    return {body:{...video,stage:'published',youtubeUrl:'https://www.youtube.com/watch?v=dQw4w9WgXcQ',publishedAt:'2026-10-29T12:00:00.000Z'}};
   }
  }},async(ui,server,changes)=>{
   const c=ui.container;
-  await click(button(c,'Already uploaded it? Paste the link'));
+  await click(button(c,'I uploaded it myself'));
+  assert.ok(c.textContent?.includes('Add the link so CreatorClub can mark it Published.'));
   assert.equal(button(c,'Mark as published').disabled,true,'needs a link first');
   const link=field(c,'club-youtube-link');
   await type(link,'https://vimeo.com/1');await click(button(c,'Mark as published'));await flush();

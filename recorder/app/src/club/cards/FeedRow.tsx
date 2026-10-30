@@ -9,8 +9,8 @@ const LONG=260;
 /** The one action every card of Discover has: Turn into idea, or, once it is an idea, a quiet button that opens it. */
 function IdeaButton({title,inIdeas,onIdea}:{title:string;inIdeas:boolean;onIdea():void}){
  return inIdeas
-  ?<button type="button" className="btn sm ghost in-ideas" onClick={onIdea} aria-label={`Open the idea made from ${title}`}><Icon name="Check" size={14}/>In ideas</button>
-  :<button type="button" className="btn sm" onClick={onIdea} aria-label={`Turn ${title} into an idea`}><Icon name="Lightbulb" size={14}/>Turn into idea</button>;
+  ?<button type="button" className="btn sm ghost in-ideas" onClick={onIdea} aria-label={`Open the idea made from ${title}`}><Icon name="check" size={14}/>In ideas</button>
+  :<button type="button" className="btn sm" onClick={onIdea} aria-label={`Turn ${title} into an idea`}><Icon name="idea" size={14}/>Turn into idea</button>;
 }
 
 /**
@@ -25,10 +25,10 @@ export function VideoRow({item,rank,isNew,reason,hasBreakdown,inIdeas,onBreak,on
   <Thumb videoId={item.videoId} seed={item.videoId} className="fpic" chip={<MultChip m={item.mult} who={who} onThumb dash/>}>{isNew&&<span className="chip solid br">New</span>}</Thumb>
   <div className="main">
    <div className="tt clamp2">{item.title}</div>
-   <div className="meta"><Icon name="Youtube" size={13}/><span className="ellipsis">{item.channel}</span>
+   <div className="meta"><Icon name="youtube" size={13}/><span className="ellipsis">{item.channel}</span>
     <span title="Total views">{fmtNum(item.views)} views</span><span title="Views per day since it went up">{fmtNum(item.vpd)}/day</span><span>{fmtDays(item.ageDays)}</span>
     {item.kind==='followed'&&<span>Followed</span>}
-    {hasBreakdown&&<span className="ready"><Icon name="FileText" size={12}/>Breakdown ready</span>}</div>
+    {hasBreakdown&&<span className="ready"><Icon name="script" size={12}/>Breakdown ready</span>}</div>
    {reason&&<div className="reason">{reason}</div>}
    <div className="quiet" onClick={event=>event.stopPropagation()}><FollowChannel item={item}/></div>
   </div>
@@ -49,14 +49,14 @@ export function PostRow({item,rank,reason,inIdeas,onIdea}:{item:SignalEntry;rank
    <div className="who"><b className="ellipsis">{item.author}</b><span className="ellipsis">{reddit?`u/${item.handle}`:`@${item.handle}`} · {fmtHours(item.ageHours)}</span></div>
    <div className="text">{long&&!more?`${item.text.slice(0,250).trim()}…`:item.text}{long&&<button type="button" className="linkish" style={{marginLeft:4}} onClick={()=>setMore(open=>!open)}>{more?'Show less':'Show more'}</button>}</div>
    <div className="meta">
-    <span title="Likes"><Icon name="Heart" size={12}/>{fmtNum(item.likes)}</span><span title="Replies"><Icon name="MessageCircle" size={12}/>{fmtNum(item.replies)}</span>{item.views?<span title="Views"><Icon name="Eye" size={12}/>{fmtNum(item.views)}</span>:null}
-    {item.media?.type==='video'&&<span><Icon name="Play" size={12}/>Video</span>}
+    <span title="Likes"><Icon name="like" size={12}/>{fmtNum(item.likes)}</span><span title="Replies"><Icon name="comment" size={12}/>{fmtNum(item.replies)}</span>{item.views?<span title="Views"><Icon name="preview" size={12}/>{fmtNum(item.views)}</span>:null}
+    {item.media?.type==='video'&&<span><Icon name="play" size={12}/>Video</span>}
     {item.flair&&<span className="chip">{item.flair}</span>}
    </div>
    {reason&&<div className="reason">{reason}</div>}
   </div>
   <div className="acts">
-   <a className="btn sm ghost icon-only open-post quiet" href={item.url} target="_blank" rel="noopener noreferrer" aria-label="Open post" title="Open post"><Icon name="ArrowUpRight" size={15}/></a>
+   <a className="btn sm ghost icon-only open-post quiet" href={item.url} target="_blank" rel="noopener noreferrer" aria-label="Open post" title="Open post"><Icon name="open-external" size={15}/></a>
    <IdeaButton title={title} inIdeas={inIdeas} onIdea={()=>onIdea(item)}/>
   </div>
  </div>;

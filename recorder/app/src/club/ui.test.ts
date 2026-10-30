@@ -14,7 +14,7 @@ test('every icon name renders an svg',async()=>{
  try{
   const svgs=ui.container.querySelectorAll('svg');assert.equal(svgs.length,iconNames.length);
   for(const svg of svgs){assert.ok(svg.querySelector('path,circle,rect,line,polyline,polygon,ellipse'),'drawn');assert.equal(svg.getAttribute('aria-hidden'),'true');}
-  assert.ok(iconNames.includes('SquareKanban')&&iconNames.includes('House')&&iconNames.includes('CircleHelp'));
+  assert.ok(iconNames.includes('production')&&iconNames.includes('home')&&iconNames.includes('help')&&iconNames.includes('companion'));
  }finally{await ui.close();}
 });
 

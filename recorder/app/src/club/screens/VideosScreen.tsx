@@ -17,7 +17,7 @@ import {useIdeaActions} from '../useIdeaActions';
 import {useProduction} from '../useProduction';
 
 type VideosRoute=Extract<Route,{name:'videos'}>;
-const VIEWS:readonly Tab<VideosView>[]=[{id:'board',label:'Board',icon:'SquareKanban'},{id:'table',label:'Table',icon:'Table'},{id:'calendar',label:'Calendar',icon:'Calendar'}];
+const VIEWS:readonly Tab<VideosView>[]=[{id:'board',label:'Board',icon:'production'},{id:'table',label:'Table',icon:'table'},{id:'calendar',label:'Calendar',icon:'calendar'}];
 const NONE:never[]=[];
 
 /**
@@ -63,13 +63,13 @@ export function VideosScreen({route,navigate,onNewVideo}:{route:VideosRoute;navi
   <div className="page-head"><div><h1>Videos</h1><div className="lede">Every video from idea to published. Drag a card to move it.</div></div>
    <div className="actions">
     <Tabs label="View" tabs={VIEWS} value={view} onChange={next=>navigate({name:'videos',view:next})}/>
-    <button type="button" className={`btn${newIdea?'':' primary'}`} onClick={onNewVideo}><Icon name="Plus" size={15}/>New video</button>
+    <button type="button" className={`btn${newIdea?'':' primary'}`} onClick={onNewVideo}><Icon name="add" size={15}/>New video</button>
    </div></div>
 
   {newIdea&&<div className="card next-idea">
-   <Icon name="Sparkles" size={18} style={{color:'var(--cc-accent)'}}/>
+   <Icon name="ai" size={18} style={{color:'var(--cc-accent)'}}/>
    <div className="grow"><b>"{newIdea.title}" is in your ideas.</b><div className="small muted">Next: start planning it. You'll gather references on its board, then turn them into scenes.</div></div>
-   <button type="button" className="btn primary" onClick={()=>void actions.startPlanning(newIdea)}><Icon name="ArrowRight" size={15}/>Start planning</button>
+   <button type="button" className="btn primary" onClick={()=>void actions.startPlanning(newIdea)}><Icon name="next" size={15}/>Start planning</button>
   </div>}
 
   {view==='board'&&<Kanban videos={videos} scenes={scenes} ideas={{newId,openGroup:group,actions}} onOpen={open} onMove={(id,stage,beforeId)=>void move(id,stage,beforeId)}/>}

@@ -92,7 +92,7 @@ export function WelcomeScreen({navigate,initialStep}:{navigate(route:Route):void
 
  return <div style={{minHeight:'100%',background:'var(--cc-bg)',display:'flex',flexDirection:'column'}}>
   <div className="row club-drag" style={{padding:'18px 28px'}}>
-   <span className="logo" style={{width:30,height:30,borderRadius:8,background:'var(--cc-primary)',color:'var(--cc-on-primary)'}}><Icon name="Clapperboard" size={16}/></span><b style={{letterSpacing:'-0.01em'}}>CreatorClub</b>
+   <span className="logo" style={{width:30,height:30,borderRadius:8,background:'var(--cc-primary)',color:'var(--cc-on-primary)'}}><Icon name="video" size={16}/></span><b style={{letterSpacing:'-0.01em'}}>CreatorClub</b>
    <span className="grow"/><button type="button" className="linkish" style={{color:'var(--cc-text-2)'}} onClick={overview}>Skip setup</button>
   </div>
   <div style={{flex:1,display:'flex',justifyContent:'center',alignItems:step<3?'center':'flex-start',padding:'20px 24px 80px'}}>
@@ -109,12 +109,12 @@ export function WelcomeScreen({navigate,initialStep}:{navigate(route:Route):void
     {step===3&&<WorkingData onAdded={id=>void leave({name:'videos',view:'board',new:id})} onSettings={()=>void leave({name:'settings',section:'followed'})}/>}
     {leaveError&&<div style={{marginTop:14}}><ErrorLine message={leaveError.message} onRetry={()=>void leave(leaveError.route)}/></div>}
     <div className="row" style={{marginTop:26}}>
-     {step>0?<Button variant="ghost" disabled={busy} onClick={()=>setStep(step-1)}><Icon name="ChevronLeft" size={15}/>Back</Button>:<span/>}
+     {step>0?<Button variant="ghost" disabled={busy} onClick={()=>setStep(step-1)}><Icon name="back" size={15}/>Back</Button>:<span/>}
      <span className="grow"/>
      {questions&&<Button variant="ghost" disabled={busy} onClick={()=>finishVoice(true)}>Skip questions</Button>}
      {step<3
-      ?<Button variant={allowed?'primary':'secondary'} disabled={!allowed} onClick={next}>Continue<Icon name="ChevronRight" size={15}/></Button>
-      :<Button onClick={overview}>Look around<Icon name="ChevronRight" size={15}/></Button>}
+      ?<Button variant={allowed?'primary':'secondary'} disabled={!allowed} onClick={next}>Continue<Icon name="forward" size={15}/></Button>
+      :<Button onClick={overview}>Look around<Icon name="forward" size={15}/></Button>}
     </div>
    </div>
   </div>

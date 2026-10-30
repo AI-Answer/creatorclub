@@ -38,12 +38,13 @@ test('the shell routes through Videos, video steps and settings, and keeps the p
   assert.equal(ui.container.querySelector('.steps'),null,'the top tabs are the only step navigation');
   assert.equal(ui.container.querySelector('.strip'),null,'Plan has no scene chips');
   assert.ok(ui.container.querySelector('.sidebar.collapsed'),'the sidebar is its rail on every step of a video');
-  assert.ok([...ui.container.querySelectorAll('button')].some(b=>b.textContent==='Write titles'),'Plan opens with the package and the scenes side by side');
+  assert.ok(ui.container.querySelector('.pkg')&&ui.container.querySelector('.scn'),'Plan opens with the package and the scenes side by side');
   await act(async()=>[...ui.container.querySelectorAll<HTMLElement>('.tabs a')].find(a=>a.textContent==='Record')!.click());
   assert.equal(window.location.hash,'#/video/v1/record');
   assert.ok(ui.container.querySelector('.sidebar.collapsed'),'the sidebar is the rail on Record');
   assert.ok(ui.container.querySelector('.strip'),'Record has the scene chips');
-  await act(async()=>button(ui.container,'Back to plan').click());
+  assert.equal([...ui.container.querySelectorAll('button')].some(b=>b.textContent?.startsWith('Back to')),false,'no Back button: the steps are the way back');
+  await act(async()=>[...ui.container.querySelectorAll<HTMLElement>('.tabs a')].find(a=>a.textContent==='Plan')!.click());
   assert.ok(ui.container.querySelector('.sidebar.collapsed'),'and stays the rail on Plan');
   await act(async()=>[...ui.container.querySelectorAll<HTMLElement>('.tabs a')].find(a=>a.textContent==='Publish')!.click());
   assert.equal(window.location.hash,'#/video/v1/publish');assert.ok(![...ui.container.querySelectorAll('button')].some(b=>b.textContent?.startsWith('Continue')),'no continue button after Publish');

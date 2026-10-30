@@ -37,13 +37,13 @@ export function HomeScreen({navigate,onNewVideo}:{navigate(route:Route):void;onN
  return <div className="page">
   <div className="page-head greet">
    <div><h1>{greetingName(profile)?`${greeting()}, ${greetingName(profile)}`:greeting()}</h1><div className="lede">{overviewLede(now)}</div></div>
-   <div className="actions"><button type="button" className="btn" onClick={onNewVideo}><Icon name="Plus" size={15}/>New video</button></div>
+   <div className="actions"><button type="button" className="btn" onClick={onNewVideo}><Icon name="add" size={15}/>New video</button></div>
   </div>
 
   {fresh
    ?<FirstVideo ideas={now.ideas} videos={videos} hasTopics={!!profile?.topics.length} navigate={navigate}/>
    :!next
-    ?<div className="card"><Empty icon="Clapperboard" title="Nothing in production" action={<button type="button" className="btn primary" onClick={()=>navigate({name:'videos',view:'board'})}>Pick an idea</button>}>Start planning an idea to bring it here.</Empty></div>
+    ?<div className="card"><Empty icon="video" title="Nothing in production" action={<button type="button" className="btn primary" onClick={()=>navigate({name:'videos',view:'board'})}>Pick an idea</button>}>Start planning an idea to bring it here.</Empty></div>
     :<>
      <div className="sec-head"><h2 className="sec">Next up</h2></div>
      <NextUp video={next} progress={scenes[next.id]} onOpen={openVideo}/>
@@ -78,7 +78,7 @@ function NextUp({video,progress,onOpen}:{video:Video;progress:readonly SceneProg
  return <div className="card nextup hov" onClick={()=>onOpen(video.id)} tabIndex={0} onKeyDown={onEnter(()=>onOpen(video.id))}>
   <Thumb videoId={videoThumbId(video)} text={video.title} seed={video.id}/>
   <div className="body">
-   <div className="faint small">{STAGE_LABEL[video.stage]}{video.publishDate&&<> · <Icon name="Calendar" size={12}/> {fmtDate(video.publishDate)}</>}</div>
+   <div className="faint small">{STAGE_LABEL[video.stage]}{video.publishDate&&<> · <Icon name="calendar" size={12}/> {fmtDate(video.publishDate)}</>}</div>
    <div className="title clamp2">{video.title}</div>
    <div className="row small muted"><SceneDots scenes={progress??[]}/><span>{progressText(video,progress)}</span></div>
    <div className="row" style={{marginTop:'auto',paddingTop:6}}>

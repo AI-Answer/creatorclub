@@ -1,0 +1,194 @@
+/*
+  CreatorClub tokens: the one place a colour, a size, a radius, a shadow or a duration is written as a value.
+  Every other club stylesheet and component reads these (`var(--cc-…)`, `var(--kind-…)`, or the Tailwind utilities mapped in club.css).
+  A test (`ui/tokens.test.ts`) fails when a raw colour literal appears anywhere in `src/club/**` outside this file.
+
+  The colour rule (docs/v2/PLAN.md, "Revised rulings"):
+  - one accent (blue) for focus, selection and the primary action;
+  - red only for recording and destructive actions;
+  - green only for done or ok;
+  - amber only for warnings and problems to fix;
+  - one fixed colour per timeline kind (screen, camera, audio, graphics, captions, zoom, marker), the same in the timeline,
+    the scene chips and the take chips (`ui/kinds.ts` names them for TSX);
+  - neutral surfaces and text for everything else. No other hues.
+
+  Light by default; dark when `data-theme="dark"` is on .club-root or an ancestor. The names are prefixed `--cc-` because
+  SceneForge defines its own `--line`, `--accent`, `--background` on :root, and the embedded recorder and editor inherit .club-root.
+*/
+.club-root {
+  /* Surfaces */
+  --cc-bg: #f8f7f4;
+  --cc-bg-sunk: #f2f0ec;
+  --cc-surface: #ffffff;
+  --cc-surface-2: #fbfaf8;
+  --cc-hover: #f3f1ed;
+  --cc-line: #e9e6e1;
+  --cc-line-strong: #dcd8d1;
+  --cc-line-hover: #cbc6be;
+  --cc-scrollbar: #dcd8d1;
+  --cc-scrollbar-hover: #c8c3bb;
+  /* Text */
+  --cc-text: #191817;
+  --cc-text-2: #57534d;
+  --cc-text-3: #736e66;
+  --cc-placeholder: #9a958d;
+  --cc-text-faint: #b2ada5;
+  /* Accent: focus, selection, the primary action */
+  --cc-accent: #2563eb;
+  --cc-accent-hover: #1d4ed8;
+  --cc-accent-soft: #eaf0fe;
+  --cc-accent-text: #1d4ed8;
+  --cc-on-accent: #ffffff;
+  --cc-primary: var(--cc-accent);
+  --cc-primary-hover: var(--cc-accent-hover);
+  --cc-on-primary: var(--cc-on-accent);
+  /* Status: recording and destructive, done, warning */
+  --cc-rec: #e5484d;
+  --cc-rec-soft: #fdecec;
+  --cc-danger: #b42318;
+  --cc-danger-soft: #fce8e6;
+  --cc-ok: #18794e;
+  --cc-ok-soft: #e7f5ec;
+  --cc-warn: #a35200;
+  --cc-warn-soft: #fdf1df;
+  /* Over pictures and dark stages (thumbnails, previews, toasts) */
+  --cc-dark-stage: #1b1a19;
+  --cc-on-media: #ffffff;
+  --cc-media-scrim: rgb(20 19 18 / 0.78);
+  --cc-media-glow: rgb(255 255 255 / 0.16);
+  --cc-media-shape: rgb(255 255 255 / 0.28);
+  --cc-media-shape-strong: rgb(255 255 255 / 0.4);
+  --cc-media-text-shadow: 0 2px 10px rgb(0 0 0 / 0.25);
+  --cc-toast-bg: #1d1c1a;
+  --cc-toast-text: #f4f2ee;
+  --cc-toast-button: rgb(255 255 255 / 0.1);
+  --cc-toast-button-hover: rgb(255 255 255 / 0.18);
+  --cc-toast-ok: #6fd29a;
+  --cc-scrim: rgb(28 25 21 / 0.28);
+  /* Avatars and draft thumbnails: neutral, told apart by their initials and text, not by hue */
+  --cc-avatar-1: #57534d;
+  --cc-avatar-2: #736e66;
+  --cc-avatar-3: #3f3c38;
+  --cc-avatar-4: #8a847b;
+  --cc-thumb-1-from: #1b1a19;
+  --cc-thumb-1-to: #57534d;
+  --cc-thumb-2-from: #1e3a8a;
+  --cc-thumb-2-to: #2563eb;
+  --cc-thumb-3-from: #2c2a28;
+  --cc-thumb-3-to: #8a847b;
+  --cc-thumb-4-from: #3f3c38;
+  --cc-thumb-4-to: #736e66;
+  /* Outlier multipliers: the higher, the stronger the accent. Under 1x is muted. */
+  --cc-band-grey: var(--cc-text-3);
+  --cc-band-grey-soft: var(--cc-bg-sunk);
+  --cc-band-blue: var(--cc-text-2);
+  --cc-band-blue-soft: var(--cc-bg-sunk);
+  --cc-band-green: var(--cc-accent-text);
+  --cc-band-green-soft: var(--cc-accent-soft);
+  --cc-band-amber: var(--cc-accent-text);
+  --cc-band-amber-soft: var(--cc-accent-soft);
+  --cc-band-orange: var(--cc-on-accent);
+  --cc-band-orange-soft: var(--cc-accent);
+  --cc-band-red: var(--cc-on-accent);
+  --cc-band-red-soft: var(--cc-accent);
+  /* Timeline kinds: one hue each, the same wherever a kind is drawn (timeline, scene chips, take chips). */
+  --kind-screen: #1f7a80;
+  --kind-camera: #6b55c4;
+  --kind-audio: #4f6d8a;
+  --kind-graphics: #b8457d;
+  --kind-captions: #6b7a2a;
+  --kind-zoom: #9a5a2c;
+  --kind-marker: var(--cc-text);
+  --kind-ink: #ffffff;
+  --kind-screen-soft: color-mix(in srgb, var(--kind-screen) 14%, var(--cc-surface));
+  --kind-camera-soft: color-mix(in srgb, var(--kind-camera) 14%, var(--cc-surface));
+  --kind-audio-soft: color-mix(in srgb, var(--kind-audio) 14%, var(--cc-surface));
+  --kind-graphics-soft: color-mix(in srgb, var(--kind-graphics) 14%, var(--cc-surface));
+  --kind-captions-soft: color-mix(in srgb, var(--kind-captions) 14%, var(--cc-surface));
+  --kind-zoom-soft: color-mix(in srgb, var(--kind-zoom) 14%, var(--cc-surface));
+  /* Shadows */
+  --cc-shadow-1: 0 1px 2px rgb(25 22 18 / 0.05);
+  --cc-shadow-2: 0 1px 2px rgb(25 22 18 / 0.04), 0 4px 12px -4px rgb(25 22 18 / 0.08);
+  --cc-shadow-3: 0 2px 4px rgb(25 22 18 / 0.04), 0 16px 40px -12px rgb(25 22 18 / 0.22);
+  --cc-shadow-drag: 0 24px 60px -18px rgb(25 22 18 / 0.35);
+  --cc-shadow-toast: 0 12px 32px -8px rgb(0 0 0 / 0.4);
+  --cc-shadow-primary: 0 1px 2px rgb(0 0 0 / 0.18), inset 0 1px 0 rgb(255 255 255 / 0.08);
+  --cc-shadow-on-media: 0 1px 3px rgb(0 0 0 / 0.18);
+  /* Spacing (4px steps), radius, type */
+  --cc-space-1: 4px;
+  --cc-space-2: 8px;
+  --cc-space-3: 12px;
+  --cc-space-4: 16px;
+  --cc-space-5: 20px;
+  --cc-space-6: 24px;
+  --cc-space-8: 32px;
+  --cc-r-sm: 6px;
+  --cc-r: 8px;
+  --cc-r-lg: 12px;
+  --cc-r-pill: 999px;
+  --cc-text-xs: 12px;
+  --cc-text-sm: 13px;
+  --cc-text-base: 14px;
+  --cc-text-lg: 16px;
+  --cc-text-xl: 20px;
+  --cc-text-2xl: 24px;
+  /* Motion */
+  --cc-ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --cc-dur-fast: 0.12s;
+  --cc-dur: 0.2s;
+  --cc-dur-slow: 0.35s;
+  /* Layout */
+  --cc-sidebar: 236px;
+  color-scheme: light;
+  /* Names the Tailwind utilities, the embedded editor and recorder, and older screens read. */
+  --cc-page: var(--cc-bg);
+  --cc-card: var(--cc-surface);
+  --cc-subtle: var(--cc-bg-sunk);
+  --cc-ink: var(--cc-text);
+  --cc-muted: var(--cc-text-3);
+  --cc-primary-ink: var(--cc-on-primary);
+  --cc-accent-ink: var(--cc-on-accent);
+  --cc-success: var(--cc-ok);
+  --cc-success-soft: var(--cc-ok-soft);
+}
+
+.club-root:where([data-theme=dark], [data-theme=dark] *) {
+  --cc-bg: #161615;
+  --cc-bg-sunk: #121211;
+  --cc-surface: #1e1e1d;
+  --cc-surface-2: #232322;
+  --cc-hover: #2a2a28;
+  --cc-line: #2f2e2c;
+  --cc-line-strong: #3b3a37;
+  --cc-line-hover: #4a4844;
+  --cc-scrollbar: #3b3a37;
+  --cc-scrollbar-hover: #4a4844;
+  --cc-text: #f1efeb;
+  --cc-text-2: #bcb7af;
+  --cc-text-3: #9a958d;
+  --cc-placeholder: #77726b;
+  --cc-text-faint: #5f5b55;
+  --cc-accent: #6b9cff;
+  --cc-accent-hover: #8bb2ff;
+  --cc-accent-soft: #1d2a45;
+  --cc-accent-text: #9dbcff;
+  --cc-on-accent: #0f1626;
+  --cc-rec-soft: #3a1c1d;
+  --cc-danger: #f0857d;
+  --cc-danger-soft: rgb(240 133 125 / 0.14);
+  --cc-ok: #4cc38a;
+  --cc-ok-soft: #173326;
+  --cc-warn: #f0a44b;
+  --cc-warn-soft: #3a2a14;
+  --cc-avatar-1: #57534d;
+  --cc-avatar-2: #4a4844;
+  --cc-avatar-3: #6b665e;
+  --cc-avatar-4: #3f3c38;
+  --cc-toast-bg: #2c2b29;
+  --cc-scrim: rgb(0 0 0 / 0.56);
+  --cc-shadow-1: 0 1px 2px rgb(0 0 0 / 0.3);
+  --cc-shadow-2: 0 4px 14px -4px rgb(0 0 0 / 0.5);
+  --cc-shadow-3: 0 16px 40px -12px rgb(0 0 0 / 0.7);
+  --cc-shadow-drag: 0 24px 60px -18px rgb(0 0 0 / 0.7);
+  color-scheme: dark;
+}

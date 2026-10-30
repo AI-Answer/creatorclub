@@ -2,15 +2,15 @@ import {useCallback,useEffect,useState} from 'react';
 import type {Video,Workspace} from '../../shared/club';
 import {clubFetch} from './api';
 import type {Route,RouteName} from './routes';
-import {Avatar,Icon,Menu,useToast,type IconName,type MenuItem} from './ui';
+import {Avatar,Icon,Menu,Tooltip,useToast,type IconName,type MenuItem} from './ui';
 
 type Channels={current:string|null;workspaces:Workspace[]};
 
 /** The places, in order. Research joins them later. */
 const NAV:ReadonlyArray<{name:Extract<RouteName,'home'|'discover'|'videos'>;label:string;icon:IconName;href:string}>=[
- {name:'home',label:'Home',icon:'House',href:'#/home'},
- {name:'discover',label:'Discover',icon:'TrendingUp',href:'#/discover'},
- {name:'videos',label:'Videos',icon:'Clapperboard',href:'#/videos'},
+ {name:'home',label:'Home',icon:'home',href:'#/home'},
+ {name:'discover',label:'Discover',icon:'trending',href:'#/discover'},
+ {name:'videos',label:'Videos',icon:'video',href:'#/videos'},
 ];
 
 const IN_PRODUCTION:ReadonlyArray<Video['stage']>=['planning','recording','editing','publishing'];
@@ -30,21 +30,23 @@ export function Sidebar({route,collapsed,onToggle,onSearch,onHelp,onSwitched,onA
   <div className="sb-top">
    <ChannelSwitcher collapsed={collapsed} epoch={epoch} onSwitched={onSwitched} onAdd={onAdd}/>
   </div>
-  <button type="button" className="sb-search" onClick={onSearch} title="Search (⌘K)" aria-label="Search"><Icon name="Search" size={15}/><span>Search</span><span className="kbd">⌘K</span></button>
+  <button type="button" className="sb-search" onClick={onSearch} title="Search (⌘K)" aria-label="Search"><Icon name="search" size={15}/><span>Search</span><span className="kbd">⌘K</span></button>
   <div className="nav">
    {NAV.map(({name,label,icon,href})=>{
     const here=route.name===name,count=counts[name];
-    return <a key={name} href={href} className={`nav-item${here?' active':''}`} title={collapsed?label:undefined} aria-label={collapsed?label:undefined} aria-current={here?'page':undefined}>
+    const link=<a key={name} href={href} className={`nav-item${here?' active':''}`} aria-label={collapsed?label:undefined} aria-current={here?'page':undefined}>
      <Icon name={icon} size={17}/><span className="label">{label}</span>{count?<span className="count" title={`${count} in progress`}>{count}</span>:null}
     </a>;
+    // Folded to the rail, the name shows as a tooltip.
+    return collapsed?<Tooltip key={name} text={count?`${label} · ${count} in progress`:label}>{link}</Tooltip>:link;
    })}
   </div>
   <div className="sb-bottom sb-icons">
-   <a href="#/settings" className={`sb-icon${settings?' active':''}`} title="Settings" aria-label="Settings" aria-current={settings?'page':undefined}><Icon name="Settings" size={17}/></a>
-   <button type="button" className="sb-icon" onClick={onHelp} title="Help: how CreatorClub works" aria-label="Help"><Icon name="CircleHelp" size={17}/></button>
-   <button type="button" className="sb-icon sb-collapse" onClick={onToggle} title={collapsed?'Expand sidebar':'Collapse sidebar'} aria-label={collapsed?'Expand sidebar':'Collapse sidebar'}>
-    <Icon name={collapsed?'PanelLeftOpen':'PanelLeftClose'} size={17}/>
-   </button>
+   <Tooltip text="Settings" side="top"><a href="#/settings" className={`sb-icon${settings?' active':''}`} aria-label="Settings" aria-current={settings?'page':undefined}><Icon name="settings" size={17}/></a></Tooltip>
+   <Tooltip text="Help: how CreatorClub works" side="top"><button type="button" className="sb-icon" onClick={onHelp} aria-label="Help"><Icon name="help" size={17}/></button></Tooltip>
+   <Tooltip text={collapsed?'Expand sidebar':'Collapse sidebar'} side="top"><button type="button" className="sb-icon sb-collapse" onClick={onToggle} aria-label={collapsed?'Expand sidebar':'Collapse sidebar'}>
+    <Icon name={collapsed?'sidebar-open':'sidebar-close'} size={17}/>
+   </button></Tooltip>
   </div>
  </nav>;
 }
@@ -62,14 +64,14 @@ function ChannelSwitcher({collapsed,epoch,onSwitched,onAdd}:{collapsed:boolean;e
  },[channels?.current,onSwitched,toast]);
  const current=channels?.workspaces.find(workspace=>workspace.slug===channels.current);
  if(channels&&!current)return <a href="#/welcome?step=2" className="channel-btn" title={collapsed?'Add a channel':undefined} aria-label="Add a channel">
-  <span className="avatar lg sq" aria-hidden style={{background:'var(--cc-bg-sunk)',color:'var(--cc-text-2)'}}><Icon name="Plus" size={16}/></span>
+  <span className="avatar lg sq" aria-hidden style={{background:'var(--cc-bg-sunk)',color:'var(--cc-text-2)'}}><Icon name="add" size={16}/></span>
   <span className="meta"><div className="name ellipsis">Add a channel</div></span>
  </a>;
  const name=current?.name??'';
- const items:MenuItem[]=[{header:'Channels'},...(channels?.workspaces??[]).map(workspace=>({label:workspace.name,check:workspace.slug===channels?.current,fn:()=>choose(workspace.slug)})),'-',{label:'Add a channel',icon:'Plus',fn:onAdd}];
+ const items:MenuItem[]=[{header:'Channels'},...(channels?.workspaces??[]).map(workspace=>({label:workspace.name,check:workspace.slug===channels?.current,fn:()=>choose(workspace.slug)})),'-',{label:'Add a channel',icon:'add',fn:onAdd}];
  return <Menu width={240} label="Channels" items={items} button={toggle=><button type="button" className="channel-btn" onClick={toggle} disabled={!channels} title={collapsed?name:undefined} aria-label="Switch channel" aria-haspopup="menu">
   {channels?<Avatar name={name} size="lg" sq/>:<span aria-hidden style={{width:38,height:38,flex:'none',borderRadius:10,background:'var(--cc-bg-sunk)'}}/>}
   <span className="meta"><div className="name ellipsis">{name}</div><div className="sub">{channels?(current?.handle||'Starting fresh'):''}</div></span>
-  <Icon name="ChevronsUpDown" size={15} className="chev faint"/>
+  <Icon name="choose" size={15} className="chev faint"/>
  </button>}/>;
 }

@@ -124,7 +124,7 @@ test('overview: progress words and the next action come from the scenes that are
  assert.equal(progressText(video('a','publishing'),all),'Publishing · ready to upload');
  assert.equal(progressText(video('a','published',{publishedAt:'2026-10-02'}),none),'Published Oct 2');
  assert.equal(progressText(video('a','ideas'),none),'Idea');
- assert.deepEqual(nextAction(video('a','ideas'),none),{label:'Start planning',tab:'board',icon:'ArrowRight'});
+ assert.deepEqual(nextAction(video('a','ideas'),none),{label:'Start planning',tab:'board',icon:'next'});
  assert.equal(nextAction(video('a','planning'),none).label,'Draft scenes from board');assert.equal(nextAction(video('a','planning'),three).label,'Continue to recording');
  assert.deepEqual([nextAction(video('a','recording'),three).label,nextAction(video('a','recording'),three).tab],['Record scene 2','record']);
  assert.equal(nextAction(video('a','recording'),all).label,'Continue to editing');
@@ -135,8 +135,8 @@ test('overview: progress words and the next action come from the scenes that are
 
 test('unknown scenes are not zero scenes: only the stage is said until they are known, and a known empty outline says so',()=>{
  for(const stage of ['planning','recording','editing'] as const)assert.equal(progressText(video('a',stage),undefined),{planning:'Planning',recording:'Recording',editing:'Editing'}[stage]);
- assert.deepEqual(nextAction(video('a','planning'),undefined),{label:'Continue planning',tab:'plan',icon:'ArrowRight'});
- assert.deepEqual(nextAction(video('a','recording'),undefined),{label:'Continue recording',tab:'record',icon:'Mic'});
+ assert.deepEqual(nextAction(video('a','planning'),undefined),{label:'Continue planning',tab:'plan',icon:'next'});
+ assert.deepEqual(nextAction(video('a','recording'),undefined),{label:'Continue recording',tab:'record',icon:'microphone'});
  assert.equal(nextAction(video('a','recording'),undefined).label.includes('editing'),false,'no claim that the scenes are all recorded');
  assert.equal(nextAction(video('a','editing'),undefined).label,'Keep editing');assert.equal(nextAction(video('a','ideas'),undefined).label,'Start planning');
  assert.equal(nextAction(video('a','published',{views:5}),undefined).label,'5 views');

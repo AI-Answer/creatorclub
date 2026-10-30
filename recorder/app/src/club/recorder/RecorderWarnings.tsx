@@ -1,11 +1,10 @@
 import {useEffect,useState} from 'react';
-import {TriangleAlert} from 'lucide-react';
 import type {DiskSpace} from '../../../shared/club';
 import type {DesktopMediaPermissions} from '../../desktop';
 import {readMediaPermissions} from '../../media-permissions';
 import type {PreviewSnapshot} from '../../capture-preview';
 import {clubFetch} from '../api';
-import {Button,cn} from '../ui';
+import {Button,Icon,cn} from '../ui';
 import {PROBLEM_ACTION_LABELS,type ProblemAction,type Problems} from './recorder-checks';
 
 /** How often free space is checked again while the recorder is open. */
@@ -41,12 +40,11 @@ export function useMediaAccess(enabled:boolean,previews:PreviewSnapshot):Desktop
  return access;
 }
 
-/** Every problem as one coloured card that takes the place of the readiness line above the Record button: one sentence per problem, each with at most one button. Renders nothing when all is well. */
+/** Every problem as one amber card (the colour rule: amber is for problems to fix; a problem that blocks recording is in medium weight) that takes the place of the readiness line above the Record button: one sentence per problem, each with at most one button. Renders nothing when all is well. */
 export function RecorderWarnings({problems,onAction}:{problems:Problems|null;onAction(action:ProblemAction):void}){
  if(!problems)return null;
- const danger=problems.tone==='danger';
- return <div role="alert" data-tone={problems.tone} className={cn('club-recorder-warnings flex min-w-0 flex-1 gap-3 rounded-lg border p-3 font-sans text-sm',danger?'border-danger/25 bg-danger-soft text-danger':'border-band-amber/25 bg-band-amber-soft text-band-amber')}>
-  <TriangleAlert aria-hidden size={16} className="mt-0.5 shrink-0"/>
+ return <div role="alert" data-tone={problems.tone} className={cn('club-recorder-warnings flex min-w-0 flex-1 gap-3 rounded-lg border p-3 font-sans text-sm border-warn/25 bg-warn-soft text-warn',problems.tone==='danger'&&'font-medium')}>
+  <Icon name="warning" size={16} className="mt-0.5 shrink-0"/>
   <ul className="m-0 flex min-w-0 flex-1 list-none flex-col gap-2 p-0">{problems.lines.map(line=><li key={line.text} className="m-0 flex flex-col items-start gap-2">
    <span>{line.text}</span>
    {line.action&&<Button size="sm" className="text-ink" onClick={()=>onAction(line.action!)}>{PROBLEM_ACTION_LABELS[line.action]}</Button>}

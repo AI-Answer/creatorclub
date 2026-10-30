@@ -98,7 +98,7 @@ export function DiscoverScreen({show='fit',navigate}:{show?:DiscoverShow;navigat
  const choose=(next:DiscoverShow)=>navigate(next==='fit'?{name:'discover'}:{name:'discover',show:next},{replace:true});
  const openVideoIdea=(item:TrendingEntry)=>{const idea=ideaFromSource(videos,trendingUrl(item.videoId));if(idea)navigate({name:'videos',view:'board',open:idea.id});else void makeIdea({kind:'trending',videoId:item.videoId});};
  const openPostIdea=(item:SignalEntry)=>{const idea=ideaFromSource(videos,item.url);if(idea)navigate({name:'videos',view:'board',open:idea.id});else void makeIdea({kind:'signal',id:item.id,url:item.url});};
- const refreshButton=(label='Refresh')=>running?undefined:<button type="button" className="btn primary" onClick={refresh}><Icon name="RotateCcw" size={15}/>{label}</button>;
+ const refreshButton=(label='Refresh')=>running?undefined:<button type="button" className="btn primary" onClick={refresh}><Icon name="retry" size={15}/>{label}</button>;
 
  return <div className="page">
   <div className="page-head"><div><h1>Discover</h1><div className="lede">What's working on YouTube, X and Reddit, ranked for your topics.</div></div>
@@ -117,7 +117,7 @@ export function DiscoverScreen({show='fit',navigate}:{show?:DiscoverShow;navigat
    <label className="sr-only" htmlFor="discover-sort">Sort by</label>
    <select id="discover-sort" className="select" value={sort} onChange={event=>setSort(event.target.value as DiscoverSort)} title="Sort by">{sortsFor(show).map(([key,label])=><option key={key} value={key}>{label}</option>)}</select>
    <span className="grow"/>
-   <button type="button" className="linkish ideas-shelf" onClick={()=>navigate({name:'videos',view:'board'})} title="Your ideas are the first lane of Videos"><Icon name="Lightbulb" size={14}/>Your ideas <b className="tnum">{ideas}</b></button>
+   <button type="button" className="linkish ideas-shelf" onClick={()=>navigate({name:'videos',view:'board'})} title="Your ideas are the first lane of Videos"><Icon name="idea" size={14}/>Your ideas <b className="tnum">{ideas}</b></button>
   </div>
   {topics.length>0&&(show==='fit'||show==='youtube')&&<div className="small muted disc-note">Matched to {topics.join(', ')}. The number on a picture is its views compared with that channel's usual.</div>}
 
@@ -128,7 +128,7 @@ export function DiscoverScreen({show='fit',navigate}:{show?:DiscoverShow;navigat
     :<PostRow key={feedKey(entry)} item={entry.item} rank={index+1} reason={entry.item.reason} inIdeas={!!ideaFromSource(videos,entry.item.url)} onIdea={openPostIdea}/>)}</div>
    :emptyFeed()}
   {shown.length>limit&&<div style={{textAlign:'center',marginTop:14}}><button type="button" className="btn" onClick={()=>setLimit(n=>n+FEED_PAGE)}>Show {Math.min(FEED_PAGE,shown.length-limit)} more</button></div>}
-  {shown.length>0&&off>0&&shown.length<=limit&&<div style={{textAlign:'center',marginTop:14}}><button type="button" className="btn" onClick={()=>setEverything(open=>!open)}><Icon name={everything?'EyeOff':'Eye'} size={15}/>{everything?"Hide what isn't about your topics":`Show everything (${off} more, off topic or under their usual)`}</button></div>}
+  {shown.length>0&&off>0&&shown.length<=limit&&<div style={{textAlign:'center',marginTop:14}}><button type="button" className="btn" onClick={()=>setEverything(open=>!open)}><Icon name={everything?'hide':'preview'} size={15}/>{everything?"Hide what isn't about your topics":`Show everything (${off} more, off topic or under their usual)`}</button></div>}
   {breakdown&&<BreakdownDrawer videoId={breakdown.videoId} title={breakdown.title} channel={breakdown.channel} multiplier={breakdown.mult} saved={saved} videos={videos} onAdded={id=>navigate({name:'videos',view:'board',new:id})} onClose={()=>setBreakdown(null)}/>}
  </div>;
 
@@ -138,16 +138,16 @@ export function DiscoverScreen({show='fit',navigate}:{show?:DiscoverShow;navigat
   const settings=<button type="button" className="btn primary" onClick={()=>navigate({name:'settings',section:'followed'})}>Follow channels</button>;
   if((show==='youtube'||show==='followed'||(show==='fit'&&noPosts))&&noVideos&&trending.seeding)return <Spinner label="Searching YouTube for your topics" size={20}/>;
   if((show==='youtube'||show==='followed')&&noVideos)return <div className="card">{followed===0
-   ?<Empty icon="TrendingUp" title="No channels followed yet" action={settings}>Follow channels in Settings. The videos beating their usual views show up here.</Empty>
-   :<Empty icon="TrendingUp" title="Nothing read yet" action={refreshButton()}>{running?(job.line??'Reading the channels you follow…'):'Refresh to read the channels you follow.'}</Empty>}</div>;
+   ?<Empty icon="trending" title="No channels followed yet" action={settings}>Follow channels in Settings. The videos beating their usual views show up here.</Empty>
+   :<Empty icon="trending" title="Nothing read yet" action={refreshButton()}>{running?(job.line??'Reading the channels you follow…'):'Refresh to read the channels you follow.'}</Empty>}</div>;
   if((show==='x'||show==='reddit')&&noPosts)return <div className="card">{sources===0
-   ?<><Empty icon="MessagesSquare" title="Add where to read" action={<button type="button" className="btn primary" onClick={()=>navigate({name:'settings',section:'sources'})}><Icon name="Plus" size={15}/>Add sources</button>}>Discover reads posts from the subreddits and X accounts you choose. Add a few in Settings and they show up here.</Empty>
+   ?<><Empty icon="signals" title="Add where to read" action={<button type="button" className="btn primary" onClick={()=>navigate({name:'settings',section:'sources'})}><Icon name="add" size={15}/>Add sources</button>}>Discover reads posts from the subreddits and X accounts you choose. Add a few in Settings and they show up here.</Empty>
     <div style={{padding:'0 20px 24px',textAlign:'center'}}><SubredditChips topics={profile?.topics??[]} have={[]} center disabled={adding} onAdd={name=>void addSubreddit(name)}/></div></>
-   :<Empty icon="MessagesSquare" title="No posts yet" action={refreshButton()}>Refresh to read X and Reddit. Add accounts and subreddits in Settings.</Empty>}</div>;
+   :<Empty icon="signals" title="No posts yet" action={refreshButton()}>Refresh to read X and Reddit. Add accounts and subreddits in Settings.</Empty>}</div>;
   if(show==='fit'&&noVideos&&noPosts)return <div className="card">{followed===0&&sources===0
-   ?<Empty icon="TrendingUp" title="Nothing to read yet" action={settings}>Follow a few channels and add subreddits or X accounts in Settings. What's working on your topics shows up here.</Empty>
-   :<Empty icon="TrendingUp" title="Nothing read yet" action={refreshButton()}>{running?(job.line??'Reading your sources…'):'Refresh to read the channels you follow, X and Reddit.'}</Empty>}</div>;
-  if(show==='followed')return <div className="card"><Empty icon="TrendingUp" title="Nothing from the channels you follow">Refresh to read them again.</Empty></div>;
-  return <div className="card"><Empty icon="TrendingUp" title="Nothing about your topics right now" action={off>0?<button type="button" className="btn" onClick={()=>setEverything(true)}>Show everything</button>:undefined}>Nothing about your topics is above its usual right now. Look at everything that was read.</Empty></div>;
+   ?<Empty icon="trending" title="Nothing to read yet" action={settings}>Follow a few channels and add subreddits or X accounts in Settings. What's working on your topics shows up here.</Empty>
+   :<Empty icon="trending" title="Nothing read yet" action={refreshButton()}>{running?(job.line??'Reading your sources…'):'Refresh to read the channels you follow, X and Reddit.'}</Empty>}</div>;
+  if(show==='followed')return <div className="card"><Empty icon="trending" title="Nothing from the channels you follow">Refresh to read them again.</Empty></div>;
+  return <div className="card"><Empty icon="trending" title="Nothing about your topics right now" action={off>0?<button type="button" className="btn" onClick={()=>setEverything(true)}>Show everything</button>:undefined}>Nothing about your topics is above its usual right now. Look at everything that was read.</Empty></div>;
  }
 }

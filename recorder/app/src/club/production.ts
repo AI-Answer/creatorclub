@@ -30,7 +30,7 @@ export const COLUMN_EMPTY:Record<VideoStage,string>={
  recording:'Videos land here once their scenes are planned.',
  editing:'Recorded videos land here.',
  publishing:'Nothing waiting to publish. Finish editing a video and it moves here.',
- published:'Paste the YouTube link on a finished video to land it here.',
+ published:'Videos land here once they are on YouTube.',
 };
 
 /** `all` is every video the column holds, `shown` the ones drawn in board order. Later and Skipped ideas are in neither; the Ideas lane draws its ideas in groups (`ideaGroups`). */

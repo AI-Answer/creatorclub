@@ -1,10 +1,10 @@
 import {useEffect,useRef,useState} from 'react';
-import {Check,LoaderCircle} from 'lucide-react';
+
 import type {ExportRecord} from '../../../shared/export-history';
 import type {ExportOptions,Project} from '../../../shared/types';
 import {cancelSavedExport,getSavedExport,listSavedExports,projectRevision,startSavedExport} from '../../api';
 import {activeExport,ExportSession,exportCurrentVersion} from '../../export-session';
-import {Button} from '../ui';
+import {Button,Icon} from '../ui';
 import {latestVideoExport} from './edit-steps';
 
 export const EXPORT_FAILED="Couldn't export the video.";
@@ -55,13 +55,13 @@ export function ClubExport({project,flush,onExported,quiet}:{project:Project;flu
  };
  const cancel=()=>{if(record)void cancelSavedExport(record.id).then(setRecord,()=>{});};
 
- if(failed)return <div className="club-export" role="alert"><span className="text-danger">{EXPORT_FAILED}</span><Button size="sm" onClick={()=>void start()}>Try again</Button></div>;
+ if(failed)return <div className="club-export" role="alert"><span className="text-warn">{EXPORT_FAILED}</span><Button size="sm" onClick={()=>void start()}>Try again</Button></div>;
  if(running&&record)return <div className="club-export" role="status">
-  <LoaderCircle aria-hidden className="spin" size={15}/><span>Exporting {Math.round(record.progress*100)}%</span>
+  <Icon name="loading" className="spin" size={15}/><span>Exporting {Math.round(record.progress*100)}%</span>
   <Button size="sm" variant="ghost" onClick={cancel}>Cancel</Button>
  </div>;
  return <div className="club-export">
-  {done&&<span className="club-export-done" role="status"><Check aria-hidden size={15}/>Video exported</span>}
-  <Button size="sm" variant={done||quiet?'secondary':'primary'} disabled={busy||!project.clips.length} onClick={()=>void start()}>{busy&&<LoaderCircle aria-hidden className="spin"/>}Export video</Button>
+  {done&&<span className="club-export-done" role="status"><Icon name="check" size={15}/>Video exported</span>}
+  <Button size="sm" variant={done||quiet?'secondary':'primary'} disabled={busy||!project.clips.length} onClick={()=>void start()}>{busy&&<Icon name="loading" className="spin"/>}Export video</Button>
  </div>;
 }

@@ -8,6 +8,7 @@ const {default:ClubApp}=await import('./ClubApp');
 const {Sidebar,inProduction}=await import('./Sidebar');
 const {openIdeas}=await import('./ideas');
 const {paletteOptions}=await import('./shell/Palette');
+const {TOOLTIP_DELAY_MS}=await import('./ui');
 const {ScreenBoundary}=await import('./shell/ScreenBoundary');
 const {VIDEOS_CHANGED,changesVideos,clubFetch}=await import('./api');
 
@@ -68,9 +69,11 @@ test('the sidebar is the switcher, Search, three places (Home, Discover, Videos 
   const counts=Object.fromEntries([...bar.querySelectorAll('a.nav-item')].map(a=>[a.querySelector('.label')!.textContent,a.querySelector('.count')?.textContent]));
   assert.deepEqual(counts,{Home:undefined,Discover:undefined,Videos:'2'},'only Videos has a number: the videos in progress');
   assert.equal(bar.querySelector('a[aria-current="page"]')!.textContent,'Home');
-  assert.deepEqual([...bar.querySelectorAll('.sb-bottom > *')].map(el=>[el.tagName,el.getAttribute('aria-label'),el.getAttribute('title')]),[
-   ['A','Settings','Settings'],['BUTTON','Help','Help: how CreatorClub works'],['BUTTON','Collapse sidebar','Collapse sidebar'],
-  ],'three icons with tooltips, no text rows');
+  assert.deepEqual([...bar.querySelectorAll('.sb-bottom > *')].map(el=>[el.tagName,el.getAttribute('aria-label')]),[['A','Settings'],['BUTTON','Help'],['BUTTON','Collapse sidebar']],'three icons, no text rows');
+  const help=bar.querySelector('[aria-label="Help"]')!;
+  await act(async()=>{help.dispatchEvent(new window.PointerEvent('pointerover',{bubbles:true}));});
+  await act(async()=>{await new Promise(resolve=>setTimeout(resolve,TOOLTIP_DELAY_MS+50));});
+  assert.match(c.querySelector('[role="tooltip"]')?.textContent??'',/Help: how CreatorClub works/,'each has a tooltip');
   assert.equal(bar.querySelector('.sb-bottom')!.textContent,'','no text rows');
   assert.equal(bar.querySelectorAll('.sb-video, .sb-label').length,0,'no list of videos: Videos and Home have them');
   assert.equal(bar.querySelectorAll('.sb-search').length,1,'Search once');
@@ -116,7 +119,6 @@ test('the collapse button folds the sidebar to icons and back, and a new page fo
   await press(c.querySelector('[aria-label="Collapse sidebar"]')!);
   assert.ok(c.querySelector('.sidebar.collapsed'));
   assert.equal(c.querySelector('.sidebar a[href="#/videos"]')!.getAttribute('aria-label'),'Videos','an icon with no label still has a name');
-  assert.equal(c.querySelector('.sidebar a[href="#/videos"]')!.getAttribute('title'),'Videos','and a tooltip');
   await press(c.querySelector('[aria-label="Expand sidebar"]')!);
   assert.equal(c.querySelector('.sidebar.collapsed'),null);
   await press(c.querySelector('[aria-label="Collapse sidebar"]')!);
@@ -287,7 +289,7 @@ test('the sidebar rail keeps every place reachable by name and tooltip',async()=
  try{
   await flush();
   const rail=ui.container.querySelector('.sidebar.collapsed')!;
-  assert.deepEqual([...rail.querySelectorAll('a.nav-item')].map(a=>[a.getAttribute('aria-label'),a.getAttribute('title')]),[['Home','Home'],['Discover','Discover'],['Videos','Videos']]);
+  assert.deepEqual([...rail.querySelectorAll('a.nav-item')].map(a=>a.getAttribute('aria-label')),['Home','Discover','Videos']);
   assert.deepEqual([...rail.querySelectorAll('.sb-bottom > *')].map(el=>el.getAttribute('aria-label')),['Settings','Help','Expand sidebar']);
   assert.equal(rail.querySelector('a[aria-current="page"]')!.getAttribute('aria-label'),'Videos');
  }finally{await ui.close();fake.restore();}

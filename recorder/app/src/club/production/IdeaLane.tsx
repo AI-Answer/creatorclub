@@ -20,9 +20,9 @@ export function IdeaCard({video,highlight,dragging,actions,onOpen,onMove,onDragS
  video:Video;highlight?:boolean;dragging:boolean;actions:IdeaActionSet;onOpen():void;onMove(stage:VideoStage):void;onDragStart(event:DragEvent):void;onDragEnd():void;
 }){
  const source=video.idea?.sources?.[0],why=ideaWhy(video),held=!!video.hidden;
- const remove:MenuItem={label:'Delete idea',icon:'Trash2',danger:true,fn:()=>actions.remove(video)};
+ const remove:MenuItem={label:'Delete idea',icon:'delete',danger:true,fn:()=>actions.remove(video)};
  const items:MenuItem[]=held?[remove]:[
-  {label:'Later',icon:'Bookmark',fn:()=>void actions.later(video)},'-',
+  {label:'Later',icon:'save',fn:()=>void actions.later(video)},'-',
   {header:'Skip it because…'},...SKIP_REASONS.map(reason=>({label:reason,fn:()=>void actions.skip(video,reason)})),'-',
   {header:'Move to'},...VIDEO_STAGES.filter(stage=>stage!=='ideas').map(stage=>({label:STAGE_LABEL[stage],fn:()=>onMove(stage)})),'-',
   remove,
@@ -33,16 +33,16 @@ export function IdeaCard({video,highlight,dragging,actions,onOpen,onMove,onDragS
    <div className="tt clamp2">{video.title}{highlight&&<span className="itag">New</span>}</div>
    {why&&<div className="why clamp2">{why}</div>}
    {(source||video.idea?.dropReason)&&<div className="src">
-    {video.idea?.dropReason?<span>Skipped · {video.idea.dropReason}</span>:source&&<><Icon name={ideaSourceVideoId(video)?'Youtube':'Link'} size={12}/><span className="ellipsis">{source.label}</span></>}
+    {video.idea?.dropReason?<span>Skipped · {video.idea.dropReason}</span>:source&&<><Icon name={ideaSourceVideoId(video)?'youtube':'link'} size={12}/><span className="ellipsis">{source.label}</span></>}
    </div>}
    <div className="acts" onClick={event=>event.stopPropagation()}>
     {held
-     ?<button type="button" className="btn sm ghost" onClick={()=>void actions.restore(video)}><Icon name="RotateCcw" size={14}/>Restore</button>
-     :<button type="button" className="btn sm ghost" onClick={()=>void actions.startPlanning(video)}><Icon name="ArrowRight" size={14}/>Start planning</button>}
+     ?<button type="button" className="btn sm ghost" onClick={()=>void actions.restore(video)}><Icon name="retry" size={14}/>Restore</button>
+     :<button type="button" className="btn sm ghost" onClick={()=>void actions.startPlanning(video)}><Icon name="next" size={14}/>Start planning</button>}
    </div>
   </div>
   <div className="kmove"><Menu align="right" label={`More about ${video.title}`} items={items} restoreFocus button={(toggle,open)=>
-   <button type="button" className={`btn sm icon-only${open?' menu-open':''}`} aria-label={`More about ${video.title}`} aria-haspopup="menu" aria-expanded={open} title="Later, Skip, Move to, Delete" onClick={toggle}><Icon name="MoreHorizontal" size={15}/></button>}/></div>
+   <button type="button" className={`btn sm icon-only${open?' menu-open':''}`} aria-label={`More about ${video.title}`} aria-haspopup="menu" aria-expanded={open} title="Later, Skip, Move to, Delete" onClick={toggle}><Icon name="more" size={15}/></button>}/></div>
  </div>;
 }
 
@@ -65,7 +65,7 @@ export function IdeaLane({videos,newId,openGroup,dragId,actions,onOpen,onMove,on
   const list=groups[group],folded=group==='later'||group==='skipped';
   if(!list.length)return null;
   if(folded)return <div key={group} className="igroup" data-group={group}>
-   <button type="button" className="igroup-h toggle" aria-expanded={!!open[group]} onClick={()=>toggle(group)}><span>{label}</span> <span className="n">{list.length}</span><Icon name={open[group]?'ChevronDown':'ChevronRight'} size={14} className="faint"/></button>
+   <button type="button" className="igroup-h toggle" aria-expanded={!!open[group]} onClick={()=>toggle(group)}><span>{label}</span> <span className="n">{list.length}</span><Icon name={open[group]?'expand':'forward'} size={14} className="faint"/></button>
    {open[group]&&list.map(card)}
   </div>;
   const shown=open[group]?list:list.slice(0,GROUP_SHOWN);
