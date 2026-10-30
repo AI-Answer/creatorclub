@@ -29,11 +29,11 @@ function Block({id,title,help,first,children}:{id?:string;title:string;help:stri
  return <div id={id} style={{marginTop:first?0:24}}><div className="field">{title}</div><div className="small muted" style={{marginBottom:10}}>{help}</div>{children}</div>;
 }
 
-/** The channels Working now watches. Add one with its link or @handle. */
+/** The channels Discover watches. Add one with its link or @handle. */
 export function FollowedChannels({focus}:{focus?:boolean}){
  const list=useSavedList<FollowedChannel[]>('/followed',"Couldn't load the channels you follow.",loaded=>loaded as FollowedChannel[],value=>value);
  const byLabel=new Map((list.value??[]).map(channel=>[followedLabel(channel),channel]));
- return <Block first title="Followed channels" help="Working now shows what is doing better than usual on these channels.">
+ return <Block first title="Followed channels" help="Discover shows what is doing better than usual on these channels.">
   {list.value===null&&!list.error?<Spinner label="Loading followed channels" size={16}/>:null}
   {list.value!==null&&<TagEditor label="Followed channels" values={[...byLabel.keys()]} disabled={list.busy} autoFocus={focus} placeholder="@handle or channel link"
    onAdd={(labels,text)=>withFollowed(labels.map(label=>byLabel.get(label)!),text).map(followedLabel)}
@@ -45,12 +45,12 @@ export function FollowedChannels({focus}:{focus?:boolean}){
 type Sources={x:string[];xTopics:string[];reddit:string[]};
 const pickSources=(loaded:unknown):Sources=>{const config=loaded as SignalsConfig;return {x:config.x??[],xTopics:config.xTopics??[],reddit:config.reddit??[]};};
 
-/** Where Signals reads posts from: X accounts, X searches and subreddits. */
+/** Where Discover reads posts from: X accounts, X searches and subreddits. */
 export function SignalSources({focus,topics=[]}:{focus?:boolean;topics?:readonly string[]}){
  const list=useSavedList<Sources>('/signals-config',"Couldn't load your signal sources.",pickSources,value=>value);
  const sources=list.value;
  const edit=(key:keyof Sources)=>(next:string[])=>{if(sources)void list.save({...sources,[key]:next});};
- return <Block id="set-sources" title="Signal sources" help="Signals reads posts from these places and shows the ones about your topics.">
+ return <Block id="set-sources" title="Signal sources" help="Discover reads posts from these places and shows the ones about your topics.">
   {sources===null&&!list.error?<Spinner label="Loading signal sources" size={16}/>:null}
   {sources&&<div style={{display:'flex',flexDirection:'column',gap:16}}>
    <div><div className="small" style={{fontWeight:600,marginBottom:6}}>X accounts</div><TagEditor label="X accounts" values={sources.x} disabled={list.busy} autoFocus={focus} placeholder="@account" show={asAccount} onAdd={withEntry} onChange={edit('x')}/></div>

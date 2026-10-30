@@ -3,6 +3,7 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { z } from 'zod';
 import { PLAN_JOB_KINDS, type AiProvider, type JobSnapshot, type Outline, type OutlineScene, type Package, type PackageUseResult, type PlanData, type PlanJobKind, type PlanJobResult, type Video } from '../../shared/club.js';
+import { describeAngle } from '../../shared/description.js';
 import { mergePackage, type PackageGroup } from '../../shared/package-merge.js';
 import { AiError, aiLabel, runAI, type RunAIOptions } from './ai.js';
 import { boardTiles } from './board-docs.js';
@@ -247,7 +248,8 @@ export function packageFromOldOutline(markdown: string): Package | null {
   }
   const titles = (sections.get('title options') ?? []).map((line) => /^\s*\d+[.)]\s+(.*)$/.exec(line)?.[1]).filter((title): title is string => !!title).map(cleanLine).filter(Boolean).slice(0, 3);
   const spoken = /"([^"\n]{5,})"/.exec((sections.get('hook') ?? []).join('\n'))?.[1]?.trim() ?? '';
-  const angle = cleanLine((sections.get('promise') ?? []).join(' '));
+  // The Promise is its first paragraph; what follows can be the planner's own notes about the brief, which are not the promise.
+  const angle = describeAngle(cleanLine(((sections.get('promise') ?? []).join('\n').trim().split(/\n\s*\n/)[0]) ?? ''));
   if (!titles.length && !spoken) return null;
   return { angle, twist: '', titles: [titles[0] ?? '', titles[1] ?? '', titles[2] ?? ''], thumbnailText: '', hook: { visual: '', spoken, text: '' } };
 }

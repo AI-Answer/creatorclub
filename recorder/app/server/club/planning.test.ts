@@ -197,6 +197,14 @@ test("an old outline's promise, title options and recommended hook become a pack
   assert.equal(packageFromOldOutline('## Points\n- Point 1: x\n'), null);
 });
 
+test('the package from the real "hidden-features" outline takes the promise, not the planner\'s notes about the brief', async () => {
+  const board = await readFile(path.join(import.meta.dirname, 'fixtures/board-samin/videos/hidden-features/outline.md'), 'utf8');
+  assert.match(board, /Brief was empty/, 'the sample outline has the notes right after the promise');
+  const pkg = packageFromOldOutline(board)!;
+  assert.equal(pkg.angle, "By the end, the viewer knows how to find the features in their AI tool they've never used, and has tried three of them, from a one-click setting to a repeatable setup.");
+  assert.doesNotMatch(JSON.stringify(pkg), /Brief was/i);
+});
+
 test('a full script splits into its ## scenes', () => {
   assert.deepEqual(scriptSections('# Title\n\nintro\n\n## One\n\nLine one.\n\n## Two\nLine two.\n### note\nmore'), [
     { heading: 'One', body: 'Line one.' },

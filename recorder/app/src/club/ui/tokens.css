@@ -101,6 +101,10 @@
   --kind-zoom: #9a5a2c;
   --kind-marker: var(--cc-text);
   --kind-ink: #ffffff;
+  /* Shades on top of a clip or a stage: a hairline edge, a label plate, a drag shadow. Black at three strengths, in both themes. */
+  --cc-shade-soft: rgb(0 0 0 / 0.12);
+  --cc-shade: rgb(0 0 0 / 0.35);
+  --cc-shade-strong: rgb(0 0 0 / 0.6);
   --kind-screen-soft: color-mix(in srgb, var(--kind-screen) 14%, var(--cc-surface));
   --kind-camera-soft: color-mix(in srgb, var(--kind-camera) 14%, var(--cc-surface));
   --kind-audio-soft: color-mix(in srgb, var(--kind-audio) 14%, var(--cc-surface));

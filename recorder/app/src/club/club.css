@@ -507,7 +507,7 @@
 :where(.club-root) .strip .lab:where(:not(.club-embed *)) { font-size: 12.5px; font-weight: 600; color: var(--cc-text-2); margin-right: 6px; white-space: nowrap; display: flex; gap: 6px; align-items: center; }
 :where(.club-root) .sc:where(:not(.club-embed *)) { display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 10px 0 6px; border: 1px solid var(--cc-line); background: var(--cc-surface); border-radius: 8px; cursor: pointer; white-space: nowrap; transition: border-color .15s, box-shadow .15s, background .15s; flex: none; max-width: 260px; }
 :where(.club-root) .sc:hover:where(:not(.club-embed *)) { border-color: var(--cc-line-strong); }
-:where(.club-root) .sc.on:where(:not(.club-embed *)) { border-color: var(--cc-text); box-shadow: 0 0 0 1px var(--cc-text); }
+:where(.club-root) .sc.on:where(:not(.club-embed *)) { border-color: var(--cc-accent); box-shadow: 0 0 0 1px var(--cc-accent); }
 :where(.club-root) .sc .n:where(:not(.club-embed *)) { width: 22px; height: 22px; border-radius: 6px; background: var(--cc-bg-sunk); display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 650; font-variant-numeric: tabular-nums; flex: none; }
 :where(.club-root) .sc .t:where(:not(.club-embed *)) { font-size: 13px; font-weight: 550; overflow: hidden; text-overflow: ellipsis; }
 :where(.club-root) .sst:where(:not(.club-embed *)) { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 550; white-space: nowrap; color: var(--cc-text-3); }
@@ -659,9 +659,12 @@
 :where(.club-root) .pubx-form .full:where(:not(.club-embed *)) { grid-column: 1 / -1; }
 @media (max-width: 760px) { :where(.club-root) .pubx-form:where(:not(.club-embed *)) { grid-template-columns: 1fr; } }
 :where(.club-root) .pubx-form .select:where(:not(.club-embed *)) { width: 100%; height: 36px; }
+:where(.club-root) .pubx-form .pub-pair:where(:not(.club-embed *)) { display: flex; flex-direction: column; justify-content: flex-end; min-width: 0; }
+:where(.club-root) .pubx-form .pub-pair > .field:where(:not(.club-embed *)) { margin-bottom: 6px; }
+:where(.club-root) .pubx-form .pub-pair > .field-hint:where(:not(.club-embed *)) { margin: -4px 0 6px; font-size: var(--cc-text-xs); color: var(--cc-text-3); }
 :where(.club-root) .radios:where(:not(.club-embed *)) { display: flex; gap: 8px; }
 :where(.club-root) .radios .rad:where(:not(.club-embed *)) { flex: 1; display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 12px; border: 1px solid var(--cc-line-strong); border-radius: var(--cc-r); cursor: pointer; font-size: 13.5px; background: var(--cc-surface); }
-:where(.club-root) .radios .rad:has(input:checked):where(:not(.club-embed *)) { border-color: var(--cc-text); box-shadow: 0 0 0 1px var(--cc-text); }
+:where(.club-root) .radios .rad:has(input:checked):where(:not(.club-embed *)) { border-color: var(--cc-accent); box-shadow: 0 0 0 1px var(--cc-accent); }
 :where(.club-root) .has-err .radios .rad:where(:not(.club-embed *)) { border-color: var(--cc-warn); }
 :where(.club-root) .tagsbox:where(:not(.club-embed *)) { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; min-height: 36px; border: 1px solid var(--cc-line-strong); border-radius: var(--cc-r); padding: 4px 8px; background: var(--cc-surface); }
 :where(.club-root) .tagsbox:focus-within:where(:not(.club-embed *)) { border-color: var(--cc-accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--cc-accent) 18%, transparent); }

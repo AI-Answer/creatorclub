@@ -2,6 +2,7 @@ import {mountUI,button} from '../test-dom';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {act,createElement,useState} from 'react';
+import {KIND_COLOR,takeKinds,trackKind} from './ui/kinds';
 const {Avatar,DraftThumb,Dialog,Drawer,Ed,Empty,Icon,iconNames,Level,Menu,MultChip,SceneDots,SceneStatus,SourceIcon,StagePill,Thumb,ToastProvider,useToast,TOAST_MS}=await import('./ui');
 
 const press=(element:Element)=>act(async()=>(element as HTMLElement).click());
@@ -232,4 +233,12 @@ test('an open menu closes when the page scrolls, and Tab from its button moves f
   await act(async()=>{window.dispatchEvent(new Event('scroll'));});
   assert.equal(c.querySelector('[role="menu"]'),null);
  }finally{await ui.close();}
+});
+
+test('a take chip names its kinds in the timeline order, with the timeline\'s colours',()=>{
+ assert.deepEqual(takeKinds(['audio','camera','screen','screen']),['screen','camera','audio']);
+ assert.deepEqual(takeKinds(['music','overlay']),['audio','graphics'],'music is audio and an overlay is graphics');
+ assert.deepEqual(takeKinds([]),[]);
+ assert.equal(trackKind('music'),'audio');
+ assert.equal(KIND_COLOR[trackKind('camera')].color,'var(--kind-camera)','the same token the timeline paints with');
 });
