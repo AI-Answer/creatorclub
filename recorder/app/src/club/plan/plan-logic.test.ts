@@ -101,9 +101,12 @@ test('the Package column is empty (one sentence, one action) until something it 
 });
 
 test('only written titles show, plus the one being added; a title too long for a search result says so in words, a fitting one says nothing',()=>{
- assert.deepEqual(shownTitles(['A','','C'],null).map(t=>t.index),[0,2]);
- assert.deepEqual(shownTitles(['A','',''],1).map(t=>t.index),[0,1]);
- assert.deepEqual(shownTitles(['','',''],null),[]);
+ assert.deepEqual(shownTitles(['A','','C'],[]).map(t=>t.index),[0,2]);
+ assert.deepEqual(shownTitles(['A','',''],[1]).map(t=>t.index),[0,1],'the slot being added');
+ assert.deepEqual(shownTitles(['','B',''],[1]).map(t=>t.index),[1]);
+ assert.deepEqual(shownTitles(['A','',''],[0]).map(t=>t.index),[0]);
+ assert.deepEqual(shownTitles(['','',''],[]),[]);
+ assert.deepEqual(shownTitles(['','B',''],[0]).map(t=>t.index),[0,1],'a title emptied while typing stays until the field is left');
  assert.equal(titleWarning('Seven words or fewer fit just fine'),undefined);
  assert.equal(titleWarning('One two three four five six seven eight'),'8 words, too long for a search result');
  assert.equal(titleWarning('x'.repeat(61)),'61 characters, too long for a search result');

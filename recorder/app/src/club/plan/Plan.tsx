@@ -43,7 +43,7 @@ export function Plan({video,plan,known,focusId,onFocus,onTitle,onTarget,onRecord
  const lines=[
   plan.changedScene!==undefined&&<p key="changed" role="status" className="small" style={{background:'var(--cc-warn-soft)',color:'var(--cc-warn)',padding:'10px 14px',borderRadius:10}}>{changedSceneLine(plan.changedScene)}</p>,
   plan.continueError&&<ErrorLine key="continue" message={plan.continueError} onRetry={()=>plan.continueAction?.run()}/>,
-  plan.saveError&&<ErrorLine key="save" message={plan.saveError} onRetry={plan.retrySave}/>,
+  plan.scenesSaveError&&<ErrorLine key="save" message={plan.scenesSaveError} onRetry={plan.retrySave}/>,
   plan.noticeError&&<ErrorLine key="notice" message={plan.noticeError} onRetry={()=>{for(const kind of PLAN_JOB_KINDS)if(plan.notices[kind]){void plan.resolveNotice(kind);break;}}}/>,
   <JobLine key="outline-job" state={plan.outlineJob} onRetry={plan.createOutline} onStop={()=>plan.stop('outline')}/>,
   <JobLine key="package-job" state={plan.packageJob} onRetry={()=>plan.writePackage()} onStop={()=>plan.stop('package')}/>,
@@ -55,10 +55,10 @@ export function Plan({video,plan,known,focusId,onFocus,onTitle,onTarget,onRecord
  return <div className="plan-page">
   {lines.length>0&&<div className="plan-lines">{lines}</div>}
   <div className="plan">
-   <PackageColumn videoId={video.id} videoTitle={video.title} pkg={plan.pkg} running={packaging} onEdit={plan.editPackage} onPickTitle={onTitle} onWrite={plan.writePackage}/>
+   <PackageColumn videoId={video.id} videoTitle={video.title} pkg={plan.pkg} running={packaging} onEdit={plan.editPackage} onPickTitle={onTitle} onWrite={plan.writePackage} save={plan.packageSave} onSaveNow={plan.flushPackage} onRetrySave={plan.retrySave}/>
    <ScenesColumn target={video.targetSeconds??0} onTarget={onTarget} hasRecording={!!video.recorderProjectId} outline={plan.outline} known={known} focusId={focusId}
     drafting={outlining} draftLine={plan.outlineJob.phase==='running'?plan.outlineJob.line:undefined} scripting={scripting} scriptingScene={plan.scriptScene}
-    onEdit={plan.editOutline} onFocus={onFocus} onDraft={plan.createOutline} onWriteScene={plan.writeScript} onWriteAll={()=>plan.writeScript()} onSceneScript={plan.saveSceneScript} onRecord={onRecordScene}/>
+    onEdit={plan.editOutline} onFocus={onFocus} onDraft={plan.createOutline} onWriteScene={plan.writeScript} onWriteAll={()=>plan.writeScript()} onSceneScript={plan.saveSceneScript} onRecord={onRecordScene} onSaveNow={()=>void plan.flush().catch(()=>{})}/>
   </div>
  </div>;
 }

@@ -4,6 +4,7 @@ import {toProgress} from '../scenes';
 import {Button,Ed,Icon,IconButton,Menu,SceneStatus,cn,useToast,type MenuItem} from '../ui';
 import {clockTime} from '../video-plan';
 import {ReplaceScenes} from '../workspace/ReplaceScenes';
+import {SAVE_DELAY_MS} from '../usePlan';
 import {blankScene,editPoint,insertScene,moveScene,parseClock,removeScene,sceneCardId,totalSeconds,TARGET_SECONDS} from './plan-logic';
 
 /**
@@ -13,7 +14,7 @@ import {blankScene,editPoint,insertScene,moveScene,parseClock,removeScene,sceneC
  * one sentence and Draft scenes from the board; with scenes its heading's "Write with Claude" menu writes the full script or redrafts
  * the scenes (asking first, since a redraft replaces them).
  */
-export function ScenesColumn({target,onTarget,hasRecording,outline,known,focusId,drafting,draftLine,scriptingScene,scripting,onEdit,onFocus,onDraft,onWriteScene,onWriteAll,onSceneScript,onRecord}:{
+export function ScenesColumn({target,onTarget,hasRecording,outline,known,focusId,drafting,draftLine,scriptingScene,scripting,onEdit,onFocus,onDraft,onWriteScene,onWriteAll,onSceneScript,onRecord,onSaveNow}:{
  target:number;onTarget(seconds:number):void;hasRecording:boolean;outline:Outline|null;known:readonly VideoScene[]|undefined;focusId:string|null;
  drafting:boolean;draftLine?:string;
  /** The scene a script run is writing, or none while it writes the whole script. */
@@ -21,12 +22,21 @@ export function ScenesColumn({target,onTarget,hasRecording,outline,known,focusId
  onEdit(next:Outline):void;onFocus(sceneId:string):void;onDraft():void;onWriteScene(sceneId:string):void;onSceneScript(sceneId:string,text:string):void;onRecord(sceneId:string):void;
  /** Writes the script of every scene. Without it the menu offers only the redraft. */
  onWriteAll?():void;
+ /** Saves what is waiting now: a field was left. */
+ onSaveNow?():void;
 }){
  const toast=useToast();
  const scenes=outline?.scenes??[];
  const [dragIndex,setDragIndex]=useState<number|null>(null),[overIndex,setOverIndex]=useState<number|null>(null);
  const [added,setAdded]=useState<string|null>(null);
  const [redraft,setRedraft]=useState(false);
+ // Every field saves as it is typed. A scene's script has its own save, sent a moment after the last keystroke and at once when it is left.
+ const scriptWait=useRef<{id:string;text:string;timer:ReturnType<typeof setTimeout>}|null>(null);
+ const sendScript=()=>{const wait=scriptWait.current;if(!wait)return;clearTimeout(wait.timer);scriptWait.current=null;onSceneScript(wait.id,wait.text);};
+ const scriptSoon=(id:string,text:string)=>{if(scriptWait.current&&scriptWait.current.id!==id)sendScript();if(scriptWait.current)clearTimeout(scriptWait.current.timer);scriptWait.current={id,text,timer:setTimeout(sendScript,SAVE_DELAY_MS)};};
+ const sendRef=useRef(sendScript);sendRef.current=sendScript;
+ useEffect(()=>()=>sendRef.current(),[]);
+ const leave=()=>{sendScript();onSaveNow?.();};
  // One scene open at a time: the focused one (picked in the strip, the companion, or here), until it is closed.
  const [openId,setOpenId]=useState<string|null>(focusId);
  useEffect(()=>{if(focusId)setOpenId(focusId);},[focusId]);
@@ -131,18 +141,18 @@ export function ScenesColumn({target,onTarget,hasRecording,outline,known,focusId
      <div className="scene-h">
       <button type="button" className="grip" aria-label="Drag to reorder, or use the arrow keys" onPointerDown={event=>onGrip(event,i)} onClick={event=>event.stopPropagation()} onKeyDown={event=>moveKeys(event,i,false)}><Icon name="drag" size={15}/></button>
       <span className="n">{i+1}</span>
-      <Ed className="t" value={scene.title} ph="Scene title" onChange={title=>setScene(i,{title})}/>
+      <Ed live onLeave={leave} className="t" value={scene.title} ph="Scene title" onChange={title=>setScene(i,{title})}/>
       {status}
       <input className="dur" key={`${id}-${scene.seconds}`} defaultValue={clockTime(scene.seconds)} aria-label="Scene length" onClick={event=>event.stopPropagation()}
        onBlur={event=>{const seconds=parseClock(event.target.value);if(seconds)setScene(i,{seconds});else event.target.value=clockTime(scene.seconds);}} onKeyDown={event=>event.key==='Enter'&&event.currentTarget.blur()}/>
       <span onClick={event=>event.stopPropagation()}><Menu align="right" label="Scene options" button={toggle=><IconButton icon="more" label="Scene options" onClick={toggle}/>} items={menuFor(scene,i,id)}/></span>
       <span onClick={event=>event.stopPropagation()}><IconButton icon="collapse" label="Close scene" onClick={()=>setOpenId(null)}/></span>
      </div>
-     <ul className="pts">{scene.talkingPoints.map((point,k)=><li key={k}><Ed value={point} ph="Talking point" autoFocus={point===''&&added===id}
+     <ul className="pts">{scene.talkingPoints.map((point,k)=><li key={k}><Ed live onLeave={leave} value={point} ph="Talking point" autoFocus={point===''&&added===id}
       onChange={text=>setScene(i,{talkingPoints:editPoint(scene.talkingPoints,k,text)})}
       onEnter={()=>{const points=[...scene.talkingPoints];points.splice(k+1,0,'');setScene(i,{talkingPoints:points});}}/></li>)}</ul>
-     <div className="scene-show"><Icon name="screen" size={14}/><span className="faint" style={{flex:'none'}}>Show</span><Ed value={scene.show} ph="What's on screen" onChange={show=>setScene(i,{show})} style={{flex:1}}/></div>
-     {(scene.script||writing)&&<div className="script">{writing?<div className="shimmer" style={{height:44}}/>:<Ed multiline value={scene.script} ph="Script" onChange={text=>onSceneScript(id,text)}/>}</div>}
+     <div className="scene-show"><Icon name="screen" size={14}/><span className="faint" style={{flex:'none'}}>Show</span><Ed live onLeave={leave} value={scene.show} ph="What's on screen" onChange={show=>setScene(i,{show})} style={{flex:1}}/></div>
+     {(scene.script||writing)&&<div className="script">{writing?<div className="shimmer" style={{height:44}}/>:<Ed multiline live onLeave={leave} value={scene.script} ph="Script" onChange={text=>scriptSoon(id,text)}/>}</div>}
      {decide.length>0&&<details className="decide" onClick={event=>event.stopPropagation()}>
       <summary>To decide ({decide.length})</summary>
       <ul>{decide.map((item,k)=><li key={k}><span>{item}</span><Button variant="quiet" size="sm" onClick={()=>setScene(i,{decide:decide.filter((_,n)=>n!==k)})}>Mark decided</Button></li>)}</ul>

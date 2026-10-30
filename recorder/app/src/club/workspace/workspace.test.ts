@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {clockTime} from '../video-plan';
-import {takesWaiting,TAKE_NOT_ADDED,nextTab,previousTab,scenesLine,stageForContinue,tabDone,allScenesKept,continueIsPrimary,showsStrip,tabLock,tabState,continueFor} from './rules';
+import {takesWaiting,TAKE_NOT_ADDED,nextTab,previousTab,scenesLine,stageForContinue,tabDone,allScenesKept,continueIsPrimary,showsStrip,tabLock,tabState,continueFor,lockedLine,POSTIZ_LINE} from './rules';
 import {canvasSize,clampZoom,dragTo,keyMove,moveBy,tileBox} from './board-layout';
 
 test('the tabs follow each other, and Continue moves the card to the stage of the next tab only when that is further along',()=>{
@@ -139,4 +139,12 @@ test('one Continue rule: it names the next step, is disabled with the reason whe
  assert.deepEqual(continueFor('edit',{...started,exported:true}),{label:'Continue to publishing',disabled:false,primary:true});
  assert.equal(continueFor('publish',started),undefined,'the last step has no Continue');
  assert.deepEqual(continueFor('record',{stage:'recording',hasRecording:true}),{label:'Continue to editing',disabled:true,primary:false},'scenes not known yet: it waits, with nothing to explain');
+});
+
+test('a locked step says why and what opens after it; a locked Publish also names the paid Postiz while it is not connected',()=>{
+ const lock={reason:'Record a scene first',unlock:'record' as const};
+ assert.equal(lockedLine('edit',lock),'Record a scene first. Edit opens after that.');
+ assert.equal(lockedLine('publish',lock,{postizConnected:true}),'Record a scene first. Publish opens after that.');
+ assert.equal(lockedLine('publish',lock,{postizConnected:false}),`Record a scene first. Publish opens after that. ${POSTIZ_LINE}`);
+ assert.match(POSTIZ_LINE,/^Publishing uses Postiz, a paid service from \$29 a month: connect it in Settings\.$/);
 });

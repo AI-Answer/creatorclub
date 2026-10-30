@@ -127,3 +127,12 @@ export const TAKE_NOT_ADDED="Couldn't add your take to the timeline. Press Conti
 export function takesWaiting(scenes: Array<{title:string;takes:Array<{kept:boolean;retained:boolean}>}>|undefined):string[]{
  return (scenes??[]).filter(scene=>scene.takes.length>0&&!scene.takes.some(take=>take.kept)&&scene.takes.some(take=>!take.retained)).map(scene=>scene.title);
 }
+
+/** What Publish needs besides a recording, said wherever a locked Publish is explained, so the paid part is never a surprise. */
+export const POSTIZ_LINE='Publishing uses Postiz, a paid service from $29 a month: connect it in Settings.';
+
+/** The toast when a locked step is chosen or linked: the reason, which step opens after it, and for Publish the Postiz line while it is not connected. */
+export function lockedLine(tab:VideoTab,lock:TabLock,{postizConnected=true}:{postizConnected?:boolean}={}):string{
+ const line=`${lock.reason}. ${TAB_LABEL[tab]} opens after that.`;
+ return tab==='publish'&&!postizConnected?`${line} ${POSTIZ_LINE}`:line;
+}

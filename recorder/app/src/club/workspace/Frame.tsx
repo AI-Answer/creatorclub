@@ -1,11 +1,11 @@
-import type {KeyboardEvent} from 'react';
+import {useState,type KeyboardEvent} from 'react';
 import {originLabel,routeHash,videoTabs,type Route,type VideoTab} from '../routes';
 import {VIDEO_STAGES,type Video,type VideoStage} from '../../../shared/club';
 import {STAGE_LABEL} from '../board';
 import {ErrorLine} from '../ErrorLine';
 import {toProgress,type VideoScenes} from '../scenes';
 import {clockTime} from '../video-plan';
-import {Ed,Icon,IconButton,Menu,SceneStatus,StagePill,Tooltip,cn,type MenuItem} from '../ui';
+import {Button,Dialog,Ed,Icon,IconButton,Menu,SceneStatus,StagePill,Tooltip,cn,type MenuItem} from '../ui';
 import {TAB_LABEL,scenesLine,tabLock,tabState,type ContinueButton,type LockFacts,type TabFacts,type TabLock} from './rules';
 import {fmtDate} from '../format';
 
@@ -15,13 +15,18 @@ const STATE_WORDS={done:'Done',next:'Next step',open:undefined,current:undefined
  * The header: back to where the video was opened from (named), the title, the stage, the five steps and the date. The steps are the
  * only navigation between steps, and each says where it stands: done (a tick), the current one, the next one, or locked (a lock and,
  * on hover or focus, what unlocks it). A locked step is not a page: choosing it calls `onLocked`, which goes to the step that unlocks it.
+ * The stage shows beside the title; the video's one menu ("…") beside it moves it to another stage or deletes it (asking first).
  */
-export function Header({video,tab,back,facts,onTitle,onStage,onTab,onLocked}:{video:Video;tab:VideoTab;back:Route;facts:TabFacts&LockFacts;onTitle(title:string):void;onStage(stage:VideoStage):void;onTab(tab:VideoTab):void;onLocked(tab:VideoTab,lock:TabLock):void}){
- const items:MenuItem[]=[{header:'Move to'},...VIDEO_STAGES.map((stage):MenuItem=>({label:STAGE_LABEL[stage],check:video.stage===stage,fn:()=>onStage(stage)}))];
+export function Header({video,tab,back,facts,onTitle,onStage,onTab,onLocked,onDelete}:{video:Video;tab:VideoTab;back:Route;facts:TabFacts&LockFacts;onTitle(title:string):void;onStage(stage:VideoStage):void;onTab(tab:VideoTab):void;onLocked(tab:VideoTab,lock:TabLock):void;onDelete():void}){
+ const [asking,setAsking]=useState(false);
+ const items:MenuItem[]=[{header:'Move to'},...VIDEO_STAGES.map((stage):MenuItem=>({label:STAGE_LABEL[stage],check:video.stage===stage,fn:()=>onStage(stage)})),'-',{label:'Delete video',icon:'delete',danger:true,fn:()=>setAsking(true)}];
  return <div className="ws-top">
   <div className="crumb"><a href={routeHash(back)} aria-label={`Back to ${originLabel(back).toLowerCase()}`}>{originLabel(back)}</a><Icon name="forward" size={14}/></div>
   <Ed className="ws-title" value={video.title} ph="Video title" onChange={title=>{if(title.trim())onTitle(title.trim());}}/>
-  <Menu button={toggle=><button type="button" className="btn ghost sm" onClick={toggle} style={{padding:'0 4px'}} aria-label="Change stage"><StagePill stage={video.stage}/><Icon name="expand" size={13}/></button>} items={items}/>
+  <StagePill stage={video.stage}/>
+  <Menu button={toggle=><IconButton icon="more" label="More for this video" onClick={toggle}/>} items={items}/>
+  <Dialog open={asking} onClose={()=>setAsking(false)} title="Delete this video?" description={`“${video.title}” and its plan and board are removed. ${video.recorderProjectId?'Its recording stays in the recorder. ':''}You can undo it for a few seconds.`}
+   footer={<><Button onClick={()=>setAsking(false)}>Keep it</Button><Button variant="danger" onClick={()=>{setAsking(false);onDelete();}}>Delete video</Button></>}/>
   <span className="grow"></span>
   <nav className="tabs" aria-label="Video steps">{videoTabs.map(key=>{
    const state=tabState(key,tab,facts);
@@ -34,8 +39,6 @@ export function Header({video,tab,back,facts,onTitle,onStage,onTab,onLocked}:{vi
   })}</nav>
   <span className="grow"></span>
   {video.stage!=='published'&&video.publishDate&&<span className="faint small row" style={{gap:5}}><Icon name="calendar" size={13}/>{fmtDate(video.publishDate)}</span>}
-  <Menu align="right" button={toggle=><IconButton icon="more" label="More for this video" onClick={toggle}/>}
-   items={[{label:'Copy link to this video',icon:'link',fn:()=>void navigator.clipboard?.writeText(window.location.href).catch(()=>{})}]}/>
  </div>;
 }
 
@@ -44,7 +47,7 @@ export function Strip({scenes,focusId,onPick,onRetry}:{scenes:VideoScenes;focusI
  if(scenes.status==='loading')return <div className="strip"><span className="lab"><Icon name="scenes" size={14}/>Scenes</span></div>;
  if(scenes.status==='unknown')return <div className="strip"><ErrorLine message="Couldn't read the scenes." onRetry={onRetry}/></div>;
  const list=scenes.scenes;
- if(!list.length)return <div className="strip"><span className="lab"><Icon name="scenes" size={14}/>Scenes</span><span className="small muted">No scenes yet. Draft them from the board.</span></div>;
+ if(!list.length)return <div className="strip"><span className="lab"><Icon name="scenes" size={14}/>Scenes</span><span className="small muted">No scenes yet. Plan the scenes first.</span></div>;
  const progress=toProgress(list);
  // The chips are the one scene selector: Tab reaches them and the arrow keys move between them.
  const arrows=(event:KeyboardEvent<HTMLDivElement>)=>{

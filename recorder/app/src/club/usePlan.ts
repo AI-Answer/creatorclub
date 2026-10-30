@@ -8,7 +8,11 @@ import {clubFetch,errorMessage,notifyVideosChanged} from './api';
 import {useJobRun} from './useJobRun';
 import {packageDiff,withServerScripts,type PackageGroup} from './plan/plan-logic';
 
-const SAVE_DELAY_MS=600;
+/** Typing is saved this long after the last keystroke, and at once when a field is left, the step changes or the page closes. */
+export const SAVE_DELAY_MS=500;
+
+/** Where the saving behind the typing stands: nothing typed yet, waiting or sending, saved, or failed. */
+export type SaveStatus='idle'|'saving'|'saved'|'error';
 
 /** Saves the latest value a moment after the last change. `flush` saves at once and reports a failure; `cancel` drops what is waiting. */
 function useSaver<T>(save:(value:T)=>Promise<unknown>,onSaved?:()=>void){
@@ -16,6 +20,7 @@ function useSaver<T>(save:(value:T)=>Promise<unknown>,onSaved?:()=>void){
  const saveRef=useRef(save);saveRef.current=save;
  const savedRef=useRef(onSaved);savedRef.current=onSaved;
  const [error,setError]=useState('');
+ const [status,setStatus]=useState<SaveStatus>('idle');
  const inflight=useRef<Promise<unknown>|null>(null);
  const flush=useCallback(async()=>{
   clearTimeout(timer.current);
@@ -23,21 +28,22 @@ function useSaver<T>(save:(value:T)=>Promise<unknown>,onSaved?:()=>void){
   if(inflight.current)await inflight.current.catch(()=>{});
   const waiting=pending.current;if(!waiting)return;
   pending.current=null;
+  setStatus('saving');
   const run=saveRef.current(waiting.value);
   inflight.current=run;
-  try{await run;setError('');savedRef.current?.();}
-  catch(reason){if(!pending.current)pending.current=waiting;setError(errorMessage(reason,"Couldn't save your changes."));throw reason;}
+  try{await run;setError('');if(!pending.current)setStatus('saved');savedRef.current?.();}
+  catch(reason){if(!pending.current)pending.current=waiting;setError(errorMessage(reason,"Couldn't save your changes."));setStatus('error');throw reason;}
   finally{if(inflight.current===run)inflight.current=null;}
  },[]);
  const queue=useCallback((value:T)=>{
-  pending.current={value};clearTimeout(timer.current);
+  pending.current={value};clearTimeout(timer.current);setStatus('saving');
   timer.current=setTimeout(()=>{void flush().catch(()=>{});},SAVE_DELAY_MS);
  },[flush]);
- const cancel=useCallback(()=>{clearTimeout(timer.current);pending.current=null;},[]);
+ const cancel=useCallback(()=>{clearTimeout(timer.current);pending.current=null;if(!inflight.current)setStatus(now=>now==='saving'?'idle':now);},[]);
  // Leaving the page saves what is still waiting.
  useEffect(()=>()=>{if(pending.current){clearTimeout(timer.current);void saveRef.current(pending.current.value).catch(()=>{});}},[]);
  const hasPending=useCallback(()=>pending.current!==null,[]);
- return {queue,flush,cancel,error,hasPending};
+ return {queue,flush,cancel,error,hasPending,status};
 }
 
 export type PlanLoad={status:'loading'}|{status:'error';message:string}|{status:'ready'};
@@ -186,6 +192,12 @@ export function usePlan(video:Video,{onVideo,onRecord}:{onVideo(video:Video):voi
   editPackage,editOutline,saveSceneScript,writePackage,createOutline,writeScript,scriptScene,stop,notices,resolveNotice,noticeError,
   packageJob:packageJob.state,outlineJob:outlineJob.state,scriptJob:scriptJob.state,
   saveError:packageSaver.error||outlineSaver.error||sceneError,
+  /** The package's saving, shown beside its heading (its failure is said there, not in the lines above the columns). */
+  packageSave:packageSaver.status,
+  /** The scenes' saving failure, for the lines above the columns. */
+  scenesSaveError:outlineSaver.error||sceneError,
+  /** Saves the package now (a field was left). A failure shows in `packageSave`. */
+  flushPackage:()=>{void packageSaver.flush().catch(()=>{});},
   retrySave:()=>{if(sceneError)retrySceneScript();void Promise.all([packageSaver.flush(),outlineSaver.flush()]).catch(()=>{});},
   continueAction,continueError,
   /** A package, outline or script run is going: Continue waits for it. */

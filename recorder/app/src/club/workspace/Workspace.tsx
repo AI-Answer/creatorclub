@@ -1,6 +1,7 @@
 import {useCallback,useEffect,useMemo,useRef,useState} from 'react';
-import type {Video,VideoStage} from '../../../shared/club';
+import type {PublishingState,Video,VideoStage} from '../../../shared/club';
 import {clubFetch,errorMessage} from '../api';
+import {deleteLater} from '../pending-delete';
 import {ClubRecorder} from '../ClubRecorder';
 import {ErrorLine} from '../ErrorLine';
 import {Plan} from '../plan/Plan';
@@ -19,7 +20,7 @@ import {Foot,Header,Strip} from './Frame';
 import {Publish} from './Publish';
 import {Teleprompter} from './Teleprompter';
 import {outlineSceneFor,promptScene,recorderSceneFor} from './record-logic';
-import {TAKE_NOT_ADDED,takesWaiting,continueFor,showsStrip,nextTab,stageForContinue,tabLock,TAB_LABEL,type ContinueButton,type LockFacts,type TabFacts,type TabLock} from './rules';
+import {TAKE_NOT_ADDED,takesWaiting,continueFor,lockedLine,showsStrip,nextTab,stageForContinue,tabLock,TAB_LABEL,type ContinueButton,type LockFacts,type TabFacts,type TabLock} from './rules';
 
 /**
  * One video's page: the frame (header with the one set of step tabs, scene chips on Record and Edit, a bottom bar with Back and Continue) around the tab's own content. Board is the research canvas;
@@ -64,6 +65,13 @@ export function Workspace({video,tab,back,navigate,onVideo}:{video:Video;tab:Vid
   if(undoTo)toast(`Moved to ${STAGE_LABEL[stage]}`,{undo:()=>void moveTo(undoTo)});
  },[id,video.stage,onVideo,toast]);
 
+ /** Deletes the video after the toast's Undo has had its time (the server cannot bring it back), and goes back where it was opened from. */
+ const deleteVideo=useCallback(()=>{
+  const undo=deleteLater(video.id,message=>toast(message));
+  toast(`Deleted “${video.title}”`,{undo});
+  navigate(back);
+ },[video.id,video.title,toast,navigate,back]);
+
  const saveTitle=useCallback((title:string)=>{
   clubFetch<Video>(`/videos/${id}`,{method:'PUT',body:{title}}).then(onVideo,reason=>toast(errorMessage(reason,"Couldn't save the title.")));
  },[id,onVideo,toast]);
@@ -102,6 +110,9 @@ export function Workspace({video,tab,back,navigate,onVideo}:{video:Video;tab:Vid
  // The scenes' takes change while recording and editing (a take added, pauses cut); the strip and the notice read them again when Record or Edit opens.
  useEffect(()=>{if(tab==='record'||tab==='edit')reloadScenes();},[tab,reloadScenes]);
  // The Board can write the package (Use as hook, Ask Claude): Plan and Publish read it again when they open.
+ // Leaving a step saves what is still waiting to be saved there, at once.
+ const flushPlan=useRef(plan.flush);flushPlan.current=plan.flush;
+ useEffect(()=>()=>{void flushPlan.current().catch(()=>{});},[tab]);
  const refreshPlan=plan.refresh;
  useEffect(()=>{if(tab==='plan'||tab==='publish')void refreshPlan();},[tab,refreshPlan]);
 
@@ -111,15 +122,21 @@ export function Workspace({video,tab,back,navigate,onVideo}:{video:Video;tab:Vid
 
  // A step that cannot work yet is locked, never a dead page: choosing it (or opening its link) goes to the step that unlocks it and says why.
  const lock=tabLock(tab,facts);
+ /** Says why a step is locked; for Publish it also says, while Postiz is not connected, that publishing needs it (with Open settings). */
+ const explainLock=useCallback((target:VideoTab,why:TabLock)=>{
+  if(target!=='publish'){toast(lockedLine(target,why));return;}
+  clubFetch<PublishingState>('/publishing').then(state=>state.postiz.connected,()=>true).then(connected=>
+   toast(lockedLine(target,why,{postizConnected:connected}),connected?{}:{action:{label:'Open settings',fn:()=>navigate({name:'settings',section:'publishing'})}}));
+ },[toast,navigate]);
  const toLocked=useCallback((target:VideoTab,why:TabLock)=>{
-  toast(`${why.reason}. ${TAB_LABEL[target]} opens after that.`);
+  explainLock(target,why);
   if(why.unlock!==tab)void goToTab(why.unlock);
  // eslint-disable-next-line react-hooks/exhaustive-deps
- },[tab,toast]);
+ },[tab,explainLock]);
  const lockedHere=lock?`${tab}:${lock.unlock}`:'';
  useEffect(()=>{
   if(!lock)return;
-  toast(`${lock.reason}. ${TAB_LABEL[tab]} opens after that.`);
+  explainLock(tab,lock);
   navigate(tabRoute(lock.unlock),{replace:true});
  // eslint-disable-next-line react-hooks/exhaustive-deps
  },[lockedHere]);
@@ -158,7 +175,7 @@ export function Workspace({video,tab,back,navigate,onVideo}:{video:Video;tab:Vid
  const screen=screenSummary(tab,{pkg:plan.pkg,outline:plan.outline,recorded});
 
  return <div className="ws">
-  <Header video={video} tab={tab} back={back} facts={facts} onTitle={saveTitle} onStage={stage=>void moveTo(stage,video.stage)} onTab={target=>void goToTab(target)} onLocked={toLocked}/>
+  <Header video={video} tab={tab} back={back} facts={facts} onTitle={saveTitle} onStage={stage=>void moveTo(stage,video.stage)} onTab={target=>void goToTab(target)} onLocked={toLocked} onDelete={deleteVideo}/>
   <div className="ws-row"><div className="ws-col">
   {showsStrip(tab)&&<Strip scenes={scenes.state} focusId={focusId} onRetry={scenes.reload} onPick={sceneId=>{setFocusId(sceneId);setPickN(n=>n+1);}}/>}
   {moveError&&<div className="ws-body" style={{flex:'none',padding:'8px 18px'}}><ErrorLine message={moveError} onRetry={()=>void continueToNext()}/></div>}
@@ -186,7 +203,7 @@ export function Workspace({video,tab,back,navigate,onVideo}:{video:Video;tab:Vid
   </div>
   <Foot next={nextButton}/>
   </div>
-  <Companion videoId={video.id} tab={tab} scene={companionScene} screen={screen} pkg={plan.pkg} outline={plan.outline} scenes={list} onChanged={companionChanged} beforeApply={plan.flush} editor={companionEditor} roomy={tab==='record'}/>
+  <Companion videoId={video.id} videoTitle={video.title} boardKey={boardKey} tab={tab} scene={companionScene} screen={screen} pkg={plan.pkg} outline={plan.outline} scenes={list} onChanged={companionChanged} beforeApply={plan.flush} editor={companionEditor} roomy={tab==='record'}/>
   </div>
  </div>;
 }

@@ -37,6 +37,18 @@ test('it says what it is looking at, and the suggestions follow the step',()=>{
  assert.notDeepEqual(suggestions('board',{scenes:0}),suggestions('plan',{scenes:0}));
 });
 
+test('the suggestions follow what exists on every step: an empty board, nothing recorded, nothing to edit, a title to check',()=>{
+ assert.deepEqual(suggestions('board',{scenes:0,tiles:0}),['What should this video cover?','Who is this video for?','Suggest three titles'],'nothing about tiles that are not there');
+ assert.equal(suggestions('board',{scenes:0,tiles:3})[0],'Write three hooks from this board');
+ assert.equal(suggestions('record',{scenes:3,recorded:0})[0],'What should I say first?');
+ assert.equal(suggestions('record',{scenes:3,recorded:1})[0],'Shorten this scene to fit its time');
+ assert.deepEqual(suggestions('edit',{scenes:3,recorded:0}),[],'nothing that edits before anything is recorded');
+ assert.deepEqual(suggestions('publish',{scenes:3,titled:false}),['Write the description','Suggest thumbnail text']);
+ assert.deepEqual(suggestions('publish',{scenes:3,titled:true,thumbnail:true}),['Write the description','Is the thumbnail text clear?','Is the title ready?']);
+ assert.match(greeting('board',{scenes:0,tiles:0}),/^Add what you have to the board first/);
+ assert.match(greeting('edit',{scenes:2,recorded:0}),/^Nothing is recorded yet/);
+});
+
 test('each step greets with its own one or two sentences, and Plan says what comes first until there are scenes',()=>{
  const tabs=['board','plan','record','edit','publish'] as const;
  const lines=tabs.map(tab=>greeting(tab,{scenes:0}));

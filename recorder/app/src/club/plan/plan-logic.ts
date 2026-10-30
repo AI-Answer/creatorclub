@@ -41,8 +41,8 @@ export function packageView(pkg:Package|null,{running,manual}:{running:boolean;m
  return running?'writing':'empty';
 }
 
-/** The title slots to show: every written title, in order, and the one being added. Empty slots stay hidden behind "Add a title". */
-export const shownTitles=(titles:readonly string[],adding:number|null)=>titles.map((title,index)=>({title,index})).filter(({title,index})=>title.trim()!==''||index===adding);
+/** The title slots to show: every written title, in order, and the ones being typed in (`keep`), even while empty. Other empty slots stay behind "Add a title". */
+export const shownTitles=(titles:readonly string[],keep:readonly number[])=>titles.map((title,index)=>({title,index})).filter(({title,index})=>title.trim()!==''||keep.includes(index));
 
 /** True when nothing in the package was written yet. */
 export const packageIsEmpty=(pkg:Package|null)=>!pkg||(!pkg.angle.trim()&&!pkg.twist.trim()&&!pkg.thumbnailText.trim()&&pkg.titles.every(title=>!title.trim())&&Object.values(pkg.hook).every(part=>!part.trim())&&!pkg.demand&&!pkg.gap&&!pkg.show);

@@ -64,12 +64,12 @@ test('a video walks from an empty Plan through Write titles and Draft scenes int
   const before=announced;
   await act(async()=>FakeEventSource.last().emit('done',{value:pkg}));
   assert.equal(announced,before+1,'a finished plan job tells the sidebar and scene dots to reload');
-  const titles=()=>[...c.querySelectorAll('.tline [role="textbox"]')].map(t=>t.textContent);
+  const titles=()=>[...c.querySelectorAll('.tline:not(.own) [role="textbox"]')].map(t=>t.textContent);
   assert.deepEqual(titles(),pkg.titles,'the package fills editable fields');
-  await edit(c.querySelector('.tline [role="textbox"]'),'Claude Code features nobody uses');
-  await act(async()=>button(c.querySelectorAll('.tline')[1],'Use this title').click());await flush();
+  await edit(c.querySelector('.tline:not(.own) [role="textbox"]'),'Claude Code features nobody uses');
+  await act(async()=>button(c.querySelectorAll('.tline:not(.own)')[1],'Use this title').click());await flush();
   assert.equal(state.video.title,'Seven hidden Claude Code tricks','picking a title makes it the video title');
-  assert.ok(c.querySelectorAll('.tline')[1].classList.contains('on'),'and ticks it');
+  assert.ok(c.querySelectorAll('.tline:not(.own)')[1].classList.contains('on'),'and ticks it');
   assert.deepEqual(primaries(c),['Draft scenes from the board']);
 
   await act(async()=>button(c,'Draft scenes from the board').click());await flush();
@@ -201,6 +201,38 @@ test('steps that cannot work yet are locked, not dead pages: the step bar says w
    assert.ok(!hasText(c,'Open plan')&&!hasText(c,'Nothing recorded yet')&&!hasText(c,'Nothing to publish yet'),'no dead-end page');
   }
   assert.ok(!server.calls.some(call=>call.path==='/videos/v1/move'),'the card is never moved');
+ }finally{await ui.close();server.restore();}
+});
+
+test('the video\'s one menu moves it to a stage or deletes it, asking first; the stage beside the title is not a second menu',async()=>{
+ const server=installFetch(call=>{
+  if(call.path==='/videos/v1/plan')return {body:{package:null,outline:null}};
+  if(call.path==='/videos/v1/scenes')return {body:[]};
+  if(call.path==='/settings')return {body:{helpSeen:[]}};
+  if(call.path==='/videos/v1/move')return {body:{...planned,stage:(call.body as {stage:Video['stage']}).stage}};
+ });
+ const {ToastProvider}=await import('./ui');
+ const routes:Route[]=[];
+ const ui=await mountUI(createElement(ToastProvider,null,createElement(Workspace,{video:planned,tab:'plan',back,navigate:route=>{routes.push(route);},onVideo:()=>{}})));
+ try{
+  await flush();
+  const c=ui.container,doc=c.ownerDocument;
+  assert.equal(c.querySelector('[aria-label="Change stage"]'),null);
+  assert.equal(c.querySelectorAll('.ws-top [aria-label="More for this video"]').length,1);
+  const items=async()=>{await act(async()=>(c.querySelector('[aria-label="More for this video"]') as HTMLElement).click());await flush();return [...doc.querySelectorAll(`[role^="menuitem"]`)] as HTMLElement[];};
+  const labels=(await items()).map(item=>item.textContent?.trim());
+  assert.equal(labels.length,7,'the six stages, then Delete video');assert.equal(labels.at(-1),'Delete video');
+  assert.ok(!labels.some(label=>/Copy link/.test(label!)),'no link to a page that only opens on this computer');
+  await act(async()=>[...doc.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(item=>item.textContent?.trim()==='Delete video')?.click());await flush();
+  assert.match(doc.querySelector('[role="dialog"]')!.textContent!,/Delete this video\?/);
+  await act(async()=>button(doc.body,'Keep it').click());await flush();
+  assert.equal(routes.length,0,'kept: nothing happens');
+  await act(async()=>[...(await items())].find(item=>item.textContent?.trim()==='Delete video')!.click());await flush();
+  await act(async()=>button(doc.querySelector('[role="dialog"]')!,'Delete video').click());await flush();
+  assert.deepEqual(routes.at(-1),back,'back where it was opened from');
+  assert.ok(doc.body.textContent!.includes('Deleted “Hidden features in Claude Code”'));
+  assert.equal(server.calls.some(call=>call.method==='DELETE'),false,'not before the Undo has had its time');
+  await act(async()=>button(doc.body,'Undo').click());
  }finally{await ui.close();server.restore();}
 });
 
