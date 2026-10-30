@@ -44,7 +44,7 @@ import type {EditOptions} from './editing-actions';
 import {Menu,useToast,type MenuItem} from './club/ui';
 import {CutPlayback} from './CutPlayback';
 import {TimelineClub,rowsHeight,usedRows,type TimelineControls} from './TimelineClub';
-import {type Deleted,addMarker,applyClipStarts,clampScale,deleteItems,ensureLinks,freeDelta,insertGap,mergeRanges,moveEffects,rowItems,isLinked,linkClips,linkedIds,MAX_SCALE,MIN_SCALE,remapLinks,syncScenesToTakes,rulerLabel,splitLinked,unlinkClips} from './timeline-edit';
+import {type Deleted,addMarker,applyClipStarts,clampScale,deleteItems,ensureLinks,freeDelta,insertGap,mergeRanges,moveEffects,rowItems,isLinked,linkClips,linkedIds,remapLinks,zoomSlider,syncScenesToTakes,rulerLabel,lengthLabel,showTenths,splitLinked,unlinkClips} from './timeline-edit';
 
 const panels:Array<{name:Panel;icon:typeof Film}>=[{name:'Canvas',icon:Image},{name:'Layout',icon:LayoutTemplate},{name:'Clip',icon:Clapperboard},{name:'Zoom',icon:ZoomIn},{name:'Elements',icon:Elements},{name:'Music',icon:Music},{name:'Captions',icon:Subtitles},{name:'Cursor',icon:MousePointer2},{name:'Automate',icon:WandSparkles}];
 const MediaRecoveryNotice=memo(MediaRecoveryBanner),RecordingWorkspace=memo(Recording),ScriptWorkspace=memo(ScriptEditor);
@@ -58,7 +58,7 @@ const roundTime=(time:number)=>Math.round(time*1000)/1000;
 function PlayheadField({playhead,duration,onSeek}:{playhead:Playhead;duration:number;onSeek:(time:number)=>void}){const value=usePlayheadSelector(playhead,roundTime);return <input aria-label="Playhead time in seconds" type="number" min={0} max={duration||3600} step={1/30} value={value} onChange={e=>onSeek(Number(e.target.value))}/>;}
 const tenths=(time:number)=>Math.floor(Math.max(0,time)*10);
 /** "10 s", "2.5 s", "1 min 4 s". */
-const seconds=(n:number)=>n>=60?`${Math.floor(n/60)} min ${Math.round(n%60)} s`:`${n<10?Math.round(n*10)/10:Math.round(n)} s`;
+const seconds=lengthLabel;
 /** "1:05.3 / 6:18": the club timeline's clock, rendered only when the tenth of a second changes. */
 /** Edit tells the club which scene the playhead is in, so the scene chips follow it (while playing, scrubbing or after a click on the timeline). Renders nothing. */
 function SceneFollower({playhead,scenes,onScene}:{playhead:Playhead;scenes:Project['scenes'];onScene(sceneId:string):void}){
@@ -66,7 +66,8 @@ function SceneFollower({playhead,scenes,onScene}:{playhead:Playhead;scenes:Proje
  useEffect(()=>{if(id)report.current(id);},[id]);
  return null;
 }
-function ClubTime({playhead,duration}:{playhead:Playhead;duration:number}){const t=usePlayheadSelector(playhead,tenths)/10;return <span className="club-time tnum">{rulerLabel(t,30,false)}.{Math.round(t*10)%10}<span> / {rulerLabel(duration,30,false)}</span></span>;}
+/** The playhead readout, in the timeline's one time format (tenths only when less than 10 s is in view). */
+function ClubTime({playhead,duration,fine}:{playhead:Playhead;duration:number;fine:boolean}){const t=usePlayheadSelector(playhead,tenths)/10;return <span className="club-time tnum">{rulerLabel(t,fine)}<span> / {rulerLabel(duration,fine)}</span></span>;}
 /** The timeline's actions at the pointer (right-click), the same list as the More menu. Drawn in the club's root like the club's menus. */
 function ContextMenu({at,items,onClose}:{at:{x:number;y:number};items:readonly MenuItem[];onClose:()=>void}){
  const ref=useRef<HTMLDivElement>(null),[host]=useState(()=>document.querySelector('.club-root'));
@@ -90,7 +91,7 @@ function ShortcutsPopover({onClose}:{onClose:()=>void}){
  useEffect(()=>{const before=document.activeElement as HTMLElement|null;ref.current?.focus();const key=(event:KeyboardEvent)=>{if(event.key==='Escape'||event.key==='?'){event.preventDefault();event.stopPropagation();onClose();}};window.addEventListener('keydown',key,true);return()=>{window.removeEventListener('keydown',key,true);if(before?.isConnected)before.focus();};},[onClose]);
  return <div ref={ref} tabIndex={-1} className="club-shortcuts" role="dialog" aria-label="Keyboard shortcuts"><header><b>Shortcuts</b><button type="button" className="club-sheet-close" aria-label="Close shortcuts" onClick={onClose}><X size={14}/></button></header><dl>{SHORTCUTS.map(([keys,what])=><div key={keys}><dt>{keys}</dt><dd>{what}</dd></div>)}</dl></div>;
 }
-const SHORTCUTS:Array<[string,string]>=[['Space','Play or pause'],['S','Split at the playhead'],['Delete','Delete and close the gap'],['Shift Delete','Delete, keep the gap'],['⌘D','Duplicate'],['⌘C / ⌘V','Copy / paste at the playhead'],['⌘A','Select all'],['M','Add a marker'],['N','Snapping on or off'],['B / A','Blade / select tool'],['⌘G','Link or unlink screen, camera and audio'],['← →','Nudge the selection a frame (Shift: 1 s), or move the playhead'],['↑ ↓','Previous / next cut'],['+ / −, ⌘ scroll, pinch','Zoom at the playhead'],['Shift Z','Fit the whole video'],['Alt while trimming','Keep the gap'],['⌘Z / ⇧⌘Z','Undo / redo'],['?','These shortcuts']];
+const SHORTCUTS:Array<[string,string]>=[['Space','Play or pause'],['S','Split at the playhead'],['Delete','Delete and close the gap'],['Shift Delete','Delete, keep the gap'],['⌘D','Duplicate'],['⌘C / ⌘V','Copy / paste at the playhead'],['⌘A','Select all'],['M','Add a marker'],['N','Snapping on or off'],['B / A','Blade / select tool'],['⌘G','Link or unlink screen, camera and audio'],['← →','Nudge the selection a frame (Shift: 1 s), or move the playhead'],['↑ ↓','Previous / next cut'],['+ / −','Zoom at the playhead'],['⌘ scroll, pinch','Zoom at the pointer'],['Shift Z','Fit the whole video'],['Alt while trimming','Keep the gap'],['⌘Z / ⇧⌘Z','Undo / redo'],['?','These shortcuts']];
 function Toasts({bind}:{bind:{current:(message:string)=>void}}){const [toast,setToast]=useState('');useLayoutEffect(()=>{bind.current=setToast;},[bind]);useEffect(()=>{if(!toast)return;const t=setTimeout(()=>setToast(''),4200);return()=>clearTimeout(t);},[toast]);return toast?<div className="toast" role="status"><Check size={16}/>{toast}</div>:null;}
 /** CreatorClub shows one recording project inside its video page: it opens that project, forces the mode and hides SceneForge's own Home and navigation. */
 /** `onMode` receives SceneForge's own moves between recording and editing (the embed never switches by itself); `onOpenFailed` fires when the project cannot be opened;
@@ -188,7 +189,7 @@ export default function App({embedded}:{embedded?:EmbeddedRecorder}={}){
  const nudge=(direction:-1|1,big:boolean)=>{if(!p)return;const want=direction*(big?1:1/p.canvas.fps),clipIds=linkedIds(p.clips,[...selection].filter(id=>p.clips.some(c=>c.id===id))),effectIds=new Set([...selection].filter(id=>!p.clips.some(c=>c.id===id)&&!p.markers?.some(m=>m.id===id)));
   studio.change(d=>{const items=rowItems(d);if(clipIds.size){const moving=items.filter(i=>clipIds.has(i.id)),delta=freeDelta(moving,want,items);if(delta){ensureLinks(d);applyClipStarts(d,new Map(moving.map(m=>[m.id,m.start+delta])));syncScenesToTakes(d);}}
    if(effectIds.size){const moving=items.filter(i=>effectIds.has(i.id)),delta=freeDelta(moving,want,items);if(delta)moveEffects(d,effectIds,delta);}},{coalesce:'timeline.nudge'});};
- const addMarkerAtPlayhead=()=>{if(!p)return;const time=playhead.get();studio.change(d=>{addMarker(d,time);});notify(`Marker added at ${rulerLabel(time,p.canvas.fps,false)}.`);};
+ const addMarkerAtPlayhead=()=>{if(!p)return;const time=playhead.get();studio.change(d=>{addMarker(d,time);});notify(`Marker added at ${rulerLabel(time,showTenths((timelineControls.current?.width()||1000)/zoom))}.`);};
  const selectionLinked=Boolean(p&&[...selection].some(id=>isLinked(p.clips,id)));
  const toggleLink=()=>{if(!p)return;const clips=[...selection].filter(id=>p.clips.some(c=>c.id===id));if(selectionLinked){studio.change(d=>{unlinkClips(d,clips);});notify('Unlinked. Move or trim them separately.');}else if(clips.length>1){let linked=false;studio.change(d=>{linked=linkClips(d,clips);});notify(linked?'Linked. They move and trim together.':'They no longer line up, so they cannot be linked.');}else notify('Select two or more clips to link them.');};
  const copy=()=>{if(!p)return;const ids=embedded?linkedIds(p.clips,selection):selection;clipboard.current=copySelection(p,ids);if(clipboard.current)notify(`Copied ${ids.size} timeline items.`);};
@@ -291,7 +292,7 @@ export default function App({embedded}:{embedded?:EmbeddedRecorder}={}){
  useEffect(()=>{if(!onEditor||!editOpen)return;onEditor({context:editorContext,flush:editorFlush,preview:previewEdit,estimate:estimateEdit,commit:studio.commitServer});return()=>onEditor(null);},[onEditor,editOpen,studio.commitServer]);
  const onEditState=embedded?.onEditState,selectedCount=selection.size,previewKey=preview?.key,timelineVersion=p?.updatedAt;
  useEffect(()=>{if(editOpen)onEditState?.({selected:selectedCount,previewKey,version:timelineVersion});},[onEditState,editOpen,selectedCount,previewKey,timelineVersion]);
- const clubEditView=()=>{if(!p||!embedded)return null;const stageProject=preview?.after&&previewPhase==='after'?preview.after:p;return <div className={`edit-workspace club-edit ${sideView?'has-side':''}`}>
+ const clubEditView=()=>{if(!p||!embedded)return null;const zoomRange=zoomSlider(timelineControls.current?.width()||1000,duration);const stageProject=preview?.after&&previewPhase==='after'?preview.after:p;return <div className={`edit-workspace club-edit ${sideView?'has-side':''}`}>
   <main className="club-edit-stage">
    <Keep visible={!preview?.review}><Stage project={stageProject} playhead={playhead} playing={playing} playbackRate={playbackRate} onSelect={select} onImport={importMedia}/></Keep>
    {preview?.review&&<div className="club-preview-stage"><CutPlayback key={preview.key} review={preview.review} labels={{before:'Before',after:'After'}} note="This preview does not change your video."/></div>}
@@ -302,7 +303,7 @@ export default function App({embedded}:{embedded?:EmbeddedRecorder}={}){
    {sideView==='panel'&&panel&&<Inspector project={p} panel={panel} selected={selected} playhead={playhead} change={studio.change} select={select} onImport={beginImport} onAI={openAI} club onClose={()=>setPanel(null)}/>}
    {sideView==='auto'&&<EditAutoSheet key={`${p.id}:${autoInitial??''}`} project={p} jobs={automation.jobs} merge={automation.merge} reload={automation.reload} flush={studio.flush} change={studio.change} refresh={studio.reload} onPreview={showPreview} onClose={()=>setSide('transcript')} onChanged={embedded.onChanged} notify={notify} initial={autoInitial}/>}
    {sideView==='media'&&<aside className="club-sheet club-media"><header><b>Media in this video</b><button type="button" className="club-sheet-close" aria-label="Close media" onClick={()=>setSide('transcript')}><X size={16}/></button></header><p className="club-sheet-hint">Drag onto a row of the timeline, or click to add at the playhead.</p>
-    <div className="media-grid">{p.media.map(m=><button className="media-card" key={m.id} draggable onDragStart={e=>e.dataTransfer.setData('application/sceneforge-media',m.id)} onClick={()=>studio.change(d=>insertMedia(d,[m],playhead.get()))}>{m.kind==='audio'?<div className="media-audio"><AudioLines/></div>:<img src={`/api/media/${m.id}/thumbnail`} alt="" loading="lazy"/>}<b>{m.name}</b><small>{timecode(m.duration)} · {m.kind}</small></button>)}</div>
+    <div className="media-grid">{p.media.map(m=><button className="media-card" key={m.id} draggable onDragStart={e=>e.dataTransfer.setData('application/sceneforge-media',m.id)} onClick={()=>studio.change(d=>insertMedia(d,[m],playhead.get()))}>{m.kind==='audio'?<div className="media-audio"><AudioLines/></div>:<img src={`/api/media/${m.id}/thumbnail`} alt="" loading="lazy"/>}<b>{m.name}</b><small>{rulerLabel(m.duration)} · {m.kind}</small></button>)}</div>
     <footer><button type="button" className="button compact" onClick={()=>openModal('media-recovery')}>Locate media</button><button type="button" className="button compact" onClick={()=>beginImport()}><Plus size={13}/>Import</button></footer></aside>}
    <Keep visible={sideView==='transcript'}><aside className="transcript-panel club-sheet"><header><b>Transcript</b><span className="club-sheet-sub">Select words, press Delete to cut</span><button type="button" className="club-sheet-close" aria-label="Close transcript" onClick={()=>setSide(null)}><X size={16}/></button></header>
     <TranscriptionStatus jobs={statusJobs.current} enabled={automaticTranscription.enabled} error={automation.error} onRetry={retryTranscription} onCancel={cancelTranscription} onSetup={()=>openModal('settings-ai')} captionCount={p.captions.length}/>
@@ -310,14 +311,14 @@ export default function App({embedded}:{embedded?:EmbeddedRecorder}={}){
   </div>
   <div className="club-timeline-bar" role="toolbar" aria-label="Timeline">
    <button type="button" className="club-play" aria-label={playing?'Pause':'Play'} title="Play or pause (Space)" disabled={duration<=0} onClick={()=>setPlaying(v=>!v)}>{playing?<Pause size={16} fill="currentColor"/>:<Play size={16} fill="currentColor"/>}</button>
-   <ClubTime playhead={playhead} duration={duration}/>
+   <ClubTime playhead={playhead} duration={duration} fine={showTenths((timelineControls.current?.width()||1000)/zoom)}/>
    <span className="club-bar-sep" aria-hidden/>
    <button type="button" className="club-tool" title="Split at the playhead (S)" onClick={()=>split()}><Scissors size={15}/>Split</button>
    <button type="button" className="club-tool" title="Delete and close the gap (Delete). Shift+Delete keeps the gap." disabled={!selection.size} onClick={()=>deleteSelected(true)}><Trash2 size={15}/>Delete</button>
    <button type="button" className="club-tool" aria-pressed={p.settings.snap} title="Magnetic snapping (N)" onClick={()=>studio.change(d=>{d.settings.snap=!d.settings.snap;})}><Magnet size={15}/>Snap</button>
    <button type="button" className="club-tool" aria-pressed={follow} title="Keep the playhead in view while playing" onClick={()=>setFollow(v=>!v)}><ArrowRight size={15}/>Follow</button>
    <span className="club-bar-grow"/>
-   <input className="club-zoom" type="range" aria-label="Zoom timeline" title="Zoom at the playhead (+ / −, ⌘ scroll, pinch)" min={Math.log(MIN_SCALE)} max={Math.log(MAX_SCALE)} step={.01} value={Math.log(zoom)} onChange={e=>setZoom(clampScale(Math.exp(+e.target.value)))}/>
+   <input className="club-zoom" type="range" aria-label="Zoom timeline" title="Zoom at the playhead (+ / −); ⌘ scroll and pinch zoom at the pointer" min={zoomRange.min} max={zoomRange.max} step={zoomRange.step} value={zoomRange.fromScale(zoom)} onChange={e=>setZoom(zoomRange.toScale(+e.target.value))}/>
    <button type="button" className="club-tool" title="Fit the whole video (Shift+Z)" onClick={()=>timelineControls.current?.fit()}><Maximize2 size={15}/>Fit</button>
    <Menu label="Timeline actions" align="right" width={250} items={timelineItems} button={(toggle,open)=><button type="button" className="club-tool is-icon" aria-label="More timeline actions" title="More timeline actions (or right-click a clip)" aria-haspopup="menu" aria-expanded={open} onClick={toggle}><MoreHorizontal size={16}/></button>}/>
    <button type="button" className="club-tool is-icon" aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)" aria-expanded={shortcutsOpen} onClick={()=>setShortcutsOpen(v=>!v)}>?</button>

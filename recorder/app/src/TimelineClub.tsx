@@ -9,7 +9,7 @@ import {hasWaveform,waveformMediaKey,waveformBars,waveformEnvelopePath,timelineW
 import {sameTimelineWindow,timelineWindow} from './timeline-viewport';
 import {groupMove,hitLayerDrop,snapTargets,snapTimelineDelta,timelinePointerDelta,type LayerDrop,type SnapTarget} from './timeline-drag';
 import {rectangleBetween,itemsInRectangle,type SelectionItem,type SelectionRect} from './timeline-selection';
-import {syncScenesToTakes,anchoredScroll,applyClipStarts,clampScale,ensureLinks,filmstripTiles,fitScale,freeDelta,linkGroups,linkedIds,moveEffects,moveMarker,planClipMove,removeMarker,resizeEffect,rowItems,rulerTicks,rulerLabel,trimBounds,trimClips,trimGroup,DRAG_DEAD_ZONE_PX} from './timeline-edit';
+import {syncScenesToTakes,anchoredScroll,applyClipStarts,clampScale,ensureLinks,filmstripTiles,fitScale,freeDelta,linkGroups,linkedIds,moveEffects,moveMarker,planClipMove,removeMarker,resizeEffect,rowItems,rulerTicks,rulerLabel,lengthLabel,pointerScroll,showTenths,trimBounds,trimClips,trimGroup,DRAG_DEAD_ZONE_PX} from './timeline-edit';
 import type {Playhead} from './playhead';
 
 /**
@@ -29,7 +29,6 @@ const RULER=30,SNAP_PX=8,STALE_DROP='The timeline changed during the drag, so no
 const icons:Record<TrackKind,typeof Camera>={screen:Monitor,camera:Camera,audio:Mic,music:Music,overlay:Layers};
 const heights:Record<TrackKind,number>={screen:50,camera:38,audio:40,music:32,overlay:38};
 const effectRows:Array<{id:Effect;name:string;icon:typeof Camera}>=[{id:'elements',name:'Graphics',icon:Type},{id:'captions',name:'Captions',icon:AudioLines},{id:'zooms',name:'Zoom',icon:ZoomIn}];
-const fmt=(t:number)=>rulerLabel(t,100,false)+'.'+String(Math.floor((Math.max(0,t)%1)*10+1e-6));
 
 /** Rows that have something on them (custom layers always), in display order; an empty timeline shows Screen and Audio as drop targets. */
 export function usedRows(p:Project):Row[]{
@@ -52,6 +51,7 @@ function Playhead_({playhead,scale,follow,onPage}:{playhead:Playhead;scale:numbe
  return <div className="playhead" ref={line}><span/></div>;
 }
 
+const fmtLen=lengthLabel;
 const ClubClip=memo(function ClubClip({clip:c,media,row,preview,selected,linked,label,peaks,scale,from,to,onBegin,onOpen}:{clip:Clip;media?:Media;row:Row;preview?:Preview;selected:boolean;linked:boolean;label:string;peaks?:readonly number[];scale:number;from:number;to:number;onBegin:(e:React.PointerEvent,id:string,mode:'move'|'left'|'right')=>void;onOpen:(id:string)=>void}){
  const start=preview?.start??c.start,duration=preview?.duration??clipDuration(c),width=Math.max(4,duration*scale),h=row.height-6;
  const geometry=preview?{...c,start,sourceIn:preview.sourceIn??c.sourceIn,sourceOut:(preview.sourceIn??c.sourceIn)+duration*c.speed}:c;
@@ -61,7 +61,7 @@ const ClubClip=memo(function ClubClip({clip:c,media,row,preview,selected,linked,
  const wave=useMemo(()=>media&&peaks?.length&&audioRow?waveformEnvelopePath(waveformBars(geometry,media,peaks,scale,from,to,4096,1),h/2,h/2-2):'',[media,peaks,audioRow,geometry.start,geometry.sourceIn,geometry.sourceOut,scale,from,to,h]);
  const shift=(geometry.start-start)*scale;
  return <div data-clip-id={c.id} className={`timeline-clip club-clip clip-${c.track} ${selected?'selected':''} ${c.muted?'muted':''} ${preview?'clip-drag-preview':''} ${linked?'is-linked':'is-unlinked'}`} style={{left:start*scale,width,top:3,height:h,transform:preview?.dy?`translateY(${preview.dy}px)`:undefined}}
-  onPointerDown={e=>onBegin(e,c.id,'move')} onDoubleClick={()=>onOpen(c.id)} title={`${c.name} · ${fmt(duration)}${linked?' · linked':''}. Click to move the playhead, drag the name to move, edges to trim, double-click for settings.`}>
+  onPointerDown={e=>onBegin(e,c.id,'move')} onDoubleClick={()=>onOpen(c.id)} title={`${c.name} · ${fmtLen(duration)}${linked?' · linked':''}. Click to move the playhead, drag the name to move, edges to trim, double-click for settings.`}>
   {video&&<div className="club-filmstrip" aria-hidden>{tiles.map(t=><i key={t.left} style={{left:t.left+shift,width:tileW,height:h,backgroundImage:`url(/api/media/${media.id}/filmstrip)`,backgroundSize:`${count*tileW}px ${h}px`,backgroundPosition:`${-t.index*tileW}px 0`}}/>)}</div>}
   {media?.kind==='image'&&<div className="club-filmstrip is-image" aria-hidden style={{backgroundImage:`url(/api/media/${media.id}/thumbnail)`,backgroundSize:`auto ${h}px`}}/>}
   {wave&&<svg className="club-wave" viewBox={`0 0 ${width} ${h}`} preserveAspectRatio="none" aria-hidden><path d={wave}/></svg>}
@@ -78,7 +78,7 @@ export const TimelineClub=memo(function TimelineClub({project:p,playhead,scale,o
  const rows=useMemo(()=>usedRows(p),[p]),rowById=useMemo(()=>new Map(rows.map(r=>[r.id,r])),[rows]),contentHeight=rowsHeight(rows);
  const mediaById=useMemo(()=>new Map(p.media.map(m=>[m.id,m])),[p.media]),groups=useMemo(()=>linkGroups(p.clips),[p.clips]);
  const groupSize=useMemo(()=>{const n=new Map<string,number>();for(const key of groups.values())n.set(key,(n.get(key)??0)+1);return n;},[groups]);
- const start=win.left/scale,end=win.right/scale;
+ const start=win.left/scale,end=win.right/scale,tenths=showTenths(end-start);
  const effects=useMemo(()=>{const rows=new Map<string,Array<{id:string;start:number;duration:number;name:string}>>([['elements',p.elements.map(e=>({id:e.id,start:e.start,duration:e.duration,name:e.text||e.type}))],['captions',p.captions.map(c=>({id:c.id,start:c.start,duration:c.end-c.start,name:c.text}))],['zooms',p.zooms.map(z=>({id:z.id,start:z.start,duration:z.duration,name:`Zoom ${z.scale}×`}))]]);return rows;},[p.elements,p.captions,p.zooms]);
  // A gesture lives in refs and closes over ids, not over project arrays: only the person ends it, and the drop applies to the project as it is then.
  const gesture=useRef<(()=>void)|null>(null),latest=useRef(p);latest.current=p;
@@ -91,16 +91,16 @@ export const TimelineClub=memo(function TimelineClub({project:p,playhead,scale,o
  const showDrag=(next:Drag)=>{const key=JSON.stringify([[...next.items],next.ghosts.length,next.guide,next.insert,next.label,next.markers?[...next.markers]:null]);if(key===shownDrag.current)return;shownDrag.current=key;pendingDrag.current=next;
   dragFrame.current||=requestAnimationFrame(()=>{dragFrame.current=0;const ready=pendingDrag.current;pendingDrag.current=null;if(ready&&gesture.current)setDrag(ready);});};
 
- // Zoom keeps the playhead where it is on screen; a fit starts at the beginning.
- const shownScale=useRef(scale),toStart=useRef(false);
- useLayoutEffect(()=>{const el=ref.current;if(!el)return;if(toStart.current){toStart.current=false;el.scrollLeft=0;}else if(shownScale.current!==scale)el.scrollLeft=anchoredScroll({anchor:playhead.get(),from:shownScale.current,to:scale,scrollLeft:el.scrollLeft,viewport:el.clientWidth});shownScale.current=scale;view(el.scrollLeft,el.clientWidth);},[scale]);
+ // Zoom keeps the playhead where it is on screen (keys, buttons, slider); ⌘ scroll and pinch keep the time under the pointer; a fit starts at the beginning.
+ const shownScale=useRef(scale),toStart=useRef(false),atPointer=useRef<{time:number;screen:number}|null>(null);
+ useLayoutEffect(()=>{const el=ref.current;if(!el)return;const pointer=atPointer.current;atPointer.current=null;if(toStart.current){toStart.current=false;el.scrollLeft=0;}else if(shownScale.current!==scale)el.scrollLeft=pointer?pointerScroll({...pointer,to:scale}):anchoredScroll({anchor:playhead.get(),from:shownScale.current,to:scale,scrollLeft:el.scrollLeft,viewport:el.clientWidth});shownScale.current=scale;view(el.scrollLeft,el.clientWidth);},[scale]);
  const fit=useCallback(()=>{const el=ref.current;if(!el)return;toStart.current=true;onScale(fitScale(projectDuration(latest.current),el.clientWidth));},[onScale]);
  useLayoutEffect(()=>{if(controls)controls.current={fit,width:()=>ref.current?.clientWidth??0};});
  const fitted=useRef('');useEffect(()=>{if(fitted.current===p.id||!ref.current?.clientWidth)return;fitted.current=p.id;fit();});
  useEffect(()=>{const el=ref.current;if(!el)return;const ro=new ResizeObserver(()=>view(el.scrollLeft,el.clientWidth));ro.observe(el);return()=>ro.disconnect();},[view]);
  const scaleRef=useRef(scale);scaleRef.current=scale;
  useEffect(()=>{const el=ref.current;if(!el)return;let pending=0,frame=0;const apply=()=>{frame=0;const next=clampScale(scaleRef.current*Math.exp(-pending*.005));pending=0;if(next!==scaleRef.current)onScale(next);};
-  const wheel=(event:WheelEvent)=>{if(!event.ctrlKey&&!event.metaKey)return;event.preventDefault();pending+=event.deltaY;frame||=requestAnimationFrame(apply);};el.addEventListener('wheel',wheel,{passive:false});return()=>{cancelAnimationFrame(frame);el.removeEventListener('wheel',wheel);};},[onScale]);
+  const wheel=(event:WheelEvent)=>{if(!event.ctrlKey&&!event.metaKey)return;event.preventDefault();const screen=event.clientX-el.getBoundingClientRect().left;atPointer.current={time:(el.scrollLeft+screen)/scaleRef.current,screen};pending+=event.deltaY;frame||=requestAnimationFrame(apply);};el.addEventListener('wheel',wheel,{passive:false});return()=>{cancelAnimationFrame(frame);el.removeEventListener('wheel',wheel);};},[onScale]);
 
  // Waveforms of the audio rows in view.
  const [waveforms,setWaveforms]=useState<Record<string,readonly number[]>>({});
@@ -151,8 +151,8 @@ export const TimelineClub=memo(function TimelineClub({project:p,playhead,scale,o
     drop=null;let dy=0;
     if(clip&&Math.abs(y-y0)>=18&&Math.abs(y-y0)>Math.abs(x-x0)*1.25&&ids.size===1){const hit=hitLayerDrop(y-el.getBoundingClientRect().top+el.scrollTop,clipLayerKind(clip),measured);if(hit?.kind==='existing'&&hit.rowId!==item.row){drop=hit;dy=rowById.get(hit.rowId)!.top-rowById.get(item.row)!.top;}}
     const previews=new Map(moving.map(m=>[m.id,{start:m.start+(drop?0:delta),duration:m.duration,dy}]));let label='',insert:number|null=null;
-    if(clip){plan=drop?null:planClipMove(base,ids,delta,pointer);if(plan?.kind==='insert'){insert=plan.at!;label='Drop to move it here · the rest shifts to make room';}else if(plan?.kind==='slide')label='Overlaps · it slides to the nearest gap';else if(plan?.kind==='none'&&plan.at!==undefined)label='Overlaps · drop it on another clip to insert it there';else if(plan?.kind==='none'&&Math.abs(delta)>1e-6)label='The video starts here · drop it on another clip to move it';else if(drop)label=`Move to ${rowById.get((drop as {rowId:string}).rowId)?.name} · time unchanged`;else label=`${delta>=0?'+':'−'}${fmt(Math.abs(delta))}`;}
-    else{effectDelta=freeDelta(moving,delta,items);if(Math.abs(effectDelta-delta)>1e-6)label='Overlaps · it slides to the nearest gap';else label=`${delta>=0?'+':'−'}${fmt(Math.abs(delta))}`;}
+    if(clip){plan=drop?null:planClipMove(base,ids,delta,pointer);if(plan?.kind==='insert'){insert=plan.at!;label='Drop to move it here · the rest shifts to make room';}else if(plan?.kind==='slide')label='Overlaps · it slides to the nearest gap';else if(plan?.kind==='none'&&plan.at!==undefined)label='Overlaps · drop it on another clip to insert it there';else if(plan?.kind==='none'&&Math.abs(delta)>1e-6)label='The video starts here · drop it on another clip to move it';else if(drop)label=`Move to ${rowById.get((drop as {rowId:string}).rowId)?.name} · time unchanged`;else label=`${delta>=0?'+':'−'}${fmtLen(Math.abs(delta))}`;}
+    else{effectDelta=freeDelta(moving,delta,items);if(Math.abs(effectDelta-delta)>1e-6)label='Overlaps · it slides to the nearest gap';else label=`${delta>=0?'+':'−'}${fmtLen(Math.abs(delta))}`;}
     showDrag({items:previews,ghosts:moving.map(m=>({row:m.row,start:m.start,duration:m.duration})),guide:insert===null?snap.guide?.time??null:null,insert,label});
    },(moved,ev)=>{
     if(!moved){onSeek(contentX(ev.clientX)/scale);return;}
@@ -177,14 +177,14 @@ export const TimelineClub=memo(function TimelineClub({project:p,playhead,scale,o
     delta=snap.delta;const trial:Project={...base,clips:base.clips.map(c=>({...c})),elements:[],captions:[],zooms:[],scenes:base.scenes.map(s=>({...s})),cursor:{...base.cursor,points:[]},markers:(base.markers??[]).map(m=>({...m}))};trimClips(trial,ids,mode,delta,ripple);
     const previews=new Map<string,Preview>();for(const c of trial.clips){const was=base.clips.find(o=>o.id===c.id)!;if(c.start!==was.start||c.sourceIn!==was.sourceIn||c.sourceOut!==was.sourceOut)previews.set(c.id,{start:c.start,duration:clipDuration(c),sourceIn:c.sourceIn});}
     const length=clipDuration(trial.clips.find(c=>c.id===id)!);
-    showDrag({items:previews,ghosts:[],guide:snap.guide?.time??null,insert:null,label:`${mode==='left'?'Start':'End'} ${delta>=0?'+':'−'}${fmt(Math.abs(delta))} · length ${fmt(length)}${ripple?'':' · gap kept'}`,markers:new Map(trial.markers!.map(m=>[m.id,m.time]))});
+    showDrag({items:previews,ghosts:[],guide:snap.guide?.time??null,insert:null,label:`${mode==='left'?'Start':'End'} ${delta>=0?'+':'−'}${fmtLen(Math.abs(delta))} · length ${fmtLen(length)}${ripple?'':' · gap kept'}`,markers:new Map(trial.markers!.map(m=>[m.id,m.time]))});
    },moved=>{if(!moved||!delta)return;const d=delta,r=ripple;let changed=false;change(draft=>{if(!sameClips(ids,base)){changed=true;return;}ensureLinks(draft);trimClips(draft,ids,mode,d,r);syncScenesToTakes(draft);});if(changed)onNotice?.(STALE_DROP);});
    return;
   }
   const edge=mode==='left'?item.start:item.start+item.duration,snaps=targets(new Set([id]));let delta=0;
   run(e,x=>{const raw=timelinePointerDelta(x0,x,left0,el.scrollLeft,scale),snap=snapTimelineDelta({delta:raw,anchors:[edge],targets:snaps,scale,enabled:base.settings.snap,thresholdPx});
    const trial:Project={...base,elements:base.elements.map(v=>({...v})),zooms:base.zooms.map(v=>({...v})),captions:base.captions.map(v=>({...v}))};resizeEffect(trial,id,mode,snap.delta);const after=rowItems(trial).find(i=>i.id===id)!;delta=mode==='left'?after.start-item.start:after.duration-item.duration;
-   showDrag({items:new Map([[id,{start:after.start,duration:after.duration}]]),ghosts:[],guide:snap.guide?.time??null,insert:null,label:`Length ${fmt(after.duration)}`});
+   showDrag({items:new Map([[id,{start:after.start,duration:after.duration}]]),ghosts:[],guide:snap.guide?.time??null,insert:null,label:`Length ${fmtLen(after.duration)}`});
   },moved=>{if(!moved||!delta)return;const d=delta;change(draft=>resizeEffect(draft,id,mode,d));});
  }
  const beginRef=useRef(begin);useLayoutEffect(()=>{beginRef.current=begin;});
@@ -202,11 +202,11 @@ export const TimelineClub=memo(function TimelineClub({project:p,playhead,scale,o
  }
  function beginMarker(e:React.PointerEvent,id:string){
   if(e.button!==0)return;e.stopPropagation();e.preventDefault();const base=latest.current,m=base.markers?.find(x=>x.id===id);if(!m)return;let time=m.time;
-  run(e,x=>{const raw=Math.max(0,m.time+timelinePointerDelta(e.clientX,x,0,0,scale)),s=snapTime(raw,new Set([id]));time=s.time;showDrag({items:new Map(),ghosts:[],guide:s.guide,insert:null,label:`Marker at ${fmt(time)}`,markers:new Map([[id,time]])});},
+  run(e,x=>{const raw=Math.max(0,m.time+timelinePointerDelta(e.clientX,x,0,0,scale)),s=snapTime(raw,new Set([id]));time=s.time;showDrag({items:new Map(),ghosts:[],guide:s.guide,insert:null,label:`Marker at ${rulerLabel(time,tenths)}`,markers:new Map([[id,time]])});},
    moved=>{if(!moved){onSeek(m.time);return;}const t=time;change(d=>moveMarker(d,id,t));});
  }
  const visible=(s:number,d:number)=>s+d>=start&&s<=end;
- const ticks=useMemo(()=>rulerTicks(start,end,scale,p.canvas.fps),[start,end,scale,p.canvas.fps]);
+ const ticks=useMemo(()=>rulerTicks(start,end,scale),[start,end,scale]);
  const placeHeads=()=>{const el=ref.current;if(heads.current&&el)heads.current.style.transform=`translateY(${-el.scrollTop}px)`;};
  return <div className={`timeline club-timeline tool-${tool} ${drag?'timeline-dragging':''}`} onContextMenu={e=>{if(!onContextMenu)return;e.preventDefault();const hit=(e.target as HTMLElement).closest<HTMLElement>('[data-clip-id],[data-effect-id]'),id=hit?.dataset.clipId??hit?.dataset.effectId;
   if(id&&!selectedIds.has(id))onSelectMany(hit?.dataset.clipId?[...linkedIds(latest.current.clips,[id])]:[id]);onContextMenu(e.clientX,e.clientY);}}>
@@ -216,7 +216,7 @@ export const TimelineClub=memo(function TimelineClub({project:p,playhead,scale,o
     <div className="club-ruler" style={{height:RULER}} onPointerDown={beginRuler} title="Click or drag to move the playhead">
      {ticks.map(t=><span key={t.time} className={t.major?'tick major':'tick'} style={{left:t.time*scale}}>{t.label&&<b>{t.label}</b>}</span>)}
      {p.scenes.map((s,i)=>visible(s.start,Math.max(1,s.duration))&&<div key={s.id} className="club-scene-tag" style={{left:s.start*scale}} title={`Scene ${i+1}: ${s.name}`} onPointerDown={e=>{e.stopPropagation();onSeek(s.start);}}>{i+1} {s.name}</div>)}
-     {(p.markers??[]).map(m=>{const time=drag?.markers?.get(m.id)??m.time;return visible(time,0)&&<div key={m.id} className="club-marker" style={{left:time*scale}} title={`Marker at ${fmt(time)} · drag to move · double-click to remove`} onPointerDown={e=>beginMarker(e,m.id)} onDoubleClick={()=>change(d=>removeMarker(d,m.id))}/>;})}
+     {(p.markers??[]).map(m=>{const time=drag?.markers?.get(m.id)??m.time;return visible(time,0)&&<div key={m.id} className="club-marker" style={{left:time*scale}} title={`Marker at ${rulerLabel(time,tenths)} · drag to move · double-click to remove`} onPointerDown={e=>beginMarker(e,m.id)} onDoubleClick={()=>change(d=>removeMarker(d,m.id))}/>;})}
     </div>
     {rows.map(r=><div key={r.id} className={`timeline-row club-row row-${r.layer?.track??r.effect??'layer'}`} data-track={r.id} style={{top:r.top,height:r.height}} onPointerDown={e=>{if(e.target===e.currentTarget)beginEmpty(e);}}
      onDragOver={e=>{if(r.layer)e.preventDefault();}} onDrop={e=>{e.preventDefault();const id=e.dataTransfer.getData('application/sceneforge-media'),media=mediaById.get(id);if(media&&r.layer&&(media.kind==='audio'?'audio':'video')===r.layer.kind)onDropMedia(id,r.layer.track??(r.layer.kind==='audio'?'audio':'screen'),snapTime(Math.max(0,contentX(e.clientX)/scale)).time,r.id);}}>

@@ -324,7 +324,8 @@ export function removeMarker(p:Project,id:string){if(!p.markers)return;p.markers
 
 /* ---------- Zoom, ruler, filmstrip ---------- */
 
-export const MIN_SCALE=.5,MAX_SCALE=2400;
+/** The closest zoom shows a frame at 30 fps about 17 px wide and two seconds across a 1000 px timeline; further in shows nothing new. */
+export const MIN_SCALE=.5,MAX_SCALE=500;
 export const clampScale=(scale:number)=>Math.max(MIN_SCALE,Math.min(MAX_SCALE,Number.isFinite(scale)?scale:55));
 /** Pixels per second that show the whole video in the timeline's own width. */
 export function fitScale(duration:number,viewport:number){return clampScale((Math.max(0,viewport)-40)/Math.max(5,duration));}
@@ -333,19 +334,34 @@ export function anchoredScroll({anchor,from,to,scrollLeft,viewport}:{anchor:numb
  const x=anchor*from-scrollLeft,visible=x>=0&&x<=viewport,screen=visible?x:viewport/2,time=visible?anchor:(scrollLeft+viewport/2)/from;
  return Math.max(0,time*to-screen);
 }
-/** "1:05", or "1:05:12" (frame 12) when the ruler shows frames. */
-export function rulerLabel(time:number,fps:number,frames:boolean){
- const t=Math.max(0,time+1e-9),m=Math.floor(t/60),s=Math.floor(t%60),base=`${m}:${String(s).padStart(2,'0')}`;
- return frames?`${base}:${String(Math.floor((t-Math.floor(t))*fps+1e-6)).padStart(2,'0')}`:base;
+/** The scroll that keeps `time` (under the pointer, `screen` px into the view) at the same place on screen after zooming to `to` px/s. */
+export function pointerScroll({time,screen,to}:{time:number;screen:number;to:number}){return Math.max(0,time*to-screen);}
+/**
+ * The zoom slider, linear in the seconds in view: its value is minus the visible seconds, so right zooms in and equal steps add or remove
+ * equal time. Left end: the whole video and a little room (or more when the video is short); right end: MAX_SCALE.
+ */
+export function zoomSlider(viewport:number,duration:number){
+ const width=Math.max(1,viewport),most=Math.max(width/MAX_SCALE*2,Math.min(width/MIN_SCALE,Math.max(10,duration*1.2))),least=width/MAX_SCALE;
+ return {min:-most,max:-least,step:(most-least)/400,toScale:(value:number)=>clampScale(width/Math.max(least,Math.min(most,-value))),fromScale:(scale:number)=>-Math.max(least,Math.min(most,width/clampScale(scale)))};
 }
+/** Below this many seconds in view, times carry tenths. */
+export const TENTHS_BELOW=10;
+export const showTenths=(visibleSeconds:number)=>visibleSeconds<TENTHS_BELOW;
+/** The one time format of Edit (ruler, playhead readout, drag and marker labels): "1:05", or "1:05.3" when zoomed in to less than 10 s. Never frames. */
+export function rulerLabel(time:number,tenths=false){
+ const t=Math.max(0,time+1e-9),whole=Math.floor(t),m=Math.floor(whole/60),s=whole%60,base=`${m}:${String(s).padStart(2,'0')}`;
+ return tenths?`${base}.${Math.floor((t-whole)*10+1e-6)%10}`:base;
+}
+/** A length or a move, not a time: "0.4 s", "4.2 s", "12 s", "1 min 4 s". */
+export const lengthLabel=(n:number)=>n>=60?`${Math.floor(n/60)} min ${Math.round(n%60)} s`:`${n<10?Math.round(n*10)/10:Math.round(n)} s`;
 export interface RulerTick {time:number;major:boolean;label?:string}
-/** Ticks between `from` and `to`: labelled major ticks at least 70 px apart, minor ticks between; at high zoom the steps are frames. */
-export function rulerTicks(from:number,to:number,scale:number,fps=30):RulerTick[]{
+/** Ticks between `from` and `to`: labelled major ticks at least 70 px apart, minor ticks between; at high zoom the steps are tenths of a second. */
+export function rulerTicks(from:number,to:number,scale:number):RulerTick[]{
  if(!(scale>0)||!(to>from))return [];
- const frame=1/Math.max(1,fps),steps=[...[1,2,5,10,15].filter(n=>n<fps).map(n=>n*frame),1,2,5,10,15,30,60,120,300,600,1800],major=steps.find(s=>s*scale>=70)??3600;
- const frames=major<1,minor=frames?(major<=5*frame+1e-9?frame:major/5):major/(major>=60?6:major===15?3:major===2?4:5);
+ const steps=[.1,.2,.5,1,2,5,10,15,30,60,120,300,600,1800],major=steps.find(s=>s*scale>=70)??3600;
+ const tenths=major<1,minor=major/(major>=60?6:major===15?3:major===2||major===.2?4:5);
  const out:RulerTick[]=[],first=Math.floor(from/minor);
- for(let i=first;i*minor<=to+minor&&out.length<2000;i++){const time=i*minor;if(time<0)continue;const ratio=time/major,major_=Math.abs(ratio-Math.round(ratio))<1e-6;out.push({time,major:major_,...(major_?{label:rulerLabel(time,fps,frames)}:{})});}
+ for(let i=first;i*minor<=to+minor&&out.length<2000;i++){const time=i*minor;if(time<0)continue;const ratio=time/major,major_=Math.abs(ratio-Math.round(ratio))<1e-6;out.push({time,major:major_,...(major_?{label:rulerLabel(time,tenths)}:{})});}
  return out;
 }
 /** Thumbnail tiles across a clip: `left` in px from the clip's left edge, `index` into the media's filmstrip sprite of `count` frames. Only tiles in [from, to] (timeline seconds) are returned. */
