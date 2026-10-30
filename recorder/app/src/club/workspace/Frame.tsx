@@ -43,11 +43,12 @@ export function Header({video,tab,back,facts,onTitle,onStage,onTab,onLocked,onDe
 }
 
 /** The scenes of the video, shown on Record and Edit only. A failed read says so; an empty outline says what to do. */
-export function Strip({scenes,focusId,onPick,onRetry}:{scenes:VideoScenes;focusId:string|null;onPick(sceneId:string):void;onRetry():void}){
- if(scenes.status==='loading')return <div className="strip"><span className="lab"><Icon name="scenes" size={14}/>Scenes</span></div>;
- if(scenes.status==='unknown')return <div className="strip"><ErrorLine message="Couldn't read the scenes." onRetry={onRetry}/></div>;
+export function Strip({scenes,focusId,onPick,onRetry,bottom=false}:{scenes:VideoScenes;focusId:string|null;onPick(sceneId:string):void;onRetry():void;/** On Edit the scenes sit under the timeline, as a row of clips. */bottom?:boolean}){
+ const place=bottom?'strip at-bottom':'strip';
+ if(scenes.status==='loading')return <div className={place}><span className="lab"><Icon name="scenes" size={14}/>Scenes</span></div>;
+ if(scenes.status==='unknown')return <div className={place}><ErrorLine message="Couldn't read the scenes." onRetry={onRetry}/></div>;
  const list=scenes.scenes;
- if(!list.length)return <div className="strip"><span className="lab"><Icon name="scenes" size={14}/>Scenes</span><span className="small muted">No scenes yet. Plan the scenes first.</span></div>;
+ if(!list.length)return <div className={place}><span className="lab"><Icon name="scenes" size={14}/>Scenes</span><span className="small muted">No scenes yet. Plan the scenes first.</span></div>;
  const progress=toProgress(list);
  // The chips are the one scene selector: Tab reaches them and the arrow keys move between them.
  const arrows=(event:KeyboardEvent<HTMLDivElement>)=>{
@@ -57,7 +58,7 @@ export function Strip({scenes,focusId,onPick,onRetry}:{scenes:VideoScenes;focusI
   if(at<0)return;
   event.preventDefault();chips[(at+move+chips.length)%chips.length].focus();
  };
- return <div className="strip" role="list" aria-label="Scenes" onKeyDown={arrows}>
+ return <div className={place} role="list" aria-label="Scenes" onKeyDown={arrows}>
   <span className="lab"><Icon name="scenes" size={14}/>{scenesLine(list,clockTime)}</span>
   {list.map((scene,index)=><button key={scene.id} role="listitem" type="button" className={cn('sc',focusId===scene.id&&'on')} onClick={()=>onPick(scene.id)} title={scene.title}>
    <span className="n">{index+1}</span><span className="t">{scene.title}</span><SceneStatus scene={progress[index]}/></button>)}

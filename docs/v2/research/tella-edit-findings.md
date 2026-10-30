@@ -38,3 +38,26 @@ Structure and wording only. No Tella code or assets were copied.
 Order is now rail, then the tool's panel, then the video with one joined bar under it (Format, Background, Layout, Cursor), then the chat. Before, the panel opened on the right of the video. Checked by screenshot of the real app.
 
 Still different from Tella (observed, not changed): Tella's timeline is one waveform with the spoken words on it and a row of clips below; ours has Camera, Audio and Captions rows. Tella has one slim top bar; ours has the step tabs, the scene strip and a toolbar. Tella's rail icons are coloured; ours are plain outlines.
+
+## Tella editor, tool by tool (observed 2026-10-30, only opened panels, changed nothing)
+
+| Tool | What its panel shows |
+|---|---|
+| Setup | Title, description, Viewer settings, Chapters, Size (Auto 2:1), transcript language. |
+| Library | "My videos" with clip thumbnails. |
+| Layout | Auto / Adjust, a "Base layout" with side-by-side previews, Perspective toggle, Position, Style (Standard / Overlap), Auto Layouts with one Generate button. Timeline shows the waveform and sentences. |
+| Cut | Mistakes (Review, Cut & review), Buffers (Remove buffers), Silences (found, remove to save time), "Show transcript". |
+| Effect | Zooms (Generate), Cursor (on/off, four styles, size, smooth movement). |
+| Overlay | Text styles (Title, Label, Serif…), Shapes, Media. |
+| Style | Background (Images / Animated / Colors), Border style. |
+| Subs | Subtitle styles (Backdrop, Spotlight, Midnight…); the chat side becomes the list of subtitles with timestamps. |
+| Audio | Background music list, Studio Voice, and the chat side shows the Script. |
+| Redo | Not pressed: it re-records, so it is an action, not a view. |
+
+Seen across all of them: each tool is a coloured tile with its name under it; the panel sits beside the rail; there is no scene strip, only a "Clip 1 / Add clip" row at the bottom; the timeline appears only for Layout, Cut and Effect, as one waveform with the spoken sentences on it.
+
+## Third pass: what changed in CreatorClub
+- Rail icons are now tinted tiles, one colour per tool, with the selected one ringed.
+- On Edit the scenes are a slim row at the bottom (Tella's "Clip 1" row), not a bar at the top. Record keeps them on top.
+- Timeline: no row labels or striping, a soft waveform band, caption chips that carry the words, a red playhead.
+- Not done: Tella shows the timeline only for tools that need it, and its Cut panel groups Mistakes, Buffers and Silences with one Review button; ours still opens the Auto-edit sheet.

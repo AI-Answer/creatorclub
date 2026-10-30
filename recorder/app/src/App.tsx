@@ -321,10 +321,10 @@ export default function App({embedded}:{embedded?:EmbeddedRecorder}={}){
 const formatLabel=(w:number,h:number)=>({'1920x1080':'16:9','1080x1920':'9:16','1080x1080':'1:1','1080x1350':'4:5'} as Record<string,string>)[`${w}x${h}`]??`${w}×${h}`;
  const clubEditView=()=>{if(!p||!embedded)return null;const zoomRange=zoomSlider(timelineControls.current?.width()||1000,duration);const stageProject=preview?.after&&previewPhase==='after'?preview.after:p;return <div className={`edit-workspace club-edit ${sideView?'has-side':''}`}>
   <nav className="club-rail" aria-label="Edit tools">
-   {railTools.map(({id,label,tip,icon:Icon,open})=><button key={id} type="button" aria-pressed={railActive===id} title={tip} onClick={()=>railActive===id?(setPanel(null),setSide(null)):open()}><Icon size={20}/>{label}</button>)}
+   {railTools.map(({id,label,tip,icon:Icon,open})=><button key={id} data-tool={id} type="button" aria-pressed={railActive===id} title={tip} onClick={()=>railActive===id?(setPanel(null),setSide(null)):open()}><Icon size={20}/>{label}</button>)}
    <span className="club-rail-grow"/>
-   <button type="button" aria-pressed={railActive==='media'} title="The recordings and files in this video" onClick={()=>railActive==='media'?setSide(null):openSide('media')}><Film size={20}/>Media</button>
-   <Menu label="More edit tools" align="left" width={210} items={moreItems} button={(toggle,open)=><button type="button" aria-haspopup="menu" aria-expanded={open} title="Canvas background, cursor and importing" onClick={toggle}><MoreHorizontal size={20}/>More</button>}/>
+   <button type="button" data-tool="media" aria-pressed={railActive==='media'} title="The recordings and files in this video" onClick={()=>railActive==='media'?setSide(null):openSide('media')}><Film size={20}/>Media</button>
+   <Menu label="More edit tools" align="left" width={210} items={moreItems} button={(toggle,open)=><button type="button" data-tool="more" aria-haspopup="menu" aria-expanded={open} title="Canvas background, cursor and importing" onClick={toggle}><MoreHorizontal size={20}/>More</button>}/>
   </nav>
   <main className="club-edit-stage">
    {/* The player always stays; a preview is a badge over it, and a cut's before/after plays in a small inset in the corner. */}

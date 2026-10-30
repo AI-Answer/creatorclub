@@ -997,3 +997,8 @@
 .club-root .tline .tnote { flex: none; padding-top: 3px; }
 .club-root .pkg-thumb { position: relative; overflow: hidden; }
 .club-root .pkg-thumb-tt { position: absolute; left: 8px; right: 8px; bottom: 6px; color: var(--cc-on-media); font-weight: 800; font-size: 13px; line-height: 1.05; letter-spacing: -0.02em; text-shadow: var(--cc-media-text-shadow); }
+
+/* Edit: the scenes are a slim row of clips under the timeline. */
+:where(.club-root) .strip.at-bottom { border-bottom: 0; border-top: 1px solid var(--cc-line); background: var(--cc-surface); padding: 8px 14px; gap: 8px; }
+:where(.club-root) .strip.at-bottom .lab { font-weight: 500; color: var(--cc-text-3); }
+:where(.club-root) .strip.at-bottom .sc { height: 38px; border-radius: 10px; }
