@@ -41,11 +41,12 @@ const TITLE_CARD:MotionTemplate={
  body:(p)=>`<div class="mb-card"><div class="mb-card-rule"></div><div class="mb-card-title">${escape(p.title)}</div>${p.subtitle?`<div class="mb-card-sub">${escape(p.subtitle)}</div>`:''}</div>`,
 };
 const LOWER_THIRD:MotionTemplate={
- id:'lower-third',version:1,label:'Lower third',
+ id:'lower-third',version:2,label:'Lower third',
  styles:[{id:'block',label:'Block'},{id:'glass',label:'Glass'}],
  defaultDuration:5,minDuration:1.5,maxDuration:20,
  props:[{key:'name',label:'Name',kind:'text',max:40,default:'Your name'},{key:'role',label:'Role or line',kind:'text',max:70,default:'',optional:true}],
- box:()=>({x:0,y:.5,width:.66,height:.48}),
+ // It sits above the captions (which take the bottom fifth of the frame), at the left.
+ box:()=>({x:0,y:.38,width:.66,height:.46}),
  body:(p)=>`<div class="mb-lt"><div class="mb-lt-name">${escape(p.name)}</div>${p.role?`<div class="mb-lt-role">${escape(p.role)}</div>`:''}</div>`,
 };
 const CALLOUT:MotionTemplate={
@@ -149,7 +150,7 @@ export const MOTION_CSS=`
 .mb-s-bold .mb-card-rule{order:3;width:12cqw}
 .mb-s-bold .mb-card-title{font-size:5cqw}
 
-.mb-lower-third .mb-lt{position:absolute;left:4.5cqw;bottom:11%;max-width:56cqw;display:flex;flex-direction:column;align-items:flex-start;gap:.35cqw}
+.mb-lower-third .mb-lt{position:absolute;left:4.5cqw;bottom:20%;max-width:56cqw;display:flex;flex-direction:column;align-items:flex-start;gap:.35cqw}
 .mb-lt-name{font-size:2.7cqw;font-weight:800;letter-spacing:-.01em}
 .mb-lt-role{font-size:1.65cqw;font-weight:600}
 .mb-s-block .mb-lt-name{background:var(--mb-accent);padding:.55cqw 1.3cqw;animation:mb-slide .5s var(--mb-ease) both}

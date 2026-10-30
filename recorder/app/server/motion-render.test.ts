@@ -45,7 +45,7 @@ test("a block is captured with real transparency and encoded with alpha", { skip
   try {
     const block = newMotionBlock("lower-third", 0, "alpha", { style: "glass", duration: 2, props: { name: "Samin Yasar", role: "Claude Club" } });
     const r = await renderMotionBlock(block, 640, 360, 30);
-    assert.deepEqual([r.x, r.y, r.width, r.height, r.frames], [0, 180, 422, 172, 60]);
+    assert.deepEqual([r.x, r.y, r.width, r.height, r.frames], [0, 136, 422, 166, 60]);
     const probe = JSON.parse(run(FFPROBE, ["-v", "error", "-show_streams", "-count_frames", "-of", "json", r.file]).toString()).streams[0];
     assert.deepEqual([probe.codec_name, probe.pix_fmt, Number(probe.nb_read_frames)], ["qtrle", "argb", 60]);
     // A second into the block: most pixels clear, the glass panel and its shadow in between, the letters opaque.
