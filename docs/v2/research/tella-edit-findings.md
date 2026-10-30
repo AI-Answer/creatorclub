@@ -6,28 +6,31 @@ Structure and wording only. No Tella code or assets were copied.
 
 | Target | Status |
 |---|---|
-| Tella macOS app, pre-record window (`/Applications/Tella.app`, screenshot) | **Observed.** The window was minimized; it was brought back, nothing was clicked, no recording started. |
-| Tella macOS app, island while recording | **Not observed.** It only appears once recording starts, which would use the camera and write a recording to the account. |
-| Tella web editor and its chat with skills | **Not observed.** The Chrome window the tools control is not signed in to Tella (tella.com shows "Log in / Sign up"). Signing in means entering credentials, which stays with the user. |
+| Tella web: home prompt box, Skills panel, "/" list | **Observed** (signed-in Chrome, nothing sent or saved). |
+| Tella web editor and its chat | **Observed.** Opened one existing video's editor and only looked; no edits. |
+| Tella macOS app, pre-record window | **Observed** (screenshot; nothing clicked, no recording). |
+| Tella macOS island while recording | **Not observed.** It appears only once recording starts. |
 | Tella binary (Ghidra) | Not done: Ghidra is not installed. |
 
-## 1. Recorder window (observed)
+## 1. Chat with skills (observed)
 
-- **Tella does:** one small window, the camera preview fills it. Top bar: two quality pills (both "1080p"), a cursor-effects toggle, a music toggle, a burst toggle, a "…" menu. Bottom: one large red record button, with three pickers under it (microphone, camera, display), each labelled with the device name.
-- **We do:** Record is a page: camera preview top-left, a status line ("Starting camera and microphone…"), a "Record scene 1 again" button, a Takes list, and the scene's talking points on the right.
-- **Change (inference):** our page is richer because of scenes and talking points; the part worth borrowing is the three device pickers as one row under the record button. We already have "Change" for devices; a row of three named pickers would show the current mic, camera and screen at a glance. Not built yet.
+- **Tella does:** the chat opens with a short welcome ("tell me what to change, or start with one of these skills"), four skill chips (Plan a Video, Auto Cut, Auto Layouts, Remove Mistakes), and a "Skills" button at the top right of the chat. The button opens a side panel with a Personal area (drag a skill there to keep it yours) and a Workspace list: skill name, then a one-line cut-off description, and a "+" to add one. Typing "/" in the box lists the same skills as `/name` in bold with a one-line description under it, cut with "…". A note says everyone editing the video shares the chat. The box shows the model ("Sonnet 5.5 Medium") and a cost icon.
+- **We did:** only chips; four writing skills; no list.
+- **Changed (built):** typing "/" lists your installed skills the same way (name, one-line description); a "Skills" button in the chat header opens that list too; sending `/name …` runs the skill. Left alone: Tella's skills are shared by a workspace; ours are the person's own, local.
+- **Not adopted:** the skills side panel, drag to Personal, and the cost icon. Inference: they matter for teams and paid usage; CreatorClub is one person on their own Claude or Codex.
 
-## 2. Chat with skills (web: not observed)
+## 2. Editor layout (observed)
 
-No Tella observation. The skills picker below follows what the user asked for, not Tella.
+- **Tella does:** top bar with title, undo/redo, View, Download and one purple primary "Share". Left rail of eight tools (Setup, Library, Layout, Cut, Effect, Overlay, Style, Subs), each opening a panel beside it. Stage in the middle with a small row of pills under it (size, crop, background, resolution). Chat docked on the right. Clips strip along the bottom with "Add clip", playback speed and a scrubber.
+- **We do:** left rail (Transcript, Cut, Captions, Layout, Clip, Zoom, Graphics, Text, Music), one outline Export, one black Continue, chat on the right, timeline with tracks.
+- **Takeaways (inference):** the structure is the same, which is a good sign for ours. Tella puts the stage settings (size, crop, background) as a pill row right under the video; ours keep them in the rail. That is the one layout idea worth testing next. Not built.
 
-- **We do (before):** the companion loaded only four writing skills, and only from chips or from typing the skill's name.
-- **Changed:** typing "/" in the chat lists the person's installed skills (`~/.claude/skills`) with a one-line description. Arrow keys and Enter choose, Esc closes. Sending a message that starts with `/name` adds that skill's instructions to the reply. Skill names are checked as plain folder names before anything is read.
+## 3. Recorder window (observed)
 
-## 3. Editor layout (web: not observed)
-
-Nothing to compare against Tella. Our Edit stays as it is: left tool rail, one black "Continue to publishing" button, Export video as the outline button.
+- **Tella does:** one small window, the camera preview fills it. Top bar: two quality pills (both "1080p"), a cursor-effects toggle, a music toggle, a third toggle and a "…" menu. Bottom: one large red record button, with three pickers under it (microphone, camera, display), each labelled with the device name.
+- **We do:** Record is a page: camera preview top-left, a status line, a "Record scene 1 again" button, a Takes list, and the scene's talking points on the right.
+- **Change (inference):** our page is richer because of scenes and talking points. The part worth borrowing is the three named device pickers as one row under the record button. Not built.
 
 ## Open items
-- Sign in to Tella in the Chrome window the tools control (or tell me to use another), then the editor and chat comparison can be done passively.
 - Start a recording in Tella yourself and leave the island up, and I can screenshot it.
+- Decide whether to try Tella's stage-settings pill row under our video.

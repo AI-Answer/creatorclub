@@ -153,6 +153,7 @@ export function Companion({videoId,videoTitle,tab,scene,screen,selection,pkg,out
     <div className="cmp-title">{title}</div>
     <div className="cmp-look">Looking at: <span>{lookingAt(tab,scene)}</span>{scene&&<span className="cmp-look-scene">{scene.title}</span>}{selected>0&&<span className="cmp-look-scene">{selected} selected</span>}</div>
    </div>
+   <button type="button" className="btn ghost sm" onClick={()=>{setText('/');input.current?.focus();}} title="Run one of your skills"><Icon name="Sparkles" size={14}/>Skills</button>
    <button type="button" className="btn ghost sm icon-only" onClick={()=>toggle(false)} aria-label={`Hide ${title}`} title={`Hide ${title}`}><Icon name="PanelRightClose" size={16}/></button>
   </header>
   {/* One line for screen readers: the step, "Reply ready" or the failure. The timer is never in a live region. */}
