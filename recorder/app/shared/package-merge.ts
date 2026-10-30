@@ -1,7 +1,10 @@
 import type { ConceptRating, Package } from './club';
 
 /** The part of a package a run may be asked to write again whole. */
-export type PackageGroup = 'titles' | 'hook';
+export type PackageGroup = 'titles' | 'thumbnail' | 'hook';
+
+/** Every group a run may be asked to write again, for the server's check of the request. */
+export const PACKAGE_GROUPS = ['titles', 'thumbnail', 'hook'] as const satisfies readonly PackageGroup[];
 
 
 const fill=(have:string,wanted:string)=>have.trim()?have:wanted;
@@ -23,6 +26,7 @@ export function mergePackage(earlier:Package|null,written:Package,replace?:Packa
  if(earlier.tags)merged.tags=earlier.tags;
  if(demand)merged.demand=demand;if(gap)merged.gap=gap;if(show)merged.show=show;
  if(replace==='titles')merged.titles=written.titles;
+ if(replace==='thumbnail')merged.thumbnailText=written.thumbnailText;
  if(replace==='hook')merged.hook=written.hook;
  return merged;
 }

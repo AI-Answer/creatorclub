@@ -115,6 +115,11 @@
 .club-root .cmp-send:focus-visible { outline: 2px solid var(--cc-accent); outline-offset: 2px; }
 .club-root .cmp-send.stop { background: var(--cc-text); color: var(--cc-surface); }
 .club-root .cmp-hint { font-size: 11px; color: var(--cc-text-3); padding-left: 2px; }
+/* Before anything is asked on a step: its greeting, with the best prompts right under it as full-width rows. */
+.club-root .cmp-hello { display: flex; flex-direction: column; gap: 12px; }
+.club-root .cmp-hello p { margin: 0; color: var(--cc-text-2); font-size: 13.5px; line-height: 1.5; }
+.club-root .cmp-sugg.fresh { flex-direction: column; gap: 6px; }
+.club-root .cmp-sugg.fresh button { border-radius: var(--cc-r); padding: 8px 12px; font-size: 13px; color: var(--cc-text); }
 
 @media (prefers-reduced-motion: reduce) {
   .club-root .cmp-mark.working .cmp-mark-dot, .club-root .cmp-pulse::before, .club-root .cmp-skel i, .club-root .cmp-md.streaming > :last-child::after { animation: none; }

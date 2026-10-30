@@ -19,7 +19,30 @@ export const titleTooLong=(title:string)=>wordCount(title)>7||[...title].length>
 export const chosenTitle=(titles:readonly string[],videoTitle:string)=>titles.findIndex(title=>!!title.trim()&&title.trim()===videoTitle.trim());
 
 /** Whether the group has an empty place a run could fill. */
-export const hasEmptyPlace=(pkg:Package|null,group:PackageGroup)=>!pkg||(group==='titles'?pkg.titles.some(title=>!title.trim()):Object.values(pkg.hook).some(part=>!part.trim()));
+export const hasEmptyPlace=(pkg:Package|null,group:PackageGroup)=>!pkg||(group==='titles'?pkg.titles.some(title=>!title.trim()):group==='thumbnail'?!pkg.thumbnailText.trim():Object.values(pkg.hook).some(part=>!part.trim()));
+
+/** A title too long to show whole in a search result says so in words, with its length; a title that fits says nothing. */
+export function titleWarning(title:string):string|undefined{
+ if(!titleTooLong(title))return undefined;
+ const characters=[...title.trim()].length,words=wordCount(title);
+ return characters>60?`${characters} characters, too long for a search result`:`${words} words, too long for a search result`;
+}
+
+/** True when nothing the package shows first (titles, thumbnail text, hook) is written. Ratings carried over from the idea do not count. */
+export const packageFrontIsEmpty=(pkg:Package|null)=>!pkg||(!pkg.thumbnailText.trim()&&pkg.titles.every(title=>!title.trim())&&Object.values(pkg.hook).every(part=>!part.trim())&&!pkg.angle.trim()&&!pkg.twist.trim());
+
+/**
+ * What the Package column shows: `empty` (one sentence and one action) until a title, the thumbnail text, the hook, the angle or the
+ * twist is written, or the person chose to fill it in themselves; `writing` while the first package run is going; then the package itself.
+ */
+export type PackageView='empty'|'writing'|'filled';
+export function packageView(pkg:Package|null,{running,manual}:{running:boolean;manual:boolean}):PackageView{
+ if(!packageFrontIsEmpty(pkg)||manual)return 'filled';
+ return running?'writing':'empty';
+}
+
+/** The title slots to show: every written title, in order, and the ones being typed in (`keep`), even while empty. Other empty slots stay behind "Add a title". */
+export const shownTitles=(titles:readonly string[],keep:readonly number[])=>titles.map((title,index)=>({title,index})).filter(({title,index})=>title.trim()!==''||keep.includes(index));
 
 /** True when nothing in the package was written yet. */
 export const packageIsEmpty=(pkg:Package|null)=>!pkg||(!pkg.angle.trim()&&!pkg.twist.trim()&&!pkg.thumbnailText.trim()&&pkg.titles.every(title=>!title.trim())&&Object.values(pkg.hook).every(part=>!part.trim())&&!pkg.demand&&!pkg.gap&&!pkg.show);

@@ -1,6 +1,7 @@
 import type {Outline,OutlineScene,Package,Video,VideoScene} from '../../../shared/club';
 import {describeAngle} from '../../../shared/description';
 import type {Clip} from '../../../shared/types';
+import {isSceneRecorded} from '../scene-status';
 
 /*
  * The parts of Record and Publish that need no screen: which recording-project scene a strip choice means, which outline scene the
@@ -20,7 +21,7 @@ export function promptScene(outline:Outline|null,scenes:readonly VideoScene[]|un
  const list=outline?.scenes??[];
  if(!list.length)return undefined;
  let index=focusId?list.findIndex(scene=>scene.id===focusId):-1;
- if(index<0&&scenes)index=list.findIndex(scene=>{const known=scenes.find(value=>value.id===scene.id);return known&&!known.takes.some(take=>take.kept);});
+ if(index<0&&scenes)index=list.findIndex(scene=>{const known=scenes.find(value=>value.id===scene.id);return known&&!isSceneRecorded(known);});
  if(index<0)index=0;
  return {index,scene:list[index]};
 }
