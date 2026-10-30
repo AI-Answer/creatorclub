@@ -64,10 +64,11 @@ function ChannelSwitcher({collapsed,epoch,onSwitched,onAdd}:{collapsed:boolean;e
   },()=>toast("Couldn't switch channels."));
  },[channels?.current,onSwitched,toast]);
  const current=channels?.workspaces.find(workspace=>workspace.slug===channels.current);
- if(channels&&!current)return <a href="#/welcome?step=2" className="channel-btn" title={collapsed?'Add a channel':undefined} aria-label="Add a channel">
-  <span className="avatar lg sq" aria-hidden style={{background:'var(--cc-bg-sunk)',color:'var(--cc-text-2)'}}><Icon name="add" size={16}/></span>
-  <span className="meta"><div className="name ellipsis">Add a channel</div></span>
- </a>;
+ // With no channel there is nothing to switch: the one way to add one is the button on the screen beside, so this only says there is none.
+ if(channels&&!current)return <div className="channel-btn static" title={collapsed?'No channel yet':undefined}>
+  <span className="avatar lg sq" aria-hidden style={{background:'var(--cc-bg-sunk)',color:'var(--cc-text-2)'}}><Icon name="video" size={16}/></span>
+  <span className="meta"><div className="name ellipsis">No channel yet</div></span>
+ </div>;
  const name=current?.name??'';
  const items:MenuItem[]=[{header:'Channels'},...(channels?.workspaces??[]).map(workspace=>({label:workspace.name,check:workspace.slug===channels?.current,fn:()=>choose(workspace.slug)})),'-',{label:'Add a channel',icon:'add',fn:onAdd}];
  return <Menu width={240} label="Channels" items={items} button={toggle=><button type="button" className="channel-btn" onClick={toggle} disabled={!channels} title={collapsed?name:undefined} aria-label="Switch channel" aria-haspopup="menu">

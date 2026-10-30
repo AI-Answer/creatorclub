@@ -1,42 +1,72 @@
 import type {TrendingEntry,Video} from '../../shared/club';
 import {ErrorLine} from './ErrorLine';
-import {FollowChannel} from './FollowChannel';
-import {creatorName,fmtNum} from './format';
-import {Empty,Icon,MultChip,Spinner,Thumb} from './ui';
+import {ProgressLine} from './ProgressLine';
+import {FIND_IDEA,VIDEO_STEPS} from './steps';
+import type {VideoTab} from './routes';
+import {TrendCard,TrendHelp} from './TrendCards';
+import {SCAN_ESTIMATE} from './welcome';
+import {Button,Empty,Icon,Spinner} from './ui';
 
-/** The first-video checklist a channel sees until it has a video in production: connect, say what your space is, pick an idea, then the five steps. `error` is why the videos to start from could not be read, with `onRetry`. */
-export function FirstSteps({ideas,hasTopics,start,error,onRetry,onBreak,onOpenIdea,onIdeas}:{ideas:readonly Video[];hasTopics:boolean;start:readonly TrendingEntry[]|null;error?:string|null;onRetry():void;onBreak(item:TrendingEntry):void;onOpenIdea(video:Video):void;onIdeas():void}){
- const done=(key:string)=>key==='ai'||(key==='space'&&hasTopics)||(key==='idea'&&ideas.length>0);
- const steps=[
-  {key:'ai',title:'Connect your AI',text:'Your AI is connected.'},
-  {key:'space',title:'Tell CreatorClub your space',text:'Topics and who you make videos for.'},
-  {key:'idea',title:'Pick your first idea',text:"Break down a video that's working and keep a concept."},
-  {key:'plan',title:'Plan it, record the scenes, edit, publish',text:'Every video goes through the same five steps.'},
+/** What the first-video checklist and its picks need from the screen around them. */
+export interface FirstStepsProps{
+ ideas:readonly Video[];
+ hasTopics:boolean;
+ /** The videos to start from; null while they are loading. */
+ start:readonly TrendingEntry[]|null;
+ /** The search for them is running, with what it says it is doing. */
+ searching:{line?:string}|null;
+ error?:string|null;
+ hasBreakdown(videoId:string):boolean;
+ onRetry():void;
+ onBreak(item:TrendingEntry):void;
+ onStartIdea(video:Video):void;
+ onOpenStep(video:Video,tab:VideoTab):void;
+ onSettings():void;
+ onFollow():void;
+ onDiscover():void;
+}
+
+interface Row{key:string;title:string;text:string;done:boolean;go?:()=>void}
+
+/**
+ * The first-video checklist a channel sees until it has a video in production. Its rows are the real steps with the words the rest of the app uses:
+ * set up, Discover, then Board, Plan, Record, Edit and Publish. Every row that has somewhere to go is a button (the five steps open once there is an idea).
+ * Beside it, the videos working in the channel's topics to start from, with what their numbers mean said once.
+ */
+export function FirstSteps({ideas,hasTopics,start,searching,error,hasBreakdown,onRetry,onBreak,onStartIdea,onOpenStep,onSettings,onFollow,onDiscover}:FirstStepsProps){
+ const idea=ideas[0];
+ const rows:Row[]=[
+  {key:'setup',title:'Set up',text:'Your AI and your topics are saved.',done:hasTopics,go:onSettings},
+  {key:'discover',title:FIND_IDEA.name,text:FIND_IDEA.does,done:ideas.length>0,go:onDiscover},
+  ...VIDEO_STEPS.map<Row>(step=>({key:step.tab,title:step.name,text:step.does,done:false,go:idea?()=>(step.tab==='board'?onStartIdea(idea):onOpenStep(idea,step.tab)):undefined})),
  ];
- const current=steps.findIndex(step=>!done(step.key));
+ const current=rows.findIndex(row=>!row.done);
  return <div className="card" style={{padding:22,display:'grid',gridTemplateColumns:'1fr 1.3fr',gap:28}}>
   <div>
    <h2 className="sec" style={{fontSize:17,marginBottom:4}}>Your first video</h2>
-   <div className="muted" style={{marginBottom:16}}>{ideas.length?'You have an idea. Open it and start planning.':"You don't need to know what to make yet. Start from something that's already working."}</div>
-   {steps.map((step,index)=><div key={step.key} className="row" style={{alignItems:'flex-start',gap:12,padding:'9px 0',borderBottom:index<3?'1px solid var(--cc-line)':0}}>
-    <span aria-hidden style={{width:22,height:22,borderRadius:'50%',flex:'none',display:'flex',alignItems:'center',justifyContent:'center',background:done(step.key)?'var(--cc-ok)':index===current?'var(--cc-primary)':'var(--cc-bg-sunk)',color:done(step.key)||index===current?'var(--cc-on-primary)':'var(--cc-text-3)',fontSize:12,fontWeight:700}}>{done(step.key)?<Icon name="check" size={13} stroke={2.6} style={{color:'var(--cc-on-primary)'}}/>:index+1}</span>
-    <div><div style={{fontWeight:600,color:done(step.key)?'var(--cc-text-2)':'var(--cc-text)',textDecoration:done(step.key)?'line-through':'none',textDecorationColor:'var(--cc-line-strong)'}}>{step.title}</div><div className="small muted">{step.text}</div></div>
-   </div>)}
-   {ideas.length>0&&<button type="button" className="btn primary" style={{marginTop:16}} onClick={()=>onOpenIdea(ideas[0])}><Icon name="next" size={15}/>Open "{ideas[0].title}"</button>}
+   <div className="muted" style={{marginBottom:12}}>{idea?`You have an idea: "${idea.title}". Start planning it.`:"You don't need to know what to make yet. Start from something that's already working."}</div>
+   <ol style={{listStyle:'none',margin:0,padding:0}}>{rows.map((row,index)=>{
+    const body=<>
+     <span aria-hidden style={{width:22,height:22,borderRadius:'50%',flex:'none',display:'flex',alignItems:'center',justifyContent:'center',background:row.done?'var(--cc-ok)':index===current?'var(--cc-primary)':'var(--cc-bg-sunk)',color:row.done||index===current?'var(--cc-on-primary)':'var(--cc-text-3)',fontSize:12,fontWeight:700}}>{row.done?<Icon name="check" size={13} stroke={2.6} style={{color:'var(--cc-on-primary)'}}/>:index+1}</span>
+     <span><span className="ck-title" style={{display:'block',color:row.done?'var(--cc-text-2)':'var(--cc-text)'}}>{row.title}</span><span className="small muted" style={{display:'block'}}>{row.text}</span></span>
+    </>;
+    return <li key={row.key} style={{borderBottom:index<rows.length-1?'1px solid var(--cc-line)':0}}>
+     {row.go?<button type="button" className="checklist-row" onClick={row.go}>{body}</button>:<div className="checklist-row is-later">{body}</div>}
+    </li>;
+   })}</ol>
+   {idea
+    ?<Button variant="primary" style={{marginTop:16}} onClick={()=>onStartIdea(idea)}><Icon name="next" size={15}/>Start planning</Button>
+    :<div className="small muted" style={{marginTop:12}}>Pick an idea and the five steps open for it.</div>}
   </div>
   <div>
-   {(start===null||start.length>0)&&<div className="row" style={{marginBottom:10}}><b style={{fontSize:14}}>Start here: break one of these down</b></div>}
-   {error?<ErrorLine message={error} onRetry={onRetry}/>:start===null?<Spinner label="Loading what's working" size={18}/>:start.length?<>
-    <div className="grid g3" style={{gap:12}}>{start.map(item=><div key={item.videoId} className="card trend hov" onClick={()=>onBreak(item)}>
-     <Thumb videoId={item.videoId} seed={item.videoId} chip={<MultChip m={item.mult} who={creatorName(item.channel)} onThumb dash/>}/>
-     <div className="tt clamp2" style={{fontSize:13}}>{item.title}</div>
-     <div className="stats"><span><b>{fmtNum(item.views)}</b> views</span><span><b>{fmtNum(item.vpd)}</b>/day</span></div>
-     {item.reason&&<div className="reason"><Icon name="ai" size={12}/>{item.reason}</div>}
-     <FollowChannel item={item}/>
-     <button type="button" className="btn sm" onClick={event=>{event.stopPropagation();onBreak(item);}}><Icon name="ai" size={14}/>Break this down</button>
-    </div>)}</div>
-    <div className="small muted" style={{marginTop:12}}>A breakdown shows why the video worked, what viewers asked, and three concepts you could make.</div>
-   </>:<Empty icon="trending" title="No videos to start from yet" action={<button type="button" className="btn" onClick={onIdeas}>Follow channels</button>}>Follow a few channels in your space and the videos beating their usual views show up here.</Empty>}
+   {(start===null||start.length>0||searching)&&<div className="row" style={{marginBottom:10}}><b style={{fontSize:14}}>Start here: break one of these down</b></div>}
+   {error?<ErrorLine message={error} onRetry={onRetry}/>
+    :searching?<ProgressLine label="Searching YouTube for your topics" line={searching.line??'Starting the search on your topics…'} estimate={SCAN_ESTIMATE} note="You don't have to wait: New video starts from a title you already have."/>
+    :start===null?<div className="row"><Spinner label="Loading what's working" size={18}/><span className="muted">Loading what's working…</span></div>
+    :start.length?<>
+     <div className="grid g3" style={{gap:12}}>{start.map(item=><TrendCard key={item.videoId} item={item} saved={hasBreakdown(item.videoId)} onBreak={onBreak}/>)}</div>
+     <TrendHelp/>
+    </>:<Empty icon="trending" title="No videos to start from yet" action={<button type="button" className="btn" onClick={onFollow}>Follow channels</button>}>Follow a few channels in your space and the videos beating their usual views show up here.</Empty>}
   </div>
  </div>;
 }

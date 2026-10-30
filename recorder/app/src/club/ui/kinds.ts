@@ -1,7 +1,7 @@
 /*
  * The kinds of things a video is made of, each with one fixed colour (defined in `tokens.css` as `--kind-<kind>`).
  * The timeline, the scene chips and the take chips use these and nothing else, so a kind looks the same everywhere.
- * Task 7b points the editor's timeline constants at `KIND_COLOR` instead of its own block in `editing-club.css`.
+ * The editor's stylesheet (`editing-club.css`) paints the timeline from the same `--kind-*` tokens; the take chips on Record show `takeKinds`.
  */
 export const KINDS=['screen','camera','audio','graphics','captions','zoom','marker'] as const;
 export type Kind=(typeof KINDS)[number];
@@ -14,3 +14,12 @@ export const KIND_COLOR:Record<Kind,{color:string;soft:string;ink:string}>=Objec
  soft:kind==='marker'?'var(--cc-bg-sunk)':`var(--kind-${kind}-soft)`,
  ink:kind==='marker'?'var(--cc-surface)':'var(--kind-ink)',
 }])) as Record<Kind,{color:string;soft:string;ink:string}>;
+
+/** The kind a recording track belongs to: music is audio, and an overlay is graphics. */
+export const trackKind=(track:'screen'|'camera'|'audio'|'music'|'overlay'):Kind=>track==='music'?'audio':track==='overlay'?'graphics':track;
+
+/** The distinct kinds a take holds, in the order of the timeline (screen, camera, audio, then the rest). */
+export const takeKinds=(tracks:readonly ('screen'|'camera'|'audio'|'music'|'overlay')[]):Kind[]=>{
+ const held=new Set(tracks.map(trackKind));
+ return KINDS.filter(kind=>held.has(kind));
+};

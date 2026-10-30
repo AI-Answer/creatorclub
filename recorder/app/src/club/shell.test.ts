@@ -7,7 +7,7 @@ import {FakeEventSource,installFetch,type FakeCall,type FakeReply} from './test-
 const {default:ClubApp}=await import('./ClubApp');
 const {Sidebar,inProduction}=await import('./Sidebar');
 const {openIdeas}=await import('./ideas');
-const {paletteOptions}=await import('./shell/Palette');
+const {searchOptions}=await import('./search');
 const {TOOLTIP_DELAY_MS}=await import('./ui');
 const {ScreenBoundary}=await import('./shell/ScreenBoundary');
 const {VIDEOS_CHANGED,changesVideos,clubFetch}=await import('./api');
@@ -163,25 +163,31 @@ test('switching channel tells the server, reloads the sidebar and goes Home',asy
   assert.match(c.querySelector('.channel-btn')!.textContent!,/AnaStarting fresh/,'a channel with no handle says so');
   await press(c.querySelector('.channel-btn')!);
   await press([...c.querySelectorAll('[role="menuitem"]')].find(i=>i.textContent!.trim()==='Add a channel')!);
-  assert.equal(window.location.hash,'#/welcome?step=2');
+  assert.equal(window.location.hash,'#/welcome','the channel menu and the empty screens open Welcome the same way');
+  assert.match(c.textContent!,/Step 1 of 4/);
  });
 });
 
-test('Cmd+K opens search over pages and videos; typing filters, arrows and Enter open one, Escape closes',async()=>{
+test('Cmd+K opens search over actions, steps, places, settings and videos; typing filters, arrows and Enter open one, Escape closes',async()=>{
  await withApp('#/home',async ui=>{
   const c=ui.container;
   assert.equal(c.querySelector('.palette'),null);
   await keyDown(window,'k',{metaKey:true});
-  assert.ok(c.querySelector('.palette'));assert.equal(document.activeElement,c.querySelector('.palette input'));
-  const options=()=>[...c.querySelectorAll('.palette .po')].map(o=>o.textContent);
-  assert.ok(options().includes('New videoAction'));assert.deepEqual(options().filter(o=>o.endsWith('Page')),['HomePage','DiscoverPage','VideosPage','Videos calendarPage','ResearchPage','SettingsPage','First launch setupPage']);assert.ok(options().includes('Hidden features in Claude CodePlanning'));assert.ok(options().includes('Claude for receiptsIdeas'));
+  assert.ok(c.querySelector('.palette'));assert.ok(document.activeElement===c.querySelector('.palette input'));
+  const options=()=>[...c.querySelectorAll('.palette .po .po-label')].map(o=>o.textContent);
+  const kinds=()=>[...c.querySelectorAll('.palette .po .k')].map(o=>o.textContent);
+  assert.deepEqual(options().slice(0,3),['New video','Add a channel','Help']);
+  assert.ok(options().includes('Record')&&options().includes('Publish'),'the steps are listed');
+  assert.ok(kinds().includes('Settings'),'settings groups are listed');
+  assert.ok(!options().includes('First launch setup'),'no first launch entry');
+  assert.ok(options().includes('Hidden features in Claude Code'));assert.ok(options().includes('Claude for receipts'));
   await type(c.querySelector('.palette input')!,'hidden');
-  assert.deepEqual(options(),['Hidden features in Claude CodePlanning']);
+  assert.deepEqual(options(),['Hidden features in Claude Code']);
   await keyDown(c.querySelector('.palette input')!,'Enter');
   assert.equal(c.querySelector('.palette'),null);assert.equal(window.location.hash,'#/video/p1/plan');
   await keyDown(window,'k',{ctrlKey:true});
   await type(c.querySelector('.palette input')!,'zzz');
-  assert.match(c.querySelector('.palette .po')!.textContent!,/Nothing matches "zzz"\. Try a word from the title\./);
+  assert.match(c.querySelector('.palette .po')!.textContent!,/Nothing matches "zzz"\. Try a step, a setting or a word from the title\./);
   await keyDown(c.querySelector('.palette input')!,'Escape');
   assert.equal(c.querySelector('.palette'),null);
   await press(c.querySelector('.sb-search')!);
@@ -189,17 +195,76 @@ test('Cmd+K opens search over pages and videos; typing filters, arrows and Enter
  });
 });
 
+test('search finds steps, settings groups, actions and help words, and a step opens on the video that is open',async()=>{
+ await withApp('#/video/r1/record',async ui=>{
+  const c=ui.container;
+  await keyDown(window,'k',{metaKey:true});
+  const input=()=>c.querySelector('.palette input')!;
+  const first=()=>c.querySelector('.palette .po')!;
+  for(const [word,expected] of [['help','Help'],['record','Record'],['publish','Publish'],['scene','Scene'],['channel','Channel']] as const){
+   await type(input(),word);
+   const labels=[...c.querySelectorAll('.palette .po .po-label')].map(o=>o.textContent);
+   assert.ok(labels.length>0,`"${word}" finds something`);
+   assert.ok(labels.includes(expected),`"${word}" finds ${expected}: ${labels.join(', ')}`);
+  }
+  await type(input(),'publish');
+  assert.equal(first().querySelector('.po-label')!.textContent,'Publish');
+  assert.match(first().textContent!,/Open it on "Agents for small shops"/);
+  await keyDown(input(),'Enter');
+  assert.equal(window.location.hash,'#/video/r1/publish','the step opens on the open video');
+  await keyDown(window,'k',{metaKey:true});
+  await type(input(),'followed');
+  await keyDown(input(),'Enter');
+  assert.equal(window.location.hash,'#/settings/followed','a settings group opens that section');
+  await keyDown(window,'k',{metaKey:true});
+  await type(input(),'scene');
+  const scene=[...c.querySelectorAll('.palette .po')].find(o=>o.querySelector('.po-label')!.textContent==='Scene')!;
+  await press(scene);
+  assert.equal(c.querySelector('.palette'),null);
+  assert.match(c.querySelector('[role="dialog"]')!.textContent!,/How CreatorClub works/,'a word of help opens Help');
+  assert.ok(c.querySelector('[data-topic="term:Scene"].on'),'at that word');
+ });
+});
+
 test('search opens an idea in its drawer on Videos and any other video on the tab for its stage',()=>{
- const routes=Object.fromEntries(paletteOptions(videos,'').filter(option=>option.kind!=='Page'&&option.kind!=='Action').map(option=>[option.label,option.route]));
+ const routes=Object.fromEntries(searchOptions(videos,'').filter(option=>option.id.startsWith('video:')).map(option=>[option.label,'route' in option.target?option.target.route:undefined]));
  assert.deepEqual(routes['Claude for receipts'],{name:'videos',view:'board',open:'i1'});
  assert.deepEqual(routes['Hidden features in Claude Code'],{name:'video',id:'p1',tab:'plan'});
  assert.deepEqual(routes['Agents for small shops'],{name:'video',id:'r1',tab:'record'});
  assert.deepEqual(routes['Already out'],{name:'video',id:'d1',tab:'publish'});
- assert.equal(paletteOptions(videos,'RECEIPTS').length,1,'search ignores case');
- assert.equal(paletteOptions(Array.from({length:60},(_,n)=>video(`v${n}`,`Video ${n}`,'ideas')),'video').length,40,'at most forty results');
+ assert.equal(searchOptions(videos,'RECEIPTS').length,1,'search ignores case');
+ assert.equal(searchOptions(Array.from({length:60},(_,n)=>video(`v${n}`,`Video ${n}`,'ideas')),'video').length,40,'at most forty results');
 });
 
-test('New video: a link opens Break down on Videos, a title creates a real video and lands in the Ideas lane',async()=>{
+test('Tab stays inside the search and the New video dialog, and focus goes back to where it was when they close',async()=>{
+ await withApp('#/home',async ui=>{
+  const c=ui.container;
+  const opener=c.querySelector<HTMLElement>('.sb-search')!;
+  opener.focus();
+  await press(opener);
+  const palette=c.querySelector('.palette')!;
+  assert.ok(palette.contains(document.activeElement));
+  await keyDown(document.activeElement!,'Tab');
+  assert.ok(palette.contains(document.activeElement),'Tab does not leave search');
+  await keyDown(document.activeElement!,'Tab',{shiftKey:true});
+  assert.ok(palette.contains(document.activeElement),'nor Shift Tab');
+  await keyDown(c.querySelector('.palette input')!,'Escape');
+  assert.ok(document.activeElement===opener,'focus is back on the button that opened it');
+  await press(button(c,'New video'));
+  const dialog=c.querySelector('[role="dialog"]')!;
+  const items=[...dialog.querySelectorAll<HTMLElement>('button:not([disabled]),input')];
+  items[items.length-1].focus();
+  await keyDown(document.activeElement!,'Tab');
+  assert.ok(document.activeElement===items[0],'Tab from the last control goes to the first');
+  items[0].focus();
+  await keyDown(document.activeElement!,'Tab',{shiftKey:true});
+  assert.ok(document.activeElement===items[items.length-1],'Shift Tab from the first goes to the last');
+  await press(button(dialog,'Cancel'));
+  assert.equal(c.querySelector('[role="dialog"]'),null);
+ });
+});
+
+test('New video starts from a title by default and goes straight to planning; a link opens Break down on Videos',async()=>{
  await withApp('#/home',async (ui,server,calls)=>{
   const c=ui.container;
   await keyDown(window,'k',{metaKey:true});
@@ -207,7 +272,24 @@ test('New video: a link opens Break down on Videos, a title creates a real video
   await keyDown(c.querySelector('.palette input')!,'Enter');
   const dialog=()=>c.querySelector('[role="dialog"]:not(.drawer)');
   assert.match(dialog()!.textContent!,/New video/);
-  assert.deepEqual([...dialog()!.querySelectorAll('.topt b')].map(b=>b.textContent),['Break down a video','Start from a title']);
+  assert.deepEqual([...dialog()!.querySelectorAll('.topt b')].map(b=>b.textContent),['Start from a title','Break down a video'],'a title is first');
+  assert.equal(dialog()!.querySelector('.topt')!.getAttribute('aria-pressed'),'true','and the one it opens on');
+  assert.ok(document.activeElement===dialog()!.querySelector('input'),'ready to type');
+  assert.equal((button(dialog()!,'Start planning') as HTMLButtonElement).disabled,true,'nothing to plan yet');
+  assert.equal([...dialog()!.querySelectorAll('button.primary')].length,1);
+
+  await type(dialog()!.querySelector('input')!,'  Claude does my taxes  ');
+  await press(button(dialog()!,'Start planning'));
+  assert.deepEqual(calls.filter(call=>call.method==='POST'&&call.path==='/videos').map(call=>call.body),[{title:'Claude does my taxes'}]);
+  assert.deepEqual(calls.filter(call=>call.path==='/videos/new1/move').map(call=>call.body),[{stage:'planning'}],'the idea is moved to planning at once');
+  assert.equal(dialog(),null);assert.equal(window.location.hash,'#/video/new1/board','straight to its Board: no Add idea, no banner to press');
+  assert.ok(server.videos.some(v=>v.id==='new1'));
+
+  await hashTo('#/home');
+  await keyDown(window,'k',{metaKey:true});
+  await type(c.querySelector('.palette input')!,'new video');
+  await keyDown(c.querySelector('.palette input')!,'Enter');
+  await press([...dialog()!.querySelectorAll('.topt')].find(o=>/Break down a video/.test(o.textContent!))!);
   assert.equal((button(dialog()!,'Break down') as HTMLButtonElement).disabled,true,'nothing to break down yet');
   await type(dialog()!.querySelector('input')!,'not a link');
   await press(button(dialog()!,'Break down'));
@@ -218,53 +300,57 @@ test('New video: a link opens Break down on Videos, a title creates a real video
   assert.equal(dialog(),null);assert.equal(window.location.hash,'#/videos','Videos starts the breakdown and leaves the address');
   assert.ok(c.querySelector('.drawer .bd'),'in a drawer');
   assert.deepEqual(calls.filter(call=>call.method==='POST'&&call.path==='/breakdowns').map(call=>call.body),[{url:'https://www.youtube.com/watch?v=dQw4w9WgXcQ'}]);
-  assert.equal(calls.filter(call=>call.method==='POST'&&call.path==='/videos').length,0,'a link creates nothing by itself');
+  assert.equal(calls.filter(call=>call.method==='POST'&&call.path==='/videos').length,1,'a link creates nothing by itself');
 
   await keyDown(window,'k',{metaKey:true});
   await type(c.querySelector('.palette input')!,'new video');
   await keyDown(c.querySelector('.palette input')!,'Enter');
+  await press([...dialog()!.querySelectorAll('.topt')].find(o=>/Break down a video/.test(o.textContent!))!);
   await type(dialog()!.querySelector('input')!,'https://www.instagram.com/reel/C8aBcD_eFgH/');
   await press(button(dialog()!,'Break down'));
   assert.deepEqual(calls.filter(call=>call.method==='POST'&&call.path==='/breakdowns').map(call=>call.body).at(-1),{url:'https://www.instagram.com/reel/C8aBcD_eFgH/'},'an Instagram link works too');
-
-  await keyDown(window,'k',{metaKey:true});
-  await type(c.querySelector('.palette input')!,'new video');
-  await keyDown(c.querySelector('.palette input')!,'Enter');
-  await press([...dialog()!.querySelectorAll('.topt')].find(o=>/Start from a title/.test(o.textContent!))!);
-  await type(dialog()!.querySelector('input')!,'  Claude does my taxes  ');
-  await press(button(dialog()!,'Add idea'));
-  assert.deepEqual(calls.filter(call=>call.method==='POST'&&call.path==='/videos').map(call=>call.body),[{title:'Claude does my taxes'}]);
-  assert.equal(dialog(),null);assert.equal(window.location.hash,'#/videos?new=new1','a title lands on Videos with the new idea marked');
-  assert.ok(server.videos.some(v=>v.id==='new1'));
  });
 });
 
-test('New video: a failed save says one sentence and keeps what was typed',async()=>{
+test('New video: a failed save says one sentence and keeps what was typed; an idea that could not start planning is kept and offered on Videos',async()=>{
  FakeEventSource.install();
  const server:Server={videos,workspaces:[ws('samin','Samin')],current:'samin',welcomed:true};
- const fake=installFetch(call=>call.path==='/videos'&&call.method==='POST'?{status:500,body:{error:"Couldn't save that."}}:serve(server)(call));
+ let failMove=false;
+ const fake=installFetch(call=>call.path==='/videos'&&call.method==='POST'&&!failMove?{status:500,body:{error:"Couldn't save that."}}:call.path==='/videos/new1/move'?{status:500,body:{error:'No.'}}:serve(server)(call));
  window.location.hash='#/home';
  const ui=await mountUI(createElement(ClubApp));
  try{
   await flush();const c=ui.container;
   await keyDown(window,'k',{metaKey:true});await type(c.querySelector('.palette input')!,'new video');await keyDown(c.querySelector('.palette input')!,'Enter');
-  await press([...c.querySelectorAll('.topt')].find(o=>/Start from a title/.test(o.textContent!))!);
   await type(c.querySelector('[role="dialog"] input')!,'My video');
-  await press(button(c.querySelector('[role="dialog"]')!,'Add idea'));
+  await press(button(c.querySelector('[role="dialog"]')!,'Start planning'));
   assert.match(c.querySelector('.cc-toast')!.textContent!,/Couldn't save that\./);
   assert.equal((c.querySelector('[role="dialog"] input') as HTMLInputElement).value,'My video');
   assert.equal(window.location.hash,'#/home');
+  failMove=true;
+  await press(button(c.querySelector('[role="dialog"]')!,'Start planning'));
+  assert.match([...c.querySelectorAll('.cc-toast')].at(-1)!.textContent!,/Added to your ideas, but couldn't start planning it\./);
+  assert.equal(window.location.hash,'#/videos?new=new1','the idea is on Videos, marked, so planning can be started from there');
  }finally{await ui.close();fake.restore();window.location.hash='';}
 });
 
-test('Help in the sidebar opens How CreatorClub works',async()=>{
+test('Help is a real help: the five steps, the words, where things live and the shortcuts, with the Postiz price once',async()=>{
  await withApp('#/home',async ui=>{
   const c=ui.container;
   assert.equal(c.querySelector('[role="dialog"]'),null);
   await press(c.querySelector('.sidebar [aria-label="Help"]')!);
-  assert.match(c.querySelector('[role="dialog"]')!.textContent!,/How CreatorClub works/);
-  assert.match(c.querySelector('[role="dialog"]')!.textContent!,/Open this again with Help/);
-  await press(button(c.querySelector('[role="dialog"]')!,'Start'));
+  const dialog=c.querySelector('[role="dialog"]')!;
+  const help=dialog.textContent!;
+  assert.match(help,/How CreatorClub works/);
+  assert.deepEqual([...dialog.querySelectorAll('.help-steps.five b')].map(b=>b.textContent),['Board','Plan','Record','Edit','Publish'],'the same five names as the tabs of a video');
+  for(const word of ['Scene','Take','Package','Board','Idea','Talking points'])assert.ok([...dialog.querySelectorAll('dt')].some(dt=>dt.textContent===word),`${word} is explained`);
+  assert.match(help,/Where things live/);assert.match(help,/⌘K/);assert.match(help,/Keyboard shortcuts/);
+  assert.equal((help.match(/\$29 a month/g)??[]).length,1,'the Postiz price once');
+  assert.match(help,/Postiz is the paid service that uploads your video to YouTube for you/);
+  assert.match(help,/Open this again with Help/);
+  assert.ok(![...dialog.querySelectorAll('button')].some(b=>b.textContent==='Start'),'no Start button that starts nothing');
+  assert.equal(dialog.querySelectorAll('button.primary').length,0);
+  await keyDown(document,'Escape');
   assert.equal(c.querySelector('[role="dialog"]'),null);
  });
 });
@@ -340,7 +426,7 @@ test('on the desktop app one drag strip sits ahead of every screen; in a browser
  }finally{if(bridge)Object.defineProperty(window,'sceneForge',bridge);else delete (window as {sceneForge?:unknown}).sceneForge;}
 });
 
-test('with no channel every screen shows one friendly state whose button opens Welcome at step 2, and nothing that needs a channel is fetched',async()=>{
+test('with no channel every screen shows one friendly state whose one button opens Welcome at step 1, and nothing that needs a channel is fetched',async()=>{
  await withApp('#/home',async (ui,_server,calls)=>{
   const c=ui.container;
   assert.equal(c.querySelector('.empty-state h2, h2')!.textContent,'Add your channel or start fresh');
@@ -348,9 +434,11 @@ test('with no channel every screen shows one friendly state whose button opens W
   assert.equal(calls.some(call=>['/videos','/trending','/signals','/recent'].includes(call.path)),false,'no request that needs a channel');
   await hashTo('#/discover');
   assert.equal(c.querySelector('h2')!.textContent,'Add your channel or start fresh');
+  assert.deepEqual([...c.querySelectorAll('button,a')].filter(el=>/add (your|a) channel/i.test(el.textContent!+el.getAttribute('aria-label'))).map(el=>el.textContent),['Add your channel'],'one control adds a channel, the sidebar only says there is none');
+  assert.match(c.querySelector('.sidebar .channel-btn')!.textContent!,/No channel yet/);
   await press(button(c,'Add your channel'));
-  assert.equal(window.location.hash,'#/welcome?step=2');
-  assert.match(c.textContent!,/Step 2 of 4/);
+  assert.equal(window.location.hash,'#/welcome');
+  assert.match(c.textContent!,/Step 1 of 4/);
  },{workspaces:[],current:null});
 });
 

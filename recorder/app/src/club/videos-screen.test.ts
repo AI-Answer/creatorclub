@@ -32,7 +32,7 @@ const drag=async(el:Element,type:string,y?:number)=>act(async()=>{el.dispatchEve
 const dragTo=async(source:Element,target:Element,y=10_000)=>{await drag(source,'dragstart');await drag(target,'dragover',y);await drag(target,'drop',y);await drag(source,'dragend');await settle();};
 const toasts=(c:Element)=>[...c.querySelectorAll('.cc-toast')].map(text);
 
-type Server={videos:Video[];welcomed:boolean;failMove:boolean;failLoad:boolean;outlines:Record<string,number>;unreadable?:string[];holdScenes?:Promise<void>};
+type Server={videos:Video[];welcomed:boolean;failMove:boolean;failLoad:boolean;outlines:Record<string,number>;unreadable?:string[];holdScenes?:Promise<void>;facts?:Record<string,import('../../shared/club-move').MoveFacts>};
 function serve(server:Server){
  const scenesReply=():FakeReply=>({body:fakeScenes(server.videos,{projects,outlines:server.outlines,unreadable:server.unreadable})});
  return (call:FakeCall):FakeReply|Promise<FakeReply>=>{
@@ -45,6 +45,7 @@ function serve(server:Server){
   if(path==='/ai/status')return {body:{claude:{installed:true,version:'2',signedIn:true},codex:{installed:false,version:null,signedIn:false}}};
   if(path==='/breakdowns'&&method==='GET')return {body:[]};
   if(path==='/videos/scenes')return server.holdScenes?server.holdScenes.then(scenesReply):scenesReply();
+  if(path==='/videos/move-facts')return server.facts?{body:server.facts}:undefined;
   const move=path.match(/^\/videos\/(\w+)\/move$/);
   if(move){
    if(server.failMove)return {status:500,body:{error:"Couldn't save that."}};
@@ -290,7 +291,7 @@ test('an existing install is not sent to Welcome or shown the how-it-works dialo
   assert.equal(dialog(),null,'no dialog on its own');
   await press(second.container.querySelector('.sidebar [aria-label="Help"]')!);
   assert.match(text(dialog()),/How CreatorClub works/);
-  await press(button(dialog()!,'Start'));
+  await act(async()=>{document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));});
   assert.equal(dialog(),null);
   assert.equal(again.calls.filter(call=>call.path==='/settings/welcomed').length,0);
  }finally{await second.close();again.restore();window.location.hash='';}
@@ -386,5 +387,39 @@ test('Calendar: a video with no day has a date field in the Not scheduled list; 
   await press(button(c.querySelector('.cc-toast')!,'Undo'));
   assert.deepEqual(calls.filter(call=>call.method==='PUT').slice(-1).map(call=>call.body),[{publishDate:null}]);
   assert.ok(field('Gamma'),'back in the list');
+ });
+});
+
+test('Board: a move the video is not ready for is refused by the menu and by a drag, with the one sentence the server would say, and nothing is sent',async()=>{
+ const {MOVE_NEEDS_LINK,MOVE_NEEDS_EXPORT,MOVE_NEEDS_SCENES}=await import('../../shared/club-move');
+ const none={scenes:0,takes:0,exported:false,published:false};
+ const facts={a:none,b:none,p:{...none,scenes:3},r:{...none,scenes:5,takes:2},x:{...none,scenes:4,takes:4,exported:true,published:true}};
+ await withBoard({facts},'board',async(ui,calls)=>{
+  const c=ui.container;
+  const moves=()=>calls.filter(call=>call.method==='POST'&&call.path.endsWith('/move'));
+  await press(c.querySelector('button[aria-label="Move Recorded to…"]')!);
+  await press([...c.querySelectorAll('.menu button')].find(b=>text(b)==='Published')!);
+  assert.deepEqual(toasts(c),[MOVE_NEEDS_LINK]);
+  assert.equal(c.querySelector('.cc-toast svg'),null,'a refusal has no check mark');
+  assert.ok(column(c,'recording').querySelector('[data-card-id="r"]'),'the card stays');
+  await dragTo(card(c,'Recorded'),column(c,'publishing'));
+  assert.ok(toasts(c).includes(MOVE_NEEDS_EXPORT),'the drag asks the same rule');
+  await dragTo(card(c,'Alpha'),column(c,'recording'));
+  assert.ok(toasts(c).includes(MOVE_NEEDS_SCENES));
+  assert.equal(moves().length,0,'nothing was sent');
+  // Allowed: an idea to Planning, a planned video with scenes to Recording, and back from Recording.
+  await dragTo(card(c,'Planned'),column(c,'recording'));
+  await dragTo(card(c,'Recorded'),column(c,'planning'));
+  assert.deepEqual(moves().map(call=>[call.path,(call.body as {stage:string}).stage]),[['/videos/p/move','recording'],['/videos/r/move','planning']]);
+ });
+});
+
+test('Board: when the server refuses a move it did not know about, the card goes back and its sentence shows',async()=>{
+ await withBoard({},'board',async(ui,_calls,_routes,state)=>{
+  state.failMove=true;
+  const c=ui.container;
+  await dragTo(card(c,'Alpha'),column(c,'published'));
+  assert.deepEqual(toasts(c),["Couldn't save that."]);
+  assert.ok(column(c,'ideas').querySelector('[data-card-id="a"]'));
  });
 });

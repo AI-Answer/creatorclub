@@ -1,7 +1,8 @@
 import path from 'node:path';
 import type { SignalEntry, SignalItem, SignalMedia, SignalsConfig, SignalsRefreshResult, SignalsResponse, Workspace } from '../../shared/club.js';
 import { ClubError } from './errors.js';
-import { startJobOnce, type JobContext } from './jobs.js';
+import { startJobOnce, timeLeft, type JobContext } from './jobs.js';
+export { timeLeft } from './jobs.js';
 import { reasonFor, signalText } from './relevance.js';
 import * as store from './store.js';
 import { findTreg, runTool, toolEnv, type ToolOptions } from './tools.js';
@@ -73,7 +74,7 @@ export async function rankedSignals(slug: string, workspace: Pick<Workspace, 'to
     return { ...item, fit: reason !== null, reason };
   });
   entries.sort((a, b) => Number(b.fit) - Number(a.fit) || score(b) - score(a));
-  return { items: entries, updatedAt: file.updatedAt, errors: file.errors, sources: sourceCount(config) };
+  return { items: entries, updatedAt: file.updatedAt, errors: file.errors, sources: sourceCount(config), sourcesBy: { x: (config.x?.length ?? 0) + (config.xTopics?.length ?? 0), reddit: config.reddit?.length ?? 0 } };
 }
 
 // ---------------------------------------------------------------- reading posts
@@ -241,11 +242,30 @@ export const sourceCount = (config: SignalsConfig) => (config.x?.length ?? 0) + 
 export const hasSources = (config: SignalsConfig) => sourceCount(config) > 0;
 export const NO_SOURCES = 'Add a subreddit or an X account first.';
 
+/** One place posts are read from, by the label it is listed under when it fails ("r/ClaudeAI", "X @handle", "X search claude"). */
+interface Source {
+  label: string;
+  /** What the progress line says while it is read. */
+  reading: string;
+  read(): Promise<SignalItem[] | null>;
+  /** The stored posts that came from it. */
+  owns(item: SignalItem): boolean;
+}
+
+export interface RefreshOptions {
+  /** Read only these sources (labels from `errors`), keeping every other source's posts and errors as they are: Try again on the failed ones. */
+  only?: string[];
+  nowMs?: number;
+}
+
 /**
- * Reads every source in `signals-config.json` and writes `signals.json`. A source that cannot be read keeps its earlier posts
- * (until they are older than the limit) and is listed in `errors`. Without treg, the stored X posts stay as they are.
+ * Reads the sources in `signals-config.json` and writes `signals.json`. A source that reads replaces its own posts; a source that cannot be
+ * read keeps all its earlier posts (good data is never replaced by a failure) and is listed in `errors` until it reads again.
+ * With `only`, just those sources are read and everything else stays as it was. Without treg, the stored X posts stay as they are.
+ * Progress says which source is read, how many of how many, and the time left.
  */
-export async function refreshSignals(slug: string, context: JobContext, sources: SignalsSources, nowMs = Date.now()): Promise<SignalsRefreshResult> {
+export async function refreshSignals(slug: string, context: JobContext, sources: SignalsSources, options: RefreshOptions | number = {}): Promise<SignalsRefreshResult> {
+  const { only, nowMs = Date.now() } = typeof options === 'number' ? { nowMs: options } : options;
   const config = await readSignalsConfig(slug);
   if (!hasSources(config)) throw new ClubError(NO_SOURCES, 409);
   const limits = {
@@ -254,54 +274,69 @@ export async function refreshSignals(slug: string, context: JobContext, sources:
   };
   const minXLikes = config.minXLikes ?? DEFAULTS.minXLikes;
   const perSource = config.maxPerSource ?? DEFAULTS.maxPerSource;
-  const say = (message: string) => context.emit({ message });
-  const stored = (await readFile(slug)).items.map((item) => ({ ...item, ageHours: ageHours(Date.parse(item.createdAt) / 1000, nowMs) }));
+  const before = await readFile(slug);
+  const stored = before.items.map((item) => ({ ...item, ageHours: ageHours(Date.parse(item.createdAt) / 1000, nowMs) }));
   const known = new Set(stored.map((item) => item.id));
-  const withinLimit = (item: SignalItem) => item.ageHours <= limits.maxAgeDays * 24;
   const doFetch = sources.fetch ?? fetch;
-  const treg = config.x?.length || config.xTopics?.length ? await sources.treg() : undefined;
+  const wanted = (label: string) => !only || only.includes(label);
+  const hasX = !!(config.x?.length || config.xTopics?.length);
+  const xWanted = hasX && [...(config.x ?? []).map((h) => `X @${h}`), ...(config.xTopics ?? []).map((t) => `X search ${t}`)].some(wanted);
+  const treg = xWanted ? await sources.treg() : undefined;
+
+  const list: Source[] = (config.reddit ?? []).map((sub) => ({
+    label: `r/${sub}`,
+    reading: `Reading r/${sub}`,
+    read: () => redditItems(sub, limits, doFetch, context.signal, nowMs),
+    owns: (item) => item.source === 'reddit' && item.author.toLowerCase() === `r/${sub}`.toLowerCase(),
+  }));
+  if (treg) {
+    for (const handle of config.x ?? [])
+      list.push({
+        label: `X @${handle}`,
+        reading: `Reading @${handle}`,
+        read: () => xAccountItems(handle, limits.maxAgeDays, treg, context.signal, nowMs).catch(() => null),
+        owns: (item) => item.source === 'x' && !item.flair && item.handle.toLowerCase() === handle.toLowerCase(),
+      });
+    for (const topic of config.xTopics ?? [])
+      list.push({
+        label: `X search ${topic}`,
+        reading: `Searching X for ${topic.replace(/^"|"$/g, '')}`,
+        read: () => xTopicItems(topic, limits.maxAgeDays, minXLikes, treg, context.signal, nowMs).catch(() => null),
+        owns: (item) => item.source === 'x' && item.flair === topic.replace(/^"|"$/g, ''),
+      });
+  }
 
   const items: SignalItem[] = [];
   const errors: string[] = [];
-  let tried = 0;
-  let note: string | undefined;
   const check = () => {
     if (context.signal.aborted) throw new ClubError('That was stopped.');
   };
-  /** A source that failed: its earlier posts stay. */
-  const keep = (error: string, belongs: (item: SignalItem) => boolean) => {
-    errors.push(error);
-    items.push(...stored.filter((item) => belongs(item) && withinLimit(item)));
-  };
-
-  for (const sub of config.reddit ?? []) {
+  const toRead = list.filter((source) => wanted(source.label));
+  const started = Date.now();
+  let done = 0;
+  for (const source of list) {
+    if (!wanted(source.label)) {
+      // Not read this time: its posts and its error stay as they were.
+      items.push(...stored.filter(source.owns));
+      if (before.errors.includes(source.label)) errors.push(source.label);
+      continue;
+    }
     check();
-    tried++;
-    say(`Reading r/${sub}…`);
-    const got = await redditItems(sub, limits, doFetch, context.signal, nowMs);
+    const left = timeLeft(Date.now() - started, done, toRead.length);
+    context.emit({ message: `${source.reading} (${done + 1} of ${toRead.length})${left ? ` · ${left}` : ''}…`, done, total: toRead.length });
+    const got = await source.read();
+    done++;
     if (got) items.push(...got);
-    else keep(`r/${sub}`, (item) => item.source === 'reddit' && item.author.toLowerCase() === `r/${sub}`.toLowerCase());
+    else {
+      // A failure never replaces good data: every earlier post of this source stays, however old.
+      errors.push(source.label);
+      items.push(...stored.filter(source.owns));
+    }
   }
-  if (treg) {
-    for (const handle of config.x ?? []) {
-      check();
-      tried++;
-      say(`Reading @${handle}…`);
-      const got = await xAccountItems(handle, limits.maxAgeDays, treg, context.signal, nowMs).catch(() => null);
-      if (got) items.push(...got);
-      else keep(`X @${handle}`, (item) => item.source === 'x' && !item.flair && item.handle.toLowerCase() === handle.toLowerCase());
-    }
-    for (const topic of config.xTopics ?? []) {
-      check();
-      tried++;
-      say(`Searching X for ${topic.replace(/^"|"$/g, '')}…`);
-      const got = await xTopicItems(topic, limits.maxAgeDays, minXLikes, treg, context.signal, nowMs).catch(() => null);
-      if (got) items.push(...got);
-      else keep(`X search ${topic}`, (item) => item.source === 'x' && item.flair === topic.replace(/^"|"$/g, ''));
-    }
-  } else if (config.x?.length || config.xTopics?.length) {
+  let note: string | undefined;
+  if (hasX && !treg) {
     items.push(...stored.filter((item) => item.source === 'x'));
-    note = X_NEEDS_TREG;
+    if (xWanted) note = X_NEEDS_TREG;
   }
   check();
 
@@ -317,9 +352,10 @@ export async function refreshSignals(slug: string, context: JobContext, sources:
   });
   const file: SignalsFile = { updatedAt: new Date(nowMs).toISOString(), items: kept, errors };
   await store.writeJSON(signalsFile(slug), file);
-  return { posts: kept.length, added: kept.filter((item) => !known.has(item.id)).length, errors, tried, ...(note ? { note } : {}) };
+  const failedNow = errors.filter((label) => toRead.some((source) => source.label === label));
+  return { posts: kept.length, added: kept.filter((item) => !known.has(item.id)).length, errors, tried: toRead.length, failed: failedNow, ...(note ? { note } : {}) };
 }
 
 /** Starts the refresh job. A second start while one runs gets the running one. */
-export const startSignalsRefresh = (slug: string, sources: SignalsSources) =>
-  startJobOnce(`signals:${store.workspaceDir(slug)}`, 'signals-refresh', (context) => refreshSignals(slug, context, sources));
+export const startSignalsRefresh = (slug: string, sources: SignalsSources, only?: string[]) =>
+  startJobOnce(`signals:${store.workspaceDir(slug)}`, 'signals-refresh', (context) => refreshSignals(slug, context, sources, { only }));

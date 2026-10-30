@@ -6,21 +6,24 @@ import {looksLikeVideoLink} from '../breakdown';
 import type {Route} from '../routes';
 import {Button,Dialog,Icon,useToast,type IconName} from '../ui';
 
-type Mode='link'|'title';
+type Mode='title'|'link';
 
+/** Start from a title is first and the one the dialog opens on: most people have a title before they have a link. */
 const OPTIONS:ReadonlyArray<readonly [Mode,IconName,string,string]>=[
+ ['title','text','Start from a title','You already know the video. It goes to planning with a board for it.'],
  ['link','link','Break down a video','Paste a YouTube or Instagram link. Keep the concept you like.'],
- ['title','text','Start from a title','You already know the video. Add it to ideas.'],
 ];
-const PLACEHOLDER:Record<Mode,string>={link:'youtube.com/watch?v=…',title:'e.g. Claude does my receipts automatically'};
-const ACTION:Record<Mode,string>={link:'Break down',title:'Add idea'};
+const PLACEHOLDER:Record<Mode,string>={title:'e.g. Claude does my receipts automatically',link:'youtube.com/watch?v=…'};
+const ACTION:Record<Mode,string>={title:'Start planning',link:'Break down'};
+const LABEL:Record<Mode,string>={title:'Video title',link:'Video link'};
 
 /**
- * The New video dialog. A link (YouTube or Instagram) opens Break down on Videos; a title adds the idea and shows it in the Ideas lane of Videos.
- * Recording straight away is not offered: a video can only be recorded once it has an outline.
+ * The New video dialog. A title makes the idea and goes straight to its next action: it moves to planning and opens the video's Board.
+ * A link (YouTube or Instagram) opens Break down on Videos, where you keep a concept as an idea.
+ * Recording straight away is not offered: a video can only be recorded once it has scenes.
  */
 export function NewVideo({onClose,onOpen}:{onClose():void;onOpen(route:Route):void}){
- const [mode,setMode]=useState<Mode>('link'),[value,setValue]=useState(''),[busy,setBusy]=useState(false);
+ const [mode,setMode]=useState<Mode>('title'),[value,setValue]=useState(''),[busy,setBusy]=useState(false);
  const toast=useToast();
  const submit=async()=>{
   const text=value.trim();
@@ -30,11 +33,17 @@ export function NewVideo({onClose,onOpen}:{onClose():void;onOpen(route:Route):vo
    onClose();onOpen({name:'videos',view:'board',bd:youtubeId(text)??text});return;
   }
   setBusy(true);
+  let video:Video;
+  try{video=await clubFetch<Video>('/videos',{body:{title:text}});}
+  catch(reason){toast(errorMessage(reason,"Couldn't add the video."));setBusy(false);return;}
   try{
-   const video=await clubFetch<Video>('/videos',{body:{title:text}});
+   await clubFetch<Video>(`/videos/${encodeURIComponent(video.id)}/move`,{body:{stage:'planning'}});
+   onClose();onOpen({name:'video',id:video.id,tab:'board'});
+  }catch{
+   // The idea exists; only starting to plan it failed, so it is offered where it can be started again.
+   toast("Added to your ideas, but couldn't start planning it.");
    onClose();onOpen({name:'videos',view:'board',new:video.id});
-  }catch(reason){toast(errorMessage(reason,"Couldn't add the video."));}
-  finally{setBusy(false);}
+  }finally{setBusy(false);}
  };
  return <Dialog title="New video" onClose={onClose} width={560} footer={<>
   <Button variant="ghost" onClick={onClose}>Cancel</Button>
@@ -45,6 +54,6 @@ export function NewVideo({onClose,onOpen}:{onClose():void;onOpen(route:Route):vo
     <Icon name={icon} size={18}/><b style={{fontSize:13.5}}>{title}</b><span className="small muted" style={{lineHeight:1.4}}>{text}</span>
    </button>)}
   </div>
-  <input className="input" autoFocus key={mode} value={value} onChange={event=>setValue(event.target.value)} onKeyDown={event=>{if(event.key==='Enter')void submit();}} placeholder={PLACEHOLDER[mode]} aria-label="New video"/>
+  <input className="input" autoFocus key={mode} value={value} onChange={event=>setValue(event.target.value)} onKeyDown={event=>{if(event.key==='Enter')void submit();}} placeholder={PLACEHOLDER[mode]} aria-label={LABEL[mode]}/>
  </Dialog>;
 }

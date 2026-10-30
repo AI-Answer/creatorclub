@@ -101,8 +101,7 @@ export function planMove(videos:readonly Video[],id:string,stage:VideoStage,befo
  if(!video)return null;
  const within=video.stage===stage;
  if(within&&(unordered(stage)||isSamePlace(videos.filter(v=>!v.hidden||v.id===id),id,stage,beforeId)))return null;
- const unrecorded=!within&&stage==='publishing'&&!video.recorderProjectId;
- return {message:within?`Moved in ${STAGE_LABEL[stage]}`:unrecorded?'Moved to Publishing, but nothing is recorded yet':`Moved to ${STAGE_LABEL[stage]}`,previous:{stage:video.stage,beforeId:nextInStage(videos,id),stageDates:video.stageDates}};
+ return {message:within?`Moved in ${STAGE_LABEL[stage]}`:`Moved to ${STAGE_LABEL[stage]}`,previous:{stage:video.stage,beforeId:nextInStage(videos,id),stageDates:video.stageDates}};
 }
 
 // ---------------------------------------------------------------- table

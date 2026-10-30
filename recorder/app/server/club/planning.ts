@@ -3,6 +3,7 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { z } from 'zod';
 import { PLAN_JOB_KINDS, type AiProvider, type JobSnapshot, type Outline, type OutlineScene, type Package, type PackageUseResult, type PlanData, type PlanJobKind, type PlanJobResult, type Video } from '../../shared/club.js';
+import { describeAngle } from '../../shared/description.js';
 import { mergePackage, type PackageGroup } from '../../shared/package-merge.js';
 import { AiError, aiLabel, runAI, type RunAIOptions } from './ai.js';
 import { boardTiles } from './board-docs.js';
@@ -47,7 +48,7 @@ export const scriptFile = (slug: string, id: string) => path.join(store.videoDir
 /** Tests pass `runAI` to answer without a real model. */
 export interface PlanOptions extends Pick<RunAIOptions, 'extraDirs'> {
   runAI?: typeof runAI;
-  /** Package run only: the group (titles or hook) the person asked to write again; it is replaced whole. Everything else fills only what is empty. */
+  /** Package run only: the group (titles, thumbnail text or hook) the person asked to write again; it is replaced whole. Everything else fills only what is empty. */
   replace?: PackageGroup;
 }
 
@@ -67,6 +68,7 @@ export const packageShape = z
     thumbnailText: text(200),
     hook: z.object({ visual: text(2000), spoken: text(2000), text: text(500) }).strict(),
     description: text(5000).optional(),
+    tags: z.array(z.string().trim().min(1).max(60)).max(30).optional(),
   })
   .strict();
 
@@ -247,7 +249,8 @@ export function packageFromOldOutline(markdown: string): Package | null {
   }
   const titles = (sections.get('title options') ?? []).map((line) => /^\s*\d+[.)]\s+(.*)$/.exec(line)?.[1]).filter((title): title is string => !!title).map(cleanLine).filter(Boolean).slice(0, 3);
   const spoken = /"([^"\n]{5,})"/.exec((sections.get('hook') ?? []).join('\n'))?.[1]?.trim() ?? '';
-  const angle = cleanLine((sections.get('promise') ?? []).join(' '));
+  // The Promise is its first paragraph; what follows can be the planner's own notes about the brief, which are not the promise.
+  const angle = describeAngle(cleanLine(((sections.get('promise') ?? []).join('\n').trim().split(/\n\s*\n/)[0]) ?? ''));
   if (!titles.length && !spoken) return null;
   return { angle, twist: '', titles: [titles[0] ?? '', titles[1] ?? '', titles[2] ?? ''], thumbnailText: '', hook: { visual: '', spoken, text: '' } };
 }
