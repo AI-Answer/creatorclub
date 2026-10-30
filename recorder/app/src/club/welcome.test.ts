@@ -44,6 +44,7 @@ test('adding a channel waits for the AI only while it is being checked or missin
  assert.equal(reachableStep({...base,path:'fresh',fresh:true}),2,'a filled-in fresh start: step 3');
  assert.equal(reachableStep({...base,path:'channel',channelAdded:true,channelMade:true}),3,'a channel exists: step 4');
  assert.equal(reachableStep({...base,ai:'checking',path:'fresh',fresh:true}),2,'the check running is no reason to wait');
+ assert.equal(reachableStep({...base,ai:'missing',passedConnect:true}),1,'a late "no AI" does not pull you out of step 2');
 });
 
 test('voice answers map onto the voice guide, leaving out blanks and "I don\'t know yet"',()=>{

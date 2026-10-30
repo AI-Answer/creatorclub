@@ -702,7 +702,7 @@ test('Home for a channel with nothing in production is the first-video checklist
   assert.equal(text(c.querySelector('h2.sec')),'Your first video');
   assert.deepEqual(texts(c,'.checklist-row .ck-title'),['Set up','Discover','Board','Plan','Record','Edit','Publish'],'the real steps, named as everywhere else');
   assert.deepEqual([...c.querySelectorAll('button.checklist-row .ck-title')].map(t=>text(t)),['Set up','Discover'],'only what has somewhere to go is a button before there is an idea');
-  assert.match(text([...c.querySelectorAll('.checklist-row')].at(-1)),/Postiz is the paid service that uploads your video to YouTube for you, from \$29 a month\./);
+  assert.match(text([...c.querySelectorAll('.checklist-row')].at(-1)??null),/Postiz is the paid service that uploads your video to YouTube for you, from \$29 a month\./);
   assert.ok(c.querySelector('.nextup')===null);assert.ok(c.querySelector('.pipeline')===null);assert.deepEqual(texts(c,'h2.sec'),['Your first video'],'the checklist and nothing else');
   assert.doesNotMatch(text(c),/Samin|Resident Evil/);
   const picks=c.querySelectorAll('.card.trend.hov');

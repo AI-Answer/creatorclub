@@ -72,9 +72,11 @@ export function addChannelBlock(ai:AiState):'checking'|'missing'|null{return ai=
 /**
  * The furthest step (0-based) the address may open: a step is reachable once what it needs exists. Step 2 needs an AI that is not known to be missing,
  * step 3 a channel or a filled-in fresh start, step 4 a channel. A link to a step beyond that opens the furthest one instead.
+ * `passedConnect` is true once step 1 was left on purpose.
  */
-export function reachableStep(state:WelcomeState&{channelMade:boolean}):number{
- if(!canContinue(0,state))return 0;
+export function reachableStep(state:WelcomeState&{channelMade:boolean;passedConnect?:boolean}):number{
+ // Once you pressed Continue on step 1 the answer of the check arriving later does not pull you back out of what you are typing: step 2 says what is missing instead.
+ if(!state.passedConnect&&!canContinue(0,state))return 0;
  if(!state.channelMade&&!canContinue(1,state))return 1;
  return state.channelMade?3:2;
 }

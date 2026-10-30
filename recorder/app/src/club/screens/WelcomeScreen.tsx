@@ -52,13 +52,13 @@ export function WelcomeScreen({navigate,initialStep}:{navigate(route:Route,optio
  const [channel,setChannel]=useState<WelcomeChannel|null>(null);
  // What was last saved from the answers, so going Back and changing one is noticed, and sending nothing is the same as nothing changed.
  const [savedFresh,setSavedFresh]=useState<FreshDraft|null>(null),[savedVoice,setSavedVoice]=useState<VoiceDraft|null>(null);
- const [scan,setScan]=useState<Scan>(null);
+ const [scan,setScan]=useState<Scan>(null),[passedConnect,setPassedConnect]=useState(false);
  const add=useJobRun(),save=useJobRun(),edit=useJobRun();
  const busy=add.state.phase==='running'||save.state.phase==='running'||edit.state.phase==='running';
  const welcomed=useRef(false),created=useRef<Workspace|null>(null),body=useRef<HTMLDivElement>(null);
  const [leaveError,setLeaveError]=useState<{message:string;route:Route}|null>(null);
 
- const state={ai,path,channelAdded:channel!==null,fresh:freshReady(fresh.name,fresh.topics,fresh.audience),channelMade:channel!==null};
+ const state={ai,path,channelAdded:channel!==null,fresh:freshReady(fresh.name,fresh.topics,fresh.audience),channelMade:channel!==null,passedConnect};
  const furthest=reachableStep(state);
  /** The step shown: the one the address names, kept inside what exists so far. */
  const shown=Math.max(0,Math.min(step,furthest));
@@ -84,7 +84,7 @@ export function WelcomeScreen({navigate,initialStep}:{navigate(route:Route,optio
  },[saveWelcomed,navigate]);
  const markWelcomed=()=>{void saveWelcomed().catch(()=>{});};
  const home=()=>void leave({name:'home'});
- const goTo=(next:number)=>{if(next===3)markWelcomed();setStep(next);navigate({name:'welcome',step:next+1});};
+ const goTo=(next:number)=>{if(next===3)markWelcomed();if(next>0)setPassedConnect(true);setStep(next);navigate({name:'welcome',step:next+1});};
 
  const addChannel=()=>{
   const channelUrl=url.trim();if(!channelUrl)return;
