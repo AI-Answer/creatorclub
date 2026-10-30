@@ -1,5 +1,6 @@
 import {useEffect,useMemo,useRef,useState} from 'react';
 import type {AutomationJob,AutomationMutation,CutReview,QuickActionRequest} from '../../../shared/automation';
+import {DEFAULT_PAUSE_LEVEL} from '../../../shared/companion';
 import type {Project} from '../../../shared/types';
 import {projectDuration} from '../../../shared/types';
 import {api} from '../../api';
@@ -36,7 +37,7 @@ const seconds=(n:number)=>n<60?`${n.toFixed(1)}s`:formatCutDuration(n);
  * Style video applies the planned layout and slates through SceneForge's automation, like before.
  */
 export function EditAutoSheet({project:p,jobs,merge,reload,flush,change,refresh,onPreview,onClose,onChanged,notify,initial}:{project:Project;jobs:AutomationJob[];merge(job:AutomationJob):void;reload():Promise<void>;flush():Promise<Project|undefined>;change(fn:(p:Project)=>void):void;refresh():Promise<void>;onPreview(preview:EditPreview|null):void;onClose():void;onChanged?():void;notify(message:string):void;initial?:AutoOption}){
- const [level,setLevel]=useState<PauseLevel>('balanced'),[padding,setPadding]=useState(.16),[hover,setHover]=useState<AutoOption|null>(null),[pin,setPin]=useState<AutoOption|null>(initial??null),[busy,setBusy]=useState(''),[error,setError]=useState('');
+ const [level,setLevel]=useState<PauseLevel>(DEFAULT_PAUSE_LEVEL),[padding,setPadding]=useState(.16),[hover,setHover]=useState<AutoOption|null>(null),[pin,setPin]=useState<AutoOption|null>(initial??null),[busy,setBusy]=useState(''),[error,setError]=useState('');
  const [styled,setStyled]=useState<{jobId:string;after:Project}|null>(null),list=useRef<HTMLDivElement>(null),retry=useRef<()=>void>(()=>{});
  const cutJob=latestCutJob(jobs),styleJob=latestStyleJob(jobs);
  // A plan made before the latest edit no longer matches the timeline: it is never applied, and the row offers to look again.

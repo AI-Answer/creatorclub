@@ -300,8 +300,9 @@ export default function App({embedded}:{embedded?:EmbeddedRecorder}={}){
  useEffect(()=>{if(editOpen)onEditState?.({selected:selectedCount,previewKey,version:timelineVersion});},[onEditState,editOpen,selectedCount,previewKey,timelineVersion]);
  const clubEditView=()=>{if(!p||!embedded)return null;const zoomRange=zoomSlider(timelineControls.current?.width()||1000,duration);const stageProject=preview?.after&&previewPhase==='after'?preview.after:p;return <div className={`edit-workspace club-edit ${sideView?'has-side':''}`}>
   <main className="club-edit-stage">
-   <Keep visible={!preview?.review}><Stage project={stageProject} playhead={playhead} playing={playing} playbackRate={playbackRate} onSelect={select} onImport={importMedia}/></Keep>
-   {preview?.review&&<div className="club-preview-stage"><CutPlayback key={preview.key} review={preview.review} labels={{before:'Before',after:'After'}} note="This preview does not change your video."/></div>}
+   {/* The player always stays; a preview is a badge over it, and a cut's before/after plays in a small inset in the corner. */}
+   <Stage project={stageProject} playhead={playhead} playing={playing} playbackRate={playbackRate} onSelect={select} onImport={importMedia}/>
+   {preview?.review&&<div className="club-preview-inset" role="region" aria-label="Before and after this cut"><CutPlayback key={preview.key} review={preview.review} labels={{before:'Before',after:'After'}} note="This preview does not change your video."/></div>}
    {preview&&<div className="club-preview-badges" role="status"><span className="club-pill">Previewing at lower quality</span><span className="club-pill">{preview.label} · {preview.summary}</span>
     {preview.after&&<span className="club-seg" role="group" aria-label="Before or after">{(['before','after'] as const).map(v=><button key={v} type="button" aria-pressed={previewPhase===v} onClick={()=>setPreviewPhase(v)}>{v==='before'?'Before':'After'}</button>)}</span>}</div>}
   </main>

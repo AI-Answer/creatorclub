@@ -1,16 +1,17 @@
 import type {AutomationJob,CutReview} from '../../../shared/automation';
 import type {Clip,Project} from '../../../shared/types';
+import {PAUSE_SECONDS,PLAN_PAUSE_MARGIN,type PauseLevel} from '../../../shared/companion';
 import {plainClone} from '../../project-draft';
 import {closeRange,mergeRanges,timelineGaps} from '../../timeline-edit';
 
 /** What the Auto-edit and style sheet can do to the timeline: a set of time ranges to remove, previewed before it is applied. */
 export type Range=[number,number];
-export type PauseLevel='gentle'|'balanced'|'tight';
-/** The shortest quiet gap each level removes, in seconds. */
-export const PAUSE_LEVELS:Record<PauseLevel,number>={gentle:2,balanced:1,tight:.5};
+export type {PauseLevel};
+/** The shortest quiet gap each level removes, in seconds: the shared table (the Edit card and the companion use it too). */
+export const PAUSE_LEVELS=PAUSE_SECONDS;
 export const PAUSE_LEVEL_NAMES:Record<PauseLevel,string>={gentle:'Gentle',balanced:'Balanced',tight:'Tight'};
 /** The plan keeps 160 ms of breath on each side of a quiet gap; `padding` replaces that. */
-const PLAN_MARGIN=.16,MIN_CUT=.25;
+const PLAN_MARGIN=PLAN_PAUSE_MARGIN,MIN_CUT=.25;
 
 /** The newest whole-video Remove pauses plan. */
 export const latestCutJob=(jobs:readonly AutomationJob[])=>[...jobs].filter(j=>j.kind==='auto-cut'&&!j.sceneId).sort((a,b)=>b.createdAt.localeCompare(a.createdAt))[0];

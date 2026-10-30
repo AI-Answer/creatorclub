@@ -1,7 +1,7 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import type { ConceptRating, IdeaNotes, Outline, Package, ResearchTile, Video, Workspace } from '../../shared/club.js';
-import type { CompanionActionType } from '../../shared/companion.js';
+import { DEFAULT_PAUSE_LEVEL, PAUSE_SECONDS, type CompanionActionType } from '../../shared/companion.js';
 import type { Transcript } from './channel.js';
 import { ClubError } from './errors.js';
 
@@ -627,7 +627,7 @@ export const COMPANION_ACTION_HELP: Record<CompanionActionType, string> = {
   set_description: '- set_description: {"type": "set_description", "text": "..."}: the YouTube description: what the viewer gets in two or three lines, then chapters with start times from the scenes. No links you were not given.',
   group_tiles: '- group_tiles: {"type": "group_tiles", "title": "...", "tileIds": ["t_...", "t_..."]}: puts a named frame around 2 or more cards of the board that belong together. Use the card ids exactly as given in <board>; the title is 2 to 6 words.',
   start_video: '- start_video: {"type": "start_video", "title": "...", "tileIds": ["t_..."]}: starts a new video idea from these cards: the idea gets copies of them on its own board. Use the card ids exactly as given in <board>; the title is a working title for the video.',
-  cut_pauses: '- cut_pauses: {"type": "cut_pauses", "level": "gentle" | "balanced" | "tight"}: cuts the pauses between spoken words, found from the transcript: gentle cuts pauses over 2 s, balanced over 1 s, tight over 0.5 s, keeping a breath on each side. Needs a transcript.',
+  cut_pauses: `- cut_pauses: {"type": "cut_pauses", "level": "gentle" | "balanced" | "tight"}: cuts the pauses between spoken words, found from the transcript: gentle cuts pauses over ${PAUSE_SECONDS.gentle} s, balanced over ${PAUSE_SECONDS.balanced} s, tight over ${PAUSE_SECONDS.tight} s, keeping a breath on each side. Use ${DEFAULT_PAUSE_LEVEL} (the level the Edit card and the Auto-edit sheet use) unless the person asks for more or less. Needs a transcript.`,
   remove_fillers: '- remove_fillers: {"type": "remove_fillers"}: cuts "um", "uh" and similar words, found from the transcript\'s word timings.',
   close_gaps: '- close_gaps: {"type": "close_gaps"}: closes the empty stretches between clips.',
   split_at: '- split_at: {"type": "split_at", "time": 12.5, "clipId": "..."}: splits at a time in seconds: the clip with that id and its linked clips, or every clip running across that time when clipId is left out.',

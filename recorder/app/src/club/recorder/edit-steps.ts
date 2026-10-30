@@ -1,6 +1,7 @@
 import type {AutomationJob,AutomationProposal} from '../../../shared/automation';
 import type {ExportRecord} from '../../../shared/export-history';
 import {automationRunning} from '../../automation-state';
+import {DEFAULT_PAUSE_LEVEL,PAUSE_SECONDS,PLAN_PAUSE_MARGIN} from '../../../shared/companion';
 
 /** "3m 12s", "45s", "2m": how much the suggested cuts take out. */
 export function formatCutDuration(seconds:number){
@@ -20,7 +21,7 @@ export function removedSeconds(proposal:Pick<AutomationProposal,'changes'>){
 export type CutSuggestion=
  |{state:'none'}
  |{state:'running';job:AutomationJob}
- |{state:'ready';job:AutomationJob;seconds:number;label:string}
+ |{state:'ready';job:AutomationJob;seconds:number;label:string;/** The plan's changes the card applies: pauses at the default level (the sheet's and the companion's threshold) and every repeat. */changeIds:string[]}
  |{state:'done';job:AutomationJob};
 
 /** Under a second of cuts is not worth asking about. */
@@ -31,8 +32,8 @@ export function cutSuggestion(jobs:readonly AutomationJob[]):CutSuggestion{
  if(!job)return {state:'none'};
  if(automationRunning(job))return {state:'running',job};
  if(job.status==='ready'&&job.proposal){
-  const seconds=removedSeconds(job.proposal);
-  if(seconds>=MIN_SECONDS)return {state:'ready',job,seconds,label:`Remove ${formatCutDuration(seconds)} of pauses and repeats?`};
+  const kept=job.proposal.changes.filter(c=>c.category!=='silence'||c.start!==undefined&&c.end!==undefined&&c.end-c.start+2*PLAN_PAUSE_MARGIN>=PAUSE_SECONDS[DEFAULT_PAUSE_LEVEL]-1e-9),seconds=removedSeconds({changes:kept});
+  if(seconds>=MIN_SECONDS)return {state:'ready',job,seconds,label:`Remove ${formatCutDuration(seconds)} of pauses and repeats?`,changeIds:kept.map(c=>c.id)};
  }
  return {state:'done',job};
 }

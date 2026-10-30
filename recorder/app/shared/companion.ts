@@ -18,6 +18,12 @@ export interface DraftScene {
 }
 
 export type PauseLevel = 'gentle' | 'balanced' | 'tight';
+/** The shortest pause each level cuts, in seconds: the one table the Edit card, the Auto-edit sheet and the companion all read. */
+export const PAUSE_SECONDS: Record<PauseLevel, number> = { gentle: 2, balanced: 1, tight: 0.5 };
+/** The level used wherever nobody chose one (the Edit card, the sheet's first choice, a companion card without a level). */
+export const DEFAULT_PAUSE_LEVEL: PauseLevel = 'balanced';
+/** The Remove pauses plan keeps this much breath on each side of a quiet gap it proposes. */
+export const PLAN_PAUSE_MARGIN = 0.16;
 export type TextPosition = 'top' | 'center' | 'bottom';
 
 /** Edit's actions: each changes the timeline of the video's recording project. Times are timeline seconds. */

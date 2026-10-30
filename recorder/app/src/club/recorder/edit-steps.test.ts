@@ -55,3 +55,16 @@ test('latestVideoExport picks the newest finished MP4 whose file is still there'
  assert.equal(picked?.id,'new');
  assert.equal(exportFileName(picked!),'My video-e1.mp4');
 });
+
+test('Task 14: the toolbar card, the Auto-edit sheet and the companion count pauses with one threshold',async()=>{
+ const {PAUSE_SECONDS,DEFAULT_PAUSE_LEVEL}=await import('../../../shared/companion');
+ const {PAUSE_LEVELS,pauseRanges,rangesSeconds}=await import('./edit-auto');
+ const editing=await import('../../editing-actions');
+ assert.equal(PAUSE_LEVELS,PAUSE_SECONDS,'the sheet reads the one table');assert.equal(editing.PAUSE_SECONDS,PAUSE_SECONDS,'the companion reads the one table');
+ // A 0.4 s quiet gap is under the default level; a 1.3 s one is over it.
+ const plan=job({proposal:proposal([change(2,2.4),change(10,11.3),change(20,22,'repeat')])}),ready=cutSuggestion([plan]);
+ assert.equal(ready.state,'ready');
+ const sheet=rangesSeconds(pauseRanges(plan,DEFAULT_PAUSE_LEVEL,.16));
+ assert.ok(Math.abs(sheet-1.3)<1e-9,'the sheet cuts the 1.3 s pause only');
+ if(ready.state==='ready'){assert.ok(Math.abs(ready.seconds-(sheet+2))<1e-9,'the card counts the same pause plus the repeat');assert.deepEqual(ready.changeIds,['silence-10','repeat-20'],'and Remove them applies only those');}
+});

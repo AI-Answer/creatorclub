@@ -32,7 +32,7 @@
 
 /* The one suggestion, and Export video. */
 .club-embed .app-shell[data-mode=Edit] .club-edit-suggestion{flex:1 1 420px;max-width:560px;display:flex;align-items:center;gap:10px;min-width:0;padding:6px 6px 6px 12px;border:1px solid var(--cc-line);border-radius:12px;background:var(--cc-page);font-size:14px;color:var(--cc-ink)}
-.club-embed .app-shell[data-mode=Edit] .club-edit-suggestion>span{min-width:0;line-height:1.25;overflow-wrap:anywhere}
+.club-embed .app-shell[data-mode=Edit] .club-edit-suggestion>span{flex:1 1 150px;min-width:150px;line-height:1.25;overflow-wrap:normal}
 /* With the companion docked beside Edit the toolbar is narrower: its buttons stay on one line and the suggestion's sentence gives way first. */
 .club-embed .app-shell[data-mode=Edit] .project-header :is(.club-edit-suggestion,.project-header-controls) button{white-space:nowrap;flex-shrink:0}
 .club-embed .app-shell[data-mode=Edit] .project-header-controls{flex-shrink:0;margin-left:auto}
@@ -48,13 +48,13 @@
 .club-embed .app-shell[data-mode=Edit] .edit-workspace.club-edit{display:grid;position:relative;grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(150px,1fr) 44px var(--timeline-height,220px);min-height:0;overflow:hidden;background:var(--cc-page)}
 .club-embed .app-shell[data-mode=Edit] .edit-workspace.club-edit.has-side{grid-template-columns:minmax(0,1fr) 360px}
 /* Narrower windows (the companion docked beside Edit): the side column gives way first, down to 280 px. */
-@media (max-width:1439px){.club-embed .app-shell[data-mode=Edit] .edit-workspace.club-edit.has-side{grid-template-columns:minmax(0,1fr) minmax(280px,28%)}}
+@media (max-width:1439px){.club-embed .app-shell[data-mode=Edit] .edit-workspace.club-edit.has-side{grid-template-columns:minmax(0,1fr) minmax(310px,36%)}}
 .club-embed .app-shell[data-mode=Edit] .club-edit-stage{grid-row:1;grid-column:1;position:relative;display:flex;flex-direction:column;min-width:0;min-height:0;overflow:hidden}
 .club-embed .app-shell[data-mode=Edit] .club-edit-stage .stage-wrap{background:transparent;padding:14px 20px}
 .club-embed .app-shell[data-mode=Edit] .club-edit-stage .stage{border-radius:12px}
 .club-embed .app-shell[data-mode=Edit] .club-preview-stage{flex:1;min-height:0;overflow:auto;padding:6px 20px 8px}
 .club-embed .app-shell[data-mode=Edit] .club-preview-stage .cut-playback{border:0;padding:0;background:transparent}
-.club-embed .app-shell[data-mode=Edit] .club-preview-badges{order:-1;flex-shrink:0;padding:10px 20px 0;display:flex;flex-wrap:wrap;gap:6px;align-items:center;pointer-events:none}
+.club-embed .app-shell[data-mode=Edit] .club-preview-badges{position:absolute;top:22px;left:28px;right:28px;z-index:6;display:flex;flex-wrap:wrap;gap:6px;align-items:center;pointer-events:none}
 .club-embed .app-shell[data-mode=Edit] .club-preview-badges>*{pointer-events:auto}
 .club-embed .app-shell[data-mode=Edit] .club-pill{display:inline-flex;align-items:center;height:26px;padding:0 10px;border-radius:999px;background:var(--cc-card);border:1px solid var(--cc-line);font-size:12px;color:var(--cc-ink)}
 .club-embed .app-shell[data-mode=Edit] .club-seg{display:inline-flex;padding:2px;border-radius:8px;background:var(--cc-subtle);gap:2px}
@@ -217,3 +217,10 @@
 .club-embed .app-shell[data-mode=Edit] .color-swatch{width:22px;height:22px;padding:0;border-radius:50%;border:1px solid var(--cc-line);box-shadow:inset 0 0 0 1px var(--tl-shade-soft);display:inline-flex;align-items:center;justify-content:center;font-size:11px;color:var(--cc-muted);background:var(--cc-card)}
 .club-embed .app-shell[data-mode=Edit] .color-swatch.is-none{background:linear-gradient(135deg,transparent 45%,var(--cc-danger) 45% 55%,transparent 55%),var(--cc-card)}
 .club-embed .app-shell[data-mode=Edit] .color-swatch[aria-pressed=true]{outline:2px solid var(--tl-select);outline-offset:2px}
+.club-embed .app-shell[data-mode=Edit] .club-preview-inset{position:absolute;right:28px;bottom:18px;z-index:6;width:min(360px,44%);max-height:calc(100% - 70px);overflow:auto;padding:10px;border:1px solid var(--cc-line);border-radius:12px;background:var(--cc-card);box-shadow:var(--cc-shadow-3)}
+.club-embed .app-shell[data-mode=Edit] .club-preview-inset .cut-playback{border:0;padding:0;background:transparent;font-size:12px}
+.club-embed .app-shell[data-mode=Edit] .club-sheet .btn:not(.primary):not(.ghost){display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 10px;border:1px solid var(--cc-line-strong);border-radius:8px;background:var(--cc-card);color:var(--cc-ink);font-size:13px;font-weight:500}
+.club-embed .app-shell[data-mode=Edit] .club-sheet .btn:not(.primary):not(.ghost):hover:not(:disabled){background:var(--cc-subtle)}
+/* Toasts sit top-right, under the header: never over the timeline, the toolbar or the Continue button. */
+.club-root:has(.club-embed) .cc-toasts{top:72px;right:20px;bottom:auto;left:auto;transform:none;align-items:flex-end}
+.club-embed .toast{top:72px;right:20px;bottom:auto;left:auto;transform:none}
