@@ -66,17 +66,18 @@ test('embedded Edit: one toolbar, panels behind Style & more, the transcript ope
   assert.ok(!/project/i.test(visible),`no "project" in the embedded editor: ${visible.match(/.{0,40}project.{0,40}/i)?.[0]}`);
   assert.equal(header.querySelector('.project-header-controls'),null,'the top strip holds no controls: they sit on the timeline bar');
   const bar=[...ui.container.querySelectorAll('.club-timeline-bar button')].map(b=>b.getAttribute('aria-label')??b.textContent?.trim());
-  for(const label of ['Undo','Redo','Version history','Export video'])assert.ok(bar.includes(label),`the timeline bar has ${label}: ${bar.join(', ')}`);
+  for(const label of ['Undo','Redo','Version history'])assert.ok(bar.includes(label),`the timeline bar has ${label}: ${bar.join(', ')}`);
+  assert.ok(!bar.includes('Export video'),'Export lives in Publish: Edit has one way forward, Continue to publishing');
   assert.equal(ui.container.querySelector('.panel-rail'),null);
   assert.equal(ui.container.querySelector('.inspector'),null,'panels start closed');
-  assert.ok(ui.container.querySelector('.club-edit-side:not([hidden]) .transcript-panel'),'the transcript is open beside the preview');
+  assert.ok(!ui.container.querySelector('.club-edit-side:not([hidden])'),'the video has the room: the transcript opens from the rail');
   const rail=[...ui.container.querySelectorAll('.club-rail button')].map(b=>b.textContent?.trim());
   assert.deepEqual(rail,['Transcript','Cut','Captions','Layout','Graphics','More'],'one rail of five named tools; the rest sit under More');
   await act(async()=>[...ui.container.querySelectorAll<HTMLButtonElement>('.club-rail button')].find(b=>b.textContent?.trim()==='Captions')!.click());
   assert.equal(ui.container.querySelector('.club-edit-side .inspector h2')?.textContent,'Captions','a tool opens its panel on the side');
   await act(async()=>ui.container.querySelector<HTMLButtonElement>('button[aria-label="Close Captions"]')!.click());
   assert.equal(server.calls.filter(c=>c.url.endsWith('/quick-action')).length,0,'a plan already exists: none is started');
-  assert.ok(primaries(ui.container).includes('Export video'));
+  assert.ok(!primaries(ui.container).includes('Export video'),'no Export button competes with Continue to publishing');
 
   await act(async()=>button(header,'Remove them').click());for(let i=0;i<12;i++)await flush();
   const apply=server.calls.find(c=>c.url==='/api/automation/j1/apply');
@@ -90,13 +91,6 @@ test('embedded Edit: one toolbar, panels behind Style & more, the transcript ope
   assert.ok(duration()?.includes('10:00'),`the timeline is back: ${duration()}`);
   assert.ok(!header.textContent?.includes('Removed'),'the line goes away after Undo');
 
-  await act(async()=>button(ui.container.querySelector('.club-timeline-bar')!,'Export video').click());await flush();await flush();
-  const started=server.calls.find(c=>c.url==='/api/export');
-  assert.equal(started?.body&&(started.body as {options:{format:string;range?:unknown}}).options.format,'mp4');
-  assert.equal((started?.body as {options:{range?:unknown}}).options.range,undefined,'the full timeline');
-  assert.ok(started?.ifMatch,'the reviewed revision is sent');
-  assert.ok(ui.container.textContent?.includes('Video exported'));
-  assert.equal(exported.at(-1),true,'the club hears that this edit is exported');
  }finally{await ui.close();server.restore();}
 });
 

@@ -185,3 +185,9 @@
 .club-root .cmp-choice-q { font-size: 14px; font-weight: 600; line-height: 1.4; color: var(--cc-text); }
 .club-root .cmp-choice-opts { display: flex; flex-wrap: wrap; gap: 8px; }
 .club-root .cmp-choice-opts .btn { min-height: 32px; }
+
+/* A change already made is one line: what it did, and Undo. */
+.club-root .cmp-card.applied { flex-direction: row; align-items: center; padding: 8px 12px; box-shadow: none; background: var(--cc-surface); border-color: var(--cc-line); }
+.club-root .cmp-card.applied .cmp-card-h, .club-root .cmp-card.applied .cmp-card-text, .club-root .cmp-card.applied .cmp-preview { display: none; }
+.club-root .cmp-card.applied .cmp-card-a { flex: 1; justify-content: space-between; }
+.club-root .cmp-card .btn { border-radius: 8px; }

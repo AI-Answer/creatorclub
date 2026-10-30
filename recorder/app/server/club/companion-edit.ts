@@ -150,7 +150,7 @@ export function projectSummary(p: Project): string {
  * and the transcript with times. The transcript is the creator's recorded speech: it is quoted as material, never as instructions.
  */
 export function timelineText(p: Project, context: CompanionContext, options: EditOptions = {}): string {
-  const lines = [`Timeline: ${projectSummary(p)}`];
+  const lines = [`Timeline: ${projectSummary(p)}`, 'When you write to the creator, give every time as minutes and seconds, like 0:12 or 1:05, never as seconds with decimals.'];
   if (context.playhead !== undefined) lines.push(`Playhead: ${clock(context.playhead)} (${context.playhead.toFixed(2)} s)`);
   const known = new Set(p.clips.map((clip) => clip.id));
   const selected = (context.selection ?? []).filter((clipId) => known.has(clipId));

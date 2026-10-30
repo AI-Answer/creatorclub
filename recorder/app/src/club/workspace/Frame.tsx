@@ -47,7 +47,8 @@ export function Strip({scenes,focusId,onPick,onRetry,bottom=false}:{scenes:Video
  const place=bottom?'strip at-bottom':'strip';
  if(scenes.status==='loading')return <div className={place}><span className="lab"><Icon name="scenes" size={14}/>Scenes</span></div>;
  if(scenes.status==='unknown')return <div className={place}><ErrorLine message="Couldn't read the scenes." onRetry={onRetry}/></div>;
- const list=scenes.scenes;
+ // On Edit only what was recorded is on the timeline, so only that is listed: scenes still to record belong to Record.
+ const list=bottom?scenes.scenes.filter(scene=>scene.takes.length>0):scenes.scenes;
  if(!list.length)return <div className={place}><span className="lab"><Icon name="scenes" size={14}/>Scenes</span><span className="small muted">No scenes yet. Plan the scenes first.</span></div>;
  const progress=toProgress(list);
  // The chips are the one scene selector: Tab reaches them and the arrow keys move between them.
@@ -59,7 +60,7 @@ export function Strip({scenes,focusId,onPick,onRetry,bottom=false}:{scenes:Video
   event.preventDefault();chips[(at+move+chips.length)%chips.length].focus();
  };
  return <div className={place} role="list" aria-label="Scenes" onKeyDown={arrows}>
-  <span className="lab"><Icon name="scenes" size={14}/>{scenesLine(list,clockTime)}</span>
+  <span className="lab"><Icon name="scenes" size={14}/>{bottom?`${list.length} ${list.length===1?'scene':'scenes'} on the timeline`:scenesLine(list,clockTime)}</span>
   {list.map((scene,index)=><button key={scene.id} role="listitem" type="button" className={cn('sc',focusId===scene.id&&'on')} onClick={()=>onPick(scene.id)} title={scene.title}>
    <span className="n">{index+1}</span><span className="t">{scene.title}</span><SceneStatus scene={progress[index]}/></button>)}
  </div>;

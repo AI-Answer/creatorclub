@@ -30,7 +30,7 @@ interface Drag {items:Map<string,Preview>;ghosts:Array<{row:string;start:number;
 const RULER=30,SNAP_PX=8,STALE_DROP='The timeline changed during the drag, so nothing moved. Try again.',NOT_MOVED='Clips stay joined end to end. Drag a clip onto another one to change the order.';
 const icons:Record<TrackKind,typeof Camera>={screen:Monitor,camera:Camera,audio:Mic,music:Music,overlay:Layers};
 const heights:Record<TrackKind,number>={screen:50,camera:38,audio:40,music:32,overlay:38};
-const effectRows:Array<{id:Effect;name:string;icon:typeof Camera}>=[{id:'motion',name:'Motion',icon:Clapperboard},{id:'elements',name:'Graphics',icon:Type},{id:'captions',name:'Captions',icon:AudioLines},{id:'zooms',name:'Zoom',icon:ZoomIn}];
+const effectRows:Array<{id:Effect;name:string;icon:typeof Camera}>=[{id:'motion',name:'Graphics',icon:Clapperboard},{id:'elements',name:'Text',icon:Type},{id:'captions',name:'Captions',icon:AudioLines},{id:'zooms',name:'Zoom',icon:ZoomIn}];
 
 /** The items on the effect rows (graphics, text, captions, zooms) with the words the timeline shows on them. */
 const effectsOf=(p:Project)=>new Map<string,Array<{id:string;start:number;duration:number;name:string}>>([['motion',(p.motion??[]).map(m=>({id:m.id,start:m.start,duration:m.duration,name:motionLabel(m)}))],['elements',p.elements.map(e=>({id:e.id,start:e.start,duration:e.duration,name:e.text||e.type}))],['captions',p.captions.filter(c=>!isSoundTag(c.text)).map(c=>({id:c.id,start:c.start,duration:c.end-c.start,name:c.text}))],['zooms',p.zooms.map(z=>({id:z.id,start:z.start,duration:z.duration,name:`Zoom ${z.scale}×`}))]]);

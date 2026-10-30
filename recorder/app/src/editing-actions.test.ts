@@ -134,7 +134,7 @@ test('a pause is cut only where one recording holds the words on both sides, nev
 
 test('a long delete is said on the card and capped; a zoom says which zoom it replaces; one element factory',()=>{
  const p=make(),length=projectDuration(p);
- assert.equal(describeEditAction({type:'delete_range',start:10,end:14.8}),'Delete 0:10 to 0:14.8 (4.8 s) from every row; the rest moves up.');
+ assert.equal(describeEditAction({type:'delete_range',start:10,end:14.8}),'Delete 0:10 to 0:15 (4.8 s) from every row; the rest moves up.');
  assert.deepEqual(editEstimate(p,{type:'delete_range',start:10,end:14.8}),{text:'1 cut · 4.8 s shorter (7% of the video)'});
  const big=editEstimate(p,{type:'delete_range',start:10,end:30})!;assert.equal(big.warn,true);assert.match(big.text,/That is 29% of the video\.$/);
  assert.equal(editActionProblem(p,{type:'delete_range',start:0,end:length*.6}),'That would delete more than half the video: select it on the timeline and delete it there.');

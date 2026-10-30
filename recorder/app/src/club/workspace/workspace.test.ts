@@ -124,7 +124,7 @@ test('a step is locked until what it needs exists, and says the first thing miss
 test('the step bar shows each step as done, current, next, locked or open',()=>{
  assert.deepEqual((['board','plan','record','edit','publish'] as const).map(key=>tabState(key,'plan',noScenes)),['open','current','locked','locked','locked']);
  assert.deepEqual((['board','plan','record','edit','publish'] as const).map(key=>tabState(key,'plan',planned)),['done','current','next','locked','locked']);
- assert.deepEqual((['board','plan','record','edit','publish'] as const).map(key=>tabState(key,'record',started)),['done','done','current','next','open']);
+ assert.deepEqual((['board','plan','record','edit','publish'] as const).map(key=>tabState(key,'record',started)),['done','done','current','done','open'],'a scene is on the timeline, so Edit has something done');
 });
 
 test('one Continue rule: it names the next step, is disabled with the reason when that step is locked, and is primary only when this step is done and has no primary of its own',()=>{
@@ -135,7 +135,7 @@ test('one Continue rule: it names the next step, is disabled with the reason whe
  assert.deepEqual(continueFor('record',planned,{ownPrimary:true}),{label:'Continue to editing',disabled:true,reason:'Record a scene first',primary:false});
  assert.deepEqual(continueFor('record',started),{label:'Continue to editing',disabled:false,primary:false},'scenes left to record: the Record button stays the primary');
  assert.deepEqual(continueFor('record',{...started,allRecorded:true}),{label:'Continue to editing',disabled:false,primary:true});
- assert.deepEqual(continueFor('edit',started),{label:'Continue to publishing',disabled:false,primary:false});
+ assert.deepEqual(continueFor('edit',started),{label:'Continue to publishing',disabled:false,primary:true},'something is recorded: moving on to Publish is the one next step');
  assert.deepEqual(continueFor('edit',{...started,exported:true}),{label:'Continue to publishing',disabled:false,primary:true});
  assert.equal(continueFor('publish',started),undefined,'the last step has no Continue');
  assert.deepEqual(continueFor('record',{stage:'recording',hasRecording:true}),{label:'Continue to editing',disabled:true,primary:false},'scenes not known yet: it waits, with nothing to explain');

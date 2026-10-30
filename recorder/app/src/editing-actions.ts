@@ -34,7 +34,8 @@ export interface EditOptions {silences?:SilencePlan|null}
 const SPEECH:ReadonlySet<Clip['track']>=new Set(['screen','camera','audio']);
 const EPS=1e-6;
 const end=(c:Clip)=>c.start+clipDuration(c);
-const clock=(t:number)=>{const s=Math.max(0,t),whole=Math.abs(s%1)<.05||Math.abs(s%1)>.95;return whole?`${Math.floor((s+.05)/60)}:${String(Math.round(s)%60).padStart(2,'0')}`:`${Math.floor(s/60)}:${(s%60).toFixed(1).padStart(4,'0')}`;};
+/** Times on cards are whole seconds, as "0:12": the creator reads them, so tenths add noise and no meaning. */
+const clock=(t:number)=>{const total=Math.max(0,Math.round(t));return `${Math.floor(total/60)}:${String(total%60).padStart(2,'0')}`;};
 const secs=(n:number)=>n>=60?`${Math.floor(n/60)} min ${Math.round(n%60)} s`:`${n<10?Math.round(n*10)/10:Math.round(n)} s`;
 const plural=(n:number,word:string)=>`${n} ${word}${n===1?'':'s'}`;
 

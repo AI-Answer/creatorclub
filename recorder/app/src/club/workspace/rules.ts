@@ -45,7 +45,7 @@ export function tabDone(tab:VideoTab,{stage,scenes,allRecorded,exported}:TabFact
   case 'board':return hasScenes;
   case 'plan':return hasScenes;
   case 'record':return !!allRecorded||allScenesKept(scenes);
-  case 'edit':return !!exported||stageReached(stage,'publishing');
+  case 'edit':return !!exported||stageReached(stage,'publishing')||!!scenes?.some(scene=>scene.takes.length>0);
   case 'publish':return stage==='published';
  }
 }

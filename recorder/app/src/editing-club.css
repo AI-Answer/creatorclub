@@ -368,3 +368,15 @@
 .marker-note-h{display:flex;align-items:center;gap:8px}
 .marker-nudge{all:unset;cursor:pointer;width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;border-radius:6px;font-size:18px;line-height:1;color:var(--cc-text-2)}
 .marker-nudge:hover{background:var(--cc-accent-soft);color:var(--cc-text)}
+
+/* Consistency pass: one accent colour, one control size and corner, calm type.
+   The rail tints only the tool that is open; timeline rows are named; graphics, text and captions share one chip shape. */
+.club-embed .app-shell[data-mode=Edit] .club-rail button svg{background:transparent;color:var(--cc-text-2)}
+.club-embed .app-shell[data-mode=Edit] .club-rail button:hover svg{background:var(--cc-hover);color:var(--cc-text)}
+.club-embed .app-shell[data-mode=Edit] .club-rail button[aria-pressed=true] svg{background:var(--cc-accent-soft);color:var(--cc-accent-text);box-shadow:none}
+.club-embed .app-shell[data-mode=Edit] .club-tl-heads{display:block;width:78px}
+.club-embed .app-shell[data-mode=Edit] .club-tl-head{font-size:11.5px;padding:0 10px;color:var(--cc-text-3)}
+.club-embed .app-shell[data-mode=Edit] .club-timeline-bar .club-tool{height:30px;border-radius:8px;font-size:13px;font-weight:550}
+.club-embed .app-shell[data-mode=Edit] .club-timeline .timeline-effect.club-effect{border-radius:6px;font-weight:550;color:var(--cc-text);background:color-mix(in srgb,var(--kind-graphics) 14%,var(--cc-card));border:1px solid color-mix(in srgb,var(--kind-graphics) 38%,var(--cc-card))}
+.club-embed .app-shell[data-mode=Edit] .club-timeline .row-captions .club-effect{background:var(--cc-card);color:var(--cc-text-2);border-color:var(--cc-line-strong);font-weight:500}
+.club-embed .app-shell[data-mode=Edit] .transcript-editor{font-size:15px;line-height:1.6}
