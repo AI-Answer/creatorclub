@@ -355,6 +355,8 @@ export function addMotionBlock(p:Project,block:MotionBlock,slide=false,keepLengt
 
 export function addMarker(p:Project,time:number,newId:()=>string=makeId){const id=newId();(p.markers??=[]).push({id,time:Math.max(0,time)});p.markers.sort((a,b)=>a.time-b.time);return id;}
 export function moveMarker(p:Project,id:string,time:number){const m=p.markers?.find(x=>x.id===id);if(m)m.time=Math.max(0,time);p.markers?.sort((a,b)=>a.time-b.time);}
+/** A time in whole seconds, as "0:12": how a note on the timeline is named. */
+export const secondsLabel=(time:number)=>{const total=Math.max(0,Math.round(time));return `${Math.floor(total/60)}:${String(total%60).padStart(2,'0')}`;};
 /** Writes the creator's note and mood on a marker. Empty words or a null mood take them off; the words are kept as typed. */
 export function noteMarker(p:Project,id:string,patch:{name?:string;tag?:MarkerTag|null}){
  const m=p.markers?.find(x=>x.id===id);if(!m)return;

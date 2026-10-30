@@ -283,6 +283,6 @@ test('the prompt lists the creator\'s notes on the timeline by time, with how th
   ];
   const text = timelineText(p, { tab: 'edit' });
   assert.match(text, /Notes the creator left on the timeline/);
-  assert.match(text, /- 3\.00 s, wants to keep this\n- 12\.50 s, does not like this, "This graphic is ugly now"/);
-  assert.ok(!text.includes('20.00 s'), 'a marker with no note and no mood is not a note');
+  assert.match(text, /- 3 s, wants to keep this\n- 13 s, does not like this, "This graphic is ugly now"/);
+  assert.ok(!text.includes('- 20 s'), 'a marker with no note and no mood is not a note');
 });

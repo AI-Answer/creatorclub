@@ -364,3 +364,7 @@
 .marker-tag.on.idea{background:var(--cc-accent-soft);border-color:var(--cc-accent);color:var(--cc-accent-text)}
 .marker-note-a{display:flex;align-items:center;gap:8px}
 .marker-note-a .grow{flex:1}
+
+.marker-note-h{display:flex;align-items:center;gap:8px}
+.marker-nudge{all:unset;cursor:pointer;width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;border-radius:6px;font-size:18px;line-height:1;color:var(--cc-text-2)}
+.marker-nudge:hover{background:var(--cc-accent-soft);color:var(--cc-text)}

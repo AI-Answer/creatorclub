@@ -5,7 +5,7 @@ import {MARKER_TAGS,MARKER_TAG_LABEL,type MarkerTag} from '../shared/types';
  * A note on a moment of the timeline: the creator writes what is wrong or good there and can tag it ("I don't like this").
  * Claude reads these notes by their time, so "fix the parts I marked" needs nothing more. It saves as you type.
  */
-export function MarkerNote({time,name,tag,anchor,onChange,onDelete,onClose}:{time:string;name:string;tag?:MarkerTag;anchor:{left:number;top:number};onChange(patch:{name?:string;tag?:MarkerTag|null}):void;onDelete():void;onClose():void}){
+export function MarkerNote({time,name,tag,anchor,onChange,onNudge,onDelete,onClose}:{time:string;onNudge(seconds:number):void;name:string;tag?:MarkerTag;anchor:{left:number;top:number};onChange(patch:{name?:string;tag?:MarkerTag|null}):void;onDelete():void;onClose():void}){
  const box=useRef<HTMLDivElement>(null),area=useRef<HTMLTextAreaElement>(null);
  useEffect(()=>{area.current?.focus();},[]);
  useEffect(()=>{
@@ -16,7 +16,7 @@ export function MarkerNote({time,name,tag,anchor,onChange,onDelete,onClose}:{tim
  },[onClose]);
  const left=Math.max(12,Math.min(anchor.left-140,window.innerWidth-300)),top=Math.max(12,anchor.top-196);
  return <div ref={box} className="marker-note" role="dialog" aria-label={`Note at ${time}`} style={{left,top}}>
-  <div className="marker-note-h"><b>Note at {time}</b></div>
+  <div className="marker-note-h"><button type="button" className="marker-nudge" aria-label="One second earlier" onClick={()=>onNudge(-1)}>‹</button><b>Note at {time}</b><button type="button" className="marker-nudge" aria-label="One second later" onClick={()=>onNudge(1)}>›</button></div>
   <textarea ref={area} rows={3} value={name} placeholder="What should change here?" aria-label="Your note" onChange={event=>onChange({name:event.target.value})}/>
   <div className="marker-note-tags" role="group" aria-label="How you feel about it">
    {MARKER_TAGS.map(each=><button key={each} type="button" className={`marker-tag ${each}${tag===each?' on':''}`} aria-pressed={tag===each} onClick={()=>onChange({tag:tag===each?null:each})}>{MARKER_TAG_LABEL[each]}</button>)}

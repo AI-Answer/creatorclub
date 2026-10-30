@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createProject,defaultEffects,defaultTransform,clipDuration,type Clip,type Media,type Project} from '../shared/types';
 import {applyProjectChange} from './project-draft';
-import {noteMarker,addMarker,anchoredScroll,openRange,remapLinks,applyClipStarts,closeRange,collides,deleteItems,ensureLinks,filmstripTiles,fitScale,freeDelta,insertPlan,isLinked,linkClips,linkGroups,linkedIds,moveEffects,moveMarker,planClipMove,removeMarker,resizeEffect,rowItems,rulerLabel,rulerTicks,splitLinked,timelineGaps,trimBounds,trimClips,trimGroup,rowsOverlap,uncovered,unlinkClips,DRAG_DEAD_ZONE_PX,showTenths,lengthLabel,MAX_SCALE} from './timeline-edit';
+import {secondsLabel,noteMarker,addMarker,anchoredScroll,openRange,remapLinks,applyClipStarts,closeRange,collides,deleteItems,ensureLinks,filmstripTiles,fitScale,freeDelta,insertPlan,isLinked,linkClips,linkGroups,linkedIds,moveEffects,moveMarker,planClipMove,removeMarker,resizeEffect,rowItems,rulerLabel,rulerTicks,splitLinked,timelineGaps,trimBounds,trimClips,trimGroup,rowsOverlap,uncovered,unlinkClips,DRAG_DEAD_ZONE_PX,showTenths,lengthLabel,MAX_SCALE} from './timeline-edit';
 
 const media=(id:string,duration=600):Media=>({id,name:id,path:`/tmp/${id}.mov`,kind:'video',duration,width:1920,height:1080,hasAudio:true});
 const clip=(id:string,track:Clip['track'],start:number,length:number,extra:Partial<Clip>={}):Clip=>({id,mediaId:track==='camera'?'cam':track==='audio'?'mic':'scr',name:id,track,start,sourceIn:0,sourceOut:length,speed:1,gain:1,muted:false,transform:defaultTransform(),effects:defaultEffects(),...extra});
@@ -199,4 +199,11 @@ test('a marker can hold the creator\'s note and how they feel about it; empty wo
  noteMarker(p,at,{tag:null});assert.equal(p.markers![0].tag,undefined);
  noteMarker(p,at,{name:'   '});assert.equal(p.markers![0].name,undefined,'only spaces is no note');
  noteMarker(p,'missing',{name:'x'});assert.equal(p.markers!.length,1);
+});
+
+test('a note is named in whole seconds',()=>{
+ assert.equal(secondsLabel(12.4),'0:12');
+ assert.equal(secondsLabel(59.6),'1:00');
+ assert.equal(secondsLabel(75),'1:15');
+ assert.equal(secondsLabel(-3),'0:00');
 });

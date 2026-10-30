@@ -10,7 +10,7 @@ import {hasWaveform,waveformMediaKey,waveformBars,waveformEnvelopePath,timelineW
 import {sameTimelineWindow,timelineWindow} from './timeline-viewport';
 import {groupMove,hitLayerDrop,snapTargets,snapTimelineDelta,timelinePointerDelta,type LayerDrop,type SnapTarget} from './timeline-drag';
 import {rectangleBetween,itemsInRectangle,type SelectionItem,type SelectionRect} from './timeline-selection';
-import {syncScenesToTakes,anchoredScroll,applyClipStarts,clampScale,ensureLinks,filmstripTiles,fitScale,freeDelta,linkGroups,linkedIds,moveEffects,moveMarker,planClipMove,removeMarker,resizeEffect,rowItems,rulerTicks,rulerLabel,lengthLabel,pointerScroll,showTenths,trimBounds,trimClips,trimGroup,DRAG_DEAD_ZONE_PX} from './timeline-edit';
+import {secondsLabel,syncScenesToTakes,anchoredScroll,applyClipStarts,clampScale,ensureLinks,filmstripTiles,fitScale,freeDelta,linkGroups,linkedIds,moveEffects,moveMarker,planClipMove,removeMarker,resizeEffect,rowItems,rulerTicks,rulerLabel,lengthLabel,pointerScroll,showTenths,trimBounds,trimClips,trimGroup,DRAG_DEAD_ZONE_PX} from './timeline-edit';
 import type {Playhead} from './playhead';
 import {isSoundTag} from '../shared/sound-tags';
 
@@ -227,7 +227,7 @@ export const TimelineClub=memo(function TimelineClub({project:p,playhead,scale,o
  }
  function beginMarker(e:React.PointerEvent,id:string){
   if(e.button!==0)return;e.stopPropagation();e.preventDefault();const box=(e.currentTarget as HTMLElement).getBoundingClientRect();const base=latest.current,m=base.markers?.find(x=>x.id===id);if(!m)return;let time=m.time;
-  run(e,x=>{const raw=Math.max(0,m.time+timelinePointerDelta(e.clientX,x,0,0,scale)),s=snapTime(raw,new Set([id]));time=s.time;showDrag({items:new Map(),ghosts:[],guide:s.guide,insert:null,label:`Marker at ${rulerLabel(time,tenths)}`,markers:new Map([[id,time]])});},
+  run(e,x=>{const raw=Math.max(0,m.time+timelinePointerDelta(e.clientX,x,0,0,scale)),s=snapTime(raw,new Set([id]));time=Math.round(s.time);showDrag({items:new Map(),ghosts:[],guide:s.guide,insert:null,label:`Note at ${secondsLabel(time)}`,markers:new Map([[id,time]])});},
    moved=>{if(!moved){onSeek(m.time);onOpenMarker?.(id,box);return;}const t=time;change(d=>moveMarker(d,id,t));});
  }
  const visible=(s:number,d:number)=>s+d>=start&&s<=end;
@@ -242,7 +242,7 @@ export const TimelineClub=memo(function TimelineClub({project:p,playhead,scale,o
      {hover!==null&&<span className="club-hover" style={{left:hover*scale}} aria-hidden><b>{rulerLabel(hover,tenths)}</b>{hoverFrame(hover)}</span>}
      {ticks.map(t=><span key={t.time} className={t.major?'tick major':'tick'} style={{left:t.time*scale}}>{t.label&&<b>{t.label}</b>}</span>)}
      {p.scenes.map((s,i)=>s.duration>0&&visible(s.start,Math.max(1,s.duration))&&<div key={s.id} className={`club-scene-tag${i%2?' alt':''}`} style={{left:s.start*scale,width:Math.max(24,s.duration*scale-2)}} title={`Scene ${i+1}: ${s.name}`} onPointerDown={e=>{e.stopPropagation();onSeek(s.start);}}>{i+1} {s.name}</div>)}
-     {(p.markers??[]).map(m=>{const time=drag?.markers?.get(m.id)??m.time;return visible(time,0)&&<div key={m.id} data-marker-id={m.id} className={`club-marker${m.tag?` tag-${m.tag}`:''}${m.name?.trim()?' has-note':''}`} style={{left:time*scale}} title={`${m.name?.trim()?m.name.trim()+' · ':''}Note at ${rulerLabel(time,tenths)} · click to write, drag to move`} onPointerDown={e=>beginMarker(e,m.id)}/>;})}
+     {(p.markers??[]).map(m=>{const time=drag?.markers?.get(m.id)??m.time;return visible(time,0)&&<div key={m.id} data-marker-id={m.id} className={`club-marker${m.tag?` tag-${m.tag}`:''}${m.name?.trim()?' has-note':''}`} style={{left:time*scale}} title={`${m.name?.trim()?m.name.trim()+' · ':''}Note at ${secondsLabel(time)} · click to write, drag to move`} onPointerDown={e=>beginMarker(e,m.id)}/>;})}
     </div>
     {rows.map(r=><div key={r.id} className={`timeline-row club-row row-${r.layer?.track??r.effect??'layer'}`} data-track={r.id} style={{top:r.top,height:r.height}} onPointerDown={e=>{if(e.target===e.currentTarget)beginEmpty(e);}}
      onDragOver={e=>{if(r.layer)e.preventDefault();}} onDrop={e=>{e.preventDefault();const id=e.dataTransfer.getData('application/sceneforge-media'),media=mediaById.get(id);if(media&&r.layer&&(media.kind==='audio'?'audio':'video')===r.layer.kind)onDropMedia(id,r.layer.track??(r.layer.kind==='audio'?'audio':'screen'),snapTime(Math.max(0,contentX(e.clientX)/scale)).time,r.id);}}>
