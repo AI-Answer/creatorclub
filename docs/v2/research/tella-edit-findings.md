@@ -60,4 +60,5 @@ Seen across all of them: each tool is a coloured tile with its name under it; th
 - Rail icons are now tinted tiles, one colour per tool, with the selected one ringed.
 - On Edit the scenes are a slim row at the bottom (Tella's "Clip 1" row), not a bar at the top. Record keeps them on top.
 - Timeline: no row labels or striping, a soft waveform band, caption chips that carry the words, a red playhead.
-- Not done: Tella shows the timeline only for tools that need it, and its Cut panel groups Mistakes, Buffers and Silences with one Review button; ours still opens the Auto-edit sheet.
+- Cut panel now has Tella's shape: a "Show transcript" button in the header, then Mistakes, Silences, Gaps between clips, Volume and Layout and titles, each with its own Review (preview on the video) and Cut all (one undoable edit). Checked by screenshot; Cut all was not pressed, to leave your video alone.
+- Not built: Tella's "Buffers" (silence at the start and end). We have no measure of that, so I did not add a section for it. Tella also shows the timeline only for some tools; ours always shows it.

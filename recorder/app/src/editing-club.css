@@ -306,3 +306,12 @@
 .club-embed .app-shell[data-mode=Edit] .club-rail button[data-tool=Music]{--k:var(--cc-accent-text)}
 .club-embed .app-shell[data-mode=Edit] .club-rail button[data-tool=media]{--k:var(--kind-screen)}
 .club-embed .app-shell[data-mode=Edit] .club-rail button[data-tool=more]{--k:var(--cc-text-2)}
+
+/* Cut: sections like Tella's (Mistakes, Silences…), each with its own Review and Cut all. */
+.club-embed .app-shell[data-mode=Edit] .club-sheet-grow{flex:1}
+.club-embed .app-shell[data-mode=Edit] .club-auto-sheet .club-sheet-body{gap:0;padding:0}
+.club-embed .app-shell[data-mode=Edit] .club-auto-sheet .club-auto-row{border:0;border-bottom:1px solid var(--cc-line);border-radius:0;padding:16px 16px 18px;cursor:default;gap:8px}
+.club-embed .app-shell[data-mode=Edit] .club-auto-sheet .club-auto-row:hover{background:none}
+.club-embed .app-shell[data-mode=Edit] .club-auto-sheet .club-auto-desc{font-size:12.5px;line-height:1.4}
+.club-embed .app-shell[data-mode=Edit] .club-auto-actions{display:flex;gap:8px;margin-top:4px}
+.club-embed .app-shell[data-mode=Edit] .club-auto-actions .btn{flex:1;align-self:stretch;justify-content:center}
