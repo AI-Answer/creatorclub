@@ -98,7 +98,7 @@ export function ScenesColumn({target,onTarget,hasRecording,outline,known,focusId
  ];
  const busy=drafting||scripting;
  return <section className="scn" aria-label="Scenes">
-  <div className="doc-h"><Icon name="scenes" size={18}/><h2>Scenes</h2>{scenes.length>0&&<span className="chip">{scenes.length}</span>}
+  <div className="doc-h"><h2>Scenes</h2>{scenes.length>0&&<span className="chip">{scenes.length}</span>}
    <span className="grow"/>
    {scenes.length>0&&<Menu align="right" label="Write with Claude" items={writes} button={(toggle,open)=><Button size="sm" aria-expanded={open} aria-haspopup="menu" disabled={!writes.length} onClick={toggle}>
     {busy?<span className="spin" role="status" aria-label="Writing"/>:<Icon name="ai" size={14}/>}Write with Claude<Icon name="expand" size={13}/></Button>}/>}

@@ -107,7 +107,7 @@ export function PackageColumn({videoId,videoTitle,pkg,running,onEdit,onPickTitle
  const hookField=(key:keyof Package['hook'],ph:string)=>spin('hook')&&!value.hook[key]?<div className="shimmer" style={{height:20}}/>
   :<Ed multiline live value={value.hook[key]} ph={ph} onChange={text=>set('hook',{...value.hook,[key]:text})} onLeave={leave}/>;
 
- const heading=(tools?:ReactNode)=><div className="doc-h"><Icon name="package" size={18}/><h2>Package</h2><span className="grow"/>{tools}</div>;
+ const heading=(tools?:ReactNode)=><div className="doc-h"><h2>Title, thumbnail and hook</h2><span className="grow"/>{tools}</div>;
 
  if(view==='empty')return <section className="pkg" aria-label="Package">
   {heading()}
