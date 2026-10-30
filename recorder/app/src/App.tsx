@@ -271,7 +271,7 @@ export default function App({embedded}:{embedded?:EmbeddedRecorder}={}){
  const statusJobs=useRef(automation.jobs);if(!sameStatusJobs(statusJobs.current,automation.jobs))statusJobs.current=automation.jobs;
  const transcriptOpen=showTranscript&&!chatOpen;
  // Club Edit: the right side, the "Style & more" menu that replaces the panel rail, and the timeline's More menu.
- const sideView=panel?'panel':side==='auto'?'auto':side;
+ const sideView=panel?'panel':side==='auto'?'auto':side??'transcript';
  const openPanel=(name:Panel)=>{setPanel(name);},openSide=(next:'transcript'|'media')=>{setPanel(null);setSide(next);};
  const openItem=useEvent((id:string)=>{if(!p)return;select(id);setPanel(p.motion?.some(m=>m.id===id)?'Motion':p.elements.some(e=>e.id===id)?'Elements':p.zooms.some(z=>z.id===id)?'Zoom':p.captions.some(c=>c.id===id)?'Captions':'Clip');});
  const styleItems:MenuItem[]=[{header:'Style'},...panels.filter(({name})=>name!=='Automate').map(({name})=>({label:name,fn:()=>openPanel(name)})),'-',{label:'Transcript',fn:()=>openSide('transcript')},{label:'Media in this video',fn:()=>openSide('media')},{label:'Import media',icon:'Upload',fn:()=>beginImport()},'-',{label:'Settings…',icon:'Settings',fn:()=>openModal('settings')}];
@@ -281,14 +281,17 @@ export default function App({embedded}:{embedded?:EmbeddedRecorder}={}){
   {id:'cut',label:'Cut',tip:'Find pauses, filler words and repeated lines to cut',icon:Scissors,open:()=>openAuto()},
   {id:'Captions',label:'Captions',tip:'Words on the picture as they are spoken',icon:Subtitles,open:()=>openPanel('Captions')},
   {id:'Layout',label:'Layout',tip:'How the camera and the screen share the picture',icon:LayoutTemplate,open:()=>openPanel('Layout')},
-  {id:'Motion',label:'Graphics',tip:'Animated titles, lower thirds and labels',icon:Sparkles,open:()=>openPanel('Motion')}];
- const railActive=panel??(side==='auto'?'cut':side??'');
- const moreItems:MenuItem[]=[{label:'Clip: speed, volume, look',fn:()=>openPanel('Clip')},{label:'Zoom',fn:()=>openPanel('Zoom')},{label:'Text and shapes',fn:()=>openPanel('Elements')},{label:'Music',fn:()=>openPanel('Music')},{label:'Media in this video',fn:()=>openSide('media')},'-',{label:'Canvas background',fn:()=>openPanel('Canvas')},{label:'Cursor',fn:()=>openPanel('Cursor')},'-',{label:'Import media',icon:'Upload',fn:()=>beginImport()}];
+  {id:'Clip',label:'Clip',tip:'Speed, volume and look of the selected clip',icon:Film,open:()=>openPanel('Clip')},
+  {id:'Zoom',label:'Zoom',tip:'Move in on part of the picture for a few seconds',icon:ZoomIn,open:()=>openPanel('Zoom')},
+  {id:'Motion',label:'Graphics',tip:'Animated titles, lower thirds and labels',icon:Sparkles,open:()=>openPanel('Motion')},
+  {id:'Music',label:'Music',tip:'A soundtrack under your voice',icon:Music,open:()=>openPanel('Music')}];
+ const railActive=panel??(side==='auto'?'cut':side??'transcript');
+ const moreItems:MenuItem[]=[{label:'Text and shapes',fn:()=>openPanel('Elements')},{label:'Media in this video',fn:()=>openSide('media')},'-',{label:'Canvas background',fn:()=>openPanel('Canvas')},{label:'Cursor',fn:()=>openPanel('Cursor')},'-',{label:'Import media',icon:'Upload',fn:()=>beginImport()}];
  const menuActions:TimelineMenuActions|null=p?{split:()=>split(),deleteClose:()=>deleteSelected(true),deleteKeepGap:()=>deleteSelected(false),duplicate:duplicateSelected,copy,paste,selectAll:()=>{const ids=[...p.clips,...p.elements,...p.captions,...p.zooms].map(x=>x.id);setSelectedIds(new Set(ids));setSelected(ids[0]||null);},
   addMarker:addMarkerAtPlayhead,previousCut:()=>boundary(-1),nextCut:()=>boundary(1),toggleLink,linked:selectionLinked,blade:tool==='blade',toggleBlade:()=>setTool(v=>v==='blade'?'select':'blade'),waveforms:showWaveforms,toggleWaveforms:()=>setShowWaveforms(v=>!v),
   addVideoLayer:()=>studio.change(d=>{addTimelineLayer(d,'video');}),addAudioLayer:()=>studio.change(d=>{addTimelineLayer(d,'audio');})}:null;
  const timelineItems:MenuItem[]=menuActions?timelineMoreItems(menuActions):[],contextItems:MenuItem[]=menuActions?timelineContextItems(menuActions):[];
- const viewItems:MenuItem[]=p?[{label:'Snap to edges',check:p.settings.snap,fn:()=>studio.change(d=>{d.settings.snap=!d.settings.snap;})},{label:'Follow the playhead while playing',check:follow,fn:()=>setFollow(v=>!v)},'-',{header:'Timeline actions'},...timelineItems,'-',{label:'Keyboard shortcuts',fn:()=>setShortcutsOpen(v=>!v)}]:[];
+ const viewItems:MenuItem[]=p?[{label:'Snap to edges',check:p.settings.snap,fn:()=>studio.change(d=>{d.settings.snap=!d.settings.snap;})},{label:'Follow the playhead while playing',check:follow,fn:()=>setFollow(v=>!v)},'-',{label:'Zoom in',fn:()=>setZoom(v=>clampScale(v*1.5))},{label:'Zoom out',fn:()=>setZoom(v=>clampScale(v/1.5))},{label:'Fit the whole video',fn:()=>timelineControls.current?.fit()},'-',{header:'Timeline actions'},...timelineItems,'-',{label:'Keyboard shortcuts',fn:()=>setShortcutsOpen(v=>!v)}]:[];
  /* The companion docked beside Edit: it reads the playhead and the selection when a message is sent, previews a card on the stage
     (cuts with the same before/after playback as Auto-edit, other changes as the frame after them) and applies a card as one undo step. */
  const editorContext=useEvent(():EditorContext=>{
@@ -334,11 +337,14 @@ export default function App({embedded}:{embedded?:EmbeddedRecorder}={}){
  const onEditState=embedded?.onEditState,selectedCount=p?selectionCount(p.clips,selection):selection.size,previewKey=preview?.key,timelineVersion=p?.updatedAt;
  const dislikes=p?.markers?.filter(m=>m.tag==='dislike').length??0;
  useEffect(()=>{if(editOpen)onEditState?.({selected:selectedCount,previewKey,version:timelineVersion,notes:dislikes});},[onEditState,editOpen,selectedCount,previewKey,timelineVersion,dislikes]);
+ // Undo, redo and history sit in the video's header, beside the steps; the header leaves a slot for them while Edit is open.
+ const [toolsHost,setToolsHost]=useState<HTMLElement|null>(null);
+ useEffect(()=>{setToolsHost(editOpen?document.getElementById('ws-edit-tools'):null);},[editOpen]);
   const clubEditView=()=>{if(!p||!embedded)return null;const zoomRange=zoomSlider(timelineControls.current?.width()||1000,duration);const stageProject=preview?.after&&previewPhase==='after'?preview.after:p;return <div className={`edit-workspace club-edit ${sideView?'has-side':''}`}>
   <nav className="club-rail" aria-label="Edit tools">
-   {railTools.map(({id,label,tip,icon:Icon,open})=><button key={id} data-tool={id} type="button" aria-pressed={railActive===id} title={tip} onClick={()=>railActive===id?(setPanel(null),setSide(null)):open()}><Icon size={20}/>{label}</button>)}
+   {railTools.map(({id,label,tip,icon:Icon,open})=><button key={id} data-tool={id} type="button" aria-pressed={railActive===id} title={tip} onClick={open}><Icon size={20}/>{label}</button>)}
    <span className="club-rail-grow"/>
-   <Menu label="More edit tools" align="left" width={210} items={moreItems} button={(toggle,open)=><button type="button" data-tool="more" aria-haspopup="menu" aria-expanded={open} aria-pressed={['Clip','Zoom','Elements','Music','Canvas','Cursor','media'].includes(railActive)} title="Clip, zoom, text, music, media, background and cursor" onClick={toggle}><MoreHorizontal size={20}/>More</button>}/>
+   <Menu label="More edit tools" align="left" width={210} items={moreItems} button={(toggle,open)=><button type="button" data-tool="more" aria-haspopup="menu" aria-expanded={open} aria-pressed={['Elements','Canvas','Cursor','media'].includes(railActive)} title="Text and shapes, media, background and cursor" onClick={toggle}><MoreHorizontal size={20}/>More</button>}/>
   </nav>
   <main className="club-edit-stage">
    {/* The player always stays; a preview is a badge over it, and a cut's before/after plays in a small inset in the corner. */}
@@ -361,16 +367,10 @@ export default function App({embedded}:{embedded?:EmbeddedRecorder}={}){
    <button type="button" className="club-play" aria-label={playing?'Pause':'Play'} title="Play or pause (Space)" disabled={duration<=0} onClick={()=>setPlaying(v=>!v)}>{playing?<Pause size={16} fill="currentColor"/>:<Play size={16} fill="currentColor"/>}</button>
    <ClubTime playhead={playhead} duration={duration} fine={showTenths((timelineControls.current?.width()||1000)/zoom)}/>
    <span className="club-bar-sep" aria-hidden/>
-   <Menu label="Add" align="left" width={230} items={[{label:'Note at the playhead',icon:'Bookmark',fn:addMarkerAtPlayhead},{label:'Clip from a file',icon:'Upload',fn:()=>beginImport()},{label:'Text and shapes',fn:()=>openPanel('Elements')},{label:'Animated graphic',fn:()=>openPanel('Motion')},{label:'Music',fn:()=>openPanel('Music')}]} button={(toggle,open)=><button type="button" className="club-tool" aria-haspopup="menu" aria-expanded={open} title="Add a clip, text, a graphic or music" onClick={toggle}><Plus size={15}/>Add</button>}/>
    <button type="button" className="club-tool" title="Split at the playhead (S)" onClick={()=>split()}><Scissors size={15}/>Split</button>
    <button type="button" className="club-tool" title="Delete and close the gap (Delete). Shift+Delete keeps the gap." disabled={!selection.size} onClick={()=>deleteSelected(true)}><Trash2 size={15}/>Delete</button>
-   <span className="club-bar-sep" aria-hidden/>
-   <button type="button" className="club-tool icon" aria-label="Undo" title="Undo (⌘Z)" disabled={!studio.canUndo} onClick={studio.undo}><Undo2 size={16}/></button>
-   <button type="button" className="club-tool icon" aria-label="Redo" title="Redo (⇧⌘Z)" disabled={!studio.canRedo} onClick={studio.redo}><Redo2 size={16}/></button>
-   <button type="button" className="club-tool icon" aria-label="Version history" title="Earlier versions of this video" onClick={()=>{void studio.flush().then(()=>openModal('history')).catch(e=>studio.setError(e.message));}}><History size={16}/></button>
+   <button type="button" className="club-tool" title="Leave a note for yourself or Claude at the playhead (M)" onClick={addMarkerAtPlayhead}><Plus size={15}/>Note</button>
    <span className="club-bar-grow"/>
-   <input className="club-zoom" type="range" aria-label="Zoom timeline" title="Zoom at the playhead (+ / −); ⌘ scroll and pinch zoom at the pointer" min={zoomRange.min} max={zoomRange.max} step={zoomRange.step} value={zoomRange.fromScale(zoom)} onChange={e=>setZoom(zoomRange.toScale(+e.target.value))}/>
-   <button type="button" className="club-tool" title="Fit the whole video (Shift+Z)" onClick={()=>timelineControls.current?.fit()}><Maximize2 size={15}/>Fit</button>
    <Menu label="View" align="right" width={260} items={viewItems} button={(toggle,open)=><button type="button" className="club-tool" aria-haspopup="menu" aria-expanded={open} title="Snapping, following the playhead, shortcuts and more timeline actions" onClick={toggle}>View<ChevronDown size={13}/></button>}/>
    {shortcutsOpen&&<ShortcutsPopover onClose={closeShortcuts}/>}
   </div>
@@ -378,6 +378,10 @@ export default function App({embedded}:{embedded?:EmbeddedRecorder}={}){
   <TimelineResize storageKey="creatorclub.timeline-height" auto={timelineAuto}/>
   <TimelineClub project={p} playhead={playhead} scale={zoom} autoFit={!kept} onScale={setZoom} selectedIds={selection} onSelectMany={selectMany} onSeek={timelineSeek.run} change={studio.change} onDropMedia={dropMedia} tool={tool} onSplit={splitClip} follow={follow} showWaveforms={showWaveforms} previewRanges={preview?.ranges} previewAfter={preview?.after&&previewPhase==='after'?preview.after:null} onOpenMarker={openNote} cutMarks={cutMarks} onOpen={openItem} onContextMenu={openContext} onNotice={notify} controls={timelineControls}/>
   {contextAt&&<ContextMenu at={contextAt} items={contextItems} onClose={closeContext}/>}
+  {toolsHost&&createPortal(<>
+   <button type="button" aria-label="Undo" title="Undo (⌘Z)" disabled={!studio.canUndo} onClick={studio.undo}><Undo2 size={17}/></button>
+   <button type="button" aria-label="Redo" title="Redo (⇧⌘Z)" disabled={!studio.canRedo} onClick={studio.redo}><Redo2 size={17}/></button>
+   <button type="button" aria-label="Version history" title="Earlier versions of this video" onClick={()=>{void studio.flush().then(()=>openModal('history')).catch(e=>studio.setError(e.message));}}><History size={17}/></button></>,toolsHost)}
  </div>;};
  const timelineAuto=useMemo(()=>p&&embedded?Math.min(420,rowsHeight(usedRows(p))):undefined,[p?.clips,p?.elements,p?.captions,p?.zooms,p?.timelineLayers,embedded]);
  const clubEdit=clubEditView();

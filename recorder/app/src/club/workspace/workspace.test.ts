@@ -60,9 +60,9 @@ test('Continue is primary only when the tab is done and no other primary is wait
  assert.equal(continueIsPrimary(false,false),false,'not done yet');
 });
 
-test('the scene chips show on Record and Edit only',()=>{
- for(const tab of ['record','edit'] as const)assert.equal(showsStrip(tab),true,tab);
- for(const tab of ['board','plan','publish'] as const)assert.equal(showsStrip(tab),false,tab);
+test('the scene chips show on Record only (on Edit the scenes are bands on the timeline)',()=>{
+ assert.equal(showsStrip('record'),true);
+ for(const tab of ['board','plan','edit','publish'] as const)assert.equal(showsStrip(tab),false,tab);
 });
 
 test('Breakdown on a YouTube tile sends the tile\'s own YouTube id, never the CreatorClub video id',async()=>{

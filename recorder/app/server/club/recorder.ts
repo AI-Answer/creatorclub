@@ -43,6 +43,13 @@ function uniqueNames(scenes: Project['scenes']) {
   }
 }
 
+/** A creator's video starts as the camera filling the frame: no border, no rounded corners, no background pattern. */
+export function newClubProject(title: string): Project {
+  const project = createProject(title);
+  const { backgroundPattern: _pattern, ...canvas } = project.canvas;
+  return { ...project, scenes: [], canvas: { ...canvas, background: '#000000', padding: 0, radius: 0 } };
+}
+
 /**
  * Builds a new recording project, or brings an existing one up to date with the outline, matching scenes by the outline
  * scene's id, never by position. The recorder's scenes are timeline blocks in order, so existing scenes are never moved:
@@ -51,7 +58,7 @@ function uniqueNames(scenes: Project['scenes']) {
  * - scenes the outline no longer has stay where they are, untouched, and stay mapped so their takes are still flagged.
  */
 export function syncProject(title: string, project: Project | undefined, mapping: RecorderScene[] | undefined, wanted: SceneContent[], now = new Date().toISOString()): { project: Project; mapping: RecorderScene[] } {
-  const next = project ? structuredClone(project) : { ...createProject(title), scenes: [] };
+  const next = project ? structuredClone(project) : newClubProject(title);
   const known = new Map((mapping ?? []).map((entry) => [entry.outlineId, entry]));
   const result: RecorderScene[] = [];
   const matched = new Set<string>();

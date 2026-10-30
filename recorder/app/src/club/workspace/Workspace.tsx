@@ -177,12 +177,12 @@ export function Workspace({video,tab,back,navigate,onVideo}:{video:Video;tab:Vid
  const recorded=list&&recordedCount(list);
  const screen=screenSummary(tab,{pkg:plan.pkg,outline:plan.outline,recorded});
 
- const sceneStrip=<Strip bottom={tab==='edit'} scenes={scenes.state} focusId={focusId} onRetry={scenes.reload} onPick={sceneId=>{setFocusId(sceneId);setPickN(n=>n+1);}}/>;
+ const sceneStrip=<Strip scenes={scenes.state} focusId={focusId} onRetry={scenes.reload} onPick={sceneId=>{setFocusId(sceneId);setPickN(n=>n+1);}}/>;
 
  return <div className="ws">
   <Header video={video} tab={tab} back={back} facts={facts} onTitle={saveTitle} onStage={stage=>void moveTo(stage,video.stage)} onTab={target=>void goToTab(target)} onLocked={toLocked} onDelete={deleteVideo}/>
   <div className="ws-row"><div className="ws-col">
-  {showsStrip(tab)&&tab!=='edit'&&sceneStrip}
+  {showsStrip(tab)&&sceneStrip}
   {moveError&&<div className="ws-body" style={{flex:'none',padding:'8px 18px'}}><ErrorLine message={moveError} onRetry={()=>void continueToNext()}/></div>}
   <div className="ws-body" key={tab}>
    {tab==='board'&&<Board video={video} scenes={list} onDrafted={draftedNow} refreshKey={boardKey} navigate={navigate}/>}
@@ -207,7 +207,6 @@ export function Workspace({video,tab,back,navigate,onVideo}:{video:Video;tab:Vid
     saveError={plan.saveError} onRetry={plan.retrySave} onDescription={description=>plan.editPackage({...(pkgNow.current??EMPTY_PACKAGE),description})}
     onTags={tags=>{plan.editPackage({...(pkgNow.current??EMPTY_PACKAGE),tags});void plan.flush().catch(()=>{});}}/>}
   </div>
-  {showsStrip(tab)&&tab==='edit'&&sceneStrip}
   <Foot next={nextButton}/>
   </div>
   <Companion videoId={video.id} videoTitle={video.title} boardKey={boardKey} tab={tab} scene={companionScene} screen={screen} pkg={plan.pkg} outline={plan.outline} scenes={list} onChanged={companionChanged} beforeApply={plan.flush} editor={companionEditor} roomy={tab==='record'}/>

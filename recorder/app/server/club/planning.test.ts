@@ -669,3 +669,10 @@ test('a video further along is not moved back, and Continue needs an outline', a
   const fresh = (await call('POST', '/videos', { title: 'Fresh' })).body as Video;
   assert.equal((await call('POST', `/videos/${fresh.id}/script`)).body.error, 'Create the outline first.');
 });
+
+test("a creator's new video fills the frame: no border, no rounded corners, no dotted background", () => {
+  const { project } = syncProject('V', undefined, undefined, recorderScenes(ided(scene('A', 10))));
+  assert.equal(project.canvas.padding, 0);
+  assert.equal(project.canvas.radius, 0);
+  assert.equal(project.canvas.backgroundPattern, undefined);
+});

@@ -1,9 +1,8 @@
 /*
   CreatorClub's look for SceneForge's Edit screen, used only when the editor is embedded in the video page.
   Every rule starts with `.club-embed .app-shell[data-mode=Edit]`, so standalone SceneForge keeps its own styles.
-  Layout (prototype A): one toolbar (the suggestion; undo, redo, history, Auto-edit and style, Style & more, Export video),
-  the stage with the transcript (or a sheet: a panel, Auto-edit and style, media, Ask Claude) beside it, the timeline bar, and the timeline.
-  The club timeline (TimelineClub) is styled here only, so the older timeline stylesheets do not reach into it.
+  Layout (docs/v2/prototypes/edit): the tool rail | the open tool's panel | the picture, the transport bar and the timeline.
+  Undo, redo and history sit in the video's header (`.ws-edit-tools`); the one black button, Continue, is in the bottom bar.
   Colours: one accent (blue) for focus, selection and the playhead; the primary action is the dark button; red only for destructive actions;
   the kinds of things on the timeline each have one hue (`--kind-*` in club/ui/tokens.css). No raw colour in this file (a test checks it).
   Imported from main.tsx after recording-club.css.
@@ -13,149 +12,166 @@
   --primary:var(--cc-primary);--primary-foreground:var(--cc-primary-ink);
   --secondary:var(--cc-subtle);--input:var(--cc-subtle);--line:var(--cc-line);--muted:var(--cc-muted);
   --accent:var(--cc-primary);--accent-soft:var(--cc-subtle);--danger:var(--cc-danger);
-  /* The kinds on the timeline (--kind-screen, camera, audio, graphics, captions, zoom, marker, --kind-ink) come from ui/tokens.css, so a clip here,
-     a scene chip and a take chip are the same colour. Shades over clips are tokens too. */
-  --tl-select:var(--cc-accent);--tl-row:var(--cc-subtle);
+  --tl-select:var(--cc-accent);--tl-row:var(--cc-surface-2);
   --tl-shade-soft:var(--cc-shade-soft);--tl-shade:var(--cc-shade);--tl-shade-strong:var(--cc-shade-strong);
-  font-family:var(--font-sans);font-size:14px;color:var(--cc-ink);background:var(--cc-page);padding-bottom:0;
+  --club-rail:76px;--club-panel:308px;
+  font-family:var(--font-sans);font-size:13.5px;color:var(--cc-ink);background:var(--cc-page);padding-bottom:0;
 }
+@media (max-width:1439px){.club-embed .app-shell[data-mode=Edit]{--club-panel:276px}}
 
-/* Toolbar: the video's name is in the breadcrumb; SceneForge's own title bar and workspace tabs are hidden. */
-.club-embed .app-shell[data-mode=Edit] .titlebar,
-.club-embed .app-shell[data-mode=Edit] .workspace-nav{display:none}
-/* The suggestion keeps room for its sentence (two lines at most); when the toolbar is too narrow for both, the controls drop to a row of their own instead of squeezing it. */
-.club-embed .app-shell[data-mode=Edit] .project-header{background:var(--cc-card);border-color:var(--cc-line);min-height:52px;height:auto;padding:4px 16px;gap:4px 16px;flex-wrap:wrap}
-.club-embed .app-shell[data-mode=Edit] .project-header-controls{gap:4px}
-.club-embed .app-shell[data-mode=Edit] .project-header-controls .button.subtle{font-size:13px;min-height:32px;border-radius:8px;color:var(--cc-ink);gap:6px}
-.club-embed .app-shell[data-mode=Edit] .project-header-controls .button.subtle.is-active{background:var(--cc-subtle)}
-.club-embed .app-shell[data-mode=Edit] .project-header-controls .icon-button{color:var(--cc-muted);border-radius:8px}
+/* SceneForge's own title bar, workspace tabs and toolbar are hidden: the video's header holds the title, the steps, undo and history. */
+.club-embed .app-shell[data-mode=Edit] :is(.titlebar,.workspace-nav,.project-header){display:none}
+.club-embed .app-shell[data-mode=Edit] .club-edit-suggestion>span{flex:1 1 150px;min-width:150px}
 
-/* The one suggestion, and Export video. */
-.club-embed .app-shell[data-mode=Edit] .club-edit-suggestion{flex:1 1 420px;max-width:560px;display:flex;align-items:center;gap:10px;min-width:0;padding:6px 6px 6px 12px;border:1px solid var(--cc-line);border-radius:12px;background:var(--cc-page);font-size:14px;color:var(--cc-ink)}
-.club-embed .app-shell[data-mode=Edit] .club-edit-suggestion>span{flex:1 1 150px;min-width:150px;line-height:1.25;overflow-wrap:normal}
-/* With the companion docked beside Edit the toolbar is narrower: its buttons stay on one line and the suggestion's sentence gives way first. */
-.club-embed .app-shell[data-mode=Edit] .project-header :is(.club-edit-suggestion,.project-header-controls) button{white-space:nowrap;flex-shrink:0}
-.club-embed .app-shell[data-mode=Edit] .project-header-controls{flex-shrink:0;margin-left:auto}
-/* In a narrow window (the companion beside a 1100 px window) Auto-edit and Style & more show their icons only; their names stay as label and tooltip. */
-@media (max-width:1279px){.club-embed .app-shell[data-mode=Edit] .project-header-controls .club-label{display:none}}
-.club-embed .app-shell[data-mode=Edit] .club-edit-suggestion.is-quiet{flex:0 1 auto;border-color:transparent;background:transparent;padding-left:0;color:var(--cc-muted);font-size:13px}
-.club-embed .app-shell[data-mode=Edit] .club-edit-dismiss{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:8px;color:var(--cc-muted)}
-.club-embed .app-shell[data-mode=Edit] .club-edit-dismiss:hover{background:var(--cc-subtle);color:var(--cc-ink)}
-.club-embed .app-shell[data-mode=Edit] .club-export{display:flex;align-items:center;gap:8px;margin-left:8px;font-size:13px;color:var(--cc-muted)}
-.club-embed .app-shell[data-mode=Edit] .club-export-done{display:inline-flex;align-items:center;gap:6px;color:var(--cc-success)}
+/* Undo, redo and history, in the video's header (rendered there from the editor). */
+.club-root .ws-edit-tools{display:flex;align-items:center;gap:2px}
+.club-root .ws-edit-tools:empty{display:none}
+.club-root .ws-edit-tools button{display:inline-grid;place-items:center;width:32px;height:32px;border:0;border-radius:6px;background:transparent;color:var(--cc-text-2)}
+.club-root .ws-edit-tools button:hover:not(:disabled){background:var(--cc-hover);color:var(--cc-text)}
+.club-root .ws-edit-tools button:disabled{opacity:.4}
+.club-root .ws-edit-tools button:focus-visible{outline:2px solid var(--cc-accent);outline-offset:1px}
 
-/* Workspace grid: stage | side, the timeline bar, the timeline. */
-.club-embed .app-shell[data-mode=Edit] .edit-workspace.club-edit{display:grid;position:relative;grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(150px,1fr) 44px var(--timeline-height,220px);min-height:0;overflow:hidden;background:var(--cc-page)}
-.club-embed .app-shell[data-mode=Edit] .edit-workspace.club-edit.has-side{grid-template-columns:minmax(0,1fr) 360px}
-/* Narrower windows (the companion docked beside Edit): the side column gives way first, down to 280 px. */
-@media (max-width:1439px){.club-embed .app-shell[data-mode=Edit] .edit-workspace.club-edit.has-side{grid-template-columns:minmax(0,1fr) minmax(310px,36%)}}
-.club-embed .app-shell[data-mode=Edit] .club-edit-stage{grid-row:1;grid-column:1;position:relative;display:flex;flex-direction:column;min-width:0;min-height:0;overflow:hidden}
-.club-embed .app-shell[data-mode=Edit] .club-edit-stage .stage-wrap{background:transparent;padding:14px 20px}
-.club-embed .app-shell[data-mode=Edit] .club-edit-stage .stage{border-radius:12px}
-.club-embed .app-shell[data-mode=Edit] .club-preview-stage{flex:1;min-height:0;overflow:auto;padding:6px 20px 8px}
-.club-embed .app-shell[data-mode=Edit] .club-preview-stage .cut-playback{border:0;padding:0;background:transparent}
-.club-embed .app-shell[data-mode=Edit] .club-preview-badges{position:absolute;top:22px;left:28px;right:28px;z-index:6;display:flex;flex-wrap:wrap;gap:6px;align-items:center;pointer-events:none}
-.club-embed .app-shell[data-mode=Edit] .club-preview-badges>*{pointer-events:auto}
-.club-embed .app-shell[data-mode=Edit] .club-pill{display:inline-flex;align-items:center;height:26px;padding:0 10px;border-radius:999px;background:var(--cc-card);border:1px solid var(--cc-line);font-size:12px;color:var(--cc-ink)}
-.club-embed .app-shell[data-mode=Edit] .club-seg{display:inline-flex;padding:2px;border-radius:8px;background:var(--cc-subtle);gap:2px}
-.club-embed .app-shell[data-mode=Edit] .club-seg>button{height:24px;padding:0 10px;border-radius:6px;font-size:12px;color:var(--cc-muted)}
-.club-embed .app-shell[data-mode=Edit] .club-seg>button[aria-pressed=true]{background:var(--cc-card);color:var(--cc-ink);box-shadow:0 1px 2px var(--tl-shade-soft)}
+/* The grid: rail | panel | centre (picture, transport, timeline). The rail and the panel run the full height. */
+.club-embed .app-shell[data-mode=Edit] .edit-workspace.club-edit{display:grid;position:relative;grid-template-columns:var(--club-rail) var(--club-panel) minmax(0,1fr);grid-template-rows:minmax(150px,1fr) auto var(--timeline-height,220px);min-height:0;overflow:hidden;background:var(--cc-page)}
+.club-embed .app-shell[data-mode=Edit] .edit-workspace.club-edit.has-side{grid-template-columns:var(--club-rail) var(--club-panel) minmax(0,1fr)}
 
-/* The right side: the transcript by default, or one sheet. */
-.club-embed .app-shell[data-mode=Edit] .club-edit-side{grid-row:1;grid-column:2;min-width:0;min-height:0;display:flex;flex-direction:column;border-left:1px solid var(--cc-line);background:var(--cc-card);overflow:hidden}
-.club-embed .app-shell[data-mode=Edit] .club-edit-side[hidden]{display:none}
-.club-embed .app-shell[data-mode=Edit] .club-edit-side>:is(.inspector,.club-sheet,.transcript-panel){flex:1;min-height:0;width:auto;border:0;grid-column:auto;grid-row:auto}
+/* The tool rail: named tools; the open one is tinted. */
+.club-embed .app-shell[data-mode=Edit] .club-rail{grid-column:1;grid-row:1 / -1;display:flex;flex-direction:column;gap:2px;padding:10px 8px;overflow:auto;background:var(--cc-surface);border-right:1px solid var(--cc-line);min-height:0}
+.club-embed .app-shell[data-mode=Edit] .club-rail button{display:flex;flex-direction:column;align-items:center;gap:4px;width:100%;padding:9px 0 7px;border:0;border-radius:8px;background:transparent;color:var(--cc-text-2);font-size:11.5px;font-weight:550;line-height:1.1}
+.club-embed .app-shell[data-mode=Edit] .club-rail button:hover{background:var(--cc-hover);color:var(--cc-text)}
+.club-embed .app-shell[data-mode=Edit] .club-rail button[aria-pressed=true]{background:var(--cc-accent-soft);color:var(--cc-accent-text)}
+.club-embed .app-shell[data-mode=Edit] .club-rail button:focus-visible{outline:2px solid var(--cc-accent);outline-offset:1px}
+.club-embed .app-shell[data-mode=Edit] .club-rail-grow{flex:1}
+
+/* The panel of the open tool. It is always there: the transcript unless another tool is open. */
+.club-embed .app-shell[data-mode=Edit] .club-edit-side{grid-column:2;grid-row:1 / -1;min-width:0;min-height:0;display:flex;flex-direction:column;background:var(--cc-surface-2);border-right:1px solid var(--cc-line);overflow:hidden}
+.club-embed .app-shell[data-mode=Edit] .club-edit-side[hidden]{display:flex}
+.club-embed .app-shell[data-mode=Edit] .club-edit-side>:is(.inspector,.club-sheet,.transcript-panel){flex:1;min-height:0;width:auto;border:0;background:transparent;grid-column:auto;grid-row:auto}
 .club-embed .app-shell[data-mode=Edit] .club-sheet{display:flex;flex-direction:column;min-height:0;overflow:hidden}
-.club-embed .app-shell[data-mode=Edit] .club-sheet>header,.club-embed .app-shell[data-mode=Edit] .transcript-panel.club-sheet>header{display:flex;align-items:center;gap:8px;height:auto;min-height:44px;padding:8px 10px 8px 16px;border-bottom:1px solid var(--cc-line)}
-.club-embed .app-shell[data-mode=Edit] .club-sheet>header>b{font-size:14px;font-weight:600}
-.club-embed .app-shell[data-mode=Edit] .club-sheet-sub,.club-embed .app-shell[data-mode=Edit] .club-sheet-hint{font-size:12px;color:var(--cc-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.club-embed .app-shell[data-mode=Edit] .club-sheet-hint{padding:10px 16px 4px}
-.club-embed .app-shell[data-mode=Edit] .club-sheet-close{margin-left:auto;display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:8px;color:var(--cc-muted);flex-shrink:0}
-.club-embed .app-shell[data-mode=Edit] .club-sheet-close:hover{background:var(--cc-subtle);color:var(--cc-ink)}
-.club-embed .app-shell[data-mode=Edit] .inspector-heading{display:flex;align-items:center;gap:8px}
+.club-embed .app-shell[data-mode=Edit] :is(.club-sheet,.transcript-panel.club-sheet)>header,.club-embed .app-shell[data-mode=Edit] .inspector-heading{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 8px;min-height:0;height:auto;padding:16px 16px 10px;border:0;background:transparent}
+.club-embed .app-shell[data-mode=Edit] .club-sheet>header>b,.club-embed .app-shell[data-mode=Edit] .inspector-heading h2{margin:0;font-family:inherit;font-size:15px;font-weight:650;color:var(--cc-text)}
+.club-embed .app-shell[data-mode=Edit] .inspector-heading .eyebrow{display:none}
+.club-embed .app-shell[data-mode=Edit] .club-sheet-sub{flex-basis:100%;font-size:13px;line-height:1.45;color:var(--cc-text-3)}
+.club-embed .app-shell[data-mode=Edit] .club-sheet-hint{padding:0 16px 8px;font-size:13px;line-height:1.45;color:var(--cc-text-3)}
+/* The rail is how you change tools, so the panels have no close button. */
+.club-embed .app-shell[data-mode=Edit] .club-edit-side .club-sheet-close{display:none}
 .club-embed .app-shell[data-mode=Edit] .inspector{overflow:auto}
-.club-embed .app-shell[data-mode=Edit] .club-sheet-body{flex:1;overflow:auto;padding:6px 10px 12px;display:flex;flex-direction:column;gap:6px}
-.club-embed .app-shell[data-mode=Edit] .club-media .media-grid{flex:1;overflow:auto;padding:10px 16px}
+.club-embed .app-shell[data-mode=Edit] .inspector-empty{color:var(--cc-muted)}
+.club-embed .app-shell[data-mode=Edit] .inspector-empty svg{stroke:currentColor}
+.club-embed .app-shell[data-mode=Edit] .club-sheet-body{flex:1;overflow:auto;padding:0 12px 12px;display:flex;flex-direction:column;gap:8px}
+.club-embed .app-shell[data-mode=Edit] .club-media .media-grid{flex:1;overflow:auto;padding:4px 16px 12px}
 .club-embed .app-shell[data-mode=Edit] .club-media>footer{display:flex;gap:6px;padding:10px 16px;border-top:1px solid var(--cc-line)}
+.club-embed .app-shell[data-mode=Edit] .club-sheet .btn:not(.primary):not(.ghost){display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 10px;border:1px solid var(--cc-line-strong);border-radius:6px;background:var(--cc-surface);color:var(--cc-text);font-size:12.5px;font-weight:550}
+.club-embed .app-shell[data-mode=Edit] .club-sheet .btn:not(.primary):not(.ghost):hover:not(:disabled){background:var(--cc-hover)}
 
-/* Auto-edit and style. */
-.club-embed .app-shell[data-mode=Edit] .club-auto-row{display:flex;flex-direction:column;gap:6px;padding:10px 12px;border:1px solid var(--cc-line);border-radius:10px;cursor:pointer;outline:none}
-.club-embed .app-shell[data-mode=Edit] .club-auto-row:hover{background:var(--cc-page)}
+/* The transcript: large, readable words. */
+.club-embed .app-shell[data-mode=Edit] .transcript-editor{font-size:15px;line-height:2;--transcript-selection:var(--cc-accent-soft);--transcript-current:var(--cc-accent);--transcript-current-text:var(--cc-on-accent);--transcript-muted:var(--cc-text-3);--transcript-faint:var(--cc-placeholder);--transcript-hover:var(--cc-hover);--transcript-danger:var(--cc-danger);--transcript-danger-hover:var(--cc-danger-soft)}
+.club-embed .app-shell[data-mode=Edit] .transcript-editor:focus-visible{box-shadow:inset 0 0 0 2px var(--cc-accent)}
+.club-embed .app-shell[data-mode=Edit] .transcript-panel .transcription-status{flex:0 1 auto;max-height:34%;min-height:0;overflow:auto}
+.club-embed .app-shell[data-mode=Edit] .transcript-panel .transcript-editor{min-height:0;overflow:hidden}
+.club-embed .app-shell[data-mode=Edit] .transcript-panel .transcript-word-list{min-height:0;padding-bottom:12px}
+
+/* Cut: sections (Mistakes, Silences…), each with its own Review and Cut all. */
+.club-embed .app-shell[data-mode=Edit] .club-sheet-grow{flex:1}
+.club-embed .app-shell[data-mode=Edit] .club-auto-row{display:flex;flex-direction:column;gap:8px;padding:12px;border:1px solid var(--cc-line);border-radius:8px;background:var(--cc-surface);outline:none}
 .club-embed .app-shell[data-mode=Edit] .club-auto-row:focus-visible{box-shadow:0 0 0 2px var(--cc-accent)}
 .club-embed .app-shell[data-mode=Edit] .club-auto-row.is-pinned{border-color:var(--cc-accent);background:var(--cc-accent-soft)}
+.club-embed .app-shell[data-mode=Edit] .club-auto-sheet .club-sheet-body{gap:8px;padding:0 12px 12px}
 .club-embed .app-shell[data-mode=Edit] .club-auto-title{display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:600}
-.club-embed .app-shell[data-mode=Edit] .club-auto-desc{font-size:12px;color:var(--cc-muted)}
+.club-embed .app-shell[data-mode=Edit] .club-auto-desc{font-size:12.5px;line-height:1.4;color:var(--cc-text-3)}
 .club-embed .app-shell[data-mode=Edit] .club-auto-control{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--cc-muted)}
 .club-embed .app-shell[data-mode=Edit] .club-auto-control input[type=range]{flex:1;min-width:60px;accent-color:var(--cc-accent)}
-.club-embed .app-shell[data-mode=Edit] .club-auto-row .btn{align-self:flex-start}
+.club-embed .app-shell[data-mode=Edit] .club-auto-actions{display:flex;gap:8px;margin-top:2px}
+.club-embed .app-shell[data-mode=Edit] .club-auto-actions .btn{flex:1;justify-content:center}
 .club-embed .app-shell[data-mode=Edit] .club-sheet-pin{display:flex;align-items:center;gap:6px;padding:10px 12px;border-top:1px solid var(--cc-line);font-size:12.5px}
 .club-embed .app-shell[data-mode=Edit] .club-sheet-pin>span{flex:1;min-width:0}
 .club-embed .app-shell[data-mode=Edit] .club-sheet-error{padding:8px 16px;font-size:12px;color:var(--cc-danger)}
 .club-embed .app-shell[data-mode=Edit] .club-sheet-error button{text-decoration:underline;color:inherit}
 
-/* The timeline bar. */
-.club-embed .app-shell[data-mode=Edit] .club-timeline-bar{grid-row:2;grid-column:1 / -1;position:relative;display:flex;align-items:center;gap:4px;padding:0 12px;background:var(--cc-card);border-top:1px solid var(--cc-line)}
-.club-embed .app-shell[data-mode=Edit] .club-play{width:30px;height:30px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;background:var(--cc-ink);color:var(--cc-card)}
+/* The picture: the video on a dark stage, centred. A preview is a badge over it; a cut's before/after plays in a corner inset. */
+.club-embed .app-shell[data-mode=Edit] .club-edit-stage{grid-column:3;grid-row:1;position:relative;display:flex;flex-direction:column;min-width:0;min-height:0;overflow:hidden}
+.club-embed .app-shell[data-mode=Edit] .club-edit-stage .stage-wrap{background:transparent;padding:14px 20px 10px}
+.club-embed .app-shell[data-mode=Edit] .club-edit-stage .stage{border-radius:10px;background:var(--cc-dark-stage)}
+.club-embed .app-shell[data-mode=Edit] .club-preview-badges{position:absolute;top:22px;left:28px;right:28px;z-index:6;display:flex;flex-wrap:wrap;gap:6px;align-items:center;max-width:calc(100% - 24px);pointer-events:none}
+.club-embed .app-shell[data-mode=Edit] .club-preview-badges>*{pointer-events:auto}
+.club-embed .app-shell[data-mode=Edit] .club-pill{display:inline-flex;align-items:center;height:26px;max-width:100%;padding:0 10px;border-radius:999px;background:var(--cc-card);border:1px solid var(--cc-line);font-size:12px;color:var(--cc-ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.club-embed .app-shell[data-mode=Edit] .club-seg{display:inline-flex;padding:2px;border-radius:8px;background:var(--cc-subtle);gap:2px}
+.club-embed .app-shell[data-mode=Edit] .club-seg>button{height:24px;padding:0 10px;border-radius:6px;font-size:12px;color:var(--cc-muted)}
+.club-embed .app-shell[data-mode=Edit] .club-seg>button[aria-pressed=true]{background:var(--cc-card);color:var(--cc-ink);box-shadow:0 1px 2px var(--tl-shade-soft)}
+.club-embed .app-shell[data-mode=Edit] .club-preview-inset{position:absolute;right:28px;bottom:18px;z-index:6;width:min(300px,38%);max-height:calc(100% - 70px);overflow:auto;padding:10px;border:1px solid var(--cc-line);border-radius:12px;background:var(--cc-card);box-shadow:var(--cc-shadow-3)}
+.club-embed .app-shell[data-mode=Edit] .club-preview-inset .cut-playback{border:0;padding:0;background:transparent;font-size:12px}
+
+/* The transport: play, time, Split, Delete, Note … View. */
+.club-embed .app-shell[data-mode=Edit] .club-timeline-bar{grid-column:3;grid-row:2;position:relative;display:flex;align-items:center;gap:6px;min-height:48px;padding:6px 16px;background:var(--cc-surface);border-top:1px solid var(--cc-line)}
+.club-embed .app-shell[data-mode=Edit] .club-play{width:34px;height:34px;flex:none;border-radius:50%;display:grid;place-items:center;background:var(--cc-primary);color:var(--cc-on-primary)}
+.club-embed .app-shell[data-mode=Edit] .club-play:hover:not(:disabled){background:var(--cc-primary-hover)}
 .club-embed .app-shell[data-mode=Edit] .club-play:disabled{opacity:.4}
-.club-embed .app-shell[data-mode=Edit] .club-time{margin:0 6px;font-size:13px;font-weight:600;color:var(--cc-ink);white-space:nowrap}
-.club-embed .app-shell[data-mode=Edit] .club-time>span{font-weight:400;color:var(--cc-muted)}
-.club-embed .app-shell[data-mode=Edit] .club-bar-sep{width:1px;height:20px;margin:0 6px;background:var(--cc-line)}
+.club-embed .app-shell[data-mode=Edit] .club-time{margin:0 8px 0 6px;font-size:13.5px;font-weight:600;color:var(--cc-text);white-space:nowrap;font-variant-numeric:tabular-nums}
+.club-embed .app-shell[data-mode=Edit] .club-time>span{font-weight:500;color:var(--cc-text-3)}
+.club-embed .app-shell[data-mode=Edit] .club-bar-sep{width:1px;height:20px;margin:0 4px;background:var(--cc-line)}
 .club-embed .app-shell[data-mode=Edit] .club-bar-grow{flex:1}
-.club-embed .app-shell[data-mode=Edit] .club-tool{display:inline-flex;align-items:center;gap:5px;height:30px;padding:0 9px;border-radius:7px;font-size:12.5px;color:var(--cc-ink)}
-.club-embed .app-shell[data-mode=Edit] .club-tool.is-icon{width:30px;padding:0;justify-content:center;font-weight:600}
-.club-embed .app-shell[data-mode=Edit] .club-tool:hover:not(:disabled){background:var(--cc-subtle)}
-.club-embed .app-shell[data-mode=Edit] .club-tool:disabled{opacity:.4}
-.club-embed .app-shell[data-mode=Edit] .club-tool[aria-pressed=true]{color:var(--cc-accent-text);background:var(--cc-accent-soft)}
-.club-embed .app-shell[data-mode=Edit] .club-zoom{width:120px;accent-color:var(--cc-accent)}
+.club-embed .app-shell[data-mode=Edit] .club-tool{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 10px;border:1px solid var(--cc-line-strong);border-radius:6px;background:var(--cc-surface);color:var(--cc-text);font-size:12.5px;font-weight:550;white-space:nowrap}
+.club-embed .app-shell[data-mode=Edit] .club-tool:hover:not(:disabled){background:var(--cc-hover)}
+.club-embed .app-shell[data-mode=Edit] .club-tool:disabled{opacity:.45}
+.club-embed .app-shell[data-mode=Edit] .club-tool[aria-pressed=true]{color:var(--cc-accent-text);background:var(--cc-accent-soft);border-color:var(--cc-accent)}
 .club-embed .app-shell[data-mode=Edit] .club-shortcuts{position:absolute;right:12px;bottom:calc(100% + 6px);z-index:40;width:340px;max-height:min(560px,calc(100vh - 220px));overflow:auto;overscroll-behavior:contain;background:var(--cc-card);border:1px solid var(--cc-line);border-radius:12px;box-shadow:var(--cc-shadow-3);font-size:12.5px}
-.club-embed .app-shell[data-mode=Edit] .club-shortcuts>header{display:flex;align-items:center;padding:8px 8px 8px 14px;border-bottom:1px solid var(--cc-line)}
+.club-embed .app-shell[data-mode=Edit] .club-shortcuts>header{position:sticky;top:0;z-index:1;display:flex;align-items:center;padding:8px 8px 8px 14px;border-bottom:1px solid var(--cc-line);background:var(--cc-card)}
+.club-embed .app-shell[data-mode=Edit] .club-shortcuts .club-sheet-close{margin-left:auto;display:inline-grid;place-items:center;width:28px;height:28px;border-radius:8px;color:var(--cc-muted)}
 .club-embed .app-shell[data-mode=Edit] .club-shortcuts dl{margin:0;padding:6px 14px 10px}
 .club-embed .app-shell[data-mode=Edit] .club-shortcuts dl>div{display:grid;grid-template-columns:120px 1fr;gap:8px;padding:4px 0}
 .club-embed .app-shell[data-mode=Edit] .club-shortcuts dt{font-weight:600;font-variant-numeric:tabular-nums}
 .club-embed .app-shell[data-mode=Edit] .club-shortcuts dd{margin:0;color:var(--cc-muted)}
-.club-embed .app-shell[data-mode=Edit] .club-shortcuts>header{position:sticky;top:0;z-index:1;background:var(--cc-card)}
 .club-embed .app-shell[data-mode=Edit] .club-shortcuts-more{position:sticky;bottom:0;display:flex;align-items:center;justify-content:center;gap:4px;padding:14px 0 6px;font-size:11.5px;font-weight:600;color:var(--cc-muted);background:linear-gradient(to bottom,transparent,var(--cc-card) 55%);pointer-events:none}
-.club-embed .app-shell[data-mode=Edit] .club-edit .timeline-resizer{grid-column:1 / -1;bottom:calc(var(--timeline-height,220px) - 4px)}
 
-/* The club timeline. */
-.club-embed .app-shell[data-mode=Edit] .timeline.club-timeline{grid-row:3;grid-column:1 / -1;display:flex;flex-direction:row;height:auto;min-height:0;overflow:hidden;background:var(--cc-card);border-top:1px solid var(--cc-line)}
-.club-embed .app-shell[data-mode=Edit] .club-tl-heads{width:92px;flex-shrink:0;overflow:hidden;border-right:1px solid var(--cc-line);background:var(--cc-card);z-index:3}
-.club-embed .app-shell[data-mode=Edit] .club-tl-head{display:flex;align-items:center;gap:7px;padding:0 12px;font-size:12px;color:var(--cc-muted);border-bottom:1px solid transparent;white-space:nowrap;overflow:hidden}
-.club-embed .app-shell[data-mode=Edit] .club-tl-head.is-ruler{border-bottom-color:var(--cc-line)}
-.club-embed .app-shell[data-mode=Edit] .club-tl-head.is-linked{box-shadow:inset 3px 0 0 var(--cc-line)}
+/* The timeline: named rows with the kind's colour, light lanes, solid clips, a blue playhead. */
+.club-embed .app-shell[data-mode=Edit] .club-edit .timeline-resizer{grid-column:3;left:calc(var(--club-rail) + var(--club-panel));bottom:calc(var(--timeline-height,220px) - 4px)}
+.club-embed .app-shell[data-mode=Edit] .timeline.club-timeline{grid-column:3;grid-row:3;display:flex;flex-direction:row;height:auto;min-height:0;overflow:hidden;background:var(--cc-surface);border-top:1px solid var(--cc-line)}
+.club-embed .app-shell[data-mode=Edit] .club-tl-heads{width:96px;flex-shrink:0;overflow:hidden;background:var(--cc-surface);z-index:3}
+.club-embed .app-shell[data-mode=Edit] .club-tl-head{display:flex;align-items:center;gap:6px;padding:0 10px 0 14px;font-size:12.5px;color:var(--cc-text-2);white-space:nowrap;overflow:hidden}
+.club-embed .app-shell[data-mode=Edit] .club-tl-head.is-ruler{border-bottom:1px solid var(--cc-line)}
+.club-embed .app-shell[data-mode=Edit] .club-tl-head>svg{flex:none;color:var(--cc-text-3)}
+.club-embed .app-shell[data-mode=Edit] .club-tl-head[data-kind=camera]>svg{color:var(--kind-camera)}
+.club-embed .app-shell[data-mode=Edit] .club-tl-head[data-kind=screen]>svg{color:var(--kind-screen)}
+.club-embed .app-shell[data-mode=Edit] .club-tl-head:is([data-kind=audio],[data-kind=music])>svg{color:var(--kind-audio)}
+.club-embed .app-shell[data-mode=Edit] .club-tl-head[data-kind=captions]>svg{color:var(--kind-captions)}
+.club-embed .app-shell[data-mode=Edit] .club-tl-head:is([data-kind=motion],[data-kind=elements])>svg{color:var(--kind-graphics)}
+.club-embed .app-shell[data-mode=Edit] .club-tl-head[data-kind=zooms]>svg{color:var(--kind-zoom)}
 .club-embed .app-shell[data-mode=Edit] .club-timeline .timeline-scroll{flex:1;min-width:0;height:100%;overflow:auto;position:relative;outline:none}
 .club-embed .app-shell[data-mode=Edit] .club-timeline .timeline-content{position:relative;min-width:100%;background:none}
-.club-embed .app-shell[data-mode=Edit] .club-ruler{position:sticky;top:0;z-index:7;background:var(--cc-card);border-bottom:1px solid var(--cc-line);cursor:ew-resize;user-select:none}
-.club-embed .app-shell[data-mode=Edit] .club-ruler .tick{position:absolute;bottom:0;width:1px;height:6px;background:var(--cc-line)}
-.club-embed .app-shell[data-mode=Edit] .club-ruler .tick.major{height:12px;background:var(--cc-muted)}
-.club-embed .app-shell[data-mode=Edit] .club-ruler .tick>b{position:absolute;left:4px;bottom:1px;font-size:11px;font-weight:500;line-height:12px;color:var(--cc-muted);white-space:nowrap;font-variant-numeric:tabular-nums}
-.club-embed .app-shell[data-mode=Edit] .club-scene-tag{position:absolute;top:1px;max-width:200px;height:14px;padding:0 6px;border-radius:4px;background:var(--cc-subtle);color:var(--cc-ink);font-size:11px;font-weight:600;line-height:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;z-index:1}
-.club-embed .app-shell[data-mode=Edit] .club-marker{position:absolute;top:2px;width:10px;height:12px;margin-left:-5px;background:var(--kind-markers);clip-path:polygon(0 0,100% 0,100% 65%,50% 100%,0 65%);cursor:grab;z-index:2}
-.club-embed .app-shell[data-mode=Edit] .club-row{position:absolute;left:0;right:0;background:none;border:0;margin:0;cursor:default}
+.club-embed .app-shell[data-mode=Edit] .club-ruler{position:sticky;top:0;z-index:7;background:var(--cc-surface);border-bottom:1px solid var(--cc-line);cursor:pointer;user-select:none}
+.club-embed .app-shell[data-mode=Edit] .club-ruler .tick{position:absolute;bottom:0;width:1px;height:5px;background:var(--cc-line)}
+.club-embed .app-shell[data-mode=Edit] .club-ruler .tick.major{height:12px;background:var(--cc-line-strong)}
+.club-embed .app-shell[data-mode=Edit] .club-ruler .tick>b{position:absolute;left:4px;bottom:1px;font-size:11px;font-weight:500;line-height:12px;color:var(--cc-text-3);white-space:nowrap;font-variant-numeric:tabular-nums}
+/* Each scene is a band along the top of the ruler, as wide as the scene. */
+.club-embed .app-shell[data-mode=Edit] .club-scene-tag{position:absolute;top:1px;box-sizing:border-box;height:14px;padding:0 6px;border:1px solid var(--cc-line-strong);border-radius:4px;background:var(--cc-bg-sunk);color:var(--cc-text-2);font-size:10.5px;font-weight:600;line-height:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;z-index:1}
+.club-embed .app-shell[data-mode=Edit] .club-scene-tag:hover{background:var(--cc-text);border-color:var(--cc-text);color:var(--cc-surface)}
+.club-embed .app-shell[data-mode=Edit] .club-row{position:absolute;left:0;right:0;margin:0;border:0;border-block:3px solid var(--cc-surface);border-radius:8px;background:var(--tl-row);cursor:default}
 .club-embed .app-shell[data-mode=Edit] .club-row::before{display:none}
-.club-embed .app-shell[data-mode=Edit] .club-row:nth-of-type(odd){background:var(--tl-row)}
-.club-embed .app-shell[data-mode=Edit] .club-timeline .timeline-clip.club-clip{position:absolute;display:block;padding:0;border:1px solid var(--tl-shade-soft);border-radius:6px;overflow:hidden;background:var(--kind-screen);color:var(--kind-ink);box-shadow:none;cursor:default;user-select:none}
-.club-embed .app-shell[data-mode=Edit] .club-timeline .club-clip-label.club-move-handle{pointer-events:auto;cursor:grab}
+.club-embed .app-shell[data-mode=Edit] .club-timeline .timeline-clip.club-clip{position:absolute;display:block;padding:0;border:0;border-radius:5px;overflow:hidden;background:var(--kind-screen);color:var(--kind-ink);box-shadow:none;cursor:default;user-select:none}
 .club-embed .app-shell[data-mode=Edit] .club-timeline .timeline-clip.club-clip.clip-camera{background:var(--kind-camera)}
-.club-embed .app-shell[data-mode=Edit] .club-timeline .timeline-clip.club-clip:is(.clip-audio,.clip-music){background:color-mix(in srgb,var(--kind-audio) 22%,var(--cc-card));color:var(--cc-ink)}
-.club-embed .app-shell[data-mode=Edit] .club-timeline .timeline-clip.club-clip.clip-music{background:color-mix(in srgb,var(--kind-audio) 12%,var(--cc-card))}
 .club-embed .app-shell[data-mode=Edit] .club-timeline .timeline-clip.club-clip.clip-overlay{background:var(--kind-graphics)}
+.club-embed .app-shell[data-mode=Edit] .club-timeline .timeline-clip.club-clip:is(.clip-audio,.clip-music){background:color-mix(in srgb,var(--kind-audio) 16%,var(--cc-surface));color:var(--cc-text)}
+.club-embed .app-shell[data-mode=Edit] .club-timeline .club-clip-label.club-move-handle{pointer-events:auto;cursor:grab}
 .club-embed .app-shell[data-mode=Edit] .club-clip.muted{opacity:.5}
-.club-embed .app-shell[data-mode=Edit] .club-clip.is-unlinked{border-style:dashed}
-.club-embed .app-shell[data-mode=Edit] .club-timeline :is(.club-clip,.club-effect).selected{outline:2px solid var(--tl-select);outline-offset:-1px;z-index:3}
-.club-embed .app-shell[data-mode=Edit] .club-filmstrip{position:absolute;inset:0;pointer-events:none;opacity:.92}
-.club-embed .app-shell[data-mode=Edit] .club-filmstrip>i{position:absolute;top:0;background-repeat:no-repeat;border-right:1px solid var(--tl-shade)}
+.club-embed .app-shell[data-mode=Edit] .club-clip.is-unlinked{outline:1px dashed var(--cc-line-strong);outline-offset:-1px}
+.club-embed .app-shell[data-mode=Edit] .club-timeline :is(.club-clip,.club-effect).selected{outline:2px solid var(--tl-select);outline-offset:1px;z-index:3}
+/* The picture inside a clip, tinted with the clip's colour so the row still reads as one kind. */
+.club-embed .app-shell[data-mode=Edit] .club-filmstrip{position:absolute;inset:0;pointer-events:none;opacity:.4;mix-blend-mode:luminosity}
+.club-embed .app-shell[data-mode=Edit] .club-filmstrip>i{position:absolute;top:0;background-repeat:no-repeat}
 .club-embed .app-shell[data-mode=Edit] .club-filmstrip.is-image{background-repeat:repeat-x}
 .club-embed .app-shell[data-mode=Edit] .club-wave{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
-.club-embed .app-shell[data-mode=Edit] .club-wave path{fill:var(--kind-audio)}
-.club-embed .app-shell[data-mode=Edit] .club-clip-label{position:sticky;left:4px;z-index:2;display:inline-flex;align-items:center;gap:4px;max-width:calc(100% - 12px);margin:3px 0 0 4px;padding:1px 6px;border-radius:4px;background:var(--tl-shade-strong);color:var(--kind-ink);font-size:11px;font-weight:600;line-height:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none}
-.club-embed .app-shell[data-mode=Edit] .club-timeline .trim-handle{position:absolute;top:0;bottom:0;width:7px;z-index:4;cursor:ew-resize;background:transparent}
-.club-embed .app-shell[data-mode=Edit] .club-timeline .trim-handle.left{left:0}
-.club-embed .app-shell[data-mode=Edit] .club-timeline .trim-handle.right{right:0}
-.club-embed .app-shell[data-mode=Edit] .club-timeline :is(.club-clip,.club-effect):hover .trim-handle{background:color-mix(in srgb,var(--kind-ink) 35%,transparent)}
-.club-embed .app-shell[data-mode=Edit] .club-timeline .timeline-effect.club-effect{position:absolute;top:3px;bottom:3px;height:auto;padding:0 8px;border-radius:5px;border:0;background:var(--kind-graphics);color:var(--kind-ink);font-size:11.5px;font-weight:500;line-height:20px;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:default;user-select:none}
+.club-embed .app-shell[data-mode=Edit] .club-wave path{fill:color-mix(in srgb,var(--kind-audio) 60%,var(--cc-surface))}
+.club-embed .app-shell[data-mode=Edit] .club-clip-label{position:sticky;left:4px;z-index:2;display:inline-flex;align-items:center;gap:4px;max-width:calc(100% - 12px);margin:0 0 0 2px;padding:0 5px;height:100%;color:var(--kind-ink);font-size:11.5px;font-weight:600;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none}
+.club-embed .app-shell[data-mode=Edit] .club-clip:is(.clip-audio,.clip-music) .club-clip-label{height:auto;margin-top:3px;padding:1px 5px;border-radius:4px;background:color-mix(in srgb,var(--cc-surface) 75%,transparent);color:var(--cc-text)}
+.club-embed .app-shell[data-mode=Edit] .club-timeline .trim-handle{position:absolute;top:0;bottom:0;width:6px;z-index:4;cursor:ew-resize;background:transparent}
+.club-embed .app-shell[data-mode=Edit] .club-timeline .trim-handle.left{left:0;border-radius:5px 0 0 5px}
+.club-embed .app-shell[data-mode=Edit] .club-timeline .trim-handle.right{right:0;border-radius:0 5px 5px 0}
+.club-embed .app-shell[data-mode=Edit] .club-timeline :is(.club-clip,.club-effect):hover .trim-handle{background:color-mix(in srgb,var(--kind-ink) 55%,transparent)}
+/* Captions, graphics, text and zooms: solid chips in their kind's colour, with the words on them. */
+.club-embed .app-shell[data-mode=Edit] .club-timeline .timeline-effect.club-effect{position:absolute;top:3px;bottom:3px;height:auto;padding:0 7px;border:0;border-radius:5px;background:var(--kind-graphics);color:var(--kind-ink);font-size:11.5px;font-weight:600;line-height:20px;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:default;user-select:none}
 .club-embed .app-shell[data-mode=Edit] .club-timeline .row-captions .club-effect{background:var(--kind-captions)}
 .club-embed .app-shell[data-mode=Edit] .club-timeline .row-zooms .club-effect{background:var(--kind-zoom)}
+.club-embed .app-shell[data-mode=Edit] .club-timeline .row-markers .club-effect{background:var(--kind-markers)}
 .club-embed .app-shell[data-mode=Edit] .club-effect>span{pointer-events:none}
 .club-embed .app-shell[data-mode=Edit] .club-timeline .clip-drag-preview{opacity:.9;box-shadow:0 4px 12px var(--tl-shade);cursor:grabbing;z-index:6}
 .club-embed .app-shell[data-mode=Edit] .club-ghost{position:absolute;top:3px;bottom:3px;border:1px dashed var(--cc-muted);border-radius:6px;pointer-events:none}
@@ -165,80 +181,50 @@
 .club-embed .app-shell[data-mode=Edit] .club-snap{position:absolute;top:0;bottom:0;width:0;margin-left:-1px;border-left:2px solid var(--tl-select);z-index:9;pointer-events:none;background:none}
 .club-embed .app-shell[data-mode=Edit] .club-snap>span{display:none}
 .club-embed .app-shell[data-mode=Edit] .club-insert-line{position:absolute;top:0;bottom:0;width:3px;margin-left:-1px;background:var(--tl-select);z-index:9;pointer-events:none}
-.club-embed .app-shell[data-mode=Edit] .club-drag-label{position:sticky;left:12px;top:34px;z-index:10;display:inline-block;margin:34px 0 0 12px;padding:3px 8px;border-radius:6px;background:var(--cc-ink);color:var(--cc-card);font-size:12px;pointer-events:none;white-space:nowrap}
-.club-embed .app-shell[data-mode=Edit] .club-timeline .playhead{position:absolute;top:0;bottom:0;left:0;width:2px;margin-left:-1px;background:var(--tl-select);z-index:8;pointer-events:none}
-.club-embed .app-shell[data-mode=Edit] .club-timeline .playhead>span{position:absolute;top:0;left:-5px;width:12px;height:12px;border-radius:2px 2px 6px 6px;background:var(--tl-select)}
+.club-embed .app-shell[data-mode=Edit] .club-drag-label{position:sticky;left:12px;top:34px;z-index:10;display:inline-block;margin:34px 0 0 12px;padding:3px 8px;border-radius:6px;background:var(--cc-toast-bg);color:var(--cc-toast-text);font-size:12px;pointer-events:none;white-space:nowrap}
+.club-embed .app-shell[data-mode=Edit] .club-timeline .playhead{position:absolute;top:0;bottom:0;left:0;width:2px;margin-left:-1px;background:var(--cc-accent);z-index:8;pointer-events:none}
+.club-embed .app-shell[data-mode=Edit] .club-timeline .playhead>span{position:absolute;top:0;left:-5px;width:12px;height:9px;background:var(--cc-accent);clip-path:polygon(0 0,100% 0,50% 100%)}
 .club-embed .app-shell[data-mode=Edit] .club-timeline .timeline-marquee{position:absolute;z-index:9;border:1px solid var(--tl-select);background:color-mix(in srgb,var(--tl-select) 12%,transparent);pointer-events:none}
-/* Cursors say what a drag will do: move, trim, razor. */
 .club-embed .app-shell[data-mode=Edit] .club-timeline.tool-blade :is(.club-clip,.club-row){cursor:crosshair}
 .club-embed .app-shell[data-mode=Edit] .club-timeline.tool-blade .trim-handle{cursor:crosshair}
 .club-embed .app-shell[data-mode=Edit] .club-timeline.timeline-dragging,.club-embed .app-shell[data-mode=Edit] .club-timeline.timeline-dragging *{cursor:grabbing}
+/* Hover on the ruler shows the time under the pointer; at high zoom the spoken words sit on the audio row. */
+.club-embed .app-shell[data-mode=Edit] .club-hover{position:absolute;top:0;bottom:0;width:1px;background:var(--cc-text-3);pointer-events:none;z-index:4}
+.club-embed .app-shell[data-mode=Edit] .club-hover b{position:absolute;top:15px;left:4px;padding:1px 6px;border-radius:4px;background:var(--cc-toast-bg);color:var(--cc-toast-text);font-size:11px;font-weight:600;white-space:nowrap}
+.club-embed .app-shell[data-mode=Edit] .club-word{position:absolute;top:2px;z-index:3;padding:0 3px;border-radius:3px;background:color-mix(in srgb,var(--cc-surface) 70%,transparent);color:var(--cc-text);font-size:10.5px;line-height:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none}
+.club-embed .app-shell[data-mode=Edit] .club-hover-frame{position:absolute;top:38px;left:4px;display:block;border-radius:6px;border:2px solid var(--cc-toast-bg);background-color:var(--cc-dark-stage);background-repeat:no-repeat;box-shadow:0 4px 14px var(--tl-shade)}
+/* A previewed change drawn on the timeline before it is applied: dashed, in the accent colour; a removal is hatched. */
+.club-embed .app-shell[data-mode=Edit] .club-fx-ghost{position:absolute;top:3px;bottom:3px;z-index:4;pointer-events:none;display:flex;align-items:center;padding:0 8px;border-radius:5px;font-size:11.5px;font-weight:600;overflow:hidden;white-space:nowrap;border:1.5px dashed var(--cc-accent);background:color-mix(in srgb,var(--cc-accent) 14%,var(--cc-surface));color:var(--cc-accent-text);animation:fxGhost 1.6s ease-in-out infinite}
+.club-embed .app-shell[data-mode=Edit] .club-fx-ghost.removed{border-color:var(--cc-danger);color:var(--cc-danger);text-decoration:line-through;background:repeating-linear-gradient(135deg,color-mix(in srgb,var(--cc-danger) 22%,transparent) 0 4px,transparent 4px 8px)}
+@keyframes fxGhost{0%,100%{opacity:1}50%{opacity:.72}}
+@media (prefers-reduced-motion:reduce){.club-embed .app-shell[data-mode=Edit] .club-fx-ghost{animation:none}}
 
-/* No text under 12px in SceneForge's own parts. */
-.club-embed .app-shell[data-mode=Edit] :is(
-  .button.compact,.field,.field>input,.field>select,.color-input>input,.slider-field>span,.slider-field b,.toggle-field,.toggle-field small,
-  .inspector-section h3,.inspector-section textarea,.inspector-section .button,.inspector .hint,.inspector .field,.inspector .field>input,.inspector .field>select,.inspector-empty p,
-  .format-card b,.format-card small,.layout-card,.list-item,.list-item small,.capability-note,.element-grid>button,.cursor-point>b,.cursor-point .field>span,
-  .stage-empty>span,.stage-empty .button,.stage-caption-label,.media-card>b,.media-card>small,.hint,
-  .transcription-status,.transcription-status small,.transcription-status button,.transcript-panel .empty-state p,.empty-state p,.empty-state .button,.import-warning,.import-warning button,
-  .cut-playback,.cut-playback select,.cut-playback .button,
-  .agent-provider span,.agent-provider button,.agent-setup b,.agent-setup p,.agent-context-chip,.agent-range-add,.agent-send-row small
-){font-size:12px}
+/* A note on a moment: the pin takes the colour of how it was marked, a hairline runs down through the rows, and the note opens beside the pin. */
+.club-embed .app-shell[data-mode=Edit] .club-marker{position:absolute;top:2px;width:10px;height:12px;margin-left:-5px;background:var(--kind-markers);clip-path:polygon(0 0,100% 0,100% 65%,50% 100%,0 65%);cursor:grab;z-index:2}
+.club-embed .app-shell[data-mode=Edit] .club-marker.has-note{width:12px;height:14px;margin-left:-6px}
+.club-embed .app-shell[data-mode=Edit] .club-marker.tag-dislike{background:var(--cc-danger)}
+.club-embed .app-shell[data-mode=Edit] .club-marker.tag-keep{background:var(--cc-success)}
+.club-embed .app-shell[data-mode=Edit] .club-marker.tag-idea{background:var(--cc-accent)}
+.club-embed .app-shell[data-mode=Edit] .club-note-line{position:absolute;z-index:5;width:0;margin-left:-.5px;border-left:1.5px dashed var(--kind-markers);pointer-events:none;opacity:.7}
+.club-embed .app-shell[data-mode=Edit] .club-note-line.tag-dislike{border-left-color:var(--cc-danger)}
+.club-embed .app-shell[data-mode=Edit] .club-note-line.tag-keep{border-left-color:var(--cc-success)}
+.club-embed .app-shell[data-mode=Edit] .club-note-line.tag-idea{border-left-color:var(--cc-accent)}
+.marker-note{position:fixed;z-index:60;width:280px;padding:12px;display:flex;flex-direction:column;gap:10px;border:1px solid var(--cc-line-strong);border-radius:12px;background:var(--cc-card);box-shadow:var(--cc-shadow-3)}
+.marker-note-h{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--cc-text)}
+.marker-note textarea{width:100%;resize:vertical;min-height:64px;padding:8px 10px;border:1px solid var(--cc-line-strong);border-radius:8px;background:var(--cc-surface);color:var(--cc-text);font:inherit;font-size:13.5px;line-height:1.45}
+.marker-note textarea:focus{outline:2px solid var(--cc-accent);outline-offset:1px}
+.marker-note-tags{display:flex;flex-wrap:wrap;gap:6px}
+.marker-tag{all:unset;box-sizing:border-box;cursor:pointer;padding:4px 10px;border:1px solid var(--cc-line-strong);border-radius:999px;font-size:12.5px;font-weight:550;color:var(--cc-text-2)}
+.marker-tag:hover{border-color:var(--cc-accent);color:var(--cc-text)}
+.marker-tag.on.dislike{background:var(--cc-danger-soft);border-color:var(--cc-danger);color:var(--cc-danger)}
+.marker-tag.on.keep{background:var(--cc-success-soft);border-color:var(--cc-success);color:var(--cc-success)}
+.marker-tag.on.idea{background:var(--cc-accent-soft);border-color:var(--cc-accent);color:var(--cc-accent-text)}
+.marker-note-a{display:flex;align-items:center;gap:8px}
+.marker-note-a .grow{flex:1}
+.marker-nudge{all:unset;cursor:pointer;width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;border-radius:6px;font-size:18px;line-height:1;color:var(--cc-text-2)}
+.marker-nudge:hover{background:var(--cc-accent-soft);color:var(--cc-text)}
 
-/* Modals opened from Edit (Import, history): the same calm sizes. */
-.club-embed .app-shell[data-mode=Edit] :is(.modal>header p,.modal .field,.modal .field>input,.modal .field>select,.modal .field>textarea,.modal-actions>span,.modal .button,.upload-area p,.modal-footnote,.inline-success,.inline-error,.quick-proposal small,.quick-proposal p,.quick-advanced summary,.semantic-cut-option small,.quick-job-summary span,.quick-action-warnings li,.quick-proposal-heading button){font-size:12px}
-.club-embed .app-shell[data-mode=Edit] .modal{border-radius:12px;border-color:var(--cc-line)}
-
-/* The colour rule inside SceneForge's own parts (the transcript, the Inspector panels, the Auto-edit sheet, dialogs):
-   selection and "on" are the accent blue, the primary action is the dark button, and nothing else is coloured. */
-.club-embed .app-shell[data-mode=Edit] :is(button,a,input,select,textarea,summary):focus-visible{outline:2px solid var(--cc-accent);outline-offset:2px}
-.club-embed .app-shell[data-mode=Edit] .timeline.club-timeline{--tl-row:var(--cc-subtle)}
-.club-embed .app-shell[data-mode=Edit] .transcript-editor{--transcript-selection:var(--cc-accent-soft);--transcript-current:var(--cc-accent);--transcript-current-text:var(--cc-on-accent);--transcript-muted:var(--cc-text-3);--transcript-faint:var(--cc-placeholder);--transcript-hover:var(--cc-hover);--transcript-danger:var(--cc-danger);--transcript-danger-hover:var(--cc-danger-soft)}
-.club-embed .app-shell[data-mode=Edit] .transcript-editor:focus-visible{box-shadow:inset 0 0 0 2px var(--cc-accent)}
-.club-embed .app-shell[data-mode=Edit] .inspector-heading{min-height:44px;padding:8px 10px 8px 16px;border-bottom:1px solid var(--cc-line)}
-.club-embed .app-shell[data-mode=Edit] .inspector-heading .eyebrow{display:none}
-.club-embed .app-shell[data-mode=Edit] .inspector-heading h2{margin:0;font-family:inherit;font-size:14px;font-weight:600;color:var(--cc-ink)}
-.club-embed .app-shell[data-mode=Edit] .inspector-empty{color:var(--cc-muted)}
-.club-embed .app-shell[data-mode=Edit] .inspector-empty svg{stroke:currentColor}
-.club-embed .app-shell[data-mode=Edit] :is(.format-card,.export-presets>button).active{border-color:var(--cc-accent);background:var(--cc-accent-soft);color:var(--cc-accent-text)}
-.club-embed .app-shell[data-mode=Edit] :is(.list-item,.transcript-captions>button,.selected-tool):is(.active,:hover){background:var(--cc-subtle);color:var(--cc-ink)}
-.club-embed .app-shell[data-mode=Edit] :is(.list-item,.transcript-captions>button,.selected-tool).active{background:var(--cc-accent-soft);color:var(--cc-accent-text)}
-.club-embed .app-shell[data-mode=Edit] .toggle-field input:checked+.toggle-track{background:var(--cc-accent)}
-.club-embed .app-shell[data-mode=Edit] .toggle-field input:checked+.toggle-track::after{background:var(--cc-on-accent)}
-.club-embed .app-shell[data-mode=Edit] .comparison-switch [aria-pressed=true]{background:var(--cc-accent);border-color:var(--cc-accent);color:var(--cc-on-accent)}
-.club-embed .app-shell[data-mode=Edit] .button.subtle.is-active{border-color:var(--cc-line-strong)}
-.club-embed .app-shell[data-mode=Edit] :is(.icon-button,.button).is-active:not(.subtle){color:var(--cc-accent-text);background:var(--cc-accent-soft)}
-
-/* A short window (the companion beside a 700 px tall one): the captions notice scrolls inside its own box and the transcript keeps its place, so the two never overlap. */
-.club-embed .app-shell[data-mode=Edit] .transcript-panel .transcription-status{flex:0 1 auto;max-height:34%;min-height:0;overflow:auto}
-.club-embed .app-shell[data-mode=Edit] .transcript-panel .transcript-editor{min-height:0;overflow:hidden}
-.club-embed .app-shell[data-mode=Edit] .transcript-panel .transcript-word-list{min-height:0;padding-bottom:12px}
-.club-embed .app-shell[data-mode=Edit] .color-swatches{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0}
-.club-embed .app-shell[data-mode=Edit] .color-swatch{width:22px;height:22px;padding:0;border-radius:50%;border:1px solid var(--cc-line);box-shadow:inset 0 0 0 1px var(--tl-shade-soft);display:inline-flex;align-items:center;justify-content:center;font-size:11px;color:var(--cc-muted);background:var(--cc-card)}
-.club-embed .app-shell[data-mode=Edit] .color-swatch.is-none{background:linear-gradient(135deg,transparent 45%,var(--cc-danger) 45% 55%,transparent 55%),var(--cc-card)}
-.club-embed .app-shell[data-mode=Edit] .color-swatch[aria-pressed=true]{outline:2px solid var(--tl-select);outline-offset:2px}
-.club-embed .app-shell[data-mode=Edit] .club-preview-inset{position:absolute;right:28px;bottom:18px;z-index:6;width:min(300px,38%);max-height:calc(100% - 70px);overflow:auto;padding:10px;border:1px solid var(--cc-line);border-radius:12px;background:var(--cc-card);box-shadow:var(--cc-shadow-3)}
-.club-embed .app-shell[data-mode=Edit] .club-preview-inset .cut-playback{border:0;padding:0;background:transparent;font-size:12px}
-.club-embed .app-shell[data-mode=Edit] .club-sheet .btn:not(.primary):not(.ghost){display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 10px;border:1px solid var(--cc-line-strong);border-radius:8px;background:var(--cc-card);color:var(--cc-ink);font-size:13px;font-weight:500}
-.club-embed .app-shell[data-mode=Edit] .club-sheet .btn:not(.primary):not(.ghost):hover:not(:disabled){background:var(--cc-subtle)}
-/* Toasts sit top-right, under the header: never over the timeline, the toolbar or the Continue button. */
-.club-root:has(.club-embed) .cc-toasts{top:72px;right:20px;bottom:auto;left:auto;transform:none;align-items:flex-end}
-.club-embed .toast{top:72px;right:20px;bottom:auto;left:auto;transform:none}
-
-/* The Edit tool rail: a full-height column of named tools; each opens one panel on the right. */
-.club-embed .app-shell[data-mode=Edit] .edit-workspace.club-edit{padding-left:72px}
-.club-embed .app-shell[data-mode=Edit] .club-rail{position:absolute;left:0;top:0;bottom:0;width:72px;z-index:3;display:flex;flex-direction:column;gap:2px;padding:8px 6px;overflow:auto;background:var(--cc-surface);border-right:1px solid var(--cc-line)}
-.club-embed .app-shell[data-mode=Edit] .club-rail button{display:flex;flex-direction:column;align-items:center;gap:4px;width:100%;padding:9px 0 7px;border:0;border-radius:8px;background:transparent;color:var(--cc-text-2);font-size:11.5px;font-weight:550;line-height:1.1}
-.club-embed .app-shell[data-mode=Edit] .club-rail button:hover{background:var(--cc-hover);color:var(--cc-text)}
-.club-embed .app-shell[data-mode=Edit] .club-rail button[aria-pressed=true]{background:var(--cc-accent-soft);color:var(--cc-accent-text)}
-.club-embed .app-shell[data-mode=Edit] .club-rail button:focus-visible{outline:2px solid var(--cc-accent);outline-offset:1px}
-.club-embed .app-shell[data-mode=Edit] .club-rail-grow{flex:1}
-
-/* Export is a quiet outline button; the one black button on Edit is Continue. The header row only holds undo, redo, history and Export. */
-.club-embed .app-shell[data-mode=Edit] .project-header .club-export .btn{height:32px;padding:0 12px;border:1px solid var(--cc-line-strong);border-radius:6px;background:var(--cc-surface);color:var(--cc-text);font-weight:550}
-.club-embed .app-shell[data-mode=Edit] .project-header .club-export .btn:hover{background:var(--cc-hover)}
-.club-embed .app-shell[data-mode=Edit] .project-header{min-height:0;height:46px;padding-top:0;padding-bottom:0}
-/* Motion templates: a small stage that plays the way the graphic comes in. */
+/* Motion templates in the Graphics panel: a small stage that plays the way the graphic comes in. */
 .club-embed .motion-gallery{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .club-embed .motion-gallery button{display:flex;flex-direction:column;align-items:stretch;gap:6px;padding:6px;text-align:left}
 .club-embed .motion-gallery button b{font-size:12.5px;font-weight:600;padding:0 2px 2px}
@@ -257,126 +243,31 @@
 @keyframes mmPop{0%{transform:scale(.6);opacity:0}25%,80%{transform:none;opacity:1}100%{opacity:0}}
 @media (prefers-reduced-motion:reduce){.club-embed .motion-mini i{animation:none!important}}
 
-/* Hover on the ruler shows the time under the pointer; at high zoom the spoken words sit on the audio row. */
-.club-embed .app-shell[data-mode=Edit] .club-hover{position:absolute;top:0;bottom:0;width:1px;background:var(--cc-text-3);pointer-events:none;z-index:4}
-.club-embed .app-shell[data-mode=Edit] .club-hover b{position:absolute;top:15px;left:4px;padding:1px 6px;border-radius:4px;background:var(--cc-toast-bg);color:var(--cc-toast-text);font-size:11px;font-weight:600;white-space:nowrap}
-.club-embed .app-shell[data-mode=Edit] .club-word{position:absolute;top:2px;z-index:3;padding:0 3px;border-radius:3px;background:color-mix(in srgb,var(--cc-surface) 62%,transparent);color:var(--cc-text);font-size:10.5px;line-height:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none}
-.club-embed .app-shell[data-mode=Edit] .club-hover-frame{position:absolute;top:38px;left:4px;display:block;border-radius:6px;border:2px solid var(--cc-toast-bg);background-color:var(--cc-dark-stage);background-repeat:no-repeat;box-shadow:0 4px 14px rgb(0 0 0/.25)}
+/* SceneForge's own parts inside the panels (Inspector, dialogs): calm sizes, and one colour rule — selection and "on" are the accent blue. */
+.club-embed .app-shell[data-mode=Edit] :is(
+  .button.compact,.field,.field>input,.field>select,.color-input>input,.slider-field>span,.slider-field b,.toggle-field,.toggle-field small,
+  .inspector-section h3,.inspector-section textarea,.inspector-section .button,.inspector .hint,.inspector .field,.inspector .field>input,.inspector .field>select,.inspector-empty p,
+  .format-card b,.format-card small,.layout-card,.list-item,.list-item small,.capability-note,.element-grid>button,.cursor-point>b,.cursor-point .field>span,
+  .stage-empty>span,.stage-empty .button,.stage-caption-label,.media-card>b,.media-card>small,.hint,
+  .transcription-status,.transcription-status small,.transcription-status button,.transcript-panel .empty-state p,.empty-state p,.empty-state .button,.import-warning,.import-warning button,
+  .cut-playback,.cut-playback select,.cut-playback .button
+){font-size:12.5px}
+.club-embed .app-shell[data-mode=Edit] :is(.modal>header p,.modal .field,.modal .field>input,.modal .field>select,.modal .field>textarea,.modal-actions>span,.modal .button,.upload-area p,.modal-footnote,.inline-success,.inline-error,.quick-proposal small,.quick-proposal p,.quick-advanced summary,.semantic-cut-option small,.quick-job-summary span,.quick-action-warnings li,.quick-proposal-heading button){font-size:12px}
+.club-embed .app-shell[data-mode=Edit] .modal{border-radius:12px;border-color:var(--cc-line)}
+.club-embed .app-shell[data-mode=Edit] :is(button,a,input,select,textarea,summary):focus-visible{outline:2px solid var(--cc-accent);outline-offset:2px}
+.club-embed .app-shell[data-mode=Edit] .inspector-section{padding-left:16px;padding-right:16px}
+.club-embed .app-shell[data-mode=Edit] :is(.format-card,.export-presets>button,.layout-card).active{border-color:var(--cc-accent);background:var(--cc-accent-soft);color:var(--cc-accent-text)}
+.club-embed .app-shell[data-mode=Edit] :is(.list-item,.transcript-captions>button,.selected-tool):hover{background:var(--cc-hover);color:var(--cc-ink)}
+.club-embed .app-shell[data-mode=Edit] :is(.list-item,.transcript-captions>button,.selected-tool).active{background:var(--cc-accent-soft);color:var(--cc-accent-text)}
+.club-embed .app-shell[data-mode=Edit] .toggle-field input:checked+.toggle-track{background:var(--cc-accent)}
+.club-embed .app-shell[data-mode=Edit] .toggle-field input:checked+.toggle-track::after{background:var(--cc-on-accent)}
+.club-embed .app-shell[data-mode=Edit] .comparison-switch [aria-pressed=true]{background:var(--cc-accent);border-color:var(--cc-accent);color:var(--cc-on-accent)}
+.club-embed .app-shell[data-mode=Edit] :is(.icon-button,.button).is-active:not(.subtle){color:var(--cc-accent-text);background:var(--cc-accent-soft)}
+.club-embed .app-shell[data-mode=Edit] .color-swatches{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0}
+.club-embed .app-shell[data-mode=Edit] .color-swatch{width:22px;height:22px;padding:0;border-radius:50%;border:1px solid var(--cc-line);box-shadow:inset 0 0 0 1px var(--tl-shade-soft);display:inline-flex;align-items:center;justify-content:center;font-size:11px;color:var(--cc-muted);background:var(--cc-card)}
+.club-embed .app-shell[data-mode=Edit] .color-swatch.is-none{background:linear-gradient(135deg,transparent 45%,var(--cc-danger) 45% 55%,transparent 55%),var(--cc-card)}
+.club-embed .app-shell[data-mode=Edit] .color-swatch[aria-pressed=true]{outline:2px solid var(--tl-select);outline-offset:2px}
 
-.club-embed .app-shell[data-mode=Edit] .club-sheet-hint{white-space:normal;overflow:visible;text-overflow:clip;line-height:1.4}
-
-/* Tella-type layout: the tool's panel sits beside the rail, left of the video; the pills are one joined bar under it. */
-.club-embed .app-shell[data-mode=Edit] .edit-workspace.club-edit.has-side{grid-template-columns:340px minmax(0,1fr)}
-@media (max-width:1439px){.club-embed .app-shell[data-mode=Edit] .edit-workspace.club-edit.has-side{grid-template-columns:minmax(290px,300px) minmax(0,1fr)}}
-.club-embed .app-shell[data-mode=Edit] .edit-workspace.club-edit.has-side .club-edit-side{grid-column:1;border-left:0;border-right:1px solid var(--cc-line)}
-.club-embed .app-shell[data-mode=Edit] .edit-workspace.club-edit.has-side .club-edit-stage{grid-column:2}
-.club-embed .app-shell[data-mode=Edit] .club-stage-pills{display:flex;align-self:center;margin:0 20px 12px;flex-shrink:0;border:1px solid var(--cc-line);border-radius:12px;background:var(--cc-surface);box-shadow:0 1px 3px rgba(0,0,0,.06);overflow:hidden}
-.club-embed .app-shell[data-mode=Edit] .club-stage-pills button{all:unset;box-sizing:border-box;cursor:pointer;font-size:13px;font-weight:550;color:var(--cc-text-2);padding:8px 16px;line-height:1.2;border-left:1px solid var(--cc-line)}
-.club-embed .app-shell[data-mode=Edit] .club-stage-pills button:first-child{border-left:0}
-.club-embed .app-shell[data-mode=Edit] .club-stage-pills button:hover{background:var(--cc-hover);color:var(--cc-text)}
-.club-embed .app-shell[data-mode=Edit] .club-stage-pills button[aria-pressed=true]{background:var(--cc-accent-soft);color:var(--cc-accent-text)}
-.club-embed .app-shell[data-mode=Edit] .club-stage-pills button:focus-visible{outline:2px solid var(--cc-accent);outline-offset:-2px}
-
-/* Tella-type timeline: no row labels or striping, a soft waveform band, caption chips that carry the words, a red playhead. */
-.club-embed .app-shell[data-mode=Edit] .club-tl-heads{display:none}
-.club-embed .app-shell[data-mode=Edit] .timeline.club-timeline{--tl-row:transparent;--tl-select:var(--cc-danger);border-top:1px solid var(--cc-line)}
-.club-embed .app-shell[data-mode=Edit] .club-row:nth-of-type(odd){background:none}
-.club-embed .app-shell[data-mode=Edit] .club-ruler{border-bottom:0}
-.club-embed .app-shell[data-mode=Edit] .club-timeline .timeline-clip.club-clip:is(.clip-audio,.clip-music){background:color-mix(in srgb,var(--cc-accent) 12%,var(--cc-card));border-color:transparent;border-radius:10px}
-.club-embed .app-shell[data-mode=Edit] .club-wave path{fill:color-mix(in srgb,var(--cc-accent) 45%,var(--cc-card))}
-.club-embed .app-shell[data-mode=Edit] .club-timeline .row-captions .club-effect{background:var(--cc-card);color:var(--cc-accent-text);border:1px solid color-mix(in srgb,var(--cc-accent) 40%,var(--cc-card));border-radius:8px;font-weight:500}
-.club-embed .app-shell[data-mode=Edit] .club-timeline .timeline-clip.club-clip.clip-camera{border-radius:10px;border-color:var(--cc-line)}
-.club-embed .app-shell[data-mode=Edit] .club-timeline .playhead>span{width:12px;height:12px;left:-5px;top:-1px;border-radius:50%}
-.club-embed .app-shell[data-mode=Edit] .club-timeline :is(.club-clip,.club-effect).selected{outline-color:var(--cc-accent)}
-
-/* The tool rail: each tool is a tinted tile with its own colour, as in Tella. */
-.club-embed .app-shell[data-mode=Edit] .club-rail button{--k:var(--cc-accent)}
-.club-embed .app-shell[data-mode=Edit] .club-rail button svg{box-sizing:content-box;padding:8px;border-radius:11px;background:color-mix(in srgb,var(--k) 16%,var(--cc-card));color:var(--k);transition:transform .12s}
-.club-embed .app-shell[data-mode=Edit] .club-rail button:hover svg{transform:scale(1.06)}
-.club-embed .app-shell[data-mode=Edit] .club-rail button[aria-pressed=true]{background:transparent;color:var(--cc-text)}
-.club-embed .app-shell[data-mode=Edit] .club-rail button[aria-pressed=true] svg{box-shadow:0 0 0 2px var(--k)}
-.club-embed .app-shell[data-mode=Edit] .club-rail button[data-tool=transcript]{--k:var(--cc-accent)}
-.club-embed .app-shell[data-mode=Edit] .club-rail button[data-tool=cut]{--k:var(--cc-danger)}
-.club-embed .app-shell[data-mode=Edit] .club-rail button[data-tool=Captions]{--k:var(--kind-captions)}
-.club-embed .app-shell[data-mode=Edit] .club-rail button[data-tool=Layout]{--k:var(--kind-screen)}
-.club-embed .app-shell[data-mode=Edit] .club-rail button[data-tool=Clip]{--k:var(--kind-camera)}
-.club-embed .app-shell[data-mode=Edit] .club-rail button[data-tool=Zoom]{--k:var(--kind-zoom)}
-.club-embed .app-shell[data-mode=Edit] .club-rail button[data-tool=Motion]{--k:var(--kind-graphics)}
-.club-embed .app-shell[data-mode=Edit] .club-rail button[data-tool=Elements]{--k:var(--kind-markers)}
-.club-embed .app-shell[data-mode=Edit] .club-rail button[data-tool=Music]{--k:var(--cc-accent-text)}
-.club-embed .app-shell[data-mode=Edit] .club-rail button[data-tool=media]{--k:var(--kind-screen)}
-.club-embed .app-shell[data-mode=Edit] .club-rail button[data-tool=more]{--k:var(--cc-text-2)}
-
-/* Cut: sections like Tella's (Mistakes, Silences…), each with its own Review and Cut all. */
-.club-embed .app-shell[data-mode=Edit] .club-sheet-grow{flex:1}
-.club-embed .app-shell[data-mode=Edit] .club-auto-sheet .club-sheet-body{gap:0;padding:0}
-.club-embed .app-shell[data-mode=Edit] .club-auto-sheet .club-auto-row{border:0;border-bottom:1px solid var(--cc-line);border-radius:0;padding:16px 16px 18px;cursor:default;gap:8px}
-.club-embed .app-shell[data-mode=Edit] .club-auto-sheet .club-auto-row:hover{background:none}
-.club-embed .app-shell[data-mode=Edit] .club-auto-sheet .club-auto-desc{font-size:12.5px;line-height:1.4}
-.club-embed .app-shell[data-mode=Edit] .club-auto-actions{display:flex;gap:8px;margin-top:4px}
-.club-embed .app-shell[data-mode=Edit] .club-auto-actions .btn{flex:1;align-self:stretch;justify-content:center}
-
-/* Each scene is a labelled band along the top of the ruler, as wide as the scene, so the scenes can be read at a glance. */
-.club-embed .app-shell[data-mode=Edit] .club-scene-tag{max-width:none;box-sizing:border-box;overflow:hidden;text-overflow:ellipsis;background:color-mix(in srgb,var(--cc-accent) 14%,var(--cc-card));color:var(--cc-accent-text)}
-.club-embed .app-shell[data-mode=Edit] .club-scene-tag.alt{background:color-mix(in srgb,var(--cc-accent) 8%,var(--cc-card))}
-
-/* A calmer Edit: the top strip is gone (undo, history and Export live on the timeline bar), the scene row has no scrollbar,
-   the video sits on a soft shadow, and the timeline bar groups its tools. */
-.club-embed .app-shell[data-mode=Edit] .project-header{display:none}
-.club-embed .app-shell[data-mode=Edit] .club-timeline-bar .club-tool.icon{width:30px;padding:0;justify-content:center}
-.club-embed .app-shell[data-mode=Edit] .club-timeline-bar .club-zoom{flex:0 1 120px;min-width:56px}
-.club-embed .app-shell[data-mode=Edit] .club-timeline-bar .club-bar-sep{height:18px;margin:0 4px}
-.club-embed .app-shell[data-mode=Edit] .club-edit-stage .stage{box-shadow:0 6px 24px rgba(0,0,0,.14)}
-:where(.club-root) .strip.at-bottom { scrollbar-width: none; }
-:where(.club-root) .strip.at-bottom::-webkit-scrollbar { display: none; }
-/* Export sits at the end of the timeline bar as the one outlined button. */
-.club-embed .app-shell[data-mode=Edit] .club-timeline-bar .club-export{margin-left:0}
-.club-embed .app-shell[data-mode=Edit] .club-timeline-bar .club-export .btn{height:32px;padding:0 14px;border:1px solid var(--cc-line-strong);border-radius:8px;background:var(--cc-surface);color:var(--cc-text);font-weight:550;white-space:nowrap}
-.club-embed .app-shell[data-mode=Edit] .club-timeline-bar .club-export .btn:hover{background:var(--cc-hover)}
-
-/* A previewed change drawn on the timeline before it is applied: dashed, in the accent colour; a removal is hatched. */
-.club-embed .app-shell[data-mode=Edit] .club-fx-ghost{position:absolute;top:3px;bottom:3px;z-index:4;pointer-events:none;display:flex;align-items:center;padding:0 8px;border-radius:6px;font-size:11.5px;font-weight:550;overflow:hidden;white-space:nowrap;border:1.5px dashed var(--cc-accent);background:color-mix(in srgb,var(--cc-accent) 14%,var(--cc-card));color:var(--cc-accent-text);animation:fxGhost 1.6s ease-in-out infinite}
-.club-embed .app-shell[data-mode=Edit] .club-fx-ghost.removed{border-color:var(--cc-danger);color:var(--cc-danger);text-decoration:line-through;background:repeating-linear-gradient(135deg,color-mix(in srgb,var(--cc-danger) 22%,transparent) 0 4px,transparent 4px 8px)}
-@keyframes fxGhost{0%,100%{opacity:1}50%{opacity:.72}}
-@media (prefers-reduced-motion:reduce){.club-embed .app-shell[data-mode=Edit] .club-fx-ghost{animation:none}}
-/* The note on the video while a change is previewed stays short and inside the stage. */
-.club-embed .app-shell[data-mode=Edit] .club-preview-badges{max-width:calc(100% - 24px)}
-.club-embed .app-shell[data-mode=Edit] .club-preview-badges .club-pill{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-
-/* A note on a moment: the pin takes the colour of how it was marked, a hairline runs down through the tracks, and the note opens beside the pin. */
-.club-embed .app-shell[data-mode=Edit] .club-marker.tag-dislike{background:var(--cc-danger)}
-.club-embed .app-shell[data-mode=Edit] .club-marker.tag-keep{background:var(--cc-success)}
-.club-embed .app-shell[data-mode=Edit] .club-marker.tag-idea{background:var(--cc-accent)}
-.club-embed .app-shell[data-mode=Edit] .club-marker.has-note{width:12px;height:14px;margin-left:-6px}
-.club-embed .app-shell[data-mode=Edit] .club-note-line{position:absolute;z-index:5;width:0;margin-left:-.5px;border-left:1.5px dashed var(--kind-markers);pointer-events:none;opacity:.7}
-.club-embed .app-shell[data-mode=Edit] .club-note-line.tag-dislike{border-left-color:var(--cc-danger)}
-.club-embed .app-shell[data-mode=Edit] .club-note-line.tag-keep{border-left-color:var(--cc-success)}
-.club-embed .app-shell[data-mode=Edit] .club-note-line.tag-idea{border-left-color:var(--cc-accent)}
-.marker-note{position:fixed;z-index:60;width:280px;padding:12px;display:flex;flex-direction:column;gap:10px;border:1px solid var(--cc-line-strong);border-radius:12px;background:var(--cc-card);box-shadow:0 10px 30px rgba(0,0,0,.18)}
-.marker-note-h{font-size:13px;color:var(--cc-text)}
-.marker-note textarea{width:100%;resize:vertical;min-height:64px;padding:8px 10px;border:1px solid var(--cc-line-strong);border-radius:8px;background:var(--cc-surface);color:var(--cc-text);font:inherit;font-size:13.5px;line-height:1.45}
-.marker-note textarea:focus{outline:2px solid var(--cc-accent);outline-offset:1px}
-.marker-note-tags{display:flex;flex-wrap:wrap;gap:6px}
-.marker-tag{all:unset;box-sizing:border-box;cursor:pointer;padding:4px 10px;border:1px solid var(--cc-line-strong);border-radius:999px;font-size:12.5px;font-weight:550;color:var(--cc-text-2)}
-.marker-tag:hover{border-color:var(--cc-accent);color:var(--cc-text)}
-.marker-tag.on.dislike{background:color-mix(in srgb,var(--cc-danger) 14%,var(--cc-card));border-color:var(--cc-danger);color:var(--cc-danger)}
-.marker-tag.on.keep{background:color-mix(in srgb,var(--cc-success) 14%,var(--cc-card));border-color:var(--cc-success);color:var(--cc-success)}
-.marker-tag.on.idea{background:var(--cc-accent-soft);border-color:var(--cc-accent);color:var(--cc-accent-text)}
-.marker-note-a{display:flex;align-items:center;gap:8px}
-.marker-note-a .grow{flex:1}
-
-.marker-note-h{display:flex;align-items:center;gap:8px}
-.marker-nudge{all:unset;cursor:pointer;width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;border-radius:6px;font-size:18px;line-height:1;color:var(--cc-text-2)}
-.marker-nudge:hover{background:var(--cc-accent-soft);color:var(--cc-text)}
-
-/* Consistency pass: one accent colour, one control size and corner, calm type.
-   The rail tints only the tool that is open; timeline rows are named; graphics, text and captions share one chip shape. */
-.club-embed .app-shell[data-mode=Edit] .club-rail button svg{background:transparent;color:var(--cc-text-2)}
-.club-embed .app-shell[data-mode=Edit] .club-rail button:hover svg{background:var(--cc-hover);color:var(--cc-text)}
-.club-embed .app-shell[data-mode=Edit] .club-rail button[aria-pressed=true] svg{background:var(--cc-accent-soft);color:var(--cc-accent-text);box-shadow:none}
-.club-embed .app-shell[data-mode=Edit] .club-tl-heads{display:block;width:78px}
-.club-embed .app-shell[data-mode=Edit] .club-tl-head{font-size:11.5px;padding:0 10px;color:var(--cc-text-3)}
-.club-embed .app-shell[data-mode=Edit] .club-timeline-bar .club-tool{height:30px;border-radius:8px;font-size:13px;font-weight:550}
-.club-embed .app-shell[data-mode=Edit] .club-timeline .timeline-effect.club-effect{border-radius:6px;font-weight:550;color:var(--cc-text);background:color-mix(in srgb,var(--kind-graphics) 14%,var(--cc-card));border:1px solid color-mix(in srgb,var(--kind-graphics) 38%,var(--cc-card))}
-.club-embed .app-shell[data-mode=Edit] .club-timeline .row-captions .club-effect{background:var(--cc-card);color:var(--cc-text-2);border-color:var(--cc-line-strong);font-weight:500}
-.club-embed .app-shell[data-mode=Edit] .transcript-editor{font-size:15px;line-height:1.6}
+/* Toasts sit top-right, under the header: never over the timeline, the transport or the Continue button. */
+.club-root:has(.club-embed) .cc-toasts{top:72px;right:20px;bottom:auto;left:auto;transform:none;align-items:flex-end}
+.club-embed .toast{top:72px;right:20px;bottom:auto;left:auto;transform:none}

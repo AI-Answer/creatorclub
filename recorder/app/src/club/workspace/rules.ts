@@ -114,7 +114,7 @@ export function continueFor(tab:VideoTab,facts:TabFacts&LockFacts,{busy=false,ow
 }
 
 /** The scene chips appear only where a scene is chosen to work on: Record and Edit. Board, Plan and Publish have their own scene lists or none. */
-export const showsStrip=(tab:VideoTab)=>tab==='record'||tab==='edit';
+export const showsStrip=(tab:VideoTab)=>tab==='record';
 
 /** "5 scenes · 4:30", "1 scene · 0:45". */
 export function scenesLine(scenes:readonly Pick<VideoScene,'seconds'>[],clock:(seconds:number)=>string):string{

@@ -39,16 +39,17 @@ export function Header({video,tab,back,facts,onTitle,onStage,onTab,onLocked,onDe
   })}</nav>
   <span className="grow"></span>
   {video.stage!=='published'&&video.publishDate&&<span className="faint small row" style={{gap:5}}><Icon name="calendar" size={13}/>{fmtDate(video.publishDate)}</span>}
+  {/* On Edit the editor puts undo, redo and history here. */}
+  {tab==='edit'&&<div id="ws-edit-tools" className="ws-edit-tools" role="group" aria-label="Undo and history"/>}
  </div>;
 }
 
-/** The scenes of the video, shown on Record and Edit only. A failed read says so; an empty outline says what to do. */
-export function Strip({scenes,focusId,onPick,onRetry,bottom=false}:{scenes:VideoScenes;focusId:string|null;onPick(sceneId:string):void;onRetry():void;/** On Edit the scenes sit under the timeline, as a row of clips. */bottom?:boolean}){
- const place=bottom?'strip at-bottom':'strip';
+/** The scenes of the video, shown on Record. (On Edit they are bands along the top of the timeline.) A failed read says so; an empty outline says what to do. */
+export function Strip({scenes,focusId,onPick,onRetry}:{scenes:VideoScenes;focusId:string|null;onPick(sceneId:string):void;onRetry():void}){
+ const place='strip';
  if(scenes.status==='loading')return <div className={place}><span className="lab"><Icon name="scenes" size={14}/>Scenes</span></div>;
  if(scenes.status==='unknown')return <div className={place}><ErrorLine message="Couldn't read the scenes." onRetry={onRetry}/></div>;
- // On Edit only what was recorded is on the timeline, so only that is listed: scenes still to record belong to Record.
- const list=bottom?scenes.scenes.filter(scene=>scene.takes.length>0):scenes.scenes;
+ const list=scenes.scenes;
  if(!list.length)return <div className={place}><span className="lab"><Icon name="scenes" size={14}/>Scenes</span><span className="small muted">No scenes yet. Plan the scenes first.</span></div>;
  const progress=toProgress(list);
  // The chips are the one scene selector: Tab reaches them and the arrow keys move between them.
@@ -60,7 +61,7 @@ export function Strip({scenes,focusId,onPick,onRetry,bottom=false}:{scenes:Video
   event.preventDefault();chips[(at+move+chips.length)%chips.length].focus();
  };
  return <div className={place} role="list" aria-label="Scenes" onKeyDown={arrows}>
-  <span className="lab"><Icon name="scenes" size={14}/>{bottom?`${list.length} ${list.length===1?'scene':'scenes'} on the timeline`:scenesLine(list,clockTime)}</span>
+  <span className="lab"><Icon name="scenes" size={14}/>{scenesLine(list,clockTime)}</span>
   {list.map((scene,index)=><button key={scene.id} role="listitem" type="button" className={cn('sc',focusId===scene.id&&'on')} onClick={()=>onPick(scene.id)} title={scene.title}>
    <span className="n">{index+1}</span><span className="t">{scene.title}</span><SceneStatus scene={progress[index]}/></button>)}
  </div>;
