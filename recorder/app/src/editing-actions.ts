@@ -3,7 +3,8 @@ import {clipDuration,makeId,projectDuration,type Clip,type Project} from '../sha
 import {minimumPiece} from '../shared/timeline-edits';
 import {clipsFingerprint,fillerRanges,gapRanges,rangesSeconds} from './club/recorder/edit-auto';
 import {plainView} from './project-draft';
-import {closeRange,ensureLinks,linkedIds,mergeRanges,newElement,rowItems,splitLinked,syncScenesToTakes,trimBounds,trimClips} from './timeline-edit';
+import {addMotionBlock,closeRange,ensureLinks,linkedIds,mergeRanges,motionAt,newElement,nextMotionStart,rowItems,splitLinked,syncScenesToTakes,trimBounds,trimClips} from './timeline-edit';
+import {MOTION_TEMPLATES,motionPropsFrom,newMotionBlock} from '../shared/motion/templates';
 
 /**
  * The companion's Edit actions as pure functions over a project (or a draft of one). Every change goes through the editor's own timeline
@@ -135,8 +136,22 @@ export function editActionProblem(p:Project,action:EditAction,options:EditOption
    if(!inRange(action.start)||!(action.duration>0)||action.start+action.duration>length+.05)return 'That time is outside the video.';
    return;
   }
+  case 'add_motion_block':{
+   const template=MOTION_TEMPLATES[action.template];if(!template)return 'There is no such motion template.';
+   if(action.style!==undefined&&!template.styles.some(s=>s.id===action.style))return `A ${template.label.toLowerCase()} has no style called "${action.style}".`;
+   if(!inRange(action.start))return 'That time is outside the video.';
+   if(motionAt(p,action.start))return 'Another motion block is already there at that time.';
+   const room=Math.min(length,nextMotionStart(p,action.start))-action.start;
+   if(room<template.minDuration-1e-9)return room<length-action.start?`There is no room for a ${template.label.toLowerCase()} there: the next motion block starts too soon.`:'That is too close to the end of the video.';
+   return;
+  }
   case 'normalize_audio':return p.clips.some(c=>!c.effects.normalize)?undefined:'Loudness is already evened out.';
  }
+}
+/** The block an `add_motion_block` card adds: its template's defaults, the card's text, and its length cut to the room on the Motion row and in the video. */
+export function motionBlockFor(p:Project,action:Extract<EditAction,{type:'add_motion_block'}>,id:string){
+ const template=MOTION_TEMPLATES[action.template],room=Math.min(projectDuration(p),nextMotionStart(p,action.start))-action.start;
+ return newMotionBlock(action.template,action.start,id,{style:action.style,duration:Math.min(action.duration??template.defaultDuration,room),props:motionPropsFrom(action.template,action)});
 }
 
 const POSITION_Y:Record<TextPosition,number>={top:.08,center:.42,bottom:.72};
@@ -197,6 +212,11 @@ export function applyEditAction(p:Project,action:EditAction,options:EditOptions=
    result=`Zoom ${action.scale}× at ${clock(action.start)}${gone.size?`, replacing ${plural(gone.size,'zoom')}`:''}`;
    break;
   }
+  case 'add_motion_block':{
+   const r=addMotionBlock(p,motionBlockFor(plainView(p),action,newId()));if('problem' in r)throw new Error(r.problem);
+   result=`${MOTION_TEMPLATES[action.template].label} added at ${clock(action.start)}`;
+   break;
+  }
   case 'normalize_audio':{
    let n=0;for(const c of p.clips)if(!c.effects.normalize){c.effects={...c.effects,normalize:true};n++;}
    result=`Loudness evened out on ${plural(n,'clip')} when you export`;
@@ -228,6 +248,10 @@ export function describeEditAction(action:EditAction,p?:Project):string{
    const gone=p?replacedZooms(p,action):[];
    return `Zoom ${action.scale}× on the ${action.target??'screen'} at ${clock(action.start)} for ${secs(action.duration)}${gone.length?`, replacing ${gone.map(z=>`the ${z.scale}× zoom at ${clock(z.start)}`).join(' and ')}`:''}.`;
   }
+  case 'add_motion_block':{
+   const template=MOTION_TEMPLATES[action.template],style=template?.styles.find(s=>s.id===action.style)??template?.styles[0];
+   return `${template?.label??'Motion graphic'} (${style?.label.toLowerCase()??'default'}) “${action.text}”${action.detail?` · ${action.detail}`:''} at ${clock(action.start)} for ${secs(action.duration??template?.defaultDuration??3)}.`;
+  }
   case 'normalize_audio':return 'Even out the loudness of every clip when you export.';
  }
 }
@@ -245,5 +269,6 @@ export function editEstimate(p:Project,action:EditAction,options:EditOptions={})
   return share>=DELETE_WARN_SHARE?{text:`${text}. That is ${Math.round(share*100)}% of the video.`,warn:true}:{text};
  }
  if(action.type==='set_zoom'){const gone=replacedZooms(p,action);if(gone.length)return {text:`Replaces ${gone.map(z=>`the ${z.scale}× zoom at ${clock(z.start)}`).join(' and ')}.`};}
+ if(action.type==='add_motion_block'){const block=motionBlockFor(p,action,'estimate'),asked=action.duration??MOTION_TEMPLATES[action.template].defaultDuration;if(block.duration<asked-1e-6)return {text:`Shortened to ${secs(block.duration)}: it stops at ${clock(block.start+block.duration)}, where ${nextMotionStart(p,action.start)<=block.start+block.duration+1e-6?'the next motion block starts':'the video ends'}.`};}
  return undefined;
 }

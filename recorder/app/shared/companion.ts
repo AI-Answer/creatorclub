@@ -1,4 +1,4 @@
-import type {Project} from './types';
+import type {MotionTemplateId,Project} from './types';
 
 /*
  * The companion: one conversation per video across Board, Plan, Record, Edit and Publish (`companion.json` in the video's folder).
@@ -31,9 +31,11 @@ export type EditAction =
   | { type: 'add_caption'; start: number; end: number; text: string }
   | { type: 'add_text'; start: number; duration: number; text: string; position?: TextPosition }
   | { type: 'set_zoom'; start: number; duration: number; scale: number; x?: number; y?: number; target?: 'screen' | 'camera' }
+  /** An animated graphic on the Motion row: `text` is its main line (title, name, label or chapter title), `detail` the second (subtitle, role, chapter number), `x`/`y` a callout's point. */
+  | { type: 'add_motion_block'; template: MotionTemplateId; style?: string; start: number; duration?: number; text: string; detail?: string; x?: number; y?: number }
   | { type: 'normalize_audio' };
 export type EditActionType = EditAction['type'];
-export const EDIT_ACTION_TYPES = ['cut_pauses', 'remove_fillers', 'close_gaps', 'split_at', 'trim_clip', 'delete_range', 'set_caption_style', 'add_caption', 'add_text', 'set_zoom', 'normalize_audio'] as const satisfies readonly EditActionType[];
+export const EDIT_ACTION_TYPES = ['cut_pauses', 'remove_fillers', 'close_gaps', 'split_at', 'trim_clip', 'delete_range', 'set_caption_style', 'add_caption', 'add_text', 'set_zoom', 'add_motion_block', 'normalize_audio'] as const satisfies readonly EditActionType[];
 export const isEditAction = (action: { type: string }): action is EditAction => (EDIT_ACTION_TYPES as readonly string[]).includes(action.type);
 
 export type CompanionAction =
@@ -77,6 +79,7 @@ export const ACTION_TITLE: Record<CompanionActionType, string> = {
   add_caption: 'Caption',
   add_text: 'Text on screen',
   set_zoom: 'Zoom',
+  add_motion_block: 'Motion graphic',
   normalize_audio: 'Even out loudness',
 };
 
@@ -99,6 +102,7 @@ export const ACTION_STEP: Record<CompanionActionType, string> = {
   add_caption: 'Writing a caption',
   add_text: 'Writing text',
   set_zoom: 'Planning a zoom',
+  add_motion_block: 'Placing a graphic',
   normalize_audio: 'Checking loudness',
 };
 
@@ -121,6 +125,7 @@ export const ACTION_VERB: Record<CompanionActionType, string> = {
   add_caption: 'Add it',
   add_text: 'Add it',
   set_zoom: 'Add zoom',
+  add_motion_block: 'Add it',
   normalize_audio: 'Even it out',
 };
 
@@ -156,7 +161,7 @@ export interface CompanionContext {
 /** A selected caption, text or graphic, zoom or marker on Edit's timeline. */
 export interface SelectedItem {
   id: string;
-  kind: 'caption' | 'text' | 'zoom' | 'marker';
+  kind: 'caption' | 'text' | 'zoom' | 'marker' | 'motion';
   start: number;
   end: number;
   text?: string;

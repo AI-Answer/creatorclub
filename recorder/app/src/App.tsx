@@ -13,6 +13,7 @@ import {deleteTranscriptSelection,type WordSelection} from './transcript-editing
 import {Timeline} from './Timeline';
 import {TimelineResize} from './TimelineResize';
 import {Inspector,Panel,Field,type Change} from './Inspector';
+import {MOTION_TEMPLATES,motionText} from '../shared/motion/templates';
 import {AgentChat} from './AgentChat';
 import {QuickActionButtons,QuickActionDialog,TranscriptionStatus} from './QuickActions';
 import {useProjectAutomation} from './useAutomation';
@@ -249,6 +250,7 @@ export default function App({embedded}:{embedded?:EmbeddedRecorder}={}){
   const items:SelectedItem[]=p?[...p.captions.filter(c=>selection.has(c.id)).map(c=>({id:c.id,kind:'caption' as const,start:c.start,end:c.end,text:c.text.slice(0,200)})),
    ...p.elements.filter(e=>selection.has(e.id)).map(e=>({id:e.id,kind:'text' as const,start:e.start,end:e.start+e.duration,...(e.text?{text:e.text.slice(0,200)}:{})})),
    ...p.zooms.filter(z=>selection.has(z.id)).map(z=>({id:z.id,kind:'zoom' as const,start:z.start,end:z.start+z.duration})),
+   ...(p.motion??[]).filter(m=>selection.has(m.id)).map(m=>({id:m.id,kind:'motion' as const,start:m.start,end:m.start+m.duration,text:`${MOTION_TEMPLATES[m.template]?.label??'Motion'}: ${motionText(m)}`.slice(0,200)})),
    ...(p.markers??[]).filter(m=>selection.has(m.id)).map(m=>({id:m.id,kind:'marker' as const,start:m.time,end:m.time}))].slice(0,100).map(i=>({...i,start:roundTime(i.start),end:roundTime(i.end)})):[];
   const spans=[...chosen.map(c=>[c.start,c.start+clipDuration(c)]),...items.map(i=>[i.start,i.end])];
   return {playhead:roundTime(playhead.get()),selection:chosen.map(c=>c.id),...(items.length?{items}:{}),...(spans.length?{range:{start:roundTime(Math.min(...spans.map(s=>s[0]))),end:roundTime(Math.max(...spans.map(s=>s[1])))}}:{})};
@@ -261,7 +263,8 @@ export default function App({embedded}:{embedded?:EmbeddedRecorder}={}){
   const label=ACTION_TITLE[action.type],ranges=editRanges(p,action,options);
   if(ranges){const merged=mergeRanges(ranges),total=rangesSeconds(merged);showPreview({key,label,summary:`${merged.length} ${merged.length===1?'cut':'cuts'} · ${seconds(total)} shorter`,ranges:merged,review:cutReview(p,merged,label)});return;}
   let after:Project;try{after=applyProjectChange(p,d=>{applyEditAction(d,action,options);});}catch(e){return (e as Error).message;}
-  const at='time' in action?action.time:'start' in action?action.start:undefined;if(at!==undefined)seek(at+.05);
+  // A motion block is shown a second in, once its way in has played; anything else just after it starts.
+  const at='time' in action?action.time:'start' in action?action.start:undefined;if(at!==undefined)seek(at+(action.type==='add_motion_block'?Math.min(1,(action.duration??2)/2):.05));
   showPreview({key,label,summary:describeEditAction(action,p),after});return;
  });
  const estimateEdit=useEvent((action:EditAction,options:EditOptions={})=>p?editEstimate(p,action,options):undefined);

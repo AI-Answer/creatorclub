@@ -635,6 +635,8 @@ export const COMPANION_ACTION_HELP: Record<CompanionActionType, string> = {
   add_caption: '- add_caption: {"type": "add_caption", "start": 3.0, "end": 5.5, "text": "..."}: one caption line, at most 30 seconds, where no caption is yet.',
   add_text: '- add_text: {"type": "add_text", "start": 3.0, "duration": 4, "text": "...", "position": "top" | "center" | "bottom"}: a text on screen (a title or a label), up to 60 seconds.',
   set_zoom: '- set_zoom: {"type": "set_zoom", "start": 20.0, "duration": 4, "scale": 1.5, "x": 0.5, "y": 0.5, "target": "screen" | "camera"}: zooms in from 1.05x to 4x on a point (x and y from 0 to 1 across the frame); it replaces a zoom it overlaps.',
+  add_motion_block:
+    '- add_motion_block: {"type": "add_motion_block", "template": "lower-third", "style": "block", "start": 12.0, "duration": 5, "text": "Samin Yasar", "detail": "Founder, Claude Club"}: an animated graphic on the Motion row, which may sit over clips but never over another motion block. Templates and styles: "title-card" ("clean" or "bold"; text = title, detail = subtitle), "lower-third" ("block" or "glass"; text = name, detail = role), "callout" ("arrow" or "ring"; text = a short label, x and y = the point it shows, 0 to 1 across and down the frame), "chapter-label" ("tag" or "number"; text = chapter title, detail = its number). Duration 1 to 20 seconds; leave it out for the template\'s usual length. Use the creator\'s words; never invent a name or role you were not given.',
   normalize_audio: '- normalize_audio: {"type": "normalize_audio"}: evens out the loudness of every clip when the video is exported.',
 };
 

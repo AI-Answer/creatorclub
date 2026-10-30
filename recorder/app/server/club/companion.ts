@@ -67,7 +67,7 @@ const contextShape = z
     playhead: z.number().min(0).max(360_000).optional(),
     selection: z.array(z.string().max(100)).max(200).optional(),
     items: z
-      .array(z.object({ id: z.string().max(100), kind: z.enum(['caption', 'text', 'zoom', 'marker']), start: z.number().min(0).max(360_000), end: z.number().min(0).max(360_000), text: z.string().max(200).optional() }).strict())
+      .array(z.object({ id: z.string().max(100), kind: z.enum(['caption', 'text', 'zoom', 'marker', 'motion']), start: z.number().min(0).max(360_000), end: z.number().min(0).max(360_000), text: z.string().max(200).optional() }).strict())
       .max(100)
       .optional(),
     range: z.object({ start: z.number().min(0).max(360_000), end: z.number().min(0).max(360_000) }).strict().optional(),

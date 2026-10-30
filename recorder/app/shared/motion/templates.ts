@@ -82,6 +82,14 @@ export function normalizeMotionProps(template:MotionTemplateId,props:Readonly<Re
  return out;
 }
 const styleOf=(template:MotionTemplate,style:string)=>template.styles.some(s=>s.id===style)?style:template.styles[0].id;
+/**
+ * A template's props from the companion's flat fields: `text` is the main line (title, name, label, chapter title), `detail` the second
+ * (subtitle, role, chapter number), `x` and `y` a callout's point.
+ */
+export function motionPropsFrom(template:MotionTemplateId,{text,detail,x,y}:{text?:string;detail?:string;x?:number;y?:number}):Record<string,string|number>{
+ const raw:Record<string,unknown>=template==='title-card'?{title:text,subtitle:detail}:template==='lower-third'?{name:text,role:detail}:template==='callout'?{label:text,x,y}:{title:text,number:detail};
+ return normalizeMotionProps(template,Object.fromEntries(Object.entries(raw).filter(([,v])=>v!==undefined)));
+}
 /** A block with its template's defaults; `overrides` may set the style, the length and props. */
 export function newMotionBlock(template:MotionTemplateId,start:number,id:string,overrides:Partial<Omit<MotionBlock,'id'|'template'>>={}):MotionBlock{
  const t=MOTION_TEMPLATES[template];

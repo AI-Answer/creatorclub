@@ -3,7 +3,8 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { z } from 'zod';
 import { CHANGED_SINCE, TAB_ACTIONS, isEditAction, type CompanionAction, type CompanionActionType, type CompanionChanged, type CompanionTab, type EditAction } from '../../shared/companion.js';
-import type { Project } from '../../shared/types.js';
+import type { MotionTemplateId, Project } from '../../shared/types.js';
+import { MOTION_TEMPLATES, MOTION_TEMPLATE_IDS } from '../../shared/motion/templates.js';
 import { editActionProblem } from '../../src/editing-actions.js';
 import { applyEdit, undoEdit, type TimelineUndo } from './companion-edit.js';
 import type { EditOptions } from '../../src/editing-actions.js';
@@ -61,11 +62,16 @@ export const actionShape = z.discriminatedUnion('type', [
   z.object({ type: z.literal('add_caption'), start: time, end: time, text: line(300) }).strict(),
   z.object({ type: z.literal('add_text'), start: time, duration: z.number().min(0.2).max(60), text: line(200), position: POSITION.optional() }).strict(),
   z.object({ type: z.literal('set_zoom'), start: time, duration: z.number().min(0.3).max(120), scale: z.number().min(1.05).max(4), x: z.number().min(0).max(1).optional(), y: z.number().min(0).max(1).optional(), target: z.enum(['screen', 'camera']).optional() }).strict(),
+  z
+    .object({ type: z.literal('add_motion_block'), template: z.enum(MOTION_TEMPLATE_IDS as [MotionTemplateId, ...MotionTemplateId[]]), style: z.string().max(20).optional(), start: time, duration: z.number().min(1).max(20).optional(), text: line(80), detail: line(120).optional(), x: z.number().min(0).max(1).optional(), y: z.number().min(0).max(1).optional() })
+    .strict(),
   z.object({ type: z.literal('normalize_audio') }).strict(),
 ])
   .refine((action) => action.type !== 'set_scene' || action.title !== undefined || action.talkingPoints !== undefined, { message: 'changes nothing' })
   .refine((action) => (action.type !== 'delete_range' && action.type !== 'add_caption') || action.end > action.start, { message: 'ends before it starts' })
-  .refine((action) => action.type !== 'add_caption' || action.end - action.start <= 30, { message: 'longer than 30 seconds' });
+  .refine((action) => action.type !== 'add_caption' || action.end - action.start <= 30, { message: 'longer than 30 seconds' })
+  .refine((action) => action.type !== 'add_motion_block' || action.style === undefined || MOTION_TEMPLATES[action.template].styles.some((style) => style.id === action.style), { message: 'is not a style of that template' })
+  .refine((action) => action.type !== 'add_motion_block' || action.template === 'callout' || (action.x === undefined && action.y === undefined), { message: 'only a callout has a point' });
 
 export const MAX_CARDS = 6;
 
@@ -282,6 +288,7 @@ const HANDLERS: { [K in CompanionActionType]: Handler<Extract<CompanionAction, {
   add_caption: edit,
   add_text: edit,
   set_zoom: edit,
+  add_motion_block: edit,
   normalize_audio: edit,
 };
 

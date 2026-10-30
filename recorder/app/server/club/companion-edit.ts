@@ -4,6 +4,7 @@ import { clipDuration, projectDuration, type Project } from '../../shared/types.
 import { clipsFingerprint, latestCutJob, planSilenceRanges } from '../../src/club/recorder/edit-auto.js';
 import { applyEditAction, editActionProblem, editRanges, hasTranscript, wordPauseRanges, type EditOptions, type SilencePlan } from '../../src/editing-actions.js';
 import { applyProjectChange } from '../../src/project-draft.js';
+import { motionText } from '../../shared/motion/templates.js';
 import { ClubError } from './errors.js';
 import { sceneforge } from './recorder.js';
 import * as store from './store.js';
@@ -138,7 +139,7 @@ export function projectSummary(p: Project): string {
   const kinds = new Map<string, number>();
   for (const clip of p.clips) kinds.set(clip.track, (kinds.get(clip.track) ?? 0) + 1);
   const clips = [...kinds].map(([kind, count]) => `${count} ${kind}`).join(', ') || 'no clips';
-  const extra = [p.elements.length ? `${p.elements.length} text or graphics` : '', p.zooms.length ? `${p.zooms.length} zooms` : '', p.markers?.length ? `${p.markers.length} markers` : ''].filter(Boolean);
+  const extra = [p.elements.length ? `${p.elements.length} text or graphics` : '', p.motion?.length ? `${p.motion.length} motion blocks` : '', p.zooms.length ? `${p.zooms.length} zooms` : '', p.markers?.length ? `${p.markers.length} markers` : ''].filter(Boolean);
   return `${clock(projectDuration(p))} long; clips: ${clips}${extra.length ? `; ${extra.join(', ')}` : ''}; ${hasTranscript(p) ? 'a transcript with word timings' : 'no transcript yet'}`;
 }
 
@@ -165,6 +166,8 @@ export function timelineText(p: Project, context: CompanionContext, options: Edi
   }
   const scenes = p.scenes.filter((scene) => scene.duration > 0);
   if (scenes.length) lines.push('Scenes on the timeline:', ...scenes.map((scene, index) => `${index + 1}. ${scene.name}: ${scene.start.toFixed(2)} s to ${(scene.start + scene.duration).toFixed(2)} s`));
+  const blocks = [...(p.motion ?? [])].sort((a, b) => a.start - b.start);
+  if (blocks.length) lines.push('Motion blocks on the Motion row (template, style, start to end in seconds); a new block may not start inside one:', ...blocks.slice(0, CLIPS_LISTED).map((m) => `- ${m.id} ${m.template} ${m.style} ${m.start.toFixed(2)} to ${(m.start + m.duration).toFixed(2)} "${motionText(m).replace(/<\/?[a-z][a-z0-9_-]*[^<>]*>/gi, '').replace(/\s+/g, ' ').trim()}"`));
   const clips = [...p.clips].sort((a, b) => a.start - b.start);
   lines.push(`Clips (id, row, start to end in seconds)${clips.length > CLIPS_LISTED ? `, the first ${CLIPS_LISTED} of ${clips.length}` : ''}:`);
   for (const clip of clips.slice(0, CLIPS_LISTED)) lines.push(`- ${clip.id} ${clip.track}${clip.muted ? ' muted' : ''} ${clip.start.toFixed(2)} to ${(clip.start + clipDuration(clip)).toFixed(2)}`);
