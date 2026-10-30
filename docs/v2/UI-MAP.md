@@ -7,12 +7,12 @@ The design system it uses is in `recorder/app/src/club/ui/` (tokens, icons, prim
 
 | Place | What lives there | What never lives there |
 |---|---|---|
-| **Sidebar** (left; a rail inside a video) | The channel and its menu (switch, add a channel), Search (⌘K), the three places (Home, Discover, Videos with the number of videos in progress), then three icons with tooltips: Settings, Help (How CreatorClub works), Collapse | Anything about one video; a list of videos (Home and Videos have them); a place twice |
+| **Sidebar** (left; a rail inside a video) | The channel and its menu (switch, add a channel), Search (⌘K), the four places (Home, Discover, Videos with the number of videos in progress, Research), then three icons with tooltips: Settings, Help (How CreatorClub works), Collapse | Anything about one video; a list of videos (Home and Videos have them); a place twice |
 | **Video header** (top of a video) | Back to where the video was opened from (named: "Videos ›"), the title (click to rename), the stage (menu, Move to), the five steps, the publish date, More for this video (Copy link) | A second set of steps, a Back button |
 | **Step rail** (Board · Plan · Record · Edit · Publish, in the header) | The only way between steps, ticked once a step's job is done | — |
 | **Bottom bar** (a video step) | Continue to the next step, on the right; primary once the step's job is done. No bar on Publish | Back (the step rail is the way back), the steps again |
 | **Scene chips** (under the header, Record and Edit only) | The scenes with their status word (Not recorded, Kept take 1…), the one scene picker | The script |
-| **Companion** (docked right on every step but Edit, until Task 3b) | Ask Claude anything about the video, changes as cards you apply and undo | Buttons the page already has |
+| **Companion** (docked right on every step, and on Research with its own conversation) | Ask Claude anything about the video (or about Research), changes as cards you apply and undo | Buttons the page already has |
 | **Sheet** (`Sheet`, slides in from the right) | Looking at one thing without leaving the page: a breakdown, an idea, the recorder's sources | Navigation |
 | **Dialog** | A question before something that replaces or deletes ("Write the titles again?") | Forms that belong on the page |
 | **Menu** (`Menu`) | Actions on one thing: a scene's options, a card's Move to, Write with Claude | The page's one primary action |
@@ -23,8 +23,9 @@ The design system it uses is in `recorder/app/src/club/ui/` (tokens, icons, prim
 | Place | First sight | One click away |
 |---|---|---|
 | **Home** (`#/home`) | The next thing to do on the video you worked on last, the other videos in production with one button each, New video. A channel with nothing in production: the first-video checklist | The video |
-| **Discover** (`#/discover`) | One ranked feed of what works outside: YouTube videos beating their usual and posts from X and Reddit, chips For you, Followed, YouTube, X, Reddit (with counts), one sort (the orders that fit the chip), Refresh (reads all of them, with its progress), Your ideas (a count that opens Videos). Every card has one button, Turn into idea (In ideas once it is one) | A video's breakdown (press the row), Show everything (what is off topic), Show more, Open post (under the pointer), Follow this channel (under the pointer) |
-| **Videos** (`#/videos`, `/table`, `/calendar`) | Board, Table, Calendar; New video. The board's first lane is Ideas, grouped Timely, Evergreen (best rated first), Later and Skipped (folded, with counts); then Planning, Recording, Editing, Publishing, Published. An idea card has Start planning | An idea's drawer (press it), its menu (Later, Skip with a reason, Move to, Delete), Show all in a group, a breakdown from New video (a sheet) |
+| **Discover** (`#/discover`) | One ranked feed of what works outside: YouTube videos beating their usual and posts from X and Reddit, chips For you, Followed, YouTube, X, Reddit (with counts), one sort (the orders that fit the chip), Refresh (reads all of them, with its progress), Your ideas (a count that opens Videos). Every card has one button, Turn into idea (In ideas once it is one) | A video's breakdown (press the row), Show everything (what is off topic), Show more, Open post (under the pointer), Follow this channel (under the pointer), Add to Research (under the pointer) |
+| **Videos** (`#/videos`, `/table`, `/calendar`) | Board, Table, Calendar; New video. The board's first lane is Ideas, grouped Timely, Evergreen (best rated first), Later and Skipped (folded, with counts); then Planning, Recording, Editing, Publishing, Published. An idea card has Start planning | An idea's drawer (press it), its menu (Later, Add to Research, Skip with a reason, Move to, Delete; a video's menu: Move to, Add to Research), Show all in a group, a breakdown from New video (a sheet) |
+| **Research** (`#/research`) | The channel's own Board (the same Board as a video's, kept in the channel's `research/` folder): cards from Discover, your ideas and videos, links, notes and Markdown files, their connections and frames, Add to board, zoom, the folder line, the companion docked right ("Looking at: Research"). Empty: one sentence and the Add menu | A selection (Shift-click or a rectangle dragged on the empty canvas): Group in a frame, Start a video from this selection (a frame: from this frame), Remove, Clear; a card's connect handle (or C, then Enter on the other card); a line's label (double-click or Enter); a "your idea" card's drawer |
 
 Old links still work: `#/overview` is Home, `#/trending` is Discover on YouTube, `#/signals` is Discover, `#/ideas?filter=later&open=…` is `#/videos?group=later&open=…`, `#/production/<view>` and `#/board` are Videos.
 
@@ -32,7 +33,7 @@ Old links still work: `#/overview` is Home, `#/trending` is Discover on YouTube,
 
 | Step | First sight | One click away |
 |---|---|---|
-| **Board** | The canvas, Add to board (note, link, file, notes folder), zoom, Draft scenes from board (primary until there are scenes), How the board works | The note writer (click a note) |
+| **Board** | The canvas, Add to board (note, link, file, notes folder), zoom, Draft scenes from board (primary until there are scenes), How the board works | The note writer (click a note); connections, frames and a selection, as on Research |
 | **Plan** | Package: three title options, thumbnail text, the hook's first line. Scenes: one row each (number, title, status, length), Write with Claude, Add scene | More (what the hook shows, why it gets watched, angle, twist); a scene opened (talking points, what to show, its script, To decide, its menu: write its script, record it, move, add, delete) |
 | **Record** | The scene chips, the camera preview, the one Record button for the chosen scene, the teleprompter (talking points only), the takes of that scene | The source sheet (Change), Record over or import (takes menu) |
 | **Edit** | The editor (Task 7b restyles it) | — |
