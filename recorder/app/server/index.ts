@@ -98,6 +98,7 @@ app.put('/api/projects/:id',route(async(req,res)=>{
 app.delete('/api/projects/:id',route(async(req,res)=>{await storage.trashProject(param(req));return res.json({ok:true});}));
 app.post('/api/projects/:id/duplicate',route(async(req,res)=>res.json(await storage.duplicateProject(param(req)))));
 app.get('/api/projects/:id/history',route(async(req,res)=>res.json(await storage.history(param(req)))));
+app.get('/api/projects/:id/history/summaries',route(async(req,res)=>res.json(await storage.historySummaries(param(req)))));
 app.post('/api/projects/:id/restore',route(async(req,res)=>{const p=await storage.restoreProject(param(req),req.body.historyId,reviewedRevision(req));res.setHeader('ETag','"'+storage.revision(p)+'"');return res.json(p);}));
 app.get(['/api/projects/:id/media-recovery','/api/projects/:id/media-status'],route(async(req,res)=>res.json(await mediaRecovery.inspectMedia(param(req)))));
 app.post('/api/projects/:id/media-recovery/plan',route(async(req,res)=>res.json(await mediaRecovery.planRelink(param(req),req.body.mediaId,req.body.replacementPath,reviewedRevision(req)))));

@@ -42,6 +42,8 @@ export function linkedIds(clips:readonly Clip[],ids:Iterable<string>):Set<string
  for(const c of clips)if(wanted.has(groups.get(c.id)!))out.add(c.id);
  return out;
 }
+/** How many things are selected, as a person counts them: a take's linked screen, camera and audio are one clip. */
+export function selectionCount(clips:readonly Clip[],ids:Iterable<string>){const groups=linkGroups(clips),seen=new Set<string>();for(const id of ids)seen.add(groups.get(id)??'item:'+id);return seen.size;}
 export function isLinked(clips:readonly Clip[],id:string){const groups=linkGroups(clips),key=groups.get(id);let n=0;for(const value of groups.values())if(value===key&&++n>1)return true;return false;}
 /** Writes the implicit take links as explicit ones, so later splits and moves cannot merge or separate groups by accident. */
 export function ensureLinks(p:Project,newId:()=>string=makeId){

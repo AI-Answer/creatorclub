@@ -1,5 +1,6 @@
 import { promises as fs, constants as fsConstants, type Stats } from 'node:fs';
 import path from 'node:path';
+import {summarizeProject,type VersionSummary} from '../shared/history-summary.js';
 import os from 'node:os';
 import { createHash, randomUUID } from 'node:crypto';
 import {EventEmitter} from 'node:events';
@@ -120,6 +121,15 @@ export async function history(id:string){
  const dir=path.join(HISTORY_DIR,safeId(id)),files=(await fs.readdir(dir).catch(()=>[])).filter(f=>f.endsWith('.json')).sort().reverse().slice(0,100),items:Array<{id:string;createdAt:string;name:string}>=new Array(files.length);let next=0;
  await Promise.all(Array.from({length:Math.min(4,files.length)},async()=>{while(next<files.length){const i=next++,s=await snapshotSummary(path.join(dir,files[i]));items[i]={id:files[i].slice(0,-5),createdAt:s.updatedAt,name:s.name};}}));
  return items;
+}
+/** What each listed version holds (length, counts, fingerprints), for titles that say what changed. Snapshots never change, so a summary is read once per file. */
+const summaries=new Map<string,VersionSummary|null>();
+export async function historySummaries(id:string){
+ const dir=path.join(HISTORY_DIR,safeId(id)),files=(await fs.readdir(dir).catch(()=>[])).filter(f=>f.endsWith('.json')).sort().reverse().slice(0,100),out:Record<string,VersionSummary>={};let next=0;
+ await Promise.all(Array.from({length:Math.min(4,files.length)},async()=>{while(next<files.length){const file=files[next++],key=path.join(dir,file);
+  if(!summaries.has(key)){try{summaries.set(key,summarizeProject(JSON.parse(await fs.readFile(key,'utf8'))));}catch{summaries.set(key,null);}}
+  const summary=summaries.get(key);if(summary)out[file.slice(0,-5)]=summary;}}));
+ return out;
 }
 export async function restoreProject(id:string,historyId:string,expectedRevision:string){if(!expectedRevision)throw Object.assign(Error('Reload and review the current project before restoring history.'),{status:409});const p:Project=JSON.parse(await fs.readFile(path.join(HISTORY_DIR,safeId(id),safeId(historyId)+'.json'),'utf8'));p.id=id;return saveProject(p,{checkpoint:true,expectedRevision});}
 export async function registerMedia(media:Media){safeId(media.id);if(media.audioRole!==undefined&&!isAudioRole(media.audioRole))throw new Error('Invalid media audio role');if(media.audioRole===undefined){const previous=await readMedia(media.id).catch(()=>undefined);if(previous?.path===media.path&&isAudioRole(previous.audioRole))media={...media,audioRole:previous.audioRole};}await atomicJSON(path.join(MEDIA_DIR,media.id+'.json'),media);return media;}

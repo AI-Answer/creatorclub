@@ -45,7 +45,7 @@ import {Menu,useToast,type MenuItem} from './club/ui';
 import {CutPlayback} from './CutPlayback';
 import {timelineContextItems,timelineMoreItems,type TimelineMenuActions} from './edit-menus';
 import {TimelineClub,rowsHeight,usedRows,type TimelineControls} from './TimelineClub';
-import {type Deleted,addMarker,applyClipStarts,clampScale,deleteItems,ensureLinks,freeDelta,insertGap,mergeRanges,moveEffects,rowItems,isLinked,linkClips,linkedIds,remapLinks,zoomSlider,syncScenesToTakes,rulerLabel,lengthLabel,showTenths,splitLinked,unlinkClips} from './timeline-edit';
+import {type Deleted,addMarker,applyClipStarts,clampScale,deleteItems,ensureLinks,freeDelta,insertGap,mergeRanges,moveEffects,rowItems,isLinked,linkClips,linkedIds,remapLinks,selectionCount,zoomSlider,syncScenesToTakes,rulerLabel,lengthLabel,showTenths,splitLinked,unlinkClips} from './timeline-edit';
 
 const panels:Array<{name:Panel;icon:typeof Film}>=[{name:'Canvas',icon:Image},{name:'Layout',icon:LayoutTemplate},{name:'Clip',icon:Clapperboard},{name:'Zoom',icon:ZoomIn},{name:'Elements',icon:Elements},{name:'Music',icon:Music},{name:'Captions',icon:Subtitles},{name:'Cursor',icon:MousePointer2},{name:'Automate',icon:WandSparkles}];
 const MediaRecoveryNotice=memo(MediaRecoveryBanner),RecordingWorkspace=memo(Recording),ScriptWorkspace=memo(ScriptEditor);
@@ -292,7 +292,7 @@ export default function App({embedded}:{embedded?:EmbeddedRecorder}={}){
  const editorFlush=useEvent(()=>studio.flush());
  const onEditor=embedded?.onEditor,editOpen=Boolean(p&&embedded&&mode==='Edit'&&p.id===embedded.projectId);
  useEffect(()=>{if(!onEditor||!editOpen)return;onEditor({context:editorContext,flush:editorFlush,preview:previewEdit,estimate:estimateEdit,commit:studio.commitServer});return()=>onEditor(null);},[onEditor,editOpen,studio.commitServer]);
- const onEditState=embedded?.onEditState,selectedCount=selection.size,previewKey=preview?.key,timelineVersion=p?.updatedAt;
+ const onEditState=embedded?.onEditState,selectedCount=p?selectionCount(p.clips,selection):selection.size,previewKey=preview?.key,timelineVersion=p?.updatedAt;
  useEffect(()=>{if(editOpen)onEditState?.({selected:selectedCount,previewKey,version:timelineVersion});},[onEditState,editOpen,selectedCount,previewKey,timelineVersion]);
  const clubEditView=()=>{if(!p||!embedded)return null;const zoomRange=zoomSlider(timelineControls.current?.width()||1000,duration);const stageProject=preview?.after&&previewPhase==='after'?preview.after:p;return <div className={`edit-workspace club-edit ${sideView?'has-side':''}`}>
   <main className="club-edit-stage">

@@ -182,3 +182,10 @@ test('Task 14: ⌘ scroll zooms at the pointer; the zoom slider is linear in the
  assert.ok(Math.abs((a-b)-(b-c))<1e-6,'equal slider steps change the seconds in view by equal amounts');
  assert.ok(Math.abs(z.toScale(z.fromScale(80))-80)<1e-9,'round trip');
 });
+
+test('Task 14: a selection counts a link group as one clip',async()=>{
+ const {selectionCount}=await import('./timeline-edit');
+ const p=project([...take(1,0,10),...take(2,10,10)]);
+ assert.equal(selectionCount(p.clips,['screen1','camera1','audio1']),1);
+ assert.equal(selectionCount(p.clips,['screen1','camera1','audio1','screen2','z9']),3,'two takes and one caption');
+});
