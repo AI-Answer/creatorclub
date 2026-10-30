@@ -13,7 +13,7 @@ import type {Playhead} from './playhead';
  */
 type Change=(fn:(p:Project)=>void,opts?:{coalesce?:string})=>void;
 
-export function MotionPanel({project:p,selected,playhead,change,select,notify,club}:{project:Project;selected:string|null;playhead:Playhead;change:Change;select:(id:string)=>void;notify?:(message:string)=>void;club?:boolean}){
+export function MotionPanel({project:p,selected,playhead,change,select,notify,club,onHover}:{project:Project;selected:string|null;playhead:Playhead;change:Change;select:(id:string)=>void;notify?:(message:string)=>void;club?:boolean;/** Pointing at a graphic shows it on the video, at the playhead, without adding it. */onHover?:(template:MotionTemplateId|null)=>void}){
  const block=p.motion?.find(m=>m.id===selected);
  const add=(template:MotionTemplateId)=>{
   const id=makeId(),start=playhead.get();let problem='';
@@ -22,8 +22,8 @@ export function MotionPanel({project:p,selected,playhead,change,select,notify,cl
   if(problem)notify?.(problem);else select(id);
  };
  return <>
-  <section className="inspector-section"><h3>Add at the playhead</h3><p className="hint">Animated graphics on their own Motion row. The preview plays them as the export renders them.</p>
-   <div className="element-grid motion-gallery">{MOTION_TEMPLATE_IDS.map(id=><button key={id} type="button" onClick={()=>add(id)}><span className={`motion-mini mm-${id}`} aria-hidden="true"><i/><i/></span><b>{MOTION_TEMPLATES[id].label}</b></button>)}</div>
+  <section className="inspector-section"><h3>Add at the playhead</h3><p className="hint">Point at one to see it on your video. Click to add it.</p>
+   <div className="element-grid motion-gallery">{MOTION_TEMPLATE_IDS.map(id=><button key={id} type="button" onClick={()=>{onHover?.(null);add(id);}} onMouseEnter={()=>onHover?.(id)} onMouseLeave={()=>onHover?.(null)} onFocus={()=>onHover?.(id)} onBlur={()=>onHover?.(null)}><span className={`motion-mini mm-${id}`} aria-hidden="true"><i/><i/></span><b>{MOTION_TEMPLATES[id].label}</b></button>)}</div>
   </section>
   {block?<BlockFields key={block.id} project={p} block={block} change={change}/>:
    <section className="inspector-section"><h3>{club?'In this video':'In this project'}</h3>{(p.motion??[]).map(m=><button key={m.id} type="button" className="list-item" onClick={()=>select(m.id)}><span>{MOTION_TEMPLATES[m.template]?.label}: {motionText(m)}</span><small>{timecode(m.start)}</small></button>)}{!p.motion?.length&&<p className="hint">Nothing yet. Add one above, or ask the companion: “add a lower third at 0:12”.</p>}</section>}

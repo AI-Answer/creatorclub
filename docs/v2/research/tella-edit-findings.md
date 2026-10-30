@@ -62,3 +62,13 @@ Seen across all of them: each tool is a coloured tile with its name under it; th
 - Timeline: no row labels or striping, a soft waveform band, caption chips that carry the words, a red playhead.
 - Cut panel now has Tella's shape: a "Show transcript" button in the header, then Mistakes, Silences, Gaps between clips, Volume and Layout and titles, each with its own Review (preview on the video) and Cut all (one undoable edit). Checked by screenshot; Cut all was not pressed, to leave your video alone.
 - Not built: Tella's "Buffers" (silence at the start and end). We have no measure of that, so I did not add a section for it. Tella also shows the timeline only for some tools; ours always shows it.
+
+## Repos read for the agentic side (2026-10-30; READMEs and file lists only, nothing cloned, licences not yet checked)
+- **Samin12/proof-first-video-pipeline:** a staged editing skill (snapshot, cut candidates, cut review, one writer applies cuts, proof and visual plan, template visuals, assemble, review, optional reels). Ships an interactive map where selecting a stage shows its model, tools, input, output and quality gate. Idea for us: the Edit chat can show the stage it is on instead of a wall of text.
+- **nateherkai/herk-edit-kit:** 15 skills for Codex and Claude Code on HyperFrames, 406 draft motion-graphics cards as HTML in two styles, each with a manifest, CSS tokens and editable slots, plus transcript-driven cuts and mistake detection. The HTML card with editable slots is the shape our "hover to see it" needs.
+- **zhuyansen/awesome-claude-video-skills:** a list of 385 video skill repos; each entry has a short preview GIF. The pattern worth borrowing: every skill shows a looping preview before you run it.
+- **github topic reels-editor:** mostly unrelated apps. One fits: moshspro-dev/video-effect-reel, a library of 123 effect recipes you can look up by name.
+
+## Fourth pass (2026-10-30)
+- Timeline no longer runs 20 seconds past the end of the video; it now ends 3 seconds after it. (One-line change; not checked by scrolling, because keyboard and scroll input to the app were blocked.)
+- Graphics panel: pointing at Title Card, Lower Third, Callout or Chapter Label shows it on the video at the playhead without adding it; moving away puts the playhead back. Built on the preview that the chat's cards already use. Type-checked; not seen working, for the same reason.

@@ -76,7 +76,7 @@ export const TimelineClub=memo(function TimelineClub({project:p,playhead,scale,o
  const ref=useRef<HTMLDivElement>(null),heads=useRef<HTMLDivElement>(null),[win,setWin]=useState(()=>timelineWindow(0,1000)),winRef=useRef(win),[drag,setDrag]=useState<Drag|null>(null),[marquee,setMarquee]=useState<SelectionRect|null>(null);
  const view=useCallback((left:number,width:number)=>{const next=timelineWindow(left,width);if(!sameTimelineWindow(next,winRef.current)){winRef.current=next;setWin(next);}},[]);
  const page=useCallback((el:HTMLElement)=>{queueMicrotask(()=>flushSync(()=>view(el.scrollLeft,el.clientWidth)));},[view]);
- const duration=useMemo(()=>projectDuration(p),[p]),extent=Math.max(duration+20,(ref.current?.clientWidth??1000)/scale),width=extent*scale;
+ const duration=useMemo(()=>projectDuration(p),[p]),extent=Math.max(duration+3,(ref.current?.clientWidth??1000)/scale),width=extent*scale;
  const rows=useMemo(()=>usedRows(p),[p]),rowById=useMemo(()=>new Map(rows.map(r=>[r.id,r])),[rows]),contentHeight=rowsHeight(rows);
  const mediaById=useMemo(()=>new Map(p.media.map(m=>[m.id,m])),[p.media]),groups=useMemo(()=>linkGroups(p.clips),[p.clips]);
  const groupSize=useMemo(()=>{const n=new Map<string,number>();for(const key of groups.values())n.set(key,(n.get(key)??0)+1);return n;},[groups]);

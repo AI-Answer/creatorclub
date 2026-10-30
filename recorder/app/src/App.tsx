@@ -3,7 +3,7 @@ import {createPortal} from "react-dom";
 import {Activity,memo,useCallback,useEffect,useLayoutEffect,useMemo,useRef,useState} from "react";
 import {ArrowLeft,ArrowRight,AudioLines,Camera,Check,ChevronDown,ChevronLeft,ChevronRight,Clock3,Clapperboard,Elements,Copy,Download,FileText,Film,FolderOpen,Grid2X2,History,Image,Layers,LayoutTemplate,LoaderCircle,Magnet,Maximize2,Mic,Minus,MoreHorizontal,MousePointer2,Music,Pause,Play,Plus,Redo2,Scissors,Search,Settings2,SkipBack,SkipForward,Sparkles,Subtitles,Trash2,Type,Undo2,Upload,Video,WandSparkles,X,ZoomIn} from './Icons';
 import type {Clip,Media,Project,Scene,TrackKind} from '../shared/types';
-import {clipDuration,makeId,projectDuration} from '../shared/types';
+import {clipDuration,makeId,projectDuration,type MotionTemplateId} from '../shared/types';
 import {api,apiResult,projectRevision,insertMedia,timecode} from './api';
 import {confirmTake,saveProjectTake,type ConfirmTakeOptions,type SavedTake} from './recorded-takes';
 import {useStudio} from './useStudio';
@@ -13,7 +13,7 @@ import {cutWordsLabel,deleteTranscriptSelection,type WordSelection} from './tran
 import {Timeline} from './Timeline';
 import {TimelineResize} from './TimelineResize';
 import {Inspector,Panel,Field,type Change} from './Inspector';
-import {MOTION_TEMPLATES,motionText} from '../shared/motion/templates';
+import {MOTION_TEMPLATES,motionText,newMotionBlock} from '../shared/motion/templates';
 import {AgentChat} from './AgentChat';
 import {QuickActionButtons,QuickActionDialog,TranscriptionStatus} from './QuickActions';
 import {useProjectAutomation} from './useAutomation';
@@ -47,7 +47,7 @@ import {CutPlayback} from './CutPlayback';
 import {recallEditView,rememberEditView} from './edit-session';
 import {timelineContextItems,timelineMoreItems,type TimelineMenuActions} from './edit-menus';
 import {TimelineClub,rowsHeight,usedRows,type TimelineControls} from './TimelineClub';
-import {type Deleted,addMarker,applyClipStarts,clampScale,deleteItems,ensureLinks,freeDelta,insertGap,mergeRanges,moveEffects,rowItems,isLinked,linkClips,linkedIds,remapLinks,selectionCount,zoomSlider,syncScenesToTakes,rulerLabel,lengthLabel,showTenths,splitLinked,unlinkClips} from './timeline-edit';
+import {type Deleted,addMarker,addMotionBlock,applyClipStarts,clampScale,deleteItems,ensureLinks,freeDelta,insertGap,mergeRanges,moveEffects,rowItems,isLinked,linkClips,linkedIds,remapLinks,selectionCount,zoomSlider,syncScenesToTakes,rulerLabel,lengthLabel,showTenths,splitLinked,unlinkClips} from './timeline-edit';
 
 const panels:Array<{name:Panel;icon:typeof Film}>=[{name:'Canvas',icon:Image},{name:'Layout',icon:LayoutTemplate},{name:'Clip',icon:Clapperboard},{name:'Zoom',icon:ZoomIn},{name:'Motion',icon:Sparkles},{name:'Elements',icon:Elements},{name:'Music',icon:Music},{name:'Captions',icon:Subtitles},{name:'Cursor',icon:MousePointer2},{name:'Automate',icon:WandSparkles}];
 const MediaRecoveryNotice=memo(MediaRecoveryBanner),RecordingWorkspace=memo(Recording),ScriptWorkspace=memo(ScriptEditor);
@@ -311,6 +311,16 @@ export default function App({embedded}:{embedded?:EmbeddedRecorder}={}){
   const at='time' in action?action.time:'start' in action?action.start:undefined;if(at!==undefined)seek(at+(action.type==='add_motion_block'?Math.min(1,(action.duration??2)/2):.05));
   showPreview({key,label,summary:describeEditAction(action,p),after});return;
  });
+ /** Pointing at a graphic in the Graphics panel shows it on the video at the playhead (a second in, once its way in has played); moving away puts the playhead back. */
+ const hoverFrom=useRef<number|null>(null);
+ const hoverMotion=useEvent((template:MotionTemplateId|null)=>{
+  if(!template||!p){setPreview(current=>{if(current?.key.startsWith('hover:')&&hoverFrom.current!==null){seek(hoverFrom.current);hoverFrom.current=null;return null;}return current?.key.startsWith('hover:')?null:current;});return;}
+  const start=playhead.get(),spec=MOTION_TEMPLATES[template];
+  let after:Project;try{after=applyProjectChange(p,d=>{const r=addMotionBlock(d,newMotionBlock(template,start,makeId()),true,true);if('problem' in r)throw Error(r.problem);});}catch{return;}
+  if(hoverFrom.current===null)hoverFrom.current=start;
+  setPlaying(false);seek(start+Math.min(1,spec.defaultDuration/2));
+  showPreview({key:`hover:${template}`,label:spec.label,summary:'How it looks at the playhead. Click to add it.',after});
+ });
  const estimateEdit=useEvent((action:EditAction,options:EditOptions={})=>p?editEstimate(p,action,options):undefined);
  const editorFlush=useEvent(()=>studio.flush());
  const onEditor=embedded?.onEditor,editOpen=Boolean(p&&embedded&&mode==='Edit'&&p.id===embedded.projectId);
@@ -335,7 +345,7 @@ const formatLabel=(w:number,h:number)=>({'1920x1080':'16:9','1080x1920':'9:16','
     {preview.after&&<span className="club-seg" role="group" aria-label="Before or after">{(['before','after'] as const).map(v=><button key={v} type="button" aria-pressed={previewPhase===v} onClick={()=>setPreviewPhase(v)}>{v==='before'?'Before':'After'}</button>)}</span>}</div>}
   </main>
   <div className="club-edit-side" hidden={!sideView}>
-   {sideView==='panel'&&panel&&<Inspector project={p} panel={panel} selected={selected} playhead={playhead} change={studio.change} select={select} onImport={beginImport} onAI={openAI} club onClose={()=>setPanel(null)} onNotice={refuse}/>}
+   {sideView==='panel'&&panel&&<Inspector project={p} panel={panel} selected={selected} playhead={playhead} change={studio.change} select={select} onImport={beginImport} onAI={openAI} club onClose={()=>setPanel(null)} onNotice={refuse} onHoverMotion={hoverMotion}/>}
    {sideView==='auto'&&<EditAutoSheet key={`${p.id}:${autoInitial??''}`} project={p} jobs={automation.jobs} merge={automation.merge} reload={automation.reload} flush={studio.flush} change={studio.change} refresh={studio.reload} onPreview={showPreview} onClose={()=>setSide('transcript')} onChanged={embedded.onChanged} notify={notify} initial={autoInitial}/>}
    {sideView==='media'&&<aside className="club-sheet club-media"><header><b>Media in this video</b><button type="button" className="club-sheet-close" aria-label="Close media" onClick={()=>setSide('transcript')}><X size={16}/></button></header><p className="club-sheet-hint">Drag onto a row of the timeline, or click to add at the playhead.</p>
     <div className="media-grid">{p.media.map(m=><button className="media-card" key={m.id} draggable onDragStart={e=>e.dataTransfer.setData('application/sceneforge-media',m.id)} onClick={()=>studio.change(d=>insertMedia(d,[m],playhead.get()))}>{m.kind==='audio'?<div className="media-audio"><AudioLines/></div>:<img src={`/api/media/${m.id}/thumbnail`} alt="" loading="lazy"/>}<b>{m.name}</b><small>{rulerLabel(m.duration)} · {m.kind}</small></button>)}</div>
