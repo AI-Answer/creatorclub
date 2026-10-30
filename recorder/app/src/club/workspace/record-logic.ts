@@ -1,4 +1,5 @@
 import type {Outline,OutlineScene,Package,Video,VideoScene} from '../../../shared/club';
+import {describeAngle} from '../../../shared/description';
 
 /*
  * The parts of Record and Publish that need no screen: which recording-project scene a strip choice means, which outline scene the
@@ -29,11 +30,14 @@ export const sceneRunSeconds=(scene:VideoScene):number=>{
  return kept?Math.max(0,kept.seconds-(scene.cutSeconds??0)):scene.seconds;
 };
 
-/** The description to start from: the hook, the angle, then a chapter line per scene ("0:00 Opening"). YouTube needs the first chapter at 0:00. */
+/**
+ * The description to start from: the hook, the angle, then a chapter line per scene ("0:00 Opening"). YouTube needs the first chapter at 0:00.
+ * Nothing comes from the outline's promise, and the angle is cut before any sentence of the planner's own notes about the brief (`describeAngle`).
+ */
 export function buildDescription(pkg:Package|null,scenes:readonly VideoScene[]|undefined,clock:(seconds:number)=>string):string{
  let at=0;
  const chapters=(scenes??[]).map(scene=>{const line=`${clock(at)} ${scene.title}`;at+=sceneRunSeconds(scene);return line;});
- const parts=[pkg?.hook.spoken.trim(),pkg?.angle.trim(),chapters.length?`Chapters\n${chapters.join('\n')}`:''].filter(Boolean);
+ const parts=[pkg?.hook.spoken.trim(),describeAngle(pkg?.angle??''),chapters.length?`Chapters\n${chapters.join('\n')}`:''].filter(Boolean);
  return parts.join('\n\n');
 }
 
