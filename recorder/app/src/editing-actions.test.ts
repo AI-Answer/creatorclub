@@ -6,7 +6,8 @@ import {clipLayerRowId} from '../shared/timeline-layers';
 import {applyProjectChange} from './project-draft';
 import {applyEditAction,describeEditAction,editActionProblem,editEstimate,editRanges,wordPauseRanges} from './editing-actions';
 import {clipsFingerprint} from './club/recorder/edit-auto';
-import {applyClipStarts,deleteItems,ensureLinks,freeDelta,linkGroups,linkedIds,mergeRanges,newElement,planClipMove,rowItems,rowsOverlap,splitLinked,syncScenesToTakes,trimBounds,trimClips} from './timeline-edit';
+import {addMotionBlock,applyClipStarts,deleteItems,ensureLinks,freeDelta,linkGroups,linkedIds,mergeRanges,MOTION_ROW,moveEffects,newElement,planClipMove,resizeEffect,rowItems,rowsOverlap,splitLinked,syncScenesToTakes,trimBounds,trimClips} from './timeline-edit';
+import {MOTION_TEMPLATES,MOTION_TEMPLATE_IDS,newMotionBlock} from '../shared/motion/templates';
 
 /*
  * The companion's Edit actions: each one through the timeline rules, the checks that keep a card off a timeline it does not fit,
@@ -145,6 +146,31 @@ test('a long delete is said on the card and capped; a zoom says which zoom it re
  assert.equal(newElement('highlight',0).background,'#bba6ff66');
 });
 
+test('add a motion block: on the Motion row over clips, never inside another block, shortened to the room it has',()=>{
+ const p=make();
+ const {next,result}=apply(p,{type:'add_motion_block',template:'lower-third',start:12,text:'Samin Yasar',detail:'Founder'});
+ assert.equal(result,'Lower third added at 0:12.0');
+ assert.deepEqual(next.motion!.map(m=>[m.template,m.style,m.start,m.duration,m.props.name,m.props.role]),[['lower-third','block',12,5,'Samin Yasar','Founder']]);
+ assert.equal(next.clips.length,p.clips.length,'clips untouched');
+ assert.equal(editActionProblem(next,{type:'add_motion_block',template:'title-card',start:14,text:'T'}),'Another motion block is already there at that time.');
+ // Starts before the block at 12 s: it stops where that one starts, and the card says so.
+ assert.deepEqual(editEstimate(next,{type:'add_motion_block',template:'title-card',start:9,text:'T'}),{text:'Shortened to 3 s: it stops at 0:12.0, where the next motion block starts.'});
+ const two=apply(next,{type:'add_motion_block',template:'title-card',start:9,text:'T'}).next;
+ assert.deepEqual(two.motion!.map(m=>[m.start,m.duration]),[[9,3],[12,5]]);
+ assert.equal(editActionProblem(two,{type:'add_motion_block',template:'callout',start:11.5,text:'Here',x:.2,y:.3}),'Another motion block is already there at that time.');
+ assert.match(editActionProblem(next,{type:'add_motion_block',template:'lower-third',start:11,text:'X'})!,/no room for a lower third/);
+ assert.equal(editActionProblem(p,{type:'add_motion_block',template:'lower-third',style:'neon',start:2,text:'X'}),'A lower third has no style called "neon".');
+ assert.equal(editActionProblem(p,{type:'add_motion_block',template:'chapter-label',start:projectDuration(p)-.5,text:'X'}),'That is too close to the end of the video.');
+ assert.equal(editActionProblem(p,{type:'add_motion_block',template:'chapter-label',start:projectDuration(p)+3,text:'X'}),'That time is outside the video.');
+ const callout=apply(p,{type:'add_motion_block',template:'callout',style:'ring',start:3,duration:2,text:'Click here',x:.25,y:.7}).next.motion![0];
+ assert.deepEqual(callout.props,{label:'Click here',x:.25,y:.7});
+ assert.equal(describeEditAction({type:'add_motion_block',template:'lower-third',start:12,text:'Samin Yasar',detail:'Founder'}),'Lower third (block) “Samin Yasar” · Founder at 0:12.0 for 5 s.');
+ // A ripple delete before the block moves it up; a delete across it shortens it; deleting it removes only it.
+ const cut=apply(next,{type:'delete_range',start:2,end:4}).next;assert.deepEqual(cut.motion!.map(m=>[m.start,m.duration]),[[10,5]]);
+ const across=apply(next,{type:'delete_range',start:14,end:16}).next;assert.deepEqual(across.motion!.map(m=>[m.start,m.duration]),[[12,3]]);
+ const gone=applyProjectChange(next,d=>{deleteItems(d,[next.motion![0].id],false);});assert.deepEqual(gone.motion,[]);assert.equal(gone.clips.length,next.clips.length);
+});
+
 // ---------------------------------------------------------------- random sequences
 
 let seed=1;const rnd=()=>{seed=(seed*1103515245+12345)%2147483648;return seed/2147483648;};const pick=<X,>(list:readonly X[])=>list[Math.floor(rnd()*list.length)];
@@ -153,7 +179,7 @@ const edited=(p:Project)=>p.clips.filter(c=>c.track!=='music');
 /** Actions as a model would offer them: mostly in range, some outside it or naming a clip that is gone (those are refused, as on the server). */
 function randomAction(p:Project):EditAction{
  const t=()=>rnd()<.9?rnd()*length(p):length(p)+5,c=()=>rnd()<.9?pick(edited(p))?.id??'gone':'gone';
- switch(Math.floor(rnd()*11)){
+ switch(Math.floor(rnd()*12)){
   case 0:return {type:'cut_pauses',level:pick(['gentle','balanced','tight'] as const)};
   case 1:return {type:'remove_fillers'};
   case 2:return {type:'close_gaps'};
@@ -164,6 +190,7 @@ function randomAction(p:Project):EditAction{
   case 7:{const a=t();return {type:'add_caption',start:a,end:a+.5+rnd()*3,text:'Caption'};}
   case 8:return {type:'add_text',start:t(),duration:.5+rnd()*6,text:'Title'};
   case 9:return {type:'set_zoom',start:t(),duration:.5+rnd()*5,scale:1.2+rnd()*2};
+  case 10:{const template=pick(MOTION_TEMPLATE_IDS);return {type:'add_motion_block',template,style:rnd()<.9?pick(MOTION_TEMPLATES[template].styles).id:'neon',start:t(),...(rnd()<.5?{duration:1+rnd()*8}:{}),text:'Graphic',...(template==='callout'?{x:rnd(),y:rnd()}:{})};}
   default:return {type:'normalize_audio'};
  }
 }
@@ -176,9 +203,14 @@ const userEdits:Record<string,(p:Project)=>void>={
  trim:p=>{const c=pick(edited(p));if(!c)return;const side=rnd()<.5?'left':'right',edge=(x:Clip)=>side==='left'?x.start:x.start+clipDuration(x);
   const ids=new Set([...linkedIds(p.clips,[c.id])].filter(id=>Math.abs(edge(p.clips.find(x=>x.id===id)!)-edge(c))<1e-3)),b=trimBounds(p,ids,side,true),d=Math.max(b.min,Math.min(b.max,(rnd()-.5)*8));
   if(d){ensureLinks(p);trimClips(p,ids,side,d,true);syncScenesToTakes(p);}},
+ // Motion blocks as the Motion row and panel change them: add at the playhead (after a block already there), drag (slides to a gap), resize an edge, delete.
+ addMotion:p=>{addMotionBlock(p,newMotionBlock(pick(MOTION_TEMPLATE_IDS),rnd()*length(p),`mb${Math.floor(rnd()*1e9)}`),true);},
+ moveMotion:p=>{const m=pick(p.motion??[]);if(!m)return;const items=rowItems(p),moving=items.filter(i=>i.id===m.id);moveEffects(p,new Set([m.id]),freeDelta(moving,(rnd()-.5)*20,items));},
+ resizeMotion:p=>{const m=pick(p.motion??[]);if(m)resizeEffect(p,m.id,rnd()<.5?'left':'right',(rnd()-.5)*10);},
+ deleteMotion:p=>{const m=pick(p.motion??[]);if(m){deleteItems(p,[m.id],rnd()<.5);syncScenesToTakes(p);}},
 };
 /** The timeline parts a card changes, as the server compares them for Undo. */
-const KEYS=['clips','captions','captionStyle','elements','zooms','scenes','markers','cursor'] as const;
+const KEYS=['clips','captions','captionStyle','elements','motion','zooms','scenes','markers','cursor'] as const;
 const timeline=(p:Project)=>JSON.stringify(KEYS.map(key=>p[key]??null));
 const restore=(p:Project,before:Project)=>applyProjectChange(p,d=>{for(const key of KEYS)(d as unknown as Record<string,unknown>)[key]=structuredClone((before as unknown as Record<string,unknown>)[key]);});
 
@@ -198,6 +230,7 @@ function problems(p:Project):string[]{
  // Clip rows, text and graphics, zooms. Captions are checked per card below: a move of a clip by hand can already make them overlap (older behaviour, Task 2).
  const items=rowItems({...p,captions:[]});if(rowsOverlap(items)){const rows=[...new Set(items.map(i=>i.row))].filter(r=>rowsOverlap(items.filter(i=>i.row===r)));out.push(`row ${rows.join(',')} overlaps`);}
  if(items.some(i=>i.start<-1e-6))out.push('negative start');
+ if(items.some(i=>i.row===MOTION_ROW&&!(i.duration>0)))out.push('an empty motion block');
  const groups=linkGroups(p.clips),members=new Map<string,Clip[]>();for(const c of p.clips){const key=groups.get(c.id)!;members.set(key,[...(members.get(key)??[]),c]);}
  for(const [key,list] of members){
   const rows=list.map(c=>clipLayerRowId(c,p));if(new Set(rows).size<rows.length)out.push(`group ${key} has two clips on one row`);
@@ -209,7 +242,7 @@ function problems(p:Project):string[]{
 }
 
 test('random sequences of cards, Undo and the person\'s own edits keep rows, links and scenes consistent',t=>{
- const failures:string[]=[];let applied=0,refused=0,undone=0,undoRefused=0,steps=0;
+ const failures:string[]=[];let applied=0,refused=0,undone=0,undoRefused=0,steps=0,motionCards=0,motionSteps=0;
  for(let run=0;run<300;run++){
   seed=run+1;let p=make();const history:string[]=[];const versions:Array<{before:Project;after:string}>=[];
   for(let step=0;step<14;step++){
@@ -218,11 +251,11 @@ test('random sequences of cards, Undo and the person\'s own edits keep rows, lin
     // Undo of a random applied card: only while the timeline still equals what that card wrote, as the server checks it.
     const v=versions.splice(Math.floor(rnd()*versions.length),1)[0];
     if(timeline(p)===v.after){p=restore(p,v.before);undone++;history.push('undo');}else{undoRefused++;history.push('undo refused');}
-   }else if(r<.45){const name=pick(Object.keys(userEdits));p=applyProjectChange(p,d=>userEdits[name](d));history.push(name);}
+   }else if(r<.45){const name=pick(Object.keys(userEdits));p=applyProjectChange(p,d=>userEdits[name](d));history.push(name);if(name.endsWith('Motion'))motionSteps++;}
    else{
     const action=randomAction(p);
     if(editActionProblem(p,action)){refused++;history.push(`refused ${action.type}`);}
-    else{const before=p,ranges=editRanges(p,action);p=apply(p,action).next;versions.push({before,after:timeline(p)});applied++;history.push(action.type);
+    else{const before=p,ranges=editRanges(p,action);p=apply(p,action).next;versions.push({before,after:timeline(p)});applied++;history.push(action.type);if(action.type==='add_motion_block')motionCards++;
      const changed=ranges&&contentKept(before,p,mergeRanges(ranges));if(changed){failures.push(`run ${run}: ${history.join(' > ')}: content changed outside the cut: ${changed}`);break;}
      if(captionsOverlap(p)&&!captionsOverlap(before)){failures.push(`run ${run}: ${history.join(' > ')}: the card made captions overlap`);break;}}
    }
@@ -231,5 +264,6 @@ test('random sequences of cards, Undo and the person\'s own edits keep rows, lin
  }
  assert.deepEqual(failures.slice(0,6),[],`${failures.length} of 300 sequences broke an invariant`);
  assert.ok(applied>1000&&undone>50&&undoRefused>20&&refused>50,`applied ${applied}, refused ${refused}, undone ${undone}, undo refused ${undoRefused}`);
- t.diagnostic(`${steps} steps in 300 sequences: ${applied} cards applied, ${refused} refused, ${undone} undone, ${undoRefused} undos refused after later changes`);
+ assert.ok(motionCards>100&&motionSteps>200,`motion cards ${motionCards}, motion edits ${motionSteps}`);
+ t.diagnostic(`${steps} steps in 300 sequences: ${applied} cards applied (${motionCards} motion blocks), ${refused} refused, ${undone} undone, ${undoRefused} undos refused after later changes, ${motionSteps} motion edits by hand`);
 });

@@ -9,5 +9,7 @@ await build({entryPoints:['server/index.ts','server/mcp.ts'],outdir:'server-dist
 await mkdir('server-dist',{recursive:true});
 for(const file of ['media-text.swift','vision-helper.swift'])await copyFile('server/'+file,'server-dist/'+file);
 await copyFile('desktop/mcp-entry.mjs','server-dist/mcp-entry.mjs');
+// Motion blocks render with Inter (server/motion-render.ts reads it next to the bundle).
+await copyFile('node_modules/@fontsource-variable/inter/files/inter-latin-wght-normal.woff2','server-dist/inter-latin-wght-normal.woff2');
 if(process.platform==='darwin')for(const [source,binary] of [['media-text.swift','sceneforge-text-renderer'],['vision-helper.swift','sceneforge-vision']])await promisify(execFile)('swiftc',['-O','-target','arm64-apple-macos14.0','server/'+source,'-o','server-dist/'+binary]);
 if(process.platform==='darwin')await promisify(execFile)('swiftc',['-O','-target','arm64-apple-macos14.0','desktop/native-recording.swift','-o','server-dist/sceneforge-screen-recorder']);

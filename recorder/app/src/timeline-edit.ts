@@ -322,7 +322,7 @@ export function addMotionBlock(p:Project,block:MotionBlock,slide=false):{block:M
  let start=Math.max(0,block.start);
  for(let on=motionAt(p,start);on;on=motionAt(p,start)){if(!slide)return {problem:'Another motion block is already there at that time.'};start=on.start+on.duration;}
  const shortest=MOTION_TEMPLATES[block.template].minDuration,duration=Math.min(block.duration,nextMotionStart(p,start)-start);
- if(duration<shortest-1e-9)return {problem:`There is no room for a ${MOTION_TEMPLATES[block.template].label.toLowerCase()} there: the next block starts too soon.`};
+ if(duration<shortest-1e-9)return {problem:`There is no room for a ${MOTION_TEMPLATES[block.template].label.toLowerCase()} there: the next motion block starts too soon.`};
  const placed={...block,start,duration};(p.motion??=[]).push(placed);p.motion.sort((a,b)=>a.start-b.start);
  return {block:placed};
 }

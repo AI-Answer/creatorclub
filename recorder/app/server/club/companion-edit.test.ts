@@ -243,3 +243,32 @@ test('Edit\'s companion does not run on ChatGPT, which could reach the editing t
     await call('PUT', '/settings', { defaultAi: 'claude' });
   }
 });
+
+test('"add a lower third at 0:12": a closed shape, checked against the Motion row, applied and undone like any timeline card', async () => {
+  const message = await reply('add a lower third at 0:12', [
+    { type: 'add_motion_block', template: 'lower-third', style: 'neon', start: 12, text: 'Maya Lopez' },
+    { type: 'add_motion_block', template: 'lower-third', start: 12, text: 'Maya Lopez', x: 0.3 },
+    { type: 'add_motion_block', template: 'confetti', start: 12, text: 'Maya Lopez' },
+    { type: 'add_motion_block', template: 'lower-third', start: 12, text: 'Maya Lopez', html: '<b>' },
+    { type: 'add_motion_block', template: 'lower-third', start: 95, text: 'Maya Lopez' },
+    { type: 'add_motion_block', template: 'lower-third', style: 'glass', start: 12, duration: 5, text: 'Maya Lopez', detail: 'Creator, @maya' },
+  ]);
+  assert.deepEqual(message.cards.map((each) => each.action), [{ type: 'add_motion_block', template: 'lower-third', style: 'glass', start: 12, duration: 5, text: 'Maya Lopez', detail: 'Creator, @maya' }]);
+  const before = await state();
+  assert.equal((JSON.parse(before.json) as Project).motion, undefined, 'the recording had no motion blocks');
+  const applied = await card(message, 0, 'apply', { revision: before.revision });
+  assert.equal(applied.status, 200, JSON.stringify(applied.body));
+  assert.equal(applied.body.message.cards[0].result, 'Lower third added at 0:12.0');
+  const block = applied.body.project!.motion![0];
+  assert.deepEqual([block.template, block.style, block.start, block.duration, block.props], ['lower-third', 'glass', 12, 5, { name: 'Maya Lopez', role: 'Creator, @maya' }]);
+  assert.deepEqual(applied.body.project!.clips, JSON.parse(before.json).clips, 'the clips are untouched: a block sits over them');
+
+  // The next prompt lists the block, and a second block may not start inside it.
+  const again = await reply('and a title at 0:14', [{ type: 'add_motion_block', template: 'title-card', start: 14, text: 'Hidden features' }]);
+  assert.match(asked.at(-1)!.prompt, /Motion blocks on the Motion row[^\n]*\n- [^\n]+ lower-third glass 12\.00 to 17\.00 "Maya Lopez"/);
+  assert.deepEqual(again.cards, [], 'refused: another motion block is already there');
+
+  const undone = await card(message, 0, 'undo', { revision: applied.body.revision });
+  assert.equal(undone.status, 200, JSON.stringify(undone.body));
+  assert.equal((JSON.parse((await state()).json) as Project).motion, undefined, 'Undo puts back the timeline without motion blocks');
+});
