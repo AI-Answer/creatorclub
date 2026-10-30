@@ -19,6 +19,7 @@ import {ideaFromSource,trendingUrl,useIdeaFrom} from '../useIdeaFrom';
 import type {JobRun} from '../useJobRun';
 import {useProfile} from '../useProfile';
 import {useVideos} from '../useVideos';
+import {useAddToResearch} from '../useAddToResearch';
 
 const plural=(n:number,word:string)=>`${n} ${word}${n===1?'':'s'}`;
 /** How many cards show before "Show more". */
@@ -40,7 +41,7 @@ type Waiting={left:Set<'videos'|'posts'>;videos:number;posts:number;news:boolean
  * matched to your topics. A view switch (For you, Followed), source chips under For you (YouTube, X, Reddit), one sort, one Refresh that reads both again.
  * While a refresh runs the rows stay where they are; when it is done and the order changed, "New results" puts the new order in.
  * A source that could not be read keeps its earlier posts and is named with Try again, which reads just those sources.
- * Every card has one action, Turn into idea (it flips to In ideas at once); a video's row opens its breakdown. Your ideas are on Videos; here is only their count.
+ * Every card has one action, Turn into idea (it flips to In ideas at once; Add to Research shows under the pointer); a video's row opens its breakdown. Your ideas are on Videos; here is only their count.
  */
 export function DiscoverScreen({show='fit',navigate}:{show?:DiscoverShow;navigate(route:Route,options?:{replace?:boolean}):void}){
  const trending=useTrending(),signals=useSignals();
@@ -54,6 +55,7 @@ export function DiscoverScreen({show='fit',navigate}:{show?:DiscoverShow;navigat
  const [failedChannels,setFailedChannels]=useState<string[]>([]),[note,setNote]=useState(''),[adding,setAdding]=useState(false);
  const videos=state.status==='ready'?state.videos:[];
  const ideaFrom=useIdeaFrom(videos,navigate);
+ const addToResearch=useAddToResearch(navigate);
  const sort=sortFor(show,chosenSort);
 
  // While a refresh runs, the rows on screen are the ones from before it: nothing moves under the pointer.
@@ -163,8 +165,8 @@ export function DiscoverScreen({show='fit',navigate}:{show?:DiscoverShow;navigat
   {shown.length
    ?<div className="card feed">{shown.slice(0,limit).map((entry,index)=>entry.kind==='video'
     ?<VideoRow key={feedKey(entry)} item={entry.item} rank={index+1} isNew={isNew(entry.item,trending.data?.updatedAt??null)} reason={show!=='followed'?entry.item.reason:null}
-      hasBreakdown={!!(saved&&savedBreakdown(saved,entry.item.videoId))} inIdeas={inIdeas(trendingUrl(entry.item.videoId))} onBreak={setBreakdown} onIdea={openVideoIdea} onFollowed={()=>void trending.reload()}/>
-    :<PostRow key={feedKey(entry)} item={entry.item} rank={index+1} reason={entry.item.reason} inIdeas={inIdeas(entry.item.url)} onIdea={openPostIdea}/>)}</div>
+      hasBreakdown={!!(saved&&savedBreakdown(saved,entry.item.videoId))} inIdeas={inIdeas(trendingUrl(entry.item.videoId))} onBreak={setBreakdown} onIdea={openVideoIdea} onFollowed={()=>void trending.reload()} onResearch={item=>void addToResearch({source:'trending',id:item.videoId})}/>
+    :<PostRow key={feedKey(entry)} item={entry.item} rank={index+1} reason={entry.item.reason} inIdeas={inIdeas(entry.item.url)} onIdea={openPostIdea} onResearch={item=>void addToResearch({source:'signal',id:item.id})}/>)}</div>
    :emptyFeed()}
   {shown.length>limit&&<div style={{textAlign:'center',marginTop:14}}><button type="button" className="btn" onClick={()=>setLimit(n=>n+FEED_PAGE)}>Show {Math.min(FEED_PAGE,shown.length-limit)} more</button></div>}
   {shown.length>0&&off>0&&shown.length<=limit&&<div style={{textAlign:'center',marginTop:14}}><button type="button" className="btn" onClick={()=>setEverything(open=>!open)}><Icon name={everything?'hide':'preview'} size={15}/>{everything?"Hide what isn't about your topics":`Show everything (${off} more, off topic or under their usual)`}</button></div>}

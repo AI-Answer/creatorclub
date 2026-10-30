@@ -625,6 +625,8 @@ export const COMPANION_ACTION_HELP: Record<CompanionActionType, string> = {
   draft_scenes:
     '- draft_scenes: {"type": "draft_scenes", "scenes": [{"title": "...", "talkingPoints": ["..."], "show": "what is on screen", "seconds": 60}]}: 4 to 7 scenes for the whole video, replacing the scenes it has. The opening is 90 seconds or less, the ending 60 or less, and the scenes add up to about the target length.',
   set_description: '- set_description: {"type": "set_description", "text": "..."}: the YouTube description: what the viewer gets in two or three lines, then chapters with start times from the scenes. No links you were not given.',
+  group_tiles: '- group_tiles: {"type": "group_tiles", "title": "...", "tileIds": ["t_...", "t_..."]}: puts a named frame around 2 or more cards of the board that belong together. Use the card ids exactly as given in <board>; the title is 2 to 6 words.',
+  start_video: '- start_video: {"type": "start_video", "title": "...", "tileIds": ["t_..."]}: starts a new video idea from these cards: the idea gets copies of them on its own board. Use the card ids exactly as given in <board>; the title is a working title for the video.',
   cut_pauses: '- cut_pauses: {"type": "cut_pauses", "level": "gentle" | "balanced" | "tight"}: cuts the pauses between spoken words, found from the transcript: gentle cuts pauses over 2 s, balanced over 1 s, tight over 0.5 s, keeping a breath on each side. Needs a transcript.',
   remove_fillers: '- remove_fillers: {"type": "remove_fillers"}: cuts "um", "uh" and similar words, found from the transcript\'s word timings.',
   close_gaps: '- close_gaps: {"type": "close_gaps"}: closes the empty stretches between clips.',
@@ -689,6 +691,37 @@ export async function buildCompanionPrompt(ctx: ChannelContext, input: Companion
       actions: input.actions.length ? input.actions.map((type) => COMPANION_ACTION_HELP[type]).join('\n') : '(none on this step: answer in words only)',
     }),
     system: 'You are a YouTube creator\'s planning companion. Use only the facts you are given and never invent numbers, results or product behaviour. Answer in Markdown, then the actions in the format asked for.',
+  };
+}
+
+export interface ResearchCompanionInput {
+  /** Research's cards as text, each with its id, already trimmed. */
+  board: string;
+  /** The frames, each with the ids of the cards inside it. */
+  frames: string;
+  screen: string;
+  history: { role: 'user' | 'assistant'; text: string }[];
+  message: string;
+  actions: readonly CompanionActionType[];
+}
+
+/** The companion on Research, the channel's own board: no video yet, so no idea, package or scenes; the cards and frames, and what is selected. */
+export async function buildResearchCompanionPrompt(ctx: ChannelContext, input: ResearchCompanionInput): Promise<BuiltPrompt> {
+  const template = await methodologyFile('research-companion.md');
+  const turns = input.history.slice(-CHAT_TURNS_KEPT).map((turn) => `${turn.role === 'user' ? 'Creator' : 'You'}: ${squash(turn.text).slice(0, CHAT_TURN_CHARS)}`);
+  return {
+    prompt: fill(template, {
+      name: ctx.workspace.name,
+      criteria: criteriaText(ctx),
+      voice_summary: voiceSummary(ctx.voice),
+      board: input.board || '(the board is empty)',
+      frames: input.frames || '(no frames)',
+      screen: input.screen,
+      conversation: turns.length ? turns.join('\n') : '(none yet)',
+      message: input.message.trim(),
+      actions: input.actions.map((type) => COMPANION_ACTION_HELP[type]).join('\n'),
+    }),
+    system: "You are a YouTube creator's research companion. Use only the facts you are given and never invent numbers, results or product behaviour. Answer in Markdown, then the actions in the format asked for.",
   };
 }
 

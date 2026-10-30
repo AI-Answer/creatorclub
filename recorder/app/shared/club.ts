@@ -116,7 +116,8 @@ export interface RecorderScene {
   changedAt: string;
 }
 
-export const TILE_KINDS = ['link', 'video', 'text', 'image', 'note', 'signal', 'breakdown', 'idea'] as const;
+/** `mine` is a card for one of the channel's own ideas or videos (`meta.videoId`): it opens that idea's drawer or that video's page. */
+export const TILE_KINDS = ['link', 'video', 'text', 'image', 'note', 'signal', 'breakdown', 'idea', 'mine'] as const;
 export type TileKind = (typeof TILE_KINDS)[number];
 
 export interface TileMeta {
@@ -140,6 +141,44 @@ export interface TileMeta {
   demand?: ConceptRating;
   gap?: ConceptRating;
   show?: ConceptRating;
+  /** `mine` tiles: the id of the channel's idea or video the card stands for. */
+  videoId?: string;
+}
+
+/**
+ * The channel's own Board, Research: one canvas for the whole channel, kept in the channel's `research/` folder. Boards are named by a video's id
+ * or by this, which can never be a video's id (those are letters, digits, `_` and `-`), so the two never mix.
+ */
+export const CHANNEL_BOARD = ':channel';
+
+/** A line between two cards on a Board, drawn from one card's edge to the other's. The label is optional. */
+export interface BoardLink {
+  id: string;
+  from: string;
+  to: string;
+  label?: string;
+}
+
+/** A named rectangle on a Board that groups the cards inside it: moving it moves them. */
+export interface BoardFrame {
+  id: string;
+  title: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+/** The connections and frames of a Board (`board-canvas.json` in the Board's folder). */
+export interface BoardCanvas {
+  links: BoardLink[];
+  frames: BoardFrame[];
+}
+
+/** `POST /channel/research/start-video`: the idea made from a selection on Research. */
+export interface StartedVideo {
+  video: Video;
+  tiles: number;
 }
 
 /** Where a tile sits on the video's Board, in pixels from its top left corner. `w` is its width; the Board gives it a default when it is missing. */

@@ -3,6 +3,7 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { z } from 'zod';
 import type { Outline, Video } from '../../shared/club.js';
+import type { Project } from '../../shared/types.js';
 import {
   ACTION_STEP,
   COMPANION_ACTION_TYPES,
@@ -25,6 +26,7 @@ import {
 import { AiError, aiLabel, runAI, type AIEvent } from './ai.js';
 import { boardTiles } from './board-docs.js';
 import { boardText, readBoardChat } from './board-chat.js';
+import { inFrame, readCanvas } from './board-canvas.js';
 import { actionShape, applyAction, undoVersion, validateActions, versionExists } from './companion-actions.js';
 import { chunkText, parseReply, ReplySplitter } from './companion-reply.js';
 import { editOptions, editProject, timelineText } from './companion-edit.js';
@@ -32,7 +34,7 @@ import { loadChannelContext } from './context.js';
 import { ClubError, notFound } from './errors.js';
 import { runningOnce, startJobOnce, type JobContext } from './jobs.js';
 import { readOutline, readPackage, type PlanOptions } from './planning.js';
-import { buildCompanionPrompt, type PromptIdea } from './prompts.js';
+import { buildCompanionPrompt, buildResearchCompanionPrompt, type PromptIdea } from './prompts.js';
 import { videoScenes } from './scenes.js';
 import * as store from './store.js';
 
@@ -52,7 +54,7 @@ const TEXT_EVERY_MS = 40;
 /** A runner that sends whole messages has its text shown in pieces over at most this long. */
 const FALLBACK_MS = 1200;
 
-const threadFile = (slug: string, id: string) => path.join(store.videoDir(slug, id), 'companion.json');
+const threadFile = (slug: string, id: string) => path.join(store.boardDir(slug, id), 'companion.json');
 const newId = () => `m_${randomBytes(6).toString('hex')}`;
 const jobKey = (slug: string, id: string) => `companion:${slug}/${id}`;
 
@@ -97,6 +99,7 @@ const cardShape = z
     version: z.string().max(40).optional().catch(undefined),
     result: capped(300).optional().catch(undefined),
     appliedOn: z.string().max(80).optional().catch(undefined),
+    videoId: z.string().max(80).optional().catch(undefined),
     tooOld: z.literal(true).optional().catch(undefined),
   })
   .strip();
@@ -208,7 +211,7 @@ async function markTooOld(slug: string, id: string, messages: CompanionMessage[]
 const running = new Map<string, NonNullable<CompanionThread['running']>>();
 
 export async function readThread(slug: string, id: string): Promise<CompanionThread> {
-  await store.readVideo(slug, id);
+  await store.requireBoard(slug, id);
   const messages = await markTooOld(slug, id, await store.withLock(`companion:${threadFile(slug, id)}`, () => readThreadFile(slug, id)));
   const now = running.get(jobKey(slug, id));
   return { messages, ...(now && runningOnce(jobKey(slug, id))?.id === now.jobId ? { running: { ...now, steps: [...now.steps] } } : {}) };
@@ -216,8 +219,8 @@ export async function readThread(slug: string, id: string): Promise<CompanionThr
 
 // ---------------------------------------------------------------- what the companion is told
 
-const STEP_NAME: Record<CompanionTab, string> = { board: 'Board', plan: 'Plan', record: 'Record', edit: 'Edit', publish: 'Publish' };
-const READING: Record<CompanionTab, string> = { board: 'Reading the board', plan: 'Reading the plan', record: 'Reading the scenes', edit: 'Reading the timeline', publish: 'Reading the package' };
+const STEP_NAME: Record<CompanionTab, string> = { board: 'Board', plan: 'Plan', record: 'Record', edit: 'Edit', publish: 'Publish', research: 'Research' };
+const READING: Record<CompanionTab, string> = { board: 'Reading the board', plan: 'Reading the plan', record: 'Reading the scenes', edit: 'Reading the timeline', publish: 'Reading the package', research: 'Reading Research' };
 const clock = (seconds: number) => `${Math.floor(seconds / 60)}:${String(Math.round(seconds % 60)).padStart(2, '0')}`;
 
 const ideaFor = (video: Video): PromptIdea => {
@@ -233,6 +236,14 @@ export function screenText(context: CompanionContext, video: Pick<Video, 'title'
   if (video.targetSeconds) lines.push(`Target length: ${clock(video.targetSeconds)}`);
   if (context.screen?.trim()) lines.push(`On screen: ${context.screen.trim()}`);
   if (takes) lines.push(`Takes: ${takes}`);
+  return lines.join('\n');
+}
+
+/** Research's screen: the step, how many cards, and the cards the person has selected (by id). */
+export function researchScreen(context: CompanionContext, cards: number): string {
+  const lines = ['Step: Research (the channel\'s own board)', `Cards on the board: ${cards}`];
+  if (context.selection?.length) lines.push(`Selected cards: ${context.selection.join(', ')}`);
+  if (context.screen?.trim()) lines.push(`On screen: ${context.screen.trim()}`);
   return lines.join('\n');
 }
 
@@ -293,29 +304,50 @@ async function writeReply(slug: string, id: string, input: AskInput, context: Jo
   const tab = input.message.context.tab;
   steps.start(READING[tab]);
 
-  const video = await store.readVideo(slug, id);
-  const [channel, tiles, pkg, outline] = await Promise.all([loadChannelContext(slug), boardTiles(slug, id), readPackage(slug, id), readOutline(slug, id)]);
-  const takes =
-    tab === 'record'
-      ? await videoScenes(slug, id).then(
-          (scenes) => scenes.map((scene, index) => `${index + 1}. ${scene.title}: ${scene.status}`).join('; '),
-          () => undefined,
-        )
-      : undefined;
-  // Edit reads the recording project's timeline: its clips, scenes, selection and transcript.
-  const timeline = async () => (tab === 'edit' ? editProject(slug, id).then(({ project }) => project, () => undefined) : undefined);
-  const editing = await timeline();
-  const screen = screenText(input.message.context, video, outline, takes) + (tab !== 'edit' ? '' : editing ? `\n${timelineText(editing, input.message.context, await editOptions(editing))}` : '\nThis video has nothing recorded yet.');
-  const built = await buildCompanionPrompt(channel, {
-    idea: ideaFor(video),
-    pkg: pkg ?? undefined,
-    outline: outline ?? undefined,
-    board: await boardText(slug, id, tiles, tab === 'board' ? BOARD_CHARS_HERE : BOARD_CHARS_ELSEWHERE),
-    screen,
-    history: input.history.map((message) => ({ role: message.role, text: historyText(message) })),
-    message: input.message.text,
-    actions: TAB_ACTIONS[tab],
-  });
+  // Research is the channel's own Board: no video, no package or scenes; the cards (with their ids) and frames are what it reads.
+  const research = store.isChannelBoard(id);
+  let built: Awaited<ReturnType<typeof buildCompanionPrompt>>;
+  let outline: Outline | null = null;
+  let tileIds: string[] = [];
+  let timeline: () => Promise<Project | undefined> = async () => undefined;
+  if (research) {
+    const [channel, tiles] = await Promise.all([loadChannelContext(slug), boardTiles(slug, id)]);
+    const { frames } = await readCanvas(slug, id, tiles);
+    tileIds = tiles.map((tile) => tile.id);
+    built = await buildResearchCompanionPrompt(channel, {
+      board: await boardText(slug, id, tiles, BOARD_CHARS_HERE, { ids: true }),
+      frames: frames.map((frame) => `"${frame.title}": ${tiles.filter((tile) => inFrame(frame, tile)).map((tile) => tile.id).join(', ') || '(no cards)'}`).join('\n'),
+      screen: researchScreen(input.message.context, tiles.length),
+      history: input.history.map((message) => ({ role: message.role, text: historyText(message) })),
+      message: input.message.text,
+      actions: TAB_ACTIONS[tab],
+    });
+  } else {
+    const video = await store.readVideo(slug, id);
+    const [channel, tiles, pkg, read] = await Promise.all([loadChannelContext(slug), boardTiles(slug, id), readPackage(slug, id), readOutline(slug, id)]);
+    outline = read;
+    const takes =
+      tab === 'record'
+        ? await videoScenes(slug, id).then(
+            (scenes) => scenes.map((scene, index) => `${index + 1}. ${scene.title}: ${scene.status}`).join('; '),
+            () => undefined,
+          )
+        : undefined;
+    // Edit reads the recording project's timeline: its clips, scenes, selection and transcript.
+    timeline = async () => (tab === 'edit' ? editProject(slug, id).then(({ project }) => project, () => undefined) : undefined);
+    const editing = await timeline();
+    const screen = screenText(input.message.context, video, outline, takes) + (tab !== 'edit' ? '' : editing ? `\n${timelineText(editing, input.message.context, await editOptions(editing))}` : '\nThis video has nothing recorded yet.');
+    built = await buildCompanionPrompt(channel, {
+      idea: ideaFor(video),
+      pkg: pkg ?? undefined,
+      outline: outline ?? undefined,
+      board: await boardText(slug, id, tiles, tab === 'board' ? BOARD_CHARS_HERE : BOARD_CHARS_ELSEWHERE),
+      screen,
+      history: input.history.map((message) => ({ role: message.role, text: historyText(message) })),
+      message: input.message.text,
+      actions: TAB_ACTIONS[tab],
+    });
+  }
 
   // The text the person sees, sent in small batches. `at` lets a screen that reconnects see where each piece goes.
   const splitter = new ReplySplitter();
@@ -393,7 +425,7 @@ async function writeReply(slug: string, id: string, input: AskInput, context: Jo
     if (parsed.actions.length) steps.start('Checking the changes');
     // Edit's actions are checked against the timeline as it is now, not as it was when the question was asked.
     const now = parsed.actions.length ? await timeline() : undefined;
-    const { actions, rejected } = validateActions(parsed.actions, { tab, sceneIds, project: now, editOptions: now ? await editOptions(now) : undefined });
+    const { actions, rejected } = validateActions(parsed.actions, { tab, sceneIds, tileIds, project: now, editOptions: now ? await editOptions(now) : undefined });
     if (rejected.length) console.error('[club] companion actions left out:', rejected.slice(0, 5).join('; '));
     steps.close();
     const reply: CompanionReplyMessage = {
@@ -436,8 +468,10 @@ export const askBody = z
 
 /** Saves the question and starts the reply. One reply runs at a time per video. */
 export async function askCompanion(slug: string, id: string, body: z.infer<typeof askBody>, options: PlanOptions): Promise<CompanionAsked> {
-  await store.readVideo(slug, id);
+  await store.requireBoard(slug, id);
   const key = jobKey(slug, id);
+  // Research has its own conversation and its own step; a video's steps are never asked on Research, nor Research on a video.
+  if ((body.context.tab === 'research') !== store.isChannelBoard(id)) throw new ClubError('That step is not on this board.');
   if (runningOnce(key)) throw new ClubError('Wait for the reply, or stop it first.', 409);
   // Codex reads the MCP servers the person added to it, and no setting turns them all off for one run (an override of
   // mcp_servers is merged, and plugin servers cannot be overridden). A transcript fed to it could then reach editing tools
@@ -466,7 +500,7 @@ type CardChange = Omit<CompanionApplied, 'message'> & { card: CompanionCard };
 
 /** Reading the card, changing it and saving its state happen under one lock per video, so a double click or two windows apply once. */
 function changeCard(slug: string, id: string, messageId: string, index: number, change: (card: CompanionCard) => Promise<CardChange>): Promise<CompanionApplied> {
-  return store.withLock(`companion-card:${store.videoDir(slug, id)}`, () => changeCardNow(slug, id, messageId, index, change));
+  return store.withLock(`companion-card:${store.boardDir(slug, id)}`, () => changeCardNow(slug, id, messageId, index, change));
 }
 
 async function changeCardNow(slug: string, id: string, messageId: string, index: number, change: (card: CompanionCard) => Promise<CardChange>): Promise<CompanionApplied> {
@@ -498,8 +532,8 @@ export function applyCard(slug: string, id: string, messageId: string, index: nu
     if (!checked.success) throw new ClubError("That change can't be applied.", 409);
     // A timeline card applied again after its Undo goes only onto the timeline it was first applied on.
     const again = card.state === 'undone' && isEditAction(card.action) && card.appliedOn ? { appliedOn: card.appliedOn } : {};
-    const { version, result, appliedOn, ...rest } = await applyAction(slug, id, checked.data as CompanionAction, { ...options, ...again });
-    return { card: { ...card, state: 'applied', version, result, ...(appliedOn ? { appliedOn } : {}) }, ...rest };
+    const { version, result, appliedOn, videoId, ...rest } = await applyAction(slug, id, checked.data as CompanionAction, { ...options, ...again });
+    return { card: { ...card, state: 'applied', version, result, ...(appliedOn ? { appliedOn } : {}), ...(videoId ? { videoId } : {}) }, ...rest };
   });
 }
 
@@ -508,7 +542,7 @@ export function undoCard(slug: string, id: string, messageId: string, index: num
     if (card.state !== 'applied' || !card.version) throw new ClubError('There is nothing to undo.', 409);
     if (!(await versionExists(slug, id, card.version))) throw new ClubError('This was applied too long ago to undo.', 409);
     const undone = await undoVersion(slug, id, card.version, options);
-    const { version: _version, result: _result, ...rest } = card;
+    const { version: _version, result: _result, videoId: _video, ...rest } = card;
     return { card: { ...rest, state: 'undone' }, ...undone };
   });
 }

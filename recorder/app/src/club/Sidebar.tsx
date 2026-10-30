@@ -6,11 +6,12 @@ import {Avatar,Icon,Menu,Tooltip,useToast,type IconName,type MenuItem} from './u
 
 type Channels={current:string|null;workspaces:Workspace[]};
 
-/** The places, in order. Research joins them later. */
-const NAV:ReadonlyArray<{name:Extract<RouteName,'home'|'discover'|'videos'>;label:string;icon:IconName;href:string}>=[
+/** The places, in order. */
+const NAV:ReadonlyArray<{name:Extract<RouteName,'home'|'discover'|'videos'|'research'>;label:string;icon:IconName;href:string}>=[
  {name:'home',label:'Home',icon:'home',href:'#/home'},
  {name:'discover',label:'Discover',icon:'trending',href:'#/discover'},
  {name:'videos',label:'Videos',icon:'video',href:'#/videos'},
+ {name:'research',label:'Research',icon:'research',href:'#/research'},
 ];
 
 const IN_PRODUCTION:ReadonlyArray<Video['stage']>=['planning','recording','editing','publishing'];
@@ -19,7 +20,7 @@ const IN_PRODUCTION:ReadonlyArray<Video['stage']>=['planning','recording','editi
 export const inProduction=(videos:readonly Video[])=>videos.filter(video=>IN_PRODUCTION.includes(video.stage)).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt));
 
 /**
- * Left sidebar: the channel switcher, search, then the three places (Home, Discover, Videos with the number of videos in progress).
+ * Left sidebar: the channel switcher, search, then the four places (Home, Discover, Videos with the number of videos in progress, Research).
  * At the bottom, three icons with tooltips: Settings, Help (How CreatorClub works) and the collapse toggle. Collapsed, it is an icon rail with the same items.
  */
 export function Sidebar({route,collapsed,onToggle,onSearch,onHelp,onSwitched,onAdd,videos,epoch}:{route:Route;collapsed:boolean;onToggle():void;onSearch():void;onHelp():void;onSwitched():void;onAdd():void;videos:readonly Video[];epoch:number}){

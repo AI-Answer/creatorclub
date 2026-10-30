@@ -189,7 +189,7 @@ test('Idea actions: Later and Skip with a reason can be undone, Move to moves it
  await mount(videosAt(),server({videos:ideaVideos()}),async (ui,state,calls,routes)=>{
   const c=ui.container;
   await press(moreOf(c,'Claude for receipts'));
-  assert.deepEqual(texts(c,'[role="menu"] .hd, [role="menu"] button'),['Later','Skip it because…','Too generic','Not their style','Already covered',"Can't show it",'Bad timing','Move to','Planning','Recording','Editing','Publishing','Published','Delete idea']);
+  assert.deepEqual(texts(c,'[role="menu"] .hd, [role="menu"] button'),['Later','Add to Research','Skip it because…','Too generic','Not their style','Already covered',"Can't show it",'Bad timing','Move to','Planning','Recording','Editing','Publishing','Published','Delete idea']);
   await press(button(c.querySelector('[role="menu"]')!,'Later'));
   assert.deepEqual(writes(calls),['PUT /videos/i1 {"hidden":"later"}']);
   assert.deepEqual(toasts(c),['Saved for laterUndo']);
@@ -432,8 +432,10 @@ test('Discover: videos and posts in one ranked feed, a view switch and source ch
   assert.equal(text(post1.querySelector('.who')),'Alex Finn@alexfinn · 5h');assert.equal(text(post1.querySelector('.meta .chip')),'News');
   assert.equal(post1.querySelector('.post-pic img')!.getAttribute('src'),'https://pbs.example.com/pic.jpg');
   const open=post1.querySelector('a[aria-label="Open post"]')!;assert.equal(open.getAttribute('href'),'https://x.com/alexfinn/status/1');assert.equal(open.getAttribute('rel'),'noopener noreferrer');
-  assert.ok(rows(c).every(row=>[...row.querySelectorAll('.acts button')].map(text).join()==='Turn into idea'),'one action on every card');
-  assert.ok(rows(c).every(row=>row.querySelector('.acts button')!.getAttribute('aria-label')!.startsWith('Turn into idea')),'the accessible name holds the visible words');
+  const shown=(row:Element)=>[...row.querySelectorAll('.acts button')].filter(button=>!button.closest('.quiet'));
+  assert.ok(rows(c).every(row=>shown(row).map(text).join()==='Turn into idea'),'one action on every card');
+  assert.ok(rows(c).every(row=>shown(row)[0].getAttribute('aria-label')!.startsWith('Turn into idea')),'the accessible name holds the visible words');
+  assert.ok(rows(c).every(row=>row.querySelector('.acts .quiet [aria-label="Add to Research"]')),'Add to Research on every card, under the pointer or on focus');
   const long=rows(c)[5];
   assert.equal(text(long.querySelector('.text')),`${'A'.repeat(250)}…Show more`,'long posts are cut');
   assert.match(text(long.querySelector('.meta')),/Video/);

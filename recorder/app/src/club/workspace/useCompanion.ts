@@ -4,6 +4,7 @@ import {isEditAction,type CompanionApplied,type CompanionAsked,type CompanionCha
 import type {EditorBridge} from '../../App';
 import {clubFetch,errorMessage} from '../api';
 import {LOST_JOB,failureMessage,watchJob} from '../jobs';
+import {boardBase} from './board-base';
 
 /** A step of the reply being written, with when it started (as this screen saw it). */
 export type LiveStep={label:string;started:number};
@@ -57,14 +58,14 @@ export function withText(text:string,at:number,piece:string):string{
 }
 
 /**
- * One video's companion: the saved conversation, the reply being written (followed over SSE, picked up again after a dropped
+ * One video's companion (or Research's, when `videoId` is `CHANNEL_BOARD`): the saved conversation, the reply being written (followed over SSE, picked up again after a dropped
  * connection or when the panel reopens while one runs), Stop, Try again, and applying or undoing a card. `onChanged` hears what an
  * apply or undo changed. `announce` is one short line for screen readers: the current step, "Reply ready", or the failure.
  */
 export function useCompanion(videoId:string,{onChanged,beforeApply,editor}:{onChanged(changed:CompanionChanged[]):void;beforeApply?():Promise<void>;
  /** The open editor, when Edit is on screen: a timeline card is applied through it, so the change is one step of the editor's own Undo. */
  editor?():EditorBridge|null}){
- const base=`/videos/${encodeURIComponent(videoId)}/companion`;
+ const base=`${boardBase(videoId)}/companion`;
  const [messages,setMessages]=useState<CompanionMessage[]|null>(null);
  const [loadError,setLoadError]=useState('');
  const [live,setLive]=useState<Live|null>(null);

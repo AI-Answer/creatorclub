@@ -9,8 +9,10 @@ import { editActionProblem } from '../../src/editing-actions.js';
 import { applyEdit, undoEdit, type TimelineUndo } from './companion-edit.js';
 import type { EditOptions } from '../../src/editing-actions.js';
 import { addNote, hydrate, removeNote } from './board-docs.js';
+import { addFrame, FRAME_TITLE_MAX, frameAround, readCanvas, removeFrame } from './board-canvas.js';
+import { startVideoFrom, videoSignature } from './research-board.js';
 import { ClubError } from './errors.js';
-import type { Package, VideoScene } from '../../shared/club.js';
+import type { BoardFrame, Package, VideoScene } from '../../shared/club.js';
 import { outlineFile, packageFile, parseOutline, patchPackage, readOutline, readPackage, saveOutline, savePackage, saveScript, scriptFile, syncPlanningFlags, usePackageText } from './planning.js';
 import { videoScenes } from './scenes.js';
 import { titleProblems } from './prompts.js';
@@ -31,6 +33,7 @@ const time = z.number().finite().min(0).max(36_000);
 const CLIP_ID = z.string().min(1).max(100);
 const COLOR = z.string().regex(/^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$/);
 const POSITION = z.enum(['top', 'center', 'bottom']);
+const TILE_ID = z.string().regex(/^[A-Za-z0-9_-]{1,64}$/);
 
 const draftScene = z
   .object({
@@ -49,6 +52,9 @@ export const actionShape = z.discriminatedUnion('type', [
   z.object({ type: z.literal('set_scene'), sceneId: z.string().regex(SCENE_ID), title: line(300).optional(), talkingPoints: z.array(line(2000)).min(1).max(60).optional() }).strict(),
   z.object({ type: z.literal('draft_scenes'), scenes: z.array(draftScene).min(1).max(20) }).strict(),
   z.object({ type: z.literal('set_description'), text: block(5000) }).strict(),
+  // Research: the cards are named by their ids on the channel's Board; that they are there is checked against the Board.
+  z.object({ type: z.literal('group_tiles'), title: line(FRAME_TITLE_MAX), tileIds: z.array(TILE_ID).min(2).max(40) }).strict(),
+  z.object({ type: z.literal('start_video'), title: line(300), tileIds: z.array(TILE_ID).min(1).max(40) }).strict(),
   // Edit: sizes are capped here; clip ids and times are checked against the timeline (`editActionProblem`).
   z.object({ type: z.literal('cut_pauses'), level: z.enum(['gentle', 'balanced', 'tight']).default('balanced') }).strict(),
   z.object({ type: z.literal('remove_fillers') }).strict(),
@@ -79,7 +85,10 @@ export const MAX_CARDS = 6;
  * The model's actions that the screen can apply: known types offered on this step, in a valid shape, naming scenes that exist.
  * Everything else is left out and listed in `rejected` with the reason, for the log.
  */
-export function validateActions(raw: readonly unknown[], { tab, sceneIds, project, editOptions }: { tab: CompanionTab; sceneIds: readonly string[]; project?: Project; editOptions?: EditOptions }): { actions: CompanionAction[]; rejected: string[] } {
+export function validateActions(
+  raw: readonly unknown[],
+  { tab, sceneIds, tileIds = [], project, editOptions }: { tab: CompanionTab; sceneIds: readonly string[]; /** Research: the ids of the cards on the channel's Board. */ tileIds?: readonly string[]; project?: Project; editOptions?: EditOptions },
+): { actions: CompanionAction[]; rejected: string[] } {
   const actions: CompanionAction[] = [];
   const rejected: string[] = [];
   const seen = new Set<string>();
@@ -98,6 +107,18 @@ export function validateActions(raw: readonly unknown[], { tab, sceneIds, projec
     if (action.type === 'set_scene' && !sceneIds.includes(action.sceneId)) {
       rejected.push(`${type}: no scene ${action.sceneId}`);
       continue;
+    }
+    if (action.type === 'group_tiles' || action.type === 'start_video') {
+      const unknown = action.tileIds.find((id) => !tileIds.includes(id));
+      if (unknown) {
+        rejected.push(`${type}: no card ${unknown}`);
+        continue;
+      }
+      action.tileIds = [...new Set(action.tileIds)];
+      if (action.type === 'group_tiles' && action.tileIds.length < 2) {
+        rejected.push(`${type}: fewer than 2 cards`);
+        continue;
+      }
     }
     // An Edit action is offered only when it applies to the timeline as it is: its clips exist, its times are inside the video.
     if (isEditAction(action)) {
@@ -129,7 +150,7 @@ export const KEPT_ASIDE = "Your earlier scenes are kept in the video's folder.";
 export const TAKES_RECORDED = "Takes were recorded for these scenes, so this can't be undone.";
 const VERSIONS_KEPT = 20;
 
-const versionsDir = (slug: string, id: string) => path.join(store.videoDir(slug, id), 'companion-versions');
+const versionsDir = (slug: string, id: string) => path.join(store.boardDir(slug, id), 'companion-versions');
 const VERSION_ID = /^cv_[a-f0-9]{12}$/;
 
 type PackageField = 'hook' | 'thumbnailText' | 'description';
@@ -145,6 +166,8 @@ type Undo =
   | { kind: 'title'; title: string; dropped?: string; before: string[]; after: string[] }
   | { kind: 'scene'; sceneId: string; before: SceneText; after: SceneText }
   | { kind: 'tile'; tileId: string; text: string }
+  | { kind: 'frame'; frame: BoardFrame }
+  | { kind: 'video'; videoId: string; signature: string }
   | { kind: 'outline'; outline: { before: string | null; after: string | null }; script: { before: string | null; after: string | null } };
 
 interface Version {
@@ -174,6 +197,10 @@ function partOf(undo: Undo): string {
       return 'outline';
     case 'tile':
       return `tile:${undo.tileId}`;
+    case 'frame':
+      return `frame:${undo.frame.id}`;
+    case 'video':
+      return `video:${undo.videoId}`;
     case 'timeline':
       return `timeline:${undo.projectId}`;
   }
@@ -197,6 +224,8 @@ function withField(pkg: Package, field: PackageField, value: string | null): Pac
 /** A timeline change also returns the project as saved and its revision, for the open editor. */
 interface Applied {
   result: string;
+  /** `start_video`: the idea it made. */
+  videoId?: string;
   undo: Undo;
   project?: Project;
   revision?: string;
@@ -278,6 +307,26 @@ const HANDLERS: { [K in CompanionActionType]: Handler<Extract<CompanionAction, {
       };
     },
   },
+  group_tiles: {
+    changed: ['board'],
+    apply: async (slug, id, action) => {
+      const tiles = (await store.listTiles(slug, id)).filter((tile) => action.tileIds.includes(tile.id));
+      if (tiles.length < 2) throw new ClubError('Those cards are no longer on the board.', 409);
+      const frame = await addFrame(slug, id, { title: action.title, ...frameAround(tiles) });
+      return { result: `Grouped ${plural(tiles.length, 'card')} in “${frame.title}”`, undo: { kind: 'frame', frame } };
+    },
+  },
+  start_video: {
+    changed: ['videos'],
+    apply: async (slug, id, action) => {
+      if (!store.isChannelBoard(id)) throw new ClubError('A new video is started from Research.', 409);
+      const known = new Set((await store.listTiles(slug, id)).map((tile) => tile.id));
+      const tileIds = action.tileIds.filter((tileId) => known.has(tileId));
+      if (!tileIds.length) throw new ClubError('Those cards are no longer on the board.', 409);
+      const { video, tiles } = await startVideoFrom(slug, { tileIds, title: action.title });
+      return { result: `Started “${video.title}” with ${plural(tiles, 'card')}`, videoId: video.id, undo: { kind: 'video', videoId: video.id, signature: await videoSignature(slug, video.id) } };
+    },
+  },
   cut_pauses: edit,
   remove_fillers: edit,
   close_gaps: edit,
@@ -305,18 +354,18 @@ async function prune(slug: string, id: string) {
 }
 
 /** One lock per video for every write that Undo checks: the companion's applies and undos, and Plan's own saves. */
-export const lock = (slug: string, id: string) => `companion-apply:${store.videoDir(slug, id)}`;
+export const lock = (slug: string, id: string) => `companion-apply:${store.boardDir(slug, id)}`;
 
 /** Applies one action and saves its version. Returns the version id and a line saying what changed. */
-export async function applyAction(slug: string, id: string, action: CompanionAction, options: ApplyOptions = {}): Promise<{ version: string; result: string; changed: CompanionChanged[]; project?: Project; revision?: string; appliedOn?: string }> {
+export async function applyAction(slug: string, id: string, action: CompanionAction, options: ApplyOptions = {}): Promise<{ version: string; result: string; changed: CompanionChanged[]; project?: Project; revision?: string; appliedOn?: string; videoId?: string }> {
   const handler = HANDLERS[action.type] as Handler<CompanionAction>;
   return store.withLock(lock(slug, id), async () => {
-    const { result, undo, project, revision, appliedOn } = await handler.apply(slug, id, action, options);
+    const { result, undo, project, revision, appliedOn, videoId } = await handler.apply(slug, id, action, options);
     const version = `cv_${randomBytes(6).toString('hex')}`;
     const saved: Version = { action: action.type, at: new Date().toISOString(), order: nextOrder(), changed: handler.changed, undo };
     await store.writeJSON(path.join(versionsDir(slug, id), `${version}.json`), saved);
     await prune(slug, id);
-    return { version, result, changed: handler.changed, ...(project ? { project, revision } : {}), ...(appliedOn ? { appliedOn } : {}) };
+    return { version, result, changed: handler.changed, ...(project ? { project, revision } : {}), ...(appliedOn ? { appliedOn } : {}), ...(videoId ? { videoId } : {}) };
   });
 }
 
@@ -363,6 +412,23 @@ async function undoChange(slug: string, id: string, version: string, undo: Undo,
       const [tile] = await hydrate(slug, id, [stored]);
       if (!tile.doc?.missing && (tile.text ?? '') !== undo.text) throw new ClubError(CHANGED_SINCE, 409);
       await removeNote(slug, id, undo.tileId);
+      return;
+    }
+    case 'frame': {
+      // The frame goes only while it is as the card made it: renamed, moved or resized since, it stays.
+      const { frames } = await readCanvas(slug, id);
+      const now = frames.find((frame) => frame.id === undo.frame.id);
+      if (!now) return;
+      if (!same(now, undo.frame)) throw new ClubError(CHANGED_SINCE, 409);
+      await removeFrame(slug, id, undo.frame.id);
+      return;
+    }
+    case 'video': {
+      // The idea goes only while nothing was done with it: same title and stage, the same cards and notes, no scenes yet.
+      const now = await videoSignature(slug, undo.videoId).catch(() => undefined);
+      if (now === undefined) return;
+      if (now !== undo.signature) throw new ClubError(CHANGED_SINCE, 409);
+      await store.deleteVideo(slug, undo.videoId);
       return;
     }
     case 'outline': {
@@ -426,7 +492,7 @@ export async function undoVersion(slug: string, id: string, version: string, opt
     if (await newerOnSamePart(slug, id, version, saved)) throw new ClubError(CHANGED_SINCE, 409);
     const put = await undoChange(slug, id, version, saved.undo, options);
     await store.writeJSON(file, { ...saved, undone: true });
-    if (saved.undo.kind !== 'timeline') await syncPlanningFlags(slug, id);
+    if (saved.undo.kind !== 'timeline' && !store.isChannelBoard(id)) await syncPlanningFlags(slug, id);
     return { changed: saved.changed, ...(put ? put : {}) };
   });
 }

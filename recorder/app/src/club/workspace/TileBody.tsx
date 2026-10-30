@@ -1,18 +1,20 @@
 import {useEffect,useMemo,useState} from 'react';
-import type {Breakdown,ResearchTile,TranscriptChapter} from '../../../shared/club';
+import type {Breakdown,ResearchTile,TranscriptChapter,Video} from '../../../shared/club';
 import {clubFetch,errorMessage} from '../api';
 import {clockTime,linkHost} from '../video-plan';
 import {youtubeId} from '../board';
 import {ErrorLine} from '../ErrorLine';
 import {creatorName,fmtDays,fmtNum} from '../format';
-import {Avatar,Icon,IconButton,Level,MultChip,SourceIcon,Spinner,Thumb,type IconName} from '../ui';
+import {Avatar,Icon,IconButton,Level,MultChip,SourceIcon,Spinner,StagePill,Thumb,type IconName} from '../ui';
+import {ideaWhy} from '../ideas';
+import {boardBase} from './board-base';
 import {markdownToHtml} from '../markdown';
 import {openInBrowser} from '../markdown/MarkdownEditor';
 import type {Reading} from './useBoard';
 
-/** The picture a tile shows: a video's thumbnail, or the tile's own saved file. */
+/** The picture a tile shows: a video's thumbnail, or the tile's own saved file. `videoId` is the Board's (a video's id, or `CHANNEL_BOARD`). */
 export function tileImage(videoId:string,tile:ResearchTile):string|undefined{
- if(tile.file)return `/api/club/videos/${encodeURIComponent(videoId)}/research/${encodeURIComponent(tile.id)}/file`;
+ if(tile.file)return `/api/club${boardBase(videoId)}/research/${encodeURIComponent(tile.id)}/file`;
  return tile.meta.thumbnail;
 }
 
@@ -29,6 +31,9 @@ export interface TileBodyProps{
  onOpen():void;
  onRetryRead():void;
  onBreakdown(videoId:string):void;
+ /** `mine` tiles: the channel's idea or video the card stands for (undefined while the list loads, null when it is gone), and opening it. */
+ mine?:Video|null;
+ onOpenVideo?(video:Video):void;
 }
 
 /** One tile on the Board, drawn per kind as the prototype does. */
@@ -43,6 +48,7 @@ export function TileBody(props:TileBodyProps){
   case 'image':return <ImageTile {...props}/>;
   case 'text':return <TextTile {...props}/>;
   case 'idea':return <IdeaTile {...props}/>;
+  case 'mine':return <MineTile {...props}/>;
  }
 }
 
@@ -81,6 +87,22 @@ function IdeaTile({tile,onRemove}:TileBodyProps){
  </>;
 }
 
+/** One of the channel's own ideas or videos: its stage, title and why. It opens the idea's drawer, or the video's page. */
+function MineTile({tile,mine,onRemove,onOpenVideo}:TileBodyProps){
+ const idea=mine?.stage==='ideas',why=mine?ideaWhy(mine):'';
+ return <>
+  <TileHead icon={idea?'idea':'video'} label={mine===undefined?'Your video':idea?'Your idea':'Your video'} onRemove={onRemove}/>
+  <div className="tb">
+   {mine===null?<div className="small muted">“{tile.title??'This video'}” is no longer in this channel.</div>:<>
+    {mine&&<div style={{marginBottom:6}}><StagePill stage={mine.stage}/></div>}
+    <div style={{fontWeight:600,fontSize:13.5,lineHeight:1.35}} className="clamp2">{mine?.title??tile.title}</div>
+    {why&&<p className="small muted clamp3" style={{margin:'6px 0 0',lineHeight:1.45}}>{why}</p>}
+    {mine&&onOpenVideo&&<button type="button" className="btn sm ghost" style={{marginTop:8}} onClick={()=>onOpenVideo(mine)}><Icon name={idea?'idea':'open-external'} size={13}/>{idea?'Open idea':'Open video'}</button>}
+   </>}
+  </div>
+ </>;
+}
+
 function TextTile({tile,onRemove}:TileBodyProps){
  return <><TileHead icon="script" label="Text" onRemove={onRemove}/><div className="tb"><p style={{margin:0,whiteSpace:'pre-wrap',fontSize:13.5,lineHeight:1.5}}>{tile.text}</p></div></>;
 }
@@ -92,7 +114,7 @@ function VideoTile({tile,videoId,reading,onRemove,onRetryRead,onBreakdown}:TileB
  useEffect(()=>{
   if(!open||chapters||!meta.transcript)return;
   setError('');
-  clubFetch<TranscriptChapter[]>(`/videos/${encodeURIComponent(videoId)}/research/${encodeURIComponent(tile.id)}/transcript`).then(setChapters,reason=>setError(errorMessage(reason,"Couldn't load the transcript.")));
+  clubFetch<TranscriptChapter[]>(`${boardBase(videoId)}/research/${encodeURIComponent(tile.id)}/transcript`).then(setChapters,reason=>setError(errorMessage(reason,"Couldn't load the transcript.")));
  },[open,chapters,meta.transcript,videoId,tile.id]);
  return <>
   <TileHead icon="youtube" label="YouTube" onRemove={onRemove}/>

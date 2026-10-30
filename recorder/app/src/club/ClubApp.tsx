@@ -10,6 +10,7 @@ import {DiscoverScreen} from './screens/DiscoverScreen';
 import {HomeScreen} from './screens/HomeScreen';
 import {VideosScreen} from './screens/VideosScreen';
 import {SettingsScreen} from './screens/SettingsScreen';
+import {ResearchScreen} from './screens/ResearchScreen';
 import {Help} from './shell/Help';
 import {NewVideo} from './shell/NewVideo';
 import {Palette} from './shell/Palette';
@@ -117,6 +118,7 @@ function Shell(){
   case 'discover':screen=<DiscoverScreen show={route.show} navigate={navigate}/>;break;
   case 'videos':screen=<VideosScreen route={route} navigate={navigate} onNewVideo={openNewVideo}/>;break;
   case 'video':screen=<VideoRoute id={route.id} tab={route.tab} navigate={navigate}/>;break;
+  case 'research':screen=<ResearchScreen navigate={navigate}/>;break;
   case 'settings':screen=<SettingsScreen section={route.section} onSetup={addChannel}/>;break;
  }
  if(needsChannel(route)&&channel!=='ready')screen=channel==='none'?<NoChannel onStart={addChannel}/>:<div className="flex flex-1 items-center justify-center"><Spinner label="Loading" size={20}/></div>;

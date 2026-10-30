@@ -39,6 +39,7 @@ export const GLOSSARY:readonly Term[]=[
  {term:'Idea',means:'A video you might make. It waits in the first column of Videos until you start planning it.'},
  {term:'Video',means:'One card that goes from idea to published. It has a board, a plan, scenes, takes and an export.'},
  {term:'Board',means:'A canvas for one video where you gather links, notes, screenshots and files, and ask Claude about them.'},
+ {term:'Research',means:'Your channel\'s own board, before any video: put Discover cards, ideas, links and notes on it, connect and group them, and start a video from the ones that belong together.'},
  {term:'Package',means:'The title, the thumbnail text and the hook that make people click and keep watching.'},
  {term:'Hook',means:'The first line you say. It decides whether people stay.'},
  {term:'Scene',means:'One part of the video with its own talking points. You plan the scenes, then record them one at a time.'},
@@ -62,10 +63,11 @@ export interface Place{name:string;where:string}
 
 /** Where things live, from docs/v2/UI-MAP.md in the words a beginner needs. */
 export const PLACES:readonly Place[]=[
- {name:'Sidebar',where:'Your channel and its menu, Search (⌘K), then Home, Discover and Videos. Settings, Help and Collapse are the three icons at the bottom.'},
+ {name:'Sidebar',where:'Your channel and its menu, Search (⌘K), then Home, Discover, Videos and Research. Settings, Help and Collapse are the three icons at the bottom.'},
  {name:'Home',where:'What to do next on the video you worked on last, and the first-video checklist for a new channel.'},
  {name:'Discover',where:'What works outside: YouTube videos beating their usual and posts from X and Reddit. Turn any of them into an idea.'},
  {name:'Videos',where:'Every video from idea to published, as a board, a table or a calendar. New video is here.'},
+ {name:'Research',where:'Your channel\'s own board: put Discover cards, your ideas, links and notes on it, connect and group them, and start a video from a selection.'},
  {name:'Step tabs',where:`The top of a video: ${VIDEO_STEPS.map(step=>step.name).join(', ')}. They are the only way between steps.`},
  {name:'Ask Claude',where:'The panel on the right of a video. It sees the step you are on and answers with changes you can apply and undo.'},
  {name:'Settings',where:'Your connected AI, your channel and its voice, the channels you follow, and Postiz.'},

@@ -25,6 +25,31 @@ export interface IdeaResult {
   created: boolean;
 }
 
+type Post = NonNullable<Awaited<ReturnType<typeof readSignal>>>;
+type TrendingItem = NonNullable<Awaited<ReturnType<typeof readTrendingItem>>>;
+
+/** The tile a Signals post makes on a Board: its text, its link and its numbers. */
+export function signalTile(post: Post): store.NewTile {
+  const who = post.source === 'reddit' ? post.author : `@${post.handle}`;
+  const meta = { source: post.source, author: who, likes: post.likes, replies: post.replies, ...(typeof post.views === 'number' ? { views: post.views } : {}) };
+  return { kind: 'signal', url: post.url, text: post.text, meta };
+}
+
+/** The tile a Working now video makes on a Board, with the numbers Working now had for it. */
+export function trendingTile(item: TrendingItem): store.NewTile & { url: string } {
+  const meta = {
+    platform: 'youtube' as const,
+    channel: item.channel,
+    views: item.views,
+    ageDays: item.ageDays,
+    thumbnail: `https://i.ytimg.com/vi/${item.videoId}/hqdefault.jpg`,
+    ...(item.likes !== null ? { likes: item.likes } : {}),
+    ...(item.comments !== null ? { comments: item.comments } : {}),
+    ...(item.mult !== null ? { multiplier: item.mult } : {}),
+  };
+  return { kind: 'video', url: `https://www.youtube.com/watch?v=${item.videoId}`, title: item.title, meta };
+}
+
 /** An idea from a Signals post. Its notes keep the post text and the post as the source. */
 export async function ideaFromSignal(slug: string, id: string): Promise<IdeaResult> {
   const post = await readSignal(slug, id);
@@ -37,10 +62,7 @@ export async function ideaFromSignal(slug: string, id: string): Promise<IdeaResu
     madeFrom(post.url),
   );
   // The video's Board starts with the post.
-  if (result.created) {
-    const meta = { source: post.source, author: who, likes: post.likes, replies: post.replies, ...(typeof post.views === 'number' ? { views: post.views } : {}) };
-    await store.addTile(slug, result.video.id, { kind: 'signal', url: post.url, text: post.text, meta });
-  }
+  if (result.created) await store.addTile(slug, result.video.id, signalTile(post));
   return result;
 }
 
@@ -55,18 +77,6 @@ export async function ideaFromTrending(slug: string, videoId: string): Promise<I
     madeFrom(url),
   );
   // The video's Board starts with the video, with the numbers Working now had for it.
-  if (result.created) {
-    const meta = {
-      platform: 'youtube' as const,
-      channel: item.channel,
-      views: item.views,
-      ageDays: item.ageDays,
-      thumbnail: `https://i.ytimg.com/vi/${item.videoId}/hqdefault.jpg`,
-      ...(item.likes !== null ? { likes: item.likes } : {}),
-      ...(item.comments !== null ? { comments: item.comments } : {}),
-      ...(item.mult !== null ? { multiplier: item.mult } : {}),
-    };
-    await store.addTile(slug, result.video.id, { kind: 'video', url, title: item.title, meta });
-  }
+  if (result.created) await store.addTile(slug, result.video.id, trendingTile(item));
   return result;
 }

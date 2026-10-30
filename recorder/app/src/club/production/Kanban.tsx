@@ -15,8 +15,10 @@ type Over={stage:VideoStage;beforeId:string|null};
  * the ordered ones (HTML5 drag); a line shows where the card will land. `ideas` carries what the Ideas lane needs: the idea just added,
  * a folded group to open, and the idea actions.
  */
-export function Kanban({videos,scenes,ideas,onOpen,onMove}:{
+export function Kanban({videos,scenes,ideas,onOpen,onMove,onResearch}:{
  videos:readonly Video[];scenes:Record<string,SceneProgress[]>;ideas:{newId?:string;openGroup?:IdeaHeld;actions:IdeaActionSet};onOpen(video:Video):void;
+ /** "Add to Research" in a card's menu. */
+ onResearch?(video:Video):void;
  onMove(id:string,stage:VideoStage,beforeId:string|null):void;
 }){
  const columns=boardColumns(videos);
@@ -52,12 +54,12 @@ export function Kanban({videos,scenes,ideas,onOpen,onMove}:{
   return <section key={stage} aria-label={STAGE_LABEL[stage]} data-column={stage} className={`col${here?' over':''}`}
    onDragOver={onDragOver(column)} onDrop={onDrop(column)} onDragLeave={onDragLeave(stage)}>
    <div className="col-h"><StagePill stage={stage}/><span className="n">{all.length}</span></div>
-   {stage==='ideas'?<IdeaLane videos={videos} newId={ideas.newId} openGroup={ideas.openGroup} dragId={dragId} actions={ideas.actions} onOpen={onOpen} onMove={(id,to)=>onMove(id,to,null)}
+   {stage==='ideas'?<IdeaLane videos={videos} newId={ideas.newId} openGroup={ideas.openGroup} dragId={dragId} actions={ideas.actions} onOpen={onOpen} onMove={(id,to)=>onMove(id,to,null)} onResearch={onResearch}
     onDragStart={(id,event)=>{event.dataTransfer.effectAllowed='move';event.dataTransfer.setData('text/plain',id);setDragId(id);}} onDragEnd={reset}/>
    :<><div ref={element=>{if(element)elements.current.set(stage,element);else elements.current.delete(stage);}}>
     {shown.map(video=><div key={video.id}>
      {lineBefore===video.id&&video.id!==dragId&&<div aria-hidden data-drop-line className="drop-line"/>}
-     <KanbanCard video={video} scenes={scenes[video.id]} dragging={dragId===video.id} onOpen={()=>onOpen(video)} onMove={to=>onMove(video.id,to,null)}
+     <KanbanCard video={video} scenes={scenes[video.id]} dragging={dragId===video.id} onOpen={()=>onOpen(video)} onMove={to=>onMove(video.id,to,null)} onResearch={onResearch&&(()=>onResearch(video))}
       onDragStart={event=>{event.dataTransfer.effectAllowed='move';event.dataTransfer.setData('text/plain',video.id);setDragId(video.id);}} onDragEnd={reset}/>
     </div>)}
     {lineBefore==='end'&&<div aria-hidden data-drop-line className="drop-line"/>}

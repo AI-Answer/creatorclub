@@ -1,6 +1,7 @@
 import {useMemo,useSyncExternalStore} from 'react';
 import {clubFetch,errorMessage} from '../api';
 import {TOAST_MS} from '../ui';
+import {boardBase} from './board-base';
 
 /*
  * Removing a tile can be undone for as long as its toast shows. The server deletes a tile for good, so the request is held back instead:
@@ -35,7 +36,7 @@ export function deleteTileLater(videoId:string,tileId:string,onFailed:(message:s
  let sent=false;
  const timer=setTimeout(()=>{
   sent=true;
-  clubFetch(`/videos/${encodeURIComponent(videoId)}/research/${encodeURIComponent(tileId)}`,{method:'DELETE'}).then(()=>{deleted.add(key);},reason=>onFailed(errorMessage(reason,"Couldn't remove that tile."))).finally(()=>{pending.delete(key);publish();});
+  clubFetch(`${boardBase(videoId)}/research/${encodeURIComponent(tileId)}`,{method:'DELETE'}).then(()=>{deleted.add(key);},reason=>onFailed(errorMessage(reason,"Couldn't remove that tile."))).finally(()=>{pending.delete(key);publish();});
  },delay);
  pending.set(key,timer);publish();
  return()=>{

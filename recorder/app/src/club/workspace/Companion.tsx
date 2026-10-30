@@ -25,8 +25,10 @@ export type CompanionEditor={get():EditorBridge|null;state:EditorState|null};
  * The companion, docked on the right of a video's steps: one conversation per video, what it is looking at, suggestions for the step,
  * replies that stream in with their steps, and cards that apply a change with Preview and Undo. Collapses to a rail and remembers it.
  */
-export function Companion({videoId,videoTitle,tab,scene,screen,pkg,outline,scenes,onChanged,beforeApply,editor,roomy=false,boardKey=0}:{
+export function Companion({videoId,videoTitle,tab,scene,screen,selection,pkg,outline,scenes,onChanged,beforeApply,editor,roomy=false,boardKey=0}:{
  videoId:string;videoTitle?:string;tab:CompanionTab;scene?:CompanionScene;screen:string;pkg:Package|null;outline:Outline|null;
+ /** Research: the selected cards' ids, sent with every message ("these" means them). */
+ selection?:readonly string[];
  /** Changes when the board changed through the companion: its tiles are counted again. */
  boardKey?:number;
  /** The video's scenes with their takes: replacing scenes that have takes asks first. */
@@ -65,7 +67,7 @@ export function Companion({videoId,videoTitle,tab,scene,screen,pkg,outline,scene
  const companion=useCompanion(videoId,{onChanged,beforeApply,editor:()=>editorNow.current?.get()??null});
  const {messages,live}=companion;
  const working=live?.phase==='working';
- const context:CompanionContext=useMemo(()=>({tab,...(scene?{sceneId:scene.id,sceneTitle:scene.title}:{}),screen}),[tab,scene,screen]);
+ const context:CompanionContext=useMemo(()=>({tab,...(scene?{sceneId:scene.id,sceneTitle:scene.title}:{}),screen,...(selection?.length?{selection:[...selection].slice(0,200)}:{})}),[tab,scene,screen,selection]);
  const [text,setText]=useState('');
  const input=useRef<HTMLTextAreaElement>(null);
  const rail=useRef<HTMLButtonElement>(null);
@@ -122,12 +124,12 @@ export function Companion({videoId,videoTitle,tab,scene,screen,pkg,outline,scene
  const items=messages?withDividers(messages,tab):[];
  const sceneCount=outline?.scenes.length??0;
  const recorded=scenes?scenes.filter(one=>one.takes.length>0).length:undefined;
- const ideas=suggestions(tab,{scenes:sceneCount,scene,selected:editor?.state?.selected,hook:!!pkg?.hook.spoken.trim(),longest:Math.max(0,...(outline?.scenes??[]).map(one=>one.seconds||0)),
+ const ideas=suggestions(tab,{scenes:sceneCount,scene,selected:tab==='research'?selection?.length:editor?.state?.selected,hook:!!pkg?.hook.spoken.trim(),longest:Math.max(0,...(outline?.scenes??[]).map(one=>one.seconds||0)),
   tiles:tab==='board'?tiles:undefined,recorded,titled:!!videoTitle?.trim()||!!pkg?.titles.some(one=>one.trim()),thumbnail:!!pkg?.thumbnailText.trim()});
  // Nothing asked yet: a short greeting for this step with the best prompts right under it, instead of a blank column.
  const fresh=!!messages&&!messages.length&&!live&&!companion.loadError;
  const chips=ideas.length>0&&<div className={cn('cmp-sugg',fresh&&'fresh')} aria-label="Suggestions">{ideas.map(idea=><button key={idea} type="button" onClick={()=>void ask(idea)}>{idea}</button>)}</div>;
- const selected=tab==='edit'?editor?.state?.selected??0:0;
+ const selected=tab==='edit'?editor?.state?.selected??0:tab==='research'?selection?.length??0:0;
  return <aside className={cn('cmp',narrow&&'over')} aria-label={title} onKeyDown={onPanelKey}>
   <header className="cmp-head">
    <CompanionMark size={18} working={working} className="cmp-head-mark"/>
@@ -254,6 +256,8 @@ function Card({id,card,pkg,outline,scenes,busy,editor,silences,onApply,onUndo}:{
   const index=outline?.scenes.findIndex(scene=>scene.id===action.sceneId)??-1;
   body=<div className="cmp-card-text"><div className="cmp-card-sub">Scene {index>=0?index+1:''}{action.title?` · ${action.title}`:index>=0?` · ${outline!.scenes[index].title}`:''}</div>
    {action.talkingPoints&&<ul>{action.talkingPoints.map((point,at)=><li key={at}>{point}</li>)}</ul>}</div>;
+ }else if(action.type==='group_tiles'||action.type==='start_video'){
+  body=<div className="cmp-card-text"><div className="cmp-card-sub">{action.tileIds.length} {action.tileIds.length===1?'card':'cards'}</div>{action.title}</div>;
  }else body=<div className={cn('cmp-card-text',action.type==='set_description'&&'long')}>{action.text}</div>;
  return <div className={cn('cmp-card',card.state)}>
   <div className="cmp-card-h"><span>{ACTION_TITLE[action.type]}{action.type==='draft_scenes'?` · ${action.scenes.length}`:''}</span></div>

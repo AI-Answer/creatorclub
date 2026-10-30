@@ -183,7 +183,7 @@ export function Workspace({video,tab,back,navigate,onVideo}:{video:Video;tab:Vid
   {showsStrip(tab)&&<Strip scenes={scenes.state} focusId={focusId} onRetry={scenes.reload} onPick={sceneId=>{setFocusId(sceneId);setPickN(n=>n+1);}}/>}
   {moveError&&<div className="ws-body" style={{flex:'none',padding:'8px 18px'}}><ErrorLine message={moveError} onRetry={()=>void continueToNext()}/></div>}
   <div className="ws-body" key={tab}>
-   {tab==='board'&&<Board video={video} scenes={list} onDrafted={draftedNow} refreshKey={boardKey}/>}
+   {tab==='board'&&<Board video={video} scenes={list} onDrafted={draftedNow} refreshKey={boardKey} navigate={navigate}/>}
    {tab==='plan'&&<Plan video={video} plan={plan} known={list} focusId={focusId} onFocus={setFocusId} onTitle={saveTitle}
     onTarget={seconds=>{clubFetch<Video>(`/videos/${id}`,{method:'PUT',body:{targetSeconds:seconds>0?seconds:null}}).then(onVideo,reason=>toast(errorMessage(reason,"Couldn't save the target.")));}}
     onRecordScene={sceneId=>{setFocusId(sceneId);navigate(tabRoute('record'));}}/>}

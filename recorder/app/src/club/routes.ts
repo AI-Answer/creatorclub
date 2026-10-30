@@ -35,6 +35,7 @@ export type Route=
  |{name:'discover';show?:DiscoverShow}
  |{name:'videos';view:VideosView;group?:IdeaHeld;open?:string;new?:string;bd?:string}
  |{name:'video';id:string;tab?:VideoTab}
+ |{name:'research'}
  |{name:'settings';section?:SettingsSection};
 
 export type RouteName=Route['name'];
@@ -57,7 +58,7 @@ function videosRoute(view:VideosView,query:string,heldKey:'group'|'filter'):Rout
 export const defaultTab=(stage:VideoStage):VideoTab=>({ideas:'board',planning:'plan',recording:'record',editing:'edit',publishing:'publish',published:'publish'} as const)[stage];
 
 /**
- * Reads `#/home`, `#/discover?show=youtube`, `#/videos/table`, `#/videos?group=later&open=<id>`, `#/video/<id>/<tab>`, `#/settings/followed`, `#/welcome?step=2` and the rest.
+ * Reads `#/home`, `#/discover?show=youtube`, `#/videos/table`, `#/research`, `#/videos?group=later&open=<id>`, `#/video/<id>/<tab>`, `#/settings/followed`, `#/welcome?step=2` and the rest.
  * Old links keep working: `#/overview` is Home; `#/trending` and `#/signals` are Discover (on YouTube, and on everything); `#/ideas` with its
  * `filter`, `open`, `new` and `bd`, `#/production/<view>` and `#/board` are Videos; `#/onboarding` is `#/welcome`; `#/video/<id>/<step>` works
  * because the old steps are tabs too. A video's unknown tab opens the tab for its stage. Anything else is Home.
@@ -83,7 +84,7 @@ export function parseRoute(hash:string):Route{
    return Number.isInteger(step)&&step>=1&&step<=4?{name:'welcome',step}:{name:'welcome'};
   }
   case 'home':case 'overview':return HOME;
-  case 'settings':return {name};
+  case 'settings':case 'research':return {name};
   case 'discover':{const show=new URLSearchParams(query).get('show');return isShow(show)&&show!=='fit'?{name:'discover',show}:{name:'discover'};}
   case 'trending':return {name:'discover',show:'youtube'};
   case 'signals':return {name:'discover'};
@@ -127,7 +128,7 @@ export function videoOrigin(origin:Route|undefined,previous:Route,next:Route):Ro
  return previous.name==='welcome'?undefined:previous;
 }
 
-const ORIGIN_LABEL:Partial<Record<RouteName,string>>={home:'Home',discover:'Discover',videos:'Videos',settings:'Settings'};
+const ORIGIN_LABEL:Partial<Record<RouteName,string>>={home:'Home',discover:'Discover',videos:'Videos',research:'Research',settings:'Settings'};
 /** The name of a screen in "Back to …". */
 export const originLabel=(route:Route|undefined)=>(route&&ORIGIN_LABEL[route.name])||'Videos';
 

@@ -6,6 +6,7 @@ import { ClubError, notFound } from './errors.js';
 import { arrangeColumn } from '../../shared/club-board.js';
 import { freeSpot } from './tile-layout.js';
 import {
+  CHANNEL_BOARD,
   HELP_STEPS,
   VIDEO_STAGES,
   type AiProvider,
@@ -39,7 +40,19 @@ const assertId = (id: string, what: string) => {
 
 export const workspaceDir = (slug: string) => path.join(rootDir(), assertSlug(slug));
 export const videoDir = (slug: string, id: string) => path.join(workspaceDir(slug), 'videos', assertId(id, 'video'));
-export const researchDir = (slug: string, id: string) => path.join(videoDir(slug, id), 'research');
+/*
+ * A Board is a video's (named by the video's id) or the channel's own, Research (named `CHANNEL_BOARD`). A video's Board keeps its tiles in
+ * `videos/<id>/research/` and its notes in `videos/<id>/notes/`; Research keeps its tiles in `research/tiles/` and its notes in `research/notes/`.
+ * `boardDir` is the Board's own folder (notes, the files list, the connections and frames, the companion's conversation).
+ */
+export const isChannelBoard = (board: string) => board === CHANNEL_BOARD;
+export const boardDir = (slug: string, board: string) => (isChannelBoard(board) ? path.join(workspaceDir(slug), 'research') : videoDir(slug, board));
+export const researchDir = (slug: string, board: string) => (isChannelBoard(board) ? path.join(boardDir(slug, board), 'tiles') : path.join(videoDir(slug, board), 'research'));
+/** Throws "not found" unless the Board exists: the video, or for Research the channel. */
+export async function requireBoard(slug: string, board: string): Promise<void> {
+  if (isChannelBoard(board)) await readWorkspace(slug);
+  else await readVideo(slug, board);
+}
 export const breakdownsDir = (slug: string) => path.join(workspaceDir(slug), 'breakdowns');
 
 const now = () => new Date().toISOString();
@@ -482,7 +495,7 @@ const tileFile = (slug: string, videoId: string, tileId: string) => path.join(re
 const safeFileName = (name: string) => path.basename(name).replace(/[^\w.\- ]/g, '_').slice(-80) || 'file';
 
 export async function listTiles(slug: string, videoId: string): Promise<ResearchTile[]> {
-  await readVideo(slug, videoId);
+  await requireBoard(slug, videoId);
   let names: string[];
   try {
     names = await fs.readdir(researchDir(slug, videoId));
@@ -533,6 +546,8 @@ export function addTile(slug: string, videoId: string, input: NewTile): Promise<
  */
 export function seedIdeaTiles(slug: string, videoId: string): Promise<void> {
   return withLock(`board:${researchDir(slug, videoId)}`, async () => {
+    // Research is not made from an idea: nothing to seed.
+    if (isChannelBoard(videoId)) return;
     const marker = path.join(researchDir(slug, videoId), '.seeded');
     if (await fs.stat(marker).then(() => true, () => false)) return;
     const video = await readVideo(slug, videoId);

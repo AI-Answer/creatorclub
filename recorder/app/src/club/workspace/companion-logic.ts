@@ -6,7 +6,7 @@ import type {CompanionAction,CompanionMessage,CompanionStep,CompanionTab} from '
  * steps, the summary of a finished reply's steps, what a card would change (Preview), and when the log follows new text.
  */
 
-export const STEP_NAME:Record<CompanionTab,string>={board:'Board',plan:'Plan',record:'Record',edit:'Edit',publish:'Publish'};
+export const STEP_NAME:Record<CompanionTab,string>={board:'Board',plan:'Plan',record:'Record',edit:'Edit',publish:'Publish',research:'Research'};
 
 /** "Plan · Scene 2" or "Board". */
 export function lookingAt(tab:CompanionTab,scene?:{index:number;title:string}):string{
@@ -54,6 +54,7 @@ export function suggestions(tab:CompanionTab,facts:SuggestionFacts):string[]{
    :[scene?`Shorten ${scene} to fit its time`:'Shorten this scene to fit its time','Give me a warm-up line','What should I show on screen?'];
   case 'publish':return ['Write the description',facts.thumbnail?'Is the thumbnail text clear?':'Suggest thumbnail text',...(facts.titled===false?[]:['Is the title ready?'])];
   case 'edit':return facts.recorded===0?[]:[facts.selected?'Trim the selected clip to the speech':'Cut the pauses','Remove the filler words','Add a title at the start'];
+  case 'research':return facts.selected?['What do these have in common?','Group these in a frame','Start a video from these']:['What themes do you see here?','Group the cards by theme','Which of these could be a video?'];
  }
 }
 
@@ -73,6 +74,7 @@ export function greeting(tab:CompanionTab,facts:{scenes:number;tiles?:number;rec
    ?'Nothing is recorded yet. Once a scene is, I can cut its pauses and filler words as cards you preview, apply and undo.'
    :'I see the timeline, its transcript and what you select. Each change I suggest comes as a card you can preview, apply and undo.';
   case 'publish':return 'Check the title, the thumbnail and the description before it goes out. Ask me for a second opinion on any of them.';
+  case 'research':return 'This is your channel\'s own board. Ask what the cards have in common, or ask me to group them or start a video from them: each change comes as a card you can apply and undo.';
  }
 }
 
@@ -128,6 +130,8 @@ export function previewOf(action:CompanionAction,pkg:Package|null,outline:Outlin
   case 'set_thumbnail_text':return {field:'Thumbnail text',now:[pkg?.thumbnailText.trim()||none],after:[action.text]};
   case 'set_description':return {field:'Description',now:[pkg?.description?.trim()||none],after:[action.text]};
   case 'add_note':return {field:'Board',now:[],after:[action.text]};
+  case 'group_tiles':return {field:'Frame',now:[],after:[`“${action.title}” around ${action.tileIds.length} cards`]};
+  case 'start_video':return {field:'Videos',now:[],after:[`A new idea, “${action.title}”, with copies of ${action.tileIds.length} ${action.tileIds.length===1?'card':'cards'} on its board`]};
   case 'set_scene':{
    const index=outline?.scenes.findIndex(scene=>scene.id===action.sceneId)??-1;
    const scene=index>=0?outline!.scenes[index]:undefined;
@@ -159,5 +163,6 @@ export function screenSummary(tab:CompanionTab,facts:{pkg:Package|null;outline:O
   case 'record':return `Recording; ${sceneLine}${facts.recorded!==undefined?`, ${facts.recorded} recorded`:''}`;
   case 'publish':return `Publish form; description ${facts.pkg?.description?.trim()?'written':'not written yet'}`;
   case 'edit':return 'The editor: the timeline, its transcript and the stage';
+  case 'research':return 'Research, the channel\'s own board';
  }
 }

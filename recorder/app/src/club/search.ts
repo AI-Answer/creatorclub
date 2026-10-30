@@ -48,6 +48,7 @@ export function fixedOptions(videos:readonly Video[],openId?:string|null):Search
   {id:'page:videos',label:'Videos',kind:'Page',icon:'video',hint:'Every video from idea to published',words:'board pipeline ideas production',target:{route:{name:'videos',view:'board'}}},
   {id:'page:table',label:'Videos table',kind:'Page',icon:'table',words:'list',target:{route:{name:'videos',view:'table'}}},
   {id:'page:calendar',label:'Videos calendar',kind:'Page',icon:'calendar',words:'schedule publish date',target:{route:{name:'videos',view:'calendar'}}},
+  {id:'page:research',label:'Research',kind:'Page',icon:'research',hint:'Your channel\'s own board',words:'canvas board heptabase connect frame notes start video',target:{route:{name:'research'}}},
   {id:'page:settings',label:'Settings',kind:'Page',icon:'settings',hint:'Your AI, channel and publishing',words:'preferences',target:{route:{name:'settings'}}},
   ...SETTINGS.map<SearchOption>(item=>({id:`settings:${item.section}`,label:item.label,kind:'Settings',icon:'settings',words:`settings ${item.words}`,target:{route:{name:'settings',section:item.section}}})),
   ...GLOSSARY.map<SearchOption>(item=>({id:`help:${item.term}`,label:item.term,kind:'Help',icon:'help',hint:item.means,words:'meaning glossary what is',target:{action:'help',topic:`term:${item.term}`}})),

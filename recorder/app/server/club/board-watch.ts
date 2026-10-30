@@ -36,7 +36,7 @@ export function worthKnowing(filename: string | null, onlyFolder?: string): bool
 /** Calls `onChange` when a Markdown or text file in the video's folders appears, changes or goes. Returns the function that stops watching. */
 export function watchBoard(slug: string, videoId: string, onChange: () => void, options: WatchOptions = {}): () => void {
   const { debounceMs, maxWaitMs, pollMs, pollFastMs, native, watchFn } = { ...DEFAULTS, ...options };
-  const videoDir = store.videoDir(slug, videoId);
+  const videoDir = store.boardDir(slug, videoId);
   const watchers = new Map<string, FSWatcher>();
   let stopped = false;
   let signature: string | undefined;

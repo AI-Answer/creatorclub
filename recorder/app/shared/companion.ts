@@ -6,7 +6,8 @@ import type {MotionTemplateId,Project} from './types';
  * that Undo puts back. Edit's actions change the recording project's timeline through the editor's own timeline rules.
  */
 
-export const COMPANION_TABS = ['board', 'plan', 'record', 'edit', 'publish'] as const;
+/** A video's steps, and `research`: the channel's own Board, which has a conversation of its own. */
+export const COMPANION_TABS = ['board', 'plan', 'record', 'edit', 'publish', 'research'] as const;
 export type CompanionTab = (typeof COMPANION_TABS)[number];
 
 export interface DraftScene {
@@ -46,10 +47,14 @@ export type CompanionAction =
   | { type: 'set_scene'; sceneId: string; title?: string; talkingPoints?: string[] }
   | { type: 'draft_scenes'; scenes: DraftScene[] }
   | { type: 'set_description'; text: string }
+  /** Research: a frame named `title` around these cards. */
+  | { type: 'group_tiles'; title: string; tileIds: string[] }
+  /** Research: a new idea whose first Board holds copies of these cards. */
+  | { type: 'start_video'; title: string; tileIds: string[] }
   | EditAction;
 export type CompanionActionType = CompanionAction['type'];
 
-export const COMPANION_ACTION_TYPES = ['use_hook', 'use_title', 'set_thumbnail_text', 'add_note', 'set_scene', 'draft_scenes', 'set_description', ...EDIT_ACTION_TYPES] as const satisfies readonly CompanionActionType[];
+export const COMPANION_ACTION_TYPES = ['use_hook', 'use_title', 'set_thumbnail_text', 'add_note', 'set_scene', 'draft_scenes', 'set_description', 'group_tiles', 'start_video', ...EDIT_ACTION_TYPES] as const satisfies readonly CompanionActionType[];
 
 /** The actions the companion may offer on each step. */
 export const TAB_ACTIONS: Record<CompanionTab, readonly CompanionActionType[]> = {
@@ -58,6 +63,7 @@ export const TAB_ACTIONS: Record<CompanionTab, readonly CompanionActionType[]> =
   record: ['set_scene', 'add_note'],
   edit: EDIT_ACTION_TYPES,
   publish: ['set_description', 'use_title', 'set_thumbnail_text'],
+  research: ['add_note', 'group_tiles', 'start_video'],
 };
 
 /** What a card is called, by its action. */
@@ -69,6 +75,8 @@ export const ACTION_TITLE: Record<CompanionActionType, string> = {
   set_scene: 'Scene',
   draft_scenes: 'Scenes',
   set_description: 'Description',
+  group_tiles: 'Frame',
+  start_video: 'New video',
   cut_pauses: 'Cut pauses',
   remove_fillers: 'Remove filler words',
   close_gaps: 'Close gaps',
@@ -92,6 +100,8 @@ export const ACTION_STEP: Record<CompanionActionType, string> = {
   set_scene: 'Rewriting the scene',
   draft_scenes: 'Drafting scenes',
   set_description: 'Writing the description',
+  group_tiles: 'Grouping cards',
+  start_video: 'Planning a video',
   cut_pauses: 'Finding pauses',
   remove_fillers: 'Finding filler words',
   close_gaps: 'Finding gaps',
@@ -115,6 +125,8 @@ export const ACTION_VERB: Record<CompanionActionType, string> = {
   set_scene: 'Apply',
   draft_scenes: 'Apply',
   set_description: 'Use it',
+  group_tiles: 'Group them',
+  start_video: 'Start the video',
   cut_pauses: 'Cut them',
   remove_fillers: 'Remove them',
   close_gaps: 'Close them',
@@ -140,6 +152,8 @@ export interface CompanionCard {
   result?: string;
   /** A timeline card: the hash of the timeline it was applied on; applying it again after Undo needs that timeline. */
   appliedOn?: string;
+  /** A `start_video` card once applied: the idea it made, so the card can open it. */
+  videoId?: string;
   /** Applied so long ago that its version was pruned: it can no longer be undone. */
   tooOld?: true;
 }
@@ -151,7 +165,7 @@ export interface CompanionContext {
   sceneTitle?: string;
   /** A short summary of what the screen shows. */
   screen?: string;
-  /** Edit: the playhead in seconds, the selected clip ids, the selected captions, texts, zooms and markers, and the time they all span. */
+  /** Edit: the playhead in seconds, the selected clip ids (Research: the selected cards' ids), the selected captions, texts, zooms and markers, and the time they all span. */
   playhead?: number;
   selection?: string[];
   items?: SelectedItem[];
@@ -212,7 +226,7 @@ export interface CompanionAsked {
 export type CompanionEvent = { type: 'step'; label: string; index: number } | { type: 'text'; at: number; text: string };
 
 /** What an apply or undo changed, so the screen reads it again. `timeline`: the recording project. */
-export type CompanionChanged = 'package' | 'outline' | 'board' | 'timeline';
+export type CompanionChanged = 'package' | 'outline' | 'board' | 'timeline' | 'videos';
 
 /** Undo's answer when the part a card changed was changed again after it: nothing newer is ever overwritten. */
 export const CHANGED_SINCE = "This changed after it was applied, so it can't be undone safely.";
