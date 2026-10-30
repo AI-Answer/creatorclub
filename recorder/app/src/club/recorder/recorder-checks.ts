@@ -89,15 +89,17 @@ export function recorderProblems(sources:readonly SourceCheck[],disk:DiskSpace|n
 const TITLES:Record<SourceKind,string>={camera:'Camera',microphone:'Microphone',screen:'Screen',systemAudio:'Computer audio'};
 
 /**
- * The one line above the Record button, naming the sources that are on: "Camera · Microphone · Screen: ready".
+ * The one line above the Record button, naming the sources that are on: "Camera, microphone and screen are ready."
  * A source still opening, or not opened yet (recording opens it), says so. With no source on it says to choose one.
  * Problems are not told here: they replace this line (see `recorderProblems`).
  */
 export function readinessLine(sources:readonly SourceCheck[]):{text:string;ready:boolean}{
  if(!sources.length)return {text:'No source is on. Choose one under Change.',ready:false};
- const names=sources.map(source=>TITLES[source.kind]).join(' · ');
- if(sources.every(source=>source.state==='ready'))return {text:`${names}: ready`,ready:true};
- return {text:sources.some(source=>source.state==='off')?`${names}: opens when you record`:`${names}: opening…`,ready:false};
+ const words=sources.map((source,i)=>i?TITLES[source.kind].toLowerCase():TITLES[source.kind]);
+ const names=words.length>1?`${words.slice(0,-1).join(', ')} and ${words[words.length-1]}`:words[0];
+ const plural=sources.length>1;
+ if(sources.every(source=>source.state==='ready'))return {text:`${names} ${plural?'are':'is'} ready.`,ready:true};
+ return {text:sources.some(source=>source.state==='off')?`${names} will start when you press Record.`:`Starting ${names.toLowerCase()}…`,ready:false};
 }
 
 /** The scene to record after `from`: the next one without a take, else the first earlier one without a take, else null (all recorded). */

@@ -292,7 +292,7 @@ test('a source that fails for another reason says so in plain words, with no raw
  const audio=await mountClubRecording(only('systemAudio'),'granted');
  try{
   assert.deepEqual(cardLines(audio.ui.container),[],'nothing chosen yet is not an error');
-  assert.equal(audio.ui.container.querySelector('.club-readiness')?.textContent,'Computer audio: opens when you record');
+  assert.equal(audio.ui.container.querySelector('.club-readiness')?.textContent,'Computer audio will start when you press Record.');
   await click(button(audio.ui.container,'Choose source'));await flush();
   assert.deepEqual(cardLines(audio.ui.container),[{text:"The computer audio can't be captured: choose the screen or window again.",button:'Choose source'}]);
   assert.equal(Boolean(audio.ui.container.querySelector('.capture-source-error')),false,'no unexplained buttons under the source');

@@ -78,10 +78,10 @@ test('a failed source makes the card red, and its line comes before the disk lin
 });
 
 test('the readiness line names the sources that are on and says whether they are ready',()=>{
- assert.deepEqual(readinessLine([{kind:'camera',state:'ready'},{kind:'microphone',state:'ready'},{kind:'screen',state:'ready'}]),{text:'Camera · Microphone · Screen: ready',ready:true});
- assert.deepEqual(readinessLine([{kind:'systemAudio',state:'ready'}]),{text:'Computer audio: ready',ready:true});
- assert.deepEqual(readinessLine([{kind:'camera',state:'ready'},{kind:'microphone',state:'starting'}]),{text:'Camera · Microphone: opening…',ready:false});
- assert.deepEqual(readinessLine([{kind:'camera',state:'off'},{kind:'microphone',state:'ready'}]),{text:'Camera · Microphone: opens when you record',ready:false});
+ assert.deepEqual(readinessLine([{kind:'camera',state:'ready'},{kind:'microphone',state:'ready'},{kind:'screen',state:'ready'}]),{text:'Camera, microphone and screen are ready.',ready:true});
+ assert.deepEqual(readinessLine([{kind:'systemAudio',state:'ready'}]),{text:'Computer audio is ready.',ready:true});
+ assert.deepEqual(readinessLine([{kind:'camera',state:'ready'},{kind:'microphone',state:'starting'}]),{text:'Starting camera and microphone…',ready:false});
+ assert.deepEqual(readinessLine([{kind:'camera',state:'off'},{kind:'microphone',state:'ready'}]),{text:'Camera and microphone will start when you press Record.',ready:false});
  assert.deepEqual(readinessLine([]),{text:'No source is on. Choose one under Change.',ready:false});
 });
 
