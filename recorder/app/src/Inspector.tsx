@@ -1,3 +1,4 @@
+import {newElement} from './timeline-edit';
 import {memo,useMemo,useState,useSyncExternalStore} from 'react';
 import {usePanelMotion} from './motion';
 import {Plus,Trash2,Upload,Sparkles,Check,AlignCenter,Subtitles,MousePointer2,AudioLines,Scissors,WandSparkles,X} from './Icons';
@@ -36,7 +37,7 @@ export const Inspector=memo(function Inspector(props:Props){
  const updateClip=(fn:(c:Clip)=>void,key?:string)=>change(p=>{const c=p.clips.find(c=>c.id===selected);if(c)fn(c);},key?{coalesce:`clip:${selected}:${key}`}:undefined);
  const updateElement=(fn:(e:Element)=>void,key?:string)=>change(p=>{const e=p.elements.find(e=>e.id===selected);if(e)fn(e);},key?{coalesce:`element:${selected}:${key}`}:undefined);
  const [captionText,setCaptionText]=useState('');
- const addElement=(type:Element['type'])=>{const id=makeId(),start=playhead.get();change(p=>p.elements.push({id,type,start,duration:5,text:type==='text'?'Your story, beautifully told.':'',x:.15,y:.65,width:.7,height:type==='text'?.16:.22,color:'#ffffff',background:type==='highlight'?'#bba6ff66':type==='text'?'#171b27bb':'transparent',fontSize:64,opacity:1,rotation:0}));select(id);};
+ const addElement=(type:Element['type'])=>{const id=makeId(),start=playhead.get();change(p=>p.elements.push(newElement(type,start,id)));select(id);};
  return <aside className="inspector" ref={motionRef}><div className="inspector-heading"><span className="eyebrow">MAKE IT YOURS</span><h2>{panel}</h2>{onClose&&<button type="button" className="club-sheet-close" aria-label={`Close ${panel}`} onClick={onClose}><X size={16}/></button>}</div>
  {panel==='Canvas'&&<>
   <Section title="Video format"><div className="format-grid">{[['Landscape',1920,1080,'16:9'],['Vertical',1080,1920,'9:16'],['Square',1080,1080,'1:1'],['Portrait',1080,1350,'4:5']].map(([name,w,h,label])=><button key={name} className={`format-card ${p.canvas.width===w&&p.canvas.height===h?'active':''}`} onClick={()=>change(p=>{p.canvas.width=Number(w);p.canvas.height=Number(h);})}><span className="format-shape" style={{aspectRatio:`${w}/${h}`}}/><b>{name}</b><small>{label}</small></button>)}</div><div className="field-pair"><NumberField label="Width" value={p.canvas.width} min={64} max={7680} step={2} onChange={v=>change(p=>{p.canvas.width=Math.round(v/2)*2;},{coalesce:'canvas.width'})}/><NumberField label="Height" value={p.canvas.height} min={64} max={7680} step={2} onChange={v=>change(p=>{p.canvas.height=Math.round(v/2)*2;},{coalesce:'canvas.height'})}/></div><Field label="Frame rate"><select value={p.canvas.fps} onChange={e=>change(p=>{p.canvas.fps=+e.target.value;})}>{[24,25,30,60].map(v=><option key={v}>{v}</option>)}</select></Field></Section>

@@ -365,6 +365,7 @@ test('on Edit: a message carries the playhead and selection, a timeline card pre
   context:()=>({playhead:6.5,selection:['screen-1'],range:{start:0,end:20}}),
   flush:async()=>{log.push('flush');},
   preview:(action:unknown,key:string)=>{log.push(action?`preview ${(action as {type:string}).type}`:'preview off');previewKey=action?key:undefined;return undefined;},
+  estimate:()=>({text:'3 cuts · 0.9 s shorter'}),
   commit:async<T,>(run:(revision:string)=>Promise<T>)=>{log.push('commit');return run('rev-1');},
  };
  const changed:CompanionChanged[][]=[];
@@ -375,6 +376,7 @@ test('on Edit: a message carries the playhead and selection, a timeline card pre
   const c=ui.container;
   assert.match(text(c),/Looking at: Edit2 selected/);
   assert.match(c.querySelector('.cmp-card')?.textContent??'',/Cut pausesCut pauses between your words longer than 1 s, keeping a breath on each side\./,'the card says what it does');
+  assert.equal(c.querySelector('.cmp-card-est')?.textContent,'3 cuts · 0.9 s shorter','and how much it takes out');
   await act(async()=>button(c,'Preview').click());
   assert.deepEqual(log,['preview cut_pauses'],'Preview shows the cut on the stage');
   await ui.render(createElement(Companion,props()));

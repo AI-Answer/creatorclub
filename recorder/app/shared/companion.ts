@@ -133,6 +133,8 @@ export interface CompanionCard {
   version?: string;
   /** One line saying what applying it changed, e.g. "Replaced 4 scenes". */
   result?: string;
+  /** A timeline card: the hash of the timeline it was applied on; applying it again after Undo needs that timeline. */
+  appliedOn?: string;
   /** Applied so long ago that its version was pruned: it can no longer be undone. */
   tooOld?: true;
 }
@@ -144,10 +146,20 @@ export interface CompanionContext {
   sceneTitle?: string;
   /** A short summary of what the screen shows. */
   screen?: string;
-  /** Edit: the playhead in seconds, the selected clip ids and the time they span. */
+  /** Edit: the playhead in seconds, the selected clip ids, the selected captions, texts, zooms and markers, and the time they all span. */
   playhead?: number;
   selection?: string[];
+  items?: SelectedItem[];
   range?: { start: number; end: number };
+}
+
+/** A selected caption, text or graphic, zoom or marker on Edit's timeline. */
+export interface SelectedItem {
+  id: string;
+  kind: 'caption' | 'text' | 'zoom' | 'marker';
+  start: number;
+  end: number;
+  text?: string;
 }
 
 /** A finished step of a reply, with how long it took. */

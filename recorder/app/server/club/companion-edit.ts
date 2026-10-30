@@ -1,7 +1,8 @@
 import { createHash } from 'node:crypto';
 import { CHANGED_SINCE, TIMELINE_MOVED, type CompanionContext, type EditAction } from '../../shared/companion.js';
 import { clipDuration, projectDuration, type Project } from '../../shared/types.js';
-import { applyEditAction, editActionProblem, editRanges, hasTranscript, wordPauseRanges } from '../../src/editing-actions.js';
+import { clipsFingerprint, latestCutJob, planSilenceRanges } from '../../src/club/recorder/edit-auto.js';
+import { applyEditAction, editActionProblem, editRanges, hasTranscript, wordPauseRanges, type EditOptions, type SilencePlan } from '../../src/editing-actions.js';
 import { applyProjectChange } from '../../src/project-draft.js';
 import { ClubError } from './errors.js';
 import { sceneforge } from './recorder.js';
@@ -66,26 +67,61 @@ export interface TimelineUndo {
   before: Timeline;
   /** The timeline the action wrote, as a hash: Undo goes back only while the timeline still equals it. */
   after: string;
+  /** The timeline it was applied on, as a hash: when the editor's own Undo already went back to it, the card is simply undone. */
+  beforeHash?: string;
+}
+
+/** Applying a card again after it was undone: only on the timeline it was first applied on, so a cut never lands on other content. */
+export const MOVED_SINCE_UNDO = 'The timeline changed since this was undone, so applying it again could change the wrong part. Ask again.';
+
+/**
+ * Auto-edit's audio plan for this project, when it has one: the silences of its newest whole-video Remove pauses plan and the fingerprint of
+ * the clips it was made on. A cut of pauses uses it only while the clips still match.
+ */
+let silencesOf = async (project: Project): Promise<SilencePlan | null> => {
+  const { automation } = await import('../automation.js');
+  const job = latestCutJob(await automation.list(project.id));
+  const ranges = planSilenceRanges(job);
+  if (!job || !ranges.length) return null;
+  const ids = job.proposal!.changes.filter((change) => change.category === 'silence').map((change) => change.id);
+  const review = await automation.review(job.id, ids);
+  return { fingerprint: clipsFingerprint(review.before.clips), ranges };
+};
+/** Tests replace where the audio plan is read from. */
+export const readSilencesWith = (reader: typeof silencesOf) => {
+  silencesOf = reader;
+};
+export const editOptions = async (project: Project): Promise<EditOptions> => ({ silences: await silencesOf(project).catch(() => null) });
+/** `GET /videos/:id/companion/silences`: the plan the editor previews cuts of pauses with, so its preview matches what Apply does. */
+export async function editSilences(slug: string, id: string): Promise<SilencePlan | null> {
+  const { project } = await editProject(slug, id);
+  return (await editOptions(project)).silences ?? null;
 }
 
 /** Applies one Edit action to the video's recording project and saves it. */
-export async function applyEdit(slug: string, id: string, action: EditAction, expected?: string): Promise<{ result: string; undo: TimelineUndo; project: Project; revision: string }> {
+export async function applyEdit(slug: string, id: string, action: EditAction, expected?: string, appliedOn?: string): Promise<{ result: string; undo: TimelineUndo; project: Project; revision: string }> {
   const { project, revision } = await editProject(slug, id);
   sameRevision(expected, revision);
-  const problem = editActionProblem(project, action);
+  const beforeHash = timelineHash(project);
+  if (appliedOn !== undefined && beforeHash !== appliedOn) throw new ClubError(MOVED_SINCE_UNDO, 409);
+  const options = await editOptions(project);
+  const problem = editActionProblem(project, action, options);
   if (problem) throw new ClubError(problem, 409);
   let result = '';
   const next = applyProjectChange(project, (draft) => {
-    result = applyEditAction(draft, action);
+    result = applyEditAction(draft, action, options);
   });
   const saved = await save(next, revision);
-  return { result, undo: { kind: 'timeline', projectId: project.id, before: timelineOf(project), after: timelineHash(saved.project) }, ...saved };
+  return { result, undo: { kind: 'timeline', projectId: project.id, before: timelineOf(project), after: timelineHash(saved.project), beforeHash }, ...saved };
 }
 
 /** Puts back the timeline an action replaced, only while the timeline still holds exactly what the action wrote. */
 export async function undoEdit(slug: string, id: string, undo: TimelineUndo, expected?: string): Promise<{ project: Project; revision: string }> {
   const { project, revision } = await editProject(slug, id);
-  if (project.id !== undo.projectId || timelineHash(project) !== undo.after) throw new ClubError(CHANGED_SINCE, 409);
+  const now = project.id === undo.projectId ? timelineHash(project) : '';
+  // The editor's own Undo already went back to the timeline the card was applied on: nothing to write, the card is undone.
+  if (undo.beforeHash && now === undo.beforeHash) return { project, revision };
+  if (now !== undo.after) throw new ClubError(CHANGED_SINCE, 409);
   sameRevision(expected, revision);
   return save(withTimeline(project, undo.before), revision);
 }
@@ -109,17 +145,19 @@ export function projectSummary(p: Project): string {
  * The timeline as the prompt reads it: the summary, the playhead and selection, the scenes with their time ranges, the clips with ids,
  * and the transcript with times. The transcript is the creator's recorded speech: it is quoted as material, never as instructions.
  */
-export function timelineText(p: Project, context: CompanionContext): string {
+export function timelineText(p: Project, context: CompanionContext, options: EditOptions = {}): string {
   const lines = [`Timeline: ${projectSummary(p)}`];
   if (context.playhead !== undefined) lines.push(`Playhead: ${clock(context.playhead)} (${context.playhead.toFixed(2)} s)`);
   const known = new Set(p.clips.map((clip) => clip.id));
   const selected = (context.selection ?? []).filter((clipId) => known.has(clipId));
   if (selected.length) lines.push(`Selected clips: ${selected.join(', ')}${context.range ? ` (${context.range.start.toFixed(2)} s to ${context.range.end.toFixed(2)} s)` : ''}`);
-  else lines.push('Nothing selected.');
+  const items = context.items ?? [];
+  for (const item of items) lines.push(`Selected ${item.kind}: ${item.id} (${item.start.toFixed(2)} s to ${item.end.toFixed(2)} s)${item.text ? ` "${item.text.replace(/<\/?[a-z][a-z0-9_-]*[^<>]*>/gi, '').replace(/\s+/g, ' ').trim()}"` : ''}`);
+  if (!selected.length && !items.length) lines.push('Nothing selected.');
   if (hasTranscript(p)) {
     // What cut_pauses and remove_fillers would find, so a card is offered at a level that cuts something.
     const found = (['gentle', 'balanced', 'tight'] as const).map((level) => {
-      const ranges = wordPauseRanges(p, level);
+      const ranges = wordPauseRanges(p, level, options);
       return `${level} ${ranges.length} (${ranges.reduce((n, [a, b]) => n + b - a, 0).toFixed(1)} s)`;
     });
     lines.push(`Pauses between words that cut_pauses would cut: ${found.join(', ')}. Filler words: ${editRanges(p, { type: 'remove_fillers' })!.length}.`);
@@ -132,7 +170,7 @@ export function timelineText(p: Project, context: CompanionContext): string {
   if (p.captions.length) {
     let text = '';
     for (const caption of [...p.captions].sort((a, b) => a.start - b.start)) {
-      const line = `[${caption.start.toFixed(2)}–${caption.end.toFixed(2)}] ${caption.text.replace(/<\/?transcript>/gi, '').replace(/\s+/g, ' ').trim()}\n`;
+      const line = `[${caption.start.toFixed(2)}–${caption.end.toFixed(2)}] ${caption.text.replace(/<\/?[a-z][a-z0-9_-]*[^<>]*>/gi, '').replace(/\s+/g, ' ').trim()}\n`;
       if (text.length + line.length > TRANSCRIPT_CHARS) {
         text += '[… the rest of the transcript is left out]\n';
         break;

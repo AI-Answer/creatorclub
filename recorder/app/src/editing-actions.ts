@@ -1,9 +1,9 @@
 import type {EditAction,PauseLevel,TextPosition} from '../shared/companion';
 import {clipDuration,makeId,projectDuration,type Clip,type Project} from '../shared/types';
 import {minimumPiece} from '../shared/timeline-edits';
-import {fillerRanges,gapRanges,rangesSeconds} from './club/recorder/edit-auto';
+import {clipsFingerprint,fillerRanges,gapRanges,rangesSeconds} from './club/recorder/edit-auto';
 import {plainView} from './project-draft';
-import {closeRange,ensureLinks,linkedIds,mergeRanges,rowItems,splitLinked,syncScenesToTakes,trimBounds,trimClips} from './timeline-edit';
+import {closeRange,ensureLinks,linkedIds,mergeRanges,newElement,rowItems,splitLinked,syncScenesToTakes,trimBounds,trimClips} from './timeline-edit';
 
 /**
  * The companion's Edit actions as pure functions over a project (or a draft of one). Every change goes through the editor's own timeline
@@ -18,6 +18,18 @@ export const PAUSE_SECONDS:Record<PauseLevel,number>={gentle:2,balanced:1,tight:
 /** Breath kept on each side of a cut pause, and the shortest cut worth making. */
 export const PAUSE_KEEP=.15;
 const MIN_CUT=.25;
+/** A longer stretch between two words is not a pause (a silent demo, a take without a transcript): it is never cut. */
+export const PAUSE_MAX=8;
+/** One card never deletes more than this share of the video; a quarter or more is said on the card. */
+export const DELETE_MAX_SHARE=.5,DELETE_WARN_SHARE=.25;
+/**
+ * Auto-edit's audio plan: the silences it heard, for the timeline whose clips have this fingerprint (`clipsFingerprint`). When the clips
+ * still match, a pause is cut only where the audio is silent too.
+ */
+export interface SilencePlan {fingerprint:string;ranges:Range[]}
+export interface EditOptions {silences?:SilencePlan|null}
+/** Rows that carry the recorded speech. */
+const SPEECH:ReadonlySet<Clip['track']>=new Set(['screen','camera','audio']);
 const EPS=1e-6;
 const end=(c:Clip)=>c.start+clipDuration(c);
 const clock=(t:number)=>{const s=Math.max(0,t);return `${Math.floor(s/60)}:${(s%60).toFixed(1).padStart(4,'0')}`;};
@@ -30,18 +42,40 @@ function spoken(p:Project){
 }
 export const hasTranscript=(p:Project)=>spoken(p).length>0;
 
-/** Pauses between spoken words at least as long as the level asks, each shortened to keep a breath on both sides. */
-export function wordPauseRanges(p:Project,level:PauseLevel):Range[]{
- const words=spoken(p),out:Range[]=[];let reach=-Infinity;
- for(const w of words){if(reach>-Infinity&&w.start-reach>=PAUSE_SECONDS[level]){const a=reach+PAUSE_KEEP,b=w.start-PAUSE_KEEP;if(b-a>=MIN_CUT)out.push([a,b]);}reach=Math.max(reach,w.end);}
- return mergeRanges(out);
+/** The speech clips that hold a whole word (start to end). A word no clip holds was left behind by a move: its time is not speech any more. */
+const holding=(p:Project,a:number,b:number)=>p.clips.filter(c=>SPEECH.has(c.track)&&!c.muted&&c.start<=a+1e-3&&end(c)>=b-1e-3);
+/** True when one recording runs on from the word before to the word after: the same clip, or pieces of one media file cut at the same source point. */
+function continuous(p:Project,before:{start:number;end:number},after:{start:number;end:number}){
+ const left=holding(p,before.start,before.end),right=holding(p,after.start,after.end);
+ return left.some(c=>right.includes(c))||left.some(c=>right.some(d=>d.mediaId===c.mediaId&&Math.abs(end(c)-d.start)<1e-3&&Math.abs(c.sourceOut-d.sourceIn)<1e-3));
 }
+/** The ranges that are inside the plan's silences, pieces shorter than a cut is worth left out. Without a plan that matches these clips, the ranges as they are. */
+function withinSilences(p:Project,ranges:Range[],silences?:SilencePlan|null):Range[]{
+ if(!silences||silences.fingerprint!==clipsFingerprint(p.clips))return ranges;
+ const quiet=mergeRanges(silences.ranges);
+ return ranges.flatMap(([a,b])=>quiet.map(([x,y])=>[Math.max(a,x),Math.min(b,y)] as Range).filter(([x,y])=>y-x>=MIN_CUT));
+}
+/**
+ * Pauses between spoken words at least as long as the level asks, each shortened to keep a breath on both sides. A gap counts only when
+ * one recording holds both words around it (so a take with no transcript, or captions left behind by a move, is never taken for a pause),
+ * and only up to `PAUSE_MAX`; with Auto-edit's audio plan for this timeline, only where the audio is silent too.
+ */
+export function wordPauseRanges(p:Project,level:PauseLevel,options:EditOptions={}):Range[]{
+ const words=spoken(p),out:Range[]=[];let last:{start:number;end:number}|undefined;
+ for(const w of words){
+  if(last&&w.start-last.end>=PAUSE_SECONDS[level]&&w.start-last.end<=PAUSE_MAX&&continuous(p,last,w)){const a=last.end+PAUSE_KEEP,b=w.start-PAUSE_KEEP;if(b-a>=MIN_CUT)out.push([a,b]);}
+  if(!last||w.end>last.end)last=w;
+ }
+ return mergeRanges(withinSilences(p,out,options.silences));
+}
+/** Filler words that a speech clip still holds (a word left behind by a move is not cut). */
+const heldFillers=(p:Project):Range[]=>fillerRanges(p).filter(([a,b])=>holding(p,a,b).length>0);
 
 /** The time an action takes out of every row (cuts), or undefined for actions that cut nothing. */
-export function editRanges(p:Project,action:EditAction):Range[]|undefined{
+export function editRanges(p:Project,action:EditAction,options:EditOptions={}):Range[]|undefined{
  switch(action.type){
-  case 'cut_pauses':return wordPauseRanges(p,action.level);
-  case 'remove_fillers':return fillerRanges(p);
+  case 'cut_pauses':return wordPauseRanges(p,action.level,options);
+  case 'remove_fillers':return heldFillers(p);
   case 'close_gaps':return gapRanges(p);
   case 'delete_range':return [[Math.max(0,action.start),Math.min(projectDuration(p),action.end)]];
   default:return undefined;
@@ -55,14 +89,14 @@ const overlapping=(p:Project,row:'captions'|'elements'|'zooms',start:number,stop
  * Why this action cannot be applied to this timeline, in one sentence, or undefined when it can. The server checks every action with it
  * before offering a card and again before applying it.
  */
-export function editActionProblem(p:Project,action:EditAction):string|undefined{
+export function editActionProblem(p:Project,action:EditAction,options:EditOptions={}):string|undefined{
  const length=projectDuration(p),inRange=(t:number)=>Number.isFinite(t)&&t>=0&&t<=length+.05;
  const clip=(id:string)=>p.clips.find(c=>c.id===id);
  if(!p.clips.length&&action.type!=='set_caption_style')return 'There is nothing on the timeline yet.';
  switch(action.type){
   case 'cut_pauses':case 'remove_fillers':{
    if(!hasTranscript(p))return 'There is no transcript yet, so the pauses between words are not known.';
-   if(!editRanges(p,action)!.length)return action.type==='cut_pauses'?'There are no pauses that long between your words.':'There are no filler words in the transcript.';
+   if(!editRanges(p,action,options)!.length)return action.type==='cut_pauses'?'There are no pauses that long between your words.':'There are no filler words in the transcript.';
    return;
   }
   case 'close_gaps':return gapRanges(p).length?undefined:'There are no gaps between clips.';
@@ -70,6 +104,7 @@ export function editActionProblem(p:Project,action:EditAction):string|undefined{
    if(!inRange(action.start)||!inRange(action.end))return 'That time is outside the video.';
    if(action.end-action.start<minimumPiece(p))return 'That stretch is too short to delete.';
    if(action.start<=EPS&&action.end>=length-EPS)return 'That would delete the whole video.';
+   if(Math.min(action.end,length)-action.start>DELETE_MAX_SHARE*length)return 'That would delete more than half the video: select it on the timeline and delete it there.';
    return;
   }
   case 'split_at':{
@@ -110,13 +145,13 @@ const POSITION_Y:Record<TextPosition,number>={top:.08,center:.42,bottom:.72};
  * Applies one action to a project (or a draft), through the timeline rules, then writes the take links and moves the scenes with their takes.
  * Returns one line saying what changed. Throws the problem sentence when the action cannot be applied to this timeline.
  */
-export function applyEditAction(p:Project,action:EditAction,newId:()=>string=makeId):string{
- const problem=editActionProblem(plainView(p),action);if(problem)throw new Error(problem);
+export function applyEditAction(p:Project,action:EditAction,options:EditOptions={},newId:()=>string=makeId):string{
+ const problem=editActionProblem(plainView(p),action,options);if(problem)throw new Error(problem);
  ensureLinks(p,newId);
  let result:string;
  switch(action.type){
   case 'cut_pauses':case 'remove_fillers':case 'close_gaps':case 'delete_range':{
-   const ranges=mergeRanges(editRanges(plainView(p),action)!);
+   const ranges=mergeRanges(editRanges(plainView(p),action,options)!);
    // Latest first, so the earlier ranges keep their times.
    for(const [a,b] of [...ranges].sort((x,y)=>y[0]-x[0]))closeRange(p,a,b);
    const total=secs(rangesSeconds(ranges));
@@ -150,7 +185,7 @@ export function applyEditAction(p:Project,action:EditAction,newId:()=>string=mak
    // A text that runs into the next item on its row stops there, so the row never overlaps.
    const next=rowItems(plainView(p)).filter(i=>i.row==='elements'&&i.start>=action.start+1e-3).reduce((at,i)=>Math.min(at,i.start),Infinity);
    const duration=Math.min(action.duration,next-action.start,Math.max(.1,projectDuration(plainView(p))-action.start));
-   p.elements.push({id:newId(),type:'text',start:action.start,duration,text:action.text,x:.15,y:POSITION_Y[action.position??'bottom'],width:.7,height:.16,color:'#ffffff',background:'#171b27bb',fontSize:64,opacity:1,rotation:0});
+   p.elements.push(newElement('text',action.start,newId(),{duration,text:action.text,y:POSITION_Y[action.position??'bottom']}));
    result=`Text added at ${clock(action.start)}`;
    break;
   }
@@ -173,22 +208,42 @@ export function applyEditAction(p:Project,action:EditAction,newId:()=>string=mak
  return result;
 }
 
-/** One line saying what a card will do, for the card itself. */
-export function describeEditAction(action:EditAction):string{
+const replacedZooms=(p:Project,action:Extract<EditAction,{type:'set_zoom'}>)=>p.zooms.filter(z=>z.start<action.start+action.duration-1e-3&&z.start+z.duration>action.start+1e-3);
+/** One line saying what a card will do, for the card itself. With the project it also names the zoom a new zoom replaces. */
+export function describeEditAction(action:EditAction,p?:Project):string{
  switch(action.type){
   case 'cut_pauses':return `Cut pauses between your words longer than ${PAUSE_SECONDS[action.level]} s, keeping a breath on each side.`;
   case 'remove_fillers':return 'Cut "um", "uh" and similar words, using the transcript.';
   case 'close_gaps':return 'Close the empty stretches between clips.';
   case 'split_at':return `Split ${action.clipId?'the clip':'every clip'} at ${clock(action.time)}.`;
   case 'trim_clip':return `Trim the ${action.side} of the clip to ${clock(action.time)}; the rest moves up.`;
-  case 'delete_range':return `Delete ${clock(action.start)} to ${clock(action.end)} from every row; the rest moves up.`;
+  case 'delete_range':return `Delete ${clock(action.start)} to ${clock(action.end)} (${secs(action.end-action.start)}) from every row; the rest moves up.`;
   case 'set_caption_style':{
    const parts=[action.enabled===false?'captions off':action.enabled?'captions on':'',action.fontSize?`size ${action.fontSize}`:'',action.position?`at the ${action.position}`:'',action.color?`text ${action.color}`:'',action.background?`background ${action.background}`:'',action.maxWords?`${action.maxWords} words a line`:''].filter(Boolean);
    return `Captions: ${parts.join(', ')}.`;
   }
   case 'add_caption':return `“${action.text}” from ${clock(action.start)} to ${clock(action.end)}.`;
   case 'add_text':return `“${action.text}” at ${clock(action.start)} for ${secs(action.duration)}${action.position?`, ${action.position}`:''}.`;
-  case 'set_zoom':return `Zoom ${action.scale}× on the ${action.target??'screen'} at ${clock(action.start)} for ${secs(action.duration)}.`;
+  case 'set_zoom':{
+   const gone=p?replacedZooms(p,action):[];
+   return `Zoom ${action.scale}× on the ${action.target??'screen'} at ${clock(action.start)} for ${secs(action.duration)}${gone.length?`, replacing ${gone.map(z=>`the ${z.scale}× zoom at ${clock(z.start)}`).join(' and ')}`:''}.`;
+  }
   case 'normalize_audio':return 'Even out the loudness of every clip when you export.';
  }
+}
+
+/**
+ * What a card would do to the timeline now, in one line for the card: how many cuts and how much shorter, the share of the video a
+ * deleted stretch is (`warn` from a quarter on), the zoom a new zoom replaces, or why it cannot be applied (`warn`).
+ */
+export function editEstimate(p:Project,action:EditAction,options:EditOptions={}):{text:string;warn?:boolean}|undefined{
+ const problem=editActionProblem(p,action,options);if(problem)return {text:problem,warn:true};
+ const ranges=editRanges(p,action,options);
+ if(ranges){
+  const merged=mergeRanges(ranges),total=rangesSeconds(merged),share=total/Math.max(1e-9,projectDuration(p));
+  const text=`${plural(merged.length,'cut')} · ${secs(total)} shorter${action.type==='delete_range'?` (${Math.round(share*100)}% of the video)`:''}`;
+  return share>=DELETE_WARN_SHARE?{text:`${text}. That is ${Math.round(share*100)}% of the video.`,warn:true}:{text};
+ }
+ if(action.type==='set_zoom'){const gone=replacedZooms(p,action);if(gone.length)return {text:`Replaces ${gone.map(z=>`the ${z.scale}× zoom at ${clock(z.start)}`).join(' and ')}.`};}
+ return undefined;
 }

@@ -6,6 +6,7 @@ import { CHANGED_SINCE, TAB_ACTIONS, isEditAction, type CompanionAction, type Co
 import type { Project } from '../../shared/types.js';
 import { editActionProblem } from '../../src/editing-actions.js';
 import { applyEdit, undoEdit, type TimelineUndo } from './companion-edit.js';
+import type { EditOptions } from '../../src/editing-actions.js';
 import { addNote, hydrate, removeNote } from './board-docs.js';
 import { ClubError } from './errors.js';
 import type { Package, VideoScene } from '../../shared/club.js';
@@ -72,7 +73,7 @@ export const MAX_CARDS = 6;
  * The model's actions that the screen can apply: known types offered on this step, in a valid shape, naming scenes that exist.
  * Everything else is left out and listed in `rejected` with the reason, for the log.
  */
-export function validateActions(raw: readonly unknown[], { tab, sceneIds, project }: { tab: CompanionTab; sceneIds: readonly string[]; project?: Project }): { actions: CompanionAction[]; rejected: string[] } {
+export function validateActions(raw: readonly unknown[], { tab, sceneIds, project, editOptions }: { tab: CompanionTab; sceneIds: readonly string[]; project?: Project; editOptions?: EditOptions }): { actions: CompanionAction[]; rejected: string[] } {
   const actions: CompanionAction[] = [];
   const rejected: string[] = [];
   const seen = new Set<string>();
@@ -94,7 +95,7 @@ export function validateActions(raw: readonly unknown[], { tab, sceneIds, projec
     }
     // An Edit action is offered only when it applies to the timeline as it is: its clips exist, its times are inside the video.
     if (isEditAction(action)) {
-      const problem = project ? editActionProblem(project, action) : 'no recording';
+      const problem = project ? editActionProblem(project, action, editOptions) : 'no recording';
       if (problem) {
         rejected.push(`${type}: ${problem}`);
         continue;
@@ -193,16 +194,25 @@ interface Applied {
   undo: Undo;
   project?: Project;
   revision?: string;
+  /** A timeline card: the timeline it was applied on, kept on the card. */
+  appliedOn?: string;
 }
 interface Handler<T extends CompanionAction> {
   changed: CompanionChanged[];
   apply: (slug: string, id: string, action: T, options: ApplyOptions) => Promise<Applied>;
 }
-/** `revision`: the revision of the recording project the editor saved last (timeline cards). */
+/** `revision`: the revision of the recording project the editor saved last (timeline cards). `appliedOn`: applying an undone timeline card again, only on this timeline. */
 export interface ApplyOptions {
   revision?: string;
+  appliedOn?: string;
 }
-const edit: Handler<EditAction> = { changed: ['timeline'], apply: (slug, id, action, options) => applyEdit(slug, id, action, options.revision) };
+const edit: Handler<EditAction> = {
+  changed: ['timeline'],
+  apply: async (slug, id, action, options) => {
+    const done = await applyEdit(slug, id, action, options.revision, options.appliedOn);
+    return { ...done, appliedOn: done.undo.beforeHash };
+  },
+};
 
 /** Sets one package field, keeping what it held for Undo. */
 const setField = (field: PackageField, result: string) => async (slug: string, id: string, action: { text: string }) => {
@@ -291,15 +301,15 @@ async function prune(slug: string, id: string) {
 export const lock = (slug: string, id: string) => `companion-apply:${store.videoDir(slug, id)}`;
 
 /** Applies one action and saves its version. Returns the version id and a line saying what changed. */
-export async function applyAction(slug: string, id: string, action: CompanionAction, options: ApplyOptions = {}): Promise<{ version: string; result: string; changed: CompanionChanged[]; project?: Project; revision?: string }> {
+export async function applyAction(slug: string, id: string, action: CompanionAction, options: ApplyOptions = {}): Promise<{ version: string; result: string; changed: CompanionChanged[]; project?: Project; revision?: string; appliedOn?: string }> {
   const handler = HANDLERS[action.type] as Handler<CompanionAction>;
   return store.withLock(lock(slug, id), async () => {
-    const { result, undo, project, revision } = await handler.apply(slug, id, action, options);
+    const { result, undo, project, revision, appliedOn } = await handler.apply(slug, id, action, options);
     const version = `cv_${randomBytes(6).toString('hex')}`;
     const saved: Version = { action: action.type, at: new Date().toISOString(), order: nextOrder(), changed: handler.changed, undo };
     await store.writeJSON(path.join(versionsDir(slug, id), `${version}.json`), saved);
     await prune(slug, id);
-    return { version, result, changed: handler.changed, ...(project ? { project, revision } : {}) };
+    return { version, result, changed: handler.changed, ...(project ? { project, revision } : {}), ...(appliedOn ? { appliedOn } : {}) };
   });
 }
 

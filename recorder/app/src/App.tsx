@@ -36,9 +36,10 @@ import {EditSuggestion} from './club/recorder/EditSuggestion';
 import {ClubExport} from './club/recorder/ClubExport';
 import {EditAutoSheet,type AutoOption,type EditPreview} from './club/recorder/EditAutoSheet';
 import {cutReview,rangesSeconds} from './club/recorder/edit-auto';
-import {applyEditAction,describeEditAction,editActionProblem,editRanges} from './editing-actions';
+import {applyEditAction,describeEditAction,editActionProblem,editEstimate,editRanges} from './editing-actions';
 import {applyProjectChange} from './project-draft';
-import {ACTION_TITLE,type EditAction} from '../shared/companion';
+import {ACTION_TITLE,type EditAction,type SelectedItem} from '../shared/companion';
+import type {EditOptions} from './editing-actions';
 import {Menu,useToast,type MenuItem} from './club/ui';
 import {CutPlayback} from './CutPlayback';
 import {TimelineClub,rowsHeight,usedRows,type TimelineControls} from './TimelineClub';
@@ -87,16 +88,21 @@ function Toasts({bind}:{bind:{current:(message:string)=>void}}){const [toast,set
 /** CreatorClub shows one recording project inside its video page: it opens that project, forces the mode and hides SceneForge's own Home and navigation. */
 /** `onMode` receives SceneForge's own moves between recording and editing (the embed never switches by itself); `onOpenFailed` fires when the project cannot be opened;
  `onProgress` reports how many scenes have a take while recording; `onExported` says whether the current edit has a finished MP4 export. */
-/** What the companion docked beside Edit is told with a message: the playhead, the selected clips and the time they span. The scenes and the timeline itself are read from the saved project. */
-export type EditorContext={playhead:number;selection:string[];range?:{start:number;end:number}};
-/** What the editor shows the companion as it changes: how many items are selected, and which card's preview is on the stage. */
-export type EditorState={selected:number;previewKey?:string};
+/**
+ * What the companion docked beside Edit is told with a message: the playhead, the selected clips, the selected captions, texts, zooms and
+ * markers, and the time they all span. The scenes and the timeline itself are read from the saved project.
+ */
+export type EditorContext={playhead:number;selection:string[];items?:SelectedItem[];range?:{start:number;end:number}};
+/** What the editor shows the companion as it changes: how many items are selected, which card's preview is on the stage, and the timeline's version (cards re-measure on it). */
+export type EditorState={selected:number;previewKey?:string;version?:string};
 /** The editor, as the companion uses it: what it is looking at, saving before a question, a card's preview on the stage, and a server change taken as one undo step. */
 export interface EditorBridge{
  context():EditorContext;
  flush():Promise<unknown>;
  /** Shows what a card would do on the stage (cuts as a before/after playback, other changes as the frame after it), or clears it with null. Returns why it cannot be previewed. */
- preview(action:EditAction|null,key:string):string|undefined;
+ preview(action:EditAction|null,key:string,options?:EditOptions):string|undefined;
+ /** One line on what a card would do now (cuts and seconds, the share of the video, the zoom it replaces), or why it cannot. */
+ estimate(action:EditAction,options?:EditOptions):{text:string;warn?:boolean}|undefined;
  commit<T extends {project?:Project;revision?:string}>(run:(revision:string)=>Promise<T>):Promise<T>;
 }
 export type EmbeddedRecorder={projectId:string;mode:'Record'|'Edit';onBack():void;onMode?(mode:'Record'|'Edit'):void;onOpenFailed?():void;onProgress?(progress:RecordingProgress):void;onExported?(exported:boolean):void;/** The recording project's scene to select while recording (the strip's choice). */sceneId?:string;/** Changes on every strip click, so choosing the scene that is already chosen applies it again. */sceneNonce?:number;/** The recorder's own scene choice (its scene cards, or the next scene after Continue). */onSceneChange?(sceneId:string):void;/** The club asks this before it leaves Record for Edit: a take still under review is added to the timeline first. It resolves false when that failed, and the club stays. */registerLeaveGuard?(guard:(()=>Promise<boolean>)|null):void;/** Pauses were removed or put back, so the scenes' state changed. */onChanged?():void;/** Edit registers itself for the companion while it is open (null when it closes). */onEditor?(editor:EditorBridge|null):void;/** Edit's selection and stage preview, as they change. */onEditState?(state:EditorState):void};
@@ -238,24 +244,32 @@ export default function App({embedded}:{embedded?:EmbeddedRecorder}={}){
   {label:'Add video layer',icon:'Layers',fn:()=>studio.change(d=>{addTimelineLayer(d,'video');})},{label:'Add audio layer',icon:'Music',fn:()=>studio.change(d=>{addTimelineLayer(d,'audio');})}]:[];
  /* The companion docked beside Edit: it reads the playhead and the selection when a message is sent, previews a card on the stage
     (cuts with the same before/after playback as Auto-edit, other changes as the frame after them) and applies a card as one undo step. */
- const editorContext=useEvent(():EditorContext=>{const chosen=p?p.clips.filter(c=>selection.has(c.id)):[];
-  return {playhead:roundTime(playhead.get()),selection:chosen.map(c=>c.id),...(chosen.length?{range:{start:roundTime(Math.min(...chosen.map(c=>c.start))),end:roundTime(Math.max(...chosen.map(c=>c.start+clipDuration(c))))}}:{})};});
- const previewEdit=useEvent((action:EditAction|null,key:string):string|undefined=>{
+ const editorContext=useEvent(():EditorContext=>{
+  const chosen=p?p.clips.filter(c=>selection.has(c.id)):[];
+  const items:SelectedItem[]=p?[...p.captions.filter(c=>selection.has(c.id)).map(c=>({id:c.id,kind:'caption' as const,start:c.start,end:c.end,text:c.text.slice(0,200)})),
+   ...p.elements.filter(e=>selection.has(e.id)).map(e=>({id:e.id,kind:'text' as const,start:e.start,end:e.start+e.duration,...(e.text?{text:e.text.slice(0,200)}:{})})),
+   ...p.zooms.filter(z=>selection.has(z.id)).map(z=>({id:z.id,kind:'zoom' as const,start:z.start,end:z.start+z.duration})),
+   ...(p.markers??[]).filter(m=>selection.has(m.id)).map(m=>({id:m.id,kind:'marker' as const,start:m.time,end:m.time}))].slice(0,100).map(i=>({...i,start:roundTime(i.start),end:roundTime(i.end)})):[];
+  const spans=[...chosen.map(c=>[c.start,c.start+clipDuration(c)]),...items.map(i=>[i.start,i.end])];
+  return {playhead:roundTime(playhead.get()),selection:chosen.map(c=>c.id),...(items.length?{items}:{}),...(spans.length?{range:{start:roundTime(Math.min(...spans.map(s=>s[0]))),end:roundTime(Math.max(...spans.map(s=>s[1])))}}:{})};
+ });
+ const previewEdit=useEvent((action:EditAction|null,key:string,options:EditOptions={}):string|undefined=>{
   if(!action){setPreview(current=>current?.key===key?null:current);return;}
   if(!p)return 'Open the video first.';
-  const problem=editActionProblem(p,action);if(problem)return problem;
+  const problem=editActionProblem(p,action,options);if(problem)return problem;
   setPanel(null);if(side==='auto')setSide('transcript');setPlaying(false);
-  const label=ACTION_TITLE[action.type],ranges=editRanges(p,action);
+  const label=ACTION_TITLE[action.type],ranges=editRanges(p,action,options);
   if(ranges){const merged=mergeRanges(ranges),total=rangesSeconds(merged);showPreview({key,label,summary:`${merged.length} ${merged.length===1?'cut':'cuts'} · ${seconds(total)} shorter`,ranges:merged,review:cutReview(p,merged,label)});return;}
-  let after:Project;try{after=applyProjectChange(p,d=>{applyEditAction(d,action);});}catch(e){return (e as Error).message;}
+  let after:Project;try{after=applyProjectChange(p,d=>{applyEditAction(d,action,options);});}catch(e){return (e as Error).message;}
   const at='time' in action?action.time:'start' in action?action.start:undefined;if(at!==undefined)seek(at+.05);
-  showPreview({key,label,summary:describeEditAction(action),after});return;
+  showPreview({key,label,summary:describeEditAction(action,p),after});return;
  });
+ const estimateEdit=useEvent((action:EditAction,options:EditOptions={})=>p?editEstimate(p,action,options):undefined);
  const editorFlush=useEvent(()=>studio.flush());
  const onEditor=embedded?.onEditor,editOpen=Boolean(p&&embedded&&mode==='Edit'&&p.id===embedded.projectId);
- useEffect(()=>{if(!onEditor||!editOpen)return;onEditor({context:editorContext,flush:editorFlush,preview:previewEdit,commit:studio.commitServer});return()=>onEditor(null);},[onEditor,editOpen,studio.commitServer]);
- const onEditState=embedded?.onEditState,selectedCount=selection.size,previewKey=preview?.key;
- useEffect(()=>{if(editOpen)onEditState?.({selected:selectedCount,previewKey});},[onEditState,editOpen,selectedCount,previewKey]);
+ useEffect(()=>{if(!onEditor||!editOpen)return;onEditor({context:editorContext,flush:editorFlush,preview:previewEdit,estimate:estimateEdit,commit:studio.commitServer});return()=>onEditor(null);},[onEditor,editOpen,studio.commitServer]);
+ const onEditState=embedded?.onEditState,selectedCount=selection.size,previewKey=preview?.key,timelineVersion=p?.updatedAt;
+ useEffect(()=>{if(editOpen)onEditState?.({selected:selectedCount,previewKey,version:timelineVersion});},[onEditState,editOpen,selectedCount,previewKey,timelineVersion]);
  const clubEditView=()=>{if(!p||!embedded)return null;const stageProject=preview?.after&&previewPhase==='after'?preview.after:p;return <div className={`edit-workspace club-edit ${sideView?'has-side':''}`}>
   <main className="club-edit-stage">
    <Keep visible={!preview?.review}><Stage project={stageProject} playhead={playhead} playing={playing} playbackRate={playbackRate} onSelect={select} onImport={importMedia}/></Keep>

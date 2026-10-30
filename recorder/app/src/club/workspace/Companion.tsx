@@ -2,7 +2,7 @@ import {useCallback,useEffect,useLayoutEffect,useMemo,useRef,useState,type Keybo
 import type {Outline,Package,VideoScene} from '../../../shared/club';
 import {ACTION_TITLE,ACTION_VERB,isEditAction,type CompanionCard,type CompanionChanged,type CompanionContext,type CompanionReplyMessage,type CompanionStep,type CompanionTab} from '../../../shared/companion';
 import type {EditorBridge,EditorState} from '../../App';
-import {describeEditAction} from '../../editing-actions';
+import {describeEditAction,type SilencePlan} from '../../editing-actions';
 import {clubFetch} from '../api';
 import {ErrorLine} from '../ErrorLine';
 import {Button,CompanionMark,Icon,Spinner,cn} from '../ui';
@@ -41,6 +41,15 @@ export function Companion({videoId,tab,scene,screen,pkg,outline,scenes,onChanged
  const [name,setName]=useState('Claude');
  useEffect(()=>{clubFetch<{defaultAi?:string}>('/settings').then(settings=>setName(settings.defaultAi==='codex'?'ChatGPT':'Claude'),()=>{});},[]);
  const editorNow=useRef(editor);editorNow.current=editor;
+ // Auto-edit's audio plan, which a cut of pauses is checked against: read again a moment after the timeline changes, so a card's
+ // preview and its line ("3 cuts · 0.9 s shorter") use the same plan as Apply.
+ const [silences,setSilences]=useState<SilencePlan|null>(null);
+ const onEdit=tab==='edit'&&!!editor,timelineVersion=editor?.state?.version;
+ useEffect(()=>{
+  if(!onEdit)return;
+  const timer=setTimeout(()=>{clubFetch<SilencePlan|null>(`/videos/${encodeURIComponent(videoId)}/companion/silences`).then(plan=>setSilences(plan&&Array.isArray(plan.ranges)?plan:null),()=>setSilences(null));},timelineVersion?800:0);
+  return()=>clearTimeout(timer);
+ },[onEdit,videoId,timelineVersion]);
  const companion=useCompanion(videoId,{onChanged,beforeApply,editor:()=>editorNow.current?.get()??null});
  const {messages,live}=companion;
  const working=live?.phase==='working';
@@ -121,7 +130,7 @@ export function Companion({videoId,tab,scene,screen,pkg,outline,scenes,onChanged
     </div>}
    {items.map(item=>item.kind==='divider'?<div key={item.key} className="cmp-divider" role="separator">{item.label}</div>
     :item.message.role==='user'?<div key={item.key} className="cmp-me">{item.message.text}</div>
-    :<Reply key={item.key} name={name} message={item.message} pkg={pkg} outline={outline} scenes={scenes} busy={companion.busyCard} editor={editor}
+    :<Reply key={item.key} name={name} message={item.message} pkg={pkg} outline={outline} scenes={scenes} busy={companion.busyCard} editor={editor} silences={silences}
       onApply={index=>companion.apply(item.message.id,index)} onUndo={index=>companion.undo(item.message.id,index)}/>)}
    {live&&<LiveReply name={name} live={live} now={now} onRetry={()=>void contextNow().then(companion.retry)}/>}
    {companion.sendError&&<ErrorLine message={companion.sendError} onRetry={()=>void ask(text)}/>}
@@ -155,13 +164,13 @@ function useNarrow(roomy:boolean){
 }
 
 /** A finished reply: who, the one-line summary of its steps (opens to the list), the text, and its cards. */
-function Reply({name,message,pkg,outline,scenes,busy,editor,onApply,onUndo}:{name:string;message:CompanionReplyMessage;pkg:Package|null;outline:Outline|null;scenes?:readonly VideoScene[];busy:string|null;editor?:CompanionEditor;onApply(index:number):Promise<string>;onUndo(index:number):Promise<string>}){
+function Reply({name,message,pkg,outline,scenes,busy,editor,silences,onApply,onUndo}:{name:string;message:CompanionReplyMessage;pkg:Package|null;outline:Outline|null;scenes?:readonly VideoScene[];busy:string|null;editor?:CompanionEditor;silences?:SilencePlan|null;onApply(index:number):Promise<string>;onUndo(index:number):Promise<string>}){
  return <div className="cmp-reply">
   <div className="cmp-who"><CompanionMark size={14}/>{name}</div>
   {message.steps&&message.steps.length>0&&<Steps steps={message.steps}/>}
   {message.text&&<div className="cmp-md"><Markdown text={message.text}/></div>}
   {message.status==='stopped'&&<div className="cmp-note">Stopped</div>}
-  {message.cards.map((card,index)=><Card key={index} id={`${message.id}:${index}`} card={card} pkg={pkg} outline={outline} scenes={scenes} busy={busy===`${message.id}:${index}`} editor={editor} onApply={()=>onApply(index)} onUndo={()=>onUndo(index)}/>)}
+  {message.cards.map((card,index)=><Card key={index} id={`${message.id}:${index}`} card={card} pkg={pkg} outline={outline} scenes={scenes} busy={busy===`${message.id}:${index}`} editor={editor} silences={silences} onApply={()=>onApply(index)} onUndo={()=>onUndo(index)}/>)}
  </div>;
 }
 
@@ -197,7 +206,7 @@ function LiveReply({name,live,now,onRetry}:{name:string;live:Live;now:number;onR
 const scenesClock=(seconds:number)=>`${Math.floor(seconds/60)}:${String(Math.round(seconds%60)).padStart(2,'0')}`;
 
 /** One change the reply offers: what it is, Apply (or what it changed and Undo), and Preview of before and after. */
-function Card({id,card,pkg,outline,scenes,busy,editor,onApply,onUndo}:{id:string;card:CompanionCard;pkg:Package|null;outline:Outline|null;scenes?:readonly VideoScene[];busy:boolean;editor?:CompanionEditor;onApply():Promise<string>;onUndo():Promise<string>}){
+function Card({id,card,pkg,outline,scenes,busy,editor,silences,onApply,onUndo}:{id:string;card:CompanionCard;pkg:Package|null;outline:Outline|null;scenes?:readonly VideoScene[];busy:boolean;editor?:CompanionEditor;silences?:SilencePlan|null;onApply():Promise<string>;onUndo():Promise<string>}){
  const [textPreview,setTextPreview]=useState(false);
  const [error,setError]=useState('');
  const [confirm,setConfirm]=useState<'apply'|'undo'|null>(null);
@@ -211,13 +220,15 @@ function Card({id,card,pkg,outline,scenes,busy,editor,onApply,onUndo}:{id:string
  const preview=timeline?editor?.state?.previewKey===id:textPreview;
  const setPreview=(on:boolean)=>{
   if(!timeline){setTextPreview(on);return;}
-  const problem=stage?.preview(on?action:null,id);
+  const problem=stage?.preview(on?action:null,id,{silences});
   setError(problem??'');
  };
  const run=async(fn:()=>Promise<string>)=>{setError('');const failed=await fn();setError(failed);if(!failed)setTextPreview(false);};
  const shown=textPreview&&!timeline?previewOf(action,pkg,outline):undefined;
  let body;
- if(timeline)body=<div className="cmp-card-text">{describeEditAction(action)}</div>;
+ // What it would do to the timeline as it is now, while it is still on offer: the cuts and seconds, the share of the video, the zoom it replaces.
+ const estimate=timeline&&stage&&card.state!=='applied'?stage.estimate(action,{silences}):undefined;
+ if(timeline)body=<div className="cmp-card-text">{describeEditAction(action)}{estimate&&<div className={cn('cmp-card-est',estimate.warn&&'warn')}>{estimate.warn&&<Icon name="TriangleAlert" size={12}/>}{estimate.text}</div>}</div>;
  else if(action.type==='draft_scenes'){
   let at=0;
   body=<ol className="cmp-card-scenes">{action.scenes.map((scene,index)=>{const start=at;at+=scene.seconds;return <li key={index}><span>{scene.title}</span><span className="cmp-t">{scenesClock(start)}</span></li>;})}</ol>;

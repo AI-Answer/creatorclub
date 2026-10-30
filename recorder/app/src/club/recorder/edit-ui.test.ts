@@ -153,3 +153,19 @@ test('the Removed line ends with the next edit, and can be dismissed',async()=>{
   assert.ok(!header.textContent?.includes('Removed'),'an edit after the removal ends the Undo line');
  }finally{await next.close();again.restore();}
 });
+
+test('keys pressed in the companion panel stay there: M, S and Delete do nothing to the timeline',async()=>{
+ localStorage.clear();
+ const server=serve(()=>[]);
+ const ui=await mountUI(createElement('div',null,createElement(ClubRecorder,{projectId:server.p.id,mode:'Edit',onBack:()=>{}}),createElement('aside',{className:'cmp'},createElement('button',{type:'button'},'Cut them'))));
+ try{
+  await flush();await flush();
+  const inPanel=ui.container.querySelector<HTMLButtonElement>('.cmp button')!;
+  const press=(target:Element,key:string)=>act(async()=>{target.dispatchEvent(new KeyboardEvent('keydown',{key,bubbles:true,cancelable:true}));});
+  for(const key of ['m','s','Delete'])await press(inPanel,key);
+  assert.ok(!ui.container.textContent?.includes('Marker added'),'M in the panel adds no marker');
+  assert.ok(!ui.container.textContent?.includes('Move the playhead'),'S in the panel does not split');
+  await press(document.body,'m');
+  assert.ok(ui.container.textContent?.includes('Marker added'),'the same key on the editor still works');
+ }finally{await ui.close();server.restore();}
+});

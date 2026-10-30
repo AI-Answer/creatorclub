@@ -4,8 +4,9 @@ import type {EditAction} from '../shared/companion';
 import {createProject,defaultEffects,defaultTransform,clipDuration,projectDuration,type Clip,type Project} from '../shared/types';
 import {clipLayerRowId} from '../shared/timeline-layers';
 import {applyProjectChange} from './project-draft';
-import {applyEditAction,describeEditAction,editActionProblem,editRanges,wordPauseRanges} from './editing-actions';
-import {applyClipStarts,deleteItems,ensureLinks,freeDelta,linkGroups,linkedIds,planClipMove,rowItems,rowsOverlap,splitLinked,syncScenesToTakes,trimBounds,trimClips} from './timeline-edit';
+import {applyEditAction,describeEditAction,editActionProblem,editEstimate,editRanges,wordPauseRanges} from './editing-actions';
+import {clipsFingerprint} from './club/recorder/edit-auto';
+import {applyClipStarts,deleteItems,ensureLinks,freeDelta,linkGroups,linkedIds,mergeRanges,newElement,planClipMove,rowItems,rowsOverlap,splitLinked,syncScenesToTakes,trimBounds,trimClips} from './timeline-edit';
 
 /*
  * The companion's Edit actions: each one through the timeline rules, the checks that keep a card off a timeline it does not fit,
@@ -100,6 +101,50 @@ test('an action that does not fit the timeline is refused: unknown clips, times 
  assert.throws(()=>apply(p,{type:'split_at',time:500}),/outside the video/);
 });
 
+test('a pause is cut only where one recording holds the words on both sides, never over 8 s, and only where the audio plan is silent',()=>{
+ const words=(from:number,to:number)=>{const w=[];for(let t=from;t+.5<=to;t+=.7)w.push({text:'w',start:t,end:t+.5});return w;};
+ // Reviewer's probe: takes 1 and 3 were transcribed; take 2 (20 s to 50 s of speech) was not. It is not a pause.
+ const p=createProject('x');p.media=[{id:'m',name:'m',path:'/m',kind:'video',duration:600,width:1920,height:1080,hasAudio:true}];
+ p.clips=[clip('s1','screen',0,20),clip('s2','screen',20,30),clip('s3','screen',50,20)];
+ p.captions=[{id:'c1',start:0,end:20,text:'a',words:words(0,20)},{id:'c3',start:50,end:70,text:'c',words:words(50,70)}];
+ assert.deepEqual(wordPauseRanges(p,'gentle'),[]);
+ assert.equal(editActionProblem(p,{type:'cut_pauses',level:'gentle'}),'There are no pauses that long between your words.');
+ // Reviewer's probe: a clip moved 3 s later by hand while its captions stayed: speech now plays at 13..23, the words still say 10..20.
+ const moved=createProject('x');moved.media=p.media;
+ moved.clips=[clip('s1','screen',0,10),clip('s2','screen',13,10,{sourceIn:10,sourceOut:20})];
+ moved.captions=[{id:'c1',start:0,end:10,text:'a',words:words(0,10)},{id:'c2',start:10,end:20,text:'b',words:words(10,20)},{id:'c3',start:23,end:24,text:'c',words:[{text:'x',start:23,end:23.5}]}];
+ assert.deepEqual(wordPauseRanges(moved,'gentle'),[],'no cut out of the speech at 19.75 to 22.85');
+ // One recording across a 3 s pause is cut; the same pause across a split of that recording too; 9 s of quiet is not a pause.
+ const one=createProject('x');one.media=p.media;one.clips=[clip('s','screen',0,40)];
+ one.captions=[{id:'a',start:0,end:10,text:'a',words:words(0,10)},{id:'b',start:13,end:20,text:'b',words:words(13,20)},{id:'c',start:29,end:40,text:'c',words:words(29,40)}];
+ assert.deepEqual(wordPauseRanges(one,'gentle').map(([a,b])=>[+a.toFixed(2),+b.toFixed(2)]),[[9.75,12.85]]);
+ const split=applyProjectChange(one,d=>{splitLinked(d,11,new Set(),'s');});
+ assert.equal(wordPauseRanges(split,'gentle').length,1,'a split inside the pause does not hide it');
+ // With Auto-edit's audio plan for these clips, only where the audio is silent too; a plan for other clips is ignored.
+ const plan={fingerprint:clipsFingerprint(one.clips),ranges:[[11,12.5]] as [number,number][]};
+ assert.deepEqual(wordPauseRanges(one,'gentle',{silences:plan}),[[11,12.5]]);
+ assert.deepEqual(wordPauseRanges(one,'gentle',{silences:{...plan,fingerprint:'other'}}).length,1);
+ assert.equal(editActionProblem(one,{type:'cut_pauses',level:'gentle'},{silences:{...plan,ranges:[[30,31]]}}),'There are no pauses that long between your words.');
+ // The card says how much it takes out, the same as Apply.
+ assert.deepEqual(editEstimate(one,{type:'cut_pauses',level:'gentle'}),{text:'1 cut · 3.1 s shorter'});
+ const applied=applyProjectChange(one,d=>{applyEditAction(d,{type:'cut_pauses',level:'gentle'},{silences:plan});});
+ assert.ok(Math.abs(projectDuration(one)-projectDuration(applied)-1.5)<1e-9,'Apply cuts what the plan allows');
+});
+
+test('a long delete is said on the card and capped; a zoom says which zoom it replaces; one element factory',()=>{
+ const p=make(),length=projectDuration(p);
+ assert.equal(describeEditAction({type:'delete_range',start:10,end:14.8}),'Delete 0:10.0 to 0:14.8 (4.8 s) from every row; the rest moves up.');
+ assert.deepEqual(editEstimate(p,{type:'delete_range',start:10,end:14.8}),{text:'1 cut · 4.8 s shorter (7% of the video)'});
+ const big=editEstimate(p,{type:'delete_range',start:10,end:30})!;assert.equal(big.warn,true);assert.match(big.text,/That is 29% of the video\.$/);
+ assert.equal(editActionProblem(p,{type:'delete_range',start:0,end:length*.6}),'That would delete more than half the video: select it on the timeline and delete it there.');
+ const zoomed=applyProjectChange(p,d=>{applyEditAction(d,{type:'set_zoom',start:20,duration:4,scale:1.5});});
+ assert.equal(describeEditAction({type:'set_zoom',start:22,duration:4,scale:2},zoomed),'Zoom 2× on the screen at 0:22.0 for 4 s, replacing the 1.5× zoom at 0:20.0.');
+ assert.deepEqual(editEstimate(zoomed,{type:'set_zoom',start:22,duration:4,scale:2}),{text:'Replaces the 1.5× zoom at 0:20.0.'});
+ assert.deepEqual(editEstimate(p,{type:'split_at',time:500}),{text:'That time is outside the video.',warn:true});
+ const text=newElement('text',3,'t1',{text:'Hi'});assert.deepEqual([text.id,text.start,text.duration,text.text,text.fontSize,text.background],['t1',3,5,'Hi',64,'#171b27bb']);
+ assert.equal(newElement('highlight',0).background,'#bba6ff66');
+});
+
 // ---------------------------------------------------------------- random sequences
 
 let seed=1;const rnd=()=>{seed=(seed*1103515245+12345)%2147483648;return seed/2147483648;};const pick=<X,>(list:readonly X[])=>list[Math.floor(rnd()*list.length)];
@@ -137,6 +182,16 @@ const KEYS=['clips','captions','captionStyle','elements','zooms','scenes','marke
 const timeline=(p:Project)=>JSON.stringify(KEYS.map(key=>p[key]??null));
 const restore=(p:Project,before:Project)=>applyProjectChange(p,d=>{for(const key of KEYS)(d as unknown as Record<string,unknown>)[key]=structuredClone((before as unknown as Record<string,unknown>)[key]);});
 
+/** Every (row, media, source time) point outside the cut survives at the shifted time, and nothing new appears there (the reviewer's check). */
+function contentKept(before:Project,after:Project,ranges:Array<[number,number]>):string|undefined{
+ const shift=(t:number)=>t-ranges.reduce((n,[a,b])=>n+(t>=b?b-a:0),0);
+ const at=(p:Project,t:number)=>p.clips.filter(c=>c.start+1e-3<t&&c.start+clipDuration(c)-1e-3>t).map(c=>`${clipLayerRowId(c,p)}|${c.mediaId}|${(c.sourceIn+(t-c.start)*c.speed).toFixed(3)}`).sort().join(';');
+ for(let t=.013;t<projectDuration(before);t+=.37){
+  if(ranges.some(([a,b])=>t>a-.02&&t<b+.02))continue;
+  if(before.clips.some(c=>Math.abs(c.start-t)<.02||Math.abs(c.start+clipDuration(c)-t)<.02))continue;
+  const x=at(before,t),y=at(after,shift(t));if(x!==y)return `t=${t.toFixed(2)} before [${x}] after [${y}]`;
+ }
+}
 const captionsOverlap=(p:Project)=>rowsOverlap(rowItems(p).filter(i=>i.row==='captions'));
 function problems(p:Project):string[]{
  const out:string[]=[];
@@ -167,7 +222,8 @@ test('random sequences of cards, Undo and the person\'s own edits keep rows, lin
    else{
     const action=randomAction(p);
     if(editActionProblem(p,action)){refused++;history.push(`refused ${action.type}`);}
-    else{const before=p;p=apply(p,action).next;versions.push({before,after:timeline(p)});applied++;history.push(action.type);
+    else{const before=p,ranges=editRanges(p,action);p=apply(p,action).next;versions.push({before,after:timeline(p)});applied++;history.push(action.type);
+     const changed=ranges&&contentKept(before,p,mergeRanges(ranges));if(changed){failures.push(`run ${run}: ${history.join(' > ')}: content changed outside the cut: ${changed}`);break;}
      if(captionsOverlap(p)&&!captionsOverlap(before)){failures.push(`run ${run}: ${history.join(' > ')}: the card made captions overlap`);break;}}
    }
    const found=problems(p);if(found.length){failures.push(`run ${run}: ${history.join(' > ')}: ${found[0]}`);break;}

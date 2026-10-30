@@ -22,6 +22,7 @@ import * as boardDocs from './board-docs.js';
 import { subscribeBoard } from './board-watch.js';
 import { applyCard, askBody, askCompanion, cardBody, readThread, undoCard } from './companion.js';
 import { lock as companionLock } from './companion-actions.js';
+import { editSilences } from './companion-edit.js';
 import { videoScenes, videosScenes } from './scenes.js';
 import { POSITION_MAX, WIDTH_MAX, WIDTH_MIN } from './tile-layout.js';
 import { findTregCall, hasSources, NO_SOURCES, rankedSignals, readSignalsConfig, startSignalsRefresh, writeSignalsConfig, type SignalsSources } from './signals.js';
@@ -620,6 +621,8 @@ export function clubRouter({ ai = {}, transcribe, runAI, readViews = ytDlpViews(
   router.post('/videos/:id/companion', handler(async (req, res) => {
     res.status(202).json(await askCompanion(await requireWorkspace(), param(req, 'id'), askBody.parse(req.body), plan));
   }));
+  // The audio plan the editor previews a cut of pauses with, so the preview matches what Apply does.
+  router.get('/videos/:id/companion/silences', handler(async (req, res) => res.json(await editSilences(await requireWorkspace(), param(req, 'id')))));
   for (const action of ['apply', 'undo'] as const) {
     router.post(`/videos/:id/companion/:messageId/cards/:index/${action}`, handler(async (req, res) => {
       const index = Number(param(req, 'index'));
