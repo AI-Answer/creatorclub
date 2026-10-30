@@ -1,7 +1,7 @@
 import {useEffect,useState} from 'react';
 import type {OutlineScene} from '../../../shared/club';
 import {clockTime} from '../video-plan';
-import {Button,Icon} from '../ui';
+import {Icon,IconButton} from '../ui';
 
 const MIN=16,MAX=30;
 
@@ -13,8 +13,8 @@ export function Teleprompter({index,scene}:{index:number;scene:OutlineScene}){
   <div className="ph">
    <span className="n" style={{width:26,height:26,borderRadius:7,background:'var(--cc-bg-sunk)',display:'inline-flex',alignItems:'center',justifyContent:'center',fontWeight:700,fontSize:12.5}}>{index+1}</span>
    <div className="grow" style={{minWidth:0}}><div style={{fontWeight:650}} className="ellipsis">{scene.title}</div><div className="small faint">Talking points{scene.seconds?` · about ${clockTime(scene.seconds)}`:''}</div></div>
-   <Button variant="ghost" size="sm" aria-label="Smaller text" onClick={()=>setSize(value=>Math.max(MIN,value-2))}><Icon name="text-smaller" size={16}/></Button>
-   <Button variant="ghost" size="sm" aria-label="Bigger text" onClick={()=>setSize(value=>Math.min(MAX,value+2))}><Icon name="text-bigger" size={16}/></Button>
+   <IconButton icon="text-smaller" label="Smaller text" iconSize={16} disabled={size<=MIN} onClick={()=>setSize(value=>Math.max(MIN,value-2))}/>
+   <IconButton icon="text-bigger" label="Bigger text" iconSize={16} disabled={size>=MAX} onClick={()=>setSize(value=>Math.min(MAX,value+2))}/>
   </div>
   <div className="pb">
    {scene.talkingPoints.length?scene.talkingPoints.map((point,i)=><div key={i} className={`tp${i===at?' cur':i<at?' done':''}`} style={{fontSize:size}} onClick={()=>setAt(i)}>{point}</div>)
