@@ -7,7 +7,7 @@ The design system it uses is in `recorder/app/src/club/ui/` (tokens, icons, prim
 
 | Place | What lives there | What never lives there |
 |---|---|---|
-| **Sidebar** (left; a rail inside a video) | The channel and its menu (switch, add a channel), Search (⌘K), the three places (Home, Discover, Videos with the number of videos in progress), then three icons with tooltips: Settings, Help (How CreatorClub works), Collapse | Anything about one video; a list of videos (Home and Videos have them); a place twice |
+| **Sidebar** (left; a rail inside a video) | The channel and its menu (switch, add a channel; with no channel it only says "No channel yet", and the one way to add one is the button beside), Search (⌘K), the three places (Home, Discover, Videos with the number of videos in progress), then three icons with tooltips: Settings, Help (How CreatorClub works), Collapse | Anything about one video; a list of videos (Home and Videos have them); a place twice; a second way to add a channel |
 | **Video header** (top of a video) | Back to where the video was opened from (named: "Videos ›"), the title (click to rename), the stage (menu, Move to), the five steps, the publish date, More for this video (Copy link) | A second set of steps, a Back button |
 | **Step rail** (Board · Plan · Record · Edit · Publish, in the header) | The only way between steps, ticked once a step's job is done | — |
 | **Bottom bar** (a video step) | Continue to the next step, on the right; primary once the step's job is done. No bar on Publish | Back (the step rail is the way back), the steps again |
@@ -22,11 +22,21 @@ The design system it uses is in `recorder/app/src/club/ui/` (tokens, icons, prim
 
 | Place | First sight | One click away |
 |---|---|---|
-| **Home** (`#/home`) | The next thing to do on the video you worked on last, the other videos in production with one button each, New video. A channel with nothing in production: the first-video checklist | The video |
+| **Home** (`#/home`) | The next thing to do on the video you worked on last, the other videos in production with one button each, then the videos working in your topics (the same cards as the first video's), New video. A channel with nothing in production: the first-video checklist (Set up, Discover, then the five steps, each row a button once it has somewhere to go) with the picks beside it and what their numbers mean said once | The video; a pick's breakdown |
 | **Discover** (`#/discover`) | One ranked feed of what works outside: YouTube videos beating their usual and posts from X and Reddit, chips For you, Followed, YouTube, X, Reddit (with counts), one sort (the orders that fit the chip), Refresh (reads all of them, with its progress), Your ideas (a count that opens Videos). Every card has one button, Turn into idea (In ideas once it is one) | A video's breakdown (press the row), Show everything (what is off topic), Show more, Open post (under the pointer), Follow this channel (under the pointer) |
 | **Videos** (`#/videos`, `/table`, `/calendar`) | Board, Table, Calendar; New video. The board's first lane is Ideas, grouped Timely, Evergreen (best rated first), Later and Skipped (folded, with counts); then Planning, Recording, Editing, Publishing, Published. An idea card has Start planning | An idea's drawer (press it), its menu (Later, Skip with a reason, Move to, Delete), Show all in a group, a breakdown from New video (a sheet) |
 
 Old links still work: `#/overview` is Home, `#/trending` is Discover on YouTube, `#/signals` is Discover, `#/ideas?filter=later&open=…` is `#/videos?group=later&open=…`, `#/production/<view>` and `#/board` are Videos.
+
+## First run
+
+| Place | What lives there | What never lives there |
+|---|---|---|
+| **Welcome** (`#/welcome?step=1` to `4`) | Four steps (Connect your AI, Do you have a YouTube channel, How you talk, What is working), Back, Continue, and Skip setup, the one way out. The step is in the address, so Back and the browser's back button keep every answer, and every answer stays editable. Every slow part says what it is doing, how long it usually takes and how long it has run (`ProgressLine`): the check of which AI accounts are signed in starts at once and never holds Continue; the search for videos that work starts when the channel exists and runs behind steps 2 and 3 | A bare spinner; a second skip; a second way in (the channel menu, Settings and the empty screens all open step 1) |
+| **Help** (sidebar icon, or ⌘K then "help") | The five steps in the words of the video's tabs, the words the app uses (idea, scene, take, package, board…), where things live, the keyboard shortcuts, and the one sentence about Postiz with its price | A button that starts nothing |
+| **Search** (⌘K) | Actions (New video, Add a channel, Help, Keyboard shortcuts), the five steps (they open on the video that is open, else the one worked on last), places, settings groups, words of Help (when you type them), then every video by title | "First launch setup" |
+
+Every dialog, sheet and ⌘K keeps Tab inside itself and gives focus back to what had it.
 
 ## The steps of a video
 
