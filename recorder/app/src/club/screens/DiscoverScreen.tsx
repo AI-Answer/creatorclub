@@ -19,6 +19,7 @@ import {ideaFromSource,trendingUrl,useIdeaFrom} from '../useIdeaFrom';
 import type {JobRun} from '../useJobRun';
 import {useProfile} from '../useProfile';
 import {useVideos} from '../useVideos';
+import {useAddToResearch} from '../useAddToResearch';
 
 const plural=(n:number,word:string)=>`${n} ${word}${n===1?'':'s'}`;
 /** How many cards show before "Show more". */
@@ -35,7 +36,7 @@ const bothJobs=(a:JobRun,b:JobRun):JobRun=>a.phase==='running'||b.phase==='runni
 /**
  * Discover: everything from outside in one ranked feed. Videos doing better than their creator's usual on YouTube and posts on X and Reddit,
  * matched to your topics. Chips pick what shows (For you, Followed, YouTube, X, Reddit), one sort orders it, one Refresh reads both again.
- * Every card has one action, Turn into idea; a video's row opens its breakdown. Your ideas are on Videos; here is only their count.
+ * Every card has one action, Turn into idea (and, under the pointer, Add to Research); a video's row opens its breakdown. Your ideas are on Videos; here is only their count.
  */
 export function DiscoverScreen({show='fit',navigate}:{show?:DiscoverShow;navigate(route:Route,options?:{replace?:boolean}):void}){
  const trending=useTrending(),signals=useSignals();
@@ -49,6 +50,7 @@ export function DiscoverScreen({show='fit',navigate}:{show?:DiscoverShow;navigat
  const [failedChannels,setFailedChannels]=useState<string[]>([]),[note,setNote]=useState(''),[allFailed,setAllFailed]=useState<string[]|null>(null),[adding,setAdding]=useState(false);
  const videos=state.status==='ready'?state.videos:[];
  const makeIdea=useIdeaFrom(videos,navigate);
+ const addToResearch=useAddToResearch(navigate);
  const sort=sortFor(show,chosenSort);
  const videoItems=trending.data?.items,postItems=signals.data?.items;
  const {shown,off}=useMemo(()=>discoverFeed(videoItems??[],postItems??[],show,sort,everything),[videoItems,postItems,show,sort,everything]);
@@ -124,8 +126,8 @@ export function DiscoverScreen({show='fit',navigate}:{show?:DiscoverShow;navigat
   {shown.length
    ?<div className="card feed">{shown.slice(0,limit).map((entry,index)=>entry.kind==='video'
     ?<VideoRow key={feedKey(entry)} item={entry.item} rank={index+1} isNew={isNew(entry.item,trending.data?.updatedAt??null)} reason={show!=='followed'?entry.item.reason:null}
-      hasBreakdown={!!(saved&&savedBreakdown(saved,entry.item.videoId))} inIdeas={!!ideaFromSource(videos,trendingUrl(entry.item.videoId))} onBreak={setBreakdown} onIdea={openVideoIdea}/>
-    :<PostRow key={feedKey(entry)} item={entry.item} rank={index+1} reason={entry.item.reason} inIdeas={!!ideaFromSource(videos,entry.item.url)} onIdea={openPostIdea}/>)}</div>
+      hasBreakdown={!!(saved&&savedBreakdown(saved,entry.item.videoId))} inIdeas={!!ideaFromSource(videos,trendingUrl(entry.item.videoId))} onBreak={setBreakdown} onIdea={openVideoIdea} onResearch={item=>void addToResearch({source:'trending',id:item.videoId})}/>
+    :<PostRow key={feedKey(entry)} item={entry.item} rank={index+1} reason={entry.item.reason} inIdeas={!!ideaFromSource(videos,entry.item.url)} onIdea={openPostIdea} onResearch={item=>void addToResearch({source:'signal',id:item.id})}/>)}</div>
    :emptyFeed()}
   {shown.length>limit&&<div style={{textAlign:'center',marginTop:14}}><button type="button" className="btn" onClick={()=>setLimit(n=>n+FEED_PAGE)}>Show {Math.min(FEED_PAGE,shown.length-limit)} more</button></div>}
   {shown.length>0&&off>0&&shown.length<=limit&&<div style={{textAlign:'center',marginTop:14}}><button type="button" className="btn" onClick={()=>setEverything(open=>!open)}><Icon name={everything?'hide':'preview'} size={15}/>{everything?"Hide what isn't about your topics":`Show everything (${off} more, off topic or under their usual)`}</button></div>}

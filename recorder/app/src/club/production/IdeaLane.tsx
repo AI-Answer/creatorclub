@@ -16,13 +16,14 @@ export const GROUP_SHOWN=5;
  * An idea on the board: its title, why it could work and where it came from. Start planning (Restore for one put aside) is always shown;
  * the "..." menu beside it (Later, Skip with a reason, Move to, Delete) shows under the pointer or on focus. Press the card to open its drawer.
  */
-export function IdeaCard({video,highlight,dragging,actions,onOpen,onMove,onDragStart,onDragEnd}:{
- video:Video;highlight?:boolean;dragging:boolean;actions:IdeaActionSet;onOpen():void;onMove(stage:VideoStage):void;onDragStart(event:DragEvent):void;onDragEnd():void;
+export function IdeaCard({video,highlight,dragging,actions,onOpen,onMove,onResearch,onDragStart,onDragEnd}:{
+ video:Video;highlight?:boolean;dragging:boolean;actions:IdeaActionSet;onOpen():void;onMove(stage:VideoStage):void;onResearch?():void;onDragStart(event:DragEvent):void;onDragEnd():void;
 }){
  const source=video.idea?.sources?.[0],why=ideaWhy(video),held=!!video.hidden;
  const remove:MenuItem={label:'Delete idea',icon:'delete',danger:true,fn:()=>actions.remove(video)};
  const items:MenuItem[]=held?[remove]:[
-  {label:'Later',icon:'save',fn:()=>void actions.later(video)},'-',
+  {label:'Later',icon:'save',fn:()=>void actions.later(video)},
+  ...(onResearch?[{label:'Add to Research',icon:'research' as const,fn:onResearch}]:[]),'-',
   {header:'Skip it because…'},...SKIP_REASONS.map(reason=>({label:reason,fn:()=>void actions.skip(video,reason)})),'-',
   {header:'Move to'},...VIDEO_STAGES.filter(stage=>stage!=='ideas').map(stage=>({label:STAGE_LABEL[stage],fn:()=>onMove(stage)})),'-',
   remove,
@@ -42,7 +43,7 @@ export function IdeaCard({video,highlight,dragging,actions,onOpen,onMove,onDragS
    </div>
   </div>
   <div className="kmove"><Menu align="right" label={`More about ${video.title}`} items={items} restoreFocus button={(toggle,open)=>
-   <button type="button" className={`btn sm icon-only${open?' menu-open':''}`} aria-label={`More about ${video.title}`} aria-haspopup="menu" aria-expanded={open} title="Later, Skip, Move to, Delete" onClick={toggle}><Icon name="more" size={15}/></button>}/></div>
+   <button type="button" className={`btn sm icon-only${open?' menu-open':''}`} aria-label={`More about ${video.title}`} aria-haspopup="menu" aria-expanded={open} title={onResearch?'Later, Add to Research, Skip, Move to, Delete':'Later, Skip, Move to, Delete'} onClick={toggle}><Icon name="more" size={15}/></button>}/></div>
  </div>;
 }
 
@@ -51,15 +52,15 @@ export function IdeaCard({video,highlight,dragging,actions,onOpen,onMove,onDragS
  * Later and Skipped are folded until you open them, and do not show at all while they are empty. Each group says how many it holds.
  * `openGroup` is a folded group to open at first (a link to Later or Skipped). `newId` is the idea just added: it leads its group and is marked.
  */
-export function IdeaLane({videos,newId,openGroup,dragId,actions,onOpen,onMove,onDragStart,onDragEnd}:{
+export function IdeaLane({videos,newId,openGroup,dragId,actions,onOpen,onMove,onResearch,onDragStart,onDragEnd}:{
  videos:readonly Video[];newId?:string;openGroup?:IdeaHeld;dragId:string|null;actions:IdeaActionSet;
- onOpen(video:Video):void;onMove(id:string,stage:VideoStage):void;onDragStart(id:string,event:DragEvent):void;onDragEnd():void;
+ onOpen(video:Video):void;onMove(id:string,stage:VideoStage):void;onResearch?(video:Video):void;onDragStart(id:string,event:DragEvent):void;onDragEnd():void;
 }){
  const groups=ideaGroups(videos,newId);
  const [open,setOpen]=useState<Partial<Record<IdeaGroup,boolean>>>(()=>openGroup?{[openGroup]:true}:{});
  const toggle=(group:IdeaGroup)=>setOpen(current=>({...current,[group]:!current[group]}));
  if(!IDEA_GROUPS.some(([group])=>groups[group].length))return <div className="col-empty">{COLUMN_EMPTY.ideas}</div>;
- const card=(video:Video)=><IdeaCard key={video.id} video={video} highlight={video.id===newId} dragging={dragId===video.id} actions={actions} onOpen={()=>onOpen(video)} onMove={stage=>onMove(video.id,stage)}
+ const card=(video:Video)=><IdeaCard key={video.id} video={video} highlight={video.id===newId} dragging={dragId===video.id} actions={actions} onOpen={()=>onOpen(video)} onMove={stage=>onMove(video.id,stage)} onResearch={onResearch&&(()=>onResearch(video))}
   onDragStart={event=>onDragStart(video.id,event)} onDragEnd={onDragEnd}/>;
  return <>{IDEA_GROUPS.map(([group,label])=>{
   const list=groups[group],folded=group==='later'||group==='skipped';

@@ -2,7 +2,7 @@ import {useState,type KeyboardEvent} from 'react';
 import type {SignalEntry,TrendingEntry} from '../../../shared/club';
 import {FollowChannel} from '../FollowChannel';
 import {creatorName,fmtDays,fmtHours,fmtNum} from '../format';
-import {Avatar,Icon,MultChip,SourceIcon,Thumb} from '../ui';
+import {Avatar,Icon,IconButton,MultChip,SourceIcon,Thumb} from '../ui';
 
 const LONG=260;
 
@@ -13,11 +13,16 @@ function IdeaButton({title,inIdeas,onIdea}:{title:string;inIdeas:boolean;onIdea(
   :<button type="button" className="btn sm" onClick={onIdea} aria-label={`Turn ${title} into an idea`}><Icon name="idea" size={14}/>Turn into idea</button>;
 }
 
+/** "Add to Research", beside Turn into idea: shows under the pointer or on focus, like the row's other quiet actions. */
+function ResearchButton({onResearch}:{onResearch?():void}){
+ return onResearch?<span className="quiet"><IconButton icon="research" label="Add to Research" onClick={onResearch}/></span>:null;
+}
+
 /**
  * A video doing better than usual, one row of Discover at its `rank`. The row opens its breakdown (Enter too); its one button makes it an idea.
  * "Follow this channel" (for a video found by a search) shows under the pointer or on focus. `reason` is the server's sentence, shown small.
  */
-export function VideoRow({item,rank,isNew,reason,hasBreakdown,inIdeas,onBreak,onIdea}:{item:TrendingEntry;rank:number;isNew?:boolean;reason?:string|null;hasBreakdown?:boolean;inIdeas:boolean;onBreak(item:TrendingEntry):void;onIdea(item:TrendingEntry):void}){
+export function VideoRow({item,rank,isNew,reason,hasBreakdown,inIdeas,onBreak,onIdea,onResearch}:{item:TrendingEntry;rank:number;isNew?:boolean;reason?:string|null;hasBreakdown?:boolean;inIdeas:boolean;onBreak(item:TrendingEntry):void;onIdea(item:TrendingEntry):void;onResearch?(item:TrendingEntry):void}){
  const who=creatorName(item.channel);
  const open=()=>onBreak(item);
  return <div className="frow hov" data-kind="video" onClick={open} tabIndex={0} title={hasBreakdown?'Open the breakdown':'Break it down to see why it works'} onKeyDown={(event:KeyboardEvent)=>{if(event.key==='Enter'&&event.target===event.currentTarget)open();}}>
@@ -32,12 +37,12 @@ export function VideoRow({item,rank,isNew,reason,hasBreakdown,inIdeas,onBreak,on
    {reason&&<div className="reason">{reason}</div>}
    <div className="quiet" onClick={event=>event.stopPropagation()}><FollowChannel item={item}/></div>
   </div>
-  <div className="acts" onClick={event=>event.stopPropagation()}><IdeaButton title={item.title} inIdeas={inIdeas} onIdea={()=>onIdea(item)}/></div>
+  <div className="acts" onClick={event=>event.stopPropagation()}><ResearchButton onResearch={onResearch&&(()=>onResearch(item))}/><IdeaButton title={item.title} inIdeas={inIdeas} onIdea={()=>onIdea(item)}/></div>
  </div>;
 }
 
 /** A post from X or Reddit, one row of Discover: its picture (or the author), the text, the numbers, and Turn into idea. The link to the post shows under the pointer or on focus. */
-export function PostRow({item,rank,reason,inIdeas,onIdea}:{item:SignalEntry;rank:number;reason?:string|null;inIdeas:boolean;onIdea(item:SignalEntry):void}){
+export function PostRow({item,rank,reason,inIdeas,onIdea,onResearch}:{item:SignalEntry;rank:number;reason?:string|null;inIdeas:boolean;onIdea(item:SignalEntry):void;onResearch?(item:SignalEntry):void}){
  const [more,setMore]=useState(false),[broken,setBroken]=useState(false);
  const long=item.text.length>LONG,reddit=item.source==='reddit';
  const image=item.media?.type==='image'&&item.media.url&&!broken?item.media.url:null;
@@ -57,6 +62,7 @@ export function PostRow({item,rank,reason,inIdeas,onIdea}:{item:SignalEntry;rank
   </div>
   <div className="acts">
    <a className="btn sm ghost icon-only open-post quiet" href={item.url} target="_blank" rel="noopener noreferrer" aria-label="Open post" title="Open post"><Icon name="open-external" size={15}/></a>
+   <ResearchButton onResearch={onResearch&&(()=>onResearch(item))}/>
    <IdeaButton title={title} inIdeas={inIdeas} onIdea={()=>onIdea(item)}/>
   </div>
  </div>;

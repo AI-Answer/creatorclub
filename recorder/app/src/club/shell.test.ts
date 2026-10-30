@@ -61,13 +61,13 @@ const withApp=async(hash:string,run:(ui:Awaited<ReturnType<typeof mountUI>>,serv
 };
 const navItems=(c:Element)=>[...c.querySelectorAll('.sidebar a.nav-item')].map(a=>a.querySelector('.label')!.textContent);
 
-test('the sidebar is the switcher, Search, three places (Home, Discover, Videos with the videos in progress), then Settings, Help and Collapse as icons',async()=>{
+test('the sidebar is the switcher, Search, four places (Home, Discover, Videos with the videos in progress, Research), then Settings, Help and Collapse as icons',async()=>{
  await withApp('#/home',async ui=>{
   const c=ui.container,bar=c.querySelector('.sidebar')!;
-  assert.deepEqual(navItems(c),['Home','Discover','Videos']);
-  assert.deepEqual([...bar.querySelectorAll('a.nav-item')].map(a=>a.getAttribute('href')),['#/home','#/discover','#/videos']);
+  assert.deepEqual(navItems(c),['Home','Discover','Videos','Research']);
+  assert.deepEqual([...bar.querySelectorAll('a.nav-item')].map(a=>a.getAttribute('href')),['#/home','#/discover','#/videos','#/research']);
   const counts=Object.fromEntries([...bar.querySelectorAll('a.nav-item')].map(a=>[a.querySelector('.label')!.textContent,a.querySelector('.count')?.textContent]));
-  assert.deepEqual(counts,{Home:undefined,Discover:undefined,Videos:'2'},'only Videos has a number: the videos in progress');
+  assert.deepEqual(counts,{Home:undefined,Discover:undefined,Videos:'2',Research:undefined},'only Videos has a number: the videos in progress');
   assert.equal(bar.querySelector('a[aria-current="page"]')!.textContent,'Home');
   assert.deepEqual([...bar.querySelectorAll('.sb-bottom > *')].map(el=>[el.tagName,el.getAttribute('aria-label')]),[['A','Settings'],['BUTTON','Help'],['BUTTON','Collapse sidebar']],'three icons, no text rows');
   const help=bar.querySelector('[aria-label="Help"]')!;
@@ -174,7 +174,7 @@ test('Cmd+K opens search over pages and videos; typing filters, arrows and Enter
   await keyDown(window,'k',{metaKey:true});
   assert.ok(c.querySelector('.palette'));assert.equal(document.activeElement,c.querySelector('.palette input'));
   const options=()=>[...c.querySelectorAll('.palette .po')].map(o=>o.textContent);
-  assert.ok(options().includes('New videoAction'));assert.deepEqual(options().filter(o=>o.endsWith('Page')),['HomePage','DiscoverPage','VideosPage','Videos calendarPage','SettingsPage','First launch setupPage']);assert.ok(options().includes('Hidden features in Claude CodePlanning'));assert.ok(options().includes('Claude for receiptsIdeas'));
+  assert.ok(options().includes('New videoAction'));assert.deepEqual(options().filter(o=>o.endsWith('Page')),['HomePage','DiscoverPage','VideosPage','Videos calendarPage','ResearchPage','SettingsPage','First launch setupPage']);assert.ok(options().includes('Hidden features in Claude CodePlanning'));assert.ok(options().includes('Claude for receiptsIdeas'));
   await type(c.querySelector('.palette input')!,'hidden');
   assert.deepEqual(options(),['Hidden features in Claude CodePlanning']);
   await keyDown(c.querySelector('.palette input')!,'Enter');
@@ -289,7 +289,7 @@ test('the sidebar rail keeps every place reachable by name and tooltip',async()=
  try{
   await flush();
   const rail=ui.container.querySelector('.sidebar.collapsed')!;
-  assert.deepEqual([...rail.querySelectorAll('a.nav-item')].map(a=>a.getAttribute('aria-label')),['Home','Discover','Videos']);
+  assert.deepEqual([...rail.querySelectorAll('a.nav-item')].map(a=>a.getAttribute('aria-label')),['Home','Discover','Videos','Research']);
   assert.deepEqual([...rail.querySelectorAll('.sb-bottom > *')].map(el=>el.getAttribute('aria-label')),['Settings','Help','Expand sidebar']);
   assert.equal(rail.querySelector('a[aria-current="page"]')!.getAttribute('aria-label'),'Videos');
  }finally{await ui.close();fake.restore();}

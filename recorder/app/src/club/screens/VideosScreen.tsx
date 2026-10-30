@@ -15,6 +15,7 @@ import {Icon,Spinner,Tabs,type Tab} from '../ui';
 import {useBreakdowns} from '../useBreakdowns';
 import {useIdeaActions} from '../useIdeaActions';
 import {useProduction} from '../useProduction';
+import {useAddToResearch} from '../useAddToResearch';
 
 type VideosRoute=Extract<Route,{name:'videos'}>;
 const VIEWS:readonly Tab<VideosView>[]=[{id:'board',label:'Board',icon:'production'},{id:'table',label:'Table',icon:'table'},{id:'calendar',label:'Calendar',icon:'calendar'}];
@@ -29,6 +30,7 @@ export function VideosScreen({route,navigate,onNewVideo}:{route:VideosRoute;navi
  const {state,videos,reload,move,schedule}=useProduction();
  const scenes=useSceneProgress(videos??NONE);
  const actions=useIdeaActions(navigate);
+ const addToResearch=useAddToResearch(navigate);
  const saved=useBreakdowns();
  const {view,group,bd,new:newId}=route;
  const [drawer,setDrawer]=useState<string|null>(route.open??null);
@@ -72,7 +74,7 @@ export function VideosScreen({route,navigate,onNewVideo}:{route:VideosRoute;navi
    <button type="button" className="btn primary" onClick={()=>void actions.startPlanning(newIdea)}><Icon name="next" size={15}/>Start planning</button>
   </div>}
 
-  {view==='board'&&<Kanban videos={videos} scenes={scenes} ideas={{newId,openGroup:group,actions}} onOpen={open} onMove={(id,stage,beforeId)=>void move(id,stage,beforeId)}/>}
+  {view==='board'&&<Kanban videos={videos} scenes={scenes} ideas={{newId,openGroup:group,actions}} onOpen={open} onMove={(id,stage,beforeId)=>void move(id,stage,beforeId)} onResearch={video=>void addToResearch({source:'video',id:video.id})}/>}
   {view==='table'&&<TableView videos={videos} scenes={scenes} onOpen={open}/>}
   {view==='calendar'&&<CalendarView videos={videos} onOpen={open} onOpenPublish={video=>navigate(openRoute(video,'publish'))} onSchedule={(id,day)=>void schedule(id,day)}/>}
   {idea&&<IdeaDrawer video={idea} actions={actions} onClose={closeDrawer} onRemove={video=>{closeDrawer();actions.remove(video);}}/>}

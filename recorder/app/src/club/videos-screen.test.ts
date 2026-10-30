@@ -350,7 +350,7 @@ test('Board: Move to on a card is a button you can reach with the keyboard; it m
   assert.equal(trigger.closest('[data-card]'),null,'it is not inside the card, so pressing it does not open the video');
   await press(trigger);
   const menu=c.querySelector('.menu')!;
-  assert.deepEqual([...menu.querySelectorAll('.hd,button')].map(text),['Move to','Ideas','Planning','Recording','Editing','Publishing','Published']);
+  assert.deepEqual([...menu.querySelectorAll('.hd,button')].map(text),['Move to','Ideas','Planning','Recording','Editing','Publishing','Published','Add to Research']);
   assert.equal(menu.querySelector('[aria-checked="true"]')!.textContent,'Planning','the stage it is in is marked');
   await press([...menu.querySelectorAll('button')].find(b=>text(b)==='Planning')!);
   assert.equal(calls.filter(call=>call.method==='POST').length,0,'its own stage does nothing');
