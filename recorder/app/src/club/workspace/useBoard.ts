@@ -7,6 +7,7 @@ import {KEY_SAVE_MS} from './board-layout';
 import {deleteTileLater,usePendingTiles} from './tile-delete';
 import {mergeTiles} from './board-files';
 import {useBoardEvents} from './useBoardFiles';
+import {boardBase} from './board-base';
 
 export type Reading={phase:'running'}|{phase:'failed';message:string};
 export const READ_FAILED="Couldn't read that video.";
@@ -18,12 +19,12 @@ export type NewTile={kind:ResearchTile['kind'];url?:string;text?:string};
 type Place={x:number;y:number};
 
 /**
- * The tiles of a video's Board and the changes made to them. A tile that moves or is written in shows at once and is saved behind it:
+ * The tiles of a Board (a video's, or Research when `videoId` is `CHANNEL_BOARD`) and the changes made to them. A tile that moves or is written in shows at once and is saved behind it:
  * a drop saves at once, a key press a moment after the last one. A failed save puts the tile back and says so in a toast.
  * A video tile without details is read in the background. Removing a tile offers Undo for as long as its toast shows.
  */
 export function useBoard(videoId:string){
- const base=`/videos/${encodeURIComponent(videoId)}/research`;
+ const base=`${boardBase(videoId)}/research`;
  const toast=useToast();
  const [loaded,setLoaded]=useState<ResearchTile[]|null>(null),[loadError,setLoadError]=useState('');
  const [reading,setReading]=useState<Record<string,Reading>>({});
@@ -147,5 +148,12 @@ export function useBoard(videoId:string){
   toast('Removed from the board',{undo});
  },[videoId,toast]);
 
- return {tiles,changes,loadError,reload:load,refresh,reading,read,add,adopt,preview,place,saveNote,remove};
+ /** Takes several tiles off the Board at once, with one Undo for all of them. */
+ const removeMany=useCallback((ids:readonly string[])=>{
+  if(!ids.length)return;
+  const undos=ids.map(id=>deleteTileLater(videoId,id,message=>toast(message)));
+  toast(ids.length===1?'Removed from the board':`Removed ${ids.length} cards from the board`,{undo:()=>undos.forEach(undo=>undo())});
+ },[videoId,toast]);
+
+ return {tiles,changes,loadError,reload:load,refresh,reading,read,add,adopt,preview,place,saveNote,remove,removeMany};
 }

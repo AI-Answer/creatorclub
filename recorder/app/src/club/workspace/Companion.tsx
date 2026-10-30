@@ -24,8 +24,11 @@ export type CompanionEditor={get():EditorBridge|null;state:EditorState|null};
  * The companion, docked on the right of a video's steps: one conversation per video, what it is looking at, suggestions for the step,
  * replies that stream in with their steps, and cards that apply a change with Preview and Undo. Collapses to a rail and remembers it.
  */
-export function Companion({videoId,tab,scene,screen,pkg,outline,scenes,onChanged,beforeApply,editor,roomy=false}:{
- videoId:string;tab:CompanionTab;scene?:CompanionScene;screen:string;pkg:Package|null;outline:Outline|null;
+export function Companion({videoId,tab,scene,screen,selection,pkg,outline,scenes,onChanged,beforeApply,editor,roomy=false}:{
+ videoId:string;tab:CompanionTab;scene?:CompanionScene;screen:string;
+ /** Research: the selected cards' ids, sent with every message ("these" means them). */
+ selection?:readonly string[];
+ pkg:Package|null;outline:Outline|null;
  /** The video's scenes with their takes: replacing scenes that have takes asks first. */
  scenes?:readonly VideoScene[];
  onChanged(changed:CompanionChanged[]):void;beforeApply?():Promise<void>;
@@ -53,7 +56,7 @@ export function Companion({videoId,tab,scene,screen,pkg,outline,scenes,onChanged
  const companion=useCompanion(videoId,{onChanged,beforeApply,editor:()=>editorNow.current?.get()??null});
  const {messages,live}=companion;
  const working=live?.phase==='working';
- const context:CompanionContext=useMemo(()=>({tab,...(scene?{sceneId:scene.id,sceneTitle:scene.title}:{}),screen}),[tab,scene,screen]);
+ const context:CompanionContext=useMemo(()=>({tab,...(scene?{sceneId:scene.id,sceneTitle:scene.title}:{}),screen,...(selection?.length?{selection:[...selection].slice(0,200)}:{})}),[tab,scene,screen,selection]);
  const [text,setText]=useState('');
  const input=useRef<HTMLTextAreaElement>(null);
  const rail=useRef<HTMLButtonElement>(null);
@@ -108,8 +111,8 @@ export function Companion({videoId,tab,scene,screen,pkg,outline,scenes,onChanged
  </aside>;
 
  const items=messages?withDividers(messages,tab):[];
- const ideas=suggestions(tab,{scenes:outline?.scenes.length??0,scene,selected:editor?.state?.selected});
- const selected=tab==='edit'?editor?.state?.selected??0:0;
+ const selected=tab==='edit'?editor?.state?.selected??0:tab==='research'?selection?.length??0:0;
+ const ideas=suggestions(tab,{scenes:outline?.scenes.length??0,scene,selected});
  return <aside className={cn('cmp',narrow&&'over')} aria-label={title} onKeyDown={onPanelKey}>
   <header className="cmp-head">
    <CompanionMark size={18} working={working} className="cmp-head-mark"/>

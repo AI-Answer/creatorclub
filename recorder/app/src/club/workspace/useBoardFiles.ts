@@ -1,6 +1,7 @@
 import {useCallback,useEffect,useRef,useState} from 'react';
 import type {BoardFiles,ResearchTile} from '../../../shared/club';
 import {clubFetch,clubUpload,errorMessage} from '../api';
+import {boardBase} from './board-base';
 
 export type ImportResult={tiles:ResearchTile[];skipped:{name:string;reason:string}[]};
 
@@ -13,7 +14,7 @@ export function useBoardEvents(videoId:string,onChange:()=>void,wait=150){
  const latest=useRef(onChange);latest.current=onChange;
  useEffect(()=>{
   if(typeof EventSource==='undefined')return;
-  const source=new EventSource(`/api/club/videos/${encodeURIComponent(videoId)}/board/events`);
+  const source=new EventSource(`/api/club${boardBase(videoId)}/board/events`);
   let timer:ReturnType<typeof setTimeout>|undefined,opened=false;
   const soon=()=>{clearTimeout(timer);timer=setTimeout(()=>latest.current(),wait);};
   source.addEventListener('files',soon);
@@ -27,7 +28,7 @@ export function useBoardFiles(videoId:string,tick:number){
  const [files,setFiles]=useState<BoardFiles|null>(null);
  useEffect(()=>{
   let live=true;
-  clubFetch<BoardFiles>(`/videos/${encodeURIComponent(videoId)}/board/files`).then(found=>{if(live)setFiles(found);},()=>{});
+  clubFetch<BoardFiles>(`${boardBase(videoId)}/board/files`).then(found=>{if(live)setFiles(found);},()=>{});
   return()=>{live=false;};
  },[videoId,tick]);
  return files;
@@ -39,10 +40,10 @@ export async function chooseNotesFolder(path:string|null):Promise<{path:string|n
  catch(reason){return {error:errorMessage(reason,"Couldn't use that folder.")};}
 }
 
-export const pinNote=(videoId:string,path:string)=>clubFetch<ResearchTile>(`/videos/${encodeURIComponent(videoId)}/board/pin`,{body:{path}});
+export const pinNote=(videoId:string,path:string)=>clubFetch<ResearchTile>(`${boardBase(videoId)}/board/pin`,{body:{path}});
 
 export function importNotes(videoId:string,files:readonly File[]):Promise<ImportResult>{
  const form=new FormData();
  for(const file of files)form.append('files',file);
- return clubUpload<ImportResult>(`/videos/${encodeURIComponent(videoId)}/board/import`,form);
+ return clubUpload<ImportResult>(`${boardBase(videoId)}/board/import`,form);
 }

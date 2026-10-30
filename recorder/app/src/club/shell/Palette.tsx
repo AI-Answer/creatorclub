@@ -13,6 +13,7 @@ const PAGES:ReadonlyArray<Option>=[
  {label:'Discover',route:{name:'discover'},icon:'trending',kind:'Page'},
  {label:'Videos',route:{name:'videos',view:'board'},icon:'video',kind:'Page'},
  {label:'Videos calendar',route:{name:'videos',view:'calendar'},icon:'calendar',kind:'Page'},
+ {label:'Research',route:{name:'research'},icon:'research',kind:'Page'},
  {label:'Settings',route:{name:'settings'},icon:'settings',kind:'Page'},
  {label:'First launch setup',route:{name:'welcome'},icon:'ai',kind:'Page'},
 ];
