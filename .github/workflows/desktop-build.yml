@@ -1,7 +1,7 @@
 name: Desktop apps
 on:
   push:
-    branches: [main, 'samin/**']
+    branches: [main]
   pull_request:
   workflow_dispatch:
 permissions:
@@ -9,6 +9,7 @@ permissions:
 jobs:
   desktop:
     name: ${{ matrix.name }}
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -27,6 +28,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: engine/cutroom
+          cache-on-failure: true
       - uses: ilammy/msvc-dev-cmd@v1
         if: runner.os == 'Windows'
       - name: Install and build
@@ -35,9 +37,9 @@ jobs:
         run: npm run runtime:desktop
       - name: Test portable renderer and Cutroom integration
         working-directory: recorder/app
-        run: node --import tsx --test server/cutroom.test.ts server/portable-graphics.test.ts
+        run: node --import tsx --test server/cutroom.test.ts server/portable-graphics.test.ts server/export-durability.test.ts
       - name: Test Rust engine
-        run: cargo test --locked --manifest-path engine/cutroom/Cargo.toml -p cutroom-core -p cutroom-gfx -p cutroom-cut
+        run: cargo test --release --locked --manifest-path engine/cutroom/Cargo.toml -p cutroom-core -p cutroom-gfx -p cutroom-cut
       - name: Exercise the native cutting and graphics engine
         run: npm --prefix recorder/app run test:cutroom
       - name: Build desktop installers

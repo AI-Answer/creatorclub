@@ -57,9 +57,14 @@ export async function fingerprintRendererFile(file:string,deadline=Date.now()+50
  }
  throw failure(Error('Renderer verification did not settle. Try opening SceneForge again.'));
 }
-async function atomic(file:string,value:unknown){
+export async function atomicExportJSON(file:string,value:unknown,platform:NodeJS.Platform=process.platform){
  const tmp=file+'.'+randomUUID()+'.tmp';let handle:FileHandle|undefined;
- try{handle=await fs.open(tmp,'wx',0o600);await handle.writeFile(JSON.stringify(value));await handle.sync();await handle.close();handle=undefined;await fs.rename(tmp,file);const dir=await fs.open(path.dirname(file),'r');try{await dir.sync();}finally{await dir.close();}}
+ try{
+  handle=await fs.open(tmp,'wx',0o600);await handle.writeFile(JSON.stringify(value));await handle.sync();await handle.close();handle=undefined;await fs.rename(tmp,file);
+  // Windows cannot fsync directory handles. Retain the file sync and atomic
+  // replacement there; POSIX also syncs the containing directory entry.
+  if(platform!=='win32'){const dir=await fs.open(path.dirname(file),'r');try{await dir.sync();}finally{await dir.close();}}
+ }
  finally{await handle?.close();await fs.rm(tmp,{force:true});}
 }
 async function resolveBinary(name:string){
@@ -97,11 +102,11 @@ export class ExportStore{
  private lockToken=randomUUID();private owned=false;private closing=false;private currentRuntime='';
  constructor(private root:string,private outputDir:string,private renderer:Renderer,private getRuntime=rendererFingerprint){}
  private file(id:string){return path.join(this.root,id+'.json');}
- private persist(saved:Saved){const snapshot=structuredClone(saved);const next=this.writes.catch(()=>{}).then(()=>atomic(this.file(snapshot.record.id),snapshot));this.writes=next;return next;}
+ private persist(saved:Saved){const snapshot=structuredClone(saved);const next=this.writes.catch(()=>{}).then(()=>atomicExportJSON(this.file(snapshot.record.id),snapshot));this.writes=next;return next;}
  async init(){
   await fs.mkdir(this.root,{recursive:true,mode:0o700});const lock=path.join(this.root,'.owner');
   for(let attempt=0;attempt<3;attempt++){
-   try{await fs.mkdir(lock);await atomic(path.join(lock,'owner.json'),{pid:process.pid,token:this.lockToken});this.owned=true;break;}
+   try{await fs.mkdir(lock);await atomicExportJSON(path.join(lock,'owner.json'),{pid:process.pid,token:this.lockToken});this.owned=true;break;}
    catch(e){if((e as NodeJS.ErrnoException).code!=='EEXIST')throw e;
     // Serialize reclamation separately: a stale read must never rename a new owner's lock.
     const claim=lock+'.reclaim';try{await fs.mkdir(claim);}catch(err){if((err as NodeJS.ErrnoException).code==='EEXIST')throw Error('Export ownership recovery is in progress or incomplete. Retry after the other service exits.');throw err;}
@@ -142,7 +147,7 @@ export class ExportStore{
   if(!['mp4','webm','wav','srt','txt','md','json'].includes(o.format))throw Error('Unsupported export format');
   const sources=await this.sources(snapshot),runtime=await this.getRuntime();this.assertOpen();if(expectedSources&&sources.some(source=>{const expected=expectedSources.find(s=>s.mediaId===source.mediaId);return !expected||expected.identity.sha256!==source.identity.sha256||expected.identity.realPath!==source.identity.realPath;}))throw conflict('Source files changed while preparing restart.');if(expectedRuntime&&runtime!==expectedRuntime)throw conflict('Renderer changed while preparing restart. Review again.');this.currentRuntime=runtime;
   const record:ExportRecord={id:randomUUID(),type:'export',status:'queued',progress:0,message:'Queued',startedAt:now,projectId:snapshot.id,projectName:snapshot.name,projectRevision:hash(snapshot),snapshotCreatedAt:now,options:o,updatedAt:now,revision:1,restartOf,output:{status:'pending'},recovery:{status:'blocked',reason:'This export is active.',runtimeChanged:false}};
-  const saved:Saved={version:1,record,sources,runtime};await atomic(path.join(this.root,record.id+'.snapshot.json'),snapshot);this.records.set(record.id,saved);this.summaries.set(record.id,{projectId:record.projectId,startedAt:record.startedAt});this.trimCache();try{await this.persist(saved);}catch(e){this.records.delete(record.id);this.summaries.delete(record.id);throw e;}
+  const saved:Saved={version:1,record,sources,runtime};await atomicExportJSON(path.join(this.root,record.id+'.snapshot.json'),snapshot);this.records.set(record.id,saved);this.summaries.set(record.id,{projectId:record.projectId,startedAt:record.startedAt});this.trimCache();try{await this.persist(saved);}catch(e){this.records.delete(record.id);this.summaries.delete(record.id);throw e;}
   if(this.closing){record.status='interrupted';record.message='Service stopped before export could start';this.touch(saved);await this.persist(saved);return this.public(saved);}
   try{this.renderer.start(snapshot,o,this.outputDir,{
    initialJob:structuredClone(record),
