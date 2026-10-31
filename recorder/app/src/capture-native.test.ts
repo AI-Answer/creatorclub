@@ -221,8 +221,8 @@ test('region overlay is a panel that joins full-screen Spaces without a Dock tra
 });
 
 test('screen access messages name the app macOS lists', async () => {
- const h = setup({ appName: 'CreatorClub Dev' });
+ const h = setup({ appName: 'Creator Compiler Dev' });
  h.state.screenStatus = 'denied';
  h.state.beforeSources = async () => { throw new Error('Failed to get sources.'); };
- await assert.rejects(h.manager.list(h.event), (error: Error) => /Screen recording is off for CreatorClub Dev\. .*turn on CreatorClub Dev .*reopen CreatorClub Dev\./.test(error.message) && !/SceneForge/.test(error.message));
+ await assert.rejects(h.manager.list(h.event), (error: Error) => /Screen recording is off for Creator Compiler Dev\. .*turn on Creator Compiler Dev .*reopen Creator Compiler Dev\./.test(error.message) && !/SceneForge/.test(error.message));
 });

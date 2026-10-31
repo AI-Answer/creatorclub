@@ -7,7 +7,7 @@ import { stripPromotions } from './prompts.js';
 import * as store from './store.js';
 
 /*
- * One-time import of the old Samin board's workspace (`workspaces/samin/`) into a CreatorClub workspace.
+ * One-time import of the old Samin board's workspace (`workspaces/samin/`) into a Creator Compiler workspace.
  * The source is only read, never written.
  */
 

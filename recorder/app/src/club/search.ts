@@ -40,7 +40,7 @@ export function fixedOptions(videos:readonly Video[],openId?:string|null):Search
  return [
   {id:'action:new-video',label:'New video',kind:'Action',icon:'add',hint:'Start from a title or break down a link',words:'create idea start make',target:{action:'new-video'}},
   {id:'action:add-channel',label:'Add a channel',kind:'Action',icon:'youtube',hint:'Add your YouTube channel or start fresh',words:'setup welcome first launch connect new',target:{route:{name:'welcome'}}},
-  {id:'action:help',label:'Help',kind:'Action',icon:'help',hint:'How CreatorClub works',words:'how guide steps glossary shortcuts where things live learn',target:{action:'help'}},
+  {id:'action:help',label:'Help',kind:'Action',icon:'help',hint:'How Creator Compiler works',words:'how guide steps glossary shortcuts where things live learn',target:{action:'help'}},
   {id:'action:shortcuts',label:'Keyboard shortcuts',kind:'Action',icon:'keyboard',hint:SHORTCUTS[0].keys+' and more',words:'help keys hotkeys keyboard',target:{action:'help',topic:'shortcuts'}},
   ...steps,
   {id:'page:home',label:'Home',kind:'Page',icon:'home',hint:'What to do next',words:'overview next',target:{route:{name:'home'}}},

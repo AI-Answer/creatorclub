@@ -1,4 +1,5 @@
 import { promises as fs } from 'node:fs';
+import { existsSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { randomBytes } from 'node:crypto';
@@ -24,7 +25,12 @@ import {
 } from '../../shared/club.js';
 
 /** Workspace root. Read on every call so tests can point CREATORCLUB_DIR at a temp directory. */
-export const rootDir = () => process.env.CREATORCLUB_DIR || path.join(os.homedir(), 'Documents', 'CreatorClub');
+export const rootDir = () => {
+  if (process.env.CREATORCLUB_DIR) return process.env.CREATORCLUB_DIR;
+  const current = path.join(os.homedir(), 'Documents', 'Creator Compiler');
+  const previous = path.join(os.homedir(), 'Documents', 'CreatorClub');
+  return existsSync(current) || !existsSync(previous) ? current : previous;
+};
 
 const SLUG = /^[a-z0-9][a-z0-9-]{0,63}$/;
 const ID = /^[A-Za-z0-9_-]{1,64}$/;
@@ -91,7 +97,7 @@ export const writeJSON = (file: string, value: unknown) => writeFileAtomic(file,
 interface Settings {
   currentWorkspace?: string;
   defaultAi?: AiProvider;
-  /** Set once the first-visit "How CreatorClub works" dialog has been closed. */
+  /** Set once the first-visit "How Creator Compiler works" dialog has been closed. */
   welcomed?: boolean;
   /** The theme the person chose in Settings. */
   appearance?: 'light' | 'dark';
@@ -120,7 +126,7 @@ const updateSettings = (change: (settings: Settings) => Settings) =>
  * temporary workspace (every test) never reads or writes the real key.
  */
 export const secretsDir = () =>
-  process.env.CREATORCLUB_SECRETS_DIR || process.env.CREATORCLUB_DIR || path.join(os.homedir(), 'Library', 'Application Support', 'CreatorClub');
+  process.env.CREATORCLUB_SECRETS_DIR || process.env.CREATORCLUB_DIR || path.join(os.homedir(), 'Library', 'Application Support', 'Creator Compiler');
 
 interface Secrets {
   /** The person's own Gemini API key. Only ever sent to Google; the screen gets it masked. */
@@ -364,7 +370,7 @@ export async function listVideos(slug: string): Promise<Video[]> {
   return videos.filter((v): v is Video => !!v).sort(byStageThenOrder);
 }
 
-export type NewVideo = Pick<Video, 'title'> & Partial<Pick<Video, 'stage' | 'source' | 'idea' | 'hidden' | 'publishDate' | 'planning'>>;
+export type NewVideo = Pick<Video, 'title'> & Partial<Pick<Video, 'stage' | 'source' | 'idea' | 'hidden' | 'publishDate' | 'planning' | 'recorderProjectId'>>;
 
 const nextOrder = (videos: Video[], stage: VideoStage) => Math.max(-1, ...videos.filter((v) => v.stage === stage).map((v) => v.order)) + 1;
 

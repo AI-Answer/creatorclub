@@ -52,7 +52,7 @@ function VideoPreview({source,label,mirror=false,compact=false,onEnable,onStalle
   {frameRef&&<img ref={frameRef} className="capture-native-frame" hidden={!hasFrame} alt={`${label} native recording preview`}/>}
   {compact&&!receiving&&<div className="capture-preview-empty compact">{loading||(source.stream&&!stalled)?<LoaderCircle className="spin" size={18}/>:<Camera size={18}/>}<span>{loading||(source.stream&&!stalled)?'Starting…':stalled?'No picture':'Off'}</span></div>}
   {!compact&&!source.stream&&!hasFrame&&<div className="capture-preview-empty">{loading?<LoaderCircle className="spin" size={22}/>:label==='Camera'?<Camera size={25}/>:<Monitor size={25}/>}<span>{loading?'Opening preview…':source.error||`${label} preview is ready to enable.`}</span>{!loading&&<button className="button compact" onClick={onEnable}>{source.error?'Try again':`Enable ${label.toLowerCase()} preview`}</button>}</div>}
-  {!compact&&source.stream&&!receiving&&<div className="capture-preview-empty">{stalled?<><span>No picture is coming from the {label.toLowerCase()}. Check that macOS allows SceneForge to use it (System Settings → Privacy &amp; Security), or choose another device.</span><button className="button compact" onClick={onEnable}>Try again</button></>:<><LoaderCircle className="spin" size={22}/><span>Waiting for the {label.toLowerCase()} picture…</span></>}</div>}
+  {!compact&&source.stream&&!receiving&&<div className="capture-preview-empty">{stalled?<><span>No picture is coming from the {label.toLowerCase()}. Check that macOS allows Creator Compiler to use it (System Settings → Privacy &amp; Security), or choose another device.</span><button className="button compact" onClick={onEnable}>Try again</button></>:<><LoaderCircle className="spin" size={22}/><span>Waiting for the {label.toLowerCase()} picture…</span></>}</div>}
   {receiving&&!compact&&badge&&<span className="capture-resolution">{badge}</span>}
  </div>;
 }
@@ -74,10 +74,10 @@ function AudioMeter({stream,label,emptyHint,audio,live,background=false,onLevel}
  return <div className="capture-audio"><div ref={meter} role="meter" aria-label={`${label} input level`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={0}>{hasAudio&&!monitorError?<canvas ref={canvas}/>:<span className="capture-flatline"/>}</div><span className="capture-source-hint">{monitorError?`Level monitor unavailable: ${monitorError}`:hasAudio?heard?'Sound detected · live input':'Listening · no sound detected yet':emptyHint}</span></div>;
 }
 
-/** Scenes with a take on the timeline, out of all scenes. CreatorClub uses it to make `Continue to editing` the primary once every scene is recorded. */
+/** Scenes with a take on the timeline, out of all scenes. Creator Compiler uses it to make `Continue to editing` the primary once every scene is recorded. */
 export type RecordingProgress={recorded:number;total:number};
 /**
- * SceneForge's Record screen. Inside CreatorClub (`club`) it is one calm column: a readiness line (or the warnings card) with a Change sheet
+ * SceneForge's Record screen. Inside Creator Compiler (`club`) it is one calm column: a readiness line (or the warnings card) with a Change sheet
  * that holds the source rows, presets and the countdown option, one big Record button for the selected scene, compact scene cards, the
  * three-choice take preview, a move to the next scene to record after Continue, and progress through `onProgress`. The caller leaves out
  * `onEdit` to hide the `Edit & export` banner; the club's cards have no per-scene quick actions. Recording itself is the same in both.
@@ -150,7 +150,7 @@ export function Recording({project,change,commit,onRecorded,onError,onImport,onS
  const retake=async()=>{if(!reviewTake||confirmingRef.current)return;const sceneId=reviewTake.sceneId,mode:TakeConfirmMode=reviewTake.recordOver?'record-over':'replace-matching';await keepReview();if(!reviewRef.current){setRecordSceneId(sceneId);void start(sceneId,mode);}};
  const takeAction=async(id:string,kind:'archive'|'delete'|'activate')=>runTakeAction(async()=>{const take=allTakes.find(value=>value.id===id);if(!take)return;await applyChange(draft=>{saveProjectTake(draft,take);if(kind==='archive')archiveSceneTake(draft,id);else if(kind==='delete')deleteSceneTake(draft,id);else activateSceneTake(draft,take.sceneId,id,'keep-both');});storeTakes(savedTakes.filter(value=>value.id!==id));if(reviewId===id)closeReview();});
  const updateTake=async(take:SavedTake)=>{await applyChange(draft=>{if(!draft.recordedTakes?.some(value=>value.id===take.id))saveProjectTake(draft,take);updateSceneTake(draft,take.id,{name:take.name,offsets:take.offsets});});storeTakes(savedTakes.filter(value=>value.id!==take.id));};
- // CreatorClub: which scenes have a take on the timeline, to pick the next scene to record and to report progress.
+ // Creator Compiler: which scenes have a take on the timeline, to pick the next scene to record and to report progress.
  const recordedScenes=useMemo(()=>{if(!club)return null;const cards=sceneCardData({clips:project.clips,media:project.media,scenes:project.scenes},allTakes);return new Set(project.scenes.filter(scene=>{const card=cards.get(scene.id);return Boolean(card&&(card.all.some(take=>take.active)||card.legacyFootage));}).map(scene=>scene.id));},[club,project.clips,project.media,project.scenes,allTakes]);
  useEffect(()=>{if(recordedScenes)onProgress?.({recorded:recordedScenes.size,total:project.scenes.length});},[recordedScenes,project.scenes.length,onProgress]);
  // Opening Record selects the first scene still to record.
@@ -210,7 +210,7 @@ export function Recording({project,change,commit,onRecorded,onError,onImport,onS
  };
  const request=(kind:CaptureKind,override:Partial<CaptureRequest>={}):Promise<MediaStream|null>=>{const c=currentRef.current,[width,height]=c.cameraResolution.split('x').map(Number);const options:CaptureRequest={kind,...(kind==='camera'?{deviceId:c.cameraId,width,height,frameRate:c.cameraFps}:kind==='microphone'?{deviceId:c.microphoneId,echoCancellation:c.echoCancellation,noiseSuppression:c.noiseSuppression}:{frameRate:c.screenFps,systemAudio:c.selection.systemAudio}),...override};
   if(kind==='screen'&&nativeCapture){if(savedSourceRef.current?.kind===c.captureMode&&window.sceneForge?.restoreCaptureSource)return resumeScreen(override);const selected=chosenSource.current;if(selected){pickerAudio.current=options.systemAudio??false;return captureSelected(selected.sourceId,override);}openPicker(options.systemAudio);return Promise.resolve(null);}
-  if(kind==='screen'&&c.captureMode!=='display'){setSourceError('Exact window and region selection requires the current SceneForge desktop app. No capture was started.');openPicker(options.systemAudio);return Promise.resolve(null);}
+  if(kind==='screen'&&c.captureMode!=='display'){setSourceError('Exact window and region selection requires the current Creator Compiler desktop app. No capture was started.');openPicker(options.systemAudio);return Promise.resolve(null);}
   return manager.acquire(options).then(stream=>{void refreshDevices();return stream;});
  };
  const chooseScreen=(systemAudio=currentRef.current.selection.systemAudio,activateScreen=true)=>{setSelection(s=>({...s,screen:activateScreen?true:s.screen,systemAudio}));if(nativeCapture)openPicker(systemAudio);else void request('screen',{systemAudio});};
@@ -256,7 +256,7 @@ export function Recording({project,change,commit,onRecorded,onError,onImport,onS
    const streams=await Promise.all(kinds.map(kind=>request(kind)));kinds.forEach((kind,i)=>{if(!streams[i])throw new Error(manager.getSnapshot()[kind].error||`The ${kind} preview could not start.`);});if(!mounted.current)return;
    const sources=recordingSources(manager.getSnapshot(),browserSelection);
    if(abort.signal.aborted)throw new DOMException('Start cancelled','AbortError');
-   const formats=sources.map(source=>{const video=source.stream.getVideoTracks().length>0,mimeType=recorderMimeType(video,t=>MediaRecorder.isTypeSupported(t));if(!mimeType)throw new Error('This browser does not support WebM capture. Use the SceneForge desktop app.');return {...source,video,mimeType};});
+   const formats=sources.map(source=>{const video=source.stream.getVideoTracks().length>0,mimeType=recorderMimeType(video,t=>MediaRecorder.isTypeSupported(t));if(!mimeType)throw new Error('This browser does not support WebM capture. Use the Creator Compiler desktop app.');return {...source,video,mimeType};});
    openHud(countdownEnabled?3:null);
    if(countdownEnabled){let sound:ReturnType<typeof countdownChime>|undefined;try{sound=countdownChime();}catch{setCaptureNotice('Countdown sound is unavailable. The visual countdown still runs.');}try{await recordingCountdown(abort.signal,value=>{setCountdown(value);void hudSession.current?.update({countdown:value});},()=>sound?.play());}finally{await sound?.close();if(mounted.current)setCountdown(null);void hudSession.current?.update({countdown:null});}}
    if(abort.signal.aborted)throw new DOMException('Start cancelled','AbortError');
@@ -331,7 +331,7 @@ export function Recording({project,change,commit,onRecorded,onError,onImport,onS
  const enabledCount=Object.values(selection).filter(Boolean).length;
  const readyCount=(['camera','microphone','screen'] as const).filter(k=>selection[k]&&previews[k].status==='live'&&(k==='camera'?cameraReceiving:k==='screen'?screenReceiving:true)).length+(selection.systemAudio&&previews.screen.stream?.getAudioTracks().some(t=>t.readyState==='live')?1:0);
  const disk=useDiskSpace(club),access=useMediaAccess(club,previews);
- // CreatorClub's warnings card and pre-flight line: each switched-on source, read from its preview and from macOS's permission.
+ // Creator Compiler's warnings card and pre-flight line: each switched-on source, read from its preview and from macOS's permission.
  const liveAudio=(stream:MediaStream|null)=>Boolean(stream?.getAudioTracks().some(track=>track.readyState==='live'));
  // Computer audio comes from the chosen screen or window, so a failed choice fails both.
  const screenFailed=previews.screen.status==='error'||Boolean(sourceError);
@@ -339,7 +339,7 @@ export function Recording({project,change,commit,onRecorded,onError,onImport,onS
  const checks:SourceCheck[]=club?sourceChecks([snapshot('camera'),snapshot('microphone'),snapshot('screen'),{kind:'systemAudio',included:selection.systemAudio,permission:access?.screen,accessDenied:previews.screen.error===ACCESS_NOT_GRANTED,failed:screenFailed,ended:previews.screen.status==='ended',receiving:liveAudio(previews.screen.stream),opening:previews.screen.status==='loading'}]):[];
  const problemAction=(action:ProblemAction)=>{if(action==='setup')onSetup?.();else if(action==='retry-camera')void request('camera');else if(action==='retry-microphone')void request('microphone');else chooseScreen(selection.systemAudio,selection.screen);};
  const problems=club?recorderProblems(checks,disk):null,readiness=readinessLine(checks);
- // CreatorClub: the source rows live in the sheet Change opens. It opens by itself when the screen or window has to be chosen.
+ // Creator Compiler: the source rows live in the sheet Change opens. It opens by itself when the screen or window has to be chosen.
  const [changeOpen,setChangeOpen]=useState(false);
  useEffect(()=>{if(club&&sourcePicker)setChangeOpen(true);},[club,sourcePicker]);
  const sceneIndex=project.scenes.findIndex(scene=>scene.id===recordSceneId),sceneRecorded=Boolean(recordedScenes?.has(recordSceneId));
@@ -363,7 +363,7 @@ export function Recording({project,change,commit,onRecorded,onError,onImport,onS
  const presetPicker=<div className="recording-presets" ref={presetRoot}><button className="recording-presets-trigger" aria-label="Recording presets" aria-expanded={presetOpen} disabled={active} title="Recording presets (⌘⇧P)" onClick={()=>setPresetOpen(v=>!v)}>{activePreset?activePreset.name:'Recording presets'}{modified?' · Modified':''}<ChevronDown size={13}/></button>{presetOpen&&<div className="recording-presets-menu" role="dialog" aria-label="Recording presets"><strong>Recording presets</strong><span className="preset-description">Save devices, source toggles, and capture settings in this profile.</span><div className="recording-presets-list"><button onClick={()=>applySettings(defaultRecordingSettings(),null)}>Default settings</button>{preferences.presets.map(p=><button key={p.id} aria-pressed={preferences.activeId===p.id} onClick={()=>applySettings(p.settings,p.id)}><span>{p.name}</span>{preferences.activeId===p.id&&<Check size={15}/>}</button>)}</div><form onSubmit={e=>{e.preventDefault();savePreset();}}><label>Preset name<input aria-label="Preset name" maxLength={80} value={presetName} placeholder={activePreset?.name||'e.g. Camera and desktop'} onChange={e=>setPresetName(e.target.value)}/></label><div className="preset-actions"><button className="button compact" type="submit" disabled={!presetName.trim()}>Save as new</button>{activePreset&&<button className="button compact" type="button" disabled={!presetName.trim()} onClick={()=>savePreset(true)}>Rename</button>}</div></form>{activePreset&&<div className="preset-actions"><button onClick={()=>{setPreferences(p=>({...p,presets:saveRecordingPreset(p.presets,activePreset.name,current,activePreset.id)}));setPresetError('');}}>Update saved settings</button><button onClick={()=>{setPreferences(p=>({...p,activeId:null,presets:p.presets.filter(item=>item.id!==activePreset.id)}));setPresetError('');}}>Delete preset</button></div>}<small>Applying a preset stops current previews. Allowed camera and mic reopen. A saved screen resumes when its capture area still matches; choose a source when needed.</small>{presetError&&<p role="alert">{presetError}</p>}</div>}</div>;
  // Each source shows its own live media under its row, as in Borumi: camera picture, microphone line, screen picture, computer-audio line.
  const screenShown=selection.screen&&!(sourceError&&!screenView.source.stream&&!hasNativeFrame);
- // CreatorClub's framing check: the camera (mirrored), or the screen when only the screen is on. The sheet's previews report readiness; this one does not.
+ // Creator Compiler's framing check: the camera (mirrored), or the screen when only the screen is on. The sheet's previews report readiness; this one does not.
  const framingKind=club?(selection.camera?'camera' as const:selection.screen?'screen' as const:null):null;
  const framing=framingKind&&(()=>{
   const source=framingKind==='camera'?previews.camera:screenView.source,opening=source.status==='loading';

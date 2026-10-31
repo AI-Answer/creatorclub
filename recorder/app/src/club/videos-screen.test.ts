@@ -290,7 +290,7 @@ test('an existing install is not sent to Welcome or shown the how-it-works dialo
   const dialog=()=>second.container.querySelector('[role="dialog"]');
   assert.equal(dialog(),null,'no dialog on its own');
   await press(second.container.querySelector('.sidebar [aria-label="Help"]')!);
-  assert.match(text(dialog()),/How CreatorClub works/);
+  assert.match(text(dialog()),/How Creator Compiler works/);
   await act(async()=>{document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));});
   assert.equal(dialog(),null);
   assert.equal(again.calls.filter(call=>call.path==='/settings/welcomed').length,0);

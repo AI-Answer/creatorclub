@@ -21,7 +21,7 @@ function waitForCapture<T>(promise:Promise<T>,signal:AbortSignal,releaseLate:(va
  });
 }
 export const streamIsLive = (stream:MediaStream|null,kind:'audio'|'video') => Boolean(stream?.getTracks().some(track=>track.kind===kind&&track.readyState==='live'));
-/** The preview error when access was not granted; CreatorClub's warnings card reads it as a permission problem. */
+/** The preview error when access was not granted; Creator Compiler's warnings card reads it as a permission problem. */
 export const ACCESS_NOT_GRANTED='Access was not granted. Enable this source to try again, or review its macOS privacy permission.';
 export function captureError(error:unknown):string {
  const e=error as {name?:string;message?:string};

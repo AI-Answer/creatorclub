@@ -6,12 +6,11 @@ import {fileURLToPath} from 'node:url';
 import {startMcp} from './mcp.mjs';
 import runtime from '../desktop/runtime.cjs';
 
-// The launcher inside CreatorClub.app reaches the CreatorClub service: the same port and studio folder as the app.
 const base=process.env.SCENEFORGE_URL||`http://127.0.0.1:${runtime.CREATORCLUB.port}/api`;
 const address=new URL(base);
-if(!['127.0.0.1','localhost'].includes(address.hostname))throw Error('The packaged MCP connects to a local CreatorClub service only.');
-const data=runtime.creatorClubPaths({appData:path.join(os.homedir(),'Library','Application Support')}).studio;
-const env=runtime.runtimeEnvironment({root:fileURLToPath(new URL('../',import.meta.url)),data,port:address.port||String(runtime.CREATORCLUB.port)});
+if(!['127.0.0.1','localhost'].includes(address.hostname))throw Error('The packaged MCP connects to a local Creator Compiler service only.');
+const data=runtime.creatorClubPaths({appData:process.platform==='win32'?(process.env.APPDATA||path.join(os.homedir(),'AppData/Roaming')):path.join(os.homedir(),'Library/Application Support')}).studio;
+const env=runtime.runtimeEnvironment({root:fileURLToPath(new URL('../',import.meta.url)),data,port:address.port||'4194'});
 let starting;
 async function healthy(){try{const response=await fetch(base+'/health',{signal:AbortSignal.timeout(1500)});return response.ok&&runtime.isCreatorClubService(await response.json());}catch{return false;}}
 async function ensureService(){
@@ -22,8 +21,9 @@ async function ensureService(){
   const child=spawn(process.execPath,[fileURLToPath(new URL('./index.mjs',import.meta.url))],{env,detached:true,stdio:['ignore',log.fd,log.fd]});
   let failure;child.once('error',error=>{failure=error;});child.unref();await log.close();
   for(let attempt=0;attempt<60;attempt++){if(failure)throw failure;if(await healthy())return;await new Promise(resolve=>setTimeout(resolve,150));}
-  throw Error('CreatorClub editing service could not start. See the local service.log.');
+  throw Error('Creator Compiler editing service could not start. See the local service.log.');
  })().finally(()=>{starting=undefined;});return starting;
 }
 await ensureService();
+process.env.SCENEFORGE_URL=base;
 await startMcp(async(input,init)=>{await ensureService();return fetch(input,init);});

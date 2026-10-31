@@ -55,7 +55,7 @@ const legacy={
 } as const satisfies Record<string,GlyphName>;
 
 export type LegacyIconName=keyof typeof legacy;
-/** An icon by meaning. `companion` is CreatorClub's own mark (see `CompanionMark`). */
+/** An icon by meaning. `companion` is Creator Compiler's own mark (see `CompanionMark`). */
 export type SemanticIconName=GlyphName|'companion';
 export type IconName=SemanticIconName|LegacyIconName;
 

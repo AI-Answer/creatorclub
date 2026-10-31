@@ -1,7 +1,7 @@
 import type {CSSProperties} from 'react';
 
 /**
- * The companion's mark ("Duo"): the CreatorClub tile with a companion docked at its corner, kept apart by a gap. It shares the brand
+ * The companion's mark ("Duo"): the Creator Compiler tile with a companion docked at its corner, kept apart by a gap. It shares the brand
  * mark's rounded square and solid fill, and takes the colour of its text. `working` lets the docked dot breathe while a reply is written.
  * The icon registry (`ui/icons.tsx`, Task 7) does not exist yet; Task 7 registers this mark there as `companion`.
  */

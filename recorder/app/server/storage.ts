@@ -8,7 +8,7 @@ import { createProject, projectDuration, isAudioRole, type Project, type Media, 
 import type {TrashProjectSummary,TrashRestoreResult} from '../shared/recovery.js';
 import {motionBlockProblem} from '../shared/motion/templates.js';
 
-export const DATA_DIR=path.resolve(process.env.SCENEFORGE_DATA_DIR||path.join(os.homedir(),'Library/Application Support/SceneForge/studio'));
+export const DATA_DIR=path.resolve(process.env.SCENEFORGE_DATA_DIR||path.join(process.platform==='win32'?(process.env.APPDATA||path.join(os.homedir(),'AppData/Roaming')):path.join(os.homedir(),'Library/Application Support'),'Creator Compiler/studio'));
 export const CACHE_DIR=path.join(DATA_DIR,'cache');
 export const OUTPUT_DIR=path.join(DATA_DIR,'exports');
 export const UPLOAD_DIR=path.join(DATA_DIR,'media');

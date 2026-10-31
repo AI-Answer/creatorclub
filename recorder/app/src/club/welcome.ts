@@ -3,7 +3,7 @@ import type {AiState} from './ai-status';
 
 /** The four steps of first launch: what each one is called and why it is asked. */
 export const WELCOME_STEPS=[
- {title:'Connect your AI',why:'CreatorClub uses your own Claude or ChatGPT account to find ideas and write your talking points. Nothing is billed here.'},
+ {title:'Connect your AI',why:'Creator Compiler uses your own Claude or ChatGPT account to find ideas and write your talking points. Nothing is billed here.'},
  {title:'Do you have a YouTube channel?',why:'Either is fine. With a channel we learn your topics and how you talk from your videos. Without one, you tell us in a minute.'},
  {title:'How you talk',why:'Talking points get written in your words, so recording feels like you, not like reading.'},
  {title:"Here's what's working in your space",why:"You don't need to know what to make yet. Pick a video that's doing well, see why, and keep the concept you'd make."},

@@ -21,7 +21,7 @@ function cleanState(value,initial=false){
 
 // Electron does not emit 'hide' for BrowserWindow.hide() on macOS, so the HUD reports
 // each editor hide/show it makes through onMainVisibility instead of relying on that event.
-/** `defaultLayout` is the panels a first session opens with (CreatorClub opens the script). Saved panels win only once the person has chosen them. */
+/** `defaultLayout` is the panels a first session opens with (Creator Compiler opens the script). Saved panels win only once the person has chosen them. */
 function createRecordingHud({BrowserWindow,ipcMain,screen,getMainWindow,verifyMain,onMainVisibility=()=>{},preferencesPath,defaultLayout,appName='SceneForge'}){
  let hud=null,state=null,hiddenMain=false,ready=null,ending=false,sessionId=null,synced=false,area=null,bounds=null,layout={camera:false,script:false,...defaultLayout},layoutChosen=false;
  let preferences={};try{if(preferencesPath)preferences=JSON.parse(fs.readFileSync(preferencesPath,'utf8'));}catch{/* Missing or damaged preferences use the compact default. */}

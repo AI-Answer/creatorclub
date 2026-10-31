@@ -1,5 +1,5 @@
 /*
-  CreatorClub tokens: the one place a colour, a size, a radius, a shadow or a duration is written as a value.
+  Creator Compiler tokens: the one place a colour, a size, a radius, a shadow or a duration is written as a value.
   Every other club stylesheet and component reads these (`var(--cc-…)`, `var(--kind-…)`, or the Tailwind utilities mapped in club.css).
   A test (`ui/tokens.test.ts`) fails when a raw colour literal appears anywhere in `src/club/**` outside this file.
 

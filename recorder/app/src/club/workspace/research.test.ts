@@ -17,7 +17,7 @@ const {ToastProvider}=await import('../ui');
 const flush=()=>act(async()=>{await new Promise(resolve=>setTimeout(resolve,0));});
 const at='2026-10-30T00:00:00.000Z';
 const note=(id:string,text:string,x:number,y:number):ResearchTile=>({id,kind:'note',title:text,text,meta:{},createdAt:at,pos:{x,y,w:280},doc:{root:'video',path:`notes/${id}.md`,hash:`h-${id}`}});
-const files:BoardFiles={folder:{path:'/Users/me/Documents/CreatorClub/samin/research',display:'~/Documents/CreatorClub/samin/research',hidden:0},notes:null};
+const files:BoardFiles={folder:{path:'/Users/me/Documents/Creator Compiler/samin/research',display:'~/Documents/Creator Compiler/samin/research',hidden:0},notes:null};
 const idea:Video={id:'v_idea',title:'Receipts with Claude',stage:'ideas',order:0,createdAt:at,updatedAt:at,stageDates:{},planning:{research:false,package:false,outline:false},idea:{why:'People hate receipts.'}};
 
 function fakeServer(tiles:ResearchTile[],canvas:BoardCanvas={links:[],frames:[]}){

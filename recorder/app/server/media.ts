@@ -1,3 +1,4 @@
+import {portableGraphics} from './portable-graphics.js';
 import { spawn, type ChildProcess } from "node:child_process";
 import { promises as fs } from "node:fs";
 import path from "node:path";
@@ -631,6 +632,11 @@ async function rasterize(
   dir: string,
   job: Job,
 ): Promise<string> {
+  if(process.platform!=='darwin'){
+    const file=path.join(dir,'portable-'+hash(JSON.stringify(config))+'.png');
+    if(!await exists(file))await fs.writeFile(file,portableGraphics(config as Parameters<typeof portableGraphics>[0]));
+    return file;
+  }
   if (!rasterizer)
     rasterizer = (async () => {
       const bundled = fileURLToPath(

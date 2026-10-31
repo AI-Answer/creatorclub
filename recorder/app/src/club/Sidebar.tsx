@@ -21,7 +21,7 @@ export const inProduction=(videos:readonly Video[])=>videos.filter(video=>IN_PRO
 
 /**
  * Left sidebar: the channel switcher, search, then the four places (Home, Discover, Videos with the number of videos in progress, Research).
- * At the bottom, three icons with tooltips: Settings, Help (How CreatorClub works) and the collapse toggle. Collapsed, it is an icon rail with the same items.
+ * At the bottom, three icons with tooltips: Settings, Help (How Creator Compiler works) and the collapse toggle. Collapsed, it is an icon rail with the same items.
  */
 export function Sidebar({route,collapsed,onToggle,onSearch,onHelp,onSwitched,onAdd,videos,epoch}:{route:Route;collapsed:boolean;onToggle():void;onSearch():void;onHelp():void;onSwitched():void;onAdd():void;videos:readonly Video[];epoch:number}){
  const counts:Partial<Record<RouteName,number>>={videos:inProduction(videos).length};
@@ -44,7 +44,7 @@ export function Sidebar({route,collapsed,onToggle,onSearch,onHelp,onSwitched,onA
   </div>
   <div className="sb-bottom sb-icons">
    <Tooltip text="Settings" side="top"><a href="#/settings" className={`sb-icon${settings?' active':''}`} aria-label="Settings" aria-current={settings?'page':undefined}><Icon name="settings" size={17}/></a></Tooltip>
-   <Tooltip text="Help: how CreatorClub works" side="top"><button type="button" className="sb-icon" onClick={onHelp} aria-label="Help"><Icon name="help" size={17}/></button></Tooltip>
+   <Tooltip text="Help: how Creator Compiler works" side="top"><button type="button" className="sb-icon" onClick={onHelp} aria-label="Help"><Icon name="help" size={17}/></button></Tooltip>
    <Tooltip text={collapsed?'Expand sidebar':'Collapse sidebar'} side="top"><button type="button" className="sb-icon sb-collapse" onClick={onToggle} aria-label={collapsed?'Expand sidebar':'Collapse sidebar'}>
     <Icon name={collapsed?'sidebar-open':'sidebar-close'} size={17}/>
    </button></Tooltip>

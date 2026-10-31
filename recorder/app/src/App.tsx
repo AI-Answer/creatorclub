@@ -26,6 +26,11 @@ import {BorumiExportDialog} from './BorumiExportDialog';
 import {Recording,type RecordingProgress} from './Recording';
 import {Teleprompter} from './Teleprompter';
 import {Home} from './Home';
+import {CutroomPanel} from './CutroomPanel';
+import {clubFetch} from './club/api';
+import {routePath} from './club/routes';
+import type {Video as ClubVideo} from '../shared/club';
+import {BrandMark} from './BrandMark';
 import {TrashDialog} from './TrashDialog';
 import {MediaRecoveryBanner,MediaRecoveryDialog} from './MediaRecoveryDialog';
 import {Onboarding,needsSetup} from './Onboarding';
@@ -56,7 +61,7 @@ const MediaRecoveryNotice=memo(MediaRecoveryBanner),RecordingWorkspace=memo(Reco
 function useEvent<A extends unknown[],R>(fn:(...args:A)=>R):(...args:A)=>R{const ref=useRef(fn);ref.current=fn;return useCallback((...args:A)=>ref.current(...args),[]);}
 /** Mounts on first reveal, then keeps DOM and state while hidden. React tears the hidden effects down (media, listeners, playhead subscriptions). Hidden children stay frozen at their last visible props, so React skips the subtree until it is shown again. */
 function Keep({visible,children}:{visible:boolean;children:React.ReactNode}){const [mounted,setMounted]=useState(visible),last=useRef(children);if(visible&&!mounted)setMounted(true);if(visible)last.current=children;return mounted?<Activity mode={visible?'visible':'hidden'}>{last.current}</Activity>:null;}
-/** The companion panel docked beside Edit (CreatorClub): its keys are its own. */
+/** The companion panel docked beside Edit (Creator Compiler): its keys are its own. */
 const COMPANION_PANEL='.cmp';
 const roundTime=(time:number)=>Math.round(time*1000)/1000;
 function PlayheadField({playhead,duration,onSeek}:{playhead:Playhead;duration:number;onSeek:(time:number)=>void}){const value=usePlayheadSelector(playhead,roundTime);return <input aria-label="Playhead time in seconds" type="number" min={0} max={duration||3600} step={1/30} value={value} onChange={e=>onSeek(Number(e.target.value))}/>;}
@@ -99,7 +104,7 @@ export function ShortcutsPopover({onClose}:{onClose:()=>void}){
 }
 const SHORTCUTS:Array<[string,string]>=[['Space','Play or pause'],['S','Split at the playhead'],['Delete','Delete and close the gap'],['Shift Delete','Delete, keep the gap'],['⌘D','Duplicate'],['⌘C / ⌘V','Copy / paste at the playhead'],['⌘A','Select all'],['M','Add a marker'],['N','Snapping on or off'],['B / A','Blade / select tool'],['⌘G','Link or unlink screen, camera and audio'],['← →','Nudge the selection a frame (Shift: 1 s), or move the playhead'],['↑ ↓','Previous / next cut'],['+ / −','Zoom at the playhead'],['⌘ scroll, pinch','Zoom at the pointer'],['Shift Z','Fit the whole video'],['Alt while trimming','Keep the gap'],['⌘Z / ⇧⌘Z','Undo / redo'],['?','These shortcuts']];
 function Toasts({bind}:{bind:{current:(message:string)=>void}}){const [toast,setToast]=useState('');useLayoutEffect(()=>{bind.current=setToast;},[bind]);useEffect(()=>{if(!toast)return;const t=setTimeout(()=>setToast(''),4200);return()=>clearTimeout(t);},[toast]);return toast?<div className="toast" role="status"><Check size={16}/>{toast}</div>:null;}
-/** CreatorClub shows one recording project inside its video page: it opens that project, forces the mode and hides SceneForge's own Home and navigation. */
+/** Creator Compiler shows one recording project inside its video page: it opens that project, forces the mode and hides SceneForge's own Home and navigation. */
 /** `onMode` receives SceneForge's own moves between recording and editing (the embed never switches by itself); `onOpenFailed` fires when the project cannot be opened;
  `onProgress` reports how many scenes have a take while recording; `onExported` says whether the current edit has a finished MP4 export. */
 /**
@@ -141,9 +146,9 @@ export default function App({embedded}:{embedded?:EmbeddedRecorder}={}){
  const setMode=useEvent((next:'Script'|'Record'|'Edit')=>{if(embedded&&next!==embedded.mode){if(next!=='Script')embedded.onMode?.(next);return;}setModeState(next);});
  const [tool,setTool]=useState<'select'|'blade'>('select'),[scrubbing,setScrubbing]=useState(false),[selectedIds,setSelectedIds]=useState<Set<string>>(new Set()),[playbackRate,setPlaybackRate]=useState(1),[shortcutOverrides,setShortcutOverrides]=useState(loadShortcutOverrides);
  const [selectedRange,setSelectedRange]=useState<{start:number;end:number}|null>(null),[chatOpen,setChatOpen]=useState(()=>!embedded&&localStorage.getItem('sceneforge.agent-chat.open')==='true');
- // Standalone SceneForge keeps its editor chat; CreatorClub's Edit has the docked companion instead.
+ // Standalone SceneForge keeps its editor chat; Creator Compiler's Edit has the docked companion instead.
  useEffect(()=>{if(!embedded)localStorage.setItem('sceneforge.agent-chat.open',String(chatOpen));},[chatOpen]);
- // CreatorClub's Edit: the right side shows the transcript, a panel sheet, the Auto-edit and style sheet or the media; the stage can show a preview of a choice (the sheet's, or a companion card's).
+ // Creator Compiler's Edit: the right side shows the transcript, a panel sheet, the Auto-edit and style sheet or the media; the stage can show a preview of a choice (the sheet's, or a companion card's).
  const [follow,setFollow]=useState(()=>{try{return localStorage.getItem('creatorclub.timeline-follow')!=='false';}catch{return true;}});
  useEffect(()=>{try{localStorage.setItem('creatorclub.timeline-follow',String(follow));}catch{/* A blocked store only forgets the switch. */}},[follow]);
  const [side,setSide]=useState<'transcript'|'auto'|'media'|null>(null),[autoInitial,setAutoInitial]=useState<AutoOption|undefined>(),[preview,setPreview]=useState<EditPreview|null>(null),[previewPhase,setPreviewPhase]=useState<'before'|'after'>('after');
@@ -274,7 +279,7 @@ export default function App({embedded}:{embedded?:EmbeddedRecorder}={}){
  const sideView=panel?'panel':side==='auto'?'auto':side??'transcript';
  const openPanel=(name:Panel)=>{setPanel(name);},openSide=(next:'transcript'|'media')=>{setPanel(null);setSide(next);};
  const openItem=useEvent((id:string)=>{if(!p)return;select(id);setPanel(p.motion?.some(m=>m.id===id)?'Motion':p.elements.some(e=>e.id===id)?'Elements':p.zooms.some(z=>z.id===id)?'Zoom':p.captions.some(c=>c.id===id)?'Captions':'Clip');});
- const styleItems:MenuItem[]=[{header:'Style'},...panels.filter(({name})=>name!=='Automate').map(({name})=>({label:name,fn:()=>openPanel(name)})),'-',{label:'Transcript',fn:()=>openSide('transcript')},{label:'Media in this video',fn:()=>openSide('media')},{label:'Import media',icon:'Upload',fn:()=>beginImport()},'-',{label:'Settings…',icon:'Settings',fn:()=>openModal('settings')}];
+ const styleItems:MenuItem[]=[{header:'Style'},...panels.filter(({name})=>name!=='Automate').map(({name})=>({label:name,fn:()=>openPanel(name)})),'-',{label:'Transcript',fn:()=>openSide('transcript')},{label:'Media in this video',fn:()=>openSide('media')},{label:'Cutroom cuts and graphics',icon:'cut',fn:()=>openModal('cutroom')},{label:'Import media',icon:'Upload',fn:()=>beginImport()},'-',{label:'Settings…',icon:'Settings',fn:()=>openModal('settings')}];
  /* The Edit tool rail: named tools, each opens one panel on the right. Canvas and Cursor, which few videos need, sit behind More. */
  const railTools:Array<{id:string;label:string;tip:string;icon:typeof Film;open:()=>void}>=[
   {id:'transcript',label:'Transcript',tip:'Read the words and cut them from the video',icon:FileText,open:()=>openSide('transcript')},
@@ -286,7 +291,7 @@ export default function App({embedded}:{embedded?:EmbeddedRecorder}={}){
   {id:'Motion',label:'Graphics',tip:'Animated titles, lower thirds and labels',icon:Sparkles,open:()=>openPanel('Motion')},
   {id:'Music',label:'Music',tip:'A soundtrack under your voice',icon:Music,open:()=>openPanel('Music')}];
  const railActive=panel??(side==='auto'?'cut':side??'transcript');
- const moreItems:MenuItem[]=[{label:'Text and shapes',fn:()=>openPanel('Elements')},{label:'Media in this video',fn:()=>openSide('media')},'-',{label:'Canvas background',fn:()=>openPanel('Canvas')},{label:'Cursor',fn:()=>openPanel('Cursor')},'-',{label:'Import media',icon:'Upload',fn:()=>beginImport()}];
+ const moreItems:MenuItem[]=[{label:'Text and shapes',fn:()=>openPanel('Elements')},{label:'Media in this video',fn:()=>openSide('media')},{label:'Cutroom cuts and graphics',icon:'cut',fn:()=>openModal('cutroom')},'-',{label:'Canvas background',fn:()=>openPanel('Canvas')},{label:'Cursor',fn:()=>openPanel('Cursor')},'-',{label:'Import media',icon:'Upload',fn:()=>beginImport()}];
  const menuActions:TimelineMenuActions|null=p?{split:()=>split(),deleteClose:()=>deleteSelected(true),deleteKeepGap:()=>deleteSelected(false),duplicate:duplicateSelected,copy,paste,selectAll:()=>{const ids=[...p.clips,...p.elements,...p.captions,...p.zooms].map(x=>x.id);setSelectedIds(new Set(ids));setSelected(ids[0]||null);},
   addMarker:addMarkerAtPlayhead,previousCut:()=>boundary(-1),nextCut:()=>boundary(1),toggleLink,linked:selectionLinked,blade:tool==='blade',toggleBlade:()=>setTool(v=>v==='blade'?'select':'blade'),waveforms:showWaveforms,toggleWaveforms:()=>setShowWaveforms(v=>!v),
   addVideoLayer:()=>studio.change(d=>{addTimelineLayer(d,'video');}),addAudioLayer:()=>studio.change(d=>{addTimelineLayer(d,'audio');})}:null;
@@ -388,7 +393,7 @@ export default function App({embedded}:{embedded?:EmbeddedRecorder}={}){
  useEffect(()=>{setShowTranscript(Boolean(p?.captions.length));},[p?.id,Boolean(p?.captions.length)]);
 
  return <div className={`app-shell ${p?'has-project':''} ${window.sceneForge?'desktop':''}`} data-mode={p?mode:undefined}>
-  <header className="titlebar">{!embedded&&<button className="brand" onClick={()=>{setPlaying(false);void studio.close();}} aria-label="SceneForge home"><span className="brand-symbol"><span/><span/><span/></span><strong>SceneForge</strong></button>}
+  <header className="titlebar">{!embedded&&<button className="brand" onClick={()=>{setPlaying(false);void studio.close();}} aria-label="Creator Compiler home"><BrandMark/><strong>Creator Compiler</strong></button>}
    {p&&<div className="document-tab"><input aria-label="Project name" value={p.name} onChange={e=>change(p=>{p.name=e.target.value;},{coalesce:'project.name'})}/><span className="document-save" title={studio.saveState} aria-label={studio.saveState}>{studio.saveState==='Saved locally'?<Check size={12}/>:<Clock3 size={12}/>}</span><button className="icon-button" aria-label="Close project" onClick={leaveProject}><X size={13}/></button></div>}
    <div className="titlebar-actions"><button className="icon-button" aria-label="Settings" onClick={()=>openModal('settings')}><Settings2 size={18}/></button></div>
   </header>
@@ -411,11 +416,16 @@ export default function App({embedded}:{embedded?:EmbeddedRecorder}={}){
   </div></Keep>}
   </>}
   <input className="hidden" ref={fileInput} aria-label="Import media files" type="file" multiple accept="video/*,audio/*,image/*,.json" onChange={e=>{if(e.target.files?.length)void uploadFiles(e.target.files);}}/>
+  {modal==='cutroom'&&p&&<CutroomPanel project={p} flush={studio.flush} onClose={()=>setModal(null)} onChanged={()=>{void studio.reload();embedded?.onChanged?.();}} onOpen={async id=>{
+   if(embedded){const video=await clubFetch<ClubVideo>('/videos/from-project',{body:{projectId:id}});window.location.hash=routePath({name:'video',id:video.id,tab:'edit'});}
+   else{await studio.open(id);await studio.refresh();}
+   setModal(null);
+  }}/>}
   {modal==='trash'&&<TrashDialog onClose={()=>setModal(null)} onRestored={result=>{void studio.refresh().catch(e=>studio.setError(e.message));notify(result.restoredAsCopy?'Restored a separate project copy.':'Project restored.');}} onOpen={id=>{setModal(null);void studio.open(id);}}/>}
   {modal==='media-recovery'&&p&&<MediaRecoveryDialog key={p.id} project={p} flush={studio.flush} runOperation={studio.runProjectOperation} onClose={()=>{setModal(null);setRecoveryRefresh(v=>v+1);}} onChanged={()=>setRecoveryRefresh(v=>v+1)}/>}
   {modal==='new'&&<Modal title="A new story" subtitle="Give your next project a name. You can change it anytime." onClose={()=>setModal(null)}><form onSubmit={e=>{e.preventDefault();void studio.create(newName.trim()||'Untitled story').then(()=>setModal(null));}}><Field label="Project name"><input autoFocus placeholder="My next great video" value={newName} onChange={e=>setNewName(e.target.value)}/></Field><footer className="modal-actions"><button type="button" className="button" onClick={()=>setModal(null)}>Cancel</button><button className="button primary" type="submit">Create project<ArrowRight size={15}/></button></footer></form></Modal>}
-  {(modal==='import'||modal==='import-borumi')&&<Modal title={modal==='import-borumi'?'Bring your project over':'Add to your story'} subtitle="Import a copy. Your original files stay untouched." onClose={()=>setModal(null)}><div className={`upload-area ${importBusy?'busy':''}`} onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();if(p&&e.dataTransfer.files.length)void uploadFiles(e.dataTransfer.files);}}>{importBusy?<LoaderCircle className="spin" size={29}/>:<Upload size={29}/>}<h3>{importBusy?'Preparing your media…':modal==='import-borumi'?'Import a Borumi project':'Drop your files here'}</h3><p>{modal==='import-borumi'?'Choose a .bmprojbundle directory or .bmproj file.':embedded?'Video, audio or images.':'Video, audio, images, or a SceneForge project JSON.'}</p>{modal==='import'&&<button className="button primary" disabled={importBusy} onClick={()=>fileInput.current?.click()}>Choose files</button>}</div><Field label={modal==='import-borumi'?'Local Borumi project path':'Or import absolute file paths (one per line)'}><textarea rows={2} value={importPaths} placeholder={modal==='import-borumi'?'/Users/you/Borumi Projects/My Video.bmprojbundle':'/Users/you/Movies/recording.mp4'} onChange={e=>setImportPaths(e.target.value)}/></Field><footer className="modal-actions"><button className="button" onClick={()=>setModal(null)}>Cancel</button>{modal==='import'&&!embedded&&<button className="button" disabled={importBusy} onClick={()=>{openModal('import-borumi');setImportPaths('');}}>Borumi project</button>}<button className="button primary" disabled={importBusy||(!importPaths&&!window.sceneForge)} onClick={()=>void localImport(modal==='import-borumi'?'borumi':'media')}><FolderOpen size={15}/>{window.sceneForge?'Choose locally':'Import path'}</button></footer></Modal>}
-  {modal==='setup'&&<Onboarding brand={embedded?'CreatorClub':'SceneForge'} initialStep={setupStep} onClose={()=>{setModal(null);setSetupStep(0);}} onRecord={()=>startWith('Record')} onImport={()=>startWith('Edit')}/>}
+  {(modal==='import'||modal==='import-borumi')&&<Modal title={modal==='import-borumi'?'Bring your project over':'Add to your story'} subtitle="Import a copy. Your original files stay untouched." onClose={()=>setModal(null)}><div className={`upload-area ${importBusy?'busy':''}`} onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();if(p&&e.dataTransfer.files.length)void uploadFiles(e.dataTransfer.files);}}>{importBusy?<LoaderCircle className="spin" size={29}/>:<Upload size={29}/>}<h3>{importBusy?'Preparing your media…':modal==='import-borumi'?'Import a Borumi project':'Drop your files here'}</h3><p>{modal==='import-borumi'?'Choose a .bmprojbundle directory or .bmproj file.':embedded?'Video, audio or images.':'Video, audio, images, or a Creator Compiler project JSON.'}</p>{modal==='import'&&<button className="button primary" disabled={importBusy} onClick={()=>fileInput.current?.click()}>Choose files</button>}</div><Field label={modal==='import-borumi'?'Local Borumi project path':'Or import absolute file paths (one per line)'}><textarea rows={2} value={importPaths} placeholder={modal==='import-borumi'?'/Users/you/Borumi Projects/My Video.bmprojbundle':'/Users/you/Movies/recording.mp4'} onChange={e=>setImportPaths(e.target.value)}/></Field><footer className="modal-actions"><button className="button" onClick={()=>setModal(null)}>Cancel</button>{modal==='import'&&!embedded&&<button className="button" disabled={importBusy} onClick={()=>{openModal('import-borumi');setImportPaths('');}}>Borumi project</button>}<button className="button primary" disabled={importBusy||(!importPaths&&!window.sceneForge)} onClick={()=>void localImport(modal==='import-borumi'?'borumi':'media')}><FolderOpen size={15}/>{window.sceneForge?'Choose locally':'Import path'}</button></footer></Modal>}
+  {modal==='setup'&&<Onboarding brand="Creator Compiler" initialStep={setupStep} onClose={()=>{setModal(null);setSetupStep(0);}} onRecord={()=>startWith('Record')} onImport={()=>startWith('Edit')}/>}
   {(modal==='settings'||modal==='settings-mcp'||modal==='settings-ai')&&<SettingsDialog onSetup={()=>openModal('setup')} initialTab={modal==='settings-mcp'?'AI control · MCP':modal==='settings-ai'?'AI & transcription':'General'} project={p} change={studio.change} capabilities={studio.capabilities} onClose={()=>setModal(null)} onError={studio.setError}/>}
   {modal==='export'&&p&&<ExportDialog key={p.id} project={p} flush={studio.flush} onBorumi={embedded?undefined:()=>openModal('export-borumi')} onClose={()=>setModal(null)} onError={studio.setError}/>}
   {modal==='export-borumi'&&p&&<BorumiExportDialog key={p.id} project={p} flush={studio.flush} onClose={()=>setModal(null)} onBack={()=>openModal('export')} onImport={()=>{setImportPaths('');openModal('import-borumi');}}/>}

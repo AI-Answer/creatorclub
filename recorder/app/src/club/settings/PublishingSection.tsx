@@ -23,7 +23,7 @@ export function PublishingSection({publishing,error,onReload,onPublishing,savedT
   setProblem('');
   clubFetch<PublishingState>('/publishing',{method:'PUT',body:{defaultVisibility:next}}).then(onPublishing,reason=>{retry.current=()=>chooseVisibility(next);setProblem(errorMessage(reason,"Couldn't save that choice."));});
  };
- return <section className="set-group" id="set-publishing" aria-labelledby="set-publishing-title"><h2 id="set-publishing-title">Publishing and look</h2><p>Where videos go, and how CreatorClub looks. You can still change who can watch on each video.</p>
+ return <section className="set-group" id="set-publishing" aria-labelledby="set-publishing-title"><h2 id="set-publishing-title">Publishing and look</h2><p>Where videos go, and how Creator Compiler looks. You can still change who can watch on each video.</p>
   <Card>
    <div className="srow2" style={{alignItems:'flex-start'}}>
     <span className="logo logo-postiz">P</span>

@@ -18,7 +18,7 @@ function TakeSource({media,label,offset,time,playing,rate,onSelect,selectButton=
  return <section className={`take-source ${media.kind==='audio'?'take-audio':'take-video'}`} aria-label={label} onClick={onSelect}>{onSelect&&selectButton&&<button className="take-source-select" aria-label={`Show ${label} in main preview`} onClick={event=>{event.stopPropagation();onSelect();}}>Show in main preview</button>}{media.kind==='audio'?<><audio ref={node=>{element.current=node;}} src={mediaUrl(media)} preload="metadata"/><svg viewBox="0 0 1000 200" preserveAspectRatio="none" role="img" aria-label={`${label} waveform`}>{peaks.length?<path d={path}/>:<text x="500" y="105" textAnchor="middle">{error||'Loading waveform…'}</text>}<line x1={position/media.duration*1000} x2={position/media.duration*1000} y1="0" y2="200" className="take-wave-cursor"/></svg></>:media.kind==='image'?<img src={mediaUrl(media)} alt={label}/>:<video ref={node=>{element.current=node;}} src={mediaUrl(media)} preload="metadata" playsInline/>}<span className="take-source-label">{label}</span></section>;
 }
 /**
- * The preview of one take. Inside CreatorClub (`club`), the bottom holds exactly three choices (Delete take, Record another take, Continue)
+ * The preview of one take. Inside Creator Compiler (`club`), the bottom holds exactly three choices (Delete take, Record another take, Continue)
  * and every other option (archive, keep both, replace, show a source in the main preview, rename and sync) sits behind the gear; the actions run the same code.
  * `onContinue(confirmed)` replaces the club's Continue; without it Continue confirms the take as before.
  */

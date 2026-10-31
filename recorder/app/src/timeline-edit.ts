@@ -8,7 +8,7 @@ import {MOTION_TEMPLATES} from '../shared/motion/templates';
 export const MOTION_ROW='motion';
 
 /**
- * Timeline editing rules of CreatorClub's embedded editor, as pure functions over a project (or a draft of one):
+ * Timeline editing rules of Creator Compiler's embedded editor, as pure functions over a project (or a draft of one):
  * linked clips per take, no overlaps on a row (slide to a gap, or insert and shift the row), delete that closes the gap on every track,
  * ripple trims, markers, zoom anchored at the playhead, ruler ticks and filmstrip tiles.
  */

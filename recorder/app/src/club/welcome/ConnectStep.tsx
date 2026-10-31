@@ -33,6 +33,6 @@ export function ConnectStep({check,onReload,onConnected}:{check:AiCheck;onReload
     </>
     :<><PendingRow name="Claude" icon="ai"/><PendingRow name="ChatGPT" icon="assistant"/></>}
   </div>
-  {status&&!connected&&<div className="small muted" style={{marginTop:4}}>Connect opens Claude's or ChatGPT's own sign-in page in your browser. CreatorClub never sees your password.</div>}
+  {status&&!connected&&<div className="small muted" style={{marginTop:4}}>Connect opens Claude's or ChatGPT's own sign-in page in your browser. Creator Compiler never sees your password.</div>}
  </div>;
 }

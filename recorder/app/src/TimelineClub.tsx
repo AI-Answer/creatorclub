@@ -15,7 +15,7 @@ import type {Playhead} from './playhead';
 import {isSoundTag} from '../shared/sound-tags';
 
 /**
- * The embedded (CreatorClub) timeline. Rows exist only when used; a take's screen, camera and audio are linked;
+ * The embedded (Creator Compiler) timeline. Rows exist only when used; a take's screen, camera and audio are linked;
  * clips never overlap on a row (a drop slides to the nearest gap, or inserts and shifts the row); effect rows drag, resize and snap;
  * a delete closes the gap on every row; the ruler has ticks (frames at high zoom), scene tags and markers; zoom keeps the playhead in place.
  * A gesture is cancelled only by the person (Escape, pointer cancel, window blur), never by a save or a reload of the project.

@@ -5,6 +5,7 @@ import os from 'node:os';
 import { promises as fs } from 'node:fs';
 import { randomUUID,createHash } from 'node:crypto';
 import * as storage from './storage.js';
+import * as cutroom from './cutroom.js';
 import * as mediaRecovery from './media-recovery.js';
 import * as media from './media.js';
 import {ExportStore} from './export-store.js';
@@ -24,7 +25,7 @@ import {clubRouter} from './club/index.js';
 import {cancelAllJobs} from './club/jobs.js';
 import {isAudioRole,type Project,type ExportOptions} from '../shared/types.js';
 
-const PORT=Number(process.env.SCENEFORGE_PORT||4174);
+const PORT=Number(process.env.SCENEFORGE_PORT||4184);
 // The memoized media probe (including a VideoToolbox test encode) overlaps boot instead of delaying the first health check.
 void media.getCapabilities();
 await storage.initStorage();
@@ -42,7 +43,7 @@ const app=express();
 app.disable('x-powered-by');
 app.use((req,res,next)=>{
  const host=(req.headers.host||'').split(':')[0];if(!['127.0.0.1','localhost','[::1]'].includes(host)){res.status(403).json({error:'Loopback access only'});return;}
- const origin=req.headers.origin;if(origin&&!['http://localhost:4173','http://127.0.0.1:4173',`http://localhost:${PORT}`,`http://127.0.0.1:${PORT}`].includes(origin)){res.status(403).json({error:'Origin is not allowed'});return;}
+ const origin=req.headers.origin;if(origin&&!['http://localhost:4173','http://127.0.0.1:4173','http://127.0.0.1:4183','http://localhost:4183',`http://localhost:${PORT}`,`http://127.0.0.1:${PORT}`].includes(origin)){res.status(403).json({error:'Origin is not allowed'});return;}
  res.setHeader('X-Content-Type-Options','nosniff');next();
 });
 app.use('/api/club',clubRouter({publishing:{projectExported:async projectId=>(await exportsStore.list(projectId,0,200)).some(record=>record.status==='complete'&&record.options.format==='mp4'&&record.output.status==='available'&&Boolean(record.outputPath)),exportFile:async id=>{
@@ -55,12 +56,22 @@ app.use(express.json({limit:'30mb'}));
 const route=(fn:(req:Request,res:Response)=>Promise<unknown>|unknown)=>(req:Request,res:Response,next:NextFunction)=>Promise.resolve(fn(req,res)).catch(next);
 const param=(req:Request,name='id')=>String(req.params[name]);
 const reviewedRevision=(req:Request)=>{const value=req.headers['if-match'];if(typeof value!=='string'||!/^(?:"[0-9a-f]{64}"|[0-9a-f]{64})$/.test(value))throw Object.assign(Error('A reviewed project revision is required. Refresh and review this action again.'),{status:409});return value.replaceAll('"','');};
-// An empty SCENEFORGE_MCP_COMMAND (the CreatorClub app without its own launcher) advertises no MCP launcher at all.
-const mcpCommand=process.env.SCENEFORGE_MCP_COMMAND??path.join(os.homedir(),'Applications/SceneForge.app/Contents/MacOS/sceneforge-mcp');
-// `product` tells the CreatorClub app its own service apart from a SceneForge one.
-const capabilities=async()=>({...await media.getCapabilities(),transcription:await ai.transcriptionCapabilities(),vision:await getVisionCapabilities(),application:'SceneForge',product:'CreatorClub',mcp:mcpCommand?{command:mcpCommand,args:[],toolCount:toolDefinitions.length}:undefined,version:'0.1.0'});
+// An empty SCENEFORGE_MCP_COMMAND (the Creator Compiler app without its own launcher) advertises no MCP launcher at all.
+const mcpCommand=process.env.SCENEFORGE_MCP_COMMAND;
+// `product` tells the Creator Compiler app its own service apart from a SceneForge one.
+const capabilities=async()=>({...await media.getCapabilities(),transcription:await ai.transcriptionCapabilities(),vision:await getVisionCapabilities(),application:'Creator Compiler',product:'Creator Compiler',mcp:mcpCommand!==''?{command:mcpCommand||process.execPath,args:mcpCommand?[]:[path.resolve(import.meta.dirname,'../server-dist/mcp.mjs')],toolCount:toolDefinitions.length}:undefined,version:'0.1.0'});
+app.get('/api/cutroom/status',route(async(_,res)=>res.json(await cutroom.cutroomStatus())));
+app.post('/api/projects/:id/cutroom',route(async(req,res)=>res.json(await cutroom.prepare(param(req)))));
+app.get('/api/cutroom/:id',route(async(req,res)=>res.json(await cutroom.workspace(param(req)))));
+app.put('/api/cutroom/:id/graphics',route(async(req,res)=>res.json(await cutroom.updateGraphics(param(req),req.body))));
+app.post('/api/cutroom/:id/run',route(async(req,res)=>res.json(await cutroom.run(param(req),req.body.action,{at:req.body.at}))));
+app.delete('/api/cutroom/:id/run',route(async(req,res)=>res.json(await cutroom.cancel(param(req)))));
+app.post('/api/cutroom/:id/apply-cuts',route(async(req,res)=>res.json(await cutroom.applyCuts(param(req),reviewedRevision(req)))));
+app.post('/api/cutroom/:id/import-render',route(async(req,res)=>res.json(await cutroom.importRender(param(req)))));
+app.get('/api/cutroom/:id/preview.png',route((req,res)=>res.sendFile(cutroom.previewPath(param(req)),{dotfiles:'allow'})));
+app.get('/api/cutroom/:id/render.mp4',route((req,res)=>res.sendFile(cutroom.renderPath(param(req)),{dotfiles:'allow'})));
 app.get('/api/health',route(async(_,res)=>res.json({...await capabilities(),dataDir:storage.DATA_DIR})));
-app.get('/api/ready',(_req,res)=>{res.json({application:'SceneForge',product:'CreatorClub',version:'0.1.0'});});
+app.get('/api/ready',(_req,res)=>{res.json({application:'Creator Compiler',product:'Creator Compiler',version:'0.1.0'});});
 app.get('/api/capabilities',route(async(_,res)=>res.json(await capabilities())));
 app.get('/api/events',(_req,res)=>{
  res.setHeader('Content-Type','text/event-stream');res.setHeader('Cache-Control','no-cache, no-transform');res.setHeader('Connection','keep-alive');res.flushHeaders();
@@ -86,7 +97,7 @@ app.post('/api/projects/:id/inspect',route(async(req,res)=>{
  const frames=await media.inspectFrames(await storage.readProject(param(req)),req.body.times,storage.CACHE_DIR,{width:req.body.width});
  return res.json({frames:frames.map(frame=>{const token=createHash('sha256').update(frame.path).digest('hex');inspectedImages.set(token,frame.path);return {time:frame.time,requestedTime:frame.requestedTime,width:frame.width,height:frame.height,url:`/api/inspection-images/${token}`};})});
 }));
-app.get('/api/inspection-images/:id',route((req,res)=>{const file=inspectedImages.get(param(req));if(!file)return res.status(404).json({error:'Inspect the timeline again to refresh this frame.'});return res.sendFile(file);}));
+app.get('/api/inspection-images/:id',route((req,res)=>{const file=inspectedImages.get(param(req));if(!file)return res.status(404).json({error:'Inspect the timeline again to refresh this frame.'});return res.sendFile(file,{dotfiles:'allow'});}));
 const prefersMinimal=(req:Request)=>/(?:^|,)\s*return\s*=\s*"?minimal"?\s*(?:[;,]|$)/i.test(String(req.headers.prefer??''));
 app.put('/api/projects/:id',route(async(req,res)=>{
  if(req.body.id!==param(req))throw new Error('Project ID mismatch');
@@ -121,9 +132,9 @@ const requestSignal=(req:Request,res:Response)=>{const controller=new AbortContr
 // Scrubbing abandons previews constantly; once the client has gone there is no one to answer and the cancellation is not an error.
 const cancellable=(fn:(req:Request,res:Response,signal:AbortSignal)=>Promise<unknown>)=>(req:Request,res:Response,next:NextFunction)=>{const signal=requestSignal(req,res);fn(req,res,signal).catch(error=>{if(!signal.aborted)next(error);});};
 app.get('/api/media/:id/vision',cancellable(async(req,res,signal)=>{const result=await visionPreview(await storage.readMedia(param(req)),Number(req.query.time)||0,storage.CACHE_DIR,signal);return res.json({time:result.time,width:result.width,height:result.height,face:result.face,maskUrl:`/api/media/${encodeURIComponent(param(req))}/vision-mask.png?time=${result.time}`});}));
-app.get('/api/media/:id/vision-mask.png',cancellable(async(req,res,signal)=>{const result=await visionPreview(await storage.readMedia(param(req)),Number(req.query.time)||0,storage.CACHE_DIR,signal);return res.sendFile(result.maskPath);}));
+app.get('/api/media/:id/vision-mask.png',cancellable(async(req,res,signal)=>{const result=await visionPreview(await storage.readMedia(param(req)),Number(req.query.time)||0,storage.CACHE_DIR,signal);return res.sendFile(result.maskPath,{dotfiles:'allow'});}));
 app.post('/api/media/:id/proxy',route(async(req,res)=>res.json(media.startProxy(await storage.readMedia(param(req)),storage.CACHE_DIR))));
-app.get('/api/media/:id/proxy',route(async(req,res)=>{const m=await storage.readMedia(param(req));return res.sendFile(await media.proxyFile(m,storage.CACHE_DIR)||m.path);}));
+app.get('/api/media/:id/proxy',route(async(req,res)=>{const m=await storage.readMedia(param(req));return res.sendFile(await media.proxyFile(m,storage.CACHE_DIR)||m.path,{dotfiles:'allow'});}));
 app.post('/api/import/borumi',route(async(req,res)=>{const p=await importBorumi(req.body.path,{roundtripDirectory:path.join(storage.DATA_DIR,'borumi-snapshots')});for(const m of p.media)await storage.registerMedia(m);return res.json(await storage.saveProject(p));}));
 app.get('/api/borumi/templates',route(async(_,res)=>{
  const candidates=await storage.listProjects(),templates=[];
@@ -195,7 +206,7 @@ app.get('/api/automation/:id',route(async(req,res)=>res.json(await automation.ge
 app.delete('/api/automation/:id',route(async(req,res)=>res.json(await automation.cancel(param(req)))));
 app.post('/api/automation/:id/apply',route(async(req,res)=>res.json(await automation.apply(param(req),req.body.changeIds))));
 app.post('/api/automation/:id/undo',route(async(req,res)=>res.json(await automation.undo(param(req)))));
-app.get('/api/automation/:id/preview',route(async(req,res)=>{const ids=typeof req.query.changes==='string'?req.query.changes.split(',').filter(Boolean):undefined;const frame=await automation.preview(param(req),String(req.query.phase||'after'),Number(req.query.time)||0,ids);return res.sendFile(frame.path);}));
+app.get('/api/automation/:id/preview',route(async(req,res)=>{const ids=typeof req.query.changes==='string'?req.query.changes.split(',').filter(Boolean):undefined;const frame=await automation.preview(param(req),String(req.query.phase||'after'),Number(req.query.time)||0,ids);return res.sendFile(frame.path,{dotfiles:'allow'});}));
 app.post('/api/automation/:id/review',route(async(req,res)=>res.json(await automation.review(param(req),req.body.changeIds))));
 app.get('/api/agent/status',route(async(req,res)=>res.json(await agentChat.agentStatus(req.query.refresh==='1'))));
 app.get('/api/projects/:id/agent-chat',route(async(req,res)=>{await storage.readProject(param(req));return res.json({jobs:await agentChat.listAgentJobs(param(req))});}));
@@ -214,7 +225,7 @@ app.get('/api/agent-chat/:id/events',route((req,res)=>{
 app.use(express.static(dist));
 app.get('/{*rest}',(req,res)=>{if(req.path.startsWith('/api/'))res.status(404).json({error:'Not found'});else res.sendFile(path.join(dist,'index.html'));});
 app.use((error:Error & {status?:number;code?:string},_req:Request,res:Response,_next:NextFunction)=>{console.error(error.message);res.status(error.status||(error.code==='ENOENT'?404:400)).json({error:error.message});});
-const server=app.listen(PORT,'127.0.0.1',(error?:Error)=>{if(error){console.error('Could not start SceneForge: '+error.message);void exportsStore.shutdown(media.shutdownJobs).finally(()=>{process.exitCode=1;});return;}console.log(`SceneForge is ready at http://127.0.0.1:${PORT}`);});
+const server=app.listen(PORT,'127.0.0.1',(error?:Error)=>{if(error){console.error('Could not start Creator Compiler: '+error.message);void exportsStore.shutdown(media.shutdownJobs).finally(()=>{process.exitCode=1;});return;}console.log(`Creator Compiler is ready at http://127.0.0.1:${PORT}`);});
 let shuttingDown=false;
 const shutdown=()=>{if(shuttingDown)return;shuttingDown=true;server.close();cancelAllJobs();void Promise.allSettled([exportsStore.shutdown(media.shutdownJobs),agentChat.shutdownAgentChats(),automation.shutdown()]).then(results=>{for(const result of results)if(result.status==='rejected')console.error(result.reason);});};
 process.on('SIGTERM',shutdown);process.on('SIGINT',shutdown);

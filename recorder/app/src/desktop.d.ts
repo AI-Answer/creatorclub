@@ -70,7 +70,7 @@ export interface DesktopNativeRecordingEvent {
 }
 export interface SceneForgeDesktopBridge {
  platform: string;
- /** The app name macOS lists in Privacy & Security ("CreatorClub Dev"), from the running bundle. */
+ /** The app name macOS lists in Privacy & Security ("Creator Compiler Dev"), from the running bundle. */
  appName?: string;
  chooseMedia(): Promise<string[]>;
  chooseBorumi(): Promise<string | null>;

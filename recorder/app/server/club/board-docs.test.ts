@@ -386,7 +386,7 @@ test('a pinned card follows its Notes folder: after the folder changes it is mis
   await docs.setNotesFolder(slug, null);
 });
 
-test('the Notes folder is refused when it is the whole computer, the home folder or one above it, a system folder, or where CreatorClub keeps its files', async () => {
+test('the Notes folder is refused when it is the whole computer, the home folder or one above it, a system folder, or where Creator Compiler keeps its files', async () => {
   const realRoot = await (await import('node:fs/promises')).realpath(store.rootDir()).catch(() => store.rootDir());
   await mkdir(store.rootDir(), { recursive: true });
   const refused = ['/', os.homedir(), path.dirname(os.homedir()), '/Users', '/private', '/etc', '/usr', '/usr/bin', '/System', '/System/Library', '/Library', '/var', store.rootDir(), path.join(store.rootDir(), slug), path.dirname(store.rootDir())];

@@ -36,7 +36,7 @@ let idle: NodeJS.Timeout | undefined;
 
 async function launch(): Promise<Browser> {
   const binary = chromePath();
-  if (!binary) throw new Error("Motion graphics render in the CreatorClub app. Outside it, install Google Chrome or set CREATORCLUB_CHROME.");
+  if (!binary) throw new Error("Motion graphics render in the Creator Compiler app. Outside it, install Google Chrome or set CREATORCLUB_CHROME.");
   const profile = await fs.mkdtemp(path.join(tmpdir(), "creatorclub-motion-chrome-"));
   const child = spawn(binary, ["--headless=new", "--remote-debugging-pipe", `--user-data-dir=${profile}`, "--no-first-run", "--no-default-browser-check", "--disable-extensions", "--disable-background-networking", "--disable-component-update", "--disable-sync", "--force-color-profile=srgb", "--hide-scrollbars", "--mute-audio", "about:blank"], { stdio: ["ignore", "ignore", "ignore", "pipe", "pipe"] });
   const input = child.stdio[3] as NodeJS.WritableStream, output = child.stdio[4] as NodeJS.ReadableStream;

@@ -1,3 +1,4 @@
+import {BrandMark} from '../../BrandMark';
 import {useCallback,useEffect,useMemo,useRef,useState} from 'react';
 import type {AddChannelResult,Workspace} from '../../../shared/club';
 import {aiState,useAiCheck} from '../ai-status';
@@ -148,7 +149,7 @@ export function WelcomeScreen({navigate,initialStep}:{navigate(route:Route,optio
 
  return <div className="welcome">
   <div className="row club-drag" style={{padding:'18px 28px'}}>
-   <span className="logo" style={{width:30,height:30,borderRadius:8,background:'var(--cc-primary)',color:'var(--cc-on-primary)'}}><Icon name="video" size={16}/></span><b style={{letterSpacing:'-0.01em'}}>CreatorClub</b>
+   <span style={{width:30,height:30,display:'inline-flex'}}><BrandMark/></span><b style={{letterSpacing:'-0.01em'}}>Creator Compiler</b>
    <span className="grow"/><button type="button" className="linkish" style={{color:'var(--cc-text-2)'}} onClick={home}>Skip setup</button>
   </div>
   <div className="welcome-body" ref={body}>

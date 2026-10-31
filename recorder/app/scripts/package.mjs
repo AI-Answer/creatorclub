@@ -7,8 +7,8 @@ import {promisify} from 'node:util';
 import {createDmg,sha256File} from './create-dmg.mjs';
 import {resolveSigningIdentity,signPackage} from './signing.mjs';
 import {buildMcpLauncher} from './build-mcp-launcher.mjs';
-// The packaged app is CreatorClub, with its own bundle id, so it never replaces or shares permissions with SceneForge.app.
-const APP_NAME='CreatorClub',APP_ID='com.aianswer.creatorclub';
+// The packaged app is Creator Compiler, with its own bundle id, so it never replaces or shares permissions with SceneForge.app.
+const APP_NAME='Creator Compiler',APP_ID='com.aianswer.creatorcompiler';
 const staging=path.resolve('.local/package');
 const requestedOutput=process.env.SCENEFORGE_PACKAGE_OUT;
 if(requestedOutput&&!path.isAbsolute(requestedOutput))throw Error('SCENEFORGE_PACKAGE_OUT must be an absolute directory path.');
@@ -36,7 +36,7 @@ for(const name of ['LICENSE','THIRD_PARTY_NOTICES.md'])await cp(path.resolve('..
 await cp('../docs',path.join(staging,'docs'),{recursive:true});
 await writeFile(path.join(staging,'package.json'),JSON.stringify({name:'creatorclub',productName:APP_NAME,version:'0.1.0',main:'desktop/main.cjs',description:'Plan, record, edit and publish YouTube videos',author:'AI Answer'},null,2));
 const version=JSON.parse(await readFile('node_modules/electron/package.json','utf8')).version;
-const result=await packager({dir:staging,name:APP_NAME,platform:'darwin',arch:'arm64',electronVersion:version,out:packageOutput,overwrite:true,asar:false,icon:path.resolve('assets/icon.icns'),appBundleId:APP_ID,appCategoryType:'public.app-category.video',extendInfo:{LSMinimumSystemVersion:'14.0',NSCameraUsageDescription:'CreatorClub records your camera for the scenes you film.',NSMicrophoneUsageDescription:'CreatorClub records your microphone for the scenes you film.',NSAudioCaptureUsageDescription:'CreatorClub records system audio from the screen or window you choose.',NSScreenCaptureUsageDescription:'CreatorClub records the screen or window you choose.'}});
+const result=await packager({dir:staging,name:APP_NAME,platform:'darwin',arch:'arm64',electronVersion:version,out:packageOutput,overwrite:true,asar:false,icon:path.resolve('assets/icon.icns'),appBundleId:APP_ID,appCategoryType:'public.app-category.video',extendInfo:{LSMinimumSystemVersion:'14.0',NSCameraUsageDescription:'Creator Compiler records your camera for the scenes you film.',NSMicrophoneUsageDescription:'Creator Compiler records your microphone for the scenes you film.',NSAudioCaptureUsageDescription:'Creator Compiler records system audio from the screen or window you choose.',NSScreenCaptureUsageDescription:'Creator Compiler records the screen or window you choose.'}});
 for(const dir of result){
  const resources=path.join(dir,`${APP_NAME}.app/Contents/Resources`);
  // Electron Packager excludes these distribution files by default. Retain

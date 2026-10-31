@@ -176,8 +176,8 @@ test('secrets default to Application Support, and stay next to a custom workspac
     delete process.env.CREATORCLUB_SECRETS_DIR;
     assert.equal(store.secretsDir(), temp);
     delete process.env.CREATORCLUB_DIR;
-    assert.equal(store.secretsDir(), path.join(os.homedir(), 'Library', 'Application Support', 'CreatorClub'));
-    assert.equal(store.rootDir(), path.join(os.homedir(), 'Documents', 'CreatorClub'), 'workspaces stay in Documents');
+    assert.equal(store.secretsDir(), path.join(os.homedir(), 'Library', 'Application Support', 'Creator Compiler'));
+    assert.equal(store.rootDir(), path.join(os.homedir(), 'Documents', 'Creator Compiler'), 'workspaces stay in Documents');
   } finally {
     process.env.CREATORCLUB_DIR = saved.dir;
     if (saved.secrets) process.env.CREATORCLUB_SECRETS_DIR = saved.secrets;

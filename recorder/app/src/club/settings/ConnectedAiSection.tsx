@@ -10,7 +10,7 @@ import {Button,Icon,Input,Tabs,type Tab} from '../ui';
 export function ConnectedAiSection({status,statusError,settings,onStatus,onSettings}:{status:AiStatus|null;statusError?:string;settings:ClubSettings;onStatus():void;onSettings(next:Partial<ClubSettings>):void}){
  // Checking the AIs runs their command-line tools and takes a second or more: their rows wait as skeletons, everything else shows at once.
  const pending=(label:string)=><div className="srow set-skel" aria-busy="true" aria-label={`Checking ${label}`}><span className="logo shimmer"/><div className="grow" style={{display:'flex',flexDirection:'column',gap:6}}><div className="shimmer" style={{height:14,width:'40%'}}/><div className="shimmer" style={{height:12,width:'70%'}}/></div></div>;
- return <section className="set-group" id="set-ai" aria-labelledby="set-ai-title"><h2 id="set-ai-title">Connected AI</h2><p>CreatorClub uses your own Claude or ChatGPT account. Nothing is billed here.</p>
+ return <section className="set-group" id="set-ai" aria-labelledby="set-ai-title"><h2 id="set-ai-title">Connected AI</h2><p>Creator Compiler uses your own Claude or ChatGPT account. Nothing is billed here.</p>
   <div className="card">
    {status?<AiRow settings provider="claude" status={status.claude} description="Used for ideas, packaging, scenes and scripts." onChanged={onStatus}/>:pending('Claude')}
    {status?<AiRow settings provider="codex" status={status.codex} description="Optional. Works the same way, if that is the account you have." onChanged={onStatus}/>:pending('ChatGPT')}
@@ -58,7 +58,7 @@ function GeminiRow({saved,onChanged}:{saved:string|null;onChanged(masked:string|
   <span className="logo logo-gemini"><Icon name="film" size={20}/></span>
   <div className="grow">
    <div style={{fontWeight:600}}>Gemini <span className="chip" style={{marginLeft:6}}>Optional</span></div>
-   <div className="small muted" style={{marginBottom:10}}>Lets CreatorClub watch videos with sound and motion when it breaks them down.</div>
+   <div className="small muted" style={{marginBottom:10}}>Lets Creator Compiler watch videos with sound and motion when it breaks them down.</div>
    {saved?<div className="row small"><span className="dotok"/>Key saved {saved} <button type="button" className="linkish" disabled={busy} onClick={()=>void remove()}>Remove key</button></div>
     :<form className="row" onSubmit={(event:FormEvent)=>{event.preventDefault();void save();}}>
       <Input type="password" aria-label="Gemini API key" autoComplete="off" spellCheck={false} value={key} placeholder="Paste your Gemini API key" style={{maxWidth:340}} onChange={event=>{setKey(event.target.value);setError('');}}/>

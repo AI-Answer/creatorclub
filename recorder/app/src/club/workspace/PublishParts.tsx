@@ -80,10 +80,10 @@ export function ResultCard({record,video,onCheck,onForget,children}:{record:Resu
 }
 
 /** What adding a link yourself does, in one sentence. */
-export const SELF_UPLOAD_LINE='Add the link so CreatorClub can mark it Published.';
+export const SELF_UPLOAD_LINE='Add the link so Creator Compiler can mark it Published.';
 
 /**
- * For a video uploaded outside CreatorClub: a quiet "I uploaded it myself" that opens the link field. Never a main option; Publish shows it
+ * For a video uploaded outside Creator Compiler: a quiet "I uploaded it myself" that opens the link field. Never a main option; Publish shows it
  * only when Postiz is not set up, or when a post is stuck. `open` shows the field at once, for the stuck case, with `line` saying why.
  */
 export function SelfUpload({video,onVideo,label='I uploaded it myself',line=SELF_UPLOAD_LINE,open=false}:{video:Video;onVideo(video:Video):void;label?:string;line?:string;open?:boolean}){

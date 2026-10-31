@@ -9,7 +9,7 @@ test('a missing speech model is explained without file names or environment vari
  assert.equal(notice.setup,true);
  assert.doesNotMatch(notice.message,/GGML|SCENEFORGE|path/i);
  assert.match(notice.message,/still work/);
- assert.match(notice.message,/OpenRouter/,'the quickest fix is named');
+ assert.match(notice.message,/local speech model in Settings/,'the local setup is named');
  assert.deepEqual(describeTranscriptionError('Local Whisper model file is missing. Set a valid GGML model path in AI settings.'),notice);
 });
 
