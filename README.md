@@ -69,7 +69,7 @@ npm run package:win      # run on Windows: installer, ZIP
 
 Installers bundle **Cutroom, FFmpeg, FFprobe, and fonts**. No Rust, Node, npm, or FFmpeg installation is needed on the end user's computer. Local speech transcription additionally needs Whisper and a compatible model. Privacy OCR needs Tesseract. These optional tools are not included in the new cross-platform installer recipe.
 
-Source development stores recording projects in `recorder/app/.local/studio`. Installed apps use their platform application-data folder. Channel workspaces live in `~/Documents/Creator Compiler`; an existing `~/Documents/CreatorClub` workspace continues to be used when the new folder does not exist. `CREATORCLUB_DIR`, `SCENEFORGE_DATA_DIR`, and `SCENEFORGE_PORT` remain supported compatibility settings. Use separate workspace, data, and port settings for smoke tests.
+Source development stores recording projects in `recorder/app/.local/studio` and channel workspaces in `.local/channels`, with its own desktop profile. Installed apps use their platform application-data folder. Installed channel workspaces live in `~/Documents/Creator Compiler`; an existing `~/Documents/CreatorClub` workspace continues to be used when the new folder does not exist. `CREATORCLUB_DIR`, `SCENEFORGE_DATA_DIR`, and `SCENEFORGE_PORT` remain supported compatibility settings. Use separate workspace, data, and port settings for smoke tests.
 
 ## Connect through MCP
 

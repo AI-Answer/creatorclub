@@ -125,7 +125,8 @@ function resetShortcutContext(){shortcutContext=emptyShortcutContext();clearGlob
 // Its own name and user-data folder (~/Library/Application Support/Creator Compiler) before the lock: the single-instance lock
 // lives in the user-data folder, so this app and a running SceneForge app never block each other or share settings.
 app.setName(CREATORCLUB.name);
-const paths=creatorClubPaths({appData:app.getPath('appData')});
+const paths=creatorClubPaths({appData:app.getPath('appData'),...(!app.isPackaged?{developmentRoot:projectRoot}:{})});
+fs.mkdirSync(paths.userData,{recursive:true});
 app.setPath('userData',paths.userData);
 const gotLock=app.requestSingleInstanceLock();
 if(!gotLock)app.quit();
@@ -143,6 +144,7 @@ async function startService(){
  // Recordings and edits use SceneForge's storage format in Creator Compiler's own folder; SCENEFORGE_DATA_DIR still overrides it.
  // Only a launcher inside this app is offered for MCP; without one (the dev app) none is advertised, never SceneForge's.
  const env=runtimeEnvironment({root:projectRoot,data:paths.studio,modelsDir:paths.models,port:PORT});env.SCENEFORGE_MCP_COMMAND??='';
+ if(!app.isPackaged)env.CREATORCLUB_DIR??=path.join(projectRoot,'.local','channels');
  // The service asks this process to capture motion blocks (see below); without the variable it uses Chrome, as in development.
  env.CREATORCLUB_MOTION_BRIDGE='1';
  if(fs.existsSync(entry))service=utilityProcess.fork(entry,[],{env,stdio:'pipe',serviceName:'Creator Compiler media service'});

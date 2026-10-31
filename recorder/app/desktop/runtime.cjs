@@ -8,9 +8,9 @@ const fs=require('node:fs');
 const CREATORCLUB=Object.freeze({name:'Creator Compiler',port:4194});
 /** The name macOS lists in Privacy & Security: the app bundle that runs this process ("Creator Compiler Dev", "Creator Compiler"), else Creator Compiler. */
 const privacyAppName=(execPath=process.execPath)=>/([^/]+)\.app\/Contents\/MacOS\/[^/]+$/.exec(execPath)?.[1]||CREATORCLUB.name;
-function creatorClubPaths({appData,env=process.env}){
- const userData=path.join(appData,CREATORCLUB.name);
- return {userData,studio:env.SCENEFORGE_DATA_DIR||path.join(userData,'studio'),models:path.join(userData,'models')};
+function creatorClubPaths({appData,env=process.env,developmentRoot}){
+ const userData=developmentRoot?path.join(developmentRoot,'.local','desktop-user-data'):path.join(appData,CREATORCLUB.name);
+ return {userData,studio:env.SCENEFORGE_DATA_DIR||(developmentRoot?path.join(developmentRoot,'.local','studio'):path.join(userData,'studio')),models:path.join(userData,'models')};
 }
 /** True only for this app's own service (its /api/ready or /api/health answer), never a SceneForge one. */
 const isCreatorClubService=health=>Boolean(health&&health.application===CREATORCLUB.name&&health.product===CREATORCLUB.name&&health.version==='0.1.0');

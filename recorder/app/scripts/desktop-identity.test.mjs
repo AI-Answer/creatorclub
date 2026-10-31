@@ -21,6 +21,16 @@ test('Creator Compiler has its own name, port, user-data folder and studio folde
  assert.equal(creatorClubPaths({appData, env: {SCENEFORGE_DATA_DIR: '/data/studio'}}).studio, '/data/studio');
 });
 
+test('source development uses its own profile and studio while the installed app keeps its data folder', () => {
+ const installed=creatorClubPaths({appData:'/app-data',env:{}});
+ const development=creatorClubPaths({appData:'/app-data',env:{},developmentRoot:'/repo/recorder/app'});
+ assert.notEqual(development.userData,installed.userData,'separate single-instance lock and browser profile');
+ assert.notEqual(development.studio,installed.studio,'development edits never enter the installed studio');
+ assert.equal(development.studio,'/repo/recorder/app/.local/studio');
+ assert.equal(creatorClubPaths({appData:'/app-data',env:{SCENEFORGE_DATA_DIR:'/scratch'},developmentRoot:'/repo/recorder/app'}).studio,'/scratch');
+ assert.match(main,/!app\.isPackaged\?\{developmentRoot:projectRoot\}/);
+});
+
 test('only a Creator Compiler service is accepted at startup, never a SceneForge one', () => {
  assert.equal(isCreatorClubService({application: 'Creator Compiler', product: 'Creator Compiler', version: '0.1.0'}), true);
  assert.equal(isCreatorClubService({application: 'SceneForge', version: '0.1.0'}), false, 'SceneForge Dev.app\'s service');

@@ -5,7 +5,7 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const app=path.join(root,'recorder/app');
-const env={...process.env,SCENEFORGE_PORT:process.env.SCENEFORGE_PORT||'4184',SCENEFORGE_DATA_DIR:process.env.SCENEFORGE_DATA_DIR||path.join(app,'.local/studio')};
+const env={...process.env,SCENEFORGE_PORT:process.env.SCENEFORGE_PORT||'4184',SCENEFORGE_DATA_DIR:process.env.SCENEFORGE_DATA_DIR||path.join(app,'.local/studio'),CREATORCLUB_DIR:process.env.CREATORCLUB_DIR||path.join(app,'.local/channels')};
 const base=`http://127.0.0.1:${env.SCENEFORGE_PORT}`;
 const healthy=async()=>{try{const r=await fetch(base+'/api/ready',{signal:AbortSignal.timeout(1500)});return r.ok&&(await r.json()).application==='Creator Compiler';}catch{return false;}};
 await access(path.join(app,'server-dist/mcp.mjs'));
