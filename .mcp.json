@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "creator-compiler": {
+      "command": "node",
+      "args": [
+        "scripts/mcp.mjs"
+      ]
+    }
+  }
+}

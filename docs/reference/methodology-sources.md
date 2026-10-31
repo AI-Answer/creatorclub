@@ -1,4 +1,4 @@
-# CreatorClub methodology sources
+# Creator Compiler methodology sources
 
 Sources: the ContentRepurposeSystem (CRS) skills, the Samin board prompts, scripts and workspace. `prompts/knowledge/` (Jake Trinder, Ed Lawrence) is excluded. Costs are from the board's logs (`status.json`, `find-log.json`, job files), not estimates.
 

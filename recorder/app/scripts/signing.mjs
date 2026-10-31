@@ -37,7 +37,7 @@ export function chooseIdentity({identities,pin,override,allowAdhoc}){
   if(matches.length!==1)throw Error(`The ${override?'requested':'pinned'} signing identity is unavailable or ambiguous. Run security find-identity -v -p codesigning and set SCENEFORGE_SIGN_IDENTITY to the intended valid certificate SHA-1. No ad-hoc fallback was used.`);
   identity=matches[0];
  }else{
-  if(identities.length!==1)throw Error('Choose a valid Apple signing identity using SCENEFORGE_SIGN_IDENTITY (certificate SHA-1). SceneForge requires one explicit identity when none or several are available; ad-hoc fixture builds require SCENEFORGE_ALLOW_ADHOC=1.');
+  if(identities.length!==1)throw Error('Choose a valid Apple signing identity using SCENEFORGE_SIGN_IDENTITY (certificate SHA-1). Creator Compiler requires one explicit identity when none or several are available; ad-hoc fixture builds require SCENEFORGE_ALLOW_ADHOC=1.');
   identity=identities[0];
  }
  return {...identity,mode:identity.name.startsWith('Developer ID Application:')?'developer-id':'development',source:override?'override':pin?'local-pin':'first-use'};
