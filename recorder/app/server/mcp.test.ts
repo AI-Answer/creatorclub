@@ -34,8 +34,8 @@ const recoveryCalls:Array<[string,Record<string,unknown>,string,string,unknown]>
  ['list_trashed_projects',{},'/trash','GET',undefined],
  ['restore_trashed_project',{trash_id:'old-project-1700000000000',expected_revision:reviewedRevision,as_copy:true},'/trash/old-project-1700000000000/restore','POST',{asCopy:true}],
 ];
-test('external MCP has exactly 39 unique tools and explicit recovery review schemas',()=>{
- assert.equal(toolDefinitions.length,39);assert.equal(new Set(toolDefinitions.map(t=>t.name)).size,39);
+test('external MCP has exactly 47 unique tools and explicit recovery review schemas',()=>{
+ assert.equal(toolDefinitions.length,47);assert.equal(new Set(toolDefinitions.map(t=>t.name)).size,47);
  for(const name of recoveryNames){const tool=toolDefinitions.find(t=>t.name===name)!;assert.ok(tool);assert.equal(tool.inputSchema.additionalProperties,false);assert.equal('tx_id' in tool.inputSchema.properties,false);if(!['get_media_status','list_trashed_projects'].includes(name)){assert.ok(tool.inputSchema.required.includes('expected_revision'));assert.equal((tool.inputSchema.properties.expected_revision as any).pattern,'^[0-9a-f]{64}$');}}
 });
 test('recovery tools preserve exact HTTP payloads and reviewed If-Match without extra reads',async()=>{

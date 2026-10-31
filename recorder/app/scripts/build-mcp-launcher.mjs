@@ -6,6 +6,6 @@ import {fileURLToPath} from 'node:url';
 export async function buildMcpLauncher(app){
  const source=fileURLToPath(new URL('./mcp-launcher.c',import.meta.url));
  const target=path.join(app,'Contents/MacOS/sceneforge-mcp');
- await promisify(execFile)('/usr/bin/clang',['-O2','-Wall','-Wextra','-Werror','-target','arm64-apple-macos14.0',source,'-o',target]);
+ await promisify(execFile)('/usr/bin/clang',['-O2','-Wall','-Wextra','-Werror','-target',`${process.arch==='arm64'?'arm64':'x86_64'}-apple-macos14.0`,source,'-o',target]);
  return target;
 }

@@ -9,7 +9,7 @@ const {createNativeRecordingManager}=require('./native-recording.cjs');
 const {createCaptureBorder}=require('./capture-border.cjs');
 const {createMediaPermissionRequests}=require('./media-permissions.cjs');
 let mainWindow, service, captureManager, recordingHud, nativeRecording, captureBorder, ownService = false, quitting = false;
-const PORT=4174, base=`http://127.0.0.1:${PORT}`;
+const PORT=Number(process.env.SCENEFORGE_PORT||(app.isPackaged?4194:4184)), base=`http://127.0.0.1:${PORT}`;
 // The editor window hides while recording; without this macOS may App Nap the app and stall capture.
 let recordingBlocker=null;
 function keepAwakeWhileRecording(type){
@@ -25,11 +25,11 @@ const globalBindings={record:'KeyR',stopRecord:'KeyE',pauseRecord:'KeyY',previou
 const nativePermissionRequests=createMediaPermissionRequests({getStatus:getNativeMediaStatus,ask:kind=>systemPreferences.askForMediaAccess(kind),isActive:()=>!quitting&&Boolean(mainWindow&&!mainWindow.isDestroyed())});
 const privacyPanes=Object.freeze({camera:'Privacy_Camera',microphone:'Privacy_Microphone',screen:'Privacy_ScreenCapture','system-audio':'Privacy_AudioCapture'});
 function getNativeMediaStatus(kind){
- if(process.platform!=='darwin')return 'unsupported';
+ if(process.platform!=='darwin')return 'unknown';
  try{const status=systemPreferences.getMediaAccessStatus(kind);return ['not-determined','granted','denied','restricted','unknown'].includes(status)?status:'unknown';}catch{return 'unknown';}
 }
 function getMediaPermissions(){
- return {platform:process.platform,camera:getNativeMediaStatus('camera'),microphone:getNativeMediaStatus('microphone'),screen:getNativeMediaStatus('screen'),systemAudio:process.platform==='darwin'?'unknown':'unsupported'};
+ return {platform:process.platform,camera:getNativeMediaStatus('camera'),microphone:getNativeMediaStatus('microphone'),screen:getNativeMediaStatus('screen'),systemAudio:'unknown'};
 }
 async function requestMediaPermission(kind){
  return nativePermissionRequests.request(kind);
@@ -90,7 +90,7 @@ function installMenu(){
  const signature=JSON.stringify({editor:editorMenuActive(),editable:shortcutContext.editable,available:shortcutContext.availableActions,bindings:shortcutContext.bindings});if(signature===lastMenuSignature)return;lastMenuSignature=signature;
  const editItem=(action,label)=>editorMenuActive()||appUndoActive(action)?{id:action,label,accelerator:bindingList(action).map(acceleratorFor).find(Boolean)||undefined,enabled:available(action),click:()=>emitShortcut(action)}:{role:action};
  const viewZoom=editorMenuActive()?[{id:'zoomIn',label:'Zoom Timeline In',accelerator:bindingList('zoomIn').map(acceleratorFor).find(Boolean)||undefined,enabled:available('zoomIn'),click:()=>emitShortcut('zoomIn')},{id:'zoomOut',label:'Zoom Timeline Out',accelerator:bindingList('zoomOut').map(acceleratorFor).find(Boolean)||undefined,enabled:available('zoomOut'),click:()=>emitShortcut('zoomOut')}]:[{role:'zoomIn'},{role:'zoomOut'}];
- Menu.setApplicationMenu(Menu.buildFromTemplate([{label:'SceneForge',submenu:[{role:'about'},{type:'separator'},{role:'hide'},{role:'hideOthers'},{type:'separator'},{role:'quit'}]},{label:'File',submenu:[{id:'closeProject',label:'Close Project',accelerator:bindingList('closeProject').map(acceleratorFor).find(Boolean)||undefined,enabled:available('closeProject'),click:()=>emitShortcut('closeProject')}]},{label:'Edit',submenu:[editItem('undo','Undo'),editItem('redo','Redo'),{type:'separator'},editItem('cut','Cut'),editItem('copy','Copy'),editItem('paste','Paste'),editItem('selectAll','Select All')]},{label:'View',submenu:[{role:'reload'},{role:'toggleDevTools'},{type:'separator'},{role:'resetZoom'},...viewZoom,{role:'togglefullscreen'}]},{label:'Window',submenu:[{role:'minimize'},{role:'zoom'},{role:'front'}]}]));
+ Menu.setApplicationMenu(Menu.buildFromTemplate([{label:'Creator Compiler',submenu:[{role:'about'},{type:'separator'},{role:'hide'},{role:'hideOthers'},{type:'separator'},{role:'quit'}]},{label:'File',submenu:[{id:'closeProject',label:'Close Project',accelerator:bindingList('closeProject').map(acceleratorFor).find(Boolean)||undefined,enabled:available('closeProject'),click:()=>emitShortcut('closeProject')}]},{label:'Edit',submenu:[editItem('undo','Undo'),editItem('redo','Redo'),{type:'separator'},editItem('cut','Cut'),editItem('copy','Copy'),editItem('paste','Paste'),editItem('selectAll','Select All')]},{label:'View',submenu:[{role:'reload'},{role:'toggleDevTools'},{type:'separator'},{role:'resetZoom'},...viewZoom,{role:'togglefullscreen'}]},{label:'Window',submenu:[{role:'minimize'},{role:'zoom'},{role:'front'}]}]));
 }
 function inputMatches(input,binding){
  if(binding?.kind!=='keyboard')return false;
@@ -118,7 +118,7 @@ function setShortcutContext(value){
  shortcutContext={workspace:value.workspace,editable:value.editable===true,timelineFocused:value.timelineFocused===true,availableActions:actions,bindings};installMenu();return updateGlobalShortcuts();
 }
 function resetShortcutContext(){shortcutContext=emptyShortcutContext();clearGlobalShortcuts();installMenu();reportShortcutStatus();}
-app.setName('SceneForge');
+app.setName('Creator Compiler');
 const gotLock=app.requestSingleInstanceLock();
 if(!gotLock)app.quit();
 app.on('second-instance',()=>{if(mainWindow){mainWindow.show();mainWindow.focus();}});
@@ -126,19 +126,19 @@ app.on('second-instance',()=>{if(mainWindow){mainWindow.show();mainWindow.focus(
 // already-running service only has /api/health. A port holder that never answers
 // times out so the start deadline still applies.
 async function serviceAnswers(){
- for(const route of ['/api/ready','/api/health']){const r=await fetch(base+route,{signal:AbortSignal.timeout(route==='/api/ready'?2000:10000)});if(route==='/api/ready'&&r.status===404){await r.body?.cancel();continue;}const health=await r.json();return r.ok&&health.application==='SceneForge'&&health.version==='0.1.0';}
+ for(const route of ['/api/ready','/api/health']){const r=await fetch(base+route,{signal:AbortSignal.timeout(route==='/api/ready'?2000:10000)});if(route==='/api/ready'&&r.status===404){await r.body?.cancel();continue;}const health=await r.json();return r.ok&&health.application==='Creator Compiler'&&health.version==='0.1.0';}
  return false;
 }
 async function startService(){
  try {if(await serviceAnswers())return;}catch{}
  const entry=path.join(projectRoot,'server-dist/index.mjs');
- const env=runtimeEnvironment({root:projectRoot,data:path.join(app.getPath('userData'),'studio'),port:PORT});
- if(fs.existsSync(entry))service=utilityProcess.fork(entry,[],{env,stdio:'pipe',serviceName:'SceneForge media service'});
+ const env=runtimeEnvironment({root:projectRoot,data:process.env.SCENEFORGE_DATA_DIR||path.join(app.getPath('userData'),'studio'),port:PORT});
+ if(fs.existsSync(entry))service=utilityProcess.fork(entry,[],{env,stdio:'pipe',serviceName:'Creator Compiler media service'});
  else service=spawn(process.env.SCENEFORGE_NODE||process.env.npm_node_execpath||'node',['--import','tsx',path.join(projectRoot,'server/index.ts')],{cwd:projectRoot,env,stdio:'pipe'});
  ownService=true;
  service.stdout?.on('data',d=>console.log(d.toString()));service.stderr?.on('data',d=>console.error(d.toString()));
  for(const deadline=Date.now()+30000;Date.now()<deadline;){try{if(await serviceAnswers())return;}catch{}await new Promise(r=>setTimeout(r,40));}
- throw new Error('The local media service did not start. Reopen SceneForge and check that port 4174 is available.');
+ throw new Error('The local media service did not start. Reopen Creator Compiler and check that its local service port is available.');
 }
 // Hidden/minimized editor: the renderer pauses decorative work, the recorder stops previews.
 // Focus re-checks too, so a stale value cannot outlive the window coming forward.
@@ -151,7 +151,7 @@ app.whenReady().then(async()=>{
  // The window and its renderer process start while the service boots; the page
  // itself is served by the service, so it loads once the service answers.
  const serviceReady=startService();serviceReady.catch(()=>{});
- mainWindow=new BrowserWindow({width:1480,height:960,minWidth:1000,minHeight:680,title:'SceneForge',show:false,backgroundColor:nativeTheme.shouldUseDarkColors?'#0a0a0a':'#f7f7fa',titleBarStyle:'hiddenInset',trafficLightPosition:{x:16,y:20},webPreferences:{preload:path.join(__dirname,'preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true,backgroundThrottling:false}});
+ mainWindow=new BrowserWindow({width:1480,height:960,minWidth:1000,minHeight:680,title:'Creator Compiler',show:false,backgroundColor:nativeTheme.shouldUseDarkColors?'#191b1a':'#f5f3ee',titleBarStyle:process.platform==='darwin'?'hiddenInset':'default',...(process.platform==='darwin'?{trafficLightPosition:{x:16,y:26}}:{}),webPreferences:{preload:path.join(__dirname,'preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true,backgroundThrottling:false}});
  const trusted=(url)=>{try{return new URL(url).origin===base;}catch{return false;}};
  session.defaultSession.setPermissionRequestHandler((contents,permission,callback,details)=>callback(!quitting&&(trusted(contents.getURL())&&['media','display-capture'].includes(permission)||Boolean(recordingHud?.allowsCamera(contents,permission,details)))));
  captureManager=createCaptureManager({BrowserWindow,desktopCapturer,screen,ipcMain,session,systemPreferences,getMainWindow:()=>mainWindow,origin:base});
@@ -188,7 +188,7 @@ app.whenReady().then(async()=>{
  mainWindow.webContents.setWindowOpenHandler(({url})=>{if(/^https?:/.test(url))shell.openExternal(url);return {action:'deny'};});
  mainWindow.webContents.on('will-navigate',(e,url)=>{if(!trusted(url)){e.preventDefault();if(/^https?:/.test(url))shell.openExternal(url);}});
  installMenu();
- try{await serviceReady;}catch(e){if(quitting)return;dialog.showErrorBox('SceneForge could not start',e.message);if(mainWindow&&!mainWindow.isDestroyed())mainWindow.destroy();app.quit();return;}
+ try{await serviceReady;}catch(e){if(quitting)return;dialog.showErrorBox('Creator Compiler could not start',e.message);if(mainWindow&&!mainWindow.isDestroyed())mainWindow.destroy();app.quit();return;}
  if(!mainWindow||mainWindow.isDestroyed())return;
  try{await mainWindow.loadURL(base);}finally{if(mainWindow&&!mainWindow.isDestroyed()&&!mainWindow.isVisible())mainWindow.show();}
 });

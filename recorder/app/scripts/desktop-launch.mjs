@@ -1,0 +1,11 @@
+import {spawn} from 'node:child_process';
+import {createRequire} from 'node:module';
+import path from 'node:path';
+import {fileURLToPath} from 'node:url';
+const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
+const env={...process.env,SCENEFORGE_DATA_DIR:process.env.SCENEFORGE_DATA_DIR||path.join(root,'.local/studio')};
+delete env.ELECTRON_RUN_AS_NODE;
+const child=spawn(createRequire(import.meta.url)('electron'),['desktop/main.cjs'],{cwd:root,env,stdio:'inherit'});
+child.on('error',e=>{console.error(e.message);process.exitCode=1;});
+for(const signal of ['SIGINT','SIGTERM'])process.on(signal,()=>child.kill(signal));
+child.on('exit',code=>process.exit(code||0));

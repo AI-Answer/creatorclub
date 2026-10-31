@@ -1,0 +1,80 @@
+name: Desktop apps
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  desktop:
+    name: ${{ matrix.name }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {name: 'macOS Apple Silicon', os: macos-15, platform: mac, artifact: macos-arm64}
+          - {name: 'Windows x64', os: windows-latest, platform: win, artifact: windows-x64}
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: recorder/app/package-lock.json
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: engine/cutroom
+          cache-on-failure: true
+      - uses: ilammy/msvc-dev-cmd@v1
+        if: runner.os == 'Windows'
+      - name: Install and build
+        run: npm run setup
+      - name: Stage native engine and media binaries
+        run: npm run runtime:desktop
+      - name: Test portable renderer and Cutroom integration
+        working-directory: recorder/app
+        run: node --import tsx --test server/cutroom.test.ts server/portable-graphics.test.ts server/export-durability.test.ts
+      - name: Test Rust engine
+        run: cargo test --release --locked --manifest-path engine/cutroom/Cargo.toml -p cutroom-core -p cutroom-gfx -p cutroom-cut
+      - name: Exercise the native cutting and graphics engine
+        run: npm --prefix recorder/app run test:cutroom
+      - name: Build desktop installers
+        run: npm run package:${{ matrix.platform }}
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - name: Smoke test Windows desktop and bundled Cutroom
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $env:SCENEFORGE_PORT = '4194'
+          $env:SCENEFORGE_DATA_DIR = Join-Path $env:RUNNER_TEMP 'creator-compiler-smoke'
+          $app = Start-Process -FilePath './release/win-unpacked/Creator Compiler.exe' -PassThru
+          try {
+            $ready = $false
+            for ($i=0; $i -lt 90; $i++) {
+              try {
+                $health = Invoke-RestMethod 'http://127.0.0.1:4194/api/ready'
+                if ($health.application -eq 'Creator Compiler') { $ready = $true; break }
+              } catch {}
+              Start-Sleep -Milliseconds 500
+            }
+            if (!$ready) { throw 'The packaged Windows desktop service did not start' }
+            $engine = Invoke-RestMethod 'http://127.0.0.1:4194/api/cutroom/status'
+            if (!$engine.available) { throw 'Bundled Cutroom is unavailable' }
+            $app.Refresh()
+            if ($app.HasExited) { throw 'Desktop app exited during startup' }
+            Write-Output "Windows desktop running; Cutroom $($engine.version)"
+          } finally { if (!$app.HasExited) { Stop-Process $app.Id -Force } }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Creator-Compiler-${{ matrix.artifact }}
+          path: |
+            release/*.dmg
+            release/*.exe
+            release/*.zip
+          if-no-files-found: error
+          retention-days: 14

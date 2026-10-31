@@ -21,7 +21,7 @@ Source: the UI bundle of Borumi 0.32.1 installed at `/Applications/Borumi.app` (
 - "Add a scene to start creating elements."
 - "Warn when microphone is silent" (setting)
 
-## What CreatorClub takes from this
+## What Creator Compiler takes from this
 
 1. The words: **Scene**, **Take**, **Confirm take**, **Record another take**, **Delete take**, **Recent projects** (ours: "Recent videos").
 2. The "Continue to X / Back to X" button pattern: every stage ends with one button that names the next stage.
