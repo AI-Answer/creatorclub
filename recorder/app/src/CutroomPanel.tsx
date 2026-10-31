@@ -31,7 +31,7 @@ export function CutroomPanel({project,flush,onClose,onChanged,onOpen}:{project:P
    <section><label>Preview anchor <input aria-label="Cutroom preview anchor" value={at} onChange={e=>setAt(e.target.value)}/></label><button className="button" disabled={locked} onClick={()=>void action('preview')}><Play size={14}/>Render frame</button>{preview&&<img src={preview} onError={()=>setPreview('')} alt="Actual frame rendered by Cutroom"/>}</section>
    <p className="hint">Cutroom renders its own camera/screen composition with these graphics. Editor transforms, overlays, effects, per-clip audio gain, cursor styling, and music are excluded. Use the standard Export for the editor composition. Source files stay intact.</p>
    <div className="cutroom-actions"><button className="button primary" disabled={locked} onClick={()=>void action('render')}><Download size={14}/>Render with Cutroom</button>{w.rendered&&w.renderGeneration===w.generation&&<><a className="button" href={`/api${base}/render.mp4`} download>Download video</a><button className="button" disabled={locked} onClick={()=>void run(async()=>{const p=await api<Project>(base+'/import-render',{});onOpen(p.id);})}>Open as new video</button></>}</div>
-   <p className="cutroom-status" role="status">{w.status==='running'?<><LoaderCircle className="spin" size={13}/> Working locally…</>:w.status}</p>{w.log&&<pre>{w.log}</pre>}
+   <p className="cutroom-status" role="status">{w.status==='running'?<><LoaderCircle className="spin" size={13}/> Working locally…</>:w.status}</p>{w.log&&<details className="cutroom-advanced"><summary>Processing details</summary><pre>{w.log}</pre></details>}
   </>}
   {(error||w?.error)&&<p role="alert" className="inline-error">{error||w?.error}</p>}
  </div></Modal>;

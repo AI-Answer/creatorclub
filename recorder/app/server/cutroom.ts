@@ -5,7 +5,7 @@ import path from 'node:path';
 import {randomUUID} from 'node:crypto';
 import * as storage from './storage.js';
 import * as media from './media.js';
-import {trimProject} from './mcp.js';
+import {cutTimelineRange} from '../shared/timeline-edits.js';
 import {clipDuration,createProject,defaultTransform,effectsForTrack,makeId,projectDuration,type Project} from '../shared/types.js';
 
 const root=()=>path.join(storage.DATA_DIR,'cutroom');
@@ -105,6 +105,14 @@ export async function run(id:string,action:Action,options:{at?:string}={}){
  return w;
 }
 export async function cancel(id:string){const w=await load(id);active.get(id)?.abort();return w;}
+export function applyCutroomRanges(current:Project,ranges:number[][]){
+ const p=structuredClone(current);
+ for(const [a,b] of [...ranges].sort((a,b)=>b[0]-a[0])){
+  if(!Number.isFinite(a)||!Number.isFinite(b)||a<0||b<=a)throw Error('Invalid Cutroom cut range.');
+  cutTimelineRange(p,a,b,true);
+ }
+ return p;
+}
 export async function applyCuts(id:string,expectedRevision:string){
  const w=await load(id);idle(w);if(w.applied)throw Error('These cuts have already been applied. Prepare a fresh snapshot to analyze again.');
  if(expectedRevision!==w.revision)throw Object.assign(Error('Review the original snapshot revision before applying cuts.'),{status:409});
@@ -112,7 +120,7 @@ export async function applyCuts(id:string,expectedRevision:string){
  const plan=JSON.parse(await fs.readFile(path.join(folders(id),'plan.json'),'utf8'));
  if(!Array.isArray(plan.cuts)||!plan.cuts.length)throw Error('Detect cuts first. There are no cuts to apply.');
  const ranges=plan.cuts.map(([a,b]:[number,number])=>[a/1000,b/1000]);
- const p=trimProject(current,ranges,true);await storage.saveProject(p,{expectedRevision:w.revision,checkpoint:true});w.applied=true;await save(w);return p;
+ const p=applyCutroomRanges(current,ranges);await storage.saveProject(p,{expectedRevision:w.revision,checkpoint:true});w.applied=true;await save(w);return p;
 }
 export async function importRender(id:string){
  const w=await load(id);idle(w);if(!w.rendered||w.renderGeneration!==w.generation)throw Error('Render the current Cutroom edit before importing it.');

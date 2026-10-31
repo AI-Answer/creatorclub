@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createProject,defaultEffects,defaultTransform} from '../shared/types.js';
-import {sourceFromProject} from './cutroom.js';
+import {sourceFromProject,applyCutroomRanges} from './cutroom.js';
 import {createToolHandler,toolDefinitions} from './mcp.js';
 
 test('Cutroom snapshots preserve timeline/source timing, audio provenance, and word anchors',()=>{
@@ -22,4 +22,9 @@ test('Cutroom MCP exposes the engine and preserves exact reviewed revisions befo
  await assert.rejects(()=>handle('cutroom_apply_cuts',{workspace_id:'work-1'}),/reviewed revision/);
  await assert.rejects(()=>handle('cutroom_run',{workspace_id:'../escape',action:'render'}),/valid workspace_id/);
  assert.equal(calls.length,2);assert.equal(toolDefinitions.filter(t=>t.name.startsWith('cutroom_')).length,8);
+});
+
+test('Cutroom silence cuts retain and retime words inside a spanning caption',()=>{
+ const p=createProject('Word-safe cut');p.captions=[{id:'c',start:0,end:8,text:'Hello again',words:[{text:'Hello',start:.2,end:.8},{text:'again',start:6,end:7}]}];p.scenes[0].duration=8;
+ const cut=applyCutroomRanges(p,[[2,5]]);assert.equal(cut.captions[0].words?.length,2);assert.equal(cut.captions[0].words?.[1].start,3);assert.equal(cut.captions[0].text,'Hello again');assert.equal(p.captions[0].words?.[1].start,6);
 });

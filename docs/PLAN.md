@@ -1,6 +1,6 @@
 # Creator Compiler plan
 
-Status: draft for Dani's review, 2026-10-28. Nothing in `app/` is built yet.
+Status: product roadmap, based on the 2026-10-28 draft. The recorder/editor desktop app, rebrand, Cutroom integration, and macOS/Windows build targets now live in this repository. The broader channel/research/publishing shell below remains planned.
 
 ## What it is
 

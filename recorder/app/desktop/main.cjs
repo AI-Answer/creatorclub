@@ -9,7 +9,7 @@ const {createNativeRecordingManager}=require('./native-recording.cjs');
 const {createCaptureBorder}=require('./capture-border.cjs');
 const {createMediaPermissionRequests}=require('./media-permissions.cjs');
 let mainWindow, service, captureManager, recordingHud, nativeRecording, captureBorder, ownService = false, quitting = false;
-const PORT=Number(process.env.SCENEFORGE_PORT||4184), base=`http://127.0.0.1:${PORT}`;
+const PORT=Number(process.env.SCENEFORGE_PORT||(app.isPackaged?4194:4184)), base=`http://127.0.0.1:${PORT}`;
 // The editor window hides while recording; without this macOS may App Nap the app and stall capture.
 let recordingBlocker=null;
 function keepAwakeWhileRecording(type){

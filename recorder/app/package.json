@@ -11,14 +11,15 @@
     "build": "tsc --noEmit && vite build",
     "start": "tsx server/index.ts",
     "test": "tsx --test server/*.test.ts src/*.test.ts scripts/*.test.mjs",
-    "desktop": "electron desktop/main.cjs",
+    "desktop": "node scripts/desktop-launch.mjs",
     "desktop:app": "node scripts/dev-app.mjs --open",
     "mcp": "tsx server/mcp.ts",
     "build:server": "node scripts/bundle-server.mjs",
     "build:all": "npm run build && npm run build:server",
     "package": "node scripts/package.mjs",
     "runtime:desktop": "node scripts/prepare-desktop-runtime.mjs",
-    "package:desktop": "electron-builder --config electron-builder.cjs --publish never"
+    "package:desktop": "electron-builder --config electron-builder.cjs --publish never",
+    "test:cutroom": "node scripts/smoke-cutroom.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",

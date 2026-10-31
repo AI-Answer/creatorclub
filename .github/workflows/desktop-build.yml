@@ -38,6 +38,8 @@ jobs:
         run: node --import tsx --test server/cutroom.test.ts server/portable-graphics.test.ts
       - name: Test Rust engine
         run: cargo test --locked --manifest-path engine/cutroom/Cargo.toml -p cutroom-core -p cutroom-gfx -p cutroom-cut
+      - name: Exercise the native cutting and graphics engine
+        run: npm --prefix recorder/app run test:cutroom
       - name: Build desktop installers
         run: npm run package:${{ matrix.platform }}
         env:
