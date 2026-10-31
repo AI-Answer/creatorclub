@@ -46,6 +46,8 @@ In Edit, open **More → Cutroom cuts and graphics** for the native engine. Open
 
 Screenshots show the running application with synthetic sample footage, rather than private recordings.
 
+The workspace uses locally bundled official service logos with light and dark variants. [Brand asset sources](docs/BRAND-ASSETS.md) documents their provenance.
+
 ## Run from source
 
 Install Node.js 24, npm, Rust, and the platform's compiler tools: Xcode Command Line Tools on macOS, or Visual Studio Build Tools with Desktop development with C++ on Windows.

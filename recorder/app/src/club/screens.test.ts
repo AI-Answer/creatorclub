@@ -128,7 +128,7 @@ test('Videos: ideas are the first lane, grouped Timely, Evergreen, Later and Ski
   assert.equal(text(card.querySelector('.tt')),'Claude for receipts');
   assert.equal(text(card.querySelector('.why')),'People ask about it.','why it could work, not the hook');
   assert.equal(text(card.querySelector('.src')),'Receipts with Claude');
-  assert.equal(card.querySelectorAll('.lvl, .chip, img').length,0,'no rating chips and no picture on the card');
+  assert.equal([...card.querySelectorAll('.lvl, .chip, img')].filter(node=>!node.closest('.brand-logo')).length,0,'no rating chips and no picture on the card; a service mark may identify the source');
   assert.deepEqual([...card.querySelectorAll('button')].map(text),['Start planning'],'Start planning on the card');
   const more=moreOf(c,'Claude for receipts');
   assert.equal(more.closest('[data-card]'),null,'the menu is beside the card, so pressing it does not open the idea');

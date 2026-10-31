@@ -1,0 +1,9 @@
+.brand-logo { display:inline-flex; flex:none; align-items:center; justify-content:center; vertical-align:middle; line-height:0; }
+.brand-logo > img { display:block; width:100%; height:100%; max-width:none; object-fit:contain; user-select:none; pointer-events:none; }
+.brand-logo-youtube > img { transform:scale(1.35); }
+.brand-logo > .brand-logo-dark { display:none; }
+[data-theme=dark] .brand-logo > .brand-logo-light { display:none; }
+[data-theme=dark] .brand-logo > .brand-logo-dark { display:block; }
+.brand-logo.is-working { animation:brand-breathe 1.8s ease-in-out infinite; }
+@keyframes brand-breathe { 50% { opacity:.55; } }
+@media(prefers-reduced-motion:reduce) { .brand-logo.is-working { animation:none; } }

@@ -43,6 +43,12 @@
   --cc-primary: #151413;
   --cc-primary-hover: #2c2a28;
   --cc-on-primary: #ffffff;
+  /* Product and provider surfaces. Service artwork retains its official colours. */
+  --cc-brand: #de5738;
+  --cc-brand-soft: #f8eae4;
+  --cc-provider-tile: #f5f3ef;
+  --cc-postiz-tile: #191817;
+  --cc-shadow-card: 0 1px 2px rgb(25 22 18 / 0.025), 0 8px 28px -16px rgb(25 22 18 / 0.12);
   /* Status: recording and destructive, done, warning */
   --cc-rec: #e5484d;
   --cc-rec-soft: #fdecec;
@@ -131,7 +137,7 @@
   --cc-space-8: 32px;
   --cc-r-sm: 6px;
   --cc-r: 8px;
-  --cc-r-lg: 12px;
+  --cc-r-lg: 14px;
   --cc-r-pill: 999px;
   --cc-text-xs: 12px;
   --cc-text-sm: 13px;
@@ -160,6 +166,9 @@
 }
 
 .club-root:where([data-theme=dark], [data-theme=dark] *) {
+  --cc-brand-soft: #38251f;
+  --cc-provider-tile: #272522;
+  --cc-shadow-card: 0 1px 2px rgb(0 0 0 / 0.2), 0 8px 28px -16px rgb(0 0 0 / 0.4);
   /* The primary action on a dark surface: the light button */
   --cc-primary: #f3f1ed;
   --cc-primary-hover: #ffffff;

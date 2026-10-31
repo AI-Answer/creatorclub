@@ -58,7 +58,7 @@ export function SettingsScreen({section:linked,onSetup}:{section?:SettingsSectio
   readStatus();
   clubFetch<ClubSettings>('/settings').then(settings=>setData(current=>current&&{...current,settings}),()=>{});
  },[readStatus]);
- return <div className="page" style={{maxWidth:760}}>
+ return <div className="page settings-page">
   <div className="page-head"><div><h1>Settings</h1><div className="lede">Your AI, your channel, and how videos get published.</div></div></div>
   {error?<ErrorLine message={error} onRetry={refresh} primary/>
    :!data?<SettingsSkeleton/>

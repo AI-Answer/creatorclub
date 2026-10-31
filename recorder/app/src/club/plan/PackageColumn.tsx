@@ -1,4 +1,5 @@
 import {useEffect,useRef,useState,type ReactNode} from 'react';
+import {BrandLogo} from '../../BrandLogo';
 import type {ConceptLevel,ConceptRating,Package} from '../../../shared/club';
 import {Button,Ed,Icon,Menu,cn,type IconName,type MenuItem} from '../ui';
 import {SAVE_DELAY_MS,type SaveStatus} from '../usePlan';
@@ -102,7 +103,7 @@ export function PackageColumn({videoId,videoTitle,pkg,running,onEdit,onPickTitle
   <div className="pkg-empty">
    <p>The title, thumbnail text and hook decide whether people click. Claude writes them from the board, and you can change every word.</p>
    <div className="row" style={{gap:14,flexWrap:'wrap'}}>
-    {onWrite&&<Button onClick={()=>onWrite()}><Icon name="ai" size={15}/>Write the package with Claude</Button>}
+    {onWrite&&<Button onClick={()=>onWrite()}><BrandLogo brand="claude" size={18}/>Write the package with Claude</Button>}
     <button type="button" className="linkish quiet" onClick={()=>{setManual(true);setKeep([0]);setFocusSlot(0);}}>or fill it in yourself</button>
    </div>
   </div>
@@ -122,7 +123,7 @@ export function PackageColumn({videoId,videoTitle,pkg,running,onEdit,onPickTitle
   {label:hasEmptyPlace(pkg,'hook')?'Write the hook':'Write the hook again',icon:'ai',fn:()=>writer.write('hook')},
  ];
  const menu=onWrite&&<Menu align="right" label="Write with Claude" items={writes} button={(toggle,open)=><Button size="sm" aria-expanded={open} aria-haspopup="menu" disabled={!writes.length} onClick={toggle}>
-  {running?<span className="spin" role="status" aria-label="Writing"/>:<Icon name="ai" size={14}/>}Write with Claude<Icon name="expand" size={13}/></Button>}/>;
+  {running?<span className="spin" role="status" aria-label="Writing"/>:<BrandLogo brand="claude" size={18}/>}Write with Claude<Icon name="expand" size={13}/></Button>}/>;
  const titles=shownTitles(value.titles,keep);
  const own=chosen<0&&!!videoTitle.trim();
 

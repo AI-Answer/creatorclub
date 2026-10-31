@@ -1,3 +1,4 @@
+import {BrandLogo} from '../../BrandLogo';
 import {useRef,useState} from 'react';
 import type {ClubSettings,PublishingState,PublishVisibility} from '../../../shared/club';
 import {getAppearance,setAppearance} from '../../appearance';
@@ -26,8 +27,8 @@ export function PublishingSection({publishing,error,onReload,onPublishing,savedT
  return <section className="set-group" id="set-publishing" aria-labelledby="set-publishing-title"><h2 id="set-publishing-title">Publishing and look</h2><p>Where videos go, and how Creator Compiler looks. You can still change who can watch on each video.</p>
   <Card>
    <div className="srow2" style={{alignItems:'flex-start'}}>
-    <span className="logo logo-postiz">P</span>
-    <div className="grow" style={{minWidth:0}}><div className="st">Postiz</div><div className="sd" style={{marginBottom:10}}>Uploads your videos to YouTube, now or at a time you pick. A paid service, from $29 a month.</div>
+    <span className="logo logo-postiz"><BrandLogo brand="postiz" size={28}/></span>
+    <div className="grow" style={{minWidth:0}}><div className="st">Postiz</div><div className="sd" style={{marginBottom:10}}>Publishes to your connected YouTube channel, now or on a schedule.</div>
      {error?<ErrorLine message={error} onRetry={onReload}/>:publishing?<PostizSetup state={publishing} onState={onPublishing}/>:<Spinner label="Loading"/>}
     </div>
    </div>

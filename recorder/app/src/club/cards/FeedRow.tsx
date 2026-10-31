@@ -1,3 +1,4 @@
+import {BrandLogo} from '../../BrandLogo';
 import {useState,type KeyboardEvent} from 'react';
 import type {SignalEntry,TrendingEntry} from '../../../shared/club';
 import {FollowChannel} from '../FollowChannel';
@@ -31,7 +32,7 @@ export function VideoRow({item,rank,isNew,reason,hasBreakdown,inIdeas,onBreak,on
   <Thumb videoId={item.videoId} seed={item.videoId} className="fpic">{isNew&&<span className="chip solid br">New</span>}</Thumb>
   <div className="main">
    <div className="tt clamp2">{item.title}</div>
-   <div className="meta"><Icon name="youtube" size={13}/><span className="ellipsis">{item.channel}</span>
+   <div className="meta"><BrandLogo brand="youtube" size={15}/><span className="ellipsis">{item.channel}</span>
     {item.mult!=null&&item.mult>0&&<MultChip m={item.mult} who={who} label/>}
     <span title="Total views">{fmtNum(item.views)} views</span><span title="Views per day since it went up">{fmtNum(item.vpd)} views a day</span><span>{fmtDays(item.ageDays)}</span>
     {hasBreakdown&&<span className="ready"><Icon name="script" size={12}/>Breakdown ready</span>}</div>

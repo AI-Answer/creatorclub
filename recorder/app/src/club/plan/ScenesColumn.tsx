@@ -1,4 +1,5 @@
 import {useEffect,useRef,useState,type KeyboardEvent,type PointerEvent} from 'react';
+import {BrandLogo} from '../../BrandLogo';
 import type {Outline,OutlineScene,VideoScene} from '../../../shared/club';
 import {toProgress} from '../scenes';
 import {Button,Ed,Icon,IconButton,Menu,SceneStatus,cn,useToast,type MenuItem} from '../ui';
@@ -103,7 +104,7 @@ export function ScenesColumn({target,onTarget,hasRecording,outline,known,focusId
   <div className="doc-h"><h2>Scenes</h2>{scenes.length>0&&<span className="chip">{scenes.length}</span>}
    <span className="grow"/>
    {scenes.length>0&&<Menu align="right" label="Write with Claude" items={writes} button={(toggle,open)=><Button size="sm" aria-expanded={open} aria-haspopup="menu" disabled={!writes.length} onClick={toggle}>
-    {busy?<span className="spin" role="status" aria-label="Writing"/>:<Icon name="ai" size={14}/>}Write with Claude<Icon name="expand" size={13}/></Button>}/>}
+    {busy?<span className="spin" role="status" aria-label="Writing"/>:<BrandLogo brand="claude" size={18}/>}Write with Claude<Icon name="expand" size={13}/></Button>}/>}
   </div>
   {scenes.length>0&&<div className="row" style={{marginBottom:14,gap:'8px 14px',flexWrap:'wrap'}}>
    <span className="doc-sub" style={{margin:0}}>Talk through each one when you record.</span><span className="grow"/>

@@ -67,7 +67,7 @@ function VideoRoute({id,tab,navigate}:{id:string;tab?:VideoTab;navigate(route:Ro
 
 /** Creator Compiler's root: the sidebar beside the current screen, with search (⌘K), New video, the How it works dialog and toasts above them. */
 export default function ClubApp(){
- return <div className={cn('club-root',window.sceneForge&&'club-desktop')}>
+ return <div className={cn('club-root',window.sceneForge&&'club-desktop')} data-platform={window.sceneForge?.platform}>
   <ToastProvider><Shell/></ToastProvider>
  </div>;
 }

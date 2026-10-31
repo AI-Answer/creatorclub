@@ -1,3 +1,4 @@
+import {BrandMark} from '../BrandMark';
 import {useCallback,useEffect,useState} from 'react';
 import type {Video,Workspace} from '../../shared/club';
 import {clubFetch} from './api';
@@ -29,6 +30,7 @@ export function Sidebar({route,collapsed,onToggle,onSearch,onHelp,onSwitched,onA
  return <nav className={`sidebar${collapsed?' collapsed':''}`} aria-label="Main">
   <div className="club-drag club-window-top"/>
   <div className="sb-top">
+   <a className="compiler-nav-brand" href="#/home" aria-label="Creator Compiler home" title="Creator Compiler"><BrandMark size={25}/><span>Creator Compiler</span></a>
    <ChannelSwitcher collapsed={collapsed} epoch={epoch} onSwitched={onSwitched} onAdd={onAdd}/>
   </div>
   <button type="button" className="sb-search" onClick={onSearch} title="Search (⌘K)" aria-label="Search"><Icon name="search" size={15}/><span>Search</span><span className="kbd">⌘K</span></button>

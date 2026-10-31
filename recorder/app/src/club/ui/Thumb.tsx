@@ -1,12 +1,13 @@
 import {useState,type CSSProperties,type ReactNode} from 'react';
 import {thumbGradient,ytThumb} from '../format';
+import {BrandMark} from '../../BrandMark';
 
 /** A typographic stand-in thumbnail: the text over a gradient picked from the seed. */
 export function DraftThumb({text,seed,small}:{text?:string;seed:string;small?:boolean}){
  const [from,to]=thumbGradient(seed);
  const size=small?'clamp(9px, 2.6cqw, 13px)':'clamp(13px, 7.4cqw, 34px)';
  return <div className="tthumb" style={{background:`linear-gradient(135deg, ${from}, ${to})`,containerType:'inline-size'}}>
-  <div className="face"/>
+  <div className="draft-mark" aria-hidden="true"><BrandMark/></div>
   <div className="tt" style={{fontSize:size}}>{text||''}</div>
  </div>;
 }

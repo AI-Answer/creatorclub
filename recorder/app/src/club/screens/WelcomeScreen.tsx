@@ -148,8 +148,8 @@ export function WelcomeScreen({navigate,initialStep}:{navigate(route:Route,optio
  const editFailed=edit.state.phase==='failed'?edit.state.message:'';
 
  return <div className="welcome">
-  <div className="row club-drag" style={{padding:window.sceneForge?.platform==='darwin'?'18px 28px 18px 94px':'18px 28px'}}>
-   <span style={{width:30,height:30,display:'inline-flex'}}><BrandMark/></span><b style={{letterSpacing:'-0.01em'}}>Creator Compiler</b>
+  <div className="row club-drag welcome-header" style={{padding:window.sceneForge?.platform==='darwin'?'18px 28px 18px 94px':'18px 28px'}}>
+   <span className="welcome-brand"><BrandMark size={30}/></span><b style={{letterSpacing:'-0.01em'}}>Creator Compiler</b>
    <span className="grow"/><button type="button" className="linkish" style={{color:'var(--cc-text-2)'}} onClick={home}>Skip setup</button>
   </div>
   <div className="welcome-body" ref={body}>
@@ -158,8 +158,8 @@ export function WelcomeScreen({navigate,initialStep}:{navigate(route:Route,optio
      <span className="small muted tnum">Step {shown+1} of 4</span>
      <div style={{display:'flex',gap:4,flex:1,maxWidth:220}}>{WELCOME_STEPS.map((_,index)=><span key={index} style={{flex:1,height:4,borderRadius:4,background:index<=shown?'var(--cc-primary)':'var(--cc-line-strong)',transition:'background .3s'}}/>)}</div>
     </div>
-    <h1 style={{fontSize:28,letterSpacing:'-0.025em',margin:'0 0 8px',lineHeight:1.15}}>{title}</h1>
-    <p className="muted" style={{margin:'0 0 22px',fontSize:15,lineHeight:1.55,maxWidth:600}}>{info.why}</p>
+    <h1 className="welcome-title">{title}</h1>
+    <p className="muted welcome-why">{info.why}</p>
     {shown===0&&<ConnectStep check={check} onReload={recheck} onConnected={result=>connected(result?.provider??'claude',result?.account)}/>}
     {shown===1&&<ChannelStep path={path} onPath={setPath} url={url} onUrl={setUrl} job={add.state} onAdd={addChannel} block={block} onConnect={()=>goTo(0)} channel={channel} fresh={fresh} onFresh={setFresh}/>}
     {shown===2&&<VoiceStep path={path} channel={channel} fromVideos={fromVideos} draft={voice} onDraft={setVoice} save={save.state} onRetry={finishVoice} incomplete={incomplete} saved={savedVoice!==null}/>}

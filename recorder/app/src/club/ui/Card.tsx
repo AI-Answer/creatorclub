@@ -1,7 +1,7 @@
 import type {ComponentProps} from 'react';
 import {cn} from './cn';
 
-/** White surface, 12px radius, 1px hairline border. Callers add padding. */
+/** Shared white surface, a hairline border, and subtle elevation. Callers add padding. */
 export function Card({className,...props}:ComponentProps<'div'>){
  return <div className={cn('card',className)} {...props}/>;
 }

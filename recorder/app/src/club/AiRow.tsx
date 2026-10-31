@@ -1,12 +1,10 @@
 import type {AiProviderStatus,ConnectProvider,ConnectResult} from '../../shared/club';
 import {ConnectStatus} from './ConnectStatus';
 import {connectLabel,useConnect} from './useConnect';
-import {Button,Icon,type IconName} from './ui';
+import {Button,Icon} from './ui';
+import {BrandLogo} from '../BrandLogo';
 
-const LOGO:Record<ConnectProvider,{icon:IconName;className:string}>={
- claude:{icon:'ai',className:'logo-claude'},
- codex:{icon:'assistant',className:'logo-codex'},
-};
+const LOGO:Record<ConnectProvider,string>={claude:'logo-claude',codex:'logo-codex'};
 
 /** What a connected row says. ChatGPT's sign-in has no address to show, so it says what it is. */
 export const accountLine=(provider:ConnectProvider,account?:string)=>!account?'Connected':provider==='codex'&&account==='ChatGPT'?'Connected with your ChatGPT account':`Connected as ${account}`;
@@ -22,7 +20,7 @@ export function AiRow({provider,status,description,primary=false,settings=false,
  const connected=status.signedIn;
  const reconnect=connected&&settings;
  return <div className="srow" style={{flexWrap:'wrap'}}>
-  <span className={`logo ${logo.className}`}><Icon name={logo.icon} size={20}/></span>
+  <span className={`logo ${logo}`}><BrandLogo brand={provider} size={26}/></span>
   <div className="grow" style={{minWidth:0}}>
    <div style={{fontWeight:600}}>{name}</div>
    <div className="small muted">{connected

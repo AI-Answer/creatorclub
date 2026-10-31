@@ -1,3 +1,4 @@
+import {BrandLogo} from '../../BrandLogo';
 import {useCallback,useEffect,useMemo,useRef,useState} from 'react';
 import type {SignalEntry,TrendingEntry} from '../../../shared/club';
 import {clubFetch,errorMessage} from '../api';
@@ -154,7 +155,7 @@ export function DiscoverScreen({show='fit',navigate}:{show?:DiscoverShow;navigat
    <button type="button" className="linkish ideas-shelf" onClick={()=>navigate({name:'videos',view:'board'})} title="Your ideas are the first lane of Videos"><Icon name="idea" size={14}/>Your ideas <b className="tnum">{ideas}</b></button>
   </div>
   <div className="row disc-bar">
-   {view==='fit'&&<div className="disc-sources" role="group" aria-label="Source">{DISCOVER_SOURCES.map(([key,label])=><button key={key} type="button" className={`fchip${show===key?' on':''}`} aria-pressed={show===key} onClick={()=>choose(key)}>{label} <span className="n">{counts[key]}</span></button>)}</div>}
+   {view==='fit'&&<div className="disc-sources" role="group" aria-label="Source">{DISCOVER_SOURCES.map(([key,label])=><button key={key} type="button" className={`fchip${show===key?' on':''}`} aria-pressed={show===key} onClick={()=>choose(key)}>{(key==='youtube'||key==='x'||key==='reddit')&&<BrandLogo brand={key} size={15}/>}{label} <span className="n">{counts[key]}</span></button>)}</div>}
    <span className="grow"/>
    <label className="small muted" htmlFor="discover-sort">Sort by</label>
    <select id="discover-sort" className="select" value={sort} onChange={event=>{if(!running&&held)showNew();setSort(event.target.value as DiscoverSort);}}>{sortsFor(show).map(([key,label])=><option key={key} value={key}>{label}</option>)}</select>

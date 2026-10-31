@@ -1,3 +1,4 @@
+import {BrandLogo} from '../../BrandLogo';
 import {useCallback,useEffect,useMemo,useRef,useState} from 'react';
 import type {Package,PublishProgress,PublishRecord,PublishVisibility,Video,VideoScene} from '../../../shared/club';
 import type {ExportRecord} from '../../../shared/export-history';
@@ -167,8 +168,8 @@ export function Publish({video,pkg,scenes,onVideo,onDescription,onTags,onGoTo,on
    <Card className="pubx-route">
     {publishing.error?<ErrorLine message={publishing.error} onRetry={publishing.reload}/>:!publishing.state?<Spinner label="Loading"/>
      :publishing.state.postiz.connected
-      ?<div className="rh"><span className="logo logo-postiz">P</span><div><div className="rt"><b>Postiz connected.</b>{publishing.state.postiz.channel&&<> Posts to {publishing.state.postiz.channel.name} on YouTube.</>}</div><div className="rd">Uploads it for you, now or at the time you pick.</div></div><button type="button" className="linkish" style={{marginLeft:'auto'}} onClick={onSettings}>Change in Settings</button></div>
-      :<div className="rh"><span className="logo logo-postiz">P</span><div><div className="rt">Publishing isn't set up yet</div><div className="rd">Connect Postiz once in Settings. Your video and details are kept, and you can finish them first.</div></div><Button size="sm" style={{marginLeft:'auto'}} onClick={onSettings}>Set up publishing</Button></div>}
+      ?<div className="rh"><span className="logo logo-postiz"><BrandLogo brand="postiz" size={28}/></span><div><div className="rt"><b>Postiz connected.</b>{publishing.state.postiz.channel&&<> Posts to {publishing.state.postiz.channel.name} on YouTube.</>}</div><div className="rd">Uploads it for you, now or at the time you pick.</div></div><button type="button" className="linkish" style={{marginLeft:'auto'}} onClick={onSettings}>Change in Settings</button></div>
+      :<div className="rh"><span className="logo logo-postiz"><BrandLogo brand="postiz" size={28}/></span><div><div className="rt">Publishing isn't set up yet</div><div className="rd">Connect Postiz once in Settings. Your video and details are kept, and you can finish them first.</div></div><Button size="sm" style={{marginLeft:'auto'}} onClick={onSettings}>Set up publishing</Button></div>}
    </Card>
    <Card className="pubx-form">
     <div className="full"><label className="field" htmlFor="pub-title">Title</label><Input id="pub-title" maxLength={TITLE_MAX} value={title} onChange={event=>setTitle(event.target.value)}/></div>
