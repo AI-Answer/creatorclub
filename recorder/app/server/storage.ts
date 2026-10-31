@@ -1,10 +1,12 @@
 import { promises as fs, constants as fsConstants, type Stats } from 'node:fs';
 import path from 'node:path';
+import {summarizeProject,type VersionSummary} from '../shared/history-summary.js';
 import os from 'node:os';
 import { createHash, randomUUID } from 'node:crypto';
 import {EventEmitter} from 'node:events';
 import { createProject, projectDuration, isAudioRole, type Project, type Media, type AISettings } from '../shared/types.js';
 import type {TrashProjectSummary,TrashRestoreResult} from '../shared/recovery.js';
+import {motionBlockProblem} from '../shared/motion/templates.js';
 
 export const DATA_DIR=path.resolve(process.env.SCENEFORGE_DATA_DIR||path.join(process.platform==='win32'?(process.env.APPDATA||path.join(os.homedir(),'AppData/Roaming')):path.join(os.homedir(),'Library/Application Support'),'Creator Compiler/studio'));
 export const CACHE_DIR=path.join(DATA_DIR,'cache');
@@ -22,7 +24,7 @@ export async function atomicJSON(file:string,value:unknown){const temp=file+'.'+
 export async function readProject(id:string):Promise<Project>{return JSON.parse(await fs.readFile(path.join(PROJECT_DIR,safeId(id)+'.json'),'utf8'));}
 /** Screen, else camera, media of the most recent take: a quick recording has takes before it has timeline clips. */
 function latestTakeVisual(p:Project){const take=p.recordedTakes?.at(-1);if(!take)return undefined;return (take.media[take.tracks.indexOf('screen')]??take.media[take.tracks.indexOf('camera')])?.id;}
-export async function listProjects(){const files=await fs.readdir(PROJECT_DIR);const projects=await Promise.all(files.filter(f=>f.endsWith('.json')).map(async f=>{try{const p:Project=JSON.parse(await fs.readFile(path.join(PROJECT_DIR,f),'utf8'));return {id:p.id,name:p.name,updatedAt:p.updatedAt,duration:projectDuration(p),clipCount:p.clips.length,mediaCount:p.media.length,sceneCount:p.scenes.length,thumbnailMediaId:(p.clips.find(c=>c.track==='screen')??p.clips.find(c=>c.track==='camera')??p.clips.find(c=>c.track==='overlay'))?.mediaId??latestTakeVisual(p),takeCount:p.recordedTakes?.length??0};}catch{return null;}}));return projects.filter(Boolean).sort((a,b)=>b!.updatedAt.localeCompare(a!.updatedAt));}
+export async function listProjects(){const files=await fs.readdir(PROJECT_DIR);const projects=await Promise.all(files.filter(f=>f.endsWith('.json')).map(async f=>{try{const p:Project=JSON.parse(await fs.readFile(path.join(PROJECT_DIR,f),'utf8'));return {id:p.id,name:p.name,updatedAt:p.updatedAt,duration:projectDuration(p),clipCount:p.clips.length,mediaCount:p.media.length,sceneCount:p.scenes.length,thumbnailMediaId:(p.clips.find(c=>c.track==='screen')??p.clips.find(c=>c.track==='camera')??p.clips.find(c=>c.track==='overlay'))?.mediaId??latestTakeVisual(p),takeCount:p.recordedTakes?.length??0,recordedSceneCount:new Set((p.recordedTakes??[]).map(t=>t.sceneId).filter(id=>p.scenes.some(s=>s.id===id))).size};}catch{return null;}}));return projects.filter(Boolean).sort((a,b)=>b!.updatedAt.localeCompare(a!.updatedAt));}
 const lastHistory=new Map<string,number>();
 const writeQueues=new Map<string,Promise<unknown>>();
 const trashQueues=new Map<string,Promise<unknown>>();
@@ -121,6 +123,15 @@ export async function history(id:string){
  await Promise.all(Array.from({length:Math.min(4,files.length)},async()=>{while(next<files.length){const i=next++,s=await snapshotSummary(path.join(dir,files[i]));items[i]={id:files[i].slice(0,-5),createdAt:s.updatedAt,name:s.name};}}));
  return items;
 }
+/** What each listed version holds (length, counts, fingerprints), for titles that say what changed. Snapshots never change, so a summary is read once per file. */
+const summaries=new Map<string,VersionSummary|null>();
+export async function historySummaries(id:string){
+ const dir=path.join(HISTORY_DIR,safeId(id)),files=(await fs.readdir(dir).catch(()=>[])).filter(f=>f.endsWith('.json')).sort().reverse().slice(0,100),out:Record<string,VersionSummary>={};let next=0;
+ await Promise.all(Array.from({length:Math.min(4,files.length)},async()=>{while(next<files.length){const file=files[next++],key=path.join(dir,file);
+  if(!summaries.has(key)){try{summaries.set(key,summarizeProject(JSON.parse(await fs.readFile(key,'utf8'))));}catch{summaries.set(key,null);}}
+  const summary=summaries.get(key);if(summary)out[file.slice(0,-5)]=summary;}}));
+ return out;
+}
 export async function restoreProject(id:string,historyId:string,expectedRevision:string){if(!expectedRevision)throw Object.assign(Error('Reload and review the current project before restoring history.'),{status:409});const p:Project=JSON.parse(await fs.readFile(path.join(HISTORY_DIR,safeId(id),safeId(historyId)+'.json'),'utf8'));p.id=id;return saveProject(p,{checkpoint:true,expectedRevision});}
 export async function registerMedia(media:Media){safeId(media.id);if(media.audioRole!==undefined&&!isAudioRole(media.audioRole))throw new Error('Invalid media audio role');if(media.audioRole===undefined){const previous=await readMedia(media.id).catch(()=>undefined);if(previous?.path===media.path&&isAudioRole(previous.audioRole))media={...media,audioRole:previous.audioRole};}await atomicJSON(path.join(MEDIA_DIR,media.id+'.json'),media);return media;}
 export async function readMedia(id:string):Promise<Media>{return JSON.parse(await fs.readFile(path.join(MEDIA_DIR,safeId(id)+'.json'),'utf8'));}
@@ -161,6 +172,7 @@ export function validateProject(value:unknown):Project{
  }
  for(const s of p.scenes){if(!Number.isFinite(s.start)||!Number.isFinite(s.duration)||s.start<0||s.duration<0||typeof s.script!=='string')throw new Error('Invalid scene');}
  for(const e of p.elements){if(![e.start,e.duration,e.x,e.y,e.width,e.height,e.fontSize,e.opacity,e.rotation].every(Number.isFinite)||e.start<0||e.duration<0)throw new Error('Invalid element');}
+ if(p.motion!==undefined){if(!Array.isArray(p.motion)||p.motion.length>10000)throw new Error('Invalid motion');for(const m of p.motion){const problem=motionBlockProblem(m);if(problem)throw new Error(problem);}}
  for(const z of p.zooms){if(![z.start,z.duration,z.scale,z.x,z.y].every(Number.isFinite)||z.start<0||z.duration<=0||z.scale<1)throw new Error('Invalid zoom');if(z.effectTiming!==undefined){const timing=z.effectTiming;if(!timing||typeof timing!=='object'||Array.isArray(timing)||![timing.offset,timing.duration].every(Number.isFinite)||timing.offset<0||timing.duration<=0||timing.offset>86400||timing.duration>86400)throw new Error('Invalid zoom effect timing');}}
  if(!p.cursor||!Array.isArray(p.cursor.points)||!p.settings||!p.captionStyle)throw new Error('Project settings are missing');
  if(p.recordedTakes!==undefined){

@@ -1,0 +1,195 @@
+import {useEffect,useRef,useState,type ReactNode} from 'react';
+import {BrandLogo} from '../../BrandLogo';
+import type {ConceptLevel,ConceptRating,Package} from '../../../shared/club';
+import {Button,Ed,Icon,Menu,cn,type IconName,type MenuItem} from '../ui';
+import {SAVE_DELAY_MS,type SaveStatus} from '../usePlan';
+import {EMPTY_PACKAGE,chosenTitle,hasEmptyPlace,packageView,shownTitles,titleWarning,type PackageGroup} from './plan-logic';
+
+const LEVELS:{value:ConceptLevel;label:string}[]=[{value:'high',label:'High'},{value:'mid',label:'Mid'},{value:'low',label:'Low'}];
+const WHY:{key:'demand'|'gap'|'show';label:string}[]=[{key:'demand',label:'Demand'},{key:'gap',label:'Gap'},{key:'show',label:'Easy to show'}];
+/** The hook's spoken line is always shown; what they see and the text on screen are under More. */
+const HOOK_MORE:{key:'visual'|'text';label:string;icon:IconName;ph:string}[]=[
+ {key:'visual',label:'Visual',icon:'preview',ph:'What they see first'},
+ {key:'text',label:'On-screen',icon:'text',ph:'Text on screen'},
+];
+
+/**
+ * Writing a group is a question to the chat, so nothing is replaced until the creator uses one of Claude's cards: `write(group)` just asks.
+ * The empty package asks for all three groups at once (`write()` with no group).
+ */
+export function usePackageWrite(_pkg:Package|null,onWrite:(group?:PackageGroup)=>void){
+ const write=(group?:PackageGroup)=>onWrite(group);
+ return {write};
+}
+
+/** The uploaded thumbnail of the video, when there is one: the only picture the Package shows (never a made-up one). */
+function useThumbnail(videoId:string){
+ const [url,setUrl]=useState<string|null>(null);
+ useEffect(()=>{
+  let alive=true;
+  const path=`/api/club/videos/${encodeURIComponent(videoId)}/thumbnail`;
+  void fetch(path).then(response=>{if(alive&&response.status===200&&response.headers.get('content-type')?.startsWith('image/'))setUrl(`${path}?v=${Date.now()}`);},()=>{});
+  return()=>{alive=false;};
+ },[videoId]);
+ return url;
+}
+
+/** A quiet line beside the heading: Saving…, Saved, or Couldn't save with Try again. Nothing before the first change. */
+function SaveLine({status,onRetry}:{status?:SaveStatus;onRetry?():void}){
+ if(!status||status==='idle')return null;
+ if(status==='error')return <span className="pkg-save bad" role="alert">Couldn't save{onRetry&&<> · <button type="button" className="linkish" onClick={onRetry}>Try again</button></>}</span>;
+ return <span className="pkg-save" role="status">{status==='saving'?'Saving…':'Saved'}</span>;
+}
+
+/**
+ * The left column of Plan: why this video gets clicked. Empty, it is one sentence and one action (Claude writes it, or you fill it
+ * in yourself). Written, it is compact: the titles as a list with the video's title ticked, the thumbnail text (beside the real
+ * thumbnail when one was uploaded) and the hook's first line; the rest is one click away under More. Everything is editable in place,
+ * and the one "Write with Claude" menu in the heading writes the titles, the thumbnail text or the hook. Every field saves as it is
+ * typed (the page saves a moment after the last keystroke, and at once when a field is left), and the heading says Saving… or Saved.
+ * The video's own title is always the ticked one: when it is not one of the options it shows as its own row.
+ */
+export function PackageColumn({videoId,videoTitle,pkg,running,onEdit,onPickTitle,onWrite,save,onSaveNow,onRetrySave}:{videoId:string;videoTitle:string;pkg:Package|null;running:boolean;onEdit(next:Package):void;onPickTitle(title:string):void;
+ /** Runs the package job; with a group, that group is written again whole. Without it the column offers no writing. */
+ onWrite?(replace?:PackageGroup):void;
+ /** Where saving the package stands, and how to save now (a field was left) or try a failed save again. */
+ save?:SaveStatus;onSaveNow?():void;onRetrySave?():void;
+}){
+ const value=pkg??EMPTY_PACKAGE;
+ const [more,setMore]=useState(false),[manual,setManual]=useState(false);
+ // Title rows that stay while they are typed in, even empty; the one just added takes the focus.
+ const [keep,setKeep]=useState<number[]>([]),[focusSlot,setFocusSlot]=useState<number|null>(null);
+ // The video's title follows a typed title a moment after the typing, like the package; leaving the field sends it at once.
+ const picking=useRef<{index:number;text:string;timer:ReturnType<typeof setTimeout>}|null>(null);
+ const [pendingPick,setPendingPick]=useState<number|null>(null);
+ const sendPick=()=>{const pick=picking.current;if(!pick)return;clearTimeout(pick.timer);picking.current=null;setPendingPick(null);onPickTitle(pick.text);};
+ const pickSoon=(index:number,text:string)=>{
+  if(picking.current)clearTimeout(picking.current.timer);
+  if(!text.trim()){picking.current=null;return;}
+  picking.current={index,text:text.trim(),timer:setTimeout(sendPick,SAVE_DELAY_MS)};setPendingPick(index);
+ };
+ const pickRef=useRef(sendPick);pickRef.current=sendPick;
+ useEffect(()=>()=>pickRef.current(),[]);
+ const leave=()=>{sendPick();setPendingPick(null);onSaveNow?.();};
+ const writer=usePackageWrite(pkg,replace=>onWrite?.(replace));
+ const thumbnail=useThumbnail(videoId);
+ const view=packageView(pkg,{running,manual});
+ const set=<K extends keyof Package>(key:K,next:Package[K])=>onEdit({...value,[key]:next});
+ // While the video's title is being typed in one of the options, that option stays ticked.
+ const chosen=pendingPick??chosenTitle(value.titles,videoTitle);
+ const spin=(group:PackageGroup)=>running&&hasEmptyPlace(pkg,group);
+ const setTitle=(index:number,text:string)=>{
+  const titles=[...value.titles] as Package['titles'];titles[index]=text.trim();
+  onEdit({...value,titles});
+  if(!keep.includes(index))setKeep(now=>[...now,index]);
+  // The chosen title is the video's title, so editing it keeps them the same.
+  if(index===chosen)pickSoon(index,text);
+ };
+ const emptySlot=value.titles.findIndex(title=>!title.trim());
+ /** Using an option as the title keeps the title it replaces as an option, when there is room for it. */
+ const useTitle=(title:string)=>{
+  sendPick();
+  if(chosen<0&&videoTitle.trim()&&emptySlot>=0){const titles=[...value.titles] as Package['titles'];titles[emptySlot]=videoTitle.trim();onEdit({...value,titles});}
+  onPickTitle(title);
+ };
+ const setRating=(key:'demand'|'gap'|'show',next:ConceptRating)=>onEdit({...value,[key]:next});
+ const hookField=(key:keyof Package['hook'],ph:string)=>spin('hook')&&!value.hook[key]?<div className="shimmer" style={{height:20}}/>
+  :<Ed multiline live value={value.hook[key]} ph={ph} onChange={text=>set('hook',{...value.hook,[key]:text})} onLeave={leave}/>;
+
+ const heading=(tools?:ReactNode)=><div className="doc-h"><h2>Title, thumbnail and hook</h2><span className="grow"/>{tools}</div>;
+
+ if(view==='empty')return <section className="pkg" aria-label="Package">
+  {heading()}
+  <div className="pkg-empty">
+   <p>The title, thumbnail text and hook decide whether people click. Claude writes them from the board, and you can change every word.</p>
+   <div className="row" style={{gap:14,flexWrap:'wrap'}}>
+    {onWrite&&<Button onClick={()=>onWrite()}><BrandLogo brand="claude" size={18}/>Write the package with Claude</Button>}
+    <button type="button" className="linkish quiet" onClick={()=>{setManual(true);setKeep([0]);setFocusSlot(0);}}>or fill it in yourself</button>
+   </div>
+  </div>
+ </section>;
+
+ if(view==='writing')return <section className="pkg" aria-label="Package" aria-busy="true">
+  {heading()}
+  <div style={{display:'flex',flexDirection:'column',gap:12,marginTop:18}} role="status" aria-label="Writing the package">
+   {[0,1,2].map(i=><div key={i} className="shimmer" style={{height:22,width:`${90-i*12}%`}}/>)}
+   <div className="shimmer" style={{height:20,width:'50%',marginTop:14}}/><div className="shimmer" style={{height:20,width:'80%',marginTop:14}}/>
+  </div>
+ </section>;
+
+ const writes:MenuItem[]=running?[]:[
+  {label:hasEmptyPlace(pkg,'titles')?'Write titles':'Write titles again',icon:'ai',fn:()=>writer.write('titles')},
+  {label:hasEmptyPlace(pkg,'thumbnail')?'Write thumbnail text':'Write thumbnail text again',icon:'ai',fn:()=>writer.write('thumbnail')},
+  {label:hasEmptyPlace(pkg,'hook')?'Write the hook':'Write the hook again',icon:'ai',fn:()=>writer.write('hook')},
+ ];
+ const menu=onWrite&&<Menu align="right" label="Write with Claude" items={writes} button={(toggle,open)=><Button size="sm" aria-expanded={open} aria-haspopup="menu" disabled={!writes.length} onClick={toggle}>
+  {running?<span className="spin" role="status" aria-label="Writing"/>:<BrandLogo brand="claude" size={18}/>}Write with Claude<Icon name="expand" size={13}/></Button>}/>;
+ const titles=shownTitles(value.titles,keep);
+ const own=chosen<0&&!!videoTitle.trim();
+
+ return <section className="pkg" aria-label="Package">
+  {heading(<><SaveLine status={save} onRetry={onRetrySave}/>{menu}</>)}
+  <div className="doc-sub">Why this video gets clicked. Click any line to change it.</div>
+
+  <div className="blk"><div className="blk-h"><h4>Title</h4></div>
+   <p className="pkg-hint">The ticked one is the video’s title. Keep each to seven words or fewer.</p>
+   <ul className="tlist" aria-label="Title options">
+    {own&&<li className="tline on own">
+     <span className="tmark" aria-hidden><Icon name="check" size={14} stroke={2.6}/></span>
+     <div className="grow" style={{minWidth:0}}>
+      <Ed live value={videoTitle} ph="The video’s title" onChange={text=>pickSoon(-1,text)} onLeave={leave}/>
+      {titleWarning(videoTitle)&&<div className="small warn-text">{titleWarning(videoTitle)}</div>}
+     </div>
+     <span className="small muted tnote">Your title</span><span className="sr-only">This is the video’s title</span>
+    </li>}
+    {titles.map(({title,index})=>{
+     const warning=titleWarning(title),on=chosen===index;
+     return <li key={index} className={cn('tline',on&&'on')}>
+      <span className="tmark" aria-hidden>{on&&<Icon name="check" size={14} stroke={2.6}/>}</span>
+      <div className="grow" style={{minWidth:0}}>
+       <Ed live value={title} ph="Write a title" autoFocus={index===focusSlot} onChange={text=>setTitle(index,text)} onLeave={()=>{setKeep(now=>now.filter(slot=>slot!==index));setFocusSlot(null);leave();}}/>
+       {warning&&<div className="small warn-text">{warning}</div>}
+      </div>
+      {on?<span className="sr-only">This is the video’s title</span>
+       :title.trim()&&<Button variant="quiet" size="sm" className="tuse" onClick={()=>useTitle(title.trim())}>Use this title</Button>}
+     </li>;
+    })}
+    {spin('titles')&&value.titles.filter(title=>!title.trim()).map((_,i)=><li key={`s${i}`} className="tline"><span className="tmark"/><div className="shimmer grow" style={{height:20}}/></li>)}
+   </ul>
+   {!spin('titles')&&emptySlot>=0&&!keep.includes(emptySlot)&&<button type="button" className={cn("linkish quiet pkg-add",(titles.length>0||own)&&"under")} onClick={()=>{setKeep(now=>[...now,emptySlot]);setFocusSlot(emptySlot);}}><Icon name="add" size={13}/>Add a title</button>}
+  </div>
+
+  <div className="blk"><div className="blk-h"><h4>Thumbnail text</h4></div>
+   <p className="pkg-hint">Two to five words about one real thing, readable on a phone.</p>
+   <div className="row" style={{alignItems:'flex-start',gap:16}}>
+    <div className="grow">{spin('thumbnail')&&!value.thumbnailText?<div className="shimmer" style={{height:22}}/>
+     :<Ed live className="pkg-thumb-text" value={value.thumbnailText} ph="A few words for the picture" onChange={text=>set('thumbnailText',text)} onLeave={leave}/>}</div>
+    {thumbnail&&<div className="prev-thumb sm"><div className="thumb pkg-thumb" aria-label="The thumbnail with its text"><img src={thumbnail} alt=""/>{value.thumbnailText.trim()&&<span className="pkg-thumb-tt">{value.thumbnailText}</span>}</div></div>}
+   </div></div>
+
+  <div className="blk"><div className="blk-h"><h4>Hook</h4></div>
+   <p className="pkg-hint">The first line you say. The first ten seconds decide whether people stay.</p>
+   {hookField('spoken','The first line you say')}
+  </div>
+
+  <button type="button" className="pkg-more" aria-expanded={more} aria-controls="pkg-more-body" onClick={()=>setMore(open=>!open)}>
+   <Icon name={more?'collapse':'expand'} size={14}/>More: what the hook shows, why it gets watched, angle, twist
+  </button>
+  {more&&<div className="pkg-more-body" id="pkg-more-body">
+   <div className="blk"><div className="blk-h"><h4>What the hook shows</h4></div>
+    {HOOK_MORE.map(({key,label,icon,ph})=><div key={key} className="hook-row"><span className="k"><Icon name={icon} size={14}/>{label}</span>{hookField(key,ph)}</div>)}
+   </div>
+   <div className="blk"><div className="blk-h"><h4>Why it gets watched</h4></div>
+    <div className="dgs">{WHY.map(({key,label})=>{
+     const rating=value[key];
+     return <div key={key} className="dgs-row"><span className="k muted" style={{fontSize:13,paddingTop:3}}>{label}</span>
+      <span className="lvl-pick" role="radiogroup" aria-label={label}>{LEVELS.map(level=><button key={level.value} type="button" role="radio" aria-checked={rating?.level===level.value} className={cn(rating?.level===level.value&&'on',level.value)}
+       onClick={()=>setRating(key,{note:'',...rating,level:level.value})}>{level.label}</button>)}</span>
+      {rating?<Ed multiline live onLeave={leave} value={rating.note} ph="Why you think so" onChange={text=>setRating(key,{...rating,note:text})} style={{fontSize:13.5,color:'var(--cc-text-2)'}}/>:<span className="faint small" style={{paddingTop:3}}>Not rated</span>}
+     </div>;})}</div></div>
+   <div className="blk"><div className="blk-h"><h4>Angle</h4></div><Ed multiline live onLeave={leave} value={value.angle} ph="What this video does that others don't" onChange={text=>set('angle',text)} style={{lineHeight:1.55}}/></div>
+   <div className="blk"><div className="blk-h"><h4>Twist</h4></div><Ed multiline live onLeave={leave} value={value.twist} ph="The unexpected part" onChange={text=>set('twist',text)} style={{lineHeight:1.55}}/></div>
+  </div>}
+  
+ </section>;
+}

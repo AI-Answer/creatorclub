@@ -1,0 +1,348 @@
+[
+ {
+  "id": "agent-safety",
+  "title": "How to Protect Your AI Agent and Your Money",
+  "lane": "both",
+  "top": true,
+  "why": "Agent security is all over the news. Nobody shows how to set one up safely.",
+  "demand": {
+   "level": "high",
+   "note": "CBS 266K, Fox 259K and Breaking Points 489K in 2 to 3 days."
+  },
+  "gap": {
+   "level": "high",
+   "note": "News channels only. No practical how-to among the followed creators."
+  },
+  "show": {
+   "level": "mid",
+   "note": "Needs Samin's own agent settings on screen."
+  },
+  "sources": [
+   {
+    "label": "Anthropic: Duet safety article",
+    "url": "https://claude.com/resources/articles/claude-duet-safety-privacy-and-security"
+   },
+   {
+    "label": "Cybernews: banks restrict outside agents",
+    "url": "https://cybernews.com/security/jpmorgan-chase-blocks-outside-ai-agents/"
+   },
+   {
+    "label": "AI Incident Database: $31.43 purchase",
+    "url": "https://incidentdatabase.ai/entities/operator/"
+   },
+   {
+    "label": "OECD: wallet drained, May 2026",
+    "url": "https://oecd.ai/en/incidents/2026-05-04-4a73"
+   },
+   {
+    "label": "Plan: research/video-agent-safety-2026-10-23.md"
+   }
+  ],
+  "status": "new",
+  "note": "",
+  "order": 1,
+  "createdAt": 1793040795854,
+  "updatedAt": 1793044070904,
+  "stageDates": {
+   "picked": 1793044068827,
+   "new": 1793044070904
+  }
+ },
+ {
+  "id": "agent-inbox-week",
+  "title": "I Let an AI Agent Run My Inbox for a Week",
+  "lane": "both",
+  "why": "Five planted scam emails, a scoreboard and a verdict.",
+  "demand": {
+   "level": "mid",
+   "note": "Format untested in this niche. Stunts with stakes do well elsewhere."
+  },
+  "gap": {
+   "level": "high",
+   "note": "No inbox-trap video found."
+  },
+  "show": {
+   "level": "mid",
+   "note": "Samin must run a full week and report honestly."
+  },
+  "sources": [
+   {
+    "label": "Outline: videos/inbox-agent/outline.md"
+   },
+   {
+    "label": "Barracuda summary: hidden instructions in emails",
+    "url": "https://orcarouter.ai/blog/2026-10-07-barracuda-dual-target-email-phishing"
+   }
+  ],
+  "status": "new",
+  "note": "",
+  "order": 2,
+  "createdAt": 1793040795854,
+  "updatedAt": 1793040795854
+ },
+ {
+  "id": "hidden-features",
+  "title": "Hidden Features of Your AI Tool",
+  "lane": "evergreen",
+  "why": "Works for phones, thin in AI. A filler for weeks without news.",
+  "demand": {
+   "level": "mid",
+   "note": "iPhone versions got 710K and 530K from one small channel."
+  },
+  "gap": {
+   "level": "high",
+   "note": "Nothing large in AI. The best found has 51K."
+  },
+  "show": {
+   "level": "mid",
+   "note": "Features must be checked in the tool's docs."
+  },
+  "sources": [],
+  "status": "picked",
+  "note": "",
+  "order": 9,
+  "createdAt": 1793040795854,
+  "updatedAt": 1793123095405,
+  "stageDates": {
+   "picked": 1793123095405
+  }
+ },
+ {
+  "id": "idea-1a179c8273f-1",
+  "title": "Still Using Claude Like It's 2024?",
+  "lane": "evergreen",
+  "status": "recorded",
+  "top": false,
+  "why": "Before-and-after of old prompting habits vs. today's features. Fixes 'falling behind' without any coding.",
+  "demand": {
+   "level": "high",
+   "note": "Silicon Valley Girl's 'Stop Using Claude Like It's 2024' has 197,254 views, 32,392/day. Riley Brown's use-case video runs at 1.9x his usual."
+  },
+  "gap": {
+   "level": "mid",
+   "note": "The top example in context is an interview, not a hands-on how-to. The gap for a side-by-side demo for beginners is not checked beyond this list."
+  },
+  "show": {
+   "level": "high",
+   "note": "Samin can run the same task twice on screen, the old way and the new way, using features he already uses."
+  },
+  "sources": [
+   {
+    "label": "Claude Engineering Lead: \"Stop Using Claude Like It's 2024\" | Silicon Valley Girl (context)"
+   },
+   {
+    "label": "How Smart People Are Using AI Right Now | Riley Brown (context)"
+   }
+  ],
+  "note": "",
+  "order": 14,
+  "createdAt": 1793044522815,
+  "updatedAt": 1793123893623,
+  "source": "claude",
+  "stageDates": {
+   "outline": 1793122859996,
+   "recorded": 1793123893623
+  }
+ },
+ {
+  "id": "idea-1a179c8273f-2",
+  "title": "Can Claude Make a Video With No Editing?",
+  "lane": "evergreen",
+  "status": "outline",
+  "top": false,
+  "why": "Shows non-technical viewers they can make a short video by just asking. Breaks 'I need to be super technical'.",
+  "demand": {
+   "level": "high",
+   "note": "Futurepedia's Claude video tutorial has 290,310 views. Jack Roberts has 56,914 (29,748/day) and The AI Blueprint has 56,431. All are under 8 days old."
+  },
+  "gap": {
+   "level": "low",
+   "note": "At least 3 practical tutorials are trending right now. I couldn't confirm an official Anthropic video feature, so this depends on third-party skills."
+  },
+  "show": {
+   "level": "high",
+   "note": "Samin can make one short clip start to finish on screen. He should name the exact tool he uses, since no official feature was confirmed."
+  },
+  "sources": [
+   {
+    "label": "Claude Makes a New Kind of Video - Full Tutorial | Futurepedia (context)"
+   },
+   {
+    "label": "Claude Video 2.0 Just Changed Everything | Jack Roberts (context)"
+   },
+   {
+    "label": "Claude + Google Vids = Full Stickman Animations | The AI Blueprint (context)"
+   }
+  ],
+  "note": "",
+  "order": 15,
+  "createdAt": 1793044522815,
+  "updatedAt": 1793122737085,
+  "source": "claude",
+  "stageDates": {
+   "picked": 1793122660665,
+   "outline": 1793122737085
+  }
+ },
+ {
+  "id": "idea-1a179ca7065-1",
+  "title": "One Phone Photo Into a Full Ad?",
+  "lane": "evergreen",
+  "status": "dropped",
+  "top": false,
+  "why": "Breaks 'I need to be technical': turn one photo into an ad with tools anyone can use.",
+  "demand": {
+   "level": "high",
+   "note": "OpenArt/Nano Banana 2.1 ad workflow: 132,091 views at 97,275/day. CapCut one-image ad video: 84,964 views at 27,437/day."
+  },
+  "gap": {
+   "level": "mid",
+   "note": "Two how-tos are trending in the context, both tied to specific tools. A beginner, tool-neutral version is less covered. Wider search not checked."
+  },
+  "show": {
+   "level": "high",
+   "note": "He can shoot any object on his phone and build the ad on screen. Nano Banana 2.1 came out Oct 6, too old to use as a news peg, so the video leans on the how-to."
+  },
+  "sources": [
+   {
+    "label": "Decrypt: Google launches Nano Banana 2.1",
+    "url": "https://decrypt.co/380257/google-launches-nano-banana-2-1"
+   },
+   {
+    "label": "OpenArt Nano Banana 2.1 with Seedance 2.5 | Eigi and AI (context)"
+   },
+   {
+    "label": "AI Ad Generator + AI Video Editor | Mevesa (context)"
+   }
+  ],
+  "note": "",
+  "order": 17,
+  "createdAt": 1793044672613,
+  "updatedAt": 1793122668476,
+  "source": "claude",
+  "stageDates": {
+   "dropped": 1793122668454
+  },
+  "dropReason": "Too generic"
+ },
+ {
+  "id": "idea-mvqz34xrzqp",
+  "title": "Run Claude Doctor: Fix Your Bloated Setup",
+  "lane": "both",
+  "status": "new",
+  "why": "Source numbers (404 files, 312 problems, 20,000 tokens) show a hit feature; the cleanup idea is practical.",
+  "demand": {
+   "level": "mid",
+   "note": "Source video had 586,218 views, but this feature is one segment. Viewer demand for it specifically: not checked."
+  },
+  "gap": {
+   "level": "mid",
+   "note": "Crowded space of update roundups; a dedicated hands-on cleanup video: not checked."
+  },
+  "show": {
+   "level": "high",
+   "note": "He can run the commands on his own account and show the results on screen. I couldn't confirm the commands exist in his version; he should check first."
+  },
+  "sources": [
+   {
+    "label": "Claude 2.0 is Insane (All Updates Explained) (Ben AI)",
+    "url": "https://www.youtube.com/watch?v=J5EbL1UaqG8"
+   }
+  ],
+  "source": "video",
+  "angle": "Samin runs /doctor and skill doctor on his own Claude setup, shows the problems found and the tokens saved, and walks a beginner through cleaning up their own.",
+  "twist": "He shows his real before and after, then gives non-technical viewers a 3-level cleanup: run the command, delete unused skills, rewrite old instructions in plain English.",
+  "hook": "If you've been adding skills to Claude for months, I'll show you the one command that checks which ones are quietly wasting your usage, okay?",
+  "note": "",
+  "order": 27,
+  "createdAt": 1793122916031,
+  "updatedAt": 1793122916031
+ },
+ {
+  "id": "agent-cost",
+  "title": "What My AI Agent Really Costs a Month",
+  "lane": "both",
+  "why": "Model prices fell. Almost no one shows the real monthly bill.",
+  "demand": {
+   "level": "mid",
+   "note": "One viewer asked for costs. The best cost explainer found has 289 views."
+  },
+  "gap": {
+   "level": "high",
+   "note": "No video on monthly agent cost."
+  },
+  "show": {
+   "level": "mid",
+   "note": "Needs his real bills. The price data comes from one blog."
+  },
+  "sources": [
+   {
+    "label": "Price-cut timeline (single blog)",
+    "url": "https://minimaxir.com/2026/10/cheap-llms/"
+   }
+  ],
+  "status": "parked",
+  "note": "",
+  "order": 3,
+  "createdAt": 1793040795854,
+  "updatedAt": 1793040795854
+ },
+ {
+  "id": "beginner-agent",
+  "title": "A Total Beginner Builds an AI Agent in 20 Minutes",
+  "lane": "evergreen",
+  "why": "A real beginner, clock on screen. Breaks the belief that you must be technical.",
+  "demand": {
+   "level": "high",
+   "note": "Metics' 20-minute agent video: 394K views."
+  },
+  "gap": {
+   "level": "mid",
+   "note": "20-minute tutorials exist. A real beginner on camera does not."
+  },
+  "show": {
+   "level": "mid",
+   "note": "Needs a real beginner willing to be filmed."
+  },
+  "sources": [
+   {
+    "label": "Metics: Build Your First AI Agent in 20 Minutes",
+    "url": "https://www.youtube.com/watch?v=rCkYVxOX-dI"
+   }
+  ],
+  "status": "edited",
+  "note": "",
+  "order": 4,
+  "createdAt": 1793040795854,
+  "updatedAt": 1793040795854
+ },
+ {
+  "id": "learn-tool-20",
+  "title": "Learn a New Tool in 20 Minutes (Beginner)",
+  "lane": "evergreen",
+  "why": "A proven format this week. Pick a tool no one has taught to beginners yet.",
+  "demand": {
+   "level": "high",
+   "note": "Metics' Higgsfield tutorial: 80K views, about 9x its usual."
+  },
+  "gap": {
+   "level": "low",
+   "note": "The same tutorial already exists for Higgsfield."
+  },
+  "show": {
+   "level": "high",
+   "note": "Samin teaches tools click by click."
+  },
+  "sources": [
+   {
+    "label": "Metics: Master Higgsfield AI in 20 Minutes",
+    "url": "https://www.youtube.com/watch?v=3W1VhiKLNp4"
+   }
+  ],
+  "status": "published",
+  "note": "",
+  "order": 5,
+  "createdAt": 1793040795854,
+  "updatedAt": 1793040795854
+ }
+]

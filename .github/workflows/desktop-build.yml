@@ -37,7 +37,7 @@ jobs:
         run: npm run runtime:desktop
       - name: Test portable renderer and Cutroom integration
         working-directory: recorder/app
-        run: node --import tsx --test server/cutroom.test.ts server/portable-graphics.test.ts server/export-durability.test.ts
+        run: node --import tsx --test server/cutroom.test.ts server/portable-graphics.test.ts server/export-durability.test.ts server/club/project-import.test.ts
       - name: Test Rust engine
         run: cargo test --release --locked --manifest-path engine/cutroom/Cargo.toml -p cutroom-core -p cutroom-gfx -p cutroom-cut
       - name: Exercise the native cutting and graphics engine
@@ -65,6 +65,8 @@ jobs:
             if (!$ready) { throw 'The packaged Windows desktop service did not start' }
             $engine = Invoke-RestMethod 'http://127.0.0.1:4194/api/cutroom/status'
             if (!$engine.available) { throw 'Bundled Cutroom is unavailable' }
+            $workspaces = Invoke-RestMethod 'http://127.0.0.1:4194/api/club/workspaces'
+            if ($null -eq $workspaces.workspaces) { throw 'The redesigned workspace service is unavailable' }
             $app.Refresh()
             if ($app.HasExited) { throw 'Desktop app exited during startup' }
             Write-Output "Windows desktop running; Cutroom $($engine.version)"

@@ -78,6 +78,8 @@ export async function rendererFingerprint():Promise<string>{
  const dir=path.dirname(fileURLToPath(import.meta.url));const files:string[]=[];
  for(const file of await fs.readdir(dir))if(/\.(?:ts|swift)$/.test(file)&&!file.endsWith('.test.ts')||file==='index.mjs'||file==='sceneforge-vision'||file==='sceneforge-text-renderer')files.push(path.join(dir,file));
  const shared=path.resolve(dir,'../shared');try{for(const file of await fs.readdir(shared))if(file.endsWith('.ts'))files.push(path.join(shared,file));}catch{}
+ // The motion templates draw exported pixels too.
+ try{for(const file of await fs.readdir(path.join(shared,'motion')))if(file.endsWith('.ts')&&!file.endsWith('.test.ts'))files.push(path.join(shared,'motion',file));}catch{}
  const signatures:unknown[]=[];
  for(const file of files.sort())signatures.push([path.basename(file),(await fingerprintRendererFile(file,deadline)).sha256]);
  for(const name of [process.env.SCENEFORGE_FFMPEG||'ffmpeg',process.env.SCENEFORGE_FFPROBE||'ffprobe']){const file=await resolveBinary(name);signatures.push([path.basename(name),file?(await fingerprintRendererFile(file,deadline)).sha256:'missing']);}
@@ -96,11 +98,19 @@ function resolvedOptions(project:Project,input:ExportOptions):ExportOptions{
  const even=(n:number,min:number,max:number)=>2*Math.round(Math.min(max,Math.max(min,n))/2);
  return {format:input.format,width:even(input.width??project.canvas.width,64,7680),height:even(input.height??project.canvas.height,64,4320),fps:Math.min(120,Math.max(1,input.fps??project.canvas.fps)),quality:input.quality??'balanced',hardware:input.hardware??false,burnCaptions:input.burnCaptions??true,...(input.range?{range:structuredClone(input.range)}:{})};
 }
+/**
+ * The renderer this process runs: fingerprinted once, when the service first asks. The code a running service renders with is the code it
+ * loaded, so a source file edited on disk during an export (a development checkout, an update being unpacked) does not make a finished
+ * export "unverifiable": that left exports marked failed although their file was written. A restart in a later process compares against
+ * that process's own fingerprint, as before.
+ */
+let processRuntime:Promise<string>|undefined;
+export const processRendererFingerprint=()=>processRuntime??=rendererFingerprint().catch(e=>{processRuntime=undefined;throw e;});
 export class ExportStore{
  private records=new Map<string,Saved>();private summaries=new Map<string,{projectId:string;startedAt:string}>();private writes:Promise<unknown>=Promise.resolve();private retrying=new Set<string>();
  private unreadableCount=0;
  private lockToken=randomUUID();private owned=false;private closing=false;private currentRuntime='';
- constructor(private root:string,private outputDir:string,private renderer:Renderer,private getRuntime=rendererFingerprint){}
+ constructor(private root:string,private outputDir:string,private renderer:Renderer,private getRuntime=processRendererFingerprint){}
  private file(id:string){return path.join(this.root,id+'.json');}
  private persist(saved:Saved){const snapshot=structuredClone(saved);const next=this.writes.catch(()=>{}).then(()=>atomicExportJSON(this.file(snapshot.record.id),snapshot));this.writes=next;return next;}
  async init(){

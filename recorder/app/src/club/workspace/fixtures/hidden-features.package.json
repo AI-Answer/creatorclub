@@ -1,0 +1,27 @@
+{
+  "demand": {
+    "level": "mid",
+    "note": "iPhone versions got 710K and 530K from one small channel."
+  },
+  "gap": {
+    "level": "high",
+    "note": "Nothing large in AI. The best found has 51K."
+  },
+  "show": {
+    "level": "mid",
+    "note": "Features must be checked in the tool's docs."
+  },
+  "angle": "By the end, the viewer knows how to find the features in their AI tool they've never used, and has tried three of them, from a one-click setting to a repeatable setup. Brief was empty, so I chose title, viewer, format and proof myself. The viewer is a non-technical person who feels they use only a small part of their AI tool. The format is a Shape 1 screen tutorial. The proof is that every feature is shown live and checked against the tool's docs first.",
+  "twist": "",
+  "titles": [
+    "Hidden AI Features You're Not Using",
+    "Your AI Tool Has Features You Missed",
+    "Claude Hidden Features Nobody Shows You"
+  ],
+  "thumbnailText": "",
+  "hook": {
+    "visual": "",
+    "spoken": "",
+    "text": ""
+  }
+}

@@ -1,0 +1,182 @@
+{
+  "title": "Breakdown result",
+  "description": "What the model returns for Break down. The app adds id, url, platform, video and createdAt.",
+  "type": "object",
+  "properties": {
+    "whyItWorked": {
+      "type": "object",
+      "properties": {
+        "titlePackaging": {
+          "type": "string"
+        },
+        "hookSpeed": {
+          "type": "string"
+        },
+        "structure": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 3
+        },
+        "retention": {
+          "type": "string"
+        },
+        "payoff": {
+          "type": "string"
+        },
+        "short": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 2,
+          "maxItems": 4
+        }
+      },
+      "required": [
+        "titlePackaging",
+        "hookSpeed",
+        "structure",
+        "retention",
+        "payoff",
+        "short"
+      ],
+      "additionalProperties": false
+    },
+    "reusableOutline": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 3,
+      "maxItems": 12
+    },
+    "viewerQuestions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "question": {
+            "type": "string"
+          },
+          "likes": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "question",
+          "likes"
+        ],
+        "additionalProperties": false
+      },
+      "maxItems": 6
+    },
+    "concepts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "angle": {
+            "type": "string"
+          },
+          "twist": {
+            "type": "string"
+          },
+          "hook": {
+            "type": "string"
+          },
+          "demand": {
+            "type": "object",
+            "properties": {
+              "level": {
+                "type": "string",
+                "enum": [
+                  "high",
+                  "mid",
+                  "low"
+                ]
+              },
+              "note": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "level",
+              "note"
+            ],
+            "additionalProperties": false
+          },
+          "gap": {
+            "type": "object",
+            "properties": {
+              "level": {
+                "type": "string",
+                "enum": [
+                  "high",
+                  "mid",
+                  "low"
+                ]
+              },
+              "note": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "level",
+              "note"
+            ],
+            "additionalProperties": false
+          },
+          "show": {
+            "type": "object",
+            "properties": {
+              "level": {
+                "type": "string",
+                "enum": [
+                  "high",
+                  "mid",
+                  "low"
+                ]
+              },
+              "note": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "level",
+              "note"
+            ],
+            "additionalProperties": false
+          },
+          "why": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "angle",
+          "twist",
+          "hook",
+          "demand",
+          "gap",
+          "show",
+          "why"
+        ],
+        "additionalProperties": false
+      },
+      "minItems": 1,
+      "maxItems": 3
+    }
+  },
+  "required": [
+    "whyItWorked",
+    "reusableOutline",
+    "viewerQuestions",
+    "concepts"
+  ],
+  "additionalProperties": false
+}

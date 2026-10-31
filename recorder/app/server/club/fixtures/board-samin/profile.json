@@ -1,0 +1,18 @@
+{
+  "slug": "samin",
+  "name": "Samin Yasar",
+  "firstName": "Samin",
+  "channelUrl": "https://www.youtube.com/@SaminYasar_",
+  "handle": "SaminXD",
+  "topics": [
+    "claude",
+    "vibe coding",
+    "ai agents"
+  ],
+  "about": "Practical Claude and AI tutorials for non-technical people: agents, safety, what is new.",
+  "cta": "point the viewer to another video on the channel. Do not mention any club, community or product.",
+  "knowledge": [
+    "jaketrinder",
+    "ed-lawrence"
+  ]
+}

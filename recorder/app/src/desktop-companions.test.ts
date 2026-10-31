@@ -165,3 +165,28 @@ test('HUD reports each editor hide and show it makes, since macOS does not emit 
   const next=await opened(h);h.call('update-recording-hud',{status:'saving'},next.id);assert.deepEqual(reports,[false,true,false,true]);
  }finally{m.dispose();}
 });
+
+test('a default layout opens the script, and only a chosen layout replaces it',async()=>{
+ const fs=require('node:fs'),os=require('node:os'),path=require('node:path'),dir=fs.mkdtempSync(path.join(os.tmpdir(),'hud-default-')),preferencesPath=path.join(dir,'hud.json');
+ // A file written before choices were recorded: its panels were saved on every session, not chosen.
+ fs.writeFileSync(preferencesPath,JSON.stringify({bounds:{x:640,y:38,width:367,height:112},layout:{camera:false,script:false}}));
+ let h=harness(),m=createRecordingHud({...h.opts,preferencesPath,defaultLayout:{camera:false,script:true}});
+ try{
+  const first=await opened(h,{status:'recording',cameraEnabled:true,script:'Read this'});
+  assert.ok(first.w.options.height>300,'the script opens with the controls');
+  assert.deepEqual(h.handlers.get('recording-hud-read')!(h.hudEvent()).layout,{camera:false,script:true});
+  h.handlers.get('recording-hud-layout')!(h.hudEvent(),{camera:false,script:false});h.call('end-recording-hud');m.dispose();
+  h=harness();m=createRecordingHud({...h.opts,preferencesPath,defaultLayout:{camera:false,script:true}});
+  const second=await opened(h,{status:'recording',cameraEnabled:true,script:'Read this'});
+  assert.ok(second.w.options.height<=120,'hiding the script is remembered');
+ }finally{m.dispose();}
+});
+
+test('a take without a camera keeps the chosen camera panel for later takes',async()=>{
+ const h=harness(),m=createRecordingHud(h.opts);try{
+  await opened(h,{status:'recording',cameraEnabled:false,script:'Read this'});
+  assert.deepEqual(h.handlers.get('recording-hud-layout')!(h.hudEvent(),{camera:true,script:true}),{camera:false,script:true});h.call('end-recording-hud');
+  await opened(h,{status:'recording',cameraEnabled:true,script:'Read this'});
+  assert.deepEqual(h.handlers.get('recording-hud-read')!(h.hudEvent()).layout,{camera:true,script:true});
+ }finally{m.dispose();}
+});

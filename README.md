@@ -20,6 +20,7 @@ Both targets live in this repository. [Desktop apps](.github/workflows/desktop-b
 
 ## What works today
 
+- **Plan a video:** a channel workspace, discovery and research boards, ideas, outlines, scripts, and a production pipeline.
 - **Write:** scene scripts, scene ordering, teleprompter, and saved history.
 - **Record:** screen/window, camera, microphone, takes, and recording review.
 - **Edit:** a multi-track timeline, transcript cuts, captions, canvas layouts, and export.
@@ -27,7 +28,9 @@ Both targets live in this repository. [Desktop apps](.github/workflows/desktop-b
 - **Make motion graphics:** choose a template, enter text, set a word or time anchor, preview a rendered frame, and export through Cutroom. Import the result as a new video.
 - **Work with an assistant:** 47 MCP tools, including 8 Cutroom tools. Claude chat uses your separately installed Claude Code and existing sign-in.
 
-The channel board, research, packaging, and publishing flow are future work in [the product plan](docs/PLAN.md).
+Dani's redesigned workspace is the main interface: Home, Discover, Videos, and Research, with Plan, Record, Edit, and Publish inside each video. Publishing uses your separately configured Postiz connection. See [the workspace plan](docs/v2/PLAN.md).
+
+In Edit, open **More → Cutroom cuts and graphics** for the native engine. Opening a Cutroom render creates a separate video in Editing and keeps the original video intact.
 
 ### The editor
 
@@ -43,6 +46,8 @@ The channel board, research, packaging, and publishing flow are future work in [
 
 Screenshots show the running application with synthetic sample footage, rather than private recordings.
 
+The workspace uses locally bundled official service logos with light and dark variants. [Brand asset sources](docs/BRAND-ASSETS.md) documents their provenance.
+
 ## Run from source
 
 Install Node.js 24, npm, Rust, and the platform's compiler tools: Xcode Command Line Tools on macOS, or Visual Studio Build Tools with Desktop development with C++ on Windows.
@@ -50,7 +55,7 @@ Install Node.js 24, npm, Rust, and the platform's compiler tools: Xcode Command 
 ```sh
 git clone https://github.com/AI-Answer/creatorclub.git
 cd creatorclub
-git switch samin/workspace
+git switch main
 npm run setup
 npm run desktop
 ```
@@ -66,7 +71,7 @@ npm run package:win      # run on Windows: installer, ZIP
 
 Installers bundle **Cutroom, FFmpeg, FFprobe, and fonts**. No Rust, Node, npm, or FFmpeg installation is needed on the end user's computer. Local speech transcription additionally needs Whisper and a compatible model. Privacy OCR needs Tesseract. These optional tools are not included in the new cross-platform installer recipe.
 
-Source development stores projects in `recorder/app/.local/studio`. Installed apps use their platform application-data folder. `SCENEFORGE_DATA_DIR` and `SCENEFORGE_PORT` remain supported compatibility settings. Use a separate data directory and port for smoke tests.
+Source development stores recording projects in `recorder/app/.local/studio` and channel workspaces in `.local/channels`, with its own desktop profile. Installed apps use their platform application-data folder. Installed channel workspaces live in `~/Documents/Creator Compiler`; an existing `~/Documents/CreatorClub` workspace continues to be used when the new folder does not exist. `CREATORCLUB_DIR`, `SCENEFORGE_DATA_DIR`, and `SCENEFORGE_PORT` remain supported compatibility settings. Use separate workspace, data, and port settings for smoke tests.
 
 ## Connect through MCP
 

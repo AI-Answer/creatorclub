@@ -1,0 +1,73 @@
+{
+ "updatedAt": "2026-10-26T22:57:52.458469+00:00",
+ "items": [
+  {
+   "id": "x-2114705042817110293",
+   "source": "x",
+   "author": "Anthropic",
+   "handle": "AnthropicAI",
+   "text": "Anthropic has filed an S-1 registration statement with the SEC related to its proposed IPO. Read more: Legal disclaimer: A registration statement relating to these securities has been filed with the SEC but has not yet become effective. These securities may not be sold, nor may offers to buy be accepted, prior to the time the registration statement becomes effective. This post does not constitute ",
+   "url": "https://x.com/i/web/status/2114705042817110293",
+   "likes": 15118,
+   "replies": 1037,
+   "shares": 1878,
+   "views": 4843226,
+   "media": null,
+   "createdAt": "2026-10-26T13:05:46+00:00",
+   "ageHours": 9.9
+  },
+  {
+   "id": "x-2114441867521860066",
+   "source": "x",
+   "author": "Forem",
+   "handle": "0xForem",
+   "text": "🚨BREAKING NEWS : Your \"deleted\" photos aren't deleted. Claude Code found years of them sitting in a hidden cache on my iPhone. I plugged my iPhone into my MacBook to run a backup. I had Claude Code doing a security check at the same time. It flagged something I wasn't looking for. A directory called PhotoData/Thumbnails. Thousands of files. Photos, videos, screenshots. A lot of them were things I ",
+   "flair": "claude code",
+   "url": "https://x.com/i/web/status/2114441867521860066",
+   "likes": 12059,
+   "replies": 288,
+   "shares": 1258,
+   "views": 3308296,
+   "media": {
+    "type": "video",
+    "url": "https://pbs.twimg.com/amplify_video_thumb/2114430028293259264/img/cXO36zjqqoEwV0sT.jpg",
+    "w": 720,
+    "h": 1280
+   },
+   "createdAt": "2026-10-25T19:40:00+00:00",
+   "ageHours": 27.3
+  },
+  {
+   "id": "r-1xebls8",
+   "source": "reddit",
+   "author": "r/ClaudeCode",
+   "handle": "JumpAppropriate714",
+   "text": "I'm tired, boss.",
+   "flair": "Discussion",
+   "media": null,
+   "url": "https://www.reddit.com/r/ClaudeCode/comments/1xebls8/im_tired_boss/",
+   "likes": 6112,
+   "replies": 2206,
+   "createdAt": "2026-10-24T15:30:31+00:00",
+   "ageHours": 55.5
+  },
+  {
+   "id": "r-1xf3l38",
+   "source": "reddit",
+   "author": "r/ChatGPT",
+   "handle": "notkilleveryoneist",
+   "text": "Maybe we actually should start to worry...",
+   "flair": "Funny",
+   "media": {
+    "type": "image",
+    "url": "https://i.redd.it/p09tc2vzgmxh1.jpeg"
+   },
+   "url": "https://www.reddit.com/r/ChatGPT/comments/1xf3l38/maybe_we_actually_should_start_to_worry/",
+   "likes": 5844,
+   "replies": 708,
+   "createdAt": "2026-10-25T14:19:41+00:00",
+   "ageHours": 32.6
+  }
+ ],
+ "errors": []
+}

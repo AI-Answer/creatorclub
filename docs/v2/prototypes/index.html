@@ -1,0 +1,35 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>CreatorClub v2: three layouts</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#f8f7f4;--surface:#fff;--line:#e9e6e1;--text:#191817;--text2:#57534d;--text3:#736e66;--accent:#2563eb;--primary:#151413}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:14px/1.5 Inter,system-ui,sans-serif}
+main{max-width:1280px;margin:0 auto;padding:32px 24px 64px}h1{font-size:26px;margin:0 0 4px}p.lede{color:var(--text2);margin:0 0 24px;max-width:760px}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden;display:flex;flex-direction:column}
+.card h2{font-size:17px;margin:0}.card .body{padding:16px;display:flex;flex-direction:column;gap:10px;flex:1}.tag{font-size:12px;color:var(--accent);font-weight:600}
+.card img{width:100%;display:block;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.tabs{display:flex;gap:4px;padding:8px 12px 0;flex-wrap:wrap}.tabs button{border:1px solid var(--line);background:var(--bg);border-radius:6px;padding:3px 9px;font:inherit;font-size:12px;cursor:pointer;color:var(--text2)}.tabs button.on{background:var(--primary);color:#fff;border-color:var(--primary)}
+.open{display:inline-block;background:var(--primary);color:#fff;text-decoration:none;border-radius:8px;padding:8px 14px;font-weight:600;margin-top:auto;text-align:center}
+ul{margin:0;padding-left:18px;color:var(--text2)}li{margin:2px 0}b.k{color:var(--text)}
+table{width:100%;border-collapse:collapse;background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-top:24px}th,td{padding:8px 12px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}th{background:var(--bg);font-size:12px;color:var(--text3);text-transform:uppercase;letter-spacing:.04em}
+h3{margin:32px 0 8px}@media(max-width:1000px){.grid{grid-template-columns:1fr}}
+</style></head><body><main>
+<h1>CreatorClub v2: three layouts to choose from</h1>
+<p class="lede">Same pipeline in all three (discover, plan, record, edit, publish), same companion chat docked on the right, same Samin data, same look. They differ in how much the screen shows and who drives. Open one, click through every step, and try the timeline in Edit (drag, trim, split with S, delete, M for a marker, scroll with ⌘ to zoom).</p>
+<div class="grid">
+<section class="card" data-v="a"><div class="body"><span class="tag">A</span><h2>Guided path</h2><p style="margin:0;color:var(--text2)">One task per screen, one big action, one thin step bar. Best for beginners.</p></div>
+<div class="tabs"></div><img alt=""><div class="body"><ul><li><b class="k">Record:</b> one red button and a one-line source status</li><li><b class="k">Edit:</b> big stage, transcript, rich timeline, "Auto-edit and style" side sheet with live previews</li><li><b class="k">Cut:</b> Overview, Signals, Production and a separate Ideas screen</li></ul><a class="open" href="a/index.html">Open prototype A</a></div></section>
+<section class="card" data-v="b"><div class="body"><span class="tag">B</span><h2>Studio</h2><p style="margin:0;color:var(--text2)">Scene rail, stage and companion, with a dock that changes by step. Best for power users.</p></div>
+<div class="tabs"></div><img alt=""><div class="body"><ul><li><b class="k">Scenes rail</b> is the script outline, the take status and the transcript</li><li><b class="k">Inspector</b> appears only when you select a clip or block</li><li><b class="k">Cost:</b> denser; relies on hover and selection to hide controls</li></ul><a class="open" href="b/index.html">Open prototype B</a></div></section>
+<section class="card" data-v="c"><div class="body"><span class="tag">C</span><h2>Conversation-first</h2><p style="margin:0;color:var(--text2)">The companion drives; the canvas shows what it makes. Fewest buttons.</p></div>
+<div class="tabs"></div><img alt=""><div class="body"><ul><li><b class="k">One conversation</b> across all steps, with result cards you can apply, preview and undo</li><li><b class="k">Version strip</b> ("v1 · Recorded scenes 1 to 3") and History always visible</li><li><b class="k">Risk:</b> conversation can hide state</li></ul><a class="open" href="c/index.html">Open prototype C</a></div></section>
+</div>
+<h3>Controls visible at first paint (counted by script, 1440x900; budget about 25)</h3>
+<table><tr><th>Screen</th><th>A: Guided</th><th>B: Studio</th><th>C: Conversation</th></tr>
+<tr><td>Discover</td><td>25</td><td>19</td><td>24</td></tr><tr><td>Plan</td><td>24</td><td>24</td><td>22</td></tr><tr><td>Record</td><td>19</td><td>18</td><td>20</td></tr><tr><td>Edit</td><td>26</td><td>25</td><td>21</td></tr><tr><td>Publish</td><td>25</td><td>19 → 25 once connected</td><td>21</td></tr><tr><td>Today's app (for comparison)</td><td colspan="3">Discover 35 · Plan 47 · Record 70 · Edit 70 · Publish 41</td></tr></table>
+<h3>Everything shared across the three</h3>
+<ul><li>Companion docked right on every step, shows what it is looking at, acts with Undo, one conversation per video, ⌘K palette.</li><li>Record: takes keep themselves. Continue puts the take on the timeline and moves to the next scene.</li><li>Edit: transcript editing, linked screen/camera/audio, snapping, ripple delete, markers, versions, quick preview of styles and auto-edits, motion graphics blocks.</li><li>Publish: Postiz first (your API key), "Upload straight to YouTube" second.</li><li>Each prototype has an About drawer tagging every feature <b>Exists</b>, <b>Needs work</b> or <b>New</b>.</li></ul>
+</main><script>
+const steps=['discover','plan','record','edit','publish'];
+document.querySelectorAll('.card').forEach(card=>{const v=card.dataset.v,img=card.querySelector('img'),tabs=card.querySelector('.tabs');
+steps.forEach(s=>{const b=document.createElement('button');b.textContent=s[0].toUpperCase()+s.slice(1);b.onclick=()=>{img.src='compare/'+v+'-'+s+'.png';tabs.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));};tabs.appendChild(b);});tabs.children[3].click();});
+</script></body></html>

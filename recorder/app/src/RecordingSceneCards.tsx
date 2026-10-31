@@ -5,11 +5,15 @@ import type {SavedTake} from './recorded-takes';
 import {sceneCardData,type ListedTake} from './recording-scene-data';
 import {AudioLines,ChevronDown,FolderOpen,GripVertical,Play,Plus,Scissors,Settings2,Trash2,Upload,WandSparkles} from './Icons';
 import './recording-scene-cards.css';
+import {takeThumbnailLabel} from './club/recorder/recorder-checks';
+import {takeKinds} from './club/ui/kinds';
 export {listSceneTakes} from './recording-scene-data';
 
 type ActionResult=void|Promise<void>;
 export interface RecordingSceneCardsProps {
  project:Project;selectedSceneId:string;disabled:boolean;takes:SavedTake[];
+ /** Inside Creator Compiler: take thumbnails read "Take 1 (00:07)". */
+ club?:boolean;
  onSelectScene:(id:string)=>ActionResult;
  onRecord:(sceneId:string,mode:'replace-matching'|'record-over')=>ActionResult;
  onImport:(sceneId:string)=>ActionResult;
@@ -64,12 +68,13 @@ export const RecordingSceneCards=memo(function RecordingSceneCards(props:Recordi
  const receiveTake=(e:DragEvent,sceneId:string,archive:boolean)=>{const value=readDrag(e);if(value?.kind!=='take')return;e.preventDefault();e.stopPropagation();endDrag();if(locked)return;const take=takes.find(t=>t.id===value.id)!;if(take.sceneId!==sceneId){if(props.onMoveTake)invoke(()=>props.onMoveTake!(take.id,sceneId,archive));}else invoke(()=>archive?props.onArchive(take.id):props.onActivate(take.id));};
  const insertionBefore=(e:DragEvent,index:number)=>{const bounds=e.currentTarget.getBoundingClientRect();return e.clientY<bounds.top+bounds.height/2?project.scenes[index].id:project.scenes[index+1]?.id;};
  const receiveScene=(e:DragEvent,index:number)=>{const value=readDrag(e);if(value?.kind!=='scene')return;e.preventDefault();e.stopPropagation();const beforeId=insertionBefore(e,index);endDrag();if(!locked&&props.onMoveScene&&value.id!==beforeId)invoke(()=>props.onMoveScene!(value.id,beforeId));};
- const menuButton=(id:string,label:string)=> <button type="button" className="rsc-gear" aria-label={label} aria-expanded={menu===id} aria-haspopup="menu" disabled={locked} onClick={e=>{e.stopPropagation();setMenu(menu===id?null:id);}}><Settings2 size={17}/></button>;
+ const menuButton=(id:string,label:string)=> <button type="button" className="rsc-gear" aria-label={label} title={label} aria-expanded={menu===id} aria-haspopup="menu" disabled={locked} onClick={e=>{e.stopPropagation();setMenu(menu===id?null:id);}}><Settings2 size={17}/></button>;
  const menuItem=(label:string,action:()=>ActionResult,options:{disabled?:boolean;danger?:boolean;icon?:ReactNode}={})=><button type="button" role="menuitem" disabled={locked||options.disabled} className={options.danger?'rsc-danger':undefined} onClick={()=>invoke(action)}>{options.icon}{label}</button>;
  const renderTake=(item:ListedTake,sceneId:string)=>{const {take,active,number,duration}=item,label=take.name||`Take ${number}`,key=`take:${take.id}`;return <div key={take.id} className="rsc-take" data-take-id={take.id} data-active={active} draggable={!locked} onDragStart={e=>startDrag(e,{projectId:project.id,kind:'take',id:take.id})} onDragEnd={endDrag} onContextMenu={e=>{e.preventDefault();e.stopPropagation();if(!locked)setMenu(key);}}>
-  <button type="button" className="rsc-take-preview" aria-label={`Preview ${label}`} disabled={locked} onClick={()=>invoke(()=>props.onPreview(take.id))}><TakeImage take={take}/><span className="rsc-play"><Play size={17}/></span><span className="rsc-take-badge">{label}<small>({durationLabel(duration)})</small></span></button>
+  <button type="button" className="rsc-take-preview" aria-label={`Preview ${label}`} disabled={locked} onClick={()=>invoke(()=>props.onPreview(take.id))}><TakeImage take={take}/><span className="rsc-play"><Play size={17}/></span><span className="rsc-take-badge">{props.club?takeThumbnailLabel(label,duration):<>{label}<small>({durationLabel(duration)})</small></>}</span>{props.club&&<span className="rsc-kinds" aria-hidden="true">{takeKinds(take.tracks).map(kind=><i key={kind} className={`rsc-kind rsc-kind-${kind}`}/>)}</span>}</button>
   <span className="rsc-drag-handle" aria-hidden="true"><GripVertical size={15}/></span>
-  <div className="rsc-take-menu-anchor" data-rsc-menu>{menuButton(key,`Options for ${label}`)}{menu===key&&<CardMenu label={`${label} actions`}>
+  {/* In Creator Compiler a take has no gear on the card: its preview holds the choices, and a right click still opens this menu. */}
+  <div className="rsc-take-menu-anchor" data-rsc-menu>{!props.club&&menuButton(key,`Options for ${label}`)}{menu===key&&<CardMenu label={`${label} actions`}>
    {menuItem('Play take',()=>props.onPreview(take.id),{icon:<Play size={15}/>})}
    {active?menuItem('Archive take',()=>props.onArchive(take.id),{icon:<FolderOpen size={15}/>}):menuItem('Add to timeline',()=>props.onActivate(take.id),{icon:<Plus size={15}/>})}
    {props.onMoveTake&&project.scenes.length>1&&<><span className="rsc-menu-label">Move to scene</span>{project.scenes.filter(s=>s.id!==sceneId).map(s=><button key={s.id} type="button" role="menuitem" disabled={locked} onClick={()=>invoke(()=>props.onMoveTake!(take.id,s.id,!active))}>{s.name||'Untitled scene'}</button>)}</>}
@@ -81,6 +86,32 @@ export const RecordingSceneCards=memo(function RecordingSceneCards(props:Recordi
   {!project.scenes.length&&<div className="rsc-empty"><p>Add a scene to start recording.</p><button type="button" className="rsc-action" disabled={locked} onClick={()=>invoke(()=>props.onAddScene())}><Plus size={16}/>Add scene</button></div>}
   {project.scenes.map((scene,index)=>{const {all,legacyFootage}=cards.get(scene.id)!,active=all.filter(t=>t.active),archived=all.filter(t=>!t.active),showArchive=expanded[scene.id]??active.length===0,selected=props.selectedSceneId===scene.id,key=`scene:${scene.id}`;
    const recorded=active.length>0||legacyFootage,recordOver=alt&&recorded;
+   // Creator Compiler: a compact card (number, title, status, take thumbnails). The script is in the teleprompter, the scenes are planned in Plan,
+   // and Record is the one big button above; the selected scene's menu keeps Record over and Import.
+   if(props.club){
+    // The scene strip is the only scene list: only the selected scene's takes show here.
+    if(!selected)return null;
+    const name=scene.name||`Scene ${index+1}`;
+    return <div className="rsc-scene-container" key={`${project.id}:${scene.id}`}>
+     <article className="rsc-scene rsc-compact is-selected" data-scene-id={scene.id} aria-label={`Takes of ${name}`}>
+      <header className="rsc-scene-heading">
+       {/* The scene's status word is on its chip in the strip above, once per scene. */}
+       <span className="rsc-scene-title">Takes</span>
+       <div data-rsc-menu className="rsc-scene-menu-anchor">{menuButton(key,`Record over or import for ${name}`)}{menu===key&&<CardMenu label="Scene actions">
+        {menuItem('Record over…',()=>props.onRecord(scene.id,'record-over'),{disabled:!recorded})}
+        {menuItem('Import media from file…',()=>props.onImport(scene.id),{icon:<Upload size={15}/>})}
+       </CardMenu>}</div>
+      </header>
+      {active.length===0&&archived.length===0&&!legacyFootage&&<p className="rsc-no-takes">No takes yet. Record one above.</p>}
+      {(active.length>0||archived.length>0)&&<div className={`rsc-takes ${drop===`active:${scene.id}`?'is-over':''}`} aria-label={`${name} takes`} onDragOver={e=>{if(!locked&&drag?.kind==='take'&&props.onMoveTake){e.preventDefault();e.stopPropagation();setDrop(`active:${scene.id}`);}}} onDragLeave={()=>setDrop(null)} onDrop={e=>receiveTake(e,scene.id,false)}>
+       {active.map(t=>renderTake(t,scene.id))}
+       {archived.length>0&&<button type="button" className="rsc-archive-toggle" disabled={locked} aria-expanded={showArchive} onClick={()=>setExpanded({...expanded,[scene.id]:!showArchive})}>{showArchive?<ChevronDown size={15}/>:<FolderOpen size={15}/>}Archived ({archived.length})</button>}
+       {showArchive&&archived.map(t=>renderTake(t,scene.id))}
+      </div>}
+      {legacyFootage&&<p className="rsc-legacy-note">Existing scene footage is available in Edit. Its take history is unavailable.</p>}
+     </article>
+    </div>;
+   }
    return <div className="rsc-scene-container" key={`${project.id}:${scene.id}`}>
     <article className={`rsc-scene ${selected?'is-selected':''} ${drop===`before:${scene.id}`?'is-drop-before':''} ${index===project.scenes.length-1&&drop==='end'?'is-drop-after':''}`} data-scene-id={scene.id} aria-label={`${scene.name||`Scene ${index+1}`}, ${recorded?'recorded':'not recorded'}`} draggable={!!props.onMoveScene&&!locked} onDragStart={e=>{if(e.target!==e.currentTarget&&(e.target as Element).closest('button,input,[data-take-id]')){if(!(e.target as Element).closest('[data-take-id]'))e.preventDefault();return;}startDrag(e,{projectId:project.id,kind:'scene',id:scene.id});}} onDragEnd={endDrag} onDragOver={e=>{if(!locked&&props.onMoveScene&&drag?.kind==='scene'){e.preventDefault();e.dataTransfer.dropEffect='move';const beforeId=insertionBefore(e,index);setDrop(beforeId?`before:${beforeId}`:'end');}}} onDrop={e=>receiveScene(e,index)} onPointerDown={()=>{if(!locked&&props.selectedSceneId!==scene.id)invoke(()=>props.onSelectScene(scene.id));}} onFocus={()=>{if(!locked&&props.selectedSceneId!==scene.id)invoke(()=>props.onSelectScene(scene.id));}}>
      <header className="rsc-scene-heading">{props.onMoveScene&&<button type="button" className="rsc-scene-grip" draggable={!locked} disabled={locked} aria-label={`Reorder ${scene.name||`Scene ${index+1}`}`} title="Drag to reorder · Alt+↑ / Alt+↓" onClick={e=>e.stopPropagation()} onDragStart={e=>startDrag(e,{projectId:project.id,kind:'scene',id:scene.id})} onDragEnd={endDrag} onKeyDown={e=>{if(!e.altKey||!['ArrowUp','ArrowDown'].includes(e.key))return;e.preventDefault();e.stopPropagation();if(e.key==='ArrowUp'&&index>0)invoke(()=>props.onMoveScene!(scene.id,project.scenes[index-1].id));if(e.key==='ArrowDown'&&index<project.scenes.length-1)invoke(()=>props.onMoveScene!(scene.id,project.scenes[index+2]?.id));}}><GripVertical size={15}/></button>}<span className={`rsc-status ${recorded?'is-complete':''}`} title={recorded?'Recorded':'Not recorded'} aria-hidden="true"/><SceneName scene={scene} fallback={`Scene ${index+1}`} disabled={locked} onRename={name=>invoke(()=>props.onRenameScene(scene.id,name))}/><div data-rsc-menu className="rsc-scene-menu-anchor">{menuButton(key,`Settings for ${scene.name||`Scene ${index+1}`}`)}{menu===key&&<CardMenu label="Scene actions">

@@ -44,7 +44,7 @@ test('capture authorization is owner-bound, one-use, expires, and cancellation l
  store.arm({ sourceId: 'screen:3' }, owner); store.cancel(); assert.equal(store.hasAttempt(owner), true); assert.equal(store.consume(owner), null);
 });
 
-function setup(options:{inventoryTimeoutMs?:number;now?:()=>number}={}) {
+function setup(options:{inventoryTimeoutMs?:number;now?:()=>number;appName?:string}={}) {
  const handlers = new Map<string, (...args: any[]) => any>(), windows: any[] = [], calls: any[] = [];
  const mainFrame = { url: base + '/' };
  const main = { isDestroyed: () => false, webContents: { mainFrame } };
@@ -115,7 +115,7 @@ test('automatic restore rejects untrusted frames and malformed saved region geom
 test('source enumeration failure reports actual permission status without granting access or falling back', async () => {
  const h = setup(); try {
   h.state.beforeSources = async () => { throw new Error('Failed to get sources.'); };
-  for (const [status, message] of [['denied', /access is off for this build/], ['restricted', /restricted on this Mac/], ['not-determined', /not been granted yet/], ['granted', /reports screen access is allowed/], ['unknown', /could not load/]] as const) {
+  for (const [status, message] of [['denied', /Screen recording is off for SceneForge\. .*turn on SceneForge/], ['restricted', /restricted on this Mac/], ['not-determined', /not been granted yet/], ['granted', /reports screen access is allowed/], ['unknown', /could not load/]] as const) {
    h.state.screenStatus = status;
    await assert.rejects(h.manager.list(h.event), (error: Error) => message.test(error.message) && !error.message.includes('Failed to get sources'));
    assert.equal(h.windows.length, 0);
@@ -218,4 +218,11 @@ test('region overlay opens from a just-listed inventory, then re-validates; stal
 });
 test('region overlay is a panel that joins full-screen Spaces without a Dock transform',async()=>{
  const h=setup();try{const selecting=h.manager.choose(h.event,{sourceId:'screen:8:0',mode:'region'});await tick();const overlay=h.windows[0];assert.equal(overlay.options.type,'panel');assert.deepEqual(overlay.workspaces,[true,{visibleOnFullScreen:true,skipTransformProcessType:true}]);h.finish(null);assert.equal(await selecting,null);}finally{h.manager.dispose();}
+});
+
+test('screen access messages name the app macOS lists', async () => {
+ const h = setup({ appName: 'Creator Compiler Dev' });
+ h.state.screenStatus = 'denied';
+ h.state.beforeSources = async () => { throw new Error('Failed to get sources.'); };
+ await assert.rejects(h.manager.list(h.event), (error: Error) => /Screen recording is off for Creator Compiler Dev\. .*turn on Creator Compiler Dev .*reopen Creator Compiler Dev\./.test(error.message) && !/SceneForge/.test(error.message));
 });

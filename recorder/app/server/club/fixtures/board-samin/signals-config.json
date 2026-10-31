@@ -1,0 +1,28 @@
+{
+ "x": [
+  "AnthropicAI",
+  "PaddyG96",
+  "chaseai__"
+ ],
+ "xTopics": [
+  "\"claude code\"",
+  "claude",
+  "\"vibe coding\"",
+  "\"AI agents\""
+ ],
+ "minXLikes": 500,
+ "reddit": [
+  "ClaudeAI",
+  "ClaudeCode",
+  "vibecoding",
+  "AI_Agents",
+  "OpenAI",
+  "codex",
+  "ChatGPT",
+  "ArtificialInteligence",
+  "artificial"
+ ],
+ "maxAgeDays": 7,
+ "minRedditScore": 50,
+ "maxPerSource": 10
+}

@@ -21,6 +21,8 @@ import * as agentChat from './agent-chat.js';
 import {automation} from './automation.js';
 import {planBorumiRoundtrip,exportBorumiRoundtrip} from './borumi-roundtrip.js';
 import {planNewBorumiProject,exportNewBorumiProject} from './borumi-new-project.js';
+import {clubRouter} from './club/index.js';
+import {cancelAllJobs} from './club/jobs.js';
 import {isAudioRole,type Project,type ExportOptions} from '../shared/types.js';
 
 const PORT=Number(process.env.SCENEFORGE_PORT||4184);
@@ -44,11 +46,20 @@ app.use((req,res,next)=>{
  const origin=req.headers.origin;if(origin&&!['http://localhost:4173','http://127.0.0.1:4173','http://127.0.0.1:4183','http://localhost:4183',`http://localhost:${PORT}`,`http://127.0.0.1:${PORT}`].includes(origin)){res.status(403).json({error:'Origin is not allowed'});return;}
  res.setHeader('X-Content-Type-Options','nosniff');next();
 });
+app.use('/api/club',clubRouter({publishing:{projectExported:async projectId=>(await exportsStore.list(projectId,0,200)).some(record=>record.status==='complete'&&record.options.format==='mp4'&&record.output.status==='available'&&Boolean(record.outputPath)),exportFile:async id=>{
+ const record=await exportsStore.get(id).catch(()=>undefined);
+ if(!record||record.status!=='complete'||record.output.status!=='available'||record.options.format!=='mp4'||!record.outputPath)return undefined;
+ const stat=await fs.stat(record.outputPath).catch(()=>undefined);
+ return stat?{path:record.outputPath,name:path.basename(record.outputPath),size:stat.size,projectId:record.projectId}:undefined;
+}}}));
 app.use(express.json({limit:'30mb'}));
 const route=(fn:(req:Request,res:Response)=>Promise<unknown>|unknown)=>(req:Request,res:Response,next:NextFunction)=>Promise.resolve(fn(req,res)).catch(next);
 const param=(req:Request,name='id')=>String(req.params[name]);
 const reviewedRevision=(req:Request)=>{const value=req.headers['if-match'];if(typeof value!=='string'||!/^(?:"[0-9a-f]{64}"|[0-9a-f]{64})$/.test(value))throw Object.assign(Error('A reviewed project revision is required. Refresh and review this action again.'),{status:409});return value.replaceAll('"','');};
-const capabilities=async()=>({...await media.getCapabilities(),transcription:await ai.transcriptionCapabilities(),vision:await getVisionCapabilities(),application:'Creator Compiler',mcp:{command:process.env.SCENEFORGE_MCP_COMMAND||process.execPath,args:process.env.SCENEFORGE_MCP_COMMAND?[]:[path.resolve(import.meta.dirname,'../server-dist/mcp.mjs')],toolCount:toolDefinitions.length},version:'0.1.0'});
+// An empty SCENEFORGE_MCP_COMMAND (the Creator Compiler app without its own launcher) advertises no MCP launcher at all.
+const mcpCommand=process.env.SCENEFORGE_MCP_COMMAND;
+// `product` tells the Creator Compiler app its own service apart from a SceneForge one.
+const capabilities=async()=>({...await media.getCapabilities(),transcription:await ai.transcriptionCapabilities(),vision:await getVisionCapabilities(),application:'Creator Compiler',product:'Creator Compiler',mcp:mcpCommand!==''?{command:mcpCommand||process.execPath,args:mcpCommand?[]:[path.resolve(import.meta.dirname,'../server-dist/mcp.mjs')],toolCount:toolDefinitions.length}:undefined,version:'0.1.0'});
 app.get('/api/cutroom/status',route(async(_,res)=>res.json(await cutroom.cutroomStatus())));
 app.post('/api/projects/:id/cutroom',route(async(req,res)=>res.json(await cutroom.prepare(param(req)))));
 app.get('/api/cutroom/:id',route(async(req,res)=>res.json(await cutroom.workspace(param(req)))));
@@ -60,7 +71,7 @@ app.post('/api/cutroom/:id/import-render',route(async(req,res)=>res.json(await c
 app.get('/api/cutroom/:id/preview.png',route((req,res)=>res.sendFile(cutroom.previewPath(param(req)),{dotfiles:'allow'})));
 app.get('/api/cutroom/:id/render.mp4',route((req,res)=>res.sendFile(cutroom.renderPath(param(req)),{dotfiles:'allow'})));
 app.get('/api/health',route(async(_,res)=>res.json({...await capabilities(),dataDir:storage.DATA_DIR})));
-app.get('/api/ready',(_req,res)=>{res.json({application:'Creator Compiler',version:'0.1.0'});});
+app.get('/api/ready',(_req,res)=>{res.json({application:'Creator Compiler',product:'Creator Compiler',version:'0.1.0'});});
 app.get('/api/capabilities',route(async(_,res)=>res.json(await capabilities())));
 app.get('/api/events',(_req,res)=>{
  res.setHeader('Content-Type','text/event-stream');res.setHeader('Cache-Control','no-cache, no-transform');res.setHeader('Connection','keep-alive');res.flushHeaders();
@@ -98,6 +109,7 @@ app.put('/api/projects/:id',route(async(req,res)=>{
 app.delete('/api/projects/:id',route(async(req,res)=>{await storage.trashProject(param(req));return res.json({ok:true});}));
 app.post('/api/projects/:id/duplicate',route(async(req,res)=>res.json(await storage.duplicateProject(param(req)))));
 app.get('/api/projects/:id/history',route(async(req,res)=>res.json(await storage.history(param(req)))));
+app.get('/api/projects/:id/history/summaries',route(async(req,res)=>res.json(await storage.historySummaries(param(req)))));
 app.post('/api/projects/:id/restore',route(async(req,res)=>{const p=await storage.restoreProject(param(req),req.body.historyId,reviewedRevision(req));res.setHeader('ETag','"'+storage.revision(p)+'"');return res.json(p);}));
 app.get(['/api/projects/:id/media-recovery','/api/projects/:id/media-status'],route(async(req,res)=>res.json(await mediaRecovery.inspectMedia(param(req)))));
 app.post('/api/projects/:id/media-recovery/plan',route(async(req,res)=>res.json(await mediaRecovery.planRelink(param(req),req.body.mediaId,req.body.replacementPath,reviewedRevision(req)))));
@@ -107,8 +119,9 @@ app.post('/api/projects/:id/checkpoint',route(async(req,res)=>res.json(await sto
 app.post('/api/media/import',route(async(req,res)=>{if(!Array.isArray(req.body.paths)||req.body.paths.length>100)throw new Error('Provide up to 100 paths');if(req.body.audioRole!==undefined&&!isAudioRole(req.body.audioRole))throw new Error('Invalid media audio role');const result=[];for(const file of req.body.paths){if(typeof file!=='string'||!path.isAbsolute(file))throw new Error('Expected absolute local media path');const m=await media.probeMedia(file,storage.CACHE_DIR);if(req.body.audioRole!==undefined)m.audioRole=req.body.audioRole;result.push(await storage.registerMedia(m));}if(req.body.audioRole!==undefined)result.forEach(recordings.warmTakeWaveform);return res.json(result);}));
 const upload=multer({storage:multer.diskStorage({destination:storage.UPLOAD_DIR,filename:(_,file,cb)=>cb(null,randomUUID()+path.extname(file.originalname).replace(/[^a-zA-Z0-9.]/g,'').slice(0,12))}),limits:{files:100,fileSize:20*1024*1024*1024}});
 app.post('/api/media/upload',upload.array('files',100),route(async(req,res)=>{const result=[];for(const file of req.files as Express.Multer.File[]){try{const m=await media.probeMedia(file.path,storage.CACHE_DIR);m.name=file.originalname;result.push(await storage.registerMedia(m));}catch(e){await fs.rm(file.path,{force:true});throw e;}}return res.json(result);}));
-app.get('/api/media/:id/file',route(async(req,res)=>res.sendFile((await storage.readMedia(param(req))).path,{dotfiles:'allow'})));
-app.get('/api/media/:id/thumbnail',route(async(req,res)=>res.sendFile(await media.thumbnail(await storage.readMedia(param(req)),storage.CACHE_DIR),{dotfiles:'allow'})));
+app.get('/api/media/:id/file',route(async(req,res)=>res.sendFile((await storage.readMedia(param(req))).path)));
+app.get('/api/media/:id/thumbnail',route(async(req,res)=>res.sendFile(await media.thumbnail(await storage.readMedia(param(req)),storage.CACHE_DIR))));
+app.get('/api/media/:id/filmstrip',route(async(req,res)=>res.sendFile(await media.filmstrip(await storage.readMedia(param(req)),storage.CACHE_DIR))));
 app.get('/api/media/:id/waveform',route(async(req,res)=>res.json({peaks:await media.waveform(await storage.readMedia(param(req)),storage.CACHE_DIR)})));
 app.get('/api/media/:id/face-track',route(async(req,res)=>{
  const start=Number(req.query.start),end=Number(req.query.end);if(!Number.isFinite(start)||!Number.isFinite(end)||start<0||end<=start||end-start>30)throw Error('Face tracking requires a finite source range of up to 30 seconds.');
@@ -214,5 +227,5 @@ app.get('/{*rest}',(req,res)=>{if(req.path.startsWith('/api/'))res.status(404).j
 app.use((error:Error & {status?:number;code?:string},_req:Request,res:Response,_next:NextFunction)=>{console.error(error.message);res.status(error.status||(error.code==='ENOENT'?404:400)).json({error:error.message});});
 const server=app.listen(PORT,'127.0.0.1',(error?:Error)=>{if(error){console.error('Could not start Creator Compiler: '+error.message);void exportsStore.shutdown(media.shutdownJobs).finally(()=>{process.exitCode=1;});return;}console.log(`Creator Compiler is ready at http://127.0.0.1:${PORT}`);});
 let shuttingDown=false;
-const shutdown=()=>{if(shuttingDown)return;shuttingDown=true;server.close();void Promise.allSettled([exportsStore.shutdown(media.shutdownJobs),agentChat.shutdownAgentChats(),automation.shutdown()]).then(results=>{for(const result of results)if(result.status==='rejected')console.error(result.reason);});};
+const shutdown=()=>{if(shuttingDown)return;shuttingDown=true;server.close();cancelAllJobs();void Promise.allSettled([exportsStore.shutdown(media.shutdownJobs),agentChat.shutdownAgentChats(),automation.shutdown()]).then(results=>{for(const result of results)if(result.status==='rejected')console.error(result.reason);});};
 process.on('SIGTERM',shutdown);process.on('SIGINT',shutdown);

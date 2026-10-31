@@ -3,7 +3,8 @@ import {cutTimelineRange} from '../shared/timeline-edits';
 import {plainClone} from './project-draft';
 const EPS=1e-7;
 function timelineEnd(p:Project){const ends=[projectDuration(p),...p.captions.map(c=>c.end),...p.zooms.map(z=>z.start+z.duration),...p.cursor.points.map(c=>c.time)];if(ends.some(n=>!Number.isFinite(n)||n<0))throw Error('Timeline timing is invalid. Fix it before arranging recording scenes.');return Math.max(...ends);}
-function validateScenes(p:Project){
+/** Scenes are timeline blocks in array order: unique ids, valid timing, no overlap. Exported so other code can check what it writes. */
+export function validateScenes(p:Project){
  const ids=new Set<string>();
  for(let i=0;i<p.scenes.length;i++){
   const s=p.scenes[i],next=p.scenes[i+1];

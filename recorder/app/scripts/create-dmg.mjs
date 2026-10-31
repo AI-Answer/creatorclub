@@ -52,24 +52,23 @@ export async function createDmg(appPath,outputFile){
   await access(path.join(application,'Contents','MacOS','Creator Compiler'));
   const signature=await run('/usr/bin/codesign',['--display','--verbose=2',application]);
   const signing=signingDescription(signature.stdout+'\n'+signature.stderr);
-  const staging=await mkdtemp(path.join(tmpdir(),'sceneforge-installer-'));
+  const staging=await mkdtemp(path.join(tmpdir(),'creatorclub-installer-'));
   try{
     // Preserve executable bits and symlinks while excluding resource-fork and
     // extended-attribute sidecars. Nothing is written into the source app.
     await run('/usr/bin/ditto',['--norsrc','--noextattr',application,path.join(staging,'Creator Compiler.app')]);
     await symlink('/Applications',path.join(staging,'Applications'));
     await writeFile(path.join(staging,'How to install Creator Compiler.txt'),[
-      'INSTALL SCENEFORGE',
+      'INSTALL CREATORCLUB',
       '',
       '1. Drag Creator Compiler.app onto the Applications folder in this window.',
-      '2. Open Applications and launch Creator Compiler.',
+      '2. Open Applications and open Creator Compiler.',
       '3. Eject this disk image after copying finishes.',
       '',
       'Requires macOS 14 or later on Apple silicon.',
       'The app asks for camera, microphone and screen-recording access only when needed.',
       '',
       signing,
-      'Installation help: https://github.com/Samin12/Creator Compiler/blob/main/docs/INSTALL.md',
       '',
     ].join('\n'));
     const icon=path.join(application,'Contents','Resources','electron.icns');

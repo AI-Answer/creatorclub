@@ -1,5 +1,6 @@
 import type {NormalizedRegion,RegionStream} from './capture-region';
 import type {AudioRole} from '../shared/types';
+import {privacyAppName} from './media-permissions';
 /** Owns preview streams across asynchronous permission prompts and device switches. */
 export type CaptureKind = 'camera' | 'microphone' | 'screen';
 export type PreviewState = {status:'off'|'loading'|'live'|'ended'|'error';stream:MediaStream|null;error:string|null;key:string};
@@ -15,14 +16,16 @@ function waitForCapture<T>(promise:Promise<T>,signal:AbortSignal,releaseLate:(va
   const finish=(error?:Error,value?:T)=>{if(settled)return;settled=true;if(timer)clearTimeout(timer);signal.removeEventListener('abort',abort);if(error)reject(error);else resolve(value!);};
   const abort=()=>finish(new DOMException('Capture cancelled','AbortError'));
   signal.addEventListener('abort',abort,{once:true});if(signal.aborted)abort();
-  if(!settled&&timeoutMs!==undefined)timer=setTimeout(()=>finish(new Error('The selected screen did not open its preview. Try again, or quit and reopen Creator Compiler if it still cannot start.')),timeoutMs);
+  if(!settled&&timeoutMs!==undefined)timer=setTimeout(()=>finish(new Error(`The selected screen did not open its preview. Try again, or quit and reopen ${privacyAppName()} if it still cannot start.`)),timeoutMs);
   promise.then(value=>{if(settled)releaseLate(value);else finish(undefined,value);},error=>finish(error));
  });
 }
 export const streamIsLive = (stream:MediaStream|null,kind:'audio'|'video') => Boolean(stream?.getTracks().some(track=>track.kind===kind&&track.readyState==='live'));
+/** The preview error when access was not granted; Creator Compiler's warnings card reads it as a permission problem. */
+export const ACCESS_NOT_GRANTED='Access was not granted. Enable this source to try again, or review its macOS privacy permission.';
 export function captureError(error:unknown):string {
  const e=error as {name?:string;message?:string};
- if(e.name==='NotAllowedError'||e.name==='PermissionDeniedError')return 'Access was not granted. Enable this source to try again, or review its macOS privacy permission.';
+ if(e.name==='NotAllowedError'||e.name==='PermissionDeniedError')return ACCESS_NOT_GRANTED;
  if(e.name==='NotFoundError'||e.name==='DevicesNotFoundError')return 'No matching device was found. Connect a device and choose it again.';
  if(e.name==='NotReadableError'||e.name==='TrackStartError')return 'This source could not start. It may be in use by another application.';
  if(e.name==='OverconstrainedError')return 'This device does not support the selected settings. Choose another device or resolution.';

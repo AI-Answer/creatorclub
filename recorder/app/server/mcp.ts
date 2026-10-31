@@ -5,6 +5,7 @@ import { createHash } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 import {basename,isAbsolute} from 'node:path';
 import { makeId,clipDuration,clipEffectTiming,projectDuration,type Project,type Clip } from '../shared/types.js';
+import { relinkSlices } from '../shared/timeline-edits.js';
 
 const string={type:'string'};const number={type:'number'};const object={type:'object'};
 const array=(items:unknown)=>({type:'array',items});
@@ -107,7 +108,9 @@ export function trimProject(p:Project,input:number[][],ripple=true):Project{
  const mapped=(time:number)=>Math.max(0,time-shift(time));const out=structuredClone(p);
  out.clips=p.clips.flatMap(clip=>{const end=clip.start+clipDuration(clip),origin=clipEffectTiming(clip),affected=ranges.some(([a,b])=>a<end&&b>clip.start);let parts:Array<[number,number]>=[[clip.start,end]];for(const [a,b] of ranges)parts=parts.flatMap(([s,e])=>b<=s||a>=e?[[s,e]]:[...(a>s?[[s,a] as [number,number]]:[]),...(b<e?[[b,e] as [number,number]]:[])]);return parts.map(([s,e],i)=>({...structuredClone(clip),id:i===0?clip.id:makeId(),start:mapped(s),sourceIn:clip.sourceIn+(s-clip.start)*clip.speed,sourceOut:clip.sourceIn+(e-clip.start)*clip.speed,...(affected?{effectTiming:{sourceIn:origin.sourceIn,sourceOut:origin.sourceOut}}:{})}))});
  out.captions=p.captions.flatMap(c=>{if(ranges.some(([a,b])=>c.start<b&&c.end>a))return [];return [{...c,start:mapped(c.start),end:mapped(c.end),words:c.words?.map(w=>({...w,start:mapped(w.start),end:mapped(w.end)}))}]});
- if(ripple){out.scenes=p.scenes.map(s=>({...s,start:mapped(s.start),duration:Math.max(0,mapped(s.start+s.duration)-mapped(s.start))}));out.elements=p.elements.map(e=>({...e,start:mapped(e.start),duration:Math.max(0,mapped(e.start+e.duration)-mapped(e.start))})).filter(e=>e.duration>0);out.zooms=p.zooms.map(z=>({...z,start:mapped(z.start),duration:Math.max(0,mapped(z.start+z.duration)-mapped(z.start))})).filter(z=>z.duration>0);out.cursor.points=p.cursor.points.filter(pt=>!ranges.some(([a,b])=>pt.time>=a&&pt.time<b)).map(pt=>({...pt,time:mapped(pt.time)}))}
+ if(ripple){out.scenes=p.scenes.map(s=>({...s,start:mapped(s.start),duration:Math.max(0,mapped(s.start+s.duration)-mapped(s.start))}));out.elements=p.elements.map(e=>({...e,start:mapped(e.start),duration:Math.max(0,mapped(e.start+e.duration)-mapped(e.start))})).filter(e=>e.duration>0);out.zooms=p.zooms.map(z=>({...z,start:mapped(z.start),duration:Math.max(0,mapped(z.start+z.duration)-mapped(z.start))})).filter(z=>z.duration>0);if(p.motion)out.motion=p.motion.map(m=>({...m,start:mapped(m.start),duration:Math.max(0,mapped(m.start+m.duration)-mapped(m.start))})).filter(m=>m.duration>0);out.cursor.points=p.cursor.points.filter(pt=>!ranges.some(([a,b])=>pt.time>=a&&pt.time<b)).map(pt=>({...pt,time:mapped(pt.time)}))}
+ // Pieces of a linked take keep their link per slice, never across a cut.
+ relinkSlices(out);
  return out;
 }
 
@@ -157,7 +160,7 @@ export function createToolHandler(baseUrl='http://127.0.0.1:4184/api',fetcher:ty
   if(name==='list_projects')return (await http('/projects')).data;
   if(name==='create_project')return (await http('/projects','POST',{name:a.name})).data;
   if(name==='duplicate_project')return (await http(`/projects/${encodeURIComponent(a.project_id)}/duplicate`,'POST',{})).data;
-  if(['get_project','get_project_overview','get_scenes','get_timeline','get_transcript'].includes(name)){const p=await read(a);const content=name==='get_project_overview'?{project_id:p.id,name:p.name,duration:projectDuration(p),counts:{scenes:p.scenes.length,media:p.media.length,clips:p.clips.length,captions:p.captions.length,elements:p.elements.length,zooms:p.zooms.length},canvas:p.canvas,scenes:p.scenes.map(({id,name,start,duration})=>({id,name,start,duration})),media:p.media.map(({id,name,kind,duration,width,height})=>({id,name,kind,duration,width,height})),importWarnings:p.importWarnings??[]}:name==='get_scenes'?{scenes:p.scenes}:name==='get_timeline'?{clips:p.clips,elements:p.elements,zooms:p.zooms,cursor:p.cursor,canvas:p.canvas,duration:projectDuration(p)}:name==='get_transcript'?{captions:p.captions}:{project:p};return {...content,timeline_hash:hash(p)}}
+  if(['get_project','get_project_overview','get_scenes','get_timeline','get_transcript'].includes(name)){const p=await read(a);const content=name==='get_project_overview'?{project_id:p.id,name:p.name,duration:projectDuration(p),counts:{scenes:p.scenes.length,media:p.media.length,clips:p.clips.length,captions:p.captions.length,elements:p.elements.length,zooms:p.zooms.length},canvas:p.canvas,scenes:p.scenes.map(({id,name,start,duration})=>({id,name,start,duration})),media:p.media.map(({id,name,kind,duration,width,height})=>({id,name,kind,duration,width,height})),importWarnings:p.importWarnings??[]}:name==='get_scenes'?{scenes:p.scenes}:name==='get_timeline'?{clips:p.clips,elements:p.elements,motion:p.motion??[],zooms:p.zooms,cursor:p.cursor,canvas:p.canvas,duration:projectDuration(p)}:name==='get_transcript'?{captions:p.captions}:{project:p};return {...content,timeline_hash:hash(p)}}
   if(name==='inspect_timeline'){
    if(!a.project_id||!Array.isArray(a.times)||a.times.length<1||a.times.length>6||!a.times.every((n:unknown)=>typeof n==='number'&&Number.isFinite(n)&&n>=0))throw new Error('Provide project_id and 1–6 finite nonnegative times in seconds.');
    if(a.width!==undefined&&(!Number.isInteger(a.width)||a.width<160||a.width>1920))throw new Error('Inspection width must be an integer from 160 to 1920.');

@@ -92,3 +92,8 @@ test('separate trashed versions with the same project ID require explicit copy c
  const one=await s.restoreTrash(first.id,first.revision);await assert.rejects(s.restoreTrash(second.id,second.revision),/Restore as copy/);
  const two=await s.restoreTrash(second.id,second.revision,{asCopy:true});assert.equal(one.project.name,'Version A');assert.equal(two.project.name,'Version B (recovered copy)');assert.notEqual(one.project.id,two.project.id);
 });
+test('Task 14: history summaries give each version its numbers, so titles can say what changed',async()=>{
+ const p=await s.newProject('Summaries');await s.saveProject({...p,name:'Second'},{checkpoint:true});await s.saveProject({...p,name:'Third'},{checkpoint:true});
+ const versions=await s.history(p.id),found=await s.historySummaries(p.id);
+ assert.ok(versions.length>=2);assert.deepEqual(versions.map(v=>found[v.id]?.name),versions.map(v=>v.name));assert.equal(typeof found[versions[0].id].duration,'number');
+});

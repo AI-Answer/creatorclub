@@ -15,3 +15,5 @@ export function usePlayheadSelector<T>(playhead:Playhead,select:(time:number)=>T
  const snapshot=useCallback(()=>{const time=playhead.get(),select=selectRef.current,previous=latest.current;if(previous&&previous.time===time&&previous.select===select)return previous.value;const value=select(time);if(previous&&equalRef.current(previous.value,value)){latest.current={time,select,value:previous.value};return previous.value;}latest.current={time,select,value};return value;},[playhead]);
  return useSyncExternalStore(playhead.subscribe,snapshot,snapshot);
 }
+/** Where the playhead goes when the video gets shorter (a delete, a trim): onto its last frame when it would sit at or past the end, so the stage never goes black. */
+export function clampToEnd(time:number,duration:number,fps:number){const last=Math.max(0,duration-1/Math.max(1,fps));return duration<=0?0:time>last?last:time;}

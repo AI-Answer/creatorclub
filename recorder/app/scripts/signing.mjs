@@ -9,12 +9,12 @@ const execute=promisify(execFile);
 const hash=bytes=>createHash('sha256').update(bytes).digest('hex');
 const emptyEntitlements='<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd"><plist version="1.0"><dict/></plist>\n';
 export const customCode=Object.freeze([
- ['server-dist/sceneforge-screen-recorder','com.samin.sceneforge.screen-recorder'],
- ['server-dist/sceneforge-vision','com.samin.sceneforge.vision'],
- ['server-dist/sceneforge-text-renderer','com.samin.sceneforge.text-renderer'],
- ['runtime/bin/ffmpeg','com.samin.sceneforge.ffmpeg'],
- ['runtime/bin/ffprobe','com.samin.sceneforge.ffprobe'],
- ['runtime/bin/whisper-cli','com.samin.sceneforge.whisper'],
+ ['server-dist/sceneforge-screen-recorder','com.aianswer.creatorcompiler.screen-recorder'],
+ ['server-dist/sceneforge-vision','com.aianswer.creatorcompiler.vision'],
+ ['server-dist/sceneforge-text-renderer','com.aianswer.creatorcompiler.text-renderer'],
+ ['runtime/bin/ffmpeg','com.aianswer.creatorcompiler.ffmpeg'],
+ ['runtime/bin/ffprobe','com.aianswer.creatorcompiler.ffprobe'],
+ ['runtime/bin/whisper-cli','com.aianswer.creatorcompiler.whisper'],
 ]);
 
 export function parseIdentities(output){
@@ -107,7 +107,7 @@ export async function signPackage(app,identity,{directory=path.resolve('.local/s
   files.push({path:relative,...await signCode(target,identifier)});
  }
  const launcherPath=path.join(app,'Contents/MacOS/sceneforge-mcp');
- const launcher={path:'Contents/MacOS/sceneforge-mcp',...await signCode(launcherPath,'com.samin.sceneforge.mcp')};
+ const launcher={path:'Contents/MacOS/sceneforge-mcp',...await signCode(launcherPath,'com.aianswer.creatorcompiler.mcp')};
  await writeFile(path.join(resource,'runtime/build-manifest.json'),originalBytes);
  await writeFile(path.join(resource,'runtime/manifest.json'),JSON.stringify(signedRuntimeManifest(original,files,identity),null,2)+'\n');
  await writeFile(path.join(resource,'runtime/signing-provenance.json'),JSON.stringify({version:1,mode:identity.mode,identitySha1:identity.sha1,originalManifestSha256:hash(originalBytes),files,launcher},null,2)+'\n');

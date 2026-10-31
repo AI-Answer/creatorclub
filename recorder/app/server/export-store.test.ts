@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {promises as fs} from 'node:fs';
 import path from 'node:path';
 import {tmpdir} from 'node:os';
-import {ExportStore} from './export-store.js';
+import {ExportStore,processRendererFingerprint,rendererFingerprint} from './export-store.js';
 import {createProject,defaultEffects,defaultTransform,type Project,type ExportOptions,type Job} from '../shared/types.js';
 import type {RenderLifecycle} from './media.js';
 async function fixture(){
@@ -114,4 +114,10 @@ test('metadata retry requires identical full hashes even if later content has st
  await fingerprintRace(async(file,attempt)=>{if(attempt===1)await fs.chmod(file,0o640);},async(file,attempts)=>{
   await assert.rejects(fingerprintRendererFile(file),/Renderer content changed/);assert.equal(attempts(),2);
  },async(file,attempt)=>{if(attempt===2)await fs.writeFile(file,'modified renderer bytes');});
+});
+
+test('the service fingerprints its renderer once: a source edited on disk during an export does not make the finished export unverifiable',async()=>{
+ const first=processRendererFingerprint();
+ assert.equal(processRendererFingerprint(),first,'one fingerprint per process');
+ assert.equal(await first,await rendererFingerprint(),'the same signature as reading the files now');
 });

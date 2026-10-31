@@ -2,14 +2,18 @@ const { app, BrowserWindow, ipcMain, dialog, shell, desktopCapturer, screen, ses
 const path = require('node:path');
 const { spawn } = require('node:child_process');
 const fs = require('node:fs');
-const {runtimeEnvironment}=require('./runtime.cjs');
+const {CREATORCLUB,creatorClubPaths,isCreatorClubService,privacyAppName,runtimeEnvironment}=require('./runtime.cjs');
+const appName=privacyAppName();
 const {createCaptureManager}=require('./capture.cjs');
 const {createRecordingHud}=require('./recording-hud.cjs');
 const {createNativeRecordingManager}=require('./native-recording.cjs');
 const {createCaptureBorder}=require('./capture-border.cjs');
 const {createMediaPermissionRequests}=require('./media-permissions.cjs');
+const {createMotionRenderer}=require('./motion-render.cjs');
+let motionRenderer=null;
 let mainWindow, service, captureManager, recordingHud, nativeRecording, captureBorder, ownService = false, quitting = false;
-const PORT=Number(process.env.SCENEFORGE_PORT||(app.isPackaged?4194:4184)), base=`http://127.0.0.1:${PORT}`;
+// Creator Compiler's own port: SceneForge's service on its default port is never used or disturbed.
+const PORT=Number(process.env.SCENEFORGE_PORT||(app.isPackaged?CREATORCLUB.port:4184)), base=`http://127.0.0.1:${PORT}`;
 // The editor window hides while recording; without this macOS may App Nap the app and stall capture.
 let recordingBlocker=null;
 function keepAwakeWhileRecording(type){
@@ -90,7 +94,7 @@ function installMenu(){
  const signature=JSON.stringify({editor:editorMenuActive(),editable:shortcutContext.editable,available:shortcutContext.availableActions,bindings:shortcutContext.bindings});if(signature===lastMenuSignature)return;lastMenuSignature=signature;
  const editItem=(action,label)=>editorMenuActive()||appUndoActive(action)?{id:action,label,accelerator:bindingList(action).map(acceleratorFor).find(Boolean)||undefined,enabled:available(action),click:()=>emitShortcut(action)}:{role:action};
  const viewZoom=editorMenuActive()?[{id:'zoomIn',label:'Zoom Timeline In',accelerator:bindingList('zoomIn').map(acceleratorFor).find(Boolean)||undefined,enabled:available('zoomIn'),click:()=>emitShortcut('zoomIn')},{id:'zoomOut',label:'Zoom Timeline Out',accelerator:bindingList('zoomOut').map(acceleratorFor).find(Boolean)||undefined,enabled:available('zoomOut'),click:()=>emitShortcut('zoomOut')}]:[{role:'zoomIn'},{role:'zoomOut'}];
- Menu.setApplicationMenu(Menu.buildFromTemplate([{label:'Creator Compiler',submenu:[{role:'about'},{type:'separator'},{role:'hide'},{role:'hideOthers'},{type:'separator'},{role:'quit'}]},{label:'File',submenu:[{id:'closeProject',label:'Close Project',accelerator:bindingList('closeProject').map(acceleratorFor).find(Boolean)||undefined,enabled:available('closeProject'),click:()=>emitShortcut('closeProject')}]},{label:'Edit',submenu:[editItem('undo','Undo'),editItem('redo','Redo'),{type:'separator'},editItem('cut','Cut'),editItem('copy','Copy'),editItem('paste','Paste'),editItem('selectAll','Select All')]},{label:'View',submenu:[{role:'reload'},{role:'toggleDevTools'},{type:'separator'},{role:'resetZoom'},...viewZoom,{role:'togglefullscreen'}]},{label:'Window',submenu:[{role:'minimize'},{role:'zoom'},{role:'front'}]}]));
+ Menu.setApplicationMenu(Menu.buildFromTemplate([{label:CREATORCLUB.name,submenu:[{role:'about'},{type:'separator'},{role:'hide'},{role:'hideOthers'},{type:'separator'},{role:'quit'}]},{label:'File',submenu:[{id:'closeProject',label:'Close Project',accelerator:bindingList('closeProject').map(acceleratorFor).find(Boolean)||undefined,enabled:available('closeProject'),click:()=>emitShortcut('closeProject')}]},{label:'Edit',submenu:[editItem('undo','Undo'),editItem('redo','Redo'),{type:'separator'},editItem('cut','Cut'),editItem('copy','Copy'),editItem('paste','Paste'),editItem('selectAll','Select All')]},{label:'View',submenu:[{role:'reload'},{role:'toggleDevTools'},{type:'separator'},{role:'resetZoom'},...viewZoom,{role:'togglefullscreen'}]},{label:'Window',submenu:[{role:'minimize'},{role:'zoom'},{role:'front'}]}]));
 }
 function inputMatches(input,binding){
  if(binding?.kind!=='keyboard')return false;
@@ -118,27 +122,41 @@ function setShortcutContext(value){
  shortcutContext={workspace:value.workspace,editable:value.editable===true,timelineFocused:value.timelineFocused===true,availableActions:actions,bindings};installMenu();return updateGlobalShortcuts();
 }
 function resetShortcutContext(){shortcutContext=emptyShortcutContext();clearGlobalShortcuts();installMenu();reportShortcutStatus();}
-app.setName('Creator Compiler');
+// Its own name and user-data folder (~/Library/Application Support/Creator Compiler) before the lock: the single-instance lock
+// lives in the user-data folder, so this app and a running SceneForge app never block each other or share settings.
+app.setName(CREATORCLUB.name);
+const paths=creatorClubPaths({appData:app.getPath('appData'),...(!app.isPackaged?{developmentRoot:projectRoot}:{})});
+fs.mkdirSync(paths.userData,{recursive:true});
+app.setPath('userData',paths.userData);
 const gotLock=app.requestSingleInstanceLock();
 if(!gotLock)app.quit();
 app.on('second-instance',()=>{if(mainWindow){mainWindow.show();mainWindow.focus();}});
-// /api/ready answers as soon as the service listens (no media probing); an older
-// already-running service only has /api/health. A port holder that never answers
-// times out so the start deadline still applies.
+// /api/ready answers as soon as the service listens (no media probing). Only a Creator Compiler service counts: any other
+// holder of the port (a SceneForge service included) is never used, and the start deadline then reports the port.
 async function serviceAnswers(){
- for(const route of ['/api/ready','/api/health']){const r=await fetch(base+route,{signal:AbortSignal.timeout(route==='/api/ready'?2000:10000)});if(route==='/api/ready'&&r.status===404){await r.body?.cancel();continue;}const health=await r.json();return r.ok&&health.application==='Creator Compiler'&&health.version==='0.1.0';}
- return false;
+ const r=await fetch(base+'/api/ready',{signal:AbortSignal.timeout(2000)});
+ if(!r.ok){await r.body?.cancel();return false;}
+ return isCreatorClubService(await r.json());
 }
 async function startService(){
  try {if(await serviceAnswers())return;}catch{}
  const entry=path.join(projectRoot,'server-dist/index.mjs');
- const env=runtimeEnvironment({root:projectRoot,data:process.env.SCENEFORGE_DATA_DIR||path.join(app.getPath('userData'),'studio'),port:PORT});
+ // Recordings and edits use SceneForge's storage format in Creator Compiler's own folder; SCENEFORGE_DATA_DIR still overrides it.
+ // Only a launcher inside this app is offered for MCP; without one (the dev app) none is advertised, never SceneForge's.
+ const env=runtimeEnvironment({root:projectRoot,data:paths.studio,modelsDir:paths.models,port:PORT});env.SCENEFORGE_MCP_COMMAND??='';
+ if(!app.isPackaged)env.CREATORCLUB_DIR??=path.join(projectRoot,'.local','channels');
+ // The service asks this process to capture motion blocks (see below); without the variable it uses Chrome, as in development.
+ env.CREATORCLUB_MOTION_BRIDGE='1';
  if(fs.existsSync(entry))service=utilityProcess.fork(entry,[],{env,stdio:'pipe',serviceName:'Creator Compiler media service'});
- else service=spawn(process.env.SCENEFORGE_NODE||process.env.npm_node_execpath||'node',['--import','tsx',path.join(projectRoot,'server/index.ts')],{cwd:projectRoot,env,stdio:'pipe'});
+ else service=spawn(process.env.SCENEFORGE_NODE||process.env.npm_node_execpath||'node',['--import','tsx',path.join(projectRoot,'server/index.ts')],{cwd:projectRoot,env,stdio:['pipe','pipe','pipe','ipc']});
  ownService=true;
+ // Motion blocks are captured here, in offscreen windows, for the service (which cannot open windows): it asks over its message channel.
+ motionRenderer??=createMotionRenderer({BrowserWindow,session});
+ const post=message=>{try{if(typeof service.postMessage==='function')service.postMessage(message);else if(service.connected)service.send(message);}catch(error){console.error(error);}};
+ service.on('message',message=>{motionRenderer.handle(message,post);});
  service.stdout?.on('data',d=>console.log(d.toString()));service.stderr?.on('data',d=>console.error(d.toString()));
  for(const deadline=Date.now()+30000;Date.now()<deadline;){try{if(await serviceAnswers())return;}catch{}await new Promise(r=>setTimeout(r,40));}
- throw new Error('The local media service did not start. Reopen Creator Compiler and check that its local service port is available.');
+ throw new Error(`The local media service did not start. Reopen Creator Compiler and check that port ${PORT} is available.`);
 }
 // Hidden/minimized editor: the renderer pauses decorative work, the recorder stops previews.
 // Focus re-checks too, so a stale value cannot outlive the window coming forward.
@@ -151,10 +169,10 @@ app.whenReady().then(async()=>{
  // The window and its renderer process start while the service boots; the page
  // itself is served by the service, so it loads once the service answers.
  const serviceReady=startService();serviceReady.catch(()=>{});
- mainWindow=new BrowserWindow({width:1480,height:960,minWidth:1000,minHeight:680,title:'Creator Compiler',show:false,backgroundColor:nativeTheme.shouldUseDarkColors?'#191b1a':'#f5f3ee',titleBarStyle:process.platform==='darwin'?'hiddenInset':'default',...(process.platform==='darwin'?{trafficLightPosition:{x:16,y:26}}:{}),webPreferences:{preload:path.join(__dirname,'preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true,backgroundThrottling:false}});
+ mainWindow=new BrowserWindow({width:1480,height:960,minWidth:1000,minHeight:680,title:CREATORCLUB.name,show:false,backgroundColor:nativeTheme.shouldUseDarkColors?'#0a0a0a':'#f7f7fa',titleBarStyle:process.platform==='darwin'?'hiddenInset':'default',...(process.platform==='darwin'?{trafficLightPosition:{x:16,y:20}}:{}),webPreferences:{preload:path.join(__dirname,'preload.cjs'),additionalArguments:[`--privacy-app-name=${appName}`],contextIsolation:true,nodeIntegration:false,sandbox:true,backgroundThrottling:false}});
  const trusted=(url)=>{try{return new URL(url).origin===base;}catch{return false;}};
  session.defaultSession.setPermissionRequestHandler((contents,permission,callback,details)=>callback(!quitting&&(trusted(contents.getURL())&&['media','display-capture'].includes(permission)||Boolean(recordingHud?.allowsCamera(contents,permission,details)))));
- captureManager=createCaptureManager({BrowserWindow,desktopCapturer,screen,ipcMain,session,systemPreferences,getMainWindow:()=>mainWindow,origin:base});
+ captureManager=createCaptureManager({BrowserWindow,desktopCapturer,screen,ipcMain,session,systemPreferences,getMainWindow:()=>mainWindow,origin:base,appName});
  // The system picker bypasses this handler. Our explicit source choice still requires
  // macOS Screen Recording consent, and never falls back to a different source.
  session.defaultSession.setDisplayMediaRequestHandler((request,callback)=>captureManager.handleRequest(request,callback),{useSystemPicker:false});
@@ -162,9 +180,9 @@ app.whenReady().then(async()=>{
  ipcMain.handle('choose-capture-source',(e,options)=>captureManager.choose(e,options));
  ipcMain.handle('restore-capture-source',(e,selection)=>captureManager.restore(e,selection));
  ipcMain.handle('cancel-capture-selection',(e,token)=>captureManager.cancel(e,token));
- recordingHud=createRecordingHud({preferencesPath:path.join(app.getPath('userData'),'recording-island.json'),BrowserWindow,ipcMain,screen,getMainWindow:()=>mainWindow,verifyMain:verifyDesktopSender,onMainVisibility:publishMainVisibility});
+ recordingHud=createRecordingHud({preferencesPath:path.join(app.getPath('userData'),'recording-island.json'),defaultLayout:{camera:false,script:true},appName,BrowserWindow,ipcMain,screen,getMainWindow:()=>mainWindow,verifyMain:verifyDesktopSender,onMainVisibility:publishMainVisibility});
  captureBorder=createCaptureBorder({BrowserWindow});
- nativeRecording=createNativeRecordingManager({ipcMain,getMainWindow:()=>mainWindow,origin:base,dataDir:path.join(app.getPath('userData'),'studio'),onState:event=>{captureBorder.update(event);keepAwakeWhileRecording(event.type);},onPrepare:event=>{if(event.recordVideo)captureBorder.prewarm();}});
+ nativeRecording=createNativeRecordingManager({ipcMain,getMainWindow:()=>mainWindow,origin:base,dataDir:paths.studio,onState:event=>{captureBorder.update(event);keepAwakeWhileRecording(event.type);},onPrepare:event=>{if(event.recordVideo)captureBorder.prewarm();}});
  const verify=(e)=>{if(!trusted(e.senderFrame.url))throw new Error('Untrusted window');};
  ipcMain.handle('shortcut-context',(e,value)=>{verify(e);if(e.sender!==mainWindow.webContents)throw new Error('Untrusted shortcut sender');return setShortcutContext(value);});
  ipcMain.handle('media-permissions',e=>{verifyDesktopSender(e);return getMediaPermissions();});
@@ -193,4 +211,4 @@ app.whenReady().then(async()=>{
  try{await mainWindow.loadURL(base);}finally{if(mainWindow&&!mainWindow.isDestroyed()&&!mainWindow.isVisible())mainWindow.show();}
 });
 app.on('window-all-closed',()=>app.quit());
-app.on('before-quit',e=>{if(quitting)return;e.preventDefault();quitting=true;captureBorder?.clear();recordingHud?.dispose();captureManager?.dispose();clearGlobalShortcuts();Promise.resolve(nativeRecording?.dispose()).catch(console.error).finally(()=>{if(ownService)service?.kill();app.quit();});});
+app.on('before-quit',e=>{if(quitting)return;e.preventDefault();quitting=true;captureBorder?.clear();recordingHud?.dispose();captureManager?.dispose();clearGlobalShortcuts();motionRenderer?.dispose();Promise.resolve(nativeRecording?.dispose()).catch(console.error).finally(()=>{if(ownService)service?.kill();app.quit();});});

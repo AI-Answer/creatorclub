@@ -12,9 +12,12 @@ import type { FaceTrack } from "../shared/face-tracking.ts";
 import { filterSum } from "./filter-expression.ts";
 import { mediaCapabilityProbe } from "./media-capabilities.ts";
 import { clipCompositeOrder } from "../shared/timeline-layers.ts";
+import { isSoundTag } from "../shared/sound-tags.ts";
 import { clipShadow } from "../shared/clip-shadow.ts";
 import { canvasBackgroundBMP, canvasBackgroundGeometry, canvasBackgroundRepeatSize, MOVING_DOTS } from "../shared/canvas-background.ts";
 import { zoomTiming } from "../shared/zoom-timing.ts";
+import { filmstripCount, FILMSTRIP_HEIGHT, FILMSTRIP_WIDTH } from "../shared/filmstrip.ts";
+import { renderMotionBlock } from "./motion-render.ts";
 import {
   clipDuration,
   clipEffectTiming,
@@ -24,7 +27,10 @@ import {
   type ExportOptions,
   type Job,
   type Clip,
+  type MotionBlock,
 } from "../shared/types.ts";
+/** A motion block cut by a chunk or an export range: `_offset` seconds into the block, which is `_length` seconds long in all. */
+type SlicedMotion = MotionBlock & { _offset?: number; _length?: number };
 
 const FFMPEG = process.env.SCENEFORGE_FFMPEG || "ffmpeg",
   FFPROBE = process.env.SCENEFORGE_FFPROBE || "ffprobe";
@@ -263,6 +269,26 @@ export async function thumbnail(m: Media, cacheDir: string): Promise<string> {
     }
   });
 }
+/** One JPEG sprite of `filmstripCount` evenly spaced frames for the timeline's filmstrip, cached per source file. */
+export async function filmstrip(m: Media, cacheDir: string): Promise<string> {
+  const count = filmstripCount(m.duration);
+  if (m.kind !== "video" || !count) throw new Error("Filmstrips need a video with a known duration");
+  await fs.mkdir(cacheDir, { recursive: true });
+  const key = (await identity(m.path)).key, file = path.join(cacheDir, `${key}.filmstrip-${count}.jpg`);
+  return unique(file, async () => {
+    if (await exists(file)) return file;
+    const tmp = path.join(cacheDir, `${key}.${randomUUID()}.tmp.jpg`);
+    try {
+      await command(FFMPEG, ["-v", "error", "-nostdin", "-y", ...(m.duration > 120 ? ["-skip_frame", "nokey"] : []), "-i", m.path, "-vf",
+        `fps=${(count / m.duration).toFixed(6)},scale=${FILMSTRIP_WIDTH}:${FILMSTRIP_HEIGHT}:force_original_aspect_ratio=decrease,pad=${FILMSTRIP_WIDTH}:${FILMSTRIP_HEIGHT}:(ow-iw)/2:(oh-ih)/2:color=0x171b27,tile=${count}x1`,
+        "-frames:v", "1", "-q:v", "5", tmp]);
+      await fs.rename(tmp, file);
+      return file;
+    } finally {
+      await fs.rm(tmp, { force: true });
+    }
+  });
+}
 /** Absolute source-level peaks, uniformly covering [0, duration), never normalized. */
 export async function waveform(m: Media, cacheDir: string): Promise<number[]> {
   if (!m.hasAudio && m.kind !== "audio") return [];
@@ -270,7 +296,7 @@ export async function waveform(m: Media, cacheDir: string): Promise<number[]> {
     throw new Error("Waveform requires a source duration between zero and 24 hours");
   await fs.mkdir(cacheDir, { recursive: true });
   const source = await identity(m.path),
-    count = Math.min(1600, Math.max(64, Math.ceil(m.duration * 20))),
+    count = Math.min(16000, Math.max(64, Math.ceil(m.duration * 50))),
     key = hash(`${source.key}:absolute-channel-peaks-v2:${m.duration}:${count}`),
     file = path.join(cacheDir, `${key}.wave-v2.json`);
   return unique(file, async () => {
@@ -593,6 +619,7 @@ function stamp(t: number, sep = ",") {
 }
 export function subtitleText(p: Project) {
   return p.captions
+    .filter((c) => !isSoundTag(c.text))
     .map(
       (c, i) =>
         `${i + 1}\n${stamp(c.start)} --> ${stamp(c.end)}\n${c.text.replace(/\r/g, "")}\n`,
@@ -688,7 +715,7 @@ async function createGraphics(
   }
   if (burn && p.captionStyle.enabled)
     for (const c of p.captions) {
-      if (c.end <= c.start || !c.text.trim()) continue;
+      if (c.end <= c.start || !c.text.trim() || isSoundTag(c.text)) continue;
       for (const part of captionParts(c, p.captionStyle.maxWords)) {
         const y =
           p.captionStyle.position === "top"
@@ -1246,6 +1273,21 @@ async function executeExport(
         );
         base = `base${n}`;
       }
+      // Motion blocks, under texts and captions as in the preview: each rendered once at this size and frame rate (cached), started
+      // `_offset` into the block when a chunk or range begins inside it, shifted to its start and overlaid in its box.
+      for (const m of (p.motion ?? []) as SlicedMotion[]) {
+        if (!(m.duration > 0)) continue;
+        const { _offset: offset = 0, _length: length = m.duration, ...block } = m;
+        const r = await renderMotionBlock({ ...block, duration: length }, w, h, fps);
+        const first = Math.min(r.frames - 1, Math.round(offset * fps)), count = Math.max(1, Math.round(m.duration * fps));
+        args.push("-i", r.file);
+        const n = ++layer;
+        filters.push(
+          `[${input++}:v]trim=start_frame=${first}:end_frame=${first + count},setpts=PTS-STARTPTS+${seconds(m.start)}/TB,format=rgba[motion${n}]`,
+          `[${base}][motion${n}]overlay=${r.x}:${r.y}:eof_action=pass:format=auto[base${n}]`,
+        );
+        base = `base${n}`;
+      }
       const graphics = await createGraphics(
         p,
         w,
@@ -1522,6 +1564,16 @@ function sliceProject(p: Project, start: number, end: number): Project {
       start: cleanTime(Math.max(0, e.start - start)),
       duration: cleanTime(Math.min(end, e.start + e.duration) - Math.max(start, e.start)),
     }));
+  if (p.motion)
+    q.motion = (p.motion as SlicedMotion[])
+      .filter((m) => Math.min(end, m.start + m.duration) - Math.max(start, m.start) > TIME_EPSILON)
+      .map((m) => ({
+        ...m,
+        start: cleanTime(Math.max(0, m.start - start)),
+        duration: cleanTime(Math.min(end, m.start + m.duration) - Math.max(start, m.start)),
+        _offset: (m._offset ?? 0) + Math.max(0, start - m.start),
+        _length: m._length ?? m.duration,
+      }));
   q.zooms = p.zooms
     .filter((z) => Math.min(end, z.start + z.duration) - Math.max(start, z.start) > TIME_EPSILON)
     .map((z) => ({ ...z, start: z.start - start }));
@@ -1582,7 +1634,7 @@ export function startExport(
     const fps = clamp(o.fps || p.canvas.fps, 1, 120);
     const totalFrames = frameCountFor(duration, fps);
     const burnCaptions = o.burnCaptions !== false && p.captionStyle.enabled;
-    const graphicCount = (q: Project) => (burnCaptions ? q.captions.reduce((sum, c) => sum + captionParts(c, q.captionStyle.maxWords).length, 0) : 0) + q.elements.length;
+    const graphicCount = (q: Project) => (burnCaptions ? q.captions.reduce((sum, c) => sum + captionParts(c, q.captionStyle.maxWords).length, 0) : 0) + q.elements.length + (q.motion?.length ?? 0);
     const visualCount = (q: Project) => q.clips.filter((c) => c.track !== "audio" && c.track !== "music").length;
     if (
       !["mp4", "webm", "wav"].includes(o.format) ||

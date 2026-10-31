@@ -46,3 +46,30 @@ test('island defaults to native scrolling with optional auto-scroll in reading s
   (doc.getElementById('script-toggle') as any).click();assert.equal(doc.getElementById('script-toggle')?.getAttribute('aria-label'),'Expand teleprompter');
  }finally{await browser.happyDOM.close();}
 });
+
+test('island starts scrolling the script when the take starts recording, and respects turning it off',async()=>{
+ const browser=new Window({settings:{disableJavaScriptFileLoading:true,disableCSSFileLoading:true}});let update!:(state:any)=>void;
+ const state={status:'starting',elapsed:0,script:'First paragraph.\n\nSecond paragraph.',layout:{camera:false,script:true}};
+ Object.assign(browser,{recordingPreview:{read:async()=>state,subscribe:(callback:typeof update)=>{update=callback;return()=>{};},command:async()=>{},layout:async(layout:any)=>{update({layout});return layout;}}});
+ browser.document.write(await readFile(new URL('../desktop/recording-hud.html',import.meta.url),'utf8'));browser.eval(await readFile(new URL('../desktop/recording-hud.js',import.meta.url),'utf8'));await new Promise(resolve=>setTimeout(resolve,0));
+ const doc=browser.document,automatic=doc.querySelector('input[type="checkbox"][aria-label="Auto-scroll script"]') as any;
+ try{
+  assert.equal(automatic.checked,false,'nothing scrolls before recording starts');
+  update({status:'recording'});assert.equal(automatic.checked,true,'the script scrolls once recording starts');
+  automatic.click();assert.equal(automatic.checked,false);update({status:'recording',elapsed:5});assert.equal(automatic.checked,false,'a take the person stopped scrolling stays stopped');
+  update({status:'paused'});update({status:'recording'});assert.equal(automatic.checked,false,'resuming does not restart it');
+  update({status:'idle'});update({status:'starting',script:'Next scene.'});update({status:'recording'});assert.equal(automatic.checked,false,'the next take keeps the choice to scroll by hand');
+ }finally{await browser.happyDOM.close();}
+});
+
+test('auto-scroll starts again on the next take unless it was switched off',async()=>{
+ const browser=new Window({settings:{disableJavaScriptFileLoading:true,disableCSSFileLoading:true}});let update!:(state:any)=>void;
+ const state={status:'recording',elapsed:0,script:'First paragraph.',layout:{camera:false,script:true}};
+ Object.assign(browser,{recordingPreview:{read:async()=>state,subscribe:(callback:typeof update)=>{update=callback;return()=>{};},command:async()=>{},layout:async(layout:any)=>{update({layout});return layout;}}});
+ browser.document.write(await readFile(new URL('../desktop/recording-hud.html',import.meta.url),'utf8'));browser.eval(await readFile(new URL('../desktop/recording-hud.js',import.meta.url),'utf8'));await new Promise(resolve=>setTimeout(resolve,0));
+ const doc=browser.document,automatic=doc.querySelector('input[type="checkbox"][aria-label="Auto-scroll script"]') as any;
+ try{
+  assert.equal(automatic.checked,true,'a take that opens already recording scrolls');
+  update({status:'idle'});update({status:'recording',script:'Second scene.'});assert.equal(automatic.checked,true,'a new scene scrolls from its start');
+ }finally{await browser.happyDOM.close();}
+});
