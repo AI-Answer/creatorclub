@@ -148,7 +148,7 @@ export function WelcomeScreen({navigate,initialStep}:{navigate(route:Route,optio
  const editFailed=edit.state.phase==='failed'?edit.state.message:'';
 
  return <div className="welcome">
-  <div className="row club-drag" style={{padding:'18px 28px'}}>
+  <div className="row club-drag" style={{padding:window.sceneForge?.platform==='darwin'?'18px 28px 18px 94px':'18px 28px'}}>
    <span style={{width:30,height:30,display:'inline-flex'}}><BrandMark/></span><b style={{letterSpacing:'-0.01em'}}>Creator Compiler</b>
    <span className="grow"/><button type="button" className="linkish" style={{color:'var(--cc-text-2)'}} onClick={home}>Skip setup</button>
   </div>
