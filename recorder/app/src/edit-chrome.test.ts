@@ -23,5 +23,5 @@ test('Task 14: toasts sit top-right, never over the timeline or Continue; 1280 p
  assert.match(css,/\.club-edit-suggestion>span\{flex:1 1 150px;min-width:150px/,'the suggestion keeps its words while exporting');
  assert.match(css,/\.edit-workspace\.club-edit\{[^}]*grid-template-columns:var\(--club-rail\) var\(--club-panel\) minmax\(0,1fr\)/,'rail, panel, then the picture and timeline, as in the mock-up');
  assert.match(css,/@media \(max-width:1439px\)\{\.club-embed \.app-shell\[data-mode=Edit\]\{--club-panel:276px\}\}/,'the panel narrows at 1280 instead of the picture');
- assert.match(club,/@media \(max-width:1439px\)\{:where\(\.club-root\) \.strip:where\(:not\(\.club-embed \*\)\)\{flex-wrap:wrap/,'scene chips wrap instead of being clipped');
+ assert.match(club,/\.sc-row:where\(:not\(\.club-embed \*\)\) \{[^}]*overflow-x: auto/,'the scenes are one row that scrolls sideways instead of wrapping onto a second line');
 });

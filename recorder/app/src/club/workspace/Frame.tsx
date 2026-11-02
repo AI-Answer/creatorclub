@@ -5,7 +5,8 @@ import {STAGE_LABEL} from '../board';
 import {ErrorLine} from '../ErrorLine';
 import {toProgress,type VideoScenes} from '../scenes';
 import {clockTime} from '../video-plan';
-import {Button,Dialog,Ed,Icon,IconButton,Menu,SceneStatus,StagePill,Tooltip,cn,type MenuItem} from '../ui';
+import {Button,Dialog,Ed,Icon,IconButton,Menu,StagePill,Tooltip,cn,type MenuItem} from '../ui';
+import {sceneStatus} from '../../../shared/club-scene-status';
 import {TAB_LABEL,scenesLine,tabLock,tabState,type ContinueButton,type LockFacts,type TabFacts,type TabLock} from './rules';
 import {fmtDate} from '../format';
 
@@ -60,10 +61,14 @@ export function Strip({scenes,focusId,onPick,onRetry}:{scenes:VideoScenes;focusI
   if(at<0)return;
   event.preventDefault();chips[(at+move+chips.length)%chips.length].focus();
  };
+ // One row: the badge says where each scene stands (its number, a tick once kept, a dot with takes not yet kept); the words are in its tooltip.
+ const done=list.filter((_,index)=>sceneStatus(progress[index]).k==='kept'||sceneStatus(progress[index]).k==='cut').length;
  return <div className={place} role="list" aria-label="Scenes" onKeyDown={arrows}>
-  <span className="lab"><Icon name="scenes" size={14}/>{scenesLine(list,clockTime)}</span>
-  {list.map((scene,index)=><button key={scene.id} role="listitem" type="button" className={cn('sc',focusId===scene.id&&'on')} onClick={()=>onPick(scene.id)} title={scene.title}>
-   <span className="n">{index+1}</span><span className="t">{scene.title}</span><SceneStatus scene={progress[index]}/></button>)}
+  <span className="lab"><Icon name="scenes" size={14}/>{scenesLine(list,clockTime)}<span className="lab-done">{done} of {list.length} recorded</span></span>
+  <div className="sc-row">{list.map((scene,index)=>{const status=sceneStatus(progress[index]);
+   return <button key={scene.id} role="listitem" type="button" className={cn('sc',`st-${status.k}`,focusId===scene.id&&'on')} onClick={()=>onPick(scene.id)}
+    title={`${index+1}. ${scene.title} · ${status.label} · ${clockTime(scene.seconds)}`} aria-label={`Scene ${index+1}: ${scene.title}, ${status.label}`}>
+    <span className="n">{status.k==='kept'||status.k==='cut'?<Icon name="check" size={12} stroke={3}/>:index+1}</span><span className="t">{scene.title}</span></button>;})}</div>
  </div>;
 }
 
