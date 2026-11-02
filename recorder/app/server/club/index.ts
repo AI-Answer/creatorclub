@@ -16,7 +16,7 @@ import { parseChannelInput } from './channel.js';
 import { FILE_TOO_BIG, MAX_FILE_BYTES, detectSource } from './source.js';
 import { addChannel, rebuildVoice, startFresh } from './onboard.js';
 import { SCENE_ID, deletePackage, ensurePackage, heldResults, patchPackage, readOutline, readPackage, runningPlanJobs, saveOutline, savePackage, saveScript, saveSceneScript, startPlanJob, undoReplace, usePackageText, useHeld, type PlanOptions } from './planning.js';
-import { continueToRecording, outlineChangedScene } from './recorder.js';
+import { continueToRecording, outlineChangedScene, videoFromProject } from './recorder.js';
 import { publishVideo, ytDlpViews, type ViewsReader } from './publish.js';
 import { publishingRoutes, type PublishingOptions } from './publisher-routes.js';
 import { recordingsDiskSpace } from './disk.js';
@@ -454,6 +454,12 @@ export function clubRouter({ ai = {}, transcribe, runAI, readViews = ytDlpViews(
   router.get('/videos', handler(async (_req, res) => res.json(await store.listVideos(await requireWorkspace()))));
   router.post('/videos', handler(async (req, res) => {
     res.status(201).json(await store.createVideo(await requireWorkspace(), newVideoBody.parse(req.body)));
+  }));
+  router.post('/videos/from-project', handler(async (req, res) => {
+    const slug = await requireWorkspace();
+    const { projectId } = z.object({ projectId: z.string().regex(/^[A-Za-z0-9_-]{1,100}$/) }).strict().parse(req.body);
+    const result = await videoFromProject(slug, projectId);
+    res.status(result.created ? 201 : 200).json(result.video);
   }));
   router.get('/recent', handler(async (_req, res) => res.json(await store.recentVideoIds(await requireWorkspace()))));
   // Every video that is not published, in one request. Registered before /videos/:id so "scenes" is not read as an id.

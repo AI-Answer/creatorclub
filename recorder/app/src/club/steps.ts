@@ -35,7 +35,7 @@ export interface Term{term:string;means:string}
 
 /** The words the app uses, in the order a beginner meets them. */
 export const GLOSSARY:readonly Term[]=[
- {term:'Channel',means:'The YouTube channel you make videos for. CreatorClub learns its topics and how you talk, then looks for ideas that fit.'},
+ {term:'Channel',means:'The YouTube channel you make videos for. Creator Compiler learns its topics and how you talk, then looks for ideas that fit.'},
  {term:'Idea',means:'A video you might make. It waits in the first column of Videos until you start planning it.'},
  {term:'Video',means:'One card that goes from idea to published. It has a board, a plan, scenes, takes and an export.'},
  {term:'Board',means:'A canvas for one video where you gather links, notes, screenshots and files, and ask Claude about them.'},
@@ -48,7 +48,7 @@ export const GLOSSARY:readonly Term[]=[
  {term:'Breakdown',means:'Why a video worked: what viewers asked and three concepts you could make. Claude writes it from the video.'},
  {term:'Views a day',means:'How many views a video gets each day since it went up. It shows which videos are taking off now.'},
  {term:'3× chip',means:"How many times a video beats its channel's usual views. 3× is three times as many. A dash means that usual is not tracked yet."},
- {term:'Follow',means:'Keeps a channel in the list CreatorClub reads for new videos, so they show up in Discover.'},
+ {term:'Follow',means:'Keeps a channel in the list Creator Compiler reads for new videos, so they show up in Discover.'},
 ];
 
 /** The plain-words help for a trend card, said once where cards first appear. */
@@ -56,7 +56,7 @@ export const TREND_HELP=[
  ['Views a day','how many views the video gets each day since it went up.'],
  ['The 3× chip',"how many times the video beats its channel's usual views. No chip means that usual is not tracked yet."],
  ['Break this down','shows why it worked and gives you three concepts you could make.'],
- ['Follow this channel','adds it to the channels CreatorClub reads, so its new videos show up in Discover.'],
+ ['Follow this channel','adds it to the channels Creator Compiler reads, so its new videos show up in Discover.'],
 ] as const;
 
 export interface Place{name:string;where:string}

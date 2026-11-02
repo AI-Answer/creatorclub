@@ -1,5 +1,5 @@
 /*
-  CreatorClub's look for SceneForge's Record screen, used only when the recorder is embedded in the video page.
+  Creator Compiler's look for SceneForge's Record screen, used only when the recorder is embedded in the video page.
   Every rule starts with `.club-embed .app-shell[data-mode=Record]`, so standalone SceneForge and the embedded editor keep their own styles.
   SceneForge's variables are pointed at the club tokens (from `.club-root`), then the parts that hard-code sizes or colours are calmed down:
   no text under 12px, 12px card radius, hairline borders, black primary, one blue accent for selection.

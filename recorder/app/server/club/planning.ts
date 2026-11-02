@@ -103,7 +103,7 @@ export function parseAnswer<T>(shape: z.ZodType<T>, json: unknown, who: string, 
 
 // ---------------------------------------------------------------- outline.md
 
-const MARKER = '<!-- CreatorClub outline -->';
+const MARKER = '<!-- Creator Compiler outline -->';
 const clock = (seconds: number) => `${Math.floor(seconds / 60)}:${String(Math.round(seconds % 60)).padStart(2, '0')}`;
 const squash = (value: string) => value.replace(/\s+/g, ' ').trim();
 
@@ -650,7 +650,7 @@ export function scriptSections(script: string): ScriptSection[] {
  * A script written one scene at a time starts with this line. It tells a script that covers some scenes from one written as a
  * whole, so the Plan step does not treat a scene's script as the full script. It is left out of everything shown.
  */
-const SCENES_MARKER = '<!-- CreatorClub scene script -->';
+const SCENES_MARKER = '<!-- Creator Compiler scene script -->';
 const withoutMarker = (script: string) => (script.startsWith(SCENES_MARKER) ? script.slice(SCENES_MARKER.length).replace(/^\n/, '') : script);
 
 /** Puts the sections back together under the script's own title. */

@@ -1,3 +1,4 @@
+import {BrandLogo} from '../../BrandLogo';
 import {useState,type DragEvent} from 'react';
 import {VIDEO_STAGES,type Video,type VideoStage} from '../../../shared/club';
 import {STAGE_LABEL} from '../board';
@@ -34,7 +35,7 @@ export function IdeaCard({video,highlight,dragging,actions,onOpen,onMove,onResea
    <div className="tt clamp2">{video.title}{highlight&&<span className="itag">New</span>}</div>
    {why&&<div className="why clamp2">{why}</div>}
    {(source||video.idea?.dropReason)&&<div className="src">
-    {video.idea?.dropReason?<span>Skipped · {video.idea.dropReason}</span>:source&&<><Icon name={ideaSourceVideoId(video)?'youtube':'link'} size={12}/><span className="ellipsis">{source.label}</span></>}
+    {video.idea?.dropReason?<span>Skipped · {video.idea.dropReason}</span>:source&&<>{ideaSourceVideoId(video)?<BrandLogo brand="youtube" size={14}/>:<Icon name="link" size={12}/>}<span className="ellipsis">{source.label}</span></>}
    </div>}
    <div className="acts" onClick={event=>event.stopPropagation()}>
     {held

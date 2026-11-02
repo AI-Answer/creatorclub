@@ -12,7 +12,7 @@ export {listSceneTakes} from './recording-scene-data';
 type ActionResult=void|Promise<void>;
 export interface RecordingSceneCardsProps {
  project:Project;selectedSceneId:string;disabled:boolean;takes:SavedTake[];
- /** Inside CreatorClub: take thumbnails read "Take 1 (00:07)". */
+ /** Inside Creator Compiler: take thumbnails read "Take 1 (00:07)". */
  club?:boolean;
  onSelectScene:(id:string)=>ActionResult;
  onRecord:(sceneId:string,mode:'replace-matching'|'record-over')=>ActionResult;
@@ -73,7 +73,7 @@ export const RecordingSceneCards=memo(function RecordingSceneCards(props:Recordi
  const renderTake=(item:ListedTake,sceneId:string)=>{const {take,active,number,duration}=item,label=take.name||`Take ${number}`,key=`take:${take.id}`;return <div key={take.id} className="rsc-take" data-take-id={take.id} data-active={active} draggable={!locked} onDragStart={e=>startDrag(e,{projectId:project.id,kind:'take',id:take.id})} onDragEnd={endDrag} onContextMenu={e=>{e.preventDefault();e.stopPropagation();if(!locked)setMenu(key);}}>
   <button type="button" className="rsc-take-preview" aria-label={`Preview ${label}`} disabled={locked} onClick={()=>invoke(()=>props.onPreview(take.id))}><TakeImage take={take}/><span className="rsc-play"><Play size={17}/></span><span className="rsc-take-badge">{props.club?takeThumbnailLabel(label,duration):<>{label}<small>({durationLabel(duration)})</small></>}</span>{props.club&&<span className="rsc-kinds" aria-hidden="true">{takeKinds(take.tracks).map(kind=><i key={kind} className={`rsc-kind rsc-kind-${kind}`}/>)}</span>}</button>
   <span className="rsc-drag-handle" aria-hidden="true"><GripVertical size={15}/></span>
-  {/* In CreatorClub a take has no gear on the card: its preview holds the choices, and a right click still opens this menu. */}
+  {/* In Creator Compiler a take has no gear on the card: its preview holds the choices, and a right click still opens this menu. */}
   <div className="rsc-take-menu-anchor" data-rsc-menu>{!props.club&&menuButton(key,`Options for ${label}`)}{menu===key&&<CardMenu label={`${label} actions`}>
    {menuItem('Play take',()=>props.onPreview(take.id),{icon:<Play size={15}/>})}
    {active?menuItem('Archive take',()=>props.onArchive(take.id),{icon:<FolderOpen size={15}/>}):menuItem('Add to timeline',()=>props.onActivate(take.id),{icon:<Plus size={15}/>})}
@@ -86,7 +86,7 @@ export const RecordingSceneCards=memo(function RecordingSceneCards(props:Recordi
   {!project.scenes.length&&<div className="rsc-empty"><p>Add a scene to start recording.</p><button type="button" className="rsc-action" disabled={locked} onClick={()=>invoke(()=>props.onAddScene())}><Plus size={16}/>Add scene</button></div>}
   {project.scenes.map((scene,index)=>{const {all,legacyFootage}=cards.get(scene.id)!,active=all.filter(t=>t.active),archived=all.filter(t=>!t.active),showArchive=expanded[scene.id]??active.length===0,selected=props.selectedSceneId===scene.id,key=`scene:${scene.id}`;
    const recorded=active.length>0||legacyFootage,recordOver=alt&&recorded;
-   // CreatorClub: a compact card (number, title, status, take thumbnails). The script is in the teleprompter, the scenes are planned in Plan,
+   // Creator Compiler: a compact card (number, title, status, take thumbnails). The script is in the teleprompter, the scenes are planned in Plan,
    // and Record is the one big button above; the selected scene's menu keeps Record over and Import.
    if(props.club){
     // The scene strip is the only scene list: only the selected scene's takes show here.

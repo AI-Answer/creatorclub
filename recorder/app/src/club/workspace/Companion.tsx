@@ -1,3 +1,4 @@
+import {BrandLogo} from '../../BrandLogo';
 import {useCallback,useEffect,useLayoutEffect,useMemo,useRef,useState,type KeyboardEvent} from 'react';
 import type {Outline,Package,VideoScene} from '../../../shared/club';
 import {ACTION_TITLE,ACTION_VERB,isEditAction,type CompanionAction,type CompanionCard,type CompanionChanged,type CompanionContext,type CompanionReplyMessage,type CompanionStep,type CompanionTab} from '../../../shared/companion';
@@ -8,7 +9,7 @@ import {clubFetch,clubUpload,errorMessage} from '../api';
 import {featuredSkills,matchSkills,slashQuery,type EditSkill,type InstalledSkill} from '../../../shared/skills';
 import {ErrorLine} from '../ErrorLine';
 import {ASK_CLAUDE} from './ask-claude';
-import {Button,CompanionMark,Icon,Spinner,cn,type IconName} from '../ui';
+import {Button,Icon,Spinner,cn,type IconName} from '../ui';
 import {STEP_NAME,atBottom,elapsed,greeting,lookingAt,previewOf,stepSummary,suggestions,tabOf,withDividers} from './companion-logic';
 import {Markdown} from './Markdown';
 import {ReplaceScenes} from './ReplaceScenes';
@@ -162,7 +163,7 @@ export function Companion({videoId,videoTitle,tab,scene,screen,selection,pkg,out
  const title=`Ask ${name}`;
  if(!open)return <aside className="cmp collapsed" aria-label={title}>
   <button ref={rail} type="button" className="cmp-rail" onClick={()=>toggle(true)} aria-label={`Show ${title}`} title={`Show ${title}`}>
-   <CompanionMark size={18} working={working}/><span>{title}</span>
+   <BrandLogo brand={name==='ChatGPT'?'chatgpt':'claude'} size={20} working={working}/><span>{title}</span>
   </button>
  </aside>;
 
@@ -187,7 +188,7 @@ export function Companion({videoId,videoTitle,tab,scene,screen,selection,pkg,out
  const applied=(messages??[]).flatMap(message=>message.role==='assistant'&&'cards' in message?message.cards.map((card,index)=>({message,card,index})):[]).filter(({card})=>card.state==='applied').reverse();
  return <aside className={cn('cmp',narrow&&'over')} aria-label={title} onKeyDown={onPanelKey}>
   <header className="cmp-head">
-   <CompanionMark size={18} working={working} className="cmp-head-mark"/>
+   <BrandLogo brand={name==='ChatGPT'?'chatgpt':'claude'} size={20} working={working} className="cmp-head-mark"/>
    <div className="cmp-head-text">
     <div className="cmp-title">{title}</div>
    </div>
@@ -273,7 +274,7 @@ function Reply({name,message,pkg,outline,scenes,busy,editor,silences,answered,on
  const [allBusy,setAllBusy]=useState(false);
  const addAll=async()=>{setAllBusy(true);try{for(const {index} of offered){const failed=await onApply(index);if(failed)break;}}finally{setAllBusy(false);}};
  return <div className="cmp-reply">
-  <div className="cmp-who"><CompanionMark size={14}/>{name}</div>
+  <div className="cmp-who"><BrandLogo brand={name==='ChatGPT'?'chatgpt':'claude'} size={15}/>{name}</div>
   {message.steps&&message.steps.length>0&&<Steps steps={message.steps}/>}
   {message.text&&<div className="cmp-md"><Markdown text={message.text}/></div>}
   {message.status==='stopped'&&<div className="cmp-note">Stopped</div>}
@@ -297,7 +298,7 @@ function LiveReply({name,live,now,onRetry}:{name:string;live:Live;now:number;onR
  const working=live.phase==='working';
  const last=live.steps.length-1;
  return <div className={cn('cmp-reply','live',!working&&'failed')} aria-live="off">
-  <div className="cmp-who"><CompanionMark size={14} working={working}/>{name}{working&&<span className="cmp-t">{elapsed(now-live.started)}</span>}</div>
+  <div className="cmp-who"><BrandLogo brand={name==='ChatGPT'?'chatgpt':'claude'} size={15} working={working}/>{name}{working&&<span className="cmp-t">{elapsed(now-live.started)}</span>}</div>
   {live.steps.length>0&&<ol className="cmp-steps live">{live.steps.map((step,index)=>{
    const active=working&&index===last,end=live.steps[index+1]?.started??now;
    return <li key={index} className={active?'on':'done'}>

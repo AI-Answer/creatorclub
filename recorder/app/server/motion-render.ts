@@ -19,7 +19,7 @@ import { captureFrames } from "../desktop/motion-capture.cjs";
  * its version, style, props, length, size, frame rate, the stylesheet and the font).
  *
  * Where the frames are captured:
- * - in the CreatorClub desktop app (`CREATORCLUB_MOTION_BRIDGE=1`, set by desktop/main.cjs): the main process, in offscreen windows,
+ * - in the Creator Compiler desktop app (`CREATORCLUB_MOTION_BRIDGE=1`, set by desktop/main.cjs): the main process, in offscreen windows,
  *   asked over the service's message channel (`process.parentPort` in the packaged utility process, `process.send` in the dev app);
  * - otherwise (the dev server run with plain node, tests): headless Chrome over the DevTools pipe (server/motion-chrome.ts).
  */

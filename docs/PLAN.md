@@ -1,6 +1,6 @@
-# CreatorClub plan
+# Creator Compiler plan
 
-Status: draft for Dani's review, 2026-10-28. Nothing in `app/` is built yet.
+Status: product roadmap, based on the 2026-10-28 draft. The recorder/editor desktop app, rebrand, Cutroom integration, and macOS/Windows build targets now live in this repository. The broader channel/research/publishing shell below remains planned.
 
 ## What it is
 
@@ -45,11 +45,11 @@ These words go away: Brief, Lane, Picked, This week, Outline ready, Make this, C
 ### 1. First launch (three screens, no Terminal)
 
 **Connect your AI**
-- Line: "CreatorClub uses your own Claude or ChatGPT account."
+- Line: "Creator Compiler uses your own Claude or ChatGPT account."
 - Buttons: `Connect Claude` (primary) · `Connect ChatGPT`.
 - If Claude Code isn't installed, the app installs it with a progress bar. It then runs `claude auth login`, which opens Claude's own sign-in page in your browser. The app polls `claude auth status` and shows "Connected as name@email".
 - ChatGPT works the same way with `codex login`.
-- Google is optional and lives in Settings: "Lets CreatorClub watch videos with sound and motion."
+- Google is optional and lives in Settings: "Lets Creator Compiler watch videos with sound and motion."
 
 **Add your channel**
 - Line: "Paste your YouTube channel. We'll learn your topics and how you talk."
@@ -67,7 +67,7 @@ These words go away: Brief, Lane, Picked, This week, Outline ready, Make this, C
 - **Top: Recent videos.** Up to 4 recently opened videos as thumbnails, like Borumi's "Recent projects". Each shows where it is: "Recording · 2 of 5 scenes".
 - **Main area:** the board, with view tabs `Board` · `Table` · `Calendar`.
 - **Board columns:** `Ideas` → `Planning` → `Recording` → `Editing` → `Publishing` → `Published`. Cards can be dragged by hand. Each card shows its title, thumbnail and a progress line ("Planning · 2 of 3").
-- **First visit:** a dialog titled "How CreatorClub works" (Eden's pattern), with three numbered steps and a small picture each: **1 Find the idea**, **2 Plan it**, **3 Record, edit, publish**. One button: `Start`. It comes back only from `?` in the sidebar.
+- **First visit:** a dialog titled "How Creator Compiler works" (Eden's pattern), with three numbered steps and a small picture each: **1 Find the idea**, **2 Plan it**, **3 Record, edit, publish**. One button: `Start`. It comes back only from `?` in the sidebar.
 - **Table:** one row per video, with columns title, stage, scenes recorded, publish date and views.
 - **Calendar:** videos placed on their planned or actual publish date, set from the card.
 - **Above the Ideas column:** the box "Paste a YouTube or Instagram link" and `Add idea`.
@@ -182,7 +182,7 @@ Each stage below lists: what you see, the one button, what happens, what's saved
 ```
 creatorclub/
   recorder/        SceneForge (git subtree; pull fixes from samin/feat branches)
-  app/             CreatorClub shell: board, video page, onboarding, settings
+  app/             Creator Compiler shell: board, video page, onboarding, settings
   methodology/     prompt files and JSON schemas for every AI step
   docs/            PLAN.md, reference/
 ```
@@ -211,7 +211,7 @@ creatorclub/
 
 ### Data
 
-- Workspace folder: `~/Documents/CreatorClub/<channel>/`, holding plain files:
+- Workspace folder: `~/Documents/Creator Compiler/<channel>/`, holding plain files:
 
 ```
 profile.json  voice.md  criteria.md  structure.md

@@ -4,12 +4,12 @@ import {AiRow} from '../AiRow';
 import {ErrorLine} from '../ErrorLine';
 import {ProgressLine} from '../ProgressLine';
 import {ACCOUNT_CHECK_ESTIMATE} from '../welcome';
-import {Icon} from '../ui';
+import {BrandLogo} from '../../BrandLogo';
 
 /** A row while the accounts have not been read yet: the same shape as the real one, with nothing to press. */
 function PendingRow({name,icon}:{name:string;icon:'ai'|'assistant'}){
  return <div className="srow">
-  <span className={`logo ${icon==='ai'?'logo-claude':'logo-codex'}`}><Icon name={icon} size={20}/></span>
+  <span className={`logo ${icon==='ai'?'logo-claude':'logo-codex'}`}><BrandLogo brand={icon==='ai'?'claude':'chatgpt'} size={26}/></span>
   <div className="grow"><div style={{fontWeight:600}}>{name}</div><div className="small muted">Checking…</div></div>
  </div>;
 }
@@ -33,6 +33,6 @@ export function ConnectStep({check,onReload,onConnected}:{check:AiCheck;onReload
     </>
     :<><PendingRow name="Claude" icon="ai"/><PendingRow name="ChatGPT" icon="assistant"/></>}
   </div>
-  {status&&!connected&&<div className="small muted" style={{marginTop:4}}>Connect opens Claude's or ChatGPT's own sign-in page in your browser. CreatorClub never sees your password.</div>}
+  {status&&!connected&&<div className="small muted" style={{marginTop:4}}>Connect opens Claude's or ChatGPT's own sign-in page in your browser. Creator Compiler never sees your password.</div>}
  </div>;
 }

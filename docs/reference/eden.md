@@ -97,7 +97,7 @@ Under 10× shows two decimals; from 10× up it rounds.
 - **Discover:** tabs `Discover` · `Creators` · `Brands` · `Lists`. A search box, then filters ("6 platforms · Last 6 months · 5× · Top 10%"), `Posts` / `Ads`, shelves `Breakouts` · `Hidden gems` · `Viral now` · `All-time greats`, and topic chips. This maps to our v1.1 Signals.
 - **Strategy:** "Let's build your content strategy." A guided flow of about three minutes that returns your main themes, the topics getting views in your space, and ideas to post this week. This maps to our "Add your channel" step.
 
-## What CreatorClub takes
+## What Creator Compiler takes
 
 1. **Card moves itself** when the work is done ("the item moves itself"). This settles the open question in PLAN.md: the "Continue to …" buttons move the card, and you can still drag.
 2. **Break down output** in Eden's shape, plus our viewer questions and 3 concepts. It ends with a **reusable outline**. "Create outline" can then follow that outline's shape: the structure, never the words.

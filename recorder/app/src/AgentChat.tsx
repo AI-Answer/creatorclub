@@ -1,3 +1,4 @@
+import {BrandLogo} from './BrandLogo';
 import {memo,useEffect,useMemo,useRef,useState} from 'react';
 import type {Project} from '../shared/types';import {clipDuration,projectDuration} from '../shared/types';
 import type {AgentChatJob,AgentStatus} from '../shared/agent-chat';
@@ -29,7 +30,7 @@ export const AgentChat=memo(function AgentChat({project,selectedIds,range,onRang
  const cancel=async(job:AgentChatJob)=>{try{merge(await api<AgentChatJob>(`/agent-chat/${job.id}`,undefined,'DELETE'));}catch(e){setError((e as Error).message);}};
  const undo=async(job:AgentChatJob)=>{setUndoing(job.id);setError('');try{await flush();await api<Project>(`/projects/${project.id}/agent-chat/${job.id}/undo`,{});merge({...job,undone:true});}catch(e){setError((e as Error).message);}finally{setUndoing('');}};
  const currentScope=invalidSelection?'Selection needs attention':clips.length?`${clips.length} selected ${clips.length===1?'clip':'clips'}`:range?'Time range':club?'Entire video':'Entire project';
- return <aside className="agent-chat" hidden={!visible} aria-label="Edit with Claude"><header><div><Sparkles size={17}/><strong>Claude editor</strong></div><button className="icon-button" aria-label="Close Claude editor" onClick={onClose}><X size={17}/></button></header>
+ return <aside className="agent-chat" hidden={!visible} aria-label="Edit with Claude"><header><div><BrandLogo brand="claude" size={19}/><strong>Claude editor</strong></div><button className="icon-button" aria-label="Close Claude editor" onClick={onClose}><X size={17}/></button></header>
  <div className="agent-provider"><span className={ready?'ready':''}/><span>{statusError?'Connection unavailable':!status?'Checking Claude Code…':ready?'Claude Code · signed in':status.installed?'Claude Code · setup needed':'Claude Code unavailable'}</span><button onClick={()=>loadStatus(true)} aria-label="Refresh Claude connection">Refresh</button></div>
  {!ready&&<div className="agent-setup"><b>Use your local Claude Code</b><p>{statusError||status?.message||'Checking the local command and sign-in status.'}</p>{status&&status.installed&&!status.authenticated&&<p>Sign in from Terminal with <code>claude auth login</code>, then refresh.</p>}{status&&!status.installed&&<p>Install Claude Code, sign in, and refresh. Your request uses that account.</p>}</div>}
  <div className="agent-messages" ref={messages} onScroll={e=>{const el=e.currentTarget;follow.current=el.scrollHeight-el.scrollTop-el.clientHeight<70;}} role="log" aria-label="Editing conversation">

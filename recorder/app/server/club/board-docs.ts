@@ -306,13 +306,13 @@ const BROAD = ['/Users', '/private', '/Library', '/System', '/usr', '/etc', '/va
 /** Folders nothing inside may be used from either. */
 const SYSTEM = ['/System', '/usr', '/etc', '/bin', '/sbin', '/Library', '/private/etc', '/dev'];
 
-/** Why a folder cannot be the Notes folder, or nothing when it can: the computer's own folders, your home folder and the ones above it, and the folders CreatorClub keeps its own files in. */
+/** Why a folder cannot be the Notes folder, or nothing when it can: the computer's own folders, your home folder and the ones above it, and the folders Creator Compiler keeps its own files in. */
 export async function refusedFolder(folder: string): Promise<string | undefined> {
   const home = await real(os.homedir());
   if (folder === path.parse(folder).root || BROAD.includes(folder) || inside(home, folder) || SYSTEM.some((system) => inside(folder, system))) return 'Pick a folder with your notes in it, not your whole computer.';
   for (const own of [store.rootDir(), store.secretsDir()]) {
     const ours = await real(own);
-    if (inside(folder, ours) || inside(ours, folder)) return 'That folder is where CreatorClub keeps its own files. Pick another one.';
+    if (inside(folder, ours) || inside(ours, folder)) return 'That folder is where Creator Compiler keeps its own files. Pick another one.';
   }
   return undefined;
 }

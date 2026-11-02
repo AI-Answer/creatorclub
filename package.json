@@ -1,0 +1,21 @@
+{
+  "name": "creator-compiler-workspace",
+  "private": true,
+  "description": "Creator Compiler desktop studio with the Cutroom native editing engine",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "scripts": {
+    "setup": "node scripts/setup.mjs",
+    "setup:cutroom": "cargo build --release --locked --manifest-path engine/cutroom/Cargo.toml",
+    "dev": "node scripts/dev.mjs",
+    "build": "npm --prefix recorder/app run build:all",
+    "test": "npm --prefix recorder/app test",
+    "desktop": "npm --prefix recorder/app run desktop",
+    "mcp": "node scripts/mcp.mjs",
+    "package:mac": "npm run build && node scripts/package-desktop.mjs --mac",
+    "package:win": "npm run build && node scripts/package-desktop.mjs --win",
+    "package:dir": "npm run build && node scripts/package-desktop.mjs --dir",
+    "runtime:desktop": "npm --prefix recorder/app run runtime:desktop"
+  }
+}

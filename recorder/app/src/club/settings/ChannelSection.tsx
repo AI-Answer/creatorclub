@@ -21,13 +21,13 @@ const labels:readonly string[]=AUDIENCE_LABELS;
 type Row='channel'|'follow'|'voice';
 
 /**
- * What CreatorClub knows about the channel, as three rows that open in place: the channel itself (name, topics, who it's for),
+ * What Creator Compiler knows about the channel, as three rows that open in place: the channel itself (name, topics, who it's for),
  * the channels you follow and where signals come from, and how you sound. Nothing is edited until a row is opened.
  */
 export function ChannelSection({workspace,focus,onSaved,onSetup}:{workspace:Workspace|null;focus?:'followed'|'sources';onSaved(workspace:Workspace):void;onSetup():void}){
  const [open,setOpen]=useState<readonly Row[]>(focus?['follow']:[]);
  const toggle=(row:Row)=>setOpen(now=>now.includes(row)?now.filter(item=>item!==row):[...now,row]);
- return <section className="set-group" id="set-channel" aria-labelledby="set-channel-title"><h2 id="set-channel-title">Channel</h2><p>What CreatorClub knows about your channel. It shapes every idea and script.</p>
+ return <section className="set-group" id="set-channel" aria-labelledby="set-channel-title"><h2 id="set-channel-title">Channel</h2><p>What Creator Compiler knows about your channel. It shapes every idea and script.</p>
   {workspace
    ?<Card>
     <Fold title={workspace.name} summary={<>{handleLabel(workspace.handle)||'No YouTube channel yet'}{workspace.channelUrl&&<a style={{marginLeft:8,color:'var(--cc-accent-text)'}} href={workspace.channelUrl} target="_blank" rel="noopener noreferrer">Open on YouTube</a>}{workspace.topics.length>0&&<span className="faint"> · {workspace.topics.map(topicLabel).join(', ')}</span>}</>}
@@ -37,7 +37,7 @@ export function ChannelSection({workspace,focus,onSaved,onSetup}:{workspace:Work
     <Fold id="set-followed" title="Channels you follow" summary="Discover looks here for what is doing well." verb="Manage" noun="follows" open={open.includes('follow')} onToggle={()=>toggle('follow')}>
      <div className="fold-pad"><FollowedChannels key={`followed-${workspace.slug}`} focus={focus==='followed'}/><SignalSources key={`signals-${workspace.slug}`} focus={focus==='sources'} topics={workspace.topics}/></div>
     </Fold>
-    <Fold title="How you sound" summary="How CreatorClub writes like you." verb="Edit" noun="voice" open={open.includes('voice')} onToggle={()=>toggle('voice')}>
+    <Fold title="How you sound" summary="How Creator Compiler writes like you." verb="Edit" noun="voice" open={open.includes('voice')} onToggle={()=>toggle('voice')}>
      <div className="fold-pad"><VoiceGuide key={`voice-${workspace.slug}`} workspace={workspace} onSaved={onSaved}/></div>
     </Fold>
    </Card>
@@ -93,7 +93,7 @@ function ChannelForm({workspace,onSaved,onSetup}:{workspace:Workspace;onSaved(wo
 }
 
 /**
- * The voice guide: how CreatorClub writes like you, with where it came from. A channel with videos can write it again from them; one without
+ * The voice guide: how Creator Compiler writes like you, with where it came from. A channel with videos can write it again from them; one without
  * answers the three voice questions again instead, since there is nothing to learn from.
  */
 function VoiceGuide({workspace,onSaved}:{workspace:Workspace;onSaved(workspace:Workspace):void}){
@@ -115,7 +115,7 @@ function VoiceGuide({workspace,onSaved}:{workspace:Workspace;onSaved(workspace:W
   {guide
    ?<Card className="p-4" style={{background:'var(--cc-bg-sunk)',fontSize:13.5,lineHeight:1.6,color:'var(--cc-text-2)'}}>{guide.summary}
      <div className="small faint" style={{marginTop:8}}>{guide.transcripts>0?`Built from ${guide.transcripts} of your transcripts.`:'Built from your answers.'}</div></Card>
-   :<p className="small muted" style={{margin:0}}>{hasVideos?'No voice guide yet. Write one from your latest videos.':'No voice guide yet. Answer three questions and CreatorClub writes one.'}</p>}
+   :<p className="small muted" style={{margin:0}}>{hasVideos?'No voice guide yet. Write one from your latest videos.':'No voice guide yet. Answer three questions and Creator Compiler writes one.'}</p>}
   <div className="row">
    {hasVideos
     ?<Button disabled={state.phase==='running'} onClick={rebuild}>Rebuild voice guide</Button>

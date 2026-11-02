@@ -65,7 +65,7 @@ test('the scene chips show on Record only (on Edit the scenes are bands on the t
  for(const tab of ['board','plan','edit','publish'] as const)assert.equal(showsStrip(tab),false,tab);
 });
 
-test('Breakdown on a YouTube tile sends the tile\'s own YouTube id, never the CreatorClub video id',async()=>{
+test('Breakdown on a YouTube tile sends the tile\'s own YouTube id, never the Creator Compiler video id',async()=>{
  const {mountUI}=await import('../../test-dom');
  const {act,createElement}=await import('react');
  const {TileBody}=await import('./TileBody');

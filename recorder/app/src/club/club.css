@@ -1,5 +1,5 @@
 /*
-  CreatorClub design system: tokens, a scoped preflight, the prototype's component classes and Tailwind utilities.
+  Creator Compiler design system: tokens, a scoped preflight, the prototype's component classes and Tailwind utilities.
 
   SceneForge's stylesheets are global and unscoped, so everything here stays inside `.club-root`:
   - The preflight only touches elements under `.club-root`, and never the embedded SceneForge app (`.club-embed`).
@@ -159,7 +159,7 @@
    - Every rule skips the embedded SceneForge app (.club-embed), so its own classes (.stage, .transport, .timeline…) stay untouched.
    - Keyframes are prefixed cc- and the toast is .cc-toast, because SceneForge's global CSS has a .toast and a spin.
    --------------------------------------------------------------------------- */
-/* CreatorClub prototype: warm light, cal.com / Notion feel. One accent (blue), black primary. */
+/* Creator Compiler prototype: warm light, cal.com / Notion feel. One accent (blue), black primary. */
 :where(.club-root) *:where(:not(.club-embed *))::selection { background: color-mix(in srgb, var(--cc-accent) 22%, transparent); }
 :where(.club-root) .num:where(:not(.club-embed *)),
 :where(.club-root) .tnum:where(:not(.club-embed *)) { font-variant-numeric: tabular-nums; }

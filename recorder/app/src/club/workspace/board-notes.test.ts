@@ -11,7 +11,7 @@ const {ToastProvider}=await import('../ui');
 const video:Video={id:'v1',title:'Hidden features',stage:'ideas',order:0,createdAt:'2026-10-01T00:00:00.000Z',updatedAt:'2026-10-01T00:00:00.000Z',stageDates:{},planning:{research:false,package:false,outline:false}};
 const flush=()=>act(async()=>{await new Promise(resolve=>setTimeout(resolve,0));});
 const note=(id:string,text:string,path:string,extra:Partial<ResearchTile>={}):ResearchTile=>({id,kind:'note',title:text.split('\n')[0].replace(/^#+\s*/,''),text,meta:{},createdAt:'2026-10-01T00:00:00.000Z',pos:{x:60,y:60,w:280},doc:{root:'video',path,hash:`h-${id}`},...extra});
-const files:BoardFiles={folder:{path:'/Users/me/Documents/CreatorClub/samin/videos/hidden-features',display:'~/Documents/CreatorClub/samin/videos/hidden-features',hidden:0},notes:null};
+const files:BoardFiles={folder:{path:'/Users/me/Documents/Creator Compiler/samin/videos/hidden-features',display:'~/Documents/Creator Compiler/samin/videos/hidden-features',hidden:0},notes:null};
 
 function board(tiles:ResearchTile[],extra:(call:{method:string;path:string;body:unknown})=>{status?:number;body?:unknown}|undefined=()=>undefined){
  return installFetch(call=>{
@@ -35,7 +35,7 @@ test('the pure helpers: titles, file kinds, the import message, the folder line,
  assert.equal(importMessage(0,[{name:'a.pdf',reason:'Nope.'}]),'a.pdf: Nope.');
  assert.equal(importMessage(1,[{name:'a',reason:'x'},{name:'b',reason:'y'}]),'Added the note to the board. 2 files were left out.');
  assert.equal(folderLabel({display:'~/a/b'}),'~/a/b');
- assert.equal(folderLabel({display:'~/Documents/CreatorClub/samin/videos/hidden-features'}),'…/samin/videos/hidden-features');
+ assert.equal(folderLabel({display:'~/Documents/Creator Compiler/samin/videos/hidden-features'}),'…/samin/videos/hidden-features');
  const merged=mergeTiles([note('a','x','n/a.md'),note('b','y','n/b.md')],new Map([['a',{x:900,y:800}]]));
  assert.deepEqual([merged[0].pos,merged[1].pos],[{x:900,y:800,w:280},{x:60,y:60,w:280}]);
 });

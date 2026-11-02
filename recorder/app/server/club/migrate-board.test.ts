@@ -137,7 +137,7 @@ test('copying the board data again is a no-op, and a file that is newer in the c
   const dir = store.workspaceDir('samin');
   assert.deepEqual(await copyBoardData(source, 'samin'), [], 'nothing changed, nothing copied');
 
-  // Followed channels edited in CreatorClub: newer than the board's file.
+  // Followed channels edited in Creator Compiler: newer than the board's file.
   await writeFile(path.join(dir, 'followed.json'), '[{"name":"Edited","handle":"@edited"}]\n');
   // The board refreshed its signals later than the copy: older in the channel, so it is replaced.
   const future = new Date(Date.now() + 60_000);

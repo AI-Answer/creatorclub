@@ -28,7 +28,7 @@ export function FramingPreview({label,stream,mirror,viewBox,note}:{label:string;
 }
 
 /**
- * The top of Record inside CreatorClub: a framing preview, one line saying whether the sources are ready (or the one thing that is wrong),
+ * The top of Record inside Creator Compiler: a framing preview, one line saying whether the sources are ready (or the one thing that is wrong),
  * a Change control, and the one big Record button for the selected scene. The source rows, presets and the countdown option are in the sheet
  * Change opens; the sheet stays mounted while it is closed, so the previews in it keep reporting whether each source is sending.
  * Opening the sheet moves focus into it; closing it with Escape or the Change button puts focus back on Change.

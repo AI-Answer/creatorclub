@@ -12,8 +12,8 @@ const {createMediaPermissionRequests}=require('./media-permissions.cjs');
 const {createMotionRenderer}=require('./motion-render.cjs');
 let motionRenderer=null;
 let mainWindow, service, captureManager, recordingHud, nativeRecording, captureBorder, ownService = false, quitting = false;
-// CreatorClub's own port: SceneForge's service on its default port is never used or disturbed.
-const PORT=CREATORCLUB.port, base=`http://127.0.0.1:${PORT}`;
+// Creator Compiler's own port: SceneForge's service on its default port is never used or disturbed.
+const PORT=Number(process.env.SCENEFORGE_PORT||(app.isPackaged?CREATORCLUB.port:4184)), base=`http://127.0.0.1:${PORT}`;
 // The editor window hides while recording; without this macOS may App Nap the app and stall capture.
 let recordingBlocker=null;
 function keepAwakeWhileRecording(type){
@@ -29,11 +29,11 @@ const globalBindings={record:'KeyR',stopRecord:'KeyE',pauseRecord:'KeyY',previou
 const nativePermissionRequests=createMediaPermissionRequests({getStatus:getNativeMediaStatus,ask:kind=>systemPreferences.askForMediaAccess(kind),isActive:()=>!quitting&&Boolean(mainWindow&&!mainWindow.isDestroyed())});
 const privacyPanes=Object.freeze({camera:'Privacy_Camera',microphone:'Privacy_Microphone',screen:'Privacy_ScreenCapture','system-audio':'Privacy_AudioCapture'});
 function getNativeMediaStatus(kind){
- if(process.platform!=='darwin')return 'unsupported';
+ if(process.platform!=='darwin')return 'unknown';
  try{const status=systemPreferences.getMediaAccessStatus(kind);return ['not-determined','granted','denied','restricted','unknown'].includes(status)?status:'unknown';}catch{return 'unknown';}
 }
 function getMediaPermissions(){
- return {platform:process.platform,camera:getNativeMediaStatus('camera'),microphone:getNativeMediaStatus('microphone'),screen:getNativeMediaStatus('screen'),systemAudio:process.platform==='darwin'?'unknown':'unsupported'};
+ return {platform:process.platform,camera:getNativeMediaStatus('camera'),microphone:getNativeMediaStatus('microphone'),screen:getNativeMediaStatus('screen'),systemAudio:'unknown'};
 }
 async function requestMediaPermission(kind){
  return nativePermissionRequests.request(kind);
@@ -122,15 +122,16 @@ function setShortcutContext(value){
  shortcutContext={workspace:value.workspace,editable:value.editable===true,timelineFocused:value.timelineFocused===true,availableActions:actions,bindings};installMenu();return updateGlobalShortcuts();
 }
 function resetShortcutContext(){shortcutContext=emptyShortcutContext();clearGlobalShortcuts();installMenu();reportShortcutStatus();}
-// Its own name and user-data folder (~/Library/Application Support/CreatorClub) before the lock: the single-instance lock
+// Its own name and user-data folder (~/Library/Application Support/Creator Compiler) before the lock: the single-instance lock
 // lives in the user-data folder, so this app and a running SceneForge app never block each other or share settings.
 app.setName(CREATORCLUB.name);
-const paths=creatorClubPaths({appData:app.getPath('appData')});
+const paths=creatorClubPaths({appData:app.getPath('appData'),...(!app.isPackaged?{developmentRoot:projectRoot}:{})});
+fs.mkdirSync(paths.userData,{recursive:true});
 app.setPath('userData',paths.userData);
 const gotLock=app.requestSingleInstanceLock();
 if(!gotLock)app.quit();
 app.on('second-instance',()=>{if(mainWindow){mainWindow.show();mainWindow.focus();}});
-// /api/ready answers as soon as the service listens (no media probing). Only a CreatorClub service counts: any other
+// /api/ready answers as soon as the service listens (no media probing). Only a Creator Compiler service counts: any other
 // holder of the port (a SceneForge service included) is never used, and the start deadline then reports the port.
 async function serviceAnswers(){
  const r=await fetch(base+'/api/ready',{signal:AbortSignal.timeout(2000)});
@@ -140,12 +141,13 @@ async function serviceAnswers(){
 async function startService(){
  try {if(await serviceAnswers())return;}catch{}
  const entry=path.join(projectRoot,'server-dist/index.mjs');
- // Recordings and edits use SceneForge's storage format in CreatorClub's own folder; SCENEFORGE_DATA_DIR still overrides it.
+ // Recordings and edits use SceneForge's storage format in Creator Compiler's own folder; SCENEFORGE_DATA_DIR still overrides it.
  // Only a launcher inside this app is offered for MCP; without one (the dev app) none is advertised, never SceneForge's.
  const env=runtimeEnvironment({root:projectRoot,data:paths.studio,modelsDir:paths.models,port:PORT});env.SCENEFORGE_MCP_COMMAND??='';
+ if(!app.isPackaged)env.CREATORCLUB_DIR??=path.join(projectRoot,'.local','channels');
  // The service asks this process to capture motion blocks (see below); without the variable it uses Chrome, as in development.
  env.CREATORCLUB_MOTION_BRIDGE='1';
- if(fs.existsSync(entry))service=utilityProcess.fork(entry,[],{env,stdio:'pipe',serviceName:'CreatorClub media service'});
+ if(fs.existsSync(entry))service=utilityProcess.fork(entry,[],{env,stdio:'pipe',serviceName:'Creator Compiler media service'});
  else service=spawn(process.env.SCENEFORGE_NODE||process.env.npm_node_execpath||'node',['--import','tsx',path.join(projectRoot,'server/index.ts')],{cwd:projectRoot,env,stdio:['pipe','pipe','pipe','ipc']});
  ownService=true;
  // Motion blocks are captured here, in offscreen windows, for the service (which cannot open windows): it asks over its message channel.
@@ -154,7 +156,7 @@ async function startService(){
  service.on('message',message=>{motionRenderer.handle(message,post);});
  service.stdout?.on('data',d=>console.log(d.toString()));service.stderr?.on('data',d=>console.error(d.toString()));
  for(const deadline=Date.now()+30000;Date.now()<deadline;){try{if(await serviceAnswers())return;}catch{}await new Promise(r=>setTimeout(r,40));}
- throw new Error(`The local media service did not start. Reopen CreatorClub and check that port ${PORT} is available.`);
+ throw new Error(`The local media service did not start. Reopen Creator Compiler and check that port ${PORT} is available.`);
 }
 // Hidden/minimized editor: the renderer pauses decorative work, the recorder stops previews.
 // Focus re-checks too, so a stale value cannot outlive the window coming forward.
@@ -167,7 +169,7 @@ app.whenReady().then(async()=>{
  // The window and its renderer process start while the service boots; the page
  // itself is served by the service, so it loads once the service answers.
  const serviceReady=startService();serviceReady.catch(()=>{});
- mainWindow=new BrowserWindow({width:1480,height:960,minWidth:1000,minHeight:680,title:CREATORCLUB.name,show:false,backgroundColor:nativeTheme.shouldUseDarkColors?'#0a0a0a':'#f7f7fa',titleBarStyle:'hiddenInset',trafficLightPosition:{x:16,y:20},webPreferences:{preload:path.join(__dirname,'preload.cjs'),additionalArguments:[`--privacy-app-name=${appName}`],contextIsolation:true,nodeIntegration:false,sandbox:true,backgroundThrottling:false}});
+ mainWindow=new BrowserWindow({width:1480,height:960,minWidth:1000,minHeight:680,title:CREATORCLUB.name,show:false,backgroundColor:nativeTheme.shouldUseDarkColors?'#0a0a0a':'#f7f7fa',titleBarStyle:process.platform==='darwin'?'hiddenInset':'default',...(process.platform==='darwin'?{trafficLightPosition:{x:16,y:20}}:{}),webPreferences:{preload:path.join(__dirname,'preload.cjs'),additionalArguments:[`--privacy-app-name=${appName}`],contextIsolation:true,nodeIntegration:false,sandbox:true,backgroundThrottling:false}});
  const trusted=(url)=>{try{return new URL(url).origin===base;}catch{return false;}};
  session.defaultSession.setPermissionRequestHandler((contents,permission,callback,details)=>callback(!quitting&&(trusted(contents.getURL())&&['media','display-capture'].includes(permission)||Boolean(recordingHud?.allowsCamera(contents,permission,details)))));
  captureManager=createCaptureManager({BrowserWindow,desktopCapturer,screen,ipcMain,session,systemPreferences,getMainWindow:()=>mainWindow,origin:base,appName});
@@ -204,7 +206,7 @@ app.whenReady().then(async()=>{
  mainWindow.webContents.setWindowOpenHandler(({url})=>{if(/^https?:/.test(url))shell.openExternal(url);return {action:'deny'};});
  mainWindow.webContents.on('will-navigate',(e,url)=>{if(!trusted(url)){e.preventDefault();if(/^https?:/.test(url))shell.openExternal(url);}});
  installMenu();
- try{await serviceReady;}catch(e){if(quitting)return;dialog.showErrorBox('CreatorClub could not start',e.message);if(mainWindow&&!mainWindow.isDestroyed())mainWindow.destroy();app.quit();return;}
+ try{await serviceReady;}catch(e){if(quitting)return;dialog.showErrorBox('Creator Compiler could not start',e.message);if(mainWindow&&!mainWindow.isDestroyed())mainWindow.destroy();app.quit();return;}
  if(!mainWindow||mainWindow.isDestroyed())return;
  try{await mainWindow.loadURL(base);}finally{if(mainWindow&&!mainWindow.isDestroyed()&&!mainWindow.isVisible())mainWindow.show();}
 });

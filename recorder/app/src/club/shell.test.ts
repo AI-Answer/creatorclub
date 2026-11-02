@@ -73,7 +73,7 @@ test('the sidebar is the switcher, Search, four places (Home, Discover, Videos w
   const help=bar.querySelector('[aria-label="Help"]')!;
   await act(async()=>{help.dispatchEvent(new window.PointerEvent('pointerover',{bubbles:true}));});
   await act(async()=>{await new Promise(resolve=>setTimeout(resolve,TOOLTIP_DELAY_MS+50));});
-  assert.match(c.querySelector('[role="tooltip"]')?.textContent??'',/Help: how CreatorClub works/,'each has a tooltip');
+  assert.match(c.querySelector('[role="tooltip"]')?.textContent??'',/Help: how Creator Compiler works/,'each has a tooltip');
   assert.equal(bar.querySelector('.sb-bottom')!.textContent,'','no text rows');
   assert.equal(bar.querySelectorAll('.sb-video, .sb-label').length,0,'no list of videos: Videos and Home have them');
   assert.equal(bar.querySelectorAll('.sb-search').length,1,'Search once');
@@ -221,7 +221,7 @@ test('search finds steps, settings groups, actions and help words, and a step op
   const scene=[...c.querySelectorAll('.palette .po')].find(o=>o.querySelector('.po-label')!.textContent==='Scene')!;
   await press(scene);
   assert.equal(c.querySelector('.palette'),null);
-  assert.match(c.querySelector('[role="dialog"]')!.textContent!,/How CreatorClub works/,'a word of help opens Help');
+  assert.match(c.querySelector('[role="dialog"]')!.textContent!,/How Creator Compiler works/,'a word of help opens Help');
   assert.ok(c.querySelector('[data-topic="term:Scene"].on'),'at that word');
  });
 });
@@ -341,7 +341,7 @@ test('Help is a real help: the five steps, the words, where things live and the 
   await press(c.querySelector('.sidebar [aria-label="Help"]')!);
   const dialog=c.querySelector('[role="dialog"]')!;
   const help=dialog.textContent!;
-  assert.match(help,/How CreatorClub works/);
+  assert.match(help,/How Creator Compiler works/);
   assert.deepEqual([...dialog.querySelectorAll('.help-steps.five b')].map(b=>b.textContent),['Board','Plan','Record','Edit','Publish'],'the same five names as the tabs of a video');
   for(const word of ['Scene','Take','Package','Board','Idea','Talking points'])assert.ok([...dialog.querySelectorAll('dt')].some(dt=>dt.textContent===word),`${word} is explained`);
   assert.match(help,/Where things live/);assert.match(help,/⌘K/);assert.match(help,/Keyboard shortcuts/);

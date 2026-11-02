@@ -1,7 +1,7 @@
 /** Calls to the club server. Failures carry one sentence that is safe to show. */
 export class ClubApiError extends Error{constructor(message:string,readonly status?:number){super(message);}}
 
-export const CANT_REACH="Couldn't reach CreatorClub.";
+export const CANT_REACH="Couldn't reach Creator Compiler.";
 const GENERIC='That did not work.';
 
 export async function clubFetch<T=unknown>(path:string,init:{method?:string;body?:unknown;signal?:AbortSignal}={}):Promise<T>{

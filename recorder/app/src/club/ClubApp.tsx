@@ -65,9 +65,9 @@ function VideoRoute({id,tab,navigate}:{id:string;tab?:VideoTab;navigate(route:Ro
  return <VideoWorkspace key={video.id} video={video} tab={tab??defaultTab(video.stage)} back={videoBackRoute()} navigate={navigate} onVideo={setVideo}/>;
 }
 
-/** CreatorClub's root: the sidebar beside the current screen, with search (⌘K), New video, the How it works dialog and toasts above them. */
+/** Creator Compiler's root: the sidebar beside the current screen, with search (⌘K), New video, the How it works dialog and toasts above them. */
 export default function ClubApp(){
- return <div className={cn('club-root',window.sceneForge&&'club-desktop')}>
+ return <div className={cn('club-root',window.sceneForge&&'club-desktop')} data-platform={window.sceneForge?.platform}>
   <ToastProvider><Shell/></ToastProvider>
  </div>;
 }

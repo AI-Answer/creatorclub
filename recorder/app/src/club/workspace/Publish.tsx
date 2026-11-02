@@ -1,3 +1,4 @@
+import {BrandLogo} from '../../BrandLogo';
 import {useCallback,useEffect,useMemo,useRef,useState,type ReactNode} from 'react';
 import type {Package,PublishProgress,PublishRecord,PublishVisibility,Video,VideoScene} from '../../../shared/club';
 import type {ExportRecord} from '../../../shared/export-history';
@@ -189,7 +190,7 @@ export function Publish({video,pkg,scenes,onVideo,onDescription,onTags,onGoTo,on
    <PubStep n={3} title="Send it to YouTube" done={false}
     line={publishing.error?undefined:!publishing.state?undefined:connected?`Postiz uploads it to ${channelName??'your channel'} on YouTube, now or at the time you pick.`:"Publishing isn't set up yet. It uses Postiz, a paid service that uploads to YouTube for you; set it up once."}>
     {publishing.error?<ErrorLine message={publishing.error} onRetry={publishing.reload}/>:!publishing.state?<Spinner label="Loading"/>
-     :!connected?<div className="row" style={{gap:12,flexWrap:'wrap'}}><Button onClick={onSettings}>Set up publishing</Button><SelfUpload video={video} onVideo={onVideo}/></div>
+     :!connected?<div className="row" style={{gap:12,flexWrap:'wrap'}}><span className="logo logo-postiz"><BrandLogo brand="postiz" size={28}/></span><Button onClick={onSettings}>Set up publishing</Button><SelfUpload video={video} onVideo={onVideo}/></div>
      :<>
       <div className="pub-when">
        <div><label className="field" htmlFor="pub-when">When</label><select id="pub-when" className="select" value={when} onChange={event=>setWhen(event.target.value as 'now'|'schedule')}><option value="now">Publish now</option><option value="schedule">Schedule for later</option></select></div>

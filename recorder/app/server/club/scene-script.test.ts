@@ -85,7 +85,7 @@ test('Write this scene writes one scene of the script: the others stay empty, an
   const sections = scriptSections(await scriptText());
   assert.deepEqual(sections.map((s) => s.heading), ['Opening', 'Level 1', 'Where this falls short', 'Ending']);
   assert.deepEqual(sections.map((s) => s.body.length > 0), [true, false, false, false]);
-  assert.match(await scriptText(), /^<!-- CreatorClub scene script -->\n# Build it fast\n\n## Opening\n\nword0 /);
+  assert.match(await scriptText(), /^<!-- Creator Compiler scene script -->\n# Build it fast\n\n## Opening\n\nword0 /);
   assert.equal(job.result.replaced, undefined, 'there was no script to replace');
 
   // The outline says so: some scenes have a script, and it is not the full script.
@@ -294,7 +294,7 @@ test('hand-editing a scene keeps the script format: a scene-by-scene script stay
   assert.equal(value.scriptState, 'partial');
   assert.equal(value.fullScript, undefined);
   assert.equal(value.scenes[0].script, before[0].body, 'other scenes keep what they have');
-  assert.match(await scriptText(), /^<!-- CreatorClub scene script -->\n/, 'the scene marker stays');
+  assert.match(await scriptText(), /^<!-- Creator Compiler scene script -->\n/, 'the scene marker stays');
 
   // Emptying a scene clears only its part.
   assert.equal(((await edit(ids[2], '  ')).body.outline as Outline).scenes[2].script, undefined);
@@ -308,7 +308,7 @@ test('hand-editing a scene keeps the script format: a scene-by-scene script stay
   const whole = (await edit(ids[1], 'B edited')).body.outline as Outline;
   assert.equal(whole.scriptState, 'full');
   assert.equal(whole.fullScript, '# Whole\n\n## Opening\n\nA\n\n## Level 1\n\nB edited\n\n## Where this falls short\n\nC\n\n## Ending\n\nD\n');
-  assert.doesNotMatch(await scriptText(), /CreatorClub scene script/, 'a full script written whole does not become a scene script');
+  assert.doesNotMatch(await scriptText(), /Creator Compiler scene script/, 'a full script written whole does not become a scene script');
 });
 
 test('hand-editing a scene: unknown scene is 404, a script without scenes is refused and left as it was, no script and no words writes nothing', async () => {

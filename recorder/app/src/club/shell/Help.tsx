@@ -14,7 +14,7 @@ export function Help({topic,onClose}:{topic?:string;onClose():void}){
   if(!topic)return;
   [...(body.current?.querySelectorAll<HTMLElement>('[data-topic]')??[])].find(element=>element.dataset.topic===topic)?.scrollIntoView?.({block:'nearest'});
  },[topic]);
- return <Dialog title="How CreatorClub works" onClose={onClose} width={720}>
+ return <Dialog title="How Creator Compiler works" onClose={onClose} width={720}>
   <div className="help-body" ref={body}>
    <h4>Where to start</h4>
    <p className="muted" style={{margin:0,lineHeight:1.55}}>Every video is one card that goes from idea to published. Start in {FIND_IDEA.name}: {FIND_IDEA.does.charAt(0).toLowerCase()+FIND_IDEA.does.slice(1)} Already know the title? Choose New video and type it.</p>
@@ -25,7 +25,7 @@ export function Help({topic,onClose}:{topic?:string;onClose():void}){
    </div>)}</div>
    <p className="small muted" style={{margin:'8px 0 0'}}>{STEPS_SENTENCE} They are the tabs at the top of a video, and the only way between steps.</p>
 
-   <h4>Words CreatorClub uses</h4>
+   <h4>Words Creator Compiler uses</h4>
    <dl>{GLOSSARY.map(item=><div key={item.term} className={`topic${mark(topic,`term:${item.term}`)}`} data-topic={`term:${item.term}`} style={{display:'contents'}}><dt>{item.term}</dt><dd>{item.means}</dd></div>)}</dl>
 
    <h4>Where things live</h4>

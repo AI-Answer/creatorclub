@@ -79,7 +79,7 @@ test('Welcome step 1: Connect Claude installs with progress, waits for the brows
    await flush();const c=ui.container;
    assert.match(text(c),/Step 1 of 4/);
    assert.equal(c.querySelector('h1')!.textContent,'Connect your AI');
-   assert.match(text(c),/CreatorClub uses your own Claude or ChatGPT account/);
+   assert.match(text(c),/Creator Compiler uses your own Claude or ChatGPT account/);
    assert.equal(c.querySelectorAll('button.primary').length,1,'one primary button');
    assert.ok(button(c,'Connect Claude').classList.contains('primary'));
    assert.equal(button(c,'Continue').disabled,true);
@@ -387,7 +387,7 @@ test('Settings: Claude and ChatGPT with their status and Connect or Reconnect, a
    assert.deepEqual(names,['Reconnect Claude','Connect ChatGPT'],'Gemini has no sign-in');
    assert.match(text(c),/Connected as dani@example\.com/);
    assert.match(text(c),/Optional/);
-   assert.match(text(c),/Lets CreatorClub watch videos with sound and motion when it breaks them down\./);
+   assert.match(text(c),/Lets Creator Compiler watch videos with sound and motion when it breaks them down\./);
    assert.ok(c.querySelector('input[aria-label="Gemini API key"]'));
    assert.equal(c.querySelector('[aria-label="Default AI"] [aria-selected="true"]')!.textContent,'Claude','falls back to the connected AI');
    assert.deepEqual([...c.querySelectorAll('[aria-label="Theme"] button')].map(b=>b.textContent),['Light','Dark']);

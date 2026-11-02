@@ -18,7 +18,7 @@ const PANEL_TITLE:Record<Panel,string>={Canvas:'Canvas background',Layout:'Layou
 /** Continuous controls pass a coalesce key so one drag or typing burst becomes one undo step. */
 export type Change=(fn:(p:Project)=>void,opts?:{coalesce?:string})=>void;
 type Props={project:Project;panel:Panel;selected:string|null;playhead:Playhead;change:Change;select:(id:string)=>void;onImport:(track?:TrackKind)=>void;onAI:(kind?:string)=>void;
- /** Inside CreatorClub the project is called a video. */
+ /** Inside Creator Compiler the project is called a video. */
  club?:boolean;
  /** Shown as a sheet over the side of the club's Edit: a close button in its heading. */
  onClose?:()=>void;

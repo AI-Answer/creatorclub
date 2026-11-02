@@ -189,7 +189,7 @@ test('leaving Record for Edit with a take still under review puts the take on th
  }finally{server.restore();await ui.close();}
 });
 
-test('inside CreatorClub, Continue confirms the take, selects the next scene and reports progress',async()=>{
+test('inside Creator Compiler, Continue confirms the take, selects the next scene and reports progress',async()=>{
  localStorage.clear();
  const server=serveProject(),progress:string[]=[];
  const ui=await mountUI(createElement(ClubRecorder,{projectId:server.p.id,mode:'Record',onBack:()=>{},onProgress:({recorded,total})=>progress.push(`${recorded}/${total}`)}));

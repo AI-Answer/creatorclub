@@ -4,6 +4,17 @@ import { ClubError } from './errors.js';
 import { matchSection, readOutline, scriptSections } from './planning.js';
 import * as store from './store.js';
 
+/** Link a separately rendered project to a new video, keeping the source video and recording intact. */
+export async function videoFromProject(slug: string, projectId: string): Promise<{video: Video; created: boolean}> {
+  const { readProject } = await import('../storage.js');
+  let project: Project;
+  try { project = await readProject(projectId); }
+  catch { throw new ClubError('That recording was not found.', 404); }
+  return store.createVideoUnless(slug, {
+    title: project.name.slice(0, 300), stage: 'editing', recorderProjectId: project.id,
+  }, videos => videos.find(video => video.recorderProjectId === project.id));
+}
+
 /*
  * The hand-off to SceneForge: Continue to recording turns the outline into a recording project with one scene per outline
  * scene and the talking points as the scene's script. Going back and continuing again updates the scenes; it never removes

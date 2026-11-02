@@ -1,5 +1,5 @@
 /*
-  CreatorClub's look for SceneForge's Edit screen, used only when the editor is embedded in the video page.
+  Creator Compiler's look for SceneForge's Edit screen, used only when the editor is embedded in the video page.
   Every rule starts with `.club-embed .app-shell[data-mode=Edit]`, so standalone SceneForge keeps its own styles.
   Layout (docs/v2/prototypes/edit): the tool rail | the open tool's panel | the picture, the transport bar and the timeline.
   Undo, redo and history sit in the video's header (`.ws-edit-tools`); the one black button, Continue, is in the bottom bar.

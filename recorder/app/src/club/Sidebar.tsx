@@ -1,3 +1,4 @@
+import {BrandMark} from '../BrandMark';
 import {useCallback,useEffect,useState} from 'react';
 import type {Video,Workspace} from '../../shared/club';
 import {clubFetch} from './api';
@@ -21,7 +22,7 @@ export const inProduction=(videos:readonly Video[])=>videos.filter(video=>IN_PRO
 
 /**
  * Left sidebar: the channel switcher, search, then the four places (Home, Discover, Videos with the number of videos in progress, Research).
- * At the bottom, three icons with tooltips: Settings, Help (How CreatorClub works) and the collapse toggle. Collapsed, it is an icon rail with the same items.
+ * At the bottom, three icons with tooltips: Settings, Help (How Creator Compiler works) and the collapse toggle. Collapsed, it is an icon rail with the same items.
  */
 export function Sidebar({route,collapsed,onToggle,onSearch,onHelp,onSwitched,onAdd,videos,epoch}:{route:Route;collapsed:boolean;onToggle():void;onSearch():void;onHelp():void;onSwitched():void;onAdd():void;videos:readonly Video[];epoch:number}){
  const counts:Partial<Record<RouteName,number>>={videos:inProduction(videos).length};
@@ -29,6 +30,7 @@ export function Sidebar({route,collapsed,onToggle,onSearch,onHelp,onSwitched,onA
  return <nav className={`sidebar${collapsed?' collapsed':''}`} aria-label="Main">
   <div className="club-drag club-window-top"/>
   <div className="sb-top">
+   <a className="compiler-nav-brand" href="#/home" aria-label="Creator Compiler home" title="Creator Compiler"><BrandMark size={25}/><span>Creator Compiler</span></a>
    <ChannelSwitcher collapsed={collapsed} epoch={epoch} onSwitched={onSwitched} onAdd={onAdd}/>
   </div>
   <button type="button" className="sb-search" onClick={onSearch} title="Search (⌘K)" aria-label="Search"><Icon name="search" size={15}/><span>Search</span><span className="kbd">⌘K</span></button>
@@ -44,7 +46,7 @@ export function Sidebar({route,collapsed,onToggle,onSearch,onHelp,onSwitched,onA
   </div>
   <div className="sb-bottom sb-icons">
    <Tooltip text="Settings" side="top"><a href="#/settings" className={`sb-icon${settings?' active':''}`} aria-label="Settings" aria-current={settings?'page':undefined}><Icon name="settings" size={17}/></a></Tooltip>
-   <Tooltip text="Help: how CreatorClub works" side="top"><button type="button" className="sb-icon" onClick={onHelp} aria-label="Help"><Icon name="help" size={17}/></button></Tooltip>
+   <Tooltip text="Help: how Creator Compiler works" side="top"><button type="button" className="sb-icon" onClick={onHelp} aria-label="Help"><Icon name="help" size={17}/></button></Tooltip>
    <Tooltip text={collapsed?'Expand sidebar':'Collapse sidebar'} side="top"><button type="button" className="sb-icon sb-collapse" onClick={onToggle} aria-label={collapsed?'Expand sidebar':'Collapse sidebar'}>
     <Icon name={collapsed?'sidebar-open':'sidebar-close'} size={17}/>
    </button></Tooltip>
