@@ -134,6 +134,8 @@ function ProductionRow({video,progress,onOpen}:{video:Video;progress:readonly Sc
    <div className="tt clamp2">{video.title}</div>
    <div className="row small muted" style={{marginTop:4}}><SceneDots scenes={progress??[]}/><span>{progressText(video,progress)}</span></div>
   </div>
-  <button type="button" className="btn sm" onClick={event=>{event.stopPropagation();onOpen(video.id,action.tab);}}><Icon name={action.icon} size={14}/>{action.label}</button>
+  {progress===undefined&&(video.stage==='planning'||video.stage==='recording'||video.stage==='editing')
+   ?<span className="btn sm is-waiting" aria-busy="true"><span className="spin"/></span>
+   :<button type="button" className="btn sm" onClick={event=>{event.stopPropagation();onOpen(video.id,action.tab);}}><Icon name={action.icon} size={14}/>{action.label}</button>}
  </div>;
 }

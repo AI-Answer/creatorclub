@@ -91,4 +91,4 @@ export function createProject(name='Untitled project'):Project {const now=new Da
 /** How a creator marks a moment on the timeline, and the words shown for each. */
 export const MARKER_TAGS = ['dislike', 'keep', 'idea'] as const;
 export type MarkerTag = (typeof MARKER_TAGS)[number];
-export const MARKER_TAG_LABEL: Record<MarkerTag, string> = { dislike: "I don't like this", keep: 'Keep this', idea: 'Idea' };
+export const MARKER_TAG_LABEL: Record<MarkerTag, string> = { dislike: 'Needs fixing', keep: 'Keep as is', idea: 'Idea to add' };
