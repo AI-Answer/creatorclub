@@ -110,7 +110,7 @@ const onEnter=(open:()=>void)=>(event:{key:string;target:unknown;currentTarget:u
 function NextUp({video,progress,onOpen}:{video:Video;progress:readonly SceneProgress[]|undefined;onOpen:OpenVideo}){
  const action=nextAction(video,progress);
  return <div className="card nextup hov" onClick={()=>onOpen(video.id)} tabIndex={0} onKeyDown={onEnter(()=>onOpen(video.id))}>
-  <Thumb videoId={videoThumbId(video)} seed={video.id}/>
+  <Thumb videoId={videoThumbId(video)} cover={video.id} seed={video.id}/>
   <div className="body">
    {video.publishDate&&<div className="faint small"><Icon name="calendar" size={12}/> {fmtDate(video.publishDate)}</div>}
    <div className="title clamp2">{video.title}</div>
@@ -129,7 +129,7 @@ function NextUp({video,progress,onOpen}:{video:Video;progress:readonly SceneProg
 function ProductionRow({video,progress,onOpen}:{video:Video;progress:readonly SceneProgress[]|undefined;onOpen:OpenVideo}){
  const action=nextAction(video,progress);
  return <div className="li" onClick={()=>onOpen(video.id)} tabIndex={0} onKeyDown={onEnter(()=>onOpen(video.id))}>
-  <Thumb className="lt" videoId={videoThumbId(video)} seed={video.id}/>
+  <Thumb className="lt" videoId={videoThumbId(video)} cover={video.id} seed={video.id}/>
   <div className="grow" style={{minWidth:0}}>
    <div className="tt clamp2">{video.title}</div>
    <div className="row small muted" style={{marginTop:4}}><SceneDots scenes={progress??[]}/><span>{progressText(video,progress)}</span></div>

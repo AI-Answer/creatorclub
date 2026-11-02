@@ -13,7 +13,7 @@
 .club-root .cmp-mark.working .cmp-mark-dot { animation: cmp-breathe 1.4s var(--cc-ease) infinite; transform-origin: 18.5px 18.5px; }
 @keyframes cmp-breathe { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(.62); opacity: .55; } }
 
-.club-root .cmp-head { display: flex; align-items: center; gap: 10px; padding: 12px 10px 11px 16px; border-bottom: 1px solid var(--cc-line); }
+.club-root .cmp-head { display: flex; align-items: center; gap: 8px; height: 52px; padding: 0 10px 0 16px; border-bottom: 1px solid var(--cc-line); }
 .club-root .cmp-head-mark { color: var(--cc-accent); }
 .club-root .cmp-head-text { flex: 1; min-width: 0; }
 .club-root .cmp-title { font-size:var(--cc-text-base); font-weight: 650; letter-spacing: -0.01em; }
@@ -21,7 +21,7 @@
 .club-root .cmp-look > span:first-child { color: var(--cc-text-2); font-weight: 600; flex: none; }
 .club-root .cmp-look-scene { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 
-.club-root .cmp-log { flex: 1; min-height: 0; overflow-y: auto; padding: 14px 16px 10px; display: flex; flex-direction: column; gap: 14px; }
+.club-root .cmp-log { flex: 1; min-height: 0; overflow-y: auto; padding: 18px 16px 12px; display: flex; flex-direction: column; gap: 16px; }
 .club-root .cmp-loading { display: flex; justify-content: center; padding: 24px 0; }
 
 .club-root .cmp-divider { display: flex; align-items: center; gap: 10px; font-size:var(--cc-text-2xs); font-weight: 550; color: var(--cc-text-3); }
@@ -102,24 +102,23 @@
 .club-root .cmp-jump { position: absolute; left: 50%; transform: translateX(-50%); bottom: 132px; display: inline-flex; align-items: center; gap: 5px; border: 1px solid var(--cc-line-strong); background: var(--cc-surface); color: var(--cc-text-2); box-shadow: var(--cc-shadow-2); border-radius:var(--cc-r-pill); padding: 4px 11px; font-size:var(--cc-text-xs); font-weight: 550; cursor: pointer; z-index: 2; }
 .club-root .cmp-jump:hover { color: var(--cc-text); }
 
-.club-root .cmp-foot { padding: 8px 14px 10px; display: flex; flex-direction: column; gap: 7px; }
+.club-root .cmp-foot { padding: 8px 12px 12px; display: flex; flex-direction: column; gap: 8px; }
 .club-root .cmp-sugg { display: flex; flex-wrap: wrap; gap: 6px; }
 .club-root .cmp-sugg button { all: unset; box-sizing: border-box; cursor: pointer; font-size:var(--cc-text-xs); font-weight: 500; color: var(--cc-text-2); border: 1px solid var(--cc-line); background: var(--cc-surface); border-radius:var(--cc-r-pill); padding: 4px 10px; line-height: 1.35; }
 .club-root .cmp-sugg button:hover { border-color: var(--cc-accent); color: var(--cc-text); background: var(--cc-accent-soft); }
 .club-root .cmp-sugg button:focus-visible { outline: 2px solid var(--cc-accent); outline-offset: 1px; }
-.club-root .cmp-input { display: flex; align-items: flex-end; gap: 6px; border: 1px solid var(--cc-line-strong); border-radius:var(--cc-r-lg); background: var(--cc-surface); padding: 6px 6px 6px 12px; transition: border-color .15s, box-shadow .15s; }
-.club-root .cmp-input:focus-within { border-color: var(--cc-accent); box-shadow: 0 0 0 3px var(--cc-accent-soft); }
-.club-root .cmp-input textarea { flex: 1; border: 0; outline: none; resize: none; background: transparent; color: var(--cc-text); font: inherit; font-size:var(--cc-text-sm); line-height: 1.45; padding: 5px 0; min-height: 22px; max-height: 140px; }
-.club-root .cmp-send { all: unset; box-sizing: border-box; cursor: pointer; flex: none; width: 30px; height: 30px; border-radius:var(--cc-r); display: grid; place-items: center; background: var(--cc-accent); color: var(--cc-accent-ink); }
-.club-root .cmp-send:disabled { cursor: default; background: var(--cc-bg-sunk); color: var(--cc-text-3); }
+.club-root .cmp-input { display: flex; flex-direction: column; gap: 6px; border: 1px solid var(--cc-line-strong); border-radius: var(--cc-r-lg); background: var(--cc-surface); padding: 10px 10px 8px 12px; box-shadow: var(--cc-shadow-2); transition: border-color .15s, box-shadow .15s; }
+.club-root .cmp-input:focus-within { border-color: var(--cc-line-hover); box-shadow: var(--cc-shadow-3); }
+.club-root .cmp-input textarea { width: 100%; border: 0; outline: none; resize: none; background: transparent; color: var(--cc-text); font: inherit; font-size: var(--cc-text-sm); line-height: 1.5; padding: 0; min-height: 40px; max-height: 160px; field-sizing: content; }
+.club-root .cmp-send { all: unset; box-sizing: border-box; cursor: pointer; flex: none; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: var(--cc-primary); color: var(--cc-on-primary); transition: background .15s; }
+.club-root .cmp-send:disabled { cursor: default; background: var(--cc-bg-sunk); color: var(--cc-text-faint); }
 .club-root .cmp-send:focus-visible { outline: 2px solid var(--cc-accent); outline-offset: 2px; }
 .club-root .cmp-send.stop { background: var(--cc-text); color: var(--cc-surface); }
-.club-root .cmp-hint { font-size:var(--cc-text-2xs); color: var(--cc-text-3); padding-left: 2px; }
 /* Before anything is asked on a step: its greeting, with the best prompts right under it as full-width rows. */
-.club-root .cmp-hello { display: flex; flex-direction: column; gap: 12px; }
-.club-root .cmp-hello p { margin: 0; color: var(--cc-text-2); font-size:var(--cc-text-sm); line-height: 1.5; }
-.club-root .cmp-sugg.fresh { flex-direction: column; gap: 6px; }
-.club-root .cmp-sugg.fresh button { border-radius: var(--cc-r); padding: 8px 12px; font-size:var(--cc-text-sm); color: var(--cc-text); }
+.club-root .cmp-hello { display: flex; flex-direction: column; gap: 14px; padding-top: 6px; }
+.club-root .cmp-hello p { margin: 0; color: var(--cc-text-2); font-size: var(--cc-text-sm); line-height: 1.55; }
+.club-root .cmp-sugg.fresh { flex-direction: column; gap: 2px; margin: 0 -8px; }
+.club-root .cmp-sugg.fresh button { display: flex; align-items: center; gap: 10px; border: 0; background: transparent; border-radius: var(--cc-r); padding: 8px; font-size: var(--cc-text-sm); color: var(--cc-text); }
 
 @media (prefers-reduced-motion: reduce) {
   .club-root .cmp-mark.working .cmp-mark-dot, .club-root .cmp-pulse::before, .club-root .cmp-skel i, .club-root .cmp-md.streaming > :last-child::after { animation: none; }
@@ -176,9 +175,8 @@
 .club-root .cmp-all { display: flex; align-items: center; gap: 10px; }
 
 /* What was said on other steps: one quiet line, opened on request. */
-.club-root .cmp-earlier { all: unset; box-sizing: border-box; cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; padding: 8px 10px; border: 1px dashed var(--cc-line-strong); border-radius:var(--cc-r); font-size:var(--cc-text-xs); color: var(--cc-text-2); }
-.club-root .cmp-earlier span { color: var(--cc-accent-text); font-weight: 600; }
-.club-root .cmp-earlier:hover { background: var(--cc-accent-soft); }
+.club-root .cmp-earlier { all: unset; box-sizing: border-box; cursor: pointer; align-self: center; padding: 4px 10px; border-radius: var(--cc-r-pill); font-size: var(--cc-text-xs); font-weight: 550; color: var(--cc-text-3); }
+.club-root .cmp-earlier:hover { background: var(--cc-hover); color: var(--cc-text); }
 
 /* A question from Claude: the question, then its answers as buttons to tap. */
 .club-root .cmp-choice { gap: 10px; }
@@ -191,3 +189,14 @@
 .club-root .cmp-card.applied .cmp-card-h, .club-root .cmp-card.applied .cmp-card-text, .club-root .cmp-card.applied .cmp-preview { display: none; }
 .club-root .cmp-card.applied .cmp-card-a { flex: 1; justify-content: space-between; }
 .club-root .cmp-card .btn { border-radius:var(--cc-r); }
+
+.club-root .cmp-send:not(:disabled):hover { background: var(--cc-primary-hover); }
+.club-root .cmp-input-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.club-root .cmp-input-row .grow { flex: 1; }
+.club-root .cmp-context { display: inline-flex; align-items: center; gap: 5px; min-width: 0; max-width: 75%; height: 22px; padding: 0 8px; border-radius: var(--cc-r-pill); background: var(--cc-bg-sunk); color: var(--cc-text-2); font-size: var(--cc-text-2xs); font-weight: 550; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.club-root .cmp-context svg { flex: none; color: var(--cc-text-3); }
+.club-root .cmp-hello-mark { width: 36px; height: 36px; display: grid; place-items: center; border-radius: var(--cc-r-lg); background: var(--cc-accent-soft); color: var(--cc-accent); }
+.club-root .cmp-sugg.fresh button::before { content: ""; flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--cc-line-hover); }
+.club-root .cmp-sugg.fresh button:hover { background: var(--cc-hover); }
+.club-root .cmp-sugg.fresh button:hover::before { background: var(--cc-accent); }
+.club-root .cmp-me { border-radius: var(--cc-r-lg) var(--cc-r-lg) var(--cc-r-sm) var(--cc-r-lg); }

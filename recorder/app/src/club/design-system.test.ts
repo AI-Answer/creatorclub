@@ -113,7 +113,7 @@ test('Task 14: timeline kinds are told apart from selection blue and from "done"
  for(const kind of ['--kind-audio','--kind-captions','--kind-markers']){const v=value(kind);assert.ok(v,`${kind} is its own colour`);assert.ok(far(v!,accent,40),`${kind} is not selection blue`);assert.ok(far(v!,ok,40),`${kind} is not "done" green`);}
  assert.ok(far(value('--kind-captions')!,value('--kind-zoom')!,20)&&far(value('--kind-markers')!,value('--kind-zoom')!,15),'captions and markers differ from zoom');
  const css=fs.readFileSync(path.join(src,'editing-club.css'),'utf8');
- assert.match(css,/\.club-marker\{[^}]*background:var\(--kind-markers\)/,'markers use their token');
+ assert.match(css,/\.club-marker\{[^}]*var\(--kind-markers\)/,'markers use their token');
  assert.match(css,/:is\(\.club-clip,\.club-effect\)\.selected\{outline:2px solid var\(--tl-select\)/,'selection is the accent outline only');
 });
 

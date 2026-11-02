@@ -27,7 +27,7 @@ interface Row {id:string;name:string;icon:typeof Camera;height:number;top:number
 interface Preview {start:number;duration:number;sourceIn?:number;dy?:number}
 interface Drag {items:Map<string,Preview>;ghosts:Array<{row:string;start:number;duration:number}>;guide:number|null;insert:number|null;label:string;markers?:Map<string,number>}
 /** Snapping reaches 8 px on screen, whatever the zoom, so a short neighbour does not pull an edit away from where it was dropped. */
-const RULER=30,SNAP_PX=8,STALE_DROP='The timeline changed during the drag, so nothing moved. Try again.',NOT_MOVED='Clips stay joined end to end. Drag a clip onto another one to change the order.';
+const RULER=30,NOTES_LANE=22,SNAP_PX=8,STALE_DROP='The timeline changed during the drag, so nothing moved. Try again.',NOT_MOVED='Clips stay joined end to end. Drag a clip onto another one to change the order.';
 const icons:Record<TrackKind,typeof Camera>={screen:Monitor,camera:Camera,audio:Mic,music:Music,overlay:Layers};
 /** Every row of the timeline is the same height, media, sound and effects alike. */
 const ROW_H=32;
@@ -49,17 +49,19 @@ function fxGhosts(now:Project,after:Project):FxGhost[]{
 }
 
 /** Rows that have something on them (custom layers always), in display order; an empty timeline shows Screen and Audio as drop targets. */
+/** The ruler's height: the time line and scene names, plus a lane on top for note pins once the video has notes. */
+export const rulerHeight=(p:Project)=>RULER+(p.markers?.length?NOTES_LANE:0);
 export function usedRows(p:Project):Row[]{
  const counts=new Map<string,number>();for(const c of p.clips){const id=clipLayerRowId(c,p);counts.set(id,(counts.get(id)??0)+1);}
  const custom=new Set(p.timelineLayers?.map(l=>l.id)),groups=linkGroups(p.clips),sizes=new Map<string,number>();for(const key of groups.values())sizes.set(key,(sizes.get(key)??0)+1);
  const layers=timelineRows(p).filter(l=>counts.has(l.id)||custom.has(l.id)||!p.clips.length&&(l.id==='role:screen'||l.id==='role:audio'));
- const rows:Row[]=[];let top=RULER;
+ const rows:Row[]=[];let top=rulerHeight(p);
  const linkedRow=(id:string)=>p.clips.some(c=>clipLayerRowId(c,p)===id&&sizes.get(groups.get(c.id)!)!>1);
  for(const l of layers){const height=l.track?heights[l.track]:ROW_H;rows.push({id:l.id,name:l.track==='screen'?'Screen':l.name,icon:l.track?icons[l.track]:l.kind==='video'?Layers:Music,height,top,layer:l,linked:linkedRow(l.id)});top+=height;}
  for(const e of effectRows){if(!(p[e.id]??[]).length)continue;rows.push({id:e.id,name:e.name,icon:e.icon,height:ROW_H,top,effect:e.id});top+=ROW_H;}
  return rows;
 }
-export const rowsHeight=(rows:readonly Row[])=>RULER+rows.reduce((n,r)=>n+r.height,0)+10;
+export const rowsHeight=(rows:readonly Row[])=>(rows[0]?.top??RULER)+rows.reduce((n,r)=>n+r.height,0)+10;
 
 function Playhead_({playhead,scale,follow,onPage}:{playhead:Playhead;scale:number;follow:boolean;onPage:(el:HTMLElement)=>void}){
  const line=useRef<HTMLDivElement>(null),lastSeen=useRef({time:NaN}); // Kept across rescales: a zoom keeps the playhead in place instead of paging.
@@ -107,6 +109,7 @@ export const TimelineClub=memo(function TimelineClub({project:p,playhead,scale,o
   return <i className="club-hover-frame" style={{width:w,height:h,backgroundImage:`url(/api/media/${m.id}/filmstrip)`,backgroundSize:`${count*w}px ${h}px`,backgroundPosition:`${-index*w}px 0`}}/>;
  };
  const effects=useMemo(()=>effectsOf(p),[p.motion,p.elements,p.captions,p.zooms]);
+ const ruler=rulerHeight(p);
  // A gesture lives in refs and closes over ids, not over project arrays: only the person ends it, and the drop applies to the project as it is then.
  const gesture=useRef<(()=>void)|null>(null),latest=useRef(p);latest.current=p;
  useEffect(()=>()=>gesture.current?.(),[]);
@@ -237,14 +240,14 @@ export const TimelineClub=memo(function TimelineClub({project:p,playhead,scale,o
  const placeHeads=()=>{const el=ref.current;if(heads.current&&el)heads.current.style.transform=`translateY(${-el.scrollTop}px)`;};
  return <div className={`timeline club-timeline tool-${tool} ${drag?'timeline-dragging':''}`} onContextMenu={e=>{if(!onContextMenu)return;e.preventDefault();const hit=(e.target as HTMLElement).closest<HTMLElement>('[data-clip-id],[data-effect-id]'),id=hit?.dataset.clipId??hit?.dataset.effectId;
   if(id&&!selectedIds.has(id))onSelectMany(hit?.dataset.clipId?[...linkedIds(latest.current.clips,[id])]:[id]);onContextMenu(e.clientX,e.clientY);}}>
-  <div className="club-tl-heads" aria-hidden><div ref={heads}><div className="club-tl-head is-ruler" style={{height:RULER}}/>{rows.map(r=><div key={r.id} className={`club-tl-head ${r.linked?'is-linked':''}`} data-kind={r.layer?.track??(r.layer?.kind==='video'?'camera':r.layer?'music':r.effect)} style={{height:r.height}} title={r.name}><r.icon size={13}/><span>{r.name}</span></div>)}</div></div>
+  <div className="club-tl-heads" aria-hidden><div ref={heads}><div className="club-tl-head is-ruler" style={{height:ruler}}/>{rows.map(r=><div key={r.id} className={`club-tl-head ${r.linked?'is-linked':''}`} data-kind={r.layer?.track??(r.layer?.kind==='video'?'camera':r.layer?'music':r.effect)} style={{height:r.height}} title={r.name}><r.icon size={13}/><span>{r.name}</span></div>)}</div></div>
   <div className="timeline-scroll" ref={ref} tabIndex={-1} onScroll={e=>{const el=e.currentTarget;placeHeads();view(el.scrollLeft,el.clientWidth);}}>
    <div className="timeline-content" style={{width,height:contentHeight}}>
-    <div className="club-ruler" style={{height:RULER}} onPointerDown={beginRuler} onPointerMove={e=>{if(e.buttons)return;const box=e.currentTarget.getBoundingClientRect();setHover(Math.max(0,(e.clientX-box.left)/scale));}} onPointerLeave={()=>setHover(null)} title="Click or drag to move the playhead">
+    <div className={`club-ruler${ruler>RULER?' has-notes':''}`} style={{height:ruler}} onPointerDown={beginRuler} onPointerMove={e=>{if(e.buttons)return;const box=e.currentTarget.getBoundingClientRect();setHover(Math.max(0,(e.clientX-box.left)/scale));}} onPointerLeave={()=>setHover(null)} title="Click or drag to move the playhead">
      {hover!==null&&<span className="club-hover" style={{left:hover*scale}} aria-hidden><b>{rulerLabel(hover,tenths)}</b>{hoverFrame(hover)}</span>}
      {ticks.map(t=><span key={t.time} className={t.major?'tick major':'tick'} style={{left:t.time*scale}}>{t.label&&<b>{t.label}</b>}</span>)}
      {p.scenes.map((s,i)=>s.duration>0&&visible(s.start,Math.max(1,s.duration))&&<div key={s.id} className={`club-scene-tag${i%2?' alt':''}`} style={{left:s.start*scale,width:Math.max(24,s.duration*scale-2)}} title={`Scene ${i+1}: ${s.name}`} onPointerDown={e=>{e.stopPropagation();onSeek(s.start);}}>{i+1} {s.name}</div>)}
-     {(p.markers??[]).map(m=>{const time=drag?.markers?.get(m.id)??m.time;return visible(time,0)&&<div key={m.id} data-marker-id={m.id} className={`club-marker${m.tag?` tag-${m.tag}`:''}${m.name?.trim()?' has-note':''}`} style={{left:Math.max(9,time*scale)}} title={`${m.name?.trim()?m.name.trim()+' · ':''}Note at ${secondsLabel(time)} · click to write, drag to move`} onPointerDown={e=>beginMarker(e,m.id)}/>;})}
+     {(p.markers??[]).map(m=>{const time=drag?.markers?.get(m.id)??m.time;return visible(time,0)&&<div key={m.id} data-marker-id={m.id} className={`club-marker${m.tag?` tag-${m.tag}`:''}${m.name?.trim()?' has-note':''}`} style={{left:Math.max(10,time*scale)}} title={`${m.name?.trim()?m.name.trim()+' · ':''}Note at ${secondsLabel(time)} · click to open, drag to move`} onPointerDown={e=>beginMarker(e,m.id)}><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12Z"/></svg></div>;})}
     </div>
     {rows.map(r=><div key={r.id} className={`timeline-row club-row row-${r.layer?.track??r.effect??'layer'}`} data-track={r.id} style={{top:r.top,height:r.height}} onPointerDown={e=>{if(e.target===e.currentTarget)beginEmpty(e);}}
      onDragOver={e=>{if(r.layer)e.preventDefault();}} onDrop={e=>{e.preventDefault();const id=e.dataTransfer.getData('application/sceneforge-media'),media=mediaById.get(id);if(media&&r.layer&&(media.kind==='audio'?'audio':'video')===r.layer.kind)onDropMedia(id,r.layer.track??(r.layer.kind==='audio'?'audio':'screen'),snapTime(Math.max(0,contentX(e.clientX)/scale)).time,r.id);}}>
@@ -259,9 +262,9 @@ export const TimelineClub=memo(function TimelineClub({project:p,playhead,scale,o
      {ghosts.filter(g=>g.row===r.id).map(g=><div key={`${g.kind}:${g.id}`} className={`club-fx-ghost ${g.kind}`} style={{left:g.start*scale,width:Math.max(8,g.duration*scale)}} aria-hidden><span>{g.name}</span></div>)}
      {drag?.ghosts.filter(g=>g.row===r.id).map((g,i)=><div key={i} className="club-ghost" style={{left:g.start*scale,width:Math.max(4,g.duration*scale)}}/>)}
     </div>)}
-    {(p.markers??[]).filter(m=>m.tag||m.name?.trim()).map(m=>{const time=drag?.markers?.get(m.id)??m.time;return visible(time,0)&&<div key={`note-${m.id}`} className={`club-note-line${m.tag?` tag-${m.tag}`:''}`} style={{left:time*scale,top:RULER,height:contentHeight-RULER}} aria-hidden/>;})}
-    {previewRanges?.map(([a,b],i)=><div key={i} className="club-preview-cut" style={{left:a*scale,width:Math.max(1,(b-a)*scale),top:RULER,height:contentHeight-RULER}}/>)}
-    {cutMarks?.map((t,i)=><div key={`cut${i}`} className="club-cut-mark" style={{left:t*scale,top:RULER,height:contentHeight-RULER}} title="Words were cut here" aria-label="Cut here"/>)}
+    {(p.markers??[]).filter(m=>m.tag||m.name?.trim()).map(m=>{const time=drag?.markers?.get(m.id)??m.time;return visible(time,0)&&<div key={`note-${m.id}`} className={`club-note-line${m.tag?` tag-${m.tag}`:''}`} style={{left:time*scale,top:ruler,height:contentHeight-ruler}} aria-hidden/>;})}
+    {previewRanges?.map(([a,b],i)=><div key={i} className="club-preview-cut" style={{left:a*scale,width:Math.max(1,(b-a)*scale),top:ruler,height:contentHeight-ruler}}/>)}
+    {cutMarks?.map((t,i)=><div key={`cut${i}`} className="club-cut-mark" style={{left:t*scale,top:ruler,height:contentHeight-ruler}} title="Words were cut here" aria-label="Cut here"/>)}
     {drag?.guide!==null&&drag?.guide!==undefined&&<div className="timeline-snap-guide club-snap" style={{left:drag.guide*scale}}/>}
     {drag?.insert!==null&&drag?.insert!==undefined&&<div className="club-insert-line" style={{left:drag.insert*scale}}/>}
     {drag?.label&&<div className="club-drag-label" role="status">{drag.label}</div>}

@@ -315,11 +315,8 @@
 :where(.club-root) .stats span:where(:not(.club-embed *)) { display: inline-flex; align-items: center; gap: 4px; }
 :where(.club-root) .stats b:where(:not(.club-embed *)) { color: var(--cc-text-2); font-weight: 600; }
 /* Draft thumbnail (typographic) */
-:where(.club-root) .tthumb:where(:not(.club-embed *)) { position: absolute; inset: 0; display: flex; align-items: flex-end; padding: 9% 8%; color: var(--cc-on-media); overflow: hidden; }
-:where(.club-root) .tthumb:where(:not(.club-embed *))::after { content: ""; position: absolute; inset: 0; background: radial-gradient(120% 90% at 85% 30%, var(--cc-media-glow), transparent 60%); pointer-events: none; }
-:where(.club-root) .tthumb .tt:where(:not(.club-embed *)) { font-weight: 800; letter-spacing: -0.03em; line-height: .98; text-transform: none; text-shadow: var(--cc-media-text-shadow); position: relative; z-index: 1; max-width: 70%; }
-:where(.club-root) .tthumb .face:where(:not(.club-embed *)) { position: absolute; right: 6%; bottom: 0; width: 34%; aspect-ratio: 3/4; border-radius: 50% 50% 0 0; background: linear-gradient(180deg, var(--cc-media-shape), var(--cc-media-glow)); }
-:where(.club-root) .tthumb .face:where(:not(.club-embed *))::before { content: ""; position: absolute; left: 22%; right: 22%; top: 8%; aspect-ratio: 1; border-radius: 50%; background: var(--cc-media-shape-strong); }
+:where(.club-root) .tthumb:where(:not(.club-embed *)) { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 8%; background: var(--cc-bg-sunk); color: var(--cc-text-3); overflow: hidden; text-align: center; }
+:where(.club-root) .tthumb .tt:where(:not(.club-embed *)) { font-weight: 650; letter-spacing: -0.01em; line-height: 1.2; color: var(--cc-text-2); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 /* ---------- Overview ---------- */
 :where(.club-root) .greet h1:where(:not(.club-embed *)) { font-size:var(--cc-text-2xl); letter-spacing: -0.028em; }
 :where(.club-root) .nextup:where(:not(.club-embed *)) { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 20px; padding: 14px; cursor: pointer; }
@@ -773,7 +770,6 @@
   :where(.club-root) .tthumb .tt:where(:not(.club-embed *)),
   :where(.club-root) .tthumb .face:where(:not(.club-embed *)) { display: none; }
 }
-:where(.club-root) .tthumb .face:where(:not(.club-embed *)) { opacity: .55; }
 :where(.club-root) .reason:where(:not(.club-embed *)) { display: inline-flex; align-items: center; gap: 5px; font-size:var(--cc-text-xs); font-weight: 550; color: var(--cc-accent-text); }
 :where(.club-root) .ph-small:empty:where(:not(.club-embed *))::before { font-size:var(--cc-text-base); font-weight: 450; letter-spacing: 0; font-style: italic; }
 :where(.club-root) .ws-foot:where(:not(.club-embed *)) { display: flex; justify-content: space-between; }

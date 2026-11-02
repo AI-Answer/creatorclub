@@ -172,9 +172,8 @@ export function Companion({videoId,videoTitle,tab,scene,screen,selection,pkg,out
    <CompanionMark size={18} working={working} className="cmp-head-mark"/>
    <div className="cmp-head-text">
     <div className="cmp-title">{title}</div>
-    <div className="cmp-look">Looking at: <span>{lookingAt(tab,scene)}</span>{scene&&<span className="cmp-look-scene">{scene.title}</span>}{selected>0&&<span className="cmp-look-scene">{selected} selected</span>}</div>
    </div>
-   <button type="button" className="btn ghost sm" onClick={()=>{setText('/');input.current?.focus();}} title="Run one of your skills"><Icon name="Sparkles" size={14}/>Skills</button>
+   <button type="button" className="btn ghost sm icon-only" onClick={()=>{setText('/');input.current?.focus();}} aria-label="Run one of your skills" title="Run one of your skills"><Icon name="Sparkles" size={15}/></button>
    <button type="button" className="btn ghost sm icon-only" onClick={()=>toggle(false)} aria-label={`Hide ${title}`} title={`Hide ${title}`}><Icon name="PanelRightClose" size={16}/></button>
   </header>
   {/* One line for screen readers: the step, "Reply ready" or the failure. The timer is never in a live region. */}
@@ -183,10 +182,11 @@ export function Companion({videoId,videoTitle,tab,scene,screen,selection,pkg,out
    {companion.loadError?<ErrorLine message={companion.loadError} onRetry={companion.reload}/>
     :!messages?<div className="cmp-loading"><Spinner label="Loading the conversation" size={16}/></div>
     :fresh&&<div className="cmp-hello">
-     <p>{greeting(tab,{scenes:sceneCount,tiles:tab==='board'?tiles:undefined,recorded})}</p>
+     <span className="cmp-hello-mark"><CompanionMark size={20}/></span>
+     <p>{greeting(tab,{scenes:sceneCount,tiles:tab==='board'||tab==='research'?tiles:undefined,recorded})}</p>
      {chips||null}
     </div>}
-   {hiddenCount>0&&<button type="button" className="cmp-earlier" onClick={()=>setShowEarlier(true)}>Earlier messages · {hiddenCount} {hiddenCount===1?'message':'messages'}<span>Show</span></button>}
+   {hiddenCount>0&&<button type="button" className="cmp-earlier" onClick={()=>setShowEarlier(true)}>Show {hiddenCount} earlier {hiddenCount===1?'message':'messages'}</button>}
    {items.map(item=>item.kind==='divider'?<div key={item.key} className="cmp-divider" role="separator">{item.label}</div>
     :item.message.role==='user'?<div key={item.key} className="cmp-me">{item.message.text}</div>
     :<Reply key={item.key} name={name} message={item.message} answered={working||(messages?.at(-1)?.id!==item.message.id)} onChoose={answer=>void ask(answer)} pkg={pkg} outline={outline} scenes={scenes} busy={companion.busyCard} editor={editor} silences={silences}
@@ -209,12 +209,15 @@ export function Companion({videoId,videoTitle,tab,scene,screen,selection,pkg,out
     </div>
    </div>}
    <form className="cmp-input" onSubmit={event=>{event.preventDefault();void ask(text);}}>
-    <textarea ref={input} rows={1} value={text} onChange={event=>setText(event.target.value)} onKeyDown={onKeyDown} placeholder="Ask, or type / for your skills" aria-label={`Message to ${name}`}/>
+    <textarea ref={input} rows={2} value={text} onChange={event=>setText(event.target.value)} onKeyDown={onKeyDown} placeholder={working?'Esc stops the reply':'Ask for a change, or type / for your skills'} aria-label={`Message to ${name}`}/>
+    <div className="cmp-input-row">
+    <span className="cmp-context" title="What Claude is looking at"><Icon name="Eye" size={12}/>{lookingAt(tab,scene)}{scene&&<> · {scene.title}</>}{selected>0&&<> · {selected} selected</>}</span>
+    <span className="grow"/>
     {working
      ?<button type="button" className="cmp-send stop" onClick={stop} aria-label="Stop (Esc)" title="Stop (Esc)"><Icon name="Square" size={12} stroke={2.4}/></button>
-     :<button type="submit" className="cmp-send" disabled={!text.trim()} aria-label="Send (Enter)" title="Send (Enter)"><Icon name="ArrowUp" size={15} stroke={2.2}/></button>}
+     :<button type="submit" className="cmp-send" disabled={!text.trim()} aria-label="Send (Enter)" title="Send (Enter) · Shift+Enter for a new line"><Icon name="ArrowUp" size={15} stroke={2.2}/></button>}
+    </div>
    </form>
-   <div className="cmp-hint">{working?'Esc stops the reply':'Enter sends · Shift+Enter for a new line'}</div>
   </div>
  </aside>;
 }

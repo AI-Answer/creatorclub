@@ -180,8 +180,8 @@
 .club-embed .app-shell[data-mode=Edit] .club-snap>span{display:none}
 .club-embed .app-shell[data-mode=Edit] .club-insert-line{position:absolute;top:0;bottom:0;width:3px;margin-left:-1px;background:var(--tl-select);z-index:9;pointer-events:none}
 .club-embed .app-shell[data-mode=Edit] .club-drag-label{position:sticky;left:12px;top:34px;z-index:10;display:inline-block;margin:34px 0 0 12px;padding:3px 8px;border-radius:var(--cc-r-sm);background:var(--cc-toast-bg);color:var(--cc-toast-text);font-size:var(--cc-text-xs);pointer-events:none;white-space:nowrap}
-.club-embed .app-shell[data-mode=Edit] .club-timeline .playhead{position:absolute;top:0;bottom:0;left:0;width:2px;margin-left:-1px;background:var(--cc-accent);z-index:8;pointer-events:none}
-.club-embed .app-shell[data-mode=Edit] .club-timeline .playhead>span{position:absolute;top:0;left:-5px;width:12px;height:9px;background:var(--cc-accent);clip-path:polygon(0 0,100% 0,50% 100%)}
+.club-embed .app-shell[data-mode=Edit] .club-timeline .playhead{position:absolute;top:0;bottom:0;left:0;width:2px;margin-left:-1px;border-radius:1px;background:var(--cc-accent);z-index:8;pointer-events:none}
+.club-embed .app-shell[data-mode=Edit] .club-timeline .playhead>span{position:absolute;top:2px;left:-5px;width:12px;height:16px;border-radius:4px;background:var(--cc-accent);box-shadow:0 0 0 2px var(--cc-surface),var(--cc-shadow-1)}
 .club-embed .app-shell[data-mode=Edit] .club-timeline .timeline-marquee{position:absolute;z-index:9;border:1px solid var(--tl-select);background:color-mix(in srgb,var(--tl-select) 12%,transparent);pointer-events:none}
 .club-embed .app-shell[data-mode=Edit] .club-timeline.tool-blade :is(.club-clip,.club-row){cursor:crosshair}
 .club-embed .app-shell[data-mode=Edit] .club-timeline.tool-blade .trim-handle{cursor:crosshair}
@@ -198,17 +198,13 @@
 @media (prefers-reduced-motion:reduce){.club-embed .app-shell[data-mode=Edit] .club-fx-ghost{animation:none}}
 
 /* A note on a moment: the pin takes the colour of how it was marked, a hairline runs down through the rows, and the note opens beside the pin. */
-/* A note is a pin above the ruler, over the scene band and the playhead, so a note at 0:00 is as easy to find as any other. */
-.club-embed .app-shell[data-mode=Edit] .club-marker{position:absolute;top:0;width:14px;height:17px;margin-left:-7px;background:var(--kind-markers);clip-path:polygon(0 0,100% 0,100% 70%,50% 100%,0 70%);border-radius:3px 3px 0 0;cursor:grab;z-index:6;box-shadow:0 0 0 1px var(--cc-bg)}
-.club-embed .app-shell[data-mode=Edit] .club-marker.has-note{width:16px;height:19px;margin-left:-8px}
-.club-embed .app-shell[data-mode=Edit] .club-marker:hover{filter:brightness(1.12)}
-.club-embed .app-shell[data-mode=Edit] .club-marker.tag-dislike{background:var(--cc-danger)}
-.club-embed .app-shell[data-mode=Edit] .club-marker.tag-keep{background:var(--cc-success)}
-.club-embed .app-shell[data-mode=Edit] .club-marker.tag-idea{background:var(--cc-accent)}
-.club-embed .app-shell[data-mode=Edit] .club-note-line{position:absolute;z-index:5;width:0;margin-left:-.5px;border-left:1.5px dashed var(--kind-markers);pointer-events:none;opacity:.7}
-.club-embed .app-shell[data-mode=Edit] .club-note-line.tag-dislike{border-left-color:var(--cc-danger)}
-.club-embed .app-shell[data-mode=Edit] .club-note-line.tag-keep{border-left-color:var(--cc-success)}
-.club-embed .app-shell[data-mode=Edit] .club-note-line.tag-idea{border-left-color:var(--cc-accent)}
+/* A note is a round pin in its own lane at the top of the ruler (there once a video has notes), with a speech-bubble mark; filled once it has words. A thin line runs down from it. */
+.club-embed .app-shell[data-mode=Edit] .club-marker{position:absolute;top:2px;width:18px;height:18px;margin-left:-9px;display:grid;place-items:center;border-radius:50%;background:var(--cc-surface);color:var(--kind-markers);box-shadow:0 0 0 1.5px var(--kind-markers),var(--cc-shadow-1);cursor:grab;z-index:9;transition:transform var(--cc-dur-fast)}
+.club-embed .app-shell[data-mode=Edit] .club-marker.has-note{background:var(--kind-markers);color:var(--cc-on-primary);box-shadow:0 0 0 2px var(--cc-surface),var(--cc-shadow-1)}
+.club-embed .app-shell[data-mode=Edit] .club-marker:hover{transform:scale(1.12)}
+.club-embed .app-shell[data-mode=Edit] .club-ruler.has-notes .club-scene-tag{top:23px}
+.club-embed .app-shell[data-mode=Edit] .club-ruler.has-notes{background:linear-gradient(var(--cc-surface-2) 0 22px,var(--cc-surface) 22px)}
+.club-embed .app-shell[data-mode=Edit] .club-note-line{position:absolute;z-index:5;width:0;margin-left:-.5px;border-left:1px solid color-mix(in srgb,var(--kind-markers) 45%,transparent);pointer-events:none}
 .marker-note{position:fixed;z-index:60;width:300px;padding:12px;display:flex;flex-direction:column;gap:10px;border:1px solid var(--cc-line-strong);border-radius:var(--cc-r-lg);background:var(--cc-card);box-shadow:var(--cc-shadow-3)}
 .marker-note-h{display:flex;align-items:center;gap:8px;font-size:var(--cc-text-sm);color:var(--cc-text)}
 .marker-note textarea{width:100%;resize:none;min-height:56px;field-sizing:content;max-height:200px;padding:8px 10px;border:1px solid var(--cc-line-strong);border-radius:var(--cc-r);background:var(--cc-surface);color:var(--cc-text);font:inherit;font-size:var(--cc-text-sm);line-height:1.45}

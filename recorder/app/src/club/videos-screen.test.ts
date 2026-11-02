@@ -89,7 +89,7 @@ test('Board: six lanes with counts, Ideas first, cards with scene dots and the n
   assert.equal(card(c,'Alpha').querySelector('.dots'),null,'an idea has no scenes');
   assert.match(text(card(c,'Live')),/12K viewsOct 14/);
   assert.equal(card(c,'Live').querySelector('img')!.getAttribute('src'),'https://i.ytimg.com/vi/dQw4w9WgXcQ/mqdefault.jpg');
-  assert.ok(card(c,'Recorded').querySelector('.tthumb'),'a video in production shows a draft thumbnail');
+  assert.match(card(c,'Recorded').querySelector('.thumb img')?.getAttribute('src')??'',/\/api\/club\/videos\/[^/]+\/cover$/,'a video in production shows its own picture or a frame of its recording');
   assert.equal(calls.filter(call=>call.method!=='GET').length,0,'looking changes nothing');
   assert.deepEqual(calls.filter(call=>/scenes|\/plan$|api\/projects/.test(call.path)).map(call=>call.path),['/videos/scenes'],'the scenes of every card come in one request');
   assert.equal(c.querySelectorAll('.btn.primary').length,1,'one primary button');

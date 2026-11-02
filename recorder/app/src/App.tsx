@@ -383,7 +383,7 @@ export default function App({embedded}:{embedded?:EmbeddedRecorder}={}){
    <button type="button" aria-label="Redo" title="Redo (⇧⌘Z)" disabled={!studio.canRedo} onClick={studio.redo}><Redo2 size={17}/></button>
    <button type="button" aria-label="Version history" title="Earlier versions of this video" onClick={()=>{void studio.flush().then(()=>openModal('history')).catch(e=>studio.setError(e.message));}}><History size={17}/></button></>,toolsHost)}
  </div>;};
- const timelineAuto=useMemo(()=>p&&embedded?Math.min(420,rowsHeight(usedRows(p))):undefined,[p?.clips,p?.elements,p?.captions,p?.zooms,p?.timelineLayers,embedded]);
+ const timelineAuto=useMemo(()=>p&&embedded?Math.min(420,rowsHeight(usedRows(p))):undefined,[p?.clips,p?.elements,p?.captions,p?.zooms,p?.timelineLayers,p?.markers,embedded]);
  const clubEdit=clubEditView();
  useEffect(()=>{setShowTranscript(Boolean(p?.captions.length));},[p?.id,Boolean(p?.captions.length)]);
 

@@ -23,7 +23,7 @@ export function KanbanCard({video,scenes,dragging,onOpen,onMove,onResearch,onDra
  return <div className="kwrap">
   <div className={`card kcard hov${dragging?' dragging':''}`} draggable data-card data-card-id={video.id} onDragStart={onDragStart} onDragEnd={onDragEnd}
    onClick={onOpen} tabIndex={0} onKeyDown={event=>{if(event.key==='Enter'&&event.target===event.currentTarget)onOpen();}}>
-   <Thumb videoId={videoThumbId(video)} text={video.title} seed={video.id}/>
+   <Thumb videoId={videoThumbId(video)} cover={video.id} text={video.title} seed={video.id}/>
    <div className="tt clamp2">{video.title}</div>
    {scenes&&scenes.length>0&&<div className="na"><SceneDots scenes={scenes}/><span>{scenesLine(recordedCount(scenes),scenes.length)}</span></div>}
    <div className="na" style={{color:published?'var(--cc-text-2)':'var(--cc-text)',fontWeight:550}}>

@@ -779,7 +779,7 @@ test('Home with only published videos says nothing is in production, and videos 
  const planning=base('p1','Hidden features','planning',{idea:{sources:[{label:'v',url:VIDEO_URL}]}});
  await mount(navigate=>createElement(HomeScreen,{navigate,onNewVideo:()=>{}}),server({videos:[planning]}),async ui=>{
   const thumb=ui.container.querySelector('.nextup .thumb')!;
-  assert.ok(thumb.querySelector('img')===null,'no YouTube picture');assert.equal(text(thumb.querySelector('.tt')),'','no title painted on the picture, it is beside it');
+  assert.doesNotMatch(thumb.querySelector('img')?.getAttribute('src')??'',/ytimg/,'no YouTube picture: its own picture or a frame of its recording');assert.equal(text(thumb.querySelector('.tt')),'','no title painted on the picture, it is beside it');
  });
 });
 
