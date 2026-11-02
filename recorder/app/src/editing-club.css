@@ -15,7 +15,7 @@
   --tl-select:var(--cc-accent);--tl-row:var(--cc-surface-2);
   --tl-shade-soft:var(--cc-shade-soft);--tl-shade:var(--cc-shade);--tl-shade-strong:var(--cc-shade-strong);
   --club-rail:76px;--club-panel:308px;
-  font-family:var(--font-sans);font-size:13.5px;color:var(--cc-ink);background:var(--cc-page);padding-bottom:0;
+  font-family:var(--font-sans);font-size:var(--cc-text-sm);color:var(--cc-ink);background:var(--cc-page);padding-bottom:0;
 }
 @media (max-width:1439px){.club-embed .app-shell[data-mode=Edit]{--club-panel:276px}}
 
@@ -26,7 +26,7 @@
 /* Undo, redo and history, in the video's header (rendered there from the editor). */
 .club-root .ws-edit-tools{display:flex;align-items:center;gap:2px}
 .club-root .ws-edit-tools:empty{display:none}
-.club-root .ws-edit-tools button{display:inline-grid;place-items:center;width:32px;height:32px;border:0;border-radius:6px;background:transparent;color:var(--cc-text-2)}
+.club-root .ws-edit-tools button{display:inline-grid;place-items:center;width:32px;height:32px;border:0;border-radius:var(--cc-r-sm);background:transparent;color:var(--cc-text-2)}
 .club-root .ws-edit-tools button:hover:not(:disabled){background:var(--cc-hover);color:var(--cc-text)}
 .club-root .ws-edit-tools button:disabled{opacity:.4}
 .club-root .ws-edit-tools button:focus-visible{outline:2px solid var(--cc-accent);outline-offset:1px}
@@ -37,7 +37,7 @@
 
 /* The tool rail: named tools; the open one is tinted. */
 .club-embed .app-shell[data-mode=Edit] .club-rail{grid-column:1;grid-row:1 / -1;display:flex;flex-direction:column;gap:2px;padding:10px 8px;overflow:auto;background:var(--cc-surface);border-right:1px solid var(--cc-line);min-height:0}
-.club-embed .app-shell[data-mode=Edit] .club-rail button{display:flex;flex-direction:column;align-items:center;gap:4px;width:100%;padding:9px 0 7px;border:0;border-radius:8px;background:transparent;color:var(--cc-text-2);font-size:11.5px;font-weight:550;line-height:1.1}
+.club-embed .app-shell[data-mode=Edit] .club-rail button{display:flex;flex-direction:column;align-items:center;gap:4px;width:100%;padding:9px 0 7px;border:0;border-radius:var(--cc-r);background:transparent;color:var(--cc-text-2);font-size:var(--cc-text-2xs);font-weight:550;line-height:1.1}
 .club-embed .app-shell[data-mode=Edit] .club-rail button:hover{background:var(--cc-hover);color:var(--cc-text)}
 .club-embed .app-shell[data-mode=Edit] .club-rail button[aria-pressed=true]{background:var(--cc-accent-soft);color:var(--cc-accent-text)}
 .club-embed .app-shell[data-mode=Edit] .club-rail button:focus-visible{outline:2px solid var(--cc-accent);outline-offset:1px}
@@ -49,10 +49,10 @@
 .club-embed .app-shell[data-mode=Edit] .club-edit-side>:is(.inspector,.club-sheet,.transcript-panel){flex:1;min-height:0;width:auto;border:0;background:transparent;grid-column:auto;grid-row:auto}
 .club-embed .app-shell[data-mode=Edit] .club-sheet{display:flex;flex-direction:column;min-height:0;overflow:hidden}
 .club-embed .app-shell[data-mode=Edit] :is(.club-sheet,.transcript-panel.club-sheet)>header,.club-embed .app-shell[data-mode=Edit] .inspector-heading{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 8px;min-height:0;height:auto;padding:16px 16px 10px;border:0;background:transparent}
-.club-embed .app-shell[data-mode=Edit] .club-sheet>header>b,.club-embed .app-shell[data-mode=Edit] .inspector-heading h2{margin:0;font-family:inherit;font-size:15px;font-weight:650;color:var(--cc-text)}
+.club-embed .app-shell[data-mode=Edit] .club-sheet>header>b,.club-embed .app-shell[data-mode=Edit] .inspector-heading h2{margin:0;font-family:inherit;font-size:var(--cc-text-lg);font-weight:650;color:var(--cc-text)}
 .club-embed .app-shell[data-mode=Edit] .inspector-heading .eyebrow{display:none}
-.club-embed .app-shell[data-mode=Edit] .club-sheet-sub{flex-basis:100%;font-size:13px;line-height:1.45;color:var(--cc-text-3)}
-.club-embed .app-shell[data-mode=Edit] .club-sheet-hint{padding:0 16px 8px;font-size:13px;line-height:1.45;color:var(--cc-text-3)}
+.club-embed .app-shell[data-mode=Edit] .club-sheet-sub{flex-basis:100%;font-size:var(--cc-text-sm);line-height:1.45;color:var(--cc-text-3)}
+.club-embed .app-shell[data-mode=Edit] .club-sheet-hint{padding:0 16px 8px;font-size:var(--cc-text-sm);line-height:1.45;color:var(--cc-text-3)}
 /* The rail is how you change tools, so the panels have no close button. */
 .club-embed .app-shell[data-mode=Edit] .club-edit-side .club-sheet-close{display:none}
 .club-embed .app-shell[data-mode=Edit] .inspector{overflow:auto}
@@ -63,7 +63,7 @@
 .club-embed .app-shell[data-mode=Edit] .club-media>footer{display:flex;gap:6px;padding:10px 16px;border-top:1px solid var(--cc-line)}
 
 /* The transcript: large, readable words. */
-.club-embed .app-shell[data-mode=Edit] .transcript-editor{font-size:15px;line-height:2;--transcript-selection:var(--cc-accent-soft);--transcript-current:var(--cc-accent);--transcript-current-text:var(--cc-on-accent);--transcript-muted:var(--cc-text-3);--transcript-faint:var(--cc-placeholder);--transcript-hover:var(--cc-hover);--transcript-danger:var(--cc-danger);--transcript-danger-hover:var(--cc-danger-soft)}
+.club-embed .app-shell[data-mode=Edit] .transcript-editor{font-size:var(--cc-text-lg);line-height:2;--transcript-selection:var(--cc-accent-soft);--transcript-current:var(--cc-accent);--transcript-current-text:var(--cc-on-accent);--transcript-muted:var(--cc-text-3);--transcript-faint:var(--cc-placeholder);--transcript-hover:var(--cc-hover);--transcript-danger:var(--cc-danger);--transcript-danger-hover:var(--cc-danger-soft)}
 .club-embed .app-shell[data-mode=Edit] .transcript-editor:focus-visible{box-shadow:inset 0 0 0 2px var(--cc-accent)}
 .club-embed .app-shell[data-mode=Edit] .transcript-panel .transcription-status{flex:0 1 auto;max-height:34%;min-height:0;overflow:auto}
 .club-embed .app-shell[data-mode=Edit] .transcript-panel .transcript-editor{min-height:0;overflow:hidden}
@@ -71,61 +71,61 @@
 
 /* Cut: sections (Mistakes, Silences…), each with its own Review and Cut all. */
 .club-embed .app-shell[data-mode=Edit] .club-sheet-grow{flex:1}
-.club-embed .app-shell[data-mode=Edit] .club-auto-row{display:flex;flex-direction:column;gap:8px;padding:12px;border:1px solid var(--cc-line);border-radius:8px;background:var(--cc-surface);outline:none}
+.club-embed .app-shell[data-mode=Edit] .club-auto-row{display:flex;flex-direction:column;gap:8px;padding:12px;border:1px solid var(--cc-line);border-radius:var(--cc-r);background:var(--cc-surface);outline:none}
 .club-embed .app-shell[data-mode=Edit] .club-auto-row:focus-visible{box-shadow:0 0 0 2px var(--cc-accent)}
 .club-embed .app-shell[data-mode=Edit] .club-auto-row.is-pinned{border-color:var(--cc-accent);background:var(--cc-accent-soft)}
 .club-embed .app-shell[data-mode=Edit] .club-auto-sheet .club-sheet-body{gap:8px;padding:0 12px 12px}
-.club-embed .app-shell[data-mode=Edit] .club-auto-title{display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:600}
-.club-embed .app-shell[data-mode=Edit] .club-auto-desc{font-size:12.5px;line-height:1.4;color:var(--cc-text-3)}
-.club-embed .app-shell[data-mode=Edit] .club-auto-control{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--cc-muted)}
+.club-embed .app-shell[data-mode=Edit] .club-auto-title{display:flex;align-items:center;gap:8px;font-size:var(--cc-text-sm);font-weight:600}
+.club-embed .app-shell[data-mode=Edit] .club-auto-desc{font-size:var(--cc-text-xs);line-height:1.4;color:var(--cc-text-3)}
+.club-embed .app-shell[data-mode=Edit] .club-auto-control{display:flex;align-items:center;gap:8px;font-size:var(--cc-text-xs);color:var(--cc-muted)}
 .club-embed .app-shell[data-mode=Edit] .club-auto-control input[type=range]{flex:1;min-width:60px;accent-color:var(--cc-accent)}
 .club-embed .app-shell[data-mode=Edit] .club-auto-actions{display:flex;gap:8px;margin-top:2px}
 .club-embed .app-shell[data-mode=Edit] .club-auto-actions .btn{flex:1;justify-content:center}
-.club-embed .app-shell[data-mode=Edit] .club-sheet-pin{display:flex;align-items:center;gap:6px;padding:10px 12px;border-top:1px solid var(--cc-line);font-size:12.5px}
+.club-embed .app-shell[data-mode=Edit] .club-sheet-pin{display:flex;align-items:center;gap:6px;padding:10px 12px;border-top:1px solid var(--cc-line);font-size:var(--cc-text-xs)}
 .club-embed .app-shell[data-mode=Edit] .club-sheet-pin>span{flex:1;min-width:0}
-.club-embed .app-shell[data-mode=Edit] .club-sheet-error{padding:8px 16px;font-size:12px;color:var(--cc-danger)}
+.club-embed .app-shell[data-mode=Edit] .club-sheet-error{padding:8px 16px;font-size:var(--cc-text-xs);color:var(--cc-danger)}
 .club-embed .app-shell[data-mode=Edit] .club-sheet-error button{text-decoration:underline;color:inherit}
 
 /* The picture: the video on a dark stage, centred. A preview is a badge over it; a cut's before/after plays in a corner inset. */
 .club-embed .app-shell[data-mode=Edit] .club-edit-stage{grid-column:3;grid-row:1;position:relative;display:flex;flex-direction:column;min-width:0;min-height:0;overflow:hidden}
 .club-embed .app-shell[data-mode=Edit] .club-edit-stage .stage-wrap{background:transparent;padding:14px 20px 10px}
-.club-embed .app-shell[data-mode=Edit] .club-edit-stage .stage{border-radius:10px;background:var(--cc-dark-stage)}
+.club-embed .app-shell[data-mode=Edit] .club-edit-stage .stage{border-radius:var(--cc-r);background:var(--cc-dark-stage)}
 .club-embed .app-shell[data-mode=Edit] .club-preview-badges{position:absolute;top:22px;left:28px;right:28px;z-index:6;display:flex;flex-wrap:wrap;gap:6px;align-items:center;max-width:calc(100% - 24px);pointer-events:none}
 .club-embed .app-shell[data-mode=Edit] .club-preview-badges>*{pointer-events:auto}
-.club-embed .app-shell[data-mode=Edit] .club-pill{display:inline-flex;align-items:center;height:26px;max-width:100%;padding:0 10px;border-radius:999px;background:var(--cc-card);border:1px solid var(--cc-line);font-size:12px;color:var(--cc-ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.club-embed .app-shell[data-mode=Edit] .club-seg{display:inline-flex;padding:2px;border-radius:8px;background:var(--cc-subtle);gap:2px}
-.club-embed .app-shell[data-mode=Edit] .club-seg>button{height:24px;padding:0 10px;border-radius:6px;font-size:12px;color:var(--cc-muted)}
+.club-embed .app-shell[data-mode=Edit] .club-pill{display:inline-flex;align-items:center;height:26px;max-width:100%;padding:0 10px;border-radius:var(--cc-r-pill);background:var(--cc-card);border:1px solid var(--cc-line);font-size:var(--cc-text-xs);color:var(--cc-ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.club-embed .app-shell[data-mode=Edit] .club-seg{display:inline-flex;padding:2px;border-radius:var(--cc-r);background:var(--cc-subtle);gap:2px}
+.club-embed .app-shell[data-mode=Edit] .club-seg>button{height:24px;padding:0 10px;border-radius:var(--cc-r-sm);font-size:var(--cc-text-xs);color:var(--cc-muted)}
 .club-embed .app-shell[data-mode=Edit] .club-seg>button[aria-pressed=true]{background:var(--cc-card);color:var(--cc-ink);box-shadow:0 1px 2px var(--tl-shade-soft)}
-.club-embed .app-shell[data-mode=Edit] .club-preview-inset{position:absolute;right:28px;bottom:18px;z-index:6;width:min(300px,38%);max-height:calc(100% - 70px);overflow:auto;padding:10px;border:1px solid var(--cc-line);border-radius:12px;background:var(--cc-card);box-shadow:var(--cc-shadow-3)}
-.club-embed .app-shell[data-mode=Edit] .club-preview-inset .cut-playback{border:0;padding:0;background:transparent;font-size:12px}
+.club-embed .app-shell[data-mode=Edit] .club-preview-inset{position:absolute;right:28px;bottom:18px;z-index:6;width:min(300px,38%);max-height:calc(100% - 70px);overflow:auto;padding:10px;border:1px solid var(--cc-line);border-radius:var(--cc-r-lg);background:var(--cc-card);box-shadow:var(--cc-shadow-3)}
+.club-embed .app-shell[data-mode=Edit] .club-preview-inset .cut-playback{border:0;padding:0;background:transparent;font-size:var(--cc-text-xs)}
 
 /* The transport: play, time, Split, Delete, Note … View. */
 .club-embed .app-shell[data-mode=Edit] .club-timeline-bar{grid-column:3;grid-row:2;position:relative;display:flex;align-items:center;gap:6px;min-height:48px;padding:6px 16px;background:var(--cc-surface);border-top:1px solid var(--cc-line)}
 .club-embed .app-shell[data-mode=Edit] .club-play{width:34px;height:34px;flex:none;border-radius:50%;display:grid;place-items:center;background:var(--cc-primary);color:var(--cc-on-primary)}
 .club-embed .app-shell[data-mode=Edit] .club-play:hover:not(:disabled){background:var(--cc-primary-hover)}
 .club-embed .app-shell[data-mode=Edit] .club-play:disabled{opacity:.4}
-.club-embed .app-shell[data-mode=Edit] .club-time{margin:0 8px 0 6px;font-size:13.5px;font-weight:600;color:var(--cc-text);white-space:nowrap;font-variant-numeric:tabular-nums}
+.club-embed .app-shell[data-mode=Edit] .club-time{margin:0 8px 0 6px;font-size:var(--cc-text-sm);font-weight:600;color:var(--cc-text);white-space:nowrap;font-variant-numeric:tabular-nums}
 .club-embed .app-shell[data-mode=Edit] .club-time>span{font-weight:500;color:var(--cc-text-3)}
 .club-embed .app-shell[data-mode=Edit] .club-bar-sep{width:1px;height:20px;margin:0 4px;background:var(--cc-line)}
 .club-embed .app-shell[data-mode=Edit] .club-bar-grow{flex:1}
-.club-embed .app-shell[data-mode=Edit] .club-tool{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 10px;border:1px solid var(--cc-line-strong);border-radius:6px;background:var(--cc-surface);color:var(--cc-text);font-size:12.5px;font-weight:550;white-space:nowrap}
+.club-embed .app-shell[data-mode=Edit] .club-tool{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 10px;border:1px solid var(--cc-line-strong);border-radius:var(--cc-r-sm);background:var(--cc-surface);color:var(--cc-text);font-size:var(--cc-text-xs);font-weight:550;white-space:nowrap}
 .club-embed .app-shell[data-mode=Edit] .club-tool:hover:not(:disabled){background:var(--cc-hover)}
 .club-embed .app-shell[data-mode=Edit] .club-tool:disabled{opacity:.45}
 .club-embed .app-shell[data-mode=Edit] .club-tool[aria-pressed=true]{color:var(--cc-accent-text);background:var(--cc-accent-soft);border-color:var(--cc-accent)}
-.club-embed .app-shell[data-mode=Edit] .club-shortcuts{position:absolute;right:12px;bottom:calc(100% + 6px);z-index:40;width:340px;max-height:min(560px,calc(100vh - 220px));overflow:auto;overscroll-behavior:contain;background:var(--cc-card);border:1px solid var(--cc-line);border-radius:12px;box-shadow:var(--cc-shadow-3);font-size:12.5px}
+.club-embed .app-shell[data-mode=Edit] .club-shortcuts{position:absolute;right:12px;bottom:calc(100% + 6px);z-index:40;width:340px;max-height:min(560px,calc(100vh - 220px));overflow:auto;overscroll-behavior:contain;background:var(--cc-card);border:1px solid var(--cc-line);border-radius:var(--cc-r-lg);box-shadow:var(--cc-shadow-3);font-size:var(--cc-text-xs)}
 .club-embed .app-shell[data-mode=Edit] .club-shortcuts>header{position:sticky;top:0;z-index:1;display:flex;align-items:center;padding:8px 8px 8px 14px;border-bottom:1px solid var(--cc-line);background:var(--cc-card)}
-.club-embed .app-shell[data-mode=Edit] .club-shortcuts .club-sheet-close{margin-left:auto;display:inline-grid;place-items:center;width:28px;height:28px;border-radius:8px;color:var(--cc-muted)}
+.club-embed .app-shell[data-mode=Edit] .club-shortcuts .club-sheet-close{margin-left:auto;display:inline-grid;place-items:center;width:28px;height:28px;border-radius:var(--cc-r);color:var(--cc-muted)}
 .club-embed .app-shell[data-mode=Edit] .club-shortcuts dl{margin:0;padding:6px 14px 10px}
 .club-embed .app-shell[data-mode=Edit] .club-shortcuts dl>div{display:grid;grid-template-columns:120px 1fr;gap:8px;padding:4px 0}
 .club-embed .app-shell[data-mode=Edit] .club-shortcuts dt{font-weight:600;font-variant-numeric:tabular-nums}
 .club-embed .app-shell[data-mode=Edit] .club-shortcuts dd{margin:0;color:var(--cc-muted)}
-.club-embed .app-shell[data-mode=Edit] .club-shortcuts-more{position:sticky;bottom:0;display:flex;align-items:center;justify-content:center;gap:4px;padding:14px 0 6px;font-size:11.5px;font-weight:600;color:var(--cc-muted);background:linear-gradient(to bottom,transparent,var(--cc-card) 55%);pointer-events:none}
+.club-embed .app-shell[data-mode=Edit] .club-shortcuts-more{position:sticky;bottom:0;display:flex;align-items:center;justify-content:center;gap:4px;padding:14px 0 6px;font-size:var(--cc-text-2xs);font-weight:600;color:var(--cc-muted);background:linear-gradient(to bottom,transparent,var(--cc-card) 55%);pointer-events:none}
 
 /* The timeline: named rows with the kind's colour, light lanes, solid clips, a blue playhead. */
 .club-embed .app-shell[data-mode=Edit] .club-edit .timeline-resizer{grid-column:3;left:calc(var(--club-rail) + var(--club-panel));bottom:calc(var(--timeline-height,220px) - 4px)}
 .club-embed .app-shell[data-mode=Edit] .timeline.club-timeline{grid-column:3;grid-row:3;display:flex;flex-direction:row;height:auto;min-height:0;overflow:hidden;background:var(--cc-surface);border-top:1px solid var(--cc-line)}
 .club-embed .app-shell[data-mode=Edit] .club-tl-heads{width:96px;flex-shrink:0;overflow:hidden;background:var(--cc-surface);z-index:3}
-.club-embed .app-shell[data-mode=Edit] .club-tl-head{display:flex;align-items:center;gap:6px;padding:0 10px 0 14px;font-size:12.5px;color:var(--cc-text-2);white-space:nowrap;overflow:hidden}
+.club-embed .app-shell[data-mode=Edit] .club-tl-head{display:flex;align-items:center;gap:6px;padding:0 10px 0 14px;font-size:var(--cc-text-xs);color:var(--cc-text-2);white-space:nowrap;overflow:hidden}
 .club-embed .app-shell[data-mode=Edit] .club-tl-head.is-ruler{border-bottom:1px solid var(--cc-line)}
 .club-embed .app-shell[data-mode=Edit] .club-tl-head>svg{flex:none;color:var(--cc-text-3)}
 .club-embed .app-shell[data-mode=Edit] .club-tl-head[data-kind=camera]>svg{color:var(--kind-camera)}
@@ -139,13 +139,13 @@
 .club-embed .app-shell[data-mode=Edit] .club-ruler{position:sticky;top:0;z-index:7;background:var(--cc-surface);border-bottom:1px solid var(--cc-line);cursor:pointer;user-select:none}
 .club-embed .app-shell[data-mode=Edit] .club-ruler .tick{position:absolute;bottom:0;width:1px;height:5px;background:var(--cc-line)}
 .club-embed .app-shell[data-mode=Edit] .club-ruler .tick.major{height:12px;background:var(--cc-line-strong)}
-.club-embed .app-shell[data-mode=Edit] .club-ruler .tick>b{position:absolute;left:4px;bottom:1px;font-size:11px;font-weight:500;line-height:12px;color:var(--cc-text-3);white-space:nowrap;font-variant-numeric:tabular-nums}
+.club-embed .app-shell[data-mode=Edit] .club-ruler .tick>b{position:absolute;left:4px;bottom:1px;font-size:var(--cc-text-2xs);font-weight:500;line-height:12px;color:var(--cc-text-3);white-space:nowrap;font-variant-numeric:tabular-nums}
 /* Each scene is a band along the top of the ruler, as wide as the scene. */
-.club-embed .app-shell[data-mode=Edit] .club-scene-tag{position:absolute;top:1px;box-sizing:border-box;height:14px;padding:0 6px;border:1px solid var(--cc-line-strong);border-radius:4px;background:var(--cc-bg-sunk);color:var(--cc-text-2);font-size:10.5px;font-weight:600;line-height:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;z-index:1}
+.club-embed .app-shell[data-mode=Edit] .club-scene-tag{position:absolute;top:1px;box-sizing:border-box;height:14px;padding:0 6px;border:1px solid var(--cc-line-strong);border-radius:4px;background:var(--cc-bg-sunk);color:var(--cc-text-2);font-size:var(--cc-text-2xs);font-weight:600;line-height:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;z-index:1}
 .club-embed .app-shell[data-mode=Edit] .club-scene-tag:hover{background:var(--cc-text);border-color:var(--cc-text);color:var(--cc-surface)}
-.club-embed .app-shell[data-mode=Edit] .club-row{position:absolute;left:0;right:0;margin:0;border:0;border-block:3px solid var(--cc-surface);border-radius:8px;background:var(--tl-row);cursor:default}
+.club-embed .app-shell[data-mode=Edit] .club-row{position:absolute;left:0;right:0;margin:0;border:0;border-block:3px solid var(--cc-surface);border-radius:var(--cc-r);background:var(--tl-row);cursor:default}
 .club-embed .app-shell[data-mode=Edit] .club-row::before{display:none}
-.club-embed .app-shell[data-mode=Edit] .club-timeline .timeline-clip.club-clip{position:absolute;display:block;padding:0;border:0;border-radius:5px;overflow:hidden;background:var(--kind-screen);color:var(--kind-ink);box-shadow:none;cursor:default;user-select:none}
+.club-embed .app-shell[data-mode=Edit] .club-timeline .timeline-clip.club-clip{position:absolute;display:block;padding:0;border:0;border-radius:var(--cc-r-sm);overflow:hidden;background:var(--kind-screen);color:var(--kind-ink);box-shadow:none;cursor:default;user-select:none}
 .club-embed .app-shell[data-mode=Edit] .club-timeline .timeline-clip.club-clip.clip-camera{background:var(--kind-camera)}
 .club-embed .app-shell[data-mode=Edit] .club-timeline .timeline-clip.club-clip.clip-overlay{background:var(--kind-graphics)}
 .club-embed .app-shell[data-mode=Edit] .club-timeline .timeline-clip.club-clip:is(.clip-audio,.clip-music){background:color-mix(in srgb,var(--kind-audio) 16%,var(--cc-surface));color:var(--cc-text)}
@@ -159,27 +159,27 @@
 .club-embed .app-shell[data-mode=Edit] .club-filmstrip.is-image{background-repeat:repeat-x}
 .club-embed .app-shell[data-mode=Edit] .club-wave{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
 .club-embed .app-shell[data-mode=Edit] .club-wave path{fill:color-mix(in srgb,var(--kind-audio) 60%,var(--cc-surface))}
-.club-embed .app-shell[data-mode=Edit] .club-clip-label{position:sticky;left:4px;z-index:2;display:inline-flex;align-items:center;gap:4px;max-width:calc(100% - 12px);margin:0 0 0 2px;padding:0 5px;height:100%;color:var(--kind-ink);font-size:11.5px;font-weight:600;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none}
+.club-embed .app-shell[data-mode=Edit] .club-clip-label{position:sticky;left:4px;z-index:2;display:inline-flex;align-items:center;gap:4px;max-width:calc(100% - 12px);margin:0 0 0 2px;padding:0 5px;height:100%;color:var(--kind-ink);font-size:var(--cc-text-2xs);font-weight:600;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none}
 .club-embed .app-shell[data-mode=Edit] .club-clip:is(.clip-audio,.clip-music) .club-clip-label{height:auto;margin-top:3px;padding:1px 5px;border-radius:4px;background:color-mix(in srgb,var(--cc-surface) 75%,transparent);color:var(--cc-text)}
 .club-embed .app-shell[data-mode=Edit] .club-timeline .trim-handle{position:absolute;top:0;bottom:0;width:6px;z-index:4;cursor:ew-resize;background:transparent}
 .club-embed .app-shell[data-mode=Edit] .club-timeline .trim-handle.left{left:0;border-radius:5px 0 0 5px}
 .club-embed .app-shell[data-mode=Edit] .club-timeline .trim-handle.right{right:0;border-radius:0 5px 5px 0}
 .club-embed .app-shell[data-mode=Edit] .club-timeline :is(.club-clip,.club-effect):hover .trim-handle{background:color-mix(in srgb,var(--kind-ink) 55%,transparent)}
 /* Captions, graphics, text and zooms: solid chips in their kind's colour, with the words on them. */
-.club-embed .app-shell[data-mode=Edit] .club-timeline .timeline-effect.club-effect{position:absolute;top:3px;bottom:3px;height:auto;padding:0 7px;border:0;border-radius:5px;background:var(--kind-graphics);color:var(--kind-ink);font-size:11.5px;font-weight:600;line-height:20px;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:default;user-select:none}
+.club-embed .app-shell[data-mode=Edit] .club-timeline .timeline-effect.club-effect{position:absolute;top:3px;bottom:3px;height:auto;padding:0 7px;border:0;border-radius:var(--cc-r-sm);background:var(--kind-graphics);color:var(--kind-ink);font-size:var(--cc-text-2xs);font-weight:600;line-height:20px;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:default;user-select:none}
 .club-embed .app-shell[data-mode=Edit] .club-timeline .row-captions .club-effect{background:var(--kind-captions)}
 .club-embed .app-shell[data-mode=Edit] .club-timeline .row-zooms .club-effect{background:var(--kind-zoom)}
 .club-embed .app-shell[data-mode=Edit] .club-timeline .row-markers .club-effect{background:var(--kind-markers)}
 .club-embed .app-shell[data-mode=Edit] .club-effect>span{pointer-events:none}
 .club-embed .app-shell[data-mode=Edit] .club-timeline .clip-drag-preview{opacity:.9;box-shadow:0 4px 12px var(--tl-shade);cursor:grabbing;z-index:6}
-.club-embed .app-shell[data-mode=Edit] .club-ghost{position:absolute;top:3px;bottom:3px;border:1px dashed var(--cc-muted);border-radius:6px;pointer-events:none}
+.club-embed .app-shell[data-mode=Edit] .club-ghost{position:absolute;top:3px;bottom:3px;border:1px dashed var(--cc-muted);border-radius:var(--cc-r-sm);pointer-events:none}
 .club-embed .app-shell[data-mode=Edit] .club-preview-cut{position:absolute;z-index:5;pointer-events:none;background:repeating-linear-gradient(135deg,color-mix(in srgb,var(--cc-danger) 30%,transparent) 0 4px,transparent 4px 8px);border-left:1px solid var(--cc-danger);border-right:1px solid var(--cc-danger)}
 .club-embed .app-shell[data-mode=Edit] .club-cut-mark{position:absolute;z-index:5;width:0;margin-left:-1px;border-left:2px dashed var(--cc-danger);pointer-events:none}
-.club-embed .app-shell[data-mode=Edit] .club-cut-mark::before{content:"Cut";position:absolute;top:2px;left:2px;padding:0 5px;border-radius:4px;background:var(--cc-danger);color:var(--kind-ink);font-size:10.5px;font-weight:600;line-height:15px}
+.club-embed .app-shell[data-mode=Edit] .club-cut-mark::before{content:"Cut";position:absolute;top:2px;left:2px;padding:0 5px;border-radius:4px;background:var(--cc-danger);color:var(--kind-ink);font-size:var(--cc-text-2xs);font-weight:600;line-height:15px}
 .club-embed .app-shell[data-mode=Edit] .club-snap{position:absolute;top:0;bottom:0;width:0;margin-left:-1px;border-left:2px solid var(--tl-select);z-index:9;pointer-events:none;background:none}
 .club-embed .app-shell[data-mode=Edit] .club-snap>span{display:none}
 .club-embed .app-shell[data-mode=Edit] .club-insert-line{position:absolute;top:0;bottom:0;width:3px;margin-left:-1px;background:var(--tl-select);z-index:9;pointer-events:none}
-.club-embed .app-shell[data-mode=Edit] .club-drag-label{position:sticky;left:12px;top:34px;z-index:10;display:inline-block;margin:34px 0 0 12px;padding:3px 8px;border-radius:6px;background:var(--cc-toast-bg);color:var(--cc-toast-text);font-size:12px;pointer-events:none;white-space:nowrap}
+.club-embed .app-shell[data-mode=Edit] .club-drag-label{position:sticky;left:12px;top:34px;z-index:10;display:inline-block;margin:34px 0 0 12px;padding:3px 8px;border-radius:var(--cc-r-sm);background:var(--cc-toast-bg);color:var(--cc-toast-text);font-size:var(--cc-text-xs);pointer-events:none;white-space:nowrap}
 .club-embed .app-shell[data-mode=Edit] .club-timeline .playhead{position:absolute;top:0;bottom:0;left:0;width:2px;margin-left:-1px;background:var(--cc-accent);z-index:8;pointer-events:none}
 .club-embed .app-shell[data-mode=Edit] .club-timeline .playhead>span{position:absolute;top:0;left:-5px;width:12px;height:9px;background:var(--cc-accent);clip-path:polygon(0 0,100% 0,50% 100%)}
 .club-embed .app-shell[data-mode=Edit] .club-timeline .timeline-marquee{position:absolute;z-index:9;border:1px solid var(--tl-select);background:color-mix(in srgb,var(--tl-select) 12%,transparent);pointer-events:none}
@@ -188,11 +188,11 @@
 .club-embed .app-shell[data-mode=Edit] .club-timeline.timeline-dragging,.club-embed .app-shell[data-mode=Edit] .club-timeline.timeline-dragging *{cursor:grabbing}
 /* Hover on the ruler shows the time under the pointer; at high zoom the spoken words sit on the audio row. */
 .club-embed .app-shell[data-mode=Edit] .club-hover{position:absolute;top:0;bottom:0;width:1px;background:var(--cc-text-3);pointer-events:none;z-index:4}
-.club-embed .app-shell[data-mode=Edit] .club-hover b{position:absolute;top:15px;left:4px;padding:1px 6px;border-radius:4px;background:var(--cc-toast-bg);color:var(--cc-toast-text);font-size:11px;font-weight:600;white-space:nowrap}
-.club-embed .app-shell[data-mode=Edit] .club-word{position:absolute;top:2px;z-index:3;padding:0 3px;border-radius:3px;background:color-mix(in srgb,var(--cc-surface) 70%,transparent);color:var(--cc-text);font-size:10.5px;line-height:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none}
-.club-embed .app-shell[data-mode=Edit] .club-hover-frame{position:absolute;top:38px;left:4px;display:block;border-radius:6px;border:2px solid var(--cc-toast-bg);background-color:var(--cc-dark-stage);background-repeat:no-repeat;box-shadow:0 4px 14px var(--tl-shade)}
+.club-embed .app-shell[data-mode=Edit] .club-hover b{position:absolute;top:15px;left:4px;padding:1px 6px;border-radius:4px;background:var(--cc-toast-bg);color:var(--cc-toast-text);font-size:var(--cc-text-2xs);font-weight:600;white-space:nowrap}
+.club-embed .app-shell[data-mode=Edit] .club-word{position:absolute;top:2px;z-index:3;padding:0 3px;border-radius:3px;background:color-mix(in srgb,var(--cc-surface) 70%,transparent);color:var(--cc-text);font-size:var(--cc-text-2xs);line-height:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none}
+.club-embed .app-shell[data-mode=Edit] .club-hover-frame{position:absolute;top:38px;left:4px;display:block;border-radius:var(--cc-r-sm);border:2px solid var(--cc-toast-bg);background-color:var(--cc-dark-stage);background-repeat:no-repeat;box-shadow:0 4px 14px var(--tl-shade)}
 /* A previewed change drawn on the timeline before it is applied: dashed, in the accent colour; a removal is hatched. */
-.club-embed .app-shell[data-mode=Edit] .club-fx-ghost{position:absolute;top:3px;bottom:3px;z-index:4;pointer-events:none;display:flex;align-items:center;padding:0 8px;border-radius:5px;font-size:11.5px;font-weight:600;overflow:hidden;white-space:nowrap;border:1.5px dashed var(--cc-accent);background:color-mix(in srgb,var(--cc-accent) 14%,var(--cc-surface));color:var(--cc-accent-text);animation:fxGhost 1.6s ease-in-out infinite}
+.club-embed .app-shell[data-mode=Edit] .club-fx-ghost{position:absolute;top:3px;bottom:3px;z-index:4;pointer-events:none;display:flex;align-items:center;padding:0 8px;border-radius:var(--cc-r-sm);font-size:var(--cc-text-2xs);font-weight:600;overflow:hidden;white-space:nowrap;border:1.5px dashed var(--cc-accent);background:color-mix(in srgb,var(--cc-accent) 14%,var(--cc-surface));color:var(--cc-accent-text);animation:fxGhost 1.6s ease-in-out infinite}
 .club-embed .app-shell[data-mode=Edit] .club-fx-ghost.removed{border-color:var(--cc-danger);color:var(--cc-danger);text-decoration:line-through;background:repeating-linear-gradient(135deg,color-mix(in srgb,var(--cc-danger) 22%,transparent) 0 4px,transparent 4px 8px)}
 @keyframes fxGhost{0%,100%{opacity:1}50%{opacity:.72}}
 @media (prefers-reduced-motion:reduce){.club-embed .app-shell[data-mode=Edit] .club-fx-ghost{animation:none}}
@@ -209,12 +209,12 @@
 .club-embed .app-shell[data-mode=Edit] .club-note-line.tag-dislike{border-left-color:var(--cc-danger)}
 .club-embed .app-shell[data-mode=Edit] .club-note-line.tag-keep{border-left-color:var(--cc-success)}
 .club-embed .app-shell[data-mode=Edit] .club-note-line.tag-idea{border-left-color:var(--cc-accent)}
-.marker-note{position:fixed;z-index:60;width:320px;padding:14px;display:flex;flex-direction:column;gap:12px;border:1px solid var(--cc-line-strong);border-radius:12px;background:var(--cc-card);box-shadow:var(--cc-shadow-3)}
-.marker-note-h{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--cc-text)}
-.marker-note textarea{width:100%;resize:vertical;min-height:64px;padding:8px 10px;border:1px solid var(--cc-line-strong);border-radius:8px;background:var(--cc-surface);color:var(--cc-text);font:inherit;font-size:13.5px;line-height:1.45}
+.marker-note{position:fixed;z-index:60;width:320px;padding:14px;display:flex;flex-direction:column;gap:12px;border:1px solid var(--cc-line-strong);border-radius:var(--cc-r-lg);background:var(--cc-card);box-shadow:var(--cc-shadow-3)}
+.marker-note-h{display:flex;align-items:center;gap:8px;font-size:var(--cc-text-sm);color:var(--cc-text)}
+.marker-note textarea{width:100%;resize:vertical;min-height:64px;padding:8px 10px;border:1px solid var(--cc-line-strong);border-radius:var(--cc-r);background:var(--cc-surface);color:var(--cc-text);font:inherit;font-size:var(--cc-text-sm);line-height:1.45}
 .marker-note textarea:focus{outline:2px solid var(--cc-accent);outline-offset:1px}
 .marker-note-tags{display:flex;flex-wrap:wrap;gap:6px}
-.marker-tag{all:unset;box-sizing:border-box;cursor:pointer;height:28px;display:inline-flex;align-items:center;padding:0 10px;border:1px solid var(--cc-line-strong);border-radius:999px;font-size:12.5px;font-weight:550;color:var(--cc-text-2)}
+.marker-tag{all:unset;box-sizing:border-box;cursor:pointer;height:28px;display:inline-flex;align-items:center;padding:0 10px;border:1px solid var(--cc-line-strong);border-radius:var(--cc-r-pill);font-size:var(--cc-text-xs);font-weight:550;color:var(--cc-text-2)}
 .marker-tag:hover{border-color:var(--cc-accent);color:var(--cc-text)}
 .marker-tag.on.dislike{background:var(--cc-danger-soft);border-color:var(--cc-danger);color:var(--cc-danger)}
 .marker-tag.on.keep{background:var(--cc-success-soft);border-color:var(--cc-success);color:var(--cc-success)}
@@ -222,21 +222,21 @@
 .marker-note-a{display:flex;align-items:center;gap:8px}
 .marker-note-a .grow{flex:1}
 .marker-note-h .grow{flex:1}
-.marker-note-h b{font-size:14px;font-weight:650}
-.marker-note-time{display:inline-flex;align-items:center;gap:2px;padding:1px 2px;border:1px solid var(--cc-line);border-radius:999px;font-size:12.5px;color:var(--cc-text-2)}
-.marker-note-time .marker-nudge{all:unset;cursor:pointer;width:20px;text-align:center;border-radius:999px;color:var(--cc-text-2)}
+.marker-note-h b{font-size:var(--cc-text-base);font-weight:650}
+.marker-note-time{display:inline-flex;align-items:center;gap:2px;padding:1px 2px;border:1px solid var(--cc-line);border-radius:var(--cc-r-pill);font-size:var(--cc-text-xs);color:var(--cc-text-2)}
+.marker-note-time .marker-nudge{all:unset;cursor:pointer;width:20px;text-align:center;border-radius:var(--cc-r-pill);color:var(--cc-text-2)}
 .marker-note-time .marker-nudge:hover{background:var(--cc-hover);color:var(--cc-text)}
-.marker-note-x{all:unset;cursor:pointer;display:inline-flex;padding:5px;border-radius:6px;color:var(--cc-text-3)}
+.marker-note-x{all:unset;cursor:pointer;display:inline-flex;padding:5px;border-radius:var(--cc-r-sm);color:var(--cc-text-3)}
 .marker-note-x:hover{background:var(--cc-danger-soft);color:var(--cc-danger)}
 .marker-note-x:focus-visible,.marker-tag:focus-visible{outline:2px solid var(--cc-accent);outline-offset:2px}
-.marker-nudge{all:unset;cursor:pointer;width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;border-radius:6px;font-size:18px;line-height:1;color:var(--cc-text-2)}
+.marker-nudge{all:unset;cursor:pointer;width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;border-radius:var(--cc-r-sm);font-size:var(--cc-text-xl);line-height:1;color:var(--cc-text-2)}
 .marker-nudge:hover{background:var(--cc-accent-soft);color:var(--cc-text)}
 
 /* Motion templates in the Graphics panel: a small stage that plays the way the graphic comes in. */
 .club-embed .motion-gallery{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .club-embed .motion-gallery button{display:flex;flex-direction:column;align-items:stretch;gap:6px;padding:6px;text-align:left}
-.club-embed .motion-gallery button b{font-size:12.5px;font-weight:600;padding:0 2px 2px}
-.club-embed .motion-gallery .motion-mini{display:block;position:relative;overflow:hidden;width:100%;height:0;padding:0 0 56.25%;border-radius:5px;background:var(--cc-dark-stage)}
+.club-embed .motion-gallery button b{font-size:var(--cc-text-xs);font-weight:600;padding:0 2px 2px}
+.club-embed .motion-gallery .motion-mini{display:block;position:relative;overflow:hidden;width:100%;height:0;padding:0 0 56.25%;border-radius:var(--cc-r-sm);background:var(--cc-dark-stage)}
 .club-embed .motion-mini i{position:absolute;display:block;background:var(--cc-on-media)}
 .club-embed .mm-lower-third i:nth-child(1){left:8%;bottom:18%;height:22%;width:56%;border-radius:3px;animation:mmSlide 1.9s infinite}
 .club-embed .mm-lower-third i:nth-child(2){left:8%;bottom:11%;height:3px;width:30%;background:var(--cc-accent);animation:mmSlide 1.9s .15s infinite}
@@ -259,9 +259,9 @@
   .stage-empty>span,.stage-empty .button,.stage-caption-label,.media-card>b,.media-card>small,.hint,
   .transcription-status,.transcription-status small,.transcription-status button,.transcript-panel .empty-state p,.empty-state p,.empty-state .button,.import-warning,.import-warning button,
   .cut-playback,.cut-playback select,.cut-playback .button
-){font-size:12.5px}
-.club-embed .app-shell[data-mode=Edit] :is(.modal>header p,.modal .field,.modal .field>input,.modal .field>select,.modal .field>textarea,.modal-actions>span,.modal .button,.upload-area p,.modal-footnote,.inline-success,.inline-error,.quick-proposal small,.quick-proposal p,.quick-advanced summary,.semantic-cut-option small,.quick-job-summary span,.quick-action-warnings li,.quick-proposal-heading button){font-size:12px}
-.club-embed .app-shell[data-mode=Edit] .modal{border-radius:12px;border-color:var(--cc-line)}
+){font-size:var(--cc-text-xs)}
+.club-embed .app-shell[data-mode=Edit] :is(.modal>header p,.modal .field,.modal .field>input,.modal .field>select,.modal .field>textarea,.modal-actions>span,.modal .button,.upload-area p,.modal-footnote,.inline-success,.inline-error,.quick-proposal small,.quick-proposal p,.quick-advanced summary,.semantic-cut-option small,.quick-job-summary span,.quick-action-warnings li,.quick-proposal-heading button){font-size:var(--cc-text-xs)}
+.club-embed .app-shell[data-mode=Edit] .modal{border-radius:var(--cc-r-lg);border-color:var(--cc-line)}
 .club-embed .app-shell[data-mode=Edit] :is(button,a,input,select,textarea,summary):focus-visible{outline:2px solid var(--cc-accent);outline-offset:2px}
 .club-embed .app-shell[data-mode=Edit] .inspector-section{padding-left:16px;padding-right:16px}
 .club-embed .app-shell[data-mode=Edit] :is(.format-card,.export-presets>button,.layout-card).active{border-color:var(--cc-accent);background:var(--cc-accent-soft);color:var(--cc-accent-text)}
@@ -272,7 +272,7 @@
 .club-embed .app-shell[data-mode=Edit] .comparison-switch [aria-pressed=true]{background:var(--cc-accent);border-color:var(--cc-accent);color:var(--cc-on-accent)}
 .club-embed .app-shell[data-mode=Edit] :is(.icon-button,.button).is-active:not(.subtle){color:var(--cc-accent-text);background:var(--cc-accent-soft)}
 .club-embed .app-shell[data-mode=Edit] .color-swatches{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0}
-.club-embed .app-shell[data-mode=Edit] .color-swatch{width:22px;height:22px;padding:0;border-radius:50%;border:1px solid var(--cc-line);box-shadow:inset 0 0 0 1px var(--tl-shade-soft);display:inline-flex;align-items:center;justify-content:center;font-size:11px;color:var(--cc-muted);background:var(--cc-card)}
+.club-embed .app-shell[data-mode=Edit] .color-swatch{width:22px;height:22px;padding:0;border-radius:50%;border:1px solid var(--cc-line);box-shadow:inset 0 0 0 1px var(--tl-shade-soft);display:inline-flex;align-items:center;justify-content:center;font-size:var(--cc-text-2xs);color:var(--cc-muted);background:var(--cc-card)}
 .club-embed .app-shell[data-mode=Edit] .color-swatch.is-none{background:linear-gradient(135deg,transparent 45%,var(--cc-danger) 45% 55%,transparent 55%),var(--cc-card)}
 .club-embed .app-shell[data-mode=Edit] .color-swatch[aria-pressed=true]{outline:2px solid var(--tl-select);outline-offset:2px}
 

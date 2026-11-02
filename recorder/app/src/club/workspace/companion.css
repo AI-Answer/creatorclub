@@ -5,7 +5,7 @@
 .club-root .cmp { width: 380px; flex: none; display: flex; flex-direction: column; min-height: 0; position: relative; border-left: 1px solid var(--cc-line); background: var(--cc-surface); }
 .club-root .cmp.collapsed { width: 44px; }
 .club-root .cmp-rail { all: unset; box-sizing: border-box; cursor: pointer; width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; gap: 12px; padding-top: 14px; color: var(--cc-accent); }
-.club-root .cmp-rail span { writing-mode: vertical-rl; font-size: 13px; font-weight: 600; color: var(--cc-text-2); }
+.club-root .cmp-rail span { writing-mode: vertical-rl; font-size:var(--cc-text-sm); font-weight: 600; color: var(--cc-text-2); }
 .club-root .cmp-rail:hover span { color: var(--cc-text); }
 .club-root .cmp-rail:focus-visible { outline: 2px solid var(--cc-accent); outline-offset: -2px; }
 
@@ -16,41 +16,41 @@
 .club-root .cmp-head { display: flex; align-items: center; gap: 10px; padding: 12px 10px 11px 16px; border-bottom: 1px solid var(--cc-line); }
 .club-root .cmp-head-mark { color: var(--cc-accent); }
 .club-root .cmp-head-text { flex: 1; min-width: 0; }
-.club-root .cmp-title { font-size: 14px; font-weight: 650; letter-spacing: -0.01em; }
-.club-root .cmp-look { font-size: 12px; color: var(--cc-text-3); display: flex; align-items: center; gap: 5px; white-space: nowrap; min-width: 0; margin-top: 1px; }
+.club-root .cmp-title { font-size:var(--cc-text-base); font-weight: 650; letter-spacing: -0.01em; }
+.club-root .cmp-look { font-size:var(--cc-text-xs); color: var(--cc-text-3); display: flex; align-items: center; gap: 5px; white-space: nowrap; min-width: 0; margin-top: 1px; }
 .club-root .cmp-look > span:first-child { color: var(--cc-text-2); font-weight: 600; flex: none; }
 .club-root .cmp-look-scene { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 
 .club-root .cmp-log { flex: 1; min-height: 0; overflow-y: auto; padding: 14px 16px 10px; display: flex; flex-direction: column; gap: 14px; }
 .club-root .cmp-loading { display: flex; justify-content: center; padding: 24px 0; }
 
-.club-root .cmp-divider { display: flex; align-items: center; gap: 10px; font-size: 11.5px; font-weight: 550; color: var(--cc-text-3); }
+.club-root .cmp-divider { display: flex; align-items: center; gap: 10px; font-size:var(--cc-text-2xs); font-weight: 550; color: var(--cc-text-3); }
 .club-root .cmp-divider::before, .club-root .cmp-divider::after { content: ""; flex: 1; height: 1px; background: var(--cc-line); }
 
 /* Your message: a quiet block on the right. */
-.club-root .cmp-me { align-self: flex-end; max-width: 88%; background: var(--cc-bg-sunk); color: var(--cc-text); border-radius: 10px; padding: 7px 11px; font-size: 13.5px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+.club-root .cmp-me { align-self: flex-end; max-width: 88%; background: var(--cc-bg-sunk); color: var(--cc-text); border-radius:var(--cc-r); padding: 7px 11px; font-size:var(--cc-text-sm); line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
 
 /* The reply: flowing text, no bubble. */
 .club-root .cmp-reply { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
-.club-root .cmp-who { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 650; color: var(--cc-text-3); }
+.club-root .cmp-who { display: flex; align-items: center; gap: 6px; font-size:var(--cc-text-xs); font-weight: 650; color: var(--cc-text-3); }
 .club-root .cmp-who .cmp-mark { color: var(--cc-accent); }
 .club-root .cmp-who .cmp-t { margin-left: auto; font-weight: 500; }
-.club-root .cmp-t { color: var(--cc-text-3); font-size: 11.5px; font-variant-numeric: tabular-nums; }
-.club-root .cmp-md { font-size: 13.5px; line-height: 1.6; color: var(--cc-text); overflow-wrap: anywhere; }
+.club-root .cmp-t { color: var(--cc-text-3); font-size:var(--cc-text-2xs); font-variant-numeric: tabular-nums; }
+.club-root .cmp-md { font-size:var(--cc-text-sm); line-height: 1.6; color: var(--cc-text); overflow-wrap: anywhere; }
 .club-root .cmp-md p { margin: 0 0 8px; }
 .club-root .cmp-md ul, .club-root .cmp-md ol { margin: 0 0 8px; padding-left: 18px; display: flex; flex-direction: column; gap: 3px; }
 .club-root .cmp-md ul { list-style: disc; }
 .club-root .cmp-md ol { list-style: decimal; }
 .club-root .cmp-md > :last-child { margin-bottom: 0; }
 .club-root .cmp-md strong { font-weight: 650; }
-.club-root .cmp-md code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; background: var(--cc-bg-sunk); border-radius: 4px; padding: 1px 4px; }
+.club-root .cmp-md code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size:var(--cc-text-xs); background: var(--cc-bg-sunk); border-radius: 4px; padding: 1px 4px; }
 .club-root .cmp-md.streaming > :last-child::after { content: ""; display: inline-block; width: 6px; height: 13px; margin-left: 2px; vertical-align: -2px; border-radius: 1px; background: var(--cc-accent); animation: cmp-caret 1s steps(2) infinite; }
 @keyframes cmp-caret { 50% { opacity: 0; } }
-.club-root .cmp-note { font-size: 12px; color: var(--cc-text-3); }
+.club-root .cmp-note { font-size:var(--cc-text-xs); color: var(--cc-text-3); }
 
 /* Steps: a list while it works, one line once done. */
 .club-root .cmp-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
-.club-root .cmp-steps li { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--cc-text-3); }
+.club-root .cmp-steps li { display: flex; align-items: center; gap: 8px; font-size:var(--cc-text-xs); color: var(--cc-text-3); }
 .club-root .cmp-steps li.on { color: var(--cc-text); font-weight: 550; }
 .club-root .cmp-steps li .cmp-t { margin-left: auto; }
 .club-root .cmp-steps.live li { animation: cmp-in .25s var(--cc-ease); }
@@ -60,7 +60,7 @@
 @keyframes cmp-breathe-dot { 0%, 100% { transform: scale(1); } 50% { transform: scale(.55); opacity: .5; } }
 @keyframes cmp-in { from { opacity: 0; transform: translateY(2px); } }
 .club-root .cmp-sum { display: flex; flex-direction: column; gap: 6px; }
-.club-root .cmp-sum-line { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--cc-text-3); align-self: flex-start; border-radius: 6px; padding: 1px 4px 1px 0; }
+.club-root .cmp-sum-line { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; font-size:var(--cc-text-xs); color: var(--cc-text-3); align-self: flex-start; border-radius:var(--cc-r-sm); padding: 1px 4px 1px 0; }
 .club-root .cmp-sum-line:hover { color: var(--cc-text-2); }
 .club-root .cmp-sum-line:focus-visible { outline: 2px solid var(--cc-accent); outline-offset: 1px; }
 .club-root .cmp-chev { transition: transform .15s; }
@@ -68,58 +68,58 @@
 
 /* Before the first words. */
 .club-root .cmp-skel { display: flex; flex-direction: column; gap: 7px; padding-top: 2px; }
-.club-root .cmp-skel i { display: block; height: 9px; border-radius: 5px; background: linear-gradient(90deg, var(--cc-bg-sunk) 0%, var(--cc-hover) 50%, var(--cc-bg-sunk) 100%); background-size: 200% 100%; animation: cmp-shimmer 1.3s linear infinite; }
+.club-root .cmp-skel i { display: block; height: 9px; border-radius:var(--cc-r-sm); background: linear-gradient(90deg, var(--cc-bg-sunk) 0%, var(--cc-hover) 50%, var(--cc-bg-sunk) 100%); background-size: 200% 100%; animation: cmp-shimmer 1.3s linear infinite; }
 .club-root .cmp-skel i:nth-child(1) { width: 92%; } .club-root .cmp-skel i:nth-child(2) { width: 78%; } .club-root .cmp-skel i:nth-child(3) { width: 54%; }
 @keyframes cmp-shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
 
 /* A change the reply offers. */
-.club-root .cmp-card { border: 1px solid var(--cc-line); border-radius: 10px; background: var(--cc-surface-2); padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
+.club-root .cmp-card { border: 1px solid var(--cc-line); border-radius:var(--cc-r); background: var(--cc-surface-2); padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
 .club-root .cmp-card.applied { background: var(--cc-surface); }
-.club-root .cmp-card-h { font-size: 11.5px; font-weight: 650; color: var(--cc-text-3); display: flex; align-items: center; gap: 6px; }
-.club-root .cmp-card-text { font-size: 13.5px; line-height: 1.5; color: var(--cc-text); white-space: pre-wrap; overflow-wrap: anywhere; }
+.club-root .cmp-card-h { font-size:var(--cc-text-2xs); font-weight: 650; color: var(--cc-text-3); display: flex; align-items: center; gap: 6px; }
+.club-root .cmp-card-text { font-size:var(--cc-text-sm); line-height: 1.5; color: var(--cc-text); white-space: pre-wrap; overflow-wrap: anywhere; }
 .club-root .cmp-card-text.long { max-height: 132px; overflow: auto; }
 .club-root .cmp-card-text ul { margin: 4px 0 0; padding-left: 18px; list-style: disc; white-space: normal; }
 .club-root .cmp-card-sub { font-weight: 600; }
-.club-root .cmp-card-scenes { margin: 0; padding-left: 20px; list-style: decimal; font-size: 13.5px; line-height: 1.5; display: flex; flex-direction: column; gap: 2px; }
+.club-root .cmp-card-scenes { margin: 0; padding-left: 20px; list-style: decimal; font-size:var(--cc-text-sm); line-height: 1.5; display: flex; flex-direction: column; gap: 2px; }
 .club-root .cmp-card-scenes li span:first-child { margin-right: 6px; }
 .club-root .cmp-card-a { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-.club-root .cmp-result { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; font-weight: 600; color: var(--cc-ok); margin-right: auto; }
-.club-root .cmp-faint { color: var(--cc-text-3); font-size: 12px; }
-.club-root .cmp-card-est { margin-top: 6px; font-size: 12.5px; color: var(--cc-text-2); display: flex; gap: 6px; align-items: flex-start; }
+.club-root .cmp-result { display: inline-flex; align-items: center; gap: 5px; font-size:var(--cc-text-xs); font-weight: 600; color: var(--cc-ok); margin-right: auto; }
+.club-root .cmp-faint { color: var(--cc-text-3); font-size:var(--cc-text-xs); }
+.club-root .cmp-card-est { margin-top: 6px; font-size:var(--cc-text-xs); color: var(--cc-text-2); display: flex; gap: 6px; align-items: flex-start; }
 /* Amber only for a warning: a cut that takes a quarter of the video or more, or a card that no longer fits the timeline. */
 .club-root .cmp-card-est.warn { color: var(--cc-text); }
 .club-root .cmp-card-est.warn .icon { flex: none; margin-top: 2px; color: var(--cc-warn); }
-.club-root .cmp-card-err { font-size: 12.5px; line-height: 1.45; color: var(--cc-text-2); display: flex; gap: 6px; align-items: flex-start; }
+.club-root .cmp-card-err { font-size:var(--cc-text-xs); line-height: 1.45; color: var(--cc-text-2); display: flex; gap: 6px; align-items: flex-start; }
 .club-root .cmp-card-err .icon { flex: none; margin-top: 2px; color: var(--cc-text-3); }
 /* Read by screen readers only. */
 .club-root .cmp-sr { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
-.club-root .cmp-preview { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 12.5px; line-height: 1.45; }
-.club-root .cmp-preview-col { border-radius: 8px; background: var(--cc-bg-sunk); padding: 7px 9px; min-width: 0; overflow-wrap: anywhere; max-height: 180px; overflow: auto; color: var(--cc-text-2); }
+.club-root .cmp-preview { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size:var(--cc-text-xs); line-height: 1.45; }
+.club-root .cmp-preview-col { border-radius:var(--cc-r); background: var(--cc-bg-sunk); padding: 7px 9px; min-width: 0; overflow-wrap: anywhere; max-height: 180px; overflow: auto; color: var(--cc-text-2); }
 .club-root .cmp-preview-col.after { background: var(--cc-accent-soft); color: var(--cc-text); }
-.club-root .cmp-preview-h { font-size: 11px; font-weight: 650; color: var(--cc-text-3); margin-bottom: 3px; }
+.club-root .cmp-preview-h { font-size:var(--cc-text-2xs); font-weight: 650; color: var(--cc-text-3); margin-bottom: 3px; }
 .club-root .cmp-preview-col.after .cmp-preview-h { color: var(--cc-accent-text); }
 
-.club-root .cmp-jump { position: absolute; left: 50%; transform: translateX(-50%); bottom: 132px; display: inline-flex; align-items: center; gap: 5px; border: 1px solid var(--cc-line-strong); background: var(--cc-surface); color: var(--cc-text-2); box-shadow: var(--cc-shadow-2); border-radius: 999px; padding: 4px 11px; font-size: 12px; font-weight: 550; cursor: pointer; z-index: 2; }
+.club-root .cmp-jump { position: absolute; left: 50%; transform: translateX(-50%); bottom: 132px; display: inline-flex; align-items: center; gap: 5px; border: 1px solid var(--cc-line-strong); background: var(--cc-surface); color: var(--cc-text-2); box-shadow: var(--cc-shadow-2); border-radius:var(--cc-r-pill); padding: 4px 11px; font-size:var(--cc-text-xs); font-weight: 550; cursor: pointer; z-index: 2; }
 .club-root .cmp-jump:hover { color: var(--cc-text); }
 
 .club-root .cmp-foot { padding: 8px 14px 10px; display: flex; flex-direction: column; gap: 7px; }
 .club-root .cmp-sugg { display: flex; flex-wrap: wrap; gap: 6px; }
-.club-root .cmp-sugg button { all: unset; box-sizing: border-box; cursor: pointer; font-size: 12.5px; font-weight: 500; color: var(--cc-text-2); border: 1px solid var(--cc-line); background: var(--cc-surface); border-radius: 999px; padding: 4px 10px; line-height: 1.35; }
+.club-root .cmp-sugg button { all: unset; box-sizing: border-box; cursor: pointer; font-size:var(--cc-text-xs); font-weight: 500; color: var(--cc-text-2); border: 1px solid var(--cc-line); background: var(--cc-surface); border-radius:var(--cc-r-pill); padding: 4px 10px; line-height: 1.35; }
 .club-root .cmp-sugg button:hover { border-color: var(--cc-accent); color: var(--cc-text); background: var(--cc-accent-soft); }
 .club-root .cmp-sugg button:focus-visible { outline: 2px solid var(--cc-accent); outline-offset: 1px; }
-.club-root .cmp-input { display: flex; align-items: flex-end; gap: 6px; border: 1px solid var(--cc-line-strong); border-radius: 12px; background: var(--cc-surface); padding: 6px 6px 6px 12px; transition: border-color .15s, box-shadow .15s; }
+.club-root .cmp-input { display: flex; align-items: flex-end; gap: 6px; border: 1px solid var(--cc-line-strong); border-radius:var(--cc-r-lg); background: var(--cc-surface); padding: 6px 6px 6px 12px; transition: border-color .15s, box-shadow .15s; }
 .club-root .cmp-input:focus-within { border-color: var(--cc-accent); box-shadow: 0 0 0 3px var(--cc-accent-soft); }
-.club-root .cmp-input textarea { flex: 1; border: 0; outline: none; resize: none; background: transparent; color: var(--cc-text); font: inherit; font-size: 13.5px; line-height: 1.45; padding: 5px 0; min-height: 22px; max-height: 140px; }
-.club-root .cmp-send { all: unset; box-sizing: border-box; cursor: pointer; flex: none; width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; background: var(--cc-accent); color: var(--cc-accent-ink); }
+.club-root .cmp-input textarea { flex: 1; border: 0; outline: none; resize: none; background: transparent; color: var(--cc-text); font: inherit; font-size:var(--cc-text-sm); line-height: 1.45; padding: 5px 0; min-height: 22px; max-height: 140px; }
+.club-root .cmp-send { all: unset; box-sizing: border-box; cursor: pointer; flex: none; width: 30px; height: 30px; border-radius:var(--cc-r); display: grid; place-items: center; background: var(--cc-accent); color: var(--cc-accent-ink); }
 .club-root .cmp-send:disabled { cursor: default; background: var(--cc-bg-sunk); color: var(--cc-text-3); }
 .club-root .cmp-send:focus-visible { outline: 2px solid var(--cc-accent); outline-offset: 2px; }
 .club-root .cmp-send.stop { background: var(--cc-text); color: var(--cc-surface); }
-.club-root .cmp-hint { font-size: 11px; color: var(--cc-text-3); padding-left: 2px; }
+.club-root .cmp-hint { font-size:var(--cc-text-2xs); color: var(--cc-text-3); padding-left: 2px; }
 /* Before anything is asked on a step: its greeting, with the best prompts right under it as full-width rows. */
 .club-root .cmp-hello { display: flex; flex-direction: column; gap: 12px; }
-.club-root .cmp-hello p { margin: 0; color: var(--cc-text-2); font-size: 13.5px; line-height: 1.5; }
+.club-root .cmp-hello p { margin: 0; color: var(--cc-text-2); font-size:var(--cc-text-sm); line-height: 1.5; }
 .club-root .cmp-sugg.fresh { flex-direction: column; gap: 6px; }
-.club-root .cmp-sugg.fresh button { border-radius: var(--cc-r); padding: 8px 12px; font-size: 13px; color: var(--cc-text); }
+.club-root .cmp-sugg.fresh button { border-radius: var(--cc-r); padding: 8px 12px; font-size:var(--cc-text-sm); color: var(--cc-text); }
 
 @media (prefers-reduced-motion: reduce) {
   .club-root .cmp-mark.working .cmp-mark-dot, .club-root .cmp-pulse::before, .club-root .cmp-skel i, .club-root .cmp-md.streaming > :last-child::after { animation: none; }
@@ -135,40 +135,40 @@
 /* Below 1440 px the step beside the panel needs the room (Edit's stage, transcript and timeline): the panel opens at 320 px. */
 @media (max-width: 1439px) { .club-root .cmp { width: 320px; } }
 
-.club-root .cmp-skills { max-height: 320px; display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--cc-line-strong); border-radius: 12px; background: var(--cc-surface); padding: 4px; }
-.club-root .cmp-skills-head { font-size: 11.5px; font-weight: 600; color: var(--cc-text-3); padding: 4px 8px 2px; }
-.club-root .cmp-skills-empty { font-size: 12.5px; color: var(--cc-text-2); padding: 8px; }
-.club-root .cmp-skill { all: unset; box-sizing: border-box; display: flex; flex-direction: column; gap: 1px; width: 100%; cursor: pointer; padding: 6px 8px; border-radius: 8px; }
+.club-root .cmp-skills { max-height: 320px; display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--cc-line-strong); border-radius:var(--cc-r-lg); background: var(--cc-surface); padding: 4px; }
+.club-root .cmp-skills-head { font-size:var(--cc-text-2xs); font-weight: 600; color: var(--cc-text-3); padding: 4px 8px 2px; }
+.club-root .cmp-skills-empty { font-size:var(--cc-text-xs); color: var(--cc-text-2); padding: 8px; }
+.club-root .cmp-skill { all: unset; box-sizing: border-box; display: flex; flex-direction: column; gap: 1px; width: 100%; cursor: pointer; padding: 6px 8px; border-radius:var(--cc-r); }
 .club-root .cmp-skill.on { background: var(--cc-accent-soft); }
 .club-root .cmp-skill:focus-visible { outline: 2px solid var(--cc-accent); outline-offset: -2px; }
-.club-root .cmp-skill-name { font-size: 13px; font-weight: 600; color: var(--cc-text); }
-.club-root .cmp-skill-what { font-size: 12px; color: var(--cc-text-2); line-height: 1.35; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.club-root .cmp-skill-name { font-size:var(--cc-text-sm); font-weight: 600; color: var(--cc-text); }
+.club-root .cmp-skill-what { font-size:var(--cc-text-xs); color: var(--cc-text-2); line-height: 1.35; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 .club-root .cmp-skills-list { overflow-y: auto; min-height: 0; flex: 1; }
-.club-root .cmp-skill-tag { margin-left: 8px; font-size: 11px; font-weight: 600; color: var(--cc-accent-text); background: var(--cc-accent-soft); border-radius: 999px; padding: 1px 7px; }
+.club-root .cmp-skill-tag { margin-left: 8px; font-size:var(--cc-text-2xs); font-weight: 600; color: var(--cc-accent-text); background: var(--cc-accent-soft); border-radius:var(--cc-r-pill); padding: 1px 7px; }
 .club-root .cmp-prev { padding: 4px 4px 8px; }
-.club-root .cmp-prev-box { position: relative; overflow: hidden; border-radius: 10px; background: var(--cc-dark-stage); }
+.club-root .cmp-prev-box { position: relative; overflow: hidden; border-radius:var(--cc-r); background: var(--cc-dark-stage); }
 .club-root .cmp-prev-box iframe { position: absolute; top: 0; left: 0; border: 0; transform-origin: 0 0; pointer-events: none; }
 .club-root .cmp-prev-box :is(img, video) { display: block; width: 100%; height: 100%; object-fit: contain; }
-.club-root .cmp-prev-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 4px 0; font-size: 12px; color: var(--cc-text-2); }
+.club-root .cmp-prev-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 4px 0; font-size:var(--cc-text-xs); color: var(--cc-text-2); }
 .club-root .cmp-prev-name { font-weight: 600; text-transform: capitalize; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .club-root .cmp-prev-nav { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
-.club-root .cmp-prev-nav button { all: unset; cursor: pointer; display: inline-flex; padding: 3px; border-radius: 6px; }
+.club-root .cmp-prev-nav button { all: unset; cursor: pointer; display: inline-flex; padding: 3px; border-radius:var(--cc-r-sm); }
 .club-root .cmp-prev-nav button:hover { background: var(--cc-accent-soft); }
 
-.club-root .cmp-skills-more { all: unset; box-sizing: border-box; display: block; width: 100%; cursor: pointer; padding: 8px; font-size: 12.5px; color: var(--cc-accent-text); border-radius: 8px; }
+.club-root .cmp-skills-more { all: unset; box-sizing: border-box; display: block; width: 100%; cursor: pointer; padding: 8px; font-size:var(--cc-text-xs); color: var(--cc-accent-text); border-radius:var(--cc-r); }
 .club-root .cmp-skills-more:hover { background: var(--cc-accent-soft); }
 
 /* Chat polish: the creator's words get a soft tint, Claude's proposals are clear cards with a visible edge, buttons are comfortable to hit. */
 .club-root .cmp-me { background: var(--cc-accent-soft); }
-.club-root .cmp-card { background: var(--cc-card); border-color: var(--cc-line-strong); border-radius: 12px; padding: 12px 14px; box-shadow: var(--cc-shadow-1); }
-.club-root .cmp-card-h { font-size: 12.5px; color: var(--cc-text-2); }
+.club-root .cmp-card { background: var(--cc-card); border-color: var(--cc-line-strong); border-radius:var(--cc-r-lg); padding: 12px 14px; box-shadow: var(--cc-shadow-1); }
+.club-root .cmp-card-h { font-size:var(--cc-text-xs); color: var(--cc-text-2); }
 .club-root .cmp-card-a .btn { min-height: 30px; }
 .club-root .cmp-reply { gap: 10px; }
 
 /* Text written right on a Board card. */
 .club-root .inline-text { margin: 0 0 8px; }
-.club-root .inline-text .md-editor { min-height: 22px; padding-bottom: 0; font-size: 13.5px; line-height: 1.5; }
+.club-root .inline-text .md-editor { min-height: 22px; padding-bottom: 0; font-size:var(--cc-text-sm); line-height: 1.5; }
 .club-root .inline-text .md-editor h1 { font-size: 1.25em; margin: .6em 0 .3em; }
 .club-root .inline-text .md-editor h2, .club-root .inline-text .md-editor h3 { font-size: 1.1em; margin: .6em 0 .3em; }
 .club-root .inline-text-err { color: var(--cc-warn); margin-top: 4px; }
@@ -176,13 +176,13 @@
 .club-root .cmp-all { display: flex; align-items: center; gap: 10px; }
 
 /* What was said on other steps: one quiet line, opened on request. */
-.club-root .cmp-earlier { all: unset; box-sizing: border-box; cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; padding: 8px 10px; border: 1px dashed var(--cc-line-strong); border-radius: 10px; font-size: 12.5px; color: var(--cc-text-2); }
+.club-root .cmp-earlier { all: unset; box-sizing: border-box; cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; padding: 8px 10px; border: 1px dashed var(--cc-line-strong); border-radius:var(--cc-r); font-size:var(--cc-text-xs); color: var(--cc-text-2); }
 .club-root .cmp-earlier span { color: var(--cc-accent-text); font-weight: 600; }
 .club-root .cmp-earlier:hover { background: var(--cc-accent-soft); }
 
 /* A question from Claude: the question, then its answers as buttons to tap. */
 .club-root .cmp-choice { gap: 10px; }
-.club-root .cmp-choice-q { font-size: 14px; font-weight: 600; line-height: 1.4; color: var(--cc-text); }
+.club-root .cmp-choice-q { font-size:var(--cc-text-base); font-weight: 600; line-height: 1.4; color: var(--cc-text); }
 .club-root .cmp-choice-opts { display: flex; flex-wrap: wrap; gap: 8px; }
 .club-root .cmp-choice-opts .btn { min-height: 32px; }
 
@@ -190,4 +190,4 @@
 .club-root .cmp-card.applied { flex-direction: row; align-items: center; padding: 8px 12px; box-shadow: none; background: var(--cc-surface); border-color: var(--cc-line); }
 .club-root .cmp-card.applied .cmp-card-h, .club-root .cmp-card.applied .cmp-card-text, .club-root .cmp-card.applied .cmp-preview { display: none; }
 .club-root .cmp-card.applied .cmp-card-a { flex: 1; justify-content: space-between; }
-.club-root .cmp-card .btn { border-radius: 8px; }
+.club-root .cmp-card .btn { border-radius:var(--cc-r); }

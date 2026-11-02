@@ -116,3 +116,15 @@ test('Task 14: timeline kinds are told apart from selection blue and from "done"
  assert.match(css,/\.club-marker\{[^}]*background:var\(--kind-markers\)/,'markers use their token');
  assert.match(css,/:is\(\.club-clip,\.club-effect\)\.selected\{outline:2px solid var\(--tl-select\)/,'selection is the accent outline only');
 });
+
+test('every stylesheet, the editor\'s included, takes text sizes and corner radii from the token scale',()=>{
+ // Only tiny ruler and timeline labels (under 10px) and hairline corners (under 5px) may be written as plain pixels.
+ const sheets=walk(src).filter(file=>file.endsWith('.css')&&rel(file)!==TOKENS&&!rel(file).includes('node_modules'));
+ const off=sheets.flatMap(file=>{
+  const css=fs.readFileSync(file,'utf8');
+  const sizes=[...css.matchAll(/font-size:\s*([0-9.]+)px/g)].filter(m=>Number(m[1])>=10).map(m=>`${rel(file)}: ${m[0]}`);
+  const radii=[...css.matchAll(/border-radius:\s*([0-9.]+)px\s*[;}!]/g)].filter(m=>Number(m[1])>=5).map(m=>`${rel(file)}: ${m[0]}`);
+  return [...sizes,...radii];
+ });
+ assert.deepEqual(off,[],'use --cc-text-* and --cc-r-* from club/ui/tokens.css');
+});

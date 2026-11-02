@@ -133,6 +133,7 @@
   --cc-r: 8px;
   --cc-r-lg: 12px;
   --cc-r-pill: 999px;
+  --cc-text-2xs: 11px;
   --cc-text-xs: 12px;
   --cc-text-sm: 13px;
   --cc-text-base: 14px;
@@ -202,4 +203,35 @@
   --cc-shadow-3: 0 16px 40px -12px rgb(0 0 0 / 0.7);
   --cc-shadow-drag: 0 24px 60px -18px rgb(0 0 0 / 0.7);
   color-scheme: dark;
+}
+
+/*
+  The editor inside Record and Edit (SceneForge) has its own variable names. Inside CreatorClub they are these tokens, so its panels,
+  inputs, lists and timeline use the same colours, lines and text as every other screen, in light and dark. Its own stylesheets keep
+  their old values only as fallbacks for when it runs on its own.
+*/
+.club-root .club-embed {
+  --background: var(--cc-bg);
+  --foreground: var(--cc-text);
+  --surface: var(--cc-surface);
+  --primary: var(--cc-primary);
+  --primary-foreground: var(--cc-on-primary);
+  --secondary: var(--cc-surface-2);
+  --input: var(--cc-hover);
+  --accent: var(--cc-accent);
+  --accent-dark: var(--cc-accent-hover);
+  --accent-soft: var(--cc-accent-soft);
+  --line: var(--cc-line);
+  --muted: var(--cc-text-3);
+  --danger: var(--cc-danger);
+  --danger-soft: var(--cc-danger-soft);
+  --focus-ring: var(--cc-accent);
+  --shadow: var(--cc-shadow-1);
+  --surface-shadow: var(--cc-shadow-2);
+  --dialog-shadow: var(--cc-shadow-3);
+  --control-radius: var(--cc-r);
+  --ui-body: var(--cc-text-base);
+  --ui-small: var(--cc-text-xs);
+  --ui-caption: var(--cc-text-2xs);
+  color: var(--cc-text);
 }
