@@ -135,7 +135,9 @@
 .club-embed .app-shell[data-mode=Edit] .club-tl-head:is([data-kind=motion],[data-kind=elements])>svg{color:var(--kind-graphics)}
 .club-embed .app-shell[data-mode=Edit] .club-tl-head[data-kind=zooms]>svg{color:var(--kind-zoom)}
 .club-embed .app-shell[data-mode=Edit] .club-timeline .timeline-scroll{flex:1;min-width:0;height:100%;overflow:auto;position:relative;outline:none}
-.club-embed .app-shell[data-mode=Edit] .club-timeline .timeline-content{position:relative;min-width:100%;background:none}
+.club-embed .app-shell[data-mode=Edit] .club-timeline .timeline-content{position:relative;min-width:100%;background:none;overflow-x:clip}
+/* Near the end the hover time and frame open to the left, so they never widen the timeline (that made it scroll on forever). */
+.club-embed .app-shell[data-mode=Edit] .club-hover.flip :is(b,.club-hover-frame){left:auto;right:4px}
 .club-embed .app-shell[data-mode=Edit] .club-ruler{position:sticky;top:0;z-index:7;background:var(--cc-surface);border-bottom:1px solid var(--cc-line);cursor:pointer;user-select:none}
 .club-embed .app-shell[data-mode=Edit] .club-ruler .tick{position:absolute;bottom:0;width:1px;height:5px;background:var(--cc-line)}
 .club-embed .app-shell[data-mode=Edit] .club-ruler .tick.major{height:12px;background:var(--cc-line-strong)}
