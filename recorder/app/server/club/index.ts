@@ -24,7 +24,9 @@ import * as boardDocs from './board-docs.js';
 import { subscribeBoard } from './board-watch.js';
 import * as canvas from './board-canvas.js';
 import { addToResearch, addToResearchBody, startVideoBody, startVideoFrom } from './research-board.js';
-import { applyCard, askBody, askCompanion, cardBody, readThread, undoCard } from './companion.js';
+import { applyCard, askBody, askCompanion, attachmentFile, cardBody, readThread, saveAttachment, undoCard } from './companion.js';
+import { imageKind } from './publisher-routes.js';
+
 import { lock as companionLock } from './companion-actions.js';
 import { editSilences } from './companion-edit.js';
 import { moveFacts, videoScenes, videosMoveFacts, videosScenes } from './scenes.js';
@@ -36,6 +38,9 @@ import { voiceSummary } from './voice.js';
 import { rankedTrending, readFollowed, startTrendingRefresh, startTrendingSeed, writeFollowed, ytDlpSearchSource, ytDlpSource, type SearchSourceFactory, type UploadsSourceFactory } from './trending.js';
 import * as store from './store.js';
 import type { ToolOptions } from './tools.js';
+
+/** One picture for the chat, held in memory while it is checked. */
+const chatUpload = multer({ storage: multer.memoryStorage(), limits: { files: 1, fileSize: 10 * 1024 * 1024 } });
 
 const source = z.object({ kind: z.enum(['breakdown', 'manual']), breakdownId: z.string().optional() }).strict();
 const planning = z.object({ research: z.boolean(), package: z.boolean(), outline: z.boolean() }).strict();
@@ -685,6 +690,16 @@ export function clubRouter({ ai = {}, transcribe, runAI, readViews = ytDlpViews(
     router.get(`${prefix}/companion`, handler(async (req, res) => res.json(await readThread(await requireWorkspace(), boardOf(req)))));
     router.post(`${prefix}/companion`, handler(async (req, res) => {
       res.status(202).json(await askCompanion(await requireWorkspace(), boardOf(req), askBody.parse(req.body), plan));
+    }));
+    router.post(`${prefix}/companion/attachments`, chatUpload.single('file'), handler(async (req, res) => {
+      const kind = req.file ? imageKind(req.file.buffer) : undefined;
+      if (!req.file || !kind) throw new ClubError('Use a PNG or JPG picture of up to 10 MB.');
+      res.status(201).json(await saveAttachment(await requireWorkspace(), boardOf(req), req.file.buffer, kind));
+    }));
+    router.get(`${prefix}/companion/attachments/:name`, handler(async (req, res) => {
+      const file = attachmentFile(await requireWorkspace(), boardOf(req), param(req, 'name'));
+      if (!file) throw notFound('picture');
+      res.sendFile(file);
     }));
     for (const action of ['apply', 'undo'] as const) {
       router.post(`${prefix}/companion/:messageId/cards/:index/${action}`, handler(async (req, res) => {

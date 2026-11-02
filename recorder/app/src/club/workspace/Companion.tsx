@@ -4,7 +4,7 @@ import {ACTION_TITLE,ACTION_VERB,isEditAction,type CompanionAction,type Companio
 import type {EditorBridge,EditorState} from '../../App';
 import {describeEditAction,type SilencePlan} from '../../editing-actions';
 import {MOTION_TEMPLATES} from '../../../shared/motion/templates';
-import {clubFetch} from '../api';
+import {clubFetch,clubUpload,errorMessage} from '../api';
 import {featuredSkills,matchSkills,slashQuery,type InstalledSkill} from '../../../shared/skills';
 import {ErrorLine} from '../ErrorLine';
 import {ASK_CLAUDE} from './ask-claude';
@@ -107,11 +107,22 @@ export function Companion({videoId,videoTitle,tab,scene,screen,selection,pkg,out
   await bridge.flush().catch(()=>{});
   return {...context,...bridge.context()};
  };
+ // Pictures to send with the next message: pasted, dropped or attached. They upload at once and show as small thumbnails above the box.
+ const chatBase=`${boardBase(videoId)}/companion/attachments`;
+ const [pics,setPics]=useState<string[]>([]),[picError,setPicError]=useState('');
+ const addPictures=async(files:readonly File[])=>{
+  setPicError('');
+  for(const file of files.filter(each=>/^image\/(png|jpeg)$/.test(each.type)).slice(0,6-pics.length)){
+   const form=new FormData();form.append('file',file);
+   try{const {name}=await clubUpload<{name:string}>(chatBase,form);setPics(current=>[...current,name]);}
+   catch(reason){setPicError(errorMessage(reason,"Couldn't add that picture."));}
+  }
+ };
  const ask=async(question:string)=>{
   if(!question.trim()||working)return;
   pinned.current=true;
-  const sent=await companion.send(question,await contextNow());
-  if(sent)setText('');
+  const sent=await companion.send(question,await contextNow(),undefined,pics);
+  if(sent){setText('');setPics([]);}
  };
  // Typing "/" lists the person's own skills; choosing one puts its name in the message, and sending it runs the skill.
  const [skills,setSkills]=useState<InstalledSkill[]|null>(null);
@@ -187,7 +198,7 @@ export function Companion({videoId,videoTitle,tab,scene,screen,selection,pkg,out
      {chips||null}
     </div>}
    {items.map(item=>item.kind==='divider'?<div key={item.key} className="cmp-divider" role="separator">{item.label}</div>
-    :item.message.role==='user'?<div key={item.key} className="cmp-me">{item.message.text}</div>
+    :item.message.role==='user'?<div key={item.key} className="cmp-me">{item.message.attachments?.length?<div className="cmp-pics">{item.message.attachments.map(name=><img key={name} src={`/api/club${chatBase}/${name}`} alt=""/>)}</div>:null}{item.message.text}</div>
     :<Reply key={item.key} name={name} message={item.message} answered={working||(messages?.at(-1)?.id!==item.message.id)} onChoose={answer=>void ask(answer)} pkg={pkg} outline={outline} scenes={scenes} busy={companion.busyCard} editor={editor} silences={silences}
       onApply={index=>companion.apply(item.message.id,index)} onUndo={index=>companion.undo(item.message.id,index)}/>)}
    {live&&<LiveReply name={name} live={live} now={now} onRetry={()=>void contextNow().then(companion.retry)}/>}
@@ -197,7 +208,7 @@ export function Companion({videoId,videoTitle,tab,scene,screen,selection,pkg,out
   <div className="cmp-foot">
    {!working&&!fresh&&!awaiting&&chips}
    {pickerOpen&&<div className="cmp-skills" role="listbox" aria-label="Your skills">
-    <div className="cmp-skills-head">Your skills</div>
+    <div className="cmp-skills-head">{tab==='edit'?'Your skills: on Edit a skill runs for real and makes something for the timeline':'Your skills'}</div>
     <div className="cmp-skills-list">
     {!skills?<div className="cmp-skills-empty">Looking for your skills…</div>
      :!choices.length?<div className="cmp-skills-empty">{skills.length?'No skill with that name.':'No skills are installed in your Claude Code yet.'}</div>
@@ -207,11 +218,14 @@ export function Companion({videoId,videoTitle,tab,scene,screen,selection,pkg,out
      {hidden>0&&<button type="button" className="cmp-skills-more" onMouseDown={event=>event.preventDefault()} onClick={()=>setShowAll(true)}>Show all {skills!.length} skills, or type a name</button>}
     </div>
    </div>}
-   <form className="cmp-input" onSubmit={event=>{event.preventDefault();void ask(text);}}>
-    <textarea ref={input} rows={2} value={text} onChange={event=>setText(event.target.value)} onKeyDown={onKeyDown} placeholder={working?'Esc stops the reply':'Ask for a change, or type / for your skills'} aria-label={`Message to ${name}`}/>
+   <form className="cmp-input" onSubmit={event=>{event.preventDefault();void ask(text);}} onDragOver={event=>event.preventDefault()} onDrop={event=>{event.preventDefault();void addPictures([...event.dataTransfer.files]);}}>
+    {pics.length>0&&<div className="cmp-pics pending">{pics.map(name=><span key={name} className="cmp-pic"><img src={`/api/club${chatBase}/${name}`} alt=""/><button type="button" aria-label="Remove picture" onClick={()=>setPics(current=>current.filter(each=>each!==name))}><Icon name="X" size={11}/></button></span>)}</div>}
+    {picError&&<p className="cmp-pic-err" role="alert">{picError}</p>}
+    <textarea ref={input} rows={2} value={text} onChange={event=>setText(event.target.value)} onKeyDown={onKeyDown} onPaste={event=>{const files=[...event.clipboardData.files];if(files.length){event.preventDefault();void addPictures(files);}}} placeholder={working?'Esc stops the reply':'Ask for a change, or type / for your skills'} aria-label={`Message to ${name}`}/>
     <div className="cmp-input-row">
     <span className="cmp-context" title="What Claude is looking at"><Icon name="Eye" size={12}/>{lookingAt(tab,scene)}{scene&&<> · {scene.title}</>}{selected>0&&<> · {selected} selected</>}</span>
     <span className="grow"/>
+    <label className="cmp-attach" title="Add a picture (or paste or drop one)"><Icon name="Image" size={15}/><input type="file" className="sr-only" accept="image/png,image/jpeg" multiple onChange={event=>{void addPictures([...(event.target.files??[])]);event.target.value='';}}/></label>
     {working
      ?<button type="button" className="cmp-send stop" onClick={stop} aria-label="Stop (Esc)" title="Stop (Esc)"><Icon name="Square" size={12} stroke={2.4}/></button>
      :<button type="submit" className="cmp-send" disabled={!text.trim()} aria-label="Send (Enter)" title="Send (Enter) · Shift+Enter for a new line"><Icon name="ArrowUp" size={15} stroke={2.2}/></button>}
@@ -311,7 +325,7 @@ function Card({id,card,pkg,outline,scenes,busy,editor,silences,answered,onChoose
  let body;
  // What it would do to the timeline as it is now, while it is still on offer: the cuts and seconds, the share of the video, the zoom it replaces.
  const estimate=timeline&&stage&&card.state!=='applied'?stage.estimate(action,{silences}):undefined;
- if(timeline)body=<div className="cmp-card-text">{stage?stage.describe(action):describeEditAction(action)}{estimate&&<div className={cn('cmp-card-est',estimate.warn&&'warn')}>{estimate.warn&&<Icon name="TriangleAlert" size={12}/>}{estimate.text}</div>}</div>;
+ if(timeline)body=<div className="cmp-card-text">{action.type==='add_clip'&&(action.media.kind==='image'?<img className="cmp-made" src={`/api/media/${encodeURIComponent(action.media.id)}/file`} alt=""/>:<video className="cmp-made" src={`/api/media/${encodeURIComponent(action.media.id)}/file`} muted loop autoPlay playsInline/>)}{stage?stage.describe(action):describeEditAction(action)}{estimate&&<div className={cn('cmp-card-est',estimate.warn&&'warn')}>{estimate.warn&&<Icon name="TriangleAlert" size={12}/>}{estimate.text}</div>}</div>;
  else if(action.type==='draft_scenes'){
   let at=0;
   body=<ol className="cmp-card-scenes">{action.scenes.map((scene,index)=>{const start=at;at+=scene.seconds;return <li key={index}><span>{scene.title}</span><span className="cmp-t">{scenesClock(start)}</span></li>;})}</ol>;

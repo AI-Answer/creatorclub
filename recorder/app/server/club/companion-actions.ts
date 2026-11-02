@@ -17,6 +17,7 @@ import { outlineFile, packageFile, parseOutline, patchPackage, readOutline, read
 import { videoScenes } from './scenes.js';
 import { titleProblems } from './prompts.js';
 import * as store from './store.js';
+import { SKILL_RUNS } from './skill-run.js';
 
 /*
  * The companion's actions. Each one has a shape the model's answer is checked against, the steps it may be offered on, and how it
@@ -77,6 +78,15 @@ export const actionShape = z.discriminatedUnion('type', [
     .object({ type: z.literal('update_motion_block'), at: time, text: line(80).optional(), detail: line(120).optional(), style: z.string().max(20).optional(), start: time.optional(), duration: z.number().min(1).max(20).optional(), x: z.number().min(0).max(1).optional(), y: z.number().min(0).max(1).optional() })
     .strict(),
   z.object({ type: z.literal('remove_motion_block'), at: time }).strict(),
+  z
+    .object({
+      type: z.literal('add_clip'),
+      media: z.object({ id: z.string().max(100), name: z.string().max(300), path: z.string().max(4000), kind: z.enum(['video', 'image']), duration: z.number().min(0), width: z.number().min(1), height: z.number().min(1) }).passthrough(),
+      start: time,
+      duration: z.number().positive().max(600),
+      title: line(80),
+    })
+    .strict(),
   z.object({ type: z.literal('normalize_audio') }).strict(),
 ])
   .refine((action) => action.type !== 'set_scene' || action.title !== undefined || action.talkingPoints !== undefined, { message: 'changes nothing' })
@@ -366,6 +376,16 @@ const HANDLERS: { [K in CompanionActionType]: Handler<Extract<CompanionAction, {
   add_motion_block: edit,
   update_motion_block: edit,
   remove_motion_block: edit,
+  // Only a file a skill run made inside this video's folder can be placed: never a path from anywhere else.
+  add_clip: {
+    changed: ['timeline'],
+    apply: async (slug, id, action, options) => {
+      const root = await fs.realpath(path.join(store.videoDir(slug, id), SKILL_RUNS)).catch(() => '');
+      const file = await fs.realpath(action.media.path).catch(() => '');
+      if (!root || !file.startsWith(root + path.sep)) throw new ClubError("That file isn't one your skill made for this video.", 409);
+      return edit.apply(slug, id, action, options);
+    },
+  },
   normalize_audio: edit,
 };
 

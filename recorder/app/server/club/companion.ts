@@ -1,5 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { withSkills } from './skills.js';
+import { runMakingSkill, skillFolder } from './skill-run.js';
+import { slashSkill } from '../../shared/skills.js';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { z } from 'zod';
@@ -305,6 +307,10 @@ async function writeReply(slug: string, id: string, input: AskInput, context: Jo
   const tab = input.message.context.tab;
   steps.start(READING[tab]);
 
+  // On Edit, "/<skill> …" runs that skill for real (its scripts and tools) and brings back what it made as a card to place.
+  const making = tab === 'edit' && !store.isChannelBoard(id) ? slashSkill(input.message.text) : undefined;
+  if (making && (await skillFolder(making, options.home))) return makeWithSkill(slug, id, input, context, steps, making, options);
+
   // Research is the channel's own Board: no video, no package or scenes; the cards (with their ids) and frames are what it reads.
   const research = store.isChannelBoard(id);
   let built: Awaited<ReturnType<typeof buildCompanionPrompt>>;
@@ -393,6 +399,7 @@ async function writeReply(slug: string, id: string, input: AskInput, context: Jo
       provider,
       prompt: built.prompt,
       system: await withSkills(built.system, input.message.text),
+      images: attachmentPaths(slug, id, input.message),
       model: provider === 'claude' ? 'sonnet' : undefined,
       budgetUsd: COMPANION_BUDGET_USD,
       stream: true,
@@ -458,12 +465,74 @@ async function writeReply(slug: string, id: string, input: AskInput, context: Jo
   }
 }
 
+/** A picture sent with a message: a random name, kept in the board's `chat` folder. */
+const ATTACHMENT = /^[a-f0-9]{16}\.(png|jpg)$/;
+export const attachmentDir = (slug: string, id: string) => path.join(store.boardDir(slug, id), 'chat');
+const attachmentPaths = (slug: string, id: string, message: CompanionUserMessage) => (message.attachments ?? []).filter((name) => ATTACHMENT.test(name)).map((name) => path.join(attachmentDir(slug, id), name));
+
+/** Saves one picture for the next message; PNG or JPEG by its bytes. */
+export async function saveAttachment(slug: string, id: string, bytes: Buffer, kind: 'png' | 'jpg'): Promise<{ name: string }> {
+  await store.requireBoard(slug, id);
+  const name = `${randomBytes(8).toString('hex')}.${kind}`;
+  await fs.mkdir(attachmentDir(slug, id), { recursive: true });
+  await fs.writeFile(path.join(attachmentDir(slug, id), name), bytes);
+  return { name };
+}
+
+/** The file of one picture sent in this conversation, or undefined. */
+export const attachmentFile = (slug: string, id: string, name: string) => (ATTACHMENT.test(name) ? path.join(attachmentDir(slug, id), name) : undefined);
+
+/** How much of the video a skill run is for when nothing is selected: from the playhead on. */
+const SKILL_STRETCH_S = 5;
+
+/** A skill run on Edit: the stretch is the selection, else a few seconds from the playhead. The reply is what the skill said, with its file as a card. */
+async function makeWithSkill(slug: string, id: string, input: AskInput, context: JobContext, steps: Steps, skill: string, options: PlanOptions): Promise<CompanionReplyMessage> {
+  const project = await editProject(slug, id).then(({ project }) => project, () => undefined);
+  if (!project?.clips.length) throw new ClubError('Record something first: a skill makes things for the timeline.');
+  const length = project.clips.reduce((end, c) => Math.max(end, c.start + (c.sourceOut - c.sourceIn) / Math.max(0.05, c.speed)), 0);
+  const at = input.message.context.range ?? { start: input.message.context.playhead ?? 0, end: (input.message.context.playhead ?? 0) + SKILL_STRETCH_S };
+  const from = Math.min(Math.max(0, at.start), Math.max(0, length - 0.5)),
+    to = Math.min(length, Math.max(from + 0.5, at.end));
+  let last = '';
+  const done = await runMakingSkill({
+    slug,
+    id,
+    skill,
+    request: input.message.text.replace(/^\s*\/\S+\s*/, ''),
+    project,
+    from,
+    to,
+    home: options.home,
+    images: attachmentPaths(slug, id, input.message),
+    signal: context.signal,
+    runAI: options.runAI,
+    onStep: (label) => {
+      if (label !== last) steps.start((last = label));
+    },
+  });
+  if (context.signal.aborted) throw new AiError('cancelled', 'That was stopped.');
+  steps.close();
+  const reply: CompanionReplyMessage = {
+    id: newId(),
+    role: 'assistant',
+    text: done.text.slice(0, TEXT_MAX.assistant),
+    at: new Date().toISOString(),
+    tab: 'edit',
+    cards: done.action ? [{ action: done.action, state: 'offered' }] : [],
+    steps: steps.done,
+  };
+  await changeThread(slug, id, (messages) => ({ messages: [...messages, reply], result: undefined }));
+  return reply;
+}
+
 export const askBody = z
   .object({
     message: z.string().trim().min(1).max(4000),
     context: contextShape,
     /** Try again: the question already saved, asked again instead of saved twice. */
     retryOf: z.string().max(40).optional(),
+    /** Pictures uploaded first to `companion/attachments`, by file name. */
+    attachments: z.array(z.string().regex(ATTACHMENT)).max(6).optional(),
   })
   .strict();
 
@@ -481,7 +550,7 @@ export async function askCompanion(slug: string, id: string, body: z.infer<typeo
   const { message, history } = await changeThread(slug, id, (messages) => {
     const last = messages[messages.length - 1];
     if (body.retryOf && last?.role === 'user' && last.id === body.retryOf) return { messages, result: { message: last, history: messages.slice(0, -1) } };
-    const asked: CompanionUserMessage = { id: newId(), role: 'user', text: body.message.trim(), at: new Date().toISOString(), context: body.context };
+    const asked: CompanionUserMessage = { id: newId(), role: 'user', text: body.message.trim(), at: new Date().toISOString(), context: body.context, ...(body.attachments?.length ? { attachments: body.attachments } : {}) };
     return { messages: [...messages, asked], result: { message: asked, history: messages } };
   });
   const live = { jobId: '', messageId: message.id, steps: [] as string[], text: '' };

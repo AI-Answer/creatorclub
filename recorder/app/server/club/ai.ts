@@ -154,6 +154,11 @@ export interface RunAIOptions extends Lookup {
   budgetUsd: number;
   /** Image file paths. They are named in the prompt and read from their own folder only. */
   images?: string[];
+  /**
+   * A skill run (Claude only): the tools it may use, the folders it may touch and the folder it works in. Still no MCP servers, hooks or
+   * settings; edits and commands are allowed without asking because the person started this run for this folder.
+   */
+  agent?: { cwd: string; dirs: string[]; tools: string[] };
   onEvent?: (event: AIEvent) => void;
   /** Claude: also send the text as it is written (`--include-partial-messages`), as `delta` events. */
   stream?: boolean;
@@ -198,7 +203,12 @@ async function claudeInvocation(o: RunAIOptions): Promise<Invocation> {
   args.push('--system-prompt', o.system ?? DEFAULT_SYSTEM);
   args.push('--no-session-persistence', '--strict-mcp-config', '--disable-slash-commands', '--setting-sources', '');
   let prompt = o.prompt;
-  if (o.images?.length) {
+  if (o.agent) {
+    const tools = o.agent.tools.join(',');
+    args.push('--tools', tools, '--allowedTools', tools, '--permission-mode', 'acceptEdits');
+    for (const dir of o.agent.dirs) args.push('--add-dir', dir);
+    if (o.images?.length) prompt += `\n\nImage files to look at (use the Read tool):\n${o.images.map((image) => `- ${path.resolve(image)}`).join('\n')}`;
+  } else if (o.images?.length) {
     const dirs = [...new Set(o.images.map((image) => path.dirname(path.resolve(image))))];
     args.push('--tools', 'Read', '--allowedTools', 'Read');
     for (const dir of dirs) args.push('--add-dir', dir);
@@ -325,7 +335,8 @@ export async function runAI(options: RunAIOptions): Promise<RunAIResult> {
   if (!file) throw new AiError('not-installed', `${label} is not installed on this Mac.`);
   if (options.signal?.aborted) throw new AiError('cancelled', 'That was stopped.');
 
-  const cwd = await neutralCwd();
+  if (options.agent && provider !== 'claude') throw new AiError('not-installed', 'Skills run with Claude only.');
+  const cwd = options.agent?.cwd ?? (await neutralCwd());
   const invocation = provider === 'claude' ? await claudeInvocation(options) : await codexInvocation(options, cwd);
   const reader = createStreamReader(provider, (event) => options.onEvent?.(event));
   const state = reader.state;

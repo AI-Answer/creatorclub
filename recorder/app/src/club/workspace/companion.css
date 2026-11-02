@@ -202,3 +202,12 @@
 .club-root .cmp-me { border-radius: var(--cc-r-lg) var(--cc-r-lg) var(--cc-r-sm) var(--cc-r-lg); }
 /* On Edit the picture needs the width: the panel is narrower there. */
 .club-root:has(.club-embed .app-shell[data-mode=Edit]) .cmp:not(.collapsed) { width: 320px; }
+/* Pictures in the chat: thumbnails in a sent message and above the box before sending; a skill's result plays in its card. */
+.club-root .cmp-pics { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
+.club-root .cmp-pics img { width: 64px; height: 48px; object-fit: cover; border-radius: var(--cc-r-sm); display: block; box-shadow: inset 0 0 0 1px var(--cc-line); }
+.club-root .cmp-pic { position: relative; display: inline-block; }
+.club-root .cmp-pic button { all: unset; cursor: pointer; position: absolute; top: -6px; right: -6px; width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; background: var(--cc-primary); color: var(--cc-on-primary); }
+.club-root .cmp-pic-err { margin: 0; font-size: var(--cc-text-xs); color: var(--cc-danger); }
+.club-root .cmp-attach { cursor: pointer; display: grid; place-items: center; width: 28px; height: 28px; border-radius: var(--cc-r-sm); color: var(--cc-text-3); }
+.club-root .cmp-attach:hover { background: var(--cc-hover); color: var(--cc-text); }
+.club-root .cmp-made { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: contain; border-radius: var(--cc-r-sm); background: var(--cc-dark-stage); margin-bottom: 8px; }
