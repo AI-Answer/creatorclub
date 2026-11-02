@@ -10,7 +10,7 @@ import {hasWaveform,waveformMediaKey,waveformBars,waveformEnvelopePath,timelineW
 import {sameTimelineWindow,timelineWindow} from './timeline-viewport';
 import {groupMove,hitLayerDrop,snapTargets,snapTimelineDelta,timelinePointerDelta,type LayerDrop,type SnapTarget} from './timeline-drag';
 import {rectangleBetween,itemsInRectangle,type SelectionItem,type SelectionRect} from './timeline-selection';
-import {secondsLabel,syncScenesToTakes,anchoredScroll,applyClipStarts,clampScale,ensureLinks,filmstripTiles,fitScale,freeDelta,linkGroups,linkedIds,moveEffects,moveMarker,planClipMove,removeMarker,resizeEffect,rowItems,rulerTicks,rulerLabel,lengthLabel,pointerScroll,showTenths,trimBounds,trimClips,trimGroup,DRAG_DEAD_ZONE_PX} from './timeline-edit';
+import {secondsLabel,syncScenesToTakes,anchoredScroll,applyClipStarts,clampScale,ensureLinks,fitScale,freeDelta,linkGroups,linkedIds,moveEffects,moveMarker,planClipMove,removeMarker,resizeEffect,rowItems,rulerTicks,rulerLabel,lengthLabel,pointerScroll,showTenths,trimBounds,trimClips,trimGroup,DRAG_DEAD_ZONE_PX} from './timeline-edit';
 import type {Playhead} from './playhead';
 import {isSoundTag} from '../shared/sound-tags';
 
@@ -77,15 +77,12 @@ const fmtLen=lengthLabel;
 const ClubClip=memo(function ClubClip({clip:c,media,row,preview,selected,linked,label,peaks,scale,from,to,onBegin,onOpen}:{clip:Clip;media?:Media;row:Row;preview?:Preview;selected:boolean;linked:boolean;label:string;peaks?:readonly number[];scale:number;from:number;to:number;onBegin:(e:React.PointerEvent,id:string,mode:'move'|'left'|'right')=>void;onOpen:(id:string)=>void}){
  const start=preview?.start??c.start,duration=preview?.duration??clipDuration(c),width=Math.max(4,duration*scale),h=row.height-6;
  const geometry=preview?{...c,start,sourceIn:preview.sourceIn??c.sourceIn,sourceOut:(preview.sourceIn??c.sourceIn)+duration*c.speed}:c;
- const audioRow=c.track==='audio'||c.track==='music',video=media&&media.kind==='video'&&!audioRow,count=video?filmstripCount(media.duration):0;
- const tileW=Math.round(h*(media&&media.width>0&&media.height>0?Math.min(2.4,Math.max(.5,media.width/media.height)):16/9));
- const tiles=useMemo(()=>video?filmstripTiles(geometry,media.duration,count,scale,tileW,from,to):[],[video,geometry.start,geometry.sourceIn,geometry.sourceOut,media?.duration,count,scale,tileW,from,to]);
+ // As in Borumi, a video clip shows one thumbnail at its start rather than a filmstrip along its length.
+ const audioRow=c.track==='audio'||c.track==='music',video=media&&media.kind==='video'&&!audioRow;
  const wave=useMemo(()=>media&&peaks?.length&&audioRow?waveformEnvelopePath(waveformBars(geometry,media,peaks,scale,from,to,4096,1),h/2,h/2-2):'',[media,peaks,audioRow,geometry.start,geometry.sourceIn,geometry.sourceOut,scale,from,to,h]);
- const shift=(geometry.start-start)*scale;
  return <div data-clip-id={c.id} className={`timeline-clip club-clip clip-${c.track} ${selected?'selected':''} ${c.muted?'muted':''} ${preview?'clip-drag-preview':''} ${linked?'is-linked':'is-unlinked'}`} style={{left:start*scale,width,top:3,height:h,transform:preview?.dy?`translateY(${preview.dy}px)`:undefined}}
   onPointerDown={e=>onBegin(e,c.id,'move')} onDoubleClick={()=>onOpen(c.id)} title={`${c.name} · ${fmtLen(duration)}${linked?' · linked':''}. Click to move the playhead, drag the name to move, edges to trim, double-click for settings.`}>
   {video&&<i className="club-clip-thumb" aria-hidden style={{backgroundImage:`url(/api/media/${media.id}/thumbnail)`}}/>}
-  {video&&<div className="club-filmstrip" aria-hidden>{tiles.map(t=><i key={t.left} style={{left:t.left+shift,width:tileW,height:h,backgroundImage:`url(/api/media/${media.id}/filmstrip)`,backgroundSize:`${count*tileW}px ${h}px`,backgroundPosition:`${-t.index*tileW}px 0`}}/>)}</div>}
   {media?.kind==='image'&&<div className="club-filmstrip is-image" aria-hidden style={{backgroundImage:`url(/api/media/${media.id}/thumbnail)`,backgroundSize:`auto ${h}px`}}/>}
   {wave&&<svg className="club-wave" viewBox={`0 0 ${width} ${h}`} preserveAspectRatio="none" aria-hidden><path d={wave}/></svg>}
   {label&&<span className="club-clip-label club-move-handle" title="Drag to move">{linked&&<Link2 size={11} aria-hidden/>}{label}</span>}

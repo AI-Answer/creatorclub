@@ -280,7 +280,6 @@
 .club-embed .app-shell[data-mode=Edit] .club-edit .club-row { border-bottom: 0; background: transparent; }
 .club-embed .app-shell[data-mode=Edit] .club-edit .club-timeline .timeline-clip.club-clip { border-radius: var(--cc-r-lg); background: var(--kind-camera); box-shadow: none; }
 .club-embed .app-shell[data-mode=Edit] .club-edit .club-timeline .timeline-clip.club-clip:is(.clip-audio, .clip-music) { background: var(--kind-audio); color: var(--kind-ink); }
-.club-embed .app-shell[data-mode=Edit] .club-edit .club-filmstrip { display: none; }
 .club-embed .app-shell[data-mode=Edit] .club-edit .club-clip-thumb { position: absolute; left: 4px; top: 4px; bottom: 4px; aspect-ratio: 16 / 9; border-radius: var(--cc-r-sm); background-size: cover; background-position: center; pointer-events: none; }
 .club-embed .app-shell[data-mode=Edit] .club-edit .club-clip:has(.club-clip-thumb) .club-clip-label { margin-left: 84px; }
 .club-embed .app-shell[data-mode=Edit] .club-edit .club-clip-label { font-size: var(--cc-text-xs); font-weight: 600; }
