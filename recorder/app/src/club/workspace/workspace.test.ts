@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {clockTime} from '../video-plan';
-import {takesWaiting,TAKE_NOT_ADDED,nextTab,previousTab,scenesLine,stageForContinue,tabDone,allScenesKept,continueIsPrimary,showsStrip,tabLock,tabState,continueFor,lockedLine,POSTIZ_LINE} from './rules';
+import {takesWaiting,TAKE_NOT_ADDED,nextTab,previousTab,scenesLine,stageForContinue,tabDone,allScenesKept,continueIsPrimary,tabLock,tabState,continueFor,lockedLine,POSTIZ_LINE} from './rules';
 import {canvasSize,clampZoom,dragTo,keyMove,moveBy,tileBox} from './board-layout';
 
 test('the tabs follow each other, and Continue moves the card to the stage of the next tab only when that is further along',()=>{
@@ -58,11 +58,6 @@ test('Continue is primary only when the tab is done and no other primary is wait
  assert.equal(continueIsPrimary(true,false),true);
  assert.equal(continueIsPrimary(true,true),false,'the tab has its own primary button');
  assert.equal(continueIsPrimary(false,false),false,'not done yet');
-});
-
-test('the scene chips show on Record only (on Edit the scenes are bands on the timeline)',()=>{
- assert.equal(showsStrip('record'),true);
- for(const tab of ['board','plan','edit','publish'] as const)assert.equal(showsStrip(tab),false,tab);
 });
 
 test('Breakdown on a YouTube tile sends the tile\'s own YouTube id, never the Creator Compiler video id',async()=>{

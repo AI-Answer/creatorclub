@@ -55,13 +55,13 @@ const withApp=async(hash:string,run:(ui:Awaited<ReturnType<typeof mountUI>>,serv
  FakeEventSource.install();
  const server:Server={videos,workspaces:[ws('samin','Samin Yasar'),ws('ana','Ana','')],current:'samin',welcomed:true,...patch};
  const fake=installFetch(serve(server));
- window.location.hash=hash;
+ window.location.hash=hash;localStorage.removeItem('cc.openVideoTabs');
  const ui=await mountUI(createElement(ClubApp));
  try{await flush();await run(ui,server,fake.calls);}finally{await ui.close();fake.restore();window.location.hash='';}
 };
 const navItems=(c:Element)=>[...c.querySelectorAll('.sidebar a.nav-item')].map(a=>a.querySelector('.label')!.textContent);
 
-test('the sidebar is the switcher, Search, four places (Home, Discover, Videos with the videos in progress, Research), then Settings, Help and Collapse as icons',async()=>{
+test('the Home tab nav is the switcher, Search and four places (Videos with the videos in progress); Settings and Help sit in the tab strip',async()=>{
  await withApp('#/home',async ui=>{
   const c=ui.container,bar=c.querySelector('.sidebar')!;
   assert.deepEqual(navItems(c),['Home','Discover','Videos','Research']);
@@ -69,12 +69,12 @@ test('the sidebar is the switcher, Search, four places (Home, Discover, Videos w
   const counts=Object.fromEntries([...bar.querySelectorAll('a.nav-item')].map(a=>[a.querySelector('.label')!.textContent,a.querySelector('.count')?.textContent]));
   assert.deepEqual(counts,{Home:undefined,Discover:undefined,Videos:'2',Research:undefined},'only Videos has a number: the videos in progress');
   assert.equal(bar.querySelector('a[aria-current="page"]')!.textContent,'Home');
-  assert.deepEqual([...bar.querySelectorAll('.sb-bottom > *')].map(el=>[el.tagName,el.getAttribute('aria-label')]),[['A','Settings'],['BUTTON','Help'],['BUTTON','Collapse sidebar']],'three icons, no text rows');
-  const help=bar.querySelector('[aria-label="Help"]')!;
+  const strip=c.querySelector('.tabstrip')!;
+  assert.deepEqual([...strip.querySelectorAll('.ts-icon')].map(el=>[el.tagName,el.getAttribute('aria-label')]),[['BUTTON','Help'],['A','Settings']],'Help and Settings on the right of the tab strip, as in Borumi');
+  const help=strip.querySelector('[aria-label="Help"]')!;
   await act(async()=>{help.dispatchEvent(new window.PointerEvent('pointerover',{bubbles:true}));});
   await act(async()=>{await new Promise(resolve=>setTimeout(resolve,TOOLTIP_DELAY_MS+50));});
-  assert.match(c.querySelector('[role="tooltip"]')?.textContent??'',/Help: how Creator Compiler works/,'each has a tooltip');
-  assert.equal(bar.querySelector('.sb-bottom')!.textContent,'','no text rows');
+  assert.match(c.querySelector('[role="tooltip"]')?.textContent??'',/Help/,'each has a tooltip');
   assert.equal(bar.querySelectorAll('.sb-video, .sb-label').length,0,'no list of videos: Videos and Home have them');
   assert.equal(bar.querySelectorAll('.sb-search').length,1,'Search once');
   const labels=[...bar.querySelectorAll('a,button')].map(el=>el.getAttribute('aria-label')||el.querySelector('.label')?.textContent||el.textContent!.trim());
@@ -112,33 +112,31 @@ test('Home, Discover and Videos open their own screens, and every old link lands
  }
 });
 
-test('the collapse button folds the sidebar to icons and back, and a new page forgets the choice',async()=>{
+test('the Home tab holds Home, Discover, Videos and Research; a video is its own tab with no Home nav',async()=>{
  await withApp('#/home',async ui=>{
   const c=ui.container;
-  assert.equal(c.querySelector('.sidebar.collapsed'),null);
-  await press(c.querySelector('[aria-label="Collapse sidebar"]')!);
-  assert.ok(c.querySelector('.sidebar.collapsed'));
-  assert.equal(c.querySelector('.sidebar a[href="#/videos"]')!.getAttribute('aria-label'),'Videos','an icon with no label still has a name');
-  await press(c.querySelector('[aria-label="Expand sidebar"]')!);
-  assert.equal(c.querySelector('.sidebar.collapsed'),null);
-  await press(c.querySelector('[aria-label="Collapse sidebar"]')!);
-  await hashTo('#/discover');
-  assert.equal(c.querySelector('.sidebar.collapsed'),null,'going elsewhere opens it again');
+  for(const hash of ['#/home','#/discover','#/videos','#/research']){
+   await hashTo(hash);
+   assert.equal(c.querySelector('.ts-tab.on .ts-label')!.textContent,'Home',hash);
+   assert.ok(c.querySelector('.sidebar'),`${hash} shows the Home nav`);
+  }
+  await hashTo('#/video/p1');
+  assert.equal(c.querySelector('.sidebar'),null,'a video has no Home nav');
+  assert.ok(c.querySelector('.tabstrip a.ts-new[href="#/home"]'),'+ goes back Home');
  });
 });
 
-test('a video opens on the tab for its stage, the sidebar folds itself on every step of a video, and the choice can be undone there',async()=>{
+test('a video opens on the tab for its stage, and each video opened gets its own tab',async()=>{
  await withApp('#/video/p1',async ui=>{
   const c=ui.container;
   assert.equal(window.location.hash,'#/video/p1/plan','planning opens on Plan');
-  assert.ok(c.querySelector('.sidebar.collapsed'),'the sidebar is the rail on Plan too');
   await hashTo('#/video/r1');
   assert.equal(window.location.hash,'#/video/r1/record','recording opens on Record');
-  assert.ok(c.querySelector('.sidebar.collapsed'),'and folds the sidebar');
-  await press(c.querySelector('[aria-label="Expand sidebar"]')!);
-  assert.equal(c.querySelector('.sidebar.collapsed'),null,'you can open it on Record');
+  assert.equal(c.querySelectorAll('.ts-tab:not(.home)').length,2,'both videos are open as tabs');
   await hashTo('#/video/i1');
   assert.equal(window.location.hash,'#/video/i1/board','an idea opens on Board');
+  await press(c.querySelector('.ts-tab.on .ts-close')!);
+  assert.match(window.location.hash,/^#\/video\/r1/,'closing the current tab opens its neighbour');
  });
 });
 
@@ -190,8 +188,9 @@ test('Cmd+K opens search over actions, steps, places, settings and videos; typin
   assert.match(c.querySelector('.palette .po')!.textContent!,/Nothing matches "zzz"\. Try a step, a setting or a word from the title\./);
   await keyDown(c.querySelector('.palette input')!,'Escape');
   assert.equal(c.querySelector('.palette'),null);
-  await press(c.querySelector('.sb-search')!);
-  assert.ok(c.querySelector('.palette'),'the Search button opens it too');
+  await press(c.querySelector('.ts-logo')!);
+  await press([...c.querySelectorAll<HTMLElement>('.menu button')].find(item=>item.textContent==='Search')!);
+  assert.ok(c.querySelector('.palette'),'Search in the app menu opens it too, on any tab');
  });
 });
 
@@ -338,7 +337,9 @@ test('Help is a real help: the five steps, the words, where things live and the 
  await withApp('#/home',async ui=>{
   const c=ui.container;
   assert.equal(c.querySelector('[role="dialog"]'),null);
-  await press(c.querySelector('.sidebar [aria-label="Help"]')!);
+  await press(c.querySelector('.tabstrip [aria-label="Help"]')!);
+  assert.ok(c.querySelector('.help-pop'),'Help opens Borumi\'s popover first');
+  await press(c.querySelector('.help-pop .help-card')!);
   const dialog=c.querySelector('[role="dialog"]')!;
   const help=dialog.textContent!;
   assert.match(help,/How Creator Compiler works/);
@@ -369,15 +370,14 @@ test('a screen that fails to draw shows one sentence and Try again, never the er
  }finally{console.error=error;await ui.close();}
 });
 
-test('the sidebar rail keeps every place reachable by name and tooltip',async()=>{
- const ui=await mountUI(createElement(Sidebar,{route:{name:'videos',view:'board'},collapsed:true,onToggle(){},onSearch(){},onHelp(){},onSwitched(){},onAdd(){},videos,epoch:0}));
+test('the Home tab nav lists the four places and marks the current one',async()=>{
+ const ui=await mountUI(createElement(Sidebar,{route:{name:'videos',view:'board'},onSearch(){},onSwitched(){},onAdd(){},videos,epoch:0}));
  const fake=installFetch(()=>undefined);
  try{
   await flush();
-  const rail=ui.container.querySelector('.sidebar.collapsed')!;
-  assert.deepEqual([...rail.querySelectorAll('a.nav-item')].map(a=>a.getAttribute('aria-label')),['Home','Discover','Videos','Research']);
-  assert.deepEqual([...rail.querySelectorAll('.sb-bottom > *')].map(el=>el.getAttribute('aria-label')),['Settings','Help','Expand sidebar']);
-  assert.equal(rail.querySelector('a[aria-current="page"]')!.getAttribute('aria-label'),'Videos');
+  const nav=ui.container.querySelector('.sidebar')!;
+  assert.deepEqual([...nav.querySelectorAll('a.nav-item .label')].map(label=>label.textContent),['Home','Discover','Videos','Research']);
+  assert.equal(nav.querySelector('a[aria-current="page"] .label')!.textContent,'Videos');
  }finally{await ui.close();fake.restore();}
 });
 
@@ -409,18 +409,16 @@ test('a failed write does not announce a change',async()=>{
  try{await assert.rejects(clubFetch('/videos/v1/move',{body:{stage:'ideas'}}));assert.equal(heard,0);}finally{window.removeEventListener(VIDEOS_CHANGED,listen);fake.restore();}
 });
 
-test('on the desktop app one drag strip sits ahead of every screen; in a browser there is none',async()=>{
+test('on the desktop app the tab strip is the window\'s drag region on every screen, and the screen starts right under it',async()=>{
  const bridge=Object.getOwnPropertyDescriptor(window,'sceneForge');
- await withApp('#/home',async ui=>{assert.equal(ui.container.querySelector('.main-drag'),null);});
  Object.assign(window,{sceneForge:{}});
  try{
-  for(const hash of ['#/home','#/discover','#/videos']){
+  for(const hash of ['#/home','#/discover','#/videos','#/settings']){
    await withApp(hash,async ui=>{
-    const col=ui.container.querySelector('.main-col')!;
     assert.ok(ui.container.querySelector('.club-root')!.classList.contains('club-desktop'));
-    assert.equal(col.querySelectorAll('.club-drag.main-drag').length,1,hash);
-    assert.ok(col.firstElementChild!.classList.contains('main-drag'),'before the screen, so controls under it stay clickable');
-    assert.equal(col.children[1].tagName,'MAIN');
+    assert.ok(ui.container.querySelector('.tabstrip.club-drag'),`${hash}: the tab strip drags the window`);
+    assert.equal(ui.container.querySelectorAll('.main-drag').length,0,`${hash}: no second drag strip`);
+    assert.equal(ui.container.querySelector('.main-col')!.firstElementChild!.tagName,'MAIN');
    });
   }
  }finally{if(bridge)Object.defineProperty(window,'sceneForge',bridge);else delete (window as {sceneForge?:unknown}).sceneForge;}

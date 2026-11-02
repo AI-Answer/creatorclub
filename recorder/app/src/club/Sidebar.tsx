@@ -1,4 +1,3 @@
-import {BrandMark} from '../BrandMark';
 import {useCallback,useEffect,useState} from 'react';
 import type {Video,Workspace} from '../../shared/club';
 import {clubFetch} from './api';
@@ -21,16 +20,14 @@ const IN_PRODUCTION:ReadonlyArray<Video['stage']>=['planning','recording','editi
 export const inProduction=(videos:readonly Video[])=>videos.filter(video=>IN_PRODUCTION.includes(video.stage)).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt));
 
 /**
- * Left sidebar: the channel switcher, search, then the four places (Home, Discover, Videos with the number of videos in progress, Research).
- * At the bottom, three icons with tooltips: Settings, Help (How Creator Compiler works) and the collapse toggle. Collapsed, it is an icon rail with the same items.
+ * The Home tab's left nav, laid out like Borumi's Settings nav (256px, one row per place): the channel switcher, search, then
+ * Home, Discover, Videos (with the number of videos in progress) and Research. Settings and Help live in the tab strip.
  */
-export function Sidebar({route,collapsed,onToggle,onSearch,onHelp,onSwitched,onAdd,videos,epoch}:{route:Route;collapsed:boolean;onToggle():void;onSearch():void;onHelp():void;onSwitched():void;onAdd():void;videos:readonly Video[];epoch:number}){
+export function Sidebar({route,onSearch,onSwitched,onAdd,videos,epoch}:{route:Route;onSearch():void;onSwitched():void;onAdd():void;videos:readonly Video[];epoch:number}){
  const counts:Partial<Record<RouteName,number>>={videos:inProduction(videos).length};
- const settings=route.name==='settings';
- return <nav className={`sidebar${collapsed?' collapsed':''}`} aria-label="Main">
-  <div className="club-drag club-window-top"/>
+ const collapsed=false;
+ return <nav className="sidebar" aria-label="Main">
   <div className="sb-top">
-   <a className="compiler-nav-brand" href="#/home" aria-label="Creator Compiler home" title="Creator Compiler"><BrandMark size={25}/><span>Creator Compiler</span></a>
    <ChannelSwitcher collapsed={collapsed} epoch={epoch} onSwitched={onSwitched} onAdd={onAdd}/>
   </div>
   <button type="button" className="sb-search" onClick={onSearch} title="Search (⌘K)" aria-label="Search"><Icon name="search" size={15}/><span>Search</span><span className="kbd">⌘K</span></button>
@@ -40,16 +37,8 @@ export function Sidebar({route,collapsed,onToggle,onSearch,onHelp,onSwitched,onA
     const link=<a key={name} href={href} className={`nav-item${here?' active':''}`} aria-label={collapsed?label:undefined} aria-current={here?'page':undefined}>
      <Icon name={icon} size={17}/><span className="label">{label}</span>{count?<span className="count" title={`${count} in progress`}>{count}</span>:null}
     </a>;
-    // Folded to the rail, the name shows as a tooltip.
-    return collapsed?<Tooltip key={name} text={count?`${label} · ${count} in progress`:label}>{link}</Tooltip>:link;
+    return link;
    })}
-  </div>
-  <div className="sb-bottom sb-icons">
-   <Tooltip text="Settings" side="top"><a href="#/settings" className={`sb-icon${settings?' active':''}`} aria-label="Settings" aria-current={settings?'page':undefined}><Icon name="settings" size={17}/></a></Tooltip>
-   <Tooltip text="Help: how Creator Compiler works" side="top"><button type="button" className="sb-icon" onClick={onHelp} aria-label="Help"><Icon name="help" size={17}/></button></Tooltip>
-   <Tooltip text={collapsed?'Expand sidebar':'Collapse sidebar'} side="top"><button type="button" className="sb-icon sb-collapse" onClick={onToggle} aria-label={collapsed?'Expand sidebar':'Collapse sidebar'}>
-    <Icon name={collapsed?'sidebar-open':'sidebar-close'} size={17}/>
-   </button></Tooltip>
   </div>
  </nav>;
 }

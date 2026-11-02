@@ -18,11 +18,10 @@ import {Companion,type CompanionEditor} from './Companion';
 import type {EditorBridge,EditorState} from '../../App';
 import {screenSummary} from './companion-logic';
 import type {CompanionChanged} from '../../../shared/companion';
-import {Foot,Header,Strip} from './Frame';
+import {Foot,Header} from './Frame';
 import {Publish} from './Publish';
-import {Teleprompter} from './Teleprompter';
-import {outlineSceneFor,promptScene,recorderSceneFor} from './record-logic';
-import {TAKE_NOT_ADDED,takesWaiting,continueFor,lockedLine,showsStrip,nextTab,stageForContinue,tabLock,TAB_LABEL,type ContinueButton,type LockFacts,type TabFacts,type TabLock} from './rules';
+import {outlineSceneFor,recorderSceneFor} from './record-logic';
+import {TAKE_NOT_ADDED,takesWaiting,continueFor,lockedLine,nextTab,stageForContinue,tabLock,TAB_LABEL,type ContinueButton,type LockFacts,type TabFacts,type TabLock} from './rules';
 
 /**
  * One video's page: the frame (header with the one set of step tabs, scene chips on Record and Edit, a bottom bar with Back and Continue) around the tab's own content. Board is the research canvas;
@@ -119,8 +118,6 @@ export function Workspace({video,tab,back,navigate,onVideo}:{video:Video;tab:Vid
  const refreshPlan=plan.refresh;
  useEffect(()=>{if(tab==='plan'||tab==='publish')void refreshPlan();},[tab,refreshPlan]);
 
- // Recording shows the focused scene's talking points beside the recorder; Edit has no teleprompter.
- const prompting=tab==='record'?promptScene(plan.outline,list,focusId):undefined;
  const waiting=takesWaiting(list);
 
  // A step that cannot work yet is locked, never a dead page: choosing it (or opening its link) goes to the step that unlocks it and says why.
@@ -177,12 +174,10 @@ export function Workspace({video,tab,back,navigate,onVideo}:{video:Video;tab:Vid
  const recorded=list&&recordedCount(list);
  const screen=screenSummary(tab,{pkg:plan.pkg,outline:plan.outline,recorded});
 
- const sceneStrip=<Strip scenes={scenes.state} focusId={focusId} onRetry={scenes.reload} onPick={sceneId=>{setFocusId(sceneId);setPickN(n=>n+1);}}/>;
 
  return <div className="ws">
-  <Header video={video} tab={tab} back={back} facts={facts} onTitle={saveTitle} onStage={stage=>void moveTo(stage,video.stage)} onTab={target=>void goToTab(target)} onLocked={toLocked} onDelete={deleteVideo}/>
+  <Header video={video} tab={tab} onTitle={saveTitle} onStage={stage=>void moveTo(stage,video.stage)} onDelete={deleteVideo}/>
   <div className="ws-row"><div className="ws-col">
-  {showsStrip(tab)&&sceneStrip}
   {moveError&&<div className="ws-body" style={{flex:'none',padding:'8px 18px'}}><ErrorLine message={moveError} onRetry={()=>void continueToNext()}/></div>}
   <div className="ws-body" key={tab}>
    {tab==='board'&&<Board video={video} scenes={list} onDrafted={draftedNow} refreshKey={boardKey} navigate={navigate}/>}
@@ -191,13 +186,12 @@ export function Workspace({video,tab,back,navigate,onVideo}:{video:Video;tab:Vid
     onRecordScene={sceneId=>{setFocusId(sceneId);setPickN(n=>n+1);navigate(tabRoute('record'));}}/>}
    {tab==='edit'&&!lock&&waiting.length>0&&<div className="ws-body" style={{flex:'none',padding:'8px 18px'}}><div className="ws-notice" role="status"><span>{waiting.length===1?`The take for “${waiting[0]}” isn't on the timeline yet.`:`${waiting.length} takes aren't on the timeline yet.`}</span><Button size="sm" onClick={()=>navigate(tabRoute('record'))}>Open the take</Button></div></div>}
    {(tab==='record'||tab==='edit')&&!lock&&(video.recorderProjectId
-    ?<div className={prompting?'rec with-prompter':'rec with-embed'}>
+    ?<div className="rec with-embed">
      <div className="rec-left"><ClubRecorder projectId={video.recorderProjectId} mode={tab==='record'?'Record':'Edit'} onBack={()=>navigate({name:'videos',view:'board'})}
       registerLeaveGuard={registerLeaveGuard} onMode={mode=>{if(mode==='Edit'&&tab==='record')void continueToNext();else navigate(tabRoute(mode==='Edit'?'edit':'record'));}} onProgress={onProgress} onExported={tab==='edit'?onExported:undefined}
       onRestart={plan.continueAction?.run}
       sceneId={recorderSceneFor(video,focusId)??undefined} sceneNonce={pickN} onSceneChange={recorderScene} onChanged={reloadScenes}
       onEditor={tab==='edit'?onEditor:undefined} onEditState={tab==='edit'?setEditState:undefined}/></div>
-     {prompting&&<Teleprompter index={prompting.index} scene={prompting.scene}/>}
     </div>
     :list===undefined?<div className="flex flex-1 items-center justify-center" style={{padding:'64px 0'}}><Spinner label="Loading the scenes" size={20}/></div>
     :<EmptyState icon={<Icon name="camera"/>} title="Ready to record" description="Start the recording for these scenes."
@@ -207,9 +201,9 @@ export function Workspace({video,tab,back,navigate,onVideo}:{video:Video;tab:Vid
     saveError={plan.saveError} onRetry={plan.retrySave} onDescription={description=>plan.editPackage({...(pkgNow.current??EMPTY_PACKAGE),description})}
     onTags={tags=>{plan.editPackage({...(pkgNow.current??EMPTY_PACKAGE),tags});void plan.flush().catch(()=>{});}}/>}
   </div>
-  <Foot next={nextButton}/>
   </div>
   <Companion videoId={video.id} videoTitle={video.title} boardKey={boardKey} tab={tab} scene={companionScene} screen={screen} pkg={plan.pkg} outline={plan.outline} scenes={list} onChanged={companionChanged} beforeApply={plan.flush} editor={companionEditor} roomy={tab==='record'}/>
   </div>
+  <Foot video={video} tab={tab} facts={facts} onTab={target=>void goToTab(target)} onLocked={toLocked} next={nextButton}/>
  </div>;
 }

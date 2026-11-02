@@ -3,13 +3,13 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {getAppearance,initializeAppearance,setAppearance} from './appearance';
 
-test('appearance is light until a choice is stored, even on a dark system',()=>{
+test('appearance follows the system until a choice is stored',()=>{
  const original=(globalThis as {matchMedia?:unknown}).matchMedia;
  Object.assign(globalThis,{matchMedia:()=>({matches:true,addEventListener(){}})});
  try{
   localStorage.clear();
-  assert.equal(getAppearance(),'light');
-  initializeAppearance();assert.equal(document.documentElement.dataset.theme,'light');
+  assert.equal(getAppearance(),'system');
+  initializeAppearance();assert.equal(document.documentElement.dataset.theme,'dark');
   setAppearance('system');assert.equal(getAppearance(),'system');assert.equal(document.documentElement.dataset.theme,'dark');
   setAppearance('dark');assert.equal(getAppearance(),'dark');
   setAppearance('light');assert.equal(getAppearance(),'light');assert.equal(document.documentElement.dataset.theme,'light');

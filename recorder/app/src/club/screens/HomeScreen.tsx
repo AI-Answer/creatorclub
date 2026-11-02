@@ -40,7 +40,7 @@ export function HomeScreen({navigate,onNewVideo}:{navigate(route:Route):void;onN
  // One primary per view: the first-video card and the next-up card each carry their own once there is something to start or continue.
  const newIsPrimary=fresh&&!now.ideas.length;
 
- return <div className="page">
+ return <div className="page home-b">
   <div className="page-head greet">
    <div><h1>{greetingName(profile)?`${greeting()}, ${greetingName(profile)}`:greeting()}</h1><div className="lede">{overviewLede(now)}</div></div>
    <div className="actions"><button type="button" className={`btn${newIsPrimary?' primary':''}`} onClick={onNewVideo}><Icon name="add" size={15}/>New video</button></div>

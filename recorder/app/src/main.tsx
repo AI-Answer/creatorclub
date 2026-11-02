@@ -2,7 +2,6 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import ClubApp from './club/ClubApp';
 import {Button,EmptyState} from './club/ui';
-import '@fontsource-variable/inter';
 import './styles.css';
 import './original-theme.css';
 import './timeline-interactions.css';
@@ -13,6 +12,7 @@ import './editing-club.css';
 import './cutroom.css';
 import './club/polish.css';
 import './BrandLogo.css';
+import './club/borumi.css';
 import {initializeAppearance} from './appearance';
 initializeAppearance();
 

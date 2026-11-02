@@ -43,9 +43,9 @@ test('the tokens file defines every colour the rule allows, light and dark',()=>
  for(const name of ['--cc-accent','--cc-rec','--cc-ok','--cc-warn','--cc-surface','--cc-text','--cc-line','--kind-screen','--kind-camera','--kind-audio','--kind-graphics','--kind-captions','--kind-zoom','--kind-marker','--cc-shadow-1','--cc-r','--cc-dur'])
   assert.match(tokens,new RegExp(`${name}:`),`${name} is defined`);
  assert.match(tokens,/data-theme=dark/,'a dark set');
- // The primary action is the dark button of the approved prototype (light in dark mode); blue is for focus, selection and links.
- assert.match(tokens,/--cc-primary: #151413/);
- assert.match(tokens,/data-theme=dark[^}]*--cc-primary: #f3f1ed/s);
+ // Borumi's palette: the primary action is near-black in light and white in dark; blue is for focus, selection and links.
+ assert.match(tokens,/--cc-primary: #0a0a0a/);
+ assert.match(tokens,/data-theme=dark[^}]*--cc-primary: #ffffff/s);
 });
 
 test('no raw colour in the editor and recorder club stylesheets',()=>{
@@ -103,14 +103,16 @@ test('an icon-only button always has an accessible name',()=>{
  assert.deepEqual(found,[]);
 });
 
-test('Task 14: timeline kinds are told apart from selection blue and from "done" green; markers have their own visible colour',()=>{
+test('timeline kinds: video and audio clips are Borumi\'s blues, captions and markers are told apart from blue and from "done" green',()=>{
  const tokens=fs.readFileSync(path.join(src,TOKENS),'utf8'),light=tokens.slice(0,tokens.indexOf('data-theme=dark'));
  const value=(name:string)=>light.match(new RegExp(`${name}:\\s*(#[0-9a-f]{6})`,'i'))?.[1];
  const hsl=(hex:string)=>{const [r,g,b]=[1,3,5].map(i=>parseInt(hex.slice(i,i+2),16)/255),max=Math.max(r,g,b),min=Math.min(r,g,b),d=max-min,l=(max+min)/2,s=d?d/(1-Math.abs(2*l-1)):0;
   let h=0;if(d){h=max===r?((g-b)/d)%6:max===g?(b-r)/d+2:(r-g)/d+4;h=(h*60+360)%360;}return {h,s};};
  const far=(a:string,b:string,deg:number)=>{const x=hsl(a),y=hsl(b),dh=Math.min(Math.abs(x.h-y.h),360-Math.abs(x.h-y.h));return x.s<.15||dh>=deg;};
  const accent=value('--cc-accent')!,ok=value('--cc-ok')!;
- for(const kind of ['--kind-audio','--kind-captions','--kind-markers']){const v=value(kind);assert.ok(v,`${kind} is its own colour`);assert.ok(far(v!,accent,40),`${kind} is not selection blue`);assert.ok(far(v!,ok,40),`${kind} is not "done" green`);}
+ // Borumi paints video clips blue-600 and audio a darker blue; selection stays an outline, so it never relies on the fill.
+ assert.equal(value('--kind-screen'),'#2563eb');assert.equal(value('--kind-camera'),'#2563eb');assert.equal(value('--kind-audio'),'#1e40af');
+ for(const kind of ['--kind-captions','--kind-markers']){const v=value(kind);assert.ok(v,`${kind} is its own colour`);assert.ok(far(v!,accent,40),`${kind} is not selection blue`);assert.ok(far(v!,ok,40),`${kind} is not "done" green`);}
  assert.ok(far(value('--kind-captions')!,value('--kind-zoom')!,20)&&far(value('--kind-markers')!,value('--kind-zoom')!,15),'captions and markers differ from zoom');
  const css=fs.readFileSync(path.join(src,'editing-club.css'),'utf8');
  assert.match(css,/\.club-marker\{[^}]*var\(--kind-markers\)/,'markers use their token');

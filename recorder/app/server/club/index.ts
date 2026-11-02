@@ -218,7 +218,7 @@ const stageDates = z.record(stage, z.string()).refine((dates) => Object.keys(dat
 const signalsRefreshBody = z.object({ only: z.array(z.string().trim().min(1).max(200)).min(1).max(100).optional() }).strict();
 const moveBody = z.object({ stage, beforeId: z.string().nullable().optional(), stageDates: stageDates.optional() }).strict();
 const geminiKeyBody = z.object({ key: z.string().trim().min(20).max(200).regex(/^[\w-]+$/) }).strict();
-const settingsBody = z.object({ defaultAi: z.enum(['claude', 'codex']), appearance: z.enum(['light', 'dark']) }).partial().strict().refine((body) => Object.keys(body).length > 0, { message: 'nothing to save' });
+const settingsBody = z.object({ defaultAi: z.enum(['claude', 'codex']), appearance: z.enum(['system', 'light', 'dark']) }).partial().strict().refine((body) => Object.keys(body).length > 0, { message: 'nothing to save' });
 const publishBody = z.object({ youtubeUrl: z.string().trim().min(1).max(2000) }).strict();
 
 export interface ClubRouterOptions {
@@ -718,7 +718,7 @@ export function clubRouter({ ai = {}, transcribe, runAI, readViews = ytDlpViews(
     router.get(`${prefix}/companion/attachments/:name`, handler(async (req, res) => {
       const file = attachmentFile(await requireWorkspace(), boardOf(req), param(req, 'name'));
       if (!file) throw notFound('picture');
-      res.sendFile(file);
+      res.sendFile(file, { dotfiles: 'allow' });
     }));
     for (const action of ['apply', 'undo'] as const) {
       router.post(`${prefix}/companion/:messageId/cards/:index/${action}`, handler(async (req, res) => {

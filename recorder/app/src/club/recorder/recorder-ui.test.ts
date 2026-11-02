@@ -40,11 +40,11 @@ test('the take preview shows the take name, a status badge and exactly three cho
   const header=ui.container.querySelector('header.club-take-header')!;
   assert.equal(header.querySelector('h1')?.textContent,'Take 1');
   assert.ok(header.textContent?.includes('New take'),'an unused take is badged as new');
-  assert.deepEqual(footerLabels(ui.container),['Delete take','Record another take','Continue']);
-  assert.ok(footerButton(ui.container,'Continue').classList.contains('primary'),'Continue is the primary');
+  assert.deepEqual(footerLabels(ui.container),['Delete take','Record another take','Confirm take']);
+  assert.ok(footerButton(ui.container,'Confirm take').classList.contains('primary'),'Confirm take is the primary');
   assert.equal(ui.container.querySelectorAll('.take-source-select').length,0,'no hidden "Show in main preview" buttons on the sources');
   assert.ok(!ui.container.textContent?.includes('Use this take'),'the old confirm button is gone');
-  await click(footerButton(ui.container,'Continue'));
+  await click(footerButton(ui.container,'Confirm take'));
   assert.deepEqual(calls,['confirm:record:replace-matching'],'Continue confirms the take the same way as before');
   await click(footerButton(ui.container,'Record another take'));
   assert.equal(calls.at(-1),'retake');
@@ -76,7 +76,7 @@ test('the gear holds archive, keep both, use and edit, the sources and sync, run
   await pick('Rename and adjust sync');
   assert.ok(ui.container.querySelector('form.take-settings'),'the existing take settings open');
   assert.ok(button(ui.container,'Reset sync'));
-  assert.deepEqual(footerLabels(ui.container),['Delete take','Record another take','Continue'],'the bottom still has only the three choices');
+  assert.deepEqual(footerLabels(ui.container),['Delete take','Record another take','Confirm take'],'the bottom still has only the three choices');
  }finally{await ui.close();}
 });
 
@@ -91,7 +91,7 @@ test('a take recorded over earlier footage offers Replace earlier take in the ge
   assert.ok(menuItems(over.container).map(itemLabel).includes('Replace earlier take'));
   await click(menuItems(over.container).find(item=>itemLabel(item)==='Replace earlier take')!);
   assert.equal(calls.at(-1),'confirm:record:replace-matching');
-  await click(footerButton(over.container,'Continue'));
+  await click(footerButton(over.container,'Confirm take'));
   assert.equal(calls.at(-1),'confirm:record:record-over','Continue keeps the record-over mode');
  }finally{await over.close();}
  const confirmed={...project,clips:[...project.clips,{...project.clips[0],id:'c2',recordingTakeId:'t1'}]};
@@ -101,7 +101,7 @@ test('a take recorded over earlier footage offers Replace earlier take in the ge
   assert.ok(done.container.querySelector('header.club-take-header')!.textContent?.includes('Confirmed'));
   await openGear(done.container);
   assert.deepEqual(menuItems(done.container).map(itemLabel),['Show Camera (FaceTime) in main preview','Rename and adjust sync'],'nothing to confirm on a confirmed take');
-  await click(footerButton(done.container,'Continue'));
+  await click(footerButton(done.container,'Confirm take'));
   assert.deepEqual(calls,['close']);
  }finally{await done.close();}
 });
@@ -127,9 +127,8 @@ test('the warnings card shows low disk as one amber card in place of the readine
   assert.equal(cards.length,1,'one card, not one per problem');
   assert.equal(cards[0].getAttribute('data-tone'),'warning');
   assert.equal(cards[0].textContent,'Your disk is almost full: free up at least 8 GB before recording.');
-  assert.equal(cards[0].closest('.club-record-bar')!==null,true,'the card sits in the bar above the Record button');
-  assert.equal(Boolean(ui.container.querySelector('.club-readiness')),false,'it takes the place of the readiness line');
-  assert.equal(cards[0].closest('.club-sources'),null,'and is not hidden under Change');
+  assert.equal(cards[0].parentElement?.classList.contains('club-record-left'),true,'the card sits at the top of the sources column, as in Borumi');
+  assert.equal(cards[0].nextElementSibling?.matches('aside.recording-source-panel'),true,'above the sources');
   assert.ok(asked.includes('/api/club/disk'));
   assert.equal(Boolean(ui.container.querySelector('.recording-ready-hint')),false,'the old ready hint is gone');
  }finally{globalThis.fetch=originalFetch;await ui.close();}
@@ -178,7 +177,7 @@ test('leaving Record for Edit with a take still under review puts the take on th
  const ui=await mountUI(createElement(ClubRecorder,{projectId:server.p.id,mode:'Record',onBack:()=>{},registerLeaveGuard:next=>{leave.guard=next;}}));
  try{
   await flush();await flush();
-  assert.deepEqual(footerLabels(ui.container),['Delete take','Record another take','Continue'],'the take is still under review');
+  assert.deepEqual(footerLabels(ui.container),['Delete take','Record another take','Confirm take'],'the take is still under review');
   assert.ok(leave.guard,'the club can ask before it leaves');
   assert.equal(server.saved(),null,'nothing is on the timeline yet');
   assert.equal(await leave.guard!(),true,'the take was added');
@@ -196,14 +195,15 @@ test('inside Creator Compiler, Continue confirms the take, selects the next scen
  try{
   await flush();await flush();
   const c=ui.container;
-  assert.deepEqual(footerLabels(c),['Delete take','Record another take','Continue'],'the new take opens in its preview');
+  assert.deepEqual(footerLabels(c),['Delete take','Record another take','Confirm take'],'the new take opens in its preview');
   assert.equal(progress.at(-1),'0/2');
-  await click(footerButton(c,'Continue'));await flush();await flush();
+  await click(footerButton(c,'Confirm take'));await flush();await flush();
   assert.equal(Boolean(c.querySelector('footer.club-take-footer')),false,'the preview closes');
   assert.ok(server.saved()?.clips.some(clip=>clip.recordingTakeId==='t1'),'the take is on the timeline');
   assert.equal(c.querySelector('.rsc-scene.is-selected')?.getAttribute('data-scene-id'),'s2','scene 2 is next to record');
   assert.equal(progress.at(-1),'1/2');
-  assert.equal(c.querySelector('.rsc-take-badge'),null,'the takes shown are scene 2\'s, which has none yet');
+  assert.equal(c.querySelector('.rsc-scene[data-scene-id="s2"] .rsc-take-badge'),null,'scene 2 has no take yet');
+  assert.ok(c.querySelector(`.rsc-scene[data-scene-id="${server.p.scenes[0].id}"] .rsc-take-badge`),'scene 1 shows its take');
   assert.ok(!c.textContent?.includes('Edit & export'),'the bottom bar, not a second button, leads to editing');
   assert.ok(!c.textContent?.includes('Remove pauses')&&!c.textContent?.includes('Style video'),'the cards have no per-scene editing buttons');
   assert.equal(c.querySelector('.rsc-take-menu-anchor .rsc-gear'),null,'and no gear on a take: its preview holds the choices');
@@ -222,11 +222,11 @@ test('the bottom bar makes Continue to edit the primary only once every scene ha
  try{
   await flush();await flush();
   assert.ok(!bar().classList.contains('primary'),'while scenes are left, the Record button is the one big action');
-  await click(footerButton(ui.container,'Continue'));await flush();await flush();
+  await click(footerButton(ui.container,'Confirm take'));await flush();await flush();
   assert.ok(!bar().classList.contains('primary'),'one of two scenes recorded');
   const scene2=ui.container.querySelector('.rsc-scene[data-scene-id="s2"]')!;
   assert.ok(scene2.classList.contains('is-selected'));
-  assert.equal(ui.container.querySelector<HTMLButtonElement>('.club-record-button')?.textContent,'Record scene 2','the one Record button is for scene 2');
+  assert.ok(scene2.querySelector('.rsc-record-button'),'scene 2 has its own Record');
  }finally{globalThis.fetch=original;server.restore();await ui.close();}
  // A recording whose every scene has a take: Continue to edit is the primary.
  const all=serveProject();all.p.scenes.pop();
@@ -292,7 +292,6 @@ test('a source that fails for another reason says so in plain words, with no raw
  const audio=await mountClubRecording(only('systemAudio'),'granted');
  try{
   assert.deepEqual(cardLines(audio.ui.container),[],'nothing chosen yet is not an error');
-  assert.equal(audio.ui.container.querySelector('.club-readiness')?.textContent,'Computer audio will start when you press Record.');
   await click(button(audio.ui.container,'Choose source'));await flush();
   assert.deepEqual(cardLines(audio.ui.container),[{text:"The computer audio can't be captured: choose the screen or window again.",button:'Choose source'}]);
   assert.equal(Boolean(audio.ui.container.querySelector('.capture-source-error')),false,'no unexplained buttons under the source');

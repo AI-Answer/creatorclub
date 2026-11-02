@@ -11,12 +11,12 @@ const rows=(html:string)=>[...html.matchAll(/<div class="cursor-point"><b>([^<]*
 
 test('cursor keyframes render whole when short and as a window around the playhead when long',()=>{
  const p=createProject();p.cursor.points=Array.from({length:40},(_,i)=>({time:i,x:.5,y:.5}));
- const short=render(p,12);assert.equal(rows(short).length,40);assert.doesNotMatch(short,/Showing points/);assert.match(short,/Add a point at 0:12<\/button>/);
+ const short=render(p,12);assert.equal(rows(short).length,40);assert.doesNotMatch(short,/Showing points/);assert.match(short,/Add a point at 00:12<\/button>/);
  p.cursor.points=Array.from({length:1000},(_,i)=>({time:i/60,x:i/1000,y:.5}));
  const long=render(p,500/60),visible=rows(long);
- assert.equal(visible.length,150);assert.match(long,/Showing points 451–600 of 1000 near the playhead/);assert.equal(visible[0],'0:07');assert.equal(visible.at(-1),'0:09');
+ assert.equal(visible.length,150);assert.match(long,/Showing points 451–600 of 1000 near the playhead/);assert.equal(visible[0],'00:07');assert.equal(visible.at(-1),'00:09');
  // Rows keep their real index: the first windowed row edits point 450, whose x is .45.
- assert.match(long,/<div class="cursor-point"><b>0:07<\/b><label class="field"><span>Across<\/span><input aria-label="Across" type="number" min="0" max="1" step="0.1" value="0.45"\/>/);
+ assert.match(long,/<div class="cursor-point"><b>00:07<\/b><label class="field"><span>Across<\/span><input aria-label="Across" type="number" min="0" max="1" step="0.1" value="0.45"\/>/);
  assert.match(render(p,0),/Showing points 1–150 of 1000/);assert.match(render(p,999),/Showing points 851–1000 of 1000/);
 });
 

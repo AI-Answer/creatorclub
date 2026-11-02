@@ -289,7 +289,8 @@ test('an existing install is not sent to Welcome or shown the how-it-works dialo
   await settle();
   const dialog=()=>second.container.querySelector('[role="dialog"]');
   assert.equal(dialog(),null,'no dialog on its own');
-  await press(second.container.querySelector('.sidebar [aria-label="Help"]')!);
+  await press(second.container.querySelector('.tabstrip [aria-label="Help"]')!);
+  await press(second.container.querySelector('.help-pop .help-card')!);
   assert.match(text(dialog()),/How Creator Compiler works/);
   await act(async()=>{document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));});
   assert.equal(dialog(),null);

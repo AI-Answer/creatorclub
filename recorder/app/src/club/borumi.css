@@ -1,0 +1,296 @@
+/*
+  Borumi's window chrome and layouts (docs/v2/research/borumi-parity). Sizes come from Borumi 0.32.1's shipped classes and the
+  reference screenshots: a 39px tab strip, 48px project header, 64px step bar, 256px nav with 44px rows, 6px controls.
+  Colours are tokens only (tokens.css).
+*/
+
+.club-root .shell { flex-direction: column; }
+.club-root .shell-row { display: flex; flex: 1; min-height: 0; overflow: hidden; }
+.club-root .main { background: var(--cc-bg); }
+
+/* Tab strip */
+.club-root .tabstrip { display: flex; align-items: stretch; flex: none; height: 39px; background: var(--cc-bg-sunk); border-bottom: 1px solid var(--cc-line); user-select: none; }
+.club-root .tabstrip > span { align-self: stretch; }
+.club-root .ts-traffic { display: none; flex: none; width: 77px; border-right: 1px solid var(--cc-line); }
+.club-desktop[data-platform=darwin] .ts-traffic { display: block; }
+.club-root .ts-logo { display: inline-flex; align-items: center; gap: 5px; height: 100%; padding: 0 14px; border-right: 1px solid var(--cc-line); color: var(--cc-text-3); }
+.club-root .ts-logo:hover, .club-root .ts-logo.on { background: var(--cc-hover); color: var(--cc-text); }
+.club-root .ts-tabs { display: flex; align-items: stretch; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+.club-root .ts-tab { display: flex; align-items: center; gap: 4px; flex: none; max-width: 220px; padding: 0 8px 0 14px; border-right: 1px solid var(--cc-line); color: var(--cc-text-2); font-size: var(--cc-text-xs); font-weight: 600; }
+.club-root .ts-tab:hover { color: var(--cc-text); }
+.club-root .ts-tab.on { background: var(--cc-bg); color: var(--cc-text); }
+.club-root .ts-tab.home { padding-right: 14px; }
+.club-root .ts-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 38px; color: inherit; }
+.club-root .ts-close { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: var(--cc-r-sm); color: var(--cc-text-3); visibility: hidden; }
+.club-root .ts-tab.on .ts-close, .club-root .ts-tab:hover .ts-close, .club-root .ts-close:focus-visible { visibility: visible; }
+.club-root .ts-close:hover { background: var(--cc-hover); color: var(--cc-text); }
+.club-root .ts-new { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 38px; color: var(--cc-text-3); }
+.club-root .ts-new:hover { background: var(--cc-hover); color: var(--cc-text); }
+.club-root .ts-icon { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 43px; border-left: 1px solid var(--cc-line); color: var(--cc-text-3); }
+.club-root .ts-icon:hover { background: var(--cc-hover); color: var(--cc-text); }
+.club-root .ts-icon.on { background: var(--cc-bg); color: var(--cc-text); }
+.club-root .tabstrip :is(a, button):focus-visible { outline: 1px solid var(--cc-accent); outline-offset: -1px; }
+
+/* Home tab nav: Borumi's Settings nav (w-64 p-4, rows px-4 py-3, rounded-md, hover secondary-hover, active secondary) */
+.club-root .sidebar { width: 256px; flex: none; display: flex; flex-direction: column; padding: 16px; overflow-y: auto; background: var(--cc-bg); border-right: 1px solid var(--cc-line); }
+.club-root .sidebar .sb-top { padding: 0 0 8px; }
+.club-root .sidebar .channel-btn { padding: 8px 12px; border-radius: var(--cc-r); }
+.club-root .sidebar .channel-btn:hover { background: var(--cc-hover); }
+.club-root .sidebar .sb-search { margin: 0 0 12px; height: 36px; padding: 0 12px; border: 1px solid var(--cc-line); border-radius: var(--cc-r); background: transparent; color: var(--cc-text-3); }
+.club-root .sidebar .nav { display: flex; flex-direction: column; gap: 0; padding: 0; }
+.club-root .sidebar .nav-item { height: 44px; padding: 0 16px; gap: 8px; border-radius: var(--cc-r); color: var(--cc-text); font-size: var(--cc-text-base); font-weight: 500; box-shadow: none; }
+.club-root .sidebar .nav-item:hover { background: var(--cc-hover); }
+.club-root .sidebar .nav-item.active { background: var(--cc-surface); box-shadow: none; }
+
+/* Video header: Borumi's project header (h-12 px-2, title centred text-xs bold, "| Edited" note, tools on the right) */
+.club-root .ws-top { position: relative; display: flex; align-items: stretch; gap: 0; height: 48px; min-height: 48px; padding: 0 8px; border-bottom: 1px solid var(--cc-line); background: var(--cc-bg); }
+.club-root .ws-top-l { z-index: 1; display: flex; align-items: center; gap: 4px; min-width: 0; }
+.club-root .ws-top-c { position: absolute; top: 0; bottom: 0; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 8px; max-width: min(50vw, 672px); }
+.club-root .ws-top .ws-title { min-width: 40px; padding: 4px 6px; border-radius: var(--cc-r); font-size: var(--cc-text-xs); font-weight: 700; letter-spacing: 0; color: var(--cc-text); }
+.club-root .ws-top .ws-title:hover { background: var(--cc-hover); }
+.club-root .ws-stage { padding-left: 8px; border-left: 1px solid var(--cc-line); font-size: var(--cc-text-xs); line-height: 14px; color: var(--cc-text-3); white-space: nowrap; }
+.club-root .ws-top-r { z-index: 1; display: flex; align-items: center; gap: 4px; margin-left: auto; }
+
+/* Step bar: Borumi's bottom bar (h-16, Back left, round 40px wells joined by chevrons, Continue right) */
+.club-root .ws-foot { position: relative; display: flex; align-items: center; justify-content: center; height: 64px; min-height: 64px; padding: 0 16px; border-top: 1px solid var(--cc-line); background: var(--cc-bg); }
+.club-root .ws-foot .l { position: absolute; top: 0; bottom: 0; left: 16px; display: flex; align-items: center; }
+.club-root .ws-foot .r { position: absolute; top: 0; bottom: 0; right: 16px; display: flex; align-items: center; gap: 12px; }
+.club-root .ws-back { display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 12px; border-radius: var(--cc-r); font-size: var(--cc-text-base); font-weight: 500; color: var(--cc-text); }
+.club-root .ws-back:hover { background: var(--cc-hover); }
+.club-root .ws-steps { display: flex; align-items: center; gap: 6px; }
+.club-root .ws-step { display: inline-flex; align-items: center; gap: 8px; padding: 4px 14px 4px 4px; border-radius: var(--cc-r-pill); font-size: var(--cc-text-base); font-weight: 700; color: var(--cc-text); }
+.club-root .ws-step:hover { background: var(--cc-surface); }
+.club-root .ws-step .well { display: grid; place-items: center; width: 40px; height: 40px; border-radius: var(--cc-r-pill); background: color-mix(in srgb, var(--cc-primary) 5%, transparent); }
+.club-root .ws-step.on .well { background: var(--cc-primary); color: var(--cc-on-primary); }
+.club-root .ws-step.locked { opacity: 0.5; }
+.club-root .ws-step-sep { color: var(--cc-text-3); }
+.club-root .ws-foot .btn { height: 40px; padding: 0 16px; gap: 6px; border-radius: var(--cc-r); font-size: var(--cc-text-base); font-weight: 500; }
+
+/* Settings: Borumi's two columns (nav w-64 border-r p-4, "Settings" text-2xl bold mt-4 mb-8 ml-4, rows px-4 py-3 gap-2 rounded-md) */
+.club-root .settings-layout-b { display: flex; height: 100%; min-height: 0; }
+.club-root .settings-nav { width: 256px; flex: none; display: flex; flex-direction: column; padding: 16px; overflow-y: auto; border-right: 1px solid var(--cc-line); }
+.club-root .settings-nav h1 { margin: 16px 0 32px 16px; font-size: var(--cc-text-2xl); line-height: 32px; font-weight: 700; color: var(--cc-text); }
+.club-root .settings-tab { display: flex; align-items: center; gap: 8px; width: 100%; padding: 12px 16px; border-radius: var(--cc-r); font-size: var(--cc-text-base); font-weight: 500; color: var(--cc-text); }
+.club-root .settings-tab:hover { background: var(--cc-hover); }
+.club-root .settings-tab.on { background: var(--cc-surface); }
+.club-root .settings-body-b { flex: 1; min-width: 0; overflow-y: auto; padding: 24px 24px 48px; }
+.club-root .settings-body-b > .set-group:first-child > h2 { margin-top: 0; }
+
+/* Record: Borumi's two columns. Sources on the left (400px: warning card, one block per source with switch, device, gear and live
+   preview), scene cards on the right (dot, "Scene N", gear, script, Record or the dashed Record tile, take thumbnails, Archived). */
+.club-embed .app-shell[data-mode=Record] .recording-workspace.club-record { display: grid; grid-template-columns: 400px minmax(0, 1fr); overflow: hidden; background: var(--cc-bg); }
+.club-embed .app-shell[data-mode=Record] .club-record .club-record-left { min-width: 0; overflow-y: auto; border-right: 1px solid var(--cc-line); background: var(--cc-bg); }
+.club-embed .app-shell[data-mode=Record] .club-record .club-record-left > .club-recorder-warnings { margin: 12px; padding: 20px; border: 0; border-radius: var(--cc-r); background: var(--cc-warn-soft); color: var(--cc-text); font-size: var(--cc-text-base); line-height: 1.6; }
+.club-embed .app-shell[data-mode=Record] .club-record .club-record-left > .club-recorder-warnings .icon { color: var(--cc-text); }
+.club-embed .app-shell[data-mode=Record] .club-record .recording-source-panel { overflow: visible; border-right: 0; background: transparent; }
+.club-embed .app-shell[data-mode=Record] .club-record .capture-source { padding: 12px; border-top: 1px solid var(--cc-line); }
+.club-embed .app-shell[data-mode=Record] .club-record .capture-source > header { display: flex; align-items: center; gap: 10px; min-height: 32px; }
+.club-embed .app-shell[data-mode=Record] .club-record .capture-source > header > strong { font-size: var(--cc-text-base); font-weight: 700; color: var(--cc-text); }
+.club-embed .app-shell[data-mode=Record] .club-record .capture-media { margin-top: 12px; border-radius: var(--cc-r); overflow: hidden; background: var(--cc-dark-stage); }
+.club-embed .app-shell[data-mode=Record] .club-record .recording-countdown-toggle { display: flex; align-items: center; gap: 8px; padding: 12px; border-top: 1px solid var(--cc-line); font-size: var(--cc-text-xs); color: var(--cc-text-3); }
+.club-embed .app-shell[data-mode=Record] .club-record .recording-main { height: 100%; padding: 0; background: var(--cc-bg); }
+.club-embed .app-shell[data-mode=Record] .club-record .recording-main.scene-cards-mode { align-items: stretch; justify-content: flex-start; }
+.club-embed .app-shell[data-mode=Record] .club-record .recording-scene-cards { width: 100%; max-width: 680px; margin: 0 auto; padding: 16px 24px 40px; gap: 0; }
+.club-embed .app-shell[data-mode=Record] .club-record .rsc-scene { padding: 16px; border: 1px solid var(--cc-line); border-radius: var(--cc-r-lg); background: var(--cc-surface); box-shadow: none; }
+.club-embed .app-shell[data-mode=Record] .club-record .rsc-scene.is-selected { border-color: var(--cc-accent); box-shadow: none; }
+.club-embed .app-shell[data-mode=Record] .club-record .rsc-script { margin: 12px 0 16px; font-size: var(--cc-text-base); color: var(--cc-text); }
+.club-embed .app-shell[data-mode=Record] .club-record .rsc-add-between { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; height: 40px; margin: 6px 0; border-radius: var(--cc-r); font-size: var(--cc-text-base); font-weight: 600; color: var(--cc-text); }
+.club-embed .app-shell[data-mode=Record] .club-record .rsc-add-between:hover { background: var(--cc-surface); }
+.club-embed .app-shell[data-mode=Record] .club-record .capture-switch[aria-checked=true] { background: var(--cc-ok); }
+.club-embed .app-shell[data-mode=Record] .club-record .capture-preview-empty { background: var(--cc-dark-stage); color: var(--cc-on-media); }
+.club-embed .app-shell[data-mode=Record] .club-record .capture-preview-empty .button { background: var(--cc-on-media); color: var(--cc-dark-stage); }
+.club-embed .app-shell[data-mode=Record] .club-record .source-readiness { display: none; }
+.club-embed .app-shell[data-mode=Record] .club-record .rsc-scene-heading { gap: 8px; }
+.club-embed .app-shell[data-mode=Record] .club-record .rsc-scene-grip { opacity: 0; }
+.club-embed .app-shell[data-mode=Record] .club-record .rsc-scene:hover .rsc-scene-grip, .club-embed .app-shell[data-mode=Record] .club-record .rsc-scene-grip:focus-visible { opacity: 1; }
+.club-embed .app-shell[data-mode=Record] .club-record .rsc-status { width: 6px; height: 6px; border-radius: var(--cc-r-pill); background: var(--cc-warn); }
+.club-embed .app-shell[data-mode=Record] .club-record .rsc-status.is-complete { background: var(--cc-ok); }
+.club-embed .app-shell[data-mode=Record] .club-record .rsc-scene-container + .rsc-scene-container { margin-top: 12px; }
+.club-embed .app-shell[data-mode=Record] .club-record .rsc-scene-container:not(:last-child) .rsc-add-between { display: none; }
+.club-embed .app-shell[data-mode=Record] .club-record .rsc-scene-container:last-child .rsc-add-between { margin-top: 12px; }
+
+/* Take preview: Borumi's label chips on each source, red Delete take, plain Record another take, white Confirm take */
+.club-embed .app-shell[data-mode=Record] .take-review .take-source-label { left: 8px; bottom: 8px; padding: 4px 8px; border-radius: var(--cc-r); background: var(--cc-media-scrim); color: var(--cc-on-media); font-size: var(--cc-text-xs); font-weight: 500; }
+.club-embed .app-shell[data-mode=Record] .take-review header > div > span:first-child { text-transform: uppercase; font-size: var(--cc-text-2xs); letter-spacing: 0.04em; color: var(--cc-text-3); }
+.club-root .club-take-footer { background: var(--cc-bg); }
+.club-root .club-take-footer .btn.danger { background: var(--cc-danger); color: var(--cc-on-media); border-color: transparent; }
+.club-root .club-take-footer .btn.danger:hover:not(:disabled) { background: color-mix(in srgb, var(--cc-danger) 90%, transparent); }
+.club-root .club-take-footer .btn { height: 40px; padding: 0 16px; font-size: var(--cc-text-base); }
+
+/* Edit: Borumi's arrangement. A 72px rail of round icon wells down the left; a tool's panel opens beside it; the picture in the middle
+   and the transcript in its own column on the right (ratio 2:1); the play bar and the timeline run under all of them. */
+.club-embed .app-shell[data-mode=Edit] .edit-workspace.club-edit { --club-rail: 72px; grid-template-columns: var(--club-rail) 0 minmax(0, 1fr) 0; background: var(--cc-bg); }
+.club-embed .app-shell[data-mode=Edit] .edit-workspace.club-edit.has-side { grid-template-columns: var(--club-rail) var(--club-panel) minmax(0, 1fr) 0; }
+.club-embed .app-shell[data-mode=Edit] .edit-workspace.club-edit.has-transcript { grid-template-columns: var(--club-rail) 0 minmax(0, 2fr) minmax(260px, 1fr); }
+.club-embed .app-shell[data-mode=Edit] .edit-workspace.club-edit.has-side.has-transcript { grid-template-columns: var(--club-rail) var(--club-panel) minmax(0, 2fr) minmax(240px, 1fr); }
+.club-embed .app-shell[data-mode=Edit] .club-edit .club-rail { grid-column: 1; grid-row: 1 / -1; gap: 0; padding: 0; background: var(--cc-bg); border-right: 1px solid var(--cc-line); }
+.club-embed .app-shell[data-mode=Edit] .club-edit .club-rail button { gap: 4px; padding: 8px 12px; border-radius: var(--cc-r-sm); color: var(--cc-text); font-size: var(--cc-text-xs); font-weight: 500; }
+.club-embed .app-shell[data-mode=Edit] .club-edit .club-rail button > svg { box-sizing: content-box; width: 18px; height: 18px; padding: 9px; border-radius: var(--cc-r-pill); background: color-mix(in srgb, var(--cc-primary) 5%, transparent); }
+.club-embed .app-shell[data-mode=Edit] .club-edit .club-rail button:hover { background: var(--cc-surface); color: var(--cc-text); }
+.club-embed .app-shell[data-mode=Edit] .club-edit .club-rail button[aria-pressed=true] { background: transparent; color: var(--cc-text); }
+.club-embed .app-shell[data-mode=Edit] .club-edit .club-rail button[aria-pressed=true] > svg { background: var(--cc-primary); color: var(--cc-on-primary); }
+.club-embed .app-shell[data-mode=Edit] .club-edit .club-edit-side { grid-column: 2; grid-row: 1; background: var(--cc-bg); }
+.club-embed .app-shell[data-mode=Edit] .club-edit:not(.has-side) .club-edit-side { border-right: 0; }
+.club-embed .app-shell[data-mode=Edit] .club-edit .club-edit-stage { grid-column: 3; grid-row: 1; background: var(--cc-bg); }
+.club-embed .app-shell[data-mode=Edit] .club-edit .club-edit-transcript { grid-column: 4; grid-row: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; border-left: 1px solid var(--cc-line); background: var(--cc-bg); }
+.club-embed .app-shell[data-mode=Edit] .club-edit .club-edit-transcript[hidden] { display: none; }
+.club-embed .app-shell[data-mode=Edit] .club-edit .club-edit-transcript > .transcript-panel { flex: 1; min-height: 0; width: auto; border: 0; background: transparent; }
+.club-embed .app-shell[data-mode=Edit] .club-edit .club-timeline-bar { grid-column: 2 / -1; grid-row: 2; background: var(--cc-bg); }
+.club-embed .app-shell[data-mode=Edit] .club-edit .timeline.club-timeline { grid-column: 2 / -1; grid-row: 3; background: var(--cc-bg); }
+.club-embed .app-shell[data-mode=Edit] .club-edit .timeline-resizer { grid-column: 2 / -1; left: var(--club-rail); }
+.club-embed .app-shell[data-mode=Edit] .club-edit .club-timeline-bar { gap: 4px; border-top: 1px solid var(--cc-line); }
+.club-embed .app-shell[data-mode=Edit] .club-edit .club-timeline-bar .club-tool { height: 32px; padding: 0 8px; border: 0; border-radius: var(--cc-r); background: transparent; box-shadow: none; color: var(--cc-text); }
+.club-embed .app-shell[data-mode=Edit] .club-edit .club-timeline-bar .club-tool:hover:not(:disabled) { background: var(--cc-surface); }
+.club-embed .app-shell[data-mode=Edit] .club-edit .club-timeline-bar .club-tool[aria-pressed=true] { background: var(--cc-hover); color: var(--cc-text); }
+.club-embed .app-shell[data-mode=Edit] .club-edit .club-timeline-bar .club-play { background: transparent; color: var(--cc-text); box-shadow: none; }
+.club-embed .app-shell[data-mode=Edit] .club-edit .club-edit-transcript .transcript-panel > header { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 8px; align-items: start; padding: 16px 16px 8px; }
+.club-embed .app-shell[data-mode=Edit] .club-edit .club-edit-transcript .transcript-panel > header > b { grid-column: 1; font-size: var(--cc-text-2xs); letter-spacing: 0.04em; text-transform: uppercase; color: var(--cc-text-3); }
+.club-embed .app-shell[data-mode=Edit] .club-edit .club-edit-transcript .transcript-panel > header > .club-sheet-sub { grid-column: 1; font-size: var(--cc-text-xs); color: var(--cc-text-3); }
+.club-embed .app-shell[data-mode=Edit] .club-edit .club-edit-transcript .transcript-panel > header > .club-sheet-close { display: inline-flex; grid-column: 2; grid-row: 1; }
+
+/* Edit panels: Borumi's look. No title row (the rail says which tool is open, and choosing it again closes it); grey small-caps
+   section labels; white switches and slider thumbs; dark tiles that get a blue ring and tint when chosen. */
+.club-embed .app-shell[data-mode=Edit] .club-edit-side .inspector-heading { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.club-embed .app-shell[data-mode=Edit] .club-edit-side .inspector { position: relative; padding-top: 4px; background: var(--cc-bg); }
+.club-embed .app-shell[data-mode=Edit] .toggle-track { width: 36px; height: 20px; border-radius: var(--cc-r-pill); background: var(--cc-line-strong); }
+.club-embed .app-shell[data-mode=Edit] .toggle-track::after { width: 16px; height: 16px; top: 2px; left: 2px; background: var(--cc-text); box-shadow: none; }
+.club-embed .app-shell[data-mode=Edit] .toggle-field input:checked + .toggle-track { background: var(--cc-text); }
+.club-embed .app-shell[data-mode=Edit] .toggle-field input:checked + .toggle-track::after { background: var(--cc-bg); transform: translateX(16px); }
+.club-embed .app-shell[data-mode=Edit] .club-edit-side input[type=range] { accent-color: var(--cc-text); }
+
+/* Transport bar: a subgrid of the editor's columns, so the time and play controls sit centred under the picture and the tools under
+   the transcript, as in Borumi. With the transcript closed, the tools sit at the right end of the picture's column. */
+.club-embed .app-shell[data-mode=Edit] .club-edit .club-timeline-bar { display: grid; grid-template-columns: subgrid; align-items: center; height: 40px; min-height: 40px; padding: 0 8px; }
+.club-embed .app-shell[data-mode=Edit] .club-edit .ctb-center { grid-column: 2; grid-row: 1; justify-self: center; display: flex; align-items: center; gap: 6px; }
+.club-embed .app-shell[data-mode=Edit] .club-edit .ctb-right { grid-column: 2 / span 2; grid-row: 1; justify-self: end; display: flex; align-items: center; gap: 2px; min-width: 0; }
+.club-embed .app-shell[data-mode=Edit] .club-edit:not(.has-transcript) .ctb-right { grid-column: 2; }
+.club-embed .app-shell[data-mode=Edit] .club-edit .club-time { margin-right: 8px; font-family: var(--font-mono, ui-monospace, monospace); font-size: var(--cc-text-base); font-weight: 600; color: var(--cc-text); }
+.club-embed .app-shell[data-mode=Edit] .club-edit .club-time > span { color: var(--cc-text-3); font-weight: 400; }
+.club-embed .app-shell[data-mode=Edit] .club-edit .ctb-icon { width: 32px; padding: 0; justify-content: center; }
+.club-embed .app-shell[data-mode=Edit] .club-edit .ctb-speed { min-width: 36px; padding: 0 6px; font-size: var(--cc-text-xs); font-weight: 700; }
+.club-embed .app-shell[data-mode=Edit] .club-edit .club-play { width: 32px; height: 32px; border-radius: var(--cc-r-pill); }
+.club-embed .app-shell[data-mode=Edit] .club-edit .club-zoom { gap: 2px; margin-left: 4px; }
+.club-embed .app-shell[data-mode=Edit] .club-edit .club-zoom input[type=range] { width: 80px; accent-color: var(--cc-text); }
+
+/* Plan: the scenes read like Borumi's Script step. Each row is a grey "Scene N" label in a left gutter, a thin rule, then the text;
+   no card. The drag handle shows on hover, the scene in focus gets a blue rule, and "+ Add scene" is a full-width quiet row. */
+.club-root .plan .scn .card.scene { margin: 0; border: 0; border-radius: var(--cc-r); background: transparent; box-shadow: none; }
+.club-root .plan .scn .card.scene:hover { background: var(--cc-surface); }
+.club-root .plan .scn .card.scene .grip { opacity: 0; }
+.club-root .plan .scn .card.scene:hover .grip, .club-root .plan .scn .card.scene .grip:focus-visible { opacity: 1; }
+.club-root .plan .scn .card.scene .n { width: 64px; height: auto; flex: none; justify-content: flex-end; padding-right: 10px; border-radius: 0; background: transparent; font-size: var(--cc-text-xs); font-weight: 400; color: var(--cc-text-3); }
+.club-root .plan .scn .card.scene .n::before { content: 'Scene\00a0'; }
+.club-root .plan .scn .card.scene :is(.t, .ed.t) { padding-left: 12px; border-left: 2px solid var(--cc-line-strong); font-size: var(--cc-text-lg); font-weight: 500; }
+.club-root .plan .scn .card.scene.focus :is(.t, .ed.t) { border-left-color: var(--cc-accent); }
+.club-root .plan .scn .card.scene .pts { margin-left: 88px; padding-left: 14px; border-left: 2px solid var(--cc-line); }
+
+/* Home: Borumi's home column (max-w-[800px] p-10 pt-14 gap-14), a centred heading, small bold section headers with a quiet link on
+   the right ("View all"), and cards in bg-secondary with a 1px border that lightens on hover. */
+.club-root .page.home-b { max-width: 800px; margin: 0 auto; padding: 56px 40px 40px; }
+.club-root .page.home-b .page-head.greet { flex-direction: column; align-items: center; text-align: center; gap: 12px; margin-bottom: 40px; }
+.club-root .page.home-b .page-head.greet h1 { font-size: var(--cc-text-lg); font-weight: 700; letter-spacing: 0; }
+.club-root .page.home-b .page-head.greet .lede { font-size: var(--cc-text-sm); color: var(--cc-text-3); }
+.club-root .page.home-b .page-head.greet .actions { margin: 0; }
+.club-root .page.home-b .sec-head { margin: 40px 0 12px; }
+.club-root .page.home-b .sec-head .sec { font-size: var(--cc-text-sm); font-weight: 700; color: var(--cc-text); letter-spacing: 0; }
+.club-root .page.home-b .sec-head .more { font-size: var(--cc-text-xs); font-weight: 600; color: var(--cc-text); }
+.club-root .page.home-b .card { border: 1px solid var(--cc-line); border-radius: var(--cc-r); background: var(--cc-surface); box-shadow: none; }
+.club-root .page.home-b .card.hov:hover { border-color: var(--cc-line-hover); }
+/* The other Home tab screens share the same cards and section headers. */
+.club-root .page :is(.card, .list-card) { box-shadow: none; }
+.club-root .page .page-head h1 { letter-spacing: 0; }
+
+/* Help: Borumi's popover (scrim black/70; panel top-12 right-6 w-80 rounded-lg shadow-lg; cards bg-secondary p-4 rounded-md border,
+   blue or orange border on hover). */
+.club-root .help-scrim { position: fixed; inset: 0; z-index: 50; background: var(--cc-scrim); }
+.club-root .help-pop { position: fixed; top: 48px; right: 24px; z-index: 51; width: 320px; display: flex; flex-direction: column; gap: 12px; padding: 16px; border: 1px solid var(--cc-line); border-radius: var(--cc-r-lg); background: var(--cc-bg); box-shadow: var(--cc-shadow-3); }
+.club-root .help-pop h2 { margin: 0 0 4px; font-size: var(--cc-text-lg); font-weight: 600; color: var(--cc-text); }
+.club-root .help-card { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 16px; border: 1px solid var(--cc-line); border-radius: var(--cc-r); background: var(--cc-surface); text-align: left; color: var(--cc-text); transition: border-color var(--cc-dur) var(--cc-ease); }
+.club-root .help-card:hover { border-color: var(--cc-accent); }
+.club-root .help-card + .help-card:hover { border-color: var(--cc-warn); }
+.club-root .help-card b { display: flex; align-items: center; gap: 8px; font-size: var(--cc-text-base); font-weight: 600; }
+.club-root .help-card span { font-size: var(--cc-text-xs); color: var(--cc-text-3); }
+
+/* A take preview fills the window under the tab strip, as in Borumi: the video header, the step bar and the companion wait behind it. */
+.club-embed .app-shell[data-mode=Record] .take-review { position: fixed; top: 39px; right: 0; bottom: 0; left: 0; z-index: 60; background: var(--cc-bg); }
+.club-embed .app-shell[data-mode=Record] .take-review > footer.club-take-footer { background: var(--cc-bg); border-top: 1px solid var(--cc-line); }
+
+/* Menus: Borumi's (min-w-[8rem] rounded-md border bg-popover p-1 shadow-lg; rows text-sm px-2 py-1.5 rounded-sm, hover accent;
+   fade and zoom-95 in). */
+.club-root .menu { min-width: 128px; padding: 4px; border: 1px solid var(--cc-line); border-radius: var(--cc-r); background: var(--cc-bg); box-shadow: var(--cc-shadow-3); animation: borumi-pop var(--cc-dur) var(--cc-ease); }
+.club-root .menu button { height: 32px; padding: 0 8px; border-radius: var(--cc-r-sm); font-size: var(--cc-text-sm); color: var(--cc-text); }
+.club-root .menu button:hover { background: var(--cc-hover); }
+@keyframes borumi-pop { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+@media (prefers-reduced-motion: reduce) { .club-root .menu { animation: none; } }
+
+/* Settings rows start right after the nav, as in Borumi, instead of a centred page. */
+.club-root .settings-body-b.page { max-width: none; margin: 0; padding: 24px 32px 48px; }
+.club-root .settings-body-b.page > * { max-width: 820px; }
+/* A chosen segment (Theme, Default AI, Videos views) reads clearly on a dark card. */
+.club-root .seg button.on { background: var(--cc-hover); color: var(--cc-text); box-shadow: none; }
+/* While a take starts, the main window's countdown and controls sit centred. */
+.club-embed .app-shell[data-mode=Record] .club-record .recording-main.capture-active { align-items: center; justify-content: center; padding: 40px; }
+.club-embed .app-shell[data-mode=Record] .club-record .recording-main.capture-active .recording-readiness { align-items: center; text-align: center; }
+
+/* Review pass (independent side-by-side against the Borumi screenshots). */
+/* Settings: a flat 768px column right after the nav; rows without a group card; 48px nav rows; white buttons. */
+.club-root .settings-body-b.page { padding: 24px 24px 48px; }
+.club-root .settings-body-b.page > * { max-width: 768px; }
+.club-root .settings-body-b .card { border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+.club-root .settings-body-b .srow2 { padding: 16px 0; border-bottom: 0; }
+.club-root .settings-body-b .srow2 .st { font-size: var(--cc-text-base); font-weight: 700; }
+.club-root .settings-body-b .srow2 .sd { font-size: var(--cc-text-xs); color: var(--cc-text-3); }
+.club-root .settings-body-b .btn:not(.ghost):not(.danger):not(.primary) { height: 36px; padding: 0 14px; border-color: transparent; background: var(--cc-primary); color: var(--cc-on-primary); font-size: var(--cc-text-base); }
+.club-root .settings-tab { height: 48px; padding: 0 16px; }
+/* Tab strip labels and header icons in full white, as in Borumi. */
+.club-root .ts-tab { color: var(--cc-text); font-size: var(--cc-text-base); font-weight: 500; }
+.club-root .ts-icon, .club-root .ts-logo { color: var(--cc-text); }
+.club-root .ws-edit-tools button, .club-root .ws-top-r .icon-btn { color: var(--cc-text); }
+/* Help popover: 16px between cards, 16px semibold card titles, lighter descriptions, a 70% scrim. */
+.club-root .help-pop { gap: 16px; }
+.club-root .help-card b { font-size: var(--cc-text-lg); }
+.club-root .help-card span { color: var(--cc-text-2); }
+.club-root .help-scrim { background: color-mix(in srgb, var(--cc-dark-stage) 70%, transparent); }
+/* Record: 13px semibold labels, Borumi's 36×20 switches, scene cards on the page colour with a 1px border. */
+.club-embed .app-shell[data-mode=Record] .club-record .capture-source > header > strong { font-size: var(--cc-text-sm); font-weight: 600; }
+.club-embed .app-shell[data-mode=Record] .club-record .rsc-scene-heading :is(.rsc-scene-name, .rsc-name-input) { font-size: var(--cc-text-sm); font-weight: 600; }
+.club-embed .app-shell[data-mode=Record] .capture-switch { width: 36px; height: 20px; border-radius: var(--cc-r-pill); }
+.club-embed .app-shell[data-mode=Record] .capture-switch > span { width: 16px; height: 16px; }
+.club-embed .app-shell[data-mode=Record] .club-record .rsc-scene { background: var(--cc-bg); }
+.club-embed .app-shell[data-mode=Record] .club-record .rsc-scene.is-selected { box-shadow: none; outline: 0; }
+/* Step bar: Borumi's 36px Continue. Edit: a 13px timecode. */
+.club-root .ws-foot .btn { height: 36px; }
+.club-embed .app-shell[data-mode=Edit] .club-edit .club-time { font-size: var(--cc-text-sm); }
+/* Edit panels: each section is a bordered group card with a 13px bold title, as in Borumi's Clip properties. */
+.club-embed .app-shell[data-mode=Edit] .club-edit-side .inspector-section { margin: 12px; padding: 12px 16px 16px; border: 1px solid var(--cc-line); border-radius: var(--cc-r-lg); }
+.club-embed .app-shell[data-mode=Edit] .club-edit-side .inspector-section > h3 { margin: 0 0 12px; font-size: var(--cc-text-sm); font-weight: 700; letter-spacing: 0; text-transform: none; color: var(--cc-text); }
+
+/* Timeline: Borumi's. No row-label column; tall rounded blue clips with one thumbnail at the start (no filmstrip); the audio clip a
+   deeper blue with a light waveform and the spoken words along its top; "• SCENE N" labels under the times; a hatched area for scenes
+   still waiting for a take; a grey playhead with a round handle; open ruler with 00:00 times. */
+.club-embed .app-shell[data-mode=Edit] .club-edit .club-tl-heads { display: none; }
+.club-embed .app-shell[data-mode=Edit] .club-edit .timeline.club-timeline { background: var(--cc-bg); }
+.club-embed .app-shell[data-mode=Edit] .club-edit .club-ruler { background: var(--cc-bg); border-bottom: 0; }
+.club-embed .app-shell[data-mode=Edit] .club-edit .club-ruler .tick { height: 0; }
+.club-embed .app-shell[data-mode=Edit] .club-edit .club-ruler .tick.major { top: 0; bottom: auto; height: 10px; width: 1px; background: var(--cc-line-strong); }
+.club-embed .app-shell[data-mode=Edit] .club-edit .club-ruler .tick > b { top: 2px; bottom: auto; left: 6px; font-size: var(--cc-text-xs); font-weight: 500; color: var(--cc-text-2); }
+.club-embed .app-shell[data-mode=Edit] .club-edit .club-scene-tag { top: auto; bottom: 1px; height: 14px; padding: 0 0 0 10px; border: 0; border-radius: 0; background: transparent; color: var(--cc-text-3); font-size: var(--cc-text-2xs); font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; line-height: 14px; }
+.club-embed .app-shell[data-mode=Edit] .club-edit .club-scene-tag::before { content: ''; position: absolute; left: 2px; top: 5px; width: 4px; height: 4px; border-radius: var(--cc-r-pill); background: currentColor; }
+.club-embed .app-shell[data-mode=Edit] .club-edit .club-scene-tag:hover { background: transparent; color: var(--cc-text); }
+.club-embed .app-shell[data-mode=Edit] .club-edit .club-row { border-bottom: 0; background: transparent; }
+.club-embed .app-shell[data-mode=Edit] .club-edit .club-timeline .timeline-clip.club-clip { border-radius: var(--cc-r-lg); background: var(--kind-camera); box-shadow: none; }
+.club-embed .app-shell[data-mode=Edit] .club-edit .club-timeline .timeline-clip.club-clip:is(.clip-audio, .clip-music) { background: var(--kind-audio); color: var(--kind-ink); }
+.club-embed .app-shell[data-mode=Edit] .club-edit .club-filmstrip { display: none; }
+.club-embed .app-shell[data-mode=Edit] .club-edit .club-clip-thumb { position: absolute; left: 4px; top: 4px; bottom: 4px; aspect-ratio: 16 / 9; border-radius: var(--cc-r-sm); background-size: cover; background-position: center; pointer-events: none; }
+.club-embed .app-shell[data-mode=Edit] .club-edit .club-clip:has(.club-clip-thumb) .club-clip-label { margin-left: 84px; }
+.club-embed .app-shell[data-mode=Edit] .club-edit .club-clip-label { font-size: var(--cc-text-xs); font-weight: 600; }
+.club-embed .app-shell[data-mode=Edit] .club-edit .club-clip:is(.clip-audio, .clip-music) .club-clip-label { margin-top: 2px; background: transparent; color: var(--kind-ink); }
+.club-embed .app-shell[data-mode=Edit] .club-edit .club-wave path { fill: color-mix(in srgb, var(--kind-ink) 55%, transparent); }
+.club-embed .app-shell[data-mode=Edit] .club-edit .club-word { top: 2px; padding: 0 2px; border-radius: 0; background: transparent; color: var(--kind-ink); font-size: var(--cc-text-xs); font-weight: 600; }
+.club-embed .app-shell[data-mode=Edit] .club-edit .club-empty-scene { position: absolute; z-index: 1; pointer-events: none; background: repeating-linear-gradient(135deg, var(--cc-surface) 0 6px, var(--cc-hover) 6px 12px); }
+.club-embed .app-shell[data-mode=Edit] .club-edit .club-timeline .playhead { width: 1px; margin-left: 0; background: var(--cc-text-3); }
+.club-embed .app-shell[data-mode=Edit] .club-edit .club-timeline .playhead > span { top: 2px; left: -5px; width: 11px; height: 11px; border-radius: var(--cc-r-pill); background: var(--cc-text-2); box-shadow: none; }
+.club-embed .app-shell[data-mode=Edit] .club-edit .club-timeline :is(.club-clip, .club-effect).selected { outline: 2px solid var(--cc-text); outline-offset: 0; }
+/* Record: the microphone shows its level line only, as in Borumi (a monitor error still shows); Record's dot is Borumi's ring. */
+.club-embed .app-shell[data-mode=Record] .club-record .capture-audio > .capture-source-hint:not(.is-error) { display: none; }
+.club-embed .app-shell[data-mode=Record] .club-record .rsc-record-button > span { width: 14px; height: 14px; padding: 2px; border: 2px solid currentColor; background: currentColor; background-clip: content-box; }

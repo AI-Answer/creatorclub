@@ -100,7 +100,7 @@ interface Settings {
   /** Set once the first-visit "How Creator Compiler works" dialog has been closed. */
   welcomed?: boolean;
   /** The theme the person chose in Settings. */
-  appearance?: 'light' | 'dark';
+  appearance?: 'system' | 'light' | 'dark';
   /** Video ids per channel, most recently opened first. */
   recent?: Record<string, string[]>;
   /** Older builds kept the Gemini API key here. It moves to secrets.json the first time it is read. */
@@ -197,12 +197,12 @@ export async function setEditSkill(name: string, on: boolean | null) {
 }
 
 /** The theme chosen in Settings, or undefined while none is chosen. */
-export async function appearance(): Promise<'light' | 'dark' | undefined> {
+export async function appearance(): Promise<'system' | 'light' | 'dark' | undefined> {
   const value = (await readJSON<Settings>(settingsFile()))?.appearance;
-  return value === 'light' || value === 'dark' ? value : undefined;
+  return value === 'system' || value === 'light' || value === 'dark' ? value : undefined;
 }
 
-export async function setAppearance(value: 'light' | 'dark') {
+export async function setAppearance(value: 'system' | 'light' | 'dark') {
   await updateSettings((settings) => ({ ...settings, appearance: value }));
 }
 

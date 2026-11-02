@@ -1,10 +1,10 @@
-import {useCallback,useEffect,useRef,useState} from 'react';
+import {useCallback,useEffect,useMemo,useRef,useState} from 'react';
 import type {AiStatus,ClubSettings,Video,Workspace} from '../../shared/club';
 import {setAppearance} from '../appearance';
 import {rememberAiStatus} from './ai-status';
 import {clubFetch} from './api';
 import {Sidebar} from './Sidebar';
-import {autoCollapses,defaultTab,routePath,useHashRoute,videoBackRoute,type Route,type VideoTab} from './routes';
+import {defaultTab,routePath,useHashRoute,videoBackRoute,type Route,type VideoTab} from './routes';
 import {WelcomeScreen} from './screens/WelcomeScreen';
 import {DiscoverScreen} from './screens/DiscoverScreen';
 import {HomeScreen} from './screens/HomeScreen';
@@ -16,6 +16,8 @@ import {NewVideo} from './shell/NewVideo';
 import {Palette} from './shell/Palette';
 import {NoChannel} from './shell/NoChannel';
 import {ScreenBoundary} from './shell/ScreenBoundary';
+import {TabStrip,isHomeTab,type OpenTab} from './shell/TabStrip';
+import type {Video as ShellVideo} from '../../shared/club';
 import {Button,EmptyState,Spinner,ToastProvider,cn} from './ui';
 import {useChannelState} from './useChannelState';
 import {useShellVideos} from './useShellVideos';
@@ -65,7 +67,29 @@ function VideoRoute({id,tab,navigate}:{id:string;tab?:VideoTab;navigate(route:Ro
  return <VideoWorkspace key={video.id} video={video} tab={tab??defaultTab(video.stage)} back={videoBackRoute()} navigate={navigate} onVideo={setVideo}/>;
 }
 
-/** Creator Compiler's root: the sidebar beside the current screen, with search (⌘K), New video, the How it works dialog and toasts above them. */
+const TABS_KEY='cc.openVideoTabs';
+const readTabs=():string[]=>{try{const saved:unknown=JSON.parse(localStorage.getItem(TABS_KEY)??'[]');return Array.isArray(saved)?saved.filter((id):id is string=>typeof id==='string'):[];}catch{return [];}};
+
+/**
+ * The videos open as tabs, Borumi-style: opening a video adds its tab, closing the one you are on opens its neighbour (or Home).
+ * Kept in localStorage so the tabs come back after a reload. A tab whose video is gone from the channel's list is dropped.
+ */
+function useOpenTabs(route:Route,videos:readonly ShellVideo[],navigate:(route:Route)=>void){
+ const [ids,setIds]=useState<string[]>(readTabs);
+ const openId=route.name==='video'?route.id:null;
+ useEffect(()=>{if(openId)setIds(current=>current.includes(openId)?current:[...current,openId]);},[openId]);
+ useEffect(()=>{if(videos.length)setIds(current=>{const kept=current.filter(id=>videos.some(video=>video.id===id)||id===openId);return kept.length===current.length?current:kept;});},[videos,openId]);
+ useEffect(()=>{try{localStorage.setItem(TABS_KEY,JSON.stringify(ids));}catch{/* private mode: tabs last for this session */}},[ids]);
+ const close=useCallback((id:string)=>{
+  const at=ids.indexOf(id),rest=ids.filter(other=>other!==id);
+  setIds(rest);
+  if(id===openId){const neighbour=rest[Math.min(at,rest.length-1)];navigate(neighbour?{name:'video',id:neighbour}:{name:'home'});}
+ },[ids,openId,navigate]);
+ const tabs=useMemo<OpenTab[]>(()=>ids.map(id=>({id,title:videos.find(video=>video.id===id)?.title??''})),[ids,videos]);
+ return {tabs,close};
+}
+
+/** Creator Compiler's root: the tab strip over the current screen, with search (⌘K), New video, the How it works dialog and toasts above them. */
 export default function ClubApp(){
  return <div className={cn('club-root',window.sceneForge&&'club-desktop')} data-platform={window.sceneForge?.platform}>
   <ToastProvider><Shell/></ToastProvider>
@@ -79,15 +103,14 @@ function Shell(){
  const [help,setHelp]=useState<{topic?:string}|null>(null);
  // Bumped when you switch channels, so the sidebar and the screen beside it load that channel afresh.
  const [channelEpoch,setChannelEpoch]=useState(0);
- // `null` follows the route (folded on Record and Edit); true or false is a choice made with the collapse button, kept until you go elsewhere.
- const [sidebarOpen,setSidebarOpen]=useState<boolean|null>(null);
  const path=routePath(route);
  const main=useRef<HTMLElement>(null);
  // Asked again when you switch channels, and when you leave Welcome (where a channel may just have been made).
  const channel=useChannelState(`${channelEpoch}${route.name==='welcome'}`);
  const videos=useShellVideos(`${channelEpoch}${path}`,channel==='ready');
+ const openTabs=useOpenTabs(route,videos,navigate);
 
- useEffect(()=>{setSidebarOpen(null);if(main.current&&route.name!=='video')main.current.scrollTop=0;},[path,route.name]);
+ useEffect(()=>{if(main.current&&route.name!=='video')main.current.scrollTop=0;},[path,route.name]);
  useEffect(()=>{
   const key=(event:KeyboardEvent)=>{if((event.metaKey||event.ctrlKey)&&event.key.toLowerCase()==='k'){event.preventDefault();setPaletteOpen(open=>!open);}};
   window.addEventListener('keydown',key);return()=>window.removeEventListener('keydown',key);
@@ -122,12 +145,14 @@ function Shell(){
   case 'settings':screen=<SettingsScreen section={route.section} onSetup={addChannel}/>;break;
  }
  if(needsChannel(route)&&channel!=='ready')screen=channel==='none'?<NoChannel onStart={addChannel}/>:<div className="flex flex-1 items-center justify-center"><Spinner label="Loading" size={20}/></div>;
- const collapsed=sidebarOpen===null?autoCollapses(route):!sidebarOpen;
  return <div className="shell">
-  {route.name!=='welcome'&&<Sidebar route={route} collapsed={collapsed} onToggle={()=>setSidebarOpen(collapsed)} onSearch={()=>setPaletteOpen(true)} onHelp={()=>setHelp({})} onSwitched={switched} onAdd={addChannel} videos={videos} epoch={channelEpoch}/>}
-  <div className="main-col">
-   {window.sceneForge&&<div className="club-drag main-drag" aria-hidden/>}
-   <main key={channelEpoch} ref={main} className="main" id="main"><ScreenBoundary key={route.name==='video'?`video/${route.id}`:path}>{screen}</ScreenBoundary></main>
+  {route.name!=='welcome'&&<TabStrip route={route} tabs={openTabs.tabs} onClose={openTabs.close} onNewVideo={openNewVideo} onSearch={()=>setPaletteOpen(true)} onHelp={topic=>setHelp({topic})}/>}
+  <div className="shell-row">
+   {isHomeTab(route)&&<Sidebar route={route} onSearch={()=>setPaletteOpen(true)} onSwitched={switched} onAdd={addChannel} videos={videos} epoch={channelEpoch}/>}
+   <div className="main-col">
+    {window.sceneForge&&route.name==='welcome'&&<div className="club-drag main-drag" aria-hidden/>}
+    <main key={channelEpoch} ref={main} className="main" id="main"><ScreenBoundary key={route.name==='video'?`video/${route.id}`:path}>{screen}</ScreenBoundary></main>
+   </div>
   </div>
   {paletteOpen&&<Palette videos={videos} openId={route.name==='video'?route.id:null} onClose={()=>setPaletteOpen(false)} onOpen={navigate} onNewVideo={()=>setNewOpen(true)} onHelp={topic=>setHelp({topic})}/>}
   {newOpen&&<NewVideo onClose={()=>setNewOpen(false)} onOpen={navigate}/>}

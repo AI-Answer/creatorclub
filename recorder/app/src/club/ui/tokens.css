@@ -3,75 +3,77 @@
   Every other club stylesheet and component reads these (`var(--cc-…)`, `var(--kind-…)`, or the Tailwind utilities mapped in club.css).
   A test (`ui/tokens.test.ts`) fails when a raw colour literal appears anywhere in `src/club/**` outside this file.
 
-  The colour rule (docs/v2/PLAN.md, "Revised rulings"):
-  - one accent (blue) for focus, selection and links; the primary action is the dark button (as in the approved prototype);
+  The values are Borumi 0.32.1's (docs/v2/research/borumi-parity): neutral greys, near-black/white primary, blue-500 focus, 6px controls.
+  The colour rule:
+  - one accent (blue) for focus, selection and links; the primary action is the near-black button (white in dark), as in Borumi;
   - red only for recording and destructive actions;
   - green only for done or ok;
   - amber only for warnings and problems to fix;
   - one fixed colour per timeline kind (screen, camera, audio, graphics, captions, zoom, marker), the same in the timeline,
+    (video clips are Borumi's blue-600 and audio a darker blue; selection is an outline, never a fill)
     the scene chips and the take chips (`ui/kinds.ts` names them for TSX);
   - neutral surfaces and text for everything else. No other hues.
 
-  Light by default; dark when `data-theme="dark"` is on .club-root or an ancestor. The names are prefixed `--cc-` because
+  Follows the system by default (Borumi's "System default"); dark when `data-theme="dark"` is on .club-root or an ancestor. The names are prefixed `--cc-` because
   SceneForge defines its own `--line`, `--accent`, `--background` on :root, and the embedded recorder and editor inherit .club-root.
 */
 .club-root {
   /* Surfaces */
-  --cc-bg: #f8f7f4;
-  --cc-bg-sunk: #f2f0ec;
-  --cc-surface: #ffffff;
-  --cc-surface-2: #fbfaf8;
-  --cc-hover: #f3f1ed;
-  --cc-line: #e9e6e1;
-  --cc-line-strong: #dcd8d1;
-  --cc-line-hover: #cbc6be;
-  --cc-scrollbar: #dcd8d1;
-  --cc-scrollbar-hover: #c8c3bb;
+  --cc-bg: #ffffff;
+  --cc-bg-sunk: #fafafa;
+  --cc-surface: #fafafa;
+  --cc-surface-2: #fafafa;
+  --cc-hover: #f5f5f5;
+  --cc-line: #e5e5e5;
+  --cc-line-strong: #d4d4d4;
+  --cc-line-hover: #d4d4d4;
+  --cc-scrollbar: #d4d4d4;
+  --cc-scrollbar-hover: #a3a3a3;
   /* Text */
-  --cc-text: #191817;
-  --cc-text-2: #57534d;
-  --cc-text-3: #736e66;
-  --cc-placeholder: #9a958d;
-  --cc-text-faint: #b2ada5;
+  --cc-text: #0a0a0a;
+  --cc-text-2: #404040;
+  --cc-text-3: #737373;
+  --cc-placeholder: #737373;
+  --cc-text-faint: #a3a3a3;
   /* Accent: focus, selection, links */
-  --cc-accent: #2563eb;
-  --cc-accent-hover: #1d4ed8;
-  --cc-accent-soft: #eaf0fe;
-  --cc-accent-text: #1d4ed8;
+  --cc-accent: #3b82f6;
+  --cc-accent-hover: #2563eb;
+  --cc-accent-soft: #eff6ff;
+  --cc-accent-text: #2563eb;
   --cc-on-accent: #ffffff;
   /* The primary action: the dark button of the approved prototype */
-  --cc-primary: #151413;
-  --cc-primary-hover: #2c2a28;
+  --cc-primary: #0a0a0a;
+  --cc-primary-hover: rgb(10 10 10 / 0.9);
   --cc-on-primary: #ffffff;
   /* Product and provider surfaces. Service artwork retains its official colours. */
   --cc-brand: #de5738;
   --cc-brand-soft: #f8eae4;
   --cc-provider-tile: #f5f3ef;
   --cc-postiz-tile: #191817;
-  --cc-shadow-card: 0 1px 2px rgb(25 22 18 / 0.025), 0 8px 28px -16px rgb(25 22 18 / 0.12);
+  --cc-shadow-card: none;
   /* Status: recording and destructive, done, warning */
-  --cc-rec: #e5484d;
-  --cc-rec-soft: #fdecec;
-  --cc-danger: #b42318;
-  --cc-danger-soft: #fce8e6;
-  --cc-ok: #18794e;
-  --cc-ok-soft: #e7f5ec;
-  --cc-warn: #a35200;
-  --cc-warn-soft: #fdf1df;
+  --cc-rec: #ef4444;
+  --cc-rec-soft: #fef2f2;
+  --cc-danger: #ef4444;
+  --cc-danger-soft: #fef2f2;
+  --cc-ok: #22c55e;
+  --cc-ok-soft: #f0fdf4;
+  --cc-warn: #f59e0b;
+  --cc-warn-soft: #fefce8;
   /* Over pictures and dark stages (thumbnails, previews, toasts) */
-  --cc-dark-stage: #1b1a19;
+  --cc-dark-stage: #000000;
   --cc-on-media: #ffffff;
   --cc-media-scrim: rgb(20 19 18 / 0.78);
   --cc-media-glow: rgb(255 255 255 / 0.16);
   --cc-media-shape: rgb(255 255 255 / 0.28);
   --cc-media-shape-strong: rgb(255 255 255 / 0.4);
   --cc-media-text-shadow: 0 2px 10px rgb(0 0 0 / 0.25);
-  --cc-toast-bg: #1d1c1a;
-  --cc-toast-text: #f4f2ee;
+  --cc-toast-bg: #0a0a0a;
+  --cc-toast-text: #ffffff;
   --cc-toast-button: rgb(255 255 255 / 0.1);
   --cc-toast-button-hover: rgb(255 255 255 / 0.18);
   --cc-toast-ok: #6fd29a;
-  --cc-scrim: rgb(28 25 21 / 0.28);
+  --cc-scrim: rgb(0 0 0 / 0.8);
   /* Avatars and draft thumbnails: neutral, told apart by their initials and text, not by hue */
   --cc-avatar-1: #57534d;
   --cc-avatar-2: #736e66;
@@ -99,10 +101,10 @@
   --cc-band-red: var(--cc-surface);
   --cc-band-red-soft: var(--cc-text);
   /* Timeline kinds: one hue each, the same wherever a kind is drawn (timeline, scene chips, take chips). */
-  --kind-screen: #1f7a80;
-  --kind-camera: #6b55c4;
+  --kind-screen: #2563eb;
+  --kind-camera: #2563eb;
   /* Audio is a warm graphite (not blue: blue means selection); captions gold (not olive, which read as "done" green); markers purple, visible on the ruler in both themes. */
-  --kind-audio: #6b6258;
+  --kind-audio: #1e40af;
   --kind-graphics: #b8457d;
   --kind-captions: #9c7c00;
   --kind-zoom: #9a5a2c;
@@ -120,12 +122,12 @@
   --kind-captions-soft: color-mix(in srgb, var(--kind-captions) 14%, var(--cc-surface));
   --kind-zoom-soft: color-mix(in srgb, var(--kind-zoom) 14%, var(--cc-surface));
   /* Shadows */
-  --cc-shadow-1: 0 1px 2px rgb(25 22 18 / 0.05);
-  --cc-shadow-2: 0 1px 2px rgb(25 22 18 / 0.04), 0 4px 12px -4px rgb(25 22 18 / 0.08);
-  --cc-shadow-3: 0 2px 4px rgb(25 22 18 / 0.04), 0 16px 40px -12px rgb(25 22 18 / 0.22);
-  --cc-shadow-drag: 0 24px 60px -18px rgb(25 22 18 / 0.35);
-  --cc-shadow-toast: 0 12px 32px -8px rgb(0 0 0 / 0.4);
-  --cc-shadow-primary: 0 1px 2px rgb(0 0 0 / 0.18), inset 0 1px 0 rgb(255 255 255 / 0.08);
+  --cc-shadow-1: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --cc-shadow-2: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --cc-shadow-3: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --cc-shadow-drag: 0 25px 50px -12px rgb(0 0 0 / 0.25);
+  --cc-shadow-toast: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --cc-shadow-primary: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
   --cc-shadow-on-media: 0 1px 3px rgb(0 0 0 / 0.18);
   /* Spacing (4px steps), radius, type */
   --cc-space-1: 4px;
@@ -135,9 +137,9 @@
   --cc-space-5: 20px;
   --cc-space-6: 24px;
   --cc-space-8: 32px;
-  --cc-r-sm: 6px;
-  --cc-r: 8px;
-  --cc-r-lg: 14px;
+  --cc-r-sm: 4px;
+  --cc-r: 6px;
+  --cc-r-lg: 8px;
   --cc-r-pill: 999px;
   --cc-text-2xs: 11px;
   --cc-text-xs: 12px;
@@ -147,10 +149,10 @@
   --cc-text-xl: 20px;
   --cc-text-2xl: 24px;
   /* Motion */
-  --cc-ease: cubic-bezier(0.16, 1, 0.3, 1);
-  --cc-dur-fast: 0.12s;
-  --cc-dur: 0.2s;
-  --cc-dur-slow: 0.35s;
+  --cc-ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --cc-dur-fast: 0.1s;
+  --cc-dur: 0.15s;
+  --cc-dur-slow: 0.2s;
   /* Layout */
   --cc-sidebar: 236px;
   color-scheme: light;
@@ -169,48 +171,48 @@
 .club-root:where([data-theme=dark], [data-theme=dark] *) {
   --cc-brand-soft: #38251f;
   --cc-provider-tile: #272522;
-  --cc-shadow-card: 0 1px 2px rgb(0 0 0 / 0.2), 0 8px 28px -16px rgb(0 0 0 / 0.4);
+  --cc-shadow-card: none;
   /* The primary action on a dark surface: the light button */
-  --cc-primary: #f3f1ed;
-  --cc-primary-hover: #ffffff;
-  --cc-on-primary: #191817;
-  --cc-bg: #161615;
-  --cc-bg-sunk: #121211;
-  --cc-surface: #1e1e1d;
-  --cc-surface-2: #232322;
-  --cc-hover: #2a2a28;
-  --cc-line: #2f2e2c;
-  --cc-line-strong: #3b3a37;
-  --cc-line-hover: #4a4844;
-  --cc-scrollbar: #3b3a37;
-  --cc-scrollbar-hover: #4a4844;
-  --cc-text: #f1efeb;
-  --cc-text-2: #bcb7af;
-  --cc-text-3: #9a958d;
-  --cc-placeholder: #77726b;
-  --cc-text-faint: #5f5b55;
-  --cc-accent: #6b9cff;
-  --cc-accent-hover: #8bb2ff;
-  --cc-accent-soft: #1d2a45;
-  --cc-accent-text: #9dbcff;
-  --cc-on-accent: #0f1626;
-  --cc-rec-soft: #3a1c1d;
-  --cc-danger: #f0857d;
-  --cc-danger-soft: rgb(240 133 125 / 0.14);
-  --cc-ok: #4cc38a;
-  --cc-ok-soft: #173326;
-  --cc-warn: #f0a44b;
-  --cc-warn-soft: #3a2a14;
+  --cc-primary: #ffffff;
+  --cc-primary-hover: rgb(255 255 255 / 0.9);
+  --cc-on-primary: #0a0a0a;
+  --cc-bg: #0a0a0a;
+  --cc-bg-sunk: #171717;
+  --cc-surface: #171717;
+  --cc-surface-2: #171717;
+  --cc-hover: #262626;
+  --cc-line: #262626;
+  --cc-line-strong: #404040;
+  --cc-line-hover: #404040;
+  --cc-scrollbar: #404040;
+  --cc-scrollbar-hover: #525252;
+  --cc-text: #ffffff;
+  --cc-text-2: #d4d4d4;
+  --cc-text-3: #a3a3a3;
+  --cc-placeholder: #737373;
+  --cc-text-faint: #525252;
+  --cc-accent: #3b82f6;
+  --cc-accent-hover: #60a5fa;
+  --cc-accent-soft: #172554;
+  --cc-accent-text: #60a5fa;
+  --cc-on-accent: #ffffff;
+  --cc-rec-soft: #450a0a;
+  --cc-danger: #ef4444;
+  --cc-danger-soft: #450a0a;
+  --cc-ok: #22c55e;
+  --cc-ok-soft: #052e16;
+  --cc-warn: #f59e0b;
+  --cc-warn-soft: #6f3915;
   --cc-avatar-1: #57534d;
   --cc-avatar-2: #4a4844;
   --cc-avatar-3: #6b665e;
   --cc-avatar-4: #3f3c38;
-  --cc-toast-bg: #2c2b29;
-  --cc-scrim: rgb(0 0 0 / 0.56);
-  --cc-shadow-1: 0 1px 2px rgb(0 0 0 / 0.3);
-  --cc-shadow-2: 0 4px 14px -4px rgb(0 0 0 / 0.5);
-  --cc-shadow-3: 0 16px 40px -12px rgb(0 0 0 / 0.7);
-  --cc-shadow-drag: 0 24px 60px -18px rgb(0 0 0 / 0.7);
+  --cc-toast-bg: #171717;
+  --cc-scrim: rgb(0 0 0 / 0.8);
+  --cc-shadow-1: 0 1px 2px 0 rgb(0 0 0 / 0.3);
+  --cc-shadow-2: 0 4px 6px -1px rgb(0 0 0 / 0.4);
+  --cc-shadow-3: 0 10px 15px -3px rgb(0 0 0 / 0.5);
+  --cc-shadow-drag: 0 25px 50px -12px rgb(0 0 0 / 0.6);
   color-scheme: dark;
 }
 

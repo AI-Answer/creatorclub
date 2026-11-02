@@ -54,7 +54,7 @@ function serve(jobs:(p:Project)=>AutomationJob[]){
  return {p,calls,restore:()=>{globalThis.fetch=originalFetch;}};
 }
 
-test('embedded Edit: the mock-up layout (rail, the transcript open beside the picture, a short transport bar), no Borumi, and Remove them applies every cut',async()=>{
+test('embedded Edit: Borumi\'s layout (rail of nine tools, the transcript in its own column beside the picture, a short transport bar), and Remove them applies every cut',async()=>{
  localStorage.clear();
  const server=serve(p=>[plan(p)]),exported:boolean[]=[];
  const ui=await mountUI(createElement(ClubRecorder,{projectId:server.p.id,mode:'Edit',onBack:()=>{},onExported:(done:boolean)=>exported.push(done)}));
@@ -66,15 +66,16 @@ test('embedded Edit: the mock-up layout (rail, the transcript open beside the pi
   assert.ok(!/project/i.test(visible),`no "project" in the embedded editor: ${visible.match(/.{0,40}project.{0,40}/i)?.[0]}`);
   assert.equal(header.querySelector('.project-header-controls'),null,'the top strip holds no controls: they sit on the timeline bar');
   const bar=[...ui.container.querySelectorAll('.club-timeline-bar button')].map(b=>b.getAttribute('aria-label')??b.textContent?.trim());
-  assert.deepEqual(bar,['Play','Split','Delete','Note','Zoom out','Zoom in','Fit','View'],'the transport holds play, Split, Delete, Note, the timeline zoom and View; undo and history sit in the video\'s header');
+  assert.deepEqual(bar,['Go to start','Play','Go to end','Playback speed','Select tool','Blade tool','Snap to edges','Transcript','Zoom out','Zoom in','View'],'Borumi\'s transport: start, play, end and speed in the middle; Select, Blade and Snap, the transcript toggle, the timeline zoom and View (fit, split, delete, notes) on the right; undo and history sit in the video\'s header');
   assert.ok(!bar.includes('Export video'),'Export lives in Publish: Edit has one way forward, Continue to publishing');
   assert.equal(ui.container.querySelector('.panel-rail'),null);
   assert.equal(ui.container.querySelector('.inspector'),null,'no tool panel is open yet');
-  assert.ok(ui.container.querySelector('.club-edit-side .transcript-panel'),'the transcript is open beside the picture');
+  assert.ok(ui.container.querySelector('.club-edit-transcript .transcript-panel'),'the transcript has its own column beside the picture, as in Borumi');
   const rail=[...ui.container.querySelectorAll('.club-rail button')].map(b=>b.textContent?.trim());
-  assert.deepEqual(rail,['Transcript','Cut','Captions','Layout','Clip','Zoom','Graphics','Music','More'],'one rail of named tools; rare ones sit under More');
+  assert.deepEqual(rail,['Canvas','Layout','Clip','Zoom','Elements','Music','Captions','Cursor','Automate','More'],'Borumi\'s nine tools in Borumi\'s order; Graphics, media and Cutroom sit under More');
   await act(async()=>[...ui.container.querySelectorAll<HTMLButtonElement>('.club-rail button')].find(b=>b.textContent?.trim()==='Captions')!.click());
   assert.equal(ui.container.querySelector('.club-edit-side .inspector h2')?.textContent,'Captions','a tool opens its panel on the side');
+  assert.ok(ui.container.querySelector('.club-edit-transcript .transcript-panel'),'and the transcript stays open beside the picture');
   await act(async()=>ui.container.querySelector<HTMLButtonElement>('button[aria-label="Close Captions"]')!.click());
   assert.equal(server.calls.filter(c=>c.url.endsWith('/quick-action')).length,0,'a plan already exists: none is started');
   assert.ok(!primaries(ui.container).includes('Export video'),'no Export button competes with Continue to publishing');

@@ -382,7 +382,7 @@ test('Settings: Claude and ChatGPT with their status and Connect or Reconnect, a
   const ui=await mountUI(createElement(SettingsScreen,{onSetup(){}}));
   try{
    await flush();const c=ui.container;
-   assert.deepEqual([...c.querySelectorAll('h2')].map(h=>h.textContent),['Connected AI','Channel','Publishing and look']);
+   assert.deepEqual([...c.querySelectorAll('h2')].map(h=>h.textContent),['Connected AI'],'Settings opens on the AI tab');
    const names=[...c.querySelectorAll('button[aria-label]')].map(b=>b.getAttribute('aria-label')).filter(l=>/Connect|Reconnect/.test(l!));
    assert.deepEqual(names,['Reconnect Claude','Connect ChatGPT'],'Gemini has no sign-in');
    assert.match(text(c),/Connected as dani@example\.com/);
@@ -390,9 +390,10 @@ test('Settings: Claude and ChatGPT with their status and Connect or Reconnect, a
    assert.match(text(c),/Lets Creator Compiler watch videos with sound and motion when it breaks them down\./);
    assert.ok(c.querySelector('input[aria-label="Gemini API key"]'));
    assert.equal(c.querySelector('[aria-label="Default AI"] [aria-selected="true"]')!.textContent,'Claude','falls back to the connected AI');
-   assert.deepEqual([...c.querySelectorAll('[aria-label="Theme"] button')].map(b=>b.textContent),['Light','Dark']);
-   assert.equal(c.querySelector('[aria-label="Theme"] [aria-pressed="true"]')!.textContent,'Light','light by default');
-  }finally{await ui.close();}
+   await ui.render(createElement(SettingsScreen,{section:'publishing',onSetup(){}}));await flush();
+   assert.deepEqual([...c.querySelectorAll('[aria-label="Theme"] button')].map(b=>b.textContent),['System default','Light','Dark']);
+   assert.equal(c.querySelector('[aria-label="Theme"] [aria-pressed="true"]')!.textContent,'System default','follows the system by default');
+  }finally{await ui.close();localStorage.clear();}
  });
 });
 
@@ -411,7 +412,7 @@ test('Settings: a skeleton while the saved settings are read; the page shows wit
    assert.equal(c.querySelector('[role="progressbar"],.spinner'),null);
    assert.ok(calls.some(call=>call.path==='/ai/status')&&calls.some(call=>call.path==='/settings'),'both are asked at once');
    await act(async()=>answerSettings!());await flush();
-   assert.deepEqual([...c.querySelectorAll('h2')].map(h=>h.textContent),['Connected AI','Channel','Publishing and look'],'the page is there before the AI check answers');
+   assert.deepEqual([...c.querySelectorAll('h2')].map(h=>h.textContent),['Connected AI'],'the page is there before the AI check answers');
    assert.ok(c.querySelector('[aria-label="Checking Claude"]')&&c.querySelector('[aria-label="Checking ChatGPT"]'),'the AI rows wait as skeletons');
    assert.ok(c.querySelector('input[aria-label="Gemini API key"]'),'what needs no check shows');
    await act(async()=>answerStatus!());await flush();
@@ -485,6 +486,7 @@ test('Settings: the default AI and the theme are saved in settings when chosen, 
    await click(c.querySelector('[aria-label="Default AI"]')!,'ChatGPT');
    assert.deepEqual(calls.find(call=>call.method==='PUT')?.body,{defaultAi:'codex'});
    assert.equal(c.querySelector('[aria-label="Default AI"] [aria-selected="true"]')!.textContent,'ChatGPT');
+   await ui.render(createElement(SettingsScreen,{section:'publishing',onSetup(){}}));await flush();
    await click(c.querySelector('[aria-label="Theme"]')!,'Dark');
    assert.deepEqual(calls.filter(call=>call.method==='PUT').at(-1)?.body,{appearance:'dark'});
    assert.equal(document.documentElement.dataset.theme,'dark');
@@ -501,7 +503,7 @@ test('Settings: a saved theme is the one selected',async()=>{
   if(call.path==='/settings')return {body:{defaultAi:null,appearance:'dark',geminiKey:null}};
   if(call.path==='/workspaces'&&call.method==='GET')return {body:none};
  },async()=>{
-  const ui=await mountUI(createElement(SettingsScreen,{onSetup(){}}));
+  const ui=await mountUI(createElement(SettingsScreen,{section:'publishing',onSetup(){}}));
   try{await flush();assert.equal(ui.container.querySelector('[aria-label="Theme"] [aria-pressed="true"]')!.textContent,'Dark');}finally{await ui.close();}
  });
 });
@@ -518,7 +520,7 @@ test('Settings: channel details (including your first name) save, and Rebuild vo
   if(call.path==='/followed')return {body:[]};
   if(call.path==='/signals-config')return {body:{}};
  },async calls=>{
-  const ui=await mountUI(createElement(SettingsScreen,{onSetup(){}}));
+  const ui=await mountUI(createElement(SettingsScreen,{section:'channel',onSetup(){}}));
   try{
    await flush();const c=ui.container;
    assert.equal(c.querySelector('#set-channel input'),null,'the channel form is closed until Edit');
@@ -561,7 +563,7 @@ test('Settings: followed channels and signal sources save at once, and a failed 
   if(call.path==='/signals-config'&&call.method==='GET')return {body:{x:['alexfinn'],reddit:['ClaudeAI'],minXLikes:500}};
   if(call.path==='/signals-config'&&call.method==='PUT')return {body:{...(call.body as object),minXLikes:500}};
  },async calls=>{
-  const ui=await mountUI(createElement(SettingsScreen,{onSetup(){}}));
+  const ui=await mountUI(createElement(SettingsScreen,{section:'channel',onSetup(){}}));
   try{
    await flush();const c=ui.container;
    await pressLabeled(c,'Manage follows');
@@ -594,7 +596,7 @@ test('Settings without a channel offers Add your channel',async()=>{
   if(call.path==='/workspaces'&&call.method==='GET')return {body:none};
  },async()=>{
   let added=0;
-  const ui=await mountUI(createElement(SettingsScreen,{onSetup(){added++;}}));
+  const ui=await mountUI(createElement(SettingsScreen,{section:'channel',onSetup(){added++;}}));
   try{await flush();await click(ui.container,'Add your channel');assert.equal(added,1);}finally{await ui.close();}
  });
 });
@@ -704,7 +706,7 @@ test('Settings: the voice guide shows its summary and source; a channel with no 
   if(call.path==='/followed')return {body:[]};
   if(call.path==='/signals-config')return {body:{}};
  },async()=>{
-  const ui=await mountUI(createElement(SettingsScreen,{onSetup(){}}));
+  const ui=await mountUI(createElement(SettingsScreen,{section:'channel',onSetup(){}}));
   try{
    await flush();const c=ui.container;
    await pressLabeled(c,'Edit voice');
