@@ -143,8 +143,12 @@ export const TimelineClub=memo(function TimelineClub({project:p,playhead,scale,o
   // Only the topmost clip of a link group carries the label, so a take is named once.
   const top=new Map<string,number>();for(const c of p.clips){const row=rowById.get(clipLayerRowId(c,p)),key=groups.get(c.id)!;if(row)top.set(key,Math.min(top.get(key)??Infinity,row.top));}
   for(const c of p.clips){const row=rowById.get(clipLayerRowId(c,p));if(!row)continue;const take=c.recordingTakeId?p.recordedTakes?.find(t=>t.id===c.recordingTakeId):undefined,i=take?p.scenes.findIndex(s=>s.id===take.sceneId):scene(c.start);
-   out.set(c.id,top.get(groups.get(c.id)!)===row.top?(i>=0&&take?`${i+1} · ${p.scenes[i].name}${take.name?` · ${take.name}`:''}`:c.name):'');}
-  return out;},[p.clips,p.scenes,p.recordedTakes,rowById,groups]);
+   // A take cut into pieces, or a clip named after the video: each piece is named by its first words, so the pieces can be told apart.
+   const end=c.start+(c.sourceOut-c.sourceIn)/c.speed,said=p.captions.find(x=>x.end>c.start+.05&&x.start<end&&!isSoundTag(x.text))?.text.trim();
+   const pieces=take?p.clips.filter(x=>x.track===c.track&&x.recordingTakeId===c.recordingTakeId).length:0;
+   const words=said?`“${said.length>42?said.slice(0,40).trimEnd()+'…':said}”`:'';
+   out.set(c.id,top.get(groups.get(c.id)!)===row.top?(i>=0&&take?(pieces>1&&words?`${i+1} · ${words}`:`${i+1} · ${p.scenes[i].name}${take.name?` · ${take.name}`:''}`):(words&&c.name.startsWith(p.name)?words:c.name)):'');}
+  return out;},[p.clips,p.scenes,p.recordedTakes,p.captions,p.name,rowById,groups]);
 
  const targets=(moving:ReadonlySet<string>):SnapTarget[]=>snapTargets(rowItems(latest.current).map(i=>({id:i.id,start:i.start,duration:i.duration})),moving,playhead.get(),latest.current.scenes.flatMap(s=>[s.start,s.start+s.duration]),(latest.current.markers??[]).filter(m=>!moving.has(m.id)).map(m=>m.time));
  const contentX=(clientX:number)=>{const el=ref.current!;return clientX-el.getBoundingClientRect().left+el.scrollLeft;};

@@ -5,6 +5,8 @@ import {addMotionBlock,nextMotionStart} from './timeline-edit';
 import {timecode} from './api';
 import {Trash2} from './Icons';
 import type {Playhead} from './playhead';
+import {MotionLayer} from './MotionLayer';
+import {askClaude} from './club/workspace/ask-claude';
 
 /*
  * The Motion panel: add a title card, lower third, callout or chapter label at the playhead, and edit the selected block's style, text,
@@ -15,6 +17,9 @@ type Change=(fn:(p:Project)=>void,opts?:{coalesce?:string})=>void;
 
 export function MotionPanel({project:p,selected,playhead,change,select,notify,club,onHover}:{project:Project;selected:string|null;playhead:Playhead;change:Change;select:(id:string)=>void;notify?:(message:string)=>void;club?:boolean;/** Pointing at a graphic shows it on the video, at the playhead, without adding it. */onHover?:(template:MotionTemplateId|null)=>void}){
  const block=p.motion?.find(m=>m.id===selected);
+ // The cards show each graphic over a frame of this video, drawn by the same markup as the export.
+ const camera=p.clips.filter(c=>c.track==='camera'||c.track==='screen').sort((x,y)=>x.start-y.start)[0];
+ const frame=camera?`/api/media/${encodeURIComponent(camera.mediaId)}/thumbnail`:undefined;
  const add=(template:MotionTemplateId)=>{
   const id=makeId(),start=playhead.get();let problem='';
   // A new block keeps the video's length: it stops where the video ends.
@@ -22,8 +27,12 @@ export function MotionPanel({project:p,selected,playhead,change,select,notify,cl
   if(problem)notify?.(problem);else select(id);
  };
  return <>
-  <section className="inspector-section"><h3>Add where the playhead is</h3><p className="hint">Point at one to see it on your video. Click to add it.</p>
-   <div className="element-grid motion-gallery">{MOTION_TEMPLATE_IDS.map(id=><button key={id} type="button" onClick={()=>{onHover?.(null);add(id);}} onMouseEnter={()=>onHover?.(id)} onMouseLeave={()=>onHover?.(null)} onFocus={()=>onHover?.(id)} onBlur={()=>onHover?.(null)}><span className={`motion-mini mm-${id}`} aria-hidden="true"><i/><i/></span><b>{MOTION_TEMPLATES[id].label}</b></button>)}</div>
+  {club&&<section className="inspector-section gfx-ask">
+   <button type="button" className="btn primary gfx-ask-btn" onClick={()=>askClaude('Add graphics to this video: a chapter label at the start of each scene, and a title card for any number or key line I say.')}>Ask Claude to add graphics</button>
+   <p className="hint">Claude reads what you say and places chapter labels and title cards. You preview each one before it is added.</p>
+  </section>}
+  <section className="inspector-section"><h3>{club?'Add one yourself':'Add where the playhead is'}</h3><p className="hint">{club?'It goes where the playhead is. Point at one to see it on your video.':'Point at one to see it on your video. Click to add it.'}</p>
+   <div className="element-grid motion-gallery">{MOTION_TEMPLATE_IDS.map(id=><button key={id} type="button" onClick={()=>{onHover?.(null);add(id);}} onMouseEnter={()=>onHover?.(id)} onMouseLeave={()=>onHover?.(null)} onFocus={()=>onHover?.(id)} onBlur={()=>onHover?.(null)}>{club?<GraphicPreview id={id} frame={frame}/>:<span className={`motion-mini mm-${id}`} aria-hidden="true"><i/><i/></span>}<b>{MOTION_TEMPLATES[id].label}</b></button>)}</div>
   </section>
   {block?<BlockFields key={block.id} project={p} block={block} change={change}/>:
    <section className="inspector-section"><h3>{club?'In this video':'In this project'}</h3>{(p.motion??[]).map(m=><button key={m.id} type="button" className="list-item" onClick={()=>select(m.id)}><span>{MOTION_TEMPLATES[m.template]?.label}: {motionText(m)}</span><small>{timecode(m.start)}</small></button>)}{!p.motion?.length&&<p className="hint">Nothing yet. Add one above, or ask the companion: “add a lower third at 0:12”.</p>}</section>}
@@ -37,7 +46,7 @@ function BlockFields({project:p,block,change}:{project:Project;block:MotionBlock
  const before=(p.motion??[]).filter(m=>m.id!==block.id&&m.start+m.duration<=block.start+1e-6).reduce((at,m)=>Math.max(at,m.start+m.duration),0);
  const after=nextMotionStart(p,block.start,block.id),longest=Math.min(template.maxDuration,after-block.start);
  return <section className="inspector-section"><h3>{template.label}</h3>
-  <div className="field"><span>Style</span><div className="button-pair" role="radiogroup" aria-label="Style">{template.styles.map(s=><button key={s.id} type="button" role="radio" aria-checked={block.style===s.id} className={`button ${block.style===s.id?'is-active':''}`} onClick={()=>update(m=>{m.style=s.id;})}>{s.label}</button>)}</div></div>
+  <div className="field gfx-style"><span>Style</span><div className="lp-seg" role="radiogroup" aria-label="Style">{template.styles.map(s=><button key={s.id} type="button" role="radio" aria-checked={block.style===s.id} aria-pressed={block.style===s.id} onClick={()=>update(m=>{m.style=s.id;})}>{s.label}</button>)}</div></div>
   {template.props.map(spec=>spec.kind==='text'
    ?<label key={spec.key} className="field"><span>{spec.label}{spec.optional?' (optional)':''}</span><input aria-label={spec.label} value={String(block.props[spec.key]??props[spec.key])} maxLength={spec.max} onChange={e=>{const value=e.target.value;update(m=>{m.props={...m.props,[spec.key]:value};},spec.key);}}/></label>
    :<label key={spec.key} className="slider-field"><span>{spec.label}<b>{Math.round(Number(props[spec.key])*100)}%</b></span><input aria-label={spec.label} type="range" min={0} max={1} step={.01} value={Number(props[spec.key])} onChange={e=>{const value=Number(e.target.value);update(m=>{m.props={...m.props,[spec.key]:value};},spec.key);}}/></label>)}
@@ -47,4 +56,10 @@ function BlockFields({project:p,block,change}:{project:Project;block:MotionBlock
   </div>
   <button type="button" className="button danger" onClick={()=>change(d=>{d.motion=(d.motion??[]).filter(m=>m.id!==block.id);})}><Trash2 size={14}/>Remove {template.label.toLowerCase()}</button>
  </section>;
+}
+
+/** A graphic as it will look, over a frame of this video. */
+function GraphicPreview({id,frame}:{id:MotionTemplateId;frame?:string}){
+ const sample=newMotionBlock(id,0,`preview-${id}`);
+ return <span className="gfx-preview" aria-hidden="true" style={frame?{backgroundImage:`url(${frame})`}:undefined}><MotionLayer blocks={[sample]} time={Math.min(1.5,sample.duration/2)}/></span>;
 }

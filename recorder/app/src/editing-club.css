@@ -270,3 +270,49 @@
 /* Toasts sit top-right, under the header: never over the timeline, the transport or the Continue button. */
 .club-root:has(.club-embed) .cc-toasts{top:72px;right:20px;bottom:auto;left:auto;transform:none;align-items:flex-end}
 .club-embed .toast{top:72px;right:20px;bottom:auto;left:auto;transform:none}
+/* Handles on the picture: the selected camera or screen moves and resizes right where it is. */
+.club-embed .app-shell[data-mode=Edit] .stage-handles{position:absolute;z-index:30;box-sizing:border-box;border:1.5px solid var(--cc-accent);border-radius:var(--cc-r-sm);cursor:move;touch-action:none}
+.club-embed .app-shell[data-mode=Edit] .stage-grip{position:absolute;width:12px;height:12px;border-radius:50%;background:var(--cc-surface);box-shadow:0 0 0 1.5px var(--cc-accent),var(--cc-shadow-1)}
+.club-embed .app-shell[data-mode=Edit] .stage-grip.nw{left:-6px;top:-6px;cursor:nwse-resize}
+.club-embed .app-shell[data-mode=Edit] .stage-grip.ne{right:-6px;top:-6px;cursor:nesw-resize}
+.club-embed .app-shell[data-mode=Edit] .stage-grip.sw{left:-6px;bottom:-6px;cursor:nesw-resize}
+.club-embed .app-shell[data-mode=Edit] .stage-grip.se{right:-6px;bottom:-6px;cursor:nwse-resize}
+/* Layout: the arrangements drawn with your own shot, the one in use marked, then corners and background. */
+.club-embed .app-shell[data-mode=Edit] .layout-panel{display:flex;flex-direction:column}
+.club-embed .app-shell[data-mode=Edit] .lp-section{padding:14px 16px;border-bottom:1px solid var(--cc-line)}
+.club-embed .app-shell[data-mode=Edit] .lp-section h4{margin:0 0 8px;font-size:var(--cc-text-xs);font-weight:600;color:var(--cc-text-2)}
+.club-embed .app-shell[data-mode=Edit] .lp-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.club-embed .app-shell[data-mode=Edit] .lp-card{all:unset;box-sizing:border-box;cursor:pointer;display:flex;flex-direction:column;gap:6px;padding:5px;border-radius:var(--cc-r);border:1.5px solid transparent}
+.club-embed .app-shell[data-mode=Edit] .lp-card:hover{background:var(--cc-hover)}
+.club-embed .app-shell[data-mode=Edit] .lp-card.on{border-color:var(--cc-accent);background:var(--cc-accent-soft)}
+.club-embed .app-shell[data-mode=Edit] .lp-card:focus-visible{outline:2px solid var(--cc-accent);outline-offset:1px}
+.club-embed .app-shell[data-mode=Edit] .lp-preview{position:relative;display:block;aspect-ratio:16/9;border-radius:var(--cc-r-sm);overflow:hidden;box-shadow:inset 0 0 0 1px var(--cc-line)}
+.club-embed .app-shell[data-mode=Edit] .lp-preview i{position:absolute;background-size:cover;background-position:center;background-color:var(--cc-line-strong)}
+.club-embed .app-shell[data-mode=Edit] .lp-preview .lp-camera{background-color:var(--kind-camera);box-shadow:0 1px 3px var(--tl-shade)}
+.club-embed .app-shell[data-mode=Edit] .lp-name{font-size:var(--cc-text-xs);font-weight:550;color:var(--cc-text);padding:0 2px}
+.club-embed .app-shell[data-mode=Edit] .lp-card.on .lp-name{color:var(--cc-accent-text)}
+.club-embed .app-shell[data-mode=Edit] .lp-hint{margin:10px 2px 0;font-size:var(--cc-text-xs);line-height:1.45;color:var(--cc-text-3)}
+.club-embed .app-shell[data-mode=Edit] .lp-seg{display:flex;padding:2px;border-radius:var(--cc-r);background:var(--cc-bg-sunk)}
+.club-embed .app-shell[data-mode=Edit] .lp-seg button{all:unset;flex:1;text-align:center;cursor:pointer;height:28px;line-height:28px;border-radius:var(--cc-r-sm);font-size:var(--cc-text-xs);font-weight:550;color:var(--cc-text-2)}
+.club-embed .app-shell[data-mode=Edit] .lp-seg button[aria-pressed=true]{background:var(--cc-surface);color:var(--cc-text);box-shadow:var(--cc-shadow-1)}
+.club-embed .app-shell[data-mode=Edit] .lp-swatches{display:flex;gap:8px}
+.club-embed .app-shell[data-mode=Edit] .lp-swatches button{all:unset;cursor:pointer;width:26px;height:26px;border-radius:50%;box-shadow:inset 0 0 0 1px var(--tl-shade)}
+.club-embed .app-shell[data-mode=Edit] .lp-swatches button[aria-pressed=true]{box-shadow:0 0 0 2px var(--cc-surface),0 0 0 4px var(--cc-accent)}
+/* The timeline zoom in the play bar. */
+.club-embed .app-shell[data-mode=Edit] .club-zoom{display:flex;align-items:center;gap:4px;margin-right:6px}
+.club-embed .app-shell[data-mode=Edit] .club-zoom input[type=range]{width:110px;accent-color:var(--cc-text-2);height:4px}
+.club-embed .app-shell[data-mode=Edit] .club-zoom-step{all:unset;cursor:pointer;display:grid;place-items:center;width:26px;height:26px;border-radius:var(--cc-r-sm);color:var(--cc-text-2)}
+.club-embed .app-shell[data-mode=Edit] .club-zoom-step:hover{background:var(--cc-hover);color:var(--cc-text)}
+/* Graphics: Claude adds them for you, or you pick one that is drawn over your own frame. */
+.club-embed .app-shell[data-mode=Edit] .gfx-ask{display:flex;flex-direction:column;gap:8px}
+.club-embed .app-shell[data-mode=Edit] .gfx-ask-btn{width:100%}
+.club-embed .app-shell[data-mode=Edit] .motion-gallery button{height:auto}
+.club-embed .app-shell[data-mode=Edit] .gfx-preview{position:relative;display:block;flex:none;width:100%;height:0;padding-bottom:56.25%;container-type:inline-size;border-radius:var(--cc-r-sm);overflow:hidden;background:var(--cc-dark-stage) center/cover no-repeat}
+.club-embed .app-shell[data-mode=Edit] .gfx-style .lp-seg{margin-top:6px}
+.club-embed .app-shell[data-mode=Edit] .stage-zoom-area{position:absolute;z-index:30;pointer-events:none}
+.club-embed .app-shell[data-mode=Edit] .stage-zoom-area .stage-handles{pointer-events:auto;border-style:dashed;background:color-mix(in srgb,var(--cc-accent) 10%,transparent)}
+.club-embed .app-shell[data-mode=Edit] .zp-list{display:flex;flex-direction:column;gap:2px;margin:0 -8px}
+.club-embed .app-shell[data-mode=Edit] .zp-list button{all:unset;cursor:pointer;display:flex;justify-content:space-between;padding:7px 8px;border-radius:var(--cc-r-sm);font-size:var(--cc-text-xs);color:var(--cc-text)}
+.club-embed .app-shell[data-mode=Edit] .zp-list button:hover{background:var(--cc-hover)}
+.club-embed .app-shell[data-mode=Edit] .zp-list button.on{background:var(--cc-accent-soft);color:var(--cc-accent-text)}
+.club-embed .app-shell[data-mode=Edit] .zp-list small{color:var(--cc-text-3)}

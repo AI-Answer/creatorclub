@@ -66,7 +66,7 @@ test('embedded Edit: the mock-up layout (rail, the transcript open beside the pi
   assert.ok(!/project/i.test(visible),`no "project" in the embedded editor: ${visible.match(/.{0,40}project.{0,40}/i)?.[0]}`);
   assert.equal(header.querySelector('.project-header-controls'),null,'the top strip holds no controls: they sit on the timeline bar');
   const bar=[...ui.container.querySelectorAll('.club-timeline-bar button')].map(b=>b.getAttribute('aria-label')??b.textContent?.trim());
-  assert.deepEqual(bar,['Play','Split','Delete','Note','View'],'the transport holds play, Split, Delete, Note and View; undo and history sit in the video\'s header');
+  assert.deepEqual(bar,['Play','Split','Delete','Note','Zoom out','Zoom in','Fit','View'],'the transport holds play, Split, Delete, Note, the timeline zoom and View; undo and history sit in the video\'s header');
   assert.ok(!bar.includes('Export video'),'Export lives in Publish: Edit has one way forward, Continue to publishing');
   assert.equal(ui.container.querySelector('.panel-rail'),null);
   assert.equal(ui.container.querySelector('.inspector'),null,'no tool panel is open yet');

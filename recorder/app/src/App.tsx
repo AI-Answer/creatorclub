@@ -273,6 +273,9 @@ export default function App({embedded}:{embedded?:EmbeddedRecorder}={}){
  // Club Edit: the right side, the "Style & more" menu that replaces the panel rail, and the timeline's More menu.
  const sideView=panel?'panel':side==='auto'?'auto':side??'transcript';
  const openPanel=(name:Panel)=>{setPanel(name);},openSide=(next:'transcript'|'media')=>{setPanel(null);setSide(next);};
+ /** A camera or screen dragged on the picture: every piece of that shot (same row, same place) moves with it, as one undo step. */
+ const moveOnStage=useEvent((id:string,box:{x:number;y:number;width:number;height:number})=>studio.change(d=>{const c=d.clips.find(x=>x.id===id);if(!c)return;const o={...c.transform};for(const x of d.clips)if(x.track===c.track&&x.transform.x===o.x&&x.transform.y===o.y&&x.transform.width===o.width&&x.transform.height===o.height)Object.assign(x.transform,box);},{coalesce:`stage:${id}`}));
+ const aimZoom=useEvent((id:string,where:{x:number;y:number;scale:number})=>studio.change(d=>{const z=d.zooms.find(x=>x.id===id);if(z)Object.assign(z,where);},{coalesce:`zoom-aim:${id}`}));
  const openItem=useEvent((id:string)=>{if(!p)return;select(id);setPanel(p.motion?.some(m=>m.id===id)?'Motion':p.elements.some(e=>e.id===id)?'Elements':p.zooms.some(z=>z.id===id)?'Zoom':p.captions.some(c=>c.id===id)?'Captions':'Clip');});
  const styleItems:MenuItem[]=[{header:'Style'},...panels.filter(({name})=>name!=='Automate').map(({name})=>({label:name,fn:()=>openPanel(name)})),'-',{label:'Transcript',fn:()=>openSide('transcript')},{label:'Media in this video',fn:()=>openSide('media')},{label:'Import media',icon:'Upload',fn:()=>beginImport()},'-',{label:'Settings…',icon:'Settings',fn:()=>openModal('settings')}];
  /* The Edit tool rail: named tools, each opens one panel on the right. Canvas and Cursor, which few videos need, sit behind More. */
@@ -291,7 +294,7 @@ export default function App({embedded}:{embedded?:EmbeddedRecorder}={}){
   addMarker:addMarkerAtPlayhead,previousCut:()=>boundary(-1),nextCut:()=>boundary(1),toggleLink,linked:selectionLinked,blade:tool==='blade',toggleBlade:()=>setTool(v=>v==='blade'?'select':'blade'),waveforms:showWaveforms,toggleWaveforms:()=>setShowWaveforms(v=>!v),
   addVideoLayer:()=>studio.change(d=>{addTimelineLayer(d,'video');}),addAudioLayer:()=>studio.change(d=>{addTimelineLayer(d,'audio');})}:null;
  const timelineItems:MenuItem[]=menuActions?timelineMoreItems(menuActions):[],contextItems:MenuItem[]=menuActions?timelineContextItems(menuActions):[];
- const viewItems:MenuItem[]=p?[{label:'Snap to edges',check:p.settings.snap,fn:()=>studio.change(d=>{d.settings.snap=!d.settings.snap;})},{label:'Follow the playhead while playing',check:follow,fn:()=>setFollow(v=>!v)},'-',{label:'Zoom in',fn:()=>setZoom(v=>clampScale(v*1.5))},{label:'Zoom out',fn:()=>setZoom(v=>clampScale(v/1.5))},{label:'Fit the whole video',fn:()=>timelineControls.current?.fit()},'-',{header:'Timeline actions'},...timelineItems,'-',{label:'Keyboard shortcuts',fn:()=>setShortcutsOpen(v=>!v)}]:[];
+ const viewItems:MenuItem[]=p?[{label:'Snap to edges',check:p.settings.snap,fn:()=>studio.change(d=>{d.settings.snap=!d.settings.snap;})},{label:'Follow the playhead while playing',check:follow,fn:()=>setFollow(v=>!v)},'-',{header:'Timeline actions'},...timelineItems,'-',{label:'Keyboard shortcuts',fn:()=>setShortcutsOpen(v=>!v)}]:[];
  /* The companion docked beside Edit: it reads the playhead and the selection when a message is sent, previews a card on the stage
     (cuts with the same before/after playback as Auto-edit, other changes as the frame after them) and applies a card as one undo step. */
  const editorContext=useEvent(():EditorContext=>{
@@ -348,7 +351,7 @@ export default function App({embedded}:{embedded?:EmbeddedRecorder}={}){
   </nav>
   <main className="club-edit-stage">
    {/* The player always stays; a preview is a badge over it, and a cut's before/after plays in a small inset in the corner. */}
-   <Stage project={stageProject} playhead={playhead} playing={playing} playbackRate={playbackRate} onSelect={select} onImport={importMedia}/>
+   <Stage project={stageProject} playhead={playhead} playing={playing} playbackRate={playbackRate} onSelect={select} onImport={importMedia} selected={selected} onTransform={moveOnStage} onZoom={aimZoom}/>
    {preview?.review&&<div className="club-preview-inset" role="region" aria-label="Before and after this cut"><CutPlayback key={preview.key} review={preview.review} labels={{before:'Before',after:'After'}} note="This preview does not change your video."/></div>}
    {preview&&<div className="club-preview-badges" role="status"><span className="club-pill">Previewing at lower quality</span><span className="club-pill">{preview.label} · {preview.summary}</span>
     {preview.after&&<span className="club-seg" role="group" aria-label="Before or after">{(['before','after'] as const).map(v=><button key={v} type="button" aria-pressed={previewPhase===v} onClick={()=>setPreviewPhase(v)}>{v==='before'?'Before':'After'}</button>)}</span>}</div>}
@@ -371,6 +374,13 @@ export default function App({embedded}:{embedded?:EmbeddedRecorder}={}){
    <button type="button" className="club-tool" title="Delete and close the gap (Delete). Shift+Delete keeps the gap." disabled={!selection.size} onClick={()=>deleteSelected(true)}><Trash2 size={15}/>Delete</button>
    <button type="button" className="club-tool" title="Leave a note for yourself or Claude at the playhead (M)" onClick={addMarkerAtPlayhead}><Plus size={15}/>Note</button>
    <span className="club-bar-grow"/>
+   {/* The timeline's zoom, always in sight: out, the slider, in, and Fit the whole video. ⌘-scroll on the timeline works too. */}
+   <div className="club-zoom" role="group" aria-label="Timeline zoom">
+    <button type="button" className="club-zoom-step" aria-label="Zoom out" title="Zoom out (⌘ −)" onClick={()=>setZoom(v=>clampScale(v/1.5))}><Minus size={14}/></button>
+    <input type="range" aria-label="Timeline zoom" min={zoomRange.min} max={zoomRange.max} step={zoomRange.step} value={zoomRange.fromScale(zoom)} onChange={e=>setZoom(zoomRange.toScale(Number(e.target.value)))}/>
+    <button type="button" className="club-zoom-step" aria-label="Zoom in" title="Zoom in (⌘ +)" onClick={()=>setZoom(v=>clampScale(v*1.5))}><Plus size={14}/></button>
+    <button type="button" className="club-tool" title="Fit the whole video" onClick={()=>timelineControls.current?.fit()}><Maximize2 size={14}/>Fit</button>
+   </div>
    <Menu label="View" align="right" width={260} items={viewItems} button={(toggle,open)=><button type="button" className="club-tool" aria-haspopup="menu" aria-expanded={open} title="Snapping, following the playhead, shortcuts and more timeline actions" onClick={toggle}>View<ChevronDown size={13}/></button>}/>
    {shortcutsOpen&&<ShortcutsPopover onClose={closeShortcuts}/>}
   </div>
