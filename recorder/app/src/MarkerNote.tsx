@@ -43,10 +43,9 @@ export function MarkerNote({time,name,tag,anchor,onChange,onNudge,onDelete,onClo
    {MARKER_TAGS.map(each=><button key={each} type="button" className={`marker-tag ${each}${tag===each?' on':''}`} aria-pressed={tag===each} onClick={()=>onChange({tag:tag===each?null:each})}>{MARKER_TAG_LABEL[each]}</button>)}
   </div>
   <div className="marker-note-a">
-   <span className="marker-note-saved">{written?'Saved':'Saves as you type'}</span>
    <span className="grow"/>
-   <button type="button" className="marker-btn" onClick={onClose}>Done</button>
-   <button type="button" className="marker-btn primary" disabled={!written} onClick={fix} title="⌘ Enter">Ask Claude to fix it</button>
+   <button type="button" className="btn sm" onClick={onClose}>Done</button>
+   <button type="button" className="btn sm primary" disabled={!written} onClick={fix}>Ask Claude to fix it</button>
   </div>
  </div>;
 }

@@ -127,14 +127,6 @@
 .club-embed .app-shell[data-mode=Record] .recording-controls .button{border-radius:8px}
 
 /* The club's buttons (the take preview's three choices, the fix button in a warning) in the club's look, as the embedded app has no `.btn` styles of its own. */
-.club-embed .app-shell[data-mode=Record] .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:40px;padding:0 16px;border:1px solid var(--cc-line);border-radius:8px;background:var(--cc-card);color:var(--cc-ink);font-size:14px;font-weight:550;cursor:pointer}
-.club-embed .app-shell[data-mode=Record] .btn:hover:not(:disabled){background:var(--cc-subtle)}
-.club-embed .app-shell[data-mode=Record] .btn.primary{background:var(--cc-primary);border-color:var(--cc-primary);color:var(--cc-primary-ink)}
-.club-embed .app-shell[data-mode=Record] .btn.primary:hover:not(:disabled){background:var(--cc-primary);filter:brightness(1.2)}
-.club-embed .app-shell[data-mode=Record] .btn.ghost{border-color:transparent;background:transparent}
-.club-embed .app-shell[data-mode=Record] .btn.ghost:hover:not(:disabled){background:var(--cc-subtle)}
-.club-embed .app-shell[data-mode=Record] .btn.sm{min-height:28px;padding:0 10px;font-size:13px}
-.club-embed .app-shell[data-mode=Record] .btn:disabled{opacity:.45;cursor:default}
 
 /* Take preview: the take on the warm page, its name and badge on top, three choices at the bottom. */
 .club-embed .app-shell[data-mode=Record] .take-review{background:var(--cc-page);color:var(--cc-ink);font-family:var(--font-sans)}

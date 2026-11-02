@@ -225,23 +225,24 @@
 :where(.club-root) .clamp3:where(:not(.club-embed *)) { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 :where(.club-root) .ellipsis:where(:not(.club-embed *)) { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* ---------- Buttons ---------- */
-:where(.club-root) .btn:where(:not(.club-embed *)) { display: inline-flex; align-items: center; justify-content: center; gap: 7px; height: 34px; padding: 0 13px; border-radius: var(--cc-r); border: 1px solid var(--cc-line-strong); background: var(--cc-surface); color: var(--cc-text); font-weight: 550; font-size: 13.5px; cursor: pointer; white-space: nowrap; box-shadow: var(--cc-shadow-1); transition: background .15s, border-color .15s, transform .12s, box-shadow .15s, color .15s; }
-:where(.club-root) .btn:hover:where(:not(.club-embed *)) { background: var(--cc-surface-2); border-color: var(--cc-line-hover); }
-:where(.club-root) .btn:active:where(:not(.club-embed *)) { transform: translateY(1px); }
-:where(.club-root) .btn:disabled:where(:not(.club-embed *)) { opacity: .5; cursor: not-allowed; }
-:where(.club-root) .btn.primary:where(:not(.club-embed *)) { background: var(--cc-primary); border-color: var(--cc-primary); color: var(--cc-on-primary); box-shadow: var(--cc-shadow-primary); }
-:where(.club-root) .btn.primary:hover:where(:not(.club-embed *)) { background: var(--cc-primary-hover); }
-:where(.club-root) .btn.ghost:where(:not(.club-embed *)) { border-color: transparent; background: transparent; box-shadow: none; color: var(--cc-text-2); }
-:where(.club-root) .btn.ghost:hover:where(:not(.club-embed *)) { background: var(--cc-hover); color: var(--cc-text); }
-:where(.club-root) .btn.ai:where(:not(.club-embed *)) { color: var(--cc-accent-text); }
-:where(.club-root) .btn.ai .icon:where(:not(.club-embed *)) { color: var(--cc-accent); }
-:where(.club-root) .btn:is(.danger, .danger-text):where(:not(.club-embed *)) { color: var(--cc-danger); }
-:where(.club-root) .btn.danger:hover:where(:not(.club-embed *)) { background: var(--cc-danger-soft); border-color: color-mix(in srgb, var(--cc-danger) 35%, var(--cc-line)); }
-:where(.club-root) .btn:focus-visible:where(:not(.club-embed *)) { outline: 2px solid var(--cc-accent); outline-offset: 2px; }
-:where(.club-root) .btn.sm:where(:not(.club-embed *)) { height: 28px; padding: 0 10px; font-size: 13px; gap: 6px; }
-:where(.club-root) .btn.lg:where(:not(.club-embed *)) { height: 40px; padding: 0 18px; font-size: 14.5px; }
-:where(.club-root) .btn.icon-only:where(:not(.club-embed *)) { width: 34px; padding: 0; }
-:where(.club-root) .btn.sm.icon-only:where(:not(.club-embed *)) { width: 28px; }
+/* The one button of the whole app, the editor inside Record and Edit included: no screen defines its own. */
+:where(.club-root) .btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; white-space: nowrap; height: 34px; padding: 0 13px; border-radius: var(--cc-r); border: 1px solid var(--cc-line-strong); background: var(--cc-surface); color: var(--cc-text); font-weight: 550; font-size: 13.5px; cursor: pointer; white-space: nowrap; box-shadow: var(--cc-shadow-1); transition: background .15s, border-color .15s, transform .12s, box-shadow .15s, color .15s; }
+:where(.club-root) .btn:hover { background: var(--cc-surface-2); border-color: var(--cc-line-hover); }
+:where(.club-root) .btn:active { transform: translateY(1px); }
+:where(.club-root) .btn:disabled { opacity: .5; cursor: not-allowed; }
+:where(.club-root) .btn.primary { background: var(--cc-primary); border-color: var(--cc-primary); color: var(--cc-on-primary); box-shadow: var(--cc-shadow-primary); }
+:where(.club-root) .btn.primary:hover { background: var(--cc-primary-hover); }
+:where(.club-root) .btn.ghost { border-color: transparent; background: transparent; box-shadow: none; color: var(--cc-text-2); }
+:where(.club-root) .btn.ghost:hover { background: var(--cc-hover); color: var(--cc-text); }
+:where(.club-root) .btn.ai { color: var(--cc-accent-text); }
+:where(.club-root) .btn.ai .icon { color: var(--cc-accent); }
+:where(.club-root) .btn:is(.danger, .danger-text) { color: var(--cc-danger); }
+:where(.club-root) .btn.danger:hover { background: var(--cc-danger-soft); border-color: color-mix(in srgb, var(--cc-danger) 35%, var(--cc-line)); }
+:where(.club-root) .btn:focus-visible { outline: 2px solid var(--cc-accent); outline-offset: 2px; }
+:where(.club-root) .btn.sm { height: 28px; padding: 0 10px; font-size: 13px; gap: 6px; }
+:where(.club-root) .btn.lg { height: 40px; padding: 0 18px; font-size: 14.5px; }
+:where(.club-root) .btn.icon-only { width: 34px; padding: 0; }
+:where(.club-root) .btn.sm.icon-only { width: 28px; }
 :where(.club-root) .linkish:where(:not(.club-embed *)) { border: 0; background: none; color: var(--cc-accent-text); cursor: pointer; padding: 0; font-weight: 550; font-size: 13px; }
 :where(.club-root) .linkish:hover:where(:not(.club-embed *)) { text-decoration: underline; text-underline-offset: 3px; }
 :where(.club-root) .seg:where(:not(.club-embed *)) { display: inline-flex; padding: 3px; background: var(--cc-bg-sunk); border: 1px solid var(--cc-line); border-radius: 9px; gap: 2px; }
