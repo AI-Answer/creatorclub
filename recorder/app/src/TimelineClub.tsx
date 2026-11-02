@@ -29,7 +29,9 @@ interface Drag {items:Map<string,Preview>;ghosts:Array<{row:string;start:number;
 /** Snapping reaches 8 px on screen, whatever the zoom, so a short neighbour does not pull an edit away from where it was dropped. */
 const RULER=30,SNAP_PX=8,STALE_DROP='The timeline changed during the drag, so nothing moved. Try again.',NOT_MOVED='Clips stay joined end to end. Drag a clip onto another one to change the order.';
 const icons:Record<TrackKind,typeof Camera>={screen:Monitor,camera:Camera,audio:Mic,music:Music,overlay:Layers};
-const heights:Record<TrackKind,number>={screen:50,camera:38,audio:40,music:32,overlay:38};
+/** Every row of the timeline is the same height, media, sound and effects alike. */
+const ROW_H=32;
+const heights:Record<TrackKind,number>={screen:ROW_H,camera:ROW_H,audio:ROW_H,music:ROW_H,overlay:ROW_H};
 const effectRows:Array<{id:Effect;name:string;icon:typeof Camera}>=[{id:'motion',name:'Graphics',icon:Clapperboard},{id:'elements',name:'Text',icon:Type},{id:'captions',name:'Captions',icon:AudioLines},{id:'zooms',name:'Zoom',icon:ZoomIn}];
 
 /** The items on the effect rows (graphics, text, captions, zooms) with the words the timeline shows on them. */
@@ -53,8 +55,8 @@ export function usedRows(p:Project):Row[]{
  const layers=timelineRows(p).filter(l=>counts.has(l.id)||custom.has(l.id)||!p.clips.length&&(l.id==='role:screen'||l.id==='role:audio'));
  const rows:Row[]=[];let top=RULER;
  const linkedRow=(id:string)=>p.clips.some(c=>clipLayerRowId(c,p)===id&&sizes.get(groups.get(c.id)!)!>1);
- for(const l of layers){const height=l.track?heights[l.track]:l.kind==='video'?44:34;rows.push({id:l.id,name:l.track==='screen'?'Screen':l.name,icon:l.track?icons[l.track]:l.kind==='video'?Layers:Music,height,top,layer:l,linked:linkedRow(l.id)});top+=height;}
- for(const e of effectRows){if(!(p[e.id]??[]).length)continue;rows.push({id:e.id,name:e.name,icon:e.icon,height:26,top,effect:e.id});top+=26;}
+ for(const l of layers){const height=l.track?heights[l.track]:ROW_H;rows.push({id:l.id,name:l.track==='screen'?'Screen':l.name,icon:l.track?icons[l.track]:l.kind==='video'?Layers:Music,height,top,layer:l,linked:linkedRow(l.id)});top+=height;}
+ for(const e of effectRows){if(!(p[e.id]??[]).length)continue;rows.push({id:e.id,name:e.name,icon:e.icon,height:ROW_H,top,effect:e.id});top+=ROW_H;}
  return rows;
 }
 export const rowsHeight=(rows:readonly Row[])=>RULER+rows.reduce((n,r)=>n+r.height,0)+10;
