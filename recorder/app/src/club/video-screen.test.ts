@@ -58,7 +58,7 @@ test('on an empty Plan, Write with Claude and Draft scenes ask the chat instead 
   const c=ui.container;
   assert.ok(hasText(c,'decide whether people click'),'the empty package is one sentence');
   assert.deepEqual(primaries(c),['Draft scenes from the board'],'one primary: the thing to do first');
-  await act(async()=>button(c,'Write the package with Claude').click());await flush();
+  await act(async()=>button(c,'Write all three with Claude').click());await flush();
   assert.deepEqual(asked,['Write three title options, the thumbnail text and the hook for this video.'],'the chat is asked, in plain words');
   await act(async()=>button(c,'Draft scenes from the board').click());await flush();
   assert.equal(asked.at(-1),'Draft the scenes for this video from the board.');

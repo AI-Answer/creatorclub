@@ -14,6 +14,7 @@ import {Markdown} from './Markdown';
 import {ReplaceScenes} from './ReplaceScenes';
 import {useCompanion,type Live} from './useCompanion';
 import './companion.css';
+import {boardBase} from './board-base';
 
 const OPEN_KEY='cc.companion.open';
 const TILE_RECOUNT_MS=8000;
@@ -61,9 +62,9 @@ export function Companion({videoId,videoTitle,tab,scene,screen,selection,pkg,out
  // On Board the suggestions follow whether anything is on it yet: the tiles are counted when Board opens and every few seconds while it is open.
  const [tiles,setTiles]=useState<number|undefined>();
  useEffect(()=>{
-  if(tab!=='board')return;
+  if(tab!=='board'&&tab!=='research')return;
   let alive=true;
-  const count=()=>clubFetch<unknown[]>(`/videos/${encodeURIComponent(videoId)}/research`).then(list=>{if(alive&&Array.isArray(list))setTiles(list.length);},()=>{});
+  const count=()=>clubFetch<unknown[]>(`${boardBase(videoId)}/research`).then(list=>{if(alive&&Array.isArray(list))setTiles(list.length);},()=>{});
   void count();const timer=setInterval(()=>void count(),TILE_RECOUNT_MS);
   return()=>{alive=false;clearInterval(timer);};
  },[tab,videoId,boardKey]);
@@ -150,13 +151,16 @@ export function Companion({videoId,videoTitle,tab,scene,screen,selection,pkg,out
  </aside>;
 
  // The conversation is one per video, but each step shows its own: what was said on other steps is one line, opened on request.
- const here=messages?(showEarlier?messages:messages.filter(message=>tabOf(message)===tab)):undefined;
+ // A conversation from an earlier day is tucked away too, so the step opens on a fresh start with its suggestions.
+ const today=new Date();today.setHours(0,0,0,0);
+ const recent=(message:{at?:string})=>!message.at||!(new Date(message.at).getTime()<today.getTime());
+ const here=messages?(showEarlier?messages:messages.filter(message=>tabOf(message)===tab&&recent(message))):undefined;
  const hiddenCount=messages&&here?messages.length-here.length:0;
  const items=here?withDividers(here,tab):[];
  const sceneCount=outline?.scenes.length??0;
  const recorded=scenes?scenes.filter(one=>one.takes.length>0).length:undefined;
  const ideas=suggestions(tab,{scenes:sceneCount,scene,selected:tab==='research'?selection?.length:editor?.state?.selected,notes:editor?.state?.notes,hook:!!pkg?.hook.spoken.trim(),longest:Math.max(0,...(outline?.scenes??[]).map(one=>one.seconds||0)),
-  tiles:tab==='board'?tiles:undefined,recorded,titled:!!videoTitle?.trim()||!!pkg?.titles.some(one=>one.trim()),thumbnail:!!pkg?.thumbnailText.trim()});
+  tiles:tab==='board'||tab==='research'?tiles:undefined,recorded,titled:!!videoTitle?.trim()||!!pkg?.titles.some(one=>one.trim()),thumbnail:!!pkg?.thumbnailText.trim()});
  // Nothing asked yet: a short greeting for this step with the best prompts right under it, instead of a blank column.
  const fresh=!!here&&!here.length&&!live&&!companion.loadError;
  // Proposals are waiting for a choice: the suggestions step aside so the cards are the one thing to act on.
@@ -182,7 +186,7 @@ export function Companion({videoId,videoTitle,tab,scene,screen,selection,pkg,out
      <p>{greeting(tab,{scenes:sceneCount,tiles:tab==='board'?tiles:undefined,recorded})}</p>
      {chips||null}
     </div>}
-   {hiddenCount>0&&<button type="button" className="cmp-earlier" onClick={()=>setShowEarlier(true)}>Earlier on other steps · {hiddenCount} {hiddenCount===1?'message':'messages'}<span>Show</span></button>}
+   {hiddenCount>0&&<button type="button" className="cmp-earlier" onClick={()=>setShowEarlier(true)}>Earlier messages · {hiddenCount} {hiddenCount===1?'message':'messages'}<span>Show</span></button>}
    {items.map(item=>item.kind==='divider'?<div key={item.key} className="cmp-divider" role="separator">{item.label}</div>
     :item.message.role==='user'?<div key={item.key} className="cmp-me">{item.message.text}</div>
     :<Reply key={item.key} name={name} message={item.message} answered={working||(messages?.at(-1)?.id!==item.message.id)} onChoose={answer=>void ask(answer)} pkg={pkg} outline={outline} scenes={scenes} busy={companion.busyCard} editor={editor} silences={silences}

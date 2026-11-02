@@ -191,7 +191,7 @@
 :where(.club-root) .sb-icons:where(:not(.club-embed *)) { flex-direction: row; align-items: center; gap: 2px; }
 :where(.club-root) .sb-icon:where(:not(.club-embed *)) { width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; border-radius: var(--cc-r); border: 0; background: none; color: var(--cc-text-2); cursor: pointer; flex: none; transition: background .15s, color .15s; }
 :where(.club-root) .sb-icon:hover:where(:not(.club-embed *)) { background: var(--cc-hover); color: var(--cc-text); }
-:where(.club-root) .sb-icon.active:where(:not(.club-embed *)) { background: var(--cc-surface); color: var(--cc-text); box-shadow: var(--cc-shadow-1), inset 0 0 0 1px var(--cc-line); }
+:where(.club-root) .sb-icon.active:where(:not(.club-embed *)) { background: var(--cc-accent-soft); color: var(--cc-accent-text); box-shadow: none; }
 :where(.club-root) .sb-collapse:where(:not(.club-embed *)) { margin-left: auto; }
 :where(.club-root) .collapsed .sb-icons:where(:not(.club-embed *)) { flex-direction: column; }
 :where(.club-root) .collapsed .sb-collapse:where(:not(.club-embed *)) { margin-left: 0; }
@@ -446,6 +446,8 @@
 :where(.club-root) .menu .hd:where(:not(.club-embed *)) { font-size: 12px; color: var(--cc-text-3); padding: 6px 10px 4px; }
 /* ---------- Toasts ---------- */
 :where(.club-root) .cc-toasts:where(:not(.club-embed *)) { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; gap: 8px; z-index: 60; align-items: center; pointer-events: none; }
+/* On a video step the bottom bar holds Continue: toasts sit above it, never over it. */
+:where(.club-root):has(.ws-foot) .cc-toasts:where(:not(.club-embed *)) { bottom: 78px; }
 :where(.club-root) .cc-toast:where(:not(.club-embed *)) { pointer-events: auto; background: var(--cc-toast-bg); color: var(--cc-toast-text); border-radius: 10px; padding: 9px 10px 9px 14px; display: flex; align-items: center; gap: 12px; font-size: 13.5px; box-shadow: var(--cc-shadow-toast); animation: cc-toastIn .35s var(--cc-ease); }
 @keyframes cc-toastIn { from { opacity: 0; transform: translateY(10px) scale(.98); } }
 :where(.club-root) .cc-toast button:where(:not(.club-embed *)) { background: var(--cc-toast-button); border: 0; color: var(--cc-toast-text); height: 26px; padding: 0 10px; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 12.5px; }
@@ -512,7 +514,7 @@
 :where(.club-root) .ws-foot .l:where(:not(.club-embed *)) { justify-self: start; }
 :where(.club-root) .ws-foot .r:where(:not(.club-embed *)) { justify-self: end; }
 /* scene strip */
-:where(.club-root) .strip:where(:not(.club-embed *)) { display: flex; gap: 6px; padding: 10px 18px; border-bottom: 1px solid var(--cc-line); background: var(--cc-surface-2); overflow-x: auto; flex: none; align-items: center; }
+:where(.club-root) .strip:where(:not(.club-embed *)) { display: flex; gap: 6px; padding: 10px 18px; border-bottom: 1px solid var(--cc-line); background: var(--cc-surface-2); flex-wrap: wrap; row-gap: 6px; flex: none; align-items: center; }
 /* On narrower windows the scene chips wrap onto a second line instead of running out of sight. */
 @media (max-width:1439px){:where(.club-root) .strip:where(:not(.club-embed *)){flex-wrap:wrap;row-gap:6px}}
 :where(.club-root) .strip .lab:where(:not(.club-embed *)) { font-size: 12.5px; font-weight: 600; color: var(--cc-text-2); margin-right: 6px; white-space: nowrap; display: flex; gap: 6px; align-items: center; }
@@ -671,6 +673,8 @@
 @media (max-width: 760px) { :where(.club-root) .pubx-form:where(:not(.club-embed *)) { grid-template-columns: 1fr; } }
 :where(.club-root) .pubx-form .select:where(:not(.club-embed *)) { width: 100%; height: 36px; }
 :where(.club-root) .pubx-form .pub-pair:where(:not(.club-embed *)) { display: flex; flex-direction: column; justify-content: flex-end; min-width: 0; }
+/* The description grows with its text, so scrolling over it scrolls the page instead of getting stuck inside the box. */
+:where(.club-root) .pubx-form textarea:where(:not(.club-embed *)) { field-sizing: content; min-height: 120px; overflow: hidden; resize: none; }
 :where(.club-root) .pubx-form .pub-pair > .field:where(:not(.club-embed *)) { margin-bottom: 6px; }
 :where(.club-root) .pubx-form .pub-pair > .field-hint:where(:not(.club-embed *)) { margin: -4px 0 6px; font-size: var(--cc-text-xs); color: var(--cc-text-3); }
 :where(.club-root) .radios:where(:not(.club-embed *)) { display: flex; gap: 8px; }
@@ -807,7 +811,8 @@
 .club-root .note-preview:focus-visible { outline: 2px solid var(--cc-accent); }
 .club-root .note-preview::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 28px; background: linear-gradient(transparent, var(--cc-surface)); pointer-events: none; }
 .club-root .note-file { margin-top: 8px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11.5px; }
-.club-root .board-folder { position: absolute; top: 14px; left: 18px; z-index: 5; display: flex; align-items: center; gap: 6px; max-width: min(46vw, 520px); padding: 2px 4px 2px 12px; background: var(--cc-surface); border: 1px solid var(--cc-line); border-radius: 999px; box-shadow: var(--cc-shadow-1); font-size: 12.5px; color: var(--cc-text-2); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.club-root .board-folder { position: absolute; top: 14px; left: 18px; z-index: 5; display: flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; background: var(--cc-surface); border: 1px solid var(--cc-line); border-radius: 999px; box-shadow: var(--cc-shadow-1); font: inherit; font-size: 12.5px; color: var(--cc-text-2); cursor: pointer; }
+.club-root .board-folder:hover { color: var(--cc-text); border-color: var(--cc-line-strong); }
 .club-root .board-link { position: absolute; left: 50%; bottom: 74px; transform: translateX(-50%); width: 380px; padding: 8px; display: flex; gap: 6px; z-index: 6; }
 .club-root .notes-list { list-style: none; margin: 14px 0 0; padding: 0; max-height: 320px; overflow: auto; border: 1px solid var(--cc-line); border-radius: var(--cc-r); }
 .club-root .notes-list li { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-bottom: 1px solid var(--cc-line); }
@@ -914,7 +919,9 @@
 .club-root .board-empty p { margin: 0; font-size: 15px; line-height: 1.55; color: var(--cc-text-2); }
 .club-root .research { position: relative; }
 .club-root .research .ws-top { gap: 14px; }
-.club-root .research-title { margin: 0; font-size: 15px; font-weight: 650; letter-spacing: -0.012em; }
+.club-root .research-title { margin: 0; font-size: 22px; line-height: 1.15; font-weight: 650; letter-spacing: -0.022em; }
+.club-root .research .ws-top { align-items: baseline; padding-top: 18px; padding-bottom: 12px; }
+.club-root .research .ws-top > .small { font-size: 14px; }
 .club-root .blink-head.sel { fill: var(--cc-accent); }
 /* The folder line sits over the top left of a Board: the canvas starts below it, so a frame's name or a card's head is never under it. */
 .club-root .canvas-room { margin-top: 48px; }
@@ -1010,3 +1017,4 @@
 :where(.club-root) .strip::-webkit-scrollbar { display: none; }
 .club-root .pkg .ed:empty { border: 1px dashed var(--cc-line-strong); border-radius: 8px; padding: 8px 10px; min-height: 38px; }
 .club-root .pkg .ed:empty:hover, .club-root .pkg .ed:empty:focus { border-color: var(--cc-accent); background: var(--cc-card); }
+:where(.club-root) .btn.is-waiting { opacity: .55; cursor: default; pointer-events: none; }

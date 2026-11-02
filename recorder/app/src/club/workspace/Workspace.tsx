@@ -127,9 +127,9 @@ export function Workspace({video,tab,back,navigate,onVideo}:{video:Video;tab:Vid
  const lock=tabLock(tab,facts);
  /** Says why a step is locked; for Publish it also says, while Postiz is not connected, that publishing needs it (with Open settings). */
  const explainLock=useCallback((target:VideoTab,why:TabLock)=>{
-  if(target!=='publish'){toast(lockedLine(target,why));return;}
+  if(target!=='publish'){toast(lockedLine(target,why),{refused:true});return;}
   clubFetch<PublishingState>('/publishing').then(state=>state.postiz.connected,()=>true).then(connected=>
-   toast(lockedLine(target,why,{postizConnected:connected}),connected?{}:{action:{label:'Open settings',fn:()=>navigate({name:'settings',section:'publishing'})}}));
+   toast(lockedLine(target,why,{postizConnected:connected}),connected?{refused:true}:{refused:true,action:{label:'Open settings',fn:()=>navigate({name:'settings',section:'publishing'})}}));
  },[toast,navigate]);
  const toLocked=useCallback((target:VideoTab,why:TabLock)=>{
   explainLock(target,why);
@@ -188,7 +188,7 @@ export function Workspace({video,tab,back,navigate,onVideo}:{video:Video;tab:Vid
    {tab==='board'&&<Board video={video} scenes={list} onDrafted={draftedNow} refreshKey={boardKey} navigate={navigate}/>}
    {tab==='plan'&&<Plan video={video} plan={plan} known={list} focusId={focusId} onFocus={setFocusId} onTitle={saveTitle}
     onTarget={seconds=>{clubFetch<Video>(`/videos/${id}`,{method:'PUT',body:{targetSeconds:seconds>0?seconds:null}}).then(onVideo,reason=>toast(errorMessage(reason,"Couldn't save the target.")));}}
-    onRecordScene={sceneId=>{setFocusId(sceneId);navigate(tabRoute('record'));}}/>}
+    onRecordScene={sceneId=>{setFocusId(sceneId);setPickN(n=>n+1);navigate(tabRoute('record'));}}/>}
    {tab==='edit'&&!lock&&waiting.length>0&&<div className="ws-body" style={{flex:'none',padding:'8px 18px'}}><div className="ws-notice" role="status"><span>{waiting.length===1?`The take for “${waiting[0]}” isn't on the timeline yet.`:`${waiting.length} takes aren't on the timeline yet.`}</span><Button size="sm" onClick={()=>navigate(tabRoute('record'))}>Open the take</Button></div></div>}
    {(tab==='record'||tab==='edit')&&!lock&&(video.recorderProjectId
     ?<div className={prompting?'rec with-prompter':'rec with-embed'}>

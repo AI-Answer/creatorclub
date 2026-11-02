@@ -12,7 +12,7 @@ export { AUDIENCE_LABELS, TOPIC_LABELS };
 const TOPIC_KEYS: Record<string, string[]> = {
   claude: ['claude', 'anthropic', 'cowork', 'duet'],
   'ai agents': ['agent', 'hermes', 'autopilot'],
-  'vibe coding': ['vibe', 'coding', 'code', 'developer', 'website'],
+  'vibe coding': ['vibe cod', 'coding', 'claude code', 'cursor', 'developer', 'website'],
   'ai for small business': ['business', 'client', 'customer', 'sales', ' ads ', 'marketing', ' shop', 'shopify', ' store', 'restaurant', 'pizzeria', 'e-commerce', 'ecommerce'],
   automation: ['automat', 'workflow', 'autopilot', 'n8n', 'zapier'],
   chatgpt: ['chatgpt', 'gpt', 'openai', 'codex'],
@@ -31,6 +31,8 @@ const AUDIENCE_KEYS: Record<string, string[]> = {
 
 const sentence = (text: string) => (text ? text.charAt(0).toUpperCase() + text.slice(1) : text);
 const label = (value: string, known: readonly string[]) => known.find((item) => item.toLowerCase() === value.toLowerCase()) ?? sentence(value);
+/** A keyword counts only at the start of a word, so "code" is not found in "decode" and "gpt" is not found inside another word. */
+const found = (haystack: string, key: string) => new RegExp(`(?<![\\p{L}\\p{N}])${key.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'u').test(haystack);
 const words = (value: string) => value.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter((word) => word.length > 3);
 
 /** The first topic, then the first audience, whose keywords appear in the text. Null when none does. */
@@ -43,7 +45,7 @@ export function matchLabel(text: string, topics: string[] = [], audience: string
   for (const [value, keys, labels] of tries) {
     const name = String(value).trim();
     if (!name) continue;
-    if ((keys[name.toLowerCase()] ?? words(name)).some((key) => haystack.includes(key))) return label(name, labels);
+    if ((keys[name.toLowerCase()] ?? words(name)).some((key) => found(haystack, key))) return label(name, labels);
   }
   return null;
 }

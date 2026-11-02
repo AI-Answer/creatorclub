@@ -43,6 +43,7 @@ export function suggestions(tab:CompanionTab,facts:SuggestionFacts):string[]{
  switch(tab){
   case 'board':return facts.tiles===0
    ?['What should this video cover?','Who is this video for?','Suggest three titles']
+   :facts.tiles===1?['Write three hooks from this idea','Suggest three titles','What should this video cover?']
    :['Write three hooks from this board','Suggest three titles','What do these have in common?'];
   case 'plan':{
    // Titles, hooks and scenes are written from the Package and Scenes buttons, so the chips here are for thinking and tightening.
@@ -56,7 +57,7 @@ export function suggestions(tab:CompanionTab,facts:SuggestionFacts):string[]{
    :[scene?`Shorten ${scene} to fit its time`:'Shorten this scene to fit its time','Write a stronger hook','Write the call to action'];
   case 'publish':return ['Write the description',facts.thumbnail?'Is the thumbnail text clear?':'Suggest thumbnail text',...(facts.titled===false?[]:['Is the title ready?'])];
   case 'edit':return facts.recorded===0?[]:[...(facts.notes?['Fix the parts I marked']:[]),facts.selected?'Trim the selected clip to the speech':'Cut the pauses','Add a lower third with my name','Add a title at the start'].slice(0,3);
-  case 'research':return facts.selected?['What do these have in common?','Group these in a frame','Start a video from these']:['What themes do you see here?','Group the cards by theme','Which of these could be a video?'];
+  case 'research':return facts.tiles===0?['Find videos that are working in my topics','What should my next video be?']:facts.selected?['What do these have in common?','Group these in a frame','Start a video from these']:['What themes do you see here?','Group the cards by theme','Which of these could be a video?'];
  }
 }
 

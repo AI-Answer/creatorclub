@@ -97,20 +97,20 @@ export function PackageColumn({videoId,videoTitle,pkg,running,onEdit,onPickTitle
 
  const heading=(tools?:ReactNode)=><div className="doc-h"><h2>Title, thumbnail and hook</h2><span className="grow"/>{tools}</div>;
 
- if(view==='empty')return <section className="pkg" aria-label="Package">
+ if(view==='empty')return <section className="pkg" aria-label="Title, thumbnail and hook">
   {heading()}
   <div className="pkg-empty">
    <p>The title, thumbnail text and hook decide whether people click. Claude writes them from the board, and you can change every word.</p>
    <div className="row" style={{gap:14,flexWrap:'wrap'}}>
-    {onWrite&&<Button onClick={()=>onWrite()}><Icon name="ai" size={15}/>Write the package with Claude</Button>}
+    {onWrite&&<Button onClick={()=>onWrite()}><Icon name="ai" size={15}/>Write all three with Claude</Button>}
     <button type="button" className="linkish quiet" onClick={()=>{setManual(true);setKeep([0]);setFocusSlot(0);}}>or fill it in yourself</button>
    </div>
   </div>
  </section>;
 
- if(view==='writing')return <section className="pkg" aria-label="Package" aria-busy="true">
+ if(view==='writing')return <section className="pkg" aria-label="Title, thumbnail and hook" aria-busy="true">
   {heading()}
-  <div style={{display:'flex',flexDirection:'column',gap:12,marginTop:18}} role="status" aria-label="Writing the package">
+  <div style={{display:'flex',flexDirection:'column',gap:12,marginTop:18}} role="status" aria-label="Writing the title, thumbnail and hook">
    {[0,1,2].map(i=><div key={i} className="shimmer" style={{height:22,width:`${90-i*12}%`}}/>)}
    <div className="shimmer" style={{height:20,width:'50%',marginTop:14}}/><div className="shimmer" style={{height:20,width:'80%',marginTop:14}}/>
   </div>
@@ -126,7 +126,7 @@ export function PackageColumn({videoId,videoTitle,pkg,running,onEdit,onPickTitle
  const titles=shownTitles(value.titles,keep);
  const own=chosen<0&&!!videoTitle.trim();
 
- return <section className="pkg" aria-label="Package">
+ return <section className="pkg" aria-label="Title, thumbnail and hook">
   {heading(<><SaveLine status={save} onRetry={onRetrySave}/>{menu}</>)}
   <div className="doc-sub">Why this video gets clicked. Click any line to change it.</div>
 

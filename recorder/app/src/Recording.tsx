@@ -160,7 +160,8 @@ export function Recording({project,change,commit,onRecorded,onError,onImport,onS
  // A pick made during a recording waits for the recording to end.
  const pickedNonce=useRef(selectNonce);
  const pickable=(id?:string)=>Boolean(id&&project.scenes.some(scene=>scene.id===id));
- useEffect(()=>{if(pickable(selectSceneId))setRecordSceneId(selectSceneId!);},[]);
+ // Only a scene that was picked (Plan's Record this scene, a chip) wins over the first scene still to record; the scene last reported back does not.
+ useEffect(()=>{if(selectNonce&&pickable(selectSceneId))setRecordSceneId(selectSceneId!);},[]);
  useEffect(()=>{if(selectNonce===pickedNonce.current||status!=='idle')return;pickedNonce.current=selectNonce;if(pickable(selectSceneId))setRecordSceneId(selectSceneId!);},[selectNonce,status]);
  useEffect(()=>{if(recordSceneId)onSceneChange?.(recordSceneId);},[recordSceneId]);
  /** The take preview's Continue: keep or confirm the take exactly as before, then select the next scene still to record. */

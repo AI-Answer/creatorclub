@@ -152,7 +152,7 @@ test('without Postiz connected Publish says so and sends you to Settings: the ke
   const c=ui.container;
   await click(c.querySelector('input[name=kids][value=no]'));
   assert.equal(button(c,'Publish now').disabled,true,'Publish now looks and is unavailable until Postiz is connected');
-  assert.equal(c.querySelector('#pub-why')?.textContent,'Connect Postiz first.');
+  assert.equal(c.querySelector('#pub-why')?.textContent,'Set up publishing first.');
   assert.equal(button(c,'Publish now').getAttribute('aria-describedby'),'pub-why');
   await click(button(c,'Publish now'));
   assert.equal(posts(server.calls).length,0);

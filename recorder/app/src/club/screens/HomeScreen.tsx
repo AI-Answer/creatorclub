@@ -2,7 +2,7 @@ import {useMemo,useState} from 'react';
 import type {TrendingEntry,Video} from '../../../shared/club';
 import {BreakdownDrawer} from '../BreakdownDrawer';
 import {ProgressLine} from '../ProgressLine';
-import {TrendCard,TrendHelp} from '../TrendCards';
+import {TrendCard} from '../TrendCards';
 import {SCAN_ESTIMATE} from '../welcome';
 import {useIdeaActions} from '../useIdeaActions';
 import {ErrorLine} from '../ErrorLine';
@@ -86,7 +86,6 @@ function TrendPicks({videos,navigate}:{videos:readonly Video[];navigate:(route:R
  return <>
   <div className="sec-head"><h2 className="sec">Working in your topics</h2><a className="linkish small more" href="#/discover">More in Discover</a></div>
   <div className="grid g3" style={{gap:12}}>{picks.map(item=><TrendCard key={item.videoId} item={item} saved={hasBreakdown(item.videoId)} onBreak={open}/>)}</div>
-  <TrendHelp/>
   {drawer}
  </>;
 }
@@ -117,7 +116,10 @@ function NextUp({video,progress,onOpen}:{video:Video;progress:readonly SceneProg
    <div className="title clamp2">{video.title}</div>
    <div className="row small muted"><SceneDots scenes={progress??[]}/><span>{progressText(video,progress)}</span></div>
    <div className="row" style={{marginTop:'auto',paddingTop:6}}>
-    <button type="button" className="btn primary" onClick={event=>{event.stopPropagation();onOpen(video.id,action.tab);}}><Icon name={action.icon} size={15}/>{action.label}</button>
+    {/* The button waits for the scenes, so its words are the real next step and never change a moment later. */}
+    {progress===undefined&&(video.stage==='planning'||video.stage==='recording'||video.stage==='editing')
+     ?<span className="btn primary is-waiting" aria-busy="true"><span className="spin"/>Next step</span>
+     :<button type="button" className="btn primary" onClick={event=>{event.stopPropagation();onOpen(video.id,action.tab);}}><Icon name={action.icon} size={15}/>{action.label}</button>}
    </div>
   </div>
  </div>;

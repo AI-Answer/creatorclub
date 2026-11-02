@@ -22,7 +22,7 @@ export function MotionPanel({project:p,selected,playhead,change,select,notify,cl
   if(problem)notify?.(problem);else select(id);
  };
  return <>
-  <section className="inspector-section"><h3>Add at the playhead</h3><p className="hint">Point at one to see it on your video. Click to add it.</p>
+  <section className="inspector-section"><h3>Add where the playhead is</h3><p className="hint">Point at one to see it on your video. Click to add it.</p>
    <div className="element-grid motion-gallery">{MOTION_TEMPLATE_IDS.map(id=><button key={id} type="button" onClick={()=>{onHover?.(null);add(id);}} onMouseEnter={()=>onHover?.(id)} onMouseLeave={()=>onHover?.(null)} onFocus={()=>onHover?.(id)} onBlur={()=>onHover?.(null)}><span className={`motion-mini mm-${id}`} aria-hidden="true"><i/><i/></span><b>{MOTION_TEMPLATES[id].label}</b></button>)}</div>
   </section>
   {block?<BlockFields key={block.id} project={p} block={block} change={change}/>:

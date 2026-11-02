@@ -99,9 +99,9 @@
 .club-sources>.recording-presets .recording-presets-menu{left:0;right:0;width:auto}
 .club-sources .recording-source-panel{flex:1;min-height:0;border-right:0;border-radius:0}
 .club-sources>.recording-card-options{flex:none;padding:12px 16px;border-top:1px solid var(--cc-line)}
-.club-record-button{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;min-height:40px;border:0;border-radius:8px;background:var(--cc-rec);color:var(--cc-on-primary);font-size:14.5px;font-weight:650;cursor:pointer;box-shadow:var(--cc-shadow-2)}
-.club-record-button>span{width:13px;height:13px;border-radius:50%;border:2px solid currentColor;box-sizing:border-box;flex:none}
-.club-record-button:hover:not(:disabled){filter:brightness(.94)}
+.club-record-button{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;min-height:40px;border:0;border-radius:8px;background:var(--cc-primary);color:var(--cc-on-primary);font-size:14.5px;font-weight:650;cursor:pointer;box-shadow:var(--cc-shadow-2)}
+.club-record-button>span{width:11px;height:11px;border-radius:50%;background:var(--cc-rec);box-shadow:0 0 0 3px color-mix(in srgb,var(--cc-rec) 30%,transparent);flex:none}
+.club-record-button:hover:not(:disabled){background:var(--cc-primary-hover)}
 .club-record-button:disabled{opacity:.5;cursor:default;box-shadow:none}
 .club-record-button:focus-visible{outline:3px solid var(--cc-accent);outline-offset:3px}
 

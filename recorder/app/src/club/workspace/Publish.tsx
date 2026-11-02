@@ -16,7 +16,7 @@ import {PackageSummary,PasteLinkForm,ProgressCard,ResultCard,SELF_UPLOAD_LINE,Se
 import {buildDescription} from './record-logic';
 import {recordedCount} from '../scene-status';
 
-export const PUBLISH_LINE='Postiz uploads it to YouTube at the time you pick, even if your laptop is closed.';
+export const PUBLISH_LINE='It goes to YouTube now or at the time you pick, even if your laptop is closed.';
 /** What the server keeps of a description. */
 export const DESCRIPTION_MAX=5000;
 /** While Postiz is still sending a video to YouTube, the page asks it again this often. */
@@ -168,7 +168,7 @@ export function Publish({video,pkg,scenes,onVideo,onDescription,onTags,onGoTo,on
     {publishing.error?<ErrorLine message={publishing.error} onRetry={publishing.reload}/>:!publishing.state?<Spinner label="Loading"/>
      :publishing.state.postiz.connected
       ?<div className="rh"><span className="logo logo-postiz">P</span><div><div className="rt"><b>Postiz connected.</b>{publishing.state.postiz.channel&&<> Posts to {publishing.state.postiz.channel.name} on YouTube.</>}</div><div className="rd">Uploads it for you, now or at the time you pick.</div></div><button type="button" className="linkish" style={{marginLeft:'auto'}} onClick={onSettings}>Change in Settings</button></div>
-      :<div className="rh"><span className="logo logo-postiz">P</span><div><div className="rt">Publishing isn't set up yet</div><div className="rd">Connect Postiz once in Settings. Your video and details are kept, and you can finish them first.</div></div><Button size="sm" style={{marginLeft:'auto'}} onClick={onSettings}>Set up publishing</Button></div>}
+      :<div className="rh"><span className="logo logo-postiz">P</span><div><div className="rt">Publishing isn't set up yet</div><div className="rd">It uses Postiz, a paid service that uploads to YouTube for you. Fill in the details first if you like; they are kept.</div></div><Button size="sm" style={{marginLeft:'auto'}} onClick={onSettings}>Set up publishing</Button></div>}
    </Card>
    <Card className="pubx-form">
     <div className="full"><label className="field" htmlFor="pub-title">Title</label><Input id="pub-title" maxLength={TITLE_MAX} value={title} onChange={event=>setTitle(event.target.value)}/></div>
@@ -176,7 +176,7 @@ export function Publish({video,pkg,scenes,onVideo,onDescription,onTags,onGoTo,on
      onChange={event=>setEdited(event.target.value)} onBlur={()=>{if(edited!==undefined&&edited!==pkg?.description)onDescription(edited);}}/>
      {saveError&&<ErrorLine message="Couldn't save the description." onRetry={onRetry}/>}</div>
     <div className="full"><label className="field" htmlFor="pub-tags">Tags</label><TagsField tags={tags} onChange={onTags}/></div>
-    <div className="full"><div className="field">Thumbnail</div><div className="small muted">{thumbnail?'Your own image. ':'YouTube picks a frame unless you add one. '}
+    <div className="full"><div className="field">Thumbnail</div><div className="small muted">{thumbnail?'Your own image. ':pkg?.thumbnailText?.trim()?'Your thumbnail text is only a preview: YouTube picks a frame unless you add one. ':'YouTube picks a frame unless you add one. '}
      <label className="linkish" style={{cursor:'pointer'}}>{thumbnail?'Use another image':'Upload an image'}<input type="file" className="sr-only" accept="image/png,image/jpeg" onChange={event=>{void pick(event.target.files?.[0]);event.target.value='';}}/></label>
      {thumbnail&&<> <button type="button" className="linkish" onClick={dropThumbnail}>Remove image</button></>}</div>
      {thumbError&&<p role="alert" className="small pz-err">{thumbError}</p>}</div>
@@ -188,7 +188,7 @@ export function Publish({video,pkg,scenes,onVideo,onDescription,onTags,onGoTo,on
     {when==='schedule'&&<div><label className="field" htmlFor="pub-at">Date and time</label><Input id="pub-at" type="datetime-local" value={at} aria-invalid={schedule&&'message' in schedule?true:undefined} onChange={event=>setAt(event.target.value)}/></div>}
    </Card>
    <div className="pubx-foot">
-    <div className="fi">{problem?<span className="pubx-warn" id="pub-why" role="status">{problem}</span>:<span>The exported video goes to Postiz, then to YouTube.</span>}</div>
+    <div className="fi">{problem?<span className="pubx-warn" id="pub-why" role="status">{problem}</span>:<span>The exported video goes to YouTube through Postiz.</span>}</div>
     {/* One primary per view: until there is an export, Export video is the primary and this waits. It cannot be pressed while something stands in the way, and the reason sits beside it. */}
     <Button variant={exported?'primary':'secondary'} size="md" disabled={Boolean(problem)} aria-describedby={problem?'pub-why':undefined} onClick={()=>void submit()}><Icon name={when==='now'?'upload':'calendar'} size={15}/>{when==='now'?'Publish now':`Schedule for ${scheduledDate?whenText(scheduledDate):'later'}`}</Button>
    </div>

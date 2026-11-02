@@ -37,7 +37,7 @@ export const allScenesKept=(scenes:readonly Pick<VideoScene,'takes'>[]|undefined
 
 /**
  * Whether the tab's own job is done. Board and Plan: there are scenes. Record: every scene has a kept take.
- * Edit: the edit was exported, or the video moved on to publishing. Publish: it is published.
+ * Edit: the edit was exported, or the video moved on to publishing (a take on the timeline is not a finished edit). Publish: it is published.
  */
 export function tabDone(tab:VideoTab,{stage,scenes,allRecorded,exported}:TabFacts):boolean{
  const hasScenes=!!scenes?.length;
@@ -45,7 +45,7 @@ export function tabDone(tab:VideoTab,{stage,scenes,allRecorded,exported}:TabFact
   case 'board':return hasScenes;
   case 'plan':return hasScenes;
   case 'record':return !!allRecorded||allScenesKept(scenes);
-  case 'edit':return !!exported||stageReached(stage,'publishing')||!!scenes?.some(scene=>scene.takes.length>0);
+  case 'edit':return !!exported||stageReached(stage,'publishing');
   case 'publish':return stage==='published';
  }
 }
@@ -110,6 +110,9 @@ export function continueFor(tab:VideoTab,facts:TabFacts&LockFacts,{busy=false,ow
  if(lock)return {label,disabled:true,reason:lock.unlock===tab&&tab==='plan'?'Draft the scenes first':lock.reason,primary:false};
  if(!facts.scenes&&next!=='plan')return {label,disabled:true,primary:false};
  if(busy)return {label,disabled:true,reason:'Claude is still writing',primary:false};
+ // Edit and Publish can open with only some scenes recorded, but Continue says so and never pushes forward as the primary.
+ const missing=(next==='edit'||next==='publish')&&facts.scenes&&!facts.allRecorded?facts.scenes.length-facts.scenes.filter(isSceneRecorded).length:0;
+ if(missing>0)return {label,disabled:false,reason:missing===1?'1 scene isn\'t recorded yet':`${missing} scenes aren't recorded yet`,primary:false};
  return {label,disabled:false,primary:continueIsPrimary(tabDone(tab,facts),ownPrimary)};
 }
 

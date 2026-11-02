@@ -62,11 +62,11 @@ test('Package column: empty, it is one sentence and one action, and "or fill it 
   const c=ui.container;
   assert.equal(c.querySelectorAll('[role="textbox"]').length,0,'no empty fields');
   assert.equal(c.querySelectorAll('.pkg-empty p').length,1);
-  assert.deepEqual([...c.querySelectorAll('button')].map(b=>b.textContent?.trim()),['Write the package with Claude','or fill it in yourself']);
+  assert.deepEqual([...c.querySelectorAll('button')].map(b=>b.textContent?.trim()),['Write all three with Claude','or fill it in yourself']);
   assert.equal(c.querySelector('.btn.primary'),null,'not a second black primary beside Draft scenes from the board');
-  await press(buttonNamed(c,'Write the package with Claude'));assert.deepEqual(writes,[undefined]);
+  await press(buttonNamed(c,'Write all three with Claude'));assert.deepEqual(writes,[undefined]);
   await ui.render(createElement(PackageColumn,{...props,running:true}));
-  assert.ok(c.querySelector('[aria-label="Writing the package"]'),'a skeleton while the first package is written');
+  assert.ok(c.querySelector('[aria-label="Writing the title, thumbnail and hook"]'),'a skeleton while the first package is written');
   await ui.render(createElement(PackageColumn,props));
   await press(buttonNamed(c,'or fill it in yourself'));
   assert.ok(c.querySelector('.tline:not(.own) [role="textbox"]'),'a first title to type');
