@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { withSkills } from './skills.js';
-import { runMakingSkill, skillFolder } from './skill-run.js';
+import { isVideoSkillInstalled, runMakingSkill } from './skill-run.js';
 import { slashSkill } from '../../shared/skills.js';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
@@ -309,7 +309,7 @@ async function writeReply(slug: string, id: string, input: AskInput, context: Jo
 
   // On Edit, "/<skill> …" runs that skill for real (its scripts and tools) and brings back what it made as a card to place.
   const making = tab === 'edit' && !store.isChannelBoard(id) ? slashSkill(input.message.text) : undefined;
-  if (making && (await skillFolder(making, options.home))) return makeWithSkill(slug, id, input, context, steps, making, options);
+  if (making && (await isVideoSkillInstalled(making, options.home))) return makeWithSkill(slug, id, input, context, steps, making, options);
 
   // Research is the channel's own Board: no video, no package or scenes; the cards (with their ids) and frames are what it reads.
   const research = store.isChannelBoard(id);

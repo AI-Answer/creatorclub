@@ -93,3 +93,25 @@ test('a ProRes .mov becomes a WebM the editor can play, keeping its see-through 
   const pix = execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'stream_tags=alpha_mode', '-of', 'default=nw=1:nk=1', done.action!.media.path]).toString().trim();
   assert.equal(pix, '1', 'the WebM carries alpha');
 });
+
+test('only skills that edit or make video count as video skills, judged by their own description', async () => {
+  const { isVideoSkill } = await import('../../shared/skills.js');
+  const video = [
+    ['motion-graphics', 'A short, design-led motion graphic where motion is the message'],
+    ['b-roll-finder', 'Source b-roll for a video edit'],
+    ['effects', 'Add any of 45 video effects to a talking-head video'],
+    ['ghost-editor', 'AI video editor for talking-head reels.'],
+    ['hyperframes-cli', 'Use the HyperFrames CLI development loop'],
+    ['remotion-best-practices', 'Best practices for Remotion - Video creation in React'],
+    ['higgsfield-video-explainer', 'Build a complete non-photoreal narrated explainer or story video'],
+  ];
+  const other = [
+    ['write-hook', 'Create, compare, or improve opening hooks for short-form videos, long-form videos, posts, reels'],
+    ['build-points', 'Plan, write, reorder, or strengthen the main teaching points of a video or creator script'],
+    ['youtube-thumbnail', 'Use when the user wants to create a YouTube thumbnail'],
+    ['watch-video', 'Genuinely watch a video with Gemini — motion and audio in one real pass'],
+    ['youtube-transcript', 'Extract transcripts from YouTube videos.'],
+  ];
+  for (const [name, description] of video) assert.ok(isVideoSkill({ name, description }), name);
+  for (const [name, description] of other) assert.ok(!isVideoSkill({ name, description }), name);
+});

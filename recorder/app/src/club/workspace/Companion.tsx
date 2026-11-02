@@ -5,11 +5,11 @@ import type {EditorBridge,EditorState} from '../../App';
 import {describeEditAction,type SilencePlan} from '../../editing-actions';
 import {MOTION_TEMPLATES} from '../../../shared/motion/templates';
 import {clubFetch,clubUpload,errorMessage} from '../api';
-import {featuredSkills,matchSkills,slashQuery,type InstalledSkill} from '../../../shared/skills';
+import {featuredSkills,matchSkills,slashQuery,type InstalledSkill,isVideoSkill} from '../../../shared/skills';
 import {ErrorLine} from '../ErrorLine';
 import {ASK_CLAUDE} from './ask-claude';
 import {Button,CompanionMark,Icon,Spinner,cn} from '../ui';
-import {atBottom,elapsed,greeting,lookingAt,previewOf,stepSummary,suggestions,tabOf,withDividers} from './companion-logic';
+import {STEP_NAME,atBottom,elapsed,greeting,lookingAt,previewOf,stepSummary,suggestions,tabOf,withDividers} from './companion-logic';
 import {Markdown} from './Markdown';
 import {ReplaceScenes} from './ReplaceScenes';
 import {useCompanion,type Live} from './useCompanion';
@@ -134,11 +134,14 @@ export function Companion({videoId,videoTitle,tab,scene,screen,selection,pkg,out
  const [showAll,setShowAll]=useState(false);
  // What was said on other steps is one line, opened on request (a hook, so it sits above the collapsed panel's early return).
  const [showEarlier,setShowEarlier]=useState(false);
+ const [showApplied,setShowApplied]=useState(false);
  useEffect(()=>setShowEarlier(false),[tab,videoId]);
  // "/" alone lists a short set; typing searches every installed skill, and "Show all" lists them all.
- const short=skills?featuredSkills(skills):[];
- const choices=query!==undefined&&skills&&!dismissed?(query!==''||showAll||!short.length?matchSkills(skills,query):short):[];
- const hidden=query===''&&!showAll&&skills&&short.length>0?skills.length-short.length:0;
+ // On Edit only the skills that edit or make video are listed: there a skill runs for real and makes something for the timeline.
+ const offered=skills&&tab==='edit'?skills.filter(isVideoSkill):skills;
+ const short=offered?(tab==='edit'?offered:featuredSkills(offered)):[];
+ const choices=query!==undefined&&offered&&!dismissed?(query!==''||showAll||!short.length?matchSkills(offered,query):short):[];
+ const hidden=query===''&&!showAll&&offered&&short.length>0?offered.length-short.length:0;
  const pickerOpen=query!==undefined&&!dismissed&&!working;
  const choose=(skill:InstalledSkill)=>{setText(`/${skill.name} `);input.current?.focus();};
  // A button elsewhere on the page can ask the chat something for the creator: it opens, sends the question and the answer comes back as cards.
@@ -178,18 +181,29 @@ export function Companion({videoId,videoTitle,tab,scene,screen,selection,pkg,out
  const lastMessage=messages?.at(-1),awaiting=!!lastMessage&&'cards' in lastMessage&&lastMessage.cards.some(card=>card.state==='offered'&&(tab==='edit'||!isEditAction(card.action)));
  const chips=ideas.length>0&&<div className={cn('cmp-sugg',fresh&&'fresh')} aria-label="Suggestions">{ideas.map(idea=><button key={idea} type="button" onClick={()=>void ask(idea)}>{idea}</button>)}</div>;
  const selected=tab==='edit'?editor?.state?.selected??0:tab==='research'?selection?.length??0:0;
+ // For reference: every change from the chat that is applied now, newest first, with Undo.
+ const applied=(messages??[]).flatMap(message=>message.role==='assistant'&&'cards' in message?message.cards.map((card,index)=>({message,card,index})):[]).filter(({card})=>card.state==='applied').reverse();
  return <aside className={cn('cmp',narrow&&'over')} aria-label={title} onKeyDown={onPanelKey}>
   <header className="cmp-head">
    <CompanionMark size={18} working={working} className="cmp-head-mark"/>
    <div className="cmp-head-text">
     <div className="cmp-title">{title}</div>
    </div>
+   {applied.length>0&&<button type="button" className={cn('cmp-applied-btn',showApplied&&'on')} aria-pressed={showApplied} onClick={()=>setShowApplied(v=>!v)} title="Everything Claude changed in this video">Applied {applied.length}</button>}
    <button type="button" className="btn ghost sm icon-only" onClick={()=>{setText('/');input.current?.focus();}} aria-label="Run one of your skills" title="Run one of your skills"><Icon name="Sparkles" size={15}/></button>
    <button type="button" className="btn ghost sm icon-only" onClick={()=>toggle(false)} aria-label={`Hide ${title}`} title={`Hide ${title}`}><Icon name="PanelRightClose" size={16}/></button>
   </header>
   {/* One line for screen readers: the step, "Reply ready" or the failure. The timer is never in a live region. */}
   <div className="cmp-sr" role="status">{companion.announce}</div>
-  <div className="cmp-log" ref={log} onScroll={onScroll} role="log" aria-live="off" aria-busy={working}>
+  {showApplied&&<div className="cmp-applied" role="region" aria-label="Applied by Claude">
+   <div className="cmp-applied-h"><b>Applied by Claude</b><span>Everything in this video that came from the chat, newest first.</span></div>
+   <ol>{applied.map(({message,card,index})=><li key={`${message.id}:${index}`}>
+    <div className="cmp-applied-t"><span className="cmp-applied-what">{cardTitle(card.action)}</span><span className="cmp-applied-when">{STEP_NAME[message.tab]}{message.at?` · ${new Date(message.at).toLocaleDateString(undefined,{day:'numeric',month:'short'})}`:''}</span></div>
+    <div className="cmp-applied-r">{card.result??(isEditAction(card.action)?describeEditAction(card.action):'Applied')}</div>
+    {card.version&&<button type="button" className="btn ghost sm" disabled={companion.busyCard===`${message.id}:${index}`} onClick={()=>void companion.undo(message.id,index)}><Icon name="Undo2" size={13}/>Undo</button>}
+   </li>)}</ol>
+  </div>}
+  <div className="cmp-log" ref={log} onScroll={onScroll} role="log" aria-live="off" aria-busy={working} hidden={showApplied}>
    {hiddenCount>0&&<button type="button" className="cmp-earlier" onClick={()=>setShowEarlier(true)}>Show {hiddenCount} earlier {hiddenCount===1?'message':'messages'}</button>}
    {companion.loadError?<ErrorLine message={companion.loadError} onRetry={companion.reload}/>
     :!messages?<div className="cmp-loading"><Spinner label="Loading the conversation" size={16}/></div>
@@ -208,14 +222,14 @@ export function Companion({videoId,videoTitle,tab,scene,screen,selection,pkg,out
   <div className="cmp-foot">
    {!working&&!fresh&&!awaiting&&chips}
    {pickerOpen&&<div className="cmp-skills" role="listbox" aria-label="Your skills">
-    <div className="cmp-skills-head">{tab==='edit'?'Your skills: on Edit a skill runs for real and makes something for the timeline':'Your skills'}</div>
+    <div className="cmp-skills-head">{tab==='edit'?'Video skills: each one runs and makes something for the timeline':'Your skills'}</div>
     <div className="cmp-skills-list">
     {!skills?<div className="cmp-skills-empty">Looking for your skills…</div>
-     :!choices.length?<div className="cmp-skills-empty">{skills.length?'No skill with that name.':'No skills are installed in your Claude Code yet.'}</div>
+     :!choices.length?<div className="cmp-skills-empty">{offered?.length?'No skill with that name.':tab==='edit'?'No video skills are installed in your Claude Code yet.':'No skills are installed in your Claude Code yet.'}</div>
      :choices.map((skill,at)=><button key={skill.name} type="button" role="option" aria-selected={at===pick} className={cn('cmp-skill',at===pick&&'on')} onMouseEnter={()=>setPick(at)} onMouseDown={event=>event.preventDefault()} onClick={()=>choose(skill)}>
        <span className="cmp-skill-name">/{skill.name}</span><span className="cmp-skill-what">{skill.description}</span>
       </button>)}
-     {hidden>0&&<button type="button" className="cmp-skills-more" onMouseDown={event=>event.preventDefault()} onClick={()=>setShowAll(true)}>Show all {skills!.length} skills, or type a name</button>}
+     {hidden>0&&<button type="button" className="cmp-skills-more" onMouseDown={event=>event.preventDefault()} onClick={()=>setShowAll(true)}>Show all {offered!.length} skills, or type a name</button>}
     </div>
    </div>}
    <form className="cmp-input" onSubmit={event=>{event.preventDefault();void ask(text);}} onDragOver={event=>event.preventDefault()} onDrop={event=>{event.preventDefault();void addPictures([...event.dataTransfer.files]);}}>

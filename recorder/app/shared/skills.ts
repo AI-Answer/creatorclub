@@ -35,6 +35,14 @@ export function slashSkill(text:string):string|undefined{
   return match?.[1];
 }
 
+/**
+ * Whether a skill edits or makes video, judged by what its own description says (HyperFrames, Remotion, b-roll, motion graphics,
+ * video effects, a video editor, rendering, explainers, talking-head edits). Only these are listed and run on Edit; writing skills
+ * and skills about other things (transcripts, thumbnails, scraping) are not, even when they mention videos.
+ */
+const VIDEO_WORK=/\b(hyperframes|remotion|b-roll|motion[- ]graphics?|motion[- ]design|showreel|video effects?|video[- ]edit(or|ing)?|video creation|talking-head|explainer|render(s|ing)?|mp4)\b/i;
+export const isVideoSkill=(skill:{name:string;description:string})=>VIDEO_WORK.test(`${skill.name} ${skill.description}`);
+
 /** The few skills the "/" list shows first: the writing skills from the chips and the video and motion skills. Typing a name finds any other installed skill. */
 export const FEATURED_SKILLS=['write-hook','write-setup','build-points','write-cta','reel-editor','motion-graphics','motion-showreel'] as const;
 /** The featured skills that are installed, in the order above. */
