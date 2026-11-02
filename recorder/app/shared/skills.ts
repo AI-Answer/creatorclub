@@ -12,7 +12,7 @@ export function skillsAsked(text:string):WritingSkill[]{
 }
 
 /** One of the person's installed skills, as the picker lists it. */
-export type InstalledSkill={name:string;description:string;/** Files inside the skill that show what it makes (a page, a GIF, an image, a short video), best first. */previews:string[]};
+export type InstalledSkill={name:string;description:string;/** Files inside the skill that show what it makes (a page, a GIF, an image, a short video), best first. */previews:string[];/** Its SKILL.md front matter says `creatorclub: edit`: it is made for Edit. */forEdit?:boolean};
 /** The kinds of file a skill's preview can be. */
 export const PREVIEW_EXT=/\.(html?|gif|webp|png|jpe?g|mp4|webm)$/i;
 /** A skill name is a folder name: letters, digits, dashes, underscores. Anything else never reaches the disk. */
@@ -37,11 +37,26 @@ export function slashSkill(text:string):string|undefined{
 
 /**
  * Whether a skill edits or makes video, judged by what its own description says (HyperFrames, Remotion, b-roll, motion graphics,
- * video effects, a video editor, rendering, explainers, talking-head edits). Only these are listed and run on Edit; writing skills
+ * video effects, a video editor, explainers, talking-head edits). Plain "render" is not enough: other skills render diagrams or pages. Only these are listed and run on Edit; writing skills
  * and skills about other things (transcripts, thumbnails, scraping) are not, even when they mention videos.
  */
-const VIDEO_WORK=/\b(hyperframes|remotion|b-roll|motion[- ]graphics?|motion[- ]design|showreel|video effects?|video[- ]edit(or|ing)?|video creation|talking-head|explainer|render(s|ing)?|mp4)\b/i;
+const VIDEO_WORK=/\b(hyperframes|remotion|b-roll|motion[- ]graphics?|motion[- ]design|showreel|video effects?|video[- ]edit(or|ing)?|video creation|talking-head|explainer|mp4)\b/i;
 export const isVideoSkill=(skill:{name:string;description:string})=>VIDEO_WORK.test(`${skill.name} ${skill.description}`);
+
+/** The person's own choices for Edit: skills they added and skills they took away. These win over everything else. */
+export type EditSkillChoices={on:string[];off:string[]};
+/** Why a skill is or is not on Edit: you chose, the skill says it is for Edit, it was picked from its description, or none of these. */
+export type EditSkillReason='added'|'removed'|'declared'|'auto'|'none';
+export type EditSkill=InstalledSkill&{on:boolean;reason:EditSkillReason};
+/** Whether a skill shows and runs on Edit, and why: your choice first, then the skill's own `creatorclub: edit`, then the automatic pick. */
+export function editSkill(skill:InstalledSkill,choices:EditSkillChoices):EditSkill{
+  if(choices.off.includes(skill.name))return {...skill,on:false,reason:'removed'};
+  if(choices.on.includes(skill.name))return {...skill,on:true,reason:'added'};
+  if(skill.forEdit)return {...skill,on:true,reason:'declared'};
+  return isVideoSkill(skill)?{...skill,on:true,reason:'auto'}:{...skill,on:false,reason:'none'};
+}
+/** One plain line on why, for Settings. */
+export const EDIT_SKILL_WHY:Record<EditSkillReason,string>={added:'You added it',removed:'You took it off',declared:'The skill says it is for Edit',auto:'Picked because it edits or makes video',none:'Not a video skill'};
 
 /** The few skills the "/" list shows first: the writing skills from the chips and the video and motion skills. Typing a name finds any other installed skill. */
 export const FEATURED_SKILLS=['write-hook','write-setup','build-points','write-cta','reel-editor','motion-graphics','motion-showreel'] as const;

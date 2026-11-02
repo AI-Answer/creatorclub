@@ -220,8 +220,29 @@
 .club-root .cmp-applied-h span { font-size: var(--cc-text-xs); color: var(--cc-text-3); }
 .club-root .cmp-applied ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .club-root .cmp-applied li { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; align-items: center; padding: 10px 12px; border: 1px solid var(--cc-line); border-radius: var(--cc-r); background: var(--cc-surface); }
-.club-root .cmp-applied-t { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; min-width: 0; grid-column: 1; }
+.club-root .cmp-applied-t { display: flex; flex-direction: column; gap: 1px; min-width: 0; grid-column: 1; }
 .club-root .cmp-applied-what { font-size: var(--cc-text-sm); font-weight: 600; }
-.club-root .cmp-applied-when { font-size: var(--cc-text-2xs); color: var(--cc-text-3); white-space: nowrap; }
-.club-root .cmp-applied-r { grid-column: 1; font-size: var(--cc-text-xs); color: var(--cc-text-2); line-height: 1.45; }
+.club-root .cmp-applied-when { padding-left: 29px; font-size: var(--cc-text-2xs); color: var(--cc-text-3); white-space: nowrap; }
+.club-root .cmp-applied-r { grid-column: 1; padding-left: 29px; font-size: var(--cc-text-xs); color: var(--cc-text-2); line-height: 1.45; }
 .club-root .cmp-applied li > .btn { grid-column: 2; grid-row: 1 / span 2; }
+/* Each card's icon says what it changes. Edits to the picture and timeline share the kind colours the timeline uses. */
+.club-root .cmp-card-h { gap: 7px; }
+.club-root .cmp-card-ico { flex: none; width: 22px; height: 22px; border-radius: var(--cc-r-sm); display: grid; place-items: center; background: var(--cc-bg-sunk); color: var(--cc-text-2); }
+.club-root .cmp-card-ico.k-cut, .club-root .cmp-card-ico.k-delete { background: color-mix(in srgb, var(--kind-camera) 14%, var(--cc-surface)); color: var(--kind-camera); }
+.club-root .cmp-card-ico.k-captions, .club-root .cmp-card-ico.k-text { background: color-mix(in srgb, var(--kind-captions) 16%, var(--cc-surface)); color: var(--kind-captions); }
+.club-root .cmp-card-ico.k-layout, .club-root .cmp-card-ico.k-film { background: color-mix(in srgb, var(--kind-graphics) 14%, var(--cc-surface)); color: var(--kind-graphics); }
+.club-root .cmp-card-ico.k-zoom-in { background: color-mix(in srgb, var(--kind-zoom) 14%, var(--cc-surface)); color: var(--kind-zoom); }
+.club-root .cmp-card-ico.k-music { background: color-mix(in srgb, var(--kind-audio) 14%, var(--cc-surface)); color: var(--kind-audio); }
+.club-root .cmp-applied-what { display: flex; align-items: center; gap: 7px; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Motion where it means something: the mark turns while Claude works, a new card slides in, an applied tick pops once. */
+@keyframes cmp-turn { from { transform: rotate(0deg) scale(1); } 50% { transform: rotate(180deg) scale(.88); } to { transform: rotate(360deg) scale(1); } }
+@keyframes cmp-card-in { from { opacity: 0; transform: translateY(6px) scale(.985); } to { opacity: 1; transform: none; } }
+@keyframes cmp-pop { 0% { transform: scale(.4); } 60% { transform: scale(1.25); } 100% { transform: scale(1); } }
+.club-root .cmp-mark.working > path:first-of-type { animation: cmp-turn 2.4s var(--cc-ease) infinite; transform-box: fill-box; transform-origin: center; }
+.club-root .cmp-card { animation: cmp-card-in .32s var(--cc-ease) both; }
+.club-root .cmp-card.applied .cmp-result svg { animation: cmp-pop .4s var(--cc-ease) both; }
+/* The header mark sits on a small glossy tile, lit while Claude works. */
+.club-root .cmp-head-mark { box-sizing: content-box; padding: 5px; border-radius: var(--cc-r); background: linear-gradient(160deg, var(--cc-surface) 0%, var(--cc-bg-sunk) 100%); box-shadow: inset 0 1px 0 var(--cc-media-glow), var(--cc-shadow-1), 0 0 0 1px var(--cc-line); }
+.club-root .cmp-head-mark.working { color: var(--cc-accent); box-shadow: inset 0 1px 0 var(--cc-media-glow), 0 2px 8px color-mix(in srgb, var(--cc-accent) 30%, transparent), 0 0 0 1px color-mix(in srgb, var(--cc-accent) 35%, var(--cc-line)); }
+@media (prefers-reduced-motion: reduce) { .club-root .cmp-mark.working > path, .club-root .cmp-card, .club-root .cmp-card.applied .cmp-result svg { animation: none; } }

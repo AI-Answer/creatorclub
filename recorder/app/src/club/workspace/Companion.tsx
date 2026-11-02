@@ -5,10 +5,10 @@ import type {EditorBridge,EditorState} from '../../App';
 import {describeEditAction,type SilencePlan} from '../../editing-actions';
 import {MOTION_TEMPLATES} from '../../../shared/motion/templates';
 import {clubFetch,clubUpload,errorMessage} from '../api';
-import {featuredSkills,matchSkills,slashQuery,type InstalledSkill,isVideoSkill} from '../../../shared/skills';
+import {featuredSkills,matchSkills,slashQuery,type EditSkill,type InstalledSkill} from '../../../shared/skills';
 import {ErrorLine} from '../ErrorLine';
 import {ASK_CLAUDE} from './ask-claude';
-import {Button,CompanionMark,Icon,Spinner,cn} from '../ui';
+import {Button,CompanionMark,Icon,Spinner,cn,type IconName} from '../ui';
 import {STEP_NAME,atBottom,elapsed,greeting,lookingAt,previewOf,stepSummary,suggestions,tabOf,withDividers} from './companion-logic';
 import {Markdown} from './Markdown';
 import {ReplaceScenes} from './ReplaceScenes';
@@ -126,10 +126,12 @@ export function Companion({videoId,videoTitle,tab,scene,screen,selection,pkg,out
  };
  // Typing "/" lists the person's own skills; choosing one puts its name in the message, and sending it runs the skill.
  const [skills,setSkills]=useState<InstalledSkill[]|null>(null);
+ // Edit lists its own set (with why each is on), so the list is read again when the step changes.
+ useEffect(()=>setSkills(null),[tab]);
  const [pick,setPick]=useState(0);
  const [dismissed,setDismissed]=useState(false);
  const query=slashQuery(text);
- useEffect(()=>{if(query===undefined||skills)return;let live=true;clubFetch<InstalledSkill[]>('/skills').then(list=>{if(live)setSkills(list);}).catch(()=>{if(live)setSkills([]);});return()=>{live=false;};},[query,skills]);
+ useEffect(()=>{if(query===undefined||skills)return;let live=true;clubFetch<EditSkill[]>(tab==='edit'?'/skills/edit':'/skills').then(list=>{if(live)setSkills(list);}).catch(()=>{if(live)setSkills([]);});return()=>{live=false;};},[query,skills]);
  useEffect(()=>{setPick(0);setDismissed(false);if(query===undefined)setShowAll(false);},[query]);
  const [showAll,setShowAll]=useState(false);
  // What was said on other steps is one line, opened on request (a hook, so it sits above the collapsed panel's early return).
@@ -138,7 +140,7 @@ export function Companion({videoId,videoTitle,tab,scene,screen,selection,pkg,out
  useEffect(()=>setShowEarlier(false),[tab,videoId]);
  // "/" alone lists a short set; typing searches every installed skill, and "Show all" lists them all.
  // On Edit only the skills that edit or make video are listed: there a skill runs for real and makes something for the timeline.
- const offered=skills&&tab==='edit'?skills.filter(isVideoSkill):skills;
+ const offered=skills&&tab==='edit'?(skills as EditSkill[]).filter(skill=>skill.on):skills;
  const short=offered?(tab==='edit'?offered:featuredSkills(offered)):[];
  const choices=query!==undefined&&offered&&!dismissed?(query!==''||showAll||!short.length?matchSkills(offered,query):short):[];
  const hidden=query===''&&!showAll&&offered&&short.length>0?offered.length-short.length:0;
@@ -198,7 +200,7 @@ export function Companion({videoId,videoTitle,tab,scene,screen,selection,pkg,out
   {showApplied&&<div className="cmp-applied" role="region" aria-label="Applied by Claude">
    <div className="cmp-applied-h"><b>Applied by Claude</b><span>Everything in this video that came from the chat, newest first.</span></div>
    <ol>{applied.map(({message,card,index})=><li key={`${message.id}:${index}`}>
-    <div className="cmp-applied-t"><span className="cmp-applied-what">{cardTitle(card.action)}</span><span className="cmp-applied-when">{STEP_NAME[message.tab]}{message.at?` · ${new Date(message.at).toLocaleDateString(undefined,{day:'numeric',month:'short'})}`:''}</span></div>
+    <div className="cmp-applied-t"><span className="cmp-applied-what"><CardIcon action={card.action}/>{cardTitle(card.action)}</span><span className="cmp-applied-when">{STEP_NAME[message.tab]}{message.at?` · ${new Date(message.at).toLocaleDateString(undefined,{day:'numeric',month:'short'})}`:''}</span></div>
     <div className="cmp-applied-r">{card.result??(isEditAction(card.action)?describeEditAction(card.action):'Applied')}</div>
     {card.version&&<button type="button" className="btn ghost sm" disabled={companion.busyCard===`${message.id}:${index}`} onClick={()=>void companion.undo(message.id,index)}><Icon name="Undo2" size={13}/>Undo</button>}
    </li>)}</ol>
@@ -230,7 +232,7 @@ export function Companion({videoId,videoTitle,tab,scene,screen,selection,pkg,out
        <span className="cmp-skill-name">/{skill.name}</span><span className="cmp-skill-what">{skill.description}</span>
       </button>)}
      {hidden>0&&<button type="button" className="cmp-skills-more" onMouseDown={event=>event.preventDefault()} onClick={()=>setShowAll(true)}>Show all {offered!.length} skills, or type a name</button>}
-    </div>
+    {tab==='edit'&&<a className="cmp-skills-more" href="#/settings/skills">Missing a skill? Choose which ones show here in Settings</a>}</div>
    </div>}
    <form className="cmp-input" onSubmit={event=>{event.preventDefault();void ask(text);}} onDragOver={event=>event.preventDefault()} onDrop={event=>{event.preventDefault();void addPictures([...event.dataTransfer.files]);}}>
     {pics.length>0&&<div className="cmp-pics pending">{pics.map(name=><span key={name} className="cmp-pic"><img src={`/api/club${chatBase}/${name}`} alt=""/><button type="button" aria-label="Remove picture" onClick={()=>setPics(current=>current.filter(each=>each!==name))}><Icon name="X" size={11}/></button></span>)}</div>}
@@ -310,6 +312,10 @@ function LiveReply({name,live,now,onRetry}:{name:string;live:Live;now:number;onR
 }
 
 /** What a card is called: for a new graphic, what it adds ("Add a title card"); otherwise the action's own name. */
+/** What each card changes, as one icon: the same marks the rest of the app uses for those things. */
+const ACTION_ICON:Record<CompanionAction['type'],IconName>={use_hook:'microphone',use_title:'heading-1',set_thumbnail_text:'image',add_note:'note',set_scene:'scenes',set_scene_script:'script',draft_scenes:'scenes',ask_choice:'choose',set_description:'paragraph',group_tiles:'layout',start_video:'video',
+ cut_pauses:'cut',remove_fillers:'cut',close_gaps:'cut',split_at:'cut',trim_clip:'cut',delete_range:'delete',set_caption_style:'captions',add_caption:'captions',add_text:'text',set_zoom:'zoom-in',add_motion_block:'layout',update_motion_block:'layout',remove_motion_block:'layout',normalize_audio:'music',add_clip:'film'};
+const CardIcon=({action}:{action:CompanionAction})=><span className={cn('cmp-card-ico',`k-${ACTION_ICON[action.type]}`)} aria-hidden><Icon name={ACTION_ICON[action.type]} size={13}/></span>;
 const cardTitle=(action:CompanionAction)=>action.type==='add_motion_block'?`Add a ${MOTION_TEMPLATES[action.template]?.label.toLowerCase()??'graphic'}`:ACTION_TITLE[action.type];
 
 const scenesClock=(seconds:number)=>`${Math.floor(seconds/60)}:${String(Math.round(seconds%60)).padStart(2,'0')}`;
@@ -354,7 +360,7 @@ function Card({id,card,pkg,outline,scenes,busy,editor,silences,answered,onChoose
   body=<div className="cmp-card-text"><div className="cmp-card-sub">{action.tileIds.length} {action.tileIds.length===1?'card':'cards'}</div>{action.title}</div>;
  }else body=<div className={cn('cmp-card-text',action.type==='set_description'&&'long')}>{action.text}</div>;
  return <div className={cn('cmp-card',card.state)}>
-  <div className="cmp-card-h"><span>{cardTitle(action)}{action.type==='draft_scenes'?` · ${action.scenes.length}`:''}</span></div>
+  <div className="cmp-card-h"><CardIcon action={action}/><span>{cardTitle(action)}{action.type==='draft_scenes'?` · ${action.scenes.length}`:''}</span></div>
   {body}
   {shown&&<div className="cmp-preview">
    <div className="cmp-preview-col"><div className="cmp-preview-h">Now</div>{shown.now.length?shown.now.map((line,index)=><div key={index}>{line}</div>):<div className="cmp-faint">Nothing yet</div>}</div>

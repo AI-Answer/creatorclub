@@ -1027,3 +1027,14 @@
 .club-root .pub-step-body .pubx-form { padding: 0; }
 .club-root .pub-step-body .pubx-foot { margin: 0; }
 .club-root .pub-when { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+/* Settings · Skills on Edit: one row per skill, why it is on or off, and a switch. */
+.club-root .sk-desc { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.club-root .sk-why { margin-top: 4px; font-size: var(--cc-text-2xs); color: var(--cc-text-3); }
+.club-root .sk-why.added, .club-root .sk-why.declared { color: var(--cc-ok); }
+.club-root .sk-why.removed { color: var(--cc-warn); }
+.club-root .sk-sub { font-size: var(--cc-text-xs); font-weight: 600; color: var(--cc-text-2); background: var(--cc-surface-2); }
+.club-root .sk-switch { all: unset; cursor: pointer; flex: none; position: relative; width: 36px; height: 20px; border-radius: var(--cc-r-pill); background: var(--cc-line-strong); transition: background var(--cc-dur) var(--cc-ease); }
+.club-root .sk-switch > span { position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: var(--cc-surface); box-shadow: var(--cc-shadow-1); transition: transform var(--cc-dur) var(--cc-ease); }
+.club-root .sk-switch[aria-checked=true] { background: var(--cc-ok); }
+.club-root .sk-switch[aria-checked=true] > span { transform: translateX(16px); }
+.club-root .sk-switch:focus-visible { outline: 2px solid var(--cc-accent); outline-offset: 2px; }

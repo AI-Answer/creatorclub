@@ -5,6 +5,7 @@ import {ErrorLine} from '../ErrorLine';
 import {ChannelSection} from '../settings/ChannelSection';
 import {ConnectedAiSection} from '../settings/ConnectedAiSection';
 import {PublishingSection} from '../settings/PublishingSection';
+import {SkillsSection} from '../settings/SkillsSection';
 import {usePublishing} from '../publishing/usePublishing';
 import type {SettingsSection} from '../routes';
 
@@ -20,7 +21,7 @@ async function load():Promise<Loaded>{
 }
 
 /** The element a link's section scrolls to. Followed channels and signal sources sit inside Channel. */
-const TARGET:Record<SettingsSection,string>={ai:'set-ai',channel:'set-channel',followed:'set-followed',sources:'set-sources',publishing:'set-publishing'};
+const TARGET:Record<SettingsSection,string>={ai:'set-ai',channel:'set-channel',followed:'set-followed',sources:'set-sources',skills:'set-skills',publishing:'set-publishing'};
 
 /** The page's shape while the settings are read: the three groups as grey blocks, so nothing jumps when they arrive. */
 function SettingsSkeleton(){
@@ -65,6 +66,7 @@ export function SettingsScreen({section:linked,onSetup}:{section?:SettingsSectio
    :<>
      <ConnectedAiSection status={status} statusError={statusError} settings={data.settings} onStatus={refreshStatus} onSettings={change=>setData({...data,settings:{...data.settings,...change}})}/>
      <ChannelSection workspace={data.workspace} focus={linked==='followed'||linked==='sources'?linked:undefined} onSaved={workspace=>setData({...data,workspace})} onSetup={onSetup}/>
+     <SkillsSection/>
      <PublishingSection publishing={publishing.state} error={publishing.error} onReload={publishing.reload} onPublishing={publishing.setState} savedTheme={data.settings.appearance}/>
    </>}
  </div>;

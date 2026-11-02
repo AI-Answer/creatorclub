@@ -99,7 +99,11 @@ export async function listSkills(home = os.homedir()): Promise<InstalledSkill[]>
     try {
       const file = path.join(root, name, 'SKILL.md');
       if (!(await stat(file)).isFile()) continue;
-      found.push({ name, description: oneLine(await readFile(file, 'utf8')), previews: await findPreviews(path.join(root, name)) });
+      const raw = await readFile(file, 'utf8');
+      const front = /^---\n([\s\S]*?)\n---/.exec(raw)?.[1] ?? '';
+      // A skill made for CreatorClub's Edit says so in its front matter: `creatorclub: edit`.
+      const forEdit = /^creatorclub:\s*\[?[^\n]*\bedit\b/m.test(front);
+      found.push({ name, description: oneLine(raw), previews: await findPreviews(path.join(root, name)), ...(forEdit ? { forEdit } : {}) });
     } catch {
       /* not a skill */
     }

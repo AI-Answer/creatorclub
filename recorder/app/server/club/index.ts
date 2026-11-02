@@ -5,6 +5,7 @@ import { CHANNEL_BOARD, SEED_BELOW, HELP_STEPS, PLAN_JOB_KINDS, TILE_KINDS, VIDE
 import { PACKAGE_GROUPS } from '../../shared/package-merge.js';
 import { aiStatus } from './ai.js';
 import { listSkills, previewFile, withPlayer } from './skills.js';
+import { SKILL_NAME, editSkill } from '../../shared/skills.js';
 import { startConnect, type ConnectOptions } from './connect.js';
 import { ClubError, GENERIC_FAILURE, notFound } from './errors.js';
 import { promises as fs } from 'node:fs';
@@ -250,6 +251,18 @@ export function clubRouter({ ai = {}, transcribe, runAI, readViews = ytDlpViews(
 
   // ---- the person's own Claude Code skills, for the companion's "/" picker
   router.get('/skills', handler(async (_req, res) => res.json(await listSkills())));
+  // Which skills are on Edit and why; the person adds one, takes one off, or leaves it to the automatic pick (null).
+  router.get('/skills/edit', handler(async (_req, res) => {
+    const choices = await store.editSkillChoices();
+    res.json((await listSkills()).map((skill) => editSkill(skill, choices)));
+  }));
+  router.put('/skills/edit/:name', handler(async (req, res) => {
+    const name = param(req, 'name');
+    if (!SKILL_NAME.test(name)) throw notFound('skill');
+    await store.setEditSkill(name, z.object({ on: z.boolean().nullable() }).strict().parse(req.body).on);
+    const choices = await store.editSkillChoices();
+    res.json((await listSkills()).map((skill) => editSkill(skill, choices)));
+  }));
   // A file from inside one of the person's skills that shows what it makes. A page runs sandboxed: no access to the app, its data or its cookies.
   router.get('/skills/:name/preview', handler(async (req, res) => {
     const file = typeof req.query.file === 'string' ? req.query.file : '';

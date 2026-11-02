@@ -6,7 +6,7 @@ import path from 'node:path';
 import { z } from 'zod';
 import type { EditAction } from '../../shared/companion.js';
 import type { Project } from '../../shared/types.js';
-import { SKILL_NAME, isVideoSkill } from '../../shared/skills.js';
+import { SKILL_NAME, editSkill } from '../../shared/skills.js';
 import { listSkills } from './skills.js';
 import { isSoundTag } from '../../shared/sound-tags.js';
 import { AiError, runAI, type AIEvent, type RunAIOptions } from './ai.js';
@@ -54,11 +54,11 @@ export async function skillFolder(name: string, home = os.homedir()): Promise<st
   return (await fs.stat(path.join(dir, 'SKILL.md')).catch(() => undefined))?.isFile() ? dir : undefined;
 }
 
-/** An installed skill that edits or makes video (by its own description): only these run for real on Edit. */
+/** An installed skill that is on Edit (your choice, the skill's own flag, or the automatic pick): only these run for real there. */
 export async function isVideoSkillInstalled(name: string, home = os.homedir()): Promise<boolean> {
   if (!(await skillFolder(name, home))) return false;
   const skill = (await listSkills(home)).find((each) => each.name === name);
-  return !!skill && isVideoSkill(skill);
+  return !!skill && editSkill(skill, await store.editSkillChoices()).on;
 }
 
 const clock = (t: number) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;

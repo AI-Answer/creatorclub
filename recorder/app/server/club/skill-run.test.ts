@@ -111,7 +111,38 @@ test('only skills that edit or make video count as video skills, judged by their
     ['youtube-thumbnail', 'Use when the user wants to create a YouTube thumbnail'],
     ['watch-video', 'Genuinely watch a video with Gemini — motion and audio in one real pass'],
     ['youtube-transcript', 'Extract transcripts from YouTube videos.'],
+    ['diagrammer', 'Render clean blueprint-style SVG diagrams from JSON specs.'],
   ];
   for (const [name, description] of video) assert.ok(isVideoSkill({ name, description }), name);
   for (const [name, description] of other) assert.ok(!isVideoSkill({ name, description }), name);
+});
+
+test('on Edit: your choice wins, then the skill\'s own creatorclub: edit, then the automatic pick', async () => {
+  const { editSkill } = await import('../../shared/skills.js');
+  const skill = (name: string, description: string, forEdit?: boolean) => ({ name, description, previews: [], ...(forEdit ? { forEdit } : {}) });
+  const none = { on: [], off: [] };
+  assert.deepEqual([editSkill(skill('motion-graphics', 'A motion graphic'), none).on, editSkill(skill('motion-graphics', 'A motion graphic'), none).reason], [true, 'auto']);
+  assert.equal(editSkill(skill('my-intro-sting', 'Adds my branded intro', true), none).reason, 'declared', 'a skill can say it is for Edit');
+  assert.deepEqual(editSkill(skill('my-intro-sting', 'Adds my branded intro'), { on: ['my-intro-sting'], off: [] }), { ...skill('my-intro-sting', 'Adds my branded intro'), on: true, reason: 'added' });
+  assert.equal(editSkill(skill('motion-graphics', 'A motion graphic', true), { on: [], off: ['motion-graphics'] }).on, false, 'taking it off wins over everything');
+  assert.equal(editSkill(skill('write-hook', 'Opening hooks for videos'), none).on, false);
+});
+
+test('the skill list reads creatorclub: edit from the front matter, and the run follows your choices', async () => {
+  const { listSkills } = await import('./skills.js');
+  const { isVideoSkillInstalled } = await import('./skill-run.js');
+  const store = await import('./store.js');
+  await mkdir(path.join(home, '.claude', 'skills', 'my-intro-sting'), { recursive: true });
+  await writeFile(path.join(home, '.claude', 'skills', 'my-intro-sting', 'SKILL.md'), '---\nname: my-intro-sting\ndescription: Adds my branded intro.\ncreatorclub: edit\n---\nDo it.');
+  await mkdir(path.join(home, '.claude', 'skills', 'write-hook'), { recursive: true });
+  await writeFile(path.join(home, '.claude', 'skills', 'write-hook', 'SKILL.md'), '---\nname: write-hook\ndescription: Opening hooks for videos.\n---\nWrite.');
+  assert.equal((await listSkills(home)).find((s) => s.name === 'my-intro-sting')?.forEdit, true);
+  assert.equal(await isVideoSkillInstalled('my-intro-sting', home), true);
+  assert.equal(await isVideoSkillInstalled('write-hook', home), false);
+  await store.setEditSkill('write-hook', true);
+  assert.equal(await isVideoSkillInstalled('write-hook', home), true, 'added by you');
+  await store.setEditSkill('my-intro-sting', false);
+  assert.equal(await isVideoSkillInstalled('my-intro-sting', home), false, 'taken off by you');
+  await store.setEditSkill('my-intro-sting', null);
+  assert.equal(await isVideoSkillInstalled('my-intro-sting', home), true, 'back to automatic');
 });
