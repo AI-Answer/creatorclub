@@ -27,7 +27,7 @@ interface Row {id:string;name:string;icon:typeof Camera;height:number;top:number
 interface Preview {start:number;duration:number;sourceIn?:number;dy?:number}
 interface Drag {items:Map<string,Preview>;ghosts:Array<{row:string;start:number;duration:number}>;guide:number|null;insert:number|null;label:string;markers?:Map<string,number>}
 /** Snapping reaches 8 px on screen, whatever the zoom, so a short neighbour does not pull an edit away from where it was dropped. */
-const RULER=30,NOTES_LANE=22,SNAP_PX=8,STALE_DROP='The timeline changed during the drag, so nothing moved. Try again.',NOT_MOVED='Clips stay joined end to end. Drag a clip onto another one to change the order.';
+const RULER=30,SCENE_BAND=14,NOTES_LANE=22,SNAP_PX=8,STALE_DROP='The timeline changed during the drag, so nothing moved. Try again.',NOT_MOVED='Clips stay joined end to end. Drag a clip onto another one to change the order.';
 const icons:Record<TrackKind,typeof Camera>={screen:Monitor,camera:Camera,audio:Mic,music:Music,overlay:Layers};
 /** Every row of the timeline is the same height, media, sound and effects alike. */
 const ROW_H=32;
@@ -49,8 +49,10 @@ function fxGhosts(now:Project,after:Project):FxGhost[]{
 }
 
 /** Rows that have something on them (custom layers always), in display order; an empty timeline shows Screen and Audio as drop targets. */
-/** The ruler's height: the time line and scene names, plus a lane on top for note pins once the video has notes. */
-export const rulerHeight=(p:Project)=>RULER+(p.markers?.length?NOTES_LANE:0);
+/** Scene names show on the ruler only when there are two or more; with one, the camera clip already carries its name. */
+const sceneBand=(p:Project)=>p.scenes.filter(s=>s.duration>0).length>1;
+/** The ruler's height: the times, the scene names when there are several, and a lane on top for note pins once the video has notes. */
+export const rulerHeight=(p:Project)=>RULER-(sceneBand(p)?0:SCENE_BAND)+(p.markers?.length?NOTES_LANE:0);
 export function usedRows(p:Project):Row[]{
  const counts=new Map<string,number>();for(const c of p.clips){const id=clipLayerRowId(c,p);counts.set(id,(counts.get(id)??0)+1);}
  const custom=new Set(p.timelineLayers?.map(l=>l.id)),groups=linkGroups(p.clips),sizes=new Map<string,number>();for(const key of groups.values())sizes.set(key,(sizes.get(key)??0)+1);
@@ -94,7 +96,7 @@ export const TimelineClub=memo(function TimelineClub({project:p,playhead,scale,o
  const ref=useRef<HTMLDivElement>(null),heads=useRef<HTMLDivElement>(null),[win,setWin]=useState(()=>timelineWindow(0,1000)),winRef=useRef(win),[drag,setDrag]=useState<Drag|null>(null),[marquee,setMarquee]=useState<SelectionRect|null>(null);
  const view=useCallback((left:number,width:number)=>{const next=timelineWindow(left,width);if(!sameTimelineWindow(next,winRef.current)){winRef.current=next;setWin(next);}},[]);
  const page=useCallback((el:HTMLElement)=>{queueMicrotask(()=>flushSync(()=>view(el.scrollLeft,el.clientWidth)));},[view]);
- const duration=useMemo(()=>projectDuration(p),[p]),extent=Math.max(duration+3,(ref.current?.clientWidth??1000)/scale),width=extent*scale;
+ const duration=useMemo(()=>projectDuration(p),[p]),extent=Math.max(duration+1,(ref.current?.clientWidth??1000)/scale),width=extent*scale;
  const ghosts=useMemo(()=>previewAfter?fxGhosts(p,previewAfter):[],[p,previewAfter]);
  // A previewed graphic on a row that does not exist yet (the first one) gets its row while it is previewed.
  const rowsNow=useMemo(()=>usedRows(p),[p]),rows=useMemo(()=>ghosts.some(g=>g.kind!=='removed'&&!rowsNow.some(r=>r.id===g.row))?usedRows(previewAfter!):rowsNow,[ghosts,rowsNow,previewAfter]),rowById=useMemo(()=>new Map(rows.map(r=>[r.id,r])),[rows]),contentHeight=rowsHeight(rows);
@@ -247,10 +249,10 @@ export const TimelineClub=memo(function TimelineClub({project:p,playhead,scale,o
   <div className="club-tl-heads" aria-hidden><div ref={heads}><div className="club-tl-head is-ruler" style={{height:ruler}}/>{rows.map(r=><div key={r.id} className={`club-tl-head ${r.linked?'is-linked':''}`} data-kind={r.layer?.track??(r.layer?.kind==='video'?'camera':r.layer?'music':r.effect)} style={{height:r.height}} title={r.name}><r.icon size={13}/><span>{r.name}</span></div>)}</div></div>
   <div className="timeline-scroll" ref={ref} tabIndex={-1} onScroll={e=>{const el=e.currentTarget;placeHeads();view(el.scrollLeft,el.clientWidth);}}>
    <div className="timeline-content" style={{width,height:contentHeight}}>
-    <div className={`club-ruler${ruler>RULER?' has-notes':''}`} style={{height:ruler}} onPointerDown={beginRuler} onPointerMove={e=>{if(e.buttons)return;const box=e.currentTarget.getBoundingClientRect();setHover(Math.max(0,(e.clientX-box.left)/scale));}} onPointerLeave={()=>setHover(null)} title="Click or drag to move the playhead">
+    <div className={`club-ruler${p.markers?.length?' has-notes':''}`} style={{height:ruler}} onPointerDown={beginRuler} onPointerMove={e=>{if(e.buttons)return;const box=e.currentTarget.getBoundingClientRect();setHover(Math.max(0,(e.clientX-box.left)/scale));}} onPointerLeave={()=>setHover(null)} title="Click or drag to move the playhead">
      {hover!==null&&<span className={`club-hover${hover*scale>width-160?' flip':''}`} style={{left:hover*scale}} aria-hidden><b>{rulerLabel(hover,tenths)}</b>{hoverFrame(hover)}</span>}
      {ticks.map(t=><span key={t.time} className={t.major?'tick major':'tick'} style={{left:t.time*scale}}>{t.label&&<b>{t.label}</b>}</span>)}
-     {p.scenes.map((s,i)=>s.duration>0&&visible(s.start,Math.max(1,s.duration))&&<div key={s.id} className={`club-scene-tag${i%2?' alt':''}`} style={{left:s.start*scale,width:Math.max(24,s.duration*scale-2)}} title={`Scene ${i+1}: ${s.name}`} onPointerDown={e=>{e.stopPropagation();onSeek(s.start);}}>{i+1} {s.name}</div>)}
+     {sceneBand(p)&&p.scenes.map((s,i)=>s.duration>0&&visible(s.start,Math.max(1,s.duration))&&<div key={s.id} className={`club-scene-tag${i%2?' alt':''}`} style={{left:s.start*scale,width:Math.max(24,s.duration*scale-2)}} title={`Scene ${i+1}: ${s.name}`} onPointerDown={e=>{e.stopPropagation();onSeek(s.start);}}>{i+1} {s.name}</div>)}
      {(p.markers??[]).map(m=>{const time=drag?.markers?.get(m.id)??m.time;return visible(time,0)&&<div key={m.id} data-marker-id={m.id} className={`club-marker${m.tag?` tag-${m.tag}`:''}${m.name?.trim()?' has-note':''}`} style={{left:Math.max(10,time*scale)}} title={`${m.name?.trim()?m.name.trim()+' · ':''}Note at ${secondsLabel(time)} · click to open, drag to move`} onPointerDown={e=>beginMarker(e,m.id)}><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12Z"/></svg></div>;})}
     </div>
     {rows.map(r=><div key={r.id} className={`timeline-row club-row row-${r.layer?.track??r.effect??'layer'}`} data-track={r.id} style={{top:r.top,height:r.height}} onPointerDown={e=>{if(e.target===e.currentTarget)beginEmpty(e);}}

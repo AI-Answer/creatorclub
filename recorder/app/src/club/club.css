@@ -1015,3 +1015,15 @@
 .club-root .pkg .ed:empty { border: 1px dashed var(--cc-line-strong); border-radius:var(--cc-r); padding: 8px 10px; min-height: 38px; }
 .club-root .pkg .ed:empty:hover, .club-root .pkg .ed:empty:focus { border-color: var(--cc-accent); background: var(--cc-card); }
 :where(.club-root) .btn.is-waiting { opacity: .55; cursor: default; pointer-events: none; }
+/* Publish as three numbered steps: export, details, send. Each says where it stands; a done step shows a tick. */
+.club-root .pub-steps { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.club-root .pub-step { border: 1px solid var(--cc-line); border-radius: var(--cc-r-lg); background: var(--cc-surface); box-shadow: var(--cc-shadow-1); }
+.club-root .pub-step > header { display: flex; gap: 12px; align-items: flex-start; padding: 16px 18px 0; }
+.club-root .pub-step h3 { margin: 1px 0 2px; font-size: var(--cc-text-base); font-weight: 650; }
+.club-root .pub-step header p { margin: 0; font-size: var(--cc-text-sm); color: var(--cc-text-2); line-height: 1.45; }
+.club-root .pub-step-n { flex: none; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font-size: var(--cc-text-xs); font-weight: 650; background: var(--cc-bg-sunk); color: var(--cc-text-2); }
+.club-root .pub-step.done .pub-step-n { background: var(--cc-ok-soft); color: var(--cc-ok); }
+.club-root .pub-step-body { padding: 14px 18px 18px 54px; display: flex; flex-direction: column; gap: 10px; }
+.club-root .pub-step-body .pubx-form { padding: 0; }
+.club-root .pub-step-body .pubx-foot { margin: 0; }
+.club-root .pub-when { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }

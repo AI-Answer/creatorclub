@@ -65,19 +65,19 @@ export function suggestions(tab:CompanionTab,facts:SuggestionFacts):string[]{
 export function greeting(tab:CompanionTab,facts:{scenes:number;tiles?:number;recorded?:number}):string{
  switch(tab){
   case 'board':return facts.tiles===0
-   ?'Add what you have to the board first: a video, a link or a note. Then ask me what they have in common, or for hooks drawn from them.'
-   :'This board is the research for the video. Ask what the videos on it have in common, or for hooks and titles drawn from them.';
+   ?'Add a video, link or note to the board, then ask me about it.'
+   :'Ask me what the board has in common, or for hooks and titles from it.';
   case 'plan':return facts.scenes
-   ?'The scenes are drafted. I can tighten any of them, or write hooks and titles for you to choose from.'
-   :'Plan the scenes first: they become your teleprompter when you record. I can write hooks and titles for you to choose from meanwhile.';
+   ?'I can tighten a scene, or write hooks and titles to choose from.'
+   :'Plan the scenes first. I can write hooks and titles meanwhile.';
   case 'record':return facts.recorded===0
-   ?'Record one scene at a time, with its talking points beside you. Ask me how to open, or to write a hook or the talking points with your own writing skills.'
-   :'Record one scene at a time, with its talking points beside you. Ask me to shorten a scene, or to write a hook or a call to action with your own writing skills.';
+   ?'Ask me how to open, or for a hook or talking points.'
+   :'Ask me to shorten a scene, or for a hook or a call to action.';
   case 'edit':return facts.recorded===0
-   ?'Nothing is recorded yet. Once a scene is, I can cut its pauses and filler words as cards you preview, apply and undo.'
-   :'Tell me what to change, in your own words: add a lower third, move a graphic later, reword a title, zoom in on a point. Each change comes as a card you can preview, apply and undo.';
-  case 'publish':return 'Check the title, the thumbnail and the description before it goes out. Ask me for a second opinion on any of them.';
-  case 'research':return 'This is your channel\'s own board. Ask what the cards have in common, or ask me to group them or start a video from them: each change comes as a card you can apply and undo.';
+   ?'Record a scene first, then I can cut its pauses and filler words.'
+   :'Tell me what to change. Each change comes as a card you can preview and undo.';
+  case 'publish':return 'Ask me for a second opinion on the title, thumbnail or description.';
+  case 'research':return 'Ask me what the cards have in common, to group them, or to start a video from them.';
  }
 }
 

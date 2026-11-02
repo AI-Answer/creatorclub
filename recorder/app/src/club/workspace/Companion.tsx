@@ -179,14 +179,13 @@ export function Companion({videoId,videoTitle,tab,scene,screen,selection,pkg,out
   {/* One line for screen readers: the step, "Reply ready" or the failure. The timer is never in a live region. */}
   <div className="cmp-sr" role="status">{companion.announce}</div>
   <div className="cmp-log" ref={log} onScroll={onScroll} role="log" aria-live="off" aria-busy={working}>
+   {hiddenCount>0&&<button type="button" className="cmp-earlier" onClick={()=>setShowEarlier(true)}>Show {hiddenCount} earlier {hiddenCount===1?'message':'messages'}</button>}
    {companion.loadError?<ErrorLine message={companion.loadError} onRetry={companion.reload}/>
     :!messages?<div className="cmp-loading"><Spinner label="Loading the conversation" size={16}/></div>
     :fresh&&<div className="cmp-hello">
-     <span className="cmp-hello-mark"><CompanionMark size={20}/></span>
      <p>{greeting(tab,{scenes:sceneCount,tiles:tab==='board'||tab==='research'?tiles:undefined,recorded})}</p>
      {chips||null}
     </div>}
-   {hiddenCount>0&&<button type="button" className="cmp-earlier" onClick={()=>setShowEarlier(true)}>Show {hiddenCount} earlier {hiddenCount===1?'message':'messages'}</button>}
    {items.map(item=>item.kind==='divider'?<div key={item.key} className="cmp-divider" role="separator">{item.label}</div>
     :item.message.role==='user'?<div key={item.key} className="cmp-me">{item.message.text}</div>
     :<Reply key={item.key} name={name} message={item.message} answered={working||(messages?.at(-1)?.id!==item.message.id)} onChoose={answer=>void ask(answer)} pkg={pkg} outline={outline} scenes={scenes} busy={companion.busyCard} editor={editor} silences={silences}

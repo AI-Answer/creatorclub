@@ -46,8 +46,8 @@ test('the suggestions follow what exists on every step: an empty board, nothing 
  assert.deepEqual(suggestions('edit',{scenes:3,recorded:0}),[],'nothing that edits before anything is recorded');
  assert.deepEqual(suggestions('publish',{scenes:3,titled:false}),['Write the description','Suggest thumbnail text']);
  assert.deepEqual(suggestions('publish',{scenes:3,titled:true,thumbnail:true}),['Write the description','Is the thumbnail text clear?','Is the title ready?']);
- assert.match(greeting('board',{scenes:0,tiles:0}),/^Add what you have to the board first/);
- assert.match(greeting('edit',{scenes:2,recorded:0}),/^Nothing is recorded yet/);
+ assert.match(greeting('board',{scenes:0,tiles:0}),/^Add a video, link or note to the board/);
+ assert.match(greeting('edit',{scenes:2,recorded:0}),/^Record a scene first/);
 });
 
 test('each step greets with its own one or two sentences, and Plan says what comes first until there are scenes',()=>{
@@ -56,7 +56,7 @@ test('each step greets with its own one or two sentences, and Plan says what com
  assert.equal(new Set(lines).size,tabs.length,'no two steps say the same');
  for(const line of lines){assert.ok(line.split(/(?<=\.)\s/).length<=2,line);assert.doesNotMatch(line,/with you on this video|!|please/i);}
  assert.match(greeting('plan',{scenes:0}),/^Plan the scenes first/);
- assert.match(greeting('plan',{scenes:4}),/^The scenes are drafted/);
+ assert.match(greeting('plan',{scenes:4}),/^I can tighten a scene/);
 });
 
 test('a divider marks each change of step, and "Now on" when the screen moved on',()=>{
@@ -137,7 +137,7 @@ test('asking streams: the steps with their time, a skeleton before the first wor
   assert.match(text(c),/Ask Claude/);
   // Nothing asked yet: the step's greeting with its three prompts right under it, not a blank column and not the old welcome.
   const hello=c.querySelector('.cmp-log .cmp-hello')!;
-  assert.match(text(hello),/^The scenes are drafted\./);
+  assert.match(text(hello),/^I can tighten a scene/);
   assert.deepEqual([...hello.querySelectorAll('.cmp-sugg button')].map(b=>b.textContent),['Tighten scene 2','Cut the longest scene to 90 seconds','Make the hook sharper']);
   assert.equal(c.querySelector('.cmp-foot .cmp-sugg'),null,'the prompts are not repeated at the bottom');
   assert.doesNotMatch(text(c),/with you on this video/);

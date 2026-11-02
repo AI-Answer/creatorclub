@@ -4,17 +4,17 @@
 */
 .club-root .cmp { width: 380px; flex: none; display: flex; flex-direction: column; min-height: 0; position: relative; border-left: 1px solid var(--cc-line); background: var(--cc-surface); }
 .club-root .cmp.collapsed { width: 44px; }
-.club-root .cmp-rail { all: unset; box-sizing: border-box; cursor: pointer; width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; gap: 12px; padding-top: 14px; color: var(--cc-accent); }
+.club-root .cmp-rail { all: unset; box-sizing: border-box; cursor: pointer; width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; gap: 12px; padding-top: 14px; color: var(--cc-text); }
 .club-root .cmp-rail span { writing-mode: vertical-rl; font-size:var(--cc-text-sm); font-weight: 600; color: var(--cc-text-2); }
 .club-root .cmp-rail:hover span { color: var(--cc-text); }
 .club-root .cmp-rail:focus-visible { outline: 2px solid var(--cc-accent); outline-offset: -2px; }
 
 .club-root .cmp-mark { flex: none; display: block; }
-.club-root .cmp-mark.working .cmp-mark-dot { animation: cmp-breathe 1.4s var(--cc-ease) infinite; transform-origin: 18.5px 18.5px; }
+.club-root .cmp-mark.working .cmp-mark-dot { animation: cmp-breathe 1.4s var(--cc-ease) infinite; transform-origin: 18.5px 5.5px; }
 @keyframes cmp-breathe { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(.62); opacity: .55; } }
 
 .club-root .cmp-head { display: flex; align-items: center; gap: 8px; height: 52px; padding: 0 10px 0 16px; border-bottom: 1px solid var(--cc-line); }
-.club-root .cmp-head-mark { color: var(--cc-accent); }
+.club-root .cmp-head-mark { color: var(--cc-text); }
 .club-root .cmp-head-text { flex: 1; min-width: 0; }
 .club-root .cmp-title { font-size:var(--cc-text-base); font-weight: 650; letter-spacing: -0.01em; }
 .club-root .cmp-look { font-size:var(--cc-text-xs); color: var(--cc-text-3); display: flex; align-items: center; gap: 5px; white-space: nowrap; min-width: 0; margin-top: 1px; }
@@ -33,7 +33,7 @@
 /* The reply: flowing text, no bubble. */
 .club-root .cmp-reply { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .club-root .cmp-who { display: flex; align-items: center; gap: 6px; font-size:var(--cc-text-xs); font-weight: 650; color: var(--cc-text-3); }
-.club-root .cmp-who .cmp-mark { color: var(--cc-accent); }
+.club-root .cmp-who .cmp-mark { color: var(--cc-text-2); }
 .club-root .cmp-who .cmp-t { margin-left: auto; font-weight: 500; }
 .club-root .cmp-t { color: var(--cc-text-3); font-size:var(--cc-text-2xs); font-variant-numeric: tabular-nums; }
 .club-root .cmp-md { font-size:var(--cc-text-sm); line-height: 1.6; color: var(--cc-text); overflow-wrap: anywhere; }
@@ -200,3 +200,5 @@
 .club-root .cmp-sugg.fresh button:hover { background: var(--cc-hover); }
 .club-root .cmp-sugg.fresh button:hover::before { background: var(--cc-accent); }
 .club-root .cmp-me { border-radius: var(--cc-r-lg) var(--cc-r-lg) var(--cc-r-sm) var(--cc-r-lg); }
+/* On Edit the picture needs the width: the panel is narrower there. */
+.club-root:has(.club-embed .app-shell[data-mode=Edit]) .cmp:not(.collapsed) { width: 320px; }
