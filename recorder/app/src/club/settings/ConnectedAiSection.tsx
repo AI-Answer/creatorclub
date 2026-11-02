@@ -33,6 +33,7 @@ function DefaultAi({status,saved,onSaved}:{status:AiStatus;saved:AiProvider|null
  },[onSaved]);
  return <div style={{marginTop:18}}>
   <div className="field" id="default-ai-label">Use for writing and thinking</div>
+  <p className="small muted" style={{margin:'-2px 0 8px'}}>Which AI writes your titles, hooks and scripts, breaks videos down and answers in Ask Claude.</p>
   <Tabs label="Default AI" tabs={aiTabs} value={value} onChange={choose}/>
   {error&&<div style={{marginTop:10}}><ErrorLine message="Couldn't save that choice." onRetry={()=>choose(error)}/></div>}
   {!error&&!status[value].signedIn&&<p className="small muted" style={{margin:'8px 0 0'}}>{connectLabel[value]} is not connected yet.</p>}

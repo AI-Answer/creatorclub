@@ -5,16 +5,17 @@ import {ACTION_TITLE,ACTION_VERB,isEditAction,type CompanionAction,type Companio
 import type {EditorBridge,EditorState} from '../../App';
 import {describeEditAction,type SilencePlan} from '../../editing-actions';
 import {MOTION_TEMPLATES} from '../../../shared/motion/templates';
-import {clubFetch} from '../api';
-import {featuredSkills,matchSkills,slashQuery,type InstalledSkill} from '../../../shared/skills';
+import {clubFetch,clubUpload,errorMessage} from '../api';
+import {featuredSkills,matchSkills,slashQuery,type EditSkill,type InstalledSkill} from '../../../shared/skills';
 import {ErrorLine} from '../ErrorLine';
 import {ASK_CLAUDE} from './ask-claude';
-import {Button,Icon,Spinner,cn} from '../ui';
-import {atBottom,elapsed,greeting,lookingAt,previewOf,stepSummary,suggestions,tabOf,withDividers} from './companion-logic';
+import {Button,Icon,Spinner,cn,type IconName} from '../ui';
+import {STEP_NAME,atBottom,elapsed,greeting,lookingAt,previewOf,stepSummary,suggestions,tabOf,withDividers} from './companion-logic';
 import {Markdown} from './Markdown';
 import {ReplaceScenes} from './ReplaceScenes';
 import {useCompanion,type Live} from './useCompanion';
 import './companion.css';
+import {boardBase} from './board-base';
 
 const OPEN_KEY='cc.companion.open';
 const TILE_RECOUNT_MS=8000;
@@ -62,9 +63,9 @@ export function Companion({videoId,videoTitle,tab,scene,screen,selection,pkg,out
  // On Board the suggestions follow whether anything is on it yet: the tiles are counted when Board opens and every few seconds while it is open.
  const [tiles,setTiles]=useState<number|undefined>();
  useEffect(()=>{
-  if(tab!=='board')return;
+  if(tab!=='board'&&tab!=='research')return;
   let alive=true;
-  const count=()=>clubFetch<unknown[]>(`/videos/${encodeURIComponent(videoId)}/research`).then(list=>{if(alive&&Array.isArray(list))setTiles(list.length);},()=>{});
+  const count=()=>clubFetch<unknown[]>(`${boardBase(videoId)}/research`).then(list=>{if(alive&&Array.isArray(list))setTiles(list.length);},()=>{});
   void count();const timer=setInterval(()=>void count(),TILE_RECOUNT_MS);
   return()=>{alive=false;clearInterval(timer);};
  },[tab,videoId,boardKey]);
@@ -107,27 +108,43 @@ export function Companion({videoId,videoTitle,tab,scene,screen,selection,pkg,out
   await bridge.flush().catch(()=>{});
   return {...context,...bridge.context()};
  };
+ // Pictures to send with the next message: pasted, dropped or attached. They upload at once and show as small thumbnails above the box.
+ const chatBase=`${boardBase(videoId)}/companion/attachments`;
+ const [pics,setPics]=useState<string[]>([]),[picError,setPicError]=useState('');
+ const addPictures=async(files:readonly File[])=>{
+  setPicError('');
+  for(const file of files.filter(each=>/^image\/(png|jpeg)$/.test(each.type)).slice(0,6-pics.length)){
+   const form=new FormData();form.append('file',file);
+   try{const {name}=await clubUpload<{name:string}>(chatBase,form);setPics(current=>[...current,name]);}
+   catch(reason){setPicError(errorMessage(reason,"Couldn't add that picture."));}
+  }
+ };
  const ask=async(question:string)=>{
   if(!question.trim()||working)return;
   pinned.current=true;
-  const sent=await companion.send(question,await contextNow());
-  if(sent)setText('');
+  const sent=await companion.send(question,await contextNow(),undefined,pics);
+  if(sent){setText('');setPics([]);}
  };
  // Typing "/" lists the person's own skills; choosing one puts its name in the message, and sending it runs the skill.
  const [skills,setSkills]=useState<InstalledSkill[]|null>(null);
+ // Edit lists its own set (with why each is on), so the list is read again when the step changes.
+ useEffect(()=>setSkills(null),[tab]);
  const [pick,setPick]=useState(0);
  const [dismissed,setDismissed]=useState(false);
  const query=slashQuery(text);
- useEffect(()=>{if(query===undefined||skills)return;let live=true;clubFetch<InstalledSkill[]>('/skills').then(list=>{if(live)setSkills(list);}).catch(()=>{if(live)setSkills([]);});return()=>{live=false;};},[query,skills]);
+ useEffect(()=>{if(query===undefined||skills)return;let live=true;clubFetch<EditSkill[]>(tab==='edit'?'/skills/edit':'/skills').then(list=>{if(live)setSkills(list);}).catch(()=>{if(live)setSkills([]);});return()=>{live=false;};},[query,skills]);
  useEffect(()=>{setPick(0);setDismissed(false);if(query===undefined)setShowAll(false);},[query]);
  const [showAll,setShowAll]=useState(false);
  // What was said on other steps is one line, opened on request (a hook, so it sits above the collapsed panel's early return).
  const [showEarlier,setShowEarlier]=useState(false);
+ const [showApplied,setShowApplied]=useState(false);
  useEffect(()=>setShowEarlier(false),[tab,videoId]);
  // "/" alone lists a short set; typing searches every installed skill, and "Show all" lists them all.
- const short=skills?featuredSkills(skills):[];
- const choices=query!==undefined&&skills&&!dismissed?(query!==''||showAll||!short.length?matchSkills(skills,query):short):[];
- const hidden=query===''&&!showAll&&skills&&short.length>0?skills.length-short.length:0;
+ // On Edit only the skills that edit or make video are listed: there a skill runs for real and makes something for the timeline.
+ const offered=skills&&tab==='edit'?(skills as EditSkill[]).filter(skill=>skill.on):skills;
+ const short=offered?(tab==='edit'?offered:featuredSkills(offered)):[];
+ const choices=query!==undefined&&offered&&!dismissed?(query!==''||showAll||!short.length?matchSkills(offered,query):short):[];
+ const hidden=query===''&&!showAll&&offered&&short.length>0?offered.length-short.length:0;
  const pickerOpen=query!==undefined&&!dismissed&&!working;
  const choose=(skill:InstalledSkill)=>{setText(`/${skill.name} `);input.current?.focus();};
  // A button elsewhere on the page can ask the chat something for the creator: it opens, sends the question and the answer comes back as cards.
@@ -151,41 +168,54 @@ export function Companion({videoId,videoTitle,tab,scene,screen,selection,pkg,out
  </aside>;
 
  // The conversation is one per video, but each step shows its own: what was said on other steps is one line, opened on request.
- const here=messages?(showEarlier?messages:messages.filter(message=>tabOf(message)===tab)):undefined;
+ // A conversation from an earlier day is tucked away too, so the step opens on a fresh start with its suggestions.
+ const today=new Date();today.setHours(0,0,0,0);
+ const recent=(message:{at?:string})=>!message.at||!(new Date(message.at).getTime()<today.getTime());
+ const here=messages?(showEarlier?messages:messages.filter(message=>tabOf(message)===tab&&recent(message))):undefined;
  const hiddenCount=messages&&here?messages.length-here.length:0;
  const items=here?withDividers(here,tab):[];
  const sceneCount=outline?.scenes.length??0;
  const recorded=scenes?scenes.filter(one=>one.takes.length>0).length:undefined;
  const ideas=suggestions(tab,{scenes:sceneCount,scene,selected:tab==='research'?selection?.length:editor?.state?.selected,notes:editor?.state?.notes,hook:!!pkg?.hook.spoken.trim(),longest:Math.max(0,...(outline?.scenes??[]).map(one=>one.seconds||0)),
-  tiles:tab==='board'?tiles:undefined,recorded,titled:!!videoTitle?.trim()||!!pkg?.titles.some(one=>one.trim()),thumbnail:!!pkg?.thumbnailText.trim()});
+  tiles:tab==='board'||tab==='research'?tiles:undefined,recorded,titled:!!videoTitle?.trim()||!!pkg?.titles.some(one=>one.trim()),thumbnail:!!pkg?.thumbnailText.trim()});
  // Nothing asked yet: a short greeting for this step with the best prompts right under it, instead of a blank column.
  const fresh=!!here&&!here.length&&!live&&!companion.loadError;
  // Proposals are waiting for a choice: the suggestions step aside so the cards are the one thing to act on.
  const lastMessage=messages?.at(-1),awaiting=!!lastMessage&&'cards' in lastMessage&&lastMessage.cards.some(card=>card.state==='offered'&&(tab==='edit'||!isEditAction(card.action)));
  const chips=ideas.length>0&&<div className={cn('cmp-sugg',fresh&&'fresh')} aria-label="Suggestions">{ideas.map(idea=><button key={idea} type="button" onClick={()=>void ask(idea)}>{idea}</button>)}</div>;
  const selected=tab==='edit'?editor?.state?.selected??0:tab==='research'?selection?.length??0:0;
+ // For reference: every change from the chat that is applied now, newest first, with Undo.
+ const applied=(messages??[]).flatMap(message=>message.role==='assistant'&&'cards' in message?message.cards.map((card,index)=>({message,card,index})):[]).filter(({card})=>card.state==='applied').reverse();
  return <aside className={cn('cmp',narrow&&'over')} aria-label={title} onKeyDown={onPanelKey}>
   <header className="cmp-head">
    <BrandLogo brand={name==='ChatGPT'?'chatgpt':'claude'} size={20} working={working} className="cmp-head-mark"/>
    <div className="cmp-head-text">
     <div className="cmp-title">{title}</div>
-    <div className="cmp-look">Looking at: <span>{lookingAt(tab,scene)}</span>{scene&&<span className="cmp-look-scene">{scene.title}</span>}{selected>0&&<span className="cmp-look-scene">{selected} selected</span>}</div>
    </div>
-   <button type="button" className="btn ghost sm" onClick={()=>{setText('/');input.current?.focus();}} title="Run one of your skills"><Icon name="Sparkles" size={14}/>Skills</button>
+   {applied.length>0&&<button type="button" className={cn('cmp-applied-btn',showApplied&&'on')} aria-pressed={showApplied} onClick={()=>setShowApplied(v=>!v)} title="Everything Claude changed in this video">Applied {applied.length}</button>}
+   <button type="button" className="btn ghost sm icon-only" onClick={()=>{setText('/');input.current?.focus();}} aria-label="Run one of your skills" title="Run one of your skills"><Icon name="Sparkles" size={15}/></button>
    <button type="button" className="btn ghost sm icon-only" onClick={()=>toggle(false)} aria-label={`Hide ${title}`} title={`Hide ${title}`}><Icon name="PanelRightClose" size={16}/></button>
   </header>
   {/* One line for screen readers: the step, "Reply ready" or the failure. The timer is never in a live region. */}
   <div className="cmp-sr" role="status">{companion.announce}</div>
-  <div className="cmp-log" ref={log} onScroll={onScroll} role="log" aria-live="off" aria-busy={working}>
+  {showApplied&&<div className="cmp-applied" role="region" aria-label="Applied by Claude">
+   <div className="cmp-applied-h"><b>Applied by Claude</b><span>Everything in this video that came from the chat, newest first.</span></div>
+   <ol>{applied.map(({message,card,index})=><li key={`${message.id}:${index}`}>
+    <div className="cmp-applied-t"><span className="cmp-applied-what"><CardIcon action={card.action}/>{cardTitle(card.action)}</span><span className="cmp-applied-when">{STEP_NAME[message.tab]}{message.at?` · ${new Date(message.at).toLocaleDateString(undefined,{day:'numeric',month:'short'})}`:''}</span></div>
+    <div className="cmp-applied-r">{card.result??(isEditAction(card.action)?describeEditAction(card.action):'Applied')}</div>
+    {card.version&&<button type="button" className="btn ghost sm" disabled={companion.busyCard===`${message.id}:${index}`} onClick={()=>void companion.undo(message.id,index)}><Icon name="Undo2" size={13}/>Undo</button>}
+   </li>)}</ol>
+  </div>}
+  <div className="cmp-log" ref={log} onScroll={onScroll} role="log" aria-live="off" aria-busy={working} hidden={showApplied}>
+   {hiddenCount>0&&<button type="button" className="cmp-earlier" onClick={()=>setShowEarlier(true)}>Show {hiddenCount} earlier {hiddenCount===1?'message':'messages'}</button>}
    {companion.loadError?<ErrorLine message={companion.loadError} onRetry={companion.reload}/>
     :!messages?<div className="cmp-loading"><Spinner label="Loading the conversation" size={16}/></div>
     :fresh&&<div className="cmp-hello">
-     <p>{greeting(tab,{scenes:sceneCount,tiles:tab==='board'?tiles:undefined,recorded})}</p>
+     <p>{greeting(tab,{scenes:sceneCount,tiles:tab==='board'||tab==='research'?tiles:undefined,recorded})}</p>
      {chips||null}
     </div>}
-   {hiddenCount>0&&<button type="button" className="cmp-earlier" onClick={()=>setShowEarlier(true)}>Earlier on other steps · {hiddenCount} {hiddenCount===1?'message':'messages'}<span>Show</span></button>}
    {items.map(item=>item.kind==='divider'?<div key={item.key} className="cmp-divider" role="separator">{item.label}</div>
-    :item.message.role==='user'?<div key={item.key} className="cmp-me">{item.message.text}</div>
+    :item.message.role==='user'?<div key={item.key} className="cmp-me">{item.message.attachments?.length?<div className="cmp-pics">{item.message.attachments.map(name=><img key={name} src={`/api/club${chatBase}/${name}`} alt=""/>)}</div>:null}{item.message.text}</div>
     :<Reply key={item.key} name={name} message={item.message} answered={working||(messages?.at(-1)?.id!==item.message.id)} onChoose={answer=>void ask(answer)} pkg={pkg} outline={outline} scenes={scenes} busy={companion.busyCard} editor={editor} silences={silences}
       onApply={index=>companion.apply(item.message.id,index)} onUndo={index=>companion.undo(item.message.id,index)}/>)}
    {live&&<LiveReply name={name} live={live} now={now} onRetry={()=>void contextNow().then(companion.retry)}/>}
@@ -195,23 +225,29 @@ export function Companion({videoId,videoTitle,tab,scene,screen,selection,pkg,out
   <div className="cmp-foot">
    {!working&&!fresh&&!awaiting&&chips}
    {pickerOpen&&<div className="cmp-skills" role="listbox" aria-label="Your skills">
-    <div className="cmp-skills-head">Your skills</div>
+    <div className="cmp-skills-head">{tab==='edit'?'Video skills: each one runs and makes something for the timeline':'Your skills'}</div>
     <div className="cmp-skills-list">
     {!skills?<div className="cmp-skills-empty">Looking for your skills…</div>
-     :!choices.length?<div className="cmp-skills-empty">{skills.length?'No skill with that name.':'No skills are installed in your Claude Code yet.'}</div>
+     :!choices.length?<div className="cmp-skills-empty">{offered?.length?'No skill with that name.':tab==='edit'?'No video skills are installed in your Claude Code yet.':'No skills are installed in your Claude Code yet.'}</div>
      :choices.map((skill,at)=><button key={skill.name} type="button" role="option" aria-selected={at===pick} className={cn('cmp-skill',at===pick&&'on')} onMouseEnter={()=>setPick(at)} onMouseDown={event=>event.preventDefault()} onClick={()=>choose(skill)}>
        <span className="cmp-skill-name">/{skill.name}</span><span className="cmp-skill-what">{skill.description}</span>
       </button>)}
-     {hidden>0&&<button type="button" className="cmp-skills-more" onMouseDown={event=>event.preventDefault()} onClick={()=>setShowAll(true)}>Show all {skills!.length} skills, or type a name</button>}
-    </div>
+     {hidden>0&&<button type="button" className="cmp-skills-more" onMouseDown={event=>event.preventDefault()} onClick={()=>setShowAll(true)}>Show all {offered!.length} skills, or type a name</button>}
+    {tab==='edit'&&<a className="cmp-skills-more" href="#/settings/skills">Missing a skill? Choose which ones show here in Settings</a>}</div>
    </div>}
-   <form className="cmp-input" onSubmit={event=>{event.preventDefault();void ask(text);}}>
-    <textarea ref={input} rows={1} value={text} onChange={event=>setText(event.target.value)} onKeyDown={onKeyDown} placeholder="Ask, or type / for your skills" aria-label={`Message to ${name}`}/>
+   <form className="cmp-input" onSubmit={event=>{event.preventDefault();void ask(text);}} onDragOver={event=>event.preventDefault()} onDrop={event=>{event.preventDefault();void addPictures([...event.dataTransfer.files]);}}>
+    {pics.length>0&&<div className="cmp-pics pending">{pics.map(name=><span key={name} className="cmp-pic"><img src={`/api/club${chatBase}/${name}`} alt=""/><button type="button" aria-label="Remove picture" onClick={()=>setPics(current=>current.filter(each=>each!==name))}><Icon name="X" size={11}/></button></span>)}</div>}
+    {picError&&<p className="cmp-pic-err" role="alert">{picError}</p>}
+    <textarea ref={input} rows={2} value={text} onChange={event=>setText(event.target.value)} onKeyDown={onKeyDown} onPaste={event=>{const files=[...event.clipboardData.files];if(files.length){event.preventDefault();void addPictures(files);}}} placeholder={working?'Esc stops the reply':'Ask for a change, or type / for your skills'} aria-label={`Message to ${name}`}/>
+    <div className="cmp-input-row">
+    <span className="cmp-context" title="What Claude is looking at"><Icon name="Eye" size={12}/>{lookingAt(tab,scene)}{scene&&<> · {scene.title}</>}{selected>0&&<> · {selected} selected</>}</span>
+    <span className="grow"/>
+    <label className="cmp-attach" title="Add a picture (or paste or drop one)"><Icon name="Image" size={15}/><input type="file" className="sr-only" accept="image/png,image/jpeg" multiple onChange={event=>{void addPictures([...(event.target.files??[])]);event.target.value='';}}/></label>
     {working
      ?<button type="button" className="cmp-send stop" onClick={stop} aria-label="Stop (Esc)" title="Stop (Esc)"><Icon name="Square" size={12} stroke={2.4}/></button>
-     :<button type="submit" className="cmp-send" disabled={!text.trim()} aria-label="Send (Enter)" title="Send (Enter)"><Icon name="ArrowUp" size={15} stroke={2.2}/></button>}
+     :<button type="submit" className="cmp-send" disabled={!text.trim()} aria-label="Send (Enter)" title="Send (Enter) · Shift+Enter for a new line"><Icon name="ArrowUp" size={15} stroke={2.2}/></button>}
+    </div>
    </form>
-   <div className="cmp-hint">{working?'Esc stops the reply':'Enter sends · Shift+Enter for a new line'}</div>
   </div>
  </aside>;
 }
@@ -277,6 +313,10 @@ function LiveReply({name,live,now,onRetry}:{name:string;live:Live;now:number;onR
 }
 
 /** What a card is called: for a new graphic, what it adds ("Add a title card"); otherwise the action's own name. */
+/** What each card changes, as one icon: the same marks the rest of the app uses for those things. */
+const ACTION_ICON:Record<CompanionAction['type'],IconName>={use_hook:'microphone',use_title:'heading-1',set_thumbnail_text:'image',add_note:'note',set_scene:'scenes',set_scene_script:'script',draft_scenes:'scenes',ask_choice:'choose',set_description:'paragraph',group_tiles:'layout',start_video:'video',
+ cut_pauses:'cut',remove_fillers:'cut',close_gaps:'cut',split_at:'cut',trim_clip:'cut',delete_range:'delete',set_caption_style:'captions',add_caption:'captions',add_text:'text',set_zoom:'zoom-in',add_motion_block:'layout',update_motion_block:'layout',remove_motion_block:'layout',normalize_audio:'music',add_clip:'film'};
+const CardIcon=({action}:{action:CompanionAction})=><span className={cn('cmp-card-ico',`k-${ACTION_ICON[action.type]}`)} aria-hidden><Icon name={ACTION_ICON[action.type]} size={13}/></span>;
 const cardTitle=(action:CompanionAction)=>action.type==='add_motion_block'?`Add a ${MOTION_TEMPLATES[action.template]?.label.toLowerCase()??'graphic'}`:ACTION_TITLE[action.type];
 
 const scenesClock=(seconds:number)=>`${Math.floor(seconds/60)}:${String(Math.round(seconds%60)).padStart(2,'0')}`;
@@ -306,7 +346,7 @@ function Card({id,card,pkg,outline,scenes,busy,editor,silences,answered,onChoose
  let body;
  // What it would do to the timeline as it is now, while it is still on offer: the cuts and seconds, the share of the video, the zoom it replaces.
  const estimate=timeline&&stage&&card.state!=='applied'?stage.estimate(action,{silences}):undefined;
- if(timeline)body=<div className="cmp-card-text">{stage?stage.describe(action):describeEditAction(action)}{estimate&&<div className={cn('cmp-card-est',estimate.warn&&'warn')}>{estimate.warn&&<Icon name="TriangleAlert" size={12}/>}{estimate.text}</div>}</div>;
+ if(timeline)body=<div className="cmp-card-text">{action.type==='add_clip'&&(action.media.kind==='image'?<img className="cmp-made" src={`/api/media/${encodeURIComponent(action.media.id)}/file`} alt=""/>:<video className="cmp-made" src={`/api/media/${encodeURIComponent(action.media.id)}/file`} muted loop autoPlay playsInline/>)}{stage?stage.describe(action):describeEditAction(action)}{estimate&&<div className={cn('cmp-card-est',estimate.warn&&'warn')}>{estimate.warn&&<Icon name="TriangleAlert" size={12}/>}{estimate.text}</div>}</div>;
  else if(action.type==='draft_scenes'){
   let at=0;
   body=<ol className="cmp-card-scenes">{action.scenes.map((scene,index)=>{const start=at;at+=scene.seconds;return <li key={index}><span>{scene.title}</span><span className="cmp-t">{scenesClock(start)}</span></li>;})}</ol>;
@@ -321,7 +361,7 @@ function Card({id,card,pkg,outline,scenes,busy,editor,silences,answered,onChoose
   body=<div className="cmp-card-text"><div className="cmp-card-sub">{action.tileIds.length} {action.tileIds.length===1?'card':'cards'}</div>{action.title}</div>;
  }else body=<div className={cn('cmp-card-text',action.type==='set_description'&&'long')}>{action.text}</div>;
  return <div className={cn('cmp-card',card.state)}>
-  <div className="cmp-card-h"><span>{cardTitle(action)}{action.type==='draft_scenes'?` · ${action.scenes.length}`:''}</span></div>
+  <div className="cmp-card-h"><CardIcon action={action}/><span>{cardTitle(action)}{action.type==='draft_scenes'?` · ${action.scenes.length}`:''}</span></div>
   {body}
   {shown&&<div className="cmp-preview">
    <div className="cmp-preview-col"><div className="cmp-preview-h">Now</div>{shown.now.length?shown.now.map((line,index)=><div key={index}>{line}</div>):<div className="cmp-faint">Nothing yet</div>}</div>

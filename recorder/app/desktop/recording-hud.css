@@ -98,3 +98,31 @@ header #editor .icon { width: 15px; height: 15px; }
 #reading-options input:disabled { opacity: .35; cursor: default; }
 
 #reading-options .speed-scale { font-size: 9px; margin-top: -5px; }
+
+/*
+  Borumi's recording island: always dark, 250px wide, the camera filling the top edge to edge, then the timer, the red Stop and
+  Pause on one bar, then the script in large white type. The panel toggles stay (the island remembers them) as quiet icons.
+*/
+:root, :root[data-theme=dark], :root[data-theme=light] { color-scheme: dark; --surface: #262626; --foreground: #ffffff; --muted: #a3a3a3; --line: #404040; --hover: rgb(255 255 255 / .1); --focus: #3b82f6; --danger: #ef4444; }
+body { background: var(--surface); border: 0; border-radius: 16px; }
+header { position: relative; z-index: 2; height: 28px; min-height: 28px; padding: 4px 10px; }
+header #title, .drag-handle { display: none; }
+header #status { font-size: 11px; font-weight: 600; color: var(--muted); margin-right: auto; }
+header #editor { order: -1; width: 24px; height: 24px; padding: 4px; border-radius: 999px; background: rgb(0 0 0 / .35); }
+.island-content { display: contents; }
+#camera { order: 1; margin: 0; border-radius: 0; aspect-ratio: 16/9; background: #000; }
+.recording-controls { order: 2; height: 48px; min-height: 48px; gap: 8px; padding: 6px 10px; }
+#clock { font-size: 15px; font-weight: 600; min-width: 46px; letter-spacing: 0; }
+#microphone-meter { width: 32px; background: rgb(255 255 255 / .15); }
+#microphone-bar { background: #22c55e; }
+#pause { order: 3; margin-left: 0; min-width: 0; height: 32px; padding: 0 8px; font-weight: 600; }
+#stop.primary { order: 2; margin-left: auto; min-width: 74px; height: 34px; border-radius: 8px; background: #ef4444; font-size: 14px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / .3); }
+#stop.primary:hover:not(:disabled) { background: #dc2626; }
+.panel-controls { order: 3; height: 32px; min-height: 32px; padding: 0 10px 6px; gap: 4px; }
+.panel-controls button { width: 26px; height: 24px; color: var(--muted); }
+.prompt { order: 4; margin: 0 14px 10px; padding-top: 4px; border-top: 0; }
+.prompt-heading { height: 24px; }
+#script { font-size: 20px; font-weight: 500; line-height: 1.45; color: #fff; padding: 4px 2px 40px; }
+#notice { order: 5; }
+#countdown { inset: 0; border-radius: 16px; background: radial-gradient(circle at 50% 42%, rgb(108 92 255 / .55), rgb(10 10 10 / .95) 62%); }
+#countdown-number { width: 96px; height: 96px; display: grid; place-items: center; border-radius: 999px; background: #0a0a0a; box-shadow: 0 0 40px 8px rgb(108 92 255 / .55); font-size: 44px; }

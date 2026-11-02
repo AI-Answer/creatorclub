@@ -111,13 +111,14 @@ test('board routes: place a video before another, recent videos and the first-vi
   assert.equal((await call('GET', '/settings')).body.welcomed, true);
 });
 
-test('appearance is saved in settings, alone or with the default AI, and only light or dark', async () => {
+test('appearance is saved in settings, alone or with the default AI, and only system, light or dark', async () => {
   assert.equal((await call('GET', '/settings')).body.appearance, null);
   assert.deepEqual((await call('PUT', '/settings', { appearance: 'dark' })).body, { defaultAi: null, appearance: 'dark' });
   assert.equal((await call('GET', '/settings')).body.appearance, 'dark');
   assert.deepEqual((await call('PUT', '/settings', { defaultAi: 'codex' })).body, { defaultAi: 'codex', appearance: 'dark' });
   assert.deepEqual((await call('PUT', '/settings', { appearance: 'light', defaultAi: 'claude' })).body, { defaultAi: 'claude', appearance: 'light' });
-  for (const bad of [{}, { appearance: 'system' }, { appearance: 'dark', extra: 1 }]) assert.equal((await call('PUT', '/settings', bad)).status, 400, JSON.stringify(bad));
+  assert.equal((await call('PUT', '/settings', { appearance: 'system' })).body.appearance, 'system');
+  for (const bad of [{}, { appearance: 'auto' }, { appearance: 'dark', extra: 1 }]) assert.equal((await call('PUT', '/settings', bad)).status, 400, JSON.stringify(bad));
 });
 
 test('research tiles: json tiles, file uploads, file download, delete', async () => {

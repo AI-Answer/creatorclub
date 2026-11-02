@@ -151,7 +151,7 @@ export default function App({embedded}:{embedded?:EmbeddedRecorder}={}){
  // Creator Compiler's Edit: the right side shows the transcript, a panel sheet, the Auto-edit and style sheet or the media; the stage can show a preview of a choice (the sheet's, or a companion card's).
  const [follow,setFollow]=useState(()=>{try{return localStorage.getItem('creatorclub.timeline-follow')!=='false';}catch{return true;}});
  useEffect(()=>{try{localStorage.setItem('creatorclub.timeline-follow',String(follow));}catch{/* A blocked store only forgets the switch. */}},[follow]);
- const [side,setSide]=useState<'transcript'|'auto'|'media'|null>(null),[autoInitial,setAutoInitial]=useState<AutoOption|undefined>(),[preview,setPreview]=useState<EditPreview|null>(null),[previewPhase,setPreviewPhase]=useState<'before'|'after'>('after');
+ const [side,setSide]=useState<'auto'|'media'|null>(null),[clubTranscript,setClubTranscript]=useState(true),[autoInitial,setAutoInitial]=useState<AutoOption|undefined>(),[preview,setPreview]=useState<EditPreview|null>(null),[previewPhase,setPreviewPhase]=useState<'before'|'after'>('after');
  const timelineControls=useRef<TimelineControls|null>(null),[shortcutsOpen,setShortcutsOpen]=useState(false),[contextAt,setContextAt]=useState<{x:number;y:number}|null>(null);
  const closeShortcuts=useCallback(()=>setShortcutsOpen(false),[]),closeContext=useCallback(()=>setContextAt(null),[]),openContext=useCallback((x:number,y:number)=>setContextAt({x,y}),[]);
  // The note being written on a marker, and where it opens.
@@ -248,7 +248,7 @@ export default function App({embedded}:{embedded?:EmbeddedRecorder}={}){
   if((key==='ArrowLeft'||key==='ArrowRight')&&selection.size)return ()=>nudge(key==='ArrowLeft'?-1:1,e.shiftKey);
   if((key==='ArrowLeft'||key==='ArrowRight')&&e.shiftKey)return ()=>{setPlaying(false);seek(playhead.get()+(key==='ArrowLeft'?-1:1));};
   if(key==='?')return ()=>setShortcutsOpen(v=>!v);
-  if(key==='Escape'&&(preview||side==='auto'))return ()=>{if(side==='auto')setSide('transcript');setPreview(null);};
+  if(key==='Escape'&&(preview||side==='auto'))return ()=>{if(side==='auto')setSide(null);setPreview(null);};
   return null;
  };
  const keyboard=useRef<(e:KeyboardEvent)=>void>(()=>{});keyboard.current=(e)=>{if((e.target as Element)?.closest?.('[data-transcript-editor]'))return;
@@ -271,32 +271,31 @@ export default function App({embedded}:{embedded?:EmbeddedRecorder}={}){
   // The cut is named, can be undone from the toast, and shows where it happened on the timeline for a few seconds.
   if(embedded){clubToast(label,{undo:()=>{studio.undo();setCutMarks([]);}});setCutMarks([start]);}else notify(label);});
  const retryTranscription=useEvent(async()=>{const id=p?.id,snapshot=await studio.flush();if(!snapshot||snapshot.id!==id)throw new Error('The project changed before transcription.');automation.merge(await api<AutomationJob>(`/projects/${id}/transcribe`,{force:true}));}),cancelTranscription=useEvent(async(job:AutomationJob)=>{automation.merge(await api<AutomationJob>(`/automation/${job.id}`,undefined,'DELETE'));});
- const toggleWaveforms=useCallback(()=>setShowWaveforms(v=>!v),[]),selectMany=useEvent((ids:string[])=>{setSelectedIds(new Set(ids));setSelected(ids[0]||null);if(!embedded&&ids.length&&p?.clips.some(c=>c.id===ids[0]))setPanel('Clip');}),splitClip=useEvent((id:string,at:number)=>split(at,id));
+ const toggleWaveforms=useCallback(()=>setShowWaveforms(v=>!v),[]),selectMany=useEvent((ids:string[])=>{setSelectedIds(new Set(ids));setSelected(ids[0]||null);// As in Borumi, choosing a clip (with the clips linked to it) opens its Clip properties.
+ if(ids.length&&p?.clips.some(c=>c.id===ids[0]))setPanel('Clip');}),splitClip=useEvent((id:string,at:number)=>split(at,id));
  const dropMedia=useEvent((id:string,track:TrackKind,at:number,layerId?:string)=>{const media=p?.media.find(m=>m.id===id);if(media)studio.change(p=>{const before=p.clips.length;insertMedia(p,[media],at,track);if(layerId){const ids=p.clips.slice(before).map(c=>c.id);if(ids.length)moveClipsToLayer(p,new Set(ids),ids[0],{kind:'existing',rowId:layerId});}});});
  const statusJobs=useRef(automation.jobs);if(!sameStatusJobs(statusJobs.current,automation.jobs))statusJobs.current=automation.jobs;
  const transcriptOpen=showTranscript&&!chatOpen;
  // Club Edit: the right side, the "Style & more" menu that replaces the panel rail, and the timeline's More menu.
- const sideView=panel?'panel':side==='auto'?'auto':side??'transcript';
- const openPanel=(name:Panel)=>{setPanel(name);},openSide=(next:'transcript'|'media')=>{setPanel(null);setSide(next);};
+ // As in Borumi, a tool's panel opens on the left of the picture and the transcript keeps its own column on the right.
+ const sideView=panel?'panel':side;
+ const openPanel=(name:Panel)=>{setPanel(name);},openSide=(next:'transcript'|'media')=>{if(next==='transcript'){setClubTranscript(true);return;}setPanel(null);setSide(next);};
+ /** A camera or screen dragged on the picture: every piece of that shot (same row, same place) moves with it, as one undo step. */
+ const moveOnStage=useEvent((id:string,box:{x:number;y:number;width:number;height:number})=>studio.change(d=>{const c=d.clips.find(x=>x.id===id);if(!c)return;const o={...c.transform};for(const x of d.clips)if(x.track===c.track&&x.transform.x===o.x&&x.transform.y===o.y&&x.transform.width===o.width&&x.transform.height===o.height)Object.assign(x.transform,box);},{coalesce:`stage:${id}`}));
+ const aimZoom=useEvent((id:string,where:{x:number;y:number;scale:number})=>studio.change(d=>{const z=d.zooms.find(x=>x.id===id);if(z)Object.assign(z,where);},{coalesce:`zoom-aim:${id}`}));
  const openItem=useEvent((id:string)=>{if(!p)return;select(id);setPanel(p.motion?.some(m=>m.id===id)?'Motion':p.elements.some(e=>e.id===id)?'Elements':p.zooms.some(z=>z.id===id)?'Zoom':p.captions.some(c=>c.id===id)?'Captions':'Clip');});
  const styleItems:MenuItem[]=[{header:'Style'},...panels.filter(({name})=>name!=='Automate').map(({name})=>({label:name,fn:()=>openPanel(name)})),'-',{label:'Transcript',fn:()=>openSide('transcript')},{label:'Media in this video',fn:()=>openSide('media')},{label:'Cutroom cuts and graphics',icon:'cut',fn:()=>openModal('cutroom')},{label:'Import media',icon:'Upload',fn:()=>beginImport()},'-',{label:'Settings…',icon:'Settings',fn:()=>openModal('settings')}];
- /* The Edit tool rail: named tools, each opens one panel on the right. Canvas and Cursor, which few videos need, sit behind More. */
- const railTools:Array<{id:string;label:string;tip:string;icon:typeof Film;open:()=>void}>=[
-  {id:'transcript',label:'Transcript',tip:'Read the words and cut them from the video',icon:FileText,open:()=>openSide('transcript')},
-  {id:'cut',label:'Cut',tip:'Find pauses, filler words and repeated lines to cut',icon:Scissors,open:()=>openAuto()},
-  {id:'Captions',label:'Captions',tip:'Words on the picture as they are spoken',icon:Subtitles,open:()=>openPanel('Captions')},
-  {id:'Layout',label:'Layout',tip:'How the camera and the screen share the picture',icon:LayoutTemplate,open:()=>openPanel('Layout')},
-  {id:'Clip',label:'Clip',tip:'Speed, volume and look of the selected clip',icon:Film,open:()=>openPanel('Clip')},
-  {id:'Zoom',label:'Zoom',tip:'Move in on part of the picture for a few seconds',icon:ZoomIn,open:()=>openPanel('Zoom')},
-  {id:'Motion',label:'Graphics',tip:'Animated titles, lower thirds and labels',icon:Sparkles,open:()=>openPanel('Motion')},
-  {id:'Music',label:'Music',tip:'A soundtrack under your voice',icon:Music,open:()=>openPanel('Music')}];
- const railActive=panel??(side==='auto'?'cut':side??'transcript');
- const moreItems:MenuItem[]=[{label:'Text and shapes',fn:()=>openPanel('Elements')},{label:'Media in this video',fn:()=>openSide('media')},{label:'Cutroom cuts and graphics',icon:'cut',fn:()=>openModal('cutroom')},'-',{label:'Canvas background',fn:()=>openPanel('Canvas')},{label:'Cursor',fn:()=>openPanel('Cursor')},'-',{label:'Import media',icon:'Upload',fn:()=>beginImport()}];
+ /* The Edit tool rail, Borumi's nine in Borumi's order. Automate opens the cuts (pauses, filler words, repeats); Graphics, media and Cutroom sit behind More. */
+ const RAIL_TIPS:Partial<Record<Panel,string>>={Canvas:'Video format and background',Layout:'How the camera and the screen share the picture',Clip:'Speed, volume and look of the selected clip',Zoom:'Move in on part of the picture for a few seconds',Elements:'Text, shapes and images on the picture',Music:'A soundtrack under your voice',Captions:'Words on the picture as they are spoken',Cursor:'How the pointer looks and sounds',Automate:'Find pauses, filler words and repeated lines to cut'};
+ const railTools:Array<{id:string;label:string;tip:string;icon:typeof Film;open:()=>void}>=panels.filter(({name})=>name!=='Motion').map(({name,icon})=>({id:name,label:name,tip:RAIL_TIPS[name]??name,icon,open:name==='Automate'?()=>{if(side==='auto'){setSide(null);return;}openAuto();}:()=>{if(panel===name){setPanel(null);return;}openPanel(name);}}));
+ /* As in Borumi, choosing the open tool again closes its panel. */
+ const railActive=panel??(side==='auto'?'Automate':side==='media'?'media':'');
+ const moreItems:MenuItem[]=[{label:'Graphics',fn:()=>openPanel('Motion')},{label:'Media in this video',fn:()=>openSide('media')},{label:'Cutroom cuts and graphics',icon:'cut',fn:()=>openModal('cutroom')},'-',{label:'Import media',icon:'Upload',fn:()=>beginImport()}];
  const menuActions:TimelineMenuActions|null=p?{split:()=>split(),deleteClose:()=>deleteSelected(true),deleteKeepGap:()=>deleteSelected(false),duplicate:duplicateSelected,copy,paste,selectAll:()=>{const ids=[...p.clips,...p.elements,...p.captions,...p.zooms].map(x=>x.id);setSelectedIds(new Set(ids));setSelected(ids[0]||null);},
   addMarker:addMarkerAtPlayhead,previousCut:()=>boundary(-1),nextCut:()=>boundary(1),toggleLink,linked:selectionLinked,blade:tool==='blade',toggleBlade:()=>setTool(v=>v==='blade'?'select':'blade'),waveforms:showWaveforms,toggleWaveforms:()=>setShowWaveforms(v=>!v),
   addVideoLayer:()=>studio.change(d=>{addTimelineLayer(d,'video');}),addAudioLayer:()=>studio.change(d=>{addTimelineLayer(d,'audio');})}:null;
  const timelineItems:MenuItem[]=menuActions?timelineMoreItems(menuActions):[],contextItems:MenuItem[]=menuActions?timelineContextItems(menuActions):[];
- const viewItems:MenuItem[]=p?[{label:'Snap to edges',check:p.settings.snap,fn:()=>studio.change(d=>{d.settings.snap=!d.settings.snap;})},{label:'Follow the playhead while playing',check:follow,fn:()=>setFollow(v=>!v)},'-',{label:'Zoom in',fn:()=>setZoom(v=>clampScale(v*1.5))},{label:'Zoom out',fn:()=>setZoom(v=>clampScale(v/1.5))},{label:'Fit the whole video',fn:()=>timelineControls.current?.fit()},'-',{header:'Timeline actions'},...timelineItems,'-',{label:'Keyboard shortcuts',fn:()=>setShortcutsOpen(v=>!v)}]:[];
+ const viewItems:MenuItem[]=p?[{label:'Snap to edges',check:p.settings.snap,fn:()=>studio.change(d=>{d.settings.snap=!d.settings.snap;})},{label:'Follow the playhead while playing',check:follow,fn:()=>setFollow(v=>!v)},{label:'Fit the whole video',fn:()=>timelineControls.current?.fit()},'-',{header:'Timeline actions'},{label:'Split at playhead · S',fn:()=>split()},{label:'Delete and close the gap · ⌫',fn:()=>deleteSelected(true)},...timelineItems,'-',{label:'Keyboard shortcuts',fn:()=>setShortcutsOpen(v=>!v)}]:[];
  /* The companion docked beside Edit: it reads the playhead and the selection when a message is sent, previews a card on the stage
     (cuts with the same before/after playback as Auto-edit, other changes as the frame after them) and applies a card as one undo step. */
  const editorContext=useEvent(():EditorContext=>{
@@ -313,7 +312,7 @@ export default function App({embedded}:{embedded?:EmbeddedRecorder}={}){
   if(!action){setPreview(current=>current?.key===key?null:current);return;}
   if(!p)return 'Open the video first.';
   const problem=editActionProblem(p,action,options);if(problem)return problem;
-  setPanel(null);if(side==='auto')setSide('transcript');setPlaying(false);
+  setPanel(null);if(side==='auto')setSide(null);setPlaying(false);
   const label=ACTION_TITLE[action.type],ranges=editRanges(p,action,options);
   if(ranges){const merged=mergeRanges(ranges),total=rangesSeconds(merged);showPreview({key,label,summary:`${merged.length} ${merged.length===1?'cut':'cuts'} · ${seconds(total)} shorter`,ranges:merged,review:cutReview(p,merged,label)});return;}
   let after:Project;try{after=applyProjectChange(p,d=>{applyEditAction(d,action,options);});}catch(e){return (e as Error).message;}
@@ -345,39 +344,56 @@ export default function App({embedded}:{embedded?:EmbeddedRecorder}={}){
  // Undo, redo and history sit in the video's header, beside the steps; the header leaves a slot for them while Edit is open.
  const [toolsHost,setToolsHost]=useState<HTMLElement|null>(null);
  useEffect(()=>{setToolsHost(editOpen?document.getElementById('ws-edit-tools'):null);},[editOpen]);
-  const clubEditView=()=>{if(!p||!embedded)return null;const zoomRange=zoomSlider(timelineControls.current?.width()||1000,duration);const stageProject=preview?.after&&previewPhase==='after'?preview.after:p;return <div className={`edit-workspace club-edit ${sideView?'has-side':''}`}>
+  const clubEditView=()=>{if(!p||!embedded)return null;const zoomRange=zoomSlider(timelineControls.current?.width()||1000,duration);const stageProject=preview?.after&&previewPhase==='after'?preview.after:p;return <div className={`edit-workspace club-edit ${sideView?'has-side':''} ${clubTranscript?'has-transcript':''}`}>
   <nav className="club-rail" aria-label="Edit tools">
    {railTools.map(({id,label,tip,icon:Icon,open})=><button key={id} data-tool={id} type="button" aria-pressed={railActive===id} title={tip} onClick={open}><Icon size={20}/>{label}</button>)}
    <span className="club-rail-grow"/>
-   <Menu label="More edit tools" align="left" width={210} items={moreItems} button={(toggle,open)=><button type="button" data-tool="more" aria-haspopup="menu" aria-expanded={open} aria-pressed={['Elements','Canvas','Cursor','media'].includes(railActive)} title="Text and shapes, media, background and cursor" onClick={toggle}><MoreHorizontal size={20}/>More</button>}/>
+   <Menu label="More edit tools" align="left" width={210} items={moreItems} button={(toggle,open)=><button type="button" data-tool="more" aria-haspopup="menu" aria-expanded={open} aria-pressed={['Motion','media'].includes(railActive)} title="Graphics, media in this video and Cutroom" onClick={toggle}><MoreHorizontal size={20}/>More</button>}/>
   </nav>
   <main className="club-edit-stage">
    {/* The player always stays; a preview is a badge over it, and a cut's before/after plays in a small inset in the corner. */}
-   <Stage project={stageProject} playhead={playhead} playing={playing} playbackRate={playbackRate} onSelect={select} onImport={importMedia}/>
+   <Stage project={stageProject} playhead={playhead} playing={playing} playbackRate={playbackRate} onSelect={select} onImport={importMedia} selected={selected} onTransform={moveOnStage} onZoom={aimZoom}/>
    {preview?.review&&<div className="club-preview-inset" role="region" aria-label="Before and after this cut"><CutPlayback key={preview.key} review={preview.review} labels={{before:'Before',after:'After'}} note="This preview does not change your video."/></div>}
    {preview&&<div className="club-preview-badges" role="status"><span className="club-pill">Previewing at lower quality</span><span className="club-pill">{preview.label} · {preview.summary}</span>
     {preview.after&&<span className="club-seg" role="group" aria-label="Before or after">{(['before','after'] as const).map(v=><button key={v} type="button" aria-pressed={previewPhase===v} onClick={()=>setPreviewPhase(v)}>{v==='before'?'Before':'After'}</button>)}</span>}</div>}
   </main>
   <div className="club-edit-side" hidden={!sideView}>
    {sideView==='panel'&&panel&&<Inspector project={p} panel={panel} selected={selected} playhead={playhead} change={studio.change} select={select} onImport={beginImport} onAI={openAI} club onClose={()=>setPanel(null)} onNotice={refuse} onHoverMotion={hoverMotion}/>}
-   {sideView==='auto'&&<EditAutoSheet key={`${p.id}:${autoInitial??''}`} project={p} jobs={automation.jobs} merge={automation.merge} reload={automation.reload} flush={studio.flush} change={studio.change} refresh={studio.reload} onPreview={showPreview} onClose={()=>setSide('transcript')} onChanged={embedded.onChanged} notify={notify} initial={autoInitial}/>}
-   {sideView==='media'&&<aside className="club-sheet club-media"><header><b>Media in this video</b><button type="button" className="club-sheet-close" aria-label="Close media" onClick={()=>setSide('transcript')}><X size={16}/></button></header><p className="club-sheet-hint">Drag onto a row of the timeline, or click to add at the playhead.</p>
+   {sideView==='auto'&&<EditAutoSheet key={`${p.id}:${autoInitial??''}`} project={p} jobs={automation.jobs} merge={automation.merge} reload={automation.reload} flush={studio.flush} change={studio.change} refresh={studio.reload} onPreview={showPreview} onClose={()=>setSide(null)} onChanged={embedded.onChanged} notify={notify} initial={autoInitial}/>}
+   {sideView==='media'&&<aside className="club-sheet club-media"><header><b>Media in this video</b><button type="button" className="club-sheet-close" aria-label="Close media" onClick={()=>setSide(null)}><X size={16}/></button></header><p className="club-sheet-hint">Drag onto a row of the timeline, or click to add at the playhead.</p>
     <div className="media-grid">{p.media.map(m=><button className="media-card" key={m.id} draggable onDragStart={e=>e.dataTransfer.setData('application/sceneforge-media',m.id)} onClick={()=>studio.change(d=>insertMedia(d,[m],playhead.get()))}>{m.kind==='audio'?<div className="media-audio"><AudioLines/></div>:<img src={`/api/media/${m.id}/thumbnail`} alt="" loading="lazy"/>}<b>{m.name}</b><small>{rulerLabel(m.duration)} · {m.kind}</small></button>)}</div>
     <footer><button type="button" className="button compact" onClick={()=>openModal('media-recovery')}>Locate media</button><button type="button" className="button compact" onClick={()=>beginImport()}><Plus size={13}/>Import</button></footer></aside>}
-   <Keep visible={sideView==='transcript'}><aside className="transcript-panel club-sheet"><header><b>Transcript</b><span className="club-sheet-sub">Select words to cut them · double-click a caption to fix it</span><button type="button" className="club-sheet-close" aria-label="Close transcript" onClick={()=>setSide(null)}><X size={16}/></button></header>
+  </div>
+  <div className="club-edit-transcript" hidden={!clubTranscript}>
+   <Keep visible={clubTranscript}><aside className="transcript-panel club-sheet"><header><b>Transcript</b><span className="club-sheet-sub">Select words to cut them · double-click a caption to fix it</span><button type="button" className="club-sheet-close" aria-label="Close transcript" onClick={()=>setClubTranscript(false)}><X size={16}/></button></header>
     <TranscriptionStatus jobs={statusJobs.current} enabled={automaticTranscription.enabled} error={automation.error} onRetry={retryTranscription} onCancel={cancelTranscription} onSetup={()=>openModal('settings-ai')} captionCount={p.captions.length}/>
     {p.captions.length?<Transcript project={p} playhead={playhead} onSeek={seekTranscript} onUndo={studio.undo} onRedo={studio.redo} onDelete={deleteTranscript}/>:<div className="empty-state"><Subtitles/><h3>Edit spoken words</h3><p>A transcript lets you find words and cut them out of the video.</p></div>}</aside></Keep>
   </div>
+  {/* Borumi's transport: the time and play controls centred under the picture, the timeline tools as icons on the right. */}
   <div className="club-timeline-bar" role="toolbar" aria-label="Timeline">
-   <button type="button" className="club-play" aria-label={playing?'Pause':'Play'} title="Play or pause (Space)" disabled={duration<=0} onClick={()=>setPlaying(v=>!v)}>{playing?<Pause size={16} fill="currentColor"/>:<Play size={16} fill="currentColor"/>}</button>
-   <ClubTime playhead={playhead} duration={duration} fine={showTenths((timelineControls.current?.width()||1000)/zoom)}/>
-   <span className="club-bar-sep" aria-hidden/>
-   <button type="button" className="club-tool" title="Split at the playhead (S)" onClick={()=>split()}><Scissors size={15}/>Split</button>
-   <button type="button" className="club-tool" title="Delete and close the gap (Delete). Shift+Delete keeps the gap." disabled={!selection.size} onClick={()=>deleteSelected(true)}><Trash2 size={15}/>Delete</button>
-   <button type="button" className="club-tool" title="Leave a note for yourself or Claude at the playhead (M)" onClick={addMarkerAtPlayhead}><Plus size={15}/>Note</button>
-   <span className="club-bar-grow"/>
-   <Menu label="View" align="right" width={260} items={viewItems} button={(toggle,open)=><button type="button" className="club-tool" aria-haspopup="menu" aria-expanded={open} title="Snapping, following the playhead, shortcuts and more timeline actions" onClick={toggle}>View<ChevronDown size={13}/></button>}/>
+   <div className="ctb-center">
+    <ClubTime playhead={playhead} duration={duration} fine={showTenths((timelineControls.current?.width()||1000)/zoom)}/>
+    <button type="button" className="club-tool ctb-icon" aria-label="Go to start" title="Go to start" disabled={duration<=0} onClick={()=>{setPlaying(false);timelineSeek.run(0);}}><SkipBack size={16}/></button>
+    <button type="button" className="club-play" aria-label={playing?'Pause':'Play'} title="Play or pause (Space)" disabled={duration<=0} onClick={()=>setPlaying(v=>!v)}>{playing?<Pause size={16} fill="currentColor"/>:<Play size={16} fill="currentColor"/>}</button>
+    <button type="button" className="club-tool ctb-icon" aria-label="Go to end" title="Go to end" disabled={duration<=0} onClick={()=>{setPlaying(false);timelineSeek.run(duration);}}><SkipForward size={16}/></button>
+    <Menu label="Playback speed" align="left" width={120} items={[0.5,1,1.25,1.5,2].map(rate=>({label:`${rate}X`,check:playbackRate===rate,fn:()=>setPlaybackRate(rate)}))} button={(toggle,open)=><button type="button" className="club-tool ctb-speed" aria-label="Playback speed" aria-haspopup="menu" aria-expanded={open} title="Playback speed" onClick={toggle}>{playbackRate}X</button>}/>
+   </div>
+   <div className="ctb-right">
+   {/* Borumi's tool toggles: Select, Blade (click a clip to cut it there) and Snap. Split at the playhead stays on S and in the menus. */}
+   <button type="button" className="club-tool ctb-icon" aria-label="Select tool" aria-pressed={tool==='select'} title="Select (A)" onClick={()=>setTool('select')}><MousePointer2 size={16}/></button>
+   <button type="button" className="club-tool ctb-icon" aria-label="Blade tool" aria-pressed={tool==='blade'} title="Blade: click a clip to cut it there (B)" onClick={()=>setTool('blade')}><Scissors size={16}/></button>
+   <button type="button" className="club-tool ctb-icon" aria-label="Snap to edges" aria-pressed={p.settings.snap} title="Snap to edges (N)" onClick={()=>studio.change(d=>{d.settings.snap=!d.settings.snap;})}><Magnet size={16}/></button>
+   <button type="button" className="club-tool ctb-icon" aria-label="Transcript" aria-pressed={clubTranscript} title="Show or hide the transcript" onClick={()=>setClubTranscript(v=>!v)}><FileText size={16}/></button>
+   {/* The timeline's zoom, always in sight: out, the slider, in, and Fit the whole video. ⌘-scroll on the timeline works too. */}
+   <div className="club-zoom" role="group" aria-label="Timeline zoom">
+    <button type="button" className="club-zoom-step" aria-label="Zoom out" title="Zoom out (⌘ −)" onClick={()=>setZoom(v=>clampScale(v/1.5))}><Minus size={14}/></button>
+    <input type="range" aria-label="Timeline zoom" min={zoomRange.min} max={zoomRange.max} step={zoomRange.step} value={zoomRange.fromScale(zoom)} onChange={e=>setZoom(zoomRange.toScale(Number(e.target.value)))}/>
+    <button type="button" className="club-zoom-step" aria-label="Zoom in" title="Zoom in (⌘ +)" onClick={()=>setZoom(v=>clampScale(v*1.5))}><Plus size={14}/></button>
+    
+   </div>
+   <Menu label="View" align="right" width={260} items={viewItems} button={(toggle,open)=><button type="button" className="club-tool ctb-icon" aria-label="View" aria-haspopup="menu" aria-expanded={open} title="Snapping, following the playhead, fit, split, delete, notes and more timeline actions" onClick={toggle}><MoreHorizontal size={16}/></button>}/>
    {shortcutsOpen&&<ShortcutsPopover onClose={closeShortcuts}/>}
+   </div>
   </div>
   {note&&(()=>{const m=p.markers?.find(x=>x.id===note.id);return m?<MarkerNote time={secondsLabel(m.time)} onNudge={seconds=>studio.change(d=>moveMarker(d,note.id,Math.max(0,Math.min(Math.round(projectDuration(d)),Math.round(m.time)+seconds))))} name={m.name??''} tag={m.tag} anchor={note} onChange={patch=>studio.change(d=>noteMarker(d,note.id,patch),{coalesce:`note:${note.id}`})} onDelete={()=>{studio.change(d=>removeMarker(d,note.id));setNote(null);}} onClose={()=>setNote(null)}/>:null;})()}
   <TimelineResize storageKey="creatorclub.timeline-height" auto={timelineAuto}/>
@@ -388,7 +404,7 @@ export default function App({embedded}:{embedded?:EmbeddedRecorder}={}){
    <button type="button" aria-label="Redo" title="Redo (⇧⌘Z)" disabled={!studio.canRedo} onClick={studio.redo}><Redo2 size={17}/></button>
    <button type="button" aria-label="Version history" title="Earlier versions of this video" onClick={()=>{void studio.flush().then(()=>openModal('history')).catch(e=>studio.setError(e.message));}}><History size={17}/></button></>,toolsHost)}
  </div>;};
- const timelineAuto=useMemo(()=>p&&embedded?Math.min(420,rowsHeight(usedRows(p))):undefined,[p?.clips,p?.elements,p?.captions,p?.zooms,p?.timelineLayers,embedded]);
+ const timelineAuto=useMemo(()=>p&&embedded?Math.min(420,rowsHeight(usedRows(p))):undefined,[p?.clips,p?.elements,p?.captions,p?.zooms,p?.timelineLayers,p?.markers,embedded]);
  const clubEdit=clubEditView();
  useEffect(()=>{setShowTranscript(Boolean(p?.captions.length));},[p?.id,Boolean(p?.captions.length)]);
 

@@ -100,13 +100,15 @@ interface Settings {
   /** Set once the first-visit "How Creator Compiler works" dialog has been closed. */
   welcomed?: boolean;
   /** The theme the person chose in Settings. */
-  appearance?: 'light' | 'dark';
+  appearance?: 'system' | 'light' | 'dark';
   /** Video ids per channel, most recently opened first. */
   recent?: Record<string, string[]>;
   /** Older builds kept the Gemini API key here. It moves to secrets.json the first time it is read. */
   geminiKey?: string;
   /** Plan steps completed at least once, per channel. Their help lines stop showing. */
   helpSeen?: Record<string, HelpStep[]>;
+  /** Skills the person added to Edit or took off it. */
+  editSkills?: { on?: string[]; off?: string[] };
   /** Where videos are published. The API key is in secrets.json. */
   publishing?: { address?: string; channel?: PublishChannel; defaultVisibility?: PublishVisibility };
 }
@@ -176,13 +178,31 @@ export async function setDefaultAiIfUnset(provider: AiProvider): Promise<void> {
   await updateSettings((settings) => (settings.defaultAi === 'claude' || settings.defaultAi === 'codex' ? settings : { ...settings, defaultAi: provider }));
 }
 
-/** The theme chosen in Settings, or undefined while none is chosen. */
-export async function appearance(): Promise<'light' | 'dark' | undefined> {
-  const value = (await readJSON<Settings>(settingsFile()))?.appearance;
-  return value === 'light' || value === 'dark' ? value : undefined;
+/** The skills the person added to Edit or took off it. */
+export async function editSkillChoices(): Promise<{ on: string[]; off: string[] }> {
+  const saved = (await readJSON<Settings>(settingsFile()))?.editSkills;
+  const names = (list: unknown) => (Array.isArray(list) ? list.filter((name): name is string => typeof name === 'string') : []);
+  return { on: names(saved?.on), off: names(saved?.off) };
 }
 
-export async function setAppearance(value: 'light' | 'dark') {
+/** Adds a skill to Edit (`true`), takes it off (`false`), or leaves it to the automatic pick (`null`). */
+export async function setEditSkill(name: string, on: boolean | null) {
+  await updateSettings((settings) => {
+    const keep = (list: string[] | undefined) => (list ?? []).filter((each) => each !== name);
+    const on_ = keep(settings.editSkills?.on), off = keep(settings.editSkills?.off);
+    if (on === true) on_.push(name);
+    if (on === false) off.push(name);
+    return { ...settings, editSkills: { on: on_, off } };
+  });
+}
+
+/** The theme chosen in Settings, or undefined while none is chosen. */
+export async function appearance(): Promise<'system' | 'light' | 'dark' | undefined> {
+  const value = (await readJSON<Settings>(settingsFile()))?.appearance;
+  return value === 'system' || value === 'light' || value === 'dark' ? value : undefined;
+}
+
+export async function setAppearance(value: 'system' | 'light' | 'dark') {
   await updateSettings((settings) => ({ ...settings, appearance: value }));
 }
 

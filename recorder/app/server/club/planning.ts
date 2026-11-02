@@ -48,6 +48,8 @@ export const scriptFile = (slug: string, id: string) => path.join(store.videoDir
 /** Tests pass `runAI` to answer without a real model. */
 export interface PlanOptions extends Pick<RunAIOptions, 'extraDirs'> {
   runAI?: typeof runAI;
+  /** Where `~/.claude` is (tests point it elsewhere). */
+  home?: string;
   /** Package run only: the group (titles, thumbnail text or hook) the person asked to write again; it is replaced whole. Everything else fills only what is empty. */
   replace?: PackageGroup;
 }

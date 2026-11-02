@@ -1,4 +1,4 @@
-import type {MotionTemplateId,Project} from './types';
+import type {Media,MotionTemplateId,Project} from './types';
 
 /*
  * The companion: one conversation per video across Board, Plan, Record, Edit and Publish (`companion.json` in the video's folder).
@@ -44,9 +44,11 @@ export type EditAction =
   | { type: 'update_motion_block'; at: number; text?: string; detail?: string; style?: string; start?: number; duration?: number; x?: number; y?: number }
   /** Removes the motion graphic that is on screen at `at`. */
   | { type: 'remove_motion_block'; at: number }
-  | { type: 'normalize_audio' };
+  | { type: 'normalize_audio' }
+  /** A file one of the creator's own skills made in this video's folder, placed on the Overlays row from `start`. Only a skill run creates it, never a reply. */
+  | { type: 'add_clip'; media: Media; start: number; duration: number; title: string };
 export type EditActionType = EditAction['type'];
-export const EDIT_ACTION_TYPES = ['cut_pauses', 'remove_fillers', 'close_gaps', 'split_at', 'trim_clip', 'delete_range', 'set_caption_style', 'add_caption', 'add_text', 'set_zoom', 'add_motion_block', 'update_motion_block', 'remove_motion_block', 'normalize_audio'] as const satisfies readonly EditActionType[];
+export const EDIT_ACTION_TYPES = ['cut_pauses', 'remove_fillers', 'close_gaps', 'split_at', 'trim_clip', 'delete_range', 'set_caption_style', 'add_caption', 'add_text', 'set_zoom', 'add_motion_block', 'update_motion_block', 'remove_motion_block', 'add_clip', 'normalize_audio'] as const satisfies readonly EditActionType[];
 export const isEditAction = (action: { type: string }): action is EditAction => (EDIT_ACTION_TYPES as readonly string[]).includes(action.type);
 
 export type CompanionAction =
@@ -75,7 +77,8 @@ export const TAB_ACTIONS: Record<CompanionTab, readonly CompanionActionType[]> =
   board: ['use_hook', 'use_title', 'add_note', 'draft_scenes', 'ask_choice'],
   plan: ['use_hook', 'use_title', 'set_thumbnail_text', 'set_scene', 'set_scene_script', 'draft_scenes', 'add_note', 'ask_choice'],
   record: ['set_scene', 'add_note', 'ask_choice'],
-  edit: [...EDIT_ACTION_TYPES, 'ask_choice'],
+  // A clip made by a skill comes from a skill run, never from a reply: the model is not offered `add_clip`.
+  edit: [...EDIT_ACTION_TYPES.filter((type) => type !== 'add_clip'), 'ask_choice'],
   publish: ['set_description', 'use_title', 'set_thumbnail_text', 'ask_choice'],
   research: ['add_note', 'group_tiles', 'start_video', 'ask_choice'],
 };
@@ -106,6 +109,7 @@ export const ACTION_TITLE: Record<CompanionActionType, string> = {
   add_motion_block: 'Motion graphic',
   update_motion_block: 'Change a graphic',
   remove_motion_block: 'Remove a graphic',
+  add_clip: 'Made by your skill',
   normalize_audio: 'Even out loudness',
 };
 
@@ -135,6 +139,7 @@ export const ACTION_STEP: Record<CompanionActionType, string> = {
   add_motion_block: 'Placing a graphic',
   update_motion_block: 'Changing a graphic',
   remove_motion_block: 'Finding the graphic',
+  add_clip: 'Running your skill',
   normalize_audio: 'Checking loudness',
 };
 
@@ -164,6 +169,7 @@ export const ACTION_VERB: Record<CompanionActionType, string> = {
   add_motion_block: 'Add it',
   update_motion_block: 'Change it',
   remove_motion_block: 'Remove it',
+  add_clip: 'Add it',
   normalize_audio: 'Even it out',
 };
 
@@ -219,6 +225,8 @@ export interface CompanionUserMessage {
   text: string;
   at?: string;
   context: CompanionContext;
+  /** Pictures sent with the message (file names in the board's `chat` folder). Claude looks at them. */
+  attachments?: string[];
 }
 
 export interface CompanionReplyMessage {

@@ -47,7 +47,7 @@ export function CalendarView({videos,onOpen,onOpenPublish,onSchedule,today=new D
        title={`${video.title} · ${STAGE_LABEL[video.stage]}${isSetDay(video)?'':` · Moved to ${STAGE_LABEL[video.stage]} this day`}`}
        onClick={()=>onOpen(video)} onKeyDown={event=>{if(event.key==='Enter')onOpen(video);}}
        onDragStart={draggable?event=>{event.dataTransfer.effectAllowed='move';event.dataTransfer.setData('text/plain',video.id);setDragId(video.id);}:undefined} onDragEnd={end}>
-       <Thumb videoId={videoThumbId(video)} text={video.title} seed={video.id} className="mini" style={{width:30,height:17,aspectRatio:'auto',borderRadius:3,flex:'none'}}/>
+       <Thumb videoId={videoThumbId(video)} cover={video.id} text={video.title} seed={video.id} className="mini" style={{width:30,height:17,aspectRatio:'auto',borderRadius:3,flex:'none'}}/>
        <span className="ellipsis">{video.title}</span>
       </div>;
      })}

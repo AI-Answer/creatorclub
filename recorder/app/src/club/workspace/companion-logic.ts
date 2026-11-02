@@ -43,6 +43,7 @@ export function suggestions(tab:CompanionTab,facts:SuggestionFacts):string[]{
  switch(tab){
   case 'board':return facts.tiles===0
    ?['What should this video cover?','Who is this video for?','Suggest three titles']
+   :facts.tiles===1?['Write three hooks from this idea','Suggest three titles','What should this video cover?']
    :['Write three hooks from this board','Suggest three titles','What do these have in common?'];
   case 'plan':{
    // Titles, hooks and scenes are written from the Package and Scenes buttons, so the chips here are for thinking and tightening.
@@ -56,7 +57,7 @@ export function suggestions(tab:CompanionTab,facts:SuggestionFacts):string[]{
    :[scene?`Shorten ${scene} to fit its time`:'Shorten this scene to fit its time','Write a stronger hook','Write the call to action'];
   case 'publish':return ['Write the description',facts.thumbnail?'Is the thumbnail text clear?':'Suggest thumbnail text',...(facts.titled===false?[]:['Is the title ready?'])];
   case 'edit':return facts.recorded===0?[]:[...(facts.notes?['Fix the parts I marked']:[]),facts.selected?'Trim the selected clip to the speech':'Cut the pauses','Add a lower third with my name','Add a title at the start'].slice(0,3);
-  case 'research':return facts.selected?['What do these have in common?','Group these in a frame','Start a video from these']:['What themes do you see here?','Group the cards by theme','Which of these could be a video?'];
+  case 'research':return facts.tiles===0?['Find videos that are working in my topics','What should my next video be?']:facts.selected?['What do these have in common?','Group these in a frame','Start a video from these']:['What themes do you see here?','Group the cards by theme','Which of these could be a video?'];
  }
 }
 
@@ -64,19 +65,19 @@ export function suggestions(tab:CompanionTab,facts:SuggestionFacts):string[]{
 export function greeting(tab:CompanionTab,facts:{scenes:number;tiles?:number;recorded?:number}):string{
  switch(tab){
   case 'board':return facts.tiles===0
-   ?'Add what you have to the board first: a video, a link or a note. Then ask me what they have in common, or for hooks drawn from them.'
-   :'This board is the research for the video. Ask what the videos on it have in common, or for hooks and titles drawn from them.';
+   ?'Add a video, link or note to the board, then ask me about it.'
+   :'Ask me what the board has in common, or for hooks and titles from it.';
   case 'plan':return facts.scenes
-   ?'The scenes are drafted. I can tighten any of them, or write hooks and titles for you to choose from.'
-   :'Plan the scenes first: they become your teleprompter when you record. I can write hooks and titles for you to choose from meanwhile.';
+   ?'I can tighten a scene, or write hooks and titles to choose from.'
+   :'Plan the scenes first. I can write hooks and titles meanwhile.';
   case 'record':return facts.recorded===0
-   ?'Record one scene at a time, with its talking points beside you. Ask me how to open, or to write a hook or the talking points with your own writing skills.'
-   :'Record one scene at a time, with its talking points beside you. Ask me to shorten a scene, or to write a hook or a call to action with your own writing skills.';
+   ?'Ask me how to open, or for a hook or talking points.'
+   :'Ask me to shorten a scene, or for a hook or a call to action.';
   case 'edit':return facts.recorded===0
-   ?'Nothing is recorded yet. Once a scene is, I can cut its pauses and filler words as cards you preview, apply and undo.'
-   :'Tell me what to change, in your own words: add a lower third, move a graphic later, reword a title, zoom in on a point. Each change comes as a card you can preview, apply and undo.';
-  case 'publish':return 'Check the title, the thumbnail and the description before it goes out. Ask me for a second opinion on any of them.';
-  case 'research':return 'This is your channel\'s own board. Ask what the cards have in common, or ask me to group them or start a video from them: each change comes as a card you can apply and undo.';
+   ?'Record a scene first, then I can cut its pauses and filler words.'
+   :'Tell me what to change. Each change comes as a card you can preview and undo.';
+  case 'publish':return 'Ask me for a second opinion on the title, thumbnail or description.';
+  case 'research':return 'Ask me what the cards have in common, to group them, or to start a video from them.';
  }
 }
 

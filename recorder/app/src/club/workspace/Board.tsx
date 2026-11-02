@@ -13,7 +13,7 @@ import {useCanvas} from './useCanvas';
 import {useDraft} from './useDraft';
 import {NotePanel} from './NotePanel';
 import {NotesFolder} from './NotesFolder';
-import {folderLabel,importMessage,isDocFile} from './board-files';
+import {importMessage,isDocFile} from './board-files';
 import {chooseNotesFolder,importNotes,pinNote,useBoardFiles} from './useBoardFiles';
 import {boardBase} from './board-base';
 import {useVideos} from '../useVideos';
@@ -362,7 +362,7 @@ export function Board({video,board:boardProp,scenes,onDrafted=()=>{},refreshKey=
 
  return <div className="board-wrap" ref={wrap} tabIndex={-1} onPaste={paste} onDragOver={event=>event.preventDefault()} onDrop={drop} onKeyDown={onBoardKey} onClick={event=>{if(event.target===event.currentTarget)clear();}}>
   {board.loadError?<div style={{padding:24}}><ErrorLine message={board.loadError} onRetry={board.reload}/></div>:!tiles?<div className="flex flex-1 items-center justify-center"><Spinner label="Loading the board" size={20}/></div>:
-  <div className="canvas-scroll" ref={scroller}>
+  <div className="canvas-scroll" ref={scroller} style={tiles.length===0&&!frames.length?{overflow:'hidden'}:undefined}>
    <div className="canvas-room" style={{width:frameSize.width*zoom,height:frameSize.height*zoom,position:'relative'}}>
     <div className={cn('canvas',connectFrom&&'connecting')} ref={canvasEl} style={{width:frameSize.width,height:frameSize.height,transform:`scale(${zoom})`}} onPointerDown={onCanvasDown}>
      {tiles.length===0&&!research&&<p className="muted" style={{position:'absolute',left:60,top:70,maxWidth:380,fontSize:14,lineHeight:1.55}}>Drop links, screenshots, notes and Markdown files here. Claude reads the whole board when it drafts your scenes. Anything saved in this video's folder shows up here too.</p>}
@@ -444,10 +444,10 @@ export function Board({video,board:boardProp,scenes,onDrafted=()=>{},refreshKey=
   {linkOpen&&<form className="menu board-link" onSubmit={event=>void submitLink(event)}>
    <input className="input" autoFocus value={link} onChange={event=>setLink(event.target.value)} placeholder="YouTube, Instagram, X or any link" style={{height:32}} onKeyDown={event=>{if(event.key==='Escape')setLinkOpen(false);}} aria-label="Link to add"/>
    <button className="btn sm primary" type="submit" style={{height:32}}>Add link</button></form>}
-  {files&&<div className="board-folder" role="group" aria-label={research?'The Research folder':"This video's folder"}>
-   <Icon name="folder-open" size={14}/><span className="ellipsis" title={files.folder.path}>{folderLabel(files.folder)}</span>
-   <IconButton icon="copy" iconSize={13} label="Copy the folder path" onClick={()=>copyPath(files.folder.path,'Copied the folder path')}/>
-  </div>}
+  {/* The files on disk are one click away in Finder; the path itself is not something to read. */}
+  {files&&window.sceneForge?.reveal&&<button type="button" className="board-folder" title={files.folder.path} onClick={()=>void window.sceneForge!.reveal(files.folder.path).catch(()=>toast("Couldn't open the folder."))}>
+   <Icon name="folder-open" size={14}/>Show files in Finder
+  </button>}
   {!research&&draft.confirm&&<ReplaceScenes scenes={scenes??[]} action="Drafting again" undoLine="You can undo it from the message that follows." onKeep={()=>draft.setConfirm(false)} onReplace={draft.start}/>}
   {noteOpen&&<NotePanel key={noteOpen.id} tile={noteOpen} save={(text,base)=>board.saveNote(noteOpen.id,text,base)} isNew={madeNote===noteOpen.id} onClose={discard=>{setOpenNote(null);setMadeNote(null);if(discard)void clubFetch(`${boardBase(boardId)}/research/${encodeURIComponent(noteOpen.id)}`,{method:'DELETE'}).then(()=>board.refresh(),()=>{});}} onCopyPath={name=>copyPath(name,'Copied the file name')}/>}
   {folderOpen&&<NotesFolder notes={files?.notes??null} onClose={()=>setFolderOpen(false)}

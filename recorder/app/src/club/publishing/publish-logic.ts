@@ -48,7 +48,7 @@ export function scheduleTime(value:string,now:Date):{iso:string;date:Date}|{mess
 
 /** What stands between the person and Publish, as one short sentence, or null when nothing does. The first problem wins. */
 export function publishProblem(input:{connected:boolean;channel:boolean;exported:boolean;stale?:boolean;kids:'yes'|'no'|null;title:string}):string|null{
- if(!input.connected)return 'Connect Postiz first.';
+ if(!input.connected)return 'Set up publishing first.';
  if(!input.channel)return 'Choose the YouTube channel first.';
  if(!input.exported)return input.stale?'Export the video again first, because it was edited after the last export.':'Export the video first.';
  if(!input.title.trim())return 'Add a title first.';

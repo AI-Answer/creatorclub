@@ -61,8 +61,9 @@ test('Publish: the export line, Postiz connected, the form YouTube asks for, and
  await withPublish({},async ui=>{
   const c=ui.container,text=c.textContent??'';
   assert.ok(text.includes(PUBLISH_LINE));
-  assert.ok(text.includes('Video exported')&&text.includes('Hidden features-e1.mp4'),'the newest export');
-  assert.ok(text.includes('Postiz connected.')&&text.includes('Posts to Samin Yasar on YouTube.'));
+  assert.ok(text.includes('Exported')&&text.includes('Hidden features-e1.mp4'),'the newest export');
+  assert.ok(text.includes('Postiz uploads it to Samin Yasar on YouTube'));
+  assert.deepEqual([...c.querySelectorAll('.pub-step h3')].map(h=>h.textContent),['Export the video','Check the details','Send it to YouTube'],'three numbered steps');
   assert.equal(field(c,'pub-title').value,video.title);
   assert.equal((c.querySelector('#pub-desc') as HTMLTextAreaElement).value,'You never opened this.\n\nMost people use one feature.','no chapters until the timeline is read');
   assert.equal((c.querySelector('#pub-vis') as HTMLSelectElement).value,'public');
@@ -151,10 +152,7 @@ test('without Postiz connected Publish says so and sends you to Settings: the ke
  await withPublish({state:notConnected},async(ui,server)=>{
   const c=ui.container;
   await click(c.querySelector('input[name=kids][value=no]'));
-  assert.equal(button(c,'Publish now').disabled,true,'Publish now looks and is unavailable until Postiz is connected');
-  assert.equal(c.querySelector('#pub-why')?.textContent,'Connect Postiz first.');
-  assert.equal(button(c,'Publish now').getAttribute('aria-describedby'),'pub-why');
-  await click(button(c,'Publish now'));
+  assert.ok(![...c.querySelectorAll('button')].some(b=>b.textContent?.includes('Publish now')),'step 3 offers setting up publishing, not a button that cannot work');
   assert.equal(posts(server.calls).length,0);
   assert.ok(c.textContent?.includes("Publishing isn't set up yet"));
   assert.equal(c.querySelector('#postiz-key'),null,'no key field on Publish: it lives in Settings');

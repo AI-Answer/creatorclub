@@ -62,7 +62,7 @@ test('Thumb shows the YouTube picture and falls back to a draft thumbnail when i
   const [first,second]=ui.container.querySelectorAll('.thumb');
   const img=first.querySelector('img')!;assert.equal(img.getAttribute('src'),'https://i.ytimg.com/vi/abc123DEF45/mqdefault.jpg');assert.ok(first.querySelector('.the-chip'));assert.equal(first.querySelector('.tthumb'),null);
   assert.equal(second.querySelector('img'),null);assert.equal(second.querySelector('.tt')!.textContent,'Draft words');
-  assert.match((second.querySelector('.tthumb') as HTMLElement).style.background,/linear-gradient/);
+  assert.doesNotMatch((second.querySelector('.tthumb') as HTMLElement).style.background,/gradient/,'a plain card, never made-up art');
   await act(async()=>{img.dispatchEvent(new Event('error'));});
   assert.equal(first.querySelector('img'),null,'a broken picture becomes the draft');assert.equal(first.querySelector('.tt')!.textContent,'Title');
  }finally{await ui.close();}

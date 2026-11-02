@@ -27,10 +27,11 @@ export function TakeGearMenu({items,open,disabled,onOpenChange,menuRef}:{items:T
 /** Exactly three choices: `Delete take` on the left; `Record another take` and the primary `Continue` on the right. Delete asks once more before acting. */
 export function TakePreviewFooter({busy,deleteArmed,onDelete,onRetake,onContinue}:{busy:boolean;deleteArmed:boolean;onDelete?():void;onRetake():void;onContinue():void}){
  return <footer className="club-take-footer flex shrink-0 items-center gap-3 border-t border-line bg-card px-6 py-4 font-sans">
-  {onDelete&&<Button variant="ghost" disabled={busy} onClick={onDelete} className={cn('text-danger hover:bg-danger-soft',deleteArmed&&'bg-danger text-primary-ink hover:bg-danger/85')}><Icon name="delete"/>{deleteArmed?'Click again to delete':'Delete take'}</Button>}
+  {/* Borumi's three choices: a red Delete take, a plain Record another take and the white Confirm take (which here also moves to the next scene). */}
+  {onDelete&&<Button variant="danger" disabled={busy} onClick={onDelete} className={cn('club-take-delete',deleteArmed&&'is-armed')}><Icon name="delete"/>{deleteArmed?'Click again to delete':'Delete take'}</Button>}
   <div className="ml-auto flex items-center gap-3">
-   <Button disabled={busy} onClick={onRetake}><Icon name="retry"/>Record another take</Button>
-   <Button variant="primary" disabled={busy} onClick={onContinue}>Continue</Button>
+   <Button variant="ghost" disabled={busy} onClick={onRetake}><Icon name="undo"/>Record another take</Button>
+   <Button variant="primary" disabled={busy} onClick={onContinue}><Icon name="check"/>Confirm take</Button>
   </div>
  </footer>;
 }

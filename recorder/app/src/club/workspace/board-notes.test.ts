@@ -101,21 +101,18 @@ test('a note card shows its Markdown, names its file, opens the writer on a clic
  }finally{await ui.close();}
 });
 
-test('the video\'s folder is named on the board, with a button that copies its path',async()=>{
+test('the video\'s folder opens in Finder from the board; its path is never shown as text',async()=>{
  board([]);
- const copied:string[]=[];
- Object.defineProperty(navigator,'clipboard',{value:{writeText:async(text:string)=>{copied.push(text);}},configurable:true});
+ const revealed:string[]=[];
+ (window as unknown as {sceneForge?:unknown}).sceneForge={reveal:async(path:string)=>{revealed.push(path);}};
  const ui=await mount();
  try{
   await flush();await flush();
-  const line=ui.container.querySelector('.board-folder')!;
-  assert.equal(line.getAttribute('aria-label'),"This video's folder");
-  assert.equal(line.textContent,'…/samin/videos/hidden-features');
-  assert.equal(line.querySelector('.ellipsis')?.getAttribute('title'),files.folder.path,'the full path is the tooltip');
-  await act(async()=>line.querySelector<HTMLButtonElement>('button[aria-label="Copy the folder path"]')!.click());await flush();
-  assert.deepEqual(copied,[files.folder.path]);
-  assert.match(document.querySelector('.cc-toast')!.textContent!,/Copied the folder path/);
- }finally{await ui.close();}
+  const button=ui.container.querySelector<HTMLButtonElement>('button.board-folder')!;
+  assert.equal(button.textContent,'Show files in Finder');
+  await act(async()=>button.click());await flush();
+  assert.deepEqual(revealed,[files.folder.path]);
+ }finally{await ui.close();delete (window as unknown as {sceneForge?:unknown}).sceneForge;}
 });
 
 test('dropping files on the board: Markdown and text become notes, the rest is named and left out',async()=>{

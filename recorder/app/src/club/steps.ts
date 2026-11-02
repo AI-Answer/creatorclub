@@ -63,12 +63,13 @@ export interface Place{name:string;where:string}
 
 /** Where things live, from docs/v2/UI-MAP.md in the words a beginner needs. */
 export const PLACES:readonly Place[]=[
- {name:'Sidebar',where:'Your channel and its menu, Search (⌘K), then Home, Discover, Videos and Research. Settings, Help and Collapse are the three icons at the bottom.'},
+ {name:'Tab bar',where:'The top of the window: the app menu, one tab per open video (close it with ×), the Home tab, then Help and Settings on the right.'},
+ {name:'Home tab',where:'Your channel and its menu, Search (⌘K), then Home, Discover, Videos and Research down the left.'},
  {name:'Home',where:'What to do next on the video you worked on last, and the first-video checklist for a new channel.'},
  {name:'Discover',where:'What works outside: YouTube videos beating their usual and posts from X and Reddit. Turn any of them into an idea.'},
  {name:'Videos',where:'Every video from idea to published, as a board, a table or a calendar. New video is here.'},
  {name:'Research',where:'Your channel\'s own board: put Discover cards, your ideas, links and notes on it, connect and group them, and start a video from a selection.'},
- {name:'Step tabs',where:`The top of a video: ${VIDEO_STEPS.map(step=>step.name).join(', ')}. They are the only way between steps.`},
+ {name:'Step bar',where:`The bottom of a video: Back to the step before, then ${VIDEO_STEPS.map(step=>step.name).join(', ')}, then Continue to the next one.`},
  {name:'Ask Claude',where:'The panel on the right of a video. It sees the step you are on and answers with changes you can apply and undo.'},
  {name:'Settings',where:'Your connected AI, your channel and its voice, the channels you follow, and Postiz.'},
 ];

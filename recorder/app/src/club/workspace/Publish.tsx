@@ -1,5 +1,5 @@
 import {BrandLogo} from '../../BrandLogo';
-import {useCallback,useEffect,useMemo,useRef,useState} from 'react';
+import {useCallback,useEffect,useMemo,useRef,useState,type ReactNode} from 'react';
 import type {Package,PublishProgress,PublishRecord,PublishVisibility,Video,VideoScene} from '../../../shared/club';
 import type {ExportRecord} from '../../../shared/export-history';
 import type {Project} from '../../../shared/types';
@@ -12,12 +12,12 @@ import {TITLE_MAX,VISIBILITY_OPTIONS,unrecordedWarning,defaultSchedule,progressO
 import {usePublishing} from '../publishing/usePublishing';
 import {exportFileName,latestVideoExport} from '../recorder/edit-steps';
 import {clockTime} from '../video-plan';
-import {Button,Card,EmptyState,Icon,Input,Spinner,Textarea} from '../ui';
+import {Button,EmptyState,Icon,Input,Spinner,Textarea} from '../ui';
 import {PackageSummary,PasteLinkForm,ProgressCard,ResultCard,SELF_UPLOAD_LINE,SelfUpload,TagsField} from './PublishParts';
 import {buildDescription} from './record-logic';
 import {recordedCount} from '../scene-status';
 
-export const PUBLISH_LINE='Postiz uploads it to YouTube at the time you pick, even if your laptop is closed.';
+export const PUBLISH_LINE='It goes to YouTube now or at the time you pick, even if your laptop is closed.';
 /** What the server keeps of a description. */
 export const DESCRIPTION_MAX=5000;
 /** While Postiz is still sending a video to YouTube, the page asks it again this often. */
@@ -155,45 +155,63 @@ export function Publish({video,pkg,scenes,onVideo,onDescription,onTags,onGoTo,on
   </ResultCard></div>{summary}</div></div>;
 
  const exportLine=file===undefined?<Spinner label="Looking for the exported video"/>:file
-  ?<div className="row"><span className="club-export-done"><Icon name="check" size={15}/>Video exported</span><span className="faint small">{exportFileName(file)}</span>
-   {stale&&project&&<><span className="small pubx-warn">You edited it after this export.</span><ClubExport quiet project={project} flush={async()=>project} onExported={now=>{if(now)setReread(n=>n+1);}}/></>}
+  ?<div className="row"><span className="club-export-done"><Icon name="check" size={15}/>Exported</span><span className="faint small">{exportFileName(file)}</span>
+   {stale&&project&&<ClubExport quiet project={project} flush={async()=>project} onExported={now=>{if(now)setReread(n=>n+1);}}/>}
    {!stale&&file.outputPath&&window.sceneForge?.reveal&&<button type="button" className="linkish" onClick={()=>void window.sceneForge!.reveal(file.outputPath!).catch(()=>{})}>Show in Finder</button>}</div>
-  :project?<div className="row"><ClubExport project={project} flush={async()=>project} onExported={now=>{if(now)setReread(n=>n+1);}}/><span className="small muted">Publishing sends the exported video.</span></div>
+  :project?<div className="row"><ClubExport project={project} flush={async()=>project} onExported={now=>{if(now)setReread(n=>n+1);}}/></div>
    :<span className="small muted">No exported video yet. <button type="button" className="linkish" onClick={()=>onGoTo('edit')}>Export it in Edit</button></span>;
+ const connected=Boolean(publishing.state?.postiz.connected),channelName=publishing.state?.postiz.channel?.name;
+ const detailsDone=Boolean(title.trim()&&kids);
 
  return <div className="pubx">{head}
-  <div className="pubx-grid"><div>
-   <div className="pubx-export">{exportLine}</div>
-   {unrecorded&&<p className="small pubx-warn" role="status">{unrecorded}</p>}
-   <Card className="pubx-route">
+  <div className="pubx-grid"><div className="pub-steps">
+   <PubStep n={1} title="Export the video" done={exported}
+    line={exported?'The latest edit is exported. This file is what goes to YouTube.':stale?'You edited it after the last export, so export it again.':'The exported file is what goes to YouTube.'}>
+    <div className="pubx-export">{exportLine}</div>
+    {unrecorded&&<p className="small pubx-warn" role="status">{unrecorded}</p>}
+   </PubStep>
+   <PubStep n={2} title="Check the details" done={detailsDone} line="What viewers see on YouTube. Ask Claude to write or check any of it.">
+    <div className="pubx-form">
+     <div className="full"><label className="field" htmlFor="pub-title">Title</label><Input id="pub-title" maxLength={TITLE_MAX} value={title} onChange={event=>setTitle(event.target.value)}/></div>
+     <div className="full"><label className="field" htmlFor="pub-desc">Description</label><Textarea id="pub-desc" rows={5} maxLength={DESCRIPTION_MAX} placeholder="What the viewer gets, then chapters." value={description}
+      onChange={event=>setEdited(event.target.value)} onBlur={()=>{if(edited!==undefined&&edited!==pkg?.description)onDescription(edited);}}/>
+      {saveError&&<ErrorLine message="Couldn't save the description." onRetry={onRetry}/>}</div>
+     <div className="full"><label className="field" htmlFor="pub-tags">Tags</label><TagsField tags={tags} onChange={onTags}/></div>
+     <div className="full"><div className="field">Thumbnail</div><div className="small muted">{thumbnail?'Your own image. ':pkg?.thumbnailText?.trim()?'Your thumbnail text is only a preview: YouTube picks a frame unless you add one. ':'YouTube picks a frame unless you add one. '}
+      <label className="linkish" style={{cursor:'pointer'}}>{thumbnail?'Use another image':'Upload an image'}<input type="file" className="sr-only" accept="image/png,image/jpeg" onChange={event=>{void pick(event.target.files?.[0]);event.target.value='';}}/></label>
+      {thumbnail&&<> <button type="button" className="linkish" onClick={dropThumbnail}>Remove image</button></>}</div>
+      {thumbError&&<p role="alert" className="small pz-err">{thumbError}</p>}</div>
+     <div className="pub-pair"><label className="field" htmlFor="pub-vis">Who can watch</label><select id="pub-vis" className="select" value={visibility} onChange={event=>setChosen(event.target.value as PublishVisibility)}>{VISIBILITY_OPTIONS.map(option=><option key={option.value} value={option.value}>{option.label}</option>)}</select></div>
+     <div className={`pub-pair ${tried&&!kids?'has-err':''}`}><div className="field" id="pub-kids-l">Made for kids?</div><div className="field-hint" id="pub-kids-h">Required by YouTube</div>
+      <div className="radios" role="radiogroup" aria-labelledby="pub-kids-l" aria-describedby="pub-kids-h" ref={kidsField}>{(['no','yes'] as const).map(value=><label key={value} className="rad"><input type="radio" name="kids" value={value} checked={kids===value} onChange={()=>setKids(value)}/>{value==='no'?'No':'Yes'}</label>)}</div>
+      {tried&&!kids&&<p role="alert" className="small pz-err">Choose one, because YouTube won't accept the video without it.</p>}</div>
+    </div>
+   </PubStep>
+   <PubStep n={3} title="Send it to YouTube" done={false}
+    line={publishing.error?undefined:!publishing.state?undefined:connected?`Postiz uploads it to ${channelName??'your channel'} on YouTube, now or at the time you pick.`:"Publishing isn't set up yet. It uses Postiz, a paid service that uploads to YouTube for you; set it up once."}>
     {publishing.error?<ErrorLine message={publishing.error} onRetry={publishing.reload}/>:!publishing.state?<Spinner label="Loading"/>
-     :publishing.state.postiz.connected
-      ?<div className="rh"><span className="logo logo-postiz"><BrandLogo brand="postiz" size={28}/></span><div><div className="rt"><b>Postiz connected.</b>{publishing.state.postiz.channel&&<> Posts to {publishing.state.postiz.channel.name} on YouTube.</>}</div><div className="rd">Uploads it for you, now or at the time you pick.</div></div><button type="button" className="linkish" style={{marginLeft:'auto'}} onClick={onSettings}>Change in Settings</button></div>
-      :<div className="rh"><span className="logo logo-postiz"><BrandLogo brand="postiz" size={28}/></span><div><div className="rt">Publishing isn't set up yet</div><div className="rd">Connect Postiz once in Settings. Your video and details are kept, and you can finish them first.</div></div><Button size="sm" style={{marginLeft:'auto'}} onClick={onSettings}>Set up publishing</Button></div>}
-   </Card>
-   <Card className="pubx-form">
-    <div className="full"><label className="field" htmlFor="pub-title">Title</label><Input id="pub-title" maxLength={TITLE_MAX} value={title} onChange={event=>setTitle(event.target.value)}/></div>
-    <div className="full"><label className="field" htmlFor="pub-desc">Description</label><Textarea id="pub-desc" rows={5} maxLength={DESCRIPTION_MAX} placeholder="What the viewer gets, then chapters." value={description}
-     onChange={event=>setEdited(event.target.value)} onBlur={()=>{if(edited!==undefined&&edited!==pkg?.description)onDescription(edited);}}/>
-     {saveError&&<ErrorLine message="Couldn't save the description." onRetry={onRetry}/>}</div>
-    <div className="full"><label className="field" htmlFor="pub-tags">Tags</label><TagsField tags={tags} onChange={onTags}/></div>
-    <div className="full"><div className="field">Thumbnail</div><div className="small muted">{thumbnail?'Your own image. ':'YouTube picks a frame unless you add one. '}
-     <label className="linkish" style={{cursor:'pointer'}}>{thumbnail?'Use another image':'Upload an image'}<input type="file" className="sr-only" accept="image/png,image/jpeg" onChange={event=>{void pick(event.target.files?.[0]);event.target.value='';}}/></label>
-     {thumbnail&&<> <button type="button" className="linkish" onClick={dropThumbnail}>Remove image</button></>}</div>
-     {thumbError&&<p role="alert" className="small pz-err">{thumbError}</p>}</div>
-    <div className="pub-pair"><label className="field" htmlFor="pub-vis">Who can watch</label><select id="pub-vis" className="select" value={visibility} onChange={event=>setChosen(event.target.value as PublishVisibility)}>{VISIBILITY_OPTIONS.map(option=><option key={option.value} value={option.value}>{option.label}</option>)}</select></div>
-    <div className={`pub-pair ${tried&&!kids?'has-err':''}`}><div className="field" id="pub-kids-l">Made for kids?</div><div className="field-hint" id="pub-kids-h">Required by YouTube</div>
-     <div className="radios" role="radiogroup" aria-labelledby="pub-kids-l" aria-describedby="pub-kids-h" ref={kidsField}>{(['no','yes'] as const).map(value=><label key={value} className="rad"><input type="radio" name="kids" value={value} checked={kids===value} onChange={()=>setKids(value)}/>{value==='no'?'No':'Yes'}</label>)}</div>
-     {tried&&!kids&&<p role="alert" className="small pz-err">Choose one, because YouTube won't accept the video without it.</p>}</div>
-    <div><label className="field" htmlFor="pub-when">When</label><select id="pub-when" className="select" value={when} onChange={event=>setWhen(event.target.value as 'now'|'schedule')}><option value="now">Publish now</option><option value="schedule">Schedule for later</option></select></div>
-    {when==='schedule'&&<div><label className="field" htmlFor="pub-at">Date and time</label><Input id="pub-at" type="datetime-local" value={at} aria-invalid={schedule&&'message' in schedule?true:undefined} onChange={event=>setAt(event.target.value)}/></div>}
-   </Card>
-   <div className="pubx-foot">
-    <div className="fi">{problem?<span className="pubx-warn" id="pub-why" role="status">{problem}</span>:<span>The exported video goes to Postiz, then to YouTube.</span>}</div>
-    {/* One primary per view: until there is an export, Export video is the primary and this waits. It cannot be pressed while something stands in the way, and the reason sits beside it. */}
-    <Button variant={exported?'primary':'secondary'} size="md" disabled={Boolean(problem)} aria-describedby={problem?'pub-why':undefined} onClick={()=>void submit()}><Icon name={when==='now'?'upload':'calendar'} size={15}/>{when==='now'?'Publish now':`Schedule for ${scheduledDate?whenText(scheduledDate):'later'}`}</Button>
-   </div>
-   {publishing.state&&!postizReady&&<div className="pubx-alt"><SelfUpload video={video} onVideo={onVideo}/></div>}
+     :!connected?<div className="row" style={{gap:12,flexWrap:'wrap'}}><span className="logo logo-postiz"><BrandLogo brand="postiz" size={28}/></span><Button onClick={onSettings}>Set up publishing</Button><SelfUpload video={video} onVideo={onVideo}/></div>
+     :<>
+      <div className="pub-when">
+       <div><label className="field" htmlFor="pub-when">When</label><select id="pub-when" className="select" value={when} onChange={event=>setWhen(event.target.value as 'now'|'schedule')}><option value="now">Publish now</option><option value="schedule">Schedule for later</option></select></div>
+       {when==='schedule'&&<div><label className="field" htmlFor="pub-at">Date and time</label><Input id="pub-at" type="datetime-local" value={at} aria-invalid={schedule&&'message' in schedule?true:undefined} onChange={event=>setAt(event.target.value)}/></div>}
+      </div>
+      <div className="pubx-foot">
+       <div className="fi">{problem?<span className="pubx-warn" id="pub-why" role="status">{problem}</span>:<span>Ready to go.</span>}</div>
+       {/* One primary per view: until there is an export, Export video is the primary and this waits. */}
+       <Button variant={exported?'primary':'secondary'} size="md" disabled={Boolean(problem)} aria-describedby={problem?'pub-why':undefined} onClick={()=>void submit()}><Icon name={when==='now'?'upload':'calendar'} size={15}/>{when==='now'?'Publish now':`Schedule for ${scheduledDate?whenText(scheduledDate):'later'}`}</Button>
+      </div>
+      <button type="button" className="linkish quiet small" onClick={onSettings}>Change in Settings</button>
+     </>}
+   </PubStep>
   </div>{summary}</div>
  </div>;
+}
+
+/** One numbered step of Publish: its number (a tick once done), what it is, one line on where it stands, then its controls. */
+function PubStep({n,title,line,done,children}:{n:number;title:string;line?:string;done:boolean;children:ReactNode}){
+ return <section className={`pub-step${done?' done':''}`} aria-label={title}>
+  <header><span className="pub-step-n" aria-hidden>{done?<Icon name="check" size={13} stroke={2.6}/>:n}</span><div><h3>{title}</h3>{line&&<p>{line}</p>}</div></header>
+  <div className="pub-step-body">{children}</div>
+ </section>;
 }

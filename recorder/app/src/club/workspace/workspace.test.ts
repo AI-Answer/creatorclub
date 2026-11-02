@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {clockTime} from '../video-plan';
-import {takesWaiting,TAKE_NOT_ADDED,nextTab,previousTab,scenesLine,stageForContinue,tabDone,allScenesKept,continueIsPrimary,showsStrip,tabLock,tabState,continueFor,lockedLine,POSTIZ_LINE} from './rules';
+import {takesWaiting,TAKE_NOT_ADDED,nextTab,previousTab,scenesLine,stageForContinue,tabDone,allScenesKept,continueIsPrimary,tabLock,tabState,continueFor,lockedLine,POSTIZ_LINE} from './rules';
 import {canvasSize,clampZoom,dragTo,keyMove,moveBy,tileBox} from './board-layout';
 
 test('the tabs follow each other, and Continue moves the card to the stage of the next tab only when that is further along',()=>{
@@ -58,11 +58,6 @@ test('Continue is primary only when the tab is done and no other primary is wait
  assert.equal(continueIsPrimary(true,false),true);
  assert.equal(continueIsPrimary(true,true),false,'the tab has its own primary button');
  assert.equal(continueIsPrimary(false,false),false,'not done yet');
-});
-
-test('the scene chips show on Record only (on Edit the scenes are bands on the timeline)',()=>{
- assert.equal(showsStrip('record'),true);
- for(const tab of ['board','plan','edit','publish'] as const)assert.equal(showsStrip(tab),false,tab);
 });
 
 test('Breakdown on a YouTube tile sends the tile\'s own YouTube id, never the Creator Compiler video id',async()=>{
@@ -124,7 +119,7 @@ test('a step is locked until what it needs exists, and says the first thing miss
 test('the step bar shows each step as done, current, next, locked or open',()=>{
  assert.deepEqual((['board','plan','record','edit','publish'] as const).map(key=>tabState(key,'plan',noScenes)),['open','current','locked','locked','locked']);
  assert.deepEqual((['board','plan','record','edit','publish'] as const).map(key=>tabState(key,'plan',planned)),['done','current','next','locked','locked']);
- assert.deepEqual((['board','plan','record','edit','publish'] as const).map(key=>tabState(key,'record',started)),['done','done','current','done','open'],'a scene is on the timeline, so Edit has something done');
+ assert.deepEqual((['board','plan','record','edit','publish'] as const).map(key=>tabState(key,'record',started)),['done','done','current','next','open'],'a take on the timeline is not a finished edit: Edit is ticked only once it is exported');
 });
 
 test('one Continue rule: it names the next step, is disabled with the reason when that step is locked, and is primary only when this step is done and has no primary of its own',()=>{
@@ -133,10 +128,11 @@ test('one Continue rule: it names the next step, is disabled with the reason whe
  assert.deepEqual(continueFor('plan',planned),{label:'Continue to recording',disabled:false,primary:true});
  assert.deepEqual(continueFor('plan',planned,{busy:true}),{label:'Continue to recording',disabled:true,reason:'Claude is still writing',primary:false});
  assert.deepEqual(continueFor('record',planned,{ownPrimary:true}),{label:'Continue to editing',disabled:true,reason:'Record a scene first',primary:false});
- assert.deepEqual(continueFor('record',started),{label:'Continue to editing',disabled:false,primary:false},'scenes left to record: the Record button stays the primary');
+ assert.deepEqual(continueFor('record',started),{label:'Continue to editing',disabled:false,reason:"1 scene isn't recorded yet",primary:false},'scenes left to record: the Record button stays the primary, and Continue says what is missing');
  assert.deepEqual(continueFor('record',{...started,allRecorded:true}),{label:'Continue to editing',disabled:false,primary:true});
- assert.deepEqual(continueFor('edit',started),{label:'Continue to publishing',disabled:false,primary:true},'something is recorded: moving on to Publish is the one next step');
- assert.deepEqual(continueFor('edit',{...started,exported:true}),{label:'Continue to publishing',disabled:false,primary:true});
+ assert.deepEqual(continueFor('edit',started),{label:'Continue to publishing',disabled:false,reason:"1 scene isn't recorded yet",primary:false},'Publish can open, but never as the push forward while scenes are missing');
+ assert.deepEqual(continueFor('edit',{...started,exported:true}),{label:'Continue to publishing',disabled:false,reason:"1 scene isn't recorded yet",primary:false});
+ assert.deepEqual(continueFor('edit',{...started,allRecorded:true,exported:true}),{label:'Continue to publishing',disabled:false,primary:true},'everything recorded and exported: Publish is the one next step');
  assert.equal(continueFor('publish',started),undefined,'the last step has no Continue');
  assert.deepEqual(continueFor('record',{stage:'recording',hasRecording:true}),{label:'Continue to editing',disabled:true,primary:false},'scenes not known yet: it waits, with nothing to explain');
 });

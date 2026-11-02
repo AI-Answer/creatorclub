@@ -128,15 +128,15 @@ test('zoom keeps the playhead where it is on screen, or the view centre when the
  assert.equal(fitScale(380,1240),3.1578947368421053);assert.equal(fitScale(0,800),152);
 });
 
-test('ruler ticks: labelled majors at least 70 px apart, minors between, tenths (never frames) at high zoom',()=>{
- const coarse=rulerTicks(0,60,10);assert.ok(coarse.filter(t=>t.major).every(t=>t.time%10===0));assert.equal(coarse.find(t=>t.time===10)?.label,'0:10');assert.ok(coarse.some(t=>!t.major));
+test('ruler ticks: labelled majors at least 140 px apart (Borumi\'s open ruler), minors between, tenths (never frames) at high zoom',()=>{
+ const coarse=rulerTicks(0,60,10);assert.ok(coarse.filter(t=>t.major).every(t=>t.time%15===0));assert.equal(coarse.find(t=>t.time===15)?.label,'00:15');assert.ok(coarse.some(t=>!t.major));
  const fine=rulerTicks(1,1.5,1500),majors=fine.filter(t=>t.major);
- assert.ok(majors.length>=4);assert.equal(majors.find(t=>Math.abs(t.time-1.2)<1e-9)?.label,'0:01.2');
- assert.ok(fine.every(t=>!t.label||/^\d+:\d\d(\.\d)?$/.test(t.label)),'m:ss or m:ss.t only');
+ assert.ok(majors.length>=4);assert.equal(majors.find(t=>Math.abs(t.time-1.2)<1e-9)?.label,'00:01.2');
+ assert.ok(fine.every(t=>!t.label||/^\d\d:\d\d(\.\d)?$/.test(t.label)),'mm:ss or mm:ss.t only');
 });
 
-test('Task 14: one time format: m:ss, tenths only when less than 10 s is in view; lengths in seconds',()=>{
- assert.equal(rulerLabel(65.5),'1:05');assert.equal(rulerLabel(65.5,true),'1:05.5');assert.equal(rulerLabel(9.96,true),'0:09.9');
+test('one time format, Borumi\'s mm:ss, tenths only when less than 10 s is in view; lengths in seconds',()=>{
+ assert.equal(rulerLabel(65.5),'01:05');assert.equal(rulerLabel(65.5,true),'01:05.5');assert.equal(rulerLabel(9.96,true),'00:09.9');
  assert.equal(showTenths(9.5),true);assert.equal(showTenths(12),false);
  assert.equal(lengthLabel(.4),'0.4 s');assert.equal(lengthLabel(12.3),'12 s');assert.equal(lengthLabel(64),'1 min 4 s');
 });

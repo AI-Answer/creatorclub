@@ -5,8 +5,10 @@ import {ErrorLine} from '../ErrorLine';
 import {ChannelSection} from '../settings/ChannelSection';
 import {ConnectedAiSection} from '../settings/ConnectedAiSection';
 import {PublishingSection} from '../settings/PublishingSection';
+import {SkillsSection} from '../settings/SkillsSection';
 import {usePublishing} from '../publishing/usePublishing';
 import type {SettingsSection} from '../routes';
+import {Icon,cn,type IconName} from '../ui';
 
 type Loaded={settings:ClubSettings;workspace:Workspace|null};
 
@@ -20,7 +22,7 @@ async function load():Promise<Loaded>{
 }
 
 /** The element a link's section scrolls to. Followed channels and signal sources sit inside Channel. */
-const TARGET:Record<SettingsSection,string>={ai:'set-ai',channel:'set-channel',followed:'set-followed',sources:'set-sources',publishing:'set-publishing'};
+const TARGET:Record<SettingsSection,string>={ai:'set-ai',channel:'set-channel',followed:'set-followed',sources:'set-sources',skills:'set-skills',publishing:'set-publishing'};
 
 /** The page's shape while the settings are read: the three groups as grey blocks, so nothing jumps when they arrive. */
 function SettingsSkeleton(){
@@ -31,8 +33,16 @@ function SettingsSkeleton(){
  return <div aria-busy="true" aria-label="Loading settings" className="set-skel">{[3,2,2].map(group)}</div>;
 }
 
+type Tab='ai'|'channel'|'skills'|'publishing';
+/** Borumi's Settings nav: one tab per group, each with its icon. Followed channels and signal sources open the Channel tab. */
+const TABS:ReadonlyArray<{key:Tab;label:string;icon:IconName}>=[
+ {key:'ai',label:'AI',icon:'ai'},{key:'channel',label:'Channel',icon:'video'},{key:'skills',label:'Skills',icon:'draft'},{key:'publishing',label:'Publishing & look',icon:'upload'},
+];
+const tabFor=(section?:SettingsSection):Tab=>section==='followed'||section==='sources'?'channel':section??'ai';
+
 /**
- * Settings, three groups on one page: Connected AI, Channel, and Publishing and look. `onSetup` opens first launch to add or set up a channel.
+ * Settings, laid out like Borumi's: a 256px nav on the left (the title, then one row per group) and the chosen group on the right.
+ * The groups: Connected AI, Channel, Skills, and Publishing and look. Connected AI, Channel, and Publishing and look. `onSetup` opens first launch to add or set up a channel.
  * The page shows as soon as the saved settings are read; the AI rows follow when the slower AI check answers (a skeleton until then).
  * A link to a `section` (`#/settings/followed`) scrolls there once the settings are loaded; the followed channels' or the signal sources' first input is focused.
  */
@@ -58,14 +68,21 @@ export function SettingsScreen({section:linked,onSetup}:{section?:SettingsSectio
   readStatus();
   clubFetch<ClubSettings>('/settings').then(settings=>setData(current=>current&&{...current,settings}),()=>{});
  },[readStatus]);
- return <div className="page settings-page">
-  <div className="page-head"><div><h1>Settings</h1><div className="lede">Your AI, your channel, and how videos get published.</div></div></div>
-  {error?<ErrorLine message={error} onRetry={refresh} primary/>
-   :!data?<SettingsSkeleton/>
-   :<>
-     <ConnectedAiSection status={status} statusError={statusError} settings={data.settings} onStatus={refreshStatus} onSettings={change=>setData({...data,settings:{...data.settings,...change}})}/>
-     <ChannelSection workspace={data.workspace} focus={linked==='followed'||linked==='sources'?linked:undefined} onSaved={workspace=>setData({...data,workspace})} onSetup={onSetup}/>
-     <PublishingSection publishing={publishing.state} error={publishing.error} onReload={publishing.reload} onPublishing={publishing.setState} savedTheme={data.settings.appearance}/>
-   </>}
+ const tab=tabFor(linked);
+ return <div className="settings-layout-b">
+  <nav className="settings-nav" aria-label="Settings">
+   <h1>Settings</h1>
+   {TABS.map(({key,label,icon})=><a key={key} href={`#/settings/${key}`} className={cn('settings-tab',tab===key&&'on')} aria-current={tab===key?'page':undefined}><Icon name={icon} size={16}/>{label}</a>)}
+  </nav>
+  <div className="settings-body-b page settings-page">
+   {error?<ErrorLine message={error} onRetry={refresh} primary/>
+    :!data?<SettingsSkeleton/>
+    :<>
+      {tab==='ai'&&<ConnectedAiSection status={status} statusError={statusError} settings={data.settings} onStatus={refreshStatus} onSettings={change=>setData({...data,settings:{...data.settings,...change}})}/>}
+      {tab==='channel'&&<ChannelSection workspace={data.workspace} focus={linked==='followed'||linked==='sources'?linked:undefined} onSaved={workspace=>setData({...data,workspace})} onSetup={onSetup}/>}
+      {tab==='skills'&&<SkillsSection/>}
+      {tab==='publishing'&&<PublishingSection publishing={publishing.state} error={publishing.error} onReload={publishing.reload} onPublishing={publishing.setState} savedTheme={data.settings.appearance}/>}
+    </>}
+  </div>
  </div>;
 }

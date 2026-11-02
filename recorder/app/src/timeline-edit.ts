@@ -390,18 +390,18 @@ export function zoomSlider(viewport:number,duration:number){
 /** Below this many seconds in view, times carry tenths. */
 export const TENTHS_BELOW=10;
 export const showTenths=(visibleSeconds:number)=>visibleSeconds<TENTHS_BELOW;
-/** The one time format of Edit (ruler, playhead readout, drag and marker labels): "1:05", or "1:05.3" when zoomed in to less than 10 s. Never frames. */
+/** The one time format of Edit (ruler, playhead readout, drag and marker labels), Borumi's: "01:05", or "01:05.3" when zoomed in to less than 10 s. Never frames. */
 export function rulerLabel(time:number,tenths=false){
- const t=Math.max(0,time+1e-9),whole=Math.floor(t),m=Math.floor(whole/60),s=whole%60,base=`${m}:${String(s).padStart(2,'0')}`;
+ const t=Math.max(0,time+1e-9),whole=Math.floor(t),m=Math.floor(whole/60),s=whole%60,base=`${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
  return tenths?`${base}.${Math.floor((t-whole)*10+1e-6)%10}`:base;
 }
 /** A length or a move, not a time: "0.4 s", "4.2 s", "12 s", "1 min 4 s". */
 export const lengthLabel=(n:number)=>n>=60?`${Math.floor(n/60)} min ${Math.round(n%60)} s`:`${n<10?Math.round(n*10)/10:Math.round(n)} s`;
 export interface RulerTick {time:number;major:boolean;label?:string}
-/** Ticks between `from` and `to`: labelled major ticks at least 70 px apart, minor ticks between; at high zoom the steps are tenths of a second. */
+/** Ticks between `from` and `to`: labelled major ticks at least 140 px apart (Borumi's open ruler), minor ticks between; at high zoom the steps are tenths of a second. */
 export function rulerTicks(from:number,to:number,scale:number):RulerTick[]{
  if(!(scale>0)||!(to>from))return [];
- const steps=[.1,.2,.5,1,2,5,10,15,30,60,120,300,600,1800],major=steps.find(s=>s*scale>=70)??3600;
+ const steps=[.1,.2,.5,1,2,5,10,15,30,60,120,300,600,1800],major=steps.find(s=>s*scale>=140)??3600;
  const tenths=major<1,minor=major/(major>=60?6:major===15?3:major===2||major===.2?4:5);
  const out:RulerTick[]=[],first=Math.floor(from/minor);
  for(let i=first;i*minor<=to+minor&&out.length<2000;i++){const time=i*minor;if(time<0)continue;const ratio=time/major,major_=Math.abs(ratio-Math.round(ratio))<1e-6;out.push({time,major:major_,...(major_?{label:rulerLabel(time,tenths)}:{})});}

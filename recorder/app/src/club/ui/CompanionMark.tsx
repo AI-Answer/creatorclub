@@ -7,7 +7,8 @@ import type {CSSProperties} from 'react';
  */
 export function CompanionMark({size=16,working=false,className='',style}:{size?:number;working?:boolean;className?:string;style?:CSSProperties}){
  return <svg aria-hidden width={size} height={size} viewBox="0 0 24 24" className={`cmp-mark${working?' working':''} ${className}`.trim()} style={style}>
-  <path fill="currentColor" d="M8 3h7a5 5 0 0 1 5 5v5a5.7 5.7 0 0 0-7 7H8a5 5 0 0 1-5-5V8a5 5 0 0 1 5-5Z"/>
-  <circle className="cmp-mark-dot" fill="currentColor" cx="18.5" cy="18.5" r="3.9"/>
+  {/* The same sparkle the app uses for every AI action, so "this is Claude" looks one way everywhere. */}
+  <path fill="currentColor" d="M10.5 3.5l1.6 4.6a3 3 0 0 0 1.8 1.8l4.6 1.6-4.6 1.6a3 3 0 0 0-1.8 1.8l-1.6 4.6-1.6-4.6a3 3 0 0 0-1.8-1.8L2.5 11.5l4.6-1.6a3 3 0 0 0 1.8-1.8z"/>
+  <path className="cmp-mark-dot" fill="currentColor" d="M18.5 2.5l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7z"/>
  </svg>;
 }

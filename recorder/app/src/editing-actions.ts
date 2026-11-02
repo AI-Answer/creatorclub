@@ -1,5 +1,5 @@
 import {PAUSE_SECONDS,type EditAction,type PauseLevel,type TextPosition} from '../shared/companion';
-import {clipDuration,makeId,projectDuration,type Clip,type Project} from '../shared/types';
+import {clipDuration,defaultEffects,defaultTransform,makeId,projectDuration,type Clip,type Project} from '../shared/types';
 import {minimumPiece} from '../shared/timeline-edits';
 import {clipsFingerprint,fillerRanges,gapRanges,rangesSeconds} from './club/recorder/edit-auto';
 import {plainView} from './project-draft';
@@ -160,6 +160,7 @@ export function editActionProblem(p:Project,action:EditAction,options:EditOption
    return;
   }
   case 'remove_motion_block':return blockAt(p,action.at)?undefined:NO_BLOCK;
+  case 'add_clip':return inRange(action.start)?undefined:'That moment is not in the video.';
   case 'normalize_audio':return p.clips.some(c=>!c.effects.normalize)?undefined:'Loudness is already evened out.';
  }
 }
@@ -259,6 +260,13 @@ export function applyEditAction(p:Project,action:EditAction,options:EditOptions=
    result=`${MOTION_TEMPLATES[block.template].label} removed from ${clock(block.start)}`;
    break;
   }
+  case 'add_clip':{
+   if(!p.media.some(m=>m.id===action.media.id))p.media.push(action.media);
+   const length=action.media.kind==='image'?action.duration:Math.min(action.duration,action.media.duration||action.duration);
+   p.clips.push({id:newId(),mediaId:action.media.id,name:action.title,track:'overlay',start:action.start,sourceIn:0,sourceOut:length,speed:1,gain:1,muted:!action.media.hasAudio,transform:defaultTransform(),effects:defaultEffects()});
+   result=`Added “${action.title}” at ${clock(action.start)}`;
+   break;
+  }
   case 'normalize_audio':{
    let n=0;for(const c of p.clips)if(!c.effects.normalize){c.effects={...c.effects,normalize:true};n++;}
    result=`Loudness evened out on ${plural(n,'clip')} when you export`;
@@ -290,6 +298,7 @@ export function describeEditAction(action:EditAction,p?:Project):string{
    const gone=p?replacedZooms(p,action):[];
    return `Zoom ${action.scale}× on the ${action.target??'screen'} at ${clock(action.start)} for ${secs(action.duration)}${gone.length?`, replacing ${gone.map(z=>`the ${z.scale}× zoom at ${clock(z.start)}`).join(' and ')}`:''}.`;
   }
+  case 'add_clip':return `“${action.title}” on the Overlays row, ${clock(action.start)} to ${clock(action.start+action.duration)}.`;
   case 'add_motion_block':{
    const template=MOTION_TEMPLATES[action.template],end=action.start+(action.duration??template?.defaultDuration??3);
    return `${template?.label??'Graphic'} “${action.text}”${action.detail?` · ${action.detail}`:''} · ${clock(action.start)} to ${clock(end)}.`;

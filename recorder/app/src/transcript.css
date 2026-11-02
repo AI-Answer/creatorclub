@@ -55,7 +55,7 @@
   padding: 0;
   border-radius: 3px;
   background: none;
-  font-size: 10px;
+  font-size:var(--cc-text-2xs,10px);
   font-weight: 600;
   letter-spacing: .1em;
   text-transform: uppercase;
@@ -66,7 +66,7 @@
 .transcript-editor .transcript-scene-label span { font-weight: 500; letter-spacing: .06em; color: var(--transcript-faint); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .transcript-editor .transcript-paragraph {
   margin: 0 0 14px;
-  font-size: 15.5px;
+  font-size:var(--cc-text-lg,15.5px);
   line-height: 1.72;
   font-weight: 400;
   color: var(--foreground);
@@ -101,7 +101,7 @@
   min-height: 30px;
   padding: 5px 14px;
   border-top: 1px solid var(--line);
-  font-size: 10px;
+  font-size:var(--cc-text-2xs,10px);
   line-height: 1.4;
   color: var(--transcript-muted);
   background: var(--background);
@@ -109,14 +109,14 @@
 .transcript-editor .transcript-selection > span { flex: 1; min-width: 0; font-variant-numeric: tabular-nums; }
 .transcript-editor .transcript-selection.has-range { color: var(--foreground); background: var(--secondary); }
 .transcript-editor .transcript-selection strong { font-weight: 600; }
-.transcript-editor .transcript-selection .button { flex: none; min-height: 24px; padding: 2px 8px; gap: 5px; font-size: 11px; }
+.transcript-editor .transcript-selection .button { flex: none; min-height: 24px; padding: 2px 8px; gap: 5px; font-size:var(--cc-text-2xs,11px); }
 .transcript-editor .transcript-selection .button.danger { color: var(--transcript-danger); }
 .transcript-editor .transcript-selection .button.danger:hover { background: var(--transcript-danger-hover); }
-.transcript-editor .transcript-selection .button:focus-visible { outline: 2px solid #3b82f6; outline-offset: 2px; }
+.transcript-editor .transcript-selection .button:focus-visible { outline: 2px solid var(--cc-accent,#3b82f6); outline-offset: 2px; }
 /* Transcription status and Retry sit in a quiet footer under the prose instead of above it. */
 .transcript-panel > .transcript-editor { order: 1; }
-.transcript-panel > .transcription-status.transcription-status { order: 2; border-bottom: 0; border-top: 1px solid var(--line); padding: 5px 14px; font-size: 10px; color: var(--muted); }
-.transcript-panel > .transcription-status button { font-size: 10px; text-decoration: underline; text-underline-offset: 2px; }
+.transcript-panel > .transcription-status.transcription-status { order: 2; border-bottom: 0; border-top: 1px solid var(--line); padding: 5px 14px; font-size:var(--cc-text-2xs,10px); color: var(--muted); }
+.transcript-panel > .transcription-status button { font-size:var(--cc-text-2xs,10px); text-decoration: underline; text-underline-offset: 2px; }
 /* Wider reading column (Borumi ~340px). Doubled classes outrank original-theme.css, which loads after this file. */
 .edit-workspace.has-transcript.has-transcript { --transcript-width: 344px; grid-template-columns: 72px 300px minmax(0,1fr) var(--transcript-width); }
 .edit-workspace.has-transcript .transcript-panel.transcript-panel { width: var(--transcript-width); }
@@ -126,7 +126,7 @@
   .edit-workspace.has-transcript.has-transcript { --transcript-width: 260px; grid-template-columns: 72px 250px minmax(0,1fr) var(--transcript-width); }
   .edit-workspace.has-transcript.has-transcript .transport { padding-right: calc(var(--transcript-width) + 65px); }
   .transcript-editor .transcript-word-list { padding: 0 16px 35%; }
-  .transcript-editor .transcript-paragraph { font-size: 14.5px; }
+  .transcript-editor .transcript-paragraph { font-size:var(--cc-text-base,14.5px); }
 }
 @media (prefers-reduced-motion: reduce) {
   .transcript-editor .button, .transcript-editor .transcript-word { transition: none; }

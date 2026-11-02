@@ -88,7 +88,7 @@ export const SELF_UPLOAD_LINE='Add the link so Creator Compiler can mark it Publ
  */
 export function SelfUpload({video,onVideo,label='I uploaded it myself',line=SELF_UPLOAD_LINE,open=false}:{video:Video;onVideo(video:Video):void;label?:string;line?:string;open?:boolean}){
  const [shown,setShown]=useState(open);
- if(!shown)return <button type="button" className="linkish quiet" onClick={()=>setShown(true)}>{label}</button>;
+ if(!shown)return <button type="button" className="btn sm" onClick={()=>setShown(true)}>{label}</button>;
  return <div className="self-upload"><p className="small muted" style={{margin:'0 0 8px'}}>{line}</p><PasteLinkForm video={video} published={false} onVideo={onVideo}/></div>;
 }
 

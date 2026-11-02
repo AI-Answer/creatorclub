@@ -35,7 +35,7 @@ test('a scheduled time must be at least a minute ahead',()=>{
 test('what stands in the way of Publish is said once, in the order the person fixes it',()=>{
  const ready={connected:true,channel:true,exported:true,kids:'no' as const,title:'A title'};
  assert.equal(publishProblem(ready),null);
- assert.equal(publishProblem({...ready,connected:false,channel:false,exported:false,kids:null}),'Connect Postiz first.');
+ assert.equal(publishProblem({...ready,connected:false,channel:false,exported:false,kids:null}),'Set up publishing first.');
  assert.equal(publishProblem({...ready,channel:false,exported:false}),'Choose the YouTube channel first.');
  assert.equal(publishProblem({...ready,exported:false}),'Export the video first.');
  assert.match(publishProblem({...ready,exported:false,stale:true})!,/^Export the video again first, because/);

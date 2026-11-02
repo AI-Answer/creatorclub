@@ -147,12 +147,12 @@ export function useCompanion(videoId:string,{onChanged,beforeApply,editor}:{onCh
  useEffect(()=>{load();return()=>{stopFollowing.current?.();stopFollowing.current=null;};},[load]);
 
  /** Asks a question, or with `retryOf` the one that failed again. */
- const send=useCallback(async(text:string,context:CompanionContext,retryOf?:string)=>{
+ const send=useCallback(async(text:string,context:CompanionContext,retryOf?:string,attachments?:readonly string[])=>{
   const message=text.trim();
   if(!message||liveRef.current?.phase==='working')return false;
   setSendError('');
   try{
-   const asked=await clubFetch<CompanionAsked>(base,{body:{message,context,...(retryOf?{retryOf}:{})}});
+   const asked=await clubFetch<CompanionAsked>(base,{body:{message,context,...(retryOf?{retryOf}:{}),...(attachments?.length?{attachments}:{})}});
    setMessages(current=>current?.some(each=>each.id===asked.message.id)?current:[...(current??[]),asked.message]);
    follow(asked.jobId,asked.message.id,context.tab);
    return true;

@@ -399,7 +399,7 @@ export interface ClubSettings {
   /** True once the first-visit "How CreatorClub works" dialog has been closed. */
   welcomed: boolean;
   /** The theme chosen in Settings, or null while none is chosen (light). */
-  appearance: 'light' | 'dark' | null;
+  appearance: 'system' | 'light' | 'dark' | null;
   /** The saved Gemini API key, masked ("••••1234"), or null. The full key never leaves the server. */
   geminiKey: string | null;
   /** Steps already completed once in the current channel (Plan's help lines, the Board tip), which no longer show. */

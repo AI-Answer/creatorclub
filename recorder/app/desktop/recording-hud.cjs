@@ -26,12 +26,14 @@ function createRecordingHud({BrowserWindow,ipcMain,screen,getMainWindow,verifyMa
  let hud=null,state=null,hiddenMain=false,ready=null,ending=false,sessionId=null,synced=false,area=null,bounds=null,layout={camera:false,script:false,...defaultLayout},layoutChosen=false;
  let preferences={};try{if(preferencesPath)preferences=JSON.parse(fs.readFileSync(preferencesPath,'utf8'));}catch{/* Missing or damaged preferences use the compact default. */}
  // Older files saved the panels on every session, chosen or not; with a default layout only a recorded choice replaces it.
+ // Saved before the Borumi-style island (version 2): the old, wider size is forgotten so the island opens at its 250px width.
+ if(preferences.version!==2&&preferences.bounds)preferences={...preferences,bounds:{...preferences.bounds,width:250}};
  if(preferences.layout&&typeof preferences.layout.camera==='boolean'&&typeof preferences.layout.script==='boolean'&&(preferences.layoutChosen===true||!defaultLayout)){layout={camera:preferences.layout.camera,script:preferences.layout.script};layoutChosen=preferences.layoutChosen===true;}
  const documentURL=pathToFileURL(path.join(__dirname,'recording-hud.html')).href;
  const alive=w=>Boolean(w&&!w.isDestroyed());
  function verifyHud(e){if(!alive(hud)||e.sender!==hud.webContents||e.senderFrame!==hud.webContents.mainFrame||e.senderFrame.url!==documentURL)throw new Error('Untrusted recording preview.');}
  function restore(){const main=getMainWindow();if(hiddenMain&&alive(main)){main.show();main.focus();hiddenMain=false;onMainVisibility();}hiddenMain=false;}
- function remember(){if(!alive(hud))return;bounds=hud.getBounds?.()??bounds;preferences={bounds,layout,layoutChosen};if(preferencesPath)try{fs.mkdirSync(path.dirname(preferencesPath),{recursive:true});const temp=preferencesPath+'.tmp';fs.writeFileSync(temp,JSON.stringify(preferences));fs.renameSync(temp,preferencesPath);}catch{/* Preference storage never interrupts a take. */}}
+ function remember(){if(!alive(hud))return;bounds=hud.getBounds?.()??bounds;preferences={version:2,bounds,layout,layoutChosen};if(preferencesPath)try{fs.mkdirSync(path.dirname(preferencesPath),{recursive:true});const temp=preferencesPath+'.tmp';fs.writeFileSync(temp,JSON.stringify(preferences));fs.renameSync(temp,preferencesPath);}catch{/* Preference storage never interrupts a take. */}}
  function end({restoreMain=true,id}={}){if(id&&id!==sessionId)return;ending=true;remember();if(restoreMain)restore();else hiddenMain=false;if(alive(hud))hud.destroy();hud=null;state=null;ready=null;sessionId=null;synced=false;ending=false;}
  // The loaded HUD gets the full state once, then only changed fields (it merges);
  // the script is not re-sent with every clock tick.
@@ -40,11 +42,11 @@ function createRecordingHud({BrowserWindow,ipcMain,screen,getMainWindow,verifyMa
   const next=cleanState(value,true);if(alive(hud))end();sessionId=randomUUID();synced=false;const id=sessionId;
   state={...next,layout:{camera:layout.camera&&next.cameraEnabled,script:layout.script&&Boolean(next.script.trim())}};const main=getMainWindow(),saved=preferences.bounds,valid=saved&&['x','y','width','height'].every(key=>Number.isFinite(saved[key]));
   const display=screen.getDisplayMatching(valid?saved:alive(main)?main.getBounds():screen.getPrimaryDisplay().bounds);area=display.workArea;
-  const width=Math.min(valid?Math.max(340,Math.min(620,saved.width)):384,area.width),expanded=state.layout.camera||state.layout.script;
+  const width=Math.min(valid?Math.max(250,Math.min(620,saved.width)):250,area.width),expanded=state.layout.camera||state.layout.script;
   const requiredHeight=112+(state.layout.camera?Math.round(width*9/16)+12:0)+(state.layout.script?300:0);
   const height=Math.min(expanded?Math.max(requiredHeight,valid?saved.height:112):112,area.height-12);
   bounds={width,height,x:Math.round(Math.max(area.x,Math.min(area.x+area.width-width,valid?saved.x:area.x+area.width-width-20))),y:Math.round(Math.max(area.y,Math.min(area.y+area.height-height,valid?saved.y:area.y+24)))};
-  hud=new BrowserWindow({...bounds,minWidth:340,minHeight:112,maxWidth:620,title:`${appName} recording`,type:'panel',frame:false,transparent:true,backgroundColor:'#00000000',show:false,resizable:true,alwaysOnTop:true,skipTaskbar:true,roundedCorners:true,webPreferences:{preload:path.join(__dirname,'recording-hud-preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true,backgroundThrottling:false}});
+  hud=new BrowserWindow({...bounds,minWidth:250,minHeight:112,maxWidth:620,title:`${appName} recording`,type:'panel',frame:false,transparent:true,backgroundColor:'#00000000',show:false,resizable:true,alwaysOnTop:true,skipTaskbar:true,roundedCorners:true,webPreferences:{preload:path.join(__dirname,'recording-hud-preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true,backgroundThrottling:false}});
   // Defense in depth only. macOS ScreenCaptureKit also explicitly excludes this
   // application's PID in native-recording.swift; this flag alone is insufficient.
   hud.setContentProtection(true);hud.setAlwaysOnTop(true,'floating');

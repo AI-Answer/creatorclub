@@ -17,19 +17,20 @@ const on:PublishingState={postiz:{connected:true,address:null,channel:{id:'int_y
 async function withSettings(reply:(call:FakeCall)=>FakeReply,run:(ui:Awaited<ReturnType<typeof mountUI>>,calls:FakeCall[])=>Promise<void>){
  FakeEventSource.install();
  const server=installFetch(call=>reply(call)??(call.path==='/ai/status'?{body:status}:call.path==='/settings'?{body:{defaultAi:'claude',appearance:null,geminiKey:null}}:call.path==='/workspaces'?{body:{current:null,workspaces:[]}}:undefined));
- const ui=await mountUI(createElement(SettingsScreen,{onSetup(){}}));
+ const ui=await mountUI(createElement(SettingsScreen,{section:'publishing',onSetup(){}}));
  try{await flush();await run(ui,server.calls);}finally{await ui.close();server.restore();}
 }
 
-test('Settings has three groups only, and Publishing and look has Postiz, who can watch new videos and the theme',async()=>{
+test('Settings is Borumi\'s two columns: a nav with one tab per group, and Publishing and look has Postiz, who can watch new videos and the theme',async()=>{
  await withSettings(call=>call.path==='/publishing'?{body:off}:undefined,async ui=>{
   const c=ui.container;
-  assert.deepEqual([...c.querySelectorAll('h2')].map(h=>h.textContent),['Connected AI','Channel','Publishing and look']);
-  assert.equal(c.querySelector('nav'),null,'no second navigation');
+  assert.deepEqual([...c.querySelectorAll('.settings-nav a')].map(a=>a.textContent),['AI','Channel','Skills','Publishing & look']);
+  assert.equal(c.querySelector('.settings-nav [aria-current="page"]')!.textContent,'Publishing & look');
+  assert.deepEqual([...c.querySelectorAll('.settings-body-b h2')].map(h=>h.textContent),['Publishing and look'],'one group at a time');
   const group=c.querySelector('#set-publishing')!;
   assert.ok(group.textContent?.includes('Postiz'));
   assert.ok(group.querySelector('label[for="set-vis"]')?.textContent==='Who can watch new videos');
-  assert.deepEqual([...group.querySelectorAll('[aria-label="Theme"] button')].map(b=>b.textContent),['Light','Dark']);
+  assert.deepEqual([...group.querySelectorAll('[aria-label="Theme"] button')].map(b=>b.textContent),['System default','Light','Dark']);
   assert.ok(!/please|successfully|!/i.test(group.textContent??''));
  });
 });
@@ -106,7 +107,7 @@ test('Settings still opens and says why when the publishing settings cannot be r
  await withSettings(call=>call.path==='/publishing'?{status:500}:undefined,async ui=>{
   const c=ui.container;
   assert.ok(c.textContent?.includes("That did not work."));
-  assert.ok(c.querySelector('#set-ai'),'the rest of Settings is there');
+  assert.ok(c.querySelector('.settings-nav a[href="#/settings/ai"]'),'the other tabs are still there');
  });
 });
 

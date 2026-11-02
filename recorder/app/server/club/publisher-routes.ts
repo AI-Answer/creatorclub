@@ -11,6 +11,7 @@ import { normalizeAddress, postizAppUrl, PostizPublisher, MAX_VIDEO_BYTES, Uncon
 import { PublisherError, type LocalFile, type Publisher } from './publisher.js';
 import { publishVideo, type ViewsReader } from './publish.js';
 import * as store from './store.js';
+import { readProjectIfThere, sceneforge } from './recorder.js';
 
 /** The finished export a video is sent from, found by its id in SceneForge's export history. */
 export interface ExportedFile {
@@ -174,7 +175,22 @@ export function publishingRoutes(router: Router, deps: { handler: (fn: (req: Req
     const file = await thumbnailOf(await requireWorkspace(), param(req, 'id'));
     // No image is not an error: the screen asks on every visit.
     if (!file) return res.status(204).end();
-    res.type(file.type).sendFile(file.path);
+    res.type(file.type).sendFile(file.path, { dotfiles: 'allow' });
+  }));
+  // The picture a list shows for a video: the thumbnail the person picked, else a frame of its recording. Nothing (204) before either exists.
+  router.get('/videos/:id/cover', handler(async (req, res) => {
+    const slug = await requireWorkspace();
+    const id = param(req, 'id');
+    const own = await thumbnailOf(slug, id);
+    if (own) return res.type(own.type).sendFile(own.path, { dotfiles: 'allow' });
+    const project = await readProjectIfThere((await store.readVideo(slug, id)).recorderProjectId);
+    const clip = project?.clips.filter((c) => c.track === 'camera' || c.track === 'screen').sort((a, b) => a.start - b.start)[0];
+    if (!clip) return res.status(204).end();
+    const { readMedia, CACHE_DIR } = await sceneforge();
+    const media = await readMedia(clip.mediaId).catch(() => undefined);
+    if (!media) return res.status(204).end();
+    const { thumbnail } = await import('../media.js');
+    res.type('image/jpeg').sendFile(await thumbnail(media, CACHE_DIR), { dotfiles: 'allow' });
   }));
   router.delete('/videos/:id/thumbnail', handler(async (req, res) => {
     const slug = await requireWorkspace();

@@ -58,7 +58,7 @@ test('on an empty Plan, Write with Claude and Draft scenes ask the chat instead 
   const c=ui.container;
   assert.ok(hasText(c,'decide whether people click'),'the empty package is one sentence');
   assert.deepEqual(primaries(c),['Draft scenes from the board'],'one primary: the thing to do first');
-  await act(async()=>button(c,'Write the package with Claude').click());await flush();
+  await act(async()=>button(c,'Write all three with Claude').click());await flush();
   assert.deepEqual(asked,['Write three title options, the thumbnail text and the hook for this video.'],'the chat is asked, in plain words');
   await act(async()=>button(c,'Draft scenes from the board').click());await flush();
   assert.equal(asked.at(-1),'Draft the scenes for this video from the board.');
@@ -156,7 +156,7 @@ test('a changed outline is flagged',async()=>{
   await flush();
   const c=ui.container;
   assert.ok(hasText(c,'Your outline changed after you recorded scene 3.'));
-  assert.deepEqual([...c.querySelectorAll('.tabs a.on')].map(a=>a.textContent),['Plan'],'Plan is the open tab');
+  assert.deepEqual([...c.querySelectorAll('.ws-steps a.on')].map(a=>a.textContent),['Plan'],'Plan is the open tab');
  }finally{await ui.close();server.restore();}
 });
 
@@ -174,7 +174,7 @@ test('steps that cannot work yet are locked, not dead pages: the step bar says w
  try{
   await flush();await flush();
   const c=ui.container;
-  const step=(name:string)=>[...c.querySelectorAll<HTMLAnchorElement>('.tabs a')].find(a=>a.textContent===name)!;
+  const step=(name:string)=>[...c.querySelectorAll<HTMLAnchorElement>('.ws-step')].find(a=>a.textContent===name)!;
   for(const name of ['Record','Edit','Publish']){
    assert.equal(step(name).getAttribute('aria-disabled'),'true',`${name} is locked`);
    assert.equal(step(name).getAttribute('aria-description'),'Plan the scenes first');
@@ -414,10 +414,10 @@ test('Publish tags are saved on the package: they are still there after switchin
   assert.deepEqual(saved.tags,['claude code','ai'],'saved at once, not only when the page is left');
   assert.deepEqual(server.calls.filter(call=>call.method==='PUT'&&call.path==='/videos/v1/package').at(-1)?.body,{tags:['claude code','ai']},'only the tags are sent');
   // Switch step and come back.
-  await act(async()=>[...c.querySelectorAll<HTMLElement>('.tabs a, .tabs button')].find(tab=>tab.textContent?.trim().endsWith('Plan'))!.click());await flush();
+  await act(async()=>[...c.querySelectorAll<HTMLElement>('.ws-step')].find(tab=>tab.textContent?.trim().endsWith('Plan'))!.click());await flush();
   assert.equal(tabs.at(-1),'plan');
   assert.equal(c.querySelector('#pub-tags'),null,'Plan is open');
-  await act(async()=>[...c.querySelectorAll<HTMLElement>('.tabs a, .tabs button')].find(tab=>tab.textContent?.trim().endsWith('Publish'))!.click());await flush();
+  await act(async()=>[...c.querySelectorAll<HTMLElement>('.ws-step')].find(tab=>tab.textContent?.trim().endsWith('Publish'))!.click());await flush();
   assert.deepEqual(tags(c),['claude code','ai'],'after switching step');
   // Remove one: that is saved too.
   await act(async()=>(c.querySelector('button[aria-label="Remove ai"]') as HTMLElement).click());await flush();

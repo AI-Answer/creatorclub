@@ -13,6 +13,7 @@ import {zoomScaleAt} from '../shared/zoom-timing';
 import {usePlayheadTime,type Playhead} from './playhead';
 import {clipFilterCss,cursorPointLookup,stageIndex,stageSlots} from './stage-view';
 import {MotionLayer} from './MotionLayer';
+import {StageHandles,type Box} from './StageHandles';
 
 /** `visible` is false for a pre-rolled upcoming clip: it stays mounted, paused, silent and transparent, with no vision or face-tracking work. */
 function ClipView({clip,media,time,visible,playing,quality,onSelect,project:p,pixelScale,playbackRate}:{clip:Clip;media:Media;time:number;visible:boolean;playing:boolean;quality:boolean;onSelect:()=>void;project:Project;pixelScale:number;playbackRate:number}){
@@ -43,7 +44,7 @@ function ClipView({clip,media,time,visible,playing,quality,onSelect,project:p,pi
  return <div className="stage-media" style={style} aria-hidden={visible?undefined:true} onClick={e=>{e.stopPropagation();onSelect();}}>{blurBackground&&(media.kind==='image'?<img className="vision-background" src={mediaUrl(media)} style={{...mediaStyle,filter:`blur(${18*pixelScale}px)`}} alt=""/>:<video className="vision-background" ref={backdrop} src={mediaUrl(media,quality)} muted playsInline preload="metadata" style={{...mediaStyle,filter:`blur(${18*pixelScale}px)`}}/>)}{media.kind==='image'?<img src={mediaUrl(media)} style={{...mediaStyle,...mask}} alt={media.name}/>:<video ref={ref} src={mediaUrl(media,quality)} playsInline preload={visible?'metadata':'auto'} style={{...mediaStyle,...mask}}/>}{audioError&&<span role="status" className="vision-preview-status">Audio preview unavailable</span>}{!playing&&(tracking.error||tracking.slow)?<span role="status" className="vision-preview-status" title={tracking.error}>{tracking.error?'Face centering unavailable':'Centering face…'}</span>:null}{visionEnabled&&(playing||vision.loading||vision.error)&&<span className="vision-preview-status">{playing?'Background effects preview while paused':vision.loading?'Preparing subject preview…':vision.error}</span>}</div>;
 }
 
-export const Stage=memo(function Stage({project:p,playhead,playing,playbackRate=1,onSelect,onImport}:{project:Project;playhead:Playhead;playing:boolean;playbackRate?:number;onSelect:(id:string)=>void;onImport:()=>void}){
+export const Stage=memo(function Stage({project:p,playhead,playing,playbackRate=1,onSelect,onImport,selected,onTransform,onZoom}:{project:Project;playhead:Playhead;playing:boolean;playbackRate?:number;onSelect:(id:string)=>void;onImport:()=>void;/** The selected clip: a camera or screen clip on the picture gets handles to move and resize it. */selected?:string|null;onTransform?:(id:string,box:Box,phase:'move'|'end')=>void;onZoom?:(id:string,where:{x:number;y:number;scale:number})=>void}){
  const time=usePlayheadTime(playhead);
  const ref=useRef<HTMLDivElement>(null),wrapper=useRef<HTMLDivElement>(null),[width,setWidth]=useState(640),[dimensions,setDimensions]=useState({width:640,height:360}),[wakes,wake]=useState(0),still=useRef({time,at:-Infinity}),mounted=useRef<ReadonlyMap<string,string>>(new Map());
  useEffect(()=>{if(!ref.current)return;const observer=new ResizeObserver(([entry])=>setWidth(entry.contentRect.width));observer.observe(ref.current);return()=>observer.disconnect();},[]);
@@ -75,6 +76,20 @@ export const Stage=memo(function Stage({project:p,playhead,playing,playbackRate=
   <MotionLayer blocks={p.motion} time={time}/>
   {p.elements.filter(e=>time>=e.start&&time<e.start+e.duration).map(e=><div key={e.id} className={`stage-element element-${e.type}`} onClick={event=>{event.stopPropagation();onSelect(e.id);}} style={{left:`${e.x*100}%`,top:`${e.y*100}%`,width:`${e.width*100}%`,height:`${e.height*100}%`,fontSize:e.fontSize*scale,color:e.color,background:e.type==='arrow'?'transparent':e.background,opacity:e.opacity,transform:`rotate(${e.rotation}deg)`,border:e.type==='rectangle'||e.type==='ellipse'?`${Math.max(1,3*scale)}px solid ${e.color}`:undefined,backdropFilter:e.type==='blur'?'blur(12px)':undefined}}>{e.type==='text'?e.text:e.type==='arrow'?<svg viewBox="0 0 100 40" preserveAspectRatio="none"><path d="M2 20H90 M72 4L94 20L72 36" fill="none" stroke={e.color} strokeWidth="4"/></svg>:null}</div>)}
   {caption&&<div className={`stage-caption caption-${p.captionStyle.position}`} style={{fontSize:p.captionStyle.fontSize*scale,color:p.captionStyle.color}}><span style={{background:p.captionStyle.background}}>{caption.text}</span></div>}
+  {(()=>{
+   if(playing||!selected)return null;
+   const at=(c:Project['clips'][number])=>time>=c.start&&time<c.start+(c.sourceOut-c.sourceIn)/c.speed;
+   const c=onTransform?p.clips.find(x=>x.id===selected&&(x.track==='camera'||x.track==='screen'||x.track==='overlay')):undefined;
+   if(c&&at(c))return <StageHandles box={c.transform} onChange={(box,phase)=>onTransform!(c.id,box,phase)}/>;
+   // A selected zoom: a box over the clip it zooms shows where it looks; drag it to aim, a corner to zoom closer or wider.
+   const z=onZoom?p.zooms.find(x=>x.id===selected):undefined,under=z&&p.clips.find(x=>x.track===z.target&&at(x));
+   if(!z||!under)return null;
+   const t=under.transform,size=1/Math.max(1,z.scale);
+   return <div className="stage-zoom-area" style={{left:`${t.x*100}%`,top:`${t.y*100}%`,width:`${t.width*100}%`,height:`${t.height*100}%`}}>
+    <StageHandles className="is-zoom" title="Drag to aim the zoom · drag a corner to zoom closer or wider" box={{x:z.x-size/2,y:z.y-size/2,width:size,height:size}}
+     onChange={box=>onZoom!(z.id,{x:Math.min(1,Math.max(0,box.x+box.width/2)),y:Math.min(1,Math.max(0,box.y+box.height/2)),scale:Math.min(4,Math.max(1.05,1/box.width))})}/>
+   </div>;
+  })()}
   {p.cursor.enabled&&point&&point.visible!==false&&<div className={`stage-cursor ${p.cursor.highlight?'has-highlight':''}`} style={{left:`${point.x*100}%`,top:`${point.y*100}%`,width:p.cursor.size*scale,color:p.cursor.color}}><svg viewBox="0 0 24 32"><path d="M2 1v27l7-7 6 10 5-3-6-10 10-1z" fill="currentColor" stroke="#171b27"/></svg></div>}
   {!p.clips.length&&<button className="stage-empty" style={pattern?{background:'transparent',color:'#f4f4f4'}:undefined} onClick={onImport}><div className="stage-empty-icon"><Film size={32}/></div><strong style={pattern?{color:'#f4f4f4'}:undefined}>Your story starts here</strong><span style={pattern?{color:'#b8b8b8'}:undefined}>Import a video, record a take, or add an element.</span><span className="button primary"><Plus size={14}/>Import media</span></button>}
  </div><div className="stage-caption-label"><span>{p.canvas.width} × {p.canvas.height}</span><span>{p.settings.previewQuality==='proxy'?'Adaptive preview':'Original quality'}</span></div></div>;

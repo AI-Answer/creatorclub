@@ -27,9 +27,11 @@ interface Row {id:string;name:string;icon:typeof Camera;height:number;top:number
 interface Preview {start:number;duration:number;sourceIn?:number;dy?:number}
 interface Drag {items:Map<string,Preview>;ghosts:Array<{row:string;start:number;duration:number}>;guide:number|null;insert:number|null;label:string;markers?:Map<string,number>}
 /** Snapping reaches 8 px on screen, whatever the zoom, so a short neighbour does not pull an edit away from where it was dropped. */
-const RULER=30,SNAP_PX=8,STALE_DROP='The timeline changed during the drag, so nothing moved. Try again.',NOT_MOVED='Clips stay joined end to end. Drag a clip onto another one to change the order.';
+const RULER=30,SCENE_BAND=14,NOTES_LANE=22,SNAP_PX=8,STALE_DROP='The timeline changed during the drag, so nothing moved. Try again.',NOT_MOVED='Clips stay joined end to end. Drag a clip onto another one to change the order.';
 const icons:Record<TrackKind,typeof Camera>={screen:Monitor,camera:Camera,audio:Mic,music:Music,overlay:Layers};
-const heights:Record<TrackKind,number>={screen:50,camera:38,audio:40,music:32,overlay:38};
+/** As in Borumi: media rows are tall blocks (52px), effect rows (graphics, text, captions, zooms) a slimmer 28px. */
+const ROW_H=28,MEDIA_H=52;
+const heights:Record<TrackKind,number>={screen:MEDIA_H,camera:MEDIA_H,audio:MEDIA_H,music:MEDIA_H,overlay:MEDIA_H};
 const effectRows:Array<{id:Effect;name:string;icon:typeof Camera}>=[{id:'motion',name:'Graphics',icon:Clapperboard},{id:'elements',name:'Text',icon:Type},{id:'captions',name:'Captions',icon:AudioLines},{id:'zooms',name:'Zoom',icon:ZoomIn}];
 
 /** The items on the effect rows (graphics, text, captions, zooms) with the words the timeline shows on them. */
@@ -47,17 +49,21 @@ function fxGhosts(now:Project,after:Project):FxGhost[]{
 }
 
 /** Rows that have something on them (custom layers always), in display order; an empty timeline shows Screen and Audio as drop targets. */
+/** Scene labels sit under the times whenever the video has footage, as in Borumi ("• SCENE 1"), including a scene still waiting for its take. */
+const sceneBand=(p:Project)=>p.scenes.length>0&&p.clips.length>0;
+/** The ruler's height: the times, the scene names when there are several, and a lane on top for note pins once the video has notes. */
+export const rulerHeight=(p:Project)=>RULER-(sceneBand(p)?0:SCENE_BAND)+(p.markers?.length?NOTES_LANE:0);
 export function usedRows(p:Project):Row[]{
  const counts=new Map<string,number>();for(const c of p.clips){const id=clipLayerRowId(c,p);counts.set(id,(counts.get(id)??0)+1);}
  const custom=new Set(p.timelineLayers?.map(l=>l.id)),groups=linkGroups(p.clips),sizes=new Map<string,number>();for(const key of groups.values())sizes.set(key,(sizes.get(key)??0)+1);
  const layers=timelineRows(p).filter(l=>counts.has(l.id)||custom.has(l.id)||!p.clips.length&&(l.id==='role:screen'||l.id==='role:audio'));
- const rows:Row[]=[];let top=RULER;
+ const rows:Row[]=[];let top=rulerHeight(p);
  const linkedRow=(id:string)=>p.clips.some(c=>clipLayerRowId(c,p)===id&&sizes.get(groups.get(c.id)!)!>1);
- for(const l of layers){const height=l.track?heights[l.track]:l.kind==='video'?44:34;rows.push({id:l.id,name:l.track==='screen'?'Screen':l.name,icon:l.track?icons[l.track]:l.kind==='video'?Layers:Music,height,top,layer:l,linked:linkedRow(l.id)});top+=height;}
- for(const e of effectRows){if(!(p[e.id]??[]).length)continue;rows.push({id:e.id,name:e.name,icon:e.icon,height:26,top,effect:e.id});top+=26;}
+ for(const l of layers){const height=l.track?heights[l.track]:ROW_H;rows.push({id:l.id,name:l.track==='screen'?'Screen':l.name,icon:l.track?icons[l.track]:l.kind==='video'?Layers:Music,height,top,layer:l,linked:linkedRow(l.id)});top+=height;}
+ for(const e of effectRows){if(!(p[e.id]??[]).length)continue;rows.push({id:e.id,name:e.name,icon:e.icon,height:ROW_H,top,effect:e.id});top+=ROW_H;}
  return rows;
 }
-export const rowsHeight=(rows:readonly Row[])=>RULER+rows.reduce((n,r)=>n+r.height,0)+10;
+export const rowsHeight=(rows:readonly Row[])=>(rows[0]?.top??RULER)+rows.reduce((n,r)=>n+r.height,0)+10;
 
 function Playhead_({playhead,scale,follow,onPage}:{playhead:Playhead;scale:number;follow:boolean;onPage:(el:HTMLElement)=>void}){
  const line=useRef<HTMLDivElement>(null),lastSeen=useRef({time:NaN}); // Kept across rescales: a zoom keeps the playhead in place instead of paging.
@@ -78,6 +84,7 @@ const ClubClip=memo(function ClubClip({clip:c,media,row,preview,selected,linked,
  const shift=(geometry.start-start)*scale;
  return <div data-clip-id={c.id} className={`timeline-clip club-clip clip-${c.track} ${selected?'selected':''} ${c.muted?'muted':''} ${preview?'clip-drag-preview':''} ${linked?'is-linked':'is-unlinked'}`} style={{left:start*scale,width,top:3,height:h,transform:preview?.dy?`translateY(${preview.dy}px)`:undefined}}
   onPointerDown={e=>onBegin(e,c.id,'move')} onDoubleClick={()=>onOpen(c.id)} title={`${c.name} · ${fmtLen(duration)}${linked?' · linked':''}. Click to move the playhead, drag the name to move, edges to trim, double-click for settings.`}>
+  {video&&<i className="club-clip-thumb" aria-hidden style={{backgroundImage:`url(/api/media/${media.id}/thumbnail)`}}/>}
   {video&&<div className="club-filmstrip" aria-hidden>{tiles.map(t=><i key={t.left} style={{left:t.left+shift,width:tileW,height:h,backgroundImage:`url(/api/media/${media.id}/filmstrip)`,backgroundSize:`${count*tileW}px ${h}px`,backgroundPosition:`${-t.index*tileW}px 0`}}/>)}</div>}
   {media?.kind==='image'&&<div className="club-filmstrip is-image" aria-hidden style={{backgroundImage:`url(/api/media/${media.id}/thumbnail)`,backgroundSize:`auto ${h}px`}}/>}
   {wave&&<svg className="club-wave" viewBox={`0 0 ${width} ${h}`} preserveAspectRatio="none" aria-hidden><path d={wave}/></svg>}
@@ -86,11 +93,11 @@ const ClubClip=memo(function ClubClip({clip:c,media,row,preview,selected,linked,
  </div>;
 });
 
-export const TimelineClub=memo(function TimelineClub({project:p,playhead,scale,onScale,selectedIds,onSelectMany,onSeek,change,onDropMedia,tool,onSplit,follow,showWaveforms,previewAfter,onOpenMarker,previewRanges,cutMarks,onOpen,onContextMenu,onNotice,controls,autoFit=true}:{project:Project;playhead:Playhead;scale:number;onScale:(scale:number)=>void;selectedIds:ReadonlySet<string>;onSelectMany:(ids:string[])=>void;onSeek:(time:number)=>void;change:Change;onDropMedia:(id:string,track:TrackKind,time:number,layerId?:string)=>void;tool:'select'|'blade';onSplit:(id:string,time:number)=>void;follow:boolean;showWaveforms:boolean;previewRanges?:ReadonlyArray<readonly [number,number]>|null;/** The video as a previewed change would leave it: what it adds or moves on the effect rows is drawn as a dashed block. */previewAfter?:Project|null;/** A marker was clicked: its note opens beside it. */onOpenMarker?:(id:string,box:DOMRect)=>void;/** Where words were just cut from the transcript: a short-lived mark on the timeline. */cutMarks?:readonly number[];onOpen:(id:string)=>void;onContextMenu?:(x:number,y:number)=>void;/** One sentence when a drop could not be applied. */onNotice?:(message:string)=>void;controls?:React.MutableRefObject<TimelineControls|null>;/** False when Edit brings back this video's zoom from an earlier visit: the timeline keeps it and scrolls to the playhead instead of fitting. */autoFit?:boolean}){
+export const TimelineClub=memo(function TimelineClub({project:p,playhead,scale,onScale,selectedIds,onSelectMany,onSeek,change,onDropMedia,tool,onSplit,follow,showWaveforms,previewAfter,onOpenMarker,previewRanges,cutMarks,onOpen,onContextMenu,onNotice,controls,autoFit=true}:{project:Project;playhead:Playhead;scale:number;onScale:(scale:number)=>void;selectedIds:ReadonlySet<string>;onSelectMany:(ids:string[])=>void;onSeek:(time:number)=>void;change:Change;onDropMedia:(id:string,track:TrackKind,time:number,layerId?:string)=>void;tool:'select'|'blade';onSplit:(id:string,time:number)=>void;follow:boolean;showWaveforms:boolean;previewRanges?:ReadonlyArray<readonly [number,number]>|null;/** The video as a previewed change would leave it: what it adds or moves on the effect rows is drawn as a dashed block. */previewAfter?:Project|null;/** A marker was clicked: its note opens beside it. */onOpenMarker?:(id:string,box:DOMRect)=>void;/** Where words were just cut from the transcript: a short-lived mark on the timeline. */cutMarks?:readonly number[];onOpen:(id:string)=>void;onContextMenu?:(x:number,y:number)=>void;/** One sentence when a drop could not be applied. */onNotice?:(message:string)=>void;controls?:React.MutableRefObject<TimelineControls|null>;/** False when Edit brings back this video's zoom from an earlier visit: the timeline keeps it and scrolls to the playhead instead of fitting (unless that zoom would leave empty room after the video). */autoFit?:boolean}){
  const ref=useRef<HTMLDivElement>(null),heads=useRef<HTMLDivElement>(null),[win,setWin]=useState(()=>timelineWindow(0,1000)),winRef=useRef(win),[drag,setDrag]=useState<Drag|null>(null),[marquee,setMarquee]=useState<SelectionRect|null>(null);
  const view=useCallback((left:number,width:number)=>{const next=timelineWindow(left,width);if(!sameTimelineWindow(next,winRef.current)){winRef.current=next;setWin(next);}},[]);
  const page=useCallback((el:HTMLElement)=>{queueMicrotask(()=>flushSync(()=>view(el.scrollLeft,el.clientWidth)));},[view]);
- const duration=useMemo(()=>projectDuration(p),[p]),extent=Math.max(duration+3,(ref.current?.clientWidth??1000)/scale),width=extent*scale;
+ const duration=useMemo(()=>projectDuration(p),[p]),extent=Math.max(duration+1,(ref.current?.clientWidth??1000)/scale),width=extent*scale;
  const ghosts=useMemo(()=>previewAfter?fxGhosts(p,previewAfter):[],[p,previewAfter]);
  // A previewed graphic on a row that does not exist yet (the first one) gets its row while it is previewed.
  const rowsNow=useMemo(()=>usedRows(p),[p]),rows=useMemo(()=>ghosts.some(g=>g.kind!=='removed'&&!rowsNow.some(r=>r.id===g.row))?usedRows(previewAfter!):rowsNow,[ghosts,rowsNow,previewAfter]),rowById=useMemo(()=>new Map(rows.map(r=>[r.id,r])),[rows]),contentHeight=rowsHeight(rows);
@@ -105,6 +112,7 @@ export const TimelineClub=memo(function TimelineClub({project:p,playhead,scale,o
   return <i className="club-hover-frame" style={{width:w,height:h,backgroundImage:`url(/api/media/${m.id}/filmstrip)`,backgroundSize:`${count*w}px ${h}px`,backgroundPosition:`${-index*w}px 0`}}/>;
  };
  const effects=useMemo(()=>effectsOf(p),[p.motion,p.elements,p.captions,p.zooms]);
+ const ruler=rulerHeight(p);
  // A gesture lives in refs and closes over ids, not over project arrays: only the person ends it, and the drop applies to the project as it is then.
  const gesture=useRef<(()=>void)|null>(null),latest=useRef(p);latest.current=p;
  useEffect(()=>()=>gesture.current?.(),[]);
@@ -121,7 +129,7 @@ export const TimelineClub=memo(function TimelineClub({project:p,playhead,scale,o
  useLayoutEffect(()=>{const el=ref.current;if(!el)return;const pointer=atPointer.current;atPointer.current=null;if(toStart.current){toStart.current=false;el.scrollLeft=0;}else if(shownScale.current!==scale)el.scrollLeft=pointer?pointerScroll({...pointer,to:scale}):anchoredScroll({anchor:playhead.get(),from:shownScale.current,to:scale,scrollLeft:el.scrollLeft,viewport:el.clientWidth});shownScale.current=scale;view(el.scrollLeft,el.clientWidth);},[scale]);
  const fit=useCallback(()=>{const el=ref.current;if(!el)return;toStart.current=true;onScale(fitScale(projectDuration(latest.current),el.clientWidth));},[onScale]);
  useLayoutEffect(()=>{if(controls)controls.current={fit,width:()=>ref.current?.clientWidth??0};});
- const fitted=useRef('');useEffect(()=>{const el=ref.current;if(fitted.current===p.id||!el?.clientWidth)return;fitted.current=p.id;if(autoFit){fit();return;}el.scrollLeft=Math.max(0,playhead.get()*scaleRef.current-el.clientWidth*.25);view(el.scrollLeft,el.clientWidth);});
+ const fitted=useRef('');useEffect(()=>{const el=ref.current;if(fitted.current===p.id||!el?.clientWidth)return;fitted.current=p.id;if(autoFit||projectDuration(p)*scaleRef.current<el.clientWidth*.8){fit();return;}el.scrollLeft=Math.max(0,playhead.get()*scaleRef.current-el.clientWidth*.25);view(el.scrollLeft,el.clientWidth);});
  useEffect(()=>{const el=ref.current;if(!el)return;const ro=new ResizeObserver(()=>view(el.scrollLeft,el.clientWidth));ro.observe(el);return()=>ro.disconnect();},[view]);
  const scaleRef=useRef(scale);scaleRef.current=scale;
  useEffect(()=>{const el=ref.current;if(!el)return;let pending=0,frame=0;const apply=()=>{frame=0;const next=clampScale(scaleRef.current*Math.exp(-pending*.005));pending=0;if(next!==scaleRef.current)onScale(next);};
@@ -138,8 +146,12 @@ export const TimelineClub=memo(function TimelineClub({project:p,playhead,scale,o
   // Only the topmost clip of a link group carries the label, so a take is named once.
   const top=new Map<string,number>();for(const c of p.clips){const row=rowById.get(clipLayerRowId(c,p)),key=groups.get(c.id)!;if(row)top.set(key,Math.min(top.get(key)??Infinity,row.top));}
   for(const c of p.clips){const row=rowById.get(clipLayerRowId(c,p));if(!row)continue;const take=c.recordingTakeId?p.recordedTakes?.find(t=>t.id===c.recordingTakeId):undefined,i=take?p.scenes.findIndex(s=>s.id===take.sceneId):scene(c.start);
-   out.set(c.id,top.get(groups.get(c.id)!)===row.top?(i>=0&&take?`${i+1} · ${p.scenes[i].name}${take.name?` · ${take.name}`:''}`:c.name):'');}
-  return out;},[p.clips,p.scenes,p.recordedTakes,rowById,groups]);
+   // A take cut into pieces, or a clip named after the video: each piece is named by its first words, so the pieces can be told apart.
+   const end=c.start+(c.sourceOut-c.sourceIn)/c.speed,said=p.captions.find(x=>x.end>c.start+.05&&x.start<end&&!isSoundTag(x.text))?.text.trim();
+   const pieces=take?p.clips.filter(x=>x.track===c.track&&x.recordingTakeId===c.recordingTakeId).length:0;
+   const words=said?`“${said.length>42?said.slice(0,40).trimEnd()+'…':said}”`:'';
+   out.set(c.id,top.get(groups.get(c.id)!)===row.top?(i>=0&&take?(pieces>1&&words?`${i+1} · ${words}`:`${i+1} · ${p.scenes[i].name}${take.name?` · ${take.name}`:''}`):(words&&c.name.startsWith(p.name)?words:c.name)):'');}
+  return out;},[p.clips,p.scenes,p.recordedTakes,p.captions,p.name,rowById,groups]);
 
  const targets=(moving:ReadonlySet<string>):SnapTarget[]=>snapTargets(rowItems(latest.current).map(i=>({id:i.id,start:i.start,duration:i.duration})),moving,playhead.get(),latest.current.scenes.flatMap(s=>[s.start,s.start+s.duration]),(latest.current.markers??[]).filter(m=>!moving.has(m.id)).map(m=>m.time));
  const contentX=(clientX:number)=>{const el=ref.current!;return clientX-el.getBoundingClientRect().left+el.scrollLeft;};
@@ -235,14 +247,16 @@ export const TimelineClub=memo(function TimelineClub({project:p,playhead,scale,o
  const placeHeads=()=>{const el=ref.current;if(heads.current&&el)heads.current.style.transform=`translateY(${-el.scrollTop}px)`;};
  return <div className={`timeline club-timeline tool-${tool} ${drag?'timeline-dragging':''}`} onContextMenu={e=>{if(!onContextMenu)return;e.preventDefault();const hit=(e.target as HTMLElement).closest<HTMLElement>('[data-clip-id],[data-effect-id]'),id=hit?.dataset.clipId??hit?.dataset.effectId;
   if(id&&!selectedIds.has(id))onSelectMany(hit?.dataset.clipId?[...linkedIds(latest.current.clips,[id])]:[id]);onContextMenu(e.clientX,e.clientY);}}>
-  <div className="club-tl-heads" aria-hidden><div ref={heads}><div className="club-tl-head is-ruler" style={{height:RULER}}/>{rows.map(r=><div key={r.id} className={`club-tl-head ${r.linked?'is-linked':''}`} data-kind={r.layer?.track??(r.layer?.kind==='video'?'camera':r.layer?'music':r.effect)} style={{height:r.height}} title={r.name}><r.icon size={13}/><span>{r.name}</span></div>)}</div></div>
+  <div className="club-tl-heads" aria-hidden><div ref={heads}><div className="club-tl-head is-ruler" style={{height:ruler}}/>{rows.map(r=><div key={r.id} className={`club-tl-head ${r.linked?'is-linked':''}`} data-kind={r.layer?.track??(r.layer?.kind==='video'?'camera':r.layer?'music':r.effect)} style={{height:r.height}} title={r.name}><r.icon size={13}/><span>{r.name}</span></div>)}</div></div>
   <div className="timeline-scroll" ref={ref} tabIndex={-1} onScroll={e=>{const el=e.currentTarget;placeHeads();view(el.scrollLeft,el.clientWidth);}}>
    <div className="timeline-content" style={{width,height:contentHeight}}>
-    <div className="club-ruler" style={{height:RULER}} onPointerDown={beginRuler} onPointerMove={e=>{if(e.buttons)return;const box=e.currentTarget.getBoundingClientRect();setHover(Math.max(0,(e.clientX-box.left)/scale));}} onPointerLeave={()=>setHover(null)} title="Click or drag to move the playhead">
-     {hover!==null&&<span className="club-hover" style={{left:hover*scale}} aria-hidden><b>{rulerLabel(hover,tenths)}</b>{hoverFrame(hover)}</span>}
+    <div className={`club-ruler${p.markers?.length?' has-notes':''}`} style={{height:ruler}} onPointerDown={beginRuler} onPointerMove={e=>{if(e.buttons)return;const box=e.currentTarget.getBoundingClientRect();setHover(Math.max(0,(e.clientX-box.left)/scale));}} onPointerLeave={()=>setHover(null)} title="Click or drag to move the playhead">
+     {hover!==null&&<span className={`club-hover${hover*scale>width-160?' flip':''}`} style={{left:hover*scale}} aria-hidden><b>{rulerLabel(hover,tenths)}</b>{hoverFrame(hover)}</span>}
      {ticks.map(t=><span key={t.time} className={t.major?'tick major':'tick'} style={{left:t.time*scale}}>{t.label&&<b>{t.label}</b>}</span>)}
-     {p.scenes.map((s,i)=>s.duration>0&&visible(s.start,Math.max(1,s.duration))&&<div key={s.id} className={`club-scene-tag${i%2?' alt':''}`} style={{left:s.start*scale,width:Math.max(24,s.duration*scale-2)}} title={`Scene ${i+1}: ${s.name}`} onPointerDown={e=>{e.stopPropagation();onSeek(s.start);}}>{i+1} {s.name}</div>)}
-     {(p.markers??[]).map(m=>{const time=drag?.markers?.get(m.id)??m.time;return visible(time,0)&&<div key={m.id} data-marker-id={m.id} className={`club-marker${m.tag?` tag-${m.tag}`:''}${m.name?.trim()?' has-note':''}`} style={{left:time*scale}} title={`${m.name?.trim()?m.name.trim()+' · ':''}Note at ${secondsLabel(time)} · click to write, drag to move`} onPointerDown={e=>beginMarker(e,m.id)}/>;})}
+     {sceneBand(p)&&p.scenes.map((s,i)=>s.duration>0&&visible(s.start,Math.max(1,s.duration))&&<div key={s.id} className={`club-scene-tag${i%2?' alt':''}`} style={{left:s.start*scale,width:Math.max(24,s.duration*scale-2)}} title={`Scene ${i+1}: ${s.name}`} onPointerDown={e=>{e.stopPropagation();onSeek(s.start);}}>Scene {i+1}</div>)}
+     {/* A scene still waiting for its take: its label after the footage, over the hatched area. */}
+     {sceneBand(p)&&(()=>{const i=p.scenes.findIndex(s=>s.duration<=0);return i>=0&&<div key="waiting" className="club-scene-tag is-waiting" style={{left:duration*scale+4}} title={`Scene ${i+1}: ${p.scenes[i].name} has no take yet`}>Scene {i+1}</div>;})()}
+     {(p.markers??[]).map(m=>{const time=drag?.markers?.get(m.id)??m.time;return visible(time,0)&&<div key={m.id} data-marker-id={m.id} className={`club-marker${m.tag?` tag-${m.tag}`:''}${m.name?.trim()?' has-note':''}`} style={{left:Math.max(10,time*scale)}} title={`${m.name?.trim()?m.name.trim()+' · ':''}Note at ${secondsLabel(time)} · click to open, drag to move`} onPointerDown={e=>beginMarker(e,m.id)}><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12Z"/></svg></div>;})}
     </div>
     {rows.map(r=><div key={r.id} className={`timeline-row club-row row-${r.layer?.track??r.effect??'layer'}`} data-track={r.id} style={{top:r.top,height:r.height}} onPointerDown={e=>{if(e.target===e.currentTarget)beginEmpty(e);}}
      onDragOver={e=>{if(r.layer)e.preventDefault();}} onDrop={e=>{e.preventDefault();const id=e.dataTransfer.getData('application/sceneforge-media'),media=mediaById.get(id);if(media&&r.layer&&(media.kind==='audio'?'audio':'video')===r.layer.kind)onDropMedia(id,r.layer.track??(r.layer.kind==='audio'?'audio':'screen'),snapTime(Math.max(0,contentX(e.clientX)/scale)).time,r.id);}}>
@@ -252,13 +266,15 @@ export const TimelineClub=memo(function TimelineClub({project:p,playhead,scale,o
      {r.effect&&(effects.get(r.id)??[]).map(i=>{const pv=drag?.items.get(i.id),s=pv?.start??i.start,d=pv?.duration??i.duration;if(!pv&&!visible(i.start,i.duration))return null;
       const name=i.name;
       return <div key={i.id} data-effect-id={i.id} className={`timeline-effect club-effect ${selectedIds.has(i.id)?'selected':''} ${pv?'clip-drag-preview':''}`} style={{left:s*scale,width:Math.max(6,d*scale)}} title={`${name} · drag to move, edges to resize, double-click to edit`} onPointerDown={e=>beginItem(e,i.id,'move')} onDoubleClick={()=>onOpen(i.id)}>
-       <span>{name}</span>{d*scale>=14&&<><i className="trim-handle left" onPointerDown={e=>beginItem(e,i.id,'left')}/><i className="trim-handle right" onPointerDown={e=>beginItem(e,i.id,'right')}/></>}</div>;})}
+       {/* Too narrow for a readable word: a plain block, with the words on hover. */}
+       {d*scale>=64&&<span>{name}</span>}{d*scale>=14&&<><i className="trim-handle left" onPointerDown={e=>beginItem(e,i.id,'left')}/><i className="trim-handle right" onPointerDown={e=>beginItem(e,i.id,'right')}/></>}</div>;})}
      {ghosts.filter(g=>g.row===r.id).map(g=><div key={`${g.kind}:${g.id}`} className={`club-fx-ghost ${g.kind}`} style={{left:g.start*scale,width:Math.max(8,g.duration*scale)}} aria-hidden><span>{g.name}</span></div>)}
      {drag?.ghosts.filter(g=>g.row===r.id).map((g,i)=><div key={i} className="club-ghost" style={{left:g.start*scale,width:Math.max(4,g.duration*scale)}}/>)}
     </div>)}
-    {(p.markers??[]).filter(m=>m.tag||m.name?.trim()).map(m=>{const time=drag?.markers?.get(m.id)??m.time;return visible(time,0)&&<div key={`note-${m.id}`} className={`club-note-line${m.tag?` tag-${m.tag}`:''}`} style={{left:time*scale,top:RULER,height:contentHeight-RULER}} aria-hidden/>;})}
-    {previewRanges?.map(([a,b],i)=><div key={i} className="club-preview-cut" style={{left:a*scale,width:Math.max(1,(b-a)*scale),top:RULER,height:contentHeight-RULER}}/>)}
-    {cutMarks?.map((t,i)=><div key={`cut${i}`} className="club-cut-mark" style={{left:t*scale,top:RULER,height:contentHeight-RULER}} title="Words were cut here" aria-label="Cut here"/>)}
+    {(p.markers??[]).filter(m=>m.tag||m.name?.trim()).map(m=>{const time=drag?.markers?.get(m.id)??m.time;return visible(time,0)&&<div key={`note-${m.id}`} className={`club-note-line${m.tag?` tag-${m.tag}`:''}`} style={{left:time*scale,top:ruler,height:contentHeight-ruler}} aria-hidden/>;})}
+    {sceneBand(p)&&p.scenes.some(s=>s.duration<=0)&&<div className="club-empty-scene" aria-hidden style={{left:duration*scale,width:Math.max(0,width-duration*scale),top:ruler,height:contentHeight-ruler}}/>}
+    {previewRanges?.map(([a,b],i)=><div key={i} className="club-preview-cut" style={{left:a*scale,width:Math.max(1,(b-a)*scale),top:ruler,height:contentHeight-ruler}}/>)}
+    {cutMarks?.map((t,i)=><div key={`cut${i}`} className="club-cut-mark" style={{left:t*scale,top:ruler,height:contentHeight-ruler}} title="Words were cut here" aria-label="Cut here"/>)}
     {drag?.guide!==null&&drag?.guide!==undefined&&<div className="timeline-snap-guide club-snap" style={{left:drag.guide*scale}}/>}
     {drag?.insert!==null&&drag?.insert!==undefined&&<div className="club-insert-line" style={{left:drag.insert*scale}}/>}
     {drag?.label&&<div className="club-drag-label" role="status">{drag.label}</div>}

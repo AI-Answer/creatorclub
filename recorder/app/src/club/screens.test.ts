@@ -718,7 +718,7 @@ test('Home: the next action, the other videos in production, then the picks work
   assert.deepEqual(texts(c,'h2.sec'),['Next up','Also in production','Working in your topics'],'the next action stays first, the picks stay after it, no pipeline counts, ideas or signals');
   assert.ok(c.querySelector('.pipeline')===null&&c.querySelector('.sig')===null&&c.querySelector('.list-card .li .lt')!==null);
   assert.equal(c.querySelectorAll('.card.trend').length,2,'the videos that fit your topics (not the cat), as the same cards the first video has');
-  assert.ok(c.querySelector('.trend-help'),'what a card means is said once, under the cards');
+  assert.equal(c.querySelector('.trend-help'),null,'after the first video the cards need no glossary under them');
   assert.equal(text(c.querySelector('.sec-head .more')),'More in Discover');
   const next=c.querySelector('.nextup')!;
   assert.equal(text(next.querySelector('.title')),'Hidden features in Claude Code','the one opened last');
@@ -779,7 +779,7 @@ test('Home with only published videos says nothing is in production, and videos 
  const planning=base('p1','Hidden features','planning',{idea:{sources:[{label:'v',url:VIDEO_URL}]}});
  await mount(navigate=>createElement(HomeScreen,{navigate,onNewVideo:()=>{}}),server({videos:[planning]}),async ui=>{
   const thumb=ui.container.querySelector('.nextup .thumb')!;
-  assert.ok(thumb.querySelector('img')===null,'no YouTube picture');assert.equal(text(thumb.querySelector('.tt')),'','no title painted on the picture, it is beside it');
+  assert.doesNotMatch(thumb.querySelector('img')?.getAttribute('src')??'',/ytimg/,'no YouTube picture: its own picture or a frame of its recording');assert.equal(text(thumb.querySelector('.tt')),'','no title painted on the picture, it is beside it');
  });
 });
 

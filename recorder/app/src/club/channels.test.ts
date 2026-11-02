@@ -21,7 +21,7 @@ const withServer=async(reply:(call:FakeCall)=>FakeReply|Promise<FakeReply>,run:(
 };
 const emit=(type:string,data?:unknown)=>act(async()=>{FakeEventSource.last().emit(type,data);});
 
-const sidebar=(props:Partial<Parameters<typeof Sidebar>[0]>={})=>createElement(Sidebar,{route:{name:'home'},collapsed:false,onToggle(){},onSearch(){},onHelp(){},onSwitched(){},onAdd(){},videos:[],epoch:0,...props});
+const sidebar=(props:Partial<Parameters<typeof Sidebar>[0]>={})=>createElement(Sidebar,{route:{name:'home'},onSearch(){},onSwitched(){},onAdd(){},videos:[],epoch:0,...props});
 
 test('channel switcher: shows the current channel, lists all of them, switches, and offers Add a channel',async()=>{
  await withServer(call=>{
@@ -89,7 +89,7 @@ test('Settings: Rebuild voice guide that needs answers shows the questions, and 
   if(call.path==='/signals-config')return {body:{}};
   if(call.path==='/workspaces/samin/voice')return {status:202,body:{id:call.body&&(call.body as {answers?:unknown}).answers?'j_save':'j_rebuild',kind:'voice',status:'running',createdAt:''}};
  },async calls=>{
-  const ui=await mountUI(createElement(SettingsScreen,{onSetup(){}}));
+  const ui=await mountUI(createElement(SettingsScreen,{section:'channel',onSetup(){}}));
   try{
    await flush();const c=ui.container;
    await press(c.querySelector('button[aria-label="Edit channel"]')!);await press(c.querySelector('button[aria-label="Edit voice"]')!);

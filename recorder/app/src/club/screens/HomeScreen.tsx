@@ -2,7 +2,7 @@ import {useMemo,useState} from 'react';
 import type {TrendingEntry,Video} from '../../../shared/club';
 import {BreakdownDrawer} from '../BreakdownDrawer';
 import {ProgressLine} from '../ProgressLine';
-import {TrendCard,TrendHelp} from '../TrendCards';
+import {TrendCard} from '../TrendCards';
 import {SCAN_ESTIMATE} from '../welcome';
 import {useIdeaActions} from '../useIdeaActions';
 import {ErrorLine} from '../ErrorLine';
@@ -40,7 +40,7 @@ export function HomeScreen({navigate,onNewVideo}:{navigate(route:Route):void;onN
  // One primary per view: the first-video card and the next-up card each carry their own once there is something to start or continue.
  const newIsPrimary=fresh&&!now.ideas.length;
 
- return <div className="page">
+ return <div className="page home-b">
   <div className="page-head greet">
    <div><h1>{greetingName(profile)?`${greeting()}, ${greetingName(profile)}`:greeting()}</h1><div className="lede">{overviewLede(now)}</div></div>
    <div className="actions"><button type="button" className={`btn${newIsPrimary?' primary':''}`} onClick={onNewVideo}><Icon name="add" size={15}/>New video</button></div>
@@ -86,7 +86,6 @@ function TrendPicks({videos,navigate}:{videos:readonly Video[];navigate:(route:R
  return <>
   <div className="sec-head"><h2 className="sec">Working in your topics</h2><a className="linkish small more" href="#/discover">More in Discover</a></div>
   <div className="grid g3" style={{gap:12}}>{picks.map(item=><TrendCard key={item.videoId} item={item} saved={hasBreakdown(item.videoId)} onBreak={open}/>)}</div>
-  <TrendHelp/>
   {drawer}
  </>;
 }
@@ -111,13 +110,16 @@ const onEnter=(open:()=>void)=>(event:{key:string;target:unknown;currentTarget:u
 function NextUp({video,progress,onOpen}:{video:Video;progress:readonly SceneProgress[]|undefined;onOpen:OpenVideo}){
  const action=nextAction(video,progress);
  return <div className="card nextup hov" onClick={()=>onOpen(video.id)} tabIndex={0} onKeyDown={onEnter(()=>onOpen(video.id))}>
-  <Thumb videoId={videoThumbId(video)} seed={video.id}/>
+  <Thumb videoId={videoThumbId(video)} cover={video.id} seed={video.id}/>
   <div className="body">
    {video.publishDate&&<div className="faint small"><Icon name="calendar" size={12}/> {fmtDate(video.publishDate)}</div>}
    <div className="title clamp2">{video.title}</div>
    <div className="row small muted"><SceneDots scenes={progress??[]}/><span>{progressText(video,progress)}</span></div>
    <div className="row" style={{marginTop:'auto',paddingTop:6}}>
-    <button type="button" className="btn primary" onClick={event=>{event.stopPropagation();onOpen(video.id,action.tab);}}><Icon name={action.icon} size={15}/>{action.label}</button>
+    {/* The button waits for the scenes, so its words are the real next step and never change a moment later. */}
+    {progress===undefined&&(video.stage==='planning'||video.stage==='recording'||video.stage==='editing')
+     ?<span className="btn primary is-waiting" aria-busy="true"><span className="spin"/>Next step</span>
+     :<button type="button" className="btn primary" onClick={event=>{event.stopPropagation();onOpen(video.id,action.tab);}}><Icon name={action.icon} size={15}/>{action.label}</button>}
    </div>
   </div>
  </div>;
@@ -127,11 +129,13 @@ function NextUp({video,progress,onOpen}:{video:Video;progress:readonly SceneProg
 function ProductionRow({video,progress,onOpen}:{video:Video;progress:readonly SceneProgress[]|undefined;onOpen:OpenVideo}){
  const action=nextAction(video,progress);
  return <div className="li" onClick={()=>onOpen(video.id)} tabIndex={0} onKeyDown={onEnter(()=>onOpen(video.id))}>
-  <Thumb className="lt" videoId={videoThumbId(video)} seed={video.id}/>
+  <Thumb className="lt" videoId={videoThumbId(video)} cover={video.id} seed={video.id}/>
   <div className="grow" style={{minWidth:0}}>
    <div className="tt clamp2">{video.title}</div>
    <div className="row small muted" style={{marginTop:4}}><SceneDots scenes={progress??[]}/><span>{progressText(video,progress)}</span></div>
   </div>
-  <button type="button" className="btn sm" onClick={event=>{event.stopPropagation();onOpen(video.id,action.tab);}}><Icon name={action.icon} size={14}/>{action.label}</button>
+  {progress===undefined&&(video.stage==='planning'||video.stage==='recording'||video.stage==='editing')
+   ?<span className="btn sm is-waiting" aria-busy="true"><span className="spin"/></span>
+   :<button type="button" className="btn sm" onClick={event=>{event.stopPropagation();onOpen(video.id,action.tab);}}><Icon name={action.icon} size={14}/>{action.label}</button>}
  </div>;
 }
