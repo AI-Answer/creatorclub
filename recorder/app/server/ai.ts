@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process';
-import { access, mkdir, readFile, rm, stat } from 'node:fs/promises';
+import { access, mkdir, readdir, readFile, rm, stat } from 'node:fs/promises';
 import path from 'node:path';
-import { setPriority } from 'node:os';
+import { homedir, setPriority } from 'node:os';
 import { constants } from 'node:fs';
 import { makeId, clipDuration, narrationPriority, type AISettings, type AISuggestion, type Caption, type Media, type Project } from '../shared/types.js';
 import {isSoundTag} from '../shared/sound-tags.js';
@@ -26,9 +26,30 @@ async function run(command:string,args:string[],timeout=30*60*1000,signal?:Abort
  const holding=new AbortController();
  if(hold)void (async()=>{while(!holding.signal.aborted){if(hold.remaining()>0){pause();await hold.idle(holding.signal);resume();}else await hold.changed(holding.signal);}})().catch(()=>{});
  const cleanup=()=>{clearTimeout(timer);if(killTimer)clearTimeout(killTimer);signal?.removeEventListener('abort',abort);holding.abort();};
- child.stdout.on('data',d=>{stdout=(stdout+d).slice(-8_000_000)});child.stderr.on('data',d=>{stderr=(stderr+d).slice(-8_000_000)});child.on('error',e=>{cleanup();reject(e)});child.on('close',code=>{cleanup();failure?reject(failure):code===0?resolve({stdout,stderr}):reject(new Error(`${path.basename(command)} failed (${code}): ${stderr.slice(-1200)}`))})})
+ child.stdout.on('data',d=>{stdout=(stdout+d).slice(-8_000_000)});child.stderr.on('data',d=>{stderr=(stderr+d).slice(-8_000_000)});child.on('error',e=>{cleanup();reject(e)});child.on('close',(code,signal)=>{cleanup();failure?reject(failure):code===0?resolve({stdout,stderr}):reject(Object.assign(new Error(`${path.basename(command)} failed (${code??signal}): ${stderr.slice(-1200)}`),{exitCode:code,signal,stderr}))})})
 }
 export async function transcriptionCapabilities(){const command=await executable('whisper-cli');return {local:!!command,command,providers:['local','openai','openai-compatible','elevenlabs','openrouter']}}
+/** Speech models, best first. Tiny and voice-activity models are never picked for a transcript. */
+const WHISPER_MODEL_TIERS=[/^ggml-large-v3-turbo.*\.bin$/,/^ggml-small.*\.bin$/,/^ggml-base\.en.*\.bin$/,/^ggml-base.*\.bin$/];
+/** Folders where a speech model may already be installed: the desktop app's runtime and models folders, ~/.cache/whisper and Homebrew's whisper share folders. */
+async function whisperModelFolders():Promise<string[]>{
+ const runtime=process.env.CREATOR_COMPILER_RUNTIME_DIR,data=process.env.SCENEFORGE_DATA_DIR;
+ const shared=(await Promise.all(['/opt/homebrew/share','/usr/local/share'].map(dir=>readdir(dir).then(names=>names.filter(name=>name.startsWith('whisper')).map(name=>path.join(dir,name)),()=>[] as string[])))).flat();
+ return [runtime&&path.join(runtime,'models'),data&&path.join(path.dirname(path.resolve(data)),'models'),path.join(homedir(),'.cache','whisper'),...shared].filter((dir):dir is string=>!!dir);
+}
+/** The best speech model in these folders: by tier, then by file name. */
+export async function findWhisperModel(folders:string[]):Promise<string|undefined>{
+ const files=(await Promise.all(folders.map(dir=>readdir(dir).then(names=>names.filter(name=>name.endsWith('.bin')).sort().map(name=>path.join(dir,name)),()=>[] as string[])))).flat();
+ for(const tier of WHISPER_MODEL_TIERS)for(const file of files){if(tier.test(path.basename(file))&&(await stat(file).catch(()=>undefined))?.isFile())return file;}
+ return undefined;
+}
+/** An explicit setting wins, then SCENEFORGE_WHISPER_MODEL, then the best speech model already on this Mac. */
+export async function localWhisperModel(explicit?:string):Promise<string|undefined>{
+ return explicit?.trim()||process.env.SCENEFORGE_WHISPER_MODEL?.trim()||findWhisperModel(await whisperModelFolders());
+}
+let localGpuFailed=false;
+/** whisper-cli died (a signal or exit 128+), or its Metal backend could not build a kernel. A clean error such as a bad model file is not a GPU problem. */
+function gpuAborted(error:unknown){const e=error as {exitCode?:number|null;signal?:string|null;stderr?:string};return Boolean(e.signal)||(e.exitCode??0)>=128||/ggml_metal[^\n]*failed to build/i.test(e.stderr??'')}
 type Word={text:string;start:number;end:number};
 export function captionsFromWords(words:Word[],maxWords=7):Caption[]{
  const clean=words.filter(w=>w.text.trim()&&!isSoundTag(w.text)&&Number.isFinite(w.start)&&Number.isFinite(w.end)&&w.end>w.start).sort((a,b)=>a.start-b.start);const captions:Caption[]=[];let group:Word[]=[];
@@ -85,7 +106,7 @@ export async function transcribe(media:Media,settings:AISettings,workDir:string,
  let command:string|undefined;let model='';
  if(settings.provider==='local'){
   command=await executable(settings.localCommand?.trim()||'whisper-cli');if(!command)throw new Error('Local whisper-cli is not installed or its executable path is invalid.');
-  model=settings.model?.trim()||process.env.SCENEFORGE_WHISPER_MODEL||'';
+  model=await localWhisperModel(settings.model)||'';
   if(!model)throw new Error('Set the local Whisper GGML model path in AI settings, or SCENEFORGE_WHISPER_MODEL.');
   try{if(!(await stat(model)).isFile())throw new Error()}catch{throw new Error('Local Whisper model file is missing. Set a valid GGML model path in AI settings.')}
  }else if(!settings.apiKey&&settings.provider!=='openai-compatible')throw new Error('Add your own provider API key in AI settings before cloud transcription.');
@@ -96,7 +117,11 @@ export async function transcribe(media:Media,settings:AISettings,workDir:string,
   const input=options.prepared&&settings.provider==='local'?media.path:audio;
   if(input===audio)await run(ffmpeg,['-hide_banner','-loglevel','error','-nostdin','-i',media.path,'-vn','-ac','1','-ar','16000','-c:a','pcm_s16le',audio],limit,options.signal,options.background,options.hold);options.progress?.(.2);
   if(settings.provider==='local'){
-   const output=path.join(dir,'transcript');await run(command!,['-m',model,'-f',input,'-l',settings.language||'auto','-t',options.background?'2':'4','-ojf','-of',output,'-ml','42','-sow','-np'],limit,options.signal,options.background,options.hold);options.progress?.(.95);
+   const output=path.join(dir,'transcript');
+   const whisper=(gpu:boolean)=>run(command!,['-m',model,'-f',input,'-l',settings.language||'auto','-t',options.background?'2':'4','-ojf','-of',output,'-ml','42','-sow','-np',...(gpu?[]:['-ng'])],limit,options.signal,options.background,options.hold);
+   // whisper.cpp's Metal backend can abort on some Macs. Retry once on the CPU, and keep the CPU for the rest of this process.
+   try{await whisper(!localGpuFailed)}catch(error){if(localGpuFailed||!gpuAborted(error))throw error;localGpuFailed=true;await whisper(false)}
+   options.progress?.(.95);
    return {captions:parseTranscription(JSON.parse(await readFile(`${output}.json`,'utf8'))),provider:'local whisper.cpp'};
   }
   const data=await readFile(audio);if(data.byteLength>24_000_000)throw new Error('Cloud transcription input exceeds the current 24 MB upload limit. Use local transcription or transcribe a shorter media file.');

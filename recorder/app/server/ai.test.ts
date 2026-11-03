@@ -93,3 +93,35 @@ test('delayed punctuation does not stretch a spoken word across a quiet gap',()=
  const parsed=parseTranscription({transcription:[{tokens:[{text:' statement',offsets:{from:2880,to:3190}},{text:'.',offsets:{from:5450,to:5540}},{text:' This',offsets:{from:5560,to:5800}},{text:',',offsets:{from:5800,to:5800}}]}]});
  assert.equal(parsed[0].words![0].end,3.19);assert.equal(parsed[0].text,'statement.');assert.equal(parsed[1].words![0].text,'This,');assert.equal(parsed[1].words![0].end,5.8);
 });
+test('a GPU run that aborts retries once on the CPU, and later runs in this process stay on the CPU',{skip:process.platform==='win32'},async()=>{
+ const {writeFile,readFile}=await import('node:fs/promises');const {transcribe}=await import('./ai.js');
+ const dir=await mkdtemp(path.join(tmpdir(),'sceneforge-transcribe-metal-')),file=path.join(dir,'batch.wav'),worker=path.join(dir,'whisper'),model=path.join(dir,'model.bin'),log=path.join(dir,'runs.log');
+ const run=()=>transcribe({id:'batch',name:'batch',path:file,kind:'audio',duration:1,width:0,height:0},{provider:'local',baseUrl:'',model,localCommand:worker,language:'en'},dir,{prepared:true});
+ try{
+  await writeFile(file,'RIFF metal');await writeFile(model,'fixture');
+  await writeFile(worker,`#!${process.execPath}\nconst fs=require('fs'),a=process.argv.slice(2),gpu=!a.includes('-ng');fs.appendFileSync(${JSON.stringify(log)},(gpu?'gpu':'cpu')+'\\n');\nif(gpu){process.stderr.write("ggml_metal_library_compile_all: failed to build 'unary'\\n");process.exit(134);}\nfs.writeFileSync(a[a.indexOf('-of')+1]+'.json',JSON.stringify({transcription:[{text:'Metal fallback',offsets:{from:0,to:500}}]}));`,{mode:0o700});
+  assert.equal((await run()).captions[0].text,'Metal fallback');
+  assert.equal((await run()).captions[0].text,'Metal fallback');
+  assert.equal(await readFile(log,'utf8'),'gpu\ncpu\ncpu\n','the GPU is tried once, then never again in this process');
+ }finally{await rm(dir,{recursive:true,force:true});}
+});
+test('with no model path set, the best speech model already installed is used; an explicit setting always wins',async()=>{
+ const {mkdir,writeFile,rm:remove}=await import('node:fs/promises');const {transcribe,localWhisperModel}=await import('./ai.js');
+ const dir=await mkdtemp(path.join(tmpdir(),'sceneforge-whisper-models-')),models=path.join(dir,'runtime','models'),cache=path.join(dir,'home','.cache','whisper'),worker=path.join(dir,'whisper'),file=path.join(dir,'batch.wav');
+ const saved={HOME:process.env.HOME,SCENEFORGE_WHISPER_MODEL:process.env.SCENEFORGE_WHISPER_MODEL,CREATOR_COMPILER_RUNTIME_DIR:process.env.CREATOR_COMPILER_RUNTIME_DIR,SCENEFORGE_DATA_DIR:process.env.SCENEFORGE_DATA_DIR};
+ try{
+  process.env.HOME=path.join(dir,'home');delete process.env.SCENEFORGE_WHISPER_MODEL;delete process.env.SCENEFORGE_DATA_DIR;process.env.CREATOR_COMPILER_RUNTIME_DIR=path.join(dir,'runtime');
+  await mkdir(models,{recursive:true});await mkdir(cache,{recursive:true});
+  for(const name of ['ggml-base.bin','ggml-base.en.bin','ggml-silero-v5.1.2.bin','ggml-tiny.bin','notes.txt'])await writeFile(path.join(models,name),'x');
+  assert.equal(await localWhisperModel(''),path.join(models,'ggml-base.en.bin'),'base.en beats base');
+  await writeFile(path.join(cache,'ggml-small-q5_1.bin'),'x');
+  assert.equal(await localWhisperModel(undefined),path.join(cache,'ggml-small-q5_1.bin'),'small beats base.en');
+  assert.equal(await localWhisperModel('/explicit/model.bin'),'/explicit/model.bin','an explicit setting wins');
+  process.env.SCENEFORGE_WHISPER_MODEL='/env/model.bin';assert.equal(await localWhisperModel(''),'/env/model.bin','the environment variable comes before detection');delete process.env.SCENEFORGE_WHISPER_MODEL;
+  await writeFile(file,'RIFF auto');await writeFile(worker,`#!${process.execPath}\nconst fs=require('fs'),a=process.argv.slice(2);fs.writeFileSync(a[a.indexOf('-of')+1]+'.json',JSON.stringify({transcription:[{text:a[a.indexOf('-m')+1],offsets:{from:0,to:500}}]}));`,{mode:0o700});
+  const settings={provider:'local' as const,baseUrl:'',model:'',localCommand:worker,language:'en'},media={id:'batch',name:'batch',path:file,kind:'audio' as const,duration:1,width:0,height:0};
+  assert.equal((await transcribe(media,settings,dir,{prepared:true})).captions[0].text,path.join(cache,'ggml-small-q5_1.bin'),'transcription runs the detected model');
+  await remove(cache,{recursive:true});await remove(models,{recursive:true});
+  await assert.rejects(transcribe(media,settings,dir,{prepared:true}),/Set the local Whisper GGML model path/,'an error only when no model exists');
+ }finally{for(const [key,value] of Object.entries(saved)){if(value===undefined)delete process.env[key];else process.env[key]=value;}await remove(dir,{recursive:true,force:true});}
+});
