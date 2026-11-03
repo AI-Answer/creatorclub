@@ -32,7 +32,7 @@ import { lock as companionLock } from './companion-actions.js';
 import { editSilences } from './companion-edit.js';
 import { moveFacts, videoScenes, videosMoveFacts, videosScenes } from './scenes.js';
 import { MOVE_REFUSED_STATUS, moveProblem } from '../../shared/club-move.js';
-import { POSITION_MAX, WIDTH_MAX, WIDTH_MIN } from './tile-layout.js';
+import { HEIGHT_MAX, HEIGHT_MIN, POSITION_MAX, WIDTH_MAX, WIDTH_MIN } from './tile-layout.js';
 import { findTregCall, hasSources, NO_SOURCES, rankedSignals, readSignalsConfig, startSignalsRefresh, writeSignalsConfig, type SignalsSources } from './signals.js';
 import { ideaFromSignal, ideaFromTrending } from './trend-ideas.js';
 import { voiceSummary } from './voice.js';
@@ -166,7 +166,7 @@ const newTileBody = z.object({
 // Moving a tile, renaming it, or editing a note. A tile's width is optional; one left out stays as it is.
 const tilePatchBody = z
   .object({
-    pos: z.object({ x: z.number().finite().min(0).max(POSITION_MAX), y: z.number().finite().min(0).max(POSITION_MAX), w: z.number().finite().min(WIDTH_MIN).max(WIDTH_MAX).optional() }).strict(),
+    pos: z.object({ x: z.number().finite().min(0).max(POSITION_MAX), y: z.number().finite().min(0).max(POSITION_MAX), w: z.number().finite().min(WIDTH_MIN).max(WIDTH_MAX).optional(), h: z.number().finite().min(HEIGHT_MIN).max(HEIGHT_MAX).optional() }).strict(),
     title: z.string().max(500),
     text: z.string().max(boardDocs.MAX_DOC_BYTES),
     base: z.string().max(64),

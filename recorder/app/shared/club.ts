@@ -181,11 +181,12 @@ export interface StartedVideo {
   tiles: number;
 }
 
-/** Where a tile sits on the video's Board, in pixels from its top left corner. `w` is its width; the Board gives it a default when it is missing. */
+/** Where a tile sits on the video's Board, in pixels from its top left corner. `w` is its width; the Board gives it a default when it is missing. `h` is the height a note was resized to (it still grows with its text). */
 export interface TilePosition {
   x: number;
   y: number;
   w?: number;
+  h?: number;
 }
 
 /** The width a tile has on the Board until it is given one. */

@@ -51,7 +51,7 @@ test('arrow keys move a focused tile a step, Shift a bigger step, and other keys
  assert.deepEqual(keyMove('ArrowDown',true),{dx:0,dy:40});
  assert.equal(keyMove('Enter',false),undefined);
  assert.deepEqual(moveBy({x:5,y:5},{dx:-10,dy:0}),{x:0,y:5});
- assert.equal(clampZoom(1.23),1.23);assert.equal(clampZoom(0.1),0.5);assert.equal(clampZoom(3),1.5);
+ assert.equal(clampZoom(1.23),1.23);assert.equal(clampZoom(0.1),0.25);assert.equal(clampZoom(3),2);
 });
 
 test('Continue is primary only when the tab is done and no other primary is waiting on the tab',()=>{

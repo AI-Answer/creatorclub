@@ -443,10 +443,11 @@
 :where(.club-root) .menu .sep:where(:not(.club-embed *)) { height: 1px; background: var(--cc-line); margin: 4px 2px; }
 :where(.club-root) .menu .hd:where(:not(.club-embed *)) { font-size:var(--cc-text-xs); color: var(--cc-text-3); padding: 6px 10px 4px; }
 /* ---------- Toasts ---------- */
-:where(.club-root) .cc-toasts:where(:not(.club-embed *)) { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; gap: 8px; z-index: 60; align-items: center; pointer-events: none; }
+:where(.club-root) .cc-toasts:where(:not(.club-embed *)) { position: fixed; bottom: 14px; left: 14px; display: flex; flex-direction: column; gap: 6px; z-index: 60; align-items: flex-start; max-width: min(340px, calc(100vw - 28px)); pointer-events: none; }
 /* On a video step the bottom bar holds Continue: toasts sit above it, never over it. */
-:where(.club-root):has(.ws-foot) .cc-toasts:where(:not(.club-embed *)) { bottom: 78px; }
-:where(.club-root) .cc-toast:where(:not(.club-embed *)) { pointer-events: auto; background: var(--cc-toast-bg); color: var(--cc-toast-text); border-radius:var(--cc-r); padding: 9px 10px 9px 14px; display: flex; align-items: center; gap: 12px; font-size:var(--cc-text-sm); box-shadow: var(--cc-shadow-toast); animation: cc-toastIn .35s var(--cc-ease); }
+:where(.club-root):has(.ws-foot) .cc-toasts:where(:not(.club-embed *)) { bottom: 70px; }
+:where(.club-root):has(.btoolbar) .cc-toasts:where(:not(.club-embed *)) { bottom: 122px; }
+:where(.club-root) .cc-toast:where(:not(.club-embed *)) { pointer-events: auto; background: var(--cc-toast-bg); color: var(--cc-toast-text); border-radius:var(--cc-r); padding: 6px 6px 6px 10px; display: flex; align-items: center; gap: 8px; font-size:var(--cc-text-xs); line-height: 16px; max-width: 100%; box-shadow: var(--cc-shadow-toast); animation: cc-toastIn .35s var(--cc-ease); }
 @keyframes cc-toastIn { from { opacity: 0; transform: translateY(10px) scale(.98); } }
 :where(.club-root) .cc-toast button:where(:not(.club-embed *)) { background: var(--cc-toast-button); border: 0; color: var(--cc-toast-text); height: 26px; padding: 0 10px; border-radius:var(--cc-r-sm); cursor: pointer; font-weight: 600; font-size:var(--cc-text-xs); }
 :where(.club-root) .cc-toast button:hover:where(:not(.club-embed *)) { background: var(--cc-toast-button-hover); }
@@ -542,7 +543,7 @@
 :where(.club-root) .canvas:where(:not(.club-embed *)) { position: relative; width: 2600px; height: 1700px; transform-origin: 0 0; }
 :where(.club-root) .tile:where(:not(.club-embed *)) { position: absolute; background: var(--cc-surface); border: 1px solid var(--cc-line); border-radius:var(--cc-r-lg); box-shadow: var(--cc-shadow-2); user-select: none; transition: box-shadow .2s, transform .2s var(--cc-ease); touch-action: none; }
 :where(.club-root) .tile:hover:where(:not(.club-embed *)) { box-shadow: var(--cc-shadow-3); }
-:where(.club-root) .tile.drag:where(:not(.club-embed *)) { box-shadow: var(--cc-shadow-drag); transform: rotate(-.6deg) scale(1.01); transition: none; cursor: grabbing; }
+:where(.club-root) .tile.drag:where(:not(.club-embed *)) { box-shadow: var(--cc-shadow-drag); transition: none; cursor: grabbing; will-change: transform; }
 :where(.club-root) .tile.sel:where(:not(.club-embed *)) { border-color: var(--cc-accent); box-shadow: 0 0 0 1px var(--cc-accent), var(--cc-shadow-2); }
 @keyframes tile-fresh { 0% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--cc-accent) 40%, transparent); } 100% { box-shadow: 0 0 0 1px var(--cc-accent), var(--cc-shadow-2); } }
 :where(.club-root) .tile.fresh:where(:not(.club-embed *)) { animation: tile-fresh 1.4s ease-out; }
@@ -810,9 +811,6 @@
 
 
 /* ---- Board notes: Markdown cards, the writing panel, the editor, the folder line. Colours come from the tokens only. */
-.club-root .note-preview { cursor: text; max-height: 220px; overflow: hidden; position: relative; border-radius: var(--cc-r-sm); outline-offset: 2px; }
-.club-root .note-preview:focus-visible { outline: 2px solid var(--cc-accent); }
-.club-root .note-preview::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 28px; background: linear-gradient(transparent, var(--cc-surface)); pointer-events: none; }
 .club-root .note-file { margin-top: 8px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size:var(--cc-text-2xs); }
 .club-root .board-folder { position: absolute; top: 14px; left: 18px; z-index: 5; display: flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; background: var(--cc-surface); border: 1px solid var(--cc-line); border-radius:var(--cc-r-pill); box-shadow: var(--cc-shadow-1); font: inherit; font-size:var(--cc-text-xs); color: var(--cc-text-2); cursor: pointer; }
 .club-root .board-folder:hover { color: var(--cc-text); border-color: var(--cc-line-strong); }
@@ -927,7 +925,6 @@
 .club-root .research .ws-top > .small { font-size:var(--cc-text-base); }
 .club-root .blink-head.sel { fill: var(--cc-accent); }
 /* The folder line sits over the top left of a Board: the canvas starts below it, so a frame's name or a card's head is never under it. */
-.club-root .canvas-room { margin-top: 48px; }
 .club-root .board-wrap:focus { outline: none; }
 /* Task 15: first run. A slow job's progress line, the welcome frame, the first-video checklist, trend cards and the help dialog. */
 :where(.club-root) .progress-line:where(:not(.club-embed *)) { display: flex; flex-direction: column; gap: 8px; }
@@ -1044,3 +1041,24 @@
 .club-root .sk-switch[aria-checked=true] { background: var(--cc-ok); }
 .club-root .sk-switch[aria-checked=true] > span { transform: translateX(16px); }
 .club-root .sk-switch:focus-visible { outline: 2px solid var(--cc-accent); outline-offset: 2px; }
+
+/* Board canvas, light: an infinite canvas panned and zoomed by a transform, quiet cards whose head shows on hover, notes you type in right on it. */
+.club-root .canvas-scroll { overflow: hidden; cursor: default; overscroll-behavior: none; touch-action: none; background-image: radial-gradient(circle, color-mix(in srgb, var(--cc-line-strong) 70%, transparent) 1px, transparent 1.2px); }
+.club-root .canvas-scroll.pan-ready, .club-root .canvas-scroll.pan-ready .tile { cursor: grab; }
+.club-root .canvas { will-change: transform; }
+.club-root .tile { border-color: color-mix(in srgb, var(--cc-line) 65%, transparent); box-shadow: var(--cc-shadow-1); transition: box-shadow .15s, border-color .15s; }
+.club-root .tile:hover { box-shadow: var(--cc-shadow-2); }
+.club-root .tile.sel { border-color: color-mix(in srgb, var(--cc-accent) 55%, transparent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--cc-accent) 16%, transparent), var(--cc-shadow-1); }
+.club-root .tile.drag { box-shadow: var(--cc-shadow-drag); }
+.club-root .tile .th { position: absolute; left: 0; right: 0; top: 0; z-index: 2; height: 28px; padding: 0 6px 0 10px; border: 0; border-radius: var(--cc-r-lg) var(--cc-r-lg) 0 0; background: linear-gradient(var(--cc-surface) 70%, transparent); opacity: 0; transition: opacity .12s; }
+.club-root .tile:hover .th, .club-root .tile.sel .th, .club-root .tile:focus-within .th { opacity: 1; }
+.club-root .tile .th .th-actions { margin-left: auto; display: inline-flex; align-items: center; gap: 2px; }
+.club-root .tile .th .x { margin-left: 0; opacity: 1; }
+.club-root .tile .tb { padding: 12px 12px 12px; }
+.club-root .tile.note { display: flex; flex-direction: column; background: color-mix(in srgb, var(--cc-warn-soft) 70%, var(--cc-surface)); min-height: 72px; }
+.club-root .tile.note .sticky { flex: 1; display: flex; flex-direction: column; padding: 24px 8px 14px; }
+.club-root .tile.note .sticky-text { flex: 1 1 auto; width: 100%; resize: none; border: 0; outline: 0; background: transparent; font: inherit; font-size: var(--cc-text-base); line-height: 1.5; color: var(--cc-text); padding: 6px 4px; overflow: hidden; user-select: text; cursor: text; min-height: 1.5em; }
+.club-root .tile.note .sticky-text::placeholder { color: var(--cc-text-3); }
+.club-root .tile.note .sticky-err { color: var(--cc-danger); padding: 0 4px; }
+.club-root .tile .note-resize { position: absolute; right: 0; bottom: 0; width: 18px; height: 18px; cursor: nwse-resize; opacity: 0; transition: opacity .12s; background: linear-gradient(135deg, transparent 55%, var(--cc-line-strong) 55% 63%, transparent 63% 73%, var(--cc-line-strong) 73% 81%, transparent 81%); border-radius: 0 0 var(--cc-r-lg) 0; }
+.club-root .tile:hover .note-resize, .club-root .tile.sel .note-resize { opacity: 1; }

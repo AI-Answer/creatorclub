@@ -16,7 +16,7 @@ export const READ_FAILED="Couldn't read that video.";
 export type NoteSaved={tile:ResearchTile;conflict?:{copy:string}};
 
 export type NewTile={kind:ResearchTile['kind'];url?:string;text?:string};
-type Place={x:number;y:number};
+type Place={x:number;y:number;w?:number;h?:number};
 
 /**
  * The tiles of a Board (a video's, or Research when `videoId` is `CHANNEL_BOARD`) and the changes made to them. A tile that moves or is written in shows at once and is saved behind it:
@@ -155,5 +155,11 @@ export function useBoard(videoId:string){
   toast(ids.length===1?'Removed from the board':`Removed ${ids.length} cards from the board`,{undo:()=>undos.forEach(undo=>undo())});
  },[videoId,toast]);
 
- return {tiles,changes,loadError,reload:load,refresh,reading,read,add,adopt,preview,place,saveNote,remove,removeMany};
+ /** Saves the size a note was resized to (its width and height), keeping its place. */
+ const resize=useCallback((id:string,size:{w:number;h:number})=>{
+  const tile=loaded?.find(each=>each.id===id);
+  place(id,{x:tile?.pos?.x??0,y:tile?.pos?.y??0,...size},'now');
+ },[loaded,place]);
+
+ return {tiles,changes,loadError,reload:load,refresh,reading,read,add,adopt,preview,place,resize,saveNote,remove,removeMany};
 }
