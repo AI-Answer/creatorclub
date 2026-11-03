@@ -109,15 +109,17 @@ export function makeAgentTools(before:Project,request:AgentChatRequest,baseUrl:s
     const preserved=staged[key].filter(c=>!inside(c));if(args[key].some((c:any)=>preserved.some(old=>old.id===c.id)))throw Error('A timed item outside the selection uses that ID.');
     actual[key]=[...preserved,...args[key]].sort((a,b)=>a.start-b.start);
    }
-   let result=await handler(name,actual) as any;
+   // mcp.ts ends a transaction on every commit or abort, even a refused one, so this request stops owning it either way.
+   if(name==='commit_project_edit'||name==='abort_project_edit')owned.delete(args.tx_id);
+   let result:any;
+   try{result=await handler(name,actual) as any}catch(error){if(name!=='commit_project_edit')throw error;throw Error(`The edit was not saved (${(error as Error).message}). Begin a new edit from the current project and send the change again.`)}
    if(name==='begin_project_edit'){
     if(result.timeline_hash!==storage.revision(before)){await handler('abort_project_edit',{tx_id:result.tx_id});throw Error('Project changed while the chat transaction was opening. Refresh and send again.');}
     owned.add(result.tx_id);
    }
    if(name==='commit_project_edit'){
-    committed=true;owned.delete(args.tx_id);if(!committedProject)throw Error('Committed project response is missing.');await onCommit(committedProject,args.change_summary);
+    committed=true;if(!committedProject)throw Error('Committed project response is missing.');await onCommit(committedProject,args.change_summary);
    }
-   if(name==='abort_project_edit')owned.delete(args.tx_id);
    if(['get_project','get_timeline','get_transcript','get_scenes','get_project_overview'].includes(name)){
     const p=args.tx_id?(await handler('get_project',{tx_id:args.tx_id}) as any).project:await fetcher(`${baseUrl}/projects/${before.id}`).then(r=>r.json());
     const readRequest=request.selectedClipIds.length?{...request,selectedClipIds:[...request.selectedClipIds,...p.clips.filter((c:Clip)=>!before.clips.some(original=>original.id===c.id)).map((c:Clip)=>c.id)]}:request;

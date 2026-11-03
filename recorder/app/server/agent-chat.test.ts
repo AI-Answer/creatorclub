@@ -98,6 +98,17 @@ test('begin race and concurrent commit fail; undo snapshot uses exact PUT respon
  assert.equal(actual?.name,fresh.name);assert.equal(t.current.name,'Newer external save');assert.notEqual(revision(actual!),revision(t.current));
  const u=store(fresh),handle=makeAgentTools(fresh,request,'http://127.0.0.1:45678/api',()=>true,async()=>{},u.fetcher),id=await handle('begin_project_edit',{project_id:fresh.id}) as any;u.current={...u.current,name:'Changed'};await assert.rejects(handle('commit_project_edit',{tx_id:id.tx_id,change_summary:'No overwrite'}),/Project changed/);
 });
+test('a commit the server refuses frees the request to begin again, and the retry applies',async()=>{
+ const p=fixture(),s=store(p),commits:Project[]=[];let refuse=true;
+ const fetcher:typeof fetch=async(input,init)=>{if(init?.method==='PUT'&&refuse){refuse=false;return Response.json({error:'Caption overlaps'},{status:400});}return s.fetcher(input,init);};
+ const h=makeAgentTools(p,request,'http://127.0.0.1:45678/api',()=>true,async p=>{commits.push(p);},fetcher);
+ const tx=await h('begin_project_edit',{project_id:p.id}) as any;await h('update_clip',{tx_id:tx.tx_id,clip_id:'selected',changes:{gain:.5}});
+ await assert.rejects(h('commit_project_edit',{tx_id:tx.tx_id,change_summary:'Gain'}),/not saved \(Caption overlaps\)/);
+ assert.equal(commits.length,0,'nothing was committed');
+ await assert.rejects(h('update_clip',{tx_id:tx.tx_id,clip_id:'selected',changes:{gain:.4}}),/does not belong/,'the refused transaction is no longer owned');
+ const retry=await h('begin_project_edit',{project_id:p.id}) as any;await h('update_clip',{tx_id:retry.tx_id,clip_id:'selected',changes:{gain:.5}});
+ await h('commit_project_edit',{tx_id:retry.tx_id,change_summary:'Gain'});assert.equal(commits.length,1);assert.equal(commits[0].clips.find(c=>c.id==='selected')?.gain,.5);
+});
 test('cancelled capability cannot run late tools and flags expose only explicit MCP tools',async()=>{
  const p=fixture(),s=store(p);let active=true;const h=makeAgentTools(p,request,'http://127.0.0.1:45678/api',()=>active,async()=>{},s.fetcher),tx=await h('begin_project_edit',{project_id:p.id}) as any;active=false;
  await assert.rejects(h('update_clip',{tx_id:tx.tx_id,clip_id:'selected',changes:{gain:3}}),/no longer active/);assert.equal(s.current.clips[0].gain,1);
