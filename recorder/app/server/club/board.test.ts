@@ -96,6 +96,10 @@ test('PATCH moves a tile, renames it and edits a note; it checks the numbers and
   assert.deepEqual(moved.body.pos, { x: 500.5, y: 120, w: 280 }, 'the width stays when it is not sent');
   assert.equal(moved.body.text, 'First thought');
   assert.deepEqual((await call('PATCH', url(note), { pos: { x: 10, y: 20, w: 400 } })).body.pos, { x: 10, y: 20, w: 400 });
+  assert.deepEqual((await call('PATCH', url(note), { pos: { x: 10, y: 20, w: 400, h: 220 } })).body.pos, { x: 10, y: 20, w: 400, h: 220 }, 'a resized note keeps its height');
+  assert.deepEqual((await call('PATCH', url(note), { pos: { x: 12, y: 20 } })).body.pos, { x: 12, y: 20, w: 400, h: 220 }, 'and a move keeps width and height');
+  assert.equal((await call('PATCH', url(note), { pos: { x: 12, y: 20, h: 5 } })).status, 400, 'a height that small is refused');
+  await call('PATCH', url(note), { pos: { x: 10, y: 20 } });
   const edited = await call('PATCH', url(note), { text: 'Second thought', title: 'Idea' });
   // A note is a Markdown file: its title is its first line, not a name of its own.
   assert.deepEqual([edited.body.text, edited.body.title, edited.body.pos.x], ['Second thought', 'Second thought', 10]);
@@ -114,7 +118,7 @@ test('PATCH moves a tile, renames it and edits a note; it checks the numbers and
     assert.equal((await call('PATCH', url(note), bad)).status, 400, JSON.stringify(bad));
   }
   assert.equal((await call('PATCH', `/videos/${video.id}/research/t_nothing`, { title: 'x' })).status, 404);
-  assert.deepEqual((await tiles(video.id)).find((tile) => tile.id === note.id)?.pos, { x: 10, y: 20, w: 400 }, 'bad requests changed nothing');
+  assert.deepEqual((await tiles(video.id)).find((tile) => tile.id === note.id)?.pos, { x: 10, y: 20, w: 400, h: 220 }, 'bad requests changed nothing');
 });
 
 test('tiles saved before positions existed are placed when the board is read, once', async () => {

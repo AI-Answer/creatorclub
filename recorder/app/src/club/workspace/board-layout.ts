@@ -1,4 +1,4 @@
-import {defaultTileWidth,type ResearchTile,type TilePosition} from '../../../shared/club';
+import {defaultTileWidth,type ResearchTile} from '../../../shared/club';
 
 /*
  * Geometry of the Board canvas: where a tile is drawn, how far a key press or a drag moves it, and how large the canvas has to be
@@ -9,14 +9,14 @@ export const CANVAS_MIN={width:2600,height:1700};
 /** Room left past the right and bottom edge of the farthest tile. */
 const CANVAS_MARGIN=240;
 
-export const ZOOM={min:0.5,max:1.5,step:0.1,fit:0.7};
+export const ZOOM={min:0.25,max:2,step:0.1,fit:0.7};
 export const KEY_STEP=10;
 export const KEY_STEP_FAR=40;
 /** How long after the last key press a tile's new place is saved. */
 export const KEY_SAVE_MS=400;
 
 /** The tile's place and width, with the width the Board gives it when it has none. */
-export const tileBox=(tile:Pick<ResearchTile,'kind'|'pos'>):Required<TilePosition>=>({x:tile.pos?.x??0,y:tile.pos?.y??0,w:tile.pos?.w??defaultTileWidth(tile.kind)});
+export const tileBox=(tile:Pick<ResearchTile,'kind'|'pos'>):{x:number;y:number;w:number}=>({x:tile.pos?.x??0,y:tile.pos?.y??0,w:tile.pos?.w??defaultTileWidth(tile.kind)});
 
 /** The size the canvas needs for these tiles: at least the base size, and past the farthest tile (`heights` are the tiles' drawn heights, where known). */
 export function canvasSize(tiles:readonly Pick<ResearchTile,'id'|'kind'|'pos'>[],heights:Readonly<Record<string,number>>={}):{width:number;height:number}{

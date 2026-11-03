@@ -16,6 +16,8 @@ const TILE_HEIGHT = 380;
 export const POSITION_MAX = 20_000;
 export const WIDTH_MIN = 120;
 export const WIDTH_MAX = 1200;
+export const HEIGHT_MIN = 40;
+export const HEIGHT_MAX = 2400;
 
 export const defaultWidth = defaultTileWidth;
 
