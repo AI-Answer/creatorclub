@@ -558,8 +558,6 @@ export function startProxy(m: Media, cacheDir: string): Job {
       return;
     }
     const tmp = path.join(cacheDir, `${key}.${j.id}.tmp.mp4`);
-    // Hardware H.264 when the probe confirmed it; otherwise the libx264 path. Proxies are preview files, so VideoToolbox uses a fixed 1 Mbps.
-    const hardware = (await getCapabilities()).hardwareEncode;
     try {
       await command(
         FFMPEG,
@@ -571,7 +569,12 @@ export function startProxy(m: Media, cacheDir: string): Job {
           "-vf",
           "scale=960:540:force_original_aspect_ratio=decrease:force_divisible_by=2",
           "-c:v",
-          ...(hardware ? ["h264_videotoolbox", "-b:v", "1M"] : ["libx264", "-preset", "veryfast", "-crf", "25"]),
+          // libx264 even where VideoToolbox exists: measured on a 15 s 1080p take, VideoToolbox saved a few tenths of a second but made the proxy about six times larger.
+          "libx264",
+          "-preset",
+          "veryfast",
+          "-crf",
+          "25",
           "-c:a",
           "aac",
           "-b:a",

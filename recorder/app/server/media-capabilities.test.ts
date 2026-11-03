@@ -56,7 +56,7 @@ test('hardware-requested export completes through libx264 when VideoToolbox cann
   }finally{await fs.rm(f.dir,{recursive:true,force:true});}
 });
 
-test('proxies use VideoToolbox only when the probe confirms it, and sample child memory once a second',{timeout:120000},async()=>{
+test('proxies stay on libx264 even where VideoToolbox exists, and child memory is sampled once a second',{timeout:120000},async()=>{
   const dir=await fs.mkdtemp(path.join(os.tmpdir(),'sceneforge-proxy-')),source=path.join(dir,'source.mp4'),ffmpegFake=path.join(dir,'ffmpeg.cjs');
   const calls=path.join(dir,'calls.jsonl'),psCalls=path.join(dir,'ps.log'),psBinary=path.join(dir,'bin','ps');
   try{
@@ -73,11 +73,7 @@ setTimeout(()=>{const c=cp.spawn(${JSON.stringify(real)},args.map(a=>a==='h264_v
     const run=(vt:string)=>execute(process.execPath,['--import','tsx','--input-type=module','-e',script],{cwd:path.resolve(import.meta.dirname,'..'),env:{...process.env,SCENEFORGE_FFMPEG:ffmpegFake,SCENEFORGE_FFPROBE:process.env.SCENEFORGE_FFPROBE||'ffprobe',PATH:`${path.join(dir,'bin')}${path.delimiter}${process.env.PATH}`,FAKE_VT:vt,TEST_SOURCE:source,TEST_CACHE:path.join(dir,'cache')},timeout:100000,maxBuffer:1024*1024});
     const result=JSON.parse((await run('1')).stdout.trim().split('\n').pop()!);assert.equal(result.status,'complete',result.error);
     const proxyCall=(await fs.readFile(calls,'utf8')).trim().split('\n').map(line=>JSON.parse(line)).find(a=>a.includes('scale=960:540:force_original_aspect_ratio=decrease:force_divisible_by=2'));
-    assert.ok(proxyCall,'proxy encode was requested');assert.equal(proxyCall[proxyCall.indexOf('-c:v')+1],'h264_videotoolbox');assert.equal(proxyCall[proxyCall.indexOf('-b:v')+1],'1M');assert.equal(proxyCall.includes('-crf'),false);
+    assert.ok(proxyCall,'proxy encode was requested');assert.equal(proxyCall[proxyCall.indexOf('-c:v')+1],'libx264');assert.equal(proxyCall[proxyCall.indexOf('-crf')+1],'25');assert.equal(proxyCall[proxyCall.indexOf('-preset')+1],'veryfast');
     const samples=(await fs.readFile(psCalls,'utf8')).trim().split('\n').length;assert.ok(samples>=2&&samples<=Math.ceil(result.seconds)+1,`one read at start, then once a second; got ${samples} in ${result.seconds}s`);
-    await fs.rm(calls,{force:true});await fs.rm(path.join(dir,'cache'),{recursive:true,force:true});
-    const fallback=JSON.parse((await run('0')).stdout.trim().split('\n').pop()!);assert.equal(fallback.status,'complete',fallback.error);
-    const fallbackCall=(await fs.readFile(calls,'utf8')).trim().split('\n').map(line=>JSON.parse(line)).find(a=>a.includes('scale=960:540:force_original_aspect_ratio=decrease:force_divisible_by=2'));
-    assert.ok(fallbackCall);assert.equal(fallbackCall[fallbackCall.indexOf('-c:v')+1],'libx264');assert.equal(fallbackCall[fallbackCall.indexOf('-crf')+1],'25');assert.equal(fallbackCall[fallbackCall.indexOf('-preset')+1],'veryfast');
   }finally{await fs.rm(dir,{recursive:true,force:true});}
 });
