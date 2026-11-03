@@ -182,6 +182,8 @@ export interface CompanionCard {
   version?: string;
   /** One line saying what applying it changed, e.g. "Replaced 4 scenes". */
   result?: string;
+  /** A timeline card: the hash of the timeline the reply was built on. Its times mean that timeline, so applying it on another is refused. */
+  proposedOn?: string;
   /** A timeline card: the hash of the timeline it was applied on; applying it again after Undo needs that timeline. */
   appliedOn?: string;
   /** A `start_video` card once applied: the idea it made, so the card can open it. */

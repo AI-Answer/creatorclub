@@ -258,11 +258,13 @@ interface Handler<T extends CompanionAction> {
 export interface ApplyOptions {
   revision?: string;
   appliedOn?: string;
+  /** A timeline card: the timeline its reply was built on. */
+  proposedOn?: string;
 }
 const edit: Handler<EditAction> = {
   changed: ['timeline'],
   apply: async (slug, id, action, options) => {
-    const done = await applyEdit(slug, id, action, options.revision, options.appliedOn);
+    const done = await applyEdit(slug, id, action, options.revision, options.appliedOn, options.proposedOn);
     return { ...done, appliedOn: done.undo.beforeHash };
   },
 };

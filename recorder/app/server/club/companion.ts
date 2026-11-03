@@ -32,7 +32,10 @@ import { boardText, readBoardChat } from './board-chat.js';
 import { inFrame, readCanvas } from './board-canvas.js';
 import { actionShape, applyAction, undoVersion, validateActions, versionExists } from './companion-actions.js';
 import { chunkText, parseReply, ReplySplitter } from './companion-reply.js';
-import { editOptions, editProject, timelineText } from './companion-edit.js';
+import { editOptions, editProject, MOVED_SINCE_PROPOSAL, timelineHash, timelineText } from './companion-edit.js';
+import { mergeRanges } from '../../src/timeline-edit.js';
+import { editRanges, type EditOptions } from '../../src/editing-actions.js';
+import type { EditAction } from '../../shared/companion.js';
 import { loadChannelContext } from './context.js';
 import { ClubError, notFound } from './errors.js';
 import { runningOnce, startJobOnce, type JobContext } from './jobs.js';
@@ -101,6 +104,7 @@ const cardShape = z
     state: z.enum(['offered', 'applied', 'undone']).catch('offered'),
     version: z.string().max(40).optional().catch(undefined),
     result: capped(300).optional().catch(undefined),
+    proposedOn: z.string().max(80).optional().catch(undefined),
     appliedOn: z.string().max(80).optional().catch(undefined),
     videoId: z.string().max(80).optional().catch(undefined),
     tooOld: z.literal(true).optional().catch(undefined),
@@ -304,6 +308,8 @@ async function writeReply(slug: string, id: string, input: AskInput, context: Jo
     context.emit(event);
   };
   const steps = new Steps(emit);
+  // The timeline the prompt was built on: the times an Edit card offers mean this timeline.
+  let promptTimeline: string | undefined;
   const tab = input.message.context.tab;
   steps.start(READING[tab]);
 
@@ -343,6 +349,7 @@ async function writeReply(slug: string, id: string, input: AskInput, context: Jo
     // Edit reads the recording project's timeline: its clips, scenes, selection and transcript.
     timeline = async () => (tab === 'edit' ? editProject(slug, id).then(({ project }) => project, () => undefined) : undefined);
     const editing = await timeline();
+    promptTimeline = editing ? timelineHash(editing) : undefined;
     const screen = screenText(input.message.context, video, outline, takes) + (tab !== 'edit' ? '' : editing ? `\n${timelineText(editing, input.message.context, await editOptions(editing))}` : '\nThis video has nothing recorded yet.');
     built = await buildCompanionPrompt(channel, {
       idea: ideaFor(video),
@@ -442,7 +449,7 @@ async function writeReply(slug: string, id: string, input: AskInput, context: Jo
       text: parsed.reply.slice(0, TEXT_MAX.assistant),
       at: new Date().toISOString(),
       tab,
-      cards: actions.map((action) => ({ action, state: 'offered' })),
+      cards: actions.map((action) => offered(action, promptTimeline)),
       steps: steps.done,
     };
     await changeThread(slug, id, (messages) => ({ messages: [...messages, reply], result: undefined }));
@@ -518,7 +525,7 @@ async function makeWithSkill(slug: string, id: string, input: AskInput, context:
     text: done.text.slice(0, TEXT_MAX.assistant),
     at: new Date().toISOString(),
     tab: 'edit',
-    cards: done.action ? [{ action: done.action, state: 'offered' }] : [],
+    cards: done.action ? [offered(done.action, project ? timelineHash(project) : undefined)] : [],
     steps: steps.done,
   };
   await changeThread(slug, id, (messages) => ({ messages: [...messages, reply], result: undefined }));
@@ -566,6 +573,9 @@ export async function askCompanion(slug: string, id: string, body: z.infer<typeo
 
 // ---------------------------------------------------------------- applying and undoing a card
 
+/** A card offered for a reply. An Edit card records the timeline its reply was built on, so it is refused once that timeline has moved. */
+const offered = (action: CompanionAction, timeline?: string): CompanionCard => ({ action, state: 'offered', ...(timeline && isEditAction(action) ? { proposedOn: timeline } : {}) });
+
 type CardChange = Omit<CompanionApplied, 'message'> & { card: CompanionCard };
 
 /** Reading the card, changing it and saving its state happen under one lock per video, so a double click or two windows apply once. */
@@ -602,7 +612,7 @@ export function applyCard(slug: string, id: string, messageId: string, index: nu
     if (!checked.success) throw new ClubError("That change can't be applied.", 409);
     // A timeline card applied again after its Undo goes only onto the timeline it was first applied on.
     const again = card.state === 'undone' && isEditAction(card.action) && card.appliedOn ? { appliedOn: card.appliedOn } : {};
-    const { version, result, appliedOn, videoId, ...rest } = await applyAction(slug, id, checked.data as CompanionAction, { ...options, ...again });
+    const { version, result, appliedOn, videoId, ...rest } = await applyAction(slug, id, checked.data as CompanionAction, { ...options, ...again, ...(card.proposedOn ? { proposedOn: card.proposedOn } : {}) });
     return { card: { ...card, state: 'applied', version, result, ...(appliedOn ? { appliedOn } : {}), ...(videoId ? { videoId } : {}) }, ...rest };
   });
 }
@@ -614,5 +624,73 @@ export function undoCard(slug: string, id: string, messageId: string, index: num
     const undone = await undoVersion(slug, id, card.version, options);
     const { version: _version, result: _result, videoId: _video, ...rest } = card;
     return { card: { ...rest, state: 'undone' }, ...undone };
+  });
+}
+
+/** Add all: the body names the offered Edit cards of one reply, in order. */
+export const cardsBody = z.object({ indices: z.array(z.number().int().min(0).max(19)).min(1).max(20), revision: z.string().max(200).optional() }).strip();
+
+/** The stretches an action cuts out of the timeline as it is now; none for actions that leave the other times where they are. */
+const cutsOf = (project: Project, action: EditAction, options: EditOptions): Array<[number, number]> => (['cut_pauses', 'remove_fillers', 'close_gaps', 'delete_range'] as const).some((type) => type === action.type) ? mergeRanges(editRanges(project, action, options) ?? []) : [];
+/** A time a card was offered at, moved onto the timeline as it is now through the cuts made before it: a cut of [a, b] removes what lies inside it and shifts everything after it. */
+const movedThrough = (cuts: Array<Array<[number, number]>>) => (time: number) => cuts.reduce((moved, ranges) => moved - ranges.reduce((gone, [a, b]) => gone + Math.max(0, Math.min(moved, b) - a), 0), time);
+/** The same Edit action with its times moved by `at`. */
+function movedAction(action: EditAction, at: (time: number) => number): EditAction {
+  const span = (start: number, duration: number) => ({ start: at(start), duration: at(start + duration) - at(start) });
+  switch (action.type) {
+    case 'split_at':
+    case 'trim_clip':
+      return { ...action, time: at(action.time) };
+    case 'delete_range':
+    case 'add_caption':
+      return { ...action, start: at(action.start), end: at(action.end) };
+    case 'add_text':
+    case 'set_zoom':
+    case 'add_clip':
+      return { ...action, ...span(action.start, action.duration) };
+    case 'add_motion_block':
+      return { ...action, start: at(action.start), ...(action.duration !== undefined ? { duration: at(action.start + action.duration) - at(action.start) } : {}) };
+    case 'update_motion_block':
+      return { ...action, at: at(action.at), ...(action.start !== undefined ? { start: at(action.start) } : {}) };
+    case 'remove_motion_block':
+      return { ...action, at: at(action.at) };
+    default:
+      return action;
+  }
+}
+
+/**
+ * Add all: the offered Edit cards of one reply, applied in the order given. Each card's times are moved through the cuts the cards before it
+ * made, and a card that cannot apply stops the rest, which stay offered. A trim moves everything after it, so the batch ends there.
+ */
+export function applyCards(slug: string, id: string, messageId: string, body: z.infer<typeof cardsBody>): Promise<CompanionApplied> {
+  return store.withLock(`companion-card:${store.boardDir(slug, id)}`, async () => {
+    const message = (await readThread(slug, id)).messages.find((each): each is CompanionReplyMessage => each.id === messageId && each.role === 'assistant');
+    const cards = body.indices.map((index) => message?.cards[index]);
+    const base = cards[0]?.proposedOn;
+    if (!message || !base || cards.some((card) => !card || card.state !== 'offered' || !isEditAction(card.action) || card.proposedOn !== base)) throw new ClubError("These changes can't be added together.", 409);
+    if (timelineHash((await editProject(slug, id)).project) !== base) throw new ClubError(MOVED_SINCE_PROPOSAL, 409);
+    const cuts: Array<Array<[number, number]>> = [];
+    let revision = body.revision;
+    let last: CompanionApplied | undefined;
+    for (const [at, index] of body.indices.entries()) {
+      const original = cards[at]!.action as EditAction;
+      try {
+        last = await changeCardNow(slug, id, messageId, index, async (card) => {
+          const action = movedAction(original, movedThrough(cuts));
+          const project = (await editProject(slug, id)).project;
+          const made = cutsOf(project, action, await editOptions(project));
+          const { version, result, appliedOn, videoId, ...rest } = await applyAction(slug, id, action, { revision });
+          if (made.length) cuts.push(made);
+          revision = rest.revision;
+          return { card: { ...card, state: 'applied', version, result, ...(appliedOn ? { appliedOn } : {}), ...(videoId ? { videoId } : {}) }, ...rest };
+        });
+      } catch (error) {
+        if (!last) throw error;
+        break;
+      }
+      if (original.type === 'trim_clip') break;
+    }
+    return last!;
   });
 }

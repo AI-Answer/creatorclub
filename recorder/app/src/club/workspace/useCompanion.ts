@@ -214,5 +214,22 @@ export function useCompanion(videoId:string,{onChanged,beforeApply,editor}:{onCh
   finally{setBusyCard(current=>current===key?null:current);}
  },[base,beforeApply]);
 
- return {messages,loadError,reload:load,live,announce,sendError,send,retry,stop,apply:(messageId:string,index:number)=>card(messageId,index,'apply'),undo:(messageId:string,index:number)=>card(messageId,index,'undo'),busyCard};
+ // Add all: the timeline cards of one reply go to the server as one batch, so each lands where its times now are. The editor saves first, as for one card.
+ const addCards=useCallback(async(messageId:string,indices:number[])=>{
+  const key=`${messageId}:${indices[0]}`;
+  setBusyCard(key);
+  try{
+   await beforeApply?.();
+   const url=`${base}/${encodeURIComponent(messageId)}/cards/apply-all`;
+   const bridge=editorRef.current?.()??null;
+   if(bridge)bridge.preview(null,key);
+   const result=bridge?await bridge.commit(revision=>clubFetch<CompanionApplied>(url,{body:{indices,revision}})):await clubFetch<CompanionApplied>(url,{method:'POST',body:{indices}});
+   setMessages(current=>current&&current.map(message=>message.id===messageId?result.message:message));
+   changedRef.current(result.changed);
+   return '';
+  }catch(reason){return errorMessage(reason,"Couldn't add those changes.");}
+  finally{setBusyCard(current=>current===key?null:current);}
+ },[base,beforeApply]);
+
+ return {messages,loadError,reload:load,live,announce,sendError,send,retry,stop,apply:(messageId:string,index:number)=>card(messageId,index,'apply'),undo:(messageId:string,index:number)=>card(messageId,index,'undo'),applyAll:addCards,busyCard};
 }

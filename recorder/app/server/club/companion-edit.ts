@@ -77,6 +77,8 @@ export interface TimelineUndo {
 
 /** Applying a card again after it was undone: only on the timeline it was first applied on, so a cut never lands on other content. */
 export const MOVED_SINCE_UNDO = 'The timeline changed since this was undone, so applying it again could change the wrong part. Ask again.';
+/** A card's times mean the timeline its reply was built on; once that timeline has moved, applying it would land on other content. */
+export const MOVED_SINCE_PROPOSAL = 'The timeline changed after this was offered, so it would land on other content. Ask again.';
 
 /**
  * Auto-edit's audio plan for this project, when it has one: the silences of its newest whole-video Remove pauses plan and the fingerprint of
@@ -103,7 +105,7 @@ export async function editSilences(slug: string, id: string): Promise<SilencePla
 }
 
 /** Applies one Edit action to the video's recording project and saves it. */
-export async function applyEdit(slug: string, id: string, action: EditAction, expected?: string, appliedOn?: string): Promise<{ result: string; undo: TimelineUndo; project: Project; revision: string }> {
+export async function applyEdit(slug: string, id: string, action: EditAction, expected?: string, appliedOn?: string, proposedOn?: string): Promise<{ result: string; undo: TimelineUndo; project: Project; revision: string }> {
   const { project, revision } = await editProject(slug, id);
   sameRevision(expected, revision);
   const beforeHash = timelineHash(project);
@@ -111,6 +113,7 @@ export async function applyEdit(slug: string, id: string, action: EditAction, ex
   const options = await editOptions(project);
   const problem = editActionProblem(project, action, options);
   if (problem) throw new ClubError(problem, 409);
+  if (proposedOn !== undefined && beforeHash !== proposedOn) throw new ClubError(MOVED_SINCE_PROPOSAL, 409);
   let result = '';
   const next = applyProjectChange(project, (draft) => {
     result = applyEditAction(draft, action, options);

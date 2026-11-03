@@ -286,3 +286,28 @@ test('the prompt lists the creator\'s notes on the timeline by time, with how th
   assert.match(text, /- 3 s, wants to keep this\n- 13 s, does not like this, "This graphic is ugly now"/);
   assert.ok(!text.includes('- 20 s'), 'a marker with no note and no mood is not a note');
 });
+
+test('a card offered on a timeline that has since moved is refused; Add all moves each later card through the cuts before it', async () => {
+  const stale = await reply('Cut a second', [{ type: 'delete_range', start: 8, end: 9 }]);
+  assert.match(stale.cards[0].proposedOn ?? '', /^[0-9a-f]{64}$/, 'the card records the timeline it was offered on');
+  const moved = await state();
+  const next = structuredClone(moved.project ?? (JSON.parse(moved.json) as Project));
+  next.clips[0].gain = 0.5;
+  await storage.commitProject(next, { expectedRevision: moved.revision });
+  const refused = await card(stale, 0, 'apply', { revision: (await state()).revision });
+  assert.equal(refused.status, 409);
+  assert.match(JSON.stringify(refused.body), /changed after this was offered, so it would land on other content/);
+  const kept = (await thread()).messages.find((each): each is CompanionReplyMessage => each.id === stale.id && each.role === 'assistant');
+  assert.equal(kept?.cards[0].state, 'offered', 'a refused card stays offered');
+
+  const batch = await reply('Tidy up and caption', [
+    { type: 'delete_range', start: 2, end: 3 },
+    { type: 'add_caption', start: 6, end: 7, text: 'Later one' },
+  ]);
+  const added = await call<CompanionApplied>('POST', `/videos/${video.id}/companion/${batch.id}/cards/apply-all`, { indices: [0, 1], revision: (await state()).revision });
+  assert.equal(added.status, 200, JSON.stringify(added.body));
+  assert.deepEqual(added.body.message.cards.map((each) => each.state), ['applied', 'applied']);
+  const saved = (await state()).project ?? (JSON.parse((await state()).json) as Project);
+  assert.equal(saved.captions.find((each) => each.text === 'Later one')?.start, 5, 'the caption offered at 6 s lands at 5 s, after the 1 s cut before it');
+});
+

@@ -217,7 +217,7 @@ export function Companion({videoId,videoTitle,tab,scene,screen,selection,pkg,out
    {items.map(item=>item.kind==='divider'?<div key={item.key} className="cmp-divider" role="separator">{item.label}</div>
     :item.message.role==='user'?<div key={item.key} className="cmp-me">{item.message.attachments?.length?<div className="cmp-pics">{item.message.attachments.map(name=><img key={name} src={`/api/club${chatBase}/${name}`} alt=""/>)}</div>:null}{item.message.text}</div>
     :<Reply key={item.key} name={name} message={item.message} answered={working||(messages?.at(-1)?.id!==item.message.id)} onChoose={answer=>void ask(answer)} pkg={pkg} outline={outline} scenes={scenes} busy={companion.busyCard} editor={editor} silences={silences}
-      onApply={index=>companion.apply(item.message.id,index)} onUndo={index=>companion.undo(item.message.id,index)}/>)}
+      onApply={index=>companion.apply(item.message.id,index)} onApplyAll={indices=>companion.applyAll(item.message.id,indices)} onUndo={index=>companion.undo(item.message.id,index)}/>)}
    {live&&<LiveReply name={name} live={live} now={now} onRetry={()=>void contextNow().then(companion.retry)}/>}
    {companion.sendError&&<ErrorLine message={companion.sendError} onRetry={()=>void ask(text)}/>}
   </div>
@@ -267,12 +267,13 @@ function useNarrow(roomy:boolean){
 }
 
 /** A finished reply: who, the one-line summary of its steps (opens to the list), the text, and its cards. */
-function Reply({name,message,pkg,outline,scenes,busy,editor,silences,answered,onChoose,onApply,onUndo}:{name:string;message:CompanionReplyMessage;answered:boolean;onChoose(answer:string):void;pkg:Package|null;outline:Outline|null;scenes?:readonly VideoScene[];busy:string|null;editor?:CompanionEditor;silences?:SilencePlan|null;onApply(index:number):Promise<string>;onUndo(index:number):Promise<string>}){
+function Reply({name,message,pkg,outline,scenes,busy,editor,silences,answered,onChoose,onApply,onApplyAll,onUndo}:{name:string;message:CompanionReplyMessage;answered:boolean;onChoose(answer:string):void;pkg:Package|null;outline:Outline|null;scenes?:readonly VideoScene[];busy:string|null;editor?:CompanionEditor;silences?:SilencePlan|null;onApply(index:number):Promise<string>;onApplyAll(indices:number[]):Promise<string>;onUndo(index:number):Promise<string>}){
  // Several proposals in one reply: one button applies them all, one after another, and stops at the first that cannot be applied.
  const canEdit=!!editor?.get();
  const offered=message.cards.map((card,index)=>({card,index})).filter(({card})=>card.state!=='applied'&&((isEditAction(card.action)&&canEdit)||card.action.type==='set_scene_script'));
  const [allBusy,setAllBusy]=useState(false);
- const addAll=async()=>{setAllBusy(true);try{for(const {index} of offered){const failed=await onApply(index);if(failed)break;}}finally{setAllBusy(false);}};
+ // Edit cards go to the server as one batch, in order, so each lands where its times now are; the other cards follow one by one.
+ const addAll=async()=>{setAllBusy(true);try{const edits=offered.filter(({card})=>isEditAction(card.action)).map(({index})=>index);if(edits.length>1&&await onApplyAll(edits))return;for(const {index} of offered){if(edits.length>1&&edits.includes(index))continue;const failed=await onApply(index);if(failed)break;}}finally{setAllBusy(false);}};
  return <div className="cmp-reply">
   <div className="cmp-who"><BrandLogo brand={name==='ChatGPT'?'chatgpt':'claude'} size={15}/>{name}</div>
   {message.steps&&message.steps.length>0&&<Steps steps={message.steps}/>}

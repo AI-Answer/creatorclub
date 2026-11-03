@@ -25,7 +25,7 @@ import * as boardDocs from './board-docs.js';
 import { subscribeBoard } from './board-watch.js';
 import * as canvas from './board-canvas.js';
 import { addToResearch, addToResearchBody, startVideoBody, startVideoFrom } from './research-board.js';
-import { applyCard, askBody, askCompanion, attachmentFile, cardBody, readThread, saveAttachment, undoCard } from './companion.js';
+import { applyCard, applyCards, askBody, askCompanion, attachmentFile, cardBody, cardsBody, readThread, saveAttachment, undoCard } from './companion.js';
 import { imageKind } from './publisher-routes.js';
 
 import { lock as companionLock } from './companion-actions.js';
@@ -719,6 +719,9 @@ export function clubRouter({ ai = {}, transcribe, runAI, readViews = ytDlpViews(
       const file = attachmentFile(await requireWorkspace(), boardOf(req), param(req, 'name'));
       if (!file) throw notFound('picture');
       res.sendFile(file, { dotfiles: 'allow' });
+    }));
+    router.post(`${prefix}/companion/:messageId/cards/apply-all`, handler(async (req, res) => {
+      res.json(await applyCards(await requireWorkspace(), boardOf(req), param(req, 'messageId'), cardsBody.parse(req.body ?? {})));
     }));
     for (const action of ['apply', 'undo'] as const) {
       router.post(`${prefix}/companion/:messageId/cards/:index/${action}`, handler(async (req, res) => {
