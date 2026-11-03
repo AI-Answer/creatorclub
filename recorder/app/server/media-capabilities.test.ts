@@ -55,3 +55,29 @@ test('hardware-requested export completes through libx264 when VideoToolbox cann
     const probe=await execute(process.env.SCENEFORGE_FFPROBE||'ffprobe',['-v','error','-count_frames','-select_streams','v:0','-show_entries','stream=nb_read_frames','-of','csv=p=0',result.job.outputPath]);assert.equal(Number(probe.stdout.trim()),6);
   }finally{await fs.rm(f.dir,{recursive:true,force:true});}
 });
+
+test('proxies use VideoToolbox only when the probe confirms it, and sample child memory once a second',{timeout:120000},async()=>{
+  const dir=await fs.mkdtemp(path.join(os.tmpdir(),'sceneforge-proxy-')),source=path.join(dir,'source.mp4'),ffmpegFake=path.join(dir,'ffmpeg.cjs');
+  const calls=path.join(dir,'calls.jsonl'),psCalls=path.join(dir,'ps.log'),psBinary=path.join(dir,'bin','ps');
+  try{
+    const real=process.env.SCENEFORGE_FFMPEG||'ffmpeg';
+    await execute(real,['-v','error','-y','-f','lavfi','-i','testsrc2=size=1280x720:rate=30','-t','1','-c:v','libx264','-pix_fmt','yuv420p',source]);
+    await fs.mkdir(path.join(dir,'bin'));
+    // Fake ffmpeg logs argv, reports VideoToolbox unless FAKE_VT=0, and delegates proxies to libx264 after a pause so sampling can run.
+    await fs.writeFile(ffmpegFake,`#!${process.execPath}\nconst fs=require('node:fs'),cp=require('node:child_process'),args=process.argv.slice(2);fs.appendFileSync(${JSON.stringify(calls)},JSON.stringify(args)+'\\n');
+if(args.includes('-encoders')){console.log(process.env.FAKE_VT==='0'?' V..... libx264':' V..... h264_videotoolbox');process.exit(0)}
+if(args.includes('color=black:size=160x90:rate=30')){process.exit(0)}
+setTimeout(()=>{const c=cp.spawn(${JSON.stringify(real)},args.map(a=>a==='h264_videotoolbox'?'libx264':a),{stdio:'inherit'});c.on('error',()=>process.exit(1));c.on('exit',code=>process.exit(code??1));},2500);`,{mode:0o700});
+    await fs.writeFile(psBinary,`#!/bin/sh\necho sample >> ${JSON.stringify(psCalls)}\necho 4096\n`,{mode:0o700});
+    const script=`import {probeMedia,startProxy,getJob} from './server/media.ts';const cache=process.env.TEST_CACHE;const m=await probeMedia(process.env.TEST_SOURCE,cache);const job=startProxy(m,cache);const began=Date.now();while(['queued','running'].includes(getJob(job.id).status))await new Promise(r=>setTimeout(r,50));console.log(JSON.stringify({status:getJob(job.id).status,error:getJob(job.id).error,seconds:(Date.now()-began)/1000}));`;
+    const run=(vt:string)=>execute(process.execPath,['--import','tsx','--input-type=module','-e',script],{cwd:path.resolve(import.meta.dirname,'..'),env:{...process.env,SCENEFORGE_FFMPEG:ffmpegFake,SCENEFORGE_FFPROBE:process.env.SCENEFORGE_FFPROBE||'ffprobe',PATH:`${path.join(dir,'bin')}${path.delimiter}${process.env.PATH}`,FAKE_VT:vt,TEST_SOURCE:source,TEST_CACHE:path.join(dir,'cache')},timeout:100000,maxBuffer:1024*1024});
+    const result=JSON.parse((await run('1')).stdout.trim().split('\n').pop()!);assert.equal(result.status,'complete',result.error);
+    const proxyCall=(await fs.readFile(calls,'utf8')).trim().split('\n').map(line=>JSON.parse(line)).find(a=>a.includes('scale=960:540:force_original_aspect_ratio=decrease:force_divisible_by=2'));
+    assert.ok(proxyCall,'proxy encode was requested');assert.equal(proxyCall[proxyCall.indexOf('-c:v')+1],'h264_videotoolbox');assert.equal(proxyCall[proxyCall.indexOf('-b:v')+1],'1M');assert.equal(proxyCall.includes('-crf'),false);
+    const samples=(await fs.readFile(psCalls,'utf8')).trim().split('\n').length;assert.ok(samples>=2&&samples<=Math.ceil(result.seconds)+1,`one read at start, then once a second; got ${samples} in ${result.seconds}s`);
+    await fs.rm(calls,{force:true});await fs.rm(path.join(dir,'cache'),{recursive:true,force:true});
+    const fallback=JSON.parse((await run('0')).stdout.trim().split('\n').pop()!);assert.equal(fallback.status,'complete',fallback.error);
+    const fallbackCall=(await fs.readFile(calls,'utf8')).trim().split('\n').map(line=>JSON.parse(line)).find(a=>a.includes('scale=960:540:force_original_aspect_ratio=decrease:force_divisible_by=2'));
+    assert.ok(fallbackCall);assert.equal(fallbackCall[fallbackCall.indexOf('-c:v')+1],'libx264');assert.equal(fallbackCall[fallbackCall.indexOf('-crf')+1],'25');assert.equal(fallbackCall[fallbackCall.indexOf('-preset')+1],'veryfast');
+  }finally{await fs.rm(dir,{recursive:true,force:true});}
+});

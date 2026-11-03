@@ -96,7 +96,7 @@ function resolvedOptions(project:Project,input:ExportOptions):ExportOptions{
  for(const key of ['hardware','burnCaptions'] as const)if(input[key]!==undefined&&typeof input[key]!=='boolean')throw Error('Export flags must be boolean');
  if(input.range!==undefined){const range=input.range;if(!range||typeof range!=='object'||Object.keys(range).some(key=>!['start','end'].includes(key))||!Number.isFinite(range.start)||!Number.isFinite(range.end)||range.start<0||range.end<=range.start||range.end>projectDuration(project)+.001)throw Error('Export range must be within the saved project timeline');}
  const even=(n:number,min:number,max:number)=>2*Math.round(Math.min(max,Math.max(min,n))/2);
- return {format:input.format,width:even(input.width??project.canvas.width,64,7680),height:even(input.height??project.canvas.height,64,4320),fps:Math.min(120,Math.max(1,input.fps??project.canvas.fps)),quality:input.quality??'balanced',hardware:input.hardware??false,burnCaptions:input.burnCaptions??true,...(input.range?{range:structuredClone(input.range)}:{})};
+ return {format:input.format,width:even(input.width??project.canvas.width,64,7680),height:even(input.height??project.canvas.height,64,4320),fps:Math.min(120,Math.max(1,input.fps??project.canvas.fps)),quality:input.quality??'balanced',hardware:input.hardware??true,burnCaptions:input.burnCaptions??true,...(input.range?{range:structuredClone(input.range)}:{})};
 }
 /**
  * The renderer this process runs: fingerprinted once, when the service first asks. The code a running service renders with is the code it
@@ -151,7 +151,8 @@ export class ExportStore{
   const used=new Set(project.clips.map(c=>c.mediaId));if(project.canvas.backgroundMediaId)used.add(project.canvas.backgroundMediaId);
   const result:Source[]=[];for(const id of used){const media=project.media.find(m=>m.id===id);if(!media)throw Error('Project refers to missing media '+id);result.push({mediaId:id,name:media.name,identity:await fingerprintFile(media.path)});}return result;
  }
- private async changedSources(saved:Saved){const changed:string[]=[];for(const source of saved.sources){try{const now=await fingerprintFile(source.identity.path);if(now.sha256!==source.identity.sha256||now.realPath!==source.identity.realPath)changed.push(source.name);}catch{changed.push(source.name);}}return changed;}
+ /** Unchanged metadata (size, mtime, ctime, inode, path) skips the full read. Any write moves ctime, even when mtime is restored; a metadata-only change is judged by its bytes. */
+ private async changedSources(saved:Saved){const changed:string[]=[];for(const source of saved.sources){try{const {identity}=source,real=await fs.realpath(identity.path);if(real===identity.realPath&&JSON.stringify(stamp(await fs.stat(identity.path)))===JSON.stringify(stamp(identity)))continue;const now=await fingerprintFile(identity.path);if(now.sha256!==identity.sha256||now.realPath!==identity.realPath)changed.push(source.name);}catch{changed.push(source.name);}}return changed;}
  async create(project:Project,options:ExportOptions,restartOf?:string,expectedSources?:Source[],expectedRuntime?:string):Promise<ExportRecord>{
   this.assertOpen();const snapshot=structuredClone(project),o=resolvedOptions(snapshot,options),now=new Date().toISOString();
   if(!['mp4','webm','wav','srt','txt','md','json'].includes(o.format))throw Error('Unsupported export format');

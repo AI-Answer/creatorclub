@@ -116,21 +116,22 @@ function command(
         }, 10000);
         watchdog.unref();
         if (job) children.set(job.id, child);
-        const sample = job
-          ? setInterval(() => {
-              if (!child.pid) return;
-              const ps = spawn("ps", ["-p", String(child.pid), "-o", "rss="]);
-              let value = "";
-              ps.stdout.on("data", (b) => (value += b));
-              ps.once("close", () => {
-                const kb = Number(value.trim());
-                if (Number.isFinite(kb))
-                  peakRss.set(job.id, Math.max(peakRss.get(job.id) || 0, kb));
-              });
-              ps.on("error", () => {});
-            }, 250)
-          : undefined;
+        // One read at start, then once a second: a peak without a ps process every quarter second.
+        const sampleRss = () => {
+          if (!child.pid || !job) return;
+          const ps = spawn("ps", ["-p", String(child.pid), "-o", "rss="]);
+          let value = "";
+          ps.stdout.on("data", (b) => (value += b));
+          ps.once("close", () => {
+            const kb = Number(value.trim());
+            if (Number.isFinite(kb))
+              peakRss.set(job.id, Math.max(peakRss.get(job.id) || 0, kb));
+          });
+          ps.on("error", () => {});
+        };
+        const sample = job ? setInterval(sampleRss, 1000) : undefined;
         sample?.unref();
+        if (job) sampleRss();
         let out = "",
           err = "",
           lines = "";
@@ -557,6 +558,8 @@ export function startProxy(m: Media, cacheDir: string): Job {
       return;
     }
     const tmp = path.join(cacheDir, `${key}.${j.id}.tmp.mp4`);
+    // Hardware H.264 when the probe confirmed it; otherwise the libx264 path. Proxies are preview files, so VideoToolbox uses a fixed 1 Mbps.
+    const hardware = (await getCapabilities()).hardwareEncode;
     try {
       await command(
         FFMPEG,
@@ -568,11 +571,7 @@ export function startProxy(m: Media, cacheDir: string): Job {
           "-vf",
           "scale=960:540:force_original_aspect_ratio=decrease:force_divisible_by=2",
           "-c:v",
-          "libx264",
-          "-preset",
-          "veryfast",
-          "-crf",
-          "25",
+          ...(hardware ? ["h264_videotoolbox", "-b:v", "1M"] : ["libx264", "-preset", "veryfast", "-crf", "25"]),
           "-c:a",
           "aac",
           "-b:a",

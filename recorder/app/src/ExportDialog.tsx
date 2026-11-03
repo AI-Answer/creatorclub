@@ -13,7 +13,7 @@ import {useRecoveryFocus} from './useRecoveryFocus';
 import './export-history.css';
 
 export function ExportDialog({project,flush,onClose,onBorumi}:{project:Project;flush:()=>Promise<Project|undefined>;onClose:()=>void;onError?:(message:string)=>void;onBorumi?:()=>void}){
- const defaults=()=>({format:'mp4' as const,width:project.canvas.width,height:project.canvas.height,fps:project.canvas.fps,quality:'balanced' as const,hardware:false,burnCaptions:true});
+ const defaults=()=>({format:'mp4' as const,width:project.canvas.width,height:project.canvas.height,fps:project.canvas.fps,quality:'balanced' as const,hardware:true,burnCaptions:true});
  const [options,setOptions]=useState<ExportOptions>(defaults),[range,setRange]=useState<ExportRange>({mode:'full',sceneId:project.scenes[0]?.id??'',start:0,end:projectDuration(project)});
  const [tab,setTab]=useState<'new'|'history'>('new'),[records,setRecords]=useState<ExportRecord[]>([]),[selected,setSelected]=useState<string|null>(null),[nextOffset,setNextOffset]=useState<number|null>(null),[loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState(''),[historyError,setHistoryError]=useState(''),[diagnostic,setDiagnostic]=useState(''),[reviewing,setReviewing]=useState(false),[acknowledged,setAcknowledged]=useState(false);
  const session=useRef(new ExportSession()),operation=useRef(false),chosenTab=useRef(false),initialLoaded=useRef(false),projectRef=useRef(project);projectRef.current=project;
