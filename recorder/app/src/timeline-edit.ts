@@ -118,8 +118,9 @@ export function deleteItems(p:Project,ids:Iterable<string>,ripple:boolean):Delet
 }
 /** Removes [a, b) from every track and moves everything after it up, markers included. */
 export function closeRange(p:Project,a:number,b:number){
- cutTimelineRange(p,a,b,true,plainView(p));
+ const loss=cutTimelineRange(p,a,b,true,plainView(p));
  if(p.markers)for(const m of p.markers){if(m.time>=b)m.time-=b-a;else if(m.time>a)m.time=a;}
+ return loss;
 }
 /** Every stretch before the last clip where no screen, camera, audio or overlay clip plays. */
 export function timelineGaps(clips:readonly Clip[]):Array<[number,number]>{

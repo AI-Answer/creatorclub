@@ -1,6 +1,6 @@
 import {PAUSE_SECONDS,type EditAction,type PauseLevel,type TextPosition} from '../shared/companion';
 import {clipDuration,defaultEffects,defaultTransform,makeId,projectDuration,type Clip,type Project} from '../shared/types';
-import {minimumPiece} from '../shared/timeline-edits';
+import {addCutLoss,cutLossText,minimumPiece,noCutLoss,type CutLoss} from '../shared/timeline-edits';
 import {clipsFingerprint,fillerRanges,gapRanges,rangesSeconds} from './club/recorder/edit-auto';
 import {plainView} from './project-draft';
 import {addMotionBlock,closeRange,ensureLinks,linkedIds,mergeRanges,motionAt,newElement,nextMotionStart,rowItems,splitLinked,syncScenesToTakes,trimBounds,trimClips} from './timeline-edit';
@@ -70,6 +70,12 @@ export function wordPauseRanges(p:Project,level:PauseLevel,options:EditOptions={
   if(!last||w.end>last.end)last=w;
  }
  return mergeRanges(withinSilences(p,out,options.silences));
+}
+/** What cutting these ranges would also remove or shorten among zooms, text, graphics and captions. Dry run on a copy: the project is untouched. */
+function rangesLoss(p:Project,ranges:Range[]):CutLoss{
+ const draft=structuredClone(plainView(p)),loss=noCutLoss();
+ for(const [a,b] of [...ranges].sort((x,y)=>y[0]-x[0]))addCutLoss(loss,closeRange(draft,a,b));
+ return loss;
 }
 /** Filler words that a speech clip still holds (a word left behind by a move is not cut). */
 const heldFillers=(p:Project):Range[]=>fillerRanges(p).filter(([a,b])=>holding(p,a,b).length>0);
@@ -187,12 +193,12 @@ export function applyEditAction(p:Project,action:EditAction,options:EditOptions=
  let result:string;
  switch(action.type){
   case 'cut_pauses':case 'remove_fillers':case 'close_gaps':case 'delete_range':{
-   const ranges=mergeRanges(editRanges(plainView(p),action,options)!);
+   const ranges=mergeRanges(editRanges(plainView(p),action,options)!),loss=noCutLoss();
    // Latest first, so the earlier ranges keep their times.
-   for(const [a,b] of [...ranges].sort((x,y)=>y[0]-x[0]))closeRange(p,a,b);
-   const total=secs(rangesSeconds(ranges));
-   result=action.type==='cut_pauses'?`Cut ${plural(ranges.length,'pause')}, ${total} shorter`:action.type==='remove_fillers'?`Removed ${plural(ranges.length,'filler word')}, ${total} shorter`
+   for(const [a,b] of [...ranges].sort((x,y)=>y[0]-x[0]))addCutLoss(loss,closeRange(p,a,b));
+   const total=secs(rangesSeconds(ranges)),also=cutLossText(loss),said=action.type==='cut_pauses'?`Cut ${plural(ranges.length,'pause')}, ${total} shorter`:action.type==='remove_fillers'?`Removed ${plural(ranges.length,'filler word')}, ${total} shorter`
     :action.type==='close_gaps'?`Closed ${plural(ranges.length,'gap')}, ${total} shorter`:`Removed ${total} from every row at ${clock(action.start)}`;
+   result=also?`${said}, ${also}`:said;
    break;
   }
   case 'split_at':{
@@ -213,7 +219,9 @@ export function applyEditAction(p:Project,action:EditAction,options:EditOptions=
    break;
   }
   case 'add_caption':{
-   p.captions.push({id:newId(),start:action.start,end:action.end,text:action.text});p.captions.sort((a,b)=>a.start-b.start);
+   // Word timings from the transcript inside the range come with the caption, so later cuts treat it like the rest of the speech.
+   const words=p.captions.flatMap(c=>c.words??[]).filter(w=>w.start>=action.start-1e-3&&w.end<=action.end+1e-3).sort((a,b)=>a.start-b.start).map(w=>({...w}));
+   p.captions.push({id:newId(),start:action.start,end:action.end,text:action.text,...(words.length?{words}:{})});p.captions.sort((a,b)=>a.start-b.start);
    result=`Caption added at ${clock(action.start)}`;
    break;
   }
@@ -321,8 +329,8 @@ export function editEstimate(p:Project,action:EditAction,options:EditOptions={})
  const problem=editActionProblem(p,action,options);if(problem)return {text:problem,warn:true};
  const ranges=editRanges(p,action,options);
  if(ranges){
-  const merged=mergeRanges(ranges),total=rangesSeconds(merged),share=total/Math.max(1e-9,projectDuration(p));
-  const text=`${plural(merged.length,'cut')} · ${secs(total)} shorter${action.type==='delete_range'?` (${Math.round(share*100)}% of the video)`:''}`;
+  const merged=mergeRanges(ranges),total=rangesSeconds(merged),share=total/Math.max(1e-9,projectDuration(p)),also=cutLossText(rangesLoss(p,merged));
+  const text=`${plural(merged.length,'cut')} · ${secs(total)} shorter${action.type==='delete_range'?` (${Math.round(share*100)}% of the video)`:''}${also?` · ${also}`:''}`;
   return share>=DELETE_WARN_SHARE?{text:`${text}. That is ${Math.round(share*100)}% of the video.`,warn:true}:{text};
  }
  if(action.type==='set_zoom'){const gone=replacedZooms(p,action);if(gone.length)return {text:`Replaces ${gone.map(z=>`the ${z.scale}× zoom at ${clock(z.start)}`).join(' and ')}.`};}

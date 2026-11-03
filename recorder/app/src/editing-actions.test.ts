@@ -28,6 +28,25 @@ function make():Project{
 }
 const apply=(p:Project,action:EditAction)=>{let result='';const next=applyProjectChange(p,d=>{result=applyEditAction(d,action);});return {next,result};};
 
+test('a cut names the zooms it removes or shortens, on the card and in the result, and applies them as the timeline does',()=>{
+ const p=make();p.zooms=[{id:'inside',start:10,duration:1,scale:1.5,x:.5,y:.5,target:'screen',easing:'smooth'},{id:'across',start:8,duration:3,scale:1.5,x:.5,y:.5,target:'screen',easing:'smooth'}];
+ const action={type:'cut_pauses' as const,level:'balanced' as const};
+ assert.equal(editEstimate(p,action)?.text,'2 cuts · 6.4 s shorter · also removes 1 zoom, and shortens 1 zoom');
+ const {next,result}=apply(p,action);
+ assert.equal(result,'Cut 2 pauses, 6.4 s shorter, also removes 1 zoom, and shortens 1 zoom');
+ assert.deepEqual(next.zooms.map(z=>[z.id,+z.duration.toFixed(2)]),[['across',1.65]]);
+ assert.equal(p.zooms.length,2,'the estimate and the project it came from are untouched');
+});
+test('add_caption takes the transcript word timings inside its range, and a range with no words adds a plain caption',()=>{
+ // A word whose caption span does not cover it (left by an earlier edit): the range is free on the captions row, but the word is speech there.
+ const p=make();p.captions=[{id:'late',start:20,end:21,text:'later',words:[{text:'later',start:20,end:20.5}]},{id:'gap',start:9,end:9.5,text:'',words:[{text:'x',start:4.2,end:4.6}]}];
+ const {next,result}=apply(p,{type:'add_caption',start:4,end:7,text:'Hello there'});
+ const added=next.captions.find(c=>c.text==='Hello there')!;
+ assert.equal(result,'Caption added at 0:04');
+ assert.deepEqual(added.words,[{text:'x',start:4.2,end:4.6}]);
+ const bare=structuredClone(p);bare.captions=[];const plain=apply(bare,{type:'add_caption',start:4,end:7,text:'Alone'}).next.captions[0];
+ assert.equal(plain.words,undefined);
+});
 test('cut pauses: the pauses between words, keeping a breath, cut from every row as one change',()=>{
  const p=make();
  // 3.5 s of silence after word 9.5 in each take (words 10, 11, 12 left out).

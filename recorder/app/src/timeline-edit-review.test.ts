@@ -4,7 +4,7 @@ import {createProject,defaultEffects,defaultTransform,clipDuration,type Clip,typ
 import {applyProjectChange} from './project-draft';
 import {deleteTranscriptSelection,transcriptWords} from './transcript-editing';
 import {gapRanges,withoutRanges} from './club/recorder/edit-auto';
-import {cutTimelineRange} from '../shared/timeline-edits';
+import {cutLossText,cutTimelineRange} from '../shared/timeline-edits';
 import {applyClipStarts,closeRange,deleteItems,ensureLinks,insertGap,isLinked,linkClips,linkedIds,planClipMove,remapLinks,rowItems,rowsOverlap,splitLinked,syncScenesToTakes,timelineGaps,trimClips,unlinkClips} from './timeline-edit';
 
 /** The review's probes (Task 2, fix round 1) as tests: pieces left by cuts stay separate, ripple trims and inserts never overlap, scenes follow their takes. */
@@ -169,4 +169,17 @@ test('an insert that would shift the rows of one take by different amounts (offs
  const plan=planClipMove(p,linkedIds(p.clips,['Fs']),5.77,18.9);applyClipStarts(p,plan.starts);
  assert.notEqual(plan.kind,'insert');assert.equal(overlaps(p),false);assert.ok(p.clips.every(c=>c.start>=0));
  assert.equal(Math.abs((p.clips.find(x=>x.id==='Cc')!.start-p.clips.find(x=>x.id==='Cs')!.start)-.4)<1e-9,true,'the camera keeps its 0.4 s offset');
+});
+test('a caption without word timings keeps its text once across a cut; a removed or shortened zoom, graphic or caption is reported',()=>{
+ const zoom=(id:string,start:number,duration:number)=>({id,start,duration,scale:1.5,x:.5,y:.5,target:'screen' as const,easing:'smooth' as const});
+ const make=()=>{const p=project([clip('s','screen',0,10)]);p.captions=[{id:'c',start:2,end:6,text:'one long sentence'}];p.zooms=[zoom('inside',3.2,.5),zoom('partly',3.8,1)];p.motion=[{id:'mo',template:'title-card',style:'',start:3.1,duration:.5,props:{}}];return p;};
+ const ripple=make(),loss=cutTimelineRange(ripple,3,4);
+ assert.deepEqual(ripple.captions.map(c=>[c.text,c.start,c.end]),[['one long sentence',2,5]],'one caption that spans the join');
+ assert.deepEqual(ripple.zooms.map(z=>[z.id,+z.duration.toFixed(2)]),[['partly',.8]]);assert.equal(ripple.motion!.length,0);
+ assert.deepEqual(loss,{removed:{zooms:1,texts:0,graphics:1,captions:0},shortened:{zooms:1,texts:0,graphics:0,captions:1}});
+ assert.equal(cutLossText(loss),'also removes 1 zoom and 1 graphic, and shortens 1 zoom');
+ const gap=make(),gapLoss=cutTimelineRange(gap,3,4,false);
+ assert.deepEqual(gap.captions.map(c=>[c.text,c.start,c.end]),[['one long sentence',4,6]],'a leave-gap cut keeps the longer piece, once');
+ assert.equal(gapLoss.shortened.captions,1);
+ assert.equal(cutLossText(cutTimelineRange(make(),8,9)),'','a cut that touches nothing names nothing');
 });
