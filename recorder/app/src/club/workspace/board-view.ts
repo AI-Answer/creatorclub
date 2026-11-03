@@ -15,21 +15,26 @@ export function zoomAt(view:View,z:number,sx:number,sy:number):View{
  return {x:sx-cx*next,y:sy-cy*next,z:next};
 }
 
-/** The zoom a wheel turn asks for: a pinch sends small deltas, a mouse wheel notch (100 px, or 3 lines) is about 12%. */
-export const wheelZoom=(z:number,deltaY:number,deltaMode=0,pinch=false)=>z*Math.exp(-deltaY*(pinch?0.01:deltaMode===1?0.04:0.0012));
+/**
+ * The zoom a wheel turn asks for: a pinch sends small deltas, a mouse wheel notch (100 px, or 3 lines) is about 12%, and a trackpad
+ * flick is capped per event so its momentum glides instead of jumping.
+ */
+export const wheelZoom=(z:number,deltaY:number,deltaMode=0,pinch=false)=>{
+ const d=deltaMode===1?deltaY*33:Math.max(-120,Math.min(120,deltaY));
+ return z*Math.exp(-d*(pinch?0.01:0.0012));
+};
 
 export const panBy=(view:View,dx:number,dy:number):View=>({...view,x:view.x+dx,y:view.y+dy});
 
-export interface WheelLike{ctrlKey:boolean;deltaMode:number;deltaX:number;deltaY:number;wheelDeltaY?:number}
+export interface WheelLike{ctrlKey:boolean;shiftKey?:boolean;deltaMode:number;deltaX:number;deltaY:number}
 /**
- * What a wheel event means. A pinch (Ctrl + wheel) and a mouse wheel zoom; the two-finger scroll of a trackpad pans.
- * A mouse wheel turns in whole steps (lines, or a multiple of 100 or 120 pixels, with no sideways part); a trackpad sends small, uneven deltas.
+ * What a wheel event means. Scrolling up or down zooms towards the pointer, from a mouse wheel or two fingers on a trackpad, as does a pinch
+ * (Ctrl + wheel). Shift + scroll and a sideways swipe pan; so does dragging the empty canvas.
  */
 export function wheelIntent(event:WheelLike):'zoom'|'pan'{
- if(event.ctrlKey||event.deltaMode===1)return 'zoom';
- const step=event.wheelDeltaY!==undefined&&event.wheelDeltaY!==0&&Math.abs(event.wheelDeltaY)%120===0;
- if(event.deltaX===0&&Number.isInteger(event.deltaY)&&Math.abs(event.deltaY)>=50&&(step||event.wheelDeltaY===undefined))return 'zoom';
- return 'pan';
+ if(event.ctrlKey)return 'zoom';
+ if(event.shiftKey||Math.abs(event.deltaX)>Math.abs(event.deltaY))return 'pan';
+ return 'zoom';
 }
 
 /** The view that shows `rect` (canvas pixels) inside a window `width` × `height`, with `pad` around it. Never zoomed in past 100%. */

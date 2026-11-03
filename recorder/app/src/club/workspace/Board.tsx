@@ -48,7 +48,7 @@ const isEmpty=(target:HTMLElement,scroller:HTMLElement)=>target===scroller||targ
 
 /** A gesture on the canvas in progress: moving cards, moving or resizing a frame, a selection rectangle, or a connection being drawn. */
 type Gesture=
- |{kind:'tiles';sx:number;sy:number;starts:Map<string,{x:number;y:number}>;pressed:string;els:Map<string,HTMLElement>}
+ |{kind:'tiles';sx:number;sy:number;starts:Map<string,{x:number;y:number}>;pressed:string;els:Map<string,HTMLElement>;moved:boolean;/** A note's text pressed while not being written in: a press without a drag starts writing. */write?:HTMLTextAreaElement}
  |{kind:'pan';sx:number;sy:number;view:View;moved:boolean;clears:boolean}
  |{kind:'note';id:string;sx:number;sy:number;start:{w:number;h:number};el:HTMLElement;size:{w:number;h:number}}
  |{kind:'frame';id:string;sx:number;sy:number;start:{x:number;y:number};members:Map<string,{x:number;y:number}>}
@@ -106,16 +106,16 @@ export function Board({video,board:boardProp,scenes,onDrafted=()=>{},refreshKey=
  // The view is remembered for this Board, a moment after it stops changing.
  useEffect(()=>{const saveLater=setTimeout(()=>saveView(boardId,view),300);return()=>clearTimeout(saveLater);},[boardId,view]);
  const loaded=!!board.tiles;
- // Wheel: a pinch or a mouse wheel zooms towards the pointer, two fingers on a trackpad pan.
+ // Wheel: scrolling and pinching zoom towards the pointer; Shift + scroll or a sideways swipe pans.
  useEffect(()=>{
   const el=scroller.current;if(!el)return;
   const onWheel=(event:WheelEvent)=>{
    if(!event.ctrlKey&&(event.target as HTMLElement).closest?.('[data-wheel="own"]'))return;
    event.preventDefault();
    const rect=el.getBoundingClientRect();
-   if(wheelIntent({ctrlKey:event.ctrlKey,deltaMode:event.deltaMode,deltaX:event.deltaX,deltaY:event.deltaY,wheelDeltaY:(event as WheelEvent&{wheelDeltaY?:number}).wheelDeltaY})==='zoom')
+   if(wheelIntent(event)==='zoom')
     setView(current=>zoomAt(current,wheelZoom(current.z,event.deltaY,event.deltaMode,event.ctrlKey),event.clientX-rect.left,event.clientY-rect.top));
-   else setView(current=>panBy(current,-event.deltaX,-event.deltaY));
+   else setView(current=>event.shiftKey&&!event.deltaX?panBy(current,-event.deltaY,0):panBy(current,-event.deltaX,-event.deltaY));
   };
   el.addEventListener('wheel',onWheel,{passive:false});
   return()=>el.removeEventListener('wheel',onWheel);
@@ -172,6 +172,8 @@ export function Board({video,board:boardProp,scenes,onDrafted=()=>{},refreshKey=
   const move=(event:PointerEvent)=>{
    const now=gesture.current;if(!now)return;
    if(now.kind==='tiles'){
+    if(!now.moved&&Math.abs(event.clientX-now.sx)+Math.abs(event.clientY-now.sy)<=3)return;
+    now.moved=true;
     // A card follows the pointer by a transform on the card itself: no render per pixel; the new place is set when it is let go.
     for(const [id,from] of now.starts){const at=dragTo(from,event.clientX-now.sx,event.clientY-now.sy,zoom);const el=now.els.get(id);if(el)el.style.transform=`translate3d(${at.x-from.x}px,${at.y-from.y}px,0)`;}
    }else if(now.kind==='pan'){
@@ -202,7 +204,8 @@ export function Board({video,board:boardProp,scenes,onDrafted=()=>{},refreshKey=
    }else if(now.kind==='tiles'){
     let moved=false;
     for(const el of now.els.values())el.style.transform='';
-    for(const [id,from] of now.starts){const at=dragTo(from,dx,dy,zoom);if(at.x!==from.x||at.y!==from.y){moved=true;board.place(id,at,'now');}}
+    if(now.moved)for(const [id,from] of now.starts){const at=dragTo(from,dx,dy,zoom);if(at.x!==from.x||at.y!==from.y){moved=true;board.place(id,at,'now');}}
+    if(!moved&&now.write){const area=now.write;area.focus({preventScroll:true});area.setSelectionRange(area.value.length,area.value.length);return;}
     // A press on one card of a selection that did not move it picks that card alone.
     if(!moved&&now.starts.size>1)setSel([now.pressed]);
    }else if(now.kind==='frame'){
@@ -235,7 +238,11 @@ export function Board({video,board:boardProp,scenes,onDrafted=()=>{},refreshKey=
  const pointing=useRef(false);
 
  const onTileDown=(event:ReactPointerEvent<HTMLDivElement>,id:string)=>{
-  if(event.button!==0||space.current||(event.target as HTMLElement).closest(INTERACTIVE))return;
+  // A note's text not being written in drags the note like the rest of the card; a press that does not move starts writing.
+  const area=(event.target as HTMLElement).closest<HTMLTextAreaElement>('textarea.sticky-text');
+  const write=area&&area!==document.activeElement&&!event.shiftKey&&!event.metaKey&&!event.ctrlKey?area:undefined;
+  if(event.button!==0||space.current||!write&&(event.target as HTMLElement).closest(INTERACTIVE))return;
+  if(write)event.preventDefault();
   // The pointer picks the selection here; the focus that follows the press must not pick it again.
   pointing.current=true;setTimeout(()=>{pointing.current=false;},0);
   setSelLink(null);setSelFrame(null);
@@ -247,7 +254,7 @@ export function Board({video,board:boardProp,scenes,onDrafted=()=>{},refreshKey=
   setDragId(id);
   try{event.currentTarget.setPointerCapture(event.pointerId);}catch{/* a pointer that is already gone */}
   const els=new Map(moving.flatMap(each=>{const el=canvasEl.current?.querySelector<HTMLElement>(`[data-tile="${each}"]`);return el?[[each,el] as const]:[];}));
-  follow({kind:'tiles',sx:event.clientX,sy:event.clientY,pressed:id,els,starts:new Map(moving.flatMap(each=>{const tile=tiles?.find(item=>item.id===each);return tile?[[each,{x:tileBox(tile).x,y:tileBox(tile).y}] as const]:[];}))});
+  follow({kind:'tiles',sx:event.clientX,sy:event.clientY,pressed:id,els,moved:false,write,starts:new Map(moving.flatMap(each=>{const tile=tiles?.find(item=>item.id===each);return tile?[[each,{x:tileBox(tile).x,y:tileBox(tile).y}] as const]:[];}))});
  };
  const onCanvasDown=(event:ReactPointerEvent<HTMLDivElement>)=>{
   const target=event.target as HTMLElement;
@@ -296,7 +303,7 @@ export function Board({video,board:boardProp,scenes,onDrafted=()=>{},refreshKey=
   if(event.target!==event.currentTarget)return;
   if(event.key==='Enter'&&connectFrom&&connectFrom!==tileId){
    event.preventDefault();const from=connectFrom;setConnectFrom(null);
-   void canvas.connect(from,tileId).then(made=>{if(made){toast('Connected the cards');setSelLink(made.id);}});
+   void canvas.connect(from,tileId).then(made=>{if(made)setSelLink(made.id);});
    return;
   }
   if((event.key==='c'||event.key==='C')&&!event.metaKey&&!event.ctrlKey){event.preventDefault();setConnectFrom(tileId);toast('Pick the card to connect to: focus it and press Enter. Esc cancels.');return;}
@@ -357,7 +364,8 @@ export function Board({video,board:boardProp,scenes,onDrafted=()=>{},refreshKey=
   event.preventDefault();
   const text=link.trim();if(!text)return;
   if(!(await addFromText(addHere,text))){toast("Couldn't add that.");return;}
-  setLink('');setLinkOpen(false);toast(tileFromText(text)?.kind==='video'?'Added the video to the board':'Added the link to the board');
+  // The new card shows up and flashes where it landed: no toast to cover the board.
+  setLink('');setLinkOpen(false);
  };
  const addImage=(file:File)=>{const form=new FormData();form.append('kind','image');form.append('title',file.name);form.append('file',file);return addHere(form);};
  const takeNotes=async(docs:File[],others:File[])=>{

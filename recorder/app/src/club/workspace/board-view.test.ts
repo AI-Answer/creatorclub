@@ -14,12 +14,15 @@ test('zoom stays between 25% and 200%',()=>{
  assert.equal(zoomAt(DEFAULT_VIEW,0.01,0,0).z,0.25);
  const full={x:5,y:5,z:2};assert.equal(zoomAt(full,3,10,10),full,'no change at the limit');
 });
-test('wheel: pinch and mouse wheel zoom, trackpad scroll pans',()=>{
+test('wheel: scrolling and pinching zoom, Shift + scroll and sideways swipes pan',()=>{
  assert.equal(wheelIntent({ctrlKey:true,deltaMode:0,deltaX:0,deltaY:3.5}),'zoom');
- assert.equal(wheelIntent({ctrlKey:false,deltaMode:0,deltaX:0,deltaY:100,wheelDeltaY:-120}),'zoom');
+ assert.equal(wheelIntent({ctrlKey:false,deltaMode:0,deltaX:0,deltaY:100}),'zoom');
  assert.equal(wheelIntent({ctrlKey:false,deltaMode:1,deltaX:0,deltaY:3}),'zoom');
- assert.equal(wheelIntent({ctrlKey:false,deltaMode:0,deltaX:4,deltaY:12.5,wheelDeltaY:-37}),'pan');
- assert.equal(wheelIntent({ctrlKey:false,deltaMode:0,deltaX:0,deltaY:6,wheelDeltaY:-18}),'pan');
+ assert.equal(wheelIntent({ctrlKey:false,deltaMode:0,deltaX:4,deltaY:12.5}),'zoom','two fingers scrolling mostly up or down zoom');
+ assert.equal(wheelIntent({ctrlKey:false,deltaMode:0,deltaX:20,deltaY:6}),'pan','a sideways swipe pans');
+ assert.equal(wheelIntent({ctrlKey:false,shiftKey:true,deltaMode:0,deltaX:0,deltaY:40}),'pan','Shift + scroll pans');
+ assert.ok(wheelZoom(1,3,1)<0.9&&wheelZoom(1,3,1)>0.85,'three lines is about one notch');
+ assert.equal(wheelZoom(1,2000),wheelZoom(1,120),'a flick is capped per event');
  assert.ok(wheelZoom(1,-100)>1.1&&wheelZoom(1,-100)<1.14&&wheelZoom(1,100)<1);
  assert.ok(wheelZoom(1,-3,0,true)>1.02&&wheelZoom(1,-3,0,true)<1.04);
 });

@@ -60,6 +60,9 @@
   --cc-ok-soft: #f0fdf4;
   --cc-warn: #f59e0b;
   --cc-warn-soft: #fefce8;
+  /* A sticky note on the Board: a pale paper yellow, quieter than a warning. */
+  --cc-note: #fef9c3;
+  --cc-note-line: #fde68a;
   /* Over pictures and dark stages (thumbnails, previews, toasts) */
   --cc-dark-stage: #000000;
   --cc-on-media: #ffffff;
@@ -203,6 +206,8 @@
   --cc-ok-soft: #052e16;
   --cc-warn: #f59e0b;
   --cc-warn-soft: #6f3915;
+  --cc-note: #29261a;
+  --cc-note-line: #4a4224;
   --cc-avatar-1: #57534d;
   --cc-avatar-2: #4a4844;
   --cc-avatar-3: #6b665e;
