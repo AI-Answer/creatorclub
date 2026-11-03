@@ -77,6 +77,9 @@ test('malformed and unsupported history is preserved while valid exports remain 
  }finally{await next?.shutdown(async()=>{});await fs.rm(f.dir,{recursive:true,force:true});}
 });
 
+test('hardware encoding is the default export choice; an explicit false is honoured',async()=>{
+ const f=await fixture();try{const defaulted=await f.store.create(f.project,{format:'mp4'}),explicit=await f.store.create(f.project,{format:'mp4',hardware:false});assert.equal(defaulted.options.hardware,true);assert.equal(explicit.options.hardware,false);}finally{await f.cleanup();}
+});
 test('public export options cannot inject internal render controls and resolved settings match output geometry',async()=>{
  const f=await fixture();try{
   await assert.rejects(f.store.create(f.project,{format:'mp4',frameCount:1} as any),/Unsupported export option/);await assert.rejects(f.store.create(f.project,{format:'mp4',range:{start:5,end:2}}),/range/);await assert.rejects(f.store.create(f.project,{format:'mp4',width:NaN}),/finite/);assert.equal(f.calls.length,0);

@@ -96,7 +96,7 @@ function resolvedOptions(project:Project,input:ExportOptions):ExportOptions{
  for(const key of ['hardware','burnCaptions'] as const)if(input[key]!==undefined&&typeof input[key]!=='boolean')throw Error('Export flags must be boolean');
  if(input.range!==undefined){const range=input.range;if(!range||typeof range!=='object'||Object.keys(range).some(key=>!['start','end'].includes(key))||!Number.isFinite(range.start)||!Number.isFinite(range.end)||range.start<0||range.end<=range.start||range.end>projectDuration(project)+.001)throw Error('Export range must be within the saved project timeline');}
  const even=(n:number,min:number,max:number)=>2*Math.round(Math.min(max,Math.max(min,n))/2);
- return {format:input.format,width:even(input.width??project.canvas.width,64,7680),height:even(input.height??project.canvas.height,64,4320),fps:Math.min(120,Math.max(1,input.fps??project.canvas.fps)),quality:input.quality??'balanced',hardware:input.hardware??false,burnCaptions:input.burnCaptions??true,...(input.range?{range:structuredClone(input.range)}:{})};
+ return {format:input.format,width:even(input.width??project.canvas.width,64,7680),height:even(input.height??project.canvas.height,64,4320),fps:Math.min(120,Math.max(1,input.fps??project.canvas.fps)),quality:input.quality??'balanced',hardware:input.hardware??true,burnCaptions:input.burnCaptions??true,...(input.range?{range:structuredClone(input.range)}:{})};
 }
 /**
  * The renderer this process runs: fingerprinted once, when the service first asks. The code a running service renders with is the code it

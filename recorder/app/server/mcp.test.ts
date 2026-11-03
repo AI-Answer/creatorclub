@@ -73,6 +73,12 @@ test('a committed recovery makes an earlier staged transaction stale and failure
  assert.equal(current.name,'Original');assert.equal(current.notes,'Committed recovery');await assert.rejects(handle('get_project',{tx_id:tx.tx_id}),/closed/);
 });
 
+test('MCP export without options requests hardware encoding',async()=>{
+ const project=createProject('Default hardware');const bodies:any[]=[];
+ const handle=createToolHandler('http://127.0.0.1:45679/api',async(url,init)=>{if(String(url).endsWith('/export')){bodies.push(JSON.parse(String(init?.body)));return Response.json({id:'export'});}return Response.json(project,{headers:{ETag:'"'+'c'.repeat(64)+'"'}});});
+ await handle('export_video',{project_id:project.id});await handle('export_video',{project_id:project.id,options:{format:'mp4',hardware:false}});
+ assert.deepEqual(bodies[0].options,{format:'mp4',hardware:true});assert.equal(bodies[1].options.hardware,false);
+});
 test('MCP export pins the committed revision and does not retry a changed project',async()=>{
  const project=createProject('Export revision');const calls:Array<{url:string;headers:Headers}>=[];let changed=false;
  const handle=createToolHandler('http://127.0.0.1:45678/api',async(url,init)=>{calls.push({url:String(url),headers:new Headers(init?.headers)});if(String(url).endsWith('/export'))return Response.json(changed?{error:'Project changed'}:{id:'durable-export'},{status:changed?409:200});return Response.json(project,{headers:{ETag:'"'+ 'b'.repeat(64)+'"'}});});
