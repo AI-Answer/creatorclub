@@ -274,6 +274,8 @@ export interface CompanionApplied {
   /** A timeline change: the recording project as saved, and its revision, for the open editor to take as one undo step. */
   project?: Project;
   revision?: string;
+  /** Add all stopped before the end: why the card it stopped at could not be added. The cards from there on stay offered. */
+  stopped?: string;
 }
 
 /** `POST …/cards/:index/apply|undo` body for a timeline card: the revision the editor saved last, so a change never lands on a timeline it did not see. */

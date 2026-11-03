@@ -271,15 +271,16 @@ function Reply({name,message,pkg,outline,scenes,busy,editor,silences,answered,on
  // Several proposals in one reply: one button applies them all, one after another, and stops at the first that cannot be applied.
  const canEdit=!!editor?.get();
  const offered=message.cards.map((card,index)=>({card,index})).filter(({card})=>card.state!=='applied'&&((isEditAction(card.action)&&canEdit)||card.action.type==='set_scene_script'));
- const [allBusy,setAllBusy]=useState(false);
+ const [allBusy,setAllBusy]=useState(false),[allError,setAllError]=useState('');
  // Edit cards go to the server as one batch, in order, so each lands where its times now are; the other cards follow one by one.
- const addAll=async()=>{setAllBusy(true);try{const edits=offered.filter(({card})=>isEditAction(card.action)).map(({index})=>index);if(edits.length>1&&await onApplyAll(edits))return;for(const {index} of offered){if(edits.length>1&&edits.includes(index))continue;const failed=await onApply(index);if(failed)break;}}finally{setAllBusy(false);}};
+ const addAll=async()=>{setAllBusy(true);setAllError('');try{const edits=offered.filter(({card})=>isEditAction(card.action)).map(({index})=>index);if(edits.length>1){const failed=await onApplyAll(edits);if(failed){setAllError(failed);return;}}for(const {index} of offered){if(edits.length>1&&edits.includes(index))continue;const failed=await onApply(index);if(failed)break;}}finally{setAllBusy(false);}};
  return <div className="cmp-reply">
   <div className="cmp-who"><BrandLogo brand={name==='ChatGPT'?'chatgpt':'claude'} size={15}/>{name}</div>
   {message.steps&&message.steps.length>0&&<Steps steps={message.steps}/>}
   {message.text&&<div className="cmp-md"><Markdown text={message.text}/></div>}
   {message.status==='stopped'&&<div className="cmp-note">Stopped</div>}
   {offered.length>1&&<div className="cmp-all"><Button size="sm" variant="primary" disabled={!!busy||allBusy} onClick={()=>void addAll()}>{allBusy?<span className="spin"/>:null}Add all {offered.length}</Button><span className="cmp-faint">or choose one below</span></div>}
+  {allError&&<div className="cmp-card-err" role="alert"><Icon name="TriangleAlert" size={13}/><span>{allError}</span></div>}
   {message.cards.map((card,index)=><Card key={index} answered={answered} onChoose={onChoose} id={`${message.id}:${index}`} card={card} pkg={pkg} outline={outline} scenes={scenes} busy={busy===`${message.id}:${index}`} editor={editor} silences={silences} onApply={()=>onApply(index)} onUndo={()=>onUndo(index)}/>)}
  </div>;
 }

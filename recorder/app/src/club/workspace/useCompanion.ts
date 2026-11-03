@@ -226,7 +226,7 @@ export function useCompanion(videoId:string,{onChanged,beforeApply,editor}:{onCh
    const result=bridge?await bridge.commit(revision=>clubFetch<CompanionApplied>(url,{body:{indices,revision}})):await clubFetch<CompanionApplied>(url,{method:'POST',body:{indices}});
    setMessages(current=>current&&current.map(message=>message.id===messageId?result.message:message));
    changedRef.current(result.changed);
-   return '';
+   return result.stopped?`Added the changes before this one: ${result.stopped}`:'';
   }catch(reason){return errorMessage(reason,"Couldn't add those changes.");}
   finally{setBusyCard(current=>current===key?null:current);}
  },[base,beforeApply]);

@@ -673,6 +673,7 @@ export function applyCards(slug: string, id: string, messageId: string, body: z.
     const cuts: Array<Array<[number, number]>> = [];
     let revision = body.revision;
     let last: CompanionApplied | undefined;
+    let stopped: string | undefined;
     for (const [at, index] of body.indices.entries()) {
       const original = cards[at]!.action as EditAction;
       try {
@@ -687,10 +688,11 @@ export function applyCards(slug: string, id: string, messageId: string, body: z.
         });
       } catch (error) {
         if (!last) throw error;
+        stopped = error instanceof Error ? error.message : String(error);
         break;
       }
       if (original.type === 'trim_clip') break;
     }
-    return last!;
+    return { ...last!, ...(stopped ? { stopped } : {}) };
   });
 }
