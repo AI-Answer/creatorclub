@@ -668,7 +668,7 @@ export function applyCards(slug: string, id: string, messageId: string, body: z.
     const message = (await readThread(slug, id)).messages.find((each): each is CompanionReplyMessage => each.id === messageId && each.role === 'assistant');
     const cards = body.indices.map((index) => message?.cards[index]);
     const base = cards[0]?.proposedOn;
-    if (!message || !base || cards.some((card) => !card || card.state !== 'offered' || !isEditAction(card.action) || card.proposedOn !== base)) throw new ClubError("These changes can't be added together.", 409);
+    if (!message || !base || new Set(body.indices).size !== body.indices.length || cards.some((card) => !card || card.state !== 'offered' || !isEditAction(card.action) || card.proposedOn !== base)) throw new ClubError("These changes can't be added together.", 409);
     if (timelineHash((await editProject(slug, id)).project) !== base) throw new ClubError(MOVED_SINCE_PROPOSAL, 409);
     const cuts: Array<Array<[number, number]>> = [];
     let revision = body.revision;

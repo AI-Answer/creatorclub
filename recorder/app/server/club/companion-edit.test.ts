@@ -311,3 +311,11 @@ test('a card offered on a timeline that has since moved is refused; Add all move
   assert.equal(saved.captions.find((each) => each.text === 'Later one')?.start, 5, 'the caption offered at 6 s lands at 5 s, after the 1 s cut before it');
 });
 
+test('Add all refuses a card listed twice, so no card is applied twice', async () => {
+  const message = await reply('Cut once', [{ type: 'delete_range', start: 1, end: 1.5 }]);
+  const doubled = await call<CompanionApplied>('POST', `/videos/${video.id}/companion/${message.id}/cards/apply-all`, { indices: [0, 0], revision: (await state()).revision });
+  assert.equal(doubled.status, 409);
+  const kept = (await thread()).messages.find((each): each is CompanionReplyMessage => each.id === message.id && each.role === 'assistant');
+  assert.equal(kept?.cards[0].state, 'offered', 'nothing was applied');
+});
+
