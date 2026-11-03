@@ -1,4 +1,4 @@
-import {useEffect,useMemo,useState} from 'react';
+import {useEffect,useState,type ReactNode} from 'react';
 import type {Breakdown,ResearchTile,TranscriptChapter,Video} from '../../../shared/club';
 import {clubFetch,errorMessage} from '../api';
 import {clockTime,linkHost} from '../video-plan';
@@ -9,9 +9,8 @@ import {Avatar,Icon,IconButton,MultChip,SourceIcon,Spinner,StagePill,Thumb,type 
 import {ideaWhy} from '../ideas';
 import {InlineText} from './InlineText';
 import {boardBase} from './board-base';
-import {markdownToHtml} from '../markdown';
-import {openInBrowser} from '../markdown/MarkdownEditor';
-import type {Reading} from './useBoard';
+import type {NoteSaved,Reading} from './useBoard';
+import {StickyNote} from './StickyNote';
 
 /** The picture a tile shows: a video's thumbnail, or the tile's own saved file. `videoId` is the Board's (a video's id, or `CHANNEL_BOARD`). */
 export function tileImage(videoId:string,tile:ResearchTile):string|undefined{
@@ -20,8 +19,8 @@ export function tileImage(videoId:string,tile:ResearchTile):string|undefined{
 }
 
 /** The head of a tile: its label, and a quiet remove button. */
-function TileHead({icon,label,onRemove}:{icon:IconName;label:string;onRemove():void}){
- return <div className="th"><Icon name={icon} size={13}/>{label}<IconButton icon="close" iconSize={13} label="Remove from the board" className="x" onClick={onRemove} style={{width:22,height:22}}/></div>;
+function TileHead({icon,label,onRemove,children}:{icon:IconName;label:string;onRemove():void;/** Buttons before the remove button. */children?:ReactNode}){
+ return <div className="th"><Icon name={icon} size={13}/>{label}<span className="th-actions">{children}<IconButton icon="close" iconSize={13} label="Remove from the board" className="x" onClick={onRemove} style={{width:22,height:22}}/></span></div>;
 }
 
 export interface TileBodyProps{
@@ -37,6 +36,12 @@ export interface TileBodyProps{
  onOpenVideo?(video:Video):void;
  /** Saves text written on the card itself (ideas and text cards). */
  onSaveText?(text:string):Promise<unknown>;
+ /** `note` tiles: saves the note's text to its file. With it the note is a sticky note to type in right on the Board; without it, a preview that opens the panel. */
+ onSaveNote?(text:string,base:string|undefined):Promise<NoteSaved>;
+ /** `note` tiles: focus the note's text (it was just made). */
+ autoFocus?:boolean;
+ /** `note` tiles: the note was left empty. */
+ onBlurEmpty?():void;
 }
 
 /** One tile on the Board, drawn per kind as the prototype does. */
@@ -55,26 +60,15 @@ export function TileBody(props:TileBodyProps){
  }
 }
 
-/** A note: its Markdown shown as written. It opens in the writing panel; the file it is saved in is named under it. */
-function NoteTile({tile,onRemove,onOpen}:TileBodyProps){
- const doc=tile.doc,text=tile.text??'';
- const html=useMemo(()=>markdownToHtml(text),[text]);
+/** A note: a sticky note to type in right on the Board. Its full editor (Markdown, headings, lists) opens from the button on its head; the file it is saved in is its tooltip. */
+function NoteTile({tile,onRemove,onOpen,onSaveNote,autoFocus,onBlurEmpty}:TileBodyProps){
+ const doc=tile.doc;
  const label=doc?.root==='folder'?'Note from your Notes folder':'Note';
  return <>
-  <TileHead icon="note" label={label} onRemove={onRemove}/>
-  <div className="tb">
-   {doc?.missing?<div className="small muted">{doc.root==='folder'?<>This note is from a Notes folder that is not the current one: <span className="note-path">{doc.folder??'an earlier folder'}</span>. It shows again if you choose that folder.</>:'This file is not in its folder any more. Put it back and it shows here again, or remove the card.'}</div>
-    :doc?.tooLarge?<div className="small muted">This file is over 1 MB, so it is not shown. It stays in its folder.</div>
-    :<div role="button" tabIndex={0} className="note-preview" aria-label={`Open note: ${tile.title||'empty note'}`} onClick={event=>{
-       // A link in the preview opens in the browser, never in the app, and does not open the note.
-       const anchor=(event.target as HTMLElement).closest('a');
-       if(anchor){event.preventDefault();event.stopPropagation();openInBrowser(anchor.getAttribute('href')??'');return;}
-       onOpen();
-      }} onKeyDown={event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();onOpen();}}}>
-      {text.trim()?<div className="md-view" dangerouslySetInnerHTML={{__html:html}}/>:<span className="muted">Empty note. Click to write.</span>}
-     </div>}
-   {doc&&<div className="note-file small faint ellipsis" title={doc.path}>{doc.path}</div>}
-  </div>
+  <TileHead icon="note" label={label} onRemove={onRemove}>{!doc?.missing&&!doc?.tooLarge&&<IconButton icon="open-external" iconSize={13} label="Open in the full editor" onClick={onOpen} style={{width:22,height:22}}/>}</TileHead>
+  {doc?.missing?<div className="tb small muted">{doc.root==='folder'?<>This note is from a Notes folder that is not the current one: <span className="note-path">{doc.folder??'an earlier folder'}</span>. It shows again if you choose that folder.</>:'This file is not in its folder any more. Put it back and it shows here again, or remove the card.'}</div>
+   :doc?.tooLarge?<div className="tb small muted">This file is over 1 MB, so it is not shown. It stays in its folder.</div>
+   :onSaveNote&&<StickyNote tile={tile} save={onSaveNote} autoFocus={autoFocus} onBlurEmpty={onBlurEmpty} label={tile.title||doc?.path||'Note'}/>}
  </>;
 }
 
@@ -137,7 +131,7 @@ function VideoTile({tile,videoId,reading,onRemove,onRetryRead,onBreakdown}:TileB
    </div>
    {open&&(error?<div style={{marginTop:8}}><ErrorLine message={error} onRetry={()=>{setError('');setChapters(null);}}/></div>
     :!chapters?<div style={{marginTop:8}}><Spinner label="Loading the transcript" size={14}/></div>
-    :<div style={{marginTop:8,display:'flex',flexDirection:'column',gap:8,maxHeight:240,overflow:'auto'}} aria-label="Transcript">
+    :<div data-wheel="own" style={{marginTop:8,display:'flex',flexDirection:'column',gap:8,maxHeight:240,overflow:'auto'}} aria-label="Transcript">
       {chapters.map((chapter,index)=><div key={index}><div className="small" style={{fontWeight:600}}><span className="faint" style={{marginRight:6}}>{clockTime(chapter.start)}</span>{chapter.title}</div><p style={{margin:'2px 0 0',fontSize:13,lineHeight:1.5}}>{chapter.text}</p></div>)}
      </div>)}
   </div>

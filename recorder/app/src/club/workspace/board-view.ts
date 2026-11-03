@@ -15,8 +15,8 @@ export function zoomAt(view:View,z:number,sx:number,sy:number):View{
  return {x:sx-cx*next,y:sy-cy*next,z:next};
 }
 
-/** The zoom a wheel turn asks for: `ctrl` (a trackpad pinch) is fine-grained, a mouse wheel notch is about 10%. */
-export const wheelZoom=(z:number,deltaY:number,deltaMode=0)=>z*Math.exp(-deltaY*(deltaMode===1?0.05:0.01));
+/** The zoom a wheel turn asks for: a pinch sends small deltas, a mouse wheel notch (100 px, or 3 lines) is about 12%. */
+export const wheelZoom=(z:number,deltaY:number,deltaMode=0,pinch=false)=>z*Math.exp(-deltaY*(pinch?0.01:deltaMode===1?0.04:0.0012));
 
 export const panBy=(view:View,dx:number,dy:number):View=>({...view,x:view.x+dx,y:view.y+dy});
 

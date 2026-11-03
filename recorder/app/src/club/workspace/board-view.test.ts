@@ -20,7 +20,8 @@ test('wheel: pinch and mouse wheel zoom, trackpad scroll pans',()=>{
  assert.equal(wheelIntent({ctrlKey:false,deltaMode:1,deltaX:0,deltaY:3}),'zoom');
  assert.equal(wheelIntent({ctrlKey:false,deltaMode:0,deltaX:4,deltaY:12.5,wheelDeltaY:-37}),'pan');
  assert.equal(wheelIntent({ctrlKey:false,deltaMode:0,deltaX:0,deltaY:6,wheelDeltaY:-18}),'pan');
- assert.ok(wheelZoom(1,-100)>1&&wheelZoom(1,100)<1);
+ assert.ok(wheelZoom(1,-100)>1.1&&wheelZoom(1,-100)<1.14&&wheelZoom(1,100)<1);
+ assert.ok(wheelZoom(1,-3,0,true)>1.02&&wheelZoom(1,-3,0,true)<1.04);
 });
 test('panning moves the view by the scroll',()=>{assert.deepEqual(panBy({x:10,y:10,z:1},-5,20),{x:5,y:30,z:1});});
 test('fit shows the whole content centred and never zooms in past 100%',()=>{

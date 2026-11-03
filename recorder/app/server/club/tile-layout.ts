@@ -25,7 +25,7 @@ const overlaps = (a: { x: number; y: number; w: number }, b: { x: number; y: num
   a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + TILE_HEIGHT && b.y < a.y + TILE_HEIGHT;
 
 /** The first free slot for a tile of this kind. Tiles without a position take no space. */
-export function freeSpot(tiles: readonly Pick<ResearchTile, 'kind' | 'pos'>[], kind: TileKind): Required<TilePosition> {
+export function freeSpot(tiles: readonly Pick<ResearchTile, 'kind' | 'pos'>[], kind: TileKind): Required<Pick<TilePosition, 'x' | 'y' | 'w'>> {
   const w = defaultWidth(kind);
   const placed = tiles.flatMap((tile) => (tile.pos ? [{ x: tile.pos.x, y: tile.pos.y, w: tile.pos.w ?? defaultWidth(tile.kind) }] : []));
   for (let slot = 0; ; slot++) {

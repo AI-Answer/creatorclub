@@ -46,7 +46,7 @@ test('the toolbar has one Add menu for every kind of tile, and each icon-only bu
  try{
   await flush();await flush();
   const toolbar=ui.container.querySelector('.btoolbar')!;
-  assert.deepEqual([...toolbar.querySelectorAll('button')].map(item=>item.getAttribute('aria-label')||item.textContent?.trim()),['Add to board','Zoom out','Zoom in','Fit the board and go to its start']);
+  assert.deepEqual([...toolbar.querySelectorAll('button')].map(item=>item.getAttribute('aria-label')||item.textContent?.trim()),['Add to board','Zoom out','Zoom in','Fit the whole board']);
   await act(async()=>button(toolbar,'Add to board').click());
   const items=[...document.querySelectorAll('[role=menuitem]')].map(item=>item.textContent);
   assert.deepEqual(items,['Note','Link','Image or Markdown file','Notes folder']);
@@ -57,7 +57,7 @@ test('the toolbar has one Add menu for every kind of tile, and each icon-only bu
  }finally{await ui.close();}
 });
 
-test('Add, Note makes a note that is a file and opens it to write in; closing it empty takes it off again',async()=>{
+test('Add, Note puts a sticky note on the board to type in right away; left empty, it goes again',async()=>{
  let made=false,removed=false;
  const created=note('t9','','notes/note.md',{title:'note.md',text:''});
  const server=board([],call=>{
@@ -73,15 +73,16 @@ test('Add, Note makes a note that is a file and opens it to write in; closing it
   await act(async()=>(document.querySelector('[role=menuitem]') as HTMLButtonElement).click());
   await flush();await flush();
   assert.deepEqual(server.calls.find(call=>call.method==='POST')?.body,{kind:'note',text:''});
-  assert.ok(document.querySelector('.md-editor'),'the note opens, ready to write in');
-  assert.match(document.querySelector('[role=dialog]')!.textContent!,/notes\/note\.md/);
-  await act(async()=>document.querySelector<HTMLButtonElement>('button[aria-label="Close"]')!.click());await flush();await flush();
+  const area=ui.container.querySelector<HTMLTextAreaElement>('.tile.note textarea')!;
+  assert.ok(area,'the note is on the board, ready to type in');
+  assert.equal(document.activeElement,area,'and has the cursor');
+  assert.equal(document.querySelector('[role=dialog]'),null,'no panel is needed to write');
+  await act(async()=>{area.blur();});await flush();await flush();
   assert.equal(removed,true,'a note left empty is taken off the board');
-  assert.equal(document.querySelector('.md-editor'),null);
  }finally{await ui.close();}
 });
 
-test('a note card shows its Markdown, names its file, opens the writer on a click, and a missing file says so',async()=>{
+test('a note card is a sticky note holding its text, opens the full editor from its button, and a missing file says so',async()=>{
  const tiles=[note('t1','# Hooks\n\n- one\n- [x] two','notes/hooks.md'),note('t2','','gone.md',{doc:{root:'video',path:'gone.md',missing:true}}),note('t3','# From the vault','idea.md',{doc:{root:'folder',path:'idea.md',hash:'hv'}})];
  board(tiles);
  const ui=await mount();
@@ -89,13 +90,11 @@ test('a note card shows its Markdown, names its file, opens the writer on a clic
   await flush();await flush();
   const cards=[...ui.container.querySelectorAll('.tile.note')];
   assert.equal(cards.length,3);
-  assert.equal(cards[0].querySelector('h1')?.textContent,'Hooks');
-  assert.deepEqual([...cards[0].querySelectorAll('li')].map(item=>item.getAttribute('data-checked')),[null,'true']);
-  assert.equal(cards[0].querySelector('.note-file')?.textContent,'notes/hooks.md');
+  assert.equal(cards[0].querySelector('textarea')?.value,'# Hooks\n\n- one\n- [x] two');
   assert.match(cards[1].textContent!,/not in its folder any more/);
   assert.match(cards[2].textContent!,/Note from your Notes folder/);
   assert.ok(cards.every(card=>card.querySelector('[aria-label="Remove from the board"]')?.hasAttribute('data-tooltip')),'named, with a tooltip');
-  await act(async()=>cards[0].querySelector<HTMLElement>('[role=button]')!.click());await flush();
+  await act(async()=>cards[0].querySelector<HTMLElement>('button[aria-label="Open in the full editor"]')!.click());await flush();
   assert.equal(document.querySelector('[role=dialog]')?.getAttribute('aria-label'),'Note: Hooks');
   assert.equal(document.querySelector('.md-editor h1')?.textContent,'Hooks');
  }finally{await ui.close();}
@@ -197,11 +196,11 @@ test('the board reads itself again when the server says a file changed, keeping 
   listed=[...listed,note('t2','# Two, written by an agent','two.md',{pos:{x:400,y:60,w:280}})];
   source.emit('files',{});
   await act(async()=>{await new Promise(resolve=>setTimeout(resolve,250));});await flush();
-  assert.deepEqual([...ui.container.querySelectorAll('.tile.note h1')].map(item=>item.textContent),['One','Two, written by an agent']);
+  assert.deepEqual([...ui.container.querySelectorAll<HTMLTextAreaElement>('.tile.note textarea')].map(item=>item.value),['# One','# Two, written by an agent']);
  }finally{await ui.close();delete (globalThis as {EventSource?:unknown}).EventSource;}
 });
 
-test('a link in a note card opens in the browser, not in the app, and does not open the note; a card from another Notes folder says so; Show hidden files brings cards back',async()=>{
+test('a card from another Notes folder says so; Show hidden files brings cards back',async()=>{
  const opened:string[]=[];
  const original=window.open;
  window.open=((url:string)=>{opened.push(url);return null;}) as typeof window.open;
@@ -215,14 +214,6 @@ test('a link in a note card opens in the browser, not in the app, and does not o
  const ui=await mount();
  try{
   await flush();await flush();
-  const card=ui.container.querySelector('.tile.note')!;
-  const anchor=card.querySelector<HTMLAnchorElement>('.md-view a')!;
-  await act(async()=>{const event=new MouseEvent('click',{bubbles:true,cancelable:true});anchor.dispatchEvent(event);assert.ok(event.defaultPrevented);});
-  assert.deepEqual(opened,['https://example.com/docs']);
-  assert.equal(document.querySelector('[role=dialog]'),null,'the note did not open');
-  const local=card.querySelectorAll<HTMLAnchorElement>('.md-view a')[1];
-  await act(async()=>{const event=new MouseEvent('click',{bubbles:true,cancelable:true});local.dispatchEvent(event);assert.ok(event.defaultPrevented);});
-  assert.deepEqual(opened,['https://example.com/docs'],'an address that is not a web address opens nothing');
   const other=ui.container.querySelectorAll('.tile.note')[1];
   assert.match(other.textContent!,/not the current one/);assert.match(other.textContent!,/\/Users\/me\/old-vault/);
   await act(async()=>button(ui.container.querySelector('.btoolbar')!,'Add to board').click());
