@@ -70,12 +70,15 @@ export const actionShape = z.discriminatedUnion('type', [
     .strict(),
   z.object({ type: z.literal('add_caption'), start: time, end: time, text: line(300) }).strict(),
   z.object({ type: z.literal('add_text'), start: time, duration: z.number().min(0.2).max(60), text: line(200), position: POSITION.optional() }).strict(),
+  z.object({ type: z.literal('set_stage'), start: time, end: time }).strict(),
+  z.object({ type: z.literal('set_look'), preset: z.enum(['clean', 'editorial']).optional(), name: z.string().trim().min(1).max(40).optional(), display: z.enum(['sans', 'serif']).optional(), paper: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(), ink: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(), accent: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(), muted: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(), motion: z.enum(['still', 'subtle', 'lively']).optional(), stage: z.object({ background: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(), side: z.enum(['right', 'left']).optional(), size: z.number().min(0.12).max(0.3).optional() }).strict().nullable().optional() }).strict(),
+  z.object({ type: z.literal('add_blur'), start: time, duration: z.number().min(0.2).max(120), x: z.number().min(0).max(0.98), y: z.number().min(0).max(0.98), width: z.number().min(0.02).max(1), height: z.number().min(0.02).max(1) }).strict(),
   z.object({ type: z.literal('set_zoom'), start: time, duration: z.number().min(0.3).max(120), scale: z.number().min(1.05).max(4), x: z.number().min(0).max(1).optional(), y: z.number().min(0).max(1).optional(), target: z.enum(['screen', 'camera']).optional() }).strict(),
   z
-    .object({ type: z.literal('add_motion_block'), template: z.enum(MOTION_TEMPLATE_IDS as [MotionTemplateId, ...MotionTemplateId[]]), style: z.string().max(20).optional(), start: time, duration: z.number().min(1).max(20).optional(), text: line(80), detail: line(120).optional(), x: z.number().min(0).max(1).optional(), y: z.number().min(0).max(1).optional() })
+    .object({ type: z.literal('add_motion_block'), template: z.enum(MOTION_TEMPLATE_IDS as [MotionTemplateId, ...MotionTemplateId[]]), style: z.string().max(20).optional(), start: time, duration: z.number().min(1).max(20).optional(), text: line(240), detail: line(300).optional(), x: z.number().min(0).max(1).optional(), y: z.number().min(0).max(1).optional(), place: z.enum(['left', 'right', 'top', 'bottom', 'stage']).optional() })
     .strict(),
   z
-    .object({ type: z.literal('update_motion_block'), at: time, text: line(80).optional(), detail: line(120).optional(), style: z.string().max(20).optional(), start: time.optional(), duration: z.number().min(1).max(20).optional(), x: z.number().min(0).max(1).optional(), y: z.number().min(0).max(1).optional() })
+    .object({ type: z.literal('update_motion_block'), at: time, text: line(240).optional(), detail: line(160).optional(), style: z.string().max(20).optional(), start: time.optional(), duration: z.number().min(1).max(20).optional(), x: z.number().min(0).max(1).optional(), y: z.number().min(0).max(1).optional() })
     .strict(),
   z.object({ type: z.literal('remove_motion_block'), at: time }).strict(),
   z
@@ -103,7 +106,7 @@ export const MAX_CARDS = 6;
  */
 export function validateActions(
   raw: readonly unknown[],
-  { tab, sceneIds, tileIds = [], project, editOptions }: { tab: CompanionTab; sceneIds: readonly string[]; /** Research: the ids of the cards on the channel's Board. */ tileIds?: readonly string[]; project?: Project; editOptions?: EditOptions },
+  { tab, sceneIds, tileIds = [], project, editOptions, max = MAX_CARDS }: { tab: CompanionTab; sceneIds: readonly string[]; /** Research: the ids of the cards on the channel's Board. */ tileIds?: readonly string[]; project?: Project; /** How many cards at most (a reply offers a few; a skill's plan may offer more). */ max?: number; editOptions?: EditOptions },
 ): { actions: CompanionAction[]; rejected: string[] } {
   const actions: CompanionAction[] = [];
   const rejected: string[] = [];
@@ -149,8 +152,8 @@ export function validateActions(
     seen.add(key);
     actions.push(action);
   }
-  if (actions.length > MAX_CARDS) rejected.push(`${actions.length - MAX_CARDS} more than ${MAX_CARDS}`);
-  return { actions: actions.slice(0, MAX_CARDS), rejected };
+  if (actions.length > max) rejected.push(`${actions.length - max} more than ${max}`);
+  return { actions: actions.slice(0, max), rejected };
 }
 
 // ---------------------------------------------------------------- versions and Undo
@@ -376,6 +379,9 @@ const HANDLERS: { [K in CompanionActionType]: Handler<Extract<CompanionAction, {
   add_text: edit,
   set_zoom: edit,
   add_motion_block: edit,
+  add_blur: edit,
+  set_stage: edit,
+  set_look: edit,
   update_motion_block: edit,
   remove_motion_block: edit,
   // Only a file a skill run made inside this video's folder can be placed: never a path from anywhere else.

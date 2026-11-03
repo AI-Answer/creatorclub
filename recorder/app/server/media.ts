@@ -18,6 +18,8 @@ import { canvasBackgroundBMP, canvasBackgroundGeometry, canvasBackgroundRepeatSi
 import { zoomTiming } from "../shared/zoom-timing.ts";
 import { filmstripCount, FILMSTRIP_HEIGHT, FILMSTRIP_WIDTH } from "../shared/filmstrip.ts";
 import { renderMotionBlock } from "./motion-render.ts";
+import { onStage } from "../shared/look.ts";
+import { PLACEABLE } from "../shared/motion/templates.ts";
 import {
   clipDuration,
   clipEffectTiming,
@@ -719,6 +721,8 @@ async function createGraphics(
     for (const c of p.captions) {
       if (c.end <= c.start || !c.text.trim() || isSoundTag(c.text)) continue;
       for (const part of captionParts(c, p.captionStyle.maxWords)) {
+        // On a stage stretch the panel carries the words: captions step aside there, as in the preview.
+        if (onStage(p, part.start)) continue;
         const y =
           p.captionStyle.position === "top"
             ? 0.05
@@ -1283,7 +1287,8 @@ async function executeExport(
       for (const m of (p.motion ?? []) as SlicedMotion[]) {
         if (!(m.duration > 0)) continue;
         const { _offset: offset = 0, _length: length = m.duration, ...block } = m;
-        const r = await renderMotionBlock({ ...block, duration: length }, w, h, fps);
+        const staged = PLACEABLE[block.template]?.includes('stage') && onStage(p, m.start);
+        const r = await renderMotionBlock({ ...block, duration: length, ...(p.look ? { look: p.look } : {}), ...(staged ? { place: 'stage' as const } : {}) }, w, h, fps);
         const first = Math.min(r.frames - 1, Math.round(offset * fps)), count = Math.max(1, Math.round(m.duration * fps));
         args.push("-i", r.file);
         const n = ++layer;

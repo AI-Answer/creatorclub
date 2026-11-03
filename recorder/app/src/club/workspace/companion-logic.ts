@@ -30,6 +30,14 @@ export type SuggestionFacts={
  thumbnail?:boolean;
  /** Edit: how many moments the creator marked as not liked. */
  notes?:number;
+ /** Edit: the stretches where nothing changes on screen (the pacing check). */
+ stalls?:ReadonlyArray<{start:number;end:number}>;
+ /** Edit: a title or keyword in the first seconds. */
+ opening?:boolean;
+ /** Edit: a lower third names the creator. */
+ named?:boolean;
+ /** Edit: the whole-video polish has been asked for in this video's chat. */
+ polished?:boolean;
 };
 
 /**
@@ -38,6 +46,9 @@ export type SuggestionFacts={
  * scenes from the board, Write the package): they are what the screen cannot do, such as options to choose from, a tighter scene,
  * or a second opinion. A step can have fewer than three, or none.
  */
+const clockOf=(t:number)=>`${Math.floor(t/60)}:${String(Math.floor(t%60)).padStart(2,'0')}`;
+/** Edit's first suggestion: runs the proof-edit skill on the whole video. */
+export const POLISH='/proof-edit Polish the whole video';
 export function suggestions(tab:CompanionTab,facts:SuggestionFacts):string[]{
  const scene=facts.scene?`scene ${facts.scene.index+1}`:undefined;
  switch(tab){
@@ -56,7 +67,24 @@ export function suggestions(tab:CompanionTab,facts:SuggestionFacts):string[]{
    ?['What should I say first?','Write a stronger hook','Build the talking points']
    :[scene?`Shorten ${scene} to fit its time`:'Shorten this scene to fit its time','Write a stronger hook','Write the call to action'];
   case 'publish':return ['Write the description',facts.thumbnail?'Is the thumbnail text clear?':'Suggest thumbnail text',...(facts.titled===false?[]:['Is the title ready?'])];
-  case 'edit':return facts.recorded===0?[]:[...(facts.notes?['Fix the parts I marked']:[]),facts.selected?'Trim the selected clip to the speech':'Cut the pauses','Add a lower third with my name','Add a title at the start'].slice(0,3);
+  // The next steps for the edit as it is: the whole proof-first polish until it has been asked for, then what the pacing check and the
+  // video still need, the creator's own marks, and at the end whether it is ready to publish.
+  case 'edit':{
+   if(facts.recorded===0)return [];
+   const stall=facts.stalls?.[0];
+   const next=[
+    ...(facts.polished?[]:[POLISH]),
+    ...(stall?[`Add something at ${clockOf(stall.start)}–${clockOf(stall.end)}: nothing changes on screen there`]:[]),
+    ...(facts.notes?['Fix the parts I marked']:[]),
+    ...(facts.selected?['Trim the selected clip to the speech']:[]),
+    // Not known (no editor open yet) counts as missing: the title and the name are what most videos still need.
+    ...(facts.opening?[]:['Add a title at the start']),
+    ...(facts.named?[]:['Add a lower third with my name']),
+    ...(facts.polished&&!stall?['Is this ready to publish?']:[]),
+    'Cut the pauses',
+   ];
+   return [...new Set(next)].slice(0,3);
+  }
   case 'research':return facts.tiles===0?['Find videos that are working in my topics','What should my next video be?']:facts.selected?['What do these have in common?','Group these in a frame','Start a video from these']:['What themes do you see here?','Group the cards by theme','Which of these could be a video?'];
  }
 }

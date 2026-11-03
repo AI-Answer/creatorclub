@@ -129,3 +129,37 @@ export async function chromePages(page: string, pages: number): Promise<{ sessio
 
 /** Closes Chrome now (tests). */
 export const closeChrome = stop;
+
+/**
+ * Opens one tab on a web page (a proof shot's source) at a viewport and scale, waits for it to load, and returns a sender for it;
+ * `close` closes the tab. The same Chrome as motion graphics: development, tests and the desktop app on a Mac with Chrome installed.
+ */
+export async function chromeWebTab(url: string, viewport: { width: number; height: number; scale: number }, timeoutMs = 20000): Promise<{ send: Send; close(): Promise<void> }> {
+  clearTimeout(idle);
+  running ??= launch().catch((error) => {
+    running = undefined;
+    throw error;
+  });
+  const browser = await running;
+  const { targetId } = await browser.send("Target.createTarget", { url: "about:blank" });
+  const { sessionId } = await browser.send("Target.attachToTarget", { targetId, flatten: true });
+  const send: Send = (method, params) => browser.send(method, params, sessionId);
+  const close = async () => {
+    await browser.send("Target.closeTarget", { targetId }).catch(() => {});
+    clearTimeout(idle);
+    idle = setTimeout(stop, 30000);
+    idle.unref();
+  };
+  try {
+    await send("Page.enable", {});
+    await send("Emulation.setDeviceMetricsOverride", { width: viewport.width, height: viewport.height, deviceScaleFactor: viewport.scale, mobile: false });
+    const loaded = browser.once("Page.loadEventFired", sessionId);
+    const navigated = await send("Page.navigate", { url });
+    if (navigated?.errorText) throw new Error(`The page did not open (${navigated.errorText}).`);
+    await Promise.race([loaded, new Promise((resolve) => setTimeout(resolve, timeoutMs))]);
+    return { send, close };
+  } catch (error) {
+    await close();
+    throw error;
+  }
+}

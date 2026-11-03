@@ -150,3 +150,8 @@ export function subscribeBoard(slug: string, videoId: string, listener: () => vo
     }
   };
 }
+
+/** Tells every open Board on this video (or Research) to read itself again: for a change no file watch sees, such as an outside agent's. */
+export function announceBoard(slug: string, videoId: string): void {
+  hubs.get(`${slug}/${videoId}`)?.listeners.forEach((fn) => fn());
+}

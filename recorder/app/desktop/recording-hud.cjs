@@ -3,7 +3,10 @@ const {pathToFileURL}=require('node:url');
 const {randomUUID}=require('node:crypto');
 const fs=require('node:fs');
 
-const COMMANDS=new Set(['pause','resume','stop','show-editor']);
+const COMMANDS=new Set(['pause','resume','stop','retry','skip-countdown','cancel','show-editor']);
+// Borumi's island sizes (screens/borumi/62, 66): the bar, the camera's height for the window's width (taller without a script), and the script's room.
+const BAR=44,CAMERA_ONLY=.82,CAMERA_WITH_SCRIPT=.6,SCRIPT_WITH_CAMERA=132,SCRIPT_ALONE=170;
+const islandHeight=(width,shown)=>BAR+(shown.camera?Math.round(width*(shown.script?CAMERA_WITH_SCRIPT:CAMERA_ONLY)):0)+(shown.script?(shown.camera?SCRIPT_WITH_CAMERA:SCRIPT_ALONE):0);
 function cleanState(value,initial=false){
  if(!value||typeof value!=='object')throw new Error('Invalid recording preview state.');
  const out={};
@@ -37,16 +40,17 @@ function createRecordingHud({BrowserWindow,ipcMain,screen,getMainWindow,verifyMa
  function end({restoreMain=true,id}={}){if(id&&id!==sessionId)return;ending=true;remember();if(restoreMain)restore();else hiddenMain=false;if(alive(hud))hud.destroy();hud=null;state=null;ready=null;sessionId=null;synced=false;ending=false;}
  // The loaded HUD gets the full state once, then only changed fields (it merges);
  // the script is not re-sent with every clock tick.
- function publish(patch){if(!state||!alive(hud))return;if(synced||!patch){hud.webContents.send('recording-hud-state',synced&&patch?patch:state);synced=true;}const main=getMainWindow();if(!hiddenMain&&state.hideMain&&['recording','paused'].includes(state.status)&&alive(main)){main.hide();hiddenMain=true;onMainVisibility();}if(['saving','idle'].includes(state.status))restore();}
+ function publish(patch){if(!state||!alive(hud))return;if(synced||!patch){hud.webContents.send('recording-hud-state',synced&&patch?patch:state);synced=true;}const main=getMainWindow();// As in Borumi, the editor steps away as soon as the island opens for a take (its countdown included), so the island is what you see.
+  if(!hiddenMain&&state.hideMain&&['starting','recording','paused'].includes(state.status)&&alive(main)){main.hide();hiddenMain=true;onMainVisibility();}if(['saving','idle'].includes(state.status))restore();}
  async function begin(value){
   const next=cleanState(value,true);if(alive(hud))end();sessionId=randomUUID();synced=false;const id=sessionId;
   state={...next,layout:{camera:layout.camera&&next.cameraEnabled,script:layout.script&&Boolean(next.script.trim())}};const main=getMainWindow(),saved=preferences.bounds,valid=saved&&['x','y','width','height'].every(key=>Number.isFinite(saved[key]));
   const display=screen.getDisplayMatching(valid?saved:alive(main)?main.getBounds():screen.getPrimaryDisplay().bounds);area=display.workArea;
   const width=Math.min(valid?Math.max(250,Math.min(620,saved.width)):250,area.width),expanded=state.layout.camera||state.layout.script;
-  const requiredHeight=112+(state.layout.camera?Math.round(width*9/16)+12:0)+(state.layout.script?300:0);
-  const height=Math.min(expanded?Math.max(requiredHeight,valid?saved.height:112):112,area.height-12);
+  const requiredHeight=islandHeight(width,state.layout);
+  const height=Math.min(expanded?Math.max(requiredHeight,valid?saved.height:BAR):BAR,area.height-12);
   bounds={width,height,x:Math.round(Math.max(area.x,Math.min(area.x+area.width-width,valid?saved.x:area.x+area.width-width-20))),y:Math.round(Math.max(area.y,Math.min(area.y+area.height-height,valid?saved.y:area.y+24)))};
-  hud=new BrowserWindow({...bounds,minWidth:250,minHeight:112,maxWidth:620,title:`${appName} recording`,type:'panel',frame:false,transparent:true,backgroundColor:'#00000000',show:false,resizable:true,alwaysOnTop:true,skipTaskbar:true,roundedCorners:true,webPreferences:{preload:path.join(__dirname,'recording-hud-preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true,backgroundThrottling:false}});
+  hud=new BrowserWindow({...bounds,minWidth:250,minHeight:BAR,maxWidth:620,title:`${appName} recording`,type:'panel',frame:false,transparent:true,backgroundColor:'#00000000',show:false,resizable:true,alwaysOnTop:true,skipTaskbar:true,roundedCorners:true,webPreferences:{preload:path.join(__dirname,'recording-hud-preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true,backgroundThrottling:false}});
   // Defense in depth only. macOS ScreenCaptureKit also explicitly excludes this
   // application's PID in native-recording.swift; this flag alone is insufficient.
   hud.setContentProtection(true);hud.setAlwaysOnTop(true,'floating');
@@ -69,7 +73,7 @@ function createRecordingHud({BrowserWindow,ipcMain,screen,getMainWindow,verifyMa
    // The choice is kept as made; what shows is limited to what this take has, so a take without a camera or script never turns a panel off for later takes.
    layout={camera:value.camera,script:value.script};layoutChosen=true;
    const shown={camera:layout.camera&&state.cameraEnabled,script:layout.script&&Boolean(state.script?.trim())};
-   bounds=hud.getBounds?.()??bounds;const height=Math.min(112+(shown.camera?Math.round(bounds.width*9/16)+12:0)+(shown.script?300:0),Math.max(112,area.y+area.height-bounds.y-12));
+   bounds=hud.getBounds?.()??bounds;const height=Math.min(islandHeight(bounds.width,shown),Math.max(BAR,area.y+area.height-bounds.y-12));
    hud.setBounds({...bounds,height});bounds={...bounds,height};state={...state,layout:shown};remember();publish({layout:shown});return shown;
   },
   'recording-hud-command':(e,command)=>{verifyHud(e);if(!COMMANDS.has(command))throw new Error('Unknown recording action.');const main=getMainWindow();if(command==='show-editor'){if(state)state.hideMain=false;if(alive(main)){main.show();main.focus();hiddenMain=false;onMainVisibility();}return;}if(alive(main))main.webContents.send('recording-hud-command',command);}

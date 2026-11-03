@@ -15,8 +15,8 @@ export function motionClip(block:MotionBlock,width:number,height:number){
 }
 
 /** The page the export captures: the block on a transparent stage of the frame's size. `fontUrl` is Inter as a URL the page may load (a data: URL). */
-export function motionDocument(block:MotionBlock,width:number,height:number,fontUrl?:string){
- const font=fontUrl?`@font-face{font-family:"Inter Variable";font-style:normal;font-weight:100 900;font-display:block;src:url("${fontUrl}") format("woff2")}`:'';
+export function motionDocument(block:MotionBlock,width:number,height:number,fontUrl?:string,serifUrl?:string){
+ const font=(fontUrl?`@font-face{font-family:"Inter Variable";font-style:normal;font-weight:100 900;font-display:block;src:url("${fontUrl}") format("woff2")}`:'')+(serifUrl&&block.look?.display==='serif'?`@font-face{font-family:"Instrument Serif";font-style:normal;font-weight:400;font-display:block;src:url("${serifUrl}") format("woff2")}`:'');
  return `<!doctype html><html><head><meta charset="utf-8"><style>${font}html,body{margin:0;padding:0;width:${width}px;height:${height}px;background:transparent;overflow:hidden}.mb-stage{position:absolute;left:0;top:0;width:${width}px;height:${height}px;container-type:size;overflow:hidden}${MOTION_CSS}</style></head><body><div class="mb-stage">${motionMarkup(block)}</div></body></html>`;
 }
 

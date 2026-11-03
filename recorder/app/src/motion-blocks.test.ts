@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {createElement} from 'react';
 import {renderToStaticMarkup} from 'react-dom/server';
 import {createProject,projectDuration,type MotionBlock,type MotionTemplateId,type Project} from '../shared/types';
-import {MOTION_CSS,MOTION_TEMPLATES,MOTION_TEMPLATE_IDS,motionBlockProblem,motionMarkup,motionPropsFrom,newMotionBlock,normalizeMotionProps,seekAnimations} from '../shared/motion/templates';
+import {MOTION_CSS,MOTION_TEMPLATES,MOTION_TEMPLATE_IDS,motionBlockProblem,motionBox,motionMarkup,motionPropsFrom,motionText,newMotionBlock,normalizeMotionProps,seekAnimations} from '../shared/motion/templates';
 import {MOTION_SEEK,motionClip,motionDocument} from '../shared/motion/document';
 import {cutTimelineRange} from '../shared/timeline-edits';
 import {applyProjectChange} from './project-draft';
@@ -25,7 +25,7 @@ function randomBlock(i:number):MotionBlock{
 }
 
 test('every template has two styles, sane lengths and props; text is escaped; no backdrop blur or blend modes',()=>{
- assert.deepEqual(MOTION_TEMPLATE_IDS,['title-card','lower-third','callout','chapter-label']);
+ assert.deepEqual(MOTION_TEMPLATE_IDS,['title-card','lower-third','callout','chapter-label','bullets','stat','compare','steps','quote','keyword','flow','tree']);
  for(const id of MOTION_TEMPLATE_IDS){const t=MOTION_TEMPLATES[id];
   assert.equal(t.styles.length,2,id);assert.ok(t.minDuration<=t.defaultDuration&&t.defaultDuration<=t.maxDuration,id);
   for(const s of t.styles)assert.match(MOTION_CSS,new RegExp(`\\.mb-s-${s.id}\\b`),`${id} ${s.id} has rules`);
@@ -116,4 +116,88 @@ test('old projects have no motion and stay valid; stored blocks are checked',()=
  assert.doesNotThrow(()=>validateProject(structuredClone(withBlocks)));
  assert.throws(()=>validateProject({...structuredClone(withBlocks),motion:[{...withBlocks.motion[0],template:'confetti' as MotionTemplateId}]}),/Unknown motion template/);
  assert.throws(()=>validateProject({...structuredClone(withBlocks),motion:[{...withBlocks.motion[0],start:-1}]}),/Invalid motion block timing/);
+});
+
+const NEW_TEMPLATES:MotionTemplateId[]=['bullets','stat','compare','steps','quote','keyword','flow','tree'];
+
+test('the new templates normalize their props: defaults, the companion\'s flat fields, limits and the main text',()=>{
+ for(const id of NEW_TEMPLATES){
+  const t=MOTION_TEMPLATES[id];
+  // Bumped when a template's look changes (icons came to lists, steps and compare).
+  assert.equal(t.version,['bullets','compare','steps'].includes(id)?2:1,id);
+  assert.deepEqual(normalizeMotionProps(id,{}),Object.fromEntries(t.props.map(s=>[s.key,s.default])),`${id} fills from its defaults`);
+  assert.deepEqual(normalizeMotionProps(id,{unknown:'x'}),normalizeMotionProps(id,{}),`${id} drops unknown keys`);
+ }
+ assert.deepEqual(motionPropsFrom('bullets',{text:'Cut | Caption | Post',detail:'Workflow'}),{items:'Cut | Caption | Post',heading:'Workflow'});
+ assert.deepEqual(motionPropsFrom('stat',{text:'710K',detail:'Views in 30 days'}),{value:'710K',label:'Views in 30 days'});
+ assert.deepEqual(motionPropsFrom('compare',{text:'Old way | New way',detail:'Hours of editing | One prompt'}),{titles:'Old way | New way',lines:'Hours of editing | One prompt'});
+ assert.deepEqual(motionPropsFrom('steps',{text:'Record | Cut | Post'}),{steps:'Record | Cut | Post',heading:''});
+ assert.deepEqual(motionPropsFrom('quote',{text:'Ship it.',detail:'Samin'}),{quote:'Ship it.',who:'Samin'});
+ assert.deepEqual(motionPropsFrom('keyword',{text:'Ten times faster',detail:'Same edit, same day'}),{word:'Ten times faster',line:'Same edit, same day'});
+ assert.equal(motionText(newMotionBlock('compare',0,'c',{props:motionPropsFrom('compare',{text:'Old way | New way'})})),'Old way | New way');
+ assert.equal(motionText(newMotionBlock('quote',0,'q',{props:motionPropsFrom('quote',{text:'Ship it.'})})),'Ship it.');
+ assert.equal(motionText(newMotionBlock('chapter-label',0,'k',{props:{title:'Intro',number:'1'}})),'Intro');
+ // Text is cut to its template's limit, and a stat's figure is a short one.
+ assert.equal(String(normalizeMotionProps('stat',{value:'1'.repeat(40)}).value).length,12);
+ assert.equal(String(normalizeMotionProps('keyword',{word:'w'.repeat(99)}).word).length,40);
+ assert.equal(newMotionBlock('steps',0,'s',{duration:99}).duration,MOTION_TEMPLATES.steps.maxDuration);
+});
+
+test('the boxes of the new templates stay inside the frame; bullets and steps leave the bottom fifth for captions',()=>{
+ const long='Mm '.repeat(120);
+ for(const id of NEW_TEMPLATES){
+  for(const props of [{},motionPropsFrom(id,{text:long,detail:long})]){
+   const box=motionBox(newMotionBlock(id,0,'b',{props}));
+   assert.ok(box.x>=0&&box.y>=0&&box.width>0&&box.height>0,`${id} ${JSON.stringify(box)}`);
+   assert.ok(box.x+box.width<=1+1e-9&&box.y+box.height<=1+1e-9,`${id} ${JSON.stringify(box)}`);
+  }
+ }
+ for(const id of ['bullets','steps'] as const)assert.ok(motionBox(newMotionBlock(id,0,'b')).y+motionBox(newMotionBlock(id,0,'b')).height<=.8+1e-9,`${id} leaves the bottom fifth`);
+});
+
+test('the new templates escape their text, and draw one item per point, step and side',()=>{
+ const hostile:[MotionTemplateId,{text?:string;detail?:string}][]=[
+  ['bullets',{text:'<b>One</b> | "Two" | it\'s & three',detail:'<i>Heading</i>'}],
+  ['stat',{text:'<b>9</b>',detail:'a & b <img src=x>'}],
+  ['compare',{text:'<i>Old</i> | New & "new"',detail:'<u>x</u> | y'}],
+  ['steps',{text:'<img src=x> | Cut | <b>Post</b>',detail:'"Head"'}],
+  ['quote',{text:'<script>x</script> "quoted"',detail:'it\'s & done'}],
+  ['keyword',{text:'<b>Big</b> idea',detail:'<i>line</i>'}],
+  ['flow',{text:'[bot] <b>You</b> | "Claude"',detail:'<i>asks</i>'}],
+  ['tree',{text:'<b>Root</b>',detail:'[code] <i>A</i> | it\'s & B'}],
+ ];
+ for(const [id,flat] of hostile){
+  const html=motionMarkup(newMotionBlock(id,0,'h',{props:motionPropsFrom(id,flat)}));
+  assert.doesNotMatch(html,/<(b|i|u|img|script)[\s>]/,id);
+  assert.match(html,/&lt;|&amp;|&quot;|&#39;/,id);
+ }
+ const count=(html:string,tag:string)=>html.split(tag).length-1;
+ const bullets=(items:string)=>motionMarkup(newMotionBlock('bullets',0,'b',{props:motionPropsFrom('bullets',{text:items})}));
+ assert.equal(count(bullets('a | b | c | d | e | f | g'),'<li'),5,'at most five points');
+ assert.equal(count(bullets('one'),'<li'),1);
+ assert.equal(count(bullets('  | a ||  b |'),'<li'),2,'empty points are dropped');
+ const steps=(names:string)=>motionMarkup(newMotionBlock('steps',0,'s',{props:motionPropsFrom('steps',{text:names})}));
+ const three=steps('Record | Cut | Post');
+ assert.equal(count(three,'mb-sp-step"'),3);assert.equal(count(three,'mb-sp-link"'),2,'a connector between each pair');
+ assert.match(three,/--mb-i:2;--mb-n:3/,'each step knows its place and the count');
+ const five=steps('a|b|c|d|e|f|g');
+ assert.equal(count(five,'mb-sp-step"'),5);assert.equal(count(five,'mb-sp-link"'),4);
+ const compare=motionMarkup(newMotionBlock('compare',0,'c',{props:motionPropsFrom('compare',{text:'Old way | New way'})}));
+ assert.equal(count(compare,'mb-cp-side'),2,'two sides');assert.equal(count(compare,'mb-cp-line'),0,'no lines when none are given');
+ assert.match(compare,/mb-cp-left[^>]*><div class="mb-cp-title"><span class="mb-txt">Old way<\/span><\/div>/);
+ assert.match(motionMarkup(newMotionBlock('stat',0,'s',{props:{value:'710K',label:''}})),/mb-st-xl/,'a short figure is the largest size');
+ assert.match(motionMarkup(newMotionBlock('stat',0,'s',{props:{value:'12,345,678K',label:''}})),/mb-st-m/,'a long figure steps down');
+});
+
+test('a text graphic placed off the face draws in its side or band, and the export captures the whole frame for it', async () => {
+ const {motionMarkup,motionBox,placeAwayFrom}=await import('../shared/motion/templates');
+ const block={id:'b',template:'title-card' as const,style:'clean',start:0,duration:4,props:{title:'Look and feel'}};
+ assert.equal(placeAwayFrom('title-card',{x:.55,y:.35}),'left','face right of centre: the text goes left');
+ assert.equal(placeAwayFrom('keyword',{x:.3,y:.4}),'right');
+ assert.equal(placeAwayFrom('steps',{x:.5,y:.3}),'bottom','a wide graphic goes to the band away from the face');
+ assert.equal(placeAwayFrom('lower-third',{x:.5,y:.3}),undefined,'a lower third keeps its own spot');
+ assert.equal(placeAwayFrom('title-card',undefined),undefined,'no face seen: it stays where the template puts it');
+ assert.match(motionMarkup({...block,place:'left'}),/class="mb mb-title-card mb-s-clean mb-at-left"/);
+ assert.doesNotMatch(motionMarkup({...block,place:'left',template:'lower-third',props:{name:'Dani'}}),/mb-at-left/,'a place a template cannot take is ignored');
+ assert.deepEqual(motionBox({...block,place:'left'}),{x:0,y:0,width:1,height:1});
 });

@@ -112,17 +112,23 @@ test('Home, Discover and Videos open their own screens, and every old link lands
  }
 });
 
-test('the Home tab holds Home, Discover, Videos and Research; a video is its own tab with no Home nav',async()=>{
+test('the first tab is named after the home section showing, goes back to it from a video, and + starts a new video',async()=>{
  await withApp('#/home',async ui=>{
   const c=ui.container;
-  for(const hash of ['#/home','#/discover','#/videos','#/research']){
+  for(const [hash,label] of [['#/home','Home'],['#/discover','Discover'],['#/videos','Videos'],['#/research','Research']]){
    await hashTo(hash);
-   assert.equal(c.querySelector('.ts-tab.on .ts-label')!.textContent,'Home',hash);
+   assert.equal(c.querySelector('.ts-tab.on.home .ts-label')!.textContent,label,hash);
    assert.ok(c.querySelector('.sidebar'),`${hash} shows the Home nav`);
   }
   await hashTo('#/video/p1');
   assert.equal(c.querySelector('.sidebar'),null,'a video has no Home nav');
-  assert.ok(c.querySelector('.tabstrip a.ts-new[href="#/home"]'),'+ goes back Home');
+  const home=c.querySelector<HTMLAnchorElement>('.ts-tab.home .ts-label')!;
+  assert.equal(home.textContent,'Research','the first tab stays, named after the last home section');
+  assert.equal(home.getAttribute('href'),'#/research','and goes back to it');
+  assert.equal(c.querySelector('.ts-tab.home .ts-close'),null,'it cannot be closed');
+  assert.equal(c.querySelector('.tabstrip .ts-tab.home'),c.querySelector('.ts-tabs')!.firstElementChild,'it comes first');
+  await press(c.querySelector('.tabstrip button.ts-new[aria-label="New video"]')!);
+  assert.ok(c.ownerDocument.querySelector('[role="dialog"]'),'+ opens New video');
  });
 });
 

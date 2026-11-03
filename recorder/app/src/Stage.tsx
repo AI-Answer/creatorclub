@@ -13,6 +13,7 @@ import {zoomScaleAt} from '../shared/zoom-timing';
 import {usePlayheadTime,type Playhead} from './playhead';
 import {clipFilterCss,cursorPointLookup,stageIndex,stageSlots} from './stage-view';
 import {MotionLayer} from './MotionLayer';
+import {drawnBlocks,onStage} from '../shared/look';
 import {StageHandles,type Box} from './StageHandles';
 
 /** `visible` is false for a pre-rolled upcoming clip: it stays mounted, paused, silent and transparent, with no vision or face-tracking work. */
@@ -46,6 +47,7 @@ function ClipView({clip,media,time,visible,playing,quality,onSelect,project:p,pi
 
 export const Stage=memo(function Stage({project:p,playhead,playing,playbackRate=1,onSelect,onImport,selected,onTransform,onZoom}:{project:Project;playhead:Playhead;playing:boolean;playbackRate?:number;onSelect:(id:string)=>void;onImport:()=>void;/** The selected clip: a camera or screen clip on the picture gets handles to move and resize it. */selected?:string|null;onTransform?:(id:string,box:Box,phase:'move'|'end')=>void;onZoom?:(id:string,where:{x:number;y:number;scale:number})=>void}){
  const time=usePlayheadTime(playhead);
+ const blocks=useMemo(()=>drawnBlocks(p),[p.clips,p.motion,p.look]);
  const ref=useRef<HTMLDivElement>(null),wrapper=useRef<HTMLDivElement>(null),[width,setWidth]=useState(640),[dimensions,setDimensions]=useState({width:640,height:360}),[wakes,wake]=useState(0),still=useRef({time,at:-Infinity}),mounted=useRef<ReadonlyMap<string,string>>(new Map());
  useEffect(()=>{if(!ref.current)return;const observer=new ResizeObserver(([entry])=>setWidth(entry.contentRect.width));observer.observe(ref.current);return()=>observer.disconnect();},[]);
  useEffect(()=>{const node=wrapper.current;if(!node)return;const resize=()=>{const style=getComputedStyle(node),availableWidth=node.clientWidth-parseFloat(style.paddingLeft)-parseFloat(style.paddingRight),availableHeight=node.clientHeight-parseFloat(style.paddingTop)-parseFloat(style.paddingBottom),ratio=p.canvas.width/p.canvas.height;const width=Math.max(0,Math.min(availableWidth,availableHeight*ratio));setDimensions({width,height:width/ratio});};const observer=new ResizeObserver(resize);observer.observe(node);resize();return()=>observer.disconnect();},[p.canvas.width,p.canvas.height]);
@@ -55,7 +57,7 @@ export const Stage=memo(function Stage({project:p,playhead,playing,playbackRate=
  useEffect(()=>{if(!scrubbing)return;const timer=setTimeout(()=>wake(n=>n+1),Math.max(0,still.current.at+250-performance.now()));return()=>clearTimeout(timer);},[scrubbing,time,wakes]);
  useEffect(()=>{previewAudioMixer.transport(playing);},[playing]);
  useEffect(()=>()=>previewAudioMixer.release(),[]);
- const scale=width/p.canvas.width,caption=p.captionStyle.enabled?p.captions.find(c=>time>=c.start&&time<c.end&&!isSoundTag(c.text)):null;
+ const scale=width/p.canvas.width,caption=p.captionStyle.enabled&&!onStage(p,time)?p.captions.find(c=>time>=c.start&&time<c.end&&!isSoundTag(c.text)):null;
  const pattern=p.canvas.backgroundPattern==='moving-dots',pixelRatio=typeof window==='undefined'?1:window.devicePixelRatio||1;
  const pointAt=useMemo(()=>p.cursor.enabled?cursorPointLookup(p.cursor.points):null,[p.cursor.enabled,p.cursor.points]),point=pointAt?.(time);
  const mediaById=useMemo(()=>new Map(p.media.map(m=>[m.id,m])),[p.media]);
@@ -73,7 +75,7 @@ export const Stage=memo(function Stage({project:p,playhead,playing,playbackRate=
    {audio.map(({clip:c,key,visible})=>{const m=mediaById.get(c.mediaId);return m?<ClipView key={key} clip={c} media={m} time={time} visible={visible} playing={playing} quality={false} onSelect={()=>onSelect(c.id)} project={p} pixelScale={scale} playbackRate={playbackRate}/>:null;})}
   </div>
   {/* Motion blocks sit above the clips and under texts and captions, as in the export. The stage is their container (cqw). */}
-  <MotionLayer blocks={p.motion} time={time}/>
+  <MotionLayer blocks={blocks} time={time}/>
   {p.elements.filter(e=>time>=e.start&&time<e.start+e.duration).map(e=><div key={e.id} className={`stage-element element-${e.type}`} onClick={event=>{event.stopPropagation();onSelect(e.id);}} style={{left:`${e.x*100}%`,top:`${e.y*100}%`,width:`${e.width*100}%`,height:`${e.height*100}%`,fontSize:e.fontSize*scale,color:e.color,background:e.type==='arrow'?'transparent':e.background,opacity:e.opacity,transform:`rotate(${e.rotation}deg)`,border:e.type==='rectangle'||e.type==='ellipse'?`${Math.max(1,3*scale)}px solid ${e.color}`:undefined,backdropFilter:e.type==='blur'?'blur(12px)':undefined}}>{e.type==='text'?e.text:e.type==='arrow'?<svg viewBox="0 0 100 40" preserveAspectRatio="none"><path d="M2 20H90 M72 4L94 20L72 36" fill="none" stroke={e.color} strokeWidth="4"/></svg>:null}</div>)}
   {caption&&<div className={`stage-caption caption-${p.captionStyle.position}`} style={{fontSize:p.captionStyle.fontSize*scale,color:p.captionStyle.color}}><span style={{background:p.captionStyle.background}}>{caption.text}</span></div>}
   {(()=>{

@@ -184,7 +184,8 @@ export function Workspace({video,tab,back,navigate,onVideo}:{video:Video;tab:Vid
    {tab==='plan'&&<Plan video={video} plan={plan} known={list} focusId={focusId} onFocus={setFocusId} onTitle={saveTitle}
     onTarget={seconds=>{clubFetch<Video>(`/videos/${id}`,{method:'PUT',body:{targetSeconds:seconds>0?seconds:null}}).then(onVideo,reason=>toast(errorMessage(reason,"Couldn't save the target.")));}}
     onRecordScene={sceneId=>{setFocusId(sceneId);setPickN(n=>n+1);navigate(tabRoute('record'));}}/>}
-   {tab==='edit'&&!lock&&waiting.length>0&&<div className="ws-body" style={{flex:'none',padding:'8px 18px'}}><div className="ws-notice" role="status"><span>{waiting.length===1?`The take for “${waiting[0]}” isn't on the timeline yet.`:`${waiting.length} takes aren't on the timeline yet.`}</span><Button size="sm" onClick={()=>navigate(tabRoute('record'))}>Open the take</Button></div></div>}
+   {/* Floats over the top of the editor, so the editor keeps its full height and the timeline is not cut off. */}
+   {tab==='edit'&&!lock&&waiting.length>0&&<div className="ws-take-notice"><div className="ws-notice" role="status"><span>{waiting.length===1?`The take for “${waiting[0]}” isn't on the timeline yet.`:`${waiting.length} takes aren't on the timeline yet.`}</span><Button size="sm" onClick={()=>navigate(tabRoute('record'))}>Open the take</Button></div></div>}
    {(tab==='record'||tab==='edit')&&!lock&&(video.recorderProjectId
     ?<div className="rec with-embed">
      <div className="rec-left"><ClubRecorder projectId={video.recorderProjectId} mode={tab==='record'?'Record':'Edit'} onBack={()=>navigate({name:'videos',view:'board'})}

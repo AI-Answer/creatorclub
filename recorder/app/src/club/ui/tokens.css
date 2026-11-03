@@ -106,8 +106,11 @@
   /* Timeline kinds: one hue each, the same wherever a kind is drawn (timeline, scene chips, take chips). */
   --kind-screen: #2563eb;
   --kind-camera: #2563eb;
-  /* Audio is a warm graphite (not blue: blue means selection); captions gold (not olive, which read as "done" green); markers purple, visible on the ruler in both themes. */
+  /* Audio is Borumi's deeper blue; captions gold (not olive, which read as "done" green); markers purple, visible on the ruler in both themes. */
   --kind-audio: #1e40af;
+  /* On an audio clip, as in Borumi (sampled): the band the spoken words sit on, and the waveform under it. */
+  --kind-audio-band: #173477;
+  --kind-audio-wave: #16398a;
   --kind-graphics: #b8457d;
   --kind-captions: #9c7c00;
   --kind-zoom: #9a5a2c;

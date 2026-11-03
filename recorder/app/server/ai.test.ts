@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {parseTranscription,parseSilences,analyze} from './ai.js';
+import {parseTranscription,parseSilences,analyze,quietRanges} from './ai.js';
 import {createProject,defaultEffects,defaultTransform,type Clip} from '../shared/types.js';
 import {mkdtemp,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
@@ -37,6 +37,19 @@ test('silence analysis maps audible video through cuts and speed, prioritizes na
   p.clips=[clip('quiet-mic',{track:'audio',audioRole:'microphone',start:4,sourceIn:2,sourceOut:3,speed:1}),clip('desktop-talkover',{track:'audio',audioRole:'system',start:4,sourceIn:0,sourceOut:1,speed:1})];
   const micQuiet=await analyze(p,'silence',settings);assert.equal(micQuiet.suggestions.length,1,'quiet microphone retains priority while desktop speech plays');assert.ok(Math.abs(micQuiet.suggestions[0].start!-4)<.04);assert.ok(Math.abs(micQuiet.suggestions[0].end!-5)<.04);
   p.clips=[clip('music',{track:'music'})];await assert.rejects(analyze(p,'silence',settings),/audible narration/);
+ }finally{await rm(dir,{recursive:true,force:true});}
+});
+
+test('a file\'s quiet stretches are measured once, and again when the file changes',async()=>{
+ const dir=await mkdtemp(path.join(tmpdir(),'sceneforge-quiet-')),file=path.join(dir,'take.wav'),ffmpeg=process.env.SCENEFORGE_FFMPEG||'ffmpeg';
+ const write=(expr:string)=>promisify(execFile)(ffmpeg,['-v','error','-nostdin','-y','-f','lavfi','-i',`aevalsrc=${expr}:s=16000:d=4`,file]);
+ try{
+  await write('if(between(t\\,1\\,3)\\,0\\,0.2*sin(2*PI*440*t))');
+  const p=createProject();p.media=[{id:'m',path:file,name:'take',kind:'audio',hasAudio:true,duration:4,width:0,height:0}];
+  p.clips=[{id:'a',mediaId:'m',name:'a',track:'audio',start:0,sourceIn:0,sourceOut:4,speed:1,gain:1,muted:false,transform:defaultTransform(),effects:defaultEffects()}];
+  const [quiet]=await quietRanges(p);assert.ok(Math.abs(quiet[0]-1)<.05&&Math.abs(quiet[1]-3)<.05,String(quiet));
+  await write('0.2*sin(2*PI*440*t)+0*t');
+  assert.deepEqual(await quietRanges(p),[],'a re-recorded file is measured again');
  }finally{await rm(dir,{recursive:true,force:true});}
 });
 

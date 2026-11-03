@@ -176,7 +176,7 @@ export function Companion({videoId,videoTitle,tab,scene,screen,selection,pkg,out
  const items=here?withDividers(here,tab):[];
  const sceneCount=outline?.scenes.length??0;
  const recorded=scenes?scenes.filter(one=>one.takes.length>0).length:undefined;
- const ideas=suggestions(tab,{scenes:sceneCount,scene,selected:tab==='research'?selection?.length:editor?.state?.selected,notes:editor?.state?.notes,hook:!!pkg?.hook.spoken.trim(),longest:Math.max(0,...(outline?.scenes??[]).map(one=>one.seconds||0)),
+ const ideas=suggestions(tab,{scenes:sceneCount,scene,selected:tab==='research'?selection?.length:editor?.state?.selected,notes:editor?.state?.notes,stalls:editor?.state?.stalls,opening:editor?.state?.opening,named:editor?.state?.named,polished:(messages??[]).some(one=>one.role==='user'&&one.text.trimStart().startsWith('/proof-edit')),hook:!!pkg?.hook.spoken.trim(),longest:Math.max(0,...(outline?.scenes??[]).map(one=>one.seconds||0)),
   tiles:tab==='board'||tab==='research'?tiles:undefined,recorded,titled:!!videoTitle?.trim()||!!pkg?.titles.some(one=>one.trim()),thumbnail:!!pkg?.thumbnailText.trim()});
  // Nothing asked yet: a short greeting for this step with the best prompts right under it, instead of a blank column.
  const fresh=!!here&&!here.length&&!live&&!companion.loadError;
@@ -317,7 +317,7 @@ function LiveReply({name,live,now,onRetry}:{name:string;live:Live;now:number;onR
 /** What a card is called: for a new graphic, what it adds ("Add a title card"); otherwise the action's own name. */
 /** What each card changes, as one icon: the same marks the rest of the app uses for those things. */
 const ACTION_ICON:Record<CompanionAction['type'],IconName>={use_hook:'microphone',use_title:'heading-1',set_thumbnail_text:'image',add_note:'note',set_scene:'scenes',set_scene_script:'script',draft_scenes:'scenes',ask_choice:'choose',set_description:'paragraph',group_tiles:'layout',start_video:'video',
- cut_pauses:'cut',remove_fillers:'cut',close_gaps:'cut',split_at:'cut',trim_clip:'cut',delete_range:'delete',set_caption_style:'captions',add_caption:'captions',add_text:'text',set_zoom:'zoom-in',add_motion_block:'layout',update_motion_block:'layout',remove_motion_block:'layout',normalize_audio:'music',add_clip:'film'};
+ cut_pauses:'cut',remove_fillers:'cut',close_gaps:'cut',split_at:'cut',trim_clip:'cut',delete_range:'delete',set_caption_style:'captions',add_caption:'captions',add_text:'text',add_blur:'hide',set_stage:'layout',set_look:'ai',set_zoom:'zoom-in',add_motion_block:'layout',update_motion_block:'layout',remove_motion_block:'layout',normalize_audio:'music',add_clip:'film'};
 const CardIcon=({action}:{action:CompanionAction})=><span className={cn('cmp-card-ico',`k-${ACTION_ICON[action.type]}`)} aria-hidden><Icon name={ACTION_ICON[action.type]} size={13}/></span>;
 const cardTitle=(action:CompanionAction)=>action.type==='add_motion_block'?`Add a ${MOTION_TEMPLATES[action.template]?.label.toLowerCase()??'graphic'}`:ACTION_TITLE[action.type];
 

@@ -4,6 +4,7 @@ import {addCutLoss,cutLossText,minimumPiece,noCutLoss,type CutLoss} from '../sha
 import {clipsFingerprint,fillerRanges,gapRanges,rangesSeconds} from './club/recorder/edit-auto';
 import {plainView} from './project-draft';
 import {addMotionBlock,closeRange,ensureLinks,linkedIds,mergeRanges,motionAt,newElement,nextMotionStart,rowItems,splitLinked,syncScenesToTakes,trimBounds,trimClips} from './timeline-edit';
+import {EDITORIAL_LOOK,lookFrom,onStage,stageTile,stagePanel} from '../shared/look';
 import {MOTION_TEMPLATES,motionPropsFrom,newMotionBlock,normalizeMotionProps} from '../shared/motion/templates';
 import type {MotionTemplateId} from '../shared/types';
 
@@ -25,8 +26,8 @@ export const PAUSE_MAX=8;
 /** One card never deletes more than this share of the video; a quarter or more is said on the card. */
 export const DELETE_MAX_SHARE=.5,DELETE_WARN_SHARE=.25;
 /**
- * Auto-edit's audio plan: the silences it heard, for the timeline whose clips have this fingerprint (`clipsFingerprint`). When the clips
- * still match, a pause is cut only where the audio is silent too.
+ * The timeline's measured audio: where it is quiet, for the timeline whose clips have this fingerprint (`clipsFingerprint`). While the
+ * clips still match, pauses are cut where the audio is quiet.
  */
 export interface SilencePlan {fingerprint:string;ranges:Range[]}
 export interface EditOptions {silences?:SilencePlan|null}
@@ -52,24 +53,26 @@ function continuous(p:Project,before:{start:number;end:number},after:{start:numb
  const left=holding(p,before.start,before.end),right=holding(p,after.start,after.end);
  return left.some(c=>right.includes(c))||left.some(c=>right.some(d=>d.mediaId===c.mediaId&&Math.abs(end(c)-d.start)<1e-3&&Math.abs(c.sourceOut-d.sourceIn)<1e-3));
 }
-/** The ranges that are inside the plan's silences, pieces shorter than a cut is worth left out. Without a plan that matches these clips, the ranges as they are. */
-function withinSilences(p:Project,ranges:Range[],silences?:SilencePlan|null):Range[]{
- if(!silences||silences.fingerprint!==clipsFingerprint(p.clips))return ranges;
- const quiet=mergeRanges(silences.ranges);
- return ranges.flatMap(([a,b])=>quiet.map(([x,y])=>[Math.max(a,x),Math.min(b,y)] as Range).filter(([x,y])=>y-x>=MIN_CUT));
+/** True when a screen recording shows somewhere in this stretch: a long quiet stretch there is a silent demo, not dead air. */
+const showsScreen=(p:Project,a:number,b:number)=>p.clips.some(c=>c.track==='screen'&&c.transform.opacity>0&&c.start<b-EPS&&end(c)>a+EPS);
+/** The measured quiet stretches at least as long as the level asks, each shortened to keep a breath on both sides; never a silent demo longer than `PAUSE_MAX`. */
+function quietPauseRanges(p:Project,level:PauseLevel,silences:SilencePlan):Range[]{
+ return mergeRanges(silences.ranges).filter(([x,y])=>y-x>=PAUSE_SECONDS[level]&&!(y-x>PAUSE_MAX&&showsScreen(p,x,y))).map(([x,y])=>[x+PAUSE_KEEP,y-PAUSE_KEEP] as Range).filter(([a,b])=>b-a>=MIN_CUT);
 }
 /**
- * Pauses between spoken words at least as long as the level asks, each shortened to keep a breath on both sides. A gap counts only when
- * one recording holds both words around it (so a take with no transcript, or captions left behind by a move, is never taken for a pause),
- * and only up to `PAUSE_MAX`; with Auto-edit's audio plan for this timeline, only where the audio is silent too.
+ * Pauses at least as long as the level asks, each shortened to keep a breath on both sides. With the audio measured for this timeline, a
+ * pause is where the audio is quiet, whatever the transcript says: speech-to-text stretches words over silence and hears words in noise.
+ * Without it, a pause is a gap between spoken words, counted only when one recording holds both words around it (so a take with no
+ * transcript, or captions left behind by a move, is never taken for a pause), and only up to `PAUSE_MAX`.
  */
 export function wordPauseRanges(p:Project,level:PauseLevel,options:EditOptions={}):Range[]{
+ if(options.silences&&options.silences.fingerprint===clipsFingerprint(p.clips))return quietPauseRanges(p,level,options.silences);
  const words=spoken(p),out:Range[]=[];let last:{start:number;end:number}|undefined;
  for(const w of words){
   if(last&&w.start-last.end>=PAUSE_SECONDS[level]&&w.start-last.end<=PAUSE_MAX&&continuous(p,last,w)){const a=last.end+PAUSE_KEEP,b=w.start-PAUSE_KEEP;if(b-a>=MIN_CUT)out.push([a,b]);}
   if(!last||w.end>last.end)last=w;
  }
- return mergeRanges(withinSilences(p,out,options.silences));
+ return mergeRanges(out);
 }
 /** What cutting these ranges would also remove or shorten among zooms, text, graphics and captions. Dry run on a copy: the project is untouched. */
 function rangesLoss(p:Project,ranges:Range[]):CutLoss{
@@ -135,6 +138,17 @@ export function editActionProblem(p:Project,action:EditAction,options:EditOption
    if(!inRange(action.start)||!inRange(action.end)||action.end<=action.start)return 'That time is outside the video.';
    return overlapping(p,'captions',action.start,action.end).length?'A caption is already there at that time.':undefined;
   }
+  case 'set_look':return undefined;
+  case 'set_stage':{
+   if(!inRange(action.start)||!(action.end>action.start+.5)||action.end>length+.05)return 'That stretch is outside the video.';
+   const cams=p.clips.filter(c=>c.track==='camera'&&c.start<action.end-1e-3&&c.start+clipDuration(c)>action.start+1e-3);
+   return cams.length?undefined:'There is no camera in that stretch to put on the stage.';
+  }
+  case 'add_blur':{
+   if(!inRange(action.start)||!(action.duration>0))return 'That time is outside the video.';
+   if(action.x+action.width>1.001||action.y+action.height>1.001)return 'That box runs off the frame.';
+   return overlapping(p,'elements',action.start,action.start+.1).length?'Something is already on the Elements row at that time.':undefined;
+  }
   case 'add_text':{
    if(!inRange(action.start)||!(action.duration>0))return 'That time is outside the video.';
    // A text that would run into the next item stops there; one that starts on another is refused.
@@ -172,13 +186,13 @@ export function editActionProblem(p:Project,action:EditAction,options:EditOption
 }
 const NO_BLOCK='There is no motion graphic at that time.';
 /** Which prop of each template holds the card's main line and its second line. */
-const PROP_KEYS:Record<MotionTemplateId,{text:string;detail?:string}>={'title-card':{text:'title',detail:'subtitle'},'lower-third':{text:'name',detail:'role'},callout:{text:'label'},'chapter-label':{text:'title',detail:'number'}};
+const PROP_KEYS:Record<MotionTemplateId,{text:string;detail?:string}>={'title-card':{text:'title',detail:'subtitle'},'lower-third':{text:'name',detail:'role'},callout:{text:'label'},'chapter-label':{text:'title',detail:'number'},bullets:{text:'items',detail:'heading'},stat:{text:'value',detail:'label'},compare:{text:'titles',detail:'lines'},steps:{text:'steps',detail:'heading'},quote:{text:'quote',detail:'who'},keyword:{text:'word',detail:'line'},flow:{text:'nodes',detail:'labels'},tree:{text:'root',detail:'children'}};
 /** The motion graphic that is on screen at `time`. */
 const blockAt=(p:Project,time:number)=>(p.motion??[]).find(m=>time>=m.start-1e-6&&time<=m.start+m.duration+1e-6);
 /** The block an `add_motion_block` card adds: its template's defaults, the card's text, and its length cut to the room on the Motion row and in the video. */
 export function motionBlockFor(p:Project,action:Extract<EditAction,{type:'add_motion_block'}>,id:string){
  const template=MOTION_TEMPLATES[action.template],room=Math.min(projectDuration(p),nextMotionStart(p,action.start))-action.start;
- return newMotionBlock(action.template,action.start,id,{style:action.style,duration:Math.min(action.duration??template.defaultDuration,room),props:motionPropsFrom(action.template,action)});
+ return {...newMotionBlock(action.template,action.start,id,{style:action.style,duration:Math.min(action.duration??template.defaultDuration,room),props:motionPropsFrom(action.template,action)}),...(action.place?{place:action.place}:{})};
 }
 
 const POSITION_Y:Record<TextPosition,number>={top:.08,center:.42,bottom:.72};
@@ -223,6 +237,31 @@ export function applyEditAction(p:Project,action:EditAction,options:EditOptions=
    const words=p.captions.flatMap(c=>c.words??[]).filter(w=>w.start>=action.start-1e-3&&w.end<=action.end+1e-3).sort((a,b)=>a.start-b.start).map(w=>({...w}));
    p.captions.push({id:newId(),start:action.start,end:action.end,text:action.text,...(words.length?{words}:{})});p.captions.sort((a,b)=>a.start-b.start);
    result=`Caption added at ${clock(action.start)}`;
+   break;
+  }
+  case 'set_look':{
+   p.look=lookFrom(p.look,action);
+   result=`The ${p.look.name} look`;
+   break;
+  }
+  case 'set_stage':{
+   // Split at the stretch's edges, then the camera pieces inside become the look's tile and any screen recording under them steps away.
+   splitLinked(p,action.start,new Set(),undefined,newId);splitLinked(p,action.end,new Set(),undefined,newId);
+   const stage=(p.look?.stage)??EDITORIAL_LOOK.stage!,tile=stageTile(stage,p.canvas);
+   const inside=(c:Clip)=>c.start>=action.start-1e-3&&c.start+clipDuration(c)<=action.end+1e-3;
+   for(const c of p.clips.filter(c=>inside(c)&&c.track==='camera')){Object.assign(c.transform,{...tile,fit:'cover',borderRadius:Math.round(tile.width*p.canvas.width*.09)});c.effects.faceCenter=true;c.stage=true;}
+   for(const c of p.clips.filter(c=>inside(c)&&c.track==='screen'))c.transform.opacity=0;
+   // The stage shows the look's background, with a slow field of dots: the canvas behind everything, which full-frame clips cover.
+   p.canvas.background=stage.background;p.canvas.backgroundPattern='moving-dots';
+   result=`The stage from ${clock(action.start)} to ${clock(action.end)}`;
+   break;
+  }
+  case 'add_blur':{
+   // Like a text, a blur that runs into the next item on the Elements row stops there.
+   const next=rowItems(plainView(p)).filter(i=>i.row==='elements'&&i.start>=action.start+1e-3).reduce((at,i)=>Math.min(at,i.start),Infinity);
+   const duration=Math.min(action.duration,next-action.start,Math.max(.1,projectDuration(plainView(p))-action.start));
+   p.elements.push(newElement('blur',action.start,newId(),{duration,x:action.x,y:action.y,width:action.width,height:action.height}));
+   result=`Blurred a part of the screen at ${clock(action.start)}`;
    break;
   }
   case 'add_text':{
@@ -271,7 +310,9 @@ export function applyEditAction(p:Project,action:EditAction,options:EditOptions=
   case 'add_clip':{
    if(!p.media.some(m=>m.id===action.media.id))p.media.push(action.media);
    const length=action.media.kind==='image'?action.duration:Math.min(action.duration,action.media.duration||action.duration);
-   p.clips.push({id:newId(),mediaId:action.media.id,name:action.title,track:'overlay',start:action.start,sourceIn:0,sourceOut:length,speed:1,gain:1,muted:!action.media.hasAudio,transform:defaultTransform(),effects:defaultEffects()});
+   // A picture shown on a stage stretch goes in the stage's panel, beside the speaker, not over them.
+   const panel=onStage(p,action.start)?{...stagePanel(p.look?.stage??EDITORIAL_LOOK.stage!),fit:'contain' as const}:{};
+   p.clips.push({id:newId(),mediaId:action.media.id,name:action.title,track:'overlay',start:action.start,sourceIn:0,sourceOut:length,speed:1,gain:1,muted:!action.media.hasAudio,transform:{...defaultTransform(),...panel},effects:defaultEffects()});
    result=`Added “${action.title}” at ${clock(action.start)}`;
    break;
   }
@@ -302,6 +343,9 @@ export function describeEditAction(action:EditAction,p?:Project):string{
   }
   case 'add_caption':return `“${action.text}” from ${clock(action.start)} to ${clock(action.end)}.`;
   case 'add_text':return `“${action.text}” at ${clock(action.start)} for ${secs(action.duration)}${action.position?`, ${action.position}`:''}.`;
+  case 'set_look':{const look=lookFrom(p?.look,action);return `${look.name}: ${look.display==='serif'?'serif':'sans'} headlines in ${look.paper} on ${look.ink}, ${look.accent} as the highlight, ${look.motion==='still'?'no animation':look.motion==='subtle'?'graphics that fade':'graphics that rise and build'}${look.stage?`, and a ${look.stage.background} stage with you on the ${look.stage.side}`:''}.`;}
+  case 'set_stage':return `From ${clock(action.start)} to ${clock(action.end)} you become a tile at the side and the content takes the frame.`;
+  case 'add_blur':return `Blur ${Math.round(action.width*100)}% × ${Math.round(action.height*100)}% of the frame at ${Math.round(action.x*100)}% across, ${Math.round(action.y*100)}% down, from ${clock(action.start)} for ${secs(action.duration)}.`;
   case 'set_zoom':{
    const gone=p?replacedZooms(p,action):[];
    return `Zoom ${action.scale}× on the ${action.target??'screen'} at ${clock(action.start)} for ${secs(action.duration)}${gone.length?`, replacing ${gone.map(z=>`the ${z.scale}× zoom at ${clock(z.start)}`).join(' and ')}`:''}.`;

@@ -24,7 +24,7 @@ async function withSettings(reply:(call:FakeCall)=>FakeReply,run:(ui:Awaited<Ret
 test('Settings is Borumi\'s two columns: a nav with one tab per group, and Publishing and look has Postiz, who can watch new videos and the theme',async()=>{
  await withSettings(call=>call.path==='/publishing'?{body:off}:undefined,async ui=>{
   const c=ui.container;
-  assert.deepEqual([...c.querySelectorAll('.settings-nav a')].map(a=>a.textContent),['AI','Channel','Skills','Publishing & look']);
+  assert.deepEqual([...c.querySelectorAll('.settings-nav a')].map(a=>a.textContent),['AI','Your AI agent','Channel','Skills','Publishing & look']);
   assert.equal(c.querySelector('.settings-nav [aria-current="page"]')!.textContent,'Publishing & look');
   assert.deepEqual([...c.querySelectorAll('.settings-body-b h2')].map(h=>h.textContent),['Publishing and look'],'one group at a time');
   const group=c.querySelector('#set-publishing')!;

@@ -55,7 +55,7 @@ test('restored script remains readable after an intervening take with no script'
  const h=harness(),m=createRecordingHud(h.opts);try{
   await opened(h,{status:'recording',script:'First script'});h.handlers.get('recording-hud-layout')!(h.hudEvent(),{camera:false,script:true});h.call('end-recording-hud');
   const plain=await opened(h,{status:'recording',script:''});assert.ok(plain.w.options.height<=120);h.call('end-recording-hud');
-  const scripted=await opened(h,{status:'recording',script:'Next script'});assert.ok(scripted.w.options.height>=400,'expanded script has room after a compact no-script take');
+  const scripted=await opened(h,{status:'recording',script:'Next script'});assert.ok(scripted.w.options.height>=200,'expanded script has room after a compact no-script take');
  }finally{m.dispose();}
 });
 
@@ -136,8 +136,8 @@ test('HUD and border are panels that join full-screen Spaces without a Dock tran
  }finally{hud.dispose();border.clear()}});
 test('HUD sends its loaded document the full state once, then only changed fields',async()=>{const h=harness(),m=createRecordingHud(h.opts);try{
  const pending=h.call('begin-recording-hud',{projectName:'Take',script:'Line one',status:'starting',countdown:3}),w=h.windows.at(-1);h.call('update-recording-hud',{countdown:2});assert.deepEqual(w.webContents.messages,[]);
- w.resolve();const {id}=await pending;assert.equal(w.webContents.messages.length,1);const [channel,full]=w.webContents.messages[0];assert.equal(channel,'recording-hud-state');assert.equal(full.script,'Line one');assert.equal(full.countdown,2);assert.equal(h.main.hidden,0);
- h.call('update-recording-hud',{status:'recording',countdown:null,elapsed:1},id);assert.deepEqual(w.webContents.messages.at(-1),['recording-hud-state',{status:'recording',countdown:null,elapsed:1}]);assert.equal(h.main.hidden,1);
+ w.resolve();const {id}=await pending;assert.equal(w.webContents.messages.length,1);const [channel,full]=w.webContents.messages[0];assert.equal(channel,'recording-hud-state');assert.equal(full.script,'Line one');assert.equal(full.countdown,2);assert.equal(h.main.hidden,1,'the editor steps away when the countdown starts, as in Borumi');
+ h.call('update-recording-hud',{status:'recording',countdown:null,elapsed:1},id);assert.deepEqual(w.webContents.messages.at(-1),['recording-hud-state',{status:'recording',countdown:null,elapsed:1}]);assert.equal(h.main.hidden,1,'hidden once, not again when recording starts');
  h.call('update-recording-hud',{elapsed:2},id);assert.deepEqual(w.webContents.messages.at(-1),['recording-hud-state',{elapsed:2}]);
  assert.deepEqual(h.handlers.get('recording-hud-read')!(h.hudEvent()),{...full,status:'recording',countdown:null,elapsed:2});
  const next=await opened(h,{projectName:'Next',status:'recording'});assert.equal(next.w.webContents.messages.length,1);assert.equal(next.w.webContents.messages[0][1].projectName,'Next');
@@ -173,7 +173,7 @@ test('a default layout opens the script, and only a chosen layout replaces it',a
  let h=harness(),m=createRecordingHud({...h.opts,preferencesPath,defaultLayout:{camera:false,script:true}});
  try{
   const first=await opened(h,{status:'recording',cameraEnabled:true,script:'Read this'});
-  assert.ok(first.w.options.height>300,'the script opens with the controls');
+  assert.ok(first.w.options.height>=200,'the script opens with the controls');
   assert.deepEqual(h.handlers.get('recording-hud-read')!(h.hudEvent()).layout,{camera:false,script:true});
   h.handlers.get('recording-hud-layout')!(h.hudEvent(),{camera:false,script:false});h.call('end-recording-hud');m.dispose();
   h=harness();m=createRecordingHud({...h.opts,preferencesPath,defaultLayout:{camera:false,script:true}});

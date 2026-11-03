@@ -96,7 +96,7 @@ test('on Edit the prompt reads the timeline: playhead, selection, scenes, clips,
   assert.match(prompt, /Step: Edit/);
   assert.match(prompt, /Timeline: 0:20\.0 long; clips: 1 screen, 1 camera; a transcript with word timings/);
   assert.match(prompt, /Playhead: 0:06\.5/);
-  assert.match(prompt, /Pauses between words that cut_pauses would cut: gentle 1 \(4\.1 s\), balanced 1 \(4\.1 s\), tight 1 \(4\.1 s\)\. Filler words: 0\./);
+  assert.match(prompt, /Pauses that cut_pauses would cut \(between words\): gentle 1 \(4\.1 s\), balanced 1 \(4\.1 s\), tight 1 \(4\.1 s\)\. Filler words: 0\./);
   assert.match(prompt, /Selected clips: screen-1 \(0\.00 s to 20\.00 s\)/);
   assert.match(prompt, /Selected caption: cap2 \(10\.00 s to 13\.60 s\) "This is the menu"/, 'selected captions go too, without tags');
   assert.match(prompt, /1\. Opening: 0\.00 s to 20\.00 s/);
@@ -218,7 +218,7 @@ test('the editor\'s own Undo counts: the card\'s Undo then just says undone, and
   await card(message, 0, 'undo');
 });
 
-test('a cut of pauses uses Auto-edit\'s audio plan when it matches the clips', async () => {
+test('a cut of pauses goes by the measured audio while it matches the clips', async () => {
   const p = JSON.parse((await state()).json) as Project;
   readSilencesWith(async () => ({ fingerprint: clipsFingerprint(p.clips), ranges: [[6, 7.5]] }));
   try {
@@ -226,7 +226,7 @@ test('a cut of pauses uses Auto-edit\'s audio plan when it matches the clips', a
     assert.deepEqual(silences.body.ranges, [[6, 7.5]], 'the editor previews with the same plan');
     const message = await reply('Cut the pauses', [{ type: 'cut_pauses', level: 'balanced' }]);
     const applied = await card(message, 0, 'apply');
-    assert.match(applied.body.message.cards[0].result!, /^Cut 1 pause, 1\.5 s shorter$/, 'only where the audio is silent');
+    assert.match(applied.body.message.cards[0].result!, /^Cut 1 pause, 1\.2 s shorter$/, 'where the audio is quiet, a breath kept each side');
     await card(message, 0, 'undo');
   } finally {
     readSilencesWith(async () => null);
@@ -330,3 +330,16 @@ test('Add all refuses a card listed twice, so no card is applied twice', async (
   assert.equal(kept?.cards[0].state, 'offered', 'nothing was applied');
 });
 
+
+test('the brief says the pauses come from the audio, and which transcript words fall in quiet', async () => {
+  const { timelineText } = await import('./companion-edit.js');
+  const p = createProject('Quiet');
+  p.media = [{ id: 'm', name: 'take', path: '/tmp/take.mov', kind: 'video', duration: 20, width: 1920, height: 1080, hasAudio: true }];
+  p.clips = [{ id: 'c', mediaId: 'm', name: 'c', track: 'camera', start: 0, sourceIn: 0, sourceOut: 20, speed: 1, gain: 1, muted: false, transform: defaultTransform(), effects: defaultEffects() }];
+  p.captions = [{ id: 'a', start: 0, end: 16, text: 'Hello cc', words: [{ text: 'Hello', start: 0.2, end: 0.8 }, { text: 'cc', start: 12, end: 12.4 }] }];
+  const silences = { fingerprint: clipsFingerprint(p.clips), ranges: [[3, 18]] as [number, number][] };
+  const text = timelineText(p, { tab: 'edit' }, { silences });
+  assert.match(text, /Pauses that cut_pauses would cut \(where the audio is quiet\): gentle 1 \(14\.7 s\)/);
+  assert.match(text, /likely not said: 0:12\.0 "cc"\./);
+  assert.match(timelineText(p, { tab: 'edit' }), /\(between words\)/, 'without the audio measured, it says so');
+});

@@ -9,7 +9,8 @@ import {loadSavedTakes,persistSavedTakes,saveProjectTake,activateSceneTake,type 
 import {archiveSceneTake,deleteSceneTake,moveSceneTake,updateSceneTake} from './scene-takes';
 import {RecordingSceneCards} from './RecordingSceneCards';
 import {addRecordingScene,deleteRecordingScene,moveRecordingScene} from './recording-scenes';
-import {countdownChime,recordingCountdown} from './recording-countdown';
+import {countdownChime,recordingCountdown,waitForCountdown} from './recording-countdown';
+import type {RecordingHudCommand} from './desktop';
 import type {ShortcutAction} from './shortcuts';
 import {defaultRecordingSettings,loadRecordingPreferences,saveRecordingPreferences,saveRecordingPreset,grantedPreviewRequests,type RecordingSettings} from './recording-presets';
 import {clampRegion,cropCaptureStream,regionInset,type NormalizedRegion} from './capture-region';
@@ -126,7 +127,7 @@ export function Recording({project,change,commit,onRecorded,onError,onImport,onS
  const [takeNotes,setTakeNotes]=useState<Record<string,string>>({});
  const updateClock=()=>{if(mounted.current)setElapsed(Math.floor(recordingClock.current.elapsed(Date.now())));};
  const closeHud=()=>{const currentHud=hudSession.current;hudSession.current=null;return currentHud?.stop()??Promise.resolve();};
- /** Opens at countdown start in 'starting'; the HUD hides the editor only once recording begins. The HUD shows its own live camera.
+ /** Opens at countdown start in 'starting', hiding the editor then, as Borumi does; the countdown shows in the island. The HUD shows its own live camera.
   * A failure during 'starting' is held until recording begins, and dropped if the start is cancelled. */
  const openHud=(countdown:number|null)=>{
   const bridge=window.sceneForge;if(!bridge?.beginRecordingHud||!bridge.updateRecordingHud||!bridge.endRecordingHud)return;
@@ -182,6 +183,9 @@ export function Recording({project,change,commit,onRecorded,onError,onImport,onS
  };
  useEffect(()=>{if(!registerLeaveGuard)return;registerLeaveGuard(()=>leaveRef.current());return()=>registerLeaveGuard(null);},[registerLeaveGuard]);
  const cancelStart=()=>countdownAbort.current?.abort();
+ // Start now: the countdown ends at once and recording begins.
+ const countdownSkip=useRef<(()=>void)|null>(null);
+ const skipCountdown=()=>countdownSkip.current?.();
  useEffect(()=>{try{localStorage.setItem('sceneforge.recording-countdown',String(countdownEnabled));}catch{}},[countdownEnabled]);
  const refreshDevices=()=>navigator.mediaDevices?.enumerateDevices().then(list=>{if(mounted.current)setDevices(old=>sameDeviceList(old,list)?old:list);}).catch(()=>{});
  const nativeCapture=Boolean(window.sceneForge?.listCaptureSources&&window.sceneForge?.chooseCaptureSource);
@@ -260,7 +264,9 @@ export function Recording({project,change,commit,onRecorded,onError,onImport,onS
    if(abort.signal.aborted)throw new DOMException('Start cancelled','AbortError');
    const formats=sources.map(source=>{const video=source.stream.getVideoTracks().length>0,mimeType=recorderMimeType(video,t=>MediaRecorder.isTypeSupported(t));if(!mimeType)throw new Error('This browser does not support WebM capture. Use the Creator Compiler desktop app.');return {...source,video,mimeType};});
    openHud(countdownEnabled?3:null);
-   if(countdownEnabled){let sound:ReturnType<typeof countdownChime>|undefined;try{sound=countdownChime();}catch{setCaptureNotice('Countdown sound is unavailable. The visual countdown still runs.');}try{await recordingCountdown(abort.signal,value=>{setCountdown(value);void hudSession.current?.update({countdown:value});},()=>sound?.play());}finally{await sound?.close();if(mounted.current)setCountdown(null);void hudSession.current?.update({countdown:null});}}
+   if(countdownEnabled){let sound:ReturnType<typeof countdownChime>|undefined;try{sound=countdownChime();}catch{setCaptureNotice('Countdown sound is unavailable. The visual countdown still runs.');}const skipped=new Promise<'skip'>(resolve=>{countdownSkip.current=()=>resolve('skip');});
+    const SKIP='SkipCountdown',wait=(ms:number,signal:AbortSignal)=>Promise.race([waitForCountdown(ms,signal),skipped.then(()=>{throw new DOMException('Countdown skipped',SKIP);})]);
+    try{await recordingCountdown(abort.signal,value=>{setCountdown(value);void hudSession.current?.update({countdown:value});},()=>sound?.play(),wait);}catch(error){if((error as Error).name!==SKIP)throw error;}finally{await sound?.close();if(mounted.current)setCountdown(null);void hudSession.current?.update({countdown:null});}}
    if(abort.signal.aborted)throw new DOMException('Start cancelled','AbortError');
    // Storage sessions open together once the countdown has finished, so a cancelled start leaves no empty session behind.
    const sessions=await Promise.all(formats.map(async source=>({...source,id:(await api<{id:string}>('/recordings',{name:`${project.name} — ${source.track}`,mimeType:source.mimeType,audioRole:source.audioRole})).id})));if(!mounted.current||abort.signal.aborted)throw new DOMException('Start cancelled','AbortError');
@@ -277,7 +283,7 @@ export function Recording({project,change,commit,onRecorded,onError,onImport,onS
    if(wantsNative){const take=await bridge!.startNativeRecording!({selection:chosenSource.current!,systemAudio:selection.systemAudio,recordVideo:selection.screen,fps:screenFps,maxDimension:1920});nativeSession.current={id:take.id,recordVideo:selection.screen,systemAudio:selection.systemAudio};startedAtMs=take.startedAtMs;if(!mounted.current||abort.signal.aborted){await bridge!.stopNativeRecording!(take.id);nativeSession.current=null;throw new DOMException('Start cancelled','AbortError');}}
    recordingClock.current.start(startedAtMs);captures.current.forEach(c=>{c.startedAtMs=Date.now();c.recorder.start(1000);});transition('recording');timer.current=setInterval(updateClock,250);
    if(wantsNative)manager.stop('screen');if(hudFailure.current)setCaptureNotice(hudFailure.current);hudFailure.current='';
-  }catch(error){hudFailure.current='';captures.current.forEach(c=>{if(c.recorder.state!=='inactive')c.recorder.stop();});captures.current=[];if(nativeSession.current){await bridge?.stopNativeRecording?.(nativeSession.current.id).catch(()=>{});nativeSession.current=null;}void closeHud();transition('idle');if((error as Error).name!=='AbortError')report((error as Error).message);}finally{countdownAbort.current=null;if(mounted.current)setCountdown(null);}
+  }catch(error){hudFailure.current='';captures.current.forEach(c=>{if(c.recorder.state!=='inactive')c.recorder.stop();});captures.current=[];if(nativeSession.current){await bridge?.stopNativeRecording?.(nativeSession.current.id).catch(()=>{});nativeSession.current=null;}void closeHud();transition('idle');if((error as Error).name!=='AbortError')report((error as Error).message);}finally{countdownAbort.current=null;countdownSkip.current=null;if(mounted.current)setCountdown(null);}
  }
  function pause(){
   if(!['recording','paused'].includes(statusRef.current))return;
@@ -292,7 +298,8 @@ export function Recording({project,change,commit,onRecorded,onError,onImport,onS
    finally{if(mounted.current)setTransitionBusy(false);}
   });void work?.catch(()=>{});
  }
- async function stop(){
+ /** Ends the take and saves it. `review` opens its preview (Stop); Record again (`retry`) keeps the take and goes straight to the next one. */
+ async function stop(review=true){
   if(ended.current||(!captures.current.length&&!nativeSession.current))return;ended.current=true;updateClock();transition('saving');void closeHud();if(timer.current)clearInterval(timer.current);timer.current=null;
   await transitionGate.current.stop();
   const entries=[...captures.current],native=nativeSession.current,assets:Media[]=[],tracks:TrackKind[]=[],offsets:number[]=[],labels:string[]=[],failures:string[]=[],notes:string[]=[];
@@ -306,16 +313,16 @@ export function Recording({project,change,commit,onRecorded,onError,onImport,onS
    finished.forEach((result,i)=>{const c=entries[i];if(result.status==='fulfilled'){assets.push(result.value);tracks.push(c.track);offsets.push(recordingClock.current.offset(c.startedAtMs));labels.push(c.label);}else failures.push((result.reason as Error).message);});
    if(native&&nativeResult){if('error'in nativeResult)failures.push(String(nativeResult.error));else{const output=nativeResult.value;failures.push(...nativeRecordingOutputErrors(output,native.recordVideo,native.systemAudio));{const note=nativeRecordingNote(output);if(note)notes.push(note);}for(const {media,track} of imported.done){assets.push(media);tracks.push(track);offsets.push(0);labels.push(`${track==='screen'?'Screen':'Computer audio'} (${chosenSource.current?.label||'selected source'})`);}if(imported.error)failures.push(imported.error.message);}}
    if(nativeSkew.current>100&&entries.length)notes.push('Camera and screen may be slightly out of sync after pausing. Check the take before you use it.');
-   if(mounted.current&&assets.length){const take:SavedTake={id:crypto.randomUUID(),createdAt:new Date().toISOString(),sceneId:captureScene.current,media:assets,tracks,offsets,labels,clipIds:assets.map(()=>crypto.randomUUID()),recordOver:captureTakeMode.current==='record-over'};storeTakes([...savedTakes,take]);reviewRef.current=take.id;setReviewId(take.id);if(notes.length)setTakeNotes(value=>({...value,[take.id]:notes.join(' ')}));try{await applyChange(draft=>saveProjectTake(draft,take));storeTakes(savedTakes.filter(value=>value.id!==take.id));}catch(error){failures.push(`The take is in local recovery; project save failed: ${(error as Error).message}`);}}
+   if(mounted.current&&assets.length){const take:SavedTake={id:crypto.randomUUID(),createdAt:new Date().toISOString(),sceneId:captureScene.current,media:assets,tracks,offsets,labels,clipIds:assets.map(()=>crypto.randomUUID()),recordOver:captureTakeMode.current==='record-over'};storeTakes([...savedTakes,take]);if(review){reviewRef.current=take.id;setReviewId(take.id);}if(notes.length)setTakeNotes(value=>({...value,[take.id]:notes.join(' ')}));try{await applyChange(draft=>saveProjectTake(draft,take));storeTakes(savedTakes.filter(value=>value.id!==take.id));}catch(error){failures.push(`The take is in local recovery; project save failed: ${(error as Error).message}`);}}
    if(entries.some(c=>c.failure))failures.push('A source reported an error during capture.');
    if(failures.length)report(`Saved ${assets.length} completed ${assets.length===1?'source':'sources'}. ${failures.join(' ')} Any unfinished source remains in local capture storage.`);
   }catch(error){report(`Take remains in local recording recovery storage: ${(error as Error).message}`);}finally{captures.current=[];nativeSession.current=null;manager.stopAll();clearNativeFrame();transition('idle');}
  }
  stopRef.current=stop;
  // Subscribed once; the handlers run the latest committed render's actions (set on commit, so a discarded render never leaks in). Stop in the HUD during the countdown cancels the start.
- const hudCommand=useRef<(command:'pause'|'resume'|'stop')=>void>(()=>{}),shortcut=useRef<(action?:ShortcutAction)=>void>(()=>{});
+ const hudCommand=useRef<(command:RecordingHudCommand)=>void>(()=>{}),shortcut=useRef<(action?:ShortcutAction)=>void>(()=>{});
  useInsertionEffect(()=>{
-  hudCommand.current=command=>{if(command==='stop'){if(statusRef.current==='starting')cancelStart();else void stop();}else if(command==='pause'&&statusRef.current==='recording')pause();else if(command==='resume'&&statusRef.current==='paused')pause();};
+  hudCommand.current=command=>{if(command==='cancel'){if(statusRef.current==='starting')cancelStart();return;}if(command==='skip-countdown'){if(statusRef.current==='starting')skipCountdown();return;}if(command==='retry'){if(['recording','paused'].includes(statusRef.current)){const scene=captureScene.current,mode=captureTakeMode.current;void stop(false).then(()=>{if(mounted.current)void start(scene,mode);});}return;}if(command==='stop'){if(statusRef.current==='starting')cancelStart();else void stop();}else if(command==='pause'&&statusRef.current==='recording')pause();else if(command==='resume'&&statusRef.current==='paused')pause();};
   shortcut.current=action=>{if(action==='record')void start();else if(action==='stopRecord'&&['recording','paused'].includes(statusRef.current))void stop();else if(action==='pauseRecord')pause();else if(action==='recordingPresets'&&statusRef.current==='idle')setPresetOpen(v=>!v);};
  });
  useEffect(()=>window.sceneForge?.onRecordingHudCommand?.(command=>hudCommand.current(command)),[]);

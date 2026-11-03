@@ -217,7 +217,7 @@ test('the video\'s one menu moves it to a stage or deletes it, asking first; the
   assert.equal(c.querySelectorAll('.ws-top [aria-label="More for this video"]').length,1);
   const items=async()=>{await act(async()=>(c.querySelector('[aria-label="More for this video"]') as HTMLElement).click());await flush();return [...doc.querySelectorAll(`[role^="menuitem"]`)] as HTMLElement[];};
   const labels=(await items()).map(item=>item.textContent?.trim());
-  assert.equal(labels.length,7,'the six stages, then Delete video');assert.equal(labels.at(-1),'Delete video');
+  assert.equal(labels.length,8,'the six stages, the prompt for your AI agent, then Delete video');assert.deepEqual(labels.slice(-2),['Copy prompt for your AI agent','Delete video']);
   assert.ok(!labels.some(label=>/Copy link/.test(label!)),'no link to a page that only opens on this computer');
   await act(async()=>[...doc.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(item=>item.textContent?.trim()==='Delete video')?.click());await flush();
   assert.match(doc.querySelector('[role="dialog"]')!.textContent!,/Delete this video\?/);

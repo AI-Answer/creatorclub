@@ -1,5 +1,7 @@
+import {useMemo} from 'react';
 import type {MotionBlock,MotionTemplateId,Project} from '../shared/types';
 import {makeId} from '../shared/types';
+import type {Look} from '../shared/look';
 import {MOTION_TEMPLATES,MOTION_TEMPLATE_IDS,motionText,newMotionBlock,normalizeMotionProps} from '../shared/motion/templates';
 import {addMotionBlock,nextMotionStart} from './timeline-edit';
 import {timecode} from './api';
@@ -32,7 +34,7 @@ export function MotionPanel({project:p,selected,playhead,change,select,notify,cl
    <p className="hint">Claude reads what you say and places chapter labels and title cards. You preview each one before it is added.</p>
   </section>}
   <section className="inspector-section"><h3>{club?'Add one yourself':'Add where the playhead is'}</h3><p className="hint">{club?'It goes where the playhead is. Point at one to see it on your video.':'Point at one to see it on your video. Click to add it.'}</p>
-   <div className="element-grid motion-gallery">{MOTION_TEMPLATE_IDS.map(id=><button key={id} type="button" onClick={()=>{onHover?.(null);add(id);}} onMouseEnter={()=>onHover?.(id)} onMouseLeave={()=>onHover?.(null)} onFocus={()=>onHover?.(id)} onBlur={()=>onHover?.(null)}>{club?<GraphicPreview id={id} frame={frame}/>:<span className={`motion-mini mm-${id}`} aria-hidden="true"><i/><i/></span>}<b>{MOTION_TEMPLATES[id].label}</b></button>)}</div>
+   <div className="element-grid motion-gallery">{MOTION_TEMPLATE_IDS.map(id=><button key={id} type="button" onClick={()=>{onHover?.(null);add(id);}} onMouseEnter={()=>onHover?.(id)} onMouseLeave={()=>onHover?.(null)} onFocus={()=>onHover?.(id)} onBlur={()=>onHover?.(null)}>{club?<GraphicPreview id={id} frame={frame} look={p.look}/>:<span className={`motion-mini mm-${id}`} aria-hidden="true"><i/><i/></span>}<b>{MOTION_TEMPLATES[id].label}</b></button>)}</div>
   </section>
   {block?<BlockFields key={block.id} project={p} block={block} change={change}/>:
    <section className="inspector-section"><h3>{club?'In this video':'In this project'}</h3>{(p.motion??[]).map(m=><button key={m.id} type="button" className="list-item" onClick={()=>select(m.id)}><span>{MOTION_TEMPLATES[m.template]?.label}: {motionText(m)}</span><small>{timecode(m.start)}</small></button>)}{!p.motion?.length&&<p className="hint">Nothing yet. Add one above, or ask the companion: “add a lower third at 0:12”.</p>}</section>}
@@ -59,7 +61,7 @@ function BlockFields({project:p,block,change}:{project:Project;block:MotionBlock
 }
 
 /** A graphic as it will look, over a frame of this video. */
-function GraphicPreview({id,frame}:{id:MotionTemplateId;frame?:string}){
- const sample=newMotionBlock(id,0,`preview-${id}`);
+function GraphicPreview({id,frame,look}:{id:MotionTemplateId;frame?:string;look?:Look}){
+ const sample=useMemo(()=>({...newMotionBlock(id,0,`preview-${id}`),...(look?{look}:{})}),[id,look]);
  return <span className="gfx-preview" aria-hidden="true" style={frame?{backgroundImage:`url(${frame})`}:undefined}><MotionLayer blocks={[sample]} time={Math.min(1.5,sample.duration/2)}/></span>;
 }

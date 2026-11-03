@@ -23,6 +23,8 @@ export interface Clip {
  linkId?:string;
  /** Opaque imported clip identity; copy export validates it against the preserved baseline. */
  borumiOriginId?:string;
+ /** A camera clip that is the speaker's tile on the look's stage (a `set_stage` stretch): graphics over it take the middle of the frame. */
+ stage?:true;
  /** Original source interval for continuous fades and audio processing after a split. */
  effectTiming?:{sourceIn:number;sourceOut:number};
  effects:{brightness:number; contrast:number; saturation:number; blur:number; grayscale:boolean; flipX:boolean; fadeIn:number; fadeOut:number; denoise:boolean; normalize:boolean; background?:'none'|'remove'|'blur'; faceCenter?:boolean};
@@ -35,12 +37,15 @@ export interface Element {
  x:number;y:number;width:number;height:number;color:string;background:string;fontSize:number;opacity:number;rotation:number;
 }
 /** The animated graphics templates (`shared/motion/`): the same template renders the preview and the export. */
-export type MotionTemplateId='title-card'|'lower-third'|'callout'|'chapter-label';
+export type MotionTemplateId='title-card'|'lower-third'|'callout'|'chapter-label'|'bullets'|'stat'|'compare'|'steps'|'quote'|'keyword'|'flow'|'tree';
 /**
  * An animated title, lower third, callout or chapter label on the timeline's Motion row. Blocks may overlap clips of other rows but never
  * each other. `props` holds the template's text and positions (`shared/motion/templates.ts` names and limits them).
  */
-export interface MotionBlock { id:string; template:MotionTemplateId; style:string; start:number; duration:number; props:Record<string,string|number>; }
+/** Where a text graphic sits so it stays off the speaker's face: a side for the narrower ones, a band above or below for the wide ones. */
+export type MotionPlace='left'|'right'|'top'|'bottom'|'stage';
+export interface MotionBlock { id:string; template:MotionTemplateId; style:string; start:number; duration:number; props:Record<string,string|number>; place?:MotionPlace;
+ /** Not stored: the project's look, handed to the block by whatever draws it (the stage, the export). */ look?:import('./look').Look; }
 export interface Zoom { id:string; start:number; duration:number; scale:number; x:number;y:number; target:'screen'|'camera'; easing:'linear'|'smooth'; effectTiming?:{offset:number;duration:number}; }
 export interface CursorPoint { time:number;x:number;y:number;pressed?:boolean;visible?:boolean; }
 export interface CursorSettings { enabled:boolean; size:number; color:string; highlight:boolean; smoothing:number; points:CursorPoint[]; }
@@ -55,7 +60,7 @@ export interface RecordedTake {
 }
 export interface Project {
  version:1; id:string; name:string; createdAt:string; updatedAt:string;
- canvas:Canvas; scenes:Scene[]; media:Media[]; clips:Clip[]; captions:Caption[]; captionStyle:CaptionStyle;
+ canvas:Canvas; /** The video's look: type, colours, motion and the stage (shared/look.ts). Missing means Clean. */ look?:import('./look').Look; scenes:Scene[]; media:Media[]; clips:Clip[]; captions:Caption[]; captionStyle:CaptionStyle;
  elements:Element[]; zooms:Zoom[]; cursor:CursorSettings; notes:string;
  /** Animated graphics blocks; absent on projects made before motion blocks (read as none). */
  motion?:MotionBlock[];

@@ -1,7 +1,17 @@
+import { existsSync } from 'node:fs';
 import { readdir, readFile, realpath, stat } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { PREVIEW_EXT, SKILL_NAME, skillsAsked, slashSkill, type InstalledSkill } from '../../shared/skills.js';
+
+/**
+ * The skills that come with Creator Compiler (`recorder/app/skills`, copied next to the bundled server as `server-dist/skills`). They are
+ * offered on Edit like the creator's own; a skill of theirs with the same name wins.
+ */
+export function bundledSkillsDir(): string | undefined {
+  const here = import.meta.dirname;
+  return [process.env.CREATORCLUB_SKILLS_DIR, path.join(here, 'skills'), path.resolve(here, '../../skills')].find((dir): dir is string => !!dir && existsSync(dir));
+}
 
 const MAX_SKILL_CHARS = 8000;
 const MAX_DESCRIPTION_CHARS = 120;
@@ -86,7 +96,13 @@ export function oneLine(raw: string): string {
 
 /** The skills installed in the person's own Claude Code (`~/.claude/skills/<name>/SKILL.md`), by name. Reads only; a folder without a SKILL.md is not a skill. */
 export async function listSkills(home = os.homedir()): Promise<InstalledSkill[]> {
-  const root = path.join(home, '.claude', 'skills');
+  const own = await skillsIn(path.join(home, '.claude', 'skills'));
+  const bundled = bundledSkillsDir();
+  const extra = bundled ? (await skillsIn(bundled)).filter((skill) => !own.some((each) => each.name === skill.name)) : [];
+  return [...own, ...extra].sort((a, b) => a.name.localeCompare(b.name));
+}
+
+async function skillsIn(root: string): Promise<InstalledSkill[]> {
   let names: string[];
   try {
     names = await readdir(root);

@@ -140,15 +140,22 @@ test('a pause is cut only where one recording holds the words on both sides, nev
  assert.deepEqual(wordPauseRanges(one,'gentle').map(([a,b])=>[+a.toFixed(2),+b.toFixed(2)]),[[9.75,12.85]]);
  const split=applyProjectChange(one,d=>{splitLinked(d,11,new Set(),'s');});
  assert.equal(wordPauseRanges(split,'gentle').length,1,'a split inside the pause does not hide it');
- // With Auto-edit's audio plan for these clips, only where the audio is silent too; a plan for other clips is ignored.
- const plan={fingerprint:clipsFingerprint(one.clips),ranges:[[11,12.5]] as [number,number][]};
- assert.deepEqual(wordPauseRanges(one,'gentle',{silences:plan}),[[11,12.5]]);
+ // With the audio measured for these clips, a pause is where it is quiet, whatever the words say: speech-to-text stretches words over
+ // silence (31 to 34 here). A quiet stretch shorter than the level is no pause; a measure of other clips is ignored.
+ const round=(r:[number,number][])=>r.map(([a,b])=>[+a.toFixed(2),+b.toFixed(2)]);
+ const plan={fingerprint:clipsFingerprint(one.clips),ranges:[[9.8,12.9],[22,24],[31,34],[36,37]] as [number,number][]};
+ assert.deepEqual(round(wordPauseRanges(one,'gentle',{silences:plan})),[[9.95,12.75],[22.15,23.85],[31.15,33.85]]);
  assert.deepEqual(wordPauseRanges(one,'gentle',{silences:{...plan,fingerprint:'other'}}).length,1);
  assert.equal(editActionProblem(one,{type:'cut_pauses',level:'gentle'},{silences:{...plan,ranges:[[30,31]]}}),'There are no pauses that long between your words.');
+ // Long quiet over a screen recording that shows is a silent demo and stays; on camera alone it is dead air and goes.
+ const long={fingerprint:clipsFingerprint(one.clips),ranges:[[19.5,30]] as [number,number][]};
+ assert.deepEqual(wordPauseRanges(one,'gentle',{silences:long}),[]);
+ const talking=createProject('x');talking.media=p.media;talking.clips=[clip('c','camera',0,40)];talking.captions=one.captions;
+ assert.deepEqual(round(wordPauseRanges(talking,'gentle',{silences:{...long,fingerprint:clipsFingerprint(talking.clips)}})),[[19.65,29.85]]);
  // The card says how much it takes out, the same as Apply.
  assert.deepEqual(editEstimate(one,{type:'cut_pauses',level:'gentle'}),{text:'1 cut · 3.1 s shorter'});
  const applied=applyProjectChange(one,d=>{applyEditAction(d,{type:'cut_pauses',level:'gentle'},{silences:plan});});
- assert.ok(Math.abs(projectDuration(one)-projectDuration(applied)-1.5)<1e-9,'Apply cuts what the plan allows');
+ assert.ok(Math.abs(projectDuration(one)-projectDuration(applied)-7.2)<1e-9,'Apply cuts what the audio allows');
 });
 
 test('a long delete is said on the card and capped; a zoom says which zoom it replaces; one element factory',()=>{

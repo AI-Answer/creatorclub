@@ -4,14 +4,13 @@ import {STAGE_LABEL} from '../board';
 import {COLUMN_EMPTY,beforeIdAt,boardColumns,dropIndex,unordered,type BoardColumn} from '../production';
 import type {IdeaHeld} from '../routes';
 import type {SceneProgress} from '../scene-status';
-import {StagePill} from '../ui';
 import {IdeaLane,type IdeaActionSet} from './IdeaLane';
 import {KanbanCard} from './KanbanCard';
 
 type Over={stage:VideoStage;beforeId:string|null};
 
 /**
- * Six lanes, Ideas to Published. Ideas come first, in groups (`IdeaLane`); the others are in board order. Cards drag between lanes and within
+ * Six lanes, Ideas to Published, each the same width and as tall as the page, headed by its stage's dot, name and count. Ideas come first, in groups (`IdeaLane`); the others are in board order. Cards drag between lanes and within
  * the ordered ones (HTML5 drag); a line shows where the card will land. `ideas` carries what the Ideas lane needs: the idea just added,
  * a folded group to open, and the idea actions.
  */
@@ -53,7 +52,7 @@ export function Kanban({videos,scenes,ideas,onOpen,onMove,onResearch}:{
   const lineBefore=here&&!unordered(stage)?(over.beforeId&&shown.some(video=>video.id===over.beforeId)?over.beforeId:'end'):undefined;
   return <section key={stage} aria-label={STAGE_LABEL[stage]} data-column={stage} className={`col${here?' over':''}`}
    onDragOver={onDragOver(column)} onDrop={onDrop(column)} onDragLeave={onDragLeave(stage)}>
-   <div className="col-h"><StagePill stage={stage}/><span className="n">{all.length}</span></div>
+   <div className="col-h"><span className={`col-dot st-${stage}`} aria-hidden/><span className="col-name">{STAGE_LABEL[stage]}</span><span className="n">{all.length}</span></div>
    {stage==='ideas'?<IdeaLane videos={videos} newId={ideas.newId} openGroup={ideas.openGroup} dragId={dragId} actions={ideas.actions} onOpen={onOpen} onMove={(id,to)=>onMove(id,to,null)} onResearch={onResearch}
     onDragStart={(id,event)=>{event.dataTransfer.effectAllowed='move';event.dataTransfer.setData('text/plain',id);setDragId(id);}} onDragEnd={reset}/>
    :<><div ref={element=>{if(element)elements.current.set(stage,element);else elements.current.delete(stage);}}>

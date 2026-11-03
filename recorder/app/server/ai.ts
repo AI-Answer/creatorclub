@@ -31,11 +31,12 @@ async function run(command:string,args:string[],timeout=30*60*1000,signal?:Abort
 export async function transcriptionCapabilities(){const command=await executable('whisper-cli');return {local:!!command,command,providers:['local','openai','openai-compatible','elevenlabs','openrouter']}}
 /** Speech models, best first. Tiny and voice-activity models are never picked for a transcript. */
 const WHISPER_MODEL_TIERS=[/^ggml-large-v3-turbo.*\.bin$/,/^ggml-small.*\.bin$/,/^ggml-base\.en.*\.bin$/,/^ggml-base.*\.bin$/];
-/** Folders where a speech model may already be installed: the desktop app's runtime and models folders, ~/.cache/whisper and Homebrew's whisper share folders. */
+/** Folders where a speech model may already be installed: the desktop app's runtime and models folders (this app's, and those of its earlier names), ~/.cache/whisper and Homebrew's whisper share folders. */
 async function whisperModelFolders():Promise<string[]>{
  const runtime=process.env.CREATOR_COMPILER_RUNTIME_DIR,data=process.env.SCENEFORGE_DATA_DIR;
  const shared=(await Promise.all(['/opt/homebrew/share','/usr/local/share'].map(dir=>readdir(dir).then(names=>names.filter(name=>name.startsWith('whisper')).map(name=>path.join(dir,name)),()=>[] as string[])))).flat();
- return [runtime&&path.join(runtime,'models'),data&&path.join(path.dirname(path.resolve(data)),'models'),path.join(homedir(),'.cache','whisper'),...shared].filter((dir):dir is string=>!!dir);
+ const support=process.platform==='darwin'?['Creator Compiler','CreatorClub','CreatorClub Dev'].map(name=>path.join(homedir(),'Library','Application Support',name,'models')):[];
+ return [runtime&&path.join(runtime,'models'),data&&path.join(path.dirname(path.resolve(data)),'models'),...support,path.join(homedir(),'.cache','whisper'),...shared].filter((dir):dir is string=>!!dir);
 }
 /** The best speech model in these folders: by tier, then by file name. */
 export async function findWhisperModel(folders:string[]):Promise<string|undefined>{
@@ -141,15 +142,16 @@ export function parseSilences(output:string,duration:number):Array<[number,numbe
  for(const line of output.split('\n')){const a=line.match(/silence_start:\s*(-?[\d.]+)/);if(a)start=Math.max(0,Number(a[1]));const b=line.match(/silence_end:\s*([\d.]+)/);if(b&&start!==undefined){const end=Math.min(duration,Number(b[1]));if(end>start)result.push([start,end]);start=undefined}}
  if(start!==undefined&&duration>start)result.push([start,duration]);return result;
 }
-export async function analyze(project:Project,kind:'silence'|'fillers'|'script',settings:AISettings,prompt?:string,signal?:AbortSignal):Promise<{suggestions:AISuggestion[]}>{
- signal?.throwIfAborted();
- if(kind==='fillers'){
-  const suggestions:AISuggestion[]=[];const seen=new Set<string>();
-  for(const c of project.captions)for(const w of c.words??[]){if(!/^(um+|uh+|erm+|hmm+)[,.!?]?$/i.test(w.text.trim()))continue;const key=`${w.start}:${w.end}`;if(seen.has(key))continue;seen.add(key);suggestions.push({id:makeId(),type:'filler',start:w.start,end:w.end,text:w.text,reason:'Possible hesitation word from the timed transcript. Preview in context before cutting.'})}
-  if(!project.captions.some(c=>c.words?.length))throw new Error('Filler analysis requires a transcript with word timestamps. Segment-only transcripts cannot produce precise cuts.');
-  return {suggestions};
- }
- if(kind==='silence'){
+/** A media file's own quiet stretches (source seconds), measured once per file as it is on disk. */
+const silenceCache=new Map<string,Array<[number,number]>>();
+async function mediaSilences(ffmpeg:string,media:Media,signal?:AbortSignal):Promise<Array<[number,number]>>{
+ const info=await stat(media.path),key=`${media.path}\0${info.size}\0${info.mtimeMs}`;
+ const known=silenceCache.get(key);if(known)return known;
+ const r=await run(ffmpeg,['-hide_banner','-nostdin','-i',media.path,'-vn','-af','silencedetect=noise=-35dB:d=0.35','-f','null','-'],30*60*1000,signal);
+ const ranges=parseSilences(r.stderr,media.duration);silenceCache.set(key,ranges);return ranges;
+}
+/** Where the timeline's speech is quiet, in timeline seconds: below -35 dB for at least 350 ms in the clips that carry the narration there. */
+export async function quietRanges(project:Project,signal?:AbortSignal):Promise<Array<[number,number]>>{
   const ffmpeg=await executable('ffmpeg');if(!ffmpeg)throw new Error('FFmpeg is required for local silence analysis.');
   // Prefer dedicated narration, then camera audio, then screen/overlay audio.
   // Music does not decide where speech can be cut. Overlapping sources at the
@@ -161,7 +163,7 @@ export async function analyze(project:Project,kind:'silence'|'fillers'|'script',
   type Edge={time:number;index:number;kind:'start'|'end'|'quietStart'|'quietEnd'};
   const edges:Edge[]=[];
   for(const [index,clip] of clips.entries()){const media=medias.get(clip.mediaId)!;
-   if(!mediaRanges.has(media.id)){const r=await run(ffmpeg,['-hide_banner','-nostdin','-i',media.path,'-vn','-af','silencedetect=noise=-35dB:d=0.35','-f','null','-'],30*60*1000,signal);mediaRanges.set(media.id,parseSilences(r.stderr,media.duration))}
+   if(!mediaRanges.has(media.id))mediaRanges.set(media.id,await mediaSilences(ffmpeg,media,signal));
    edges.push({time:clip.start,index,kind:'start'},{time:clip.start+clipDuration(clip),index,kind:'end'});
    for(const [from,to] of mediaRanges.get(media.id)!){const a=Math.max(from,clip.sourceIn),b=Math.min(to,clip.sourceOut);if(b-a<.35)continue;const start=clip.start+(a-clip.sourceIn)/clip.speed,end=Math.min(clip.start+clipDuration(clip),clip.start+(b-clip.sourceIn)/clip.speed);edges.push({time:start,index,kind:'quietStart'},{time:end,index,kind:'quietEnd'});}
   }
@@ -177,6 +179,18 @@ export async function analyze(project:Project,kind:'silence'|'fillers'|'script',
    if(!primary.every(index=>quiet.has(index)))continue;
    const previous=ranges.at(-1);if(previous&&Math.abs(previous[1]-time)<1e-8)previous[1]=end;else ranges.push([time,end]);
   }
+  return ranges;
+}
+export async function analyze(project:Project,kind:'silence'|'fillers'|'script',settings:AISettings,prompt?:string,signal?:AbortSignal):Promise<{suggestions:AISuggestion[]}>{
+ signal?.throwIfAborted();
+ if(kind==='fillers'){
+  const suggestions:AISuggestion[]=[];const seen=new Set<string>();
+  for(const c of project.captions)for(const w of c.words??[]){if(!/^(um+|uh+|erm+|hmm+)[,.!?]?$/i.test(w.text.trim()))continue;const key=`${w.start}:${w.end}`;if(seen.has(key))continue;seen.add(key);suggestions.push({id:makeId(),type:'filler',start:w.start,end:w.end,text:w.text,reason:'Possible hesitation word from the timed transcript. Preview in context before cutting.'})}
+  if(!project.captions.some(c=>c.words?.length))throw new Error('Filler analysis requires a transcript with word timestamps. Segment-only transcripts cannot produce precise cuts.');
+  return {suggestions};
+ }
+ if(kind==='silence'){
+  const ranges=await quietRanges(project,signal);
   return {suggestions:ranges.map(([start,end])=>({id:makeId(),type:'silence' as const,start,end,text:`Quiet audio (${(end-start).toFixed(2)}s)`,reason:'Local audio threshold: below -35 dB for at least 350 ms in the source. Dedicated narration takes priority over camera, screen and overlay audio; overlapping primary sources must all be quiet. Review breath and intentional pauses before cutting.'}))};
  }
  if(kind!=='script')throw new Error('Unsupported analysis kind.');

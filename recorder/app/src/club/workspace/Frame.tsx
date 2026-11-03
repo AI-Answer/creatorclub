@@ -2,7 +2,8 @@ import {Fragment,useState} from 'react';
 import {videoTabs,type VideoTab} from '../routes';
 import {VIDEO_STAGES,type Video,type VideoStage} from '../../../shared/club';
 import {STAGE_LABEL} from '../board';
-import {Button,Dialog,Ed,Icon,IconButton,Menu,Tooltip,cn,type IconName,type MenuItem} from '../ui';
+import {Button,Dialog,Ed,Icon,IconButton,Menu,Tooltip,cn,useToast,type IconName,type MenuItem} from '../ui';
+import {agentPrompt} from '../agent-prompt';
 import {TAB_LABEL,previousTab,tabLock,tabState,type ContinueButton,type LockFacts,type TabFacts,type TabLock} from './rules';
 import {fmtDate} from '../format';
 
@@ -15,7 +16,10 @@ const STATE_WORDS={done:'Done',next:'Next step',open:undefined,current:undefined
  */
 export function Header({video,tab,onTitle,onStage,onDelete}:{video:Video;tab:VideoTab;onTitle(title:string):void;onStage(stage:VideoStage):void;onDelete():void}){
  const [asking,setAsking]=useState(false);
- const items:MenuItem[]=[{header:'Move to'},...VIDEO_STAGES.map((stage):MenuItem=>({label:STAGE_LABEL[stage],check:video.stage===stage,fn:()=>onStage(stage)})),'-',{label:'Delete video',icon:'delete',danger:true,fn:()=>setAsking(true)}];
+ const toast=useToast();
+ // Hands this video to the person's own agent (Settings › Your AI agent connects it).
+ const copyPrompt=()=>{navigator.clipboard?.writeText(agentPrompt(video,tab)).then(()=>toast('Copied. Paste it into Claude Code or Codex.'),()=>toast("Couldn't copy the prompt.",{refused:true}));};
+ const items:MenuItem[]=[{header:'Move to'},...VIDEO_STAGES.map((stage):MenuItem=>({label:STAGE_LABEL[stage],check:video.stage===stage,fn:()=>onStage(stage)})),'-',{label:'Copy prompt for your AI agent',icon:'copy',fn:copyPrompt},'-',{label:'Delete video',icon:'delete',danger:true,fn:()=>setAsking(true)}];
  return <div className="ws-top">
   <div className="ws-top-l" id="ws-top-left"/>
   <div className="ws-top-c">

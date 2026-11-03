@@ -4,6 +4,7 @@ import {Activity,memo,useCallback,useEffect,useLayoutEffect,useMemo,useRef,useSt
 import {ArrowLeft,ArrowRight,AudioLines,Camera,Check,ChevronDown,ChevronLeft,ChevronRight,Clock3,Clapperboard,Elements,Copy,Download,FileText,Film,FolderOpen,Grid2X2,History,Image,Layers,LayoutTemplate,LoaderCircle,Magnet,Maximize2,Mic,Minus,MoreHorizontal,MousePointer2,Music,Pause,Play,Plus,Redo2,Scissors,Search,Settings2,SkipBack,SkipForward,Sparkles,Subtitles,Trash2,Type,Undo2,Upload,Video,WandSparkles,X,ZoomIn} from './Icons';
 import type {Clip,Media,Project,Scene,TrackKind} from '../shared/types';
 import {clipDuration,makeId,projectDuration,type MotionTemplateId} from '../shared/types';
+import {pacingIssues} from '../shared/pacing';
 import {api,apiResult,projectRevision,insertMedia,timecode} from './api';
 import {confirmTake,saveProjectTake,type ConfirmTakeOptions,type SavedTake} from './recorded-takes';
 import {useStudio} from './useStudio';
@@ -113,7 +114,9 @@ function Toasts({bind}:{bind:{current:(message:string)=>void}}){const [toast,set
  */
 export type EditorContext={playhead:number;selection:string[];items?:SelectedItem[];range?:{start:number;end:number}};
 /** What the editor shows the companion as it changes: how many items are selected, which card's preview is on the stage, and the timeline's version (cards re-measure on it). */
-export type EditorState={selected:number;previewKey?:string;version?:string;/** Moments the creator marked as not liked. */notes?:number};
+export type EditorState={selected:number;previewKey?:string;version?:string;/** Moments the creator marked as not liked. */notes?:number;
+ /** What the chat suggests next from: the stretches where nothing changes on screen, and whether the opening has a graphic and the creator is named. */
+ stalls?:Array<{start:number;end:number}>;opening?:boolean;named?:boolean};
 /** The editor, as the companion uses it: what it is looking at, saving before a question, a card's preview on the stage, and a server change taken as one undo step. */
 export interface EditorBridge{
  context():EditorContext;
@@ -340,7 +343,9 @@ export default function App({embedded}:{embedded?:EmbeddedRecorder}={}){
  useEffect(()=>{if(!onEditor||!editOpen)return;onEditor({context:editorContext,flush:editorFlush,preview:previewEdit,estimate:estimateEdit,describe:describeEdit,commit:studio.commitServer});return()=>onEditor(null);},[onEditor,editOpen,studio.commitServer]);
  const onEditState=embedded?.onEditState,selectedCount=p?selectionCount(p.clips,selection):selection.size,previewKey=preview?.key,timelineVersion=p?.updatedAt;
  const dislikes=p?.markers?.filter(m=>m.tag==='dislike').length??0;
- useEffect(()=>{if(editOpen)onEditState?.({selected:selectedCount,previewKey,version:timelineVersion,notes:dislikes});},[onEditState,editOpen,selectedCount,previewKey,timelineVersion,dislikes]);
+ // The pacing check and the two graphics most videos want (a title in the first seconds, the creator's name), for the chat's next steps.
+ const editFacts=useMemo(()=>p&&embedded?{stalls:pacingIssues(p).filter(issue=>issue.kind==='static').map(({start,end})=>({start,end})),opening:(p.motion??[]).some(m=>m.start<5&&(m.template==='title-card'||m.template==='keyword'))||p.elements.some(e=>e.type==='text'&&e.start<5),named:(p.motion??[]).some(m=>m.template==='lower-third')}:undefined,[p?.clips,p?.motion,p?.elements,p?.zooms,embedded]);
+ useEffect(()=>{if(editOpen)onEditState?.({selected:selectedCount,previewKey,version:timelineVersion,notes:dislikes,...editFacts});},[onEditState,editOpen,selectedCount,previewKey,timelineVersion,dislikes,editFacts]);
  // Undo, redo and history sit in the video's header, beside the steps; the header leaves a slot for them while Edit is open.
  const [toolsHost,setToolsHost]=useState<HTMLElement|null>(null);
  useEffect(()=>{setToolsHost(editOpen?document.getElementById('ws-edit-tools'):null);},[editOpen]);
@@ -367,7 +372,9 @@ export default function App({embedded}:{embedded?:EmbeddedRecorder}={}){
   <div className="club-edit-transcript" hidden={!clubTranscript}>
    <Keep visible={clubTranscript}><aside className="transcript-panel club-sheet"><header><b>Transcript</b><span className="club-sheet-sub">Select words to cut them · double-click a caption to fix it</span><button type="button" className="club-sheet-close" aria-label="Close transcript" onClick={()=>setClubTranscript(false)}><X size={16}/></button></header>
     <TranscriptionStatus jobs={statusJobs.current} enabled={automaticTranscription.enabled} error={automation.error} onRetry={retryTranscription} onCancel={cancelTranscription} onSetup={()=>openModal('settings-ai')} captionCount={p.captions.length}/>
-    {p.captions.length?<Transcript project={p} playhead={playhead} onSeek={seekTranscript} onUndo={studio.undo} onRedo={studio.redo} onDelete={deleteTranscript}/>:<div className="empty-state"><Subtitles/><h3>Edit spoken words</h3><p>A transcript lets you find words and cut them out of the video.</p></div>}</aside></Keep>
+    {p.captions.length?<Transcript project={p} playhead={playhead} onSeek={seekTranscript} onUndo={studio.undo} onRedo={studio.redo} onDelete={deleteTranscript}/>
+     // As in Borumi: each scene's label, and a dashed box where its words will be once it is transcribed.
+     :<div className="club-ts-empty-list">{(p.scenes.length?p.scenes:[{id:'all',name:''}]).map((scene,i)=><section key={scene.id} className="transcript-scene"><h4 className="transcript-scene-label">{p.scenes.length?`Scene ${i+1}`:'Transcript'}</h4><div className="club-ts-empty">This scene has no transcript</div></section>)}</div>}</aside></Keep>
   </div>
   {/* Borumi's transport: the time and play controls centred under the picture, the timeline tools as icons on the right. */}
   <div className="club-timeline-bar" role="toolbar" aria-label="Timeline">
@@ -404,7 +411,7 @@ export default function App({embedded}:{embedded?:EmbeddedRecorder}={}){
    <button type="button" aria-label="Redo" title="Redo (⇧⌘Z)" disabled={!studio.canRedo} onClick={studio.redo}><Redo2 size={17}/></button>
    <button type="button" aria-label="Version history" title="Earlier versions of this video" onClick={()=>{void studio.flush().then(()=>openModal('history')).catch(e=>studio.setError(e.message));}}><History size={17}/></button></>,toolsHost)}
  </div>;};
- const timelineAuto=useMemo(()=>p&&embedded?Math.min(420,rowsHeight(usedRows(p))):undefined,[p?.clips,p?.elements,p?.captions,p?.zooms,p?.timelineLayers,p?.markers,embedded]);
+ const timelineAuto=useMemo(()=>p&&embedded?Math.max(210,Math.min(420,rowsHeight(usedRows(p)))):undefined,[p?.clips,p?.elements,p?.captions,p?.zooms,p?.timelineLayers,p?.markers,embedded]);
  const clubEdit=clubEditView();
  useEffect(()=>{setShowTranscript(Boolean(p?.captions.length));},[p?.id,Boolean(p?.captions.length)]);
 

@@ -15,7 +15,8 @@ import {importBorumi} from './importer.js';
 import * as recordings from './recordings.js';
 import {followSpeech} from './voice-follow.js';
 import {visionPreview,getVisionCapabilities} from './vision.js';
-import {toolDefinitions} from './mcp.js';
+import {mcpToolDefinitions} from './mcp.js';
+import {mcpLauncher} from './mcp-launcher.js';
 import {readMCPSettings,saveMCPSettings} from './mcp-settings.js';
 import * as agentChat from './agent-chat.js';
 import {automation} from './automation.js';
@@ -57,9 +58,8 @@ const route=(fn:(req:Request,res:Response)=>Promise<unknown>|unknown)=>(req:Requ
 const param=(req:Request,name='id')=>String(req.params[name]);
 const reviewedRevision=(req:Request)=>{const value=req.headers['if-match'];if(typeof value!=='string'||!/^(?:"[0-9a-f]{64}"|[0-9a-f]{64})$/.test(value))throw Object.assign(Error('A reviewed project revision is required. Refresh and review this action again.'),{status:409});return value.replaceAll('"','');};
 // An empty SCENEFORGE_MCP_COMMAND (the Creator Compiler app without its own launcher) advertises no MCP launcher at all.
-const mcpCommand=process.env.SCENEFORGE_MCP_COMMAND;
 // `product` tells the Creator Compiler app its own service apart from a SceneForge one.
-const capabilities=async()=>({...await media.getCapabilities(),transcription:await ai.transcriptionCapabilities(),vision:await getVisionCapabilities(),application:'Creator Compiler',product:'Creator Compiler',mcp:mcpCommand!==''?{command:mcpCommand||process.execPath,args:mcpCommand?[]:[path.resolve(import.meta.dirname,'../server-dist/mcp.mjs')],toolCount:toolDefinitions.length}:undefined,version:'0.1.0'});
+const capabilities=async()=>({...await media.getCapabilities(),transcription:await ai.transcriptionCapabilities(),vision:await getVisionCapabilities(),application:'Creator Compiler',product:'Creator Compiler',mcp:mcpLauncher()?{...mcpLauncher()!,toolCount:mcpToolDefinitions.length}:undefined,version:'0.1.0'});
 app.get('/api/cutroom/status',route(async(_,res)=>res.json(await cutroom.cutroomStatus())));
 app.post('/api/projects/:id/cutroom',route(async(req,res)=>res.json(await cutroom.prepare(param(req)))));
 app.get('/api/cutroom/:id',route(async(req,res)=>res.json(await cutroom.workspace(param(req)))));

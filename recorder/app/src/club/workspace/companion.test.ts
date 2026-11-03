@@ -33,8 +33,8 @@ test('it says what it is looking at, and the suggestions follow the step',()=>{
  }
  assert.equal(suggestions('record',{scenes:2,scene:{index:0}})[0],'Shorten scene 1 to fit its time');
  assert.equal(suggestions('publish',{scenes:2})[0],'Write the description');
- assert.equal(suggestions('edit',{scenes:2})[0],'Cut the pauses');
- assert.equal(suggestions('edit',{scenes:2,selected:3})[0],'Trim the selected clip to the speech');
+ assert.deepEqual(suggestions('edit',{scenes:2}),['/proof-edit Polish the whole video','Add a title at the start','Add a lower third with my name']);
+ assert.equal(suggestions('edit',{scenes:2,selected:3})[1],'Trim the selected clip to the speech');
  assert.notDeepEqual(suggestions('board',{scenes:0}),suggestions('plan',{scenes:0}));
 });
 
@@ -430,9 +430,9 @@ test('on Edit: a message carries the playhead and selection, a timeline card pre
   assert.equal(log.filter(entry=>entry==='commit').length,2,'Undo goes through the editor too');
   assert.deepEqual(server.calls.find(call=>call.path==='/videos/v1/companion/r1/cards/0/undo')!.body,{revision:'rev-1'});
 
-  await act(async()=>button(c,'Add a lower third with my name').click());await flush();
+  await act(async()=>button(c,'Add a title at the start').click());await flush();
   const asked=server.calls.find(call=>call.method==='POST'&&call.path==='/videos/v1/companion')!;
-  assert.deepEqual(asked.body,{message:'Add a lower third with my name',context:{tab:'edit',screen:'The editor',playhead:6.5,selection:['screen-1'],range:{start:0,end:20}}},'the editor saves first, then its playhead and selection go with the question');
+  assert.deepEqual(asked.body,{message:'Add a title at the start',context:{tab:'edit',screen:'The editor',playhead:6.5,selection:['screen-1'],range:{start:0,end:20}}},'the editor saves first, then its playhead and selection go with the question');
   assert.ok(log.includes('flush'));
  }finally{server.restore();await ui.close();}
 });
@@ -457,6 +457,9 @@ test('a question from Claude shows its answers as buttons; tapping one sends it 
 });
 
 test('on Edit, a moment marked as not liked puts Fix the parts I marked first',()=>{
- assert.deepEqual(suggestions('edit',{scenes:2,notes:1}),['Fix the parts I marked','Cut the pauses','Add a lower third with my name']);
- assert.equal(suggestions('edit',{scenes:2,notes:0})[0],'Cut the pauses');
+ assert.deepEqual(suggestions('edit',{scenes:2,notes:1}),['/proof-edit Polish the whole video','Fix the parts I marked','Add a title at the start']);
+ // After the polish, the next steps come from the video: the pacing check first, then what it still lacks, then whether it is ready.
+ assert.deepEqual(suggestions('edit',{scenes:2,polished:true,stalls:[{start:26.4,end:34.2}],opening:true,named:true}),['Add something at 0:26–0:34: nothing changes on screen there','Cut the pauses']);
+ assert.deepEqual(suggestions('edit',{scenes:2,polished:true,stalls:[],opening:true,named:false}),['Add a lower third with my name','Is this ready to publish?','Cut the pauses']);
+ assert.equal(suggestions('edit',{scenes:2,notes:0})[1],'Add a title at the start');
 });

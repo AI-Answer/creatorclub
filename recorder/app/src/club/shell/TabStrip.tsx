@@ -1,17 +1,19 @@
 import {useEffect,useRef,useState} from 'react';
 import {BrandMark} from '../../BrandMark';
-import type {Route} from '../routes';
-import {Icon,Menu,Tooltip,cn,type MenuItem} from '../ui';
+import {routeHash,type Route} from '../routes';
+import {Icon,Menu,Tooltip,cn,type IconName,type MenuItem} from '../ui';
 
 export type OpenTab={id:string;title:string};
 
-/** Home, Discover, Videos and Research share the Home tab, like Borumi's New Project tab. */
+/** Home, Discover, Videos and Research share the first tab, the way Borumi's start page has a tab of its own. */
 export const isHomeTab=(route:Route)=>route.name==='home'||route.name==='discover'||route.name==='videos'||route.name==='research';
 
-/**
- * The window's top bar, laid out like Borumi's: room for the traffic lights, the app menu, one tab per open video (the active one
- * can be closed), then the Home tab while a home screen is showing or `+` to get back to it, and Help and Settings on the right.
- */
+type HomeRoute=Extract<Route,{name:'home'|'discover'|'videos'|'research'}>;
+/** What the first tab is called and shows: the home section it is on. */
+export const HOME_SECTION:Record<HomeRoute['name'],{label:string;icon:IconName}>={
+ home:{label:'Home',icon:'home'},discover:{label:'Discover',icon:'trending'},videos:{label:'Videos',icon:'video'},research:{label:'Research',icon:'research'},
+};
+
 /**
  * Borumi's help popover: the window dims, and a 320px panel under the Help button offers two cards. Escape or a press outside closes it.
  */
@@ -36,9 +38,18 @@ function HelpPopover({onHelp}:{onHelp(topic?:string):void}){
  </>;
 }
 
+/**
+ * The window's top bar, laid out like Borumi's: room for the traffic lights, the app menu, then the tabs. The first tab is pinned and never
+ * closes: it is named after the home section showing (Home, Discover, Videos or Research), and from a video it goes back to the last one.
+ * One tab follows per open video (each can be closed), then `+` for a new video, as Borumi's `+` starts a new project. Help and Settings sit on the right.
+ */
 export function TabStrip({route,tabs,onClose,onNewVideo,onSearch,onHelp}:{route:Route;tabs:readonly OpenTab[];onClose(id:string):void;onNewVideo():void;onSearch():void;onHelp(topic?:string):void}){
  const go=(hash:string)=>{location.hash=hash;};
  const active=route.name==='video'?route.id:null;
+ // The home section last shown: where the first tab goes back to from a video or Settings.
+ const lastHome=useRef<HomeRoute>({name:'home'});
+ if(isHomeTab(route))lastHome.current=route as HomeRoute;
+ const home=lastHome.current,section=HOME_SECTION[home.name],onHome=isHomeTab(route);
  const menu:MenuItem[]=[
   {label:'Home',icon:'home',fn:()=>go('#/home')},
   {label:'Discover',icon:'trending',fn:()=>go('#/discover')},
@@ -58,6 +69,7 @@ export function TabStrip({route,tabs,onClose,onNewVideo,onSearch,onHelp}:{route:
     <BrandMark size={16}/><Icon name="expand" size={12} stroke={2.2}/>
    </button>}/>
   <nav className="ts-tabs" aria-label="Open videos">
+   <div className={cn('ts-tab home',onHome&&'on')}><a href={routeHash(home)} className="ts-label" aria-current={onHome?'page':undefined} title={onHome?undefined:`Back to ${section.label}`}><Icon name={section.icon} size={14}/>{section.label}</a></div>
    {tabs.map(tab=>{
     const on=tab.id===active,title=tab.title||'Untitled';
     return <div key={tab.id} className={cn('ts-tab',on&&'on')}>
@@ -65,9 +77,7 @@ export function TabStrip({route,tabs,onClose,onNewVideo,onSearch,onHelp}:{route:
      <button type="button" className="ts-close" onClick={()=>onClose(tab.id)} aria-label={`Close ${title}`}><Icon name="close" size={12} stroke={2.2}/></button>
     </div>;
    })}
-   {isHomeTab(route)
-    ?<div className="ts-tab on home"><a href="#/home" className="ts-label" aria-current="page">Home</a></div>
-    :<Tooltip text="Home"><a href="#/home" className="ts-new" aria-label="Home"><Icon name="add" size={15}/></a></Tooltip>}
+   <Tooltip text="New video"><button type="button" className="ts-new" onClick={onNewVideo} aria-label="New video"><Icon name="add" size={15}/></button></Tooltip>
   </nav>
   <span className="grow"/>
   <HelpPopover onHelp={onHelp}/>

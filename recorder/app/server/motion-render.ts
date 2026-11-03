@@ -45,6 +45,7 @@ interface CaptureJob {
 const FFMPEG = process.env.SCENEFORGE_FFMPEG || "ffmpeg";
 const CACHE = path.join(tmpdir(), "creatorclub-motion-v1");
 const FONT_FILE = "inter-latin-wght-normal.woff2";
+const SERIF_FILE = "instrument-serif-latin-400-normal.woff2";
 
 /** Inter (the latin variable file), as a data: URL the page can load: next to the bundled server, or from the installed package. */
 let font: string | undefined;
@@ -60,12 +61,26 @@ export function motionFont(): string {
   return font;
 }
 
+/** The editorial look's serif as a data: URL: next to the bundled server, or from the installed package. */
+let serif: string | undefined;
+export function motionSerifFont(): string {
+  if (serif !== undefined) return serif;
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  const candidates = [path.join(here, SERIF_FILE)];
+  try {
+    candidates.push(createRequire(import.meta.url).resolve(`@fontsource/instrument-serif/files/${SERIF_FILE}`));
+  } catch {}
+  const file = candidates.find((candidate) => existsSync(candidate));
+  serif = file ? `data:font/woff2;base64,${readFileSync(file).toString("base64")}` : "";
+  return serif;
+}
+
 const hash = (value: unknown) => createHash("sha256").update(typeof value === "string" ? value : JSON.stringify(value)).digest("hex").slice(0, 32);
 /** Everything that changes a block's pixels (its start does not: the clip is shifted into place when it is overlaid). */
 export function motionCacheKey(block: MotionBlock, width: number, height: number, fps: number) {
   const template = MOTION_TEMPLATES[block.template];
   // The markup carries the template, style, props and length; the stylesheet and font carry the look.
-  return hash({ template: block.template, version: template.version, markup: motionMarkup(block), width, height, fps, css: hash(MOTION_CSS), font: hash(motionFont()) });
+  return hash({ template: block.template, version: template.version, markup: motionMarkup(block), width, height, fps, css: hash(MOTION_CSS), font: hash(motionFont()), serif: block.look?.display === 'serif' ? hash(motionSerifFont()) : '' });
 }
 export const motionFrameCount = (duration: number, fps: number) => Math.max(1, Math.round(duration * fps));
 
@@ -135,7 +150,7 @@ export function renderMotionBlock(block: MotionBlock, width: number, height: num
     const dir = path.join(CACHE, `.${key}-${randomUUID()}`), temp = path.join(CACHE, `.${key}-${randomUUID()}.mov`);
     await fs.mkdir(dir);
     try {
-      await fs.writeFile(path.join(dir, "page.html"), motionDocument(block, width, height, motionFont() || undefined));
+      await fs.writeFile(path.join(dir, "page.html"), motionDocument(block, width, height, motionFont() || undefined, motionSerifFont() || undefined));
       await capture({ dir, width, height, fps, frames, clip, seek: MOTION_SEEK });
       await encode(dir, fps, temp);
       await fs.rename(temp, out);

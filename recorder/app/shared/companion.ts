@@ -1,4 +1,4 @@
-import type {Media,MotionTemplateId,Project} from './types';
+import type {Media,MotionPlace,MotionTemplateId,Project} from './types';
 
 /*
  * The companion: one conversation per video across Board, Plan, Record, Edit and Publish (`companion.json` in the video's folder).
@@ -37,9 +37,15 @@ export type EditAction =
   | { type: 'set_caption_style'; enabled?: boolean; fontSize?: number; color?: string; background?: string; position?: TextPosition; maxWords?: number }
   | { type: 'add_caption'; start: number; end: number; text: string }
   | { type: 'add_text'; start: number; duration: number; text: string; position?: TextPosition }
+  /** Hides a box of the frame (a price, an email, a key on screen) for a stretch: x, y, width and height are fractions of the frame. */
+  | { type: 'add_blur'; start: number; duration: number; x: number; y: number; width: number; height: number }
+  /** The stage for a stretch: the speaker becomes a tile at the side of the look's stage, and the content takes the frame. */
+  | { type: 'set_stage'; start: number; end: number }
+  /** The video's look: a preset to start from, and any values that differ from it. `stage: null` drops the stage. */
+  | { type: 'set_look'; preset?: 'clean' | 'editorial'; name?: string; display?: 'sans' | 'serif'; paper?: string; ink?: string; accent?: string; muted?: string; motion?: 'still' | 'subtle' | 'lively'; stage?: { background?: string; side?: 'right' | 'left'; size?: number } | null }
   | { type: 'set_zoom'; start: number; duration: number; scale: number; x?: number; y?: number; target?: 'screen' | 'camera' }
   /** An animated graphic on the Motion row: `text` is its main line (title, name, label or chapter title), `detail` the second (subtitle, role, chapter number), `x`/`y` a callout's point. */
-  | { type: 'add_motion_block'; template: MotionTemplateId; style?: string; start: number; duration?: number; text: string; detail?: string; x?: number; y?: number }
+  | { type: 'add_motion_block'; template: MotionTemplateId; style?: string; start: number; duration?: number; text: string; detail?: string; x?: number; y?: number; /** Set when the card is offered: the side or band away from the speaker's face. */ place?: MotionPlace }
   /** Changes the motion graphic that is on screen at `at`: its words, style, point, start or length. Leave out what stays. */
   | { type: 'update_motion_block'; at: number; text?: string; detail?: string; style?: string; start?: number; duration?: number; x?: number; y?: number }
   /** Removes the motion graphic that is on screen at `at`. */
@@ -48,7 +54,7 @@ export type EditAction =
   /** A file one of the creator's own skills made in this video's folder, placed on the Overlays row from `start`. Only a skill run creates it, never a reply. */
   | { type: 'add_clip'; media: Media; start: number; duration: number; title: string };
 export type EditActionType = EditAction['type'];
-export const EDIT_ACTION_TYPES = ['cut_pauses', 'remove_fillers', 'close_gaps', 'split_at', 'trim_clip', 'delete_range', 'set_caption_style', 'add_caption', 'add_text', 'set_zoom', 'add_motion_block', 'update_motion_block', 'remove_motion_block', 'add_clip', 'normalize_audio'] as const satisfies readonly EditActionType[];
+export const EDIT_ACTION_TYPES = ['cut_pauses', 'remove_fillers', 'close_gaps', 'split_at', 'trim_clip', 'delete_range', 'set_caption_style', 'add_caption', 'add_text', 'add_blur', 'set_stage', 'set_look', 'set_zoom', 'add_motion_block', 'update_motion_block', 'remove_motion_block', 'add_clip', 'normalize_audio'] as const satisfies readonly EditActionType[];
 export const isEditAction = (action: { type: string }): action is EditAction => (EDIT_ACTION_TYPES as readonly string[]).includes(action.type);
 
 export type CompanionAction =
@@ -105,6 +111,9 @@ export const ACTION_TITLE: Record<CompanionActionType, string> = {
   set_caption_style: 'Caption style',
   add_caption: 'Caption',
   add_text: 'Text on screen',
+  add_blur: 'Blur',
+  set_stage: 'Stage',
+  set_look: 'Look',
   set_zoom: 'Zoom',
   add_motion_block: 'Motion graphic',
   update_motion_block: 'Change a graphic',
@@ -135,6 +144,9 @@ export const ACTION_STEP: Record<CompanionActionType, string> = {
   set_caption_style: 'Styling captions',
   add_caption: 'Writing a caption',
   add_text: 'Writing text',
+  add_blur: 'Finding what to hide',
+  set_stage: 'Setting the stage',
+  set_look: 'Choosing the look',
   set_zoom: 'Planning a zoom',
   add_motion_block: 'Placing a graphic',
   update_motion_block: 'Changing a graphic',
@@ -165,6 +177,9 @@ export const ACTION_VERB: Record<CompanionActionType, string> = {
   set_caption_style: 'Apply',
   add_caption: 'Add it',
   add_text: 'Add it',
+  add_blur: 'Blur it',
+  set_stage: 'Use the stage',
+  set_look: 'Use this look',
   set_zoom: 'Add zoom',
   add_motion_block: 'Add it',
   update_motion_block: 'Change it',

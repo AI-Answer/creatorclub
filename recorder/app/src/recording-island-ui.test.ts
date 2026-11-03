@@ -73,3 +73,24 @@ test('auto-scroll starts again on the next take unless it was switched off',asyn
   update({status:'idle'});update({status:'recording',script:'Second scene.'});assert.equal(automatic.checked,true,'a new scene scrolls from its start');
  }finally{await browser.happyDOM.close();}
 });
+
+test('island has Borumi\'s controls: close, record again, More, and the countdown\'s Start now and Cancel',async()=>{
+ const browser=new Window({settings:{disableJavaScriptFileLoading:true,disableCSSFileLoading:true}}),commands:string[]=[];let update!:(state:any)=>void;
+ const state={status:'starting',countdown:2,elapsed:0,cameraEnabled:true,cameraLabel:'MacBook Air Camera',microphoneLabel:'MacBook Air Microphone',script:'Line.',layout:{camera:true,script:true}};
+ Object.assign(browser,{recordingPreview:{read:async()=>state,subscribe:(callback:typeof update)=>{update=callback;return()=>{};},command:async(value:string)=>commands.push(value),layout:async(layout:any)=>{update({layout});return layout;}}});
+ browser.document.write(await readFile(new URL('../desktop/recording-hud.html',import.meta.url),'utf8'));browser.eval(await readFile(new URL('../desktop/recording-hud.js',import.meta.url),'utf8'));await new Promise(resolve=>setTimeout(resolve,0));
+ const doc=browser.document,click=async(id:string)=>{(doc.getElementById(id) as any).click();await new Promise(resolve=>setTimeout(resolve,0));};
+ try{
+  assert.equal((doc.getElementById('countdown') as any).hidden,false);assert.equal(doc.getElementById('countdown-number')?.textContent,'2');
+  assert.equal(doc.getElementById('camera-label')?.textContent,'MacBook Air Camera');assert.equal(doc.getElementById('microphone-hint')?.textContent,'MacBook Air Microphone');
+  await click('start-now');await click('cancel-countdown');await click('close');
+  assert.deepEqual(commands,['skip-countdown','cancel','cancel'],'during the countdown, close cancels the start');
+  update({status:'recording',countdown:null,elapsed:4});commands.length=0;
+  assert.equal(doc.getElementById('auto-pill')?.getAttribute('aria-pressed'),'true','the script scrolls once recording starts');
+  assert.equal((doc.getElementById('retry') as any).disabled,false);
+  await click('retry');await click('close');assert.deepEqual(commands,['retry','stop']);
+  assert.equal((doc.getElementById('menu') as any).hidden,true);await click('more');assert.equal((doc.getElementById('menu') as any).hidden,false);
+  await click('auto-pill');const pressed=doc.getElementById('auto-pill')?.getAttribute('aria-pressed');assert.equal(String((doc.getElementById('auto-scroll') as any).checked),pressed,'the pill and the setting agree');
+  update({status:'paused'});assert.equal(doc.body.classList.contains('paused'),true);assert.equal(doc.getElementById('pause')?.getAttribute('aria-label'),'Resume recording');
+ }finally{await browser.happyDOM.close();}
+});

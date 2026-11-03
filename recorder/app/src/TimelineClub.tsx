@@ -30,8 +30,9 @@ interface Drag {items:Map<string,Preview>;ghosts:Array<{row:string;start:number;
 const RULER=30,SCENE_BAND=14,NOTES_LANE=22,SNAP_PX=8,STALE_DROP='The timeline changed during the drag, so nothing moved. Try again.',NOT_MOVED='Clips stay joined end to end. Drag a clip onto another one to change the order.';
 const icons:Record<TrackKind,typeof Camera>={screen:Monitor,camera:Camera,audio:Mic,music:Music,overlay:Layers};
 /** As in Borumi: media rows are tall blocks (52px), effect rows (graphics, text, captions, zooms) a slimmer 28px. */
-const ROW_H=28,MEDIA_H=52;
-const heights:Record<TrackKind,number>={screen:MEDIA_H,camera:MEDIA_H,audio:MEDIA_H,music:MEDIA_H,overlay:MEDIA_H};
+// Borumi's rows (screens/borumi/40): a picture row about 50px, an audio row a little taller for its words band.
+const ROW_H=28,MEDIA_H=52,AUDIO_H=60;
+const heights:Record<TrackKind,number>={screen:MEDIA_H,camera:MEDIA_H,audio:AUDIO_H,music:MEDIA_H,overlay:MEDIA_H};
 const effectRows:Array<{id:Effect;name:string;icon:typeof Camera}>=[{id:'motion',name:'Graphics',icon:Clapperboard},{id:'elements',name:'Text',icon:Type},{id:'captions',name:'Captions',icon:AudioLines},{id:'zooms',name:'Zoom',icon:ZoomIn}];
 
 /** The items on the effect rows (graphics, text, captions, zooms) with the words the timeline shows on them. */
@@ -60,7 +61,9 @@ export function usedRows(p:Project):Row[]{
  const rows:Row[]=[];let top=rulerHeight(p);
  const linkedRow=(id:string)=>p.clips.some(c=>clipLayerRowId(c,p)===id&&sizes.get(groups.get(c.id)!)!>1);
  for(const l of layers){const height=l.track?heights[l.track]:ROW_H;rows.push({id:l.id,name:l.track==='screen'?'Screen':l.name,icon:l.track?icons[l.track]:l.kind==='video'?Layers:Music,height,top,layer:l,linked:linkedRow(l.id)});top+=height;}
- for(const e of effectRows){if(!(p[e.id]??[]).length)continue;rows.push({id:e.id,name:e.name,icon:e.icon,height:ROW_H,top,effect:e.id});top+=ROW_H;}
+ // As in Borumi, captions spoken on an audio row show as its words, not as a row of their own; captions typed in (no word timings) keep their row.
+ const wordsOnAudio=layers.some(l=>l.track==='audio')&&p.captions.length>0&&p.captions.every(c=>c.words?.length);
+ for(const e of effectRows){if(!(p[e.id]??[]).length||e.id==='captions'&&wordsOnAudio)continue;rows.push({id:e.id,name:e.name,icon:e.icon,height:ROW_H,top,effect:e.id});top+=ROW_H;}
  return rows;
 }
 export const rowsHeight=(rows:readonly Row[])=>(rows[0]?.top??RULER)+rows.reduce((n,r)=>n+r.height,0)+10;
@@ -74,15 +77,21 @@ function Playhead_({playhead,scale,follow,onPage}:{playhead:Playhead;scale:numbe
 }
 
 const fmtLen=lengthLabel;
-const ClubClip=memo(function ClubClip({clip:c,media,row,preview,selected,linked,label,peaks,scale,from,to,onBegin,onOpen}:{clip:Clip;media?:Media;row:Row;preview?:Preview;selected:boolean;linked:boolean;label:string;peaks?:readonly number[];scale:number;from:number;to:number;onBegin:(e:React.PointerEvent,id:string,mode:'move'|'left'|'right')=>void;onOpen:(id:string)=>void}){
+/** The height of the band the spoken words sit on, along the top of an audio clip. */
+const WORD_BAND=19;
+const ClubClip=memo(function ClubClip({clip:c,media,row,preview,selected,linked,label,peaks,words,picture,scale,from,to,onBegin,onOpen}:{clip:Clip;media?:Media;row:Row;preview?:Preview;selected:boolean;linked:boolean;label:string;peaks?:readonly number[];/** The spoken words show on this audio row: the waveform goes under their band. */words?:boolean;/** An audio clip's picture: the media id of the camera recorded with it. */picture?:string;scale:number;from:number;to:number;onBegin:(e:React.PointerEvent,id:string,mode:'move'|'left'|'right')=>void;onOpen:(id:string)=>void}){
  const start=preview?.start??c.start,duration=preview?.duration??clipDuration(c),width=Math.max(4,duration*scale),h=row.height-6;
  const geometry=preview?{...c,start,sourceIn:preview.sourceIn??c.sourceIn,sourceOut:(preview.sourceIn??c.sourceIn)+duration*c.speed}:c;
  // As in Borumi, a video clip shows one thumbnail at its start rather than a filmstrip along its length.
  const audioRow=c.track==='audio'||c.track==='music',video=media&&media.kind==='video'&&!audioRow;
- const wave=useMemo(()=>media&&peaks?.length&&audioRow?waveformEnvelopePath(waveformBars(geometry,media,peaks,scale,from,to,4096,1),h/2,h/2-2):'',[media,peaks,audioRow,geometry.start,geometry.sourceIn,geometry.sourceOut,scale,from,to,h]);
+ // Borumi's audio clip: the words on a band along the top, the waveform under it, and the camera's picture at the start when it was recorded with one.
+ const band=audioRow&&words?WORD_BAND:0,waveTop=band,waveH=h-band;
+ const wave=useMemo(()=>media&&peaks?.length&&audioRow?waveformEnvelopePath(waveformBars(geometry,media,peaks,scale,from,to,4096,1),waveTop+waveH/2,waveH/2-3):'',[media,peaks,audioRow,geometry.start,geometry.sourceIn,geometry.sourceOut,scale,from,to,waveTop,waveH]);
  return <div data-clip-id={c.id} className={`timeline-clip club-clip clip-${c.track} ${selected?'selected':''} ${c.muted?'muted':''} ${preview?'clip-drag-preview':''} ${linked?'is-linked':'is-unlinked'}`} style={{left:start*scale,width,top:3,height:h,transform:preview?.dy?`translateY(${preview.dy}px)`:undefined}}
   onPointerDown={e=>onBegin(e,c.id,'move')} onDoubleClick={()=>onOpen(c.id)} title={`${c.name} · ${fmtLen(duration)}${linked?' · linked':''}. Click to move the playhead, drag the name to move, edges to trim, double-click for settings.`}>
   {video&&<i className="club-clip-thumb" aria-hidden style={{backgroundImage:`url(/api/media/${media.id}/thumbnail)`}}/>}
+  {band>0&&<i className="club-word-band" aria-hidden/>}
+  {audioRow&&picture&&width>=60&&<i className="club-clip-thumb is-audio" aria-hidden style={{backgroundImage:`url(/api/media/${picture}/thumbnail)`,top:band+3}}/>}
   {media?.kind==='image'&&<div className="club-filmstrip is-image" aria-hidden style={{backgroundImage:`url(/api/media/${media.id}/thumbnail)`,backgroundSize:`auto ${h}px`}}/>}
   {wave&&<svg className="club-wave" viewBox={`0 0 ${width} ${h}`} preserveAspectRatio="none" aria-hidden><path d={wave}/></svg>}
   {label&&<span className="club-clip-label club-move-handle" title="Drag to move">{linked&&<Link2 size={11} aria-hidden/>}{label}</span>}
@@ -132,6 +141,10 @@ export const TimelineClub=memo(function TimelineClub({project:p,playhead,scale,o
  useEffect(()=>{const el=ref.current;if(!el)return;let pending=0,frame=0;const apply=()=>{frame=0;const next=clampScale(scaleRef.current*Math.exp(-pending*.005));pending=0;if(next!==scaleRef.current)onScale(next);};
   const wheel=(event:WheelEvent)=>{if(!event.ctrlKey&&!event.metaKey)return;event.preventDefault();const screen=event.clientX-el.getBoundingClientRect().left;atPointer.current={time:(el.scrollLeft+screen)/scaleRef.current,screen};pending+=event.deltaY;frame||=requestAnimationFrame(apply);};el.addEventListener('wheel',wheel,{passive:false});return()=>{cancelAnimationFrame(frame);el.removeEventListener('wheel',wheel);};},[onScale]);
 
+ // An audio clip shows the picture of the camera it was recorded with (its own file when that is a video), as in Borumi.
+ const pictures=useMemo(()=>{const out=new Map<string,string>();for(const c of p.clips){if(c.track!=='audio'&&c.track!=='music')continue;const own=mediaById.get(c.mediaId);const camera=c.linkId?p.clips.find(o=>o.linkId===c.linkId&&o.track==='camera'):undefined;const id=camera?.mediaId??(own?.kind==='video'?own.id:undefined);if(id&&mediaById.get(id)?.kind==='video')out.set(c.id,id);}return out;},[p.clips,mediaById]);
+ // The spoken words ride on the audio row once a clip is wide enough to read them, as in Borumi.
+ const showWords=scale>=20&&p.captions.some(c=>c.words?.length);
  // Waveforms of the audio rows in view.
  const [waveforms,setWaveforms]=useState<Record<string,readonly number[]>>({});
  const visibleAudio=useMemo(()=>{const ids=new Set(p.clips.filter(c=>(c.track==='audio'||c.track==='music')&&c.start+clipDuration(c)>=start&&c.start<=end).map(c=>c.mediaId));return p.media.filter(m=>ids.has(m.id)&&hasWaveform(m));},[p.clips,p.media,start,end]);
@@ -257,9 +270,9 @@ export const TimelineClub=memo(function TimelineClub({project:p,playhead,scale,o
     </div>
     {rows.map(r=><div key={r.id} className={`timeline-row club-row row-${r.layer?.track??r.effect??'layer'}`} data-track={r.id} style={{top:r.top,height:r.height}} onPointerDown={e=>{if(e.target===e.currentTarget)beginEmpty(e);}}
      onDragOver={e=>{if(r.layer)e.preventDefault();}} onDrop={e=>{e.preventDefault();const id=e.dataTransfer.getData('application/sceneforge-media'),media=mediaById.get(id);if(media&&r.layer&&(media.kind==='audio'?'audio':'video')===r.layer.kind)onDropMedia(id,r.layer.track??(r.layer.kind==='audio'?'audio':'screen'),snapTime(Math.max(0,contentX(e.clientX)/scale)).time,r.id);}}>
-     {r.layer?.track==='audio'&&scale>=50&&p.captions.flatMap(c=>c.words??[]).filter(w=>visible(w.start,Math.max(.05,w.end-w.start))).map((w,i)=><span key={`${w.start}:${i}`} className="club-word" aria-hidden style={{left:w.start*scale,width:Math.max(8,(w.end-w.start)*scale)}}>{w.text}</span>)}
+     {r.layer?.track==='audio'&&showWords&&p.captions.flatMap(c=>c.words??[]).filter(w=>(w.end-w.start)*scale>=10&&visible(w.start,Math.max(.05,w.end-w.start))).map((w,i)=><span key={`${w.start}:${i}`} className="club-word" aria-hidden style={{left:w.start*scale,width:Math.max(8,(w.end-w.start)*scale)}}>{w.text}</span>)}
      {r.layer&&p.clips.filter(c=>clipLayerRowId(c,p)===r.id).map(c=>{const pv=drag?.items.get(c.id),s=pv?.start??c.start,d=pv?.duration??clipDuration(c);if(!pv&&!visible(c.start,clipDuration(c)))return null;const m=mediaById.get(c.mediaId);
-      return <ClubClip key={c.id} clip={c} media={m} row={r} preview={pv} selected={selectedIds.has(c.id)} linked={(groupSize.get(groups.get(c.id)!)??1)>1} label={labels.get(c.id)??''} peaks={showWaveforms&&m?waveforms[waveformMediaKey(m)]:undefined} scale={scale} from={Math.max(start,s)} to={Math.min(end,s+d)} onBegin={beginItem} onOpen={onOpen}/>;})}
+      return <ClubClip key={c.id} clip={c} media={m} row={r} preview={pv} selected={selectedIds.has(c.id)} linked={(groupSize.get(groups.get(c.id)!)??1)>1} label={labels.get(c.id)??''} peaks={showWaveforms&&m?waveforms[waveformMediaKey(m)]:undefined} words={showWords&&r.layer?.track==='audio'} picture={pictures.get(c.id)} scale={scale} from={Math.max(start,s)} to={Math.min(end,s+d)} onBegin={beginItem} onOpen={onOpen}/>;})}
      {r.effect&&(effects.get(r.id)??[]).map(i=>{const pv=drag?.items.get(i.id),s=pv?.start??i.start,d=pv?.duration??i.duration;if(!pv&&!visible(i.start,i.duration))return null;
       const name=i.name;
       return <div key={i.id} data-effect-id={i.id} className={`timeline-effect club-effect ${selectedIds.has(i.id)?'selected':''} ${pv?'clip-drag-preview':''}`} style={{left:s*scale,width:Math.max(6,d*scale)}} title={`${name} · drag to move, edges to resize, double-click to edit`} onPointerDown={e=>beginItem(e,i.id,'move')} onDoubleClick={()=>onOpen(i.id)}>

@@ -9,6 +9,9 @@ import { featuredSkills, matchSkills, slashQuery, slashSkill } from '../../share
 const home = await mkdtemp(path.join(os.tmpdir(), 'creatorclub-skills-'));
 after(() => rm(home, { recursive: true, force: true }));
 const root = path.join(home, '.claude', 'skills');
+// The skills that come with the app are an empty folder here, so only the creator's own are listed.
+process.env.CREATORCLUB_SKILLS_DIR = path.join(home, 'bundled');
+await mkdir(process.env.CREATORCLUB_SKILLS_DIR, { recursive: true });
 async function skill(name: string, text: string) {
   await mkdir(path.join(root, name), { recursive: true });
   await writeFile(path.join(root, name, 'SKILL.md'), text);
@@ -79,4 +82,22 @@ test('the "/" list starts with the few featured skills that are installed, in a 
   const all = ['zeta', 'write-cta', 'reel-editor', 'write-hook', 'alpha'].map((name) => ({ name, description: '', previews: [] }));
   assert.deepEqual(featuredSkills(all).map((s) => s.name), ['write-hook', 'write-cta', 'reel-editor']);
   assert.deepEqual(featuredSkills([]), []);
+});
+
+test('a skill that comes with the app is listed with the creator\'s own, and theirs wins on the same name', async () => {
+  const bundled = process.env.CREATORCLUB_SKILLS_DIR!;
+  await mkdir(path.join(bundled, 'proof-edit'), { recursive: true });
+  await writeFile(path.join(bundled, 'proof-edit', 'SKILL.md'), '---\nname: proof-edit\ndescription: Polish a video.\ncreatorclub: edit\n---\n');
+  await mkdir(path.join(bundled, 'write-hook'), { recursive: true });
+  await writeFile(path.join(bundled, 'write-hook', 'SKILL.md'), '---\nname: write-hook\ndescription: The app copy.\n---\n');
+  try {
+    const listed = await listSkills(home);
+    const names = listed.map((each) => each.name);
+    assert.ok(names.includes('proof-edit'));
+    assert.equal(names.filter((each) => each === 'write-hook').length, 1, 'one write-hook, not two');
+    assert.equal(listed.find((each) => each.name === 'write-hook')!.description, 'Create or improve opening hooks.', 'the creator\'s own skill wins');
+  } finally {
+    await rm(path.join(bundled, 'proof-edit'), { recursive: true, force: true });
+    await rm(path.join(bundled, 'write-hook'), { recursive: true, force: true });
+  }
 });

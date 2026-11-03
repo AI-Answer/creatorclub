@@ -2,6 +2,8 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import ClubApp from './club/ClubApp';
 import {Button,EmptyState} from './club/ui';
+// The editorial look's serif, for graphics drawn in the editor (the export embeds the same file).
+import '@fontsource/instrument-serif/400.css';
 import './styles.css';
 import './original-theme.css';
 import './timeline-interactions.css';

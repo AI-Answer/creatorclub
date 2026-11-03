@@ -22,13 +22,20 @@ import { publishingRoutes, type PublishingOptions } from './publisher-routes.js'
 import { recordingsDiskSpace } from './disk.js';
 import { readTranscript, startTileRead } from './research.js';
 import * as boardDocs from './board-docs.js';
-import { subscribeBoard } from './board-watch.js';
+import { announceBoard, subscribeBoard } from './board-watch.js';
+import { mcpLauncher } from '../mcp-launcher.js';
+import { captureProof, proofBody } from './proof.js';
+import { pacingIssues, pacingText } from '../../shared/pacing.js';
+import { editProject } from './companion-edit.js';
+import { applyAction } from './companion-actions.js';
+import { sceneforge } from './recorder.js';
 import * as canvas from './board-canvas.js';
 import { addToResearch, addToResearchBody, startVideoBody, startVideoFrom } from './research-board.js';
 import { applyCard, applyCards, askBody, askCompanion, attachmentFile, cardBody, cardsBody, readThread, saveAttachment, undoCard } from './companion.js';
 import { imageKind } from './publisher-routes.js';
 
 import { lock as companionLock } from './companion-actions.js';
+import { AGENT_HEADER, agentActionsBody, agentBoard, agentConnectBody, connectAgentApp, agentUndoBody, agentVideo, applyAgentActions, undoAgentAction } from './agent.js';
 import { editSilences } from './companion-edit.js';
 import { moveFacts, videoScenes, videosMoveFacts, videosScenes } from './scenes.js';
 import { MOVE_REFUSED_STATUS, moveProblem } from '../../shared/club-move.js';
@@ -244,6 +251,17 @@ export function clubRouter({ ai = {}, transcribe, runAI, readViews = ytDlpViews(
   const signalSources: SignalsSources = { treg: findTregCall(ai), ...signals };
   const plan: PlanOptions = { extraDirs: ai.extraDirs, runAI };
   const router = Router();
+  // A change an outside agent (the MCP server, which sends this header) makes to a Board shows on any open Board at once.
+  router.use((req, res, next) => {
+    if (req.method !== 'GET' && req.get(AGENT_HEADER)) {
+      const board = /^\/(?:videos\/([A-Za-z0-9_-]{1,64})|(channel))\//.exec(req.path);
+      if (board) res.on('finish', () => {
+        if (res.statusCode >= 400) return;
+        void store.currentWorkspace().then((slug) => { if (slug) announceBoard(slug, board[1] ?? CHANNEL_BOARD); }, () => {});
+      });
+    }
+    next();
+  });
   router.use(express.json({ limit: '5mb' }));
 
   // ---- Recorder: free space where takes are saved, for the low-disk warning.
@@ -467,6 +485,48 @@ export function clubRouter({ ai = {}, transcribe, runAI, readViews = ytDlpViews(
   // What a move by hand depends on, for every video: the board refuses a move the server would refuse, before it is tried.
   router.get('/videos/move-facts', handler(async (_req, res) => res.json(await videosMoveFacts(await requireWorkspace(), publishing.projectExported))));
   router.get('/videos/:id', handler(async (req, res) => res.json(await store.readVideo(await requireWorkspace(), param(req, 'id')))));
+  // A proof shot: the real page behind a claim, scrolled to the words and highlighted, saved in the video's folder and registered as
+  // media. With `at`, it is also placed on the Overlays row as one undoable change; with `runDir` (a skill run of this video), it is
+  // copied into that run's out folder so the run can hand it back as a card.
+  router.post('/videos/:id/proof', handler(async (req, res) => {
+    const slug = await requireWorkspace();
+    const id = param(req, 'id');
+    await store.readVideo(slug, id);
+    const body = proofBody.extend({ at: z.number().min(0).max(36_000).optional(), duration: z.number().min(0.5).max(60).optional(), title: z.string().trim().max(80).optional(), runDir: z.string().max(1000).optional() }).strict().parse(req.body);
+    // A run folder is checked before anything is captured: only a skill run of this video.
+    const runs = body.runDir ? await fs.realpath(path.join(store.videoDir(slug, id), 'skill-runs')).catch(() => '') : '';
+    const run = body.runDir ? await fs.realpath(body.runDir).catch(() => '') : '';
+    if (body.runDir && (!runs || !run.startsWith(runs + path.sep))) throw new ClubError('That is not a skill run of this video.');
+    // The window sits on the look's stage colour, so a shot matches the stage it is shown on.
+    const look = await editProject(slug, id).then(({ project }) => project.look, () => undefined);
+    const shot = await captureProof(path.join(store.videoDir(slug, id), 'proof'), body.url, body.phrase ?? '', { background: look?.stage?.background });
+    let copied: string | undefined;
+    if (run) {
+      await fs.mkdir(path.join(run, 'out'), { recursive: true });
+      copied = path.join(run, 'out', path.basename(shot.file));
+      await fs.copyFile(shot.file, copied);
+    }
+    let applied: { version: string; result: string } | undefined;
+    if (body.at !== undefined) {
+      const { registerMedia, CACHE_DIR } = await sceneforge();
+      const { probeMedia } = await import('../media.js');
+      const media = await probeMedia(shot.file, CACHE_DIR);
+      const title = body.title || new URL(shot.url).hostname.replace(/^www\./, '');
+      media.name = title;
+      const saved = await registerMedia(media);
+      const done = await applyAction(slug, id, { type: 'add_clip', media: saved, start: body.at, duration: body.duration ?? 4, title }, {});
+      applied = { version: done.version, result: done.result };
+    }
+    res.json({ ...shot, ...(copied ? { copied: path.relative(path.dirname(path.dirname(copied)), copied) } : {}), ...(applied ? { applied } : {}) });
+  }));
+  // Settings › Your AI agent: adds the Creator Compiler MCP to Claude Code or Codex in one click.
+  router.post('/agent/connect', handler(async (req, res) => res.json(await connectAgentApp(agentConnectBody.parse(req.body).app, mcpLauncher()))));
+  // The pacing check on the video's recording as it is now (screenplay's rules): what an agent fixes before it calls an edit done.
+  router.get('/videos/:id/agent/pacing', handler(async (req, res) => {
+    const { project } = await editProject(await requireWorkspace(), param(req, 'id'));
+    res.json({ issues: pacingIssues(project), text: pacingText(project) || 'Something changes on screen at least every 6 s, and no graphics overlap.' });
+  }));
+  router.get('/videos/:id/agent', handler(async (req, res) => res.json(await agentVideo(await requireWorkspace(), param(req, 'id')))));
   router.put('/videos/:id', handler(async (req, res) => {
     res.json(await store.updateVideo(await requireWorkspace(), param(req, 'id'), videoPatchBody.parse(req.body)));
   }));
@@ -567,6 +627,17 @@ export function clubRouter({ ai = {}, transcribe, runAI, readViews = ytDlpViews(
       await boardDocs.removeNote(slug, boardOf(req), param(req, 'tileId'));
       await canvas.pruneLinks(slug, boardOf(req), [param(req, 'tileId')]);
       res.status(204).end();
+    }));
+
+    // ---- for outside agents (MCP): the Board as cards and text, and the companion's actions applied directly, each with its own Undo
+    router.get(`${prefix}/agent/board`, handler(async (req, res) => res.json(await agentBoard(await requireWorkspace(), boardOf(req)))));
+    router.post(`${prefix}/agent/actions`, handler(async (req, res) => {
+      const slug = await requireWorkspace();
+      res.json(await applyAgentActions(slug, boardOf(req), agentActionsBody.parse(req.body)));
+    }));
+    router.post(`${prefix}/agent/actions/undo`, handler(async (req, res) => {
+      const slug = await requireWorkspace();
+      res.json(await undoAgentAction(slug, boardOf(req), agentUndoBody.parse(req.body).version));
     }));
 
     // ---- the Board's connections (lines between two cards, with an optional label) and frames (named rectangles that group cards)

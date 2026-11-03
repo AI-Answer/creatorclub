@@ -20,8 +20,8 @@ export type IdeaHeld=typeof ideaHeld[number];
 export const discoverShows=['fit','followed','youtube','x','reddit'] as const;
 export type DiscoverShow=typeof discoverShows[number];
 
-/** The parts of Settings a link can open: Connected AI, Channel, the channels you follow and the signal sources (both inside Channel), Appearance. */
-export const settingsSections=['ai','channel','followed','sources','skills','publishing'] as const;
+/** The parts of Settings a link can open: Connected AI, Your AI agent, Channel, the channels you follow and the signal sources (both inside Channel), Appearance. */
+export const settingsSections=['ai','agent','channel','followed','sources','skills','publishing'] as const;
 export type SettingsSection=typeof settingsSections[number];
 
 /**

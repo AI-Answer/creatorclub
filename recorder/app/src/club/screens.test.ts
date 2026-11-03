@@ -428,7 +428,7 @@ test('Discover: videos and posts in one ranked feed, a view switch and source ch
   assert.equal(first.querySelector('.follow svg'),null);
   assert.equal(first.querySelector('.thumb img')!.getAttribute('src'),'https://i.ytimg.com/vi/aaaaaaaaaaa/mqdefault.jpg');
   assert.equal(agents.querySelector('.chip.mult'),null,'no usual known yet: no pill at all');
-  assert.equal(text(agents.querySelector('.follow')),'Follow this channel','always shown, not only under the pointer');
+  assert.equal(text(agents.querySelector('.follow')),'Follow this channel','in every card (shown under the pointer or on focus)');
   assert.equal(text(post1.querySelector('.who')),'Alex Finn@alexfinn · 5h');assert.equal(text(post1.querySelector('.meta .chip')),'News');
   assert.equal(post1.querySelector('.post-pic img')!.getAttribute('src'),'https://pbs.example.com/pic.jpg');
   const open=post1.querySelector('a[aria-label="Open post"]')!;assert.equal(open.getAttribute('href'),'https://x.com/alexfinn/status/1');assert.equal(open.getAttribute('rel'),'noopener noreferrer');

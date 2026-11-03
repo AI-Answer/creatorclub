@@ -1,3 +1,5 @@
+/** What the recording island asks the recorder to do: Borumi's Stop, pause and play, record again, and the countdown's Start now and Cancel. */
+export type RecordingHudCommand='pause'|'resume'|'stop'|'retry'|'skip-countdown'|'cancel';
 import type { ShortcutOverrides } from './shortcuts';
 
 export type DesktopMediaAccessStatus = 'not-determined' | 'granted' | 'denied' | 'restricted' | 'unknown' | 'unsupported';
@@ -84,7 +86,7 @@ export interface SceneForgeDesktopBridge {
  beginRecordingHud?(state: DesktopRecordingHudState): Promise<{id:string;visible:boolean}>;
  updateRecordingHud?(state: Partial<DesktopRecordingHudState>, id?:string): Promise<{visible:boolean}>;
  endRecordingHud?(id?:string): Promise<void>;
- onRecordingHudCommand?(handler:(command:'pause'|'resume'|'stop')=>void):()=>void;
+ onRecordingHudCommand?(handler:(command:RecordingHudCommand)=>void):()=>void;
  getNativeRecordingStatus?(): Promise<{available:boolean;engine:string;excludesSceneForge:boolean}>;
  startNativeRecording?(options:{selection?:DesktopCaptureSelection;systemAudio:boolean;recordVideo?:boolean;fps?:number;maxDimension?:number}):Promise<DesktopNativeRecordingResult>;
  pauseNativeRecording?(id:string):Promise<DesktopNativeRecordingResult>;

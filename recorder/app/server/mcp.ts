@@ -6,6 +6,7 @@ import { pathToFileURL } from 'node:url';
 import {basename,isAbsolute} from 'node:path';
 import { makeId,clipDuration,clipEffectTiming,projectDuration,type Project,type Clip } from '../shared/types.js';
 import { relinkSlices } from '../shared/timeline-edits.js';
+import { CLUB_GUIDE, clubToolDefinitions, clubToolNames, createClubToolHandler } from './mcp-club.js';
 
 const string={type:'string'};const number={type:'number'};const object={type:'object'};
 const array=(items:unknown)=>({type:'array',items});
@@ -156,7 +157,7 @@ export function createToolHandler(baseUrl='http://127.0.0.1:4184/api',fetcher:ty
    if(name==='undo_media_relink')return (await http(`/projects/${encodeURIComponent(a.project_id)}/media-recovery/undo`,'POST',{planId:a.plan_id},headers)).data;
    return (await http(`/trash/${encodeURIComponent(a.trash_id)}/restore`,'POST',{asCopy:a.as_copy??false},headers)).data;
   }
-  if(name==='get_guides')return {application:'Creator Compiler',version:'0.1.0',units:'seconds',workflow:'Read get_project_overview, inspect_timeline for composed images, then get_timeline as needed. Use begin_project_edit, then use tx_id for reads and changes, verify get_project, commit with change_summary. Abort on failure. Concurrent changes cause conflict. Inspect and export read committed state; inspect again after committing to verify actual visuals.',clip:'id, mediaId, name, track(screen|camera|audio|music|overlay), start, sourceIn, sourceOut, speed, gain, muted, transform{x,y,width,height,rotation,opacity,fit,borderRadius}, effects{brightness,contrast,saturation,blur,grayscale,flipX,fadeIn,fadeOut,denoise,normalize}',limitations:'Independent Creator Compiler contract. Not wire-compatible with Borumi. Fullscreen/custom Borumi layouts and original AI engines may not reproduce identically. Trimming removes overlapping captions as whole blocks; review and regenerate affected captions.'};
+  if(name==='get_guides')return {application:'Creator Compiler',version:'0.1.0',units:'seconds',workflow:'Read get_project_overview, inspect_timeline for composed images, then get_timeline as needed. Use begin_project_edit, then use tx_id for reads and changes, verify get_project, commit with change_summary. Abort on failure. Concurrent changes cause conflict. Inspect and export read committed state; inspect again after committing to verify actual visuals.',clip:'id, mediaId, name, track(screen|camera|audio|music|overlay), start, sourceIn, sourceOut, speed, gain, muted, transform{x,y,width,height,rotation,opacity,fit,borderRadius}, effects{brightness,contrast,saturation,blur,grayscale,flipX,fadeIn,fadeOut,denoise,normalize}',channel:CLUB_GUIDE,limitations:'Independent Creator Compiler contract. Not wire-compatible with Borumi. Fullscreen/custom Borumi layouts and original AI engines may not reproduce identically. Trimming removes overlapping captions as whole blocks; review and regenerate affected captions.'};
   if(name==='list_projects')return (await http('/projects')).data;
   if(name==='create_project')return (await http('/projects','POST',{name:a.name})).data;
   if(name==='duplicate_project')return (await http(`/projects/${encodeURIComponent(a.project_id)}/duplicate`,'POST',{})).data;
@@ -204,11 +205,18 @@ export function createToolHandler(baseUrl='http://127.0.0.1:4184/api',fetcher:ty
   }return staged(a.tx_id);
  };
 }
+/** Every tool an outside assistant gets: the timeline tools and the channel tools (videos, plans, Boards, Research, Discover). */
+export const mcpToolDefinitions=[...toolDefinitions,...clubToolDefinitions];
+/** The timeline tools and the channel tools behind one handler. */
+export function createMcpToolHandler(baseUrl:string,fetcher:typeof fetch=fetch){
+ const timeline=createToolHandler(baseUrl,fetcher),club=createClubToolHandler(baseUrl,fetcher);
+ return (name:string,a?:any)=>clubToolNames.has(name)?club(name,a):timeline(name,a);
+}
 export const MCP_DISABLED_MESSAGE='Creator Compiler MCP is turned off. Turn on Enable MCP in Creator Compiler Settings > AI, then try again.';
 /** External assistants honor the Settings > AI switch on every call, so turning it off takes effect without a restart.
  * The in-app agent uses createToolHandler directly and is not affected. */
 export function gateToolHandler(handle:(name:string,a?:any)=>Promise<unknown>,baseUrl:string,fetcher:typeof fetch=fetch){
  return async(name:string,a:any={})=>{let enabled=true;try{const res=await fetcher(baseUrl.replace(/\/$/,'')+'/mcp/settings',{signal:AbortSignal.timeout(5000)});if(res.ok)enabled=(await res.json() as {enabled?:unknown}).enabled!==false;}catch{/* An older service without the setting stays enabled. */}if(!enabled)throw new Error(MCP_DISABLED_MESSAGE);return handle(name,a);};
 }
-export async function startMcp(fetcher:typeof fetch=fetch){const server=new Server({name:'creator-compiler',version:'0.1.0'},{capabilities:{tools:{}}});const baseUrl=process.env.SCENEFORGE_URL||'http://127.0.0.1:4184/api',handle=gateToolHandler(createToolHandler(baseUrl,fetcher),baseUrl,fetcher);server.setRequestHandler(ListToolsRequestSchema,async()=>({tools:toolDefinitions}));server.setRequestHandler(CallToolRequestSchema,async r=>{try{const value=await handle(r.params.name,r.params.arguments);return r.params.name==='inspect_timeline'?value as any:{content:[{type:'text',text:JSON.stringify(value)}]}}catch(e){const message=e instanceof Error?e.message:String(e),status=(e as {status?:number})?.status;return {isError:true,content:[{type:'text',text:status?`Creator Compiler HTTP ${status}: ${message}`:message}]}}});await server.connect(new StdioServerTransport());return server;}
+export async function startMcp(fetcher:typeof fetch=fetch){const server=new Server({name:'creator-compiler',version:'0.1.0'},{capabilities:{tools:{}}});const baseUrl=process.env.SCENEFORGE_URL||'http://127.0.0.1:4184/api',handle=gateToolHandler(createMcpToolHandler(baseUrl,fetcher),baseUrl,fetcher);server.setRequestHandler(ListToolsRequestSchema,async()=>({tools:mcpToolDefinitions}));server.setRequestHandler(CallToolRequestSchema,async r=>{try{const value=await handle(r.params.name,r.params.arguments);return r.params.name==='inspect_timeline'?value as any:{content:[{type:'text',text:JSON.stringify(value)}]}}catch(e){const message=e instanceof Error?e.message:String(e),status=(e as {status?:number})?.status;return {isError:true,content:[{type:'text',text:status?`Creator Compiler HTTP ${status}: ${message}`:message}]}}});await server.connect(new StdioServerTransport());return server;}
 if(process.argv[1]&&['mcp.ts','mcp.mjs','mcp.js'].includes(basename(process.argv[1]))&&import.meta.url===pathToFileURL(process.argv[1]).href)startMcp().catch(e=>{console.error(e.message);process.exitCode=1});
