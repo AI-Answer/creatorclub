@@ -446,6 +446,7 @@
 :where(.club-root) .cc-toasts:where(:not(.club-embed *)) { position: fixed; bottom: 14px; left: 14px; display: flex; flex-direction: column; gap: 6px; z-index: 60; align-items: flex-start; max-width: min(340px, calc(100vw - 28px)); pointer-events: none; }
 /* On a video step the bottom bar holds Continue: toasts sit above it, never over it. */
 :where(.club-root):has(.ws-foot) .cc-toasts:where(:not(.club-embed *)) { bottom: 70px; }
+:where(.club-root):has(.btoolbar) .cc-toasts:where(:not(.club-embed *)) { bottom: 122px; }
 :where(.club-root) .cc-toast:where(:not(.club-embed *)) { pointer-events: auto; background: var(--cc-toast-bg); color: var(--cc-toast-text); border-radius:var(--cc-r); padding: 6px 6px 6px 10px; display: flex; align-items: center; gap: 8px; font-size:var(--cc-text-xs); line-height: 16px; max-width: 100%; box-shadow: var(--cc-shadow-toast); animation: cc-toastIn .35s var(--cc-ease); }
 @keyframes cc-toastIn { from { opacity: 0; transform: translateY(10px) scale(.98); } }
 :where(.club-root) .cc-toast button:where(:not(.club-embed *)) { background: var(--cc-toast-button); border: 0; color: var(--cc-toast-text); height: 26px; padding: 0 10px; border-radius:var(--cc-r-sm); cursor: pointer; font-weight: 600; font-size:var(--cc-text-xs); }
@@ -924,7 +925,6 @@
 .club-root .research .ws-top > .small { font-size:var(--cc-text-base); }
 .club-root .blink-head.sel { fill: var(--cc-accent); }
 /* The folder line sits over the top left of a Board: the canvas starts below it, so a frame's name or a card's head is never under it. */
-.club-root .canvas-room { margin-top: 48px; }
 .club-root .board-wrap:focus { outline: none; }
 /* Task 15: first run. A slow job's progress line, the welcome frame, the first-video checklist, trend cards and the help dialog. */
 :where(.club-root) .progress-line:where(:not(.club-embed *)) { display: flex; flex-direction: column; gap: 8px; }
@@ -1045,7 +1045,6 @@
 /* Board canvas, light: an infinite canvas panned and zoomed by a transform, quiet cards whose head shows on hover, notes you type in right on it. */
 .club-root .canvas-scroll { overflow: hidden; cursor: default; overscroll-behavior: none; touch-action: none; background-image: radial-gradient(circle, color-mix(in srgb, var(--cc-line-strong) 70%, transparent) 1px, transparent 1.2px); }
 .club-root .canvas-scroll.pan-ready, .club-root .canvas-scroll.pan-ready .tile { cursor: grab; }
-.club-root .canvas-room { margin-top: 0; position: absolute; inset: 0; }
 .club-root .canvas { will-change: transform; }
 .club-root .tile { border-color: color-mix(in srgb, var(--cc-line) 65%, transparent); box-shadow: var(--cc-shadow-1); transition: box-shadow .15s, border-color .15s; }
 .club-root .tile:hover { box-shadow: var(--cc-shadow-2); }
@@ -1057,7 +1056,7 @@
 .club-root .tile .th .x { margin-left: 0; opacity: 1; }
 .club-root .tile .tb { padding: 12px 12px 12px; }
 .club-root .tile.note { display: flex; flex-direction: column; background: color-mix(in srgb, var(--cc-warn-soft) 70%, var(--cc-surface)); min-height: 72px; }
-.club-root .tile.note .sticky { flex: 1; display: flex; flex-direction: column; padding: 6px 8px 14px; }
+.club-root .tile.note .sticky { flex: 1; display: flex; flex-direction: column; padding: 24px 8px 14px; }
 .club-root .tile.note .sticky-text { flex: 1 1 auto; width: 100%; resize: none; border: 0; outline: 0; background: transparent; font: inherit; font-size: var(--cc-text-base); line-height: 1.5; color: var(--cc-text); padding: 6px 4px; overflow: hidden; user-select: text; cursor: text; min-height: 1.5em; }
 .club-root .tile.note .sticky-text::placeholder { color: var(--cc-text-3); }
 .club-root .tile.note .sticky-err { color: var(--cc-danger); padding: 0 4px; }

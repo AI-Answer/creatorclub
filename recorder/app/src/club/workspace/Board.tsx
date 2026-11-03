@@ -43,6 +43,9 @@ export async function addFromText(add:(body:{kind:ResearchTile['kind'];url?:stri
  return true;
 }
 
+/** Whether a pointer landed on empty canvas (the window itself, the canvas, or the inside of a frame) and not on a card or a line. */
+const isEmpty=(target:HTMLElement,scroller:HTMLElement)=>target===scroller||target.classList.contains('canvas')||target.classList.contains('bframe');
+
 /** A gesture on the canvas in progress: moving cards, moving or resizing a frame, a selection rectangle, or a connection being drawn. */
 type Gesture=
  |{kind:'tiles';sx:number;sy:number;starts:Map<string,{x:number;y:number}>;pressed:string;els:Map<string,HTMLElement>}
@@ -248,7 +251,7 @@ export function Board({video,board:boardProp,scenes,onDrafted=()=>{},refreshKey=
  };
  const onCanvasDown=(event:ReactPointerEvent<HTMLDivElement>)=>{
   const target=event.target as HTMLElement;
-  const empty=target===event.currentTarget||target.classList.contains('bframe');
+  const empty=isEmpty(target,event.currentTarget);
   // Space + drag, the middle button, or a drag on the empty canvas (or the inside of a frame) pans; Shift + drag draws a selection rectangle.
   if(event.button===1||(event.button===0&&space.current)){event.preventDefault();follow({kind:'pan',sx:event.clientX,sy:event.clientY,view:viewNow.current,moved:false,clears:false});return;}
   if(event.button!==0||!empty)return;
@@ -443,9 +446,8 @@ export function Board({video,board:boardProp,scenes,onDrafted=()=>{},refreshKey=
 
  return <div className="board-wrap" ref={wrap} tabIndex={-1} onPaste={paste} onDragOver={event=>event.preventDefault()} onDrop={drop} onKeyDown={onBoardKey} onClick={event=>{if(event.target===event.currentTarget)clear();}}>
   {board.loadError?<div style={{padding:24}}><ErrorLine message={board.loadError} onRetry={board.reload}/></div>:!tiles?<div className="flex flex-1 items-center justify-center"><Spinner label="Loading the board" size={20}/></div>:
-  <div className={cn('canvas-scroll',spaceHeld&&'pan-ready')} ref={scroller} style={{backgroundSize:`${grid.size}px ${grid.size}px`,backgroundPosition:`${grid.x}px ${grid.y}px`}}>
-   <div className="canvas-room">
-    <div className={cn('canvas',connectFrom&&'connecting')} ref={canvasEl} style={{width:frameSize.width,height:frameSize.height,transform:`translate3d(${view.x}px,${view.y}px,0) scale(${zoom})`}} onPointerDown={onCanvasDown} onDoubleClick={event=>{if(event.target===event.currentTarget)void addNote('',toCanvas(event.clientX,event.clientY));}}>
+  <div className={cn('canvas-scroll',spaceHeld&&'pan-ready')} ref={scroller} style={{backgroundSize:`${grid.size}px ${grid.size}px`,backgroundPosition:`${grid.x}px ${grid.y}px`}} onPointerDown={onCanvasDown} onDoubleClick={event=>{if(isEmpty(event.target as HTMLElement,event.currentTarget))void addNote('',toCanvas(event.clientX,event.clientY));}}>
+    <div className={cn('canvas',connectFrom&&'connecting')} ref={canvasEl} style={{width:frameSize.width,height:frameSize.height,transform:`translate3d(${view.x}px,${view.y}px,0) scale(${zoom})`}}>
      {tiles.length===0&&!research&&<p className="muted" style={{position:'absolute',left:60,top:70,maxWidth:380,fontSize:14,lineHeight:1.55}}>Drop links, screenshots, notes and Markdown files here. Claude reads the whole board when it drafts your scenes. Anything saved in this video's folder shows up here too.</p>}
      {frames.map(frame=><div key={frame.id} className={cn('bframe',selFrame===frame.id&&'sel')} style={{left:frame.x,top:frame.y,width:frame.w,height:frame.h}} data-frame={frame.id}>
       <div className="bframe-h" role="group" tabIndex={0} aria-label={`Frame ${frame.title}. Arrow keys move it and its cards. Enter renames it.`} onPointerDown={event=>onFrameDown(event,frame)} onKeyDown={event=>onFrameKey(event,frame)} onFocus={()=>{setSelFrame(frame.id);setSel([]);setSelLink(null);}} onDoubleClick={()=>setEditFrame(frame.id)}>
@@ -496,7 +498,6 @@ export function Board({video,board:boardProp,scenes,onDrafted=()=>{},refreshKey=
      </div>;})}
      {marquee&&<div className="bmarquee" style={{left:marquee.x,top:marquee.y,width:marquee.w,height:marquee.h}} aria-hidden/>}
     </div>
-   </div>
   </div>}
   {emptyResearch&&<div className="board-empty" role="note">
    <p>Put what might become a video here: posts and videos from Discover, your ideas, links, notes and Markdown files.</p>
