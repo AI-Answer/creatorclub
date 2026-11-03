@@ -69,7 +69,8 @@ export interface Project {
  importMetadata?:{sourceApp:string;sourceVersion?:string;sourcePath?:string;unmappedSegments?:unknown[];sourceSettings?:unknown;roundtrip?:{version:1;snapshotId:string}};
 }
 export interface ProjectSummary { id:string;name:string;updatedAt:string;duration:number;clipCount?:number;mediaCount:number;sceneCount:number;thumbnailMediaId?:string;takeCount?:number;recordedSceneCount?:number; }
-export interface ExportOptions { format:'mp4'|'webm'|'wav'|'srt'|'txt'|'md'|'json'; width?:number;height?:number;fps?:number;quality?:'draft'|'balanced'|'high';hardware?:boolean;burnCaptions?:boolean; range?:{start:number;end:number}; }
+/** `masterLoudness: false` leaves the mix at its own level; by default the mix is evened to -16 LUFS. Sample-level comparisons of exports turn it off. */
+export interface ExportOptions { format:'mp4'|'webm'|'wav'|'srt'|'txt'|'md'|'json'; width?:number;height?:number;fps?:number;quality?:'draft'|'balanced'|'high';hardware?:boolean;burnCaptions?:boolean; range?:{start:number;end:number}; masterLoudness?:boolean; }
 export interface Job { id:string; type:'export'|'proxy'|'transcribe'|'analysis'; status:'queued'|'running'|'complete'|'failed'|'cancelled'|'interrupted'; progress:number; message:string; outputPath?:string; startedAt:string; completedAt?:string; error?:string; }
 export interface AISettings { provider:'local'|'openai'|'openai-compatible'|'elevenlabs'|'openrouter';baseUrl:string;model:string;language:string;apiKey?:string;localCommand?:string; }
 /** `workspacePath` is the "SceneForge AI Workspace" folder inside the chosen `workspaceLocation`. */

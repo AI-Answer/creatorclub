@@ -816,6 +816,9 @@ async function processedAudio(c: AudioOriginClip, media: Media, job: Job) {
     throw error;
   }
 }
+/** The export's master after the mix: one loudness pass over the whole mix (so a chunked export sounds the same throughout), then the limiter. */
+const MASTER_LOUDNESS = "loudnorm=I=-16:TP=-1.5:LRA=11,aresample=48000";
+const masterChain = (loudness: boolean) => `${loudness ? `${MASTER_LOUDNESS},` : ""}alimiter=limit=0.95:latency=1`;
 async function executeExport(
   project: Project,
   options: ExportOptions & { losslessAudio?: boolean; frameCount?: number; audioSamples?: number },
@@ -1382,7 +1385,7 @@ async function executeExport(
       filters.push(`[${base}]format=yuv420p[vout]`);
     }
     audioFilters.push(
-      `${audio.join("")}amix=inputs=${audio.length}:duration=longest:normalize=0${o.losslessAudio ? "" : ",alimiter=limit=0.95:latency=1"},atrim=end_sample=${audioSamples}[aout]`,
+      `${audio.join("")}amix=inputs=${audio.length}:duration=longest:normalize=0${o.losslessAudio ? "" : `,${masterChain(o.masterLoudness !== false)}`},atrim=end_sample=${audioSamples}[aout]`,
     );
     // A joint A/V graph sporadically deadlocks in this FFmpeg scheduler when
     // finite media and looped graphics reach EOF together. Separate graphs
@@ -1728,7 +1731,7 @@ export function startExport(
       ];
       if (o.format !== "wav") args.push("-b:a", "192k");
       if (o.format === "mp4") args.push("-movflags", "+faststart");
-      args.push("-af", `aresample=48000:async=1:first_pts=0,alimiter=limit=0.95:latency=1,atrim=end_sample=${Math.round(duration * 48000)}`, "-t", seconds(duration));
+      args.push("-af", `aresample=48000:async=1:first_pts=0,${masterChain(o.masterLoudness !== false)},atrim=end_sample=${Math.round(duration * 48000)}`, "-t", seconds(duration));
       args.push(temp);
       await command(FFMPEG, args, j);
       const probe = JSON.parse(

@@ -72,7 +72,7 @@ test("continuous audio effects preserve whole-clip timing, gain, cache identity 
       sourceIn: 0, sourceOut: duration, speed: 1, gain: 1, muted: false,
       transform: defaultTransform(), effects: { ...defaultEffects(), normalize: true },
     }];
-    const first = await wait(startExport(p, { format: "wav", quality: "high" }, path.join(dir, "out")).id);
+    const first = await wait(startExport(p, { format: "wav", quality: "high", masterLoudness: false }, path.join(dir, "out")).id);
     const actual = samples(first.outputPath!), reference = samples(source,
       `aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,loudnorm=I=-16:TP=-1.5:LRA=11,aresample=48000,apad=whole_len=${Math.round(duration * 48000)},atrim=end_sample=${Math.round(duration * 48000)},alimiter=limit=0.95:latency=1`);
     if (relativeError(actual, reference) >= .001) {
@@ -85,31 +85,31 @@ test("continuous audio effects preserve whole-clip timing, gain, cache identity 
     const firstMetrics = JSON.parse(await fs.readFile(first.outputPath! + ".metrics.json", "utf8"));
     assert.equal(firstMetrics.chunks.reduce((n: number, c: any) => n + c.audioCacheMisses, 0), 1);
     p.clips = Array.from({ length: 4 }, (_, i) => ({ ...structuredClone(p.clips[0]), id: `overlap-${i}` }));
-    const limited = await wait(startExport(p, { format: "wav", quality: "high" }, path.join(dir, "out")).id);
+    const limited = await wait(startExport(p, { format: "wav", quality: "high", masterLoudness: false }, path.join(dir, "out")).id);
     const limitedReference = samples(source,
       `aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,loudnorm=I=-16:TP=-1.5:LRA=11,aresample=48000,apad=whole_len=${Math.round(duration * 48000)},atrim=end_sample=${Math.round(duration * 48000)},volume=4,alimiter=limit=.95:latency=1`);
     const limitedError = relativeError(samples(limited.outputPath!), limitedReference);
     assert.ok(limitedError < .001, `Overlapping tracks must retain full-timeline limiter state and float headroom: ${limitedError}`);
     p.clips = [p.clips[0]];
     p.clips[0].gain = .25;
-    const quiet = await wait(startExport(p, { format: "wav", quality: "high" }, path.join(dir, "out")).id);
+    const quiet = await wait(startExport(p, { format: "wav", quality: "high", masterLoudness: false }, path.join(dir, "out")).id);
     const quietSamples = samples(quiet.outputPath!), gainDb = 20 * Math.log10(rms(quietSamples) / rms(actual));
     assert.ok(Math.abs(gainDb - 20 * Math.log10(.25)) < .01, `User gain after normalization: ${gainDb}dB`);
     const quietMetrics = JSON.parse(await fs.readFile(quiet.outputPath! + ".metrics.json", "utf8"));
     assert.equal(quietMetrics.chunks.reduce((n: number, c: any) => n + c.audioCacheMisses, 0), 0, "Gain changes reuse preprocessing");
     p.clips[0].effects.denoise = true; p.clips[0].speed = 1.25; p.scenes[0].duration = duration / 1.25;
-    const ranged = await wait(startExport(p, { format: "wav", quality: "high", range: { start: 7.5, end: 12.5 } }, path.join(dir, "out")).id);
+    const ranged = await wait(startExport(p, { format: "wav", quality: "high", masterLoudness: false, range: { start: 7.5, end: 12.5 } }, path.join(dir, "out")).id);
     const spedReference = samples(source, "atempo=1.25,aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,afftdn=nf=-25,loudnorm=I=-16:TP=-1.5:LRA=11,aresample=48000,atrim=start=7.5:end=12.5,asetpts=PTS-STARTPTS,volume=.25,alimiter=limit=.95:latency=1");
     assert.ok(relativeError(samples(ranged.outputPath!), spedReference) < .001, "Range seek must preserve full-interval denoising, speed and normalization state");
     const changedMetrics = JSON.parse(await fs.readFile(ranged.outputPath! + ".metrics.json", "utf8"));
     assert.equal(changedMetrics.audioCacheMisses, 1, "Effect/speed changes invalidate the processed cache");
     const now = new Date(Date.now() + 2000); await fs.utimes(source, now, now);
-    const touched = await wait(startExport(p, { format: "wav", quality: "high", range: { start: 7.5, end: 12.5 } }, path.join(dir, "out")).id);
+    const touched = await wait(startExport(p, { format: "wav", quality: "high", masterLoudness: false, range: { start: 7.5, end: 12.5 } }, path.join(dir, "out")).id);
     assert.equal(JSON.parse(await fs.readFile(touched.outputPath! + ".metrics.json", "utf8")).audioCacheMisses, 1, "Source mtime invalidates the processed cache");
     p.clips[0].speed = .05; p.scenes[0].duration = duration / .05;
     const cache = path.join(os.tmpdir(), "sceneforge-audio-effects-v1");
     const before = new Set(await fs.readdir(cache));
-    const cancelled = startExport(p, { format: "wav", quality: "high" }, path.join(dir, "out"));
+    const cancelled = startExport(p, { format: "wav", quality: "high", masterLoudness: false }, path.join(dir, "out"));
     let sawTemp = false;
     for (let i = 0; i < 500; i++) {
       if ((await fs.readdir(cache)).some((name) => name.endsWith(".tmp") && !before.has(name))) { sawTemp = true; break; }
@@ -606,8 +606,8 @@ test('transcript ripple cuts keep normalized audio and fades on their original c
  try{
   const source=path.join(dir,'voice.wav');run(['-f','lavfi','-i','aevalsrc=(0.02+0.01*sin(t))*sin(2*PI*223*t):s=48000:d=6','-c:a','pcm_f32le',source]);
   const m=await probeMedia(source,path.join(dir,'cache')),p=createProject('Word cut DSP');p.media=[m];p.scenes[0].duration=6;p.clips=[{id:'voice',mediaId:m.id,name:'Voice',track:'audio',start:0,sourceIn:0,sourceOut:6,speed:1,gain:.5,muted:false,transform:defaultTransform(),effects:{...defaultEffects(),normalize:true,fadeIn:4,fadeOut:4}}];
-  const base=await wait(startExport(p,{format:'wav',quality:'high'},path.join(dir,'out')).id);cutTimelineRange(p,2,3);
-  const result=await wait(startExport(p,{format:'wav',quality:'high'},path.join(dir,'out')).id);
+  const base=await wait(startExport(p,{format:'wav',quality:'high',masterLoudness:false},path.join(dir,'out')).id);cutTimelineRange(p,2,3);
+  const result=await wait(startExport(p,{format:'wav',quality:'high',masterLoudness:false},path.join(dir,'out')).id);
   const decode=(file:string)=>run(['-i',file,'-ac','1','-ar','48000','-f','f32le','pipe:1']);
   const raw=decode(base.outputPath!),expected=Buffer.concat([raw.subarray(0,2*48000*4),raw.subarray(3*48000*4)]),actual=decode(result.outputPath!);assert.equal(actual.length,5*48000*4);
   let error=0,energy=0;for(let i=0;i<actual.length;i+=4){const a=actual.readFloatLE(i),b=expected.readFloatLE(i);error+=(a-b)**2;energy+=b*b;}const relativeError=Math.sqrt(error/energy);assert.ok(relativeError<.012,`Cut must preserve original DSP/fade phase rather than restart it: ${relativeError}`);
@@ -651,12 +651,12 @@ test('UI and MCP splits preserve normalized waveform and fade phase at non-unit 
   const source=path.join(dir,'variable.wav');run(['-f','lavfi','-i','aevalsrc=(0.025+0.012*sin(t))*sin(2*PI*223*t):s=48000:d=8','-c:a','pcm_f32le',source]);
   const m=await probeMedia(source,path.join(dir,'cache')),p=createProject('Split DSP');p.media=[m];p.scenes[0].duration=4;p.clips=[{id:'voice',mediaId:m.id,name:'Voice',track:'audio',start:0,sourceIn:1,sourceOut:7,speed:1.5,gain:.5,muted:false,transform:defaultTransform(),effects:{...defaultEffects(),normalize:true,denoise:true,fadeIn:3,fadeOut:3}}];
   const decode=(file:string)=>run(['-i',file,'-ac','1','-ar','48000','-f','f32le','pipe:1']);
-  const full=await wait(startExport(p,{format:'wav',quality:'high'},path.join(dir,'out')).id),reference=decode(full.outputPath!);
+  const full=await wait(startExport(p,{format:'wav',quality:'high',masterLoudness:false},path.join(dir,'out')).id),reference=decode(full.outputPath!);
   const ui=structuredClone(p);for(const at of [1.2,2.8])splitAt(ui,at,new Set());
   const mcp=structuredClone(p);for(const at of [1.2,2.8]){const i=mcp.clips.findIndex(c=>at>c.start&&at<c.start+(c.sourceOut-c.sourceIn)/c.speed);mcp.clips.splice(i,1,...splitClip(mcp.clips[i],at));}
   const cut=trimProject(p,[[1.2,1.8],[2.8,3.2]],true),samples=(from:number,to:number)=>reference.subarray(Math.round(from*48000)*4,Math.round(to*48000)*4);
   for(const [name,project,expected]of [['ui',ui,reference],['mcp',mcp,reference],['mcp-ripple',cut,Buffer.concat([samples(0,1.2),samples(1.8,2.8),samples(3.2,4)])]]as const){
-   const rendered=await wait(startExport(project,{format:'wav',quality:'high'},path.join(dir,'out')).id),actual=decode(rendered.outputPath!);assert.equal(actual.length,expected.length,`${name} sample count`);
+   const rendered=await wait(startExport(project,{format:'wav',quality:'high',masterLoudness:false},path.join(dir,'out')).id),actual=decode(rendered.outputPath!);assert.equal(actual.length,expected.length,`${name} sample count`);
    let error=0,energy=0;for(let i=0;i<actual.length;i+=4){const a=actual.readFloatLE(i),b=expected.readFloatLE(i);error+=(a-b)**2;energy+=b*b;}const relativeError=Math.sqrt(error/energy);
    const metrics=JSON.parse(await fs.readFile(rendered.outputPath!+'.metrics.json','utf8')),cacheMisses=metrics.chunks?metrics.chunks.reduce((n:number,c:any)=>n+c.audioCacheMisses,0):metrics.audioCacheMisses;
    report.push({name,samples:actual.length/4,relativeError,cacheMisses});assert.ok(relativeError<.012,`${name} must preserve continuous normalization/denoise/fades: ${relativeError}`);assert.equal(cacheMisses,0,`${name} reuses the original complete-source DSP cache`);
@@ -669,7 +669,7 @@ test('unsplit audio fades follow the requested envelope at sample resolution', {
  const run=(args:string[])=>{const r=spawnSync(ffmpegBinary,['-v','error','-nostdin','-y',...args],{maxBuffer:16*1024*1024});assert.equal(r.status,0,r.stderr.toString());return r.stdout;};
  try{
   const source=path.join(dir,'constant.wav');run(['-f','lavfi','-i','aevalsrc=0.1:s=48000:d=4','-c:a','pcm_f32le',source]);const media=await probeMedia(source,path.join(dir,'cache')),p=createProject('Sample fade');p.media=[media];p.scenes[0].duration=4;p.clips=[{id:'audio',mediaId:media.id,name:'Constant reference',track:'audio',start:0,sourceIn:0,sourceOut:4,speed:1,gain:.5,muted:false,transform:defaultTransform(),effects:defaultEffects()}];
-  const control=await wait(startExport(p,{format:'wav',quality:'high'},path.join(dir,'out')).id);p.clips[0].effects.fadeIn=3;p.clips[0].effects.fadeOut=3;const faded=await wait(startExport(p,{format:'wav',quality:'high'},path.join(dir,'out')).id);
+  const control=await wait(startExport(p,{format:'wav',quality:'high',masterLoudness:false},path.join(dir,'out')).id);p.clips[0].effects.fadeIn=3;p.clips[0].effects.fadeOut=3;const faded=await wait(startExport(p,{format:'wav',quality:'high',masterLoudness:false},path.join(dir,'out')).id);
   const decode=(file:string)=>run(['-i',file,'-ac','1','-ar','48000','-f','f32le','pipe:1']),base=decode(control.outputPath!),actual=decode(faded.outputPath!);assert.equal(actual.length,base.length);
   let maxError=0,error=0,energy=0;for(let i=0;i<actual.length;i+=4){const t=i/4/48000,expected=base.readFloatLE(i)*Math.min(1,t/3)*Math.min(1,(4-t)/3),difference=actual.readFloatLE(i)-expected;maxError=Math.max(maxError,Math.abs(difference));error+=difference*difference;energy+=expected*expected;}
   const relativeError=Math.sqrt(error/energy);assert.ok(relativeError<.002,`Unsplit fades must be smooth, not decoder-frame steps: ${relativeError}`);assert.ok(maxError<4/32768,`Sample envelope maximum absolute error: ${maxError}`);
@@ -705,3 +705,26 @@ test('splitting preserves video fades longer than the original clip duration', {
   await fs.writeFile(path.resolve('../evidence/split-dsp-long-video-fade.json'),JSON.stringify({frames:actual.length/frameSize,maximumFrameMAE},null,2));assert.ok(maximumFrameMAE<=3,`Oversized fade must retain original clamped duration: ${maximumFrameMAE}/255`);
  }finally{await fs.rm(dir,{recursive:true,force:true});}
 });
+
+test('the export master is evened to -16 LUFS with true peak under -1.5 dBTP, single-pass and chunked; a silent project still exports', {timeout:180000}, async()=>{
+ const dir=await fs.mkdtemp(path.join(os.tmpdir(),'sceneforge-master-loudness-'));
+ const run=(args:string[])=>{const r=spawnSync(ffmpegBinary,['-v','error','-nostdin','-y',...args],{maxBuffer:32*1024*1024});assert.equal(r.status,0,r.stderr.toString());};
+ // The summary of ebur128 (the last I: and Peak: lines) is the whole file's integrated loudness and true peak.
+ const loudness=(file:string)=>{const text=spawnSync(ffmpegBinary,['-hide_banner','-nostdin','-i',file,'-af','ebur128=peak=true','-f','null','-'],{maxBuffer:32*1024*1024}).stderr.toString();const integrated=[...text.matchAll(/I:\s+(-?\d+(?:\.\d+)?) LUFS/g)].at(-1),peak=[...text.matchAll(/Peak:\s+(-?\d+(?:\.\d+)?) dBFS/g)].at(-1);assert.ok(integrated&&peak,text.slice(-400));return {integrated:Number(integrated[1]),peak:Number(peak[1])};};
+ const project=async(name:string,source:string,seconds:number)=>{
+  const m=await probeMedia(source,path.join(dir,'cache')),p=createProject(name);p.media=[m];p.scenes[0].duration=seconds;
+  p.clips=[{id:'voice',mediaId:m.id,name:'Voice',track:'audio',start:0,sourceIn:0,sourceOut:seconds,speed:1,gain:1,muted:false,transform:defaultTransform(),effects:defaultEffects()}];return p;};
+ try{
+  const quiet6=path.join(dir,'quiet-6.wav'),quiet12=path.join(dir,'quiet-12.wav'),silent=path.join(dir,'silent.wav');
+  run(['-f','lavfi','-i','aevalsrc=0.01*sin(2*PI*440*t):s=48000:d=6','-c:a','pcm_f32le',quiet6]);
+  run(['-f','lavfi','-i','aevalsrc=0.01*sin(2*PI*440*t):s=48000:d=12','-c:a','pcm_f32le',quiet12]);
+  run(['-f','lavfi','-i','aevalsrc=0:s=48000:d=3','-c:a','pcm_f32le',silent]);
+  // Six seconds exports in one pass; twelve seconds goes through the chunked path and its final join.
+  const single=await wait(startExport(await project('Quiet single pass',quiet6,6),{format:'wav',quality:'high'},path.join(dir,'single')).id);
+  const chunked=await wait(startExport(await project('Quiet chunked',quiet12,12),{format:'wav',quality:'high'},path.join(dir,'chunked')).id);
+  for(const job of [single,chunked]){const {integrated,peak}=loudness(job.outputPath!);assert.ok(Math.abs(integrated+16)<=1.5,`integrated ${integrated} LUFS, wanted about -16`);assert.ok(peak<=-1.4,`true peak ${peak} dBTP, wanted at most -1.5`);}
+  const quiet=await wait(startExport(await project('Silent project',silent,3),{format:'wav',quality:'high'},path.join(dir,'silent')).id);
+  assert.ok((await fs.stat(quiet.outputPath!)).size>0,'a silent project exports');
+ }finally{await fs.rm(dir,{recursive:true,force:true});}
+});
+
