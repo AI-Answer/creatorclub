@@ -34,6 +34,15 @@ test('serialized writes retain terminal state and cancel remains durable',async(
  const f=await fixture();try{const j=await f.store.create(f.project,{format:'mp4'}),c=f.calls[0];c.job.status='running';const writes=[];for(let i=0;i<8;i++){c.job.progress=i/10;writes.push(c.life.onUpdate!(structuredClone(c.job)));}await f.store.cancel(j.id);await Promise.all(writes);await f.store.flush();const disk=JSON.parse(await fs.readFile(path.join(f.root,j.id+'.json'),'utf8'));assert.equal(disk.record.status,'cancelled');assert.ok(disk.record.revision>=10);}finally{await f.cleanup();}
 });
 
+test('completion re-reads a source only when its metadata moved; a touch with identical bytes still completes',async()=>{
+ const f=await fixture();const originalOpen=fs.open,sourceReal=await fs.realpath(f.source);let reads=0;
+ try{
+  await f.store.create(f.project,{format:'mp4'});fs.open=(async(...args:Parameters<typeof fs.open>)=>{if(args[0]===sourceReal)reads++;return originalOpen(...args);}) as typeof fs.open;
+  await complete(f);assert.equal(reads,0,'unchanged metadata skips the source read');assert.equal(f.calls[0].job.status,'complete');
+  const j=await f.store.create(f.project,{format:'mp4'}),stat=await fs.stat(f.source);await fs.utimes(f.source,stat.atime,new Date(stat.mtimeMs+5000));
+  await complete(f,1);assert.equal(reads>0,true,'changed metadata is verified by hashing');assert.equal((await f.store.get(j.id)).status,'complete');assert.equal((await f.store.get(j.id)).recovery.changedSources,undefined);
+ }finally{fs.open=originalOpen;await f.cleanup();}
+});
 test('replacing a pathname during hashing is rejected even when realpath text is unchanged',async()=>{
  const {fingerprintFile}=await import('./export-store.js');const f=await fixture();const originalOpen=fs.open;const sourceReal=await fs.realpath(f.source);let replaced=false;
  try{
