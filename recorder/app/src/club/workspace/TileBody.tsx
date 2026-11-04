@@ -61,14 +61,14 @@ export function TileBody(props:TileBodyProps){
 }
 
 /** A note: a sticky note to type in right on the Board. Its full editor (Markdown, headings, lists) opens from the button on its head; the file it is saved in is its tooltip. */
-function NoteTile({tile,onRemove,onOpen,onSaveNote,autoFocus,onBlurEmpty}:TileBodyProps){
+function NoteTile({tile,videoId,onRemove,onOpen,onSaveNote,autoFocus,onBlurEmpty}:TileBodyProps){
  const doc=tile.doc;
  const label=doc?.root==='folder'?'Note from your Notes folder':'Note';
  return <>
   <TileHead icon="note" label={label} onRemove={onRemove}>{!doc?.missing&&!doc?.tooLarge&&<IconButton icon="open-external" iconSize={13} label="Open in the full editor" onClick={onOpen} style={{width:22,height:22}}/>}</TileHead>
   {doc?.missing?<div className="tb small muted">{doc.root==='folder'?<>This note is from a Notes folder that is not the current one: <span className="note-path">{doc.folder??'an earlier folder'}</span>. It shows again if you choose that folder.</>:'This file is not in its folder any more. Put it back and it shows here again, or remove the card.'}</div>
    :doc?.tooLarge?<div className="tb small muted">This file is over 1 MB, so it is not shown. It stays in its folder.</div>
-   :onSaveNote&&<StickyNote tile={tile} save={onSaveNote} autoFocus={autoFocus} onBlurEmpty={onBlurEmpty} label={tile.title||doc?.path||'Note'}/>}
+   :onSaveNote&&<StickyNote tile={tile} boardId={videoId} save={onSaveNote} autoFocus={autoFocus} onBlurEmpty={onBlurEmpty} label={tile.title||doc?.path||'Note'}/>}
  </>;
 }
 

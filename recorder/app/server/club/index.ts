@@ -12,6 +12,7 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { addConceptToBoard, breakdownDir, listBreakdowns, newBreakdownId, readBreakdown, runBreakdown, thumbnailFile, type Transcriber } from './breakdown.js';
 import { cancelJob, getJob, runningOnce, snapshot, startJob, startJobOnce, watchJob } from './jobs.js';
+import { cachedChannelAvatar, ensureChannelAvatar, type AvatarFetch } from './channel-avatar.js';
 import { parseChannelInput } from './channel.js';
 import { FILE_TOO_BIG, MAX_FILE_BYTES, detectSource } from './source.js';
 import { addChannel, rebuildVoice, startFresh } from './onboard.js';
@@ -22,6 +23,7 @@ import { publishingRoutes, type PublishingOptions } from './publisher-routes.js'
 import { recordingsDiskSpace } from './disk.js';
 import { readTranscript, startTileRead } from './research.js';
 import * as boardDocs from './board-docs.js';
+import {servedImage,saveImage,MAX_IMAGE_BYTES} from './board-images.js';
 import { announceBoard, subscribeBoard } from './board-watch.js';
 import { mcpLauncher } from '../mcp-launcher.js';
 import { captureProof, proofBody } from './proof.js';
@@ -187,6 +189,7 @@ const scriptRunBody = z.object({ sceneId: z.string().regex(SCENE_ID).optional() 
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { files: 1, fileSize: 50 * 1024 * 1024 } });
 // Dropped Markdown and text files: each is checked against the note size limit afterwards, so one that is too large is reported and the rest still come in.
+const imageUpload = multer({ storage: multer.memoryStorage(), limits: { files: 1, fileSize: MAX_IMAGE_BYTES } });
 const docsUpload = multer({ storage: multer.memoryStorage(), limits: { files: 20, fileSize: 5 * 1024 * 1024 } });
 const notesFolderBody = z.object({ path: z.string().trim().min(1).max(1000).nullable() }).strict();
 const pinBody = z.object({ path: z.string().min(1).max(300) }).strict();
@@ -228,6 +231,8 @@ const settingsBody = z.object({ defaultAi: z.enum(['claude', 'codex']), appearan
 const publishBody = z.object({ youtubeUrl: z.string().trim().min(1).max(2000) }).strict();
 
 export interface ClubRouterOptions {
+  /** Reads channel pictures. Tests supply fixtures instead of reaching YouTube. */
+  avatarFetch?: AvatarFetch;
   /** Where to look for the AI command line tools and yt-dlp, and how fast to poll them. Tests point these at fake tools. */
   ai?: ConnectOptions & ToolOptions;
   /** Turns a video file with no captions into text. Defaults to SceneForge's local transcription. */
@@ -246,7 +251,7 @@ export interface ClubRouterOptions {
   signals?: Partial<SignalsSources>;
 }
 
-export function clubRouter({ ai = {}, transcribe, runAI, readViews = ytDlpViews(ai), publishing = {}, uploads = ytDlpSource(ai), search = ytDlpSearchSource(ai), signals = {} }: ClubRouterOptions = {}): Router {
+export function clubRouter({ avatarFetch, ai = {}, transcribe, runAI, readViews = ytDlpViews(ai), publishing = {}, uploads = ytDlpSource(ai), search = ytDlpSearchSource(ai), signals = {} }: ClubRouterOptions = {}): Router {
   const signalSources: SignalsSources = { treg: findTregCall(ai), ...signals };
   const plan: PlanOptions = { extraDirs: ai.extraDirs, runAI };
   const router = Router();
@@ -377,14 +382,14 @@ export function clubRouter({ ai = {}, transcribe, runAI, readViews = ytDlpViews(
 
   // ---- workspaces
   router.get('/workspaces', handler(async (_req, res) => {
-    res.json({ current: (await store.currentWorkspace()) ?? null, workspaces: await store.listWorkspaces() });
+    res.json({ current: (await store.currentWorkspace()) ?? null, workspaces: await Promise.all((await store.listWorkspaces()).map(workspace => ensureChannelAvatar(workspace, avatarFetch))) });
   }));
   router.post('/workspaces', handler(async (req, res) => {
     // A channel link starts a job that reads the channel; a bare name creates an empty channel at once.
     if (req.body && typeof req.body === 'object' && 'channelUrl' in req.body) {
       const { channelUrl } = addChannelBody.parse(req.body);
       parseChannelInput(channelUrl);
-      res.status(202).json(startJob('add-channel', (context) => addChannel(channelUrl, context, ai)));
+      res.status(202).json(startJob('add-channel', (context) => addChannel(channelUrl, context, ai, avatarFetch)));
       return;
     }
     const workspace = await store.createWorkspace(newWorkspaceBody.parse(req.body));
@@ -393,7 +398,14 @@ export function clubRouter({ ai = {}, transcribe, runAI, readViews = ytDlpViews(
   }));
   // A channel with no YouTube channel behind it: a name, topics, who it is for, and optionally the voice answers.
   router.post('/workspaces/fresh', handler(async (req, res) => res.status(201).json(await startFresh(freshBody.parse(req.body)))));
-  router.get('/workspaces/:slug', handler(async (req, res) => res.json(await store.readWorkspace(param(req, 'slug')))));
+  router.get('/workspaces/:slug/avatar', handler(async (req, res) => {
+    const image = await cachedChannelAvatar(param(req, 'slug'));
+    if (!image) throw notFound('channel picture');
+    res.setHeader('Cache-Control', 'private, max-age=3600');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.type(image.mime).send(image.bytes);
+  }));
+  router.get('/workspaces/:slug', handler(async (req, res) => res.json(await ensureChannelAvatar(await store.readWorkspace(param(req, 'slug')), avatarFetch))));
   router.put('/workspaces/:slug', handler(async (req, res) => {
     const existing = await store.readWorkspace(param(req, 'slug'));
     const updated: Workspace = { ...existing, ...workspacePatchBody.parse(req.body), slug: existing.slug, createdAt: existing.createdAt };
@@ -658,6 +670,20 @@ export function clubRouter({ ai = {}, transcribe, runAI, readViews = ytDlpViews(
       const slug = await requireWorkspace();
       await store.requireBoard(slug, boardOf(req));
       res.json(await boardDocs.boardFiles(slug, boardOf(req)));
+    }));
+    router.post(`${prefix}/board/images`, imageUpload.single('file'), handler(async (req, res) => {
+      const slug = await requireWorkspace();
+      if (!req.file) throw new ClubError('Choose an image first.');
+      const tile = req.body?.tile;
+      if (tile !== undefined && typeof tile !== 'string') throw new ClubError('Choose a note first.');
+      res.status(201).json(await saveImage(slug, boardOf(req), req.file.buffer, tile));
+    }));
+    router.get(`${prefix}/board/images`, handler(async (req, res) => {
+      const slug = await requireWorkspace();
+      if (typeof req.query.src !== 'string' || (req.query.tile !== undefined && typeof req.query.tile !== 'string')) throw new ClubError('Choose an image first.');
+      const { file, type } = await servedImage(slug, boardOf(req), req.query.src, req.query.tile as string | undefined);
+      // Served as the type the bytes prove, never by the file's extension.
+      res.sendFile(file, { dotfiles: 'allow', headers: { 'Content-Type': type, 'X-Content-Type-Options': 'nosniff', 'Content-Security-Policy': "default-src 'none'", 'Cache-Control': 'private, max-age=60' } });
     }));
     router.post(`${prefix}/board/import`, docsUpload.array('files', 20), handler(async (req, res) => {
       const slug = await requireWorkspace();

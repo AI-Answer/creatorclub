@@ -73,7 +73,7 @@ test('Add, Note puts a sticky note on the board to type in right away; left empt
   await act(async()=>(document.querySelector('[role=menuitem]') as HTMLButtonElement).click());
   await flush();await flush();
   assert.deepEqual(server.calls.find(call=>call.method==='POST')?.body,{kind:'note',text:''});
-  const area=ui.container.querySelector<HTMLTextAreaElement>('.tile.note textarea')!;
+  const area=ui.container.querySelector<HTMLElement>('.tile.note [contenteditable=true]')!;
   assert.ok(area,'the note is on the board, ready to type in');
   assert.equal(document.activeElement,area,'and has the cursor');
   assert.equal(document.querySelector('[role=dialog]'),null,'no panel is needed to write');
@@ -90,13 +90,14 @@ test('a note card is a sticky note holding its text, opens the full editor from 
   await flush();await flush();
   const cards=[...ui.container.querySelectorAll('.tile.note')];
   assert.equal(cards.length,3);
-  assert.equal(cards[0].querySelector('textarea')?.value,'# Hooks\n\n- one\n- [x] two');
+  assert.equal(cards[0].querySelector('.outliner-title')?.textContent,'Hooks');
+  assert.equal(cards[0].querySelectorAll('.outliner-bullet').length,2);
   assert.match(cards[1].textContent!,/not in its folder any more/);
   assert.match(cards[2].textContent!,/Note from your Notes folder/);
   assert.ok(cards.every(card=>card.querySelector('[aria-label="Remove from the board"]')?.hasAttribute('data-tooltip')),'named, with a tooltip');
   await act(async()=>cards[0].querySelector<HTMLElement>('button[aria-label="Open in the full editor"]')!.click());await flush();
   assert.equal(document.querySelector('[role=dialog]')?.getAttribute('aria-label'),'Note: Hooks');
-  assert.equal(document.querySelector('.md-editor h1')?.textContent,'Hooks');
+  assert.equal(document.querySelector('.cc-outliner h1')?.textContent,'Hooks');
  }finally{await ui.close();}
 });
 
@@ -196,7 +197,7 @@ test('the board reads itself again when the server says a file changed, keeping 
   listed=[...listed,note('t2','# Two, written by an agent','two.md',{pos:{x:400,y:60,w:280}})];
   source.emit('files',{});
   await act(async()=>{await new Promise(resolve=>setTimeout(resolve,250));});await flush();
-  assert.deepEqual([...ui.container.querySelectorAll<HTMLTextAreaElement>('.tile.note textarea')].map(item=>item.value),['# One','# Two, written by an agent']);
+  assert.deepEqual([...ui.container.querySelectorAll<HTMLElement>('.tile.note .outliner-title')].map(item=>item.textContent),['One','Two, written by an agent']);
  }finally{await ui.close();delete (globalThis as {EventSource?:unknown}).EventSource;}
 });
 

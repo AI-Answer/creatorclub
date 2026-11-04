@@ -29,6 +29,7 @@ async function fakeAI(options: RunAIOptions): Promise<RunAIResult> {
 }
 const { clubRouter } = await import('./index.js');
 const { validateActions } = await import('./companion-actions.js');
+const { copyNoteImages } = await import('./research-board.js');
 const app = express();
 app.use('/api/club', clubRouter({ runAI: fakeAI }));
 const server = app.listen(0, '127.0.0.1');
@@ -55,6 +56,8 @@ const videoTiles = async (id: string) => (await call<ResearchTile[]>('GET', `/vi
 const canvas = async (prefix = '/channel') => (await call<BoardCanvas>('GET', `${prefix}/board/canvas`)).body;
 const addNote = async (text: string, prefix = '/channel') => (await call<ResearchTile>('POST', `${prefix}/research`, { kind: 'note', text })).body;
 const place = (id: string, x: number, y: number) => call('PATCH', `/channel/research/${id}`, { pos: { x, y } });
+const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAABCAYAAAD0In+KAAAAD0lEQVR4nGP4z8Dwn4GBgQEAEfkD/bYHL5UAAAAASUVORK5CYII=', 'base64');
+const image = (prefix: string, source: string, tile: string) => fetch(`${base}${prefix}/board/images?${new URLSearchParams({ src: source, tile })}`);
 async function events(jobId: string) {
   const raw = await (await fetch(`${base}/jobs/${jobId}/events`)).text();
   return raw
@@ -202,6 +205,117 @@ test('Start a video from this selection makes an idea whose Board holds copies o
   assert.equal((await call<Video[]>('GET', '/videos')).body.length, count);
   for (const tile of await channelTiles()) await call('DELETE', `/channel/research/${tile.id}`);
   await call('DELETE', `/channel/board/frames/${frame.id}`);
+});
+
+test('starting a video copies an uploaded inline image into its own Board and keeps the note text byte-identical', async () => {
+  const form = new FormData();
+  form.append('file', new Blob([new Uint8Array(png)], { type: 'image/png' }), 'picture.png');
+  const upload = await fetch(`${base}/channel/board/images`, { method: 'POST', body: form });
+  assert.equal(upload.status, 201);
+  const saved = await upload.json() as { path: string; markdown: string };
+  const text = `# Picture\n\n![](${saved.markdown})\n\nAgain: ![same pixels]( ${saved.markdown}  "Keep this title" )\n`;
+  const note = await addNote(text);
+  assert.equal((await image('/channel', saved.markdown, note.id)).status, 200);
+  const started = await call<StartedVideo>('POST', '/channel/research/start-video', { tileIds: [note.id] });
+  assert.equal(started.status, 201, JSON.stringify(started.body));
+  const [copy] = await videoTiles(started.body.video.id);
+  assert.equal(copy.text, text);
+  const destination = path.join(root, 'videos', started.body.video.id);
+  assert.equal(await readFile(path.join(destination, copy.doc!.path), 'utf8'), text);
+  assert.deepEqual(await readFile(path.join(destination, saved.path)), png);
+  assert.equal((await readdir(path.join(destination, 'notes', 'assets'))).length, 1, 'repeated references share one copied image');
+  assert.equal((await channelTiles()).find((tile) => tile.id === note.id)?.text, text);
+  await rm(path.join(research, saved.path));
+  const served = await image(`/videos/${started.body.video.id}`, saved.markdown, copy.id);
+  assert.equal(served.status, 200, 'the destination serves its own copy after the original is gone');
+  assert.match(served.headers.get('content-type')!, /image\/png/);
+  assert.deepEqual(Buffer.from(await served.arrayBuffer()), png);
+  for (const tile of await channelTiles()) await call('DELETE', `/channel/research/${tile.id}`);
+});
+
+test('copying a top-level note rewrites image URLs for notes/assets, preserving titles, code and reference-image formatting', async () => {
+  await mkdir(path.join(research, 'pictures'), { recursive: true });
+  await writeFile(path.join(research, 'pictures', 'figure (one).png'), png);
+  const text = '# Imported image\n\n![Figure](<pictures/figure (one).png>  "Exact title")\n![Again [nested alt]](pictures/figure%20(one).png)\n![Reference][PIC]\n![pic][]\n\n[pic]: <pictures/figure (one).png> "Reference title"\n\n`![example](pictures/figure%20(one).png)`\n\\![escaped](pictures/figure%20(one).png)\n~~~md\n![code](pictures/figure%20(one).png)\n~~~\n';
+  await writeFile(path.join(research, 'imported-image.md'), text);
+  const note = (await channelTiles()).find((tile) => tile.doc?.path === 'imported-image.md')!;
+  const started = await call<StartedVideo>('POST', '/channel/research/start-video', { tileIds: [note.id] });
+  assert.equal(started.status, 201, JSON.stringify(started.body));
+  const [copy] = await videoTiles(started.body.video.id);
+  const target = 'assets/figure%20%28one%29.png';
+  const expected = text
+    .replace('<pictures/figure (one).png>', `<${target}>`)
+    .replace('![Again [nested alt]](pictures/figure%20(one).png)', `![Again [nested alt]](${target})`)
+    .replace('[pic]: <pictures/figure (one).png>', `[pic]: <${target}>`);
+  assert.equal(copy.text, expected);
+  assert.equal(await readFile(path.join(root, 'videos', started.body.video.id, copy.doc!.path), 'utf8'), expected);
+  const served = await image(`/videos/${started.body.video.id}`, target, copy.id);
+  assert.equal(served.status, 200);
+  assert.deepEqual(Buffer.from(await served.arrayBuffer()), png);
+  assert.equal(await readFile(path.join(research, 'imported-image.md'), 'utf8'), text);
+  for (const tile of await channelTiles()) await call('DELETE', `/channel/research/${tile.id}`);
+});
+
+test('starting a video skips missing images, traversal, symlinks, absolute paths and remote URLs without changing their Markdown', async () => {
+  await writeFile(path.join(root, 'outside.png'), png);
+  await symlink(path.join(root, 'outside.png'), path.join(research, 'notes', 'linked.png'));
+  const text = `# Unsafe and missing\n![](../../outside.png)\n![](%2e%2e/%2e%2e/outside.png)\n![](assets/missing.png)\n![](linked.png)\n![](${path.join(root, 'outside.png')})\n![](https://example.com/image.png)\n![](//example.com/image.png)\n`;
+  const note = await addNote(text);
+  const started = await call<StartedVideo>('POST', '/channel/research/start-video', { tileIds: [note.id] });
+  assert.equal(started.status, 201, JSON.stringify(started.body));
+  const [copy] = await videoTiles(started.body.video.id);
+  assert.equal(copy.text, text);
+  await assert.rejects(stat(path.join(root, 'videos', started.body.video.id, 'notes', 'assets')), { code: 'ENOENT' });
+  assert.deepEqual(await readFile(path.join(root, 'outside.png')), png);
+  for (const tile of await channelTiles()) await call('DELETE', `/channel/research/${tile.id}`);
+});
+
+test('copying images never overwrites a destination file or follows destination symlinks', async () => {
+  const video = await newVideo('Existing destination');
+  const destination = path.join(root, 'videos', video.id);
+  const assets = path.join(destination, 'notes', 'assets');
+  await mkdir(assets, { recursive: true });
+  const existing = Buffer.concat([png, Buffer.from('different existing image')]);
+  await writeFile(path.join(research, 'notes', 'collision.png'), png);
+  await writeFile(path.join(assets, 'collision.png'), existing);
+  const note = await addNote('# Collision\n![one](collision.png "Title")\n![two](collision.png)');
+  const text = await copyNoteImages('maya-lopez', ':channel', video.id, note);
+  const match = /assets\/collision-[a-f0-9]{12}\.png/.exec(text)!;
+  assert.ok(match);
+  assert.equal(text, note.text!.replaceAll('collision.png', match[0]));
+  assert.deepEqual(await readFile(path.join(assets, 'collision.png')), existing);
+  assert.deepEqual(await readFile(path.join(destination, 'notes', match[0])), png);
+  assert.equal((await readdir(assets)).length, 2);
+  await rm(assets, { recursive: true });
+  await symlink(temp, assets);
+  await assert.rejects(copyNoteImages('maya-lopez', ':channel', video.id, note), /assets folder is not a folder/);
+  await assert.rejects(stat(path.join(temp, 'collision.png')), { code: 'ENOENT' });
+  for (const tile of await channelTiles()) await call('DELETE', `/channel/research/${tile.id}`);
+});
+
+test('a pinned note copies only images inside the source Board, leaving external Notes-folder images alone', async () => {
+  const vault = path.join(temp, 'image-vault');
+  await mkdir(vault);
+  await writeFile(path.join(vault, 'external.png'), png);
+  const boardImage = path.join(research, 'notes', 'assets', 'pinned-board.png');
+  await mkdir(path.dirname(boardImage), { recursive: true });
+  await writeFile(boardImage, png);
+  const boardRelative = path.relative(vault, boardImage).split(path.sep).join('/');
+  const text = `# Pinned images\n![](external.png)\n![owned](${boardRelative})\n`;
+  await writeFile(path.join(vault, 'pin.md'), text);
+  assert.equal((await call('PUT', '/board/notes-folder', { path: vault })).status, 200);
+  const pinned = await call<ResearchTile>('POST', '/channel/board/pin', { path: 'pin.md' });
+  assert.equal(pinned.status, 201);
+  const started = await call<StartedVideo>('POST', '/channel/research/start-video', { tileIds: [pinned.body.id] });
+  assert.equal(started.status, 201, JSON.stringify(started.body));
+  const [copy] = await videoTiles(started.body.video.id);
+  assert.equal(copy.text, text.replace(boardRelative, 'assets/pinned-board.png'));
+  const assets = path.join(root, 'videos', started.body.video.id, 'notes', 'assets');
+  assert.deepEqual(await readdir(assets), ['pinned-board.png']);
+  assert.equal((await image(`/videos/${started.body.video.id}`, 'assets/pinned-board.png', copy.id)).status, 200);
+  assert.equal(await readFile(path.join(vault, 'pin.md'), 'utf8'), text);
+  for (const tile of await channelTiles()) await call('DELETE', `/channel/research/${tile.id}`);
+  await call('PUT', '/board/notes-folder', { path: null });
 });
 
 test('no path leaves the channel folder: tile ids, link and frame ids, pinned files and dropped file names', async () => {
