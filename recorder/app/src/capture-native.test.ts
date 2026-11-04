@@ -250,3 +250,18 @@ test('a closed native picker drops late thumbnails instead of returning images',
   assert.deepEqual(await refreshing,{sources:[],displays:[]});assert.equal(await selecting,null);
  }finally{h.manager.dispose();}
 });
+
+
+test('native picker selects a window opened during thumbnail refresh and consumes its token once',async()=>{
+ const h=setup();try{
+  const selecting=h.manager.choose(h.event);await tick();
+  await h.handlers.get('capture-ui-data')!(h.uiEvent());
+  h.state.sources=[...h.state.sources,{id:'window:99:0',name:'New window',display_id:''}];
+  const refreshed=await h.handlers.get('capture-ui-data')!(h.uiEvent());
+  assert.equal(refreshed.sources.at(-1).id,'window:99:0');
+  h.finish({sourceId:'window:99:0',mode:'window'});
+  const selected=await selecting;assert.equal(selected.sourceId,'window:99:0');
+  assert.equal(h.calls.at(-1).thumbnailSize.width,0,'selection validation requests metadata only');
+  assert.equal((await h.response()).video.id,'window:99:0');assert.equal(await h.response(),null);
+ }finally{h.manager.dispose();}
+});

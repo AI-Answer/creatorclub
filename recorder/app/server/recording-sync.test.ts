@@ -146,3 +146,25 @@ test('ten-minute 4K recording synchronization only probes and completes in under
  assert.ok(elapsed<2500,`probe-only synchronization took ${elapsed.toFixed(1)}ms`);near(result.synchronization.duration,600,1/48000);near(result.synchronization.sources[0].decodedDuration,600,1/30);
  assert.deepEqual(result.media.map(m=>m.id),[v.id,a.id]);assert.deepEqual(await tree(),before,'long takes must not create any files');
 });
+
+
+test('excluded camera before the take range preserves originals while healthy tracks save, load and install',async()=>{
+ const camera=path.join(folder,'excluded-camera.mp4'),screen=path.join(folder,'healthy-screen.mp4'),mic=path.join(folder,'healthy-mic.wav');
+ video(camera,.4,0);video(screen,3.2,0);
+ run(['-f','lavfi','-i','sine=sample_rate=48000:duration=4','-c:a','pcm_s16le',mic]);
+ const originals=await Promise.all([source(camera),source(screen),source(mic,'microphone')]),before=await Promise.all([camera,screen,mic].map(hash));
+ const aligned=await synchronizeRecording({startedAtMs:1000,sources:originals.map((m,i)=>({mediaId:m.id,track:(['camera','screen','audio'] as const)[i],firstSampleAtMs:i===1?1800:1000}))});
+ near(aligned.synchronization.takeStart!,.8,1e-9);near(aligned.synchronization.duration,3.2,1e-9);
+ assert.deepEqual(aligned.media.map(m=>m.id),originals.map(m=>m.id));
+ assert.equal(aligned.synchronization.sources[0].intersectionExclusion?.reason,'insufficient-coverage');
+ const p=createProject(),take:RecordedTake={id:'excluded-camera',createdAt:'now',sceneId:p.scenes[0].id,media:aligned.media,tracks:['camera','screen','audio'],offsets:aligned.offsets,synchronization:aligned.synchronization};
+ assert.deepEqual(takePreviewProject(p,take).clips.map(c=>c.track),['screen','audio']);
+ const saved=await storage.saveProject({...p,recordedTakes:[take]}),loaded=await storage.readProject(saved.id);
+ confirmTake(loaded,loaded.recordedTakes![0]);
+ assert.deepEqual(loaded.clips.map(c=>c.track),['screen','audio']);
+ for(const clip of loaded.clips)near(clipDuration(clip),3.2,1e-9);
+ assert.equal(loaded.recordedTakes![0].media.length,3);assert.equal(loaded.recordedTakes![0].timeline!.clips.length,2);
+ await storage.saveProject(loaded);
+ const installed=await storage.readProject(saved.id);assert.equal(installed.clips.length,2);assert.equal(installed.recordedTakes![0].synchronization!.sources.length,3);
+ assert.deepEqual(await Promise.all([camera,screen,mic].map(hash)),before);
+});

@@ -92,3 +92,20 @@ test('automatic transcription waits for open captures and runs at background pri
   await Promise.race([s.engine.shutdown(),delay(2000).then(()=>{throw Error('shutdown waited for the capture');})]);assert.equal((await s.engine.get(waiting!.id)).status,'cancelled');
  }finally{await s.close();}
 });
+
+
+test('v3 captions crossing contiguous splits appear once with outer take edges clipped',()=>{
+ for(const speed of [1,2]){
+  const p=fixture(),clip={...p.clips[0],recordingTakeId:'take',sourceIn:.2,sourceOut:1.8,speed};
+  p.recordedTakes=[{id:'take',createdAt:'now',sceneId:p.scenes[0].id,media:p.media,tracks:['audio'],offsets:[0],synchronization:{version:3,startedAtMs:0,originAtMs:0,duration:1.6,takeStart:.2,takeEnd:1.8,sources:[]}}];
+  p.clips=[{...clip,sourceOut:.5},{...clip,id:'second',start:.3/speed,sourceIn:.5,sourceOut:.55},{...clip,id:'third',start:.35/speed,sourceIn:.55}];
+  const words=[{text:'Head',start:.1,end:.3},{text:'Hello',start:.4,end:.6},{text:'Tail',start:1.7,end:1.9}];
+  const mapped=mapSourceCaptions(p,new Map([['speech',[{id:'words',start:.1,end:1.9,text:'Head Hello Tail',words}]]]));
+  assert.deepEqual(mapped.flatMap(c=>c.words??[]).map(w=>w.text),['Head','Hello','Tail']);
+  const hello=mapped.flatMap(c=>c.words??[]).find(w=>w.text==='Hello')!;
+  assert.ok(Math.abs(hello.start-.2/speed)<1e-9);assert.ok(Math.abs(hello.end-.4/speed)<1e-9);
+  assert.equal(mapped[0].start,0);assert.ok(Math.abs(mapped.at(-1)!.end-1.6/speed)<1e-9);
+  const segments=mapSourceCaptions(p,new Map([['speech',[{id:'segment',text:'Untimed phrase',start:.1,end:1.9}]]]));
+  assert.equal(segments.length,1);assert.equal(segments[0].text,'Untimed phrase');assert.equal(segments[0].start,0);assert.ok(Math.abs(segments[0].end-1.6/speed)<1e-9);
+ }
+});

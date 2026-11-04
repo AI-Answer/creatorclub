@@ -17,7 +17,16 @@ export const speechSignature=(p:Project)=>hash({windows:narrationWindows(p).map(
 export function mapSourceCaptions(p:Project,sources:Map<string,Caption[]>):Caption[]{
  const words:Word[]=[],segments:Caption[]=[];
  const intersectionTakes=new Set(p.recordedTakes?.filter(t=>t.synchronization?.version===3).map(t=>t.id));
- for(const {clip:c,start,end} of narrationWindows(p))for(const cap of sources.get(c.mediaId)??[]){
+ // Treat contiguous fragments of the same v3 source as one caption window.
+ // This keeps a word/untimed segment whole at edits while still clipping take edges.
+ const windows:NarrationWindow[]=[];
+ for(const window of narrationWindows(p)){
+  const last=windows.at(-1),c=window.clip;
+  const intersection=c.recordingTakeId!==undefined&&intersectionTakes.has(c.recordingTakeId);
+  if(intersection&&last&&last.clip.mediaId===c.mediaId&&last.clip.recordingTakeId===c.recordingTakeId&&last.clip.speed===c.speed&&Math.abs(last.end-window.start)<1e-8&&Math.abs(last.clip.sourceIn+(last.end-last.clip.start)*c.speed-(c.sourceIn+(window.start-c.start)*c.speed))<1e-8)last.end=window.end;
+  else windows.push({...window});
+ }
+ for(const {clip:c,start,end} of windows)for(const cap of sources.get(c.mediaId)??[]){
   const mapped=(t:number)=>c.start+(t-c.sourceIn)/c.speed;
   const intersection=c.recordingTakeId!==undefined&&intersectionTakes.has(c.recordingTakeId);
   if(cap.words?.length){for(const w of cap.words){const a=mapped(w.start),b=mapped(w.end),mid=(a+b)/2;if(intersection?b>start&&a<end:mid>=start&&mid<end&&w.start>=c.sourceIn-1e-5&&w.end<=c.sourceOut+1e-5)words.push({text:w.text,start:Math.max(start,a),end:Math.min(end,b)});}}

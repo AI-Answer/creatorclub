@@ -155,11 +155,11 @@ test('Board: a move that cannot be saved puts the card back and says so in one s
  });
 });
 
-test('Board: a saved move keeps the board local and the next drag uses its saved order',async()=>{
+test('Board: a saved move reconciles once and the next drag uses its saved order',async()=>{
  await withBoard({},'board',async(ui,calls)=>{
   const c=ui.container;
   await dragTo(card(c,'Alpha'),column(c,'planning'));
-  assert.equal(calls.filter(call=>call.path==='/videos'&&call.method==='GET').length,1,'moving does not reload the board');
+  assert.equal(calls.filter(call=>call.path==='/videos'&&call.method==='GET').length,2,'moving reconciles once after the save');
   await dragTo(card(c,'Bravo'),column(c,'planning'));
   assert.deepEqual(cardIds(column(c,'planning')),['p','a','b']);
  });

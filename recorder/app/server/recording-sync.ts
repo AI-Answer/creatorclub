@@ -90,8 +90,11 @@ export async function synchronizeRecording(input:SynchronizeInput):Promise<{medi
  const duration=takeEnd-takeStart;
  if(duration<=0)throw Error('Recording sources have no common complete video frame.');
  const synchronization:TakeSynchronization={version:3,startedAtMs:input.startedAtMs,originAtMs,duration,takeStart,takeEnd,...(frameRate?{frameRate}:{}),sources:coverage.map(({source:s,offset,excluded,lostDuration})=>{
-  const sourceIn=Math.max(0,takeStart-offset),sourceOut=Math.min(s.timing.duration,takeEnd-offset);
-  if(sourceOut<=sourceIn)throw Error('A recording source has no samples overlapping the recording clock.');
+  // An excluded device can end before the healthy take starts. Keep its
+  // original and exclusion metadata with an empty, bounded source range.
+  const bound=(time:number)=>Math.max(0,Math.min(s.timing.duration,time));
+  const sourceIn=bound(takeStart-offset),sourceOut=bound(takeEnd-offset);
+  if(sourceOut<=sourceIn&&!excluded)throw Error('A recording source has no samples overlapping the recording clock.');
   return {mediaId:s.mediaId,firstSampleAtMs:s.firstSampleAtMs,offset,firstPts:s.timing.firstPts,decodedDuration:s.timing.duration,sourceIn,sourceOut,...(excluded?{intersectionExclusion:{reason:'insufficient-coverage' as const,lostDuration}}:{}),...(s.sourceTimestampUs!==undefined?{sourceTimestampUs:s.sourceTimestampUs}:{})};
  })};
  // Supply accurate duration even when the original live WebM had no Duration.

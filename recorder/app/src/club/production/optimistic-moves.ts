@@ -7,15 +7,18 @@ type Pending={placement:Placement;resolve():void;reject(reason:unknown):void};
 export class OptimisticMoves {
  private pending:Pending[]=[];
  private saving=false;
- constructor(private confirmed:readonly Video[],private show:(videos:Video[])=>void,private save:(move:Placement)=>Promise<Video>){}
+ constructor(private confirmed:readonly Video[],private show:(videos:Video[])=>void,private save:(move:Placement)=>Promise<Video>,private reconcile:()=>void=()=>{}){}
  place(id:string,stage:VideoStage,beforeId:string|null,stageDates?:Video['stageDates']):Promise<void>{
   return new Promise((resolve,reject)=>{
    this.pending.push({placement:{id,stage,beforeId,stageDates,at:new Date().toISOString()},resolve,reject});
    this.draw();void this.drain();
   });
  }
+ /** Refresh the base without replacing the queue or discarding in-flight gestures. */
+ refresh(videos:readonly Video[]){this.confirmed=videos;this.draw();}
+ project(videos:readonly Video[]=this.confirmed):Video[]{return this.pending.reduce((next,item)=>this.apply(next,item.placement),[...videos]);}
  private apply(videos:readonly Video[],move:Placement){return applyMove(videos,move.id,move.stage,move.beforeId,move.at,move.stageDates);}
- private draw(){this.show(this.pending.reduce((videos,item)=>this.apply(videos,item.placement),[...this.confirmed]));}
+ private draw(){this.show(this.project());}
  private async drain(){
   if(this.saving)return;this.saving=true;
   while(this.pending.length){
@@ -26,6 +29,6 @@ export class OptimisticMoves {
     this.pending.shift();this.draw();item.resolve();
    }catch(reason){this.pending.shift();this.draw();item.reject(reason);}
   }
-  this.saving=false;
+  this.saving=false;this.reconcile();
  }
 }

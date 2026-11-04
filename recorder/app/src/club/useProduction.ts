@@ -1,4 +1,4 @@
-import {useCallback,useRef,useState} from 'react';
+import {useCallback,useEffect,useRef,useState} from 'react';
 import type {Video,VideoStage} from '../../shared/club';
 import {clubFetch,errorMessage} from './api';
 import {formatDay} from './board';
@@ -18,9 +18,8 @@ export function useProduction():{state:VideosState;videos:Video[]|null;reload():
  const loaded=state.status==='ready'?state.videos:null;
  // What is shown until the videos are read again: the loaded list they were made from, and the list with the changes in it.
  const [shadow,setShadow]=useState<{base:Video[];videos:Video[]}|null>(null);
- const videos=shadow&&shadow.base===loaded?shadow.videos:loaded;
- const latest=useRef(videos),base=useRef(loaded);
- latest.current=videos;base.current=loaded;
+ const latest=useRef<Video[]|null>(loaded),base=useRef(loaded);
+ base.current=loaded;
 
  const show=useCallback((next:Video[])=>{
   latest.current=next;
@@ -28,19 +27,20 @@ export function useProduction():{state:VideosState;videos:Video[]|null;reload():
  },[]);
  const sayFailed=useCallback((reason:unknown,fallback:string)=>toast(errorMessage(reason,fallback),{refused:true}),[toast]);
 
- const queue=useRef<{base:Video[];moves:OptimisticMoves}|null>(null);
+ // One queue survives all list refreshes, so save order and rollback remain intact.
+ const queue=useRef<OptimisticMoves|null>(null);
+ if(!queue.current)queue.current=new OptimisticMoves([],show,async placement=>{
+  const saved=await clubFetch<Video>(`/videos/${encodeURIComponent(placement.id)}/move`,{body:{stage:placement.stage,beforeId:placement.beforeId,...(placement.stageDates&&{stageDates:placement.stageDates})},notify:false});
+  window.dispatchEvent(new CustomEvent('club:video-moved',{detail:saved}));
+  return saved;
+ },reload);
+ const videos=shadow&&shadow.base===loaded?shadow.videos:loaded?queue.current.project(loaded):null;
+ latest.current=videos;
+ useEffect(()=>{if(loaded)queue.current!.refresh(loaded);},[loaded]);
  const place=useCallback((id:string,stage:VideoStage,beforeId:string|null,stageDates?:Video['stageDates']):Promise<void>=>{
-  const initial=base.current;
-  if(!initial)return Promise.resolve();
-  if(queue.current?.base!==initial)queue.current={base:initial,moves:new OptimisticMoves(latest.current??initial,next=>{
-   if(base.current===initial)show(next);
-  },async placement=>{
-   const saved=await clubFetch<Video>(`/videos/${encodeURIComponent(placement.id)}/move`,{body:{stage:placement.stage,beforeId:placement.beforeId,...(placement.stageDates&&{stageDates:placement.stageDates})},notify:false});
-   window.dispatchEvent(new CustomEvent('club:video-moved',{detail:saved}));
-   return saved;
-  })};
-  return queue.current.moves.place(id,stage,beforeId,stageDates);
- },[show]);
+  if(!base.current)return Promise.resolve();
+  return queue.current!.place(id,stage,beforeId,stageDates);
+ },[]);
 
  /** Puts a video in a stage, just before another or last. Nothing happens when it would stay where it is. */
  const move=useCallback(async(id:string,stage:VideoStage,beforeId:string|null)=>{

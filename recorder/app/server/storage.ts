@@ -191,7 +191,8 @@ export function validateProject(value:unknown):Project{
     }
     if(sync.version>=2&&(new Set(sync.sources.map(s=>s.mediaId)).size!==take.media.length||sync.sources.some(s=>{
      const {sourceIn,sourceOut}=s;
-     return typeof sourceIn!=='number'||typeof sourceOut!=='number'||![sourceIn,sourceOut].every(Number.isFinite)||sourceIn<0||sourceOut<=sourceIn||sourceOut>s.decodedDuration+1e-6||!take.media.some(m=>m.id===s.mediaId);
+     const emptyExcluded=sync.version===3&&s.intersectionExclusion!==undefined&&sourceIn===sourceOut&&(s.offset+s.decodedDuration<=sync.takeStart!||s.offset>=sync.takeEnd!);
+     return typeof sourceIn!=='number'||typeof sourceOut!=='number'||![sourceIn,sourceOut].every(Number.isFinite)||sourceIn<0||(sourceOut<=sourceIn&&!emptyExcluded)||sourceOut>s.decodedDuration+1e-6||!take.media.some(m=>m.id===s.mediaId);
     })))throw Error('Invalid recorded take synchronization ranges');
    }
    if(take.installedRoles!==undefined&&(!Array.isArray(take.installedRoles)||take.installedRoles.some(r=>!['screen','camera','overlay','music','audio:microphone','audio:system','audio:unknown'].includes(r))))throw Error('Invalid recorded take roles');

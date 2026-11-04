@@ -131,6 +131,10 @@ function createCaptureManager({ BrowserWindow, desktopCapturer, screen, ipcMain,
   if (!options) {
    options = await openPopup('sources', { sources: list.sources, displays: list.displays });
    if (!options || !fresh()) return null;
+   // The live picker may show sources opened after its initial inventory.
+   // Resolve the chosen id against fresh metadata, retaining no thumbnails.
+   try { list = await inventory({ afterSelection: true }); } catch (error) { if (!fresh()) return null; throw error; }
+   if (!fresh()) return null;
   }
   if (typeof options !== 'object' || typeof options.sourceId !== 'string' || !['display','window','region'].includes(options.mode)) throw new Error('Invalid capture selection.');
   const source = list.sources.find(source => source.id === options.sourceId);
