@@ -49,7 +49,7 @@ test('new intersection takes install one persistent link, move and trim together
  confirmTake(p,t);const link=p.clips[0].linkId;assert.ok(link);assert.ok(p.clips.every(c=>c.linkId===link));
  archiveSceneTake(p,t.id);activateSceneTake(p,t.sceneId,t.id);assert.ok(p.clips.every(c=>c.linkId===link));
  const chosen=new Set([p.clips[0].id]),all=linkedIds(p.clips,chosen);assert.equal(all.size,3);
- const move=planClipMove(p,all,-.5,.5);assert.equal(move.kind,'move');applyClipStarts(p,move.starts);assert.ok(p.clips.every(c=>c.start===.5));
+ const move=planClipMove(p,all,-.5,.5,{leaveGap:true});assert.equal(move.kind,'move');applyClipStarts(p,move.starts);assert.ok(p.clips.every(c=>c.start===.5));
  trimClips(p,chosen,'right',-.3,false);for(const c of p.clips)assert.ok(Math.abs(c.sourceOut-c.sourceIn-2)<1e-9);
  unlinkClips(p,chosen);assert.equal(linkedIds(p.clips,chosen).size,1);
  // Existing snapshots are never reinitialized or linked again on confirmation.

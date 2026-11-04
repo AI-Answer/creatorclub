@@ -54,7 +54,7 @@ export function cutTimelineRange(p:Project,from:number,to:number,ripple=true,sou
   if(ripple){const duration=Math.max(0,map(finish)-map(item.start));lost(duration);return duration>EPS||keepEmpty?[{...item,start:map(item.start),duration}]:[];}
   const pieces=parts(item.start,finish).map(([s,e],i)=>({...item,id:i===0?item.id:makeId(),start:s,duration:e-s}));lost(pieces.reduce((sum,piece)=>sum+piece.duration,0));return pieces;
  });
- p.scenes=timed(source.scenes,undefined,true);p.elements=timed(source.elements,'texts');p.zooms=timed(source.zooms,'zooms');if(source.motion)p.motion=timed(source.motion,'graphics');
+ p.scenes=timed(source.scenes,undefined,true);p.elements=timed(source.elements,'texts');p.zooms=timed(source.zooms,'zooms');if(source.motion)p.motion=timed(source.motion,'graphics');if(source.layouts)p.layouts=timed(source.layouts);
  const points=[...source.cursor.points].sort((a,b)=>a.time-b.time);
  const pointAt=(time:number):CursorPoint|undefined=>{let index=-1;for(let i=0;i<points.length&&points[i].time<=time;i++)index=i;if(index<0)return undefined;const a=points[index],b=points[index+1];if(!b||a.visible===false||b.visible===false)return {...a,time};const t=(time-a.time)/(b.time-a.time);return {...a,time,x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t};};
  const left=pointAt(start),right=pointAt(end);p.cursor.points=points.filter(pt=>pt.time<start-EPS||pt.time>=end-EPS).map(pt=>({...pt,time:map(pt.time)}));

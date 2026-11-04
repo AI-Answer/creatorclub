@@ -112,3 +112,9 @@ test('Stage pre-rolls upcoming clips transparent, inert and hidden from assistiv
  assert.match(html,/class="stage-inner" style="inset:0;pointer-events:none"/,'clicks reach the media layers stacked below .stage-inner');
  assert.match(html,/class="stage-cursor [^"]*" style="left:50%;top:25%;/);
 });
+
+test('a paused transport at the exact end keeps the last picture instead of an empty black stage',()=>{
+ const p=createProject();p.scenes=[];p.media=[media('screen')];p.clips=[clip('last','screen','screen',0,0,10)];
+ const atEnd=renderToStaticMarkup(React.createElement(Stage,{project:p,playhead:createPlayhead(10),playing:false,onSelect:()=>{},onImport:()=>{}}));
+ assert.match(atEnd,/class="stage-media"/);assert.match(atEnd,/<video/);assert.doesNotMatch(atEnd,/aria-hidden="true"/,'the last picture remains visible');
+});

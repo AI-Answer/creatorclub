@@ -10,9 +10,10 @@
   - red only for recording and destructive actions;
   - green only for done or ok;
   - amber only for warnings and problems to fix;
-  - one fixed colour per timeline kind (screen, camera, audio, graphics, captions, zoom, marker), the same in the timeline,
-    (video clips are Borumi's blue-600 and audio a darker blue; selection is an outline, never a fill)
-    the scene chips and the take chips (`ui/kinds.ts` names them for TSX);
+  - one fixed colour per timeline kind (screen, camera, audio, graphics, captions, zoom, layout, marker), the same in the timeline,
+    the scene chips and the take chips (`ui/kinds.ts` names them for TSX). They are Borumi's timeline classes: video blue-400,
+    audio-only green-400, overlays purple-400, control rows (layout, zoom, captions) yellow-400; Borumi's dark scale runs backwards,
+    so the same class is a deeper blue and an orange there. Selection is a blue-500 ring, never a fill;
   - neutral surfaces and text for everything else. No other hues.
 
   Follows the system by default (Borumi's "System default"); dark when `data-theme="dark"` is on .club-root or an ancestor. The names are prefixed `--cc-` because
@@ -115,20 +116,23 @@
   --cc-band-orange-soft: var(--cc-text);
   --cc-band-red: var(--cc-surface);
   --cc-band-red-soft: var(--cc-text);
-  /* Timeline kinds: one hue each, the same wherever a kind is drawn (timeline, scene chips, take chips). */
-  --kind-screen: #2563eb;
-  --kind-camera: #2563eb;
-  /* Audio is Borumi's deeper blue; captions gold (not olive, which read as "done" green); markers purple, visible on the ruler in both themes. */
-  --kind-audio: #1e40af;
-  /* On an audio clip, as in Borumi (sampled): the band the spoken words sit on, and the waveform under it. */
-  --kind-audio-band: #173477;
-  --kind-audio-wave: #16398a;
-  --kind-graphics: #b8457d;
-  --kind-captions: #9c7c00;
-  --kind-zoom: #9a5a2c;
+  /* Timeline kinds, Borumi's segment classes (`up()` in its timeline): bg-blue-400 for video, bg-green-400 for audio alone,
+     bg-purple-400 for overlays, bg-yellow-400 for the control rows. Light values here, dark values in the dark block. */
+  --kind-screen: hsl(213 94% 68%);
+  --kind-camera: hsl(213 94% 68%);
+  --kind-audio: hsl(142 69% 58%);
+  /* On a take, as in Borumi: the caption pill is the background at half strength (bg-background/50), the waveform black at 40%. */
+  --kind-audio-band: rgb(255 255 255 / 0.5);
+  --kind-audio-wave: #000000;
+  --kind-graphics: rgb(192 132 252);
+  --kind-control: hsl(43 96% 56%);
+  --kind-captions: var(--kind-control);
+  --kind-zoom: var(--kind-control);
+  --kind-layout: var(--kind-control);
   --kind-markers: #9b3fc2;
   --kind-marker: var(--kind-markers);
-  --kind-ink: #ffffff;
+  /* Words on a clip: Borumi's text-primary, near-black on its light clips and white on its dark ones. */
+  --kind-ink: #0a0a0a;
   /* Shades on top of a clip or a stage: a hairline edge, a label plate, a drag shadow. Black at three strengths, in both themes. */
   --cc-shade-soft: rgb(0 0 0 / 0.12);
   --cc-shade: rgb(0 0 0 / 0.35);
@@ -200,6 +204,13 @@
   --cc-primary: #ffffff;
   --cc-primary-hover: rgb(255 255 255 / 0.9);
   --cc-on-primary: #212121;
+  --kind-screen: hsl(221 83% 53%);
+  --kind-camera: hsl(221 83% 53%);
+  --kind-audio: hsl(142 76% 36%);
+  --kind-audio-band: rgb(10 10 10 / 0.5);
+  --kind-graphics: #7040a0;
+  --kind-control: #854508;
+  --kind-ink: #ffffff;
   --cc-bg: #212121;
   --cc-bg-sunk: #191919;
   --cc-surface: #242629;

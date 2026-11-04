@@ -16,6 +16,7 @@ import { isSoundTag } from "../shared/sound-tags.ts";
 import { clipShadow } from "../shared/clip-shadow.ts";
 import { canvasBackgroundBMP, canvasBackgroundGeometry, canvasBackgroundRepeatSize, MOVING_DOTS } from "../shared/canvas-background.ts";
 import { zoomTiming } from "../shared/zoom-timing.ts";
+import { bakeLayouts } from "../shared/layouts.ts";
 import { filmstripCount, FILMSTRIP_HEIGHT, FILMSTRIP_WIDTH } from "../shared/filmstrip.ts";
 import { renderMotionBlock } from "./motion-render.ts";
 import { onStage } from "../shared/look.ts";
@@ -294,7 +295,8 @@ export async function filmstrip(m: Media, cacheDir: string): Promise<string> {
 }
 /** Absolute source-level peaks, uniformly covering [0, duration), never normalized. */
 export async function waveform(m: Media, cacheDir: string): Promise<number[]> {
-  if (!m.hasAudio && m.kind !== "audio") return [];
+  // Older video metadata has no hasAudio flag. Probe it instead of hiding its waveform.
+  if (m.kind !== "audio" && (m.kind !== "video" || m.hasAudio === false)) return [];
   if (!Number.isFinite(m.duration) || m.duration <= 0 || m.duration > 86400)
     throw new Error("Waveform requires a source duration between zero and 24 hours");
   await fs.mkdir(cacheDir, { recursive: true });
@@ -312,6 +314,7 @@ export async function waveform(m: Media, cacheDir: string): Promise<number[]> {
     const info = JSON.parse(await command(FFPROBE, ["-v", "error", "-select_streams", "a:0",
       "-show_entries", "stream=channels", "-of", "json", source.real]));
     const channels = info.streams?.[0]?.channels;
+    if (!info.streams?.length && m.kind === "video") return [];
     if (!Number.isInteger(channels) || channels < 1 || channels > 32)
       throw new Error("Waveform requires a supported audio stream with at most 32 channels");
     const bins = new Array<number>(count).fill(0), frameBytes = channels * 4;
@@ -1621,6 +1624,9 @@ export function startExport(
 ): Job {
   const p = structuredClone(project),
     o = structuredClone(options);
+  // Layout stretches become clip pieces with their own transform, so slices and the renderer see plain clips.
+  // Only rendered formats bake: a JSON project export keeps its stretches and unsplit clips.
+  if (["mp4", "webm", "wav"].includes(o.format)) bakeLayouts(p);
   let timelineStart = 0;
   return enqueue("export", async (j) => {
     if (o.range) {

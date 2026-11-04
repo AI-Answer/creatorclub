@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createProject,defaultEffects,defaultTransform,clipDuration,type Clip,type Media,type Project} from '../shared/types';
 import {applyProjectChange} from './project-draft';
-import {secondsLabel,noteMarker,addMarker,anchoredScroll,openRange,remapLinks,applyClipStarts,closeRange,collides,deleteItems,ensureLinks,filmstripTiles,fitScale,freeDelta,insertPlan,isLinked,linkClips,linkGroups,linkedIds,moveEffects,moveMarker,planClipMove,removeMarker,resizeEffect,rowItems,rulerLabel,rulerTicks,splitLinked,timelineGaps,trimBounds,trimClips,trimGroup,rowsOverlap,uncovered,unlinkClips,DRAG_DEAD_ZONE_PX,showTenths,lengthLabel,MAX_SCALE} from './timeline-edit';
+import {secondsLabel,noteMarker,addMarker,anchoredScroll,openRange,remapLinks,applyClipStarts,closeRange,collides,deleteItems,ensureLinks,filmstripTiles,fitScale,freeDelta,insertPlan,isLinked,linkClips,linkGroups,linkedIds,moveEffects,moveMarker,planClipMove,removeMarker,resizeEffect,rowItems,rulerLabel,rulerTicks,splitLinked,timelineGaps,trimBounds,trimClips,insertGap,trimGroup,rowsOverlap,uncovered,unlinkClips,DRAG_DEAD_ZONE_PX,showTenths,lengthLabel,MAX_SCALE} from './timeline-edit';
 
 const media=(id:string,duration=600):Media=>({id,name:id,path:`/tmp/${id}.mov`,kind:'video',duration,width:1920,height:1080,hasAudio:true});
 const clip=(id:string,track:Clip['track'],start:number,length:number,extra:Partial<Clip>={}):Clip=>({id,mediaId:track==='camera'?'cam':track==='audio'?'mic':'scr',name:id,track,start,sourceIn:0,sourceOut:length,speed:1,gain:1,muted:false,transform:defaultTransform(),effects:defaultEffects(),...extra});
@@ -77,7 +77,8 @@ test('clips cannot overlap on a row: a move slides to the nearest gap, or insert
  const plan=insertPlan(items.filter(i=>i.id==='c'),1,items)!;
  assert.equal(plan.at,0);assert.deepEqual([...plan.starts].sort(),[['a',5],['b',10],['c',0]]);
  const move=planClipMove(p,new Set(['c']),-9,1);assert.equal(move.kind,'insert');
- assert.equal(planClipMove(p,new Set(['c']),2,17).kind,'move');
+ assert.equal(planClipMove(p,new Set(['c']),2,17).kind,'none','dropping the last clip after itself leaves no new gap');
+ assert.equal(planClipMove(p,new Set(['c']),2,17,{leaveGap:true}).kind,'move','an explicit leave-gap move may use the free space');
  assert.equal(planClipMove(p,new Set(['b']),.5,7.4).kind,'none','dropped back where it was');
 });
 
@@ -86,7 +87,7 @@ test('a linked take moves as one block and its captions follow the narration',()
  const ids=linkedIds(p.clips,['screen1']),move=planClipMove(p,ids,15,18);
  assert.equal(move.kind,'insert');applyClipStarts(p,move.starts);
  assert.deepEqual(p.clips.map(c=>[c.id,c.start]).sort(),[['audio1',10],['audio2',0],['camera1',10],['camera2',0],['screen1',10],['screen2',0]]);
- assert.deepEqual(p.captions.map(c=>[c.id,c.start]),[['c',12],['d',2]]);
+ assert.deepEqual(p.captions.map(c=>[c.id,c.start]),[['d',2],['c',12]],'captions follow their audio and stay in playback order');
 });
 
 test('effects move without overlapping and resize within their neighbours',()=>{
@@ -166,9 +167,11 @@ test('Task 14: a move never opens a gap before the first clip; a sole clip canno
  assert.equal(planClipMove(sole,ids,4.4,6).kind,'none','the only take stays at 0');
  const two=project([...take(1,0,10),...take(2,14,6)]),first=linkedIds(two.clips,['screen1']);
  const plan=planClipMove(two,first,2,3);assert.ok(Math.min(...[...plan.starts.values()],...two.clips.filter(c=>!first.has(c.id)).map(c=>c.start))<=1e-9||plan.kind==='none','nothing starts after 0 alone');
- const second=linkedIds(two.clips,['screen2']);assert.equal(planClipMove(two,second,2,16).kind,'move','a later take still moves freely');
- const sliver=project(take(1,.03,10));assert.equal(planClipMove(sliver,linkedIds(sliver.clips,['screen1']),4.4,6).kind,'none','a sliver left by an earlier cut does not let the only take drift');
- assert.equal(planClipMove(sliver,linkedIds(sliver.clips,['screen1']),-.03,0).kind,'move','closing that sliver is fine');
+ const second=linkedIds(two.clips,['screen2']);assert.equal(planClipMove(two,second,2,16,{leaveGap:true}).kind,'move','a later take can deliberately keep a gap');
+ const closeExisting=planClipMove(two,second,2,16);assert.equal(closeExisting.kind,'insert');assert.equal(closeExisting.starts.get('screen2'),10,'default insertion closes the existing source gap instead of enlarging it');
+ const sliver=project(take(1,.03,10));assert.equal(planClipMove(sliver,linkedIds(sliver.clips,['screen1']),4.4,6,{leaveGap:true}).kind,'none','a sliver left by an earlier cut does not let an Option-drag make the leading gap bigger');
+ assert.equal(planClipMove(sliver,linkedIds(sliver.clips,['screen1']),4.4,6).starts.get('screen1'),0,'default insertion closes the leading sliver');
+ const closeSliver=planClipMove(sliver,linkedIds(sliver.clips,['screen1']),-.03,0);assert.equal(closeSliver.starts.get('screen1'),0,'closing that sliver is fine');
  assert.equal(DRAG_DEAD_ZONE_PX,6);
 });
 
@@ -206,4 +209,17 @@ test('a note is named in whole seconds',()=>{
  assert.equal(secondsLabel(59.6),'1:00');
  assert.equal(secondsLabel(75),'1:15');
  assert.equal(secondsLabel(-3),'0:00');
+});
+
+test('typed captions no narration clip owns move with the time an insert or a ripple trim opens',()=>{
+ const typed=()=>({id:'typed',text:'Typed note',start:7,end:8});
+ const owned=()=>({id:'spoken',text:'hello',start:1,end:2,words:[{text:'hello',start:1,end:2}]});
+ const inserted=project(take(1,0,5));inserted.captions=[owned(),typed()];
+ insertGap(inserted,3,2);
+ const t=inserted.captions.find(c=>c.id==='typed')!;assert.deepEqual([t.start,t.end],[9,10],'the gap pushes the typed caption later');
+ assert.deepEqual(inserted.captions.filter(c=>c.id.startsWith('spoken')).map(c=>[c.start,c.end]),[[1,2]],'spoken words before the gap stay put');
+ const trimmed=project(take(1,0,5));trimmed.captions=[owned(),typed()];
+ trimClips(trimmed,new Set(['audio1']),'right',1,true);
+ const u=trimmed.captions.find(c=>c.id==='typed')!;assert.deepEqual([u.start,u.end],[8,9],'a ripple trim that adds time pushes it too');
+ assert.deepEqual(trimmed.captions.filter(c=>c.id.startsWith('spoken')).map(c=>[c.start,c.end]),[[1,2]]);
 });

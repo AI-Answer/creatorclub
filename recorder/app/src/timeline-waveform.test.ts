@@ -1,9 +1,17 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-import {TimelineWaveformCache,hasWaveform,waveformBars,waveformHeight,waveformMediaKey,waveformEnvelopePath} from './timeline-waveform';
+import {TimelineWaveformCache,hasWaveform,waveformBars,waveformHeight,waveformMediaKey,waveformEnvelopePath,waveformSpikesPath} from './timeline-waveform';
 import {defaultEffects,defaultTransform,type Clip,type Media} from '../shared/types';
 const media:Media={id:'source',path:'/fixture/source.wav',name:'Audio',kind:'audio',duration:10,width:0,height:0};
 const clip:Clip={id:'c',mediaId:'source',name:'Trimmed',track:'audio',start:20,sourceIn:4,sourceOut:8,speed:2,gain:1,muted:false,transform:defaultTransform(),effects:defaultEffects()};
 const tick=()=>new Promise(resolve=>setTimeout(resolve,0));
+test('speech columns stay mirrored and separated, while silence draws no artificial sound',()=>{
+ const path=waveformSpikesPath([{x:1,peak:0},{x:3,peak:.006},{x:5,peak:.2}],40,20);
+ assert.equal((path.match(/M/g)??[]).length,2);assert.equal(waveformSpikesPath([{x:1,peak:0}],40,20),'');
+ const columns=[...path.matchAll(/M([\d.]+) ([\d.]+)h1V([\d.]+)h-1Z/g)];assert.equal(columns.length,2);
+ for(const [,x,top,bottom] of columns){assert.ok(Number(x)>1);assert.ok(Math.abs(Number(top)+Number(bottom)-80)<.02);}
+ assert.ok(Number(columns[0][3])-Number(columns[0][2])>14,'quiet speech occupies a readable part of the body');
+ assert.ok(Number(columns[1][3])-Number(columns[1][2])>Number(columns[0][3])-Number(columns[0][2]),'louder speech remains taller');
+});
 test('trim and speed sample later source bins instead of beginning of file',()=>{const peaks=Array.from({length:10},(_,i)=>i/10),bars=waveformBars(clip,media,peaks,3,20,22);assert.deepEqual(bars,[{x:1.5,peak:.5},{x:4.5,peak:.7}]);});
 test('visible scroll window maps source time and preserves quiet amplitude, gaps and bounds',()=>{const peaks=[0,0,0,0,.01,.01,.02,.02,0,0];assert.deepEqual(waveformBars(clip,media,peaks,3,21,22),[{x:4.5,peak:.02}]);assert.deepEqual(waveformBars(clip,media,peaks,3,0,19),[]);assert.deepEqual(waveformBars(clip,{...media,duration:0},peaks,3,20,22),[]);assert.ok(waveformBars(clip,media,peaks,100000,20,22).length<=1200);});
 test('bars sit on a fixed timeline pixel grid so a moving window keeps every shared bar unchanged',()=>{
@@ -14,9 +22,9 @@ test('bars sit on a fixed timeline pixel grid so a moving window keeps every sha
  assert.deepEqual(waveformBars(clip,media,Array.from({length:10},(_,i)=>i/10),3,20,22,1),[{x:3,peak:.7}]);
 });
 test('one filled envelope per clip mirrors each bar about the centerline and collapses flat runs',()=>{
- assert.equal(waveformEnvelopePath([{x:1.5,peak:.25},{x:4.5,peak:0},{x:7.123,peak:1}],14,13),'M1.5 14L1.5 7.5 4.5 14 7.12 1 7.12 14 7.12 27 4.5 14 1.5 20.5Z');
+ assert.equal(waveformEnvelopePath([{x:1.5,peak:.001},{x:4.5,peak:0},{x:7.123,peak:1}],14,12),'M1.5 14L1.5 12 4.5 14 7.12 2 7.12 14 7.12 26 4.5 14 1.5 16Z');
  assert.equal(waveformEnvelopePath([]),'');assert.equal(waveformEnvelopePath([{x:1,peak:0},{x:3,peak:0}]),'');
- const flat=waveformEnvelopePath([{x:1,peak:.25},{x:3,peak:.25},{x:5,peak:.25},{x:7,peak:.25}],10,8);assert.equal(flat,'M1 10L1 6 7 6 7 10 7 14 1 14Z');
+ const flat=waveformEnvelopePath([{x:1,peak:.001},{x:3,peak:.001},{x:5,peak:.001},{x:7,peak:.001}],10,12);assert.equal(flat,'M1 10L1 8 7 8 7 10 7 12 1 12Z');
  const peaks=Array.from({length:10},(_,i)=>i/10);assert.equal(waveformBars(clip,media,peaks,3,20,22,4096,2).length,3);
 });
 test('muted and gain-adjusted clips retain raw source waveform without normalization',()=>{const peaks=Array(10).fill(.04);for(const change of [{muted:true},{gain:20},{gain:0}])assert.ok(waveformBars({...clip,...change},media,peaks,3,20,22).every(b=>b.peak===.04));assert.ok(hasWaveform({...media,kind:'video'}));assert.ok(!hasWaveform({...media,kind:'video',hasAudio:false}));assert.ok(!hasWaveform({...media,kind:'image'}));});
@@ -31,4 +39,15 @@ test('embedded whole-source envelopes avoid requests and result cache evicts lea
 import {resolveShortcut,shortcutDefinitions} from './shortcuts';
 test('E toggles waveforms only in the editor outside typing, repeat and modal contexts',()=>{const definition=shortcutDefinitions.find(d=>d.id==='toggleWaveforms')!;assert.equal(definition.extension,true);assert.equal(resolveShortcut({key:'e'},{scope:'edit'})?.id,'toggleWaveforms');for(const context of [{scope:'record' as const},{scope:'edit' as const,editable:true},{scope:'edit' as const,modal:true}])assert.equal(resolveShortcut({key:'e'},context),null);assert.equal(resolveShortcut({key:'e',repeat:true},{scope:'edit'}),null);assert.equal(resolveShortcut({key:'e',isComposing:true},{scope:'edit'}),null);});
 
-test("fixed display curve preserves relative loudness and absolute silence",()=>{assert.equal(waveformHeight(0),0);assert.equal(waveformHeight(.01),1.3);assert.equal(waveformHeight(1),13);assert.ok(waveformHeight(.0001)>0);assert.ok(waveformHeight(.01)<waveformHeight(.04));});
+test('fixed dBFS curve exposes quiet speech and preserves loudness, silence and headroom',()=>{
+ assert.equal(waveformHeight(0),0);assert.equal(waveformHeight(1),13);
+ assert.equal(waveformHeight(.000001),0);assert.equal(waveformHeight(NaN),0);assert.equal(waveformHeight(Infinity),0);assert.equal(waveformHeight(-1),0);assert.equal(waveformHeight(2),13);
+ // A real quiet mic at -44 dBFS occupied less than 8% of the old square-root envelope: now over a third is visible.
+ assert.ok(waveformHeight(.006,30)>11);assert.ok(waveformHeight(.01,30)>13);
+ const amplitudes=[.001,.006,.01,.04,.1,.6,1],heights=amplitudes.map(p=>waveformHeight(p,30));
+ assert.ok(heights.every((h,i)=>i===0||h>heights[i-1]));
+ // Equal 20 dB changes occupy equal height; no source is independently normalized to full height.
+ const step=waveformHeight(.01)-waveformHeight(.001);
+ assert.ok(Math.abs((waveformHeight(.1)-waveformHeight(.01))-step)<1e-9);
+ assert.ok(waveformHeight(.6,30)<30);
+});

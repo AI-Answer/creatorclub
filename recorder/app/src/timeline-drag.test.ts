@@ -22,6 +22,16 @@ test('group movement gives start anchors the observed two-pixel near-tie prefere
 test('disabled magnets keep continuous timing and pointer scroll is included',()=>{
  assert.deepEqual(snapTimelineDelta({delta:1.97,anchors:[0],targets:[{time:2,kind:'playhead'}],scale:100,enabled:false}),{delta:1.97,guide:null});assert.equal(timelinePointerDelta(100,120,40,140,60),2);
 });
+test('linked take edges snap to scene bounds, clip edges and playhead only while the magnet is on',()=>{
+ const moving=[{id:'mic',start:2,duration:3},{id:'camera',start:2.2,duration:2.8}];
+ const targets=snapTargets([...moving,{id:'next',start:20,duration:4}],new Set(moving.map(c=>c.id)),15,[8,12]);
+ for(const [raw,expected,kind] of [[5.95,6,'scene'],[6.95,7,'scene'],[12.95,13,'playhead'],[17.95,18,'edge']] as const){
+  const snapped=groupMove(moving,raw,targets,100,true,12);
+  assert.ok(Math.abs(snapped.delta-expected)<1e-9);assert.equal(snapped.guide?.kind,kind);
+  assert.ok(Math.abs((moving[1].start+snapped.delta)-(moving[0].start+snapped.delta)-(moving[1].start-moving[0].start))<1e-9);
+  assert.deepEqual(groupMove(moving,raw,targets,100,false,12),{delta:raw,guide:null});
+ }
+});
 test('layer interiors and insertion edges use actual row coordinates and reject incompatible rows',()=>{
  const rows=[{id:'top',kind:'video' as const,top:53,bottom:121},{id:'bottom',kind:'video' as const,top:124,bottom:192},{id:'audio',kind:'audio' as const,top:195,bottom:263}];
  assert.deepEqual(hitLayerDrop(80,'video',rows),{kind:'existing',rowId:'top'});assert.deepEqual(hitLayerDrop(122,'video',rows),{kind:'new',afterId:'top',beforeId:'bottom'});assert.deepEqual(hitLayerDrop(54,'video',rows),{kind:'new',afterId:null,beforeId:'top'});assert.equal(hitLayerDrop(230,'video',rows),null);assert.deepEqual(hitLayerDrop(250,'audio',rows),{kind:'existing',rowId:'audio'});

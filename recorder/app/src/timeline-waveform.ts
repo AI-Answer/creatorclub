@@ -1,8 +1,14 @@
 import {clipDuration,type Clip,type Media} from '../shared/types';
 export function waveformMediaKey(media:Media){return JSON.stringify([media.id,media.path,media.size??null,media.duration,media.hasAudio??null]);}
 export function hasWaveform(media:Media){return media.kind==='audio'||media.kind==='video'&&media.hasAudio!==false;}
-/** A fixed square-root display curve makes quiet recordings visible without per-source normalization. */
-export function waveformHeight(peak:number,max=13){return max*Math.sqrt(Math.max(0,Math.min(1,Number.isFinite(peak)?peak:0)));}
+/** A fixed dBFS range keeps quiet speech readable while preserving loudness differences between sources. */
+export const WAVEFORM_FLOOR_DB=-72;
+export function waveformHeight(peak:number,max=13){
+ const amplitude=Math.max(0,Math.min(1,Number.isFinite(peak)?peak:0));
+ if(!amplitude)return 0;
+ const db=20*Math.log10(amplitude);
+ return max*Math.max(0,Math.min(1,(db-WAVEFORM_FLOOR_DB)/-WAVEFORM_FLOOR_DB));
+}
 export interface WaveformBar {x:number;peak:number;}
 /** Whole-source bins are sampled in source time, including trim and speed. Bins sit on a fixed timeline pixel grid, so a moving visible window only adds or drops edge bars; the pitch doubles past maxBars. */
 export function waveformBars(clip:Clip,media:Media,peaks:readonly number[],scale:number,visibleStart:number,visibleEnd:number,maxBars=1200,basePitch=3):WaveformBar[]{
@@ -19,6 +25,12 @@ export function waveformBars(clip:Clip,media:Media,peaks:readonly number[],scale
  }return bars;
 }
 const pathNumber=(value:number)=>Math.round(value*100)/100;
+/** Dense one-pixel columns, separated by a pixel: speech detail stays visible instead of merging into a solid blob. */
+export function waveformSpikesPath(bars:readonly WaveformBar[],mid:number,amplitude:number):string{
+ // Bars are centered on the integer timeline grid. Align the column edge to that grid too;
+ // half-pixel edges blur into both neighbouring pixels and erase the gaps between columns.
+ return bars.flatMap(bar=>{const height=waveformHeight(bar.peak,amplitude);if(height<=0)return [];const x=pathNumber(bar.x-1),top=pathNumber(mid-height),bottom=pathNumber(mid+height);return [`M${x} ${top}h1V${bottom}h-1Z`];}).join('');
+}
 /** One filled path per clip: the envelope mirrored about the centerline, top edge left to right and bottom edge back. Flat runs drop their interior points, so silence costs nothing; an all-silent window draws nothing and leaves the baseline. */
 export function waveformEnvelopePath(bars:readonly WaveformBar[],mid=11,amplitude=10):string{
  const heights=bars.map(bar=>waveformHeight(bar.peak,amplitude));if(!heights.some(height=>height>0))return '';

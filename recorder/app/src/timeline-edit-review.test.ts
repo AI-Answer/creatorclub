@@ -40,7 +40,7 @@ test('a pasted copy gets its own link; unlink then move moves one clip',()=>{
  assert.equal(linkedIds(p.clips,['screen1']).size,6,'a link group is exactly the clips sharing a linkId, until the paste remaps them');
  remapLinks(p,new Set(['copy-screen1','copy-camera1','copy-audio1']));assert.equal(linkedIds(p.clips,['screen1']).size,3);
  unlinkClips(p,['screen1']);assert.equal(isLinked(p.clips,'screen1'),false);
- const move=planClipMove(p,new Set(['screen1']),2,5);applyClipStarts(p,move.starts);
+ const move=planClipMove(p,new Set(['screen1']),2,5,{leaveGap:true});applyClipStarts(p,move.starts);
  assert.deepEqual(p.clips.slice(0,3).map(c=>c.start),[2,0,0]);
  assert.equal(linkClips(p,['camera1','copy-camera1']),false,'clips that do not line up are not linked');
  assert.equal(linkClips(p,['camera1','audio1']),true);
