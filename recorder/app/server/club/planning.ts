@@ -89,8 +89,8 @@ const sceneShape = z
   })
   .strict();
 
-/** An outline as the person edits it: 1 to 20 scenes. The AI's own answer is held to 4 to 7 by `outlineProblems`. */
-export const outlineShape = z.object({ scenes: z.array(sceneShape).min(1).max(20) }).strict();
+/** An outline as the person edits it: 0 to 20 scenes (including deleting the last scene). The AI's own answer is held to 4 to 7 by `outlineProblems`. */
+export const outlineShape = z.object({ scenes: z.array(sceneShape).max(20) }).strict();
 
 export function parseAnswer<T>(shape: z.ZodType<T>, json: unknown, who: string, what: string): T {
   const parsed = shape.safeParse(json);

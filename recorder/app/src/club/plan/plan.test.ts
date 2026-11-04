@@ -1,3 +1,4 @@
+import {rememberAiStatus} from '../ai-status';
 import {ASK_CLAUDE} from '../workspace/ask-claude';
 import {mountUI} from '../../test-dom';
 import test from 'node:test';
@@ -11,6 +12,7 @@ const {Plan}=await import('./Plan');
 const {usePlan}=await import('../usePlan');
 const {ToastProvider}=await import('../ui');
 
+rememberAiStatus({claude:{installed:true,version:'test',signedIn:true},codex:{installed:false,version:null,signedIn:false}});
 const flush=()=>act(async()=>{await new Promise(resolve=>setTimeout(resolve,0));});
 const press=async(element:Element|null)=>{assert.ok(element,'element to press');await act(async()=>(element as HTMLElement).click());await flush();};
 /** Types into a click-to-edit field and leaves it, which is what saves it. */
@@ -54,7 +56,7 @@ test('Package column: titles as a list with the video title ticked, thumbnail te
  }finally{await ui.close();}
 });
 
-test('Package column: empty, it is one sentence and one action, and "or fill it in yourself" opens the fields; a long title says why in words',async()=>{
+test('Package column: empty, it is one sentence and one action, and "Write it myself" opens the fields; a long title says why in words',async()=>{
  const writes:Array<string|undefined>=[];
  const props={videoId:'v1',videoTitle:'X',pkg:{...empty,demand:{level:'high' as const,note:'many'}},running:false,onEdit(){},onPickTitle(){},onWrite:(group?:string)=>{writes.push(group);}};
  const ui=await mountUI(createElement(PackageColumn,props));
@@ -62,13 +64,13 @@ test('Package column: empty, it is one sentence and one action, and "or fill it 
   const c=ui.container;
   assert.equal(c.querySelectorAll('[role="textbox"]').length,0,'no empty fields');
   assert.equal(c.querySelectorAll('.pkg-empty p').length,1);
-  assert.deepEqual([...c.querySelectorAll('button')].map(b=>b.textContent?.trim()),['Write all three with Claude','or fill it in yourself']);
+  assert.deepEqual([...c.querySelectorAll('button')].map(b=>b.textContent?.trim()),['Write all three with Claude','Write it myself']);
   assert.equal(c.querySelector('.btn.primary'),null,'not a second black primary beside Draft scenes from the board');
   await press(buttonNamed(c,'Write all three with Claude'));assert.deepEqual(writes,[undefined]);
   await ui.render(createElement(PackageColumn,{...props,running:true}));
   assert.ok(c.querySelector('[aria-label="Writing the title, thumbnail and hook"]'),'a skeleton while the first package is written');
   await ui.render(createElement(PackageColumn,props));
-  await press(buttonNamed(c,'or fill it in yourself'));
+  await press(buttonNamed(c,'Write it myself'));
   assert.ok(c.querySelector('.tline:not(.own) [role="textbox"]'),'a first title to type');
   assert.ok(buttonNamed(c,'Write with Claude'),'the one Write with Claude menu sits in the heading');
   await ui.render(createElement(PackageColumn,{...props,pkg:{...empty,titles:['A title that goes on and on well past what a search result shows','Short','']}}));
@@ -176,7 +178,7 @@ test('Scenes column: no scenes is one sentence and Draft scenes from the board, 
  try{
   const c=ui.container;
   assert.equal(c.querySelectorAll('.plan-empty p').length,1);
-  assert.deepEqual([...c.querySelectorAll('button')].map(b=>b.textContent?.trim()),['Draft scenes from the board'],'one action, and no menu over nothing');
+  assert.deepEqual([...c.querySelectorAll('button')].map(b=>b.textContent?.trim()),['Add scene','Draft scenes from the board'],'manual creation alongside optional drafting');
   await press(buttonNamed(c,'Draft scenes from the board'));assert.equal(drafted,1);
   await ui.render(withToasts({...props,drafting:true,draftLine:'Reading the board…'}));
   assert.equal(c.querySelectorAll('.shimmer').length,4);assert.equal(buttonNamed(c,'Draft scenes from the board'),null);

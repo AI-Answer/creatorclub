@@ -53,7 +53,7 @@ export function tabDone(tab:VideoTab,{stage,scenes,allRecorded,exported}:TabFact
 /** Continue is the primary button only once the tab's job is done and the tab has no primary of its own still waiting (one primary per view). */
 export const continueIsPrimary=(done:boolean,ownPrimary:boolean)=>done&&!ownPrimary;
 
-/** What a step needs before it can work: the scenes for Record, something recorded for Edit and Publish. */
+/** Recorder facts used by the workspace. They never restrict navigation. */
 export interface LockFacts{
  stage:VideoStage;
  /** The video's scenes with their takes; undefined while they are not known (nothing is locked on a guess). */
@@ -65,28 +65,14 @@ export interface LockFacts{
 /** A locked step: the one line that says what unlocks it, and the step that does. */
 export type TabLock={reason:string;unlock:VideoTab};
 
-const PLAN_FIRST:TabLock={reason:'Plan the scenes first',unlock:'plan'};
-const RECORD_FIRST:TabLock={reason:'Record a scene first',unlock:'record'};
-
-/**
- * Whether a step cannot work yet, and what unlocks it: always the first thing missing, so its step is never locked itself.
- * Board and Plan never lock. Record needs scenes. Edit and Publish need a recorded take (Publish exports on its own, so it
- * does not wait for an edit). A published video locks nothing, and nothing locks while the scenes are not known. A video with a
- * recording project is never sent back to Plan: the recording is the authority on its scenes even when the scene list reads empty.
- */
-export function tabLock(tab:VideoTab,{stage,scenes,hasRecording}:LockFacts):TabLock|undefined{
- if(tab==='board'||tab==='plan'||!scenes||stage==='published')return undefined;
- if(!scenes.length)return hasRecording?undefined:PLAN_FIRST;
- if(tab==='record')return undefined;
- return hasRecording&&scenes.some(scene=>scene.takes.length>0)?undefined:RECORD_FIRST;
-}
+/** Workspace navigation is always available, regardless of stage, outline or takes. */
+export function tabLock(_tab:VideoTab,_facts:LockFacts):TabLock|undefined{return undefined;}
 
 /** How a step shows in the step bar: done (ticked), the current one, the next one Continue goes to, locked, or open. */
-export type TabState='done'|'current'|'next'|'locked'|'open';
+export type TabState='done'|'current'|'next'|'open';
 
 export function tabState(key:VideoTab,current:VideoTab,facts:TabFacts&LockFacts):TabState{
  if(key===current)return 'current';
- if(tabLock(key,facts))return 'locked';
  if(tabDone(key,facts))return 'done';
  return key===nextTab(current)?'next':'open';
 }
@@ -98,17 +84,13 @@ export const CONTINUE_LABEL:Record<VideoTab,string>={board:'Continue to board',p
 export type ContinueButton={label:string;disabled:boolean;reason?:string;primary:boolean};
 
 /**
- * The one Continue rule of every step. It names the real next step; when that step is locked it is disabled and says what is
- * missing (on Plan, "Draft the scenes first": the scenes are this step's own job); while Claude writes it waits and says so.
+ * Continue opens the next step without requiring earlier steps to be finished. While Claude writes it waits and says so.
  * It is the primary only once the step's job is done and the step shows no primary of its own (`ownPrimary`). The last step has none.
  */
 export function continueFor(tab:VideoTab,facts:TabFacts&LockFacts,{busy=false,ownPrimary=false}:{busy?:boolean;ownPrimary?:boolean}={}):ContinueButton|undefined{
  const next=nextTab(tab);
  if(!next)return undefined;
  const label=CONTINUE_LABEL[next];
- const lock=tabLock(next,facts);
- if(lock)return {label,disabled:true,reason:lock.unlock===tab&&tab==='plan'?'Draft the scenes first':lock.reason,primary:false};
- if(!facts.scenes&&next!=='plan')return {label,disabled:true,primary:false};
  if(busy)return {label,disabled:true,reason:'Claude is still writing',primary:false};
  // Edit and Publish can open with only some scenes recorded, but Continue says so and never pushes forward as the primary.
  const missing=(next==='edit'||next==='publish')&&facts.scenes&&!facts.allRecorded?facts.scenes.length-facts.scenes.filter(isSceneRecorded).length:0;
@@ -129,13 +111,4 @@ export const TAKE_NOT_ADDED="Couldn't add your take to the timeline. Press Conti
 /** The titles of scenes whose recorded take is not on the timeline and was not set aside on purpose. */
 export function takesWaiting(scenes: Array<{title:string;takes:Array<{kept:boolean;retained:boolean}>}>|undefined):string[]{
  return (scenes??[]).filter(scene=>scene.takes.length>0&&!isSceneRecorded(scene)&&scene.takes.some(take=>!take.retained)).map(scene=>scene.title);
-}
-
-/** What Publish needs besides a recording, said wherever a locked Publish is explained, so the paid part is never a surprise. */
-export const POSTIZ_LINE='Publishing uses Postiz, a paid service from $29 a month: connect it in Settings.';
-
-/** The toast when a locked step is chosen or linked: the reason, which step opens after it, and for Publish the Postiz line while it is not connected. */
-export function lockedLine(tab:VideoTab,lock:TabLock,{postizConnected=true}:{postizConnected?:boolean}={}):string{
- const line=`${lock.reason}. ${TAB_LABEL[tab]} opens after that.`;
- return tab==='publish'&&!postizConnected?`${line} ${POSTIZ_LINE}`:line;
 }

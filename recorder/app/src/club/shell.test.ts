@@ -100,8 +100,8 @@ test('the sidebar counts and orders from the videos it is given',()=>{
 });
 
 test('Home, Discover and Videos open their own screens, and every old link lands on the new one with the sidebar on the right place',async()=>{
- for(const [hash,title,item,canonical] of [['#/home','Good','Home','#/home'],['#/discover','Discover','Discover','#/discover'],['#/videos','Videos','Videos','#/videos'],
-  ['#/overview','Good','Home','#/home'],['#/ideas?filter=later','Videos','Videos','#/videos?group=later'],['#/trending','Discover','Discover','#/discover?show=youtube'],
+ for(const [hash,title,item,canonical] of [['#/home','Videos','Home','#/home'],['#/discover','Discover','Discover','#/discover'],['#/videos','Videos','Videos','#/videos'],
+  ['#/overview','Videos','Home','#/home'],['#/ideas?filter=later','Videos','Videos','#/videos?group=later'],['#/trending','Discover','Discover','#/discover?show=youtube'],
   ['#/signals','Discover','Discover','#/discover'],['#/production/calendar','Videos','Videos','#/videos/calendar']]){
   await withApp(hash,async ui=>{
    const c=ui.container;
@@ -112,19 +112,21 @@ test('Home, Discover and Videos open their own screens, and every old link lands
  }
 });
 
-test('the first tab is named after the home section showing, goes back to it from a video, and + starts a new video',async()=>{
+test('the pinned tab is always Home, video tabs show stage dots, and + starts a new video',async()=>{
  await withApp('#/home',async ui=>{
   const c=ui.container;
   for(const [hash,label] of [['#/home','Home'],['#/discover','Discover'],['#/videos','Videos'],['#/research','Research']]){
    await hashTo(hash);
-   assert.equal(c.querySelector('.ts-tab.on.home .ts-label')!.textContent,label,hash);
+   assert.equal(c.querySelector('.ts-tab.on.home .ts-label')!.textContent,'Home',hash);
+   assert.equal(c.querySelector('.ts-tab.home a')!.getAttribute('href'),'#/home');
    assert.ok(c.querySelector('.sidebar'),`${hash} shows the Home nav`);
   }
   await hashTo('#/video/p1');
   assert.equal(c.querySelector('.sidebar'),null,'a video has no Home nav');
   const home=c.querySelector<HTMLAnchorElement>('.ts-tab.home .ts-label')!;
-  assert.equal(home.textContent,'Research','the first tab stays, named after the last home section');
-  assert.equal(home.getAttribute('href'),'#/research','and goes back to it');
+  assert.equal(home.textContent,'Home','the pinned tab keeps its name');
+  assert.equal(c.querySelector('.ts-tab:not(.home) .ts-stage')!.getAttribute('aria-label'),'Planning');
+  assert.equal(home.getAttribute('href'),'#/home','and opens the video Kanban');
   assert.equal(c.querySelector('.ts-tab.home .ts-close'),null,'it cannot be closed');
   assert.equal(c.querySelector('.tabstrip .ts-tab.home'),c.querySelector('.ts-tabs')!.firstElementChild,'it comes first');
   await press(c.querySelector('.tabstrip button.ts-new[aria-label="New video"]')!);
@@ -264,24 +266,23 @@ test('Tab stays inside the search and the New video dialog, and focus goes back 
   items[0].focus();
   await keyDown(document.activeElement!,'Tab',{shiftKey:true});
   assert.ok(document.activeElement===items[items.length-1],'Shift Tab from the first goes to the last');
-  await press(button(dialog,'Cancel'));
+  await press(dialog.querySelector('[aria-label="Close"]')!);
   assert.equal(c.querySelector('[role="dialog"]'),null);
  });
 });
 
-test('New video starts from a title by default and goes straight to planning; a link opens Break down on Videos',async()=>{
+test('New video offers planning and quick recording; planning keeps its title flow and link breakdown',async()=>{
  await withApp('#/home',async (ui,server,calls)=>{
   const c=ui.container;
   await keyDown(window,'k',{metaKey:true});
   await type(c.querySelector('.palette input')!,'new video');
   await keyDown(c.querySelector('.palette input')!,'Enter');
   const dialog=()=>c.querySelector('[role="dialog"]:not(.drawer)');
-  assert.match(dialog()!.textContent!,/New video/);
-  assert.deepEqual([...dialog()!.querySelectorAll('.topt b')].map(b=>b.textContent),['Start from a title','Break down a video'],'a title is first');
-  assert.equal(dialog()!.querySelector('.topt')!.getAttribute('aria-pressed'),'true','and the one it opens on');
-  assert.ok(document.activeElement===dialog()!.querySelector('input'),'ready to type');
-  assert.equal((button(dialog()!,'Start planning') as HTMLButtonElement).disabled,true,'nothing to plan yet');
-  assert.equal([...dialog()!.querySelectorAll('button.primary')].length,1);
+  assert.match(dialog()!.textContent!,/How would you like to start/);
+  assert.deepEqual([...dialog()!.querySelectorAll('.new-start-card b')].map(b=>b.textContent),['Plan out this video','Quick recording']);
+  assert.ok(dialog()!.textContent!.includes('Recent videos'));
+  await press(dialog()!.querySelector('[aria-label="Plan out this video"]')!);
+  assert.equal(button(dialog()!,'Start planning').disabled,true);
 
   await type(dialog()!.querySelector('input')!,'  Claude does my taxes  ');
   await press(button(dialog()!,'Start planning'));
@@ -294,7 +295,7 @@ test('New video starts from a title by default and goes straight to planning; a 
   await keyDown(window,'k',{metaKey:true});
   await type(c.querySelector('.palette input')!,'new video');
   await keyDown(c.querySelector('.palette input')!,'Enter');
-  await press([...dialog()!.querySelectorAll('.topt')].find(o=>/Break down a video/.test(o.textContent!))!);
+  await press(dialog()!.querySelector('.new-breakdown')!);
   assert.equal((button(dialog()!,'Break down') as HTMLButtonElement).disabled,true,'nothing to break down yet');
   await type(dialog()!.querySelector('input')!,'not a link');
   await press(button(dialog()!,'Break down'));
@@ -310,7 +311,7 @@ test('New video starts from a title by default and goes straight to planning; a 
   await keyDown(window,'k',{metaKey:true});
   await type(c.querySelector('.palette input')!,'new video');
   await keyDown(c.querySelector('.palette input')!,'Enter');
-  await press([...dialog()!.querySelectorAll('.topt')].find(o=>/Break down a video/.test(o.textContent!))!);
+  await press(dialog()!.querySelector('.new-breakdown')!);
   await type(dialog()!.querySelector('input')!,'https://www.instagram.com/reel/C8aBcD_eFgH/');
   await press(button(dialog()!,'Break down'));
   assert.deepEqual(calls.filter(call=>call.method==='POST'&&call.path==='/breakdowns').map(call=>call.body).at(-1),{url:'https://www.instagram.com/reel/C8aBcD_eFgH/'},'an Instagram link works too');
@@ -327,6 +328,7 @@ test('New video: a failed save says one sentence and keeps what was typed; an id
  try{
   await flush();const c=ui.container;
   await keyDown(window,'k',{metaKey:true});await type(c.querySelector('.palette input')!,'new video');await keyDown(c.querySelector('.palette input')!,'Enter');
+  await press(c.querySelector('[aria-label="Plan out this video"]')!);
   await type(c.querySelector('[role="dialog"] input')!,'My video');
   await press(button(c.querySelector('[role="dialog"]')!,'Start planning'));
   assert.match(c.querySelector('.cc-toast')!.textContent!,/Couldn't save that\./);

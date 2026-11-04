@@ -22,7 +22,7 @@ const emit=(type:string,data?:unknown)=>act(async()=>{FakeEventSource.last().emi
 const text=(container:Element)=>container.textContent??'';
 const labels=(container:Element)=>[...container.querySelectorAll('button')].map(b=>b.textContent?.trim());
 const withServer=async(reply:(call:FakeCall)=>FakeReply|Promise<FakeReply>,run:(calls:FakeCall[])=>Promise<void>)=>{
- FakeEventSource.install();const server=installFetch(call=>reply(call)??(call.path==='/publishing'&&call.method==='GET'?{body:{postiz:{connected:false,address:null,channel:null},defaultVisibility:'public'}}:undefined));
+ FakeEventSource.install();const server=installFetch(call=>reply(call)??(call.path==='/workspaces'&&call.method==='GET'?{body:one}:undefined)??(call.path==='/publishing'&&call.method==='GET'?{body:{postiz:{connected:false,address:null,channel:null},defaultVisibility:'public'}}:undefined));
  try{await run(server.calls);}finally{server.restore();}
 };
 const baseRoutes=(status:AiStatus,workspaces:unknown):((call:FakeCall)=>FakeReply)=>call=>{
@@ -44,7 +44,7 @@ const trendItem={videoId:'abcdefghijk',title:'How I built it',channel:'Duncan Ro
 
 test('opening Home before setup was finished goes to first launch; a finished setup, an existing install or an unreachable server does not',async()=>{
  const posts:string[]=[];
- for(const [welcomed,status,workspaces,expected] of [[false,signedOut,none,'#/welcome'],[false,claudeIn,none,'#/welcome'],[false,signedOut,one,'#/welcome'],[true,signedOut,none,'#/home'],[false,claudeIn,one,'#/home']] as const){
+ for(const [welcomed,status,workspaces,expected] of [[false,signedOut,none,'#/welcome'],[false,claudeIn,none,'#/welcome'],[false,signedOut,one,'#/home'],[true,signedOut,none,'#/home'],[false,claudeIn,one,'#/home']] as const){
   await withServer(call=>{
    if(call.path==='/settings')return {body:{defaultAi:null,welcomed,appearance:null,geminiKey:null,helpSeen:[]}};
    if(call.path==='/settings/welcomed'){posts.push(call.method);return {body:{welcomed:true}};}
@@ -54,7 +54,7 @@ test('opening Home before setup was finished goes to first launch; a finished se
    try{await flush();assert.equal(window.location.hash,expected);}finally{await ui.close();window.location.hash='';}
   });
  }
- assert.deepEqual(posts,['POST'],'an install that already has a channel and an AI is marked as set up, once');
+ assert.deepEqual(posts,['POST','POST'],'an install with a channel is set up regardless of AI');
  FakeEventSource.install();const original=globalThis.fetch;globalThis.fetch=(async()=>{throw new TypeError('offline');}) as typeof fetch;
  window.location.hash='';const ui=await mountUI(createElement(ClubApp));
  try{await flush();assert.equal(window.location.hash,'#/home');}finally{globalThis.fetch=original;await ui.close();window.location.hash='';}
@@ -78,11 +78,11 @@ test('Welcome step 1: Connect Claude installs with progress, waits for the brows
   try{
    await flush();const c=ui.container;
    assert.match(text(c),/Step 1 of 4/);
-   assert.equal(c.querySelector('h1')!.textContent,'Connect your AI');
-   assert.match(text(c),/Creator Compiler uses your own Claude or ChatGPT account/);
-   assert.equal(c.querySelectorAll('button.primary').length,1,'one primary button');
+   assert.equal(c.querySelector('h1')!.textContent,'Your studio, your way');
+   assert.match(text(c),/Connecting an AI is optional/);
+   assert.equal(button(c,'Continue').disabled,false);
    assert.ok(button(c,'Connect Claude').classList.contains('primary'));
-   assert.equal(button(c,'Continue').disabled,true);
+   assert.equal(button(c,'Continue').disabled,false);
    assert.equal([...c.querySelectorAll('button')].some(b=>b.textContent==='Back'),false,'no Back on the first step');
    assert.equal(c.querySelector('input'),null,'never asks for a key');
 
@@ -94,7 +94,7 @@ test('Welcome step 1: Connect Claude installs with progress, waits for the brows
    assert.deepEqual([...c.querySelectorAll('li')].map(li=>li.textContent),['two','three','four'],'the last lines stream by');
    await emit('progress',{phase:'signing-in'});
    assert.match(text(c),/Finish signing in to Claude in your browser\./);
-   assert.equal(button(c,'Continue').disabled,true,'not before it is connected');
+   assert.equal(button(c,'Continue').disabled,false,'connection is optional');
 
    status=claudeIn;
    await emit('done',{provider:'claude',account:'dani@example.com'});

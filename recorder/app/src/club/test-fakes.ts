@@ -21,7 +21,7 @@ export class FakeEventSource{
 export type FakeCall={method:string;path:string;body:unknown};
 export type FakeReply={status?:number;body?:unknown}|undefined;
 
-/** Replaces `fetch` for `/api/club/...` calls. `reply` answers each one; an unanswered call is a 404. */
+/** Replaces `fetch` for `/api/club/...` calls. `reply` answers each one. AI defaults to connected for the existing AI workflow fixtures; no-AI tests explicitly return signed-out status. Other unanswered calls are 404. */
 export function installFetch(reply:(call:FakeCall)=>FakeReply|Promise<FakeReply>){
  const calls:FakeCall[]=[];
  const original=globalThis.fetch;
@@ -29,7 +29,7 @@ export function installFetch(reply:(call:FakeCall)=>FakeReply|Promise<FakeReply>
   const path=String(input).replace(/^\/api\/club/,'');
   const call={method:init?.method??'GET',path,body:typeof init?.body==='string'?JSON.parse(init.body):undefined};
   calls.push(call);
-  const answer=await reply(call);
+  const answer=await reply(call)??(path==='/ai/status'?{body:{claude:{installed:true,version:'test',signedIn:true},codex:{installed:false,version:null,signedIn:false}}}:undefined);
   return new Response(JSON.stringify(answer?.body??(answer?undefined:{error:'That was not found.'})),{status:answer?.status??(answer?200:404),headers:{'content-type':'application/json'}});
  }) as typeof fetch;
  return {calls,restore:()=>{globalThis.fetch=original;}};

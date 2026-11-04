@@ -81,13 +81,13 @@ test('Welcome step 1 starts from the last known answer, so coming back is not an
  });
 });
 
-test('Welcome: with no AI signed in Continue waits and says where to connect; a failed check never blocks and has Try again',async()=>{
+test('Welcome: with no AI signed in Continue works and connection stays optional; a failed check never blocks and has Try again',async()=>{
  forgetAiStatus();
  await withServer(call=>call.path==='/ai/status'?{body:signedOut}:undefined,async()=>{
   const ui=await mountUI(welcome());
   try{
    await flush();await flush();const c=ui.container;
-   assert.equal(button(c,'Continue').disabled,true);
+   assert.equal(button(c,'Continue').disabled,false);
    assert.match(text(c),/Connect opens Claude's or ChatGPT's own sign-in page/);
   }finally{await ui.close();}
  });
@@ -200,28 +200,18 @@ test('Welcome: the search starts as soon as the channel is added, so it can run 
 
 const video=(id:string,title:string,stage:Video['stage'],extra:Partial<Video>={}):Video=>({id,title,stage,order:0,createdAt:'2026-10-01T00:00:00.000Z',updatedAt:'2026-10-01T00:00:00.000Z',stageDates:{},planning:{research:false,package:false,outline:false},...extra});
 
-test('Home for a new channel shows the search progress with an estimate instead of a spinner, and the checklist already works',async()=>{
+test('Home for a new channel opens the empty video board without starting a discovery job',async()=>{
  await withServer(call=>{
-  if(call.path==='/videos')return {body:[]};
-  if(call.path==='/recent')return {body:[]};
-  if(call.path==='/workspaces')return {body:{current:'maya',workspaces:[workspace]}};
-  if(call.path==='/workspaces/maya')return {body:workspace};
-  if(call.path==='/trending')return {body:{items:[],updatedAt:null,followed:0}};
-  if(call.path==='/trending/refresh')return {status:202,body:{id:'j_scan',kind:'trending-refresh',status:'running',createdAt:''}};
-  if(call.path==='/breakdowns')return {body:[]};
+  if(call.path==='/videos'||call.path==='/recent'||call.path==='/breakdowns')return {body:[]};
   if(call.path==='/videos/scenes')return {body:{}};
- },async()=>{
-  const routes:unknown[]=[];
-  const ui=await mountUI(createElement(ToastProvider,null,createElement(HomeScreen,{navigate:route=>routes.push(route),onNewVideo(){}})));
+ },async calls=>{
+  const ui=await mountUI(createElement(ToastProvider,null,createElement(HomeScreen,{navigate(){},onNewVideo(){}})));
   try{
-   await flush();await flush();const c=ui.container;
-   await emit('progress',{message:'Searching for Claude (2 of 3)…'});
-   const line=c.querySelector('.progress-line')!;
-   assert.match(text(line),/Searching for Claude \(2 of 3\)…/);assert.match(text(line),/Usually 1 to 2 minutes\./);
-   assert.match(text(line),/New video starts from a title you already have\./);
-   assert.deepEqual([...c.querySelectorAll('.checklist-row .ck-title')].map(t=>text(t)),['Set up','Discover','Board','Plan','Record','Edit','Publish']);
-   await act(async()=>[...c.querySelectorAll<HTMLElement>('button.checklist-row')].find(b=>/Discover/.test(b.textContent!))!.click());
-   assert.deepEqual(routes.at(-1),{name:'discover'},'a row is a way in, not a label');
+   await flush();await flush();
+   assert.equal(ui.container.querySelectorAll('[data-column]').length,6);
+   assert.equal(ui.container.querySelectorAll('.lane-add').length,6);
+   assert.equal(ui.container.querySelector('.checklist-row,.progress-line'),null);
+   assert.equal(calls.some(call=>call.path==='/trending/refresh'),false);
   }finally{await ui.close();}
  });
 });

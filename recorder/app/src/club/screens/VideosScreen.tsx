@@ -1,5 +1,6 @@
 import {useCallback,useEffect,useState} from 'react';
-import type {Video} from '../../../shared/club';
+import {clubFetch} from '../api';
+import type {Video,VideoStage} from '../../../shared/club';
 import {youtubeId} from '../board';
 import {BreakdownDrawer} from '../BreakdownDrawer';
 import {ErrorLine} from '../ErrorLine';
@@ -21,12 +22,8 @@ type VideosRoute=Extract<Route,{name:'videos'}>;
 const VIEWS:readonly Tab<VideosView>[]=[{id:'board',label:'Board',icon:'production'},{id:'table',label:'Table',icon:'table'},{id:'calendar',label:'Calendar',icon:'calendar'}];
 const NONE:never[]=[];
 
-/**
- * Videos: every video from idea to published, in one pipeline. Ideas are its first lane (grouped Timely, Evergreen, Later, Skipped), then Planning,
- * Recording, Editing, Publishing and Published, as a board you drag cards across, a table or a calendar. An idea opens in its drawer, any other
- * video on its page. A link from New video (`bd`) is broken down in a drawer; a new idea (`new`) is marked and offered for planning.
- */
-export function VideosScreen({route,navigate,onNewVideo}:{route:VideosRoute;navigate(route:Route,options?:{replace?:boolean}):void;onNewVideo():void}){
+/** Videos shares its flat board with Home and keeps alternate table/calendar views and explicit idea/breakdown drawers. */
+export function VideosScreen({route,navigate,onNewVideo,home=false}:{home?:boolean;route:VideosRoute;navigate(route:Route,options?:{replace?:boolean}):void;onNewVideo():void}){
  const {state,videos,reload,move,schedule}=useProduction();
  const scenes=useSceneProgress(videos??NONE);
  const actions=useIdeaActions(navigate);
@@ -51,7 +48,7 @@ export function VideosScreen({route,navigate,onNewVideo}:{route:VideosRoute;navi
   return()=>clearTimeout(timer);
  },[newId,loaded]);
 
- const open=useCallback((video:Video)=>{if(video.stage==='ideas')setDrawer(video.id);else navigate(openRoute(video));},[navigate]);
+ const open=useCallback((video:Video)=>{if(view==='board')navigate({name:'video',id:video.id});else if(video.stage==='ideas')setDrawer(video.id);else navigate(openRoute(video));},[navigate,view]);
 
  if(state.status==='error')return <div className="page"><ErrorLine message={state.message} onRetry={reload} primary/></div>;
  if(!videos)return <div className="page"><Spinner label="Loading your videos" size={20}/></div>;
@@ -61,10 +58,10 @@ export function VideosScreen({route,navigate,onNewVideo}:{route:VideosRoute;navi
  const closeDrawer=()=>{setDrawer(null);if(route.open){const {open:_open,...rest}=route;navigate(rest,{replace:true});}};
  const added=(id:string)=>{setLink(null);navigate({name:'videos',view:'board',new:id});};
  const wide=view==='board';
- return <div className={`page${wide?' wide':''}`} style={wide?{maxWidth:'none',paddingLeft:24,paddingRight:24}:undefined}>
-  <div className="page-head"><div><h1>Videos</h1><div className="lede">Every video from idea to published. Drag a card to move it.</div></div>
+ return <div className={`page${wide?' wide video-board-page':''}`}>
+  <div className="page-head"><div className="video-board-heading"><h1>Videos</h1><span className="small muted" aria-label="Video count">{videos.length}</span>{!wide&&<div className="lede">Every video from idea to published.</div>}</div>
    <div className="actions">
-    <Tabs label="View" tabs={VIEWS} value={view} onChange={next=>navigate({name:'videos',view:next})}/>
+    {!home&&<Tabs label="View" tabs={VIEWS} value={view} onChange={next=>navigate({name:'videos',view:next})}/>}
     <button type="button" className={`btn${newIdea?'':' primary'}`} onClick={onNewVideo}><Icon name="add" size={15}/>New video</button>
    </div></div>
 
@@ -74,7 +71,7 @@ export function VideosScreen({route,navigate,onNewVideo}:{route:VideosRoute;navi
    <button type="button" className="btn primary" onClick={()=>void actions.startPlanning(newIdea)}><Icon name="next" size={15}/>Start planning</button>
   </div>}
 
-  {view==='board'&&<Kanban videos={videos} scenes={scenes} ideas={{newId,openGroup:group,actions}} onOpen={open} onMove={(id,stage,beforeId)=>void move(id,stage,beforeId)} onResearch={video=>void addToResearch({source:'video',id:video.id})}/>}
+  {view==='board'&&<Kanban onAdd={async(title:string,stage:VideoStage)=>{await clubFetch('/videos',{method:'POST',body:{title,stage}});reload();}} videos={videos} scenes={scenes} ideas={{newId,openGroup:group,actions}} onOpen={open} onMove={(id,stage,beforeId)=>void move(id,stage,beforeId)} onResearch={video=>void addToResearch({source:'video',id:video.id})}/>}
   {view==='table'&&<TableView videos={videos} scenes={scenes} onOpen={open}/>}
   {view==='calendar'&&<CalendarView videos={videos} onOpen={open} onOpenPublish={video=>navigate(openRoute(video,'publish'))} onSchedule={(id,day)=>void schedule(id,day)}/>}
   {idea&&<IdeaDrawer video={idea} actions={actions} onClose={closeDrawer} onRemove={video=>{closeDrawer();actions.remove(video);}}/>}

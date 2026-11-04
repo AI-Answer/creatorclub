@@ -88,6 +88,8 @@ export interface Video {
   source?: { kind: 'breakdown' | 'manual'; breakdownId?: string };
   planning: { research: boolean; package: boolean; outline: boolean };
   recorderProjectId?: string;
+  /** Recording started without an outline; Plan remains optional. */
+  quickRecording?: boolean;
   publishDate?: string;
   youtubeUrl?: string;
   publishedAt?: string;

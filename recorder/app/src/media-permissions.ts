@@ -5,8 +5,15 @@ export type CapturePermission='camera'|'microphone'|'screen';
 /** The name to turn on in macOS Privacy & Security: the running app's own, else SceneForge (the standalone app). */
 export const privacyAppName=()=>(typeof window==='undefined'?undefined:window.sceneForge?.appName)||'SceneForge';
 export const permissionLabels:Record<DesktopMediaAccessStatus,string>={
- 'not-determined':'Not requested',granted:'Allowed',denied:'Not allowed',restricted:'Restricted',unknown:'Not verified',unsupported:'Not available',
+ 'not-determined':'Not set up',granted:'Allowed',denied:'Not allowed',restricted:'Restricted',unknown:'Not verified',unsupported:'Not available',
 };
+export function permissionAction(kind:CapturePermission,status:DesktopMediaAccessStatus,nativeSettings:boolean):{label:string;action:'request'|'settings'|'none'}{
+ if(status==='granted')return {label:'Allowed',action:'none'};
+ if(status==='unsupported')return {label:'Not available',action:'none'};
+ if(nativeSettings&&kind==='screen')return {label:'Allow',action:'settings'};
+ if(nativeSettings&&(status==='denied'||status==='restricted'))return {label:'Open settings',action:'settings'};
+ return {label:'Allow',action:'request'};
+}
 export async function readMediaPermissions(bridge?:Pick<SceneForgeDesktopBridge,'getMediaPermissions'|'platform'>,permissions?:Pick<Permissions,'query'>):Promise<DesktopMediaPermissions>{
  if(bridge?.getMediaPermissions)return bridge.getMediaPermissions();
  const result:DesktopMediaPermissions={platform:bridge?.platform||'browser',camera:'unknown',microphone:'unknown',screen:'unknown',systemAudio:'unknown'};

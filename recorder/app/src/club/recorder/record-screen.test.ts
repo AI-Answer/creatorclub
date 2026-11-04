@@ -98,7 +98,7 @@ test('a scene the strip picks is selected once, and the scene the recorder repor
 
 test('the scene a page opens on (chosen in Plan) is selected when Record opens',async()=>{
  const project=threeScenes();
- const {ui,close}=await mountRecord(project,{selectSceneId:project.scenes[1].id,selectNonce:0});
+ const {ui,close}=await mountRecord(project,{selectSceneId:project.scenes[1].id,selectNonce:1});
  try{
   assert.equal(selectedScene(ui.container),project.scenes[1].id);
  }finally{await close();}
@@ -107,7 +107,7 @@ test('the scene a page opens on (chosen in Plan) is selected when Record opens',
 test('the bottom bar is Borumi\'s step bar: Back to the previous step, the five steps, and Continue',async()=>{
  const calls:string[]=[];
  const video={id:'v1',title:'Hidden features',stage:'recording'} as unknown as Parameters<typeof Foot>[0]['video'];
- const ui=await mountUI(createElement(Foot,{video,tab:'record',facts:{stage:'recording',hasRecording:true},onTab:tab=>calls.push(`tab:${tab}`),onLocked(){},
+ const ui=await mountUI(createElement(Foot,{video,tab:'record',facts:{stage:'recording',hasRecording:true},onTab:tab=>calls.push(`tab:${tab}`),
   next:{label:'Continue to edit',run:()=>calls.push('next'),disabled:false,primary:true}}));
  try{
   assert.deepEqual([...ui.container.querySelectorAll('.ws-step')].map(step=>step.textContent),['Board','Plan','Record','Edit','Publish']);
@@ -115,7 +115,7 @@ test('the bottom bar is Borumi\'s step bar: Back to the previous step, the five 
   await click(button(ui.container,'Back to Plan'));
   await click(button(ui.container,'Continue to edit'));
   assert.deepEqual(calls,['tab:plan','next']);
-  await ui.render(createElement(Foot,{video,tab:'board',facts:{stage:'recording',hasRecording:true},onTab(){},onLocked(){}}));
+  await ui.render(createElement(Foot,{video,tab:'board',facts:{stage:'recording',hasRecording:true},onTab(){}}));
   assert.equal(ui.container.querySelector('.ws-back'),null,'the first step has no Back');
   assert.equal(ui.container.querySelector('.ws-foot .r button'),null,'no Continue without a next step');
  }finally{await ui.close();}

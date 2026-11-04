@@ -60,9 +60,12 @@ test('videos are created, ordered per stage, updated and moved with stage dates 
   await assert.rejects(store.readVideo('samin-yasar', '../x'), /not found/);
 });
 
-test('research tiles keep their files in videos/<id>/research and delete cleanly', async () => {
+test('research tiles keep their files in videos/<id>/research and delete cleanly', async (t) => {
+  t.mock.timers.enable({ apis: ['Date'], now: Date.UTC(2026, 0, 1) });
   const video = await store.createVideo('samin-yasar', { title: 'Tiles' });
   const link = await store.addTile('samin-yasar', video.id, { kind: 'link', url: 'https://example.com', meta: { views: 10 } });
+  // listTiles orders by creation time; filesystem speed must not decide whether these tie.
+  t.mock.timers.tick(1);
   const image = await store.addTile('samin-yasar', video.id, { kind: 'image', title: 'Shot', file: { name: '../../evil name.png', data: Buffer.from('png') } });
   assert.ok(image.file && !image.file.includes('/') && image.file.startsWith(image.id));
   const dir = store.researchDir('samin-yasar', video.id);

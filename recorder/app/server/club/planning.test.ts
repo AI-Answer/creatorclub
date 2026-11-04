@@ -610,7 +610,9 @@ test('Continue to recording creates the recording project and moves the video to
   const current = (await call('GET', `/videos/${video.id}/plan`)).body.outline as Outline;
   const edited = { scenes: [...current.scenes.slice(0, 3), { ...current.scenes[3], talkingPoints: ['Point to the next video', 'Say goodbye'] }] };
   assert.deepEqual((await call('PUT', `/videos/${video.id}/outline`, edited)).body, edited);
-  assert.equal((await call('PUT', `/videos/${video.id}/outline`, { scenes: [] })).status, 400);
+  assert.equal((await call('PUT', `/videos/${video.id}/outline`, { scenes: [] })).status, 200);
+  assert.equal((await call('GET', `/videos/${video.id}/plan`)).body.outline, null);
+  await call('PUT', `/videos/${video.id}/outline`, edited);
 
   const moved = await call('POST', `/videos/${video.id}/recorder`);
   assert.equal(moved.status, 200, JSON.stringify(moved.body));

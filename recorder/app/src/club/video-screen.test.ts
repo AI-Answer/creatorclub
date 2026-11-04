@@ -57,7 +57,7 @@ test('on an empty Plan, Write with Claude and Draft scenes ask the chat instead 
   await flush();
   const c=ui.container;
   assert.ok(hasText(c,'decide whether people click'),'the empty package is one sentence');
-  assert.deepEqual(primaries(c),['Draft scenes from the board'],'one primary: the thing to do first');
+  assert.deepEqual(primaries(c),['Add scene'],'manual scene creation is primary');
   await act(async()=>button(c,'Write all three with Claude').click());await flush();
   assert.deepEqual(asked,['Write three title options, the thumbnail text and the hook for this video.'],'the chat is asked, in plain words');
   await act(async()=>button(c,'Draft scenes from the board').click());await flush();
@@ -160,8 +160,8 @@ test('a changed outline is flagged',async()=>{
  }finally{await ui.close();server.restore();}
 });
 
-test('steps that cannot work yet are locked, not dead pages: the step bar says what unlocks them, and choosing one or opening its link goes there and says why',async()=>{
- const editing:Video={...planned,stage:'editing',planning:{research:true,package:true,outline:false}};
+test('all workspace steps open without plan or take gates; Edit offers Record when empty',async()=>{
+ const video:Video={...planned,stage:'ideas',planning:{research:false,package:false,outline:false}};
  const server=installFetch(call=>{
   if(call.path==='/videos/v1/plan')return {body:{package:null,outline:null}};
   if(call.path==='/videos/v1/scenes')return {body:[]};
@@ -169,34 +169,28 @@ test('steps that cannot work yet are locked, not dead pages: the step bar says w
  });
  const {ToastProvider}=await import('./ui');
  const seen:Array<[VideoTab,boolean]>=[];
- const page=(tab:VideoTab)=>createElement(ToastProvider,null,createElement(Workspace,{video:editing,tab,back,navigate:(route,options)=>{if(route.name==='video')seen.push([route.tab!,!!options?.replace]);},onVideo:()=>{}}));
+ const page=(tab:VideoTab)=>createElement(ToastProvider,null,createElement(Workspace,{video,tab,back,navigate:(route,options)=>{if(route.name==='video')seen.push([route.tab!,!!options?.replace]);},onVideo:()=>{}}));
  const ui=await mountUI(page('plan'));
  try{
   await flush();await flush();
   const c=ui.container;
-  const step=(name:string)=>[...c.querySelectorAll<HTMLAnchorElement>('.ws-step')].find(a=>a.textContent===name)!;
-  for(const name of ['Record','Edit','Publish']){
-   assert.equal(step(name).getAttribute('aria-disabled'),'true',`${name} is locked`);
-   assert.equal(step(name).getAttribute('aria-description'),'Plan the scenes first');
-   assert.ok(step(name).querySelector('.lk'),'with a quiet lock');
+  for(const step of c.querySelectorAll<HTMLAnchorElement>('.ws-step')){
+   assert.equal(step.getAttribute('aria-disabled'),null);
+   assert.equal(step.querySelector('.lk'),null);
   }
-  assert.equal(step('Board').getAttribute('aria-disabled'),null);
-  // The Continue rule: named, disabled, and the reason beside it.
-  const next=button(c,'Continue to recording');
-  assert.equal(next.disabled,true);assert.equal(next.classList.contains('primary'),false);
-  assert.equal(c.querySelector(`#${next.getAttribute('aria-describedby')}`)?.textContent,'Draft the scenes first');
-  // Choosing a locked step while on the step that unlocks it only explains.
-  await act(async()=>step('Edit').click());await flush();
-  assert.deepEqual(seen,[],'Plan is what unlocks Edit, so the page stays');
-  assert.ok(hasText(c.ownerDocument.body,'Plan the scenes first. Edit opens after that.'));
-  // A link to a locked step opens the step that unlocks it instead, and says why.
-  for(const tab of ['record','edit','publish'] as const){
-   seen.length=0;
-   await ui.render(page(tab));await flush();await flush();
-   assert.deepEqual(seen,[['plan',true]],`${tab} goes to Plan`);
-   assert.ok(!hasText(c,'Open plan')&&!hasText(c,'Nothing recorded yet')&&!hasText(c,'Nothing to publish yet'),'no dead-end page');
+  assert.equal(button(c,'Continue to recording').disabled,false);
+  for(const tab of ['board','plan','record','edit','publish'] as const){
+   seen.length=0;await ui.render(page(tab));await flush();await flush();
+   assert.deepEqual(seen,[],`${tab} never redirects to another step`);
+   if(tab==='record')assert.equal(button(c,'Record without a plan').disabled,false);
+   if(tab==='edit'){
+    assert.ok(hasText(c,'Nothing recorded yet'));
+    await act(async()=>button(c,'Open record').click());
+    assert.deepEqual(seen,[['record',false]]);
+   }
+   if(tab==='publish')assert.ok(c.querySelector('.pubx'),'the publishing form opens');
   }
-  assert.ok(!server.calls.some(call=>call.path==='/videos/v1/move'),'the card is never moved');
+  assert.ok(!server.calls.some(call=>call.path==='/videos/v1/move'),'opening tabs never moves the card');
  }finally{await ui.close();server.restore();}
 });
 

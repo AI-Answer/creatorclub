@@ -344,7 +344,8 @@ export default function App({embedded}:{embedded?:EmbeddedRecorder}={}){
  const onEditState=embedded?.onEditState,selectedCount=p?selectionCount(p.clips,selection):selection.size,previewKey=preview?.key,timelineVersion=p?.updatedAt;
  const dislikes=p?.markers?.filter(m=>m.tag==='dislike').length??0;
  // The pacing check and the two graphics most videos want (a title in the first seconds, the creator's name), for the chat's next steps.
- const editFacts=useMemo(()=>p&&embedded?{stalls:pacingIssues(p).filter(issue=>issue.kind==='static').map(({start,end})=>({start,end})),opening:(p.motion??[]).some(m=>m.start<5&&(m.template==='title-card'||m.template==='keyword'))||p.elements.some(e=>e.type==='text'&&e.start<5),named:(p.motion??[]).some(m=>m.template==='lower-third')}:undefined,[p?.clips,p?.motion,p?.elements,p?.zooms,embedded]);
+ // The workspace recreates its embedded props after receiving this summary; only its presence affects these facts.
+ const editFacts=useMemo(()=>p&&embedded?{stalls:pacingIssues(p).filter(issue=>issue.kind==='static').map(({start,end})=>({start,end})),opening:(p.motion??[]).some(m=>m.start<5&&(m.template==='title-card'||m.template==='keyword'))||p.elements.some(e=>e.type==='text'&&e.start<5),named:(p.motion??[]).some(m=>m.template==='lower-third')}:undefined,[p?.clips,p?.motion,p?.elements,p?.zooms,Boolean(embedded)]);
  useEffect(()=>{if(editOpen)onEditState?.({selected:selectedCount,previewKey,version:timelineVersion,notes:dislikes,...editFacts});},[onEditState,editOpen,selectedCount,previewKey,timelineVersion,dislikes,editFacts]);
  // Undo, redo and history sit in the video's header, beside the steps; the header leaves a slot for them while Edit is open.
  const [toolsHost,setToolsHost]=useState<HTMLElement|null>(null);
@@ -457,7 +458,7 @@ export default function App({embedded}:{embedded?:EmbeddedRecorder}={}){
   {(modal==='auto-cut'||modal==='visualize')&&p&&<QuickActionDialog key={`${p.id}:${modal}:${quickSceneId??'project'}`} project={p} kind={modal} sceneId={quickSceneId} jobs={automation.jobs} merge={automation.merge} flush={studio.flush} reload={automation.reload} club={Boolean(embedded)} onClose={()=>setModal(null)}/>}
   {modal==='teleprompter'&&p&&<Teleprompter project={p} change={studio.change} sceneId={embedded?.sceneId} onClose={()=>setModal(null)}/>}
   {modal==='import-notices'&&p&&<Modal title="Import details" subtitle="Supported edits were converted into a new independent project." onClose={()=>setModal(null)} wide><div className="import-notices-list">{p.importWarnings?.map((w,i)=><p key={i}>{w}</p>)}</div></Modal>}
-  {studio.error&&!openFailed&&<div className="error-toast" role="alert"><span><b>Something needs your attention</b>{studio.error}</span><button className="icon-button" aria-label="Dismiss error" onClick={()=>studio.setError('')}><X size={17}/></button></div>}
+  {studio.error&&!openFailed&&modal!=='setup'&&<div className="error-toast" role="alert"><span><b>Something needs your attention</b>{studio.error}</span><button className="icon-button" aria-label="Dismiss error" onClick={()=>studio.setError('')}><X size={17}/></button></div>}
   <Toasts bind={toastRef}/>
  </div>;
 }

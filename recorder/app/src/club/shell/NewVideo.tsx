@@ -1,59 +1,95 @@
-import {useState} from 'react';
+import {AI_CONNECT_HINT,useAiAvailable} from '../ai-status';
+import {useEffect,useRef,useState} from 'react';
 import type {Video} from '../../../shared/club';
 import {clubFetch,errorMessage} from '../api';
 import {youtubeId} from '../board';
 import {looksLikeVideoLink} from '../breakdown';
 import type {Route} from '../routes';
-import {Button,Dialog,Icon,useToast,type IconName} from '../ui';
+import {Button,Dialog,Icon,Thumb,useToast} from '../ui';
+import './NewVideo.css';
 
-type Mode='title'|'link';
+type Mode='choose'|'title'|'link';
 
-/** Start from a title is first and the one the dialog opens on: most people have a title before they have a link. */
-const OPTIONS:ReadonlyArray<readonly [Mode,IconName,string,string]>=[
- ['title','text','Start from a title','You already know the video. It goes to planning with a board for it.'],
- ['link','link','Break down a video','Paste a YouTube or Instagram link. Keep the concept you like.'],
-];
-const PLACEHOLDER:Record<Mode,string>={title:'e.g. Claude does my receipts automatically',link:'youtube.com/watch?v=…'};
-const ACTION:Record<Mode,string>={title:'Start planning',link:'Break down'};
-const LABEL:Record<Mode,string>={title:'Video title',link:'Video link'};
+export function relativeVideoTime(date:string,now=Date.now()):string{
+ const minutes=Math.max(0,Math.floor((now-Date.parse(date))/60000));
+ if(!Number.isFinite(minutes))return '';
+ if(minutes<1)return 'Just now';
+ const [count,unit]=minutes<60?[minutes,'minute']:minutes<1440?[Math.floor(minutes/60),'hour']:[Math.floor(minutes/1440),'day'];
+ return `${count} ${unit}${count===1?'':'s'} ago`;
+}
 
-/**
- * The New video dialog. A title makes the idea and goes straight to its next action: it moves to planning and opens the video's Board.
- * A link (YouTube or Instagram) opens Break down on Videos, where you keep a concept as an idea.
- * Recording straight away is not offered: a video can only be recorded once it has scenes.
- */
-export function NewVideo({onClose,onOpen}:{onClose():void;onOpen(route:Route):void}){
- const [mode,setMode]=useState<Mode>('title'),[value,setValue]=useState(''),[busy,setBusy]=useState(false);
+/** All entry points share this chooser; planning keeps its title/link flow, recording needs no outline. */
+export function NewVideo({videos,onClose,onOpen}:{videos:readonly Video[];onClose():void;onOpen(route:Route):void}){
+ const aiAvailable=useAiAvailable();
+ const [mode,setMode]=useState<Mode>('choose'),[value,setValue]=useState(''),[busy,setBusy]=useState(false),[recent,setRecent]=useState<string[]>([]);
+ const pending=useRef(false);
  const toast=useToast();
+ useEffect(()=>{let live=true;void clubFetch<string[]>('/recent').then(ids=>{if(live)setRecent(ids);},()=>{});return()=>{live=false;};},[]);
+ const byId=new Map(videos.map(video=>[video.id,video]));
+ const recentVideos=[...recent.flatMap(id=>byId.has(id)?[byId.get(id)!]:[]),...videos.filter(video=>!recent.includes(video.id)).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt))].slice(0,5);
+ const open=(route:Route)=>{onClose();onOpen(route);};
+ const quickRecord=async()=>{
+  if(pending.current)return;
+  pending.current=true;setBusy(true);
+  let video:Video|undefined;
+  try{
+   video=await clubFetch<Video>('/videos',{body:{title:`Quick recording ${new Date().toLocaleString()}`}});
+   await clubFetch<Video>(`/videos/${encodeURIComponent(video.id)}/recorder`,{body:{quick:true}});
+   open({name:'video',id:video.id,tab:'record'});
+  }catch(reason){
+   toast(errorMessage(reason,"Couldn't start the recording."));
+   // Keep the video if project setup failed: its Record tab offers a retry without making a duplicate video.
+   if(video)open({name:'video',id:video.id,tab:'record'});
+  }finally{pending.current=false;setBusy(false);}
+ };
  const submit=async()=>{
   const text=value.trim();
-  if(!text||busy)return;
+  if(!text||pending.current)return;
   if(mode==='link'){
+   if(!aiAvailable)return;
    if(!looksLikeVideoLink(text)){toast("That doesn't look like a video link. Paste the full address.");return;}
-   onClose();onOpen({name:'videos',view:'board',bd:youtubeId(text)??text});return;
+   open({name:'videos',view:'board',bd:youtubeId(text)??text});return;
   }
-  setBusy(true);
+  pending.current=true;setBusy(true);
   let video:Video;
   try{video=await clubFetch<Video>('/videos',{body:{title:text}});}
-  catch(reason){toast(errorMessage(reason,"Couldn't add the video."));setBusy(false);return;}
+  catch(reason){toast(errorMessage(reason,"Couldn't add the video."));pending.current=false;setBusy(false);return;}
   try{
    await clubFetch<Video>(`/videos/${encodeURIComponent(video.id)}/move`,{body:{stage:'planning'}});
-   onClose();onOpen({name:'video',id:video.id,tab:'board'});
+   open({name:'video',id:video.id,tab:'board'});
   }catch{
-   // The idea exists; only starting to plan it failed, so it is offered where it can be started again.
    toast("Added to your ideas, but couldn't start planning it.");
-   onClose();onOpen({name:'videos',view:'board',new:video.id});
-  }finally{setBusy(false);}
+   open({name:'videos',view:'board',new:video.id});
+  }finally{pending.current=false;setBusy(false);}
  };
- return <Dialog title="New video" onClose={onClose} width={560} footer={<>
+ return <Dialog title={mode==='choose'?'How would you like to start?':mode==='title'?'Plan out this video':'Break down a video'} onClose={onClose} width={680} className="new-video-dialog" footer={mode!=='choose'?<>
+  <Button variant="ghost" onClick={()=>{setMode('choose');setValue('');}} disabled={busy}>Back</Button>
   <Button variant="ghost" onClick={onClose}>Cancel</Button>
-  <Button variant="primary" onClick={()=>void submit()} disabled={!value.trim()||busy}>{ACTION[mode]}</Button>
- </>}>
-  <div className="grid g2" style={{gap:8,marginBottom:16}}>
-   {OPTIONS.map(([key,icon,title,text])=><button key={key} type="button" className={`topt${mode===key?' on':''}`} style={{flexDirection:'column',gap:6,textAlign:'left',margin:0,background:'var(--cc-surface)'}} onClick={()=>{setMode(key);setValue('');}} aria-pressed={mode===key}>
-    <Icon name={icon} size={18}/><b style={{fontSize:13.5}}>{title}</b><span className="small muted" style={{lineHeight:1.4}}>{text}</span>
-   </button>)}
-  </div>
-  <input className="input" autoFocus key={mode} value={value} onChange={event=>setValue(event.target.value)} onKeyDown={event=>{if(event.key==='Enter')void submit();}} placeholder={PLACEHOLDER[mode]} aria-label={LABEL[mode]}/>
+  <Button variant="primary" onClick={()=>void submit()} disabled={!value.trim()||busy}>{mode==='link'?'Break down':'Start planning'}</Button>
+ </>:undefined}>
+  {mode==='choose'?<>
+   <div className="new-start-options">
+    <button type="button" className="new-start-card" aria-label="Plan out this video" disabled={busy} onClick={()=>setMode('title')}>
+     <span className="new-start-icon new-start-plan"><Icon name="script" size={20}/></span>
+     <b>Plan out this video</b><span>Write the idea, plan the scenes, then record and edit them.</span>
+    </button>
+    <button type="button" className="new-start-card" aria-label="Quick recording" disabled={busy} onClick={()=>void quickRecord()}>
+     <span className="new-start-icon new-start-quick"><Icon name="quick-record" size={20}/></span>
+     <b>Quick recording</b><span>{busy?'Opening recorder…':'Start recording right away. Edit it after if you need to.'}</span>
+    </button>
+   </div>
+   <button type="button" className="linkish new-breakdown" title={!aiAvailable?AI_CONNECT_HINT:undefined} disabled={!aiAvailable||busy} onClick={()=>{setMode('link');setValue('');}}>Break down a video <Icon name="link" size={13}/></button>
+   <section className="new-recents" aria-label="Recent videos">
+    <div className="row"><h4>Recent videos</h4><span className="grow"/><button type="button" className="linkish" disabled={busy} onClick={()=>open({name:'videos',view:'board'})}>View all</button></div>
+    {recentVideos.length?recentVideos.map(video=><button type="button" key={video.id} className="new-recent-row" disabled={busy} onClick={()=>open({name:'video',id:video.id})}>
+     <Thumb cover={video.id} videoId={video.youtubeUrl?youtubeId(video.youtubeUrl):undefined} seed={video.id} fallback={<Icon name="video" size={17}/>}/>
+     <b>{video.title}</b><time dateTime={video.updatedAt} title="Last updated">{relativeVideoTime(video.updatedAt)}</time><Icon name="forward" size={15}/>
+    </button>):<p className="small muted">Your videos will appear here.</p>}
+   </section>
+  </>:<>
+   <p className="muted" style={{marginBottom:16}}>{mode==='title'?'Give your video a title to start planning.':'Paste a YouTube or Instagram link. Keep the concept you like.'}</p>
+   <input className="input" autoFocus key={mode} value={value} onChange={event=>setValue(event.target.value)} onKeyDown={event=>{if(event.key==='Enter')void submit();}} placeholder={mode==='title'?'e.g. Claude does my receipts automatically':'youtube.com/watch?v=…'} aria-label={mode==='title'?'Video title':'Video link'} disabled={busy}/>
+   {mode==='title'&&<button type="button" className="linkish new-breakdown" title={!aiAvailable?AI_CONNECT_HINT:undefined} disabled={!aiAvailable||busy} onClick={()=>{setMode('link');setValue('');}}>Break down a video</button>}
+  </>}
  </Dialog>;
 }

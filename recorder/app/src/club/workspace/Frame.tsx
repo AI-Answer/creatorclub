@@ -4,10 +4,10 @@ import {VIDEO_STAGES,type Video,type VideoStage} from '../../../shared/club';
 import {STAGE_LABEL} from '../board';
 import {Button,Dialog,Ed,Icon,IconButton,Menu,Tooltip,cn,useToast,type IconName,type MenuItem} from '../ui';
 import {agentPrompt} from '../agent-prompt';
-import {TAB_LABEL,previousTab,tabLock,tabState,type ContinueButton,type LockFacts,type TabFacts,type TabLock} from './rules';
+import {TAB_LABEL,previousTab,tabState,type ContinueButton,type LockFacts,type TabFacts} from './rules';
 import {fmtDate} from '../format';
 
-const STATE_WORDS={done:'Done',next:'Next step',open:undefined,current:undefined,locked:undefined} as const;
+const STATE_WORDS={done:'Done',next:'Next step',open:undefined,current:undefined} as const;
 
 /**
  * The video's header, laid out like Borumi's project header (48px): the title centred (click to rename) with the stage after it,
@@ -43,20 +43,19 @@ const STEP_ICON:Record<VideoTab,IconName>={board:'research',plan:'script',record
  * The bottom bar, laid out like Borumi's step bar (64px): "Back to" the previous step on the left, the steps in the middle (a round
  * icon well and the name, joined by chevrons; the current one is filled) and Continue on the right, naming the step it opens.
  * Continue is the primary once the step's job is done; when it cannot go yet it is disabled and the plain line beside it says why.
- * A locked step shows a lock; choosing it calls `onLocked`, which goes to the step that unlocks it.
+ * Every step is available at every stage.
  */
-export function Foot({video,tab,facts,onTab,onLocked,next}:{video:Video;tab:VideoTab;facts:TabFacts&LockFacts;onTab(tab:VideoTab):void;onLocked(tab:VideoTab,lock:TabLock):void;next?:ContinueButton&{run():void}}){
+export function Foot({video,tab,facts,onTab,next}:{video:Video;tab:VideoTab;facts:TabFacts&LockFacts;onTab(tab:VideoTab):void;next?:ContinueButton&{run():void}}){
  const back=previousTab(tab);
  return <div className="ws-foot">
   <div className="l">{back&&<button type="button" className="ws-back" onClick={()=>onTab(back)}><Icon name="back" size={16}/>Back to {TAB_LABEL[back]}</button>}</div>
   <nav className="ws-steps" aria-label="Video steps">{videoTabs.map((key,index)=>{
    const state=tabState(key,tab,facts);
-   const lock=state==='locked'?tabLock(key,facts):undefined;
    const link=<a href={`#/video/${encodeURIComponent(video.id)}/${key}`} className={cn('ws-step',tab===key&&'on',state)} data-state={state} aria-current={tab===key?'page':undefined}
-    aria-disabled={lock?true:undefined} aria-description={lock?.reason??STATE_WORDS[state]}
-    onClick={event=>{if(key===tab)return;event.preventDefault();if(lock)onLocked(key,lock);else onTab(key);}}>
-    <span className="well"><Icon name={lock?'locked':STEP_ICON[key]} size={16} className={lock?'lk':''}/></span>{TAB_LABEL[key]}</a>;
-   return <Fragment key={key}>{index>0&&<Icon name="forward" size={16} className="ws-step-sep"/>}{lock?<Tooltip text={lock.reason}>{link}</Tooltip>:link}</Fragment>;
+    aria-description={STATE_WORDS[state]}
+    onClick={event=>{if(key===tab)return;event.preventDefault();onTab(key);}}>
+    <span className="well"><Icon name={STEP_ICON[key]} size={16}/></span>{TAB_LABEL[key]}</a>;
+   return <Fragment key={key}>{index>0&&<Icon name="forward" size={16} className="ws-step-sep"/>}{link}</Fragment>;
   })}</nav>
   <div className="r">
    {next?.reason&&<span id="ws-foot-why" className="sr-only">{next.reason}</span>}

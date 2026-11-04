@@ -1,11 +1,6 @@
-import { VIDEO_STAGES, type VideoStage } from './club.js';
+import { type VideoStage } from './club.js';
 
-/*
- * When a video may be moved to a stage by hand (the card's menu, a drag on Videos, the stage menu in a video's header).
- * One rule for the screens and the server; the server is the authority and refuses with the same sentence.
- * Moving back is always allowed. Moving forward needs what the stage works on: scenes to record, a take to edit,
- * an export to publish, and a YouTube link to be Published (which only Publish or "I uploaded it myself" give).
- */
+/* Manual stage changes are unrestricted in both the UI and server. */
 
 /** What a video has, as far as moving it is concerned. */
 export interface MoveFacts {
@@ -27,21 +22,7 @@ export const MOVE_NEEDS_LINK = 'This video is not on YouTube yet, so publish it 
 /** The HTTP status the server refuses a move with, so a screen can tell a refusal from a failure. */
 export const MOVE_REFUSED_STATUS = 422;
 
-const rank = (stage: VideoStage) => VIDEO_STAGES.indexOf(stage);
-
-/** Why the video cannot be moved from `from` to `to`, as one sentence, or null when it can. */
-export function moveProblem(from: VideoStage, to: VideoStage, facts: MoveFacts): string | null {
-  if (rank(to) <= rank(from)) return null;
-  switch (to) {
-    case 'recording':
-      return facts.scenes > 0 ? null : MOVE_NEEDS_SCENES;
-    case 'editing':
-      return facts.takes > 0 ? null : MOVE_NEEDS_TAKE;
-    case 'publishing':
-      return facts.exported ? null : MOVE_NEEDS_EXPORT;
-    case 'published':
-      return facts.published ? null : MOVE_NEEDS_LINK;
-    default:
-      return null;
-  }
+/** A stage is an organizational label; moving a card never requires production artifacts. */
+export function moveProblem(_from: VideoStage, _to: VideoStage, _facts: MoveFacts): string | null {
+  return null;
 }

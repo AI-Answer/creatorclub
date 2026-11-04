@@ -9,6 +9,8 @@ export interface DesktopMediaPermissions {
  camera: DesktopMediaAccessStatus;
  microphone: DesktopMediaAccessStatus;
  screen: DesktopMediaAccessStatus;
+ /** The current process must restart after opening macOS screen recording access. */
+ screenRestartRequired?: boolean;
  /** Electron does not expose a separate system-audio permission query. */
  systemAudio: 'unknown' | 'unsupported';
 }
@@ -98,6 +100,7 @@ export interface SceneForgeDesktopBridge {
  getMediaPermissions?(): Promise<DesktopMediaPermissions>;
  requestMediaPermission?(permission: 'camera' | 'microphone'): Promise<{permission: 'camera' | 'microphone'; granted: boolean; status: DesktopMediaAccessStatus}>;
  openPrivacySettings?(section: DesktopPrivacySection): Promise<void>;
+ onMediaPermissionsChanged?(callback: (permissions: DesktopMediaPermissions) => void): () => void;
  /** Restarts the app so macOS applies a newly granted screen-recording permission. */
  relaunch?(): Promise<void>;
  reveal(path: string): Promise<void>;

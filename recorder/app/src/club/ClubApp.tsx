@@ -1,7 +1,6 @@
 import {useCallback,useEffect,useMemo,useRef,useState} from 'react';
-import type {AiStatus,ClubSettings,Video,Workspace} from '../../shared/club';
+import type {ClubSettings,Video,Workspace} from '../../shared/club';
 import {setAppearance} from '../appearance';
-import {rememberAiStatus} from './ai-status';
 import {clubFetch} from './api';
 import {Sidebar} from './Sidebar';
 import {defaultTab,routePath,useHashRoute,videoBackRoute,type Route,type VideoTab} from './routes';
@@ -24,7 +23,7 @@ import {useShellVideos} from './useShellVideos';
 import {Workspace as VideoWorkspace} from './workspace/Workspace';
 
 /**
- * First launch is needed until setup was finished or skipped once (`welcomed`). An install that already has a channel and a signed-in AI
+ * First launch is needed until setup was finished or skipped once (`welcomed`). An install that already has a channel
  * counts as set up: that is saved once so it sticks. A server that cannot be reached never forces it.
  */
 export async function needsOnboarding():Promise<boolean>{
@@ -33,13 +32,8 @@ export async function needsOnboarding():Promise<boolean>{
   const {workspaces}=await clubFetch<{workspaces:Workspace[]}>('/workspaces');
   // No channel means setup is needed whatever the AI says, so the slow check of the AI accounts (about 15 seconds) is not waited for here: Welcome runs it itself.
   if(!workspaces.length)return true;
-  const status=await clubFetch<AiStatus>('/ai/status');
-  rememberAiStatus(status);
-  if(status.claude.signedIn||status.codex.signedIn){
-   await clubFetch('/settings/welcomed',{method:'POST'}).catch(()=>{});
-   return false;
-  }
-  return true;
+  await clubFetch('/settings/welcomed',{method:'POST'}).catch(()=>{});
+  return false;
  }catch{return false;}
 }
 
@@ -85,7 +79,7 @@ function useOpenTabs(route:Route,videos:readonly ShellVideo[],navigate:(route:Ro
   setIds(rest);
   if(id===openId){const neighbour=rest[Math.min(at,rest.length-1)];navigate(neighbour?{name:'video',id:neighbour}:{name:'home'});}
  },[ids,openId,navigate]);
- const tabs=useMemo<OpenTab[]>(()=>ids.map(id=>({id,title:videos.find(video=>video.id===id)?.title??''})),[ids,videos]);
+ const tabs=useMemo<OpenTab[]>(()=>ids.map(id=>({id,title:videos.find(video=>video.id===id)?.title??'',stage:videos.find(video=>video.id===id)?.stage})),[ids,videos]);
  return {tabs,close};
 }
 
@@ -155,7 +149,7 @@ function Shell(){
    </div>
   </div>
   {paletteOpen&&<Palette videos={videos} openId={route.name==='video'?route.id:null} onClose={()=>setPaletteOpen(false)} onOpen={navigate} onNewVideo={()=>setNewOpen(true)} onHelp={topic=>setHelp({topic})}/>}
-  {newOpen&&<NewVideo onClose={()=>setNewOpen(false)} onOpen={navigate}/>}
+  {newOpen&&<NewVideo videos={videos} onClose={()=>setNewOpen(false)} onOpen={navigate}/>}
   {help&&<Help topic={help.topic} onClose={()=>setHelp(null)}/>}
  </div>;
 }
