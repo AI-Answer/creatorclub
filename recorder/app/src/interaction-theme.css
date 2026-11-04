@@ -9,8 +9,8 @@
 }
 
 :root[data-theme=dark],.club-root:where([data-theme=dark],[data-theme=dark] *) {
-  --muted:var(--cc-text-3);
-  --focus-ring:var(--cc-accent);
+  --muted:var(--cc-text-2);
+  --focus-ring:var(--cc-selection);
   --danger:var(--cc-danger);
   --danger-soft:var(--cc-danger-soft);
   --surface-shadow:var(--cc-shadow-2);

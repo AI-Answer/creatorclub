@@ -490,13 +490,12 @@ export function Board({video,board:boardProp,scenes,onDrafted=()=>{},refreshKey=
   ...(files?.folder.hidden?[{label:`Show hidden files (${files.folder.hidden})`,icon:'preview' as const,fn:()=>void showHidden()}]:[]),
  ];
  const addMenu=(primary=false)=><Menu label="Add to the board" items={addItems} button={(toggle,open)=><button type="button" className={cn('btn sm',primary&&'primary')} aria-haspopup="menu" aria-expanded={open} onClick={toggle}><Icon name="add" size={15}/>Add to board</button>}/>;
- const emptyResearch=research&&tiles?.length===0&&!frames.length;
+ const emptyBoard=tiles?.length===0&&!frames.length;
 
  return <div className="board-wrap hepta-board" ref={wrap} tabIndex={-1} onPaste={paste} onDragOver={event=>event.preventDefault()} onDrop={drop} onKeyDown={onBoardKey} onClick={event=>{if(event.target===event.currentTarget)clear();}}>
   {board.loadError?<div style={{padding:24}}><ErrorLine message={board.loadError} onRetry={board.reload}/></div>:!tiles?<div className="flex flex-1 items-center justify-center"><span className="row small muted" role="status"><Spinner label="Loading the board" size={20}/>Loading the board…</span></div>:
   <div className={cn('canvas-scroll',spaceHeld&&'pan-ready',tool==='section'&&'section-ready')} ref={scroller} style={{backgroundSize:`${grid.size}px ${grid.size}px`,backgroundPosition:`${grid.x}px ${grid.y}px`}} onPointerDown={onCanvasDown} onDoubleClick={event=>{if(isEmpty(event.target as HTMLElement,event.currentTarget))void addNote('',toCanvas(event.clientX,event.clientY));}}>
     <div className={cn('canvas',connectFrom&&'connecting')} ref={canvasEl} style={{width:frameSize.width,height:frameSize.height,transform:`translate3d(${view.x}px,${view.y}px,0) scale(${zoom})`}}>
-     {tiles.length===0&&!research&&<p className="muted" style={{position:'absolute',left:60,top:70,maxWidth:380,fontSize:14,lineHeight:1.55}}>Drop links, screenshots, notes and Markdown files here. Claude reads the whole board when it drafts your scenes. Anything saved in this video's folder shows up here too.</p>}
      {frames.map(frame=><div key={frame.id} className={cn('bframe',selFrame===frame.id&&'sel')} style={{left:frame.x,top:frame.y,width:frame.w,height:frame.h}} data-frame={frame.id}>
       <div className="bframe-h" role="group" tabIndex={0} aria-label={`Section ${frame.title}. Arrow keys move it and its cards. Enter renames it.`} onPointerDown={event=>onFrameDown(event,frame)} onKeyDown={event=>onFrameKey(event,frame)} onFocus={()=>{setSelFrame(frame.id);setSel([]);setSelLink(null);}} onDoubleClick={()=>setEditFrame(frame.id)}>
        <Icon name="frame" size={13}/>
@@ -556,14 +555,18 @@ export function Board({video,board:boardProp,scenes,onDrafted=()=>{},refreshKey=
      {marquee&&<div className="bmarquee" style={{left:marquee.x,top:marquee.y,width:marquee.w,height:marquee.h}} aria-hidden/>}
     </div>
   </div>}
-  {emptyResearch&&<div className="board-empty" role="note">
-   <p>Put what might become a video here: posts and videos from Discover, your ideas, links, notes and Markdown files.</p>
+  {/* Outside the zoomed canvas, so it reads at full size whatever the zoom. */}
+  {emptyBoard&&<div className="board-empty" role="note">
+   {research
+    ?<p>Put what might become a video here: posts and videos from Discover, your ideas, links, notes and Markdown files.</p>
+    :<><h3>This video's board</h3><p>Gather what this video needs: links, screenshots, notes and Markdown files. Drop them anywhere, or double-click to write a note. Claude reads the whole board when it drafts your scenes.</p></>}
    {addMenu(true)}
   </div>}
   {!research&&<div className="board-actions">
    <IconButton icon="help" label="How the board works" size="md" onClick={()=>setTip('again')}/>
-   <button type="button" className="btn primary" onClick={()=>video&&navigate({name:'video',id:video.id,tab:'plan'})}>Write plan by hand</button>
-   <button type="button" className={cn('btn',scenes&&scenes.length?'':'primary')} title={!aiAvailable?AI_CONNECT_HINT:undefined} disabled={!aiAvailable||draft.running} onClick={draft.request}>
+   {/* One primary at a time: Add to board while the board is empty, then Draft until there are scenes. */}
+   <button type="button" className="btn" onClick={()=>video&&navigate({name:'video',id:video.id,tab:'plan'})}>Write plan by hand</button>
+   <button type="button" className={cn('btn',!emptyBoard&&!(scenes&&scenes.length)&&'primary')} title={!aiAvailable?AI_CONNECT_HINT:undefined} disabled={!aiAvailable||draft.running} onClick={draft.request}>
     {draft.running?<><span className="spin"/>{draft.line}</>:<><Icon name="draft" size={15}/>Draft scenes from board</>}
    </button>
   </div>}
@@ -587,7 +590,7 @@ export function Board({video,board:boardProp,scenes,onDrafted=()=>{},refreshKey=
   {search!==null&&<div className="board-search"><input className="input" autoFocus aria-label="Search cards on board" placeholder="Search this board…" value={search} onChange={event=>setSearch(event.target.value)} onKeyDown={event=>{if(event.key==='Escape'){event.stopPropagation();setSearch(null);wrap.current?.focus();}}}/><IconButton icon="close" label="Close board search" onClick={()=>setSearch(null)}/></div>}
   {tiles&&<BoardMinimap boxes={[...boxes.values()]} sections={frames} view={view} holder={scroller} onMotion={onMotion} onView={setView}/>}
   <div className="btoolbar">
-   {!emptyResearch&&<>{addMenu()}<span className="sep"></span></>}
+   {!emptyBoard&&<>{addMenu()}<span className="sep"></span></>}
    <input ref={fileInput} type="file" accept="image/*,.md,.markdown,.txt" multiple hidden aria-label="Choose files to add" onChange={event=>{takeFiles([...event.target.files??[]]);event.target.value='';}}/>
    <IconButton icon="zoom-out" label="Zoom out" onClick={()=>zoomBy(-ZOOM.step)}/>
    <span className="zoom">{Math.round(zoom*100)}%</span>

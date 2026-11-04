@@ -928,6 +928,9 @@
 .club-root .board-selbar { position: absolute; left: 50%; bottom: 70px; transform: translateX(-50%); z-index: 6; display: flex; align-items: center; gap: 6px; padding: 4px 4px 4px 12px; background: var(--cc-surface); border: 1px solid var(--cc-line); border-radius:var(--cc-r-lg); box-shadow: var(--cc-shadow-3); white-space: nowrap; }
 .club-root .board-empty { position: absolute; left: 50%; top: 42%; transform: translate(-50%, -50%); z-index: 4; max-width: 440px; display: flex; flex-direction: column; align-items: center; gap: 14px; text-align: center; }
 .club-root .board-empty p { margin: 0; font-size:var(--cc-text-lg); line-height: 1.55; color: var(--cc-text-2); }
+.club-root .board-empty { pointer-events: none; }
+.club-root .board-empty > :not(p, h3) { pointer-events: auto; }
+.club-root .board-empty h3 { margin: 0; font-size: var(--cc-text-xl); font-weight: 600; color: var(--cc-text); }
 .club-root .research { position: relative; }
 .club-root .research .ws-top { gap: 14px; }
 .club-root .research-title { margin: 0; font-size:var(--cc-text-xl); line-height: 1.15; font-weight: 650; letter-spacing: -0.022em; }

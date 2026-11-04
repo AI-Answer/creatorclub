@@ -10,10 +10,10 @@
 }
 :root[data-theme=dark],.club-root:where([data-theme=dark],[data-theme=dark] *) {
  --background:var(--cc-bg); --foreground:var(--cc-text); --surface:var(--cc-surface);
- --secondary:var(--cc-surface-2); --input:var(--cc-hover); --line:var(--cc-line); --muted:var(--cc-text-3);
+ --secondary:var(--cc-surface-2); --input:var(--cc-hover); --line:var(--cc-line); --muted:var(--cc-text-2);
  --primary:var(--cc-primary); --primary-foreground:var(--cc-on-primary); --accent:var(--cc-accent);
  --accent-dark:var(--cc-accent-hover); --accent-soft:var(--cc-accent-soft); --brand:var(--cc-brand);
- --focus-ring:var(--cc-accent); color-scheme:dark;
+ --focus-ring:var(--cc-selection); color-scheme:dark;
 }
 body { -webkit-font-smoothing:antialiased; }
 h1,h2,h3 { letter-spacing:-.035em; }

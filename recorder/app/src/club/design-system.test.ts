@@ -66,15 +66,17 @@ test('global dark token blocks agree with the club theme',()=>{
  const compact=(value:string)=>value.replace(/\s+/g,'');
  for(const file of ['original-theme.css','creator-theme.css']){
   const sheet=fs.readFileSync(path.join(src,file),'utf8');
-  const blocks=[...sheet.matchAll(/:root\[data-theme=dark\]\s*\{[^}]*\}/g)];assert.ok(blocks.length);
+  const blocks=[...sheet.matchAll(/:root\[data-theme=dark\][^{]*\{[^}]*\}/g)];assert.ok(blocks.length);
   for(const [block] of blocks){
    const tokens=declarations(block,':root[data-theme=dark]');
-   for(const [name,target] of Object.entries(aliases))if(tokens[name])assert.equal(compact(tokens[name]),compact(dark[target]),`${file}: ${name}`);
+   // A compatibility name either points at its club token or repeats its value.
+   for(const [name,target] of Object.entries(aliases))if(tokens[name])assert.ok(compact(tokens[name])===`var(${target})`||compact(tokens[name])===compact(dark[target]),`${file}: ${name} is ${tokens[name]}`);
   }
  }
  const interactions=declarations(fs.readFileSync(path.join(src,'interaction-theme.css'),'utf8'),':root[data-theme=dark]');
- assert.equal(interactions['--focus-ring'],dark['--cc-selection']);
- assert.equal(compact(interactions['--muted']),compact(dark['--cc-text-2']));
+ const resolve=(value:string)=>compact(value).replace(/^var\((--cc-[\w-]+)\)$/,(_,name:string)=>compact(dark[name]));
+ assert.equal(resolve(interactions['--focus-ring']),compact(dark['--cc-selection']));
+ assert.equal(resolve(interactions['--muted']),compact(dark['--cc-text-2']));
 });
 
 test('dark body and secondary text meet contrast targets on boards, panels, hover and menus',()=>{
