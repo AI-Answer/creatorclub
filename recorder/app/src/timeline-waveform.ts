@@ -25,6 +25,12 @@ export function waveformBars(clip:Clip,media:Media,peaks:readonly number[],scale
  }return bars;
 }
 const pathNumber=(value:number)=>Math.round(value*100)/100;
+/** Dense one-pixel columns, separated by a pixel: speech detail stays visible instead of merging into a solid blob. */
+export function waveformSpikesPath(bars:readonly WaveformBar[],mid:number,amplitude:number):string{
+ // Bars are centered on the integer timeline grid. Align the column edge to that grid too;
+ // half-pixel edges blur into both neighbouring pixels and erase the gaps between columns.
+ return bars.flatMap(bar=>{const height=waveformHeight(bar.peak,amplitude);if(height<=0)return [];const x=pathNumber(bar.x-1),top=pathNumber(mid-height),bottom=pathNumber(mid+height);return [`M${x} ${top}h1V${bottom}h-1Z`];}).join('');
+}
 /** One filled path per clip: the envelope mirrored about the centerline, top edge left to right and bottom edge back. Flat runs drop their interior points, so silence costs nothing; an all-silent window draws nothing and leaves the baseline. */
 export function waveformEnvelopePath(bars:readonly WaveformBar[],mid=11,amplitude=10):string{
  const heights=bars.map(bar=>waveformHeight(bar.peak,amplitude));if(!heights.some(height=>height>0))return '';

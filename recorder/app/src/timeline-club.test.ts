@@ -5,11 +5,18 @@ import {act,createElement} from 'react';
 import {createProject,defaultEffects,defaultTransform,type Clip,type Media,type Project} from '../shared/types';
 import {applyProjectChange} from './project-draft';
 import {createPlayhead} from './playhead';
+import {splitLinked} from './timeline-edit';
 const {TimelineClub,usedRows}=await import('./TimelineClub');
 
 const media:Media={id:'m',name:'m',path:'/tmp/m.mov',kind:'video',duration:60,width:1920,height:1080,hasAudio:true};
 const clip=(id:string,track:Clip['track'],start:number,length:number,take?:string):Clip=>({id,mediaId:'m',name:id,track,start,sourceIn:0,sourceOut:length,speed:1,gain:1,muted:false,transform:defaultTransform(),effects:defaultEffects(),...(take?{recordingTakeId:take}:{})});
 function project(clips:Clip[]):Project{const p=createProject('Edit');p.media=[media];p.clips=clips;p.scenes=[];p.settings.snap=false;return p;}
+function takeFixture(){
+ const p=project(['screen','camera','audio'].map(track=>clip(track,track as Clip['track'],0,12,'take')));
+ p.media=p.clips.map(c=>({...media,duration:12,id:c.track,kind:c.track==='audio'?'audio':'video',waveform:c.track==='audio'?[0,.02,.4,.001,.15,0,.3,.05]:undefined}));
+ for(const c of p.clips)c.mediaId=c.track;
+ p.captions=[{id:'speech',start:0,end:12,text:'First words then more',words:[{text:'First',start:.2,end:1},{text:'words',start:1,end:2},{text:'then',start:7,end:8},{text:'more',start:8,end:9}]}];return p;
+}
 /** Drag previews render on the next animation frame. */
 const frame=()=>act(async()=>{await new Promise(resolve=>setTimeout(resolve,40));});
 const pointer=(type:string,x:number,target:EventTarget=window,altKey=false)=>target.dispatchEvent(new (window as unknown as {PointerEvent:typeof PointerEvent}).PointerEvent(type,{bubbles:true,cancelable:true,button:0,buttons:1,clientX:x,clientY:10,pointerId:1,altKey}));
@@ -22,10 +29,10 @@ function harness(p:Project){
  return {state,element};
 }
 
-test('rows exist only when used: an empty video shows Screen and Audio, a camera-only take shows Camera and Audio',()=>{
+test('rows exist only when used: linked camera and audio share one take row; manual captions keep their row',()=>{
  assert.deepEqual(usedRows(project([])).map(r=>r.name),['Screen','Audio']);
  const p=project([clip('c','camera',0,5,'t'),clip('a','audio',0,5,'t')]);p.captions=[{id:'x',start:0,end:1,text:'Hi'}];
- assert.deepEqual(usedRows(p).map(r=>[r.name,r.linked??false]),[['Camera',true],['Audio',true],['Captions',false]]);
+ assert.deepEqual(usedRows(p).map(r=>[r.name,r.linked??false]),[['Linked takes',true],['Captions',false]]);
 });
 
 test('an Option-drag survives a background save or reload of the project and drops on the project as it is then',async()=>{
@@ -97,4 +104,21 @@ test('Task 14: a transcript cut shows a mark on the timeline where it happened',
  const {state,element}=harness(project([clip('a','screen',0,4)]));
  const ui=await mountUI(createElement(TimelineClub,{...element(state.project).props,cutMarks:[1.5]}));
  try{const mark=ui.container.querySelector<HTMLElement>('.club-cut-mark');assert.ok(mark,'a cut mark is drawn');assert.equal(mark!.style.left,'75px');}finally{await ui.close();}
+});
+
+test('linked sources render once with a sentence pill, paired thumbnails and dense microphone envelope; grouped dragging stays one edit',async()=>{
+ const p=takeFixture();splitLinked(p,6,new Set(['audio']));const {state,element}=harness(p);
+ const right=p.clips.find(c=>c.track==='audio'&&c.start===6)!;
+ const ui=await mountUI(createElement(TimelineClub,{...element(p).props,scale:20,showWaveforms:true}));
+ try{
+  const clips=ui.container.querySelectorAll('.club-take');assert.equal(clips.length,2,'six sources become two take slices');
+  const first=clips[0];assert.equal(first.querySelector('.club-caption-text')?.textContent,'First words');
+  assert.equal(first.querySelectorAll('.club-source-thumb').length,2);assert.equal(first.querySelector('.club-wave')?.getAttribute('data-waveform-media'),'audio');
+  assert.ok(first.querySelector('.club-wave path')!.getAttribute('d')!.length>300,'the envelope spans the body at pixel density');
+  assert.equal(first.getAttribute('data-linked-clip-ids')?.split(' ').length,3);
+  await act(async()=>{pointer('pointerdown',150,ui.container.querySelector(`[data-clip-id="${right.id}"]`)!);pointer('pointermove',10);pointer('pointerup',10);});
+  assert.equal(state.changes,1);assert.deepEqual(state.project.clips.filter(c=>c.linkId===right.linkId).map(c=>c.start),[0,0,0]);
+  await ui.render(createElement(TimelineClub,{...element(state.project).props,scale:150}));
+  assert.ok(ui.container.querySelector('.club-caption-pill .club-word'),'zoomed-in words are positioned inside the same pill');
+ }finally{await ui.close();}
 });

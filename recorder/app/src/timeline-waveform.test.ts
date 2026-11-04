@@ -1,9 +1,17 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-import {TimelineWaveformCache,hasWaveform,waveformBars,waveformHeight,waveformMediaKey,waveformEnvelopePath} from './timeline-waveform';
+import {TimelineWaveformCache,hasWaveform,waveformBars,waveformHeight,waveformMediaKey,waveformEnvelopePath,waveformSpikesPath} from './timeline-waveform';
 import {defaultEffects,defaultTransform,type Clip,type Media} from '../shared/types';
 const media:Media={id:'source',path:'/fixture/source.wav',name:'Audio',kind:'audio',duration:10,width:0,height:0};
 const clip:Clip={id:'c',mediaId:'source',name:'Trimmed',track:'audio',start:20,sourceIn:4,sourceOut:8,speed:2,gain:1,muted:false,transform:defaultTransform(),effects:defaultEffects()};
 const tick=()=>new Promise(resolve=>setTimeout(resolve,0));
+test('speech columns stay mirrored and separated, while silence draws no artificial sound',()=>{
+ const path=waveformSpikesPath([{x:1,peak:0},{x:3,peak:.006},{x:5,peak:.2}],40,20);
+ assert.equal((path.match(/M/g)??[]).length,2);assert.equal(waveformSpikesPath([{x:1,peak:0}],40,20),'');
+ const columns=[...path.matchAll(/M([\d.]+) ([\d.]+)h1V([\d.]+)h-1Z/g)];assert.equal(columns.length,2);
+ for(const [,x,top,bottom] of columns){assert.ok(Number(x)>1);assert.ok(Math.abs(Number(top)+Number(bottom)-80)<.02);}
+ assert.ok(Number(columns[0][3])-Number(columns[0][2])>14,'quiet speech occupies a readable part of the body');
+ assert.ok(Number(columns[1][3])-Number(columns[1][2])>Number(columns[0][3])-Number(columns[0][2]),'louder speech remains taller');
+});
 test('trim and speed sample later source bins instead of beginning of file',()=>{const peaks=Array.from({length:10},(_,i)=>i/10),bars=waveformBars(clip,media,peaks,3,20,22);assert.deepEqual(bars,[{x:1.5,peak:.5},{x:4.5,peak:.7}]);});
 test('visible scroll window maps source time and preserves quiet amplitude, gaps and bounds',()=>{const peaks=[0,0,0,0,.01,.01,.02,.02,0,0];assert.deepEqual(waveformBars(clip,media,peaks,3,21,22),[{x:4.5,peak:.02}]);assert.deepEqual(waveformBars(clip,media,peaks,3,0,19),[]);assert.deepEqual(waveformBars(clip,{...media,duration:0},peaks,3,20,22),[]);assert.ok(waveformBars(clip,media,peaks,100000,20,22).length<=1200);});
 test('bars sit on a fixed timeline pixel grid so a moving window keeps every shared bar unchanged',()=>{
