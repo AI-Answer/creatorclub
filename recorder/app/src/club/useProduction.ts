@@ -2,7 +2,8 @@ import {useCallback,useRef,useState} from 'react';
 import type {Video,VideoStage} from '../../shared/club';
 import {clubFetch,errorMessage} from './api';
 import {formatDay} from './board';
-import {applyMove,planMove} from './production';
+import {planMove} from './production';
+import {OptimisticMoves} from './production/optimistic-moves';
 import {useToast} from './ui';
 import {useVideos,type VideosState} from './useVideos';
 
@@ -27,12 +28,18 @@ export function useProduction():{state:VideosState;videos:Video[]|null;reload():
  },[]);
  const sayFailed=useCallback((reason:unknown,fallback:string)=>toast(errorMessage(reason,fallback),{refused:true}),[toast]);
 
- const place=useCallback(async(id:string,stage:VideoStage,beforeId:string|null,stageDates?:Video['stageDates']):Promise<void>=>{
-  const before=latest.current;
-  if(!before)return;
-  show(applyMove(before,id,stage,beforeId,new Date().toISOString(),stageDates));
-  try{await clubFetch<Video>(`/videos/${encodeURIComponent(id)}/move`,{body:{stage,beforeId,...(stageDates&&{stageDates})}});}
-  catch(reason){show(before);throw reason;}
+ const queue=useRef<{base:Video[];moves:OptimisticMoves}|null>(null);
+ const place=useCallback((id:string,stage:VideoStage,beforeId:string|null,stageDates?:Video['stageDates']):Promise<void>=>{
+  const initial=base.current;
+  if(!initial)return Promise.resolve();
+  if(queue.current?.base!==initial)queue.current={base:initial,moves:new OptimisticMoves(latest.current??initial,next=>{
+   if(base.current===initial)show(next);
+  },async placement=>{
+   const saved=await clubFetch<Video>(`/videos/${encodeURIComponent(placement.id)}/move`,{body:{stage:placement.stage,beforeId:placement.beforeId,...(placement.stageDates&&{stageDates:placement.stageDates})},notify:false});
+   window.dispatchEvent(new CustomEvent('club:video-moved',{detail:saved}));
+   return saved;
+  })};
+  return queue.current.moves.place(id,stage,beforeId,stageDates);
  },[show]);
 
  /** Puts a video in a stage, just before another or last. Nothing happens when it would stay where it is. */

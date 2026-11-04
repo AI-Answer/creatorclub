@@ -4,8 +4,8 @@ export class ClubApiError extends Error{constructor(message:string,readonly stat
 export const CANT_REACH="Couldn't reach Creator Compiler.";
 const GENERIC='That did not work.';
 
-export async function clubFetch<T=unknown>(path:string,init:{method?:string;body?:unknown;signal?:AbortSignal}={}):Promise<T>{
- return send<T>(path,{signal:init.signal,method:init.method??(init.body===undefined?'GET':'POST'),headers:init.body===undefined?undefined:{'content-type':'application/json'},body:init.body===undefined?undefined:JSON.stringify(init.body)});
+export async function clubFetch<T=unknown>(path:string,init:{method?:string;body?:unknown;signal?:AbortSignal;notify?:boolean}={}):Promise<T>{
+ return send<T>(path,{signal:init.signal,method:init.method??(init.body===undefined?'GET':'POST'),headers:init.body===undefined?undefined:{'content-type':'application/json'},body:init.body===undefined?undefined:JSON.stringify(init.body)},init.notify);
 }
 
 /** Sends a file (or other form data) as a multipart upload. */
@@ -27,7 +27,7 @@ export function changesVideos(method:string|undefined,path:string):boolean{
  return /^\/breakdowns\/[^/]+\/concepts\/[^/]+\/add$/.test(route);
 }
 
-async function send<T>(path:string,init:RequestInit):Promise<T>{
+async function send<T>(path:string,init:RequestInit,notify=true):Promise<T>{
  let response:Response;
  try{
   response=await fetch(`/api/club${path}`,init);
@@ -38,7 +38,7 @@ async function send<T>(path:string,init:RequestInit):Promise<T>{
   const message=typeof body==='object'&&body!==null&&'error' in body&&typeof body.error==='string'?body.error:GENERIC;
   throw new ClubApiError(message,response.status);
  }
- if(changesVideos(init.method,path))notifyVideosChanged();
+ if(notify&&changesVideos(init.method,path))notifyVideosChanged();
  return body as T;
 }
 

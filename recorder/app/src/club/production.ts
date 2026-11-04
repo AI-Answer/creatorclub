@@ -11,7 +11,6 @@ import {defaultTab,type Route,type VideoTab} from './routes';
  */
 
 const byOrder=(a:Video,b:Video)=>a.order-b.order||a.createdAt.localeCompare(b.createdAt);
-const byPublished=(a:Video,b:Video)=>(b.publishedAt??'').localeCompare(a.publishedAt??'')||byOrder(a,b);
 
 /** Where a card opens: an idea in its drawer on Videos, any other video on the tab for its stage. */
 export function openRoute(video:Video,tab?:VideoTab):Route{
@@ -36,16 +35,16 @@ export const COLUMN_EMPTY:Record<VideoStage,string>={
 /** Every video in each stage is visible, including ideas marked Later or Skipped. */
 export interface BoardColumn{stage:VideoStage;all:Video[];shown:Video[]}
 
-/** The six columns: board order, except Published, which has the latest first. */
+/** The six columns, all in their persisted manual order. */
 export function boardColumns(videos:readonly Video[]):BoardColumn[]{
  return VIDEO_STAGES.map(stage=>{
-  const all=videos.filter(video=>video.stage===stage).sort(stage==='published'?byPublished:byOrder);
+  const all=videos.filter(video=>video.stage===stage).sort(byOrder);
   return {stage,all,shown:all};
  });
 }
 
-/** Lanes whose order is not yours to set: Ideas keep their board order, Published has the latest first. A card dropped on them goes in, never between two cards. */
-export const unordered=(stage:VideoStage)=>stage==='ideas'||stage==='published';
+/** All lanes support manual ordering; retained for consumers of the board helpers. */
+export const unordered=(_stage:VideoStage)=>false;
 
 /** Where a dragged card lands: the index of the first card whose middle is below the pointer, else the end. */
 export const dropIndex=(middles:readonly number[],pointerY:number)=>{const at=middles.findIndex(middle=>pointerY<middle);return at<0?middles.length:at;};
@@ -53,7 +52,7 @@ export const dropIndex=(middles:readonly number[],pointerY:number)=>{const at=mi
 /**
  * The card a dropped card goes before, given the index it was dropped at among the column's drawn cards (without the dragged one).
  * Dropped at the end of a column that shows only part of its videos, it goes before the first one that is not drawn, so it stays in view.
- * Null means last. Ideas and Published have no order of their own (`unordered`), so it is always last there.
+ * Null means last. Every stage supports insertion before another card.
  */
 export function beforeIdAt(column:BoardColumn,dragId:string,index:number):string|null{
  if(unordered(column.stage))return null;
@@ -93,14 +92,14 @@ export const nextInStage=(videos:readonly Video[],id:string):string|null=>{
 export interface Move{message:string;previous:{stage:VideoStage;beforeId:string|null;stageDates:Video['stageDates']}}
 
 /**
- * The move of `id` to `stage`, just before `beforeId` or last, or null when it would change nothing (a card dropped where it is, or within Ideas or Published).
- * Ideas put off or skipped are out of sight, so they do not count: a card dropped after the last one you see stays where it is.
+ * The move of `id` to `stage`, just before `beforeId` or last, or null when it would change nothing (a card dropped where it already is).
+ * All visible cards, including Later and Skipped ideas, retain their manual positions.
  */
 export function planMove(videos:readonly Video[],id:string,stage:VideoStage,beforeId:string|null):Move|null{
  const video=videos.find(v=>v.id===id);
  if(!video)return null;
  const within=video.stage===stage;
- if(within&&(unordered(stage)||isSamePlace(videos.filter(v=>!v.hidden||v.id===id),id,stage,beforeId)))return null;
+ if(within&&(unordered(stage)||isSamePlace(videos,id,stage,beforeId)))return null;
  return {message:within?`Moved in ${STAGE_LABEL[stage]}`:`Moved to ${STAGE_LABEL[stage]}`,previous:{stage:video.stage,beforeId:nextInStage(videos,id),stageDates:video.stageDates}};
 }
 

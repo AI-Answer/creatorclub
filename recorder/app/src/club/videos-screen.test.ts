@@ -74,9 +74,9 @@ test('Board: six flat lanes, compact cards, counts, no idea subgroups, and direc
   assert.equal(c.querySelectorAll('[data-column]').length,6);
   assert.equal(c.querySelector('.igroup-h'),null);
   assert.deepEqual(cardIds(column(c,'ideas')),['a','b','c','d']);
-  assert.match(text(card(c,'Planned')),/0 of 3 scenes/);
-  assert.match(text(card(c,'Recorded')),/2 of 5 scenes/);
-  assert.equal(card(c,'Live').querySelector('img')!.getAttribute('src'),'https://i.ytimg.com/vi/dQw4w9WgXcQ/mqdefault.jpg');
+  assert.match(text(card(c,'Planned')),/0\/3 scenes/);
+  assert.match(text(card(c,'Recorded')),/2\/5 scenes/);
+  assert.match(card(c,'Live').querySelector('img')!.getAttribute('src')!,/^\/api\/club\/videos\/x\/cover/);
   assert.equal(calls.filter(call=>call.method!=='GET').length,0);
   await press(button(c,'New video'));assert.equal(opened.count,1);
   await press(card(c,'Recorded'));await press(card(c,'Alpha'));
@@ -117,7 +117,7 @@ test('Board: a card can go to Recording without a recording project; the video p
  });
 });
 
-test('Board: dropping above another card places it before that card; dropping where it already is does nothing; Ideas take a card without a line',async()=>{
+test('Board: dropping above another card places it before that card; dropping where it already is does nothing; Ideas support the same insertion gap',async()=>{
  const videos=[mk('a',{title:'Alpha',order:0}),mk('p1',{title:'Plan one',stage:'planning',order:0}),mk('p2',{title:'Plan two',stage:'planning',order:1})];
  await withBoard({videos},'board',async(ui,calls)=>{
   const c=ui.container;
@@ -134,13 +134,15 @@ test('Board: dropping above another card places it before that card; dropping wh
   await dragTo(card(c,'Plan one'),column(c,'planning'),10_000);
   assert.equal(writes(),before,'dropping a card in its own place saves nothing');
   await drag(card(c,'Plan one'),'dragstart');await drag(column(c,'ideas'),'dragover',5);
-  assert.equal(c.querySelectorAll('[data-drop-line]').length,0,'Ideas are grouped, so no line between cards');assert.ok(column(c,'ideas').classList.contains('over'));
+  assert.equal(c.querySelectorAll('[data-drop-line]').length,1,'Ideas show an insertion gap too');assert.ok(column(c,'ideas').classList.contains('over'));
   await drag(column(c,'ideas'),'drop',5);await drag(card(c,'Plan one'),'dragend');await settle();
   assert.deepEqual(calls.filter(call=>call.method==='POST').slice(-1).map(call=>call.body),[{stage:'ideas',beforeId:null}]);
   assert.ok(column(c,'ideas').querySelector('[data-card-id="p1"]'),'back among the ideas');
   const now=writes();
-  await dragTo(card(c,'Alpha'),column(c,'ideas'),10_000);
-  assert.equal(writes(),now,'an idea dropped in Ideas stays where it is');
+  for(const el of column(c,'ideas').querySelectorAll<HTMLElement>('[data-card]'))el.getBoundingClientRect=()=>({top:20,height:40} as DOMRect);
+  await dragTo(card(c,'Plan one'),column(c,'ideas'),0);
+  assert.equal(writes(),now+1,'ideas can be reordered within the column');
+  assert.deepEqual(cardIds(column(c,'ideas')),['p1','a']);
  });
 });
 
@@ -153,11 +155,11 @@ test('Board: a move that cannot be saved puts the card back and says so in one s
  });
 });
 
-test('Board: after a drag the list from the server takes over, so a later drag starts from what was saved',async()=>{
+test('Board: a saved move keeps the board local and the next drag uses its saved order',async()=>{
  await withBoard({},'board',async(ui,calls)=>{
   const c=ui.container;
   await dragTo(card(c,'Alpha'),column(c,'planning'));
-  assert.equal(calls.filter(call=>call.path==='/videos'&&call.method==='GET').length,2,'the videos were read again after the save');
+  assert.equal(calls.filter(call=>call.path==='/videos'&&call.method==='GET').length,1,'moving does not reload the board');
   await dragTo(card(c,'Bravo'),column(c,'planning'));
   assert.deepEqual(cardIds(column(c,'planning')),['p','a','b']);
  });
@@ -302,8 +304,8 @@ test('Board: unknown scenes show only a date; known scenes show compact progress
  await withBoard({videos,outlines:{p:3},holdScenes:hold},'board',async ui=>{
   assert.equal(ui.container.querySelector('.dots'),null);
   release();await settle();
-  assert.match(text(card(ui.container,'Planned')),/0 of 3 scenes/);
-  assert.equal(ui.container.querySelectorAll('.dots i').length,3);
+  assert.match(text(card(ui.container,'Planned')),/0\/3 scenes/);
+  assert.equal(ui.container.querySelectorAll('.dots i').length,0,'the compact card uses a fraction instead of duplicating progress dots');
  });
 });
 

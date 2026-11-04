@@ -378,7 +378,7 @@ export async function writeVideo(slug: string, video: Video) {
 const byStageThenOrder = (a: Video, b: Video) =>
   VIDEO_STAGES.indexOf(a.stage) - VIDEO_STAGES.indexOf(b.stage) || a.order - b.order || a.createdAt.localeCompare(b.createdAt);
 
-export async function listVideos(slug: string): Promise<Video[]> {
+async function listVideosRaw(slug: string): Promise<Video[]> {
   let ids: string[];
   try {
     ids = await fs.readdir(path.join(workspaceDir(slug), 'videos'));
@@ -388,6 +388,45 @@ export async function listVideos(slug: string): Promise<Video[]> {
   }
   const videos = await Promise.all(ids.filter((id) => ID.test(id)).map((id) => readVideo(slug, id).catch(() => undefined)));
   return videos.filter((v): v is Video => !!v).sort(byStageThenOrder);
+}
+
+/** Called only under the workspace lock. Reserve numbers before writing videos, so a deleted video's ID is never reused. */
+async function numberedVideos(slug: string): Promise<Video[]> {
+  const videos = await listVideosRaw(slug);
+  const file = path.join(workspaceDir(slug), 'video-sequence.json');
+  const saved = await readJSON<{ last: number }>(file);
+  let last = Math.max(saved?.last ?? 0, ...videos.map(video => Number.isSafeInteger(video.number) && video.number! > 0 ? video.number! : 0));
+  const seen = new Set<number>();
+  const pending: Video[] = [];
+  for (const video of [...videos].sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id))) {
+    if (Number.isSafeInteger(video.number) && video.number! > 0 && !seen.has(video.number!)) seen.add(video.number!);
+    else pending.push(video);
+  }
+  if (pending.length || last !== (saved?.last ?? 0)) {
+    await writeJSON(file, { last: last + pending.length });
+    for (const video of pending) {
+      const number = ++last;
+      // Preserve any autosave that completed while the workspace was being read.
+      await videoLock(slug, video.id, async () => {
+        const current = await readVideo(slug, video.id);
+        await writeVideo(slug, { ...current, number });
+        Object.assign(video, current, { number });
+      });
+    }
+  }
+  return videos;
+}
+
+export function listVideos(slug: string): Promise<Video[]> {
+  return workspaceLock(slug, () => numberedVideos(slug));
+}
+
+async function reserveVideoNumber(slug: string, videos: Video[]): Promise<number> {
+  const file = path.join(workspaceDir(slug), 'video-sequence.json');
+  const saved = await readJSON<{ last: number }>(file);
+  const number = Math.max(saved?.last ?? 0, ...videos.map(video => video.number ?? 0)) + 1;
+  await writeJSON(file, { last: number });
+  return number;
 }
 
 export type NewVideo = Pick<Video, 'title'> & Partial<Pick<Video, 'stage' | 'source' | 'idea' | 'hidden' | 'publishDate' | 'planning' | 'recorderProjectId'>>;
@@ -400,6 +439,7 @@ async function createLocked(slug: string, input: NewVideo, videos: Video[]): Pro
   const video: Video = {
     ...input,
     id: newId('v'),
+    number: await reserveVideoNumber(slug, videos),
     stage,
     order: nextOrder(videos, stage),
     createdAt: at,
@@ -412,13 +452,13 @@ async function createLocked(slug: string, input: NewVideo, videos: Video[]): Pro
 }
 
 export function createVideo(slug: string, input: NewVideo): Promise<Video> {
-  return workspaceLock(slug, async () => createLocked(slug, input, await listVideos(slug)));
+  return workspaceLock(slug, async () => createLocked(slug, input, await numberedVideos(slug)));
 }
 
 /** Creates a video unless `find` already finds one among the channel's videos. The check and the create happen under one lock, so two calls at once make one video. */
 export function createVideoUnless(slug: string, input: NewVideo, find: (videos: Video[]) => Video | undefined): Promise<{ video: Video; created: boolean }> {
   return workspaceLock(slug, async () => {
-    const videos = await listVideos(slug);
+    const videos = await numberedVideos(slug);
     const existing = find(videos);
     return existing ? { video: existing, created: false } : { video: await createLocked(slug, input, videos), created: true };
   });
@@ -435,7 +475,7 @@ export function importVideo(slug: string, video: Video): Promise<Video> {
   );
 }
 
-export type VideoPatch = Partial<Omit<Video, 'id' | 'stage' | 'createdAt' | 'updatedAt' | 'stageDates' | 'idea'>>;
+export type VideoPatch = Partial<Omit<Video, 'id' | 'number' | 'stage' | 'createdAt' | 'updatedAt' | 'stageDates' | 'idea'>>;
 /** Changes to an idea's notes: a field that is sent replaces the stored one, `null` removes it, a field left out stays. */
 export type IdeaPatch = { [K in keyof IdeaNotes]?: IdeaNotes[K] | null };
 
@@ -444,6 +484,7 @@ export function updateVideo(slug: string, id: string, patch: { [K in keyof Video
   return videoLock(slug, id, async () => {
     const video: Record<string, unknown> = { ...(await readVideo(slug, id)) };
     for (const [key, value] of Object.entries(patch)) {
+      if (key === 'number') continue;
       if (key === 'idea' && value) {
         const notes: Record<string, unknown> = { ...(video.idea as IdeaNotes | undefined) };
         for (const [field, note] of Object.entries(value)) {
@@ -471,7 +512,7 @@ export interface MoveOptions {
 export async function moveVideo(slug: string, id: string, stage: VideoStage, options: MoveOptions = {}): Promise<Video> {
   if (!VIDEO_STAGES.includes(stage)) throw new ClubError('That stage does not exist.');
   return workspaceLock(slug, async () => {
-    const videos = await listVideos(slug);
+    const videos = await numberedVideos(slug);
     const video = videos.find((v) => v.id === id);
     if (!video) throw notFound('video');
     const column = arrangeColumn(videos, id, stage, options.beforeId);

@@ -481,7 +481,11 @@ export function clubRouter({ ai = {}, transcribe, runAI, readViews = ytDlpViews(
   router.get('/recent', handler(async (_req, res) => res.json(await store.recentVideoIds(await requireWorkspace()))));
   // Every video that is not published, in one request. Registered before /videos/:id so "scenes" is not read as an id.
   router.get('/videos/scenes', handler(async (_req, res) => res.json(await videosScenes(await requireWorkspace()))));
-  router.get('/videos/:id', handler(async (req, res) => res.json(await store.readVideo(await requireWorkspace(), param(req, 'id')))));
+  router.get('/videos/:id', handler(async (req, res) => {
+    const slug = await requireWorkspace();
+    await store.listVideos(slug); // Backfill IDs before a video is opened directly.
+    res.json(await store.readVideo(slug, param(req, 'id')));
+  }));
   // A proof shot: the real page behind a claim, scrolled to the words and highlighted, saved in the video's folder and registered as
   // media. With `at`, it is also placed on the Overlays row as one undoable change; with `runDir` (a skill run of this video), it is
   // copied into that run's out folder so the run can hand it back as a card.

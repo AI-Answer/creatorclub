@@ -1,6 +1,6 @@
 import {Fragment,useState} from 'react';
 import {videoTabs,type VideoTab} from '../routes';
-import {VIDEO_STAGES,type Video,type VideoStage} from '../../../shared/club';
+import {VIDEO_STAGES,videoHumanId,type Video,type VideoStage} from '../../../shared/club';
 import {STAGE_LABEL} from '../board';
 import {Button,Dialog,Ed,Icon,IconButton,Menu,Tooltip,cn,useToast,type IconName,type MenuItem} from '../ui';
 import {agentPrompt} from '../agent-prompt';
@@ -23,7 +23,8 @@ export function Header({video,tab,onTitle,onStage,onDelete}:{video:Video;tab:Vid
  return <div className="ws-top">
   <div className="ws-top-l" id="ws-top-left"/>
   <div className="ws-top-c">
-   <Tooltip text="Click to rename the video"><Ed className="ws-title" value={video.title} ph="Video title" onChange={title=>{if(title.trim())onTitle(title.trim());}}/></Tooltip>
+   <span className="ws-video-id small faint">{videoHumanId(video)}</span>
+   <Tooltip text={`${videoHumanId(video)} · Click to rename the video`}><Ed className="ws-title" value={video.title} ph="Video title" onChange={title=>{if(title.trim())onTitle(title.trim());}}/></Tooltip>
    <span className="ws-stage">{STAGE_LABEL[video.stage]}</span>
   </div>
   <div className="ws-top-r">
