@@ -1,3 +1,4 @@
+import {retimeLayouts} from '../shared/layouts';
 import {takeSourceRange,takeTimelineDuration} from '../shared/take-timing';
 import {clipDuration,defaultTransform,effectsForTrack,makeId,narrationPriority,type Clip,type Project,type RecordedTake} from '../shared/types';
 import {creatorCameraTransform,creatorScreenTransform} from '../shared/camera-style';
@@ -60,6 +61,7 @@ function applyTake(p:Project,sceneId:string,id:string,mode:TakeConfirmMode){
   if(p.cursor.points.some(c=>c.time>=Math.min(end,newEnd)-EPS&&c.time<end-EPS))throw Error('Cursor events would be lost by this shorter take. Use Keep both or adjust the scene first.');
   if(p.scenes.slice(index+1).some(s=>s.start<end-EPS))throw Error('Scenes overlap. Separate their boundaries before switching takes.');
  }
+ retimeLayouts(p,end,delta);
  const shift=(n:number)=>n>=end-EPS?n+delta:n;
  p.clips=p.clips.filter(c=>!removedIds.has(c.id)).map(c=>({...c,start:shift(c.start)}));const used=new Set(p.clips.map(c=>c.id));if(target.clips.some(c=>used.has(c.id)))throw Error('A saved clip identity is already used elsewhere. Resolve it before switching takes.');
  p.clips.push(...target.clips.map(c=>({...plainClone(c),start:start+c.start,recordingTakeId:id})));
@@ -90,6 +92,7 @@ function archiveInPlace(p:Project,id:string){
   for(const key of ['elements','zooms']as const)if(p[key].some(e=>e.start<end-EPS&&e.start+e.duration>newEnd+EPS))throw Error('A graphic or zoom extends beyond the remaining take. Move it before archiving.');
   if(p.cursor.points.some(c=>c.time>=newEnd-EPS&&c.time<end-EPS))throw Error('Cursor events would be lost. Adjust them before archiving this take.');
  }
+ retimeLayouts(p,end,delta);
  const shift=(n:number)=>n>=end-EPS?n+delta:n;p.clips=p.clips.filter(c=>c.recordingTakeId!==id).map(c=>({...c,start:shift(c.start)}));p.captions=p.captions.map(c=>{const offset=c.start>=end-EPS?delta:0;return {...c,start:c.start+offset,end:c.end+offset,words:c.words?.map(w=>({...w,start:w.start+offset,end:w.end+offset}))};});for(const key of ['elements','zooms']as const)for(const e of p[key])e.start=shift(e.start);for(const c of p.cursor.points)c.time=shift(c.time);for(const later of p.scenes.slice(p.scenes.indexOf(scene)+1)){if(later.start<end-EPS)throw Error('Scenes overlap. Separate their boundaries before archiving.');later.start+=delta;}scene.duration=duration;take.installedRoles=[];take.confirmedAt??=new Date().toISOString();return {start,nextSceneId:scene.id};
 }
 export function archiveSceneTake(p:Project,id:string){const draft=plainClone(p),result=archiveInPlace(draft,id);Object.assign(p,draft);return result;}
@@ -119,6 +122,7 @@ export function updateSceneTake(p:Project,id:string,patch:{name?:string;offsets?
     if(sceneCaptions.some(c=>c.end>newEnd+EPS))throw Error('A caption extends beyond the synchronized scene. Adjust its end first.');
     for(const key of ['elements','zooms']as const)if(draft[key].some(e=>e.start<end-EPS&&e.start+e.duration>Math.min(end,newEnd)+EPS))throw Error('A graphic or zoom crosses the changed scene boundary. Adjust it before changing sync.');
     if(draft.cursor.points.some(c=>c.time>=Math.min(end,newEnd)-EPS&&c.time<end-EPS))throw Error('Cursor events cross the changed scene boundary. Adjust them before changing sync.');
+    retimeLayouts(draft,end,change);
     for(const c of draft.clips)if(!sceneClips.includes(c)&&c.start>=end-EPS)c.start+=change;
     for(const c of draft.captions)if(!sceneCaptions.includes(c)&&c.start>=end-EPS){c.start+=change;c.end+=change;if(c.words)for(const w of c.words){w.start+=change;w.end+=change;}}
     for(const key of ['elements','zooms']as const)for(const e of draft[key])if(e.start>=end-EPS)e.start+=change;for(const c of draft.cursor.points)if(c.time>=end-EPS)c.time+=change;for(const later of draft.scenes.slice(draft.scenes.indexOf(scene)+1)){if(later.start<end-EPS)throw Error('Scenes overlap. Separate them before changing sync.');later.start+=change;}scene.duration=newEnd-start;

@@ -1,3 +1,4 @@
+import {LAYOUT_EPS,retimeLayouts} from '../shared/layouts';
 import {clipDuration,clipEffectTiming,makeId,narrationPriority,projectDuration,type Clip,type Element,type MarkerTag,type Media,type MotionBlock,type Project,type TrackKind} from '../shared/types';
 import {cutTimelineRange,minimumPiece,relinkSlices} from '../shared/timeline-edits';
 import {clipLayerRowId} from '../shared/timeline-layers';
@@ -141,7 +142,7 @@ export function openRange(p:Project,at:number,length:number){
  for(const e of p.elements)if(later(e.start))e.start+=length;
  for(const z of p.zooms)if(later(z.start))z.start+=length;
  // A layout stretch the opening lands inside grows with it, so the time that opens keeps the layout around it.
- for(const l of p.layouts??[])if(later(l.start))l.start+=length;else if(l.start+l.duration>at+EPS)l.duration+=length;
+ retimeLayouts(p,at,length);
  for(const m of p.motion??[])if(later(m.start))m.start+=length;
  for(const c of p.captions)if(later(c.start)){c.start+=length;c.end+=length;if(c.words)c.words=c.words.map(w=>({...w,start:w.start+length,end:w.end+length}));}
  for(const s of p.scenes)if(later(s.start)&&s.start>0)s.start+=length;
@@ -172,6 +173,8 @@ export function insertGap(p:Project,at:number,length:number,rows?:ReadonlySet<st
   const right={...plainClone(plainView(c)),id:newId(),start:at,sourceIn:cut};if(c.linkId!==undefined){if(!fresh.has(c.linkId))fresh.set(c.linkId,newId());right.linkId=fresh.get(c.linkId);}
   p.clips.push(right);c.sourceOut=cut;
  }
+ // A pasted layout needs empty room, rather than inheriting the surrounding stretch across the insertion.
+ if(rows?.has('layouts')&&p.layouts)p.layouts=p.layouts.flatMap(l=>l.start<at&&l.start+l.duration>at?[{...l,duration:at-l.start},{...l,id:newId(),start:at,duration:l.start+l.duration-at}]:[l]);
  laterSlice(p,at,fresh);
  // Remap before opening: openRange then shifts every later caption, including typed ones no narration clip owns.
  updateCaptions(p,remapClipCaptions(before,plainView(p)));
@@ -200,7 +203,7 @@ export function syncScenesToTakes(p:Project){
 /** True when two items on one row overlap. */
 export function rowsOverlap(items:readonly RowItem[]){
  const rows=new Map<string,RowItem[]>();for(const i of items){const list=rows.get(i.row)??[];list.push(i);rows.set(i.row,list);}
- for(const list of rows.values()){const sorted=[...list].sort((a,b)=>a.start-b.start);for(let i=1;i<sorted.length;i++)if(sorted[i].start<sorted[i-1].start+sorted[i-1].duration-EPS)return true;}
+ for(const list of rows.values()){const sorted=[...list].sort((a,b)=>a.start-b.start);for(let i=1;i<sorted.length;i++)if(sorted[i].start<sorted[i-1].start+sorted[i-1].duration-(sorted[i].row==='layouts'?LAYOUT_EPS:EPS))return true;}
  return false;
 }
 /** Pasted or duplicated clips get link groups of their own (keeping which of them belong together) and are no longer part of a recorded take, so the take's scene does not stretch over copies. */
@@ -221,15 +224,18 @@ export function rowItems(p:Project):RowItem[]{
 /** True when the moving items, shifted by `delta`, start before zero or overlap a still item on their row. */
 export function collides(moving:readonly RowItem[],delta:number,others:readonly RowItem[]){
  const ids=new Set(moving.map(m=>m.id)),still=others.filter(o=>!ids.has(o.id));
- return moving.some(m=>m.start+delta<-1e-6||still.some(o=>o.row===m.row&&m.start+delta<o.start+o.duration-EPS&&m.start+delta+m.duration>o.start+EPS));
+ return moving.some(m=>m.start+delta<-1e-6||still.some(o=>{const eps=m.row==='layouts'?LAYOUT_EPS:EPS;return o.row===m.row&&m.start+delta<o.start+o.duration-eps&&m.start+delta+m.duration>o.start+eps;}));
 }
 /** The allowed delta nearest to `want`: `want` itself when it fits, otherwise the nearest position that lines up against a neighbour. */
 export function freeDelta(moving:readonly RowItem[],want:number,others:readonly RowItem[]){
- if(!collides(moving,want,others))return want;
- const ids=new Set(moving.map(m=>m.id)),rows=new Set(moving.map(m=>m.row)),candidates=[-Math.min(...moving.map(m=>m.start))];
+ // Stored layouts tolerate roundoff, but gestures must never deliberately use that allowance as overlap.
+ const ids=new Set(moving.map(m=>m.id)),stillLayouts=others.filter(o=>o.row==='layouts'&&!ids.has(o.id));
+ const fits=(delta:number)=>!collides(moving,delta,others)&&!moving.some(m=>m.row==='layouts'&&stillLayouts.some(o=>m.start+delta<o.start+o.duration&&m.start+delta+m.duration>o.start));
+ if(fits(want))return want;
+ const rows=new Set(moving.map(m=>m.row)),candidates=[-Math.min(...moving.map(m=>m.start))];
  for(const m of moving)for(const o of others)if(!ids.has(o.id)&&rows.has(o.row)&&o.row===m.row)candidates.push(o.start+o.duration-m.start,o.start-m.start-m.duration);
  candidates.sort((a,b)=>Math.abs(a-want)-Math.abs(b-want));
- for(const d of candidates)if(!collides(moving,d,others))return d||0;
+ for(const d of candidates)if(fits(d))return d||0;
  return 0;
 }
 /** Dropping clips onto others on their rows inserts them there: the rows close the hole they left and open room at the insertion point. Returns the new start of every clip that moves on those rows. */
@@ -343,9 +349,10 @@ export function trimClips(p:Project,chosen:ReadonlySet<string>,side:'left'|'righ
 export function resizeEffect(p:Project,id:string,side:'left'|'right',delta:number){
  const items=rowItems(p),item=items.find(i=>i.id===id);if(!item)return;
  const others=items.filter(i=>i.row===item.row&&i.id!==id),stop=item.start+item.duration;
- const block=p.motion?.find(x=>x.id===id),shortest=block?Math.min(item.duration,MOTION_TEMPLATES[block.template]?.minDuration??.1):.1;
- const lo=side==='left'?Math.max(-item.start,...others.filter(o=>o.start+o.duration<=item.start+EPS).map(o=>o.start+o.duration-item.start)):shortest-item.duration;
- const hi=side==='left'?item.duration-shortest:Math.min(3600,...others.filter(o=>o.start>=stop-EPS).map(o=>o.start-stop));
+ const block=p.motion?.find(x=>x.id===id),shortest=Math.min(item.duration,block?MOTION_TEMPLATES[block.template]?.minDuration??.1:.1),eps=item.row==='layouts'?LAYOUT_EPS:EPS;
+ const lo=side==='left'?Math.max(-item.start,...others.filter(o=>o.start+o.duration<=item.start+eps).map(o=>o.start+o.duration-item.start)):shortest-item.duration;
+ const hi=side==='left'?item.duration-shortest:Math.min(3600,...others.filter(o=>o.start>=stop-eps).map(o=>o.start-stop));
+ if(lo>hi)return;
  const d=Math.max(lo,Math.min(hi,delta)),start=side==='left'?item.start+d:item.start,length=side==='left'?item.duration-d:item.duration+d;
  const e=p.elements.find(x=>x.id===id),z=p.zooms.find(x=>x.id===id),c=p.captions.find(x=>x.id===id),l=p.layouts?.find(x=>x.id===id);
  if(e){e.start=start;e.duration=length;}if(z){z.start=start;z.duration=length;}if(l){l.start=start;l.duration=length;}if(c){c.start=start;c.end=start+length;}if(block){const m=p.motion!.find(x=>x.id===id)!;m.start=start;m.duration=length;}

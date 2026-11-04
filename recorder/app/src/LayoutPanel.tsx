@@ -1,6 +1,6 @@
 import type {CSSProperties} from 'react';
 import {makeId,type Clip,type LayoutPreset,type Project,type Transform} from '../shared/types';
-import {baseLayout,chooseLayout,chosenLayouts,LAYOUT_PRESETS,layoutAt,layoutGeometry,type LayoutGeometry} from '../shared/layouts';
+import {baseLayout,chooseLayout,chosenLayouts,LAYOUT_PRESETS,layoutAt,layoutGeometry,layoutTransform,type LayoutGeometry} from '../shared/layouts';
 import {usePlayheadSelector,type Playhead} from './playhead';
 import type {Change} from './Inspector';
 
@@ -25,17 +25,18 @@ function Preview({preset,cameraSrc,screenSrc,background}:{preset:LayoutGeometry;
  * else starts a stretch at the playhead that runs to the next change (the orange Layout row of the timeline). Then the camera's corners
  * and the background. Outside a stretch, exact placement is done on the picture itself (drag to move, a corner to resize).
  */
-export function LayoutPanel({project:p,change,playhead,selected,select}:{project:Project;change:Change;playhead:Playhead;selected:string|null;select:(id:string)=>void}){
+export function LayoutPanel({project:p,change,playhead,selected,selectedIds,select}:{project:Project;change:Change;playhead:Playhead;selected:string|null;selectedIds?:ReadonlySet<string>;select:(id:string)=>void}){
  const camera=first(p,'camera'),screen=first(p,'screen');
  const thumb=(c?:Clip)=>c?`/api/media/${encodeURIComponent(c.mediaId)}/thumbnail`:undefined;
  // The stretch at the playhead decides what is marked, so the panel follows the playhead from stretch to stretch.
  usePlayheadSelector(playhead,time=>layoutAt(p,time)?.id??'');
- const picked=new Set(selected?[selected]:[]),stretch=chosenLayouts(p,picked,playhead.get())[0];
+ const picked=selectedIds??new Set(selected?[selected]:[]),stretch=chosenLayouts(p,picked,playhead.get())[0];
  const now=stretch?.preset??baseLayout(p);
  const apply=(preset:LayoutPreset)=>{let made:string[]=[];const time=playhead.get(),id=makeId();change(d=>{made=chooseLayout(d,preset,picked,time,id);});if(made.length===1&&made[0]!==stretch?.id)select(made[0]);};
- const side=camera?Math.min(camera.transform.width*p.canvas.width,camera.transform.height*p.canvas.height):0;
- const shape=camera?SHAPES.reduce((best,s)=>Math.abs(s.r*side-camera.transform.borderRadius)<Math.abs(best.r*side-camera.transform.borderRadius)?s:best,SHAPES[0]).name:null;
- const setShape=(r:number)=>change(d=>{for(const c of d.clips)if(c.track==='camera')c.transform.borderRadius=Math.round(r*Math.min(c.transform.width*d.canvas.width,c.transform.height*d.canvas.height));});
+ const transform=camera?layoutTransform(p,camera,stretch?stretch.start:playhead.get()):undefined;
+ const side=transform?Math.min(transform.width*p.canvas.width,transform.height*p.canvas.height):0;
+ const shape=transform?SHAPES.reduce((best,s)=>Math.abs(s.r*side-transform.borderRadius)<Math.abs(best.r*side-transform.borderRadius)?s:best,SHAPES[0]).name:null;
+ const setShape=(r:number)=>{const time=playhead.get();change(d=>{const stretches=chosenLayouts(d,picked,time);if(stretches.length){for(const l of stretches)l.cameraCorner=r;}else for(const c of d.clips)if(c.track==='camera')c.transform.borderRadius=Math.round(r*Math.min(c.transform.width*d.canvas.width,c.transform.height*d.canvas.height));});};
  return <div className="layout-panel">
   <section className="lp-section">
    <div className="lp-grid">{LAYOUT_PRESETS.map(preset=><button key={preset} type="button" className={`lp-card${now===preset?' on':''}`} aria-pressed={now===preset} onClick={()=>apply(preset)}>

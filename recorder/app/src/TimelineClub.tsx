@@ -17,6 +17,7 @@ import {TAKE_ROW,takeClipViews,type TakeClipView} from './timeline-take-view';
 import {isSoundTag} from '../shared/sound-tags';
 import {baseLayout,insertLayout,layoutRoom} from '../shared/layouts';
 import {makeId} from '../shared/types';
+import {plainClone} from './project-draft';
 
 /**
  * The embedded (Creator Compiler) timeline. Rows exist only when used; a take's screen, camera and audio are linked;
@@ -68,7 +69,7 @@ export function usedRows(p:Project):Row[]{
  const linkedRow=(id:string)=>p.clips.some(c=>clipLayerRowId(c,p)===id&&sizes.get(groups.get(c.id)!)!>1);
  for(const l of layers){const height=l.track?heights[l.track]:ROW_H;rows.push({id:l.id,name:l.track==='screen'?'Screen':l.name,icon:l.track?icons[l.track]:l.kind==='video'?Layers:Music,height,top,layer:l,linked:linkedRow(l.id)});top+=height;}
  // As in Borumi, captions spoken on an audio row show as its words, not as a row of their own; captions typed in (no word timings) keep their row.
- const owned=captionWordsByClip(p),seconds=(words:Array<{start:number;end:number}>)=>words.reduce((sum,w)=>sum+Math.max(0,w.end-w.start),0),wordsOnAudio=p.captions.length>0&&p.captions.every(c=>c.words?.length)&&Math.abs(seconds(p.captions.flatMap(c=>c.words??[]))-seconds([...owned.values()].flat()))<1e-6;
+ const owned=captionWordsByClip(p),seconds=(words:Array<{start:number;end:number}>)=>words.reduce((sum,w)=>sum+Math.max(0,w.end-w.start),0),wordsOnAudio=p.captions.length>0&&p.captions.every(c=>c.words?.length)&&Math.abs(seconds(p.captions.flatMap(c=>c.words??[]))-seconds(views.flatMap(v=>owned.get(v.clip.id)??[])))<1e-6;
  for(const e of effectRows){if(!(p[e.id]??[]).length||e.id==='captions'&&wordsOnAudio)continue;rows.push({id:e.id,name:e.name,icon:e.icon,height:ROW_H,top,effect:e.id});top+=ROW_H;}
  return rows;
 }
@@ -227,16 +228,16 @@ export const TimelineClub=memo(function TimelineClub({project:p,playhead,scale,o
     ripple=!ev.altKey;const bounds=trimBounds(base,ids,mode,ripple),raw=timelinePointerDelta(x0,x,left0,el.scrollLeft,scale);
     // The edge snaps where the cut lands (in place; a ripple trim then closes or opens that time).
     const snap=snapTimelineDelta({delta:raw,anchors:[edge],targets:snaps,scale,minDelta:bounds.min,maxDelta:bounds.max,enabled:base.settings.snap,thresholdPx});
-    delta=snap.delta;const trial:Project={...base,clips:base.clips.map(c=>({...c})),elements:[],captions:[],zooms:[],scenes:base.scenes.map(s=>({...s})),cursor:{...base.cursor,points:[]},markers:(base.markers??[]).map(m=>({...m}))};trimClips(trial,ids,mode,delta,ripple);
+    delta=snap.delta;const trial=plainClone(base);trimClips(trial,ids,mode,delta,ripple);
     const previews=new Map<string,Preview>();for(const c of trial.clips){const was=base.clips.find(o=>o.id===c.id)!;if(c.start!==was.start||c.sourceIn!==was.sourceIn||c.sourceOut!==was.sourceOut)previews.set(c.id,{start:c.start,duration:clipDuration(c),sourceIn:c.sourceIn});}
     const length=clipDuration(trial.clips.find(c=>c.id===id)!);
-    showDrag({items:previews,ghosts:[],guide:snap.guide?.time??null,insert:null,label:`${mode==='left'?'Start':'End'} ${delta>=0?'+':'−'}${fmtLen(Math.abs(delta))} · length ${fmtLen(length)}${ripple?'':' · gap kept'}`,markers:new Map(trial.markers!.map(m=>[m.id,m.time]))});
+    showDrag({items:previews,ghosts:[],guide:snap.guide?.time??null,insert:null,label:`${mode==='left'?'Start':'End'} ${delta>=0?'+':'−'}${fmtLen(Math.abs(delta))} · length ${fmtLen(length)}${ripple?'':' · gap kept'}`,markers:new Map((trial.markers??[]).map(m=>[m.id,m.time]))});
    },moved=>{if(!moved||!delta)return;const d=delta,r=ripple;let changed=false;change(draft=>{if(!sameClips(ids,base)){changed=true;return;}ensureLinks(draft);trimClips(draft,ids,mode,d,r);syncScenesToTakes(draft);});if(changed)onNotice?.(STALE_DROP);});
    return;
   }
   const edge=mode==='left'?item.start:item.start+item.duration,snaps=targets(new Set([id]));let delta=0;
   run(e,x=>{const raw=timelinePointerDelta(x0,x,left0,el.scrollLeft,scale),snap=snapTimelineDelta({delta:raw,anchors:[edge],targets:snaps,scale,enabled:base.settings.snap,thresholdPx});
-   const trial:Project={...base,elements:base.elements.map(v=>({...v})),zooms:base.zooms.map(v=>({...v})),captions:base.captions.map(v=>({...v})),...(base.motion?{motion:base.motion.map(v=>({...v}))}:{})};resizeEffect(trial,id,mode,snap.delta);const after=rowItems(trial).find(i=>i.id===id)!;delta=mode==='left'?after.start-item.start:after.duration-item.duration;
+   const trial=plainClone(base);resizeEffect(trial,id,mode,snap.delta);const after=rowItems(trial).find(i=>i.id===id)!;delta=mode==='left'?after.start-item.start:after.duration-item.duration;
    showDrag({items:new Map([[id,{start:after.start,duration:after.duration}]]),ghosts:[],guide:snap.guide?.time??null,insert:null,label:`Length ${fmtLen(after.duration)}`});
   },moved=>{if(!moved||!delta)return;const d=delta;change(draft=>resizeEffect(draft,id,mode,d));});
  }

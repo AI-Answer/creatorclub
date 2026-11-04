@@ -176,13 +176,13 @@ test('an icon-only button always has an accessible name',()=>{
  assert.deepEqual(found,[]);
 });
 
-test('timeline kinds are Borumi\'s segment classes in both themes: video blue-400, audio alone green-400, overlays purple-400, control rows yellow-400',()=>{
+test('timeline kinds keep Borumi hues with readable dark graphics and controls',()=>{
  const tokens=fs.readFileSync(path.join(src,TOKENS),'utf8'),split=tokens.indexOf('data-theme=dark'),light=tokens.slice(0,split),dark=tokens.slice(split);
  const value=(block:string,name:string)=>block.match(new RegExp(`${name}:\\s*([^;]+);`))?.[1].trim();
  // Borumi 0.32.1's scale (index-DXJH5HZm.css). Its dark scale runs backwards, so its blue-400 is a deeper blue and its yellow-400 an orange there.
  for(const kind of ['--kind-screen','--kind-camera']){assert.equal(value(light,kind),'hsl(213 94% 68%)',`${kind} is light blue-400`);assert.equal(value(dark,kind),'hsl(221 83% 53%)',`${kind} is dark blue-400`);}
  assert.equal(value(light,'--kind-audio'),'hsl(142 69% 58%)');assert.equal(value(dark,'--kind-audio'),'hsl(142 76% 36%)');
- assert.equal(value(light,'--kind-control'),'hsl(43 96% 56%)');assert.equal(value(dark,'--kind-control'),'hsl(32 95% 44%)');
+ assert.equal(value(light,'--kind-control'),'hsl(43 96% 56%)');assert.equal(value(dark,'--kind-control'),'#854508');
  assert.equal(value(light,'--kind-graphics'),'rgb(192 132 252)');
  for(const kind of ['--kind-captions','--kind-zoom','--kind-layout'])assert.equal(value(light,kind),'var(--kind-control)',`${kind} is a control row`);
  // Words on a clip are Borumi's text-primary; on a take the pill is the background at half strength and the waveform black.
@@ -206,4 +206,20 @@ test('every stylesheet, the editor\'s included, takes text sizes and corner radi
   return [...sizes,...radii];
  });
  assert.deepEqual(off,[],'use --cc-text-* and --cc-r-* from club/ui/tokens.css');
+});
+
+test('P2 small dark effect labels reach 4.5:1, including Layout at 80% opacity',()=>{
+ const {light,dark}=themeTokens(),tokens={...light,...dark};
+ const rgb=(value:string):number[]=>{
+  if(value.startsWith('var('))return rgb(tokens[value.slice(4,-1)]);
+  if(value.startsWith('#'))return [1,3,5].map(i=>parseInt(value.slice(i,i+2),16));
+  const n=[...value.matchAll(/[\d.]+/g)].map(m=>Number(m[0]));if(!value.startsWith('hsl'))return n;
+  const [h,s,l]=[n[0]/30,n[1]/100,n[2]/100],a=s*Math.min(l,1-l);return [0,8,4].map(o=>{const k=(o+h)%12;return 255*(l-a*Math.max(-1,Math.min(k-3,9-k,1)));});
+ };
+ const luminance=(c:number[])=>c.map(v=>{const s=v/255;return s<=.04045?s/12.92:((s+.055)/1.055)**2.4;}).reduce((sum,v,i)=>sum+v*[.2126,.7152,.0722][i],0);
+ const ink=rgb(tokens['--kind-ink']);
+ for(const kind of ['graphics','control','captions','zoom','layout'])for(const alpha of [1,.8]){
+  const bg=rgb(tokens[`--kind-${kind}`]),a=luminance(ink.map((v,i)=>v*alpha+bg[i]*(1-alpha))),b=luminance(bg),ratio=(Math.max(a,b)+.05)/(Math.min(a,b)+.05);
+  assert.ok(ratio>=4.5,`${kind} at ${alpha}: ${ratio.toFixed(2)}`);
+ }
 });

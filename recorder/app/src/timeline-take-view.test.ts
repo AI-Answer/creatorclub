@@ -26,3 +26,8 @@ test('legacy take grouping still picks microphone instead of camera scratch or s
  const p=takeFixture();for(const c of p.clips)delete c.linkId;p.clips[0].audioRole='system';p.clips[2].audioRole='microphone';p.media[0].hasAudio=true;
  assert.equal(takeClipViews(p)[0].sound!.id,'audio');
 });
+
+test('standalone music and muted audio still expose their waveform source',()=>{
+ const p=takeFixture();p.clips=[{...p.clips[2],track:'music',linkId:undefined,muted:true}];assert.equal(takeClipViews(p)[0].sound?.id,'audio');
+ p.clips[0].track='audio';assert.equal(takeClipViews(p)[0].sound?.id,'audio');
+});

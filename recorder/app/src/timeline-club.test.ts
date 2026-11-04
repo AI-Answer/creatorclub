@@ -6,6 +6,7 @@ import {createProject,defaultEffects,defaultTransform,type Clip,type Media,type 
 import {applyProjectChange} from './project-draft';
 import {createPlayhead} from './playhead';
 import {splitLinked} from './timeline-edit';
+import {newMotionBlock} from '../shared/motion/templates';
 const {TimelineClub,usedRows}=await import('./TimelineClub');
 
 const media:Media={id:'m',name:'m',path:'/tmp/m.mov',kind:'video',duration:60,width:1920,height:1080,hasAudio:true};
@@ -143,5 +144,41 @@ test('Borumi\'s Layout row: a stretch is an orange block named for its arrangeme
   // The view has no width under the test DOM, so the stretch takes the shortest a click makes (half a second); in the app, a tenth of the view.
   assert.deepEqual([made.start,made.duration,made.preset],[8,.5,'Full frame'],'where it was clicked, in the layout the clips have outside stretches');
   assert.deepEqual(state.selected,[made.id],'the new stretch is selected, so the Layout panel opens on it');
+ }finally{await ui.close();}
+});
+
+test('P1 repeated layout resize previews plus Escape preserve the whole project and undo history',async()=>{
+ const p=takeFixture();p.layouts=[{id:'l',start:2,duration:3,preset:'Creator'}];const before=structuredClone(p),{state,element}=harness(p);
+ const {EditHistory}=await import('./edit-history');const history=new EditHistory<Project>();history.record(p,()=>80);const historyBefore=structuredClone(history.past);
+ const ui=await mountUI(element(p));
+ try{
+  const edge=ui.container.querySelector('[data-effect-id="l"] .trim-handle.right')!;
+  await act(async()=>{pointer('pointerdown',250,edge);pointer('pointermove',300);pointer('pointermove',325);});await frame();
+  assert.deepEqual(state.project,before,'preview never mutates live state');
+  await act(async()=>{window.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'}));pointer('pointerup',325);});
+  assert.deepEqual(state.project,before);assert.equal(state.changes,0);assert.deepEqual(history.past,historyBefore);
+ }finally{await ui.close();}
+});
+test('P1 ripple trim previews plus Escape preserve layouts and motion',async()=>{
+ const p=takeFixture();p.layouts=[{id:'l',start:1,duration:14,preset:'Creator'}];p.motion=[newMotionBlock('title-card',13,'m',{duration:2})];
+ for(const m of p.media)m.duration=60;
+ const before=structuredClone(p),{state,element}=harness(p),ui=await mountUI(element(p));
+ try{
+  const edge=ui.container.querySelector('[data-clip-id="audio"] .trim-handle.right')!;
+  await act(async()=>{pointer('pointerdown',600,edge);pointer('pointermove',650);pointer('pointermove',700);});await frame();
+  await act(async()=>{window.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'}));pointer('pointerup',700);});
+  assert.deepEqual(state.project,before);assert.equal(state.changes,0);
+ }finally{await ui.close();}
+});
+test('P2 muted mic uses camera narration and every hidden caption word is rendered',async()=>{
+ const p=takeFixture();p.clips.find(c=>c.track==='audio')!.muted=true;const {element}=harness(p),ui=await mountUI(element(p));
+ try{
+  assert.equal(ui.container.querySelector('.club-caption-text')?.textContent,'First words then more');
+  assert.equal(ui.container.querySelector('.row-captions'),null,'all words are in the grouped take');
+  // A higher-priority ungrouped source can own some words: keep their caption row if the grouped representative cannot render them.
+  p.clips.push({...structuredClone(p.clips[2]),id:'other',muted:false,start:0,sourceOut:2,recordingTakeId:undefined,linkId:undefined});
+  await ui.render(element({...p,clips:[...p.clips]}));
+  const words=[...ui.container.querySelectorAll('.club-caption-text')].map(n=>n.textContent).join(' ');
+  assert.ok(words.includes('First words')||ui.container.querySelector('.row-captions'));
  }finally{await ui.close();}
 });

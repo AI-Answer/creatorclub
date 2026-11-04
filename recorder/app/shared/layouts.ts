@@ -10,6 +10,8 @@ export const LAYOUT_PRESETS:readonly LayoutPreset[]=['Creator','Full frame','Pic
 export const isLayoutPreset=(value:unknown):value is LayoutPreset=>LAYOUT_PRESETS.includes(value as LayoutPreset);
 /** The shortest stretch the panel or the timeline makes. */
 export const MIN_LAYOUT=.1;
+/** Numerical tolerance shared by collision checks and stored-project validation; edit placement clamps to exact boundaries. */
+export const LAYOUT_EPS=1e-4;
 const EPS=1e-6;
 
 type Box=Pick<Transform,'x'|'y'|'width'|'height'>;
@@ -34,7 +36,10 @@ export const layoutAt=(p:Pick<Project,'layouts'>,time:number)=>(p.layouts??[]).f
 /** The transform a clip shows at `time`: its own, or its place in the stretch running then. */
 export function layoutTransform(p:Pick<Project,'layouts'|'canvas'>,clip:Clip,time:number):Transform{
  const stretch=followsLayout(clip)?layoutAt(p,time):undefined;
- return stretch?{...clip.transform,...layoutGeometry(stretch.preset,p.canvas)[clip.track as 'camera'|'screen']}:clip.transform;
+ if(!stretch)return clip.transform;
+ const transform={...clip.transform,...layoutGeometry(stretch.preset,p.canvas)[clip.track as 'camera'|'screen']};
+ if(clip.track==='camera'&&stretch.cameraCorner!==undefined)transform.borderRadius=Math.round(stretch.cameraCorner*Math.min(transform.width*p.canvas.width,transform.height*p.canvas.height));
+ return transform;
 }
 
 /** The preset the clips are in outside every stretch, judged by the first camera clip; null once the camera was placed by hand. */
@@ -89,7 +94,8 @@ export function layoutsProblem(layouts:unknown):string|null{
  for(const l of [...layouts].sort((a,b)=>Number(a?.start)-Number(b?.start))){
   if(!l||typeof l!=='object'||typeof l.id!=='string'||!l.id||ids.has(l.id))return 'Invalid layout stretch';ids.add(l.id);
   if(![l.start,l.duration].every(Number.isFinite)||l.start<0||l.duration<=0||!isLayoutPreset(l.preset))return 'Invalid layout stretch';
-  if(l.start<last-1e-4)return 'Layout stretches overlap';last=l.start+l.duration;
+  if(l.cameraCorner!==undefined&&(!Number.isFinite(l.cameraCorner)||l.cameraCorner<0||l.cameraCorner>.5))return 'Invalid layout camera corners';
+  if(l.start<last-LAYOUT_EPS)return 'Layout stretches overlap';last=l.start+l.duration;
  }
  return null;
 }
@@ -113,5 +119,19 @@ export function bakeLayouts(p:Project){
   if(pieces.length===1)return [{...c,transform:pieces[0].transform}];
   const origin=clipEffectTiming(c);
   return pieces.map(({from,to,transform},i)=>({...c,id:i?makeId():c.id,start:from,sourceIn:c.sourceIn+(from-start)*c.speed,sourceOut:c.sourceIn+(to-start)*c.speed,transform,effectTiming:{sourceIn:origin.sourceIn,sourceOut:origin.sourceOut}}));
+ });
+}
+
+/** Open time at a boundary, or remove [at + delta, at). Layout intervals follow the footage, including spans across the boundary. */
+export function retimeLayouts(p:Pick<Project,'layouts'>,at:number,delta:number){
+ if(!p.layouts||!delta)return;
+ const map=(t:number)=>t>=at-EPS?t+delta:Math.min(t,at+delta);
+ p.layouts=p.layouts.flatMap(l=>{
+  if(delta>0){
+   if(l.start>=at-EPS)return [{...l,start:l.start+delta}];
+   return [{...l,duration:l.duration+(l.start+l.duration>at+EPS?delta:0)}];
+  }
+  const start=map(l.start),stop=map(l.start+l.duration);
+  return stop>start?[{...l,start,duration:stop-start}]:[];
  });
 }

@@ -208,7 +208,8 @@
   --kind-camera: hsl(221 83% 53%);
   --kind-audio: hsl(142 76% 36%);
   --kind-audio-band: rgb(10 10 10 / 0.5);
-  --kind-control: hsl(32 95% 44%);
+  --kind-graphics: #7040a0;
+  --kind-control: #854508;
   --kind-ink: #ffffff;
   --cc-bg: #212121;
   --cc-bg-sunk: #191919;
