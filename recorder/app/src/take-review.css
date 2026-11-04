@@ -11,7 +11,7 @@
 .take-review>footer>span{font-size:var(--cc-text-xs);line-height:16px}.take-settings h2{font-size:var(--cc-text-xl);line-height:28px}
 @media(max-width:1050px){.take-review>header,.take-review>footer{padding-inline:24px}.take-review-sources,.take-review-transport{padding-inline:24px}.take-review>footer .button{font-size:var(--cc-text-xs)}}
 /* Delete is a quiet escape hatch, not a second primary; it asks once before acting. */
-.take-review>footer .take-delete{color:var(--cc-on-accent);background:transparent;border-color:transparent}
+.take-review>footer .take-delete{color:var(--muted);background:transparent;border-color:transparent}
 .take-review>footer .take-delete:hover:not(:disabled){color:var(--cc-danger);background:var(--cc-danger-soft);border-color:var(--cc-danger)}
 .take-review>footer .take-delete.armed,.take-review>footer .take-delete.armed:hover:not(:disabled){color:var(--cc-on-accent);background:var(--cc-danger);border-color:var(--cc-danger)}
 .take-review-note{display:flex;align-items:flex-start;gap:8px;margin:0 56px;padding:10px 12px;border-radius:var(--cc-r-sm);background:var(--secondary);border:1px solid var(--line);font-size:var(--cc-text-sm);line-height:1.5;color:var(--foreground)}
