@@ -42,6 +42,7 @@ test('keyboard arrows navigate spatially, Enter opens, command/control arrows mo
   await key('b','ArrowRight');assert.equal(document.activeElement,card('c'));
   await key('c','ArrowLeft');assert.equal(document.activeElement,card('a'));
   await key('c','Enter');assert.deepEqual(opened,['c']);
+  await key('a',' ');assert.deepEqual(opened,['c','a'],'Space opens a card like Enter');
   await key('a','ArrowRight',{metaKey:true});await key('c','ArrowLeft',{ctrlKey:true});await key('a','ArrowLeft',{metaKey:true});
   assert.deepEqual(moves,[['a','planning',null],['c','ideas',null]]);
   assert.deepEqual([...ui.container.querySelectorAll('[data-column]')].map(el=>el.getAttribute('data-column')),VIDEO_STAGES);

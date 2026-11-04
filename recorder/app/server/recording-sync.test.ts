@@ -105,6 +105,21 @@ test('without a microphone the screen is the clock, otherwise the first source i
  const first=await synchronizeRecording({startedAtMs:800,sources:entries.slice(0,2)});assert.equal(first.synchronization.originAtMs,900);assert.equal(first.synchronization.duration,3);
 });
 
+test('without a microphone the guardrail and the frame grid run on the screen clock',async()=>{
+ const camera=path.join(folder,'nomic-camera.mp4'),screen=path.join(folder,'nomic-screen.mp4'),system=path.join(folder,'nomic-system.wav');
+ video(camera,.6,.3);video(screen,4,1);run(['-f','lavfi','-i','sine=sample_rate=48000:duration=4','-c:a','pcm_s16le',system]);
+ const [c,s,a]=await Promise.all([source(camera),source(screen),source(system,'system')]);
+ const result=await synchronizeRecording({startedAtMs:900,sources:[{mediaId:c.id,track:'camera',firstSampleAtMs:1000},{mediaId:s.id,track:'screen',firstSampleAtMs:1000},{mediaId:a.id,track:'audio',firstSampleAtMs:1013}]});
+ const sync=result.synchronization,by=(id:string)=>sync.sources.find(source=>source.mediaId===id)!;
+ assert.equal(sync.originAtMs,1000);
+ // The camera covers 0.6 s of a 4 s screen clock, so it is excluded and ends early on its own.
+ assert.equal(by(c.id).intersectionExclusion?.reason,'insufficient-coverage');near(by(c.id).intersectionExclusion!.lostDuration,3.4,1e-6);
+ assert.equal(by(s.id).intersectionExclusion,undefined);assert.equal(by(a.id).intersectionExclusion,undefined);
+ // Screen and system audio share [0.013, 4]; the start rounds up to the next 30 fps frame, the end stays on the grid.
+ near(sync.takeStart!,1/30,1e-9);near(sync.takeEnd!,4,1e-9);near(sync.duration,4-1/30,1e-9);
+ near(by(s.id).sourceIn!,1/30,1e-9);near(by(a.id).sourceIn!,1/30-.013,1e-9);
+ near(by(s.id).sourceOut!-by(s.id).sourceIn!,by(a.id).sourceOut!-by(a.id).sourceIn!,1e-9);
+});
 test('guardrail uses either one second or 25 percent, while modest camera stop latency trims every track',async()=>{
  for(const [name,micDuration,cameraDuration,excluded] of [['absolute',10,8.8,true],['relative',2,1.4,true],['failed',3,.3,true],['normal',3,2.6,false]] as const){
   const camera=path.join(folder,`guard-${name}.mp4`),mic=path.join(folder,`guard-${name}.wav`);video(camera,cameraDuration,0);

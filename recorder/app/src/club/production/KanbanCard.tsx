@@ -39,8 +39,8 @@ export function KanbanCard({video,scenes,dragging,highlight,onOpen,onMove,onRese
   ...(onResearch?['-' as const,{label:'Add to Research',icon:'research' as const,fn:onResearch}]:[])];
  return <div className="kwrap">
   <div id={video.stage==='ideas'?`idea-${video.id}`:undefined} className={`card kcard hov${highlight?' new':''}${dragging?' dragging':''}`} draggable data-card data-card-id={video.id} onDragStart={onDragStart} onDragEnd={onDragEnd}
-   role="button" aria-label={`${humanId} ${video.title.trim()||'Untitled video'}`} aria-keyshortcuts="Enter ArrowUp ArrowDown ArrowLeft ArrowRight Meta+ArrowLeft Meta+ArrowRight Control+ArrowLeft Control+ArrowRight"
-   onClick={onOpen} tabIndex={0} onKeyDown={event=>{if(event.target!==event.currentTarget)return;if(event.key==='Enter'){event.preventDefault();onOpen();}else onKeyDown?.(event);}}>
+   role="button" aria-label={`${humanId} ${video.title.trim()||'Untitled video'}`} aria-keyshortcuts="Enter Space ArrowUp ArrowDown ArrowLeft ArrowRight Meta+ArrowLeft Meta+ArrowRight Control+ArrowLeft Control+ArrowRight"
+   onClick={onOpen} tabIndex={0} onKeyDown={event=>{if(event.target!==event.currentTarget)return;if(event.key==='Enter'||event.key===' '){event.preventDefault();onOpen();}else onKeyDown?.(event);}}>
    <div className="kcard-top"><span className="kcard-id">{humanId}</span>{highlight&&<span className="itag">New</span>}</div>
    <Cover video={video}/>
    <div className="tt clamp2">{video.title.trim()||'Untitled video'}</div>

@@ -1,4 +1,4 @@
-import {useLayoutEffect,useRef,useState,type DragEvent,type KeyboardEvent} from 'react';
+import {useEffect,useLayoutEffect,useRef,useState,type DragEvent,type KeyboardEvent} from 'react';
 import {VIDEO_STAGES,type Video,type VideoStage} from '../../../shared/club';
 import {STAGE_LABEL} from '../board';
 import {beforeIdAt,boardColumns,dropIndex,isSamePlace,type BoardColumn} from '../production';
@@ -27,7 +27,8 @@ export function Kanban({videos,scenes,ideas,onOpen,onMove,onResearch,onAdd}:{
  const dragSize=useRef(220),pendingFocus=useRef<string|null>(null),preview=useRef<HTMLElement|null>(null);
  const positions=useRef(new Map<string,DOMRect>());
  const reset=()=>{setDragId(null);setOver(null);preview.current?.remove();preview.current=null;};
- const toggleCollapsed=()=>setCollapsed(current=>{try{localStorage.setItem(COLLAPSE_KEY,String(!current));}catch{/* session only */}return !current;});
+ const toggleCollapsed=()=>setCollapsed(current=>!current);
+ useEffect(()=>{try{localStorage.setItem(COLLAPSE_KEY,String(collapsed));}catch{/* session only */}},[collapsed]);
  // Animate neighbouring cards to their new places. Reduced-motion users get an immediate placement.
  useLayoutEffect(()=>{
   const next=new Map<string,DOMRect>();
@@ -66,6 +67,8 @@ export function Kanban({videos,scenes,ideas,onOpen,onMove,onResearch,onAdd}:{
   event.preventDefault();if(target)focus(target.id);
  };
  const target=(column:BoardColumn,dragged:string,event:DragEvent):Over=>{
+  // A collapsed lane shows no cards, so a drop there goes last, like Cmd/Ctrl+arrow.
+  if(column.stage==='published'&&collapsed)return {stage:column.stage,beforeId:null};
   const cards=[...elements.current.get(column.stage)?.querySelectorAll<HTMLElement>('[data-card]')??[]].filter(card=>card.dataset.cardId!==dragged);
   const middles=cards.map(card=>{const box=card.getBoundingClientRect();return box.top+box.height/2;});
   return {stage:column.stage,beforeId:beforeIdAt(column,dragged,dropIndex(middles,event.clientY))};

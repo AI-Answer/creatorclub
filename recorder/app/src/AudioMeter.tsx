@@ -13,12 +13,14 @@ export function AudioMeter({stream,label,emptyHint,audio,live,background=false,o
   return()=>{observer?.disconnect();document.removeEventListener('visibilitychange',update);};
  },[]);
  useEffect(()=>{
+  // The sampler is the only writer of aria-valuenow; reset it whenever monitoring restarts or stops.
+  meter.current?.setAttribute('aria-valuenow','0');
   setHeard(false);setMonitorError('');onLevel?.(null);if(!hasAudio||!stream)return;
   let heardAudio=false,acquired=false,percent=-1,previous=0,last=0;
   let input:MediaStreamAudioSourceNode|undefined,analyser:AnalyserNode|undefined,theme:MutationObserver|undefined;
   const history=new WaveformHistory();let colors={top:'#81ecec',bottom:'#0984e3',line:'#74b9ff'};
   const readColors=()=>{if(!meter.current)return;const css=getComputedStyle(meter.current);colors={top:css.getPropertyValue('--meter-top').trim()||colors.top,bottom:css.getPropertyValue('--meter-bottom').trim()||colors.bottom,line:css.getPropertyValue('--meter-line').trim()||colors.line};};
-  const close=()=>{sample.current=null;theme?.disconnect();input?.disconnect();analyser?.disconnect();if(acquired)audio.release();acquired=false;onLevel?.(null);};
+  const close=()=>{sample.current=null;meter.current?.setAttribute('aria-valuenow','0');theme?.disconnect();input?.disconnect();analyser?.disconnect();if(acquired)audio.release();acquired=false;onLevel?.(null);};
   try{
    const context=audio.acquire();acquired=true;
    input=context.createMediaStreamSource(new MediaStream(stream.getAudioTracks()));const node=analyser=context.createAnalyser();node.fftSize=2048;input.connect(node);
