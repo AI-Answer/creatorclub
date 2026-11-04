@@ -49,10 +49,16 @@ export interface MotionBlock { id:string; template:MotionTemplateId; style:strin
 export interface Zoom { id:string; start:number; duration:number; scale:number; x:number;y:number; target:'screen'|'camera'; easing:'linear'|'smooth'; effectTiming?:{offset:number;duration:number}; }
 export interface CursorPoint { time:number;x:number;y:number;pressed?:boolean;visible?:boolean; }
 export interface CursorSettings { enabled:boolean; size:number; color:string; highlight:boolean; smoothing:number; points:CursorPoint[]; }
+/** Original capture timestamps and decoded bounds before microphone-clock normalization. */
+export interface TakeSynchronization {
+ version:1;startedAtMs:number;originAtMs:number;duration:number;
+ sources:Array<{mediaId:string;firstSampleAtMs:number;offset:number;firstPts:number;decodedDuration:number;sourceTimestampUs?:number}>;
+}
 /** Captured assets remain available even when their take has no active timeline clips. */
 export interface RecordedTake {
  id:string;createdAt:string;sceneId:string;name?:string;media:Media[];tracks:TrackKind[];offsets:number[];
  labels?:string[];clipIds?:string[];retained?:boolean;confirmedAt?:string;recordOver?:boolean;
+ synchronization?:TakeSynchronization;
  /** Edited clips/captions use scene-relative seconds; source trims/effects remain unchanged. */
  timeline?:{duration:number;start?:number;clips:Clip[];captions:Caption[]};
  /** Roles last installed by this take, used to preserve subsequent deletions when archiving. */

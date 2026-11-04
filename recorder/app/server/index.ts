@@ -13,6 +13,7 @@ import {getFaceTrack} from './face-tracking.js';
 import * as ai from './ai.js';
 import {importBorumi} from './importer.js';
 import * as recordings from './recordings.js';
+import {synchronizeRecording} from './recording-sync.js';
 import {followSpeech} from './voice-follow.js';
 import {visionPreview,getVisionCapabilities} from './vision.js';
 import {mcpToolDefinitions} from './mcp.js';
@@ -84,8 +85,9 @@ app.get('/api/events',(_req,res)=>{
  res.on('close',()=>{clearInterval(heartbeat);storage.projectEvents.off('project',send);automation.events.off('job',sendAutomation);});
 });
 app.post('/api/recordings',route(async(req,res)=>res.json(await recordings.createRecording(req.body.name,req.body.mimeType,req.body.audioRole))));
+app.post('/api/recordings/synchronize',route(async(req,res)=>res.json(await synchronizeRecording(req.body))));
 app.put('/api/recordings/:id/chunks',express.raw({type:'application/octet-stream',limit:'16mb'}),route(async(req,res)=>res.json(await recordings.appendRecording(param(req),Number(req.query.index),req.body))));
-app.post('/api/recordings/:id/finish',route(async(req,res)=>res.json(await recordings.finishRecording(param(req)))));
+app.post('/api/recordings/:id/finish',route(async(req,res)=>res.json(await recordings.finishRecording(param(req),req.body.startedAtMs===undefined?undefined:{startedAtMs:req.body.startedAtMs,firstSampleAtMs:req.body.firstSampleAtMs,sourceTimestampUs:req.body.sourceTimestampUs}))));
 app.get('/api/recordings/recovery',route(async(_,res)=>res.json(await recordings.recoverableRecordings())));
 app.get('/api/projects',route(async(_,res)=>res.json(await storage.listProjects())));
 app.get('/api/trash',route(async(_,res)=>res.json({items:await storage.listTrash()})));

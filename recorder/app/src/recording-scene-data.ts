@@ -6,7 +6,7 @@ export interface ListedTake {take:SavedTake;number:number;active:boolean;duratio
 export function listSceneTakes(project:Pick<Project,'clips'|'media'>,takes:SavedTake[],sceneId:string,clipIds:ReadonlySet<string>=new Set(project.clips.map(c=>c.id))):ListedTake[]{
  const unique=new Map(takes.filter(t=>t.sceneId===sceneId).map(t=>[t.id,t]));
  const states=new Map(sceneTakes({...project,recordedTakes:[...unique.values()]} as Project,sceneId).map(t=>[t.id,t.activeClipCount>0]));
- return [...unique.values()].sort((a,b)=>(Date.parse(a.createdAt)||0)-(Date.parse(b.createdAt)||0)||a.id.localeCompare(b.id)).map((take,index)=>({take,number:index+1,active:states.get(take.id)||Boolean(take.clipIds?.some(id=>clipIds.has(id))),duration:Math.max(0,...take.media.map((m,i)=>Math.max(0,take.offsets[i]||0)+m.duration))})).reverse();
+ return [...unique.values()].sort((a,b)=>(Date.parse(a.createdAt)||0)-(Date.parse(b.createdAt)||0)||a.id.localeCompare(b.id)).map((take,index)=>({take,number:index+1,active:states.get(take.id)||Boolean(take.clipIds?.some(id=>clipIds.has(id))),duration:Math.max(0,...take.media.map((m,i)=>Math.max(0,take.offsets[i]||0)+(take.synchronization?.duration??m.duration)))})).reverse();
 }
 /** Per-scene take lists and legacy-footage flags, computed once per clips/media/scenes/takes change rather than on every card render. */
 export function sceneCardData(project:Pick<Project,'clips'|'media'|'scenes'>,takes:SavedTake[]):Map<string,{all:ListedTake[];legacyFootage:boolean}>{

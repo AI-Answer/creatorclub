@@ -2,7 +2,7 @@ import {useEffect,useInsertionEffect,useMemo,useRef,useState,useSyncExternalStor
 import {createPortal} from 'react-dom';
 import './recording.css';
 import {Camera,Mic,Monitor,Square,Pause,Play,Check,Settings2,ChevronDown,AudioLines,LoaderCircle,ArrowRight} from './Icons';
-import type {Media,Project,TrackKind} from '../shared/types';
+import type {Media,Project,TrackKind,TakeSynchronization} from '../shared/types';
 import {api} from './api';
 import {TakeReview} from './TakeReview';
 import {loadSavedTakes,persistSavedTakes,saveProjectTake,activateSceneTake,type SavedTake,type ConfirmTakeOptions,type TakeConfirmMode} from './recorded-takes';
@@ -15,7 +15,8 @@ import type {ShortcutAction} from './shortcuts';
 import {defaultRecordingSettings,loadRecordingPreferences,saveRecordingPreferences,saveRecordingPreset,grantedPreviewRequests,type RecordingSettings} from './recording-presets';
 import {clampRegion,cropCaptureStream,regionInset,type NormalizedRegion} from './capture-region';
 import type {DesktopCaptureSelection,DesktopCaptureSource} from './desktop';
-import {RecordingClock,RecordingTransitionGate,anchorOnStartEvent,browserRecordingSelection,nativeRecordingOutputs,nativeRecordingOutputErrors,nativeRecordingNote,recorderMimeType,recorderOptions} from './recording-session';
+import {RecordingClock,RecordingTransitionGate,browserRecordingSelection,nativeRecordingOutputs,nativeRecordingOutputErrors,nativeRecordingNote,recorderMimeType,recorderOptions} from './recording-session';
+import {recordingSamples} from './recording-samples';
 import {RecordingHudSession} from './recording-hud-session';
 import {ACCESS_NOT_GRANTED,CapturePreviewManager,recordingSources,sameDeviceList,type CaptureKind,type CaptureRequest,type PreviewState} from './capture-preview';
 import {requestDisplayMedia,requestUserMedia} from './media-access';
@@ -26,7 +27,7 @@ import {nextSceneToRecord,recorderProblems,sourceChecks,type ProblemAction,type 
 import {useDiskSpace,useMediaAccess} from './club/recorder/RecorderWarnings';
 import {RecorderWarnings} from './club/recorder/RecorderWarnings';
 
-type Capture={stream:MediaStream;recorder:MediaRecorder;track:TrackKind;id:string;queue:Promise<void>;index:number;pending:number;startedAtMs:number;label:string;failure?:Error};
+type Capture={stream:MediaStream;recorder:MediaRecorder;track:TrackKind;id:string;queue:Promise<void>;index:number;pending:number;startedAtMs:number;sourceTimestampUs?:number;samples:ReturnType<typeof recordingSamples>;label:string;failure?:Error};
 type Status='idle'|'starting'|'recording'|'paused'|'saving';
 type Selection={camera:boolean;microphone:boolean;screen:boolean;systemAudio:boolean};
 
@@ -105,6 +106,7 @@ export function Recording({project,change,commit,onRecorded,onError,onImport,onS
  const captures=useRef<Capture[]>([]),timer=useRef<ReturnType<typeof setInterval>|null>(null),ended=useRef(false),recordingClock=useRef(new RecordingClock()),transitionGate=useRef(new RecordingTransitionGate()),mounted=useRef(true),statusRef=useRef<Status>('idle'),hudFailure=useRef(''),stopRef=useRef<()=>Promise<void>>(async()=>{});
  const hudSession=useRef<RecordingHudSession|null>(null);
  const {onLevel:publishMicrophoneLevel}=useStableHandlers({onLevel:(level:number|null)=>{if(hudSession.current)void hudSession.current.update({microphoneLevel:level});}});
+ const takeStartedAtMs=useRef(0);
  const nativeSession=useRef<{id:string;recordVideo:boolean;systemAudio:boolean}|null>(null),nativeSkew=useRef(0);
  const [,setNativeReady]=useState(false),[hasNativeFrame,setHasNativeFrame]=useState(false),[transitionBusy,setTransitionBusy]=useState(false),[captureNotice,setCaptureNotice]=useState('');
  const nativeFrame=useRef<HTMLImageElement>(null),[visible,setVisible]=useState(true),visibleRef=useRef(true),[meterAudio]=useState(()=>new MeterAudio());
@@ -231,7 +233,7 @@ export function Recording({project,change,commit,onRecorded,onError,onImport,onS
   window.addEventListener('sceneforge-media-permissions',openGranted);
   void window.sceneForge?.getNativeRecordingStatus?.().then(value=>{if(mounted.current)setNativeReady(value.available&&value.excludesSceneForge);}).catch(()=>{});
   const update=()=>void refreshDevices();navigator.mediaDevices?.addEventListener?.('devicechange',update);
-  return()=>{screenResume.current.cancel();++restoreGeneration.current;++choiceGeneration.current;void window.sceneForge?.cancelCaptureSelection?.().catch(()=>{});mounted.current=false;countdownAbort.current?.abort();void closeHud();window.removeEventListener('sceneforge-media-permissions',openGranted);navigator.mediaDevices?.removeEventListener?.('devicechange',update);if(timer.current)clearInterval(timer.current);captures.current.forEach(c=>{if(c.recorder.state!=='inactive')c.recorder.stop();});if(nativeSession.current)void window.sceneForge?.stopNativeRecording?.(nativeSession.current.id).catch(()=>{});manager.stopAll();};
+  return()=>{screenResume.current.cancel();++restoreGeneration.current;++choiceGeneration.current;void window.sceneForge?.cancelCaptureSelection?.().catch(()=>{});mounted.current=false;countdownAbort.current?.abort();void closeHud();window.removeEventListener('sceneforge-media-permissions',openGranted);navigator.mediaDevices?.removeEventListener?.('devicechange',update);if(timer.current)clearInterval(timer.current);captures.current.forEach(c=>{if(c.recorder.state!=='inactive')c.recorder.stop();c.samples.close();});if(nativeSession.current)void window.sceneForge?.stopNativeRecording?.(nativeSession.current.id).catch(()=>{});manager.stopAll();};
  },[manager]);
  useEffect(()=>{if(status==='idle'&&!reviewId)void openGranted();},[status,reviewId]);
  useEffect(()=>{if(status==='idle'&&!reviewId&&!sourcePicker&&selection.screen&&['off','ended'].includes(previews.screen.status))void resumeScreen({},true);},[status,reviewId,sourcePicker,selection.screen,previews.screen.status,savedSource]);
@@ -271,19 +273,19 @@ export function Recording({project,change,commit,onRecorded,onError,onImport,onS
    // Storage sessions open together once the countdown has finished, so a cancelled start leaves no empty session behind.
    const sessions=await Promise.all(formats.map(async source=>({...source,id:(await api<{id:string}>('/recordings',{name:`${project.name} — ${source.track}`,mimeType:source.mimeType,audioRole:source.audioRole})).id})));if(!mounted.current||abort.signal.aborted)throw new DOMException('Start cancelled','AbortError');
    for(const {stream,track,audioRole,video,mimeType,id} of sessions){
-    const recorder=new MediaRecorder(stream,recorderOptions(video,mimeType)),capture:Capture={stream,recorder,track,id,queue:Promise.resolve(),index:0,pending:0,startedAtMs:0,label:track==='camera'?`Camera (${deviceName(stream.getVideoTracks()[0]?.label||'')||'selected camera'})`:track==='screen'?`Screen (${chosenSource.current?.label||stream.getVideoTracks()[0]?.label||'selected display'})`:`${audioRole==='system'?'Computer audio':'Microphone'} (${deviceName(stream.getAudioTracks()[0]?.label||'')||'selected audio source'})`};captures.current.push(capture);
-    recorder.onstart=()=>{if(anchorOnStartEvent(mimeType))capture.startedAtMs=Date.now();};
+    let capture:Capture;const samples=recordingSamples(stream,(at,pts)=>{capture.startedAtMs=at;capture.sourceTimestampUs=pts;},error=>{capture.failure=error;report(`Capture sample error: ${error.message}`);void stopRef.current();});
+    let recorder:MediaRecorder;try{recorder=new MediaRecorder(samples.stream,recorderOptions(video,mimeType));}catch(error){samples.close();throw error;}capture={stream,recorder,track,id,queue:Promise.resolve(),index:0,pending:0,startedAtMs:0,samples,label:track==='camera'?`Camera (${deviceName(stream.getVideoTracks()[0]?.label||'')||'selected camera'})`:track==='screen'?`Screen (${chosenSource.current?.label||stream.getVideoTracks()[0]?.label||'selected display'})`:`${audioRole==='system'?'Computer audio':'Microphone'} (${deviceName(stream.getAudioTracks()[0]?.label||'')||'selected audio source'})`};captures.current.push(capture);
     recorder.ondataavailable=event=>{if(!event.data.size)return;const index=capture.index++;capture.pending+=event.data.size;capture.queue=capture.queue.then(async()=>{const result=await fetch(`/api/recordings/${capture.id}/chunks?index=${index}`,{method:'PUT',headers:{'Content-Type':'application/octet-stream'},body:event.data});if(!result.ok)throw new Error((await result.json()).error||'Recording could not be saved');}).catch(error=>{capture.failure=error;report(`Recording storage error: ${error.message}`);if(['recording','paused'].includes(statusRef.current))void stopRef.current();}).finally(()=>{capture.pending-=event.data.size;});
      if(capture.pending>64*1024*1024){capture.failure=new Error('Disk writing cannot keep up. Recording was stopped to preserve your take.');report(capture.failure.message);void stopRef.current();}
     };
     recorder.onerror=()=>{capture.failure=new Error('A capture source failed. Saving the completed portion.');report(capture.failure.message);void stopRef.current();};
    }
    if(abort.signal.aborted)throw new DOMException('Start cancelled','AbortError');
-   let startedAtMs=Date.now();
+   let startedAtMs=performance.timeOrigin+performance.now();takeStartedAtMs.current=startedAtMs;
    if(wantsNative){const take=await bridge!.startNativeRecording!({selection:chosenSource.current!,systemAudio:selection.systemAudio,recordVideo:selection.screen,fps:screenFps,maxDimension:1920});nativeSession.current={id:take.id,recordVideo:selection.screen,systemAudio:selection.systemAudio};startedAtMs=take.startedAtMs;if(!mounted.current||abort.signal.aborted){await bridge!.stopNativeRecording!(take.id);nativeSession.current=null;throw new DOMException('Start cancelled','AbortError');}}
-   recordingClock.current.start(startedAtMs);captures.current.forEach(c=>{c.startedAtMs=Date.now();c.recorder.start(1000);});transition('recording');timer.current=setInterval(updateClock,250);
+   recordingClock.current.start(startedAtMs);captures.current.forEach(c=>{c.recorder.start(1000);c.samples.start();});transition('recording');timer.current=setInterval(updateClock,250);
    if(wantsNative)manager.stop('screen');if(hudFailure.current)setCaptureNotice(hudFailure.current);hudFailure.current='';
-  }catch(error){hudFailure.current='';captures.current.forEach(c=>{if(c.recorder.state!=='inactive')c.recorder.stop();});captures.current=[];if(nativeSession.current){await bridge?.stopNativeRecording?.(nativeSession.current.id).catch(()=>{});nativeSession.current=null;}void closeHud();transition('idle');if((error as Error).name!=='AbortError')report((error as Error).message);}finally{countdownAbort.current=null;countdownSkip.current=null;if(mounted.current)setCountdown(null);}
+  }catch(error){hudFailure.current='';captures.current.forEach(c=>{if(c.recorder.state!=='inactive')c.recorder.stop();c.samples.close();});captures.current=[];if(nativeSession.current){await bridge?.stopNativeRecording?.(nativeSession.current.id).catch(()=>{});nativeSession.current=null;}void closeHud();transition('idle');if((error as Error).name!=='AbortError')report((error as Error).message);}finally{countdownAbort.current=null;countdownSkip.current=null;if(mounted.current)setCountdown(null);}
  }
  function pause(){
   if(!['recording','paused'].includes(statusRef.current))return;
@@ -302,21 +304,24 @@ export function Recording({project,change,commit,onRecorded,onError,onImport,onS
  async function stop(review=true){
   if(ended.current||(!captures.current.length&&!nativeSession.current))return;ended.current=true;updateClock();transition('saving');void closeHud();if(timer.current)clearInterval(timer.current);timer.current=null;
   await transitionGate.current.stop();
-  const entries=[...captures.current],native=nativeSession.current,assets:Media[]=[],tracks:TrackKind[]=[],offsets:number[]=[],labels:string[]=[],failures:string[]=[],notes:string[]=[];
+  const entries=[...captures.current],native=nativeSession.current,assets:Media[]=[],tracks:TrackKind[]=[],offsets:number[]=[],sourceTimestamps:Array<number|undefined>=[],labels:string[]=[],failures:string[]=[],notes:string[]=[];
   const browserStop=Promise.all(entries.map(c=>new Promise<void>(resolve=>{if(c.recorder.state==='inactive'){resolve();return;}c.recorder.addEventListener('stop',()=>resolve(),{once:true});c.recorder.stop();})));
   const nativeStop=native?window.sceneForge!.stopNativeRecording!(native.id):null;
   try{
-   const [nativeResult]=await Promise.all([nativeStop?.then(value=>({value}),error=>({error}))??null,browserStop]);await Promise.all(entries.map(c=>c.queue));
+   const [nativeResult]=await Promise.all([nativeStop?.then(value=>({value}),error=>({error}))??null,browserStop]);entries.forEach(c=>c.samples.close());await Promise.all(entries.map(c=>c.queue));
    // Sources finalize concurrently (the server serializes per recording); results are applied in source order.
    const output=native&&nativeResult&&!('error'in nativeResult)?nativeResult.value:null;
-   const [finished,imported]=await Promise.all([Promise.allSettled(entries.map(c=>api<Media>(`/recordings/${c.id}/finish`,{}))),(async()=>{const done:Array<{media:Media;track:TrackKind}>=[];try{for(const source of output?nativeRecordingOutputs(output,native!.recordVideo,native!.systemAudio):[]){const [media]=await api<Media[]>('/media/import',{paths:[source.path],audioRole:source.audioRole});done.push({media,track:source.track});}return {done};}catch(error){return {done,error:error as Error};}})()]);
-   finished.forEach((result,i)=>{const c=entries[i];if(result.status==='fulfilled'){assets.push(result.value);tracks.push(c.track);offsets.push(recordingClock.current.offset(c.startedAtMs));labels.push(c.label);}else failures.push((result.reason as Error).message);});
-   if(native&&nativeResult){if('error'in nativeResult)failures.push(String(nativeResult.error));else{const output=nativeResult.value;failures.push(...nativeRecordingOutputErrors(output,native.recordVideo,native.systemAudio));{const note=nativeRecordingNote(output);if(note)notes.push(note);}for(const {media,track} of imported.done){assets.push(media);tracks.push(track);offsets.push(0);labels.push(`${track==='screen'?'Screen':'Computer audio'} (${chosenSource.current?.label||'selected source'})`);}if(imported.error)failures.push(imported.error.message);}}
+   const [finished,imported]=await Promise.all([Promise.allSettled(entries.map(c=>api<Media>(`/recordings/${c.id}/finish`,{startedAtMs:takeStartedAtMs.current,firstSampleAtMs:c.startedAtMs,sourceTimestampUs:c.sourceTimestampUs}))),(async()=>{const done:Array<{media:Media;track:TrackKind}>=[];try{for(const source of output?nativeRecordingOutputs(output,native!.recordVideo,native!.systemAudio):[]){const [media]=await api<Media[]>('/media/import',{paths:[source.path],audioRole:source.audioRole});done.push({media,track:source.track});}return {done};}catch(error){return {done,error:error as Error};}})()]);
+   finished.forEach((result,i)=>{const c=entries[i];if(result.status==='fulfilled'){assets.push(result.value);tracks.push(c.track);offsets.push(c.startedAtMs);sourceTimestamps.push(c.sourceTimestampUs);labels.push(c.label);}else failures.push((result.reason as Error).message);});
+   if(native&&nativeResult){if('error'in nativeResult)failures.push(String(nativeResult.error));else{const output=nativeResult.value;failures.push(...nativeRecordingOutputErrors(output,native.recordVideo,native.systemAudio));{const note=nativeRecordingNote(output);if(note)notes.push(note);}for(const {media,track} of imported.done){assets.push(media);tracks.push(track);offsets.push(output.startedAtMs);sourceTimestamps.push(undefined);labels.push(`${track==='screen'?'Screen':'Computer audio'} (${chosenSource.current?.label||'selected source'})`);}if(imported.error)failures.push(imported.error.message);}}
    if(nativeSkew.current>100&&entries.length)notes.push('Camera and screen may be slightly out of sync after pausing. Check the take before you use it.');
-   if(mounted.current&&assets.length){const take:SavedTake={id:crypto.randomUUID(),createdAt:new Date().toISOString(),sceneId:captureScene.current,media:assets,tracks,offsets,labels,clipIds:assets.map(()=>crypto.randomUUID()),recordOver:captureTakeMode.current==='record-over'};storeTakes([...savedTakes,take]);if(review){reviewRef.current=take.id;setReviewId(take.id);}if(notes.length)setTakeNotes(value=>({...value,[take.id]:notes.join(' ')}));try{await applyChange(draft=>saveProjectTake(draft,take));storeTakes(savedTakes.filter(value=>value.id!==take.id));}catch(error){failures.push(`The take is in local recovery; project save failed: ${(error as Error).message}`);}}
+   if(mounted.current&&assets.length){
+    if(offsets.some(at=>!Number.isFinite(at)||at<=0))throw Error('A source did not deliver a timestamped sample.');
+    const aligned=await api<{media:Media[];offsets:number[];synchronization:TakeSynchronization}>('/recordings/synchronize',{startedAtMs:takeStartedAtMs.current,sources:assets.map((media,i)=>({mediaId:media.id,track:tracks[i],firstSampleAtMs:offsets[i],sourceTimestampUs:sourceTimestamps[i]}))});
+    const take:SavedTake={id:crypto.randomUUID(),createdAt:new Date().toISOString(),sceneId:captureScene.current,media:aligned.media,tracks,offsets:aligned.offsets,synchronization:aligned.synchronization,labels,clipIds:assets.map(()=>crypto.randomUUID()),recordOver:captureTakeMode.current==='record-over'};storeTakes([...savedTakes,take]);if(review){reviewRef.current=take.id;setReviewId(take.id);}if(notes.length)setTakeNotes(value=>({...value,[take.id]:notes.join(' ')}));try{await applyChange(draft=>saveProjectTake(draft,take));storeTakes(savedTakes.filter(value=>value.id!==take.id));}catch(error){failures.push(`The take is in local recovery; project save failed: ${(error as Error).message}`);}}
    if(entries.some(c=>c.failure))failures.push('A source reported an error during capture.');
    if(failures.length)report(`Saved ${assets.length} completed ${assets.length===1?'source':'sources'}. ${failures.join(' ')} Any unfinished source remains in local capture storage.`);
-  }catch(error){report(`Take remains in local recording recovery storage: ${(error as Error).message}`);}finally{captures.current=[];nativeSession.current=null;manager.stopAll();clearNativeFrame();transition('idle');}
+  }catch(error){report(`The take could not be prepared. Original files and unfinished chunks remain in local capture storage: ${(error as Error).message}`);}finally{entries.forEach(c=>c.samples.close());captures.current=[];nativeSession.current=null;manager.stopAll();clearNativeFrame();transition('idle');}
  }
  stopRef.current=stop;
  // Subscribed once; the handlers run the latest committed render's actions (set on commit, so a discarded render never leaks in). Stop in the HUD during the countdown cancels the start.

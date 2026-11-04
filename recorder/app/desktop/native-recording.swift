@@ -206,8 +206,10 @@ final class NativeRecording: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
             if let attachments = CMSampleBufferGetSampleAttachmentsArray(sample, createIfNecessary: false) as? [[SCStreamFrameInfo: Any]], let status = attachments.first?[.status] as? Int, status != SCFrameStatus.complete.rawValue { return }
             latest = image; latestSequence += 1
             if origin == nil {
-                origin = hostTime()
-                let originEpochMs = Date().timeIntervalSince1970*1000
+                // Use the frame's source clock, not the time this callback was scheduled.
+                let now = hostTime(), samplePTS = CMSampleBufferGetPresentationTimeStamp(sample)
+                origin = samplePTS.isValid ? samplePTS : now
+                let originEpochMs = Date().timeIntervalSince1970*1000 - seconds(CMTimeSubtract(now, origin!))*1000
                 writer?.startSession(atSourceTime: .zero)
                 started = true
                 emit(["type":"started","startedAtMs":originEpochMs,"width":width,"height":height,"excludesSceneForge":true,"captureBounds":captureBoundsJSON(captureBounds),"previewControl":true])
@@ -377,6 +379,7 @@ if let at = CommandLine.arguments.firstIndex(of: "--self-test"), CommandLine.arg
         if let index=CommandLine.arguments.firstIndex(of:"--self-test-stall-ms"),CommandLine.arguments.count>index+1 {stallMilliseconds=min(2000,max(0,Int(CommandLine.arguments[index+1]) ?? 0))}
         recorder.videoPath=dir+"/screen.mp4"; recorder.audioPath=dir+"/system.wav"; recorder.previewPath=dir+"/preview.jpg"
         try recorder.prepareVideoWriter()
+        guard recorder.writer?.startWriting() == true else { throw failure("Self-test video encoder could not start.") }
         emit(["type":"self-test-config","videoSettings":recorder.videoInput?.outputSettings ?? [:],"realTime":recorder.videoInput?.expectsMediaDataInRealTime ?? false,"injectedVideoDelayMs":stallMilliseconds])
         if stallMilliseconds>0 { let delay=Double(stallMilliseconds)/1000; recorder.videoQueue.asyncAfter(deadline:.now()+0.2){Thread.sleep(forTimeInterval:delay)} }
         try recorder.beginAudio()

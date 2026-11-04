@@ -28,7 +28,7 @@ export function TakeReview({project,take,note,onConfirm,onRetake,onClose,onDelet
  const [deleteArmed,setDeleteArmed]=useState(false);
  useEffect(()=>{if(!deleteArmed)return;const timer=setTimeout(()=>setDeleteArmed(false),4000);return()=>clearTimeout(timer);},[deleteArmed]);
  const [settings,setSettings]=useState(false),[name,setName]=useState(take.name||''),[offsets,setOffsets]=useState([...take.offsets]),[saving,setSaving]=useState(false),[error,setError]=useState('');
- const duration=takeDuration(take.media,take.offsets),scene=project.scenes.find(s=>s.id===take.sceneId),locked=busy||saving;
+ const duration=takeDuration(take.media,take.offsets,take.synchronization?.duration),scene=project.scenes.find(s=>s.id===take.sceneId),locked=busy||saving;
  // Playback re-renders every frame; these only change with the project or take.
  const {confirmed,ordinal,matches}=useMemo(()=>{
   const confirmed=project.clips.some(clip=>clip.recordingTakeId===take.id||take.clipIds?.includes(clip.id));
