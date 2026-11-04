@@ -11,6 +11,7 @@ import { normalizeAddress, postizAppUrl, PostizPublisher, MAX_VIDEO_BYTES, Uncon
 import { PublisherError, type LocalFile, type Publisher } from './publisher.js';
 import { publishVideo, type ViewsReader } from './publish.js';
 import * as store from './store.js';
+import { coverMediaIds } from './video-cover.js';
 import { readProjectIfThere, sceneforge } from './recorder.js';
 
 /** The finished export a video is sent from, found by its id in SceneForge's export history. */
@@ -182,13 +183,18 @@ export function publishingRoutes(router: Router, deps: { handler: (fn: (req: Req
     const own = await thumbnailOf(slug, id);
     if (own) return res.type(own.type).sendFile(own.path, { dotfiles: 'allow' });
     const project = await readProjectIfThere((await store.readVideo(slug, id)).recorderProjectId);
-    const clip = project?.clips.filter((c) => c.track === 'camera' || c.track === 'screen').sort((a, b) => a.start - b.start)[0];
-    if (!clip) return res.status(204).end();
+    if (!project) return res.status(204).end();
     const { readMedia, CACHE_DIR } = await sceneforge();
-    const media = await readMedia(clip.mediaId).catch(() => undefined);
-    if (!media) return res.status(204).end();
     const { thumbnail } = await import('../media.js');
-    res.type('image/jpeg').sendFile(await thumbnail(media, CACHE_DIR), { dotfiles: 'allow' });
+    for (const mediaId of coverMediaIds(project)) {
+      const media = await readMedia(mediaId).catch(() => undefined)
+        ?? project.media.find(item => item.id === mediaId)
+        ?? project.recordedTakes?.flatMap(take => take.media).find(item => item.id === mediaId);
+      if (!media) continue;
+      const frame = await thumbnail(media, CACHE_DIR).catch(() => undefined);
+      if (frame) return res.type('image/jpeg').sendFile(frame, { dotfiles: 'allow' });
+    }
+    return res.status(204).end();
   }));
   router.delete('/videos/:id/thumbnail', handler(async (req, res) => {
     const slug = await requireWorkspace();

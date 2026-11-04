@@ -1,3 +1,4 @@
+import {takeSourceRange} from '../shared/take-timing';
 import type {Media,Project,RecordedTake,TrackKind} from '../shared/types';
 import {clipDuration,defaultTransform,effectsForTrack,makeId,projectDuration} from '../shared/types';
 import {creatorCameraTransform,creatorScreenTransform} from '../shared/camera-style';
@@ -9,10 +10,10 @@ const key=(projectId:string)=>`sceneforge.saved-takes.${projectId}`;
 export function readSavedTakes(raw:string|null):SavedTake[]{try{const value=JSON.parse(raw||'[]');if(!Array.isArray(value))return[];return value.filter(t=>t&&typeof t.id==='string'&&typeof t.sceneId==='string'&&Array.isArray(t.media)&&t.media.length>0&&t.media.length<=8&&t.media.every((m:Media)=>m&&typeof m.id==='string'&&typeof m.path==='string'&&Number.isFinite(m.duration)&&m.duration>0)&&Array.isArray(t.tracks)&&t.tracks.length===t.media.length&&t.tracks.every((track:string)=>['screen','camera','audio','music','overlay'].includes(track))&&Array.isArray(t.offsets)&&t.offsets.length===t.media.length&&t.offsets.every((offset:number)=>Number.isFinite(offset)&&offset>=0));}catch{return[];}}
 export function loadSavedTakes(projectId:string){try{return readSavedTakes(localStorage.getItem(key(projectId)));}catch{return[];}}
 export function persistSavedTakes(projectId:string,takes:SavedTake[]){localStorage.setItem(key(projectId),JSON.stringify(takes));}
-export const takeDuration=(media:Media[],offsets:number[])=>Math.max(0,...media.map((m,i)=>(offsets[i]||0)+m.duration));
+export const takeDuration=(media:Media[],offsets:number[],duration?:number)=>Math.max(0,...media.map((m,i)=>(offsets[i]||0)+(duration??m.duration)));
 export function takePreviewProject(project:Project,take:SavedTake):Project {
  if(take.timeline){const offset=take.timeline.start??0;return {...project,recordedTakes:undefined,media:[...project.media,...take.media.filter(m=>!project.media.some(p=>p.id===m.id))],clips:take.timeline.clips.map(c=>({...plainClone(c),start:c.start-offset})),scenes:[],captions:take.timeline.captions.map(c=>({...plainClone(c),start:c.start-offset,end:c.end-offset,words:c.words?.map(w=>({...w,start:w.start-offset,end:w.end-offset}))})),elements:[],zooms:[],cursor:{...project.cursor,enabled:false,points:[]}};}
- const composed=take.tracks.includes('screen')&&take.tracks.includes('camera');return {...project,media:take.media,scenes:[],captions:[],elements:[],zooms:[],cursor:{...project.cursor,enabled:false,points:[]},canvas:{...project.canvas,padding:0,radius:0,background:'#111111'},clips:take.media.map((media,i)=>({id:`take-${i}`,mediaId:media.id,name:media.name,track:take.tracks[i],...(media.audioRole?{audioRole:media.audioRole}:{}),start:take.offsets[i]||0,sourceIn:0,sourceOut:media.duration,speed:1,gain:1,muted:false,transform:composed&&take.tracks[i]==='camera'?creatorCameraTransform(project.canvas):composed&&take.tracks[i]==='screen'?creatorScreenTransform(project.canvas):defaultTransform(),effects:effectsForTrack(take.tracks[i])}))};
+ const composed=take.tracks.includes('screen')&&take.tracks.some((track,i)=>track==='camera'&&takeSourceRange(take,i).sourceOut>takeSourceRange(take,i).sourceIn);return {...project,media:take.media,scenes:[],captions:[],elements:[],zooms:[],cursor:{...project.cursor,enabled:false,points:[]},canvas:{...project.canvas,padding:0,radius:0,background:'#111111'},clips:take.media.map((media,i)=>({id:`take-${i}`,mediaId:media.id,name:media.name,track:take.tracks[i],...(media.audioRole?{audioRole:media.audioRole}:{}),...takeSourceRange(take,i),speed:1,gain:1,muted:false,transform:composed&&take.tracks[i]==='camera'?creatorCameraTransform(project.canvas):composed&&take.tracks[i]==='screen'?creatorScreenTransform(project.canvas):defaultTransform(),effects:effectsForTrack(take.tracks[i])})).filter(c=>c.sourceOut>c.sourceIn)};
 }
 /** Insert after the chosen scene, preserving later timeline content and source trims. */
 function appendLegacyTake(project:Project,take:Pick<SavedTake,'media'|'tracks'|'offsets'|'sceneId'|'clipIds'>):{start:number;nextSceneId:string}{
@@ -45,6 +46,6 @@ function appendLegacyTake(project:Project,take:Pick<SavedTake,'media'|'tracks'|'
 
 export {saveProjectTake,activateSceneTake,archiveSceneTake,deleteSceneTake,moveSceneTake,updateSceneTake,sceneTakes} from './scene-takes';
 import {confirmDurableTake} from './scene-takes';
-export function confirmTake(project:Project,take:Pick<SavedTake,'media'|'tracks'|'offsets'|'sceneId'|'clipIds'>&{id?:string;takeId?:string;createdAt?:string;mode?:TakeConfirmMode}):{start:number;nextSceneId:string}{
+export function confirmTake(project:Project,take:Pick<SavedTake,'media'|'tracks'|'offsets'|'sceneId'|'clipIds'|'synchronization'>&{id?:string;takeId?:string;createdAt?:string;mode?:TakeConfirmMode}):{start:number;nextSceneId:string}{
  const id=take.id??take.takeId;return id?confirmDurableTake(project,{...take,id}):appendLegacyTake(project,take);
 }

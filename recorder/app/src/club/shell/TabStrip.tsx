@@ -1,11 +1,11 @@
 import {useEffect,useRef,useState} from 'react';
 import {BrandMark} from '../../BrandMark';
-import type {VideoStage} from '../../../shared/club';
+import {videoHumanId,type VideoStage} from '../../../shared/club';
 import {STAGE_LABEL} from '../board';
 import {type Route} from '../routes';
 import {Icon,Menu,Tooltip,cn,type MenuItem} from '../ui';
 
-export type OpenTab={id:string;title:string;stage?:VideoStage};
+export type OpenTab={id:string;title:string;number?:number;stage?:VideoStage};
 
 /** Home, Discover, Videos and Research share the first tab, the way Borumi's start page has a tab of its own. */
 export const isHomeTab=(route:Route)=>route.name==='home'||route.name==='discover'||route.name==='videos'||route.name==='research';
@@ -67,7 +67,7 @@ export function TabStrip({route,tabs,onClose,onNewVideo,onSearch,onHelp}:{route:
    {tabs.map(tab=>{
     const on=tab.id===active,title=tab.title||'Untitled';
     return <div key={tab.id} ref={on?selected:undefined} className={cn('ts-tab',on&&'on')}>
-     <a href={`#/video/${encodeURIComponent(tab.id)}`} className="ts-label" aria-current={on?'page':undefined} title={title}>{tab.stage&&<span className={`col-dot ts-stage st-${tab.stage}`} role="img" aria-label={STAGE_LABEL[tab.stage]}/>}<span className="ts-title">{title}</span></a>
+     <a href={`#/video/${encodeURIComponent(tab.id)}`} className="ts-label" aria-current={on?'page':undefined} title={[videoHumanId(tab),title].filter(Boolean).join(' · ')}>{tab.stage&&<span className={`col-dot ts-stage st-${tab.stage}`} role="img" aria-label={STAGE_LABEL[tab.stage]}/>}{videoHumanId(tab)&&<span className="ts-id">{videoHumanId(tab)}</span>}<span className="ts-title">{title}</span></a>
      <button type="button" className="ts-close" onClick={()=>onClose(tab.id)} aria-label={`Close ${title}`}><Icon name="close" size={12} stroke={2.2}/></button>
     </div>;
    })}

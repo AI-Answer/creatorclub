@@ -15,7 +15,7 @@ test('streaming recording chunks are retry-safe, recoverable and finalize with d
  await r.appendRecording(session.id,0,data.subarray(0,middle));await r.appendRecording(session.id,0,data.subarray(0,middle));
  await assert.rejects(()=>r.appendRecording(session.id,0,Buffer.from('different')));
  await r.appendRecording(session.id,1,data.subarray(middle));assert.equal((await r.recoverableRecordings())[0].chunks,2);
- const media=await r.finishRecording(session.id);assert.ok(media.duration>.9&&media.duration<1.1);assert.equal(media.kind,'video');
+ const timing={startedAtMs:1000,firstSampleAtMs:1125,sourceTimestampUs:220000};const media=await r.finishRecording(session.id,timing);assert.deepEqual(JSON.parse(await readFile(path.join(path.dirname(media.path),'metadata.json'),'utf8')).timing,timing);assert.ok(media.duration>.9&&media.duration<1.1);assert.equal(media.kind,'video');
  const hash=async(file:string)=>(await promisify(execFile)('ffmpeg',['-v','error','-i',file,'-f','md5','-'])).stdout;
  assert.equal(await hash(media.path),await hash(input));assert.equal((await r.finishRecording(session.id)).id,media.id);assert.equal((await r.recoverableRecordings()).length,0);
 });

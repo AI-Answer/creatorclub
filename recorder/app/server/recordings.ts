@@ -34,9 +34,11 @@ export function warmTakeWaveform(media:Media){if(media.kind==='audio')warming=wa
 export const waveformWarmup=()=>warming;
 async function removeChunks(folder:string,files:string[]){for(const file of files)await fs.rm(path.join(folder,file),{force:true}).catch(()=>{});}
 // The lease closes inside the serial task, after any queued chunk has renewed it, so a late append cannot reopen it.
-export async function finishRecording(id:string){safeId(id);return serial(id,async()=>{try{
+export async function finishRecording(id:string,timing?:{startedAtMs:number;firstSampleAtMs:number;sourceTimestampUs?:number}){safeId(id);return serial(id,async()=>{try{
  const folder=path.join(directory,id),metadata=JSON.parse(await fs.readFile(path.join(folder,'metadata.json'),'utf8'));
  if(metadata.media)return metadata.media;
+ if(timing&&(!Number.isFinite(timing.startedAtMs)||!Number.isFinite(timing.firstSampleAtMs)||timing.firstSampleAtMs<=0||timing.sourceTimestampUs!==undefined&&!Number.isFinite(timing.sourceTimestampUs)))throw Error('Invalid recording sample timestamps');
+ if(timing){Object.assign(metadata,{timing});await atomicJSON(path.join(folder,'metadata.json'),metadata);}
  const chunks=(await fs.readdir(folder)).filter(f=>f.endsWith('.chunk')).sort();if(!chunks.length)throw new Error('No completed recording chunks available');
  const mp4=isMP4(metadata.mimeType),final=path.join(folder,mp4?'take.mp4':'take.webm'),temp=final+'.tmp';
  // Streaming MediaRecorder WebM omits Duration and seek cues; fragmented MP4 has no front index. A lossless remux writes both.

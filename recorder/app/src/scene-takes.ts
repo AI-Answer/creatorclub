@@ -1,3 +1,4 @@
+import {takeSourceRange,takeTimelineDuration} from '../shared/take-timing';
 import {clipDuration,defaultTransform,effectsForTrack,makeId,narrationPriority,type Clip,type Project,type RecordedTake} from '../shared/types';
 import {creatorCameraTransform,creatorScreenTransform} from '../shared/camera-style';
 import {plainClone} from './project-draft';
@@ -5,7 +6,7 @@ export type TakeConfirmMode='replace-matching'|'keep-both'|'record-over';
 const EPS=1e-7;
 const role=(c:Clip,p:Project)=>c.track==='audio'?`audio:${c.audioRole??p.media.find(m=>m.id===c.mediaId)?.audioRole??'unknown'}`:c.track;
 const relative=(c:Clip,start:number)=>({...plainClone(c),start:Math.max(0,c.start-start)});
-const captureIdentity=(t:RecordedTake)=>JSON.stringify({sceneId:t.sceneId,media:t.media.map(m=>({id:m.id,path:m.path,duration:m.duration,audioRole:m.audioRole})),tracks:t.tracks,offsets:t.offsets});
+const captureIdentity=(t:RecordedTake)=>JSON.stringify({sceneId:t.sceneId,media:t.media.map(m=>({id:m.id,path:m.path,duration:m.duration,audioRole:m.audioRole})),tracks:t.tracks,offsets:t.offsets,synchronization:t.synchronization});
 export function saveProjectTake(p:Project,t:RecordedTake):RecordedTake {
  if(!t.id||!t.createdAt||!p.scenes.some(s=>s.id===t.sceneId))throw Error('This recording scene no longer exists. Keep the saved take and choose its scene again.');
  if(!Array.isArray(t.media)||!t.media.length||t.media.length>8||t.tracks.length!==t.media.length||t.offsets.length!==t.media.length||t.media.some(m=>!m.id||!m.path||!Number.isFinite(m.duration)||m.duration<=0)||t.offsets.some(n=>!Number.isFinite(n)||n<0)||t.tracks.some(k=>!['screen','camera','audio','music','overlay'].includes(k)))throw Error('The saved take has invalid sources or timing.');
@@ -26,12 +27,15 @@ export function sceneTakes(p:Project,sceneId:string){return(p.recordedTakes??[])
  const clips=p.clips.filter(c=>c.recordingTakeId===t.id),active=new Set(clips.map(c=>role(c,p))),all=new Set(t.timeline?.clips.map(c=>role(c,p))??[]);
  return {...t,activeClipCount:clips.length,state:!clips.length?(t.confirmedAt||t.retained?'archived':'saved'):active.size<all.size?'partial':'active'} as RecordedTake&{activeClipCount:number;state:'saved'|'active'|'partial'|'archived'};
 });}
-function initialize(p:Project,t:RecordedTake){if(t.timeline)return;const composed=t.tracks.includes('screen')&&t.tracks.includes('camera');t.clipIds??=t.media.map(()=>makeId());t.timeline={duration:Math.max(...t.media.map((m,i)=>m.duration+t.offsets[i])),captions:[],clips:t.media.map((m,i)=>({id:t.clipIds![i],mediaId:m.id,name:m.name,track:t.tracks[i],...(m.audioRole?{audioRole:m.audioRole}:{}),recordingTakeId:t.id,start:t.offsets[i],sourceIn:0,sourceOut:m.duration,speed:1,gain:1,muted:false,effects:effectsForTrack(t.tracks[i]),transform:composed&&t.tracks[i]==='camera'?creatorCameraTransform(p.canvas):composed&&t.tracks[i]==='screen'?creatorScreenTransform(p.canvas):defaultTransform()}))};}
+function initialize(p:Project,t:RecordedTake){if(t.timeline)return;const linkId=t.synchronization?.version===3?makeId():undefined,composed=t.tracks.includes('screen')&&t.tracks.some((track,i)=>track==='camera'&&takeSourceRange(t,i).sourceOut>takeSourceRange(t,i).sourceIn);t.clipIds??=t.media.map(()=>makeId());t.timeline={duration:takeTimelineDuration(t),captions:[],clips:t.media.map((m,i)=>({id:t.clipIds![i],mediaId:m.id,name:m.name,track:t.tracks[i],...(m.audioRole?{audioRole:m.audioRole}:{}),recordingTakeId:t.id,...(linkId?{linkId}:{}),...takeSourceRange(t,i),speed:1,gain:1,muted:false,effects:effectsForTrack(t.tracks[i]),transform:composed&&t.tracks[i]==='camera'?creatorCameraTransform(p.canvas):composed&&t.tracks[i]==='screen'?creatorScreenTransform(p.canvas):defaultTransform()})).filter(c=>c.sourceOut>c.sourceIn)};}
 function snapshot(p:Project,sceneId:string,start:number){for(const t of p.recordedTakes??[]){if(t.sceneId!==sceneId||!t.timeline)continue;const live=p.clips.filter(c=>c.recordingTakeId===t.id),roles=new Set(t.installedRoles??live.map(c=>role(c,p)));t.timeline.clips=[...t.timeline.clips.filter(c=>!roles.has(role(c,p))),...live.map(c=>relative(c,start))];t.timeline.duration=Math.max(0,Math.max(0,...t.timeline.clips.map(c=>c.start+clipDuration(c)))-(t.timeline.start??0));}}
 function applyTake(p:Project,sceneId:string,id:string,mode:TakeConfirmMode){
  if(!['replace-matching','keep-both','record-over'].includes(mode))throw Error('Unknown take confirmation mode.');
  const scene=p.scenes.find(s=>s.id===sceneId),take=p.recordedTakes?.find(t=>t.id===id&&t.sceneId===sceneId);if(!scene||!take)throw Error('This saved take or scene no longer exists.');
  const index=p.scenes.indexOf(scene),start=scene.start,end=start+scene.duration;
+ // Reactivating an already installed take must not append it to itself. This
+ // action is also used by the scene card's "use take" command after confirmation.
+ if(mode==='keep-both'&&p.clips.some(c=>c.recordingTakeId===id)&&take.installedRoles?.length)return {start:start+(take.timeline?.start??0),nextSceneId:sceneId};
  const overlaps=(c:Clip)=>c.start<end-EPS&&c.start+clipDuration(c)>start+EPS;
  const inside=(c:Clip)=>c.start>=start-EPS&&c.start+clipDuration(c)<=end+EPS;
  for(const media of take.media)if(!p.media.some(m=>m.id===media.id))p.media.push(plainClone(media));
@@ -67,7 +71,7 @@ function applyTake(p:Project,sceneId:string,id:string,mode:TakeConfirmMode){
 }
 /** Apply inside one studio.change; failures leave even source/archive metadata untouched. */
 export function activateSceneTake(p:Project,sceneId:string,id:string,mode:TakeConfirmMode='replace-matching'){const draft=plainClone(p),result=applyTake(draft,sceneId,id,mode);Object.assign(p,draft);return result;}
-export function confirmDurableTake(p:Project,input:Pick<RecordedTake,'media'|'tracks'|'offsets'|'sceneId'|'clipIds'>&{id:string;createdAt?:string;mode?:TakeConfirmMode}){
+export function confirmDurableTake(p:Project,input:Pick<RecordedTake,'media'|'tracks'|'offsets'|'sceneId'|'clipIds'|'synchronization'>&{id:string;createdAt?:string;mode?:TakeConfirmMode}){
  const current=p.recordedTakes?.find(t=>t.id===input.id);if(current?.confirmedAt&&p.clips.some(c=>c.recordingTakeId===input.id)){const scene=p.scenes.find(s=>s.id===input.sceneId);if(!scene)throw Error('The recording scene no longer exists.');return {start:scene.start+(current.timeline?.start??0),nextSceneId:scene.id};}
  const draft=plainClone(p);if(!current)saveProjectTake(draft,{...input,createdAt:input.createdAt??new Date().toISOString()});const result=applyTake(draft,input.sceneId,input.id,input.mode??'replace-matching');Object.assign(p,draft);return result;
 }

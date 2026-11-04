@@ -79,7 +79,7 @@ function useOpenTabs(route:Route,videos:readonly ShellVideo[],navigate:(route:Ro
   setIds(rest);
   if(id===openId){const neighbour=rest[Math.min(at,rest.length-1)];navigate(neighbour?{name:'video',id:neighbour}:{name:'home'});}
  },[ids,openId,navigate]);
- const tabs=useMemo<OpenTab[]>(()=>ids.map(id=>({id,title:videos.find(video=>video.id===id)?.title??'',stage:videos.find(video=>video.id===id)?.stage})),[ids,videos]);
+ const tabs=useMemo<OpenTab[]>(()=>ids.map(id=>({id,title:videos.find(video=>video.id===id)?.title??'',number:videos.find(video=>video.id===id)?.number,stage:videos.find(video=>video.id===id)?.stage})),[ids,videos]);
  return {tabs,close};
 }
 

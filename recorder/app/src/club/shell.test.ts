@@ -17,7 +17,7 @@ const video=(id:string,title:string,stage:Video['stage'],extra:Partial<Video>={}
 const videos=[
  video('i1','Claude for receipts','ideas'),
  video('i2','Put off idea','ideas',{hidden:'later'}),
- video('p1','Hidden features in Claude Code','planning',{updatedAt:'2026-10-05T00:00:00.000Z'}),
+ video('p1','Hidden features in Claude Code','planning',{updatedAt:'2026-10-05T00:00:00.000Z',number:7}),
  video('r1','Agents for small shops','recording',{updatedAt:'2026-10-07T00:00:00.000Z'}),
  video('d1','Already out','published',{youtubeUrl:'https://youtu.be/dQw4w9WgXcQ'}),
 ];
@@ -126,6 +126,7 @@ test('the pinned tab is always Home, video tabs show stage dots, and + starts a 
   const home=c.querySelector<HTMLAnchorElement>('.ts-tab.home .ts-label')!;
   assert.equal(home.textContent,'Home','the pinned tab keeps its name');
   assert.equal(c.querySelector('.ts-tab:not(.home) .ts-stage')!.getAttribute('aria-label'),'Planning');
+  assert.equal(c.querySelector('.ts-tab:not(.home) .ts-id')?.textContent,'CC-7','the tab shows the video ID');
   assert.equal(home.getAttribute('href'),'#/home','and opens the video Kanban');
   assert.equal(c.querySelector('.ts-tab.home .ts-close'),null,'it cannot be closed');
   assert.equal(c.querySelector('.tabstrip .ts-tab.home'),c.querySelector('.ts-tabs')!.firstElementChild,'it comes first');

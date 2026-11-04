@@ -82,3 +82,15 @@
 .recording-next strong{font-size:var(--cc-text-base,14px);font-weight:600}
 .recording-next span{font-size:var(--cc-text-xs,12px);color:var(--muted)}
 .recording-next .button{flex-shrink:0;gap:8px}
+
+/* Source selectors and their gear form one unbroken right-hand header group. */
+.capture-source>header.capture-source-header{flex-wrap:nowrap;padding-block:0}
+.capture-source-header>strong{min-width:0;flex-shrink:0}
+.capture-source-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px;flex:1;min-width:0;margin-left:auto}
+.recording-source-panel .capture-source-actions :is(.capture-device,.capture-screen-choice,.capture-system-label){flex:1;min-width:0;max-width:100%;margin-left:0;order:0}
+.capture-source-actions .capture-settings-button{flex:0 0 28px;margin-left:0;order:0}
+.capture-source-actions .capture-system-label>span{min-width:0}
+.capture-audio{--meter-top:#81dff2;--meter-bottom:#258dce;--meter-line:#54b8e5}
+[data-theme=dark] .capture-audio{--meter-top:#81ecec;--meter-bottom:#0984e3;--meter-line:#74b9ff}
+.recording-source-panel .capture-audio>[role=meter]{height:40px}
+.recording-source-panel .capture-flatline{background:var(--meter-line);height:1px;margin-top:-.5px;opacity:1}

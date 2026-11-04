@@ -35,6 +35,11 @@ export interface DesktopCaptureSource {
  kind: 'display' | 'window';
  label: string;
  displayId?: string;
+ /** Ephemeral picker imagery; never persist these fields. */
+ thumbnail?: string;
+ appIcon?: string;
+ pixelSize?: {width:number;height:number};
+ primary?: boolean;
 }
 export interface DesktopCaptureSelection {
  token: string;
@@ -79,7 +84,7 @@ export interface SceneForgeDesktopBridge {
  chooseMedia(): Promise<string[]>;
  chooseBorumi(): Promise<string | null>;
  chooseFolder?(): Promise<string | null>;
- listCaptureSources?(): Promise<{displays: DesktopCaptureDisplay[]; sources: DesktopCaptureSource[]}>;
+ listCaptureSources?(options?: {thumbnails?:boolean}): Promise<{displays: DesktopCaptureDisplay[]; sources: DesktopCaptureSource[]}>;
  /** Arms one getDisplayMedia request for 60 seconds. Returns null on cancellation. */
  chooseCaptureSource?(options: {sourceId: string; mode: 'display' | 'window' | 'region'; initialRegion?: DesktopCaptureRect}): Promise<DesktopCaptureSelection | null>;
  /** Restore only the same, still-present source when macOS already grants access. */

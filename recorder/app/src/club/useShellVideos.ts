@@ -12,7 +12,9 @@ export function useShellVideos(refreshKey:string,enabled=true):Video[]{
  const [reloads,setReloads]=useState(0);
  useEffect(()=>{
   const again=()=>setReloads(count=>count+1);
-  window.addEventListener(VIDEOS_CHANGED,again);return()=>window.removeEventListener(VIDEOS_CHANGED,again);
+  const moved=(event:Event)=>{const saved=(event as CustomEvent<Video>).detail;setVideos(current=>current.map(video=>video.id===saved.id?saved:video));};
+  window.addEventListener('club:video-moved',moved);
+  window.addEventListener(VIDEOS_CHANGED,again);return()=>{window.removeEventListener(VIDEOS_CHANGED,again);window.removeEventListener('club:video-moved',moved);};
  },[]);
  useEffect(()=>{
   if(!enabled){setVideos([]);return;}

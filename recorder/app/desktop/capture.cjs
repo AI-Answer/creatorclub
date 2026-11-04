@@ -28,12 +28,12 @@ function createCaptureManager({ BrowserWindow, desktopCapturer, screen, ipcMain,
    promise.then(value => finish(null, value), error => finish(error));
   });
  }
- async function inventory({ signal = lifetime.signal, afterSelection = false, types = ['screen','window'] } = {}) {
+ async function inventory({ signal = lifetime.signal, afterSelection = false, types = ['screen','window'], thumbnails = false } = {}) {
   signal.throwIfAborted();
   const displays = displayList();
-  // Zero-size thumbnails avoid capturing or transmitting unselected screen/window images.
+  // Images are requested only for an open picker; validation and automatic selection use metadata only.
   let raw;
-  try { raw = await waitForInventory(desktopCapturer.getSources({ types, thumbnailSize: { width: 0, height: 0 }, fetchWindowIcons: false }), signal, afterSelection || screenPermission() === 'granted'); }
+  try { raw = await waitForInventory(desktopCapturer.getSources({ types, thumbnailSize: thumbnails ? { width: 480, height: 300 } : { width: 0, height: 0 }, fetchWindowIcons: thumbnails }), signal, afterSelection || screenPermission() === 'granted'); }
   catch (cause) {
    if (cause?.name === 'AbortError' || cause?.name === 'TimeoutError') throw cause;
    const status = screenPermission();
@@ -48,7 +48,12 @@ function createCaptureManager({ BrowserWindow, desktopCapturer, screen, ipcMain,
        : `The screen and window list could not load. Open Mac setup to check screen recording access, then quit and reopen ${appName} and try again.`;
    throw new Error(message, { cause });
   }
-  return { displays, raw, sources: raw.map(source => sourceMetadata(source, displays)).filter(Boolean) };
+  return { displays, raw, sources: raw.map(source => {
+   const metadata = sourceMetadata(source, displays); if (!metadata) return null;
+   const display = displays.find(d => d.id === metadata.displayId);
+   const image = value => value && !value.isEmpty() ? value.toDataURL() : undefined;
+   return { ...metadata, ...(display ? { pixelSize: display.pixelSize, primary: display.primary } : {}), ...(thumbnails ? { thumbnail: image(source.thumbnail), appIcon: image(source.appIcon) } : {}) };
+  }).filter(Boolean) };
  }
  function cancel(token) {
   if (token !== undefined) { store.cancel(token); for (const request of requests) if (request.token === token) request.controller.abort(); return; }
@@ -60,7 +65,14 @@ function createCaptureManager({ BrowserWindow, desktopCapturer, screen, ipcMain,
   if (!popup || popup.window.isDestroyed() || event.sender !== popup.window.webContents || event.senderFrame !== popup.window.webContents.mainFrame || event.senderFrame.url !== popup.url) throw new Error('Untrusted capture picker.');
   return popup;
  }
- const uiData = event => verifyPopup(event).data;
+ const uiData = event => {
+  const current = verifyPopup(event);
+  if (current.kind !== 'sources') return current.data;
+  return inventory({ thumbnails: true }).then(value => {
+   if (popup !== current || current.window.isDestroyed()) return { sources: [], displays: [] };
+   return { sources: value.sources, displays: value.displays };
+  });
+ };
  const uiFinish = (event, value) => { verifyPopup(event).finish(value); };
  ipcMain.handle('capture-ui-data', uiData);
  ipcMain.handle('capture-ui-finish', uiFinish);
@@ -80,7 +92,7 @@ function createCaptureManager({ BrowserWindow, desktopCapturer, screen, ipcMain,
    const timeout = setTimeout(() => finish(null), 5 * 60 * 1000);
    const finish = result => { if (settled) return; value = result; if (!window.isDestroyed()) window.destroy(); else complete(); };
    const complete = () => { if (settled) return; settled = true; clearTimeout(timeout); if (popup?.window === window) popup = null; if (failure) reject(failure); else resolve(value); };
-   popup = { window, data, url, finish };
+   popup = { window, kind, data, url, finish };
    window.once('closed', complete);
    window.webContents.on('render-process-gone', () => finish(null));
    window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
@@ -119,6 +131,10 @@ function createCaptureManager({ BrowserWindow, desktopCapturer, screen, ipcMain,
   if (!options) {
    options = await openPopup('sources', { sources: list.sources, displays: list.displays });
    if (!options || !fresh()) return null;
+   // The live picker may show sources opened after its initial inventory.
+   // Resolve the chosen id against fresh metadata, retaining no thumbnails.
+   try { list = await inventory({ afterSelection: true }); } catch (error) { if (!fresh()) return null; throw error; }
+   if (!fresh()) return null;
   }
   if (typeof options !== 'object' || typeof options.sourceId !== 'string' || !['display','window','region'].includes(options.mode)) throw new Error('Invalid capture selection.');
   const source = list.sources.find(source => source.id === options.sourceId);
@@ -196,7 +212,12 @@ function createCaptureManager({ BrowserWindow, desktopCapturer, screen, ipcMain,
  screen.on('display-removed', onDisplaysChanged);
  screen.on('display-metrics-changed', onDisplaysChanged);
  return {
-  async list(event) { verify(event); const value = await inventory(); verify(event); listed = { at: now(), value }; return { displays: value.displays, sources: value.sources }; },
+  async list(event, options) {
+   verify(event); const value = await inventory({ thumbnails: options?.thumbnails === true }); verify(event);
+   // Region selection may reuse metadata, never the images or NativeImage objects.
+   listed = { at: now(), value: { displays: value.displays, sources: value.sources.map(({ thumbnail, appIcon, ...metadata }) => metadata) } };
+   return { displays: value.displays, sources: value.sources };
+  },
   choose(event, options) { verify(event); return select(options, event.senderFrame, true); },
   restore(event, saved) { verify(event); return restore(saved, event.senderFrame); },
   cancel(event, token) { verify(event); if (token !== undefined && typeof token !== 'string') throw new Error('Invalid capture token.'); cancel(token); },

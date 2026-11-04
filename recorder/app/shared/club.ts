@@ -78,6 +78,8 @@ export interface IdeaNotes {
 
 export interface Video {
   id: string;
+  /** Stable, channel-local sequence. Assigned by the store; older files are backfilled on first list. */
+  number?: number;
   title: string;
   stage: VideoStage;
   order: number;
@@ -705,3 +707,7 @@ export interface PublishRecord {
   /** Postiz did not confirm the post, so it may exist: nothing more is sent until Check again finds it or rules it out. `postId` is empty. */
   unconfirmed?: boolean;
 }
+
+/** The prefix can become a channel setting without changing stored video numbers. */
+export const VIDEO_ID_PREFIX = 'CC';
+export const videoHumanId = (video: Pick<Video, 'number'>): string => video.number ? `${VIDEO_ID_PREFIX}-${video.number}` : '';

@@ -18,8 +18,6 @@ export function recorderMimeType(video:boolean,supported:(type:string)=>boolean)
 export function recorderOptions(video:boolean,mimeType:string):MediaRecorderOptions&{videoKeyFrameIntervalDuration?:number}{
  return video?{mimeType,videoBitsPerSecond:8_000_000,...(mimeType.startsWith('video/mp4')?{videoKeyFrameIntervalDuration:1000}:{})}:{mimeType,audioBitsPerSecond:192_000};
 }
-/** Chromium's MP4 recorder fires 'start' only once its hardware encoder is up (40-120 ms later), yet its first sample is the frame current at start(): its offset stays anchored at the start() call. WebM fires 'start' at once and keeps that anchor. */
-export const anchorOnStartEvent=(mimeType:string)=>!mimeType.startsWith('video/mp4');
 /** Browser screen/audio must never duplicate a native capture of the same source. */
 export function browserRecordingSelection<T extends {screen:boolean;systemAudio:boolean}>(selection:T,native:boolean):T {
  return native?{...selection,screen:false,systemAudio:false}:{...selection};

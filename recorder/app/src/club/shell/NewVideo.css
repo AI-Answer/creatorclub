@@ -30,6 +30,7 @@
 .club-root .ts-tab:not(.home) .ts-label { display: flex; align-items: center; gap: 7px; }
 .club-root .ts-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .club-root .ts-stage { flex: none; width: 7px; height: 7px; border-radius: 50%; }
+.club-root .ts-id { flex: none; color: var(--cc-text-faint); font-variant-numeric: tabular-nums; }
 .club-root .ts-close { flex: none; }
 .club-root .ts-tab.home { position: sticky; left: 0; z-index: 1; background: var(--cc-bg-sunk); }
 .club-root .ts-tab.home.on { background: var(--cc-bg); }

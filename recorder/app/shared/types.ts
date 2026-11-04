@@ -19,7 +19,7 @@ export interface Clip {
  audioRole?:AudioRole;
  /** Persistent recorded-take provenance; split clips retain this identity. */
  recordingTakeId?:string;
- /** Clips that share a link move, trim, split and delete together (the screen, camera and audio of one take). Absent on a take's clips until an edit links them explicitly. */
+ /** Clips that share a link move, trim, split and delete together. New synchronized takes link their screen, camera and audio when installed. */
  linkId?:string;
  /** Opaque imported clip identity; copy export validates it against the preserved baseline. */
  borumiOriginId?:string;
@@ -49,10 +49,18 @@ export interface MotionBlock { id:string; template:MotionTemplateId; style:strin
 export interface Zoom { id:string; start:number; duration:number; scale:number; x:number;y:number; target:'screen'|'camera'; easing:'linear'|'smooth'; effectTiming?:{offset:number;duration:number}; }
 export interface CursorPoint { time:number;x:number;y:number;pressed?:boolean;visible?:boolean; }
 export interface CursorSettings { enabled:boolean; size:number; color:string; highlight:boolean; smoothing:number; points:CursorPoint[]; }
+/** Original capture timestamps and bounds on the recording clock. Version 1 used normalized files; version 2 used mic-length trims; version 3 uses a shared intersection. */
+export interface TakeSynchronization {
+ version:1|2|3;startedAtMs:number;originAtMs:number;duration:number;
+ /** Version 3's common range on the mic clock, rounded inward at frameRate. */
+ takeStart?:number;takeEnd?:number;frameRate?:number;
+ sources:Array<{mediaId:string;firstSampleAtMs:number;offset:number;firstPts:number;decodedDuration:number;sourceIn?:number;sourceOut?:number;sourceTimestampUs?:number;intersectionExclusion?:{reason:'insufficient-coverage';lostDuration:number}}>;
+}
 /** Captured assets remain available even when their take has no active timeline clips. */
 export interface RecordedTake {
  id:string;createdAt:string;sceneId:string;name?:string;media:Media[];tracks:TrackKind[];offsets:number[];
  labels?:string[];clipIds?:string[];retained?:boolean;confirmedAt?:string;recordOver?:boolean;
+ synchronization?:TakeSynchronization;
  /** Edited clips/captions use scene-relative seconds; source trims/effects remain unchanged. */
  timeline?:{duration:number;start?:number;clips:Clip[];captions:Caption[]};
  /** Roles last installed by this take, used to preserve subsequent deletions when archiving. */
