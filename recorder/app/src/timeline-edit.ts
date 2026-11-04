@@ -3,7 +3,7 @@ import {cutTimelineRange,minimumPiece,relinkSlices} from '../shared/timeline-edi
 import {clipLayerRowId} from '../shared/timeline-layers';
 import {plainClone,plainView} from './project-draft';
 import {MOTION_TEMPLATES} from '../shared/motion/templates';
-import {remapClipCaptions,snapshotCaptionTiming} from '../shared/caption-timing';
+import {narrationClips,remapClipCaptions,snapshotCaptionTiming} from '../shared/caption-timing';
 
 /** The timeline row of motion blocks: they may overlap clips of other rows, never each other. */
 export const MOTION_ROW='motion';
@@ -144,6 +144,15 @@ export function openRange(p:Project,at:number,length:number){
  for(const s of p.scenes)if(later(s.start)&&s.start>0)s.start+=length;
  for(const m of p.markers??[])if(later(m.time))m.time+=length;
 }
+/**
+ * Remaps narration captions through the edit, and keeps openRange's shift for typed captions that no narration clip owns:
+ * the remapper would otherwise restore those at their pre-edit time while later video moves on.
+ */
+function remapAfterOpen(p:Project,before:ReturnType<typeof snapshotCaptionTiming>){
+ const owners=narrationClips(before),shifted=new Map(p.captions.map(c=>[c.id,c]));
+ const unowned=new Set(before.captions.filter(cap=>!owners.some(c=>c.start<cap.end-1e-7&&c.start+clipDuration(c)>cap.start+1e-7)).map(c=>c.id));
+ updateCaptions(p,remapClipCaptions(before,plainView(p)).map(c=>unowned.has(c.id)?shifted.get(c.id)??c:c));
+}
 /** Opens `length` seconds at `at` for an insert: clips on `rows` (all rows when omitted) that run across `at` are cut there first, so what is inserted overlaps nothing. */
 export function insertGap(p:Project,at:number,length:number,rows?:ReadonlySet<string>,newId:()=>string=makeId){
  const before=snapshotCaptionTiming(plainView(p));
@@ -161,8 +170,9 @@ export function insertGap(p:Project,at:number,length:number,rows?:ReadonlySet<st
   p.clips.push(right);c.sourceOut=cut;
  }
  laterSlice(p,at,fresh);
- openRange(p,at,length);
+ // Remap before opening: openRange then shifts every later caption, including typed ones no narration clip owns.
  updateCaptions(p,remapClipCaptions(before,plainView(p)));
+ openRange(p,at,length);
 }
 /**
  * Each recorded scene follows its take on the timeline: its range becomes the contiguous run of its take's clips (screen, camera, audio, overlay)
@@ -322,8 +332,8 @@ export function trimClips(p:Project,chosen:ReadonlySet<string>,side:'left'|'righ
   for(const [a,b] of mergeRanges(removed).flatMap(range=>uncovered(range,plainView(p).clips)).sort((x,y)=>y[0]-x[0]))closeRange(p,a,b);
   return;
  }
- if(side==='right'){openRange(p,Math.min(...clips.map(end)),delta);for(const c of p.clips)if(ids.has(c.id))c.sourceOut+=delta*c.speed;updateCaptions(p,remapClipCaptions(before,plainView(p)));return;}
- const length=-delta;openRange(p,Math.min(...clips.map(c=>c.start)),length);for(const c of p.clips)if(ids.has(c.id)){c.start-=length;c.sourceIn-=length*c.speed;}updateCaptions(p,remapClipCaptions(before,plainView(p)));
+ if(side==='right'){openRange(p,Math.min(...clips.map(end)),delta);for(const c of p.clips)if(ids.has(c.id))c.sourceOut+=delta*c.speed;remapAfterOpen(p,before);return;}
+ const length=-delta;openRange(p,Math.min(...clips.map(c=>c.start)),length);for(const c of p.clips)if(ids.has(c.id)){c.start-=length;c.sourceIn-=length*c.speed;}remapAfterOpen(p,before);
 }
 /** Resizes an element, caption, zoom or motion block edge within [0, neighbours] and keeps at least a tenth of a second (a motion block, its template's shortest length). */
 export function resizeEffect(p:Project,id:string,side:'left'|'right',delta:number){

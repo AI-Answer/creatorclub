@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createProject,defaultEffects,defaultTransform,clipDuration,type Clip,type Media,type Project} from '../shared/types';
 import {applyProjectChange} from './project-draft';
-import {secondsLabel,noteMarker,addMarker,anchoredScroll,openRange,remapLinks,applyClipStarts,closeRange,collides,deleteItems,ensureLinks,filmstripTiles,fitScale,freeDelta,insertPlan,isLinked,linkClips,linkGroups,linkedIds,moveEffects,moveMarker,planClipMove,removeMarker,resizeEffect,rowItems,rulerLabel,rulerTicks,splitLinked,timelineGaps,trimBounds,trimClips,trimGroup,rowsOverlap,uncovered,unlinkClips,DRAG_DEAD_ZONE_PX,showTenths,lengthLabel,MAX_SCALE} from './timeline-edit';
+import {secondsLabel,noteMarker,addMarker,anchoredScroll,openRange,remapLinks,applyClipStarts,closeRange,collides,deleteItems,ensureLinks,filmstripTiles,fitScale,freeDelta,insertPlan,isLinked,linkClips,linkGroups,linkedIds,moveEffects,moveMarker,planClipMove,removeMarker,resizeEffect,rowItems,rulerLabel,rulerTicks,splitLinked,timelineGaps,trimBounds,trimClips,insertGap,trimGroup,rowsOverlap,uncovered,unlinkClips,DRAG_DEAD_ZONE_PX,showTenths,lengthLabel,MAX_SCALE} from './timeline-edit';
 
 const media=(id:string,duration=600):Media=>({id,name:id,path:`/tmp/${id}.mov`,kind:'video',duration,width:1920,height:1080,hasAudio:true});
 const clip=(id:string,track:Clip['track'],start:number,length:number,extra:Partial<Clip>={}):Clip=>({id,mediaId:track==='camera'?'cam':track==='audio'?'mic':'scr',name:id,track,start,sourceIn:0,sourceOut:length,speed:1,gain:1,muted:false,transform:defaultTransform(),effects:defaultEffects(),...extra});
@@ -209,4 +209,17 @@ test('a note is named in whole seconds',()=>{
  assert.equal(secondsLabel(59.6),'1:00');
  assert.equal(secondsLabel(75),'1:15');
  assert.equal(secondsLabel(-3),'0:00');
+});
+
+test('typed captions no narration clip owns move with the time an insert or a ripple trim opens',()=>{
+ const typed=()=>({id:'typed',text:'Typed note',start:7,end:8});
+ const owned=()=>({id:'spoken',text:'hello',start:1,end:2,words:[{text:'hello',start:1,end:2}]});
+ const inserted=project(take(1,0,5));inserted.captions=[owned(),typed()];
+ insertGap(inserted,3,2);
+ const t=inserted.captions.find(c=>c.id==='typed')!;assert.deepEqual([t.start,t.end],[9,10],'the gap pushes the typed caption later');
+ assert.deepEqual(inserted.captions.filter(c=>c.id.startsWith('spoken')).map(c=>[c.start,c.end]),[[1,2]],'spoken words before the gap stay put');
+ const trimmed=project(take(1,0,5));trimmed.captions=[owned(),typed()];
+ trimClips(trimmed,new Set(['audio1']),'right',1,true);
+ const u=trimmed.captions.find(c=>c.id==='typed')!;assert.deepEqual([u.start,u.end],[8,9],'a ripple trim that adds time pushes it too');
+ assert.deepEqual(trimmed.captions.filter(c=>c.id.startsWith('spoken')).map(c=>[c.start,c.end]),[[1,2]]);
 });

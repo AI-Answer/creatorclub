@@ -6,6 +6,8 @@ import {subscribeEvents} from './events';
 import {applyProjectChange} from './project-draft';
 import {runGuardedProjectOperation,projectRefreshDisposition} from './recovery-session';
 import {isCaptionOnlyUpdate,mergeCaptionUpdate} from './project-automation-merge';
+/** A save that lost three races to automatic captions: autosave retries it, and callers that need the save finished stop here. */
+export class CaptionSaveRetry extends Error{}
 const EXTERNAL_CHANGE='This project has updates from another window. Your local edits are kept. Reload the saved version when you are ready.';
 
 /** Edits that share a coalesce key, with no other edit or history step between them and less than a second apart, form one undo step. */
@@ -76,10 +78,11 @@ export function useStudio(){
    }
    // Continuous transcription updates are retried by autosave, never by dropping the person's edits.
    setResave(x=>x+1);
+   throw new CaptionSaveRetry('New captions arrived while saving. Your edits are kept and will save again.');
   });
   saveQueue.current=task;await task;return current.current??p;
  },[mergeCaptions]);
- useEffect(()=>{if(!project||conflicted)return;if(project===saved.current){setSaveState('Saved locally');return;}setSaveState('Saving…');const timer=setTimeout(()=>{void flush().catch(e=>{if(!conflict.current)setSaveState('Save failed');setError(e.message);});},650);return()=>clearTimeout(timer);},[project,flush,conflicted,resave]);
+ useEffect(()=>{if(!project||conflicted)return;if(project===saved.current){setSaveState('Saved locally');return;}setSaveState('Saving…');const timer=setTimeout(()=>{void flush().catch(e=>{if(e instanceof CaptionSaveRetry)return;if(!conflict.current)setSaveState('Save failed');setError(e.message);});},650);return()=>clearTimeout(timer);},[project,flush,conflicted,resave]);
  useEffect(()=>{
   let disposed=false,queue=Promise.resolve(),listTimer:ReturnType<typeof setTimeout>|undefined;
   const cleanRevision=(value:string)=>value.replace(/^W\//,'').replaceAll('"','');

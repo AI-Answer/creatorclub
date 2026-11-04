@@ -198,6 +198,19 @@ test('a captions-only write winning autosave before its event is merged and retr
  await app.unmount();
 });
 
+test('three caption-only races in a row reject flush quietly, then autosave saves the edit',async()=>{
+ const app=await mount(linkedProject());const {CaptionSaveRetry}=await import('./useStudio');
+ const real=globalThis.fetch;let races=0;
+ globalThis.fetch=(async(url:string,init:RequestInit={})=>{if((init.method??'GET')==='PUT'&&races<3){races++;app.server.external(p=>{p.captions=[{...generatedCaption(),text:`take ${races}`}];});}return real(url,init);}) as typeof fetch;
+ try{
+  await act(async()=>{app.studio.change(p=>{p.name='Edited during transcription';});});
+  await act(async()=>{await assert.rejects(app.studio.flush(),(error:unknown)=>error instanceof CaptionSaveRetry);});
+  assert.equal(app.studio.error,'');assert.equal(app.studio.conflicted,false);assert.notEqual(app.server.stored.name,'Edited during transcription','not reported as saved');
+  await wait(1000);
+  assert.equal(app.server.stored.name,'Edited during transcription','autosave retries and saves it');assert.equal(app.studio.error,'');
+ }finally{globalThis.fetch=real;await app.unmount();}
+});
+
 test('a genuine external edit winning autosave keeps local work and reports a calm conflict',async()=>{
  const app=await mount(project());
  await act(async()=>{app.studio.change(p=>{p.notes='My local notes';});});
