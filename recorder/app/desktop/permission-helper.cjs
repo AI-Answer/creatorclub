@@ -19,7 +19,9 @@ function permissionHelperOptions(workArea,preload){
 function createPermissionHelper({app,BrowserWindow,ipcMain,screen,shell,nativeImage,getStatus,onGranted,appName='Creator Compiler',setInterval:every=setInterval,clearInterval:cancel=clearInterval}){
  const page=pathToFileURL(path.join(__dirname,'permission-helper.html')).href;
  const bundle=resolveAppBundle(app.getPath('exe')),icon=path.join(__dirname,'../assets/creator-compiler-512.png');
- let popup=null,timer=null,permission=null,disposed=false;
+ let popup=null,timer=null,permission=null,disposed=false,cursorIcon=null;
+ // The 512px app icon would follow the cursor at full size; drag a 64px copy.
+ const dragIcon=()=>cursorIcon??=nativeImage.createFromPath(icon).resize({width:64,height:64});
  function close(){if(timer!==null){cancel(timer);timer=null;}const window=popup;popup=null;permission=null;if(window&&!window.isDestroyed())window.destroy();}
  function verify(event){if(!popup||popup.isDestroyed()||event.sender!==popup.webContents||event.senderFrame!==popup.webContents.mainFrame||event.senderFrame.url!==page)throw new Error('Untrusted permission helper.');}
  const handlers={
@@ -29,8 +31,11 @@ function createPermissionHelper({app,BrowserWindow,ipcMain,screen,shell,nativeIm
  };
  for(const [name,handler] of Object.entries(handlers))ipcMain.handle(name,handler);
  // startDrag must originate in the helper's own user-initiated drag event.
- const drag=event=>{try{verify(event);event.sender.startDrag({file:bundle,icon});}catch(error){console.error('Capture access drag failed:',error.message);}};
+ const drag=event=>{try{verify(event);event.sender.startDrag({file:bundle,icon:dragIcon()});}catch(error){console.error('Capture access drag failed:',error.message);}};
  ipcMain.on('permission-helper-drag',drag);
+ // A frameless panel ignores CSS drag regions on macOS, so the helper moves itself by the pointer's movement.
+ const move=(event,dx,dy)=>{try{verify(event);if(!Number.isFinite(dx)||!Number.isFinite(dy)||Math.abs(dx)>4000||Math.abs(dy)>4000)return;const [x,y]=popup.getPosition();popup.setPosition(Math.round(x+dx),Math.round(y+dy));}catch{}};
+ ipcMain.on('permission-helper-move',move);
  async function open(kind){
   if(disposed)throw new Error('Capture access helper is closed.');
   if(!['camera','microphone','screen'].includes(kind))throw new Error('Unknown capture permission.');
@@ -51,6 +56,6 @@ function createPermissionHelper({app,BrowserWindow,ipcMain,screen,shell,nativeIm
    if(getStatus(kind)==='granted'){close();onGranted(kind);}
   },1000);
  }
- return {open,close,dispose(){disposed=true;close();for(const name of Object.keys(handlers))ipcMain.removeHandler(name);ipcMain.removeListener('permission-helper-drag',drag);}};
+ return {open,close,dispose(){disposed=true;close();for(const name of Object.keys(handlers))ipcMain.removeHandler(name);ipcMain.removeListener('permission-helper-drag',drag);ipcMain.removeListener('permission-helper-move',move);}};
 }
 module.exports={resolveAppBundle,permissionHelperOptions,createPermissionHelper};

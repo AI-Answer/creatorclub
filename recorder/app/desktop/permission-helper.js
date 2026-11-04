@@ -11,3 +11,9 @@ document.getElementById('icon').addEventListener('keydown',event=>{if(event.key=
 document.getElementById('finder').addEventListener('click',()=>access.reveal().catch(error));
 document.getElementById('close').addEventListener('click',()=>access.close().catch(error));
 document.addEventListener('keydown',event=>{if(event.key==='Escape')access.close().catch(error);});
+// Drag the card (anywhere but the icon and buttons) to move the helper out of the way.
+const card=document.querySelector('main');let last=null;
+card.addEventListener('pointerdown',event=>{if(event.button!==0||event.target.closest('button,img'))return;last={x:event.screenX,y:event.screenY};card.setPointerCapture(event.pointerId);card.classList.add('moving');});
+card.addEventListener('pointermove',event=>{if(!last)return;const dx=event.screenX-last.x,dy=event.screenY-last.y;if(!dx&&!dy)return;last={x:event.screenX,y:event.screenY};access.move(dx,dy);});
+const stop=()=>{last=null;card.classList.remove('moving');};
+card.addEventListener('pointerup',stop);card.addEventListener('pointercancel',stop);card.addEventListener('lostpointercapture',stop);

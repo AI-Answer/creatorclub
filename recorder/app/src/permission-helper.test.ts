@@ -42,17 +42,18 @@ function harness(){
  const handlers=new Map<string,Function>();ipc.handle=(name,fn)=>handlers.set(name,fn);ipc.removeHandler=name=>{handlers.delete(name);};
  const windows:any[]=[],dragged:any[]=[],revealed:string[]=[],granted:string[]=[];let tick:(()=>void)|undefined,clears=0,status='denied';
  class Window extends EventEmitter{
-  dead=false;url='';shown=false;top:unknown;spaces:unknown;
+  dead=false;url='';shown=false;top:unknown;spaces:unknown;position=[100,200];
   webContents=Object.assign(new EventEmitter(),{mainFrame:{url:''},setWindowOpenHandler:()=>{},startDrag:(value:unknown)=>dragged.push(value)});
   constructor(readonly options:unknown){super();windows.push(this);}
   isDestroyed(){return this.dead;}destroy(){this.dead=true;this.emit('closed');}
   setAlwaysOnTop(...args:unknown[]){this.top=args;}setVisibleOnAllWorkspaces(...args:unknown[]){this.spaces=args;}
   async loadURL(url:string){this.url=url;this.webContents.mainFrame.url=url;}showInactive(){this.shown=true;}
+  getPosition(){return this.position;}setPosition(x:number,y:number){this.position=[x,y];}
  }
  const helper=createPermissionHelper({
   app:{getPath:()=>'/Applications/Creator Compiler.app/Contents/MacOS/Creator Compiler',isPackaged:true},BrowserWindow:Window,ipcMain:ipc,
   screen:{getCursorScreenPoint:()=>({x:-50,y:30}),getDisplayNearestPoint:()=>({workArea:{x:-1512,y:0,width:1512,height:940}})},
-  shell:{showItemInFolder:(file:string)=>revealed.push(file)},nativeImage:{createFromPath:()=>({toDataURL:()=> 'data:image/png;base64,test'})},
+  shell:{showItemInFolder:(file:string)=>revealed.push(file)},nativeImage:{createFromPath:(file:string)=>({toDataURL:()=> 'data:image/png;base64,test',resize:(size:unknown)=>({file,size})})},
   getStatus:()=>status,onGranted:(kind:string)=>granted.push(kind),setInterval:(callback:()=>void,ms:number)=>{assert.equal(ms,1000);tick=callback;return 1;},clearInterval:()=>{clears++;tick=undefined;},
  } as unknown as Parameters<typeof createPermissionHelper>[0]);
  const event=()=>({sender:windows.at(-1).webContents,senderFrame:windows.at(-1).webContents.mainFrame});
@@ -65,11 +66,13 @@ test('helper authenticates its frame, drags and reveals its app, detects grant a
   assert.throws(()=>h.handlers.get('permission-helper-reveal')!({sender:{},senderFrame:{url:window.url}}),/Untrusted/);
   const frame=window.webContents.mainFrame;window.webContents.mainFrame={url:window.url};assert.throws(()=>h.handlers.get('permission-helper-read')!({sender:window.webContents,senderFrame:frame}),/Untrusted/);
   const info=h.handlers.get('permission-helper-read')!(h.event());assert.equal(info.appName,'Creator Compiler');assert.equal(info.development,false);assert.match(info.icon,/^data:image\/png/);
-  h.ipc.emit('permission-helper-drag',h.event());assert.equal(h.dragged[0].file,'/Applications/Creator Compiler.app');assert.equal(h.dragged[0].icon,path.join(root,'assets/creator-compiler-512.png'));
+  h.ipc.emit('permission-helper-drag',h.event());assert.equal(h.dragged[0].file,'/Applications/Creator Compiler.app');assert.deepEqual(h.dragged[0].icon,{file:path.join(root,'assets/creator-compiler-512.png'),size:{width:64,height:64}});
+  h.ipc.emit('permission-helper-move',h.event(),12.4,-30);assert.deepEqual(window.position,[112,170]);
+  h.ipc.emit('permission-helper-move',h.event(),Number.NaN,5);h.ipc.emit('permission-helper-move',{sender:{},senderFrame:{url:window.url}},50,50);assert.deepEqual(window.position,[112,170]);
   h.handlers.get('permission-helper-reveal')!(h.event());assert.deepEqual(h.revealed,['/Applications/Creator Compiler.app']);
   h.tick();assert.equal(window.dead,false);assert.deepEqual(h.granted,[]);
   h.grant();h.tick();assert.equal(window.dead,true);assert.deepEqual(h.granted,['screen']);assert.equal(h.clears(),1);h.tick();assert.deepEqual(h.granted,['screen']);
- }finally{h.helper.dispose();assert.equal(h.handlers.size,0);assert.equal(h.ipc.listenerCount('permission-helper-drag'),0);}
+ }finally{h.helper.dispose();assert.equal(h.handlers.size,0);assert.equal(h.ipc.listenerCount('permission-helper-drag'),0);assert.equal(h.ipc.listenerCount('permission-helper-move'),0);}
 });
 test('switching permissions closes the old helper and dismissal stops polling',async()=>{
  const h=harness();try{
