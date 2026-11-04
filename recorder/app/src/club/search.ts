@@ -44,7 +44,7 @@ export function fixedOptions(videos:readonly Video[],openId?:string|null):Search
   {id:'action:shortcuts',label:'Keyboard shortcuts',kind:'Action',icon:'keyboard',hint:SHORTCUTS[0].keys+' and more',words:'help keys hotkeys keyboard',target:{action:'help',topic:'shortcuts'}},
   ...steps,
   {id:'page:home',label:'Home',kind:'Page',icon:'home',hint:'What to do next',words:'overview next',target:{route:{name:'home'}}},
-  {id:'page:discover',label:FIND_IDEA.name,kind:'Page',icon:'trending',hint:'What works outside your channel',words:'trending signals outliers youtube x reddit find idea',target:{route:{name:'discover'}}},
+  {id:'page:discover',label:FIND_IDEA.name,kind:'Page',icon:'trending',hint:'What works outside your channel',words:'discover trending signals outliers youtube x reddit find idea',target:{route:{name:'discover'}}},
   {id:'page:videos',label:'Videos',kind:'Page',icon:'video',hint:'Every video from idea to published',words:'board pipeline ideas production',target:{route:{name:'videos',view:'board'}}},
   {id:'page:table',label:'Videos table',kind:'Page',icon:'table',words:'list',target:{route:{name:'videos',view:'table'}}},
   {id:'page:calendar',label:'Videos calendar',kind:'Page',icon:'calendar',words:'schedule publish date',target:{route:{name:'videos',view:'calendar'}}},

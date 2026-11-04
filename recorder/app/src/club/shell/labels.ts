@@ -6,7 +6,7 @@ export {SHORTCUTS,STEPS_SENTENCE,VIDEO_STEPS};
 export const FIND_IDEA={...idea,name:'Research'};
 /** Shell copy while the legacy channel canvas keeps its route and code. */
 export const shellCopy=(text:string)=>text.replace(/Discover/g,'Research').replace(/\bVideos\b|\bHome\b/g,'Video board');
-export const GLOSSARY=glossary.map(item=>({...item,means:item.term==='Research'?'Videos and posts from outside your channel, ranked for your topics. Keep the concepts you would make.':shellCopy(item.means)}));
+export const GLOSSARY=glossary.map(item=>({...item,means:shellCopy(item.means)}));
 export const PLACES=[
  ...places.filter(place=>!['Home tab','Home','Discover','Videos','Research'].includes(place.name)).map(place=>({...place,where:shellCopy(place.where)})),
  {name:'Video board',where:'Your channel and its menu, Search (⌘K), then Video board and Research down the left. Every video moves from idea to published on the board.'},

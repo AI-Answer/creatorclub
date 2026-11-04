@@ -18,7 +18,7 @@ export function ResearchScreen({navigate}:{navigate(route:Route,options?:{replac
  },[]);
  const screen=useMemo(()=>selection.length?`Research, with ${selection.length} ${selection.length===1?'card':'cards'} selected`:'Research, the channel\'s own board',[selection.length]);
  return <div className="ws research">
-  <header className="ws-top"><h1 className="research-title">Research</h1><span className="small muted ellipsis">Gather what might become a video, connect it, group it, and start a video from it.</span></header>
+  <header className="ws-top"><h1 className="research-title">Channel board</h1><span className="small muted ellipsis">Gather what might become a video, connect it, group it, and start a video from it.</span></header>
   <div className="ws-row">
    <div className="ws-col"><div className="ws-body"><Board board={CHANNEL_BOARD} refreshKey={boardKey} navigate={navigate} onSelection={setSelection}/></div></div>
    <Companion videoId={CHANNEL_BOARD} tab="research" screen={screen} selection={selection} pkg={null} outline={null} onChanged={changed}/>

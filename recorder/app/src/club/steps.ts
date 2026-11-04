@@ -24,7 +24,7 @@ const DOES:Record<VideoTab,{icon:IconName;does:string}>={
 export const VIDEO_STEPS:readonly StepInfo[]=videoTabs.map(tab=>({tab,name:TAB_LABEL[tab],...DOES[tab]}));
 
 /** The step that comes before the four: finding what to make. */
-export const FIND_IDEA={name:'Discover',does:'See which videos in your topics are doing well and keep the concept you would make.'};
+export const FIND_IDEA={name:'Research',does:'See which videos in your topics are doing well and keep the concept you would make.'};
 
 /** One sentence naming the four steps, for places that only have room for that. */
 export const STEP_NAMES=VIDEO_STEPS.map(step=>step.name).join(', ');
@@ -38,7 +38,7 @@ export const GLOSSARY:readonly Term[]=[
  {term:'Idea',means:'A video you might make. It waits in the first column of Videos until you start planning it.'},
  {term:'Video',means:'One card that goes from idea to published. It has an Idea page (your plan and your board), scenes, takes and an export.'},
  {term:'Board',means:'The canvas on a video\'s Idea page where you gather links, notes, screenshots and files, and ask your AI about them.'},
- {term:'Research',means:'Your channel\'s own board, before any video: put Discover cards, ideas, links and notes on it, connect and group them, and start a video from the ones that belong together.'},
+ {term:'Research',means:'Videos and posts from outside your channel, ranked for your topics. Keep the concepts you would make.'},
  {term:'Package',means:'The title and thumbnail that make people click, and the hook that keeps them watching.'},
  {term:'Hook',means:'The first line you say. It decides whether people stay.'},
  {term:'Scene',means:'One part of the video with its own talking points. You plan the scenes, then record them one at a time.'},
@@ -47,7 +47,7 @@ export const GLOSSARY:readonly Term[]=[
  {term:'Breakdown',means:'Why a video worked: what viewers asked and three concepts you could make. Claude writes it from the video.'},
  {term:'Views a day',means:'How many views a video gets each day since it went up. It shows which videos are taking off now.'},
  {term:'3× chip',means:"How many times a video beats its channel's usual views. 3× is three times as many. A dash means that usual is not tracked yet."},
- {term:'Follow',means:'Keeps a channel in the list Creator Compiler reads for new videos, so they show up in Discover.'},
+ {term:'Follow',means:'Keeps a channel in the list Creator Compiler reads for new videos, so they show up in Research.'},
 ];
 
 /** The plain-words help for a trend card, said once where cards first appear. */
@@ -55,7 +55,7 @@ export const TREND_HELP=[
  ['Views a day','how many views the video gets each day since it went up.'],
  ['The 3× chip',"how many times the video beats its channel's usual views. No chip means that usual is not tracked yet."],
  ['Break down','shows why it worked and gives you three concepts you could make.'],
- ['Follow this channel','adds it to the channels Creator Compiler reads, so its new videos show up in Discover.'],
+ ['Follow this channel','adds it to the channels Creator Compiler reads, so its new videos show up in Research.'],
 ] as const;
 
 export interface Place{name:string;where:string}
@@ -65,9 +65,8 @@ export const PLACES:readonly Place[]=[
  {name:'Tab bar',where:'The top of the window: the app menu, one tab per open video (close it with ×), the Home tab, then Help and Settings on the right.'},
  {name:'Home tab',where:'Your channel and its menu, Search (⌘K), then Home, Discover, Videos and Research down the left.'},
  {name:'Home',where:'What to do next on the video you worked on last, and the first-video checklist for a new channel.'},
- {name:'Discover',where:'What works outside: YouTube videos beating their usual and posts from X and Reddit. Turn any of them into an idea.'},
+ {name:'Research',where:'What works outside: YouTube videos beating their usual and posts from X and Reddit. Turn any of them into an idea.'},
  {name:'Videos',where:'Every video from idea to published, as a board, a table or a calendar. New video is here.'},
- {name:'Research',where:'Your channel\'s own board: put Discover cards, your ideas, links and notes on it, connect and group them, and start a video from a selection.'},
  {name:'Step bar',where:`The bottom of a video: Back to the step before, then ${VIDEO_STEPS.map(step=>step.name).join(', ')}, then Continue to the next one.`},
  {name:'Ask Claude',where:'The panel on the right of a video. It sees the step you are on and answers with changes you can apply and undo.'},
  {name:'Settings',where:'Your connected AI, your channel and its voice, the channels you follow, and Postiz.'},

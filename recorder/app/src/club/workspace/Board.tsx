@@ -565,7 +565,7 @@ export function Board({video,board:boardProp,refreshKey=0,navigate=NO_NAVIGATE,o
   {/* Outside the zoomed canvas, so it reads at full size whatever the zoom. */}
   {emptyBoard&&<div className="board-empty" role="note">
    {research
-    ?<p>Put what might become a video here: posts and videos from Discover, your ideas, links, notes and Markdown files.</p>
+    ?<p>Put what might become a video here: posts and videos from Research, your ideas, links, notes and Markdown files.</p>
     :<><h3>This video's board</h3><p>Gather what this video needs: links, screenshots, notes and Markdown files. Drop them anywhere, or double-click to write a note. Your AI reads the whole board when it fills your title and scenes.</p></>}
    {addMenu(true)}
   </div>}
@@ -589,7 +589,8 @@ export function Board({video,board:boardProp,refreshKey=0,navigate=NO_NAVIGATE,o
    <Menu label="More board tools" items={addItems} button={toggle=><IconButton icon="more" label="More board tools" onClick={toggle}/>}/>
   </div>
   {search!==null&&<div className="board-search"><input className="input" autoFocus aria-label="Search cards on board" placeholder="Search this board…" value={search} onChange={event=>setSearch(event.target.value)} onKeyDown={event=>{if(event.key==='Escape'){event.stopPropagation();setSearch(null);wrap.current?.focus();}}}/><IconButton icon="close" label="Close board search" onClick={()=>setSearch(null)}/></div>}
-  {tiles&&<BoardMinimap boxes={[...boxes.values()]} sections={frames} view={view} holder={scroller} onMotion={onMotion} onView={setView}/>}
+  {/* Nothing to map on an empty board, and it would sit over the empty board's Add to board. */}
+  {tiles&&!emptyBoard&&<BoardMinimap boxes={[...boxes.values()]} sections={frames} view={view} holder={scroller} onMotion={onMotion} onView={setView}/>}
   <div className="btoolbar">
    {!emptyBoard&&<>{addMenu()}<span className="sep"></span></>}
    <input ref={fileInput} type="file" accept="image/*,.md,.markdown,.txt" multiple hidden aria-label="Choose files to add" onChange={event=>{takeFiles([...event.target.files??[]]);event.target.value='';}}/>

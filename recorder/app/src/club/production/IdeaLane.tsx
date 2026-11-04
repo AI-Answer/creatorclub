@@ -24,7 +24,7 @@ export function IdeaCard({video,highlight,dragging,actions,onOpen,onMove,onResea
  const remove:MenuItem={label:'Delete idea',icon:'delete',danger:true,fn:()=>actions.remove(video)};
  const items:MenuItem[]=held?[remove]:[
   {label:'Later',icon:'save',fn:()=>void actions.later(video)},
-  ...(onResearch?[{label:'Add to Research',icon:'research' as const,fn:onResearch}]:[]),'-',
+  ...(onResearch?[{label:'Add to channel board',icon:'research' as const,fn:onResearch}]:[]),'-',
   {header:'Skip it because…'},...SKIP_REASONS.map(reason=>({label:reason,fn:()=>void actions.skip(video,reason)})),'-',
   {header:'Move to'},...VIDEO_STAGES.filter(stage=>stage!=='ideas').map(stage=>({label:STAGE_LABEL[stage],fn:()=>onMove(stage)})),'-',
   remove,

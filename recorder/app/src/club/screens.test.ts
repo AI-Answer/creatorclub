@@ -339,7 +339,7 @@ test('Discover: videos and posts in one ranked feed, a view switch and source ch
   const shown=(row:Element)=>[...row.querySelectorAll('.acts button')].filter(button=>!button.closest('.quiet'));
   assert.ok(rows(c).every(row=>shown(row).map(text).join()==='Turn into idea'),'one action on every card');
   assert.ok(rows(c).every(row=>shown(row)[0].getAttribute('aria-label')!.startsWith('Turn into idea')),'the accessible name holds the visible words');
-  assert.ok(rows(c).every(row=>row.querySelector('.acts .quiet [aria-label="Add to Research"]')),'Add to Research on every card, under the pointer or on focus');
+  assert.ok(rows(c).every(row=>row.querySelector('.acts .quiet [aria-label="Add to channel board"]')),'Add to channel board on every card, under the pointer or on focus');
   const long=rows(c)[5];
   assert.equal(text(long.querySelector('.text')),`${'A'.repeat(250)}…Show more`,'long posts are cut');
   assert.match(text(long.querySelector('.meta')),/Video/);

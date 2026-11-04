@@ -160,8 +160,7 @@ export function IdeaPage({video,plan,known,focusId,boardKey,navigate,onOpen,show
    <SaveLine status={plan.packageSave} onRetry={plan.retrySave}/>
    <span className="grow"/>
    {ready&&(empty.package||empty.scenes)&&<div className="idea-fill">
-    <span className="idea-hint">{sourcesLine(cards,video)}</span>
-    <Button variant="primary" size="sm" title={!aiAvailable?AI_CONNECT_HINT:undefined} disabled={!aiAvailable||packaging||drafting||chain} onClick={fill}><BrandLogo brand={ai.brand} size={16}/>Fill the empty parts with {ai.name}</Button>
+    <Button size="sm" title={!aiAvailable?AI_CONNECT_HINT:sourcesLine(cards,video)} disabled={!aiAvailable||packaging||drafting||chain} onClick={fill}><BrandLogo brand={ai.brand} size={16}/>Fill the empty parts with {ai.name}</Button>
    </div>}
   </div>
   {lines.length>0&&<div className="idea-lines">{lines}</div>}
@@ -274,7 +273,7 @@ function PlanPage({video,plan,known,focusId,cards,ai,showPart,onOpen,onFocus,onT
    <div className="doc-proof">
     <span className={cn('idea-proof',proof.proven&&'ok')}><Icon name={proof.proven?'done':'pending'} size={14}/>{proof.text}</span>
     {strong.map(card=><button key={card.id} type="button" className="doc-proof-card" onClick={()=>onShowCard(card.id)} title={`${card.title??''}: show it on the board`}><MultChip m={card.meta.multiplier}/><span className="ellipsis">{card.title}</span></button>)}
-    {!cards?.some(card=>card.kind==='video')&&<button type="button" className="linkish" onClick={onDiscover}>Find one in Discover</button>}
+    {!cards?.some(card=>card.kind==='video')&&<button type="button" className="linkish" onClick={onDiscover}>Find one in Research</button>}
     {strong.length>0&&<span className="idea-hint" title="How many times a video beat its channel's usual views">× = times its channel's usual views</span>}
    </div>
    {ratings.length>0&&<p className="idea-hint">Rating (an AI's judgment, not a measurement): {ratings.map(([label,key])=>`${label} ${LEVEL_WORD[value[key]!.level].toLowerCase()}`).join(' · ')}</p>}

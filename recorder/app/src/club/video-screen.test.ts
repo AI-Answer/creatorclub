@@ -67,7 +67,8 @@ test('an empty Idea is one page: nothing is written until asked, then one Fill w
   const c=ui.container;
   assert.deepEqual(partNames(c),["What it's about",'Title and thumbnail','What you say first','Scenes'],'the whole video on one page, in order');
   assert.equal(server.calls.filter(call=>call.method==='POST'&&call.path==='/videos/v1/package').length,0,'nothing runs on your AI account until you ask');
-  assert.ok(hasText(c,'From your idea.'),'it says what the AI fills from');
+  assert.equal(button(c,'Fill the empty parts with Claude').title,'From your idea.','it says what the AI fills from, on the button');
+  assert.deepEqual(primaries(c),[],'the page is yours to type into: Fill is offered, never pushed as the main button');
   await act(async()=>button(c,'Fill the empty parts with Claude').click());await flush();
   assert.equal(server.calls.filter(call=>call.method==='POST'&&call.path==='/videos/v1/package').length,1,'one press writes the package first');
   assert.ok(hasText(c,'Writing the title, thumbnail and hook…'),'and the page says so');

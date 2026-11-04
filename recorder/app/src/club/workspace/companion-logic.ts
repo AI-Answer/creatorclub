@@ -7,7 +7,7 @@ import type {CompanionAction,CompanionMessage,CompanionStep,CompanionTab} from '
  * steps, the summary of a finished reply's steps, what a card would change (Preview), and when the log follows new text.
  */
 
-export const STEP_NAME:Record<CompanionTab,string>={idea:'Idea',record:'Record',edit:'Edit',publish:'Publish',research:'Research'};
+export const STEP_NAME:Record<CompanionTab,string>={idea:'Idea',record:'Record',edit:'Edit',publish:'Publish',research:'Channel board'};
 
 /** "Idea · Scene 2" or "Idea". */
 export function lookingAt(tab:CompanionTab,scene?:{index:number;title:string}):string{

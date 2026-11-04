@@ -33,3 +33,23 @@ test('the Board tip shows on the first visit and is saved when closed; the ? but
   assert.equal(server.calls.filter(call=>call.method==='POST'&&call.path==='/settings/help/board').length,posts,'reopening and closing saves nothing new');
  }finally{await ui.close();server.restore();}
 });
+
+test('an empty board shows Add to board with nothing over it; the minimap comes once there is a card to map',async()=>{
+ let tiles:unknown[]=[];
+ const server=installFetch(call=>{
+  if(call.path==='/videos/v1/research')return {body:tiles};
+  if(call.path==='/settings')return {body:{helpSeen:['board']}};
+  if(call.path==='/videos')return {body:[]};
+  return undefined;
+ });
+ const ui=await mountUI(createElement(Board,{video}));
+ try{
+  await flush();await flush();
+  assert.ok(ui.container.querySelector('.board-empty'),'the empty board says what to do');
+  assert.equal(ui.container.querySelector('.board-minimap'),null,'no minimap over it');
+  tiles=[{id:'n1',kind:'note',text:'A note',meta:{},createdAt:'2026-10-01T00:00:00.000Z'}];
+  await ui.render(createElement(Board,{video,refreshKey:1}));await flush();await flush();
+  assert.equal(ui.container.querySelector('.board-empty'),null);
+  assert.ok(ui.container.querySelector('.board-minimap'),'the minimap maps the cards');
+ }finally{await ui.close();server.restore();}
+});

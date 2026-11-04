@@ -37,7 +37,7 @@ export function KanbanCard({video,scenes,dragging,highlight,onOpen,onMove,onRese
 }){
  const humanId=videoHumanId(video);
  const stages:MenuItem[]=[{header:'Move to'},...VIDEO_STAGES.map(stage=>({label:STAGE_LABEL[stage],check:video.stage===stage,fn:()=>{if(stage!==video.stage)onMove(stage);}})),
-  ...(onResearch?['-' as const,{label:'Add to Research',icon:'research' as const,fn:onResearch}]:[])];
+  ...(onResearch?['-' as const,{label:'Add to channel board',icon:'research' as const,fn:onResearch}]:[])];
  return <div className="kwrap">
   <div id={video.stage==='ideas'?`idea-${video.id}`:undefined} className={`card kcard hov${highlight?' new':''}${dragging?' dragging':''}`} draggable data-card data-card-id={video.id} onDragStart={onDragStart} onDragEnd={onDragEnd}
    role="button" aria-label={`${humanId} ${video.title.trim()||'Untitled video'}`} aria-keyshortcuts="Enter Space ArrowUp ArrowDown ArrowLeft ArrowRight Meta+ArrowLeft Meta+ArrowRight Control+ArrowLeft Control+ArrowRight"

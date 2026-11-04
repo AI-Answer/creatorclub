@@ -13,7 +13,7 @@ export function useAddToResearch(navigate:(route:Route)=>void){
  return useCallback(async(source:ResearchSource)=>{
   try{
    const {created}=await clubFetch<{tile:ResearchTile;created:boolean}>('/channel/research/add',{body:source});
-   toast(created?'Added to Research':'Already on Research',{action:{label:'Open',fn:()=>navigate({name:'research'})}});
+   toast(created?'Added to the channel board':'Already on the channel board',{action:{label:'Open',fn:()=>navigate({name:'research'})}});
   }catch(reason){toast(errorMessage(reason,"Couldn't add that to Research."));}
  },[navigate,toast]);
 }
