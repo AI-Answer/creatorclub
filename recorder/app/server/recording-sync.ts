@@ -30,7 +30,7 @@ function opusSamples(line:string){
 export async function recordingTiming(input:string,video:boolean){
  const metadata=JSON.parse(await run(ffprobe(),['-v','error','-select_streams',video?'v:0':'a:0','-show_streams','-show_format','-show_program_version','-of','json',input]));
  const stream=metadata.streams?.[0];if(!stream)throw Error('A recording source has no decodable stream.');
- const fps=ratio(stream.avg_frame_rate)||30,sampleRate=Number(stream.sample_rate)||undefined;
+ const fps=ratio(stream.r_frame_rate)||ratio(stream.avg_frame_rate)||30,sampleRate=Number(stream.sample_rate)||undefined;
  const exactDuration=Number(stream.duration_ts)*ratio(stream.time_base),start=Number(stream.start_time)||0;
  const indexedVideo=video&&String(metadata.format?.format_name).split(',').some(f=>['mov','mp4'].includes(f));
  if((indexedVideo||!video&&(/^(pcm_|aac$|alac$|flac$)/.test(stream.codec_name)))&&Number.isFinite(exactDuration)&&exactDuration>0){
@@ -70,13 +70,30 @@ export async function synchronizeRecording(input:SynchronizeInput):Promise<{medi
  if(!input||!Number.isFinite(input.startedAtMs)||!Array.isArray(input.sources)||!input.sources.length||input.sources.length>8||input.sources.some(s=>!s||!['screen','camera','audio'].includes(s.track)||!Number.isFinite(s.firstSampleAtMs)||s.sourceTimestampUs!==undefined&&!Number.isFinite(s.sourceTimestampUs)||Math.abs(s.firstSampleAtMs-input.startedAtMs)>86400_000))throw Error('Invalid recording synchronization timestamps.');
  const sources=await Promise.all(input.sources.map(async source=>{const media=await readMedia(source.mediaId);if((source.track==='audio')!==(media.kind==='audio'))throw Error('Recording source kind does not match its track.');return {...source,media,timing:await recordingTiming(media.path,media.kind==='video')};}));
  const primary=sources.find(s=>s.media.audioRole==='microphone')??sources.find(s=>s.track==='screen')??sources[0];
- const originAtMs=primary.firstSampleAtMs,duration=primary.timing.duration;
- if(duration<=0||duration>86400)throw Error('Invalid recording duration.');
- const synchronization:TakeSynchronization={version:2,startedAtMs:input.startedAtMs,originAtMs,duration,sources:sources.map(s=>{
-  const offset=(s.firstSampleAtMs-originAtMs)/1000,start=Math.max(0,offset),sourceIn=Math.max(0,-offset),sourceOut=Math.min(s.timing.duration,sourceIn+duration-start);
+ const originAtMs=primary.firstSampleAtMs,clockDuration=primary.timing.duration;
+ if(clockDuration<=0||clockDuration>86400)throw Error('Invalid recording duration.');
+ const coverage=sources.map(s=>{
+  const offset=(s.firstSampleAtMs-originAtMs)/1000,end=offset+s.timing.duration;
+  if(offset>=clockDuration||end<=0)throw Error('A recording source has no samples overlapping the recording clock.');
+  const lostDuration=clockDuration-(Math.min(clockDuration,end)-Math.max(0,offset));
+  // A failed/partial device must not shorten healthy narration to a tiny take.
+  const excluded=s!==primary&&(lostDuration>1+1e-9||lostDuration>clockDuration*.25+1e-9);
+  return {source:s,offset,end,lostDuration,excluded};
+ });
+ const included=coverage.filter(s=>!s.excluded);
+ const rawStart=Math.max(...included.map(s=>s.offset)),rawEnd=Math.min(...included.map(s=>s.end));
+ const frameRate=Math.max(0,...sources.filter(s=>s.media.kind==='video').map(s=>s.timing.fps));
+ // One grid on the mic clock, rounded inward so no source is extended. Never
+ // round each source trim independently: audio keeps its precise sample offset.
+ const takeStart=frameRate?Math.ceil(rawStart*frameRate-1e-9)/frameRate:rawStart;
+ const takeEnd=frameRate?Math.floor(rawEnd*frameRate+1e-9)/frameRate:rawEnd;
+ const duration=takeEnd-takeStart;
+ if(duration<=0)throw Error('Recording sources have no common complete video frame.');
+ const synchronization:TakeSynchronization={version:3,startedAtMs:input.startedAtMs,originAtMs,duration,takeStart,takeEnd,...(frameRate?{frameRate}:{}),sources:coverage.map(({source:s,offset,excluded,lostDuration})=>{
+  const sourceIn=Math.max(0,takeStart-offset),sourceOut=Math.min(s.timing.duration,takeEnd-offset);
   if(sourceOut<=sourceIn)throw Error('A recording source has no samples overlapping the recording clock.');
-  return {mediaId:s.mediaId,firstSampleAtMs:s.firstSampleAtMs,offset,firstPts:s.timing.firstPts,decodedDuration:s.timing.duration,sourceIn,sourceOut,...(s.sourceTimestampUs!==undefined?{sourceTimestampUs:s.sourceTimestampUs}:{})};
+  return {mediaId:s.mediaId,firstSampleAtMs:s.firstSampleAtMs,offset,firstPts:s.timing.firstPts,decodedDuration:s.timing.duration,sourceIn,sourceOut,...(excluded?{intersectionExclusion:{reason:'insufficient-coverage' as const,lostDuration}}:{}),...(s.sourceTimestampUs!==undefined?{sourceTimestampUs:s.sourceTimestampUs}:{})};
  })};
  // Supply accurate duration even when the original live WebM had no Duration.
- return {media:sources.map(s=>({...s.media,duration:s.timing.duration})),offsets:synchronization.sources.map(s=>Math.max(0,s.offset)),synchronization};
+ return {media:sources.map(s=>({...s.media,duration:s.timing.duration})),offsets:coverage.map(s=>Math.max(0,s.offset-takeStart)),synchronization};
 }

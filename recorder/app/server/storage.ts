@@ -184,8 +184,12 @@ export function validateProject(value:unknown):Project{
    if(!Array.isArray(take.media)||!take.media.length||take.media.length>10000||!Array.isArray(take.tracks)||!Array.isArray(take.offsets)||take.tracks.length!==take.media.length||take.offsets.length!==take.media.length||take.offsets.some(n=>!Number.isFinite(n)||n<0)||take.tracks.some(k=>!['screen','camera','audio','music','overlay'].includes(k)))throw Error('Invalid recorded take sources');
    if(take.synchronization!==undefined){
     const sync=take.synchronization;
-    if(!sync||(sync.version!==1&&sync.version!==2)||![sync.startedAtMs,sync.originAtMs,sync.duration].every(Number.isFinite)||sync.duration<=0||sync.duration>86400||!Array.isArray(sync.sources)||sync.sources.length!==take.media.length||sync.sources.some(s=>!s||typeof s.mediaId!=='string'||![s.firstSampleAtMs,s.offset,s.firstPts,s.decodedDuration].every(Number.isFinite)||s.decodedDuration<=0||s.sourceTimestampUs!==undefined&&!Number.isFinite(s.sourceTimestampUs)))throw Error('Invalid recorded take synchronization');
-    if(sync.version===2&&(new Set(sync.sources.map(s=>s.mediaId)).size!==take.media.length||sync.sources.some(s=>{
+    if(!sync||(sync.version!==1&&sync.version!==2&&sync.version!==3)||![sync.startedAtMs,sync.originAtMs,sync.duration].every(Number.isFinite)||sync.duration<=0||sync.duration>86400||!Array.isArray(sync.sources)||sync.sources.length!==take.media.length||sync.sources.some(s=>!s||typeof s.mediaId!=='string'||![s.firstSampleAtMs,s.offset,s.firstPts,s.decodedDuration].every(Number.isFinite)||s.decodedDuration<=0||s.sourceTimestampUs!==undefined&&!Number.isFinite(s.sourceTimestampUs)))throw Error('Invalid recorded take synchronization');
+    if(sync.version===3){
+     const {takeStart,takeEnd,frameRate}=sync;
+     if(typeof takeStart!=='number'||typeof takeEnd!=='number'||![takeStart,takeEnd].every(Number.isFinite)||takeStart<0||Math.abs(takeEnd-takeStart-sync.duration)>1e-6||frameRate!==undefined&&(!Number.isFinite(frameRate)||frameRate<=0)||sync.sources.some(s=>s.intersectionExclusion!==undefined&&(!s.intersectionExclusion||s.intersectionExclusion.reason!=='insufficient-coverage'||!Number.isFinite(s.intersectionExclusion.lostDuration)||s.intersectionExclusion.lostDuration<0)))throw Error('Invalid recorded take intersection');
+    }
+    if(sync.version>=2&&(new Set(sync.sources.map(s=>s.mediaId)).size!==take.media.length||sync.sources.some(s=>{
      const {sourceIn,sourceOut}=s;
      return typeof sourceIn!=='number'||typeof sourceOut!=='number'||![sourceIn,sourceOut].every(Number.isFinite)||sourceIn<0||sourceOut<=sourceIn||sourceOut>s.decodedDuration+1e-6||!take.media.some(m=>m.id===s.mediaId);
     })))throw Error('Invalid recorded take synchronization ranges');

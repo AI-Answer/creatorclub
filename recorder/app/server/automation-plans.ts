@@ -16,10 +16,12 @@ export function narrationWindows(p:Project):NarrationWindow[]{
 export const speechSignature=(p:Project)=>hash({windows:narrationWindows(p).map(w=>({start:w.start,end:w.end,clip:{id:w.clip.id,mediaId:w.clip.mediaId,start:w.clip.start,sourceIn:w.clip.sourceIn,sourceOut:w.clip.sourceOut,speed:w.clip.speed}})),media:p.media.map(m=>({id:m.id,path:m.path})),maxWords:p.captionStyle.maxWords});
 export function mapSourceCaptions(p:Project,sources:Map<string,Caption[]>):Caption[]{
  const words:Word[]=[],segments:Caption[]=[];
+ const intersectionTakes=new Set(p.recordedTakes?.filter(t=>t.synchronization?.version===3).map(t=>t.id));
  for(const {clip:c,start,end} of narrationWindows(p))for(const cap of sources.get(c.mediaId)??[]){
   const mapped=(t:number)=>c.start+(t-c.sourceIn)/c.speed;
-  if(cap.words?.length){for(const w of cap.words){const a=mapped(w.start),b=mapped(w.end),mid=(a+b)/2;if(mid>=start&&mid<end&&w.start>=c.sourceIn-1e-5&&w.end<=c.sourceOut+1e-5)words.push({text:w.text,start:Math.max(start,a),end:Math.min(end,b)});}}
-  else {const a=mapped(cap.start),b=mapped(cap.end);if(a>=start-1e-5&&b<=end+1e-5)segments.push({...cap,id:hash([c.id,cap.id,a,b]).slice(0,28),start:a,end:b});}
+  const intersection=c.recordingTakeId!==undefined&&intersectionTakes.has(c.recordingTakeId);
+  if(cap.words?.length){for(const w of cap.words){const a=mapped(w.start),b=mapped(w.end),mid=(a+b)/2;if(intersection?b>start&&a<end:mid>=start&&mid<end&&w.start>=c.sourceIn-1e-5&&w.end<=c.sourceOut+1e-5)words.push({text:w.text,start:Math.max(start,a),end:Math.min(end,b)});}}
+  else {const a=mapped(cap.start),b=mapped(cap.end);if(intersection?b>start&&a<end:a>=start-1e-5&&b<=end+1e-5)segments.push({...cap,id:hash([c.id,cap.id,a,b]).slice(0,28),start:intersection?Math.max(start,a):a,end:intersection?Math.min(end,b):b});}
  }
  return [...captionsFromWords(words,p.captionStyle.maxWords),...segments].sort((a,b)=>a.start-b.start).map(c=>({...c,id:'auto-'+hash([c.start,c.end,c.text]).slice(0,24)}));
 }

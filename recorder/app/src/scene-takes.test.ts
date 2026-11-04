@@ -1,6 +1,7 @@
 import {test} from 'node:test';import assert from 'node:assert/strict';
 import {createProject,defaultEffects,defaultTransform,type RecordedTake,type TrackKind} from '../shared/types';
 import {saveProjectTake,confirmTake,sceneTakes,activateSceneTake,archiveSceneTake,deleteSceneTake,moveSceneTake,updateSceneTake,takePreviewProject} from './recorded-takes';
+import {linkedIds,planClipMove,applyClipStarts,trimClips,unlinkClips} from './timeline-edit';
 const take=(sceneId:string,id:string,duration=4,roles:Array<'screen'|'camera'|'microphone'|'system'>=['screen','camera','microphone','system']):RecordedTake=>({id,sceneId,createdAt:'2026-10-13',media:roles.map(role=>({id:id+'-'+role,name:role,path:'/local/'+id+'-'+role+(role==='screen'||role==='camera'?'.mp4':'.wav'),kind:role==='screen'||role==='camera'?'video':'audio',duration,width:640,height:360,hasAudio:role==='microphone'||role==='system',...(role==='microphone'||role==='system'?{audioRole:role}:{})})),tracks:roles.map(r=>r==='microphone'||r==='system'?'audio':r) as TrackKind[],offsets:roles.map(()=>0)});
 test('saved takes are durable but inactive; confirmation stays in scene and repeated saves/confirms are idempotent',()=>{const p=createProject(),t=take(p.scenes[0].id,'one');saveProjectTake(p,t);assert.equal(p.clips.length,0);assert.equal(p.scenes[0].duration,0);assert.equal(sceneTakes(p,t.sceneId)[0].state,'saved');const saved=JSON.stringify(p);saveProjectTake(p,t);assert.equal(JSON.stringify(p),saved);const r=confirmTake(p,t);assert.equal(r.nextSceneId,t.sceneId);assert.equal(p.scenes.length,1);assert.equal(p.clips.length,4);assert.equal(p.scenes[0].duration,4);const done=JSON.stringify(p);confirmTake(p,t);assert.equal(JSON.stringify(p),done);assert.equal(sceneTakes(p,t.sceneId)[0].state,'active');});
 test('normal retake replaces matching roles, archives originals and shifts later scenes/timed content once',()=>{const p=createProject(),s=p.scenes[0];confirmTake(p,take(s.id,'one',4));p.scenes.push({id:'later',name:'Later',script:'keep',notes:'',start:4,duration:2});p.clips.push({...structuredClone(p.clips[0]),id:'later-clip',recordingTakeId:undefined,start:4,sourceOut:2});p.elements=[{id:'later-label',type:'text',start:4,duration:2,text:'Keep',x:0,y:0,width:1,height:1,color:'#fff',background:'#000',fontSize:20,opacity:1,rotation:0}];p.captions=[{id:'before',start:0,end:3,text:'Old narration'},{id:'later-caption',start:4,end:5,text:'Later',words:[{text:'Later',start:4,end:5}]}];confirmTake(p,take(s.id,'two',2));assert.equal(p.clips.length,5);assert.equal(p.clips.filter(c=>c.recordingTakeId==='one').length,0);assert.equal(p.scenes[0].duration,2);assert.equal(p.scenes[1].start,2);assert.equal(p.elements[0].start,2);assert.equal(p.captions[0].start,2);assert.equal(p.captions[0].words![0].start,2);assert.equal(p.recordedTakes![0].timeline!.captions[0].text,'Old narration');assert.equal(p.media.length,8);assert.equal(sceneTakes(p,s.id)[0].state,'archived');activateSceneTake(p,s.id,'one');assert.equal(p.scenes[1].start,4);assert.ok(p.captions.some(c=>c.text==='Old narration'));assert.equal(p.clips.filter(c=>c.recordingTakeId==='one').length,4);});
@@ -34,4 +35,23 @@ test('original-source trims survive manual offsets, archive and restore without 
  confirmTake(p,t);updateSceneTake(p,t.id,{offsets:[.1,0]});
  const expected=p.clips.map(c=>[c.start,c.sourceIn,c.sourceOut]);archiveSceneTake(p,t.id);activateSceneTake(p,t.sceneId,t.id);
  assert.deepEqual(p.clips.map(c=>[c.start,c.sourceIn,c.sourceOut]),expected);assert.deepEqual(p.media,media);
+});
+
+test('version 2 staggered takes retain their ranges and are not automatically linked',()=>{
+ const p=createProject(),t=take(p.scenes[0].id,'old-sync',3,['camera','microphone']);t.offsets=[.2,0];
+ t.synchronization={version:2,startedAtMs:1000,originAtMs:1000,duration:3,sources:t.media.map((m,i)=>({mediaId:m.id,firstSampleAtMs:i===0?1200:1000,offset:i===0?.2:0,firstPts:0,decodedDuration:3,sourceIn:0,sourceOut:i===0?2.4:3}))};
+ confirmTake(p,t);assert.deepEqual(p.clips.map(c=>[c.start,c.sourceIn,c.sourceOut,c.linkId]),[[.2,0,2.4,undefined],[0,0,3,undefined]]);
+});
+
+test('new intersection takes install one persistent link, move and trim together, and respect explicit unlinking',()=>{
+ const p=createProject(),t=take(p.scenes[0].id,'even',3,['camera','screen','microphone']);p.scenes[0].start=1;
+ t.synchronization={version:3,startedAtMs:1000,originAtMs:1000,duration:2.3,takeStart:.2,takeEnd:2.5,frameRate:30,sources:t.media.map((m,i)=>({mediaId:m.id,firstSampleAtMs:i===0?1200:1000,offset:i===0?.2:0,firstPts:0,decodedDuration:3,sourceIn:i===0?0:.2,sourceOut:i===0?2.3:2.5}))};
+ confirmTake(p,t);const link=p.clips[0].linkId;assert.ok(link);assert.ok(p.clips.every(c=>c.linkId===link));
+ archiveSceneTake(p,t.id);activateSceneTake(p,t.sceneId,t.id);assert.ok(p.clips.every(c=>c.linkId===link));
+ const chosen=new Set([p.clips[0].id]),all=linkedIds(p.clips,chosen);assert.equal(all.size,3);
+ const move=planClipMove(p,all,-.5,.5);assert.equal(move.kind,'move');applyClipStarts(p,move.starts);assert.ok(p.clips.every(c=>c.start===.5));
+ trimClips(p,chosen,'right',-.3,false);for(const c of p.clips)assert.ok(Math.abs(c.sourceOut-c.sourceIn-2)<1e-9);
+ unlinkClips(p,chosen);assert.equal(linkedIds(p.clips,chosen).size,1);
+ // Existing snapshots are never reinitialized or linked again on confirmation.
+ confirmTake(p,t);assert.equal(linkedIds(p.clips,chosen).size,1);
 });
