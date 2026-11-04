@@ -120,10 +120,18 @@ function createNativeRecordingManager({ipcMain,getMainWindow,origin,dataDir,help
  async function pause(id){const s=sessionFor(id);if(s.status==='paused')return result(s);if(s.status!=='recording')throw Error('Recording is not active.');const p=wait(s,'paused',10000);write(s,'pause');return p;}
  async function resume(id){const s=sessionFor(id);if(s.status==='recording')return result(s);if(s.status!=='paused')throw Error('Recording is not paused.');const p=wait(s,'resumed',10000);write(s,'resume');return p;}
  async function stop(id){const s=sessionFor(id);if(s.status==='complete')return result(s);if(s.status==='stopping')return wait(s,'stopped',30000);if(!['recording','paused'].includes(s.status))throw Error(s.result.error||'Native recording has not started.');s.status='stopping';const p=wait(s,'stopped',30000);write(s,'stop');return p;}
- const handlers={'native-recording-status':async event=>{verify(event);const value=await status();if(value.available)prewarm();return value;},'native-recording-start':async(event,input)=>{verify(event);return start(input);},'native-recording-pause':async(event,id)=>{verify(event);return pause(id);},'native-recording-resume':async(event,id)=>{verify(event);return resume(id);},'native-recording-stop':async(event,id)=>{verify(event);return stop(id);}};
+ // A start cancelled during the countdown, after capture armed, keeps no files: the helper is stopped (or ended,
+ // if it never started) and its take folder removed once it has exited.
+ async function discard(id){
+  const s=sessionFor(id);
+  if(s.status==='starting')fail(s,Error('Recording start was cancelled.'));else if(!['complete','failed'].includes(s.status))await stop(id).catch(()=>{});
+  if(s.closed){let timer;try{await Promise.race([s.closed,new Promise(resolve=>{timer=setTimeout(()=>{try{s.child.kill('SIGKILL');}catch{}resolve();},2500);timer.unref();})]);}finally{clearTimeout(timer);}}
+  await fs.rm(s.directory,{recursive:true,force:true});return {id,status:'discarded'};
+ }
+ const handlers={'native-recording-status':async event=>{verify(event);const value=await status();if(value.available)prewarm();return value;},'native-recording-start':async(event,input)=>{verify(event);return start(input);},'native-recording-pause':async(event,id)=>{verify(event);return pause(id);},'native-recording-resume':async(event,id)=>{verify(event);return resume(id);},'native-recording-stop':async(event,id)=>{verify(event);return stop(id);},'native-recording-discard':async(event,id)=>{verify(event);return discard(id);}};
  for(const [name,handler]of Object.entries(handlers))ipcMain.handle(name,handler);
  async function reset(){if(resetting)return resetting;generation++;dropSpare();const session=current;resetting=(async()=>{if(session&&!['complete','failed'].includes(session.status)){if(session.status==='starting')fail(session,Error('Recording window closed before capture started.'));else await stop(session.id).catch(()=>{});}if(session?.closed){let timer;try{await Promise.race([session.closed,new Promise(resolve=>{timer=setTimeout(()=>{try{session.child.kill('SIGKILL');}catch{}resolve();},2500);timer.unref();})]);}finally{clearTimeout(timer);}}})();try{await resetting;}finally{resetting=undefined;}}
  async function dispose(){disposed=true;for(const name of Object.keys(handlers))ipcMain.removeHandler(name);await reset();}
- return {status,start,pause,resume,stop,reset,dispose,prewarm,setPreviewEnabled};
+ return {status,start,pause,resume,stop,discard,reset,dispose,prewarm,setPreviewEnabled};
 }
 module.exports={createNativeRecordingManager,nativeOptions};

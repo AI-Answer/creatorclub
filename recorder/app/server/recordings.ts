@@ -50,8 +50,16 @@ export async function finishRecording(id:string,timing?:{startedAtMs:number;firs
  void removeChunks(folder,[...chunks,'capture.webm']);warmTakeWaveform(media);
  return media;
 }finally{captureActivity.close(id);}});}
+/** Removes a capture session whose take never began: capture arms during the countdown, so a start cancelled
+ * there can already hold chunks, which recovery would otherwise offer. A completed recording is never removed. */
+export async function discardRecording(id:string){safeId(id);return serial(id,async()=>{
+ const folder=path.join(directory,id);let metadata;
+ try{metadata=JSON.parse(await fs.readFile(path.join(folder,'metadata.json'),'utf8'));}catch(e){if((e as NodeJS.ErrnoException).code==='ENOENT')return {ok:true};throw e;}
+ if(metadata.status==='complete')throw new Error('A completed recording cannot be discarded');
+ await fs.rm(folder,{recursive:true,force:true});captureActivity.close(id);return {ok:true};
+});}
 /** Startup cleanup: removes chunks left behind in completed recordings when the service stopped before cleanup finished,
- * and deletes abandoned sessions that never received a chunk (a start cancelled during the countdown), which recovery ignores. */
+ * and deletes abandoned sessions that never received a chunk (a start whose discard never ran), which recovery ignores. */
 export async function cleanupRecordings(abandonedMs=5*60*1000){const ids=await fs.readdir(directory).catch(()=>[]);for(const id of ids){try{safeId(id);await serial(id,async()=>{
  const folder=path.join(directory,id),meta=JSON.parse(await fs.readFile(path.join(folder,'metadata.json'),'utf8')),files=await fs.readdir(folder);
  if(meta.status==='complete'&&meta.media)await removeChunks(folder,files.filter(f=>f.endsWith('.chunk')||f==='capture.webm'));

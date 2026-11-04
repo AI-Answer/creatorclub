@@ -32,8 +32,11 @@ test('tiles paint mirrored gradients over five seconds, show quiet system audio,
   await flush();assert.deepEqual(calls,['clear','fill','stroke']);assert.equal(gradients.length,2);
   assert.ok(points.some(p=>p[1]<50));assert.ok(points.some(p=>p[1]>150),'mirrored speech fills most of the tile');
   assert.ok(points.every(p=>p[0]>=0&&p[0]<=400),'only a five-second window is drawn');
-  assert.ok(!ui.container.textContent?.includes('No computer audio yet'));
-  await ui.render(render(Array(1000).fill(0)));await flush();assert.ok(ui.container.textContent?.includes('No computer audio yet'));assert.equal(ui.container.querySelector('line'),null,'no stray playback cursor');
+  assert.ok(!ui.container.textContent?.includes('No computer audio in this take'));
+  await ui.render(render(Array(1000).fill(0)));await flush();assert.ok(ui.container.textContent?.includes('No computer audio in this take'));assert.equal(ui.container.querySelector('line'),null,'no stray playback cursor');
+  points.length=0;await ui.render(h(TakeAudioMeter,{peaks:[...Array(250).fill(.3),...Array(750).fill(0)],duration:10,position:4,from:2.5,to:10,system:true}));await flush();
+  assert.ok(points.length&&points.every(p=>Math.abs(p[1]-100)<2),'a countdown chime in the trimmed pre-roll head is never drawn');assert.ok(ui.container.textContent?.includes('No computer audio in this take'));
+  assert.equal(takeEnvelope([.3,.3,0,0],4,2)[0].time,2000);assert.equal(takeEnvelope([.3,.3,0,0],4,2)[0].level,0);
   await act(async()=>intersection([{isIntersecting:false}]));assert.equal(frames.size,0);
   await ui.render(render([.1]));assert.equal(frames.size,0,'offscreen updates never schedule painting');
   await act(async()=>intersection([{isIntersecting:true}]));assert.equal(frames.size,1);

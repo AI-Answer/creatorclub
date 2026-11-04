@@ -2,18 +2,20 @@ import {useEffect,useMemo,useRef,useState} from 'react';
 import {drawWaveform,fitCanvas,rmsLevel,smoothLevel,type EnvelopeSample} from './recording-meter';
 
 /** Review data is absolute source peaks. Reuse the input meter's dBFS display
- * curve; never normalize a quiet take to full height. */
-export function takeEnvelope(peaks:readonly number[],duration:number):EnvelopeSample[]{
+ * curve; never normalize a quiet take to full height. The envelope starts at `from`
+ * (seconds), so sound before the take never decays into its first moments. */
+export function takeEnvelope(peaks:readonly number[],duration:number,from=0):EnvelopeSample[]{
  let previous=0;
- const step=duration*1000/peaks.length;
- return peaks.map((peak,index)=>({time:index*step,level:previous=smoothLevel(previous,rmsLevel(peak),step)}));
+ const step=duration*1000/peaks.length,first=Math.max(0,Math.ceil(from*1000/step-1e-9));
+ return peaks.slice(first).map((peak,index)=>({time:(first+index)*step,level:previous=smoothLevel(previous,rmsLevel(peak),step)}));
 }
 /** Recorded amplitude data needs no extra AudioContext or analyser, and cannot
- * interfere with the audio element's output. */
-export function TakeAudioMeter({peaks,duration,position,system=false,loading=false,error=''}:{peaks:number[];duration:number;position:number;system?:boolean;loading?:boolean;error?:string}){
+ * interfere with the audio element's output. Only the take's range [from, to] of the
+ * source is drawn: capture arms during the countdown, so the file starts before the take. */
+export function TakeAudioMeter({peaks,duration,position,from=0,to=duration,system=false,loading=false,error=''}:{peaks:number[];duration:number;position:number;from?:number;to?:number;system?:boolean;loading?:boolean;error?:string}){
  const canvas=useRef<HTMLCanvasElement>(null),host=useRef<HTMLDivElement>(null),[shown,setShown]=useState(!document.hidden),[revision,setRevision]=useState(0);
- const samples=useMemo(()=>takeEnvelope(peaks,duration),[peaks,duration]);
- const quiet=!peaks.some(value=>rmsLevel(value)>0);
+ const samples=useMemo(()=>takeEnvelope(peaks,duration,from),[peaks,duration,from]);
+ const quiet=!samples.some(sample=>sample.time<=to*1000&&sample.level>0);
  useEffect(()=>{
   let intersecting=true;const update=()=>setShown(intersecting&&!document.hidden);
   const observer=typeof IntersectionObserver==='function'?new IntersectionObserver(entries=>{intersecting=entries[0]?.isIntersecting??false;update();}):null;
@@ -39,5 +41,5 @@ export function TakeAudioMeter({peaks,duration,position,system=false,loading=fal
   });
   return()=>cancelAnimationFrame(frame);
  },[samples,position,shown,revision]);
- return <div ref={host} className="take-audio-meter" role="img" aria-label={system?'Computer audio waveform':'Microphone waveform'}><canvas ref={canvas}/>{(loading||error||(system&&quiet))&&<span className="take-audio-hint" role="status">{error|| (loading?'Loading waveform…':'No computer audio yet')}</span>}</div>;
+ return <div ref={host} className="take-audio-meter" role="img" aria-label={system?'Computer audio waveform':'Microphone waveform'}><canvas ref={canvas}/>{(loading||error||(system&&quiet))&&<span className="take-audio-hint" role="status">{error|| (loading?'Loading waveform…':'No computer audio in this take')}</span>}</div>;
 }

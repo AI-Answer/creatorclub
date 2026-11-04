@@ -99,6 +99,8 @@ export interface SceneForgeDesktopBridge {
  pauseNativeRecording?(id:string):Promise<DesktopNativeRecordingResult>;
  resumeNativeRecording?(id:string):Promise<DesktopNativeRecordingResult>;
  stopNativeRecording?(id:string):Promise<DesktopNativeRecordingResult>;
+ /** Stops a capture whose take never began and deletes its files. */
+ discardNativeRecording?(id:string):Promise<{id:string;status:string}>;
  onNativeRecordingEvent?(handler:(event:DesktopNativeRecordingEvent)=>void):()=>void;
  /** The main window is hidden, minimized or restored. Recording continues either way. */
  onMainWindowVisibility?(handler:(visible:boolean)=>void):()=>void;
