@@ -11,7 +11,7 @@ import {featuredSkills,matchSkills,slashQuery,type EditSkill,type InstalledSkill
 import {ErrorLine} from '../ErrorLine';
 import {ASK_CLAUDE} from './ask-claude';
 import {Button,Icon,Spinner,cn,type IconName} from '../ui';
-import {STEP_NAME,atBottom,elapsed,greeting,lookingAt,previewOf,stepSummary,suggestions,tabOf,withDividers} from './companion-logic';
+import {STEP_NAME,type IdeaPartKey,atBottom,elapsed,greeting,lookingAt,previewOf,stepSummary,suggestions,tabOf,withDividers} from './companion-logic';
 import {Markdown} from './Markdown';
 import {ReplaceScenes} from './ReplaceScenes';
 import {useCompanion,type Live} from './useCompanion';
@@ -31,15 +31,15 @@ export type CompanionEditor={get():EditorBridge|null;state:EditorState|null};
  * The companion, docked on the right of a video's steps: one conversation per video, what it is looking at, suggestions for the step,
  * replies that stream in with their steps, and cards that apply a change with Preview and Undo. Collapses to a rail and remembers it.
  */
-export function Companion({videoId,videoTitle,tab,scene,screen,selection,pkg,outline,scenes,onChanged,beforeApply,editor,roomy=false,boardKey=0}:{
- videoId:string;videoTitle?:string;tab:CompanionTab;scene?:CompanionScene;screen:string;pkg:Package|null;outline:Outline|null;
+export function Companion({videoId,videoTitle,videoWhy,tab,part,scene,screen,selection,pkg,outline,scenes,onChanged,beforeApply,editor,roomy=false,boardKey=0}:{
+ videoId:string;videoTitle?:string;/** Why the idea could work, as the video holds it: what an Idea card's preview compares with. */videoWhy?:string;tab:CompanionTab;/** Idea: the part of "Your video" that is open, by key and name. */part?:{key:IdeaPartKey;name:string};scene?:CompanionScene;screen:string;pkg:Package|null;outline:Outline|null;
  /** Research: the selected cards' ids, sent with every message ("these" means them). */
  selection?:readonly string[];
  /** Changes when the board changed through the companion: its tiles are counted again. */
  boardKey?:number;
  /** The video's scenes with their takes: replacing scenes that have takes asks first. */
  scenes?:readonly VideoScene[];
- onChanged(changed:CompanionChanged[]):void;beforeApply?():Promise<void>;
+ onChanged(changed:CompanionChanged[],applied?:CompanionAction['type']):void;beforeApply?():Promise<void>;
  /** Edit: the open editor. Messages carry its playhead and selection; timeline cards preview on its stage and apply as one of its undo steps. */
  editor?:CompanionEditor;
  /** The step needs its width (Record): in a narrow window the panel starts as its rail and opens over the step instead of beside it. */
@@ -65,7 +65,7 @@ export function Companion({videoId,videoTitle,tab,scene,screen,selection,pkg,out
  // On Board the suggestions follow whether anything is on it yet: the tiles are counted when Board opens and every few seconds while it is open.
  const [tiles,setTiles]=useState<number|undefined>();
  useEffect(()=>{
-  if(tab!=='board'&&tab!=='research')return;
+  if(tab!=='idea'&&tab!=='research')return;
   let alive=true;
   const count=()=>clubFetch<unknown[]>(`${boardBase(videoId)}/research`).then(list=>{if(alive&&Array.isArray(list))setTiles(list.length);},()=>{});
   void count();const timer=setInterval(()=>void count(),TILE_RECOUNT_MS);
@@ -178,8 +178,8 @@ export function Companion({videoId,videoTitle,tab,scene,screen,selection,pkg,out
  const items=here?withDividers(here,tab):[];
  const sceneCount=outline?.scenes.length??0;
  const recorded=scenes?scenes.filter(one=>one.takes.length>0).length:undefined;
- const ideas=suggestions(tab,{scenes:sceneCount,scene,selected:tab==='research'?selection?.length:editor?.state?.selected,notes:editor?.state?.notes,stalls:editor?.state?.stalls,opening:editor?.state?.opening,named:editor?.state?.named,polished:(messages??[]).some(one=>one.role==='user'&&one.text.trimStart().startsWith('/proof-edit')),hook:!!pkg?.hook.spoken.trim(),longest:Math.max(0,...(outline?.scenes??[]).map(one=>one.seconds||0)),
-  tiles:tab==='board'||tab==='research'?tiles:undefined,recorded,titled:!!videoTitle?.trim()||!!pkg?.titles.some(one=>one.trim()),thumbnail:!!pkg?.thumbnailText.trim()});
+ const ideas=suggestions(tab,{part:part?.key,titles:pkg?.titles.filter(one=>one.trim()).length,scenes:sceneCount,scene,selected:tab==='research'?selection?.length:editor?.state?.selected,notes:editor?.state?.notes,stalls:editor?.state?.stalls,opening:editor?.state?.opening,named:editor?.state?.named,polished:(messages??[]).some(one=>one.role==='user'&&one.text.trimStart().startsWith('/proof-edit')),hook:!!pkg?.hook.spoken.trim(),longest:Math.max(0,...(outline?.scenes??[]).map(one=>one.seconds||0)),
+  tiles:tab==='idea'||tab==='research'?tiles:undefined,recorded,titled:!!videoTitle?.trim()||!!pkg?.titles.some(one=>one.trim()),thumbnail:!!pkg?.thumbnailText.trim()});
  // Nothing asked yet: a short greeting for this step with the best prompts right under it, instead of a blank column.
  const fresh=!!here&&!here.length&&!live&&!companion.loadError;
  // Proposals are waiting for a choice: the suggestions step aside so the cards are the one thing to act on.
@@ -213,12 +213,12 @@ export function Companion({videoId,videoTitle,tab,scene,screen,selection,pkg,out
    {companion.loadError?<ErrorLine message={companion.loadError} onRetry={companion.reload}/>
     :!messages?<div className="cmp-loading"><span className="row small muted" role="status"><Spinner label="Loading the conversation" size={16}/>Loading the conversation…</span></div>
     :fresh&&<div className="cmp-hello">
-     <p>{greeting(tab,{scenes:sceneCount,tiles:tab==='board'||tab==='research'?tiles:undefined,recorded})}</p>
+     <p>{greeting(tab,{part:part?.key,scenes:sceneCount,tiles:tab==='idea'||tab==='research'?tiles:undefined,recorded})}</p>
      {chips||null}
     </div>}
    {items.map(item=>item.kind==='divider'?<div key={item.key} className="cmp-divider" role="separator">{item.label}</div>
     :item.message.role==='user'?<div key={item.key} className="cmp-me">{item.message.attachments?.length?<div className="cmp-pics">{item.message.attachments.map(name=><img key={name} src={`/api/club${chatBase}/${name}`} alt=""/>)}</div>:null}{item.message.text}</div>
-    :<Reply key={item.key} name={name} message={item.message} answered={!aiAvailable||working||(messages?.at(-1)?.id!==item.message.id)} onChoose={answer=>void ask(answer)} pkg={pkg} outline={outline} scenes={scenes} busy={companion.busyCard} editor={editor} silences={silences}
+    :<Reply key={item.key} name={name} message={item.message} answered={!aiAvailable||working||(messages?.at(-1)?.id!==item.message.id)} onChoose={answer=>void ask(answer)} video={{title:videoTitle??'',why:videoWhy}} pkg={pkg} outline={outline} scenes={scenes} busy={companion.busyCard} editor={editor} silences={silences}
       onApply={index=>companion.apply(item.message.id,index)} onApplyAll={indices=>companion.applyAll(item.message.id,indices)} onUndo={index=>companion.undo(item.message.id,index)}/>)}
    {live&&<LiveReply name={name} live={live} now={now} onRetry={()=>{if(aiAvailable)void contextNow().then(companion.retry);}}/>}
    {companion.sendError&&<ErrorLine message={companion.sendError} onRetry={()=>void ask(text)}/>}
@@ -243,7 +243,7 @@ export function Companion({videoId,videoTitle,tab,scene,screen,selection,pkg,out
     {picError&&<p className="cmp-pic-err" role="alert">{picError}</p>}
     <textarea disabled={!aiAvailable} title={!aiAvailable?AI_CONNECT_HINT:undefined} ref={input} rows={2} value={text} onChange={event=>setText(event.target.value)} onKeyDown={onKeyDown} onPaste={event=>{const files=[...event.clipboardData.files];if(files.length){event.preventDefault();void addPictures(files);}}} placeholder={working?'Esc stops the reply':'Ask for a change, or type / for your skills'} aria-label={`Message to ${name}`}/>
     <div className="cmp-input-row">
-    <span className="cmp-context" title="What Claude is looking at"><Icon name="Eye" size={12}/>{lookingAt(tab,scene)}{scene&&<> · {scene.title}</>}{selected>0&&<> · {selected} selected</>}</span>
+    <span className="cmp-context" title="What Claude is looking at"><Icon name="Eye" size={12}/>{lookingAt(tab,scene)}{scene&&<> · {scene.title}</>}{!scene&&part&&<> · {part.name}</>}{selected>0&&<> · {selected} selected</>}</span>
     <span className="grow"/>
     <label className="cmp-attach" title="Add a picture (or paste or drop one)"><Icon name="Image" size={15}/><input type="file" className="sr-only" accept="image/png,image/jpeg" multiple onChange={event=>{void addPictures([...(event.target.files??[])]);event.target.value='';}}/></label>
     {working
@@ -270,7 +270,7 @@ function useNarrow(roomy:boolean){
 }
 
 /** A finished reply: who, the one-line summary of its steps (opens to the list), the text, and its cards. */
-function Reply({name,message,pkg,outline,scenes,busy,editor,silences,answered,onChoose,onApply,onApplyAll,onUndo}:{name:string;message:CompanionReplyMessage;answered:boolean;onChoose(answer:string):void;pkg:Package|null;outline:Outline|null;scenes?:readonly VideoScene[];busy:string|null;editor?:CompanionEditor;silences?:SilencePlan|null;onApply(index:number):Promise<string>;onApplyAll(indices:number[]):Promise<string>;onUndo(index:number):Promise<string>}){
+function Reply({name,message,video,pkg,outline,scenes,busy,editor,silences,answered,onChoose,onApply,onApplyAll,onUndo}:{name:string;message:CompanionReplyMessage;answered:boolean;onChoose(answer:string):void;video:{title:string;why?:string};pkg:Package|null;outline:Outline|null;scenes?:readonly VideoScene[];busy:string|null;editor?:CompanionEditor;silences?:SilencePlan|null;onApply(index:number):Promise<string>;onApplyAll(indices:number[]):Promise<string>;onUndo(index:number):Promise<string>}){
  // Several proposals in one reply: one button applies them all, one after another, and stops at the first that cannot be applied.
  const canEdit=!!editor?.get();
  const offered=message.cards.map((card,index)=>({card,index})).filter(({card})=>card.state!=='applied'&&((isEditAction(card.action)&&canEdit)||card.action.type==='set_scene_script'));
@@ -284,7 +284,7 @@ function Reply({name,message,pkg,outline,scenes,busy,editor,silences,answered,on
   {message.status==='stopped'&&<div className="cmp-note">Stopped</div>}
   {offered.length>1&&<div className="cmp-all"><Button size="sm" variant="primary" disabled={!!busy||allBusy} onClick={()=>void addAll()}>{allBusy?<span className="spin"/>:null}Add all {offered.length}</Button><span className="cmp-faint">or choose one below</span></div>}
   {allError&&<div className="cmp-card-err" role="alert"><Icon name="TriangleAlert" size={13}/><span>{allError}</span></div>}
-  {message.cards.map((card,index)=><Card key={index} answered={answered} onChoose={onChoose} id={`${message.id}:${index}`} card={card} pkg={pkg} outline={outline} scenes={scenes} busy={busy===`${message.id}:${index}`} editor={editor} silences={silences} onApply={()=>onApply(index)} onUndo={()=>onUndo(index)}/>)}
+  {message.cards.map((card,index)=><Card key={index} answered={answered} onChoose={onChoose} id={`${message.id}:${index}`} card={card} video={video} pkg={pkg} outline={outline} scenes={scenes} busy={busy===`${message.id}:${index}`} editor={editor} silences={silences} onApply={()=>onApply(index)} onUndo={()=>onUndo(index)}/>)}
  </div>;
 }
 
@@ -319,7 +319,7 @@ function LiveReply({name,live,now,onRetry}:{name:string;live:Live;now:number;onR
 
 /** What a card is called: for a new graphic, what it adds ("Add a title card"); otherwise the action's own name. */
 /** What each card changes, as one icon: the same marks the rest of the app uses for those things. */
-const ACTION_ICON:Record<CompanionAction['type'],IconName>={use_hook:'microphone',use_title:'heading-1',set_thumbnail_text:'image',add_note:'note',set_scene:'scenes',set_scene_script:'script',draft_scenes:'scenes',ask_choice:'choose',set_description:'paragraph',group_tiles:'layout',start_video:'video',
+const ACTION_ICON:Record<CompanionAction['type'],IconName>={use_hook:'microphone',use_title:'heading-1',set_thumbnail_text:'image',set_idea:'idea',set_pairs:'heading-1',set_hook:'microphone',add_note:'note',set_scene:'scenes',set_scene_script:'script',draft_scenes:'scenes',ask_choice:'choose',set_description:'paragraph',group_tiles:'layout',start_video:'video',
  cut_pauses:'cut',remove_fillers:'cut',close_gaps:'cut',split_at:'cut',trim_clip:'cut',delete_range:'delete',set_caption_style:'captions',add_caption:'captions',add_text:'text',add_blur:'hide',set_stage:'layout',set_look:'ai',set_zoom:'zoom-in',add_motion_block:'layout',update_motion_block:'layout',remove_motion_block:'layout',normalize_audio:'music',add_clip:'film'};
 const CardIcon=({action}:{action:CompanionAction})=><span className={cn('cmp-card-ico',`k-${ACTION_ICON[action.type]}`)} aria-hidden><Icon name={ACTION_ICON[action.type]} size={13}/></span>;
 const cardTitle=(action:CompanionAction)=>action.type==='add_motion_block'?`Add a ${MOTION_TEMPLATES[action.template]?.label.toLowerCase()??'graphic'}`:ACTION_TITLE[action.type];
@@ -327,7 +327,7 @@ const cardTitle=(action:CompanionAction)=>action.type==='add_motion_block'?`Add 
 const scenesClock=(seconds:number)=>`${Math.floor(seconds/60)}:${String(Math.round(seconds%60)).padStart(2,'0')}`;
 
 /** One change the reply offers: what it is, Apply (or what it changed and Undo), and Preview of before and after. */
-function Card({id,card,pkg,outline,scenes,busy,editor,silences,answered,onChoose,onApply,onUndo}:{answered:boolean;onChoose(answer:string):void;id:string;card:CompanionCard;pkg:Package|null;outline:Outline|null;scenes?:readonly VideoScene[];busy:boolean;editor?:CompanionEditor;silences?:SilencePlan|null;onApply():Promise<string>;onUndo():Promise<string>}){
+function Card({id,card,video,pkg,outline,scenes,busy,editor,silences,answered,onChoose,onApply,onUndo}:{answered:boolean;onChoose(answer:string):void;id:string;card:CompanionCard;video:{title:string;why?:string};pkg:Package|null;outline:Outline|null;scenes?:readonly VideoScene[];busy:boolean;editor?:CompanionEditor;silences?:SilencePlan|null;onApply():Promise<string>;onUndo():Promise<string>}){
  const [textPreview,setTextPreview]=useState(false);
  const [error,setError]=useState('');
  const [confirm,setConfirm]=useState<'apply'|'undo'|null>(null);
@@ -347,7 +347,7 @@ function Card({id,card,pkg,outline,scenes,busy,editor,silences,answered,onChoose
   setError(problem??'');
  };
  const run=async(fn:()=>Promise<string>)=>{setError('');const failed=await fn();setError(failed);if(!failed)setTextPreview(false);};
- const shown=textPreview&&!timeline?previewOf(action,pkg,outline):undefined;
+ const shown=textPreview&&!timeline?previewOf(action,pkg,outline,video):undefined;
  let body;
  // What it would do to the timeline as it is now, while it is still on offer: the cuts and seconds, the share of the video, the zoom it replaces.
  const estimate=timeline&&stage&&card.state!=='applied'?stage.estimate(action,{silences}):undefined;
@@ -362,6 +362,12 @@ function Card({id,card,pkg,outline,scenes,busy,editor,silences,answered,onChoose
  }else if(action.type==='set_scene_script'){
   const index=outline?.scenes.findIndex(scene=>scene.id===action.sceneId)??-1;
   body=<div className="cmp-card-text long"><div className="cmp-card-sub">Scene {index>=0?index+1:''}{index>=0?` · ${outline!.scenes[index].title}`:''}</div>{action.script}</div>;
+ }else if(action.type==='set_idea'){
+  body=<div className="cmp-card-text">{([['What it\'s about',action.angle],['Your twist',action.twist],['Why it could work',action.why]] as const).filter(([,text])=>text).map(([label,text])=><p key={label} style={{margin:'0 0 6px'}}><span className="cmp-card-sub">{label}</span><br/>{text}</p>)}</div>;
+ }else if(action.type==='set_pairs'){
+  body=<ol className="cmp-card-scenes">{action.pairs.map((pair,index)=><li key={index}><span>{pair.title}<br/><span className="cmp-card-sub">{pair.thumb}{action.use===index+1?' · in use':''}</span></span></li>)}</ol>;
+ }else if(action.type==='set_hook'){
+  body=<div className="cmp-card-text">{([['Say',action.spoken],['They see',action.visual],['On screen',action.text]] as const).filter(([,text])=>text).map(([label,text])=><p key={label} style={{margin:'0 0 6px'}}><span className="cmp-card-sub">{label}</span><br/>{text}</p>)}</div>;
  }else if(action.type==='group_tiles'||action.type==='start_video'){
   body=<div className="cmp-card-text"><div className="cmp-card-sub">{action.tileIds.length} {action.tileIds.length===1?'card':'cards'}</div>{action.title}</div>;
  }else body=<div className={cn('cmp-card-text',action.type==='set_description'&&'long')}>{action.text}</div>;

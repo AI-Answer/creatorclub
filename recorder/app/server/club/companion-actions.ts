@@ -16,6 +16,7 @@ import type { BoardFrame, Package, VideoScene } from '../../shared/club.js';
 import { outlineFile, packageFile, parseOutline, patchPackage, readOutline, readPackage, saveOutline, savePackage, saveScript, saveSceneScript, scriptFile, syncPlanningFlags, usePackageText } from './planning.js';
 import { videoScenes } from './scenes.js';
 import { titleProblems } from './prompts.js';
+import { chosenIndex, pairThumbs, thumbProblems } from '../../shared/package-rules.js';
 import * as store from './store.js';
 import { SKILL_RUNS } from './skill-run.js';
 
@@ -48,7 +49,24 @@ const draftScene = z
 export const actionShape = z.discriminatedUnion('type', [
   z.object({ type: z.literal('use_hook'), text: line(2000) }).strict(),
   z.object({ type: z.literal('use_title'), text: line(200).refine((title) => !titleProblems(title).length, { message: 'breaks the title rules' }) }).strict(),
-  z.object({ type: z.literal('set_thumbnail_text'), text: line(200) }).strict(),
+  z.object({ type: z.literal('set_thumbnail_text'), text: line(200).refine((thumb) => !thumbProblems(thumb).length, { message: 'needs 2 to 5 words' }) }).strict(),
+  z
+    .object({ type: z.literal('set_idea'), angle: line(2000).optional(), twist: line(2000).optional(), why: line(2000).optional() })
+    .strict(),
+  z
+    .object({
+      type: z.literal('set_pairs'),
+      // The same rules the package run holds Claude's titles and thumbnail text to.
+      pairs: z
+        .array(z.object({ title: line(200).refine((title) => !titleProblems(title).length, { message: 'breaks the title rules' }), thumb: line(200).refine((thumb) => !thumbProblems(thumb).length, { message: 'needs 2 to 5 words' }) }).strict())
+        .min(1)
+        .max(3),
+      use: z.number().int().min(1).max(3).optional(),
+    })
+    .strict(),
+  z
+    .object({ type: z.literal('set_hook'), spoken: line(2000).optional(), visual: line(2000).optional(), text: line(500).optional() })
+    .strict(),
   z.object({ type: z.literal('add_note'), text: block(20_000) }).strict(),
   z.object({ type: z.literal('set_scene'), sceneId: z.string().regex(SCENE_ID), title: line(300).optional(), talkingPoints: z.array(line(2000)).min(1).max(60).optional() }).strict(),
   z.object({ type: z.literal('set_scene_script'), sceneId: z.string().regex(SCENE_ID), script: z.string().trim().min(1).max(12000) }).strict(),
@@ -104,6 +122,14 @@ export const MAX_CARDS = 6;
  * The model's actions that the screen can apply: known types offered on this step, in a valid shape, naming scenes that exist.
  * Everything else is left out and listed in `rejected` with the reason, for the log.
  */
+/** What the shape alone cannot say about an Idea card: it changes something, and the pair it uses is one it gives. */
+export function ideaCardProblem(action: CompanionAction): string | undefined {
+  if (action.type === 'set_idea' && action.angle === undefined && action.twist === undefined && action.why === undefined) return 'needs the angle, the twist or why';
+  if (action.type === 'set_hook' && action.spoken === undefined && action.visual === undefined && action.text === undefined) return 'needs a part of the hook';
+  if (action.type === 'set_pairs' && action.use !== undefined && action.use > action.pairs.length) return `uses pair ${action.use}, and it gives ${action.pairs.length}`;
+  return undefined;
+}
+
 export function validateActions(
   raw: readonly unknown[],
   { tab, sceneIds, tileIds = [], project, editOptions, max = MAX_CARDS }: { tab: CompanionTab; sceneIds: readonly string[]; /** Research: the ids of the cards on the channel's Board. */ tileIds?: readonly string[]; project?: Project; /** How many cards at most (a reply offers a few; a skill's plan may offer more). */ max?: number; editOptions?: EditOptions },
@@ -121,6 +147,11 @@ export function validateActions(
     const action = parsed.data as CompanionAction;
     if (!TAB_ACTIONS[tab].includes(action.type)) {
       rejected.push(`${type}: not offered on ${tab}`);
+      continue;
+    }
+    const idea = ideaCardProblem(action);
+    if (idea) {
+      rejected.push(`${type}: ${idea}`);
       continue;
     }
     if ((action.type === 'set_scene' || action.type === 'set_scene_script') && !sceneIds.includes(action.sceneId)) {
@@ -173,6 +204,12 @@ const versionsDir = (slug: string, id: string) => path.join(store.boardDir(slug,
 const VERSION_ID = /^cv_[a-f0-9]{12}$/;
 
 type PackageField = 'hook' | 'thumbnailText' | 'description';
+/** What an Idea card changed: package fields, and the video's title or why it could work. Undo puts back exactly these. */
+interface PlanParts {
+  pkg: Partial<Pick<Package, 'angle' | 'twist' | 'titles' | 'thumbs' | 'thumbnailText' | 'hook'>>;
+  title?: string;
+  why?: string | null;
+}
 interface SceneText {
   title: string;
   talkingPoints: string[];
@@ -182,6 +219,7 @@ interface SceneText {
 type Undo =
   | TimelineUndo
   | { kind: 'package-field'; field: PackageField; before: string | null; after: string }
+  | { kind: 'plan-parts'; before: PlanParts; after: PlanParts }
   | { kind: 'title'; title: string; dropped?: string; before: string[]; after: string[] }
   | { kind: 'scene'; sceneId: string; before: SceneText; after: SceneText }
   | { kind: 'script'; sceneId: string; before: string; after: string }
@@ -210,6 +248,8 @@ function partOf(undo: Undo): string {
   switch (undo.kind) {
     case 'package-field':
       return `package:${undo.field}`;
+    case 'plan-parts':
+      return 'package:parts';
     case 'title':
       return 'package:titles';
     case 'scene':
@@ -237,7 +277,13 @@ const fieldOf = (pkg: Package | null, field: PackageField): string | null =>
 
 function withField(pkg: Package, field: PackageField, value: string | null): Package {
   if (field === 'hook') return { ...pkg, hook: { ...pkg.hook, spoken: value ?? '' } };
-  if (field === 'thumbnailText') return { ...pkg, thumbnailText: value ?? '' };
+  if (field === 'thumbnailText') {
+    // The thumbnail text is the chosen title's: the pair that holds it now takes the new words too.
+    if (!pkg.thumbs) return { ...pkg, thumbnailText: value ?? '' };
+    const thumbs = [...pkg.thumbs] as [string, string, string];
+    thumbs[Math.max(0, thumbs.indexOf(pkg.thumbnailText))] = value ?? '';
+    return { ...pkg, thumbnailText: value ?? '', thumbs };
+  }
   const { description: _old, ...rest } = pkg;
   return value === null ? rest : { ...rest, description: value };
 }
@@ -272,16 +318,79 @@ const edit: Handler<EditAction> = {
   },
 };
 
+const EMPTY_PACKAGE: Package = { angle: '', twist: '', titles: ['', '', ''], thumbnailText: '', hook: { visual: '', spoken: '', text: '' } };
+
+/** The parts as they are now: the same keys as `like`. */
+async function partsNow(slug: string, id: string, like: PlanParts): Promise<PlanParts> {
+  const [pkg, video] = await Promise.all([readPackage(slug, id).then((saved) => saved ?? EMPTY_PACKAGE), store.readVideo(slug, id)]);
+  const now: PlanParts = { pkg: Object.fromEntries(Object.keys(like.pkg).map((key) => [key, pkg[key as keyof PlanParts['pkg']] ?? null])) as PlanParts['pkg'] };
+  if ('title' in like) now.title = video.title;
+  if ('why' in like) now.why = video.idea?.why ?? null;
+  return now;
+}
+/** Writes the parts: package fields into the package, the title and why onto the video. */
+async function writeParts(slug: string, id: string, parts: PlanParts) {
+  if (Object.keys(parts.pkg).length) {
+    const pkg = (await readPackage(slug, id)) ?? EMPTY_PACKAGE;
+    const next: Record<string, unknown> = { ...pkg, ...parts.pkg };
+    for (const [key, value] of Object.entries(parts.pkg)) if (value === null) delete next[key];
+    await savePackage(slug, id, next);
+  }
+  if (parts.title !== undefined) await store.updateVideo(slug, id, { title: parts.title });
+  if (parts.why !== undefined) await store.updateVideo(slug, id, { idea: { why: parts.why } });
+}
+/** An Idea card: works out the parts it changes from the package and video as they are, writes them, and keeps both sides for Undo. */
+const setParts = (result: string, change: (pkg: Package, title: string) => PlanParts) => async (slug: string, id: string) =>
+  store.withLock(packageLock(slug, id), async () => {
+    const [pkg, video] = await Promise.all([readPackage(slug, id).then((saved) => saved ?? EMPTY_PACKAGE), store.readVideo(slug, id)]);
+    const after = change(pkg, video.title);
+    const before = await partsNow(slug, id, after);
+    await writeParts(slug, id, after);
+    return { result, undo: { kind: 'plan-parts' as const, before, after: await partsNow(slug, id, after) } };
+  });
+
 /** Sets one package field, keeping what it held for Undo. */
 const setField = (field: PackageField, result: string) => async (slug: string, id: string, action: { text: string }) => {
   const before = fieldOf(await readPackage(slug, id), field);
-  const saved = field === 'hook' ? (await usePackageText(slug, id, 'hook', action.text)).package : await patchPackage(slug, id, { [field]: action.text });
+  const saved =
+    field === 'hook'
+      ? (await usePackageText(slug, id, 'hook', action.text)).package
+      : field === 'thumbnailText'
+        ? await store.withLock(packageLock(slug, id), async () => savePackage(slug, id, withField((await readPackage(slug, id)) ?? { angle: '', twist: '', titles: ['', '', ''], thumbnailText: '', hook: { visual: '', spoken: '', text: '' } }, field, action.text)))
+        : await patchPackage(slug, id, { [field]: action.text });
   return { result, undo: { kind: 'package-field' as const, field, before, after: fieldOf(saved, field) ?? '' } };
 };
 
 const HANDLERS: { [K in CompanionActionType]: Handler<Extract<CompanionAction, { type: K }>> } = {
   use_hook: { changed: ['package'], apply: setField('hook', 'Set as your spoken hook') },
   set_thumbnail_text: { changed: ['package'], apply: setField('thumbnailText', 'Set as your thumbnail text') },
+  set_idea: {
+    changed: ['package', 'videos'],
+    apply: (slug, id, action) =>
+      setParts('Set as your idea', () => ({
+        pkg: { ...(action.angle !== undefined ? { angle: action.angle } : {}), ...(action.twist !== undefined ? { twist: action.twist } : {}) },
+        ...(action.why !== undefined ? { why: action.why } : {}),
+      }))(slug, id),
+  },
+  set_pairs: {
+    changed: ['package', 'videos'],
+    apply: (slug, id, action) =>
+      setParts(action.use ? `Set your titles and thumbnails, using pair ${action.use}` : 'Set your titles and thumbnails', (pkg, title) => {
+        // The pairs given take the first places; places the card does not fill keep what they held.
+        const before = pairThumbs(pkg, title);
+        const titles = [0, 1, 2].map((index) => action.pairs[index]?.title ?? pkg.titles[index]) as Package['titles'];
+        const thumbs = [0, 1, 2].map((index) => action.pairs[index]?.thumb ?? before[index]) as [string, string, string];
+        const using = action.use ? action.use - 1 : chosenIndex(titles, title);
+        return { pkg: { titles, thumbs, thumbnailText: thumbs[Math.max(0, using)] }, ...(action.use ? { title: titles[action.use - 1] } : {}) };
+      })(slug, id),
+  },
+  set_hook: {
+    changed: ['package'],
+    apply: (slug, id, action) =>
+      setParts('Set as your hook', (pkg) => ({
+        pkg: { hook: { spoken: action.spoken ?? pkg.hook.spoken, visual: action.visual ?? pkg.hook.visual, text: action.text ?? pkg.hook.text } },
+      }))(slug, id),
+  },
   set_description: { changed: ['package'], apply: setField('description', 'Set as your description') },
   use_title: {
     changed: ['package'],
@@ -415,6 +524,8 @@ export const lock = (slug: string, id: string) => `companion-apply:${store.board
 /** Applies one action and saves its version. Returns the version id and a line saying what changed. */
 export async function applyAction(slug: string, id: string, action: CompanionAction, options: ApplyOptions = {}): Promise<{ version: string; result: string; changed: CompanionChanged[]; project?: Project; revision?: string; appliedOn?: string; videoId?: string }> {
   const handler = HANDLERS[action.type] as Handler<CompanionAction>;
+  const problem = ideaCardProblem(action);
+  if (problem) throw new ClubError(`That change can't be applied: it ${problem}.`, 409);
   return store.withLock(lock(slug, id), async () => {
     const { result, undo, project, revision, appliedOn, videoId } = await handler.apply(slug, id, action, options);
     const version = `cv_${randomBytes(6).toString('hex')}`;
@@ -435,6 +546,11 @@ async function undoChange(slug: string, id: string, version: string, undo: Undo,
         const pkg = await readPackage(slug, id);
         if (!pkg || fieldOf(pkg, undo.field) !== undo.after) throw new ClubError(CHANGED_SINCE, 409);
         await savePackage(slug, id, withField(pkg, undo.field, undo.before));
+      });
+    case 'plan-parts':
+      return store.withLock(packageLock(slug, id), async () => {
+        if (!same(await partsNow(slug, id, undo.after), undo.after)) throw new ClubError(CHANGED_SINCE, 409);
+        await writeParts(slug, id, undo.before);
       });
     case 'title':
       return store.withLock(packageLock(slug, id), async () => {

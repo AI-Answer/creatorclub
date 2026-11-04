@@ -1,4 +1,3 @@
-import {AI_CONNECT_HINT,useAiAvailable} from '../ai-status';
 import {useEffect,useLayoutEffect,useMemo,useRef,useState,type ClipboardEvent,type DragEvent,type FormEvent,type PointerEvent as ReactPointerEvent,type KeyboardEvent} from 'react';
 import {CHANNEL_BOARD,type BoardFrame,type ClubSettings,type ResearchTile,type StartedVideo,type Video,type VideoScene} from '../../../shared/club';
 import {clubFetch,errorMessage,notifyVideosChanged} from '../api';
@@ -12,11 +11,9 @@ import './board.css';
 import {useBoardMotion} from './useBoardMotion';
 import {BoardMinimap} from './BoardMinimap';
 import {fitHeight} from './StickyNote';
-import {ReplaceScenes} from './ReplaceScenes';
 import {TileBody} from './TileBody';
 import {useBoard} from './useBoard';
 import {useCanvas} from './useCanvas';
-import {useDraft} from './useDraft';
 import {NotePanel} from './NotePanel';
 import {NotesFolder} from './NotesFolder';
 import {importMessage,isDocFile} from './board-files';
@@ -66,25 +63,26 @@ export interface BoardProps{
  video?:Video;
  /** The Board shown: a video's id (the default, `video.id`) or `CHANNEL_BOARD` for Research. */
  board?:string;
- scenes?:readonly VideoScene[];
- onDrafted?():void;
  /** The companion added or took off a tile, or grouped cards: the board reads itself again. */
  refreshKey?:number;
  /** Opens a screen: an idea's video page from a "your video" card, the idea started from a selection. */
  navigate?(route:Route):void;
  /** The cards selected now, for the companion. */
  onSelection?(ids:readonly string[]):void;
+ /** The board's cards whenever they change, for what is shown beside it (the Idea page's proof). */
+ onTiles?(tiles:readonly ResearchTile[]):void;
+ /** Brings this card into view and selects it; a new `n` does it again for the same card. */
+ show?:{id:string;n:number};
 }
 
 /**
  * A Board: a free canvas of cards, used by every video (its research) and by the channel (Research). Drag a card (or focus it and use the arrow keys)
  * and its place is saved; a new card lands in free space. Cards can be selected together (Shift-click, or drag a rectangle on the empty canvas),
  * connected with labelled lines (drag from a card's edge handle, or press C on a card and Enter on another), and grouped in a named frame that moves
- * them together. Delete removes what is selected, with Undo; Esc clears the selection. A video's Board has "Draft scenes from board" and shows how
- * the board works on the first visit; Research can start a new video from a selection.
+ * them together. Delete removes what is selected, with Undo; Esc clears the selection. A video's Board shows how the board works on the first
+ * visit (its scenes are drafted from the Idea page beside it); Research can start a new video from a selection.
  */
-export function Board({video,board:boardProp,scenes,onDrafted=()=>{},refreshKey=0,navigate=NO_NAVIGATE,onSelection}:BoardProps){
- const aiAvailable=useAiAvailable();
+export function Board({video,board:boardProp,refreshKey=0,navigate=NO_NAVIGATE,onSelection,onTiles,show}:BoardProps){
  const boardId=boardProp??video?.id??CHANNEL_BOARD;
  const research=boardId===CHANNEL_BOARD;
  const board=useBoard(boardId);
@@ -136,10 +134,11 @@ export function Board({video,board:boardProp,scenes,onDrafted=()=>{},refreshKey=
  },[]);
  const tiles=board.tiles;
  const count=tiles?.length??0;
+ const reportTiles=useRef(onTiles);reportTiles.current=onTiles;
+ useEffect(()=>{if(tiles)reportTiles.current?.(tiles);},[tiles]);
  const canvas=useCanvas(boardId,refreshKey+board.changes);
  const {links,frames}=canvas.canvas;
  const files=useBoardFiles(boardId,filesTick+board.changes);
- const draft=useDraft({video:video??({id:boardId} as Video),tiles:count,scenes,onDrafted});
  const videos=useVideos();
  const saved=useBreakdowns();
  const ideaActions=useIdeaActions(navigate);
@@ -252,6 +251,14 @@ export function Board({video,board:boardProp,scenes,onDrafted=()=>{},refreshKey=
  const tilesNow=useRef(tiles);tilesNow.current=tiles;
  const heightsNow=useRef(heights);heightsNow.current=heights;
  const boxesNow=useRef(boxes);boxesNow.current=boxes;
+ // Something beside the board asked to see a card: it comes to the middle of the view, selected.
+ useEffect(()=>{
+  const box=show&&boxesNow.current.get(show.id),holder=scroller.current;
+  if(!show||!box||!holder)return;
+  setView(fitView(box,holder.clientWidth,holder.clientHeight,Math.max(80,Math.min(holder.clientWidth,holder.clientHeight)/4)));
+  setSel([show.id]);
+ },[show]);
+ const framesNow=useRef(frames);framesNow.current=frames;
  const selNow=useRef(sel);selNow.current=sel;
  const pointing=useRef(false);
 
@@ -454,7 +461,7 @@ export function Board({video,board:boardProp,scenes,onDrafted=()=>{},refreshKey=
   try{
    const started=await clubFetch<StartedVideo>('/channel/research/start-video',{body:{tileIds:ids,...(frameId?{frameId}:{})}});
    notifyVideosChanged();
-   toast(`Started “${started.video.title}” with ${started.tiles} ${started.tiles===1?'card':'cards'}`,{action:{label:'Open',fn:()=>navigate({name:'video',id:started.video.id,tab:'board'})}});
+   toast(`Started “${started.video.title}” with ${started.tiles} ${started.tiles===1?'card':'cards'}`,{action:{label:'Open',fn:()=>navigate({name:'video',id:started.video.id,tab:'idea'})}});
   }catch(reason){toast(errorMessage(reason,"Couldn't start a video from those cards."));}
   finally{setStarting(false);}
  };
@@ -559,16 +566,11 @@ export function Board({video,board:boardProp,scenes,onDrafted=()=>{},refreshKey=
   {emptyBoard&&<div className="board-empty" role="note">
    {research
     ?<p>Put what might become a video here: posts and videos from Discover, your ideas, links, notes and Markdown files.</p>
-    :<><h3>This video's board</h3><p>Gather what this video needs: links, screenshots, notes and Markdown files. Drop them anywhere, or double-click to write a note. Claude reads the whole board when it drafts your scenes.</p></>}
+    :<><h3>This video's board</h3><p>Gather what this video needs: links, screenshots, notes and Markdown files. Drop them anywhere, or double-click to write a note. Your AI reads the whole board when it fills your title and scenes.</p></>}
    {addMenu(true)}
   </div>}
   {!research&&<div className="board-actions">
    <IconButton icon="help" label="How the board works" size="md" onClick={()=>setTip('again')}/>
-   {/* One primary at a time: Add to board while the board is empty, then Draft until there are scenes. */}
-   <button type="button" className="btn" onClick={()=>video&&navigate({name:'video',id:video.id,tab:'plan'})}>Write plan by hand</button>
-   <button type="button" className={cn('btn',!emptyBoard&&!(scenes&&scenes.length)&&'primary')} title={!aiAvailable?AI_CONNECT_HINT:undefined} disabled={!aiAvailable||draft.running} onClick={draft.request}>
-    {draft.running?<><span className="spin"/>{draft.line}</>:<><Icon name="draft" size={15}/>Draft scenes from board</>}
-   </button>
   </div>}
   {(sel.length>0||frameNow)&&<div className="board-selbar" role="toolbar" aria-label="Selection">
    <span className="small muted">{frameNow?`Section “${frameNow.title}” · ${frameMembers.length} ${frameMembers.length===1?'card':'cards'}`:`${sel.length} ${sel.length===1?'card':'cards'} selected`}</span>
@@ -577,7 +579,6 @@ export function Board({video,board:boardProp,scenes,onDrafted=()=>{},refreshKey=
    <IconButton icon="delete" label={frameNow?'Remove the section (its cards stay) (Delete)':'Remove from the board (Delete)'} onClick={()=>{if(frameNow){canvas.removeFrame(frameNow.id);setSelFrame(null);}else{board.removeMany(sel);setSel([]);}}}/>
    <IconButton icon="close" label="Clear the selection (Esc)" onClick={clear}/>
   </div>}
-  {draft.failed&&<div className="board-actions" style={{top:'auto',bottom:70,right:18}}><ErrorLine message={draft.failed} onRetry={draft.start}/></div>}
   <div className="board-tools" role="toolbar" aria-label="Whiteboard tools">
    <button type="button" className={cn('board-select',tool==='select'&&'on')} title="Select (V)" aria-label="Select (V)" aria-pressed={tool==='select'} onClick={()=>{setTool('select');setConnectFrom(null);wrap.current?.focus();}}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M5 3v17l5-5 4 7 3-2-4-7h7Z"/></svg></button>
    <IconButton icon="note" label="New card (N)" onClick={()=>void addNote()}/>
@@ -604,7 +605,6 @@ export function Board({video,board:boardProp,scenes,onDrafted=()=>{},refreshKey=
   {files&&window.sceneForge?.reveal&&<button type="button" className="board-folder" title={files.folder.path} onClick={()=>void window.sceneForge!.reveal(files.folder.path).catch(()=>toast("Couldn't open the folder."))}>
    <Icon name="folder-open" size={14}/>Show files in Finder
   </button>}
-  {!research&&draft.confirm&&<ReplaceScenes scenes={scenes??[]} action="Drafting again" undoLine="You can undo it from the message that follows." onKeep={()=>draft.setConfirm(false)} onReplace={draft.start}/>}
   {noteOpen&&<NotePanel key={noteOpen.id} boardId={boardId} tile={noteOpen} save={(text,base)=>board.saveNote(noteOpen.id,text,base)} isNew={madeNote===noteOpen.id} onClose={discard=>{setOpenNote(null);setMadeNote(null);if(discard)void clubFetch(`${boardBase(boardId)}/research/${encodeURIComponent(noteOpen.id)}`,{method:'DELETE'}).then(()=>board.refresh(),()=>{});}} onCopyPath={name=>copyPath(name,'Copied the file name')}/>}
   {cardOpen&&!noteOpen&&<aside className="board-card-panel" aria-label="Card sidebar" data-wheel="own">
    <header><b className="ellipsis">{cardOpen.title||KIND_NAME[cardOpen.kind]}</b><IconButton icon="close" label="Close card sidebar" onClick={()=>setOpenNote(null)}/></header>

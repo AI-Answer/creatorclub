@@ -19,7 +19,7 @@ test('the Board tip shows on the first visit and is saved when closed; the ? but
   if(call.path==='/videos')return {body:[]};
   return undefined;
  });
- const ui=await mountUI(createElement(Board,{video,scenes:undefined,onDrafted:()=>{}}));
+ const ui=await mountUI(createElement(Board,{video}));
  try{
   await flush();await flush();
   assert.ok(tipShown(ui.container),'the tip shows on the first visit');

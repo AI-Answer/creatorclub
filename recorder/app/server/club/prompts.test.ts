@@ -88,7 +88,9 @@ test('every schema parses and takes the shapes of the shared types, and nothing 
   const load = async (name: string) => JSON.parse(await readFile(path.join(methodology, `${name}.schema.json`), 'utf8')) as Schema;
   const [breakdownSchema, packageSchema, outlineSchema] = await Promise.all(['breakdown', 'package', 'outline'].map(load));
   assert.deepEqual(check(breakdownSchema, breakdown), []);
-  assert.deepEqual(check(packageSchema, pkg), []);
+  // The method writes one thumbnail text per title; the package's own thumbnail text is the chosen pair's, set in code.
+  const { thumbnailText: _chosen, ...answer } = { ...pkg, thumbs: ['ONE COMMAND', '$0 A MONTH', 'NO MORE BILLS'] };
+  assert.deepEqual(check(packageSchema, answer), []);
   assert.deepEqual(check(outlineSchema, { scenes: outline.scenes }), []);
 
   // Every property is required and no extra key is allowed, so a provider with strict structured output accepts them too.
@@ -246,7 +248,7 @@ test('package: the idea, the research board, the title and hook rules, the hook 
   assert.match(built.prompt, /Hook Pattern Library/, 'the hook library is included');
   assert.match(built.prompt, /not checked/);
   assert.doesNotMatch(built.prompt, excluded);
-  assert.deepEqual(Object.keys((built.schema as Schema).properties ?? {}), ['demand', 'gap', 'show', 'angle', 'twist', 'titles', 'thumbnailText', 'hook']);
+  assert.deepEqual(Object.keys((built.schema as Schema).properties ?? {}), ['demand', 'gap', 'show', 'angle', 'twist', 'titles', 'thumbs', 'hook']);
 });
 
 test('outline: 4 to 7 scenes, 140 words a minute, the honest-limitations scene, the package hook, the CTA rule', async () => {

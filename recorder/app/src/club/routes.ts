@@ -1,12 +1,8 @@
 import {useCallback,useEffect,useRef,useState} from 'react';
 import type {VideoStage} from '../../shared/club';
 
-/** The four steps of a video's page after Board. */
-export const videoSteps=['plan','record','edit','publish'] as const;
-export type VideoStep=typeof videoSteps[number];
-
-/** The tabs of a video's workspace, in order. */
-export const videoTabs=['board','plan','record','edit','publish'] as const;
+/** The tabs of a video's workspace, in order. Idea is the board and the plan together. */
+export const videoTabs=['idea','record','edit','publish'] as const;
 export type VideoTab=typeof videoTabs[number];
 
 export const videosViews=['board','table','calendar'] as const;
@@ -54,14 +50,14 @@ function videosRoute(view:VideosView,query:string,heldKey:'group'|'filter'):Rout
  return {name:'videos',view,...(isHeld(group)&&{group}),...(open&&{open}),...(added&&{new:added}),...(breakdown&&{bd:breakdown})};
 }
 
-/** The tab a video opens on: its stage's step, Board for an idea. */
-export const defaultTab=(stage:VideoStage):VideoTab=>({ideas:'board',planning:'board',recording:'record',editing:'edit',publishing:'publish',published:'publish'} as const)[stage];
+/** The tab a video opens on: its stage's step, Idea for an idea and while planning. */
+export const defaultTab=(stage:VideoStage):VideoTab=>({ideas:'idea',planning:'idea',recording:'record',editing:'edit',publishing:'publish',published:'publish'} as const)[stage];
 
 /**
  * Reads `#/home`, `#/discover?show=youtube`, `#/videos/table`, `#/research`, `#/videos?group=later&open=<id>`, `#/video/<id>/<tab>`, `#/settings/followed`, `#/welcome?step=2` and the rest.
  * Old links keep working: `#/overview` is Home; `#/trending` and `#/signals` are Discover (on YouTube, and on everything); `#/ideas` with its
  * `filter`, `open`, `new` and `bd`, `#/production/<view>` and `#/board` are Videos; `#/onboarding` is `#/welcome`; `#/video/<id>/<step>` works
- * because the old steps are tabs too. A video's unknown tab opens the tab for its stage. Anything else is Home.
+ * because the old steps are tabs too, and the old Board and Plan tabs are Idea. A video's unknown tab opens the tab for its stage. Anything else is Home.
  */
 export function parseRoute(hash:string):Route{
  const [path,query='']=hash.replace(/^#\/?/,'').split('?');
@@ -70,6 +66,7 @@ export function parseRoute(hash:string):Route{
   if(!id||segments.length>3)return HOME;
   let decoded:string;try{decoded=decodeURIComponent(id);}catch{return HOME;}
   if(segments.length===2)return {name:'video',id:decoded};
+  if(tab==='board'||tab==='plan')return {name:'video',id:decoded,tab:'idea'};
   return isTab(tab)?{name:'video',id:decoded,tab}:{name:'video',id:decoded};
  }
  if(name==='videos'||name==='production'){

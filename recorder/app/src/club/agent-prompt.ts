@@ -3,8 +3,7 @@ import type {VideoTab} from './routes';
 
 /** What each step asks an agent to look at first. */
 const STEP_START:Record<VideoTab,string>={
- board:'Read its Board with get_board.',
- plan:'Read its package and scenes in get_video.',
+ idea:'Read its Board with get_board, then its package and scenes in get_video.',
  record:'Read its scenes and takes in get_video.',
  edit:'Read its recording with get_project_overview and get_transcript (project_id is in get_video).',
  publish:'Read its package in get_video.',

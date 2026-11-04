@@ -429,5 +429,5 @@ test('the action check: Research actions only on Research, with cards that exist
   );
   assert.deepEqual(actions, [{ type: 'group_tiles', title: 'Two', tileIds: ['t_a', 't_b'] }, { type: 'start_video', title: 'Go', tileIds: ['t_b'] }, { type: 'add_note', text: 'A fact' }]);
   assert.equal(rejected.length, 4, rejected.join('\n'));
-  assert.equal(validateActions([{ type: 'group_tiles', title: 'Two', tileIds: ids }], { tab: 'board', sceneIds: [], tileIds: ids }).actions.length, 0, 'not on a video\'s Board');
+  assert.equal(validateActions([{ type: 'group_tiles', title: 'Two', tileIds: ids }], { tab: 'idea', sceneIds: [], tileIds: ids }).actions.length, 0, 'not on a video\'s Board');
 });

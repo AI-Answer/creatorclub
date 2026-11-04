@@ -78,22 +78,22 @@ export interface NextAction{label:string;tab:VideoTab;icon:IconName}
  */
 export function nextAction(video:Video,scenes:readonly SceneProgress[]|undefined):NextAction{
  if(!scenes){
-  if(video.stage==='planning')return {label:'Continue planning',tab:'plan',icon:'next'};
+  if(video.stage==='planning')return {label:'Continue planning',tab:'idea',icon:'next'};
   if(video.stage==='recording')return {label:'Continue recording',tab:'record',icon:'microphone'};
  }
  const known=scenes??[];
  switch(video.stage){
-  case 'ideas':return {label:'Start planning',tab:'board',icon:'next'};
-  case 'planning':return known.length?{label:'Continue to recording',tab:'record',icon:'microphone'}:{label:'Draft scenes from board',tab:'board',icon:'ai'};
+  case 'ideas':return {label:'Start planning',tab:'idea',icon:'next'};
+  case 'planning':return known.length?{label:'Continue to recording',tab:'record',icon:'microphone'}:{label:'Draft the scenes',tab:'idea',icon:'ai'};
   case 'recording':{
-   if(!known.length)return {label:'Draft scenes from board',tab:'board',icon:'ai'};
+   if(!known.length)return {label:'Draft the scenes',tab:'idea',icon:'ai'};
    const next=known.findIndex(scene=>!isSceneRecorded(scene));
    return next<0?{label:'Continue to editing',tab:'edit',icon:'cut'}:{label:`Record scene ${next+1}`,tab:'record',icon:'microphone'};
   }
   case 'editing':{
    // Nothing on the timeline yet: there is nothing to edit, so the next thing is to record.
    if(scenes&&!recordedCount(known)){
-    if(!known.length)return {label:'Draft scenes from board',tab:'board',icon:'ai'};
+    if(!known.length)return {label:'Draft the scenes',tab:'idea',icon:'ai'};
     return {label:'Record scene 1',tab:'record',icon:'microphone'};
    }
    return {label:'Keep editing',tab:'edit',icon:'cut'};

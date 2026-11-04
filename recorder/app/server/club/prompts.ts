@@ -3,6 +3,8 @@ import { ICON_NAMES } from '../../shared/motion/templates.js';
 import path from 'node:path';
 import type { ConceptRating, IdeaNotes, Outline, Package, ResearchTile, Video, Workspace } from '../../shared/club.js';
 import { DEFAULT_PAUSE_LEVEL, PAUSE_SECONDS, type CompanionActionType } from '../../shared/companion.js';
+import { thumbProblems, titleProblems } from '../../shared/package-rules.js';
+export { titleProblems } from '../../shared/package-rules.js';
 import type { Transcript } from './channel.js';
 import { ClubError } from './errors.js';
 
@@ -238,8 +240,10 @@ export function packageText(pkg: Package | undefined): string {
     pkg.hook.text.trim() ? `- Text: ${pkg.hook.text.trim()}` : '',
   ].filter(Boolean);
   const lines = [
-    titles.length ? `Title options: ${titles.join(' | ')}` : '',
-    pkg.thumbnailText.trim() ? `Thumbnail text: ${pkg.thumbnailText.trim()}` : '',
+    ...(pkg.thumbs
+      ? pkg.titles.map((title, index) => (title.trim() ? `Title option ${index + 1}: ${title.trim()}${pkg.thumbs![index].trim() ? ` (thumbnail text: ${pkg.thumbs![index].trim()})` : ''}` : ''))
+      : [titles.length ? `Title options: ${titles.join(' | ')}` : '']),
+    pkg.thumbnailText.trim() ? `Thumbnail text of the chosen title: ${pkg.thumbnailText.trim()}` : '',
     pkg.angle.trim() ? `Angle: ${pkg.angle.trim()}` : '',
     pkg.twist.trim() ? `Twist: ${pkg.twist.trim()}` : '',
     ratingLine('Demand', pkg.demand) ?? '',
@@ -272,24 +276,11 @@ export function outlineText(outline: Outline): string {
 
 // ---------------------------------------------------------------- checks the model can get wrong
 
-/** Titles: 7 words or fewer, 60 characters or fewer, never a question. Models miscount, so this runs in code. */
-export function titleProblems(title: string): string[] {
-  const text = title.trim();
-  const problems: string[] = [];
-  if (!text) return ['is empty'];
-  const words = text.split(/\s+/).length;
-  if (words > 7) problems.push(`has ${words} words, and 7 is the most`);
-  if ([...text].length > 60) problems.push(`has ${[...text].length} characters, and 60 is the most`);
-  if (/[?？]/.test(text)) problems.push('is a question');
-  return problems;
-}
-
 /** Everything wrong with a package, as short sentences. An empty list means it passes. */
 export function packageProblems(pkg: Package): string[] {
   const problems: string[] = [];
   pkg.titles.forEach((title, index) => titleProblems(title).forEach((problem) => problems.push(`Title ${index + 1} ${problem}.`)));
-  const thumbnailWords = pkg.thumbnailText.trim().split(/\s+/).filter(Boolean).length;
-  if (thumbnailWords < 2 || thumbnailWords > 5) problems.push(`The thumbnail text has ${thumbnailWords} words, and it needs 2 to 5.`);
+  (pkg.thumbs ?? [pkg.thumbnailText]).forEach((text, index, all) => thumbProblems(text).forEach((problem) => problems.push(`The thumbnail text${all.length > 1 ? ` for title ${index + 1}` : ''} ${problem}.`)));
   for (const key of ['visual', 'spoken', 'text'] as const) if (!pkg.hook[key].trim()) problems.push(`The hook has no ${key} part.`);
   return problems;
 }
@@ -398,6 +389,8 @@ export interface PackageInput {
   research: ResearchTile[];
   /** Titles of the channel's recent videos, best first, for the pattern the titles follow. */
   recentTitles?: string[];
+  /** Only the thumbnail words are written again: these titles stay exactly as they are, and each gets words that fit it. */
+  keepTitles?: readonly string[];
 }
 
 export async function buildPackagePrompt(ctx: ChannelContext, input: PackageInput): Promise<JsonPrompt> {
@@ -413,7 +406,7 @@ export async function buildPackagePrompt(ctx: ChannelContext, input: PackageInpu
       structure: structureText(ctx.structure),
       recent_titles: bullets(input.recentTitles),
       hook_library: hookLibrary,
-    }),
+    }) + (input.keepTitles?.some((title) => title.trim()) ? `\n\nKeep these three titles exactly as they are, in this order, and write the thumbs for them: ${JSON.stringify(input.keepTitles)}` : ''),
     system: SYSTEM_JSON,
     schema,
   };
@@ -620,7 +613,10 @@ const CHAT_TURN_CHARS = 1500;
 export const COMPANION_ACTION_HELP: Record<CompanionActionType, string> = {
   use_hook: '- use_hook: {"type": "use_hook", "text": "..."}: one spoken opening line, the first thing the creator says. One action per option.',
   use_title: '- use_title: {"type": "use_title", "text": "..."}: a video title of 7 words or fewer and 60 characters or fewer, a claim and not a question. One action per title.',
-  set_thumbnail_text: '- set_thumbnail_text: {"type": "set_thumbnail_text", "text": "..."}: the words on the thumbnail, 2 to 5 words.',
+  set_thumbnail_text: '- set_thumbnail_text: {"type": "set_thumbnail_text", "text": "..."}: the words on the thumbnail of the chosen title, 2 to 5 words.',
+  set_idea: '- set_idea: {"type": "set_idea", "angle": "...", "twist": "...", "why": "..."}: the Idea part of the video: angle is what the video does for the viewer in one sentence, twist what the creator shows or does differently, why what tells them people want it. Leave out a field that should stay. Write why only from what the board and the idea show (videos that beat their usual, viewers asking); never invent numbers or demand.',
+  set_pairs: '- set_pairs: {"type": "set_pairs", "pairs": [{"title": "...", "thumb": "..."}], "use": 1}: one to three title and thumbnail pairs, most proven first. Each title is 7 words or fewer and 60 characters or fewer, a claim and not a question; each thumb is 2 to 5 words in capitals that work with its title without repeating it. use (optional, 1 to 3) makes that pair\'s title the video\'s title: set it only when the creator asked you to pick.',
+  set_hook: '- set_hook: {"type": "set_hook", "spoken": "...", "visual": "...", "text": "..."}: the opening: spoken is what the creator says first (under 25 words, confirming what the title and thumbnail promise), visual what is on screen in the first seconds, text the words on screen. Leave out a part that should stay. Use only what the creator can really show or say; never invent a result or a story.',
   add_note: '- add_note: {"type": "add_note", "text": "..."}: a note pinned to the board: a fact or an idea worth keeping, with where it came from.',
   set_scene: '- set_scene: {"type": "set_scene", "sceneId": "...", "title": "...", "talkingPoints": ["..."]}: rewrites one scene that exists. Use its id exactly as given in <scenes>; leave out the title or the talking points when they do not change.',
   set_scene_script: '- set_scene_script: {"type": "set_scene_script", "sceneId": "...", "script": "..."}: the full script for one scene that exists, as the creator will say it out loud: plain paragraphs in their voice, built from the scene\'s talking points, with no stage directions, headings or markdown. Use the scene id exactly as given in <scenes>. For a script of the whole video, give one action per scene. The script belongs only in the action: in your message say one short line about it and do not repeat the script.',

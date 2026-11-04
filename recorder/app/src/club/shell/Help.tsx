@@ -19,8 +19,8 @@ export function Help({topic,onClose}:{topic?:string;onClose():void}){
    <h4>Where to start</h4>
    <p className="muted" style={{margin:0,lineHeight:1.55}}>Every video is one card that goes from idea to published. Start in {FIND_IDEA.name}: {FIND_IDEA.does.charAt(0).toLowerCase()+FIND_IDEA.does.slice(1)} Already know the title? Choose New video and type it.</p>
 
-   <h4>The five steps of every video</h4>
-   <div className="help-steps five">{VIDEO_STEPS.map(step=><div key={step.tab} className={`hs topic${mark(topic,`step:${step.tab}`)}`} data-topic={`step:${step.tab}`}>
+   <h4>The four steps of every video</h4>
+   <div className="help-steps four">{VIDEO_STEPS.map(step=><div key={step.tab} className={`hs topic${mark(topic,`step:${step.tab}`)}`} data-topic={`step:${step.tab}`}>
     <Icon name={step.icon} size={18}/><b>{step.name}</b><span>{step.does}</span>
    </div>)}</div>
    <p className="small muted" style={{margin:'8px 0 0'}}>{STEPS_SENTENCE} They are the tabs at the top of a video, and the only way between steps.</p>

@@ -188,7 +188,7 @@ test('a new idea is marked and the banner starts planning it; it is the one prim
   assert.ok(ideaCard(c,'i1')!.classList.contains('new'));assert.equal(text(ideaCard(c,'i1')!.querySelector('.itag')),'New');
   assert.equal(c.querySelectorAll('.btn.primary').length,1,'one primary button on the page');
   await press(button(c.querySelector('.next-idea')!,'Start planning'));
-  assert.equal(writes(calls).at(-1),'POST /videos/i1/move {"stage":"planning"}');assert.deepEqual(routes.at(-1),{name:'video',id:'i1',tab:'board'});
+  assert.equal(writes(calls).at(-1),'POST /videos/i1/move {"stage":"planning"}');assert.deepEqual(routes.at(-1),{name:'video',id:'i1',tab:'idea'});
  });
 });
 

@@ -97,7 +97,7 @@ test('an unplanned one-scene project opens the live recorder source controls, wh
   if(call.path==='/api/automation/settings')return {body:{automaticTranscription:false}};
   if(call.path==='/disk')return {body:{freeBytes:500*1024**3,low:false}};
  });
- const page=(tab:'record'|'plan'|'edit')=>createElement(ToastProvider,null,createElement(Workspace,{video:ready,tab,back:{name:'home'},onVideo(){},navigate(){}}));
+ const page=(tab:'record'|'idea'|'edit')=>createElement(ToastProvider,null,createElement(Workspace,{video:ready,tab,back:{name:'home'},onVideo(){},navigate(){}}));
  const ui=await mountUI(page('record'));
  try{
   await flush();await flush();
@@ -105,7 +105,7 @@ test('an unplanned one-scene project opens the live recorder source controls, wh
   assert.equal(ui.container.querySelectorAll('.rsc-scene').length,1);
   assert.equal(ui.container.querySelector<HTMLButtonElement>('.rsc-record-button')!.disabled,false,'a plan is never required to press Record');
   assert.ok(!ui.container.textContent?.includes('Ready to record'));
-  await ui.render(page('plan'));await flush();
+  await ui.render(page('idea'));await flush();
   assert.ok(ui.container.textContent?.includes('This video started as a quick recording.'));
   await ui.render(page('edit'));await flush();
   assert.ok(ui.container.textContent?.includes('Nothing recorded yet'));

@@ -160,3 +160,27 @@ test('the combined handler sends channel tools to the club and timeline tools to
   const guide = (await handle('get_guides')) as { channel: { workflow: string } };
   assert.match(guide.channel.workflow, /apply_actions/);
 });
+
+test('an agent takes an idea to a recording on its own: move it to planning, fill the Idea page, then start the recording', async () => {
+  const made = (await tool('create_video', { title: 'Agent idea' })) as Video;
+  assert.equal(((await tool('move_video', { video_id: made.id, stage: 'planning' })) as Video).stage, 'planning');
+  const filled = await tool('apply_actions', {
+    video_id: made.id,
+    actions: [
+      { type: 'set_idea', angle: 'Three skills that edit for you', twist: 'Shown on a real video' },
+      { type: 'set_pairs', pairs: [{ title: 'Three skills edit my videos', thumb: 'NO EDITOR' }, { title: 'I stopped editing', thumb: 'CLAUDE EDITS' }, { title: 'Claude cut this video', thumb: 'WATCH IT CUT' }], use: 1 },
+      { type: 'set_hook', spoken: 'This video was cut by Claude.', visual: 'The timeline', text: 'NO EDITOR' },
+      { type: 'draft_scenes', scenes: [{ title: 'Hook', talkingPoints: ['The result first'], show: 'Face', seconds: 20 }, { title: 'Skill one', talkingPoints: ['What it does'], show: 'Screen', seconds: 60 }] },
+    ],
+  });
+  assert.deepEqual(filled.applied.map((each: { type: string }) => each.type), ['set_idea', 'set_pairs', 'set_hook', 'draft_scenes'], JSON.stringify(filled));
+  let read = await tool('get_video', { video_id: made.id });
+  assert.equal(read.video.title, 'Three skills edit my videos', 'the pair in use is the video title');
+  assert.deepEqual(read.package.thumbs, ['NO EDITOR', 'CLAUDE EDITS', 'WATCH IT CUT']);
+  assert.equal(read.package.hook.visual, 'The timeline');
+  const started = (await tool('start_recording', { video_id: made.id })) as Video;
+  assert.equal(started.stage, 'recording');
+  read = await tool('get_video', { video_id: made.id });
+  assert.ok(read.recording?.project_id, 'the recording is set up from the scenes');
+  assert.deepEqual(read.scenes.map((scene: { title: string }) => scene.title), ['Hook', 'Skill one']);
+});

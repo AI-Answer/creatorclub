@@ -678,3 +678,9 @@ test("a creator's new video fills the frame: no border, no rounded corners, no d
   assert.equal(project.canvas.radius, 0);
   assert.equal(project.canvas.backgroundPattern, undefined);
 });
+
+test('a quote the model escaped twice reads as a plain quote', async () => {
+  const { parseAnswer } = await import('./planning.js');
+  const { z } = await import('zod');
+  assert.deepEqual(parseAnswer(z.object({ twist: z.string(), list: z.array(z.string()) }), { twist: 'Instead of vague \\"make it better\\" prompts', list: ['it\\\'s'] }, 'Claude', 'test'), { twist: 'Instead of vague "make it better" prompts', list: ["it's"] });
+});

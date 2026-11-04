@@ -103,7 +103,7 @@ const thread = async () => (await call<CompanionThread>('GET', `/videos/${video.
 
 test('the prompt holds the voice, the idea, the package, the scenes with their ids, the board, the screen and the actions of the step', async () => {
   scripts.push({ text: 'Fine.' });
-  const res = await ask('What is missing?', { tab: 'plan', sceneId: s2, screen: 'Package filled, 2 scenes' });
+  const res = await ask('What is missing?', { tab: 'idea', sceneId: s2, screen: 'Package filled, 2 scenes' });
   assert.equal(res.status, 202, JSON.stringify(res.body));
   await events(res.body.jobId);
   const prompt = asked.at(-1)!.prompt;
@@ -112,10 +112,10 @@ test('the prompt holds the voice, the idea, the package, the scenes with their i
   assert.match(prompt, /Spoken: You never opened this\./, 'the package');
   assert.match(prompt, new RegExp(`### 2\\. Level 1 \\(id: ${s2}, 1:00–3:00\\)`), 'scenes with ids and times');
   assert.match(prompt, /People keep asking about the free plan\./, 'a board tile');
-  assert.match(prompt, /Step: Plan/);
+  assert.match(prompt, /Step: Idea/);
   assert.match(prompt, new RegExp(`Scene in focus: 2\\. Level 1 \\(id: ${s2}\\)`));
   assert.match(prompt, /On screen: Package filled, 2 scenes/);
-  assert.match(prompt, /- set_scene:/, 'Plan offers set_scene');
+  assert.match(prompt, /- set_scene:/, 'Idea offers set_scene');
   assert.doesNotMatch(prompt, /- set_description:/, 'and not the description');
   assert.doesNotMatch(prompt, /\{[a-z_]+\}/, 'every placeholder is filled');
   assert.equal(asked.at(-1)!.stream, true, 'the runner is asked to stream');
@@ -132,11 +132,11 @@ test('a reply streams over SSE: steps in order, text without the actions, then t
   const text = `Here are **four scenes** from your board.\n\n- Level 2 is the longest.\n<actions>\n${actions}\n</actions>`;
   // Split in awkward places: inside a word, and inside the tag.
   scripts.push({ deltas: ['Here are **four ', 'scenes** from your board.\n\n- Level 2 is ', 'the longest.\n<act', 'ions>\n', actions.slice(0, 30), actions.slice(30), '\n</actions>'], text });
-  const res = await ask('Draft the scenes', { tab: 'board' });
+  const res = await ask('Draft the scenes', { tab: 'idea' });
   const stream = await events(res.body.jobId);
   const steps = stream.filter((event) => event.data?.type === 'step').map((event) => event.data.label);
   // The actions start before their type is known: a short 'Preparing the changes', then the step named by the action.
-  assert.deepEqual(steps, ['Reading the board', 'Thinking it through', 'Writing the reply', 'Preparing the changes', 'Drafting scenes', 'Checking the changes']);
+  assert.deepEqual(steps, ['Reading the board and the plan', 'Thinking it through', 'Writing the reply', 'Preparing the changes', 'Drafting scenes', 'Checking the changes']);
   const shown = stream.filter((event) => event.data?.type === 'text');
   assert.equal(shown.map((event) => event.data.text).join(''), 'Here are **four scenes** from your board.\n\n- Level 2 is the longest.\n');
   assert.ok(shown.every((event, index) => index === 0 || event.data.at === shown[index - 1].data.at + shown[index - 1].data.text.length), 'each piece says where it goes');
@@ -168,30 +168,30 @@ test('actions are checked: unknown types, unknown scenes, steps that do not offe
       { type: 'set_scene', sceneId: 's_missing', title: 'New' },
       { type: 'set_scene', sceneId: s1 },
       { type: 'set_scene', sceneId: s1, talkingPoints: ['  Show   it  '] },
-      { type: 'set_description', text: 'Not on Plan' },
+      { type: 'set_description', text: 'Not on Idea' },
       { type: 'use_title', text: 'Is this a question?' },
       { type: 'use_title', text: 'Hidden features you never opened' },
       { type: 'use_title', text: 'Hidden features you never opened' },
       { type: 'use_hook', text: 'x', extra: true },
       'nonsense',
     ],
-    { tab: 'plan', sceneIds: [s1, s2] },
+    { tab: 'idea', sceneIds: [s1, s2] },
   );
   assert.deepEqual(actions, [{ type: 'set_scene', sceneId: s1, talkingPoints: ['Show it'] }, { type: 'use_title', text: 'Hidden features you never opened' }]);
   assert.equal(rejected.length, 7, rejected.join('\n'));
   assert.ok(rejected.some((line) => line.includes('no scene s_missing')));
-  assert.ok(rejected.some((line) => line.startsWith('set_description: not offered on plan')));
+  assert.ok(rejected.some((line) => line.startsWith('set_description: not offered on idea')));
   assert.equal(validateActions([{ type: 'use_hook', text: 'Hi' }], { tab: 'edit', sceneIds: [] }).actions.length, 0, 'Edit offers none yet');
 });
 
 test('a reply whose actions name an unknown scene keeps only the valid cards', async () => {
   scripts.push({ text: `Two changes.\n<actions>[{"type":"set_scene","sceneId":"s_gone","title":"X"},{"type":"set_scene","sceneId":"${s2}","title":"Level 1: one click"},{"type":"warp"}]</actions>` });
-  const res = await ask('Tighten scene 2', { tab: 'plan', sceneId: s2 });
+  const res = await ask('Tighten scene 2', { tab: 'idea', sceneId: s2 });
   const reply = (await events(res.body.jobId)).at(-1)!.data as CompanionReplyMessage;
   assert.deepEqual(reply.cards.map((card) => card.action), [{ type: 'set_scene', sceneId: s2, title: 'Level 1: one click' }]);
 });
 
-const replyWith = async (actions: unknown[], tab = 'plan') => {
+const replyWith = async (actions: unknown[], tab = 'idea') => {
   scripts.push({ text: `Done.\n<actions>${JSON.stringify(actions)}</actions>` });
   const res = await ask('Do it', { tab });
   return (await events(res.body.jobId)).at(-1)!.data as CompanionReplyMessage;
@@ -427,7 +427,7 @@ test('Set scene changes one scene by its id; a scene removed meanwhile is a clea
 });
 
 test('Add note puts a tile on the board and Undo takes it off; the description is set from Publish', async () => {
-  const reply = await replyWith([{ type: 'add_note', text: 'Free plan questions keep coming.' }], 'board');
+  const reply = await replyWith([{ type: 'add_note', text: 'Free plan questions keep coming.' }], 'idea');
   const count = async () => ((await call<ResearchTile[]>('GET', `/videos/${video.id}/research`)).body).length;
   const before = await count();
   assert.deepEqual((await apply(reply, 0)).body.changed, ['board']);
@@ -450,7 +450,7 @@ test('Add note puts a tile on the board and Undo takes it off; the description i
 
 test('the companion works with notes as Markdown files: Add note makes the file and the card, Undo sets it aside for good, an edited note is kept, and the prompt carries the Markdown', async () => {
   const cards = async () => (await call<ResearchTile[]>('GET', `/videos/${video.id}/research`)).body.filter((tile) => tile.doc);
-  const reply = await replyWith([{ type: 'add_note', text: '# Plan B\n\n- show the **bill**\n- [ ] check the price' }], 'board');
+  const reply = await replyWith([{ type: 'add_note', text: '# Plan B\n\n- show the **bill**\n- [ ] check the price' }], 'idea');
   const before = (await cards()).length;
   assert.deepEqual((await apply(reply, 0)).body.changed, ['board']);
   const added = (await cards()).find((tile) => tile.title === 'Plan B')!;
@@ -462,7 +462,7 @@ test('the companion works with notes as Markdown files: Add note makes the file 
 
   // The next question carries the note's Markdown, lines and all.
   scripts.push({ text: 'Fine.' });
-  await events((await ask('What do you see?', { tab: 'board' })).body.jobId);
+  await events((await ask('What do you see?', { tab: 'idea' })).body.jobId);
   const prompt = asked.at(-1)!.prompt;
   assert.match(prompt, /Your note "Plan B":/);
   assert.match(prompt, /- show the \*\*bill\*\*\n\s+- \[ \] check the price/, 'the bullets and the checklist are in the board text');
@@ -483,7 +483,7 @@ test('the companion works with notes as Markdown files: Add note makes the file 
   assert.equal(await readFile(path.join(vdir, again.doc!.path), 'utf8'), '# Plan B\n\nrewritten by me');
   assert.ok((await cards()).some((tile) => tile.id === again.id), 'the card stays');
   // The same when an agent wrote in the file itself.
-  const third = await replyWith([{ type: 'add_note', text: 'Quick thought' }], 'board');
+  const third = await replyWith([{ type: 'add_note', text: 'Quick thought' }], 'idea');
   await apply(third, 0);
   const quick = (await cards()).find((tile) => tile.title === 'Quick thought')!;
   await writeFile(path.join(vdir, quick.doc!.path), 'Quick thought, changed by an agent');
@@ -494,13 +494,13 @@ test('the companion works with notes as Markdown files: Add note makes the file 
 test('Stop keeps what arrived as a stopped reply; one reply runs at a time; Try again does not save the question twice', async () => {
   let release!: () => void;
   scripts.push({ deltas: ['Half of an ', 'answer'], text: 'Half of an answer and more', hold: new Promise((resolve) => (release = resolve)) });
-  const started = await ask('Long one', { tab: 'plan' });
-  assert.equal((await ask('Another', { tab: 'plan' })).status, 409, 'a second question waits for the first');
+  const started = await ask('Long one', { tab: 'idea' });
+  assert.equal((await ask('Another', { tab: 'idea' })).status, 409, 'a second question waits for the first');
   assert.equal((await thread()).running?.messageId, started.body.message.id, 'a reopened panel finds the running reply');
   await tick(80);
   const running = (await thread()).running!;
   assert.equal(running.text, 'Half of an answer', 'with the text shown so far');
-  assert.deepEqual(running.steps, ['Reading the plan', 'Thinking it through', 'Writing the reply'], 'and its steps');
+  assert.deepEqual(running.steps, ['Reading the board and the plan', 'Thinking it through', 'Writing the reply'], 'and its steps');
   await call('DELETE', `/jobs/${started.body.jobId}`);
   release();
   await tick(30);
@@ -510,12 +510,12 @@ test('Stop keeps what arrived as a stopped reply; one reply runs at a time; Try 
   assert.equal(last.text, 'Half of an answer');
 
   scripts.push({ text: 'x', fail: true });
-  const failed = await ask('Fails', { tab: 'plan' });
+  const failed = await ask('Fails', { tab: 'idea' });
   const stream = await events(failed.body.jobId);
   assert.deepEqual(stream.at(-1), { type: 'failed', data: { message: 'Claude is not signed in.' } });
   const count = (await thread()).messages.length;
   scripts.push({ text: 'Now it works.' });
-  const retried = await ask('Fails', { tab: 'plan' }, { retryOf: failed.body.message.id });
+  const retried = await ask('Fails', { tab: 'idea' }, { retryOf: failed.body.message.id });
   assert.equal(retried.body.message.id, failed.body.message.id);
   await events(retried.body.jobId);
   const after = (await thread()).messages;
@@ -525,11 +525,11 @@ test('Stop keeps what arrived as a stopped reply; one reply runs at a time; Try 
 test('a stopped reply that is still being saved goes after its own question, not after the next one', async () => {
   let release!: () => void;
   scripts.push({ deltas: ['Partly ', 'there'], text: 'Partly there', hold: new Promise((resolve) => (release = resolve)), slowStop: 60 });
-  const first = await ask('Slow to stop', { tab: 'plan' });
+  const first = await ask('Slow to stop', { tab: 'idea' });
   await tick(40);
   await call('DELETE', `/jobs/${first.body.jobId}`);
   scripts.push({ text: 'Next answer.' });
-  const next = await ask('Next question', { tab: 'plan' });
+  const next = await ask('Next question', { tab: 'idea' });
   assert.equal(next.status, 202, 'a new question can be asked at once');
   await events(next.body.jobId);
   release();
@@ -541,7 +541,7 @@ test('a stopped reply that is still being saved goes after its own question, not
 test('quitting stops every running reply, so no CLI outlives the app', async () => {
   scripts.push({ deltas: ['Going'], text: 'Going', hold: new Promise(() => {}) });
   const before = asked.length;
-  const started = await ask('Never ends', { tab: 'plan' });
+  const started = await ask('Never ends', { tab: 'idea' });
   for (let i = 0; i < 200 && asked.length === before; i++) await tick(5);
   assert.ok(cancelAllJobs() >= 1);
   assert.equal(getJob(started.body.jobId)?.status, 'cancelled');
@@ -555,7 +555,7 @@ test('the old Board chat is carried over on first read and its file is kept', as
   await writeFile(file, JSON.stringify([{ role: 'user', text: 'Hooks?' }, { role: 'assistant', text: 'Two below.', items: [{ kind: 'hook', text: 'A' }, { kind: 'scene', text: 'Intro — why' }], used: [0] }]));
   const read = (await call<CompanionThread>('GET', `/videos/${old.id}/companion`)).body;
   assert.equal(read.messages.length, 2);
-  assert.deepEqual(read.messages[0], { id: 'm_board_1', role: 'user', text: 'Hooks?', context: { tab: 'board' } });
+  assert.deepEqual(read.messages[0], { id: 'm_board_1', role: 'user', text: 'Hooks?', context: { tab: 'idea' } });
   const reply = read.messages[1] as CompanionReplyMessage;
   assert.deepEqual(reply.cards, [{ action: { type: 'use_hook', text: 'A' }, state: 'applied' }, { action: { type: 'add_note', text: 'Intro — why' }, state: 'offered' }]);
   assert.ok(JSON.parse(await readFile(file, 'utf8')).length === 2, 'the old file stays');
@@ -576,6 +576,7 @@ test('a conversation file is read leniently: a bad card goes, never its message;
   assert.deepEqual(read.messages.map((message) => message.id), ['m1', 'm2'], 'only the message with no id is left out');
   const reply = read.messages[1] as CompanionReplyMessage;
   assert.equal(reply.text.length, 40_000);
+  assert.deepEqual([read.messages[0].role === 'user' && read.messages[0].context.tab, reply.tab], ['idea', 'idea'], 'a message saved on Plan or Board reads as Idea');
   assert.deepEqual(reply.cards.map((card) => card.action.type), ['use_hook', 'from_the_future'], 'a card that is not readable goes, its message stays');
   assert.ok((await readdir(folder)).some((name) => /^companion-unreadable-.+\.json$/.test(name)), 'the file as it was is kept aside');
   const refused = await call('POST', `/videos/${other.id}/companion/m2/cards/1/apply`);
@@ -597,7 +598,7 @@ test('a card with a known type but a field of the wrong kind never breaks the ne
     { id: 'm2', role: 'assistant', text: 'ok', tab: 'plan', cards: [{ action: { type: 'use_hook', text: 5 }, state: 'offered' }] },
   ] }));
   scripts.push({ text: 'Fine.' });
-  const res = await call<CompanionAsked>('POST', `/videos/${other.id}/companion`, { message: 'Next', context: { tab: 'plan' } });
+  const res = await call<CompanionAsked>('POST', `/videos/${other.id}/companion`, { message: 'Next', context: { tab: 'idea' } });
   const stream = await events(res.body.jobId);
   assert.equal(stream.at(-1)!.type, 'done', JSON.stringify(stream.at(-1)));
   assert.match(asked.at(-1)!.prompt, /use_hook \(not used\)/, 'the history names the card without its broken text');
@@ -605,7 +606,7 @@ test('a card with a known type but a field of the wrong kind never breaks the ne
 });
 
 test('bad requests are refused', async () => {
-  assert.equal((await ask('', { tab: 'plan' })).status, 400);
+  assert.equal((await ask('', { tab: 'idea' })).status, 400);
   assert.equal((await ask('Hi', { tab: 'settings' })).status, 400);
   assert.equal((await call('POST', `/videos/${video.id}/companion/m_none/cards/0/apply`)).status, 404);
   assert.equal((await call('POST', `/videos/${video.id}/companion/m_none/cards/x/apply`)).status, 404);
@@ -663,4 +664,57 @@ test('a question card needs 2 to 4 short answers, is offered on every step, and 
   assert.equal(refused.status, 400);
   const onEdit = await replyWith([{ type: 'ask_choice', question: 'How long?', options: ['Short', 'Long'] }], 'edit');
   assert.equal(onEdit.cards.length, 1);
+});
+
+test('the Idea cards fill the idea, the three pairs and the whole hook, and each Undo puts back exactly what it changed', async () => {
+  const read = async () => (await call<Video>('GET', `/videos/${video.id}`)).body;
+  const title = (await read()).title;
+  const reply = await replyWith([
+    { type: 'set_idea', angle: 'Three skills that edit your videos for you', why: 'Two videos on the board beat their usual by 3x' },
+    { type: 'set_pairs', pairs: [{ title: 'Three Claude skills edit my videos', thumb: 'NO EDITOR' }, { title: 'I stopped editing videos', thumb: 'CLAUDE EDITS' }], use: 2 },
+    { type: 'set_hook', visual: 'The timeline cutting itself', text: 'NO EDITOR' },
+    { type: 'set_idea' },
+    { type: 'set_pairs', pairs: [{ title: 'Is this the best Claude skill?', thumb: 'WOW SO GOOD' }] },
+    { type: 'set_pairs', pairs: [{ title: 'Claude edits my videos now', thumb: 'NO EDITOR' }], use: 2 },
+  ]);
+  assert.deepEqual(reply.cards.map((card) => card.action.type), ['set_idea', 'set_pairs', 'set_hook'], 'an empty card, a broken title and a pair that is not there are left out');
+
+  const idea = await apply(reply, 0);
+  assert.equal(idea.status, 200, JSON.stringify(idea.body));
+  assert.deepEqual(idea.body.changed, ['package', 'videos']);
+  assert.equal((await plan()).package.angle, 'Three skills that edit your videos for you');
+  assert.equal((await read()).idea?.why, 'Two videos on the board beat their usual by 3x', 'why it could work is the video\'s own');
+
+  const before = (await plan()).package;
+  assert.equal((await apply(reply, 1)).body.message.cards[1].result, 'Set your titles and thumbnails, using pair 2');
+  const pairs = (await plan()).package;
+  assert.deepEqual(pairs.titles, ['Three Claude skills edit my videos', 'I stopped editing videos', before.titles[2]], 'the third place keeps what it held');
+  assert.deepEqual(pairs.thumbs!.slice(0, 2), ['NO EDITOR', 'CLAUDE EDITS']);
+  assert.equal(pairs.thumbnailText, 'CLAUDE EDITS', 'the thumbnail text is the pair in use');
+  assert.equal((await read()).title, 'I stopped editing videos', 'using pair 2 makes its title the video title');
+
+  const spoken = (await plan()).package.hook.spoken;
+  await apply(reply, 2);
+  assert.deepEqual((await plan()).package.hook, { spoken, visual: 'The timeline cutting itself', text: 'NO EDITOR' }, 'what the card leaves out stays');
+
+  // Undo puts back exactly what each card changed.
+  await undo(reply, 2);
+  assert.deepEqual((await plan()).package.hook, before.hook);
+  await undo(reply, 1);
+  assert.deepEqual((await plan()).package.titles, before.titles);
+  assert.equal((await read()).title, title, 'the video title goes back too');
+  // Changed by hand since: Undo refuses rather than overwrite it.
+  await call('PUT', `/videos/${video.id}`, { idea: { why: 'My own words' } });
+  assert.equal((await undo(reply, 0)).status, 409);
+  assert.equal((await read()).idea?.why, 'My own words');
+});
+
+test('Use as title moves each title with its own thumbnail words', async () => {
+  await call('PUT', `/videos/${video.id}/package`, { titles: ['First title here', 'Second title here', ''], thumbs: ['FIRST WORDS', 'SECOND WORDS', ''] });
+  const reply = await replyWith([{ type: 'use_title', text: 'Second title here' }]);
+  await apply(reply, 0);
+  const { package: pkg } = await plan();
+  assert.deepEqual(pkg.titles.slice(0, 2), ['Second title here', 'First title here']);
+  assert.deepEqual(pkg.thumbs!.slice(0, 2), ['SECOND WORDS', 'FIRST WORDS'], 'the words stay with their title');
+  await undo(reply, 0);
 });

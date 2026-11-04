@@ -138,12 +138,12 @@ test('the pinned tab is always Video board, video tabs show stage dots, and + st
 test('a video opens on the tab for its stage, and each video opened gets its own tab',async()=>{
  await withApp('#/video/p1',async ui=>{
   const c=ui.container;
-  assert.equal(window.location.hash,'#/video/p1/board','planning opens on Board');
+  assert.equal(window.location.hash,'#/video/p1/idea','planning opens on Idea');
   await hashTo('#/video/r1');
   assert.equal(window.location.hash,'#/video/r1/record','recording opens on Record');
   assert.equal(c.querySelectorAll('.ts-tab:not(.home)').length,2,'both videos are open as tabs');
   await hashTo('#/video/i1');
-  assert.equal(window.location.hash,'#/video/i1/board','an idea opens on Board');
+  assert.equal(window.location.hash,'#/video/i1/idea','an idea opens on Idea');
   await press(c.querySelector('.ts-tab.on .ts-close')!);
   assert.match(window.location.hash,/^#\/video\/r1/,'closing the current tab opens its neighbour');
  });
@@ -191,7 +191,7 @@ test('Cmd+K opens search over actions, steps, places, settings and videos; typin
   await type(c.querySelector('.palette input')!,'hidden');
   assert.deepEqual(options(),['Hidden features in Claude Code']);
   await keyDown(c.querySelector('.palette input')!,'Enter');
-  assert.equal(c.querySelector('.palette'),null);assert.equal(window.location.hash,'#/video/p1/board');
+  assert.equal(c.querySelector('.palette'),null);assert.equal(window.location.hash,'#/video/p1/idea');
   await keyDown(window,'k',{ctrlKey:true});
   await type(c.querySelector('.palette input')!,'zzz');
   assert.match(c.querySelector('.palette .po')!.textContent!,/Nothing matches "zzz"\. Try a step, a setting or a word from the title\./);
@@ -237,7 +237,7 @@ test('search finds steps, settings groups, actions and help words, and a step op
 test('search opens an idea in its drawer on Videos and any other video on the tab for its stage',()=>{
  const routes=Object.fromEntries(searchOptions(videos,'').filter(option=>option.id.startsWith('video:')).map(option=>[option.label,'route' in option.target?option.target.route:undefined]));
  assert.deepEqual(routes['Claude for receipts'],{name:'videos',view:'board',open:'i1'});
- assert.deepEqual(routes['Hidden features in Claude Code'],{name:'video',id:'p1',tab:'board'});
+ assert.deepEqual(routes['Hidden features in Claude Code'],{name:'video',id:'p1',tab:'idea'});
  assert.deepEqual(routes['Agents for small shops'],{name:'video',id:'r1',tab:'record'});
  assert.deepEqual(routes['Already out'],{name:'video',id:'d1',tab:'publish'});
  assert.equal(searchOptions(videos,'RECEIPTS').length,1,'search ignores case');
@@ -289,7 +289,7 @@ test('New video offers planning and quick recording; planning keeps its title fl
   await press(button(dialog()!,'Start planning'));
   assert.deepEqual(calls.filter(call=>call.method==='POST'&&call.path==='/videos').map(call=>call.body),[{title:'Claude does my taxes'}]);
   assert.deepEqual(calls.filter(call=>call.path==='/videos/new1/move').map(call=>call.body),[{stage:'planning'}],'the idea is moved to planning at once');
-  assert.equal(dialog(),null);assert.equal(window.location.hash,'#/video/new1/board','straight to its Board: no Add idea, no banner to press');
+  assert.equal(dialog(),null);assert.equal(window.location.hash,'#/video/new1/idea','straight to its Idea page: no Add idea, no banner to press');
   assert.ok(server.videos.some(v=>v.id==='new1'));
 
   await hashTo('#/home');
@@ -342,7 +342,7 @@ test('New video: a failed save says one sentence and keeps what was typed; an id
  }finally{await ui.close();fake.restore();window.location.hash='';}
 });
 
-test('Help is a real help: the five steps, the words, where things live and the shortcuts, with the Postiz price once',async()=>{
+test('Help is a real help: the four steps, the words, where things live and the shortcuts, with the Postiz price once',async()=>{
  await withApp('#/home',async ui=>{
   const c=ui.container;
   assert.equal(c.querySelector('[role="dialog"]'),null);
@@ -352,7 +352,7 @@ test('Help is a real help: the five steps, the words, where things live and the 
   const dialog=c.querySelector('[role="dialog"]')!;
   const help=dialog.textContent!;
   assert.match(help,/How Creator Compiler works/);
-  assert.deepEqual([...dialog.querySelectorAll('.help-steps.five b')].map(b=>b.textContent),['Board','Plan','Record','Edit','Publish'],'the same five names as the tabs of a video');
+  assert.deepEqual([...dialog.querySelectorAll('.help-steps.four b')].map(b=>b.textContent),['Idea','Record','Edit','Publish'],'the same four names as the tabs of a video');
   for(const word of ['Scene','Take','Package','Board','Idea','Talking points'])assert.ok([...dialog.querySelectorAll('dt')].some(dt=>dt.textContent===word),`${word} is explained`);
   assert.match(help,/Where things live/);assert.match(help,/⌘K/);assert.match(help,/Keyboard shortcuts/);
   assert.equal((help.match(/\$29 a month/g)??[]).length,1,'the Postiz price once');

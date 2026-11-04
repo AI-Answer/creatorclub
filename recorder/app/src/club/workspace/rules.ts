@@ -8,10 +8,10 @@ import {isSceneRecorded} from '../scene-status';
  * and when a tab's job is done (which ticks the tab and makes Continue the primary button).
  */
 
-export const TAB_LABEL:Record<VideoTab,string>={board:'Board',plan:'Plan',record:'Record',edit:'Edit',publish:'Publish'};
+export const TAB_LABEL:Record<VideoTab,string>={idea:'Idea',record:'Record',edit:'Edit',publish:'Publish'};
 
-/** The stage a card is in while a tab's job is being done. Nothing continues to Board. */
-export const STAGE_OF_TAB:Record<VideoTab,VideoStage|undefined>={board:undefined,plan:'planning',record:'recording',edit:'editing',publish:'publishing'};
+/** The stage a card is in while a tab's job is being done. */
+export const STAGE_OF_TAB:Record<VideoTab,VideoStage|undefined>={idea:'planning',record:'recording',edit:'editing',publish:'publishing'};
 
 export const previousTab=(tab:VideoTab):VideoTab|undefined=>videoTabs[videoTabs.indexOf(tab)-1];
 export const nextTab=(tab:VideoTab):VideoTab|undefined=>videoTabs[videoTabs.indexOf(tab)+1];
@@ -36,14 +36,13 @@ export interface TabFacts{
 export const allScenesKept=(scenes:readonly Pick<VideoScene,'takes'>[]|undefined)=>!!scenes?.length&&scenes.every(isSceneRecorded);
 
 /**
- * Whether the tab's own job is done. Board and Plan: there are scenes. Record: every scene has a kept take.
+ * Whether the tab's own job is done. Idea: there are scenes. Record: every scene has a kept take.
  * Edit: the edit was exported, or the video moved on to publishing (a take on the timeline is not a finished edit). Publish: it is published.
  */
 export function tabDone(tab:VideoTab,{stage,scenes,allRecorded,exported}:TabFacts):boolean{
  const hasScenes=!!scenes?.length;
  switch(tab){
-  case 'board':return hasScenes;
-  case 'plan':return hasScenes;
+  case 'idea':return hasScenes;
   case 'record':return !!allRecorded||allScenesKept(scenes);
   case 'edit':return !!exported||stageReached(stage,'publishing');
   case 'publish':return stage==='published';
@@ -78,27 +77,27 @@ export function tabState(key:VideoTab,current:VideoTab,facts:TabFacts&LockFacts)
 }
 
 /** "Continue to recording": every Continue names the step it opens by what you do there. */
-export const CONTINUE_LABEL:Record<VideoTab,string>={board:'Continue to board',plan:'Continue to planning',record:'Continue to recording',edit:'Continue to editing',publish:'Continue to publishing'};
+export const CONTINUE_LABEL:Record<VideoTab,string>={idea:'Continue to planning',record:'Continue to recording',edit:'Continue to editing',publish:'Continue to publishing'};
 
 /** The bottom bar's Continue: what it says, whether it can go, the plain line that says why not, and whether it is the primary. */
 export type ContinueButton={label:string;disabled:boolean;reason?:string;primary:boolean};
 
 /**
- * Continue opens the next step without requiring earlier steps to be finished. While Claude writes it waits and says so.
+ * Continue opens the next step without requiring earlier steps to be finished. While the AI writes it waits and says so.
  * It is the primary only once the step's job is done and the step shows no primary of its own (`ownPrimary`). The last step has none.
  */
 export function continueFor(tab:VideoTab,facts:TabFacts&LockFacts,{busy=false,ownPrimary=false}:{busy?:boolean;ownPrimary?:boolean}={}):ContinueButton|undefined{
  const next=nextTab(tab);
  if(!next)return undefined;
  const label=CONTINUE_LABEL[next];
- if(busy)return {label,disabled:true,reason:'Claude is still writing',primary:false};
+ if(busy)return {label,disabled:true,reason:'Still writing',primary:false};
  // Edit and Publish can open with only some scenes recorded, but Continue says so and never pushes forward as the primary.
  const missing=(next==='edit'||next==='publish')&&facts.scenes&&!facts.allRecorded?facts.scenes.length-facts.scenes.filter(isSceneRecorded).length:0;
  if(missing>0)return {label,disabled:false,reason:missing===1?'1 scene isn\'t recorded yet':`${missing} scenes aren't recorded yet`,primary:false};
  return {label,disabled:false,primary:continueIsPrimary(tabDone(tab,facts),ownPrimary)};
 }
 
-/** The scene chips appear only where a scene is chosen to work on: Record and Edit. Board, Plan and Publish have their own scene lists or none. */
+/** The scene chips appear only where a scene is chosen to work on: Record and Edit. Idea and Publish have their own scene lists or none. */
 
 /** "5 scenes · 4:30", "1 scene · 0:45". */
 export function scenesLine(scenes:readonly Pick<VideoScene,'seconds'>[],clock:(seconds:number)=>string):string{

@@ -54,7 +54,7 @@ export const agentActionsBody = z.object({ actions: z.array(z.unknown()).min(1).
 export const agentUndoBody = z.object({ version: z.string().regex(/^cv_[0-9a-f]{12}$/) }).strict();
 
 /** The step an action is checked as. A video takes every step's actions; Research takes its own. Questions are for a person in the chat. */
-const VIDEO_TABS: readonly CompanionTab[] = ['plan', 'board', 'edit', 'publish', 'record'];
+const VIDEO_TABS: readonly CompanionTab[] = ['idea', 'edit', 'publish', 'record'];
 function tabFor(type: CompanionActionType, research: boolean): CompanionTab | undefined {
   if (type === 'ask_choice') return undefined;
   if (research) return TAB_ACTIONS.research.includes(type) ? 'research' : undefined;

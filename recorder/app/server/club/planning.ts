@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { PLAN_JOB_KINDS, type AiProvider, type JobSnapshot, type Outline, type OutlineScene, type Package, type PackageUseResult, type PlanData, type PlanJobKind, type PlanJobResult, type Video } from '../../shared/club.js';
 import { describeAngle } from '../../shared/description.js';
 import { mergePackage, type PackageGroup } from '../../shared/package-merge.js';
+import { chosenIndex, pairThumbs } from '../../shared/package-rules.js';
 import { AiError, aiLabel, runAI, type RunAIOptions } from './ai.js';
 import { boardTiles } from './board-docs.js';
 import { readBreakdown } from './breakdown.js';
@@ -68,6 +69,7 @@ export const packageShape = z
     twist: text(2000),
     titles: z.tuple([text(200), text(200), text(200)]),
     thumbnailText: text(200),
+    thumbs: z.tuple([text(200), text(200), text(200)]).optional(),
     hook: z.object({ visual: text(2000), spoken: text(2000), text: text(500) }).strict(),
     description: text(5000).optional(),
     tags: z.array(z.string().trim().min(1).max(60)).max(30).optional(),
@@ -92,8 +94,15 @@ const sceneShape = z
 /** An outline as the person edits it: 0 to 20 scenes (including deleting the last scene). The AI's own answer is held to 4 to 7 by `outlineProblems`. */
 export const outlineShape = z.object({ scenes: z.array(sceneShape).max(20) }).strict();
 
+/** Models sometimes escape a quote twice, leaving a literal `\"` in the text; the creator never means one. */
+const unescaped = (value: unknown): unknown =>
+  typeof value === 'string' ? value.replace(/\\(["'])/g, '$1')
+  : Array.isArray(value) ? value.map(unescaped)
+  : value && typeof value === 'object' ? Object.fromEntries(Object.entries(value).map(([key, item]) => [key, unescaped(item)]))
+  : value;
+
 export function parseAnswer<T>(shape: z.ZodType<T>, json: unknown, who: string, what: string): T {
-  const parsed = shape.safeParse(json);
+  const parsed = shape.safeParse(unescaped(json));
   if (!parsed.success) {
     console.error(`[club] ${what} answer rejected:`, parsed.error.issues.slice(0, 3).map((issue) => `${issue.path.join('.')}: ${issue.message}`).join('; '));
     throw new AiError('bad-answer', `${who} answered in a shape we could not read.`);
@@ -378,14 +387,22 @@ const emptyPackage = (): Package => ({ angle: '', twist: '', titles: ['', '', ''
  */
 export function usePackageText(slug: string, id: string, kind: 'hook' | 'title', line: string): Promise<PackageUseResult> {
   return store.withLock(`package:${packageFile(slug, id)}`, async () => {
-    await store.readVideo(slug, id);
+    const video = await store.readVideo(slug, id);
     const text = squash(line);
     if (!text) throw new ClubError('Add some text first.');
     if (kind === 'title' && [...text].length > 200) throw new ClubError('That title is too long.');
     const previous = await readPackage(slug, id);
     const base = previous ?? emptyPackage();
-    const others = base.titles.filter((title) => title.trim() && title.trim().toLowerCase() !== text.toLowerCase());
-    const next: Package = kind === 'hook' ? { ...base, hook: { ...base.hook, spoken: text } } : { ...base, titles: [text, ...others, '', ''].slice(0, 3) as Package['titles'] };
+    const key = (title: string) => title.trim().toLowerCase();
+    // A title moves with its own thumbnail words: the new one goes first (keeping the words it had, if it was already an option).
+    const thumbs = base.thumbs ? pairThumbs(base, video.title) : undefined;
+    const order = [text, ...base.titles.filter((title) => title.trim() && key(title) !== key(text))].slice(0, 3);
+    const titles = [...order, '', ''].slice(0, 3) as Package['titles'];
+    const thumbFor = (title: string) => { const at = base.titles.findIndex((one) => one.trim() && key(one) === key(title)); return at >= 0 && thumbs ? thumbs[at] : ''; };
+    const next: Package =
+      kind === 'hook'
+        ? { ...base, hook: { ...base.hook, spoken: text } }
+        : { ...base, titles, ...(thumbs ? { thumbs: titles.map((title) => (title ? thumbFor(title) : '')) as [string, string, string] } : {}) };
     return { package: await savePackage(slug, id, next), previous };
   });
 }
@@ -772,21 +789,31 @@ export async function runPackage(slug: string, id: string, context: JobContext, 
   const before = await snapshotOf(slug, id, 'package');
   say('Reading the idea and the research board…');
   const [channel, research, titles] = await Promise.all([loadChannelContext(slug), boardTiles(slug, id), recentTitles(slug)]);
-  const built = await buildPackagePrompt(channel, { idea: ideaFor(video), research, recentTitles: titles });
+  const earlier = await readPackage(slug, id);
+  const built = await buildPackagePrompt(channel, { idea: ideaFor(video), research, recentTitles: titles, ...(options.replace === 'thumbnail' && earlier ? { keepTitles: earlier.titles } : {}) });
   const ai = await asker(context, options);
   say('Writing the package…');
-  let pkg = parseAnswer(packageShape, (await ai.ask(built, PACKAGE_BUDGET_USD)).json, ai.who, 'package');
+  // The method writes one thumbnail text per title; the chosen title's (the first while none is chosen) is the package's thumbnail text.
+  const answered = (json: unknown) => {
+    const answer = json && typeof json === 'object' ? (json as { thumbs?: unknown; thumbnailText?: unknown; titles?: unknown }) : {};
+    if (!Array.isArray(answer.thumbs) || typeof answer.thumbnailText === 'string') return json;
+    const at = Array.isArray(answer.titles) ? answer.titles.findIndex((title) => typeof title === 'string' && title.trim() && title.trim() === video.title.trim()) : -1;
+    return { ...answer, thumbnailText: answer.thumbs[Math.max(0, at)] ?? '' };
+  };
+  let pkg = parseAnswer(packageShape, answered((await ai.ask(built, PACKAGE_BUDGET_USD)).json), ai.who, 'package');
   stopped(context);
   const problems = packageProblems(pkg);
   if (problems.length) {
     say('Fixing the titles…');
-    const second = parseAnswer(packageShape, (await ai.ask(repair(built, pkg, problems), PACKAGE_BUDGET_USD)).json, ai.who, 'package');
+    const second = parseAnswer(packageShape, answered((await ai.ask(repair(built, pkg, problems), PACKAGE_BUDGET_USD)).json), ai.who, 'package');
     stopped(context);
     if (packageProblems(second).length <= problems.length) pkg = second;
   }
   stopped(context);
   // Only what is empty takes the run's words; what the person wrote stays, even if they wrote it while the run went.
-  const value = mergePackage(await readPackage(slug, id), packageShape.parse(pkg), options.replace);
+  const merged = mergePackage(await readPackage(slug, id), packageShape.parse(pkg), options.replace);
+  // The package's thumbnail text is always the pair in use (the first while none is): what Publish and the prompts read.
+  const value = merged.thumbs ? { ...merged, thumbnailText: merged.thumbs[Math.max(0, chosenIndex(merged.titles, video.title))] } : merged;
   return { value, ...(await commitResult(slug, id, 'package', before, JSON.stringify(value, null, 2) + '\n')) };
 }
 

@@ -608,7 +608,8 @@ export function addTile(slug: string, videoId: string, input: NewTile): Promise<
 }
 
 /**
- * A video made from an idea has "The idea" on its Board (why it could work, and how it was rated), and the idea's sources as link tiles when the Board does not show them already.
+ * A video made from an idea has the idea's sources on its Board as link tiles, when the Board does not show them already. Why it could work and the
+ * ratings are the video's own and show on its Idea page, so the Board holds no copy of them.
  * Done once, the first time the Board is read: a marker keeps it from coming back after tiles are removed. A video with no idea gets nothing.
  */
 export function seedIdeaTiles(slug: string, videoId: string): Promise<void> {
@@ -622,8 +623,7 @@ export function seedIdeaTiles(slug: string, videoId: string): Promise<void> {
     const idea = video.idea;
     const pieces: NewTile[] = [];
     if (idea) {
-      const meta: TileMeta = { ...(idea.demand ? { demand: idea.demand } : {}), ...(idea.gap ? { gap: idea.gap } : {}), ...(idea.show ? { show: idea.show } : {}) };
-      if (idea.why || Object.keys(meta).length) pieces.push({ kind: 'idea', title: 'The idea', text: idea.why ?? '', meta });
+      // Why it could work and its ratings live on the video and show on its Idea page; the Board gets only the sources, never a copy of them.
       // A source the idea already put on the Board (the breakdown, the video, the post it came from) is not added again.
       for (const source of idea.sources ?? []) if (source.url && !tiles.some((tile) => tile.url === source.url)) pieces.push({ kind: 'link', url: source.url, title: source.label });
     }

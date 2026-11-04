@@ -1,11 +1,12 @@
 import {useCallback,useEffect,useMemo,useRef,useState} from 'react';
-import type {Video,VideoStage} from '../../../shared/club';
-import {ClubApiError,clubFetch,errorMessage} from '../api';
+import type {PublishingState,Video,VideoStage} from '../../../shared/club';
+import {ClubApiError,clubFetch,errorMessage,notifyVideosChanged} from '../api';
 import {MOVE_REFUSED_STATUS} from '../../../shared/club-move';
 import {deleteLater} from '../pending-delete';
 import {ClubRecorder} from '../ClubRecorder';
 import {ErrorLine} from '../ErrorLine';
-import {Plan} from '../plan/Plan';
+import {IdeaPage} from '../idea/IdeaPage';
+import {SECTION_NAME,type SectionKey} from '../idea/idea-logic';
 import {type Route,type VideoTab} from '../routes';
 import {useVideoScenes} from '../scenes';
 import {Button,EmptyState,Icon,Spinner,useToast} from '../ui';
@@ -13,20 +14,22 @@ import {usePlan} from '../usePlan';
 import {EMPTY_PACKAGE} from '../plan/plan-logic';
 import {STAGE_LABEL} from '../board';
 import {recordedCount} from '../scene-status';
-import {Board} from './Board';
 import {Companion,type CompanionEditor} from './Companion';
 import type {EditorBridge,EditorState} from '../../App';
 import {screenSummary} from './companion-logic';
-import type {CompanionChanged} from '../../../shared/companion';
+import type {CompanionAction,CompanionChanged} from '../../../shared/companion';
 import {Foot,Header} from './Frame';
 import {Publish} from './Publish';
 import {outlineSceneFor,recorderSceneFor} from './record-logic';
 import {TAKE_NOT_ADDED,takesWaiting,continueFor,nextTab,stageForContinue,TAB_LABEL,type ContinueButton,type LockFacts,type TabFacts} from './rules';
 
 /**
- * One video's page: the frame (header with the one set of step tabs, scene chips on Record and Edit, a bottom bar with Back and Continue) around the tab's own content. Board is the research canvas;
- * Plan, Record, Edit and Publish show the step screens they have until their own tasks replace them.
+ * One video's page: the frame (header with the one set of step tabs, scene chips on Record and Edit, a bottom bar with Back and Continue) around the tab's own content.
+ * Idea is the video's plan beside its board; Record, Edit and Publish show the step screens they have.
  */
+
+/** The part of "Your video" a card changes: applying it there opens that part. */
+const PART_OF_CARD:Partial<Record<CompanionAction['type'],SectionKey>>={set_idea:'idea',set_pairs:'package',use_title:'package',set_thumbnail_text:'package',set_hook:'hook',use_hook:'hook',draft_scenes:'scenes',set_scene:'scenes',set_scene_script:'scenes'};
 export function Workspace({video,tab,back,navigate,onVideo}:{video:Video;tab:VideoTab;back:Route;navigate(route:Route,options?:{replace?:boolean}):void;onVideo(video:Video):void}){
  const toast=useToast();
  const id=encodeURIComponent(video.id);
@@ -112,13 +115,6 @@ export function Workspace({video,tab,back,navigate,onVideo}:{video:Video;tab:Vid
   }catch(reason){setMoveError(errorMessage(reason,"Couldn't move the video."));}
   finally{setMoving(false);}
  };
- // A draft from the Board wrote the outline: the plan and the strip read it before Plan opens, so neither shows "No scenes yet".
- const reloadPlan=plan.reload;
- const draftedNow=useCallback(()=>{
-  clubFetch<Video>(`/videos/${id}`).then(onVideo,()=>{});
-  reloadPlan();reloadScenes();
-  navigate(tabRoute('plan'));
- },[id,onVideo,navigate,tabRoute,reloadPlan,reloadScenes]);
  // The scenes' takes change while recording and editing (a take added, pauses cut); the strip and the notice read them again when Record or Edit opens.
  useEffect(()=>{if(tab==='record'||tab==='edit')reloadScenes();},[tab,reloadScenes]);
  // The Board can write the package (Use as hook, Ask Claude): Plan and Publish read it again when they open.
@@ -126,16 +122,16 @@ export function Workspace({video,tab,back,navigate,onVideo}:{video:Video;tab:Vid
  const flushPlan=useRef(plan.flush);flushPlan.current=plan.flush;
  useEffect(()=>()=>{void flushPlan.current().catch(()=>{});},[tab]);
  const refreshPlan=plan.refresh;
- useEffect(()=>{if(tab==='plan'||tab==='publish')void refreshPlan();},[tab,refreshPlan]);
+ useEffect(()=>{if(tab==='idea'||tab==='publish')void refreshPlan();},[tab,refreshPlan]);
 
  const waiting=takesWaiting(list);
 
  // The one Continue rule (rules.ts): it names the next step, says why when it cannot go, and is the primary only once the step is done.
- // Plan's Continue sets up the recording first, so it goes by the plan's own outline and its running jobs.
+ // Idea's Continue sets up the recording first, so it goes by the plan's own outline and its running jobs.
  let nextButton:(ContinueButton&{run():void})|undefined;
- if(tab==='plan'){
+ if(tab==='idea'){
   const planScenes=plan.load.status==='ready'?(plan.outline?.scenes??[]).map(()=>({takes:[]})):undefined;
-  const rule=continueFor('plan',{...facts,scenes:planScenes},{busy:plan.busy});
+  const rule=continueFor('idea',{...facts,scenes:planScenes},{busy:plan.busy});
   if(rule)nextButton={...rule,disabled:rule.disabled||startingQuick||!!plan.continueAction?.disabled,run:()=>plan.continueAction?plan.continueAction.run():void recordWithoutPlan()};
  }else{
   // Record without a recording project shows its own primary, Start recording.
@@ -151,17 +147,25 @@ export function Workspace({video,tab,back,navigate,onVideo}:{video:Video;tab:Vid
  const onEditor=useCallback((bridge:EditorBridge|null)=>{editorRef.current=bridge;if(!bridge)setEditState(null);},[]);
  const companionEditor=useMemo<CompanionEditor|undefined>(()=>tab==='edit'?{get:()=>editorRef.current,state:editState}:undefined,[tab,editState]);
  const refresh=plan.refresh;
- const companionChanged=useCallback((changed:CompanionChanged[])=>{
+ // Idea: the part of "Your video" that is open, which the companion is told about; a card applied there opens the part it changed.
+ const [ideaPart,setIdeaPart]=useState<SectionKey|null>(null),[showPart,setShowPart]=useState<{key:SectionKey;n:number}>();
+ // Coming back to Idea opens the first unfinished part again, not the last one a card changed.
+ useEffect(()=>{if(tab!=='idea')setShowPart(undefined);},[tab]);
+ const companionChanged=useCallback((changed:CompanionChanged[],applied?:CompanionAction['type'])=>{
+  const part=applied&&PART_OF_CARD[applied];
+  if(part)setShowPart(now=>({key:part,n:(now?.n??0)+1}));
   if(changed.includes('package')||changed.includes('outline'))void refresh();
   if(changed.includes('outline')){reloadScenes();clubFetch<Video>(`/videos/${id}`).then(onVideo,()=>{});}
+  // An Idea card can set the video's title (the pair in use) or why it could work.
+  else if(changed.includes('videos')){clubFetch<Video>(`/videos/${id}`).then(onVideo,()=>{});notifyVideosChanged();}
   if(changed.includes('board'))setBoardKey(key=>key+1);
   if(changed.includes('timeline'))reloadScenes();
  },[refresh,reloadScenes,id,onVideo]);
  const scenesInPlan=plan.outline?.scenes;
  const focusIndex=focusId&&scenesInPlan?scenesInPlan.findIndex(scene=>scene.id===focusId):-1;
- const companionScene=useMemo(()=>(tab==='plan'||tab==='record')&&focusIndex>=0&&scenesInPlan?{id:focusId!,index:focusIndex,title:scenesInPlan[focusIndex].title}:undefined,[tab,focusId,focusIndex,scenesInPlan]);
+ const companionScene=useMemo(()=>(tab==='idea'||tab==='record')&&focusIndex>=0&&scenesInPlan?{id:focusId!,index:focusIndex,title:scenesInPlan[focusIndex].title}:undefined,[tab,focusId,focusIndex,scenesInPlan]);
  const recorded=list&&recordedCount(list);
- const screen=screenSummary(tab,{pkg:plan.pkg,outline:plan.outline,recorded});
+ const screen=screenSummary(tab,{pkg:plan.pkg,outline:plan.outline,recorded,part:tab==='idea'&&ideaPart?SECTION_NAME[ideaPart]:undefined});
 
 
  return <div className="ws">
@@ -169,8 +173,8 @@ export function Workspace({video,tab,back,navigate,onVideo}:{video:Video;tab:Vid
   <div className="ws-row"><div className="ws-col">
   {moveError&&<div className="ws-body" style={{flex:'none',padding:'8px 18px'}}><ErrorLine message={moveError} onRetry={()=>void continueToNext()}/></div>}
   <div className="ws-body" key={tab}>
-   {tab==='board'&&<Board key={video.id} video={video} onSelection={setBoardSelection} scenes={list} onDrafted={draftedNow} refreshKey={boardKey} navigate={navigate}/>}
-   {tab==='plan'&&<Plan video={video} plan={plan} known={list} focusId={focusId} onFocus={setFocusId} onTitle={saveTitle}
+   {tab==='idea'&&<IdeaPage video={video} plan={plan} known={list} focusId={focusId} boardKey={boardKey} navigate={navigate} onOpen={setIdeaPart} show={showPart} onFocus={setFocusId} onTitle={saveTitle} onVideo={onVideo} onSelection={setBoardSelection}
+    onBoardChanged={()=>setBoardKey(key=>key+1)}
     onTarget={seconds=>{clubFetch<Video>(`/videos/${id}`,{method:'PUT',body:{targetSeconds:seconds>0?seconds:null}}).then(onVideo,reason=>toast(errorMessage(reason,"Couldn't save the target.")));}}
     onRecordScene={sceneId=>{setFocusId(sceneId);setPickN(n=>n+1);navigate(tabRoute('record'));}}/>}
    {/* Floats over the top of the editor, so the editor keeps its full height and the timeline is not cut off. */}
@@ -185,15 +189,16 @@ export function Workspace({video,tab,back,navigate,onVideo}:{video:Video;tab:Vid
       onEditor={tab==='edit'?onEditor:undefined} onEditState={tab==='edit'?setEditState:undefined}/></div>
     </div>
     :list===undefined?<div className="flex flex-1 items-center justify-center" style={{padding:'64px 0'}}><span className="row small muted" role="status"><Spinner label="Loading the scenes" size={20}/>Loading the scenes…</span></div>
-    :<EmptyState icon={<Icon name="camera"/>} title={list.length?'Ready to record':'Record without a plan'} description={list.length?'Start the recording for these scenes.':'Start with one scene. You can plan and edit this video later.'}
-      action={list.length?<Button variant="primary" size="md" disabled={!plan.continueAction||plan.continueAction.disabled} onClick={()=>plan.continueAction?.run()}>Start recording</Button>:<Button variant="primary" size="md" disabled={startingQuick} onClick={()=>void recordWithoutPlan()}>{startingQuick?'Opening recorder…':'Record without a plan'}</Button>}/>)}
+    :<EmptyState icon={<Icon name="camera"/>} title={list.length?'Ready to record':'Record without a plan'} description={list.length?`Start the recording for these ${list.length} ${list.length===1?'scene':'scenes'}.`:'Start with one scene and talk freely. You can plan the scenes on Idea and edit this video later.'}
+      action={list.length?<Button variant="primary" size="md" disabled={!plan.continueAction||plan.continueAction.disabled} onClick={()=>plan.continueAction?.run()}>Start recording</Button>:<div className="row" style={{gap:12}}><Button variant="primary" size="md" disabled={startingQuick} onClick={()=>void recordWithoutPlan()}>{startingQuick?'Opening recorder…':'Record without a plan'}</Button>
+       <Button size="md" onClick={()=>navigate(tabRoute('idea'))}>Plan the scenes</Button></div>}/>)}
    {tab==='publish'&&scenes.state.status==='loading'&&video.stage!=='published'&&<div className="flex flex-1 items-center justify-center" style={{padding:'64px 0'}}><span className="row small muted" role="status"><Spinner label="Loading the scenes" size={20}/>Loading the scenes…</span></div>}
    {tab==='publish'&&(scenes.state.status!=='loading'||video.stage==='published')&&<Publish video={video} pkg={plan.pkg} scenes={list} onVideo={onVideo} onSettings={()=>navigate({name:'settings',section:'publishing'})} onGoTo={target=>navigate(tabRoute(target))}
     saveError={plan.saveError} onRetry={plan.retrySave} onDescription={description=>plan.editPackage({...(pkgNow.current??EMPTY_PACKAGE),description})}
     onTags={tags=>{plan.editPackage({...(pkgNow.current??EMPTY_PACKAGE),tags});void plan.flush().catch(()=>{});}}/>}
   </div>
   </div>
-  <Companion videoId={video.id} selection={tab==='board'?boardSelection:undefined} videoTitle={video.title} boardKey={boardKey} tab={tab} scene={companionScene} screen={screen} pkg={plan.pkg} outline={plan.outline} scenes={list} onChanged={companionChanged} beforeApply={plan.flush} editor={companionEditor} roomy={tab==='record'}/>
+  <Companion videoId={video.id} selection={tab==='idea'?boardSelection:undefined} videoTitle={video.title} videoWhy={video.idea?.why} part={tab==='idea'&&ideaPart?{key:ideaPart,name:SECTION_NAME[ideaPart]}:undefined} boardKey={boardKey} tab={tab} scene={companionScene} screen={screen} pkg={plan.pkg} outline={plan.outline} scenes={list} onChanged={companionChanged} beforeApply={plan.flush} editor={companionEditor} roomy={tab==='record'}/>
   </div>
   <Foot video={video} tab={tab} facts={facts} onTab={target=>void goToTab(target)} next={nextButton}/>
  </div>;

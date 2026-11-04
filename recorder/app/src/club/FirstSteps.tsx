@@ -30,7 +30,7 @@ interface Row{key:string;title:string;text:string;done:boolean;go?:()=>void}
 
 /**
  * The first-video checklist a channel sees until it has a video in production. Its rows are the real steps with the words the rest of the app uses:
- * set up, Discover, then Board, Plan, Record, Edit and Publish. Every row that has somewhere to go is a button (the five steps open once there is an idea).
+ * set up, Discover, then Idea, Record, Edit and Publish. Every row that has somewhere to go is a button (the four steps open once there is an idea).
  * Beside it, the videos working in the channel's topics to start from, with what their numbers mean said once.
  */
 export function FirstSteps({ideas,hasTopics,start,searching,error,hasBreakdown,onRetry,onBreak,onStartIdea,onOpenStep,onSettings,onFollow,onDiscover}:FirstStepsProps){
@@ -38,7 +38,7 @@ export function FirstSteps({ideas,hasTopics,start,searching,error,hasBreakdown,o
  const rows:Row[]=[
   {key:'setup',title:'Set up',text:'Your AI and your topics are saved.',done:hasTopics,go:onSettings},
   {key:'discover',title:FIND_IDEA.name,text:FIND_IDEA.does,done:ideas.length>0,go:onDiscover},
-  ...VIDEO_STEPS.map<Row>(step=>({key:step.tab,title:step.name,text:step.does,done:false,go:idea?()=>(step.tab==='board'?onStartIdea(idea):onOpenStep(idea,step.tab)):undefined})),
+  ...VIDEO_STEPS.map<Row>(step=>({key:step.tab,title:step.name,text:step.does,done:false,go:idea?()=>(step.tab==='idea'?onStartIdea(idea):onOpenStep(idea,step.tab)):undefined})),
  ];
  const current=rows.findIndex(row=>!row.done);
  return <div className="card" style={{padding:22,display:'grid',gridTemplateColumns:'1fr 1.3fr',gap:28}}>
@@ -56,7 +56,7 @@ export function FirstSteps({ideas,hasTopics,start,searching,error,hasBreakdown,o
    })}</ol>
    {idea
     ?<Button variant="primary" style={{marginTop:16}} onClick={()=>onStartIdea(idea)}><Icon name="next" size={15}/>Start planning</Button>
-    :<div className="small muted" style={{marginTop:12}}>Pick an idea and the five steps open for it.</div>}
+    :<div className="small muted" style={{marginTop:12}}>Pick an idea and the four steps open for it.</div>}
   </div>
   <div>
    {(start===null||start.length>0||searching)&&<div className="row" style={{marginBottom:10}}><b style={{fontSize:14}}>Start here: break one of these down</b></div>}

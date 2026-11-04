@@ -56,7 +56,7 @@ export function NewVideo({videos,onClose,onOpen}:{videos:readonly Video[];onClos
   catch(reason){toast(errorMessage(reason,"Couldn't add the video."));pending.current=false;setBusy(false);return;}
   try{
    await clubFetch<Video>(`/videos/${encodeURIComponent(video.id)}/move`,{body:{stage:'planning'}});
-   open({name:'video',id:video.id,tab:'board'});
+   open({name:'video',id:video.id,tab:'idea'});
   }catch{
    toast("Added to your ideas, but couldn't start planning it.");
    open({name:'videos',view:'board',new:video.id});

@@ -129,8 +129,8 @@ test('overview: progress words and the next action come from the scenes that are
  assert.equal(progressText(video('a','publishing'),all),'Publishing · ready to upload');
  assert.equal(progressText(video('a','published',{publishedAt:'2026-10-02'}),none),'Published Oct 2');
  assert.equal(progressText(video('a','ideas'),none),'Idea');
- assert.deepEqual(nextAction(video('a','ideas'),none),{label:'Start planning',tab:'board',icon:'next'});
- assert.equal(nextAction(video('a','planning'),none).label,'Draft scenes from board');assert.equal(nextAction(video('a','planning'),three).label,'Continue to recording');
+ assert.deepEqual(nextAction(video('a','ideas'),none),{label:'Start planning',tab:'idea',icon:'next'});
+ assert.equal(nextAction(video('a','planning'),none).label,'Draft the scenes');assert.equal(nextAction(video('a','planning'),three).label,'Continue to recording');
  assert.deepEqual([nextAction(video('a','recording'),three).label,nextAction(video('a','recording'),three).tab],['Record scene 2','record']);
  assert.equal(nextAction(video('a','recording'),all).label,'Continue to editing');
  assert.equal(nextAction(video('a','editing'),all).tab,'edit');assert.equal(nextAction(video('a','publishing'),all).tab,'publish');
@@ -158,7 +158,7 @@ test('Home, the board cards, the table and the strip count "scenes recorded" wit
  const still=[scene('a',[{kept:false}]),scene('b',[]),scene('c',[])];
  assert.equal(progressText(video('s','editing'),toProgress(still)),'Editing · 0 of 3 scenes recorded');
  assert.deepEqual(nextAction(video('s','editing'),toProgress(still)),{label:'Record scene 1',tab:'record',icon:'microphone'});
- assert.equal(nextAction(video('s','editing'),toProgress([])).label,'Draft scenes from board');
+ assert.equal(nextAction(video('s','editing'),toProgress([])).label,'Draft the scenes');
  assert.equal(nextAction(video('s','editing'),progress).label,'Keep editing','one scene on the timeline is something to edit');
  // Scenes added to the outline after recording: they count as not recorded, so the total grows and the count stays.
  const grown=[...hidden,scene('e',[])];
@@ -168,14 +168,14 @@ test('Home, the board cards, the table and the strip count "scenes recorded" wit
 
 test('unknown scenes are not zero scenes: only the stage is said until they are known, and a known empty outline says so',()=>{
  for(const stage of ['planning','recording','editing'] as const)assert.equal(progressText(video('a',stage),undefined),{planning:'Planning',recording:'Recording',editing:'Editing'}[stage]);
- assert.deepEqual(nextAction(video('a','planning'),undefined),{label:'Continue planning',tab:'plan',icon:'next'});
+ assert.deepEqual(nextAction(video('a','planning'),undefined),{label:'Continue planning',tab:'idea',icon:'next'});
  assert.deepEqual(nextAction(video('a','recording'),undefined),{label:'Continue recording',tab:'record',icon:'microphone'});
  assert.equal(nextAction(video('a','recording'),undefined).label.includes('editing'),false,'no claim that the scenes are all recorded');
  assert.equal(nextAction(video('a','editing'),undefined).label,'Keep editing');assert.equal(nextAction(video('a','ideas'),undefined).label,'Start planning');
  assert.equal(nextAction(video('a','published',{views:5}),undefined).label,'5 views');
  const empty=sceneProgress(0,0);
- assert.equal(nextAction(video('a','planning'),empty).label,'Draft scenes from board');
- assert.equal(nextAction(video('a','recording'),empty).label,'Draft scenes from board','a known empty outline has nothing to record');
+ assert.equal(nextAction(video('a','planning'),empty).label,'Draft the scenes');
+ assert.equal(nextAction(video('a','recording'),empty).label,'Draft the scenes','a known empty outline has nothing to record');
  assert.equal(progressText(video('a','planning'),empty),'Planning · no scenes yet');
 });
 

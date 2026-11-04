@@ -1,12 +1,12 @@
 import {mountUI,button} from '../test-dom';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {act,createElement} from 'react';
+import {act,createElement,useState} from 'react';
 import type {AiStatus,Outline,Video,Workspace} from '../../shared/club';
 import {FakeEventSource,installFetch} from './test-fakes';
 import {rememberAiStatus} from './ai-status';
 const {WelcomeScreen}=await import('./screens/WelcomeScreen');
-const {Plan}=await import('./plan/Plan');
+const {IdeaPage}=await import('./idea/IdeaPage');
 const {usePlan}=await import('./usePlan');
 const {NewVideo}=await import('./shell/NewVideo');
 const {Companion}=await import('./workspace/Companion');
@@ -62,7 +62,8 @@ test('no AI: finish fresh setup without signing in or starting voice and discove
 
 function Handmade(){
  const plan=usePlan(video,{onVideo(){},onRecord(){}});
- return createElement('div',null,createElement(Plan,{video,plan,known:[],focusId:null,onFocus(){},onTitle(){},onTarget(){},onRecordScene(){}}),createElement('button',{disabled:!plan.continueAction||plan.continueAction.disabled,onClick:()=>plan.continueAction?.run()},'Start planned recording'));
+ const [focusId,setFocusId]=useState<string|null>(null);
+ return createElement('div',null,createElement(IdeaPage,{video,plan,known:[],focusId,boardKey:0,navigate(){},onBoardChanged(){},onFocus:setFocusId,onTitle(){},onTarget(){},onRecordScene(){},onVideo(){}}),createElement('button',{disabled:!plan.continueAction||plan.continueAction.disabled,onClick:()=>plan.continueAction?.run()},'Start planned recording'));
 }
 test('no AI: add the first scene, edit its title, talking points and empty script, then start planned recording',async()=>{
  rememberAiStatus(off);FakeEventSource.install();let outline:Outline|null=null;
@@ -79,9 +80,9 @@ test('no AI: add the first scene, edit its title, talking points and empty scrip
  const edit=async(label:string,text:string)=>{const el=ui.container.querySelector<HTMLElement>(`[role="textbox"][aria-label="${label}"]`)!;assert.ok(el);await act(async()=>{el.innerText=text;el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('focusout',{bubbles:true}));});await flush();};
  try{
   await flush();const c=ui.container;
-  assert.equal(button(c,'Draft scenes from the board').disabled,true);
-  assert.equal(button(c,'Draft scenes from the board').title,'Connect an AI in Settings');
-  await click(c,'Add scene');assert.ok(c.querySelector('[aria-label="Scene 1"]'));
+  assert.equal(button(c,'Fill the empty parts with Claude').disabled,true);
+  assert.equal(button(c,'Fill the empty parts with Claude').title,'Connect an AI in Settings');
+  await click(c,'Add a scene');assert.ok(c.querySelector('[aria-label="Scene 1"]'));
   await edit('Scene title','My introduction');await edit('Talking point','Explain the demo');await edit('Script','Here is the demo I made.');
   await act(async()=>{await new Promise(resolve=>setTimeout(resolve,550));});
   const saved=outline as Outline|null;assert.ok(saved);
@@ -122,9 +123,9 @@ test('no AI: Quick recording creates a video and opens Record with only local wr
 
 test('no AI: Companion preserves history and applied Undo, and its rail can reopen it',async()=>{
  rememberAiStatus(off);localStorage.setItem('cc.companion.open','1');
- const message={id:'m1',role:'assistant',text:'Saved answer',tab:'plan',cards:[{action:{type:'use_title',text:'Saved title'},state:'applied',version:'v1',result:'Title changed'}]};
+ const message={id:'m1',role:'assistant',text:'Saved answer',tab:'idea',cards:[{action:{type:'use_title',text:'Saved title'},state:'applied',version:'v1',result:'Title changed'}]};
  const fake=installFetch(call=>call.path==='/ai/status'?{body:off}:call.path.endsWith('/companion')?{body:{messages:[message]}}:call.path.endsWith('/undo')?{body:{message:{...message,cards:[]},changed:[]}}:undefined);
- const ui=await mountUI(createElement(Companion,{videoId:'v1',tab:'plan',screen:'Plan',pkg:null,outline:null,onChanged(){}}));
+ const ui=await mountUI(createElement(Companion,{videoId:'v1',tab:'idea',screen:'Idea',pkg:null,outline:null,onChanged(){}}));
  try{
   await flush();const c=ui.container;
   assert.match(c.textContent??'',/Saved answer/);

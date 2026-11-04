@@ -54,5 +54,5 @@ test('the prompt for an agent names the video, its id and where to start on the 
  assert.match(text,/"Five skills" \(video_id: v_1\)/);
  assert.match(text,/get_guides and get_channel, then get_video/);
  assert.match(text,/get_project_overview and get_transcript/);
- assert.match(agentPrompt({id:'v_1',title:'x'},'board'),/get_board/);
+ assert.match(agentPrompt({id:'v_1',title:'x'},'idea'),/get_board/);
 });

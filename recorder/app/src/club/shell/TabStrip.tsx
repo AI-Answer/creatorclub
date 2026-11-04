@@ -28,7 +28,7 @@ function HelpPopover({onHelp}:{onHelp(topic?:string):void}){
   {open&&<><div className="help-scrim" aria-hidden/>
    <div ref={panel} className="help-pop" role="dialog" aria-label="Need help?">
     <h2>Need help?</h2>
-    <button type="button" className="help-card" onClick={()=>choose()}><b><Icon name="help" size={16}/>How Creator Compiler works</b><span>The five steps, the words we use and where everything lives.</span></button>
+    <button type="button" className="help-card" onClick={()=>choose()}><b><Icon name="help" size={16}/>How Creator Compiler works</b><span>The four steps, the words we use and where everything lives.</span></button>
     <button type="button" className="help-card" onClick={()=>choose('shortcuts')}><b><Icon name="keyboard" size={16}/>Keyboard shortcuts</b><span>Every shortcut in one list.</span></button>
    </div></>}
  </>;

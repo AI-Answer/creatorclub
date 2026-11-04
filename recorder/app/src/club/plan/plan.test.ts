@@ -6,9 +6,7 @@ import assert from 'node:assert/strict';
 import {act,createElement} from 'react';
 import type {Outline,Package,Video} from '../../../shared/club';
 import {FakeEventSource,installFetch,type FakeCall,type FakeReply} from '../test-fakes';
-const {PackageColumn,usePackageWrite}=await import('./PackageColumn');
 const {ScenesColumn}=await import('./ScenesColumn');
-const {Plan}=await import('./Plan');
 const {usePlan}=await import('../usePlan');
 const {ToastProvider}=await import('../ui');
 
@@ -24,76 +22,6 @@ const menuItem=(container:Element,text:string)=>[...container.querySelectorAll('
 const empty:Package={angle:'',twist:'',titles:['','',''],thumbnailText:'',hook:{visual:'',spoken:'',text:''}};
 const full:Package={demand:{level:'high',note:'many ask'},angle:'a',twist:'t',titles:['One','Two','Three'],thumbnailText:'THUMB',hook:{visual:'v',spoken:'s',text:'x'}};
 
-test('Package column: titles as a list with the video title ticked, thumbnail text and the hook line first, the rest one click away under More; no ratings stay Not rated; picking a level saves only that one',async()=>{
- const seen:Package[]=[],picked:string[]=[];
- const ui=await mountUI(createElement(PackageColumn,{videoId:'v1',videoTitle:'Two',pkg:{...empty,titles:['One','Two',''],hook:{visual:'',spoken:'A hook',text:''}},running:false,onEdit:next=>seen.push(next),onPickTitle:title=>picked.push(title)}));
- try{
-  const c=ui.container;
-  assert.equal(c.querySelectorAll('.dgs-row').length,0,'why it gets watched is folded');
-  assert.equal(c.querySelectorAll('.hook-row').length,0,'what the hook shows is folded');
-  assert.ok(c.textContent?.includes('A hook'),'the spoken hook is shown');
-  const more=c.querySelector('.pkg-more')!;assert.equal(more.getAttribute('aria-expanded'),'false');
-  const label=more.textContent;
-  await press(more);assert.equal(more.getAttribute('aria-expanded'),'true');
-  assert.equal(more.textContent,label,'the disclosure keeps its name; its state is aria-expanded');
-  assert.equal(c.querySelectorAll('.hook-row').length,2);
-  assert.equal(c.querySelectorAll('.dgs-row')[0].textContent?.includes('Not rated'),true);
-  assert.equal(c.querySelectorAll('.dgs-row [role="textbox"]').length,0,'no note to write for a rating that was never given');
-  await press(c.querySelector('[role="radiogroup"][aria-label="Demand"] button'));
-  assert.deepEqual(seen.at(-1)?.demand,{level:'high',note:''});assert.equal('gap' in seen.at(-1)!,false);
-  // The titles: only the written ones, no radio buttons and no counters; the video's title is ticked, the others offer Use this title.
-  const rows=[...c.querySelectorAll('.tline:not(.own)')];
-  assert.deepEqual(rows.map(row=>row.querySelector('[role="textbox"]')!.textContent),['One','Two']);
-  assert.deepEqual(rows.map(row=>row.classList.contains('on')),[false,true]);
-  assert.equal(c.querySelectorAll('.tlist [role="radio"],.tlist .radio').length,0,'no radio buttons on the titles');
-  assert.doesNotMatch(c.textContent!,/\dw · \d+\/60/);
-  assert.equal(buttonNamed(rows[1] as Element,'Use this title'),null,'the chosen title offers nothing');
-  await press(buttonNamed(rows[0] as Element,'Use this title'));assert.deepEqual(picked,['One']);
-  // The empty third slot is behind Add a title.
-  await press(buttonNamed(c,'Add a title'));
-  assert.equal(c.querySelectorAll('.tline:not(.own)').length,3);
-  assert.equal(c.querySelector('.prev-thumb'),null,'no made-up thumbnail without a real picture');
- }finally{await ui.close();}
-});
-
-test('Package column: empty, it is one sentence and one action, and "Write it myself" opens the fields; a long title says why in words',async()=>{
- const writes:Array<string|undefined>=[];
- const props={videoId:'v1',videoTitle:'X',pkg:{...empty,demand:{level:'high' as const,note:'many'}},running:false,onEdit(){},onPickTitle(){},onWrite:(group?:string)=>{writes.push(group);}};
- const ui=await mountUI(createElement(PackageColumn,props));
- try{
-  const c=ui.container;
-  assert.equal(c.querySelectorAll('[role="textbox"]').length,0,'no empty fields');
-  assert.equal(c.querySelectorAll('.pkg-empty p').length,1);
-  assert.deepEqual([...c.querySelectorAll('button')].map(b=>b.textContent?.trim()),['Write all three with Claude','Write it myself']);
-  assert.equal(c.querySelector('.btn.primary'),null,'not a second black primary beside Draft scenes from the board');
-  await press(buttonNamed(c,'Write all three with Claude'));assert.deepEqual(writes,[undefined]);
-  await ui.render(createElement(PackageColumn,{...props,running:true}));
-  assert.ok(c.querySelector('[aria-label="Writing the title, thumbnail and hook"]'),'a skeleton while the first package is written');
-  await ui.render(createElement(PackageColumn,props));
-  await press(buttonNamed(c,'Write it myself'));
-  assert.ok(c.querySelector('.tline:not(.own) [role="textbox"]'),'a first title to type');
-  assert.ok(buttonNamed(c,'Write with Claude'),'the one Write with Claude menu sits in the heading');
-  await ui.render(createElement(PackageColumn,{...props,pkg:{...empty,titles:['A title that goes on and on well past what a search result shows','Short','']}}));
-  assert.match(c.querySelector('.tline:not(.own)')!.textContent!,/64 characters, too long for a search result/);
-  assert.equal([...c.querySelectorAll('.tline:not(.own)')][1].textContent?.includes('too long'),false);
- }finally{await ui.close();}
-});
-
-test('Writing the package is a plain ask: each group asks for itself, with nothing to confirm',async()=>{
- const writes:Array<string|undefined>=[];
- function Writer({pkg}:{pkg:Package|null}){
-  const w=usePackageWrite(pkg,group=>{writes.push(group);});
-  return createElement('div',null,createElement('button',{onClick:()=>w.write('titles')},'Write titles'),createElement('button',{onClick:()=>w.write('hook')},'Write the hook'),createElement('button',{onClick:()=>w.write()},'Write all'));
- }
- const ui=await mountUI(createElement(Writer,{pkg:full}));
- try{
-  const c=ui.container;
-  await press(buttonNamed(c,'Write titles'));await press(buttonNamed(c,'Write the hook'));await press(buttonNamed(c,'Write all'));
-  assert.deepEqual(writes,['titles','hook',undefined]);
-  assert.equal(c.ownerDocument.querySelector('[role="dialog"]'),null,'nothing is replaced by asking, so there is nothing to confirm');
- }finally{await ui.close();}
-});
-
 const scene=(id:string,title:string,extra:object={})=>({id,title,talkingPoints:[`${title} point`],show:`Show ${title}`,seconds:60,...extra});
 const three:Outline={scenes:[scene('a','First'),scene('b','Second',{script:'Second words'}),scene('c','Third')]};
 
@@ -106,6 +34,8 @@ const withToasts=(props:Parameters<typeof ScenesColumn>[0])=>createElement(Toast
 
 const rows=(c:Element)=>[...c.querySelectorAll<HTMLButtonElement>('.scene-open')];
 const openScene=async(c:Element,title:string)=>press(rows(c).find(row=>row.textContent?.includes(title))??null);
+
+const video:Video={id:'v1',title:'Two',stage:'planning',order:1,createdAt:'',updatedAt:'',stageDates:{},planning:{research:true,package:false,outline:false}};
 
 test('Scenes column: collapsed rows with number, title and length; one open at a time; Alt+arrows reorder; remove has Undo; add opens the new scene',async()=>{
  const {props,edits}=scenesProps();const focused:string[]=[];props.onFocus=id=>focused.push(id);
@@ -185,8 +115,8 @@ test('Scenes column: no scenes is one sentence and Draft scenes from the board, 
   await ui.render(withToasts({...props,outline:three}));
   assert.equal(buttonNamed(c,'Draft scenes from the board'),null);
   await press(buttonNamed(c,'Write with Claude'));
-  assert.deepEqual([...c.ownerDocument.querySelectorAll('[role="menuitem"]')].map(item=>item.textContent?.trim()),['Write the full script','Redraft the scenes']);
-  await press(menuItem(c.ownerDocument.body,'Redraft the scenes'));
+  assert.deepEqual([...c.ownerDocument.querySelectorAll('[role="menuitem"]')].map(item=>item.textContent?.trim()),['Write the full script','Rewrite the scenes']);
+  await press(menuItem(c.ownerDocument.body,'Rewrite the scenes'));
   assert.equal(drafted,1,'asked first');
   assert.match(c.ownerDocument.querySelector('[role="dialog"]')!.textContent!,/Replace the scenes\?/);
   await press(buttonNamed(c.ownerDocument.body,'Replace 3 scenes'));assert.equal(drafted,2);
@@ -219,115 +149,6 @@ test('Scenes column: Write script is in the scene menu, a scene being written sh
   assert.equal(c.querySelectorAll('.script .shimmer').length,1);
   assert.ok(scrolled>0,'the card is scrolled into view');
  }finally{HTMLElement.prototype.scrollIntoView=original;await ui.close();}
-});
-
-// ---- the tab with its hook, against a scripted server
-
-const video:Video={id:'v1',title:'Two',stage:'planning',order:1,createdAt:'',updatedAt:'',stageDates:{},planning:{research:true,package:false,outline:false}};
-function Harness({events}:{events:string[]}){
- const plan=usePlan(video,{onVideo:()=>events.push('video'),onRecord:()=>events.push('record')});
- return createElement(ToastProvider,null,createElement(Plan,{video,plan,known:undefined,focusId:null,onFocus(){},onTitle:title=>events.push(`title:${title}`),onTarget:seconds=>events.push(`target:${seconds}`),onRecordScene(){}}),
-  createElement('button',{onClick:()=>plan.continueAction?.run()},'Continue now'));
-}
-async function withPlan(reply:(call:FakeCall)=>FakeReply|Promise<FakeReply>,run:(c:Element,calls:FakeCall[],events:string[])=>Promise<void>){
- FakeEventSource.install();const server=installFetch(reply);const events:string[]=[];
- const ui=await mountUI(createElement(Harness,{events}));
- try{await flush();await run(ui.container,server.calls,events);}finally{await ui.close();server.restore();}
-}
-const planReply=(plan:object)=>(call:FakeCall):FakeReply=>{if(call.method==='GET'&&call.path==='/videos/v1/plan')return {body:{running:{},ready:{},...plan}};};
-
-test('Plan tab: each Write with Claude item asks the chat for just that part, and starts no job',async()=>{
- const asked:string[]=[];const hear=(event:Event)=>{asked.push((event as CustomEvent<{text:string}>).detail.text);};
- window.addEventListener(ASK_CLAUDE,hear);
- try{
-  await withPlan(planReply({package:full,outline:null}),async(c,calls)=>{
-   await press(buttonNamed(c,'Write with Claude'));await press(menuItem(c.ownerDocument.body,'Write titles again'));
-   await press(buttonNamed(c,'Write with Claude'));await press(menuItem(c.ownerDocument.body,'Write thumbnail text again'));
-   await press(buttonNamed(c,'Write with Claude'));await press(menuItem(c.ownerDocument.body,'Write the hook again'));
-   assert.deepEqual(asked,['Write three title options for this video.','Write the thumbnail text for this video: two to five words about one real thing, readable on a phone.','Write the hook for this video: the first line I say, and what it shows.']);
-   assert.equal(calls.some(call=>call.method==='POST'),false,'no job was started');
-   assert.equal(c.ownerDocument.querySelector('[role="dialog"]'),null,'nothing to confirm: Claude only proposes');
-  });
- }finally{window.removeEventListener(ASK_CLAUDE,hear);}
-});
-
-
-test('Plan tab: every field saves as it is typed, half a second after the last keystroke, with Saving… then Saved; a reload shows it',async()=>{
- let stored:Package={...full,hook:{visual:'v',spoken:'',text:'x'}};
- const reply=(call:FakeCall):FakeReply=>{
-  if(call.method==='PUT'&&call.path==='/videos/v1/package'){const patch=call.body as Partial<Package>;stored={...stored,...patch,hook:{...stored.hook,...(patch.hook??{})}};return {body:stored};}
-  return planReply({package:stored,outline:null})(call);
- };
- const type=async(element:Element|null,value:string)=>{assert.ok(element);await act(async()=>{(element as HTMLElement).innerText=value;element!.dispatchEvent(new Event('input',{bubbles:true}));});};
- await withPlan(reply,async(c,calls)=>{
-  assert.equal(c.querySelector('.pkg-save'),null,'nothing to say before a change');
-  await type(c.querySelector('.pkg .ed[data-ph="The first line you say"]'),'You never opened this menu.');
-  assert.equal(c.querySelector('.pkg-save')?.textContent,'Saving…');
-  assert.equal(calls.filter(call=>call.method==='PUT').length,0,'not on every keystroke');
-  await act(async()=>{await new Promise(resolve=>setTimeout(resolve,650));});await flush();
-  assert.deepEqual(calls.filter(call=>call.method==='PUT').map(call=>call.body),[{hook:{spoken:'You never opened this menu.'}}],'saved without leaving the field');
-  assert.equal(c.querySelector('.pkg-save')?.textContent,'Saved');
- });
- await withPlan(reply,async c=>{
-  assert.ok(c.textContent!.includes('You never opened this menu.'),'a reload shows what was typed');
- });
-});
-
-test('Package column: the video title is always the ticked one; when it is not an option it shows as its own row, and using an option keeps it as one',async()=>{
- const seen:Package[]=[],picked:string[]=[];
- const ui=await mountUI(createElement(PackageColumn,{videoId:'v1',videoTitle:'My own title',pkg:{...empty,titles:['One','Two','']},running:false,onEdit:next=>seen.push(next),onPickTitle:title=>picked.push(title)}));
- try{
-  const c=ui.container;
-  const own=c.querySelector('.tline.own')!;
-  assert.ok(own.classList.contains('on'),'there is always a selection');
-  assert.equal(own.querySelector('[role="textbox"]')!.textContent,'My own title');
-  assert.match(own.textContent!,/Your title/);
-  await press(buttonNamed(c.querySelectorAll('.tline:not(.own)')[0] as Element,'Use this title'));
-  assert.deepEqual(seen.at(-1)?.titles,['One','Two','My own title'],'the title it replaces stays an option');
-  assert.deepEqual(picked,['One']);
- }finally{await ui.close();}
-});
-
-test('Plan tab: a scene script is saved on its own route as soon as it is edited, the outline first, and a failure says one sentence with Try again',async()=>{
- const outline:Outline={scenes:[scene('a','First',{script:'Old words'}),scene('b','Second')],scriptState:'partial'};
- let fail=true;
- await withPlan(call=>{
-  if(call.method==='PUT'&&call.path==='/videos/v1/script/scene/a'){
-   if(fail)return {status:500,body:{error:'The script could not be saved.'}};
-   const body=call.body as {text:string};outline.scenes[0].script=body.text;return {body:{outline}};
-  }
-  return planReply({package:null,outline})(call);
- },async(c,calls)=>{
-  await openScene(c,'First');
-  await edit(c.querySelector('.script [role="textbox"]'),'New words');
-  await flush();
-  assert.deepEqual(calls.filter(call=>call.method==='PUT').map(call=>[call.path,call.body]),[['/videos/v1/script/scene/a',{text:'New words'}]]);
-  assert.match(c.querySelector('[role="alert"]')!.textContent!,/The script could not be saved/);
-  fail=false;await press(buttonNamed(c,'Try again'));
-  assert.equal(c.querySelector('[role="alert"]'),null);
-  assert.equal(c.querySelector('.script [role="textbox"]')!.textContent,'New words');
- });
-});
-
-test('Plan tab: Write script asks the chat (for one scene, or for every scene), and Continue to recording syncs and opens Record',async()=>{
- const outline:Outline={scenes:[scene('a','First'),scene('b','Second')]};
- const asked:string[]=[];const hear=(event:Event)=>{asked.push((event as CustomEvent<{text:string}>).detail.text);};
- window.addEventListener(ASK_CLAUDE,hear);
- try{
-  await withPlan(call=>{
-   if(call.method==='POST'&&call.path==='/videos/v1/recorder')return {body:{...video,recorderProjectId:'p1'}};
-   return planReply({package:null,outline})(call);
-  },async(c,calls,events)=>{
-   await openScene(c,'Second');
-   await press(c.querySelector('[aria-label="Scene options"]'));await press(menuItem(c,'Write script for this scene'));
-   await press(buttonNamed(c,'Write with Claude'));await press(menuItem(c,'Write the full script'));
-   assert.deepEqual(asked,['Write the script for scene 2, “Second”.','Write the script for every scene, one card per scene.']);
-   assert.equal(calls.some(call=>call.path==='/videos/v1/script'&&call.method==='POST'),false,'no script job is started behind the scenes');
-   await press(buttonNamed(c,'Continue now'));
-   assert.ok(calls.some(call=>call.method==='POST'&&call.path==='/videos/v1/recorder'));
-   assert.deepEqual(events,['video','record']);
-  });
- }finally{window.removeEventListener(ASK_CLAUDE,hear);}
 });
 
 test('Plan: a package written elsewhere (Use as hook) shows when Plan opens again, and the next edit sends only the field that was edited',async()=>{
@@ -399,5 +220,23 @@ test('Scenes column: what is left to decide is a folded list on the open scene, 
   assert.ok(!c.querySelector('.pts')!.textContent!.includes('which tool'),'not among the talking points');
   await press(buttonNamed(box,'Mark decided'));
   assert.deepEqual(edits.at(-1)?.scenes[0].decide,['which features']);
+ }finally{await ui.close();}
+});
+
+test('Scenes column: a board card dropped on a scene becomes its last talking point; anything else dropped is ignored',async()=>{
+ const {CARD_DRAG}=await import('../idea/idea-logic');
+ const {props,edits}=scenesProps({acceptDrops:true});
+ const ui=await mountUI(withToasts(props));
+ const drop=async(target:Element,type:string,text:string)=>{
+  const data={types:[type],getData:(asked:string)=>asked===type?text:'',dropEffect:'none'};
+  for(const name of ['dragover','drop']){const event=new Event(name,{bubbles:true,cancelable:true});Object.defineProperty(event,'dataTransfer',{value:data});await act(async()=>{target.dispatchEvent(event);});}
+ };
+ try{
+  const second=ui.container.querySelectorAll('.card.scene')[1];
+  await drop(second,CARD_DRAG,'A real video about pauses');
+  assert.deepEqual(edits.at(-1)?.scenes[1].talkingPoints,['Second point','A real video about pauses']);
+  const count=edits.length;
+  await drop(second,'text/plain','Some text from elsewhere');
+  assert.equal(edits.length,count,'only a board card counts');
  }finally{await ui.close();}
 });

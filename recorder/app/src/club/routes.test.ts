@@ -46,7 +46,9 @@ test('old links land on the new screens, with what they carried',()=>{
   ['#/onboarding',{name:'welcome'},'#/welcome'],
  ];
  for(const [hash,route,canonical] of old){assert.deepEqual(parseRoute(hash),route,hash);assert.equal(routeHash(parseRoute(hash)),canonical,hash);}
- for(const step of ['plan','record','edit','publish'] as const)assert.deepEqual(parseRoute(`#/video/v-1/${step}`),{name:'video',id:'v-1',tab:step});
+ for(const step of ['idea','record','edit','publish'] as const)assert.deepEqual(parseRoute(`#/video/v-1/${step}`),{name:'video',id:'v-1',tab:step});
+ // The old Board and Plan tabs are Idea, so an old link still opens the right page.
+ for(const old of ['board','plan'])assert.deepEqual(parseRoute(`#/video/v-1/${old}`),{name:'video',id:'v-1',tab:'idea'});
  assert.deepEqual(parseRoute('#/video/v-1'),{name:'video',id:'v-1'},'a video without a tab opens on the tab for its stage');
 });
 
@@ -61,22 +63,22 @@ test('Videos and Discover keep only the query they understand',()=>{
 });
 
 test('a video opens on the tab for its stage',()=>{
- assert.deepEqual(VIDEO_STAGES.map(defaultTab),['board','board','record','edit','publish','publish']);
+ assert.deepEqual(VIDEO_STAGES.map(defaultTab),['idea','idea','record','edit','publish','publish']);
 });
 
 test('the sidebar folds on its own on every step of a video, and nowhere else',()=>{
- for(const tab of ['board','plan','record','edit','publish'] as const)assert.equal(autoCollapses({name:'video',id:'v',tab}),true,tab);
+ for(const tab of ['idea','record','edit','publish'] as const)assert.equal(autoCollapses({name:'video',id:'v',tab}),true,tab);
  assert.equal(autoCollapses({name:'video',id:'v'}),true);
  assert.equal(autoCollapses({name:'videos',view:'board'}),false);
 });
 
 test('the route path ignores the query, so opening an idea or picking a chip does not reset the page',()=>{
  assert.equal(routePath({name:'videos',view:'board',open:'v-1'}),'#/videos');assert.equal(routePath({name:'videos',view:'board'}),'#/videos');
- assert.equal(routePath({name:'discover',show:'x'}),'#/discover');assert.equal(routePath({name:'video',id:'v',tab:'plan'}),'#/video/v/plan');
+ assert.equal(routePath({name:'discover',show:'x'}),'#/discover');assert.equal(routePath({name:'video',id:'v',tab:'idea'}),'#/video/v/idea');
 });
 
 test('a video goes back to the screen it was opened from, whatever tabs or videos it moved through',()=>{
- const ideas:Route={name:'videos',view:'board',group:'later'},overview:Route={name:'home'},one:Route={name:'video',id:'a',tab:'board'},two:Route={name:'video',id:'a',tab:'plan'},other:Route={name:'video',id:'b'};
+ const ideas:Route={name:'videos',view:'board',group:'later'},overview:Route={name:'home'},one:Route={name:'video',id:'a',tab:'idea'},two:Route={name:'video',id:'a',tab:'record'},other:Route={name:'video',id:'b'};
  assert.deepEqual(videoOrigin(undefined,ideas,one),ideas,'opened from Videos');
  assert.deepEqual(videoOrigin(ideas,one,two),ideas,'a tab change keeps it');
  assert.deepEqual(videoOrigin(ideas,two,other),ideas,'so does another video from the sidebar');

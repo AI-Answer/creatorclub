@@ -32,19 +32,18 @@ test('the shell routes through Videos, video steps and settings, and keeps the p
   assert.ok(ui.container.querySelector('.tabstrip .ts-tab.on.home'),'Videos is part of the Home tab');
   assert.equal(ui.container.querySelector('[role="dialog"]'),null,'a returning visitor sees no dialog');
   await act(async()=>[...ui.container.querySelectorAll<HTMLElement>('[data-card]')].find(card=>/Hidden features/.test(card.textContent||''))!.click());await flush();
-  assert.equal(window.location.hash,'#/video/v1/board');assert.equal(ui.container.querySelector('nav[aria-label="Main"]'),null,'a video is a tab of its own, without the Home nav');
+  assert.equal(window.location.hash,'#/video/v1/idea');assert.equal(ui.container.querySelector('nav[aria-label="Main"]'),null,'a video is a tab of its own, without the Home nav');
   assert.match(ui.container.querySelector('.ts-tab.on .ts-label')!.textContent||'',/Hidden features/,'the video opens as a tab');
   assert.match(ui.container.querySelector('.ws-title')!.textContent||'',/Hidden features in Claude Code/);
   assert.ok(server.calls.some(call=>call.path==='/videos/v1/opened'&&call.method==='POST'),'opening a video is noted for Recent videos');
-  await act(async()=>[...ui.container.querySelectorAll<HTMLElement>('.ws-step')].find(a=>a.textContent==='Plan')!.click());
-  assert.equal(ui.container.querySelector('.ws-steps [aria-current="page"]')!.textContent,'Plan');
-  assert.equal(ui.container.querySelector('.strip'),null,'Plan has no scene chips');
-  assert.ok(ui.container.querySelector('.pkg')&&ui.container.querySelector('.scn'),'Plan opens with the package and the scenes side by side');
+  assert.equal(ui.container.querySelector('.ws-steps [aria-current="page"]')!.textContent,'Idea');
+  assert.equal(ui.container.querySelector('.strip'),null,'Idea has no scene chips');
+  assert.ok(ui.container.querySelector('.idea-doc')&&ui.container.querySelector('.idea-list'),'Idea opens on its page, with the board beside it as a list');
   await act(async()=>[...ui.container.querySelectorAll<HTMLElement>('.ws-step')].find(a=>a.textContent==='Record')!.click());
   assert.equal(window.location.hash,'#/video/v1/record');
   assert.equal(ui.container.querySelector('.strip'),null,'Record has Borumi\'s scene cards, no chips above them');
-  assert.ok([...ui.container.querySelectorAll('button')].some(b=>b.textContent==='Back to Plan'),'Back to the previous step, as in Borumi');
-  await act(async()=>[...ui.container.querySelectorAll<HTMLElement>('.ws-step')].find(a=>a.textContent==='Plan')!.click());
+  assert.ok([...ui.container.querySelectorAll('button')].some(b=>b.textContent==='Back to Idea'),'Back to the previous step, as in Borumi');
+  await act(async()=>[...ui.container.querySelectorAll<HTMLElement>('.ws-step')].find(a=>a.textContent==='Idea')!.click());
   await act(async()=>[...ui.container.querySelectorAll<HTMLElement>('.ws-step')].find(a=>a.textContent==='Publish')!.click());
   assert.equal(window.location.hash,'#/video/v1/publish');assert.ok(![...ui.container.querySelectorAll('button')].some(b=>b.textContent?.startsWith('Continue')),'no continue button after Publish');
   await act(async()=>ui.container.querySelector<HTMLElement>('.ts-tab.on .ts-close')!.click());await flush();
@@ -54,7 +53,7 @@ test('the shell routes through Videos, video steps and settings, and keeps the p
   assert.equal(window.location.hash,'#/settings');assert.equal(ui.container.querySelector('.tabstrip [aria-current="page"]')!.getAttribute('aria-label'),'Settings');
   window.location.hash='#/video/v1/edit';await act(async()=>{window.dispatchEvent(new Event('hashchange'));});await flush();
   assert.equal(ui.container.querySelector('.ws-steps [aria-current="page"]')!.textContent,'Edit','a hash change from outside moves the shell');
-  window.location.hash='#/video/gone/plan';await act(async()=>{window.dispatchEvent(new Event('hashchange'));});await flush();
+  window.location.hash='#/video/gone/idea';await act(async()=>{window.dispatchEvent(new Event('hashchange'));});await flush();
   assert.match(ui.container.textContent||'',/Video not found/);
  }finally{await ui.close();server.restore();window.location.hash='';}
 });

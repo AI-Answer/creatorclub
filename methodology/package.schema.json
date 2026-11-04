@@ -80,8 +80,13 @@
       "minItems": 3,
       "maxItems": 3
     },
-    "thumbnailText": {
-      "type": "string"
+    "thumbs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 3,
+      "maxItems": 3
     },
     "hook": {
       "type": "object",
@@ -111,7 +116,7 @@
     "angle",
     "twist",
     "titles",
-    "thumbnailText",
+    "thumbs",
     "hook"
   ],
   "additionalProperties": false

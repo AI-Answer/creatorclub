@@ -87,7 +87,8 @@ const contextShape = z
 /** Saved text is capped here, so what is saved always reads back. */
 const TEXT_MAX = { user: 20_000, assistant: 40_000 };
 const capped = (max: number) => z.string().transform((text) => text.slice(0, max));
-const tabShape = z.enum(COMPANION_TABS).catch('board');
+/** Board and Plan were two steps before they became Idea: their saved messages read as Idea, so the two conversations are one. */
+const tabShape = z.preprocess((tab) => (tab === 'board' || tab === 'plan' ? 'idea' : tab), z.enum(COMPANION_TABS)).catch('idea');
 
 /** Cards are read leniently: one that is not readable is left out, never its message. The action is checked again on Apply. */
 const cardShape = z
@@ -118,7 +119,7 @@ const readCards = (cards: unknown) =>
     return parsed.success ? [parsed.data as unknown as CompanionCard] : [];
   });
 const messageShape = z.union([
-  z.object({ id: z.string().max(40), role: z.literal('user'), text: capped(TEXT_MAX.user), at: z.string().max(40).optional().catch(undefined), context: contextShape.partial().extend({ tab: tabShape }).catch({ tab: 'board' }) }).strip(),
+  z.object({ id: z.string().max(40), role: z.literal('user'), text: capped(TEXT_MAX.user), at: z.string().max(40).optional().catch(undefined), context: contextShape.partial().extend({ tab: tabShape }).catch({ tab: 'idea' }) }).strip(),
   z
     .object({
       id: z.string().max(40),
@@ -137,12 +138,12 @@ const messageShape = z.union([
 export function fromBoardChat(old: Awaited<ReturnType<typeof readBoardChat>>): CompanionMessage[] {
   return old.map((message, index): CompanionMessage => {
     const id = `m_board_${index + 1}`;
-    if (message.role === 'user') return { id, role: 'user', text: message.text, context: { tab: 'board' } };
+    if (message.role === 'user') return { id, role: 'user', text: message.text, context: { tab: 'idea' } };
     const cards = (message.items ?? []).map((item, k): CompanionCard => {
       const type = item.kind === 'hook' ? 'use_hook' : item.kind === 'title' ? 'use_title' : 'add_note';
       return { action: { type, text: item.text }, state: message.used?.includes(k) ? 'applied' : 'offered' };
     });
-    return { id, role: 'assistant', text: message.text, tab: 'board', cards };
+    return { id, role: 'assistant', text: message.text, tab: 'idea', cards };
   });
 }
 
@@ -228,8 +229,8 @@ export async function readThread(slug: string, id: string): Promise<CompanionThr
 
 // ---------------------------------------------------------------- what the companion is told
 
-const STEP_NAME: Record<CompanionTab, string> = { board: 'Board', plan: 'Plan', record: 'Record', edit: 'Edit', publish: 'Publish', research: 'Research' };
-const READING: Record<CompanionTab, string> = { board: 'Reading the board', plan: 'Reading the plan', record: 'Reading the scenes', edit: 'Reading the timeline', publish: 'Reading the package', research: 'Reading Research' };
+const STEP_NAME: Record<CompanionTab, string> = { idea: 'Idea', record: 'Record', edit: 'Edit', publish: 'Publish', research: 'Research' };
+const READING: Record<CompanionTab, string> = { idea: 'Reading the board and the plan', record: 'Reading the scenes', edit: 'Reading the timeline', publish: 'Reading the package', research: 'Reading Research' };
 const clock = (seconds: number) => `${Math.floor(seconds / 60)}:${String(Math.round(seconds % 60)).padStart(2, '0')}`;
 
 const ideaFor = (video: Video): PromptIdea => {
@@ -357,7 +358,7 @@ async function writeReply(slug: string, id: string, input: AskInput, context: Jo
       idea: ideaFor(video),
       pkg: pkg ?? undefined,
       outline: outline ?? undefined,
-      board: await boardText(slug, id, tiles, tab === 'board' ? BOARD_CHARS_HERE : BOARD_CHARS_ELSEWHERE),
+      board: await boardText(slug, id, tiles, tab === 'idea' ? BOARD_CHARS_HERE : BOARD_CHARS_ELSEWHERE),
       screen,
       history: input.history.map((message) => ({ role: message.role, text: historyText(message) })),
       message: input.message.text,

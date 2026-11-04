@@ -1,4 +1,5 @@
 import type {Outline,Package} from '../../../shared/club';
+import {chosenIndex,pairThumbs} from '../../../shared/package-rules';
 import type {CompanionAction,CompanionMessage,CompanionStep,CompanionTab} from '../../../shared/companion';
 
 /*
@@ -6,15 +7,20 @@ import type {CompanionAction,CompanionMessage,CompanionStep,CompanionTab} from '
  * steps, the summary of a finished reply's steps, what a card would change (Preview), and when the log follows new text.
  */
 
-export const STEP_NAME:Record<CompanionTab,string>={board:'Board',plan:'Plan',record:'Record',edit:'Edit',publish:'Publish',research:'Research'};
+export const STEP_NAME:Record<CompanionTab,string>={idea:'Idea',record:'Record',edit:'Edit',publish:'Publish',research:'Research'};
 
-/** "Plan · Scene 2" or "Board". */
+/** "Idea · Scene 2" or "Idea". */
 export function lookingAt(tab:CompanionTab,scene?:{index:number;title:string}):string{
  return scene?`${STEP_NAME[tab]} · Scene ${scene.index+1}`:STEP_NAME[tab];
 }
 
 /** What the companion knows about the video when it suggests what to ask. Anything left out is not known, and counts as there. */
+/** The parts of a video's Idea page (`idea-logic` SECTIONS). */
+export type IdeaPartKey='idea'|'package'|'hook'|'scenes';
+
 export type SuggestionFacts={
+ /** Idea: the part of "Your video" that is open, and how many of its titles are written. */
+ part?:IdeaPartKey;titles?:number;
  scenes:number;scene?:{index:number};selected?:number;
  /** The package's spoken hook is written. */
  hook?:boolean;
@@ -42,8 +48,8 @@ export type SuggestionFacts={
 
 /**
  * The three best things to ask on each step for the video as it is now. They follow what exists (nothing about the board's tiles
- * on an empty board, nothing that edits before anything is recorded) and never repeat a button the screen shows (Plan's Draft
- * scenes from the board, Write the package): they are what the screen cannot do, such as options to choose from, a tighter scene,
+ * on an empty board, nothing that edits before anything is recorded) and never repeat a button the screen shows (Idea's Draft
+ * the scenes, Write with Claude): they are what the screen cannot do, such as options to choose from, a tighter scene,
  * or a second opinion. A step can have fewer than three, or none.
  */
 const clockOf=(t:number)=>`${Math.floor(t/60)}:${String(Math.floor(t%60)).padStart(2,'0')}`;
@@ -52,16 +58,16 @@ export const POLISH='/proof-edit Polish the whole video';
 export function suggestions(tab:CompanionTab,facts:SuggestionFacts):string[]{
  const scene=facts.scene?`scene ${facts.scene.index+1}`:undefined;
  switch(tab){
-  case 'board':return facts.tiles===0
-   ?['What should this video cover?','Who is this video for?','Suggest three titles']
-   :facts.tiles===1?['Write three hooks from this idea','Suggest three titles','What should this video cover?']
-   :['Write three hooks from this board','Suggest three titles','What do these have in common?'];
-  case 'plan':{
-   // Titles, hooks and scenes are written from the Package and Scenes buttons, so the chips here are for thinking and tightening.
-   const ideas=facts.scenes
-    ?[scene?`Tighten ${scene}`:'Tighten the first scene',...((facts.longest??0)>90?['Cut the longest scene to 90 seconds']:[]),...(facts.hook?['Make the hook sharper']:[]),'What is missing before I record?','Is the order of the scenes right?']
-    :['What should the video open with?','Who is this video for?','What is the one thing a viewer should remember?'];
-   return ideas.slice(0,3);
+  case 'idea':{
+   // The open part of "Your video" says what the creator is working on. Its own buttons write it, so the chips think and tighten.
+   if(facts.part==='idea')return [facts.tiles?'Fill in the idea from my board':'What should this video be about?','Who is this video for?','What makes this different from what is out there?'];
+   if(facts.part==='package')return facts.titles?['Which pair is strongest, and why?','Make the titles more specific','What should the thumbnail show?']:['What would make people click this?','Who is this video for?','What should the thumbnail show?'];
+   if(facts.part==='hook')return ['Does the hook confirm the title?','Make the hook shorter','What could I show in the first seconds?'];
+   // Titles, hooks and scenes are written from the column's own buttons, so the chips here are for thinking and tightening.
+   if(facts.scenes)return [scene?`Tighten ${scene}`:'Tighten the first scene',...((facts.longest??0)>90?['Cut the longest scene to 90 seconds']:[]),...(facts.hook?['Make the hook sharper']:[]),'What is missing before I record?','Is the order of the scenes right?'].slice(0,3);
+   return (facts.tiles??0)>1
+    ?['What do these have in common?','What should this video cover?','Who is this video for?']
+    :['What should this video cover?','Who is this video for?','What is the one thing a viewer should remember?'];
   }
   case 'record':return facts.recorded===0
    ?['What should I say first?','Write a stronger hook','Build the talking points']
@@ -90,14 +96,18 @@ export function suggestions(tab:CompanionTab,facts:SuggestionFacts):string[]{
 }
 
 /** The companion's first words on a step, before anything was asked there: one or two sentences about this step and this video. */
-export function greeting(tab:CompanionTab,facts:{scenes:number;tiles?:number;recorded?:number}):string{
+export function greeting(tab:CompanionTab,facts:{scenes:number;tiles?:number;recorded?:number;part?:IdeaPartKey}):string{
  switch(tab){
-  case 'board':return facts.tiles===0
-   ?'Add a video, link or note to the board, then ask me about it.'
-   :'Ask me what the board has in common, or for hooks and titles from it.';
-  case 'plan':return facts.scenes
+  case 'idea':
+   // The open part of "Your video" is what the creator is working on, so the first words are about it.
+   if(facts.part==='idea')return facts.tiles?'Tell me what the video is about, or ask me to fill it in from your board.':'Tell me what the video is about, and I can write it up for you.';
+   if(facts.part==='package')return 'Ask me which pair is strongest, or for titles and thumbnail words to choose from.';
+   if(facts.part==='hook')return 'Ask me to check the hook against your title, or to make it shorter.';
+   return facts.scenes
    ?'I can tighten a scene, or write hooks and titles to choose from.'
-   :'Plan the scenes first. I can write hooks and titles meanwhile.';
+   :facts.tiles===0
+   ?'Add a video, link or note to the board, then ask me about it.'
+   :'Ask me what the board has in common, or what the video should cover.';
   case 'record':return facts.recorded===0
    ?'Ask me how to open, or for a hook or talking points.'
    :'Ask me to shorten a scene, or for a hook or a call to action.';
@@ -118,7 +128,7 @@ const day=(at:string|undefined)=>{
 
 export type LogItem={kind:'divider';key:string;label:string}|{kind:'message';key:string;message:CompanionMessage};
 
-/** The conversation with a divider wherever the step changes ("Plan · Tue 27 Oct"), and "Now on Record" when the screen moved on since. */
+/** The conversation with a divider wherever the step changes ("Idea · Tue 27 Oct"), and "Now on Record" when the screen moved on since. */
 export function withDividers(messages:readonly CompanionMessage[],tab:CompanionTab):LogItem[]{
  const items:LogItem[]=[];
  let last:CompanionTab|undefined;
@@ -153,9 +163,25 @@ export function stepSummary(steps:readonly CompanionStep[]):string{
 const clock=(seconds:number)=>`${Math.floor(seconds/60)}:${String(Math.round(seconds%60)).padStart(2,'0')}`;
 
 /** What applying a card would change: the field, what it is now and what it becomes. Timeline cards preview on the editor's stage instead. */
-export function previewOf(action:CompanionAction,pkg:Package|null,outline:Outline|null):{field:string;now:string[];after:string[]}|undefined{
+export function previewOf(action:CompanionAction,pkg:Package|null,outline:Outline|null,video:{title:string;why?:string}={title:''}):{field:string;now:string[];after:string[]}|undefined{
  const none='(empty)';
  switch(action.type){
+  case 'set_idea':{
+   const parts=([['What it\'s about','angle',pkg?.angle],['Your twist','twist',pkg?.twist],['Why it could work','why',video.why]] as const).filter(([,key])=>action[key]!==undefined);
+   return {field:'The idea',now:parts.map(([label,,now])=>`${label}: ${now?.trim()||none}`),after:parts.map(([label,key])=>`${label}: ${action[key]}`)};
+  }
+  case 'set_pairs':{
+   const thumbs=pkg?pairThumbs(pkg,video.title):['','',''];
+   const line=(title:string,thumb:string,index:number,used:boolean)=>`${index+1}. ${title.trim()||none} · ${thumb.trim()||'no thumbnail words'}${used?' (in use)':''}`;
+   const now=[0,1,2].filter(index=>pkg?.titles[index]?.trim()).map(index=>line(pkg!.titles[index],thumbs[index],index,chosenIndex(pkg!.titles,video.title)===index));
+   const titles=[0,1,2].map(index=>action.pairs[index]?.title??pkg?.titles[index]??''),after=[0,1,2].map(index=>action.pairs[index]?.thumb??thumbs[index]);
+   const using=action.use?action.use-1:chosenIndex(titles,video.title);
+   return {field:'Titles and thumbnails',now:now.length?now:[none],after:[0,1,2].filter(index=>titles[index].trim()).map(index=>line(titles[index],after[index],index,index===using))};
+  }
+  case 'set_hook':{
+   const parts=([['Say','spoken'],['They see','visual'],['On screen','text']] as const).filter(([,key])=>action[key]!==undefined);
+   return {field:'Hook',now:parts.map(([label,key])=>`${label}: ${pkg?.hook[key].trim()||none}`),after:parts.map(([label,key])=>`${label}: ${action[key]}`)};
+  }
   case 'use_hook':return {field:'Spoken hook',now:[pkg?.hook.spoken.trim()||none],after:[action.text]};
   case 'use_title':return {field:'First title',now:[pkg?.titles[0]?.trim()||none],after:[action.text]};
   case 'set_thumbnail_text':return {field:'Thumbnail text',now:[pkg?.thumbnailText.trim()||none],after:[action.text]};
@@ -189,14 +215,13 @@ export const FOLLOW_SLACK=48;
 export const atBottom=(box:{scrollHeight:number;scrollTop:number;clientHeight:number})=>box.scrollHeight-box.scrollTop-box.clientHeight<=FOLLOW_SLACK;
 
 /** A short summary of the screen, sent with every message. */
-export function screenSummary(tab:CompanionTab,facts:{pkg:Package|null;outline:Outline|null;recorded?:number}):string{
+export function screenSummary(tab:CompanionTab,facts:{pkg:Package|null;outline:Outline|null;recorded?:number;part?:string}):string{
  const scenes=facts.outline?.scenes.length??0;
  const titles=facts.pkg?.titles.filter(title=>title.trim()).length??0;
  const hook=facts.pkg?.hook.spoken.trim()?'hook written':'no hook yet';
  const sceneLine=scenes?`${scenes} ${scenes===1?'scene':'scenes'}`:'no scenes yet';
  switch(tab){
-  case 'board':return `The research board; ${sceneLine}`;
-  case 'plan':return `Package with ${titles} of 3 titles and ${hook}; ${sceneLine}`;
+  case 'idea':return `The idea page: the board, and a package with ${titles} of 3 titles and ${hook}; ${sceneLine}${facts.part?`; open now: ${facts.part}`:''}`;
   case 'record':return `Recording; ${sceneLine}${facts.recorded!==undefined?`, ${facts.recorded} recorded`:''}`;
   case 'publish':return `Publish form; description ${facts.pkg?.description?.trim()?'written':'not written yet'}`;
   case 'edit':return 'The editor: the timeline, its transcript and the stage';

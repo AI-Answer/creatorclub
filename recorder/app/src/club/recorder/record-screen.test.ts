@@ -104,18 +104,18 @@ test('the scene a page opens on (chosen in Plan) is selected when Record opens',
  }finally{await close();}
 });
 
-test('the bottom bar is Borumi\'s step bar: Back to the previous step, the five steps, and Continue',async()=>{
+test('the bottom bar is Borumi\'s step bar: Back to the previous step, the four steps, and Continue',async()=>{
  const calls:string[]=[];
  const video={id:'v1',title:'Hidden features',stage:'recording'} as unknown as Parameters<typeof Foot>[0]['video'];
  const ui=await mountUI(createElement(Foot,{video,tab:'record',facts:{stage:'recording',hasRecording:true},onTab:tab=>calls.push(`tab:${tab}`),
   next:{label:'Continue to edit',run:()=>calls.push('next'),disabled:false,primary:true}}));
  try{
-  assert.deepEqual([...ui.container.querySelectorAll('.ws-step')].map(step=>step.textContent),['Board','Plan','Record','Edit','Publish']);
+  assert.deepEqual([...ui.container.querySelectorAll('.ws-step')].map(step=>step.textContent),['Idea','Record','Edit','Publish']);
   assert.equal(ui.container.querySelector('.ws-step.on')?.textContent,'Record');
-  await click(button(ui.container,'Back to Plan'));
+  await click(button(ui.container,'Back to Idea'));
   await click(button(ui.container,'Continue to edit'));
-  assert.deepEqual(calls,['tab:plan','next']);
-  await ui.render(createElement(Foot,{video,tab:'board',facts:{stage:'recording',hasRecording:true},onTab(){}}));
+  assert.deepEqual(calls,['tab:idea','next']);
+  await ui.render(createElement(Foot,{video,tab:'idea',facts:{stage:'recording',hasRecording:true},onTab(){}}));
   assert.equal(ui.container.querySelector('.ws-back'),null,'the first step has no Back');
   assert.equal(ui.container.querySelector('.ws-foot .r button'),null,'no Continue without a next step');
  }finally{await ui.close();}

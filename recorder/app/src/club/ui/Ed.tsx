@@ -5,7 +5,7 @@ import {createElement,useEffect,useRef,type CSSProperties,type KeyboardEvent} fr
  * With `onEnter`, Enter saves and then calls it (for "add the next line"). Escape leaves the field.
  * With `live`, every change is handed over as it is typed (the caller saves it behind the typing); `onLeave` runs whenever the field is left.
  */
-export function Ed({value,onChange,className='',ph='',multiline,tag='div',onEnter,autoFocus,style,live,onLeave}:{value?:string;onChange(text:string):void;className?:string;ph?:string;multiline?:boolean;tag?:'div'|'span'|'h1'|'h2'|'h3'|'p';onEnter?(event:KeyboardEvent<HTMLElement>):void;autoFocus?:boolean;style?:CSSProperties;live?:boolean;onLeave?():void}){
+export function Ed({value,onChange,className='',ph='',label,multiline,tag='div',onEnter,autoFocus,style,live,onLeave}:{value?:string;onChange(text:string):void;className?:string;ph?:string;/** The field's visible name, for screen readers; without it the placeholder names it. */label?:string;multiline?:boolean;tag?:'div'|'span'|'h1'|'h2'|'h3'|'p';onEnter?(event:KeyboardEvent<HTMLElement>):void;autoFocus?:boolean;style?:CSSProperties;live?:boolean;onLeave?():void}){
  const ref=useRef<HTMLElement>(null);
  // The text lives in the DOM while you type; React only writes it when the value changes from outside.
  useEffect(()=>{
@@ -21,7 +21,7 @@ export function Ed({value,onChange,className='',ph='',multiline,tag='div',onEnte
  // eslint-disable-next-line react-hooks/exhaustive-deps
  },[]);
  return createElement(tag,{
-  ref,className:`ed ${className}`.trim(),contentEditable:true,suppressContentEditableWarning:true,'data-ph':ph,spellCheck:false,role:'textbox','aria-multiline':multiline||undefined,'aria-label':ph||'Edit text',style:{borderRadius:'var(--cc-r)',...style},
+  ref,className:`ed ${className}`.trim(),contentEditable:true,suppressContentEditableWarning:true,'data-ph':ph,spellCheck:false,role:'textbox','aria-multiline':multiline||undefined,'aria-label':label||ph||'Edit text',style:{borderRadius:'var(--cc-r)',...style},
   onBlur:(event:{currentTarget:HTMLElement})=>{const text=event.currentTarget.innerText.replace(/\n+$/,'');if(text!==(value||''))onChange(text);onLeave?.();},
   onInput:live?(event:{currentTarget:HTMLElement})=>{const text=event.currentTarget.innerText.replace(/\n+$/,'');if(text!==(value||''))onChange(text);}:undefined,
   onKeyDown:(event:KeyboardEvent<HTMLElement>)=>{

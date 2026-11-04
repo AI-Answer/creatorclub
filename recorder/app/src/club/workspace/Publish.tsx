@@ -29,7 +29,7 @@ type Run={phase:'idle'}|{phase:'running';progress:PublishProgress|null}|{phase:'
  * The Publish step. The exported video, the package as YouTube will show it, Postiz connected once, and the form YouTube asks for
  * (title, description, tags, thumbnail, who can watch, made for kids, now or later). One button sends it; progress and the result follow.
  */
-export function Publish({video,pkg,scenes,onVideo,onDescription,onTags,onGoTo,onSettings,saveError,onRetry}:{video:Video;pkg:Package|null;scenes:readonly VideoScene[]|undefined;onVideo(video:Video):void;onDescription(text:string):void;/** Saves the tags on the package at once, like the description. */onTags(tags:string[]):void;onGoTo(tab:'plan'|'record'|'edit'):void;/** Opens Settings at Publishing, where the Postiz key is entered once. */onSettings():void;saveError?:string;onRetry():void}){
+export function Publish({video,pkg,scenes,onVideo,onDescription,onTags,onGoTo,onSettings,saveError,onRetry}:{video:Video;pkg:Package|null;scenes:readonly VideoScene[]|undefined;onVideo(video:Video):void;onDescription(text:string):void;/** Saves the tags on the package at once, like the description. */onTags(tags:string[]):void;onGoTo(tab:'idea'|'record'|'edit'):void;/** Opens Settings at Publishing, where the Postiz key is entered once. */onSettings():void;saveError?:string;onRetry():void}){
  const publishing=usePublishing();
  const published=video.stage==='published'&&Boolean(video.youtubeUrl);
 

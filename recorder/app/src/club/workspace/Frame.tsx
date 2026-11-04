@@ -42,7 +42,7 @@ export function Header({video,tab,onTitle,onStage,onDelete,onHome}:{video:Video;
  </div>;
 }
 
-const STEP_ICON:Record<VideoTab,IconName>={board:'research',plan:'script',record:'camera',edit:'cut',publish:'upload'};
+const STEP_ICON:Record<VideoTab,IconName>={idea:'research',record:'camera',edit:'cut',publish:'upload'};
 
 /**
  * The bottom bar, laid out like Borumi's step bar (64px): "Back to" the previous step on the left, the steps in the middle (a round
@@ -63,10 +63,11 @@ export function Foot({video,tab,facts,onTab,next}:{video:Video;tab:VideoTab;fact
    return <Fragment key={key}>{index>0&&<Icon name="forward" size={16} className="ws-step-sep"/>}{link}</Fragment>;
   })}</nav>
   <div className="r">
-   {next?.reason&&<span id="ws-foot-why" className="sr-only">{next.reason}</span>}
+   {/* Why it cannot go yet (or what is still missing) is said beside Continue, so nobody has to hover to find out. */}
+   {next?.reason&&<span id="ws-foot-why" className="ws-why small muted">{next.reason}</span>}
    {next&&(()=>{
     const button=<button type="button" className={cn('btn',next.primary&&'primary')} disabled={next.disabled} aria-describedby={next.reason?'ws-foot-why':undefined} onClick={next.run}>{next.label}<Icon name="forward" size={15}/></button>;
-    // Why it cannot go yet shows on hover, as Borumi keeps the bar to Back, the steps and Continue.
+    // On a narrow window the line beside it would run into the steps, so there the reason is on hover too.
     return next.reason?<Tooltip text={next.reason} side="top"><span className="ws-next">{button}</span></Tooltip>:button;
    })()}
   </div>

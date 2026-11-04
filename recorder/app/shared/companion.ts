@@ -7,7 +7,7 @@ import type {Media,MotionPlace,MotionTemplateId,Project} from './types';
  */
 
 /** A video's steps, and `research`: the channel's own Board, which has a conversation of its own. */
-export const COMPANION_TABS = ['board', 'plan', 'record', 'edit', 'publish', 'research'] as const;
+export const COMPANION_TABS = ['idea', 'record', 'edit', 'publish', 'research'] as const;
 export type CompanionTab = (typeof COMPANION_TABS)[number];
 
 export interface DraftScene {
@@ -61,6 +61,12 @@ export type CompanionAction =
   | { type: 'use_hook'; text: string }
   | { type: 'use_title'; text: string }
   | { type: 'set_thumbnail_text'; text: string }
+  /** Idea: what the video is about, its twist and why it could work. Leave out what stays. */
+  | { type: 'set_idea'; angle?: string; twist?: string; why?: string }
+  /** Idea: one to three title and thumbnail pairs, in order; `use` (1 to 3) makes that pair's title the video's title. */
+  | { type: 'set_pairs'; pairs: { title: string; thumb: string }[]; use?: number }
+  /** Idea: the opening, all three parts. Leave out what stays. */
+  | { type: 'set_hook'; spoken?: string; visual?: string; text?: string }
   | { type: 'add_note'; text: string }
   | { type: 'set_scene'; sceneId: string; title?: string; talkingPoints?: string[] }
   /** The words the creator says out loud in one scene that exists. */
@@ -76,12 +82,11 @@ export type CompanionAction =
   | EditAction;
 export type CompanionActionType = CompanionAction['type'];
 
-export const COMPANION_ACTION_TYPES = ['use_hook', 'use_title', 'set_thumbnail_text', 'add_note', 'set_scene', 'set_scene_script', 'draft_scenes', 'ask_choice', 'set_description', 'group_tiles', 'start_video', ...EDIT_ACTION_TYPES] as const satisfies readonly CompanionActionType[];
+export const COMPANION_ACTION_TYPES = ['use_hook', 'use_title', 'set_thumbnail_text', 'set_idea', 'set_pairs', 'set_hook', 'add_note', 'set_scene', 'set_scene_script', 'draft_scenes', 'ask_choice', 'set_description', 'group_tiles', 'start_video', ...EDIT_ACTION_TYPES] as const satisfies readonly CompanionActionType[];
 
 /** The actions the companion may offer on each step. */
 export const TAB_ACTIONS: Record<CompanionTab, readonly CompanionActionType[]> = {
-  board: ['use_hook', 'use_title', 'add_note', 'draft_scenes', 'ask_choice'],
-  plan: ['use_hook', 'use_title', 'set_thumbnail_text', 'set_scene', 'set_scene_script', 'draft_scenes', 'add_note', 'ask_choice'],
+  idea: ['set_idea', 'set_pairs', 'set_hook', 'use_hook', 'use_title', 'set_thumbnail_text', 'set_scene', 'set_scene_script', 'draft_scenes', 'add_note', 'ask_choice'],
   record: ['set_scene', 'add_note', 'ask_choice'],
   // A clip made by a skill comes from a skill run, never from a reply: the model is not offered `add_clip`.
   edit: [...EDIT_ACTION_TYPES.filter((type) => type !== 'add_clip'), 'ask_choice'],
@@ -94,6 +99,9 @@ export const ACTION_TITLE: Record<CompanionActionType, string> = {
   use_hook: 'Spoken hook',
   use_title: 'Title',
   set_thumbnail_text: 'Thumbnail text',
+  set_idea: 'The idea',
+  set_pairs: 'Titles and thumbnails',
+  set_hook: 'Hook',
   add_note: 'Note for the board',
   set_scene: 'Scene',
   set_scene_script: 'Scene script',
@@ -127,6 +135,9 @@ export const ACTION_STEP: Record<CompanionActionType, string> = {
   use_hook: 'Writing hooks',
   use_title: 'Writing titles',
   set_thumbnail_text: 'Writing thumbnail text',
+  set_idea: 'Writing the idea',
+  set_pairs: 'Writing titles and thumbnails',
+  set_hook: 'Writing the hook',
   add_note: 'Writing a note',
   set_scene: 'Rewriting the scene',
   set_scene_script: 'Writing the script',
@@ -160,6 +171,9 @@ export const ACTION_VERB: Record<CompanionActionType, string> = {
   use_hook: 'Use as hook',
   use_title: 'Use as title',
   set_thumbnail_text: 'Use it',
+  set_idea: 'Use it',
+  set_pairs: 'Use these',
+  set_hook: 'Use this hook',
   add_note: 'Add to board',
   set_scene: 'Apply',
   set_scene_script: 'Use this script',

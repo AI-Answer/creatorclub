@@ -21,15 +21,14 @@ const outline:Outline={scenes:[{id:'s1',title:'Opening',talkingPoints:['Show it'
 // ---------------------------------------------------------------- what needs no screen
 
 test('it says what it is looking at, and the suggestions follow the step',()=>{
- assert.equal(lookingAt('plan',{index:1,title:'Level 1'}),'Plan · Scene 2');
- assert.equal(lookingAt('board'),'Board');
- // Plan never repeats the buttons it shows (Draft scenes from the board, Write the package): what is left is options to choose from and opinions.
- assert.deepEqual(suggestions('plan',{scenes:0}),['What should the video open with?','Who is this video for?','What is the one thing a viewer should remember?']);
- assert.deepEqual(suggestions('plan',{scenes:0,hook:true}),['What should the video open with?','Who is this video for?','What is the one thing a viewer should remember?']);
- assert.equal(suggestions('plan',{scenes:2,scene:{index:1}})[0],'Tighten scene 2');
- assert.deepEqual(suggestions('plan',{scenes:2,longest:150}),['Tighten the first scene','Cut the longest scene to 90 seconds','What is missing before I record?']);
- assert.deepEqual(suggestions('plan',{scenes:2,longest:60,hook:true}),['Tighten the first scene','Make the hook sharper','What is missing before I record?']);
- for(const tab of ['board','plan','record','edit','publish'] as const)for(const facts of [{scenes:0},{scenes:3}]){
+ assert.equal(lookingAt('idea',{index:1,title:'Level 1'}),'Idea · Scene 2');
+ assert.equal(lookingAt('idea'),'Idea');
+ // Idea never repeats the buttons it shows (Draft the scenes, Write with Claude): what is left is options to choose from and opinions.
+ assert.deepEqual(suggestions('idea',{scenes:0}),['What should this video cover?','Who is this video for?','What is the one thing a viewer should remember?']);
+ assert.equal(suggestions('idea',{scenes:2,scene:{index:1}})[0],'Tighten scene 2');
+ assert.deepEqual(suggestions('idea',{scenes:2,longest:150}),['Tighten the first scene','Cut the longest scene to 90 seconds','What is missing before I record?']);
+ assert.deepEqual(suggestions('idea',{scenes:2,longest:60,hook:true}),['Tighten the first scene','Make the hook sharper','What is missing before I record?']);
+ for(const tab of ['idea','record','edit','publish'] as const)for(const facts of [{scenes:0},{scenes:3}]){
   assert.equal(suggestions(tab,facts).length,3);
   assert.equal(suggestions(tab,facts).some(idea=>/^Draft the scenes|package/i.test(idea)),false,`${tab} offers no chip that repeats a button on the page`);
  }
@@ -37,45 +36,58 @@ test('it says what it is looking at, and the suggestions follow the step',()=>{
  assert.equal(suggestions('publish',{scenes:2})[0],'Write the description');
  assert.deepEqual(suggestions('edit',{scenes:2}),['/proof-edit Polish the whole video','Add a title at the start','Add a lower third with my name']);
  assert.equal(suggestions('edit',{scenes:2,selected:3})[1],'Trim the selected clip to the speech');
- assert.notDeepEqual(suggestions('board',{scenes:0}),suggestions('plan',{scenes:0}));
 });
 
 test('the suggestions follow what exists on every step: an empty board, nothing recorded, nothing to edit, a title to check',()=>{
- assert.deepEqual(suggestions('board',{scenes:0,tiles:0}),['What should this video cover?','Who is this video for?','Suggest three titles'],'nothing about tiles that are not there');
- assert.equal(suggestions('board',{scenes:0,tiles:3})[0],'Write three hooks from this board');
+ assert.deepEqual(suggestions('idea',{scenes:0,tiles:0}),['What should this video cover?','Who is this video for?','What is the one thing a viewer should remember?'],'nothing about tiles that are not there');
+ assert.equal(suggestions('idea',{scenes:0,tiles:3})[0],'What do these have in common?');
  assert.equal(suggestions('record',{scenes:3,recorded:0})[0],'What should I say first?');
  assert.equal(suggestions('record',{scenes:3,recorded:1})[0],'Shorten this scene to fit its time');
  assert.deepEqual(suggestions('edit',{scenes:3,recorded:0}),[],'nothing that edits before anything is recorded');
  assert.deepEqual(suggestions('publish',{scenes:3,titled:false}),['Write the description','Suggest thumbnail text']);
  assert.deepEqual(suggestions('publish',{scenes:3,titled:true,thumbnail:true}),['Write the description','Is the thumbnail text clear?','Is the title ready?']);
- assert.match(greeting('board',{scenes:0,tiles:0}),/^Add a video, link or note to the board/);
+ assert.match(greeting('idea',{scenes:0,tiles:0}),/^Add a video, link or note to the board/);
  assert.match(greeting('edit',{scenes:2,recorded:0}),/^Record a scene first/);
 });
 
-test('each step greets with its own one or two sentences, and Plan says what comes first until there are scenes',()=>{
- const tabs=['board','plan','record','edit','publish'] as const;
+test('each step greets with its own one or two sentences, and Idea follows the board until there are scenes',()=>{
+ const tabs=['idea','record','edit','publish'] as const;
  const lines=tabs.map(tab=>greeting(tab,{scenes:0}));
  assert.equal(new Set(lines).size,tabs.length,'no two steps say the same');
  for(const line of lines){assert.ok(line.split(/(?<=\.)\s/).length<=2,line);assert.doesNotMatch(line,/with you on this video|!|please/i);}
- assert.match(greeting('plan',{scenes:0}),/^Plan the scenes first/);
- assert.match(greeting('plan',{scenes:4}),/^I can tighten a scene/);
+ assert.match(greeting('idea',{scenes:0,tiles:2}),/^Ask me what the board has in common/);
+ assert.match(greeting('idea',{scenes:4}),/^I can tighten a scene/);
 });
 
 test('a divider marks each change of step, and "Now on" when the screen moved on',()=>{
  const messages:CompanionMessage[]=[
-  {id:'a',role:'user',text:'Hooks?',at:'2026-10-27T10:00:00.000Z',context:{tab:'board'}},
-  {id:'b',role:'assistant',text:'Here.',tab:'board',cards:[]},
-  {id:'c',role:'user',text:'Tighten',context:{tab:'plan'}},
+  {id:'a',role:'user',text:'Hooks?',at:'2026-10-27T10:00:00.000Z',context:{tab:'idea'}},
+  {id:'b',role:'assistant',text:'Here.',tab:'idea',cards:[]},
+  {id:'c',role:'user',text:'Tighten',context:{tab:'record'}},
  ];
- const items=withDividers(messages,'record');
- assert.deepEqual(items.map(item=>item.kind==='divider'?item.label:item.key),['Board · Tue 27 Oct','a','b','Plan','c','Now on Record']);
- assert.equal(withDividers(messages,'plan').at(-1)?.kind,'message','no divider when the screen is still there');
+ const items=withDividers(messages,'edit');
+ assert.deepEqual(items.map(item=>item.kind==='divider'?item.label:item.key),['Idea · Tue 27 Oct','a','b','Record','c','Now on Edit']);
+ assert.equal(withDividers(messages,'record').at(-1)?.kind,'message','no divider when the screen is still there');
 });
 
 test('a finished reply sums up its steps in one line',()=>{
  assert.equal(elapsed(400),'0s');assert.equal(elapsed(12_400),'12s');assert.equal(elapsed(65_000),'1m 05s');
  assert.equal(stepSummary([{label:'Reading the board',ms:300},{label:'Thinking it through',ms:7000},{label:'Writing the reply',ms:1000},{label:'Drafting scenes',ms:3000},{label:'Checking the changes',ms:50}]),'Read the board, drafted scenes · 11s');
  assert.equal(stepSummary([{label:'Thinking it through',ms:2000}]),'Answered · 2s');
+});
+
+test('the Idea cards preview what they change in each part, against the package and the video as they are',()=>{
+ const base:Package={...pkg,titles:['First title','',''],thumbnailText:'OLD WORDS',angle:'Old angle'};
+ assert.deepEqual(previewOf({type:'set_idea',angle:'New angle',why:'Asked a lot'},base,outline,{title:'First title',why:'Old why'}),
+  {field:'The idea',now:["What it's about: Old angle",'Why it could work: Old why'],after:["What it's about: New angle",'Why it could work: Asked a lot']});
+ assert.deepEqual(previewOf({type:'set_pairs',pairs:[{title:'One title',thumb:'ONE WORDS'},{title:'Two title',thumb:'TWO WORDS'}],use:2},base,outline,{title:'First title'}),
+  {field:'Titles and thumbnails',now:['1. First title · OLD WORDS (in use)'],after:['1. One title · ONE WORDS','2. Two title · TWO WORDS (in use)']});
+ assert.deepEqual(previewOf({type:'set_hook',visual:'The bill'},base,outline)!.after,['They see: The bill'],'only the parts it changes');
+ assert.deepEqual(suggestions('idea',{scenes:0,part:'idea',tiles:2})[0],'Fill in the idea from my board','the chips follow the open part');
+ assert.equal(suggestions('idea',{scenes:0,part:'idea',tiles:0})[0],'What should this video be about?','nothing on the board to fill it from');
+ assert.equal(suggestions('idea',{scenes:0,part:'package',titles:2})[0],'Which pair is strongest, and why?');
+ assert.equal(suggestions('idea',{scenes:0,part:'package',titles:0})[0],'What would make people click this?','no pairs to compare yet');
+ assert.match(screenSummary('idea',{pkg,outline,part:'Title and thumbnail'}),/open now: Title and thumbnail$/,'Claude is told which part is open');
 });
 
 test('Preview shows what a card changes, now and after',()=>{
@@ -90,7 +102,7 @@ test('Preview shows what a card changes, now and after',()=>{
 test('the log follows only a reader at the bottom; the screen summary is short',()=>{
  assert.equal(atBottom({scrollHeight:1000,scrollTop:560,clientHeight:400}),true);
  assert.equal(atBottom({scrollHeight:1000,scrollTop:300,clientHeight:400}),false);
- assert.equal(screenSummary('plan',{pkg,outline}),'Package with 1 of 3 titles and hook written; 2 scenes');
+ assert.equal(screenSummary('idea',{pkg,outline}),'The idea page: the board, and a package with 1 of 3 titles and hook written; 2 scenes');
  assert.equal(screenSummary('record',{pkg,outline,recorded:1}),'Recording; 2 scenes, 1 recorded');
 });
 
@@ -108,7 +120,7 @@ function serve(state:State){
   if(path==='/videos/v1/companion'&&method==='GET')return {body:{messages:state.messages,...(state.running?{running:state.running}:{})}};
   if(path==='/videos/v1/companion'&&method==='POST'){
    const b=body as {message:string;retryOf?:string;context:unknown};
-   const message={id:b.retryOf??`q${state.messages.length}`,role:'user' as const,text:b.message,context:b.context as {tab:'plan'}};
+   const message={id:b.retryOf??`q${state.messages.length}`,role:'user' as const,text:b.message,context:b.context as {tab:'idea'}};
    if(!b.retryOf)state.messages.push(message);
    return {status:202,body:{jobId:`j${state.messages.length}`,message}};
   }
@@ -125,7 +137,7 @@ function serve(state:State){
 }
 
 const recordedScenes:VideoScene[]=[{id:'s1',title:'Opening',seconds:60,takes:[{id:'t1',seconds:50,kept:true,retained:false}],status:'Kept take 1'},{id:'s2',title:'Level 1',seconds:120,takes:[],status:'Not recorded'}];
-const mount=(changed:CompanionChanged[][]=[],scenes?:VideoScene[])=>mountUI(createElement(Companion,{videoId:'v1',tab:'plan',scene:{id:'s2',index:1,title:'Level 1'},screen:'Package',pkg,outline,scenes,onChanged:(list:CompanionChanged[])=>changed.push(list)}));
+const mount=(changed:CompanionChanged[][]=[],scenes?:VideoScene[])=>mountUI(createElement(Companion,{videoId:'v1',tab:'idea',scene:{id:'s2',index:1,title:'Level 1'},screen:'Package',pkg,outline,scenes,onChanged:(list:CompanionChanged[])=>changed.push(list)}));
 const status=(root:Element)=>root.querySelector('.cmp-sr[role="status"]')?.textContent;
 
 test('asking streams: the steps with their time, a skeleton before the first words, the words without the actions, then the reply and its card',async()=>{
@@ -135,7 +147,7 @@ test('asking streams: the steps with their time, a skeleton before the first wor
  try{
   await flush();
   const c=ui.container;
-  assert.match(text(c.querySelector('.cmp-context')!),/Plan · Scene 2/);
+  assert.match(text(c.querySelector('.cmp-context')!),/Idea · Scene 2/);
   assert.match(text(c),/Ask Claude/);
   // Nothing asked yet: the step's greeting with its three prompts right under it, not a blank column and not the old welcome.
   const hello=c.querySelector('.cmp-log .cmp-hello')!;
@@ -145,7 +157,7 @@ test('asking streams: the steps with their time, a skeleton before the first wor
   assert.doesNotMatch(text(c),/with you on this video/);
   await act(async()=>button(c,'Tighten scene 2').click());await flush();
   const asked=server.calls.find(call=>call.method==='POST'&&call.path==='/videos/v1/companion')!;
-  assert.deepEqual(asked.body,{message:'Tighten scene 2',context:{tab:'plan',sceneId:'s2',sceneTitle:'Level 1',screen:'Package'}},'the screen goes with the question');
+  assert.deepEqual(asked.body,{message:'Tighten scene 2',context:{tab:'idea',sceneId:'s2',sceneTitle:'Level 1',screen:'Package'}},'the screen goes with the question');
   assert.equal(FakeEventSource.last().url,'/api/club/jobs/j1/events','the reply is followed over SSE');
   assert.ok(c.querySelector('.cmp-me')?.textContent==='Tighten scene 2','your message shows at once');
   assert.ok(c.querySelector('.cmp-skel'),'a skeleton before the first words');
@@ -167,7 +179,7 @@ test('asking streams: the steps with their time, a skeleton before the first wor
   assert.equal(c.querySelector('.cmp-md.streaming')?.textContent,'Three hooks below.','a replayed piece is not shown twice');
   assert.equal(c.querySelector('.cmp-md.streaming strong')?.textContent,'hooks','markdown renders while it streams');
 
-  const reply:CompanionReplyMessage={id:'r1',role:'assistant',text:'Three **hooks** below.',tab:'plan',cards:[{action:{type:'use_hook',text:'You never opened this.'},state:'offered'}],steps:[{label:'Reading the plan',ms:200},{label:'Writing hooks',ms:4000}]};
+  const reply:CompanionReplyMessage={id:'r1',role:'assistant',text:'Three **hooks** below.',tab:'idea',cards:[{action:{type:'use_hook',text:'You never opened this.'},state:'offered'}],steps:[{label:'Reading the plan',ms:200},{label:'Writing hooks',ms:4000}]};
   state.messages.push(reply);
   await act(async()=>FakeEventSource.last().emit('done',reply));await flush();
   assert.equal(c.querySelector('.cmp-reply.live'),null);
@@ -224,14 +236,14 @@ test('Esc stops a reply and keeps what had arrived; a failure says so and Try ag
   assert.match(c.querySelector('[role="alert"]')?.textContent??'',/Claude is not signed in\.Try again/);
   await act(async()=>button(c,'Try again').click());await flush();
   const retried=server.calls.filter(call=>call.method==='POST'&&call.path==='/videos/v1/companion').at(-1)!;
-  assert.deepEqual((retried.body as {retryOf?:string;message:string}),{message:'Tighten scene 2',context:{tab:'plan',sceneId:'s2',sceneTitle:'Level 1',screen:'Package'},retryOf:'q1'});
+  assert.deepEqual((retried.body as {retryOf?:string;message:string}),{message:'Tighten scene 2',context:{tab:'idea',sceneId:'s2',sceneTitle:'Level 1',screen:'Package'},retryOf:'q1'});
   assert.equal(c.querySelectorAll('.cmp-me').length,2,'the question is not shown twice');
  }finally{server.restore();await ui.close();}
 });
 
 test('a reopened panel finds the reply still being written, and the panel remembers being hidden',async()=>{
  FakeEventSource.install();
- const state={messages:[{id:'q0',role:'user',text:'Draft the scenes',context:{tab:'board'}}] as CompanionMessage[],running:{jobId:'j9',messageId:'q0',text:'Half of the',steps:['Reading the board','Thinking it through']}},server=serve(state);
+ const state={messages:[{id:'q0',role:'user',text:'Draft the scenes',context:{tab:'record'}}] as CompanionMessage[],running:{jobId:'j9',messageId:'q0',text:'Half of the',steps:['Reading the board','Thinking it through']}},server=serve(state);
  const ui=await mount();
  try{
   await flush();
@@ -248,7 +260,7 @@ test('a reopened panel finds the reply still being written, and the panel rememb
   assert.equal(c.querySelectorAll('.cmp-steps.live li').length,2);
   assert.match(text(c),/Show 1 earlier message/,'what was asked on another step is one quiet line');
   await act(async()=>(c.querySelector('.cmp-earlier') as HTMLElement).click());
-  assert.match(text(c),/Board/,'opened, a divider names the step it was asked on');
+  assert.match(text(c),/Record/,'opened, a divider names the step it was asked on');
   await act(async()=>(c.querySelector('button[aria-label="Hide Ask Claude"]') as HTMLElement).click());
   assert.ok(c.querySelector('.cmp.collapsed'));
   for(let i=0;i<50&&document.activeElement!==c.querySelector('.cmp-rail');i++)await act(async()=>{await new Promise(resolve=>setTimeout(resolve,10));});
@@ -313,7 +325,7 @@ test("after Stop the server's copy replaces the local one, so a reply that had a
   await act(async()=>button(c,'Cut the longest scene to 90 seconds').click());await flush();
   await act(async()=>FakeEventSource.last().emit('progress',{type:'text',at:0,text:'Three titles'}));
   // The reply finished on the server just as Stop was pressed.
-  state.messages.push({id:'r9',role:'assistant',text:'Three titles below.',tab:'plan',cards:[]});
+  state.messages.push({id:'r9',role:'assistant',text:'Three titles below.',tab:'idea',cards:[]});
   const field=c.querySelector('textarea')!;field.focus();
   await act(async()=>field.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true})));
   assert.equal(c.querySelector('.cmp-note')?.textContent,'Stopped');
@@ -325,8 +337,8 @@ test("after Stop the server's copy replaces the local one, so a reply that had a
 
 test("a draft that would replace recorded scenes asks first, with the Board's dialog",async()=>{
  FakeEventSource.install();
- const reply:CompanionReplyMessage={id:'r1',role:'assistant',text:'New scenes.',tab:'plan',cards:[{action:{type:'draft_scenes',scenes:[{title:'A',talkingPoints:[],show:'',seconds:60}]},state:'offered'}]};
- const state:State={messages:[{id:'q0',role:'user',text:'Draft',context:{tab:'plan'}},reply]},server=serve(state);
+ const reply:CompanionReplyMessage={id:'r1',role:'assistant',text:'New scenes.',tab:'idea',cards:[{action:{type:'draft_scenes',scenes:[{title:'A',talkingPoints:[],show:'',seconds:60}]},state:'offered'}]};
+ const state:State={messages:[{id:'q0',role:'user',text:'Draft',context:{tab:'idea'}},reply]},server=serve(state);
  const ui=await mount([],recordedScenes);
  try{
   await flush();
@@ -353,8 +365,8 @@ test("a draft that would replace recorded scenes asks first, with the Board's di
 
 test('an applied card whose version is gone says it is too old to undo, and offers no Undo',async()=>{
  FakeEventSource.install();
- const reply:CompanionReplyMessage={id:'r1',role:'assistant',text:'Done.',tab:'plan',cards:[{action:{type:'use_hook',text:'Old'},state:'applied',result:'Set as your spoken hook',tooOld:true}]};
- const server=serve({messages:[{id:'q0',role:'user',text:'Hook',context:{tab:'plan'}},reply]});
+ const reply:CompanionReplyMessage={id:'r1',role:'assistant',text:'Done.',tab:'idea',cards:[{action:{type:'use_hook',text:'Old'},state:'applied',result:'Set as your spoken hook',tooOld:true}]};
+ const server=serve({messages:[{id:'q0',role:'user',text:'Hook',context:{tab:'idea'}},reply]});
  const ui=await mount();
  try{
   await flush();
@@ -365,14 +377,14 @@ test('an applied card whose version is gone says it is too old to undo, and offe
 });
 
 test('a stopped reply stays on screen until the server has saved its own copy, right after its question',()=>{
- const question:CompanionMessage={id:'q1',role:'user',text:'Q',context:{tab:'plan'}};
- const next:CompanionMessage={id:'q2',role:'user',text:'Next',context:{tab:'plan'}};
- const local:CompanionMessage={id:'stopped-j1',role:'assistant',text:'Half',tab:'plan',cards:[],status:'stopped'};
+ const question:CompanionMessage={id:'q1',role:'user',text:'Q',context:{tab:'idea'}};
+ const next:CompanionMessage={id:'q2',role:'user',text:'Next',context:{tab:'idea'}};
+ const local:CompanionMessage={id:'stopped-j1',role:'assistant',text:'Half',tab:'idea',cards:[],status:'stopped'};
  const pending=new Map([['j1',{questionId:'q1',message:local}]]);
  const early=withPendingStops([question,next],pending);
  assert.deepEqual(early.messages.map(message=>message.id),['q1','stopped-j1','q2'],'kept, in its place, while the server has none');
  assert.deepEqual(early.settled,[]);
- const saved:CompanionMessage={id:'r1',role:'assistant',text:'Half',tab:'plan',cards:[],status:'stopped'};
+ const saved:CompanionMessage={id:'r1',role:'assistant',text:'Half',tab:'idea',cards:[],status:'stopped'};
  const late=withPendingStops([question,saved,next],pending);
  assert.deepEqual(late.messages.map(message=>message.id),['q1','r1','q2'],'replaced by the server copy');
  assert.deepEqual(late.settled,['j1']);
@@ -382,7 +394,7 @@ test('a reply that is not a conversation shows as an empty one',()=>{
  assert.deepEqual(normalizeThread([] as never).messages,[]);
  assert.deepEqual(normalizeThread(undefined).messages,[]);
  assert.deepEqual(normalizeThread({} as never).messages,[]);
- const asked:CompanionMessage={id:'q1',role:'user',text:'Q',context:{tab:'plan'}};
+ const asked:CompanionMessage={id:'q1',role:'user',text:'Q',context:{tab:'idea'}};
  assert.equal(normalizeThread({messages:[asked]} as never).messages.length,1);
 });
 
@@ -441,8 +453,8 @@ test('on Edit: a message carries the playhead and selection, a timeline card pre
 
 test('a question from Claude shows its answers as buttons; tapping one sends it as the next message and settles the question',async()=>{
  FakeEventSource.install();
- const reply:CompanionReplyMessage={id:'r1',role:'assistant',text:'One thing first.',tab:'plan',cards:[{action:{type:'ask_choice',question:'Who is this video for?',options:['Beginners','People who already use it','Developers']},state:'offered'}]};
- const state={messages:[{id:'q0',role:'user',text:'Write the hook',context:{tab:'plan'}},reply] as CompanionMessage[]},server=serve(state);
+ const reply:CompanionReplyMessage={id:'r1',role:'assistant',text:'One thing first.',tab:'idea',cards:[{action:{type:'ask_choice',question:'Who is this video for?',options:['Beginners','People who already use it','Developers']},state:'offered'}]};
+ const state={messages:[{id:'q0',role:'user',text:'Write the hook',context:{tab:'idea'}},reply] as CompanionMessage[]},server=serve(state);
  const ui=await mount();
  try{
   await flush();

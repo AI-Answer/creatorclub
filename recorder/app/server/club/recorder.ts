@@ -1,7 +1,7 @@
 import type { Outline, RecorderScene, Video } from '../../shared/club.js';
 import { createProject, makeId, projectDuration, type Project } from '../../shared/types.js';
 import { ClubError } from './errors.js';
-import { matchSection, readOutline, scriptSections } from './planning.js';
+import { matchSection, readOutline, saveOutline, scriptSections } from './planning.js';
 import * as store from './store.js';
 
 /** Link a separately rendered project to a new video, keeping the source video and recording intact. */

@@ -269,7 +269,10 @@ export interface Package {
   angle: string;
   twist: string;
   titles: [string, string, string];
+  /** The thumbnail text of the chosen title's pair: what Publish and the prompts read. */
   thumbnailText: string;
+  /** One thumbnail text per title, in the titles' order. Unset on a package saved before titles had their own (`pairThumbs` reads it). */
+  thumbs?: [string, string, string];
   hook: { visual: string; spoken: string; text: string };
   /** The YouTube description as edited in Publish. Unset until it is edited: Publish then starts from the hook, the angle and the chapters. */
   description?: string;

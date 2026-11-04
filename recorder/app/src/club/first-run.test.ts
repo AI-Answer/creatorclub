@@ -218,14 +218,14 @@ test('Home for a new channel opens the empty video board without starting a disc
 
 test('one set of step names: Help, Home, the video tabs and the Board tip read the same words, and Postiz is explained once with its price',async()=>{
  assert.deepEqual(VIDEO_STEPS.map(step=>step.name),Object.values(TAB_LABEL),'the steps are the tabs of a video, in order');
- assert.equal(VIDEO_STEPS.length,5);
- assert.equal(STEPS_SENTENCE,'Every video goes through five steps: Board, Plan, Record, Edit, Publish.');
+ assert.equal(VIDEO_STEPS.length,4);
+ assert.equal(STEPS_SENTENCE,'Every video goes through four steps: Idea, Record, Edit, Publish.');
  FakeEventSource.install();
  const server=installFetch(()=>undefined);
  const ui=await mountUI(createElement(BoardTip,{onClose(){}}));
  try{
-  assert.match(text(ui.container),/This is the first of the five steps: Board, Plan, Record, Edit, Publish\./);
-  assert.doesNotMatch(text(ui.container),/\b[123] (Gather|Ask|Draft)/,'no second, numbered model');
+  assert.match(text(ui.container),/This is the first of the four steps: Idea, Record, Edit, Publish\./);
+  assert.doesNotMatch(text(ui.container),/\b[123] (Gather|Ask|Plan)/,'no second, numbered model');
  }finally{await ui.close();server.restore();}
  const withPrice=VIDEO_STEPS.filter(step=>step.does.includes(POSTIZ_LINE));
  assert.deepEqual(withPrice.map(step=>step.name),['Publish']);

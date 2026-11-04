@@ -300,7 +300,7 @@ test('Use as title goes through the package save path: a Package it run that was
   assert.equal((await call('GET', `/videos/${video.id}/plan`)).body.package.hook.spoken, 'My own opening line.');
 });
 
-test('a video made from an idea gets The idea tile and its sources on the Board once; tiles that are already there stay and are not repeated', async () => {
+test('a video made from an idea gets its sources on the Board once, and no copy of the idea; tiles that are already there stay and are not repeated', async () => {
   const slug = (await store.currentWorkspace())!;
   const made = (await call('POST', '/videos', { title: 'From an idea' })).body as Video;
   await store.updateVideo(slug, made.id, {
@@ -308,11 +308,9 @@ test('a video made from an idea gets The idea tile and its sources on the Board 
   });
   await call('POST', `/videos/${made.id}/research`, { kind: 'link', url: 'https://example.com/have' });
   const seeded = await tiles(made.id);
-  assert.deepEqual(seeded.map((tile) => [tile.kind, tile.title ?? tile.url]), [['link', 'https://example.com/have'], ['idea', 'The idea'], ['link', 'A talk']]);
-  const idea = seeded.find((tile) => tile.kind === 'idea')!;
-  assert.equal(idea.text, 'People keep asking.');
-  assert.deepEqual([idea.meta.demand, idea.meta.gap, idea.meta.show], [{ level: 'high', note: 'Asked a lot' }, undefined, { level: 'mid', note: 'Mostly screen' }]);
-  assert.equal(new Set(seeded.map((tile) => `${tile.pos!.x},${tile.pos!.y}`)).size, 3, 'each has its own place');
+  // Why it could work and the ratings stay the video's own (its Idea page shows them), so the Board gets no copy that could drift.
+  assert.deepEqual(seeded.map((tile) => [tile.kind, tile.title ?? tile.url]), [['link', 'https://example.com/have'], ['link', 'A talk']]);
+  assert.equal(new Set(seeded.map((tile) => `${tile.pos!.x},${tile.pos!.y}`)).size, 2, 'each has its own place');
   // Once: removing every tile does not bring them back.
   for (const tile of seeded) await call('DELETE', `/videos/${made.id}/research/${tile.id}`);
   assert.deepEqual(await tiles(made.id), []);

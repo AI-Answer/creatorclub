@@ -40,7 +40,7 @@ Fields
   - Put the strongest word first. Specific beats vague. A curiosity gap needs a credibility signal beside it.
   - The video must deliver exactly what the title says. No clickbait that misstates a fact, no income or return claims.
   - Leave out filler such as "Ultimate Guide", "Everything You Need to Know" and "Complete Tutorial". No brackets, no emoji, no starting with the channel name.
-- thumbnailText: 2 to 5 words for the thumbnail image, in capitals. It works with the title and does not repeat it: the title and the thumbnail text together leave an open question. Concrete beats abstract ("$0 A MONTH", "ONE COMMAND"). Use only things {first} can really show.
+- thumbs: exactly three thumbnail texts, one for each title in the same order, so each title and its thumbnail are a pair. Each is 2 to 5 words for the thumbnail image, in capitals. It works with its title and does not repeat it: the title and the thumbnail text together leave an open question. Concrete beats abstract ("$0 A MONTH", "ONE COMMAND"). Use only things {first} can really show.
 - hook: the opening as three parts that point at the same idea.
   - Choose one pattern from the hook library that fits what is true about this video (the category selector tells you where to start), and fill it with real specifics from the idea and research. Do not name the pattern.
   - visual: what is on screen in the first 1 to 3 seconds, using only things {first} can really show.

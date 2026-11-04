@@ -14,22 +14,21 @@ export const POSTIZ_LINE='Postiz is the paid service that uploads your video to 
 export interface StepInfo{tab:VideoTab;name:string;icon:IconName;does:string}
 
 const DOES:Record<VideoTab,{icon:IconName;does:string}>={
- board:{icon:'note',does:'Gather links, notes and screenshots, ask Claude about them, then draft the scenes.'},
- plan:{icon:'scenes',does:'Choose the title, the thumbnail text and the hook, and check the scenes.'},
+ idea:{icon:'note',does:'Check the idea, pick a title and thumbnail, write the hook and plan the scenes, with your links and notes on the board beside them.'},
  record:{icon:'microphone',does:'Say each scene to the camera with its talking points beside you.'},
  edit:{icon:'cut',does:'Cut the pauses, add captions and music, then export.'},
  publish:{icon:'upload',does:`Send it to YouTube, now or at a time you pick. ${POSTIZ_LINE}`},
 };
 
-/** The five steps of every video, in order, named as the tabs of its page are. */
+/** The four steps of every video, in order, named as the tabs of its page are. */
 export const VIDEO_STEPS:readonly StepInfo[]=videoTabs.map(tab=>({tab,name:TAB_LABEL[tab],...DOES[tab]}));
 
-/** The step that comes before the five: finding what to make. */
+/** The step that comes before the four: finding what to make. */
 export const FIND_IDEA={name:'Discover',does:'See which videos in your topics are doing well and keep the concept you would make.'};
 
-/** One sentence naming the five steps, for places that only have room for that. */
+/** One sentence naming the four steps, for places that only have room for that. */
 export const STEP_NAMES=VIDEO_STEPS.map(step=>step.name).join(', ');
-export const STEPS_SENTENCE=`Every video goes through five steps: ${STEP_NAMES}.`;
+export const STEPS_SENTENCE=`Every video goes through four steps: ${STEP_NAMES}.`;
 
 export interface Term{term:string;means:string}
 
@@ -37,10 +36,10 @@ export interface Term{term:string;means:string}
 export const GLOSSARY:readonly Term[]=[
  {term:'Channel',means:'The YouTube channel you make videos for. Creator Compiler learns its topics and how you talk, then looks for ideas that fit.'},
  {term:'Idea',means:'A video you might make. It waits in the first column of Videos until you start planning it.'},
- {term:'Video',means:'One card that goes from idea to published. It has a board, a plan, scenes, takes and an export.'},
- {term:'Board',means:'A canvas for one video where you gather links, notes, screenshots and files, and ask Claude about them.'},
+ {term:'Video',means:'One card that goes from idea to published. It has an Idea page (your plan and your board), scenes, takes and an export.'},
+ {term:'Board',means:'The canvas on a video\'s Idea page where you gather links, notes, screenshots and files, and ask your AI about them.'},
  {term:'Research',means:'Your channel\'s own board, before any video: put Discover cards, ideas, links and notes on it, connect and group them, and start a video from the ones that belong together.'},
- {term:'Package',means:'The title, the thumbnail text and the hook that make people click and keep watching.'},
+ {term:'Package',means:'The title and thumbnail that make people click, and the hook that keeps them watching.'},
  {term:'Hook',means:'The first line you say. It decides whether people stay.'},
  {term:'Scene',means:'One part of the video with its own talking points. You plan the scenes, then record them one at a time.'},
  {term:'Talking points',means:'What you want to say in a scene, as short lines rather than a script.'},

@@ -23,7 +23,7 @@ function board(tiles:ResearchTile[],extra:(call:{method:string;path:string;body:
   return undefined;
  });
 }
-const mount=()=>mountUI(createElement(ToastProvider,null,createElement(Board,{video,scenes:undefined,onDrafted:()=>{}})));
+const mount=()=>mountUI(createElement(ToastProvider,null,createElement(Board,{video})));
 
 test('the pure helpers: titles, file kinds, the import message, the folder line, and a refresh that keeps places waiting to be saved',()=>{
  assert.equal(noteTitle(note('a','# Hooks\n\nbody','notes/hooks.md')),'Hooks');

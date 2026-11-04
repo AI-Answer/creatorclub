@@ -1,6 +1,6 @@
 import {useCallback,useEffect,useRef,useState} from 'react';
 import type {JobSnapshot} from '../../../shared/club';
-import {isEditAction,type CompanionApplied,type CompanionAsked,type CompanionChanged,type CompanionContext,type CompanionEvent,type CompanionMessage,type CompanionReplyMessage,type CompanionTab,type CompanionThread} from '../../../shared/companion';
+import {isEditAction,type CompanionActionType,type CompanionApplied,type CompanionAsked,type CompanionChanged,type CompanionContext,type CompanionEvent,type CompanionMessage,type CompanionReplyMessage,type CompanionTab,type CompanionThread} from '../../../shared/companion';
 import type {EditorBridge} from '../../App';
 import {clubFetch,errorMessage} from '../api';
 import {LOST_JOB,failureMessage,watchJob} from '../jobs';
@@ -62,7 +62,7 @@ export function withText(text:string,at:number,piece:string):string{
  * connection or when the panel reopens while one runs), Stop, Try again, and applying or undoing a card. `onChanged` hears what an
  * apply or undo changed. `announce` is one short line for screen readers: the current step, "Reply ready", or the failure.
  */
-export function useCompanion(videoId:string,{onChanged,beforeApply,editor}:{onChanged(changed:CompanionChanged[]):void;beforeApply?():Promise<void>;
+export function useCompanion(videoId:string,{onChanged,beforeApply,editor}:{onChanged(changed:CompanionChanged[],applied?:CompanionActionType):void;beforeApply?():Promise<void>;
  /** The open editor, when Edit is on screen: a timeline card is applied through it, so the change is one step of the editor's own Undo. */
  editor?():EditorBridge|null}){
  const base=`${boardBase(videoId)}/companion`;
@@ -208,7 +208,7 @@ export function useCompanion(videoId:string,{onChanged,beforeApply,editor}:{onCh
    if(bridge)bridge.preview(null,key);
    const result=bridge?await bridge.commit(revision=>clubFetch<CompanionApplied>(url,{body:{revision}})):await clubFetch<CompanionApplied>(url,{method:'POST'});
    setMessages(current=>current&&current.map(message=>message.id===messageId?result.message:message));
-   changedRef.current(result.changed);
+   changedRef.current(result.changed,action==='apply'?card?.action.type:undefined);
    return '';
   }catch(reason){return errorMessage(reason,action==='apply'?"Couldn't apply that.":"Couldn't undo that.");}
   finally{setBusyCard(current=>current===key?null:current);}

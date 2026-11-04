@@ -1,5 +1,6 @@
 import {AI_CONNECT_HINT,useAiAvailable} from '../ai-status';
-import {useEffect,useRef,useState,type KeyboardEvent,type PointerEvent} from 'react';
+import {useEffect,useRef,useState,type DragEvent,type KeyboardEvent,type PointerEvent} from 'react';
+import {CARD_DRAG} from '../idea/idea-logic';
 import {BrandLogo} from '../../BrandLogo';
 import type {Outline,OutlineScene,VideoScene} from '../../../shared/club';
 import {toProgress} from '../scenes';
@@ -13,10 +14,15 @@ import {blankScene,editPoint,insertScene,moveScene,parseClock,removeScene,sceneC
  * The right column of Plan: the outline's scenes as rows (number, title, status, length). One scene is open at a time, and the open one
  * shows its talking points, what to show, its script and what is left to decide, all editable in place. Drag a row, press Alt+↑/↓ on it,
  * or use the scene's menu to reorder; add, remove with Undo, and write a scene's script from the same menu. With no scenes the column is
- * one sentence and Draft scenes from the board; with scenes its heading's "Write with Claude" menu writes the full script or redrafts
- * the scenes (asking first, since a redraft replaces them).
+ * one sentence and Draft scenes from the board; with scenes its heading's "Write with …" menu (the connected AI) writes the full script or redrafts
+ * the scenes (asking first, since a redraft replaces them). `bare` leaves out the heading's name, for a place that names it already.
  */
-export function ScenesColumn({target,onTarget,hasRecording,outline,known,focusId,drafting,draftLine,scriptingScene,scripting,onEdit,onFocus,onDraft,onWriteScene,onWriteAll,onSceneScript,onRecord,onSaveNow}:{
+export function ScenesColumn({bare=false,acceptDrops=false,aiName='Claude',aiBrand='claude',target,onTarget,hasRecording,outline,known,focusId,drafting,draftLine,scriptingScene,scripting,onEdit,onFocus,onDraft,onWriteScene,onWriteAll,onSceneScript,onRecord,onSaveNow}:{
+ bare?:boolean;
+ /** Board cards dragged onto a scene are added to it as a talking point (the drag carries `CARD_DRAG`). */
+ acceptDrops?:boolean;
+ /** The AI the person connected, for "Write with …". */
+ aiName?:string;aiBrand?:'claude'|'chatgpt';
  target:number;onTarget(seconds:number):void;hasRecording:boolean;outline:Outline|null;known:readonly VideoScene[]|undefined;focusId:string|null;
  drafting:boolean;draftLine?:string;
  /** The scene a script run is writing, or none while it writes the whole script. */
@@ -32,7 +38,19 @@ export function ScenesColumn({target,onTarget,hasRecording,outline,known,focusId
  const scenes=outline?.scenes??[];
  const [dragIndex,setDragIndex]=useState<number|null>(null),[overIndex,setOverIndex]=useState<number|null>(null);
  const [added,setAdded]=useState<string|null>(null);
- const [redraft,setRedraft]=useState(false);
+ const [redraft,setRedraft]=useState(false),[dropOn,setDropOn]=useState<string|null>(null);
+ const toastDrop=useToast();
+ /** A board card dropped on a scene: its words become the scene's last talking point. */
+ const dropProps=(id:string,index:number)=>!acceptDrops?{}:{
+  onDragOver:(event:DragEvent)=>{if(!event.dataTransfer.types.includes(CARD_DRAG))return;event.preventDefault();event.dataTransfer.dropEffect='copy';setDropOn(id);},
+  onDragLeave:()=>setDropOn(now=>now===id?null:now),
+  onDrop:(event:DragEvent)=>{
+   const text=event.dataTransfer.getData(CARD_DRAG).trim();setDropOn(null);
+   if(!text||!outline)return;event.preventDefault();
+   onEdit({...outline,scenes:outline.scenes.map((scene,at)=>at===index?{...scene,talkingPoints:[...scene.talkingPoints.filter(point=>point.trim()),text]}:scene)});
+   toastDrop(`Added to scene ${index+1}`);
+  },
+ };
  // Every field saves as it is typed. A scene's script has its own save, sent a moment after the last keystroke and at once when it is left.
  const scriptWait=useRef<{id:string;text:string;timer:ReturnType<typeof setTimeout>}|null>(null);
  const sendScript=()=>{const wait=scriptWait.current;if(!wait)return;clearTimeout(wait.timer);scriptWait.current=null;onSceneScript(wait.id,wait.text);};
@@ -98,24 +116,32 @@ export function ScenesColumn({target,onTarget,hasRecording,outline,known,focusId
  ];
 
  const writes:MenuItem[]=drafting||scripting?[]:[
-  ...(onWriteAll?[{label:outline?.fullScript||scenes.every(scene=>scene.script)?'Write the full script again':'Write the full script',icon:'script' as const,fn:onWriteAll}]:[]),
-  {label:'Redraft the scenes',icon:'draft',fn:()=>setRedraft(true)},
+  ...(onWriteAll?[{label:outline?.fullScript||scenes.every(scene=>scene.script)?'Rewrite the full script':'Write the full script',icon:'script' as const,fn:onWriteAll}]:[]),
+  {label:'Rewrite the scenes',icon:'draft',fn:()=>setRedraft(true)},
  ];
  const busy=drafting||scripting;
  return <section className="scn" aria-label="Scenes">
-  <div className="doc-h"><h2>Scenes</h2>{scenes.length>0&&<span className="chip">{scenes.length}</span>}
+  {bare&&scenes.length>0&&<div className="scn-bar">
+   <div className="len"><span className="tnum"><b style={{color:over?'var(--cc-warn)':'var(--cc-text)'}}>{clockTime(total)}</b>{target>0?' of':''}</span>
+    <select className="select" value={target} onChange={event=>onTarget(Number(event.target.value))} aria-label="Target length">
+     <option value={0}>No target</option>{TARGET_SECONDS.map(seconds=><option key={seconds} value={seconds}>{seconds/60} min</option>)}</select></div>
    <span className="grow"/>
-   {scenes.length>0&&<Menu align="right" label="Write with Claude" items={writes} button={(toggle,open)=><Button size="sm" aria-expanded={open} aria-haspopup="menu" title={!aiAvailable?AI_CONNECT_HINT:undefined} disabled={!aiAvailable||!writes.length} onClick={toggle}>
-    {busy?<span className="spin" role="status" aria-label="Writing"/>:<BrandLogo brand="claude" size={18}/>}Write with Claude<Icon name="expand" size={13}/></Button>}/>}
-  </div>
-  {scenes.length>0&&<div className="row" style={{marginBottom:14,gap:'8px 14px',flexWrap:'wrap'}}>
+   <Menu align="right" label={`Write with ${aiName}`} items={writes} button={(toggle,open)=><Button size="sm" aria-expanded={open} aria-haspopup="menu" title={!aiAvailable?AI_CONNECT_HINT:undefined} disabled={!aiAvailable||!writes.length} onClick={toggle}>
+    {busy?<span className="spin" role="status" aria-label="Writing"/>:<BrandLogo brand={aiBrand} size={18}/>}Write with {aiName}<Icon name="expand" size={13}/></Button>}/>
+  </div>}
+  {!bare&&<div className="doc-h"><h2>Scenes</h2>{scenes.length>0&&<span className="chip">{scenes.length}</span>}
+   <span className="grow"/>
+   {scenes.length>0&&<Menu align="right" label={`Write with ${aiName}`} items={writes} button={(toggle,open)=><Button size="sm" aria-expanded={open} aria-haspopup="menu" title={!aiAvailable?AI_CONNECT_HINT:undefined} disabled={!aiAvailable||!writes.length} onClick={toggle}>
+    {busy?<span className="spin" role="status" aria-label="Writing"/>:<BrandLogo brand={aiBrand} size={18}/>}Write with {aiName}<Icon name="expand" size={13}/></Button>}/>}
+  </div>}
+  {!bare&&scenes.length>0&&<div className="row" style={{marginBottom:14,gap:'8px 14px',flexWrap:'wrap'}}>
    <span className="doc-sub" style={{margin:0}}>Talk through each one when you record.</span><span className="grow"/>
    <div className="len" style={{whiteSpace:'nowrap'}}><span className="tnum"><b style={{color:over?'var(--cc-warn-text)':'var(--cc-text)'}}>{clockTime(total)}</b>{target>0?' of':''}</span>
     <select className="select" style={{height:26,fontSize:12.5}} value={target} onChange={event=>onTarget(Number(event.target.value))} aria-label="Target length">
      <option value={0}>No target</option>{TARGET_SECONDS.map(seconds=><option key={seconds} value={seconds}>{seconds/60} min</option>)}</select>
     {target>0&&<span className="bar" style={{width:110}}><i className={over?'over':''} style={{width:`${Math.min(100,total/target*100)}%`}}/></span>}</div>
   </div>}
-  {redraft&&<ReplaceScenes scenes={known?.length?known:scenes.map((scene,i)=>({id:scene.id??String(i),title:scene.title,seconds:scene.seconds,takes:[],status:''}))} action="Drafting again" undoLine="You can undo it from the line above the scenes."
+  {redraft&&<ReplaceScenes scenes={known?.length?known:scenes.map((scene,i)=>({id:scene.id??String(i),title:scene.title,seconds:scene.seconds,takes:[],status:''}))} action="Rewriting the scenes" undoLine="You can undo it from the line above the scenes."
    onKeep={()=>setRedraft(false)} onReplace={()=>{setRedraft(false);onDraft();}}/>}
 
   {!scenes.length
@@ -133,17 +159,29 @@ export function ScenesColumn({target,onTarget,hasRecording,outline,known,focusId
     const decide=scene.decide??[];
     const isOpen=openId===id;
     const place=cn('card scene',isOpen?'open':'closed',focusId===id&&'focus',dragIndex===i&&'dragging',overIndex===i&&dragIndex!==null&&dragIndex!==i&&'drop-before');
-    if(!isOpen)return <div key={id} id={sceneCardId(id)} ref={element=>{cards.current[i]=element;}} className={place}>
+    if(!isOpen)return <div key={id} id={sceneCardId(id)} ref={element=>{cards.current[i]=element;}} className={cn(place,dropOn===id&&'drop-on')} {...dropProps(id,i)}>
      <span className="grip" aria-hidden onPointerDown={event=>onGrip(event,i)}><Icon name="drag" size={15}/></span>
-     <button type="button" className="scene-open" aria-expanded={false} aria-label={`Scene ${i+1}: ${scene.title}`} aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"
+     {bare?<button type="button" className="scene-open stacked" aria-expanded={false} aria-label={`Scene ${i+1}: ${scene.title}`} aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"
+      title="Open the scene. Alt+↑ or Alt+↓ moves it." onClick={()=>open(id)} onKeyDown={event=>moveKeys(event,i,true)}>
+      <span className="scene-meta">
+       {/* Not recorded is a quiet dot here, as on Borumi's scene cards: the words show once there is a take. */}
+       {progress&&progress.takes.length?status:<span className="sst"><span className="d"/><span className="sr-only">Not recorded</span></span>}
+       <span className="n">Scene {i+1}</span><span className="grow"/>
+       {decide.length>0&&<span className="faint small">{decide.length} to decide</span>}
+       {writing&&<span className="spin" role="status" aria-label="Writing the script"/>}
+       <span className="tnum">{clockTime(scene.seconds)}</span>
+      </span>
+      <span className="t">{scene.title||'Untitled'}</span>
+     </button>
+     :<button type="button" className="scene-open" aria-expanded={false} aria-label={`Scene ${i+1}: ${scene.title}`} aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"
       onClick={()=>open(id)} onKeyDown={event=>moveKeys(event,i,true)}>
       <span className="n">{i+1}</span><span className="t ellipsis">{scene.title||'Untitled'}</span>
       {decide.length>0&&<span className="faint small decide-count">{decide.length} to decide</span>}
       {writing&&<span className="spin" role="status" aria-label="Writing the script"/>}
       {status}<span className="tnum small muted">{clockTime(scene.seconds)}</span>
-     </button>
+     </button>}
     </div>;
-    return <div key={id} id={sceneCardId(id)} ref={element=>{cards.current[i]=element;}} aria-label={`Scene ${i+1}`} className={place} onClick={()=>onFocus(id)}>
+    return <div key={id} id={sceneCardId(id)} ref={element=>{cards.current[i]=element;}} aria-label={`Scene ${i+1}`} className={cn(place,dropOn===id&&'drop-on')} {...dropProps(id,i)} onClick={()=>onFocus(id)}>
      <div className="scene-h">
       <button type="button" className="grip" aria-label="Drag to reorder, or use the arrow keys" onPointerDown={event=>onGrip(event,i)} onClick={event=>event.stopPropagation()} onKeyDown={event=>moveKeys(event,i,false)}><Icon name="drag" size={15}/></button>
       <span className="n">{i+1}</span>

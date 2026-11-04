@@ -5,20 +5,19 @@ import {takesWaiting,TAKE_NOT_ADDED,nextTab,previousTab,scenesLine,stageForConti
 import {canvasSize,clampZoom,dragTo,keyMove,moveBy,tileBox} from './board-layout';
 
 test('the tabs follow each other, and Continue moves the card to the stage of the next tab only when that is further along',()=>{
- assert.equal(previousTab('board'),undefined);assert.equal(nextTab('publish'),undefined);
- assert.equal(nextTab('plan'),'record');assert.equal(previousTab('edit'),'record');
- assert.equal(stageForContinue('ideas','plan'),'planning');
+ assert.equal(previousTab('idea'),undefined);assert.equal(nextTab('publish'),undefined);
+ assert.equal(nextTab('idea'),'record');assert.equal(previousTab('edit'),'record');
+ assert.equal(stageForContinue('ideas','idea'),'planning');
  assert.equal(stageForContinue('planning','record'),'recording');
  assert.equal(stageForContinue('editing','record'),undefined,'a card dragged further along stays where it is');
  assert.equal(stageForContinue('recording','record'),undefined);
 });
 
-test('a tab is done when its job is: scenes for Board, kept takes for Record, an export for Edit, published for Publish',()=>{
+test('a tab is done when its job is: scenes for Idea, kept takes for Record, an export for Edit, published for Publish',()=>{
  const kept=[{takes:[{id:'a',seconds:1,kept:true,retained:false}]}],unkept=[{takes:[{id:'a',seconds:1,kept:false,retained:false}]}];
- assert.equal(tabDone('board',{stage:'ideas'}),false);
- assert.equal(tabDone('board',{stage:'ideas',scenes:kept}),true);
- assert.equal(tabDone('plan',{stage:'planning'}),false,'no outline yet');
- assert.equal(tabDone('plan',{stage:'planning',scenes:kept}),true,'the outline is the job of Plan');
+ assert.equal(tabDone('idea',{stage:'ideas'}),false);
+ assert.equal(tabDone('idea',{stage:'planning'}),false,'no outline yet');
+ assert.equal(tabDone('idea',{stage:'planning',scenes:kept}),true,'the outline is the job of Idea');
  assert.equal(tabDone('record',{stage:'recording',scenes:[...kept,...unkept]}),false);
  assert.equal(tabDone('record',{stage:'recording',scenes:kept}),true);
  assert.equal(tabDone('record',{stage:'recording',scenes:[],allRecorded:true}),true,'the recorder says so before the scenes are read again');
@@ -100,26 +99,21 @@ const noScenes={stage:'planning' as const,scenes:[],hasRecording:false};
 const planned={stage:'planning' as const,scenes:[{takes:[]},{takes:[]}],hasRecording:false};
 const started={stage:'recording' as const,scenes:[{takes:[take(true)]},{takes:[]}],hasRecording:true};
 
-test('all workspace tabs stay open at every stage, with or without scenes, projects or takes',()=>{
- for(const stage of ['ideas','planning','recording','editing','publishing','published'] as const){
-  for(const facts of [noScenes,planned,started,{...noScenes,scenes:undefined}]){
-   for(const tab of ['board','plan','record','edit','publish'] as const)assert.equal(tabLock(tab,{...facts,stage}),undefined);
-  }
- }
+test('no step is locked: every one opens, and one with nothing to work on yet says what to do there',()=>{
+ for(const tab of ['idea','record','edit','publish'] as const)for(const facts of [noScenes,planned,started,{stage:'editing' as const,hasRecording:true}])assert.equal(tabLock(tab,facts),undefined,`${tab} opens`);
 });
 
-test('the step bar shows each step as done, current, next, locked or open',()=>{
- assert.deepEqual((['board','plan','record','edit','publish'] as const).map(key=>tabState(key,'plan',noScenes)),['open','current','next','open','open']);
- assert.deepEqual((['board','plan','record','edit','publish'] as const).map(key=>tabState(key,'plan',planned)),['done','current','next','open','open']);
- assert.deepEqual((['board','plan','record','edit','publish'] as const).map(key=>tabState(key,'record',started)),['done','done','current','next','open'],'a take on the timeline is not a finished edit: Edit is ticked only once it is exported');
+test('the step bar shows each step as done, current, next or open, and none as locked',()=>{
+ assert.deepEqual((['idea','record','edit','publish'] as const).map(key=>tabState(key,'idea',noScenes)),['current','next','open','open']);
+ assert.deepEqual((['idea','record','edit','publish'] as const).map(key=>tabState(key,'idea',planned)),['current','next','open','open']);
+ assert.deepEqual((['idea','record','edit','publish'] as const).map(key=>tabState(key,'record',started)),['done','current','next','open'],'a take on the timeline is not a finished edit: Edit is ticked only once it is exported');
 });
 
-test('Continue opens the next step without completion gates and becomes primary when this step is done',()=>{
- assert.deepEqual(continueFor('board',noScenes),{label:'Continue to planning',disabled:false,primary:false});
- assert.deepEqual(continueFor('plan',noScenes),{label:'Continue to recording',disabled:false,primary:false},'on Plan the scenes are its own job');
- assert.deepEqual(continueFor('plan',planned),{label:'Continue to recording',disabled:false,primary:true});
- assert.deepEqual(continueFor('plan',planned,{busy:true}),{label:'Continue to recording',disabled:true,reason:'Claude is still writing',primary:false});
- assert.deepEqual(continueFor('record',planned,{ownPrimary:true}),{label:'Continue to editing',disabled:false,reason:"2 scenes aren't recorded yet",primary:false});
+test('one Continue rule: it names the next step, says what is still missing, and is primary only when this step is done and has no primary of its own',()=>{
+ assert.deepEqual(continueFor('idea',noScenes),{label:'Continue to recording',disabled:false,primary:false},'recording without a plan is allowed');
+ assert.deepEqual(continueFor('idea',planned),{label:'Continue to recording',disabled:false,primary:true});
+ assert.deepEqual(continueFor('idea',planned,{busy:true}),{label:'Continue to recording',disabled:true,reason:'Still writing',primary:false});
+ {const next=continueFor('record',planned,{ownPrimary:true})!;assert.deepEqual([next.label,next.disabled,next.primary],['Continue to editing',false,false],'Edit opens even before a take; Continue is never the push forward then');assert.match(next.reason!,/recorded yet/);}
  assert.deepEqual(continueFor('record',started),{label:'Continue to editing',disabled:false,reason:"1 scene isn't recorded yet",primary:false},'scenes left to record: the Record button stays the primary, and Continue says what is missing');
  assert.deepEqual(continueFor('record',{...started,allRecorded:true}),{label:'Continue to editing',disabled:false,primary:true});
  assert.deepEqual(continueFor('edit',started),{label:'Continue to publishing',disabled:false,reason:"1 scene isn't recorded yet",primary:false},'Publish can open, but never as the push forward while scenes are missing');

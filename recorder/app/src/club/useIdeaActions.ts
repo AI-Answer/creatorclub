@@ -19,7 +19,7 @@ export function useIdeaActions(navigate:(route:Route)=>void){
    async startPlanning(video:Video){
     try{
      await clubFetch<Video>(`/videos/${encodeURIComponent(video.id)}/move`,{body:{stage:'planning'}});
-     navigate({name:'video',id:video.id,tab:'board'});
+     navigate({name:'video',id:video.id,tab:'idea'});
     }catch(reason){fail(reason,"Couldn't start planning.");}
    },
    later:(video:Video)=>change(video.id,{hidden:'later'},'Saved for later',{hidden:null}),
