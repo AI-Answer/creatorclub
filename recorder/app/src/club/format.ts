@@ -93,7 +93,7 @@ const AVATAR_COLORS=[1,2,3,4].map(n=>`var(--cc-avatar-${n})`);
 /** The background of an avatar for a name: the same name always gets the same token. */
 export const avatarColor=(name:string)=>AVATAR_COLORS[hashOf(name)%AVATAR_COLORS.length];
 
-/** Draft thumbnails use four token gradients (neutral, and one in the accent). */
+/** Legacy draft-thumbnail colour pairs all read the neutral surface tokens. */
 const THUMB_GRADIENTS:ReadonlyArray<readonly [string,string]>=[1,2,3,4].map(n=>[`var(--cc-thumb-${n}-from)`,`var(--cc-thumb-${n}-to)`] as const);
 /** The two colours of a draft thumbnail for a seed (a video id), as token references. */
 export const thumbGradient=(seed:string)=>THUMB_GRADIENTS[hashOf(seed)%THUMB_GRADIENTS.length];

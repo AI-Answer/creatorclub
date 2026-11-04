@@ -31,9 +31,9 @@ export function SkillsSection(){
  return <section className="set-group" id="set-skills" aria-labelledby="set-skills-title"><h2 id="set-skills-title">Skills on Edit</h2>
   <p>On Edit, a skill runs for real and makes something for the timeline. Video skills are picked for you; switch any skill on or off here.</p>
   <Card>
-   {error?<div style={{padding:16}}><ErrorLine message={error} onRetry={load}/></div>:!skills?<div style={{padding:16}}><Spinner label="Reading your skills"/></div>:<>
+   {error?<div style={{padding:16}}><ErrorLine message={error} onRetry={load}/></div>:!skills?<div className="row small muted" role="status" style={{padding:16}}><Spinner label="Reading your skills"/>Reading your skills…</div>:<>
     <div className="srow2"><Input aria-label="Find a skill" placeholder="Find a skill" value={query} onChange={event=>setQuery(event.target.value)}/></div>
-    {on.length?on.map(row):<div className="srow2 sd">No skill matches on Edit.</div>}
+    {on.length?on.map(row):<div className="srow2 sd">{q?'No skills match this search on Edit. Try another name or description.':skills.length?'No skills are on Edit. Show the other skills below to turn one on.':'No skills found. Add a Claude Code skill, then reopen Settings.'}</div>}
     {off.length>0&&(showAll||q?<><div className="srow2 sk-sub">Not on Edit · {off.length}</div>{off.map(row)}</>
      :<div className="srow2"><button type="button" className="linkish" onClick={()=>setShowAll(true)}>Show the other {off.length} skills</button></div>)}
    </>}

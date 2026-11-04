@@ -130,7 +130,7 @@ test('the Removed line ends with the next edit, and can be dismissed',async()=>{
   const header=ui.container.querySelector('.project-header')!;
   await act(async()=>button(header,'Remove them').click());for(let i=0;i<3;i++)await flush();
   assert.ok(header.textContent?.includes('Removed 3m 12s'));
-  await act(async()=>header.querySelector<HTMLButtonElement>('button[aria-label="Dismiss"]')!.click());
+  await act(async()=>header.querySelector<HTMLButtonElement>('button[aria-label="Close"]')!.click());
   assert.ok(!header.textContent?.includes('Removed'),'dismissed');
   assert.ok(!server.calls.some(c=>c.url.endsWith('/undo')),'dismissing does not undo');
  }finally{await ui.close();server.restore();}

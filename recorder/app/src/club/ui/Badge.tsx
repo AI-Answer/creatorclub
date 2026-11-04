@@ -10,5 +10,5 @@ const tones:Record<BadgeTone,string>={
 };
 
 export function Badge({tone='neutral',className,...props}:ComponentProps<'span'>&{tone?:BadgeTone}){
- return <span className={cn('inline-flex h-6 items-center gap-1 rounded-full px-2.5 font-sans text-xs font-medium whitespace-nowrap',tones[tone],className)} {...props}/>;
+ return <span className={cn('inline-flex h-6 items-center gap-1 rounded-[var(--cc-r-pill)] px-2.5 font-sans text-xs font-medium whitespace-nowrap',tones[tone],className)} {...props}/>;
 }

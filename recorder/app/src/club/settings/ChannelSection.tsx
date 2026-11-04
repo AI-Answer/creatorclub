@@ -102,11 +102,13 @@ function VoiceGuide({workspace,onSaved}:{workspace:Workspace;onSaved(workspace:W
  const voice=useJobRun();
  const [answered,setAnswered]=useState(false),[asking,setAsking]=useState(false);
  const [guide,setGuide]=useState<VoiceGuideSummary|null>(null),[reads,setReads]=useState(0);
+ const [reading,setReading]=useState(true),[readError,setReadError]=useState('');
  const hasVideos=Boolean(workspace.channelUrl);
  const slug=encodeURIComponent(workspace.slug);
  useEffect(()=>{
   let live=true;
-  clubFetch<VoiceGuideSummary|null>(`/workspaces/${slug}/voice`).then(found=>{if(live)setGuide(found);},()=>{});
+  setReading(true);setReadError('');
+  clubFetch<VoiceGuideSummary|null>(`/workspaces/${slug}/voice`).then(found=>{if(live)setGuide(found);},()=>{if(live)setReadError("Couldn't read your voice guide.");}).finally(()=>{if(live)setReading(false);});
   return()=>{live=false;};
  },[slug,reads]);
  const rebuild=()=>{if(!aiAvailable)return;setAnswered(false);void voice.run(()=>clubFetch(`/workspaces/${slug}/voice`,{method:'POST',body:{}}),()=>setReads(count=>count+1));};
@@ -114,7 +116,9 @@ function VoiceGuide({workspace,onSaved}:{workspace:Workspace;onSaved(workspace:W
  const state=voice.state;
  return <div style={{display:'flex',flexDirection:'column',gap:8}}>
   <div className="field">Voice guide</div>
-  {guide
+  {readError&&state.phase!=='running'&&state.phase!=='failed'?<ErrorLine message={readError} onRetry={()=>setReads(count=>count+1)}/>:reading&&!guide
+   ?<Card className="p-4" aria-busy="true"><p className="small muted" role="status">Loading your voice guide…</p><div className="shimmer" aria-hidden style={{height:44,marginTop:8}}/></Card>
+   :guide
    ?<Card className="p-4" style={{background:'var(--cc-bg-sunk)',fontSize:13.5,lineHeight:1.6,color:'var(--cc-text-2)'}}>{guide.summary}
      <div className="small faint" style={{marginTop:8}}>{guide.transcripts>0?`Built from ${guide.transcripts} of your transcripts.`:'Built from your answers.'}</div></Card>
    :<p className="small muted" style={{margin:0}}>{hasVideos?'No voice guide yet. Write one from your latest videos.':'No voice guide yet. Answer three questions and Creator Compiler writes one.'}</p>}

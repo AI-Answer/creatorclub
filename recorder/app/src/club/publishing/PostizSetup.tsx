@@ -69,6 +69,7 @@ export function PostizSetup({state,onState}:{state:PublishingState;onState(next:
     </select></>}
    <button type="button" className="linkish" style={{marginLeft:'auto'}} disabled={busy} onClick={()=>void disconnect()}>Disconnect</button>
   </div>
+  {channels===null&&!error&&<p className="small muted" role="status">Loading your YouTube channels…</p>}
   {noChannel&&<p role="alert" className="small pz-err">{NO_YOUTUBE_CHANNEL} <button type="button" className="linkish" onClick={loadChannels}>Check again</button></p>}
   {!noChannel&&error&&<p role="alert" className="small pz-err">{error} <button type="button" className="linkish" onClick={loadChannels}>Try again</button></p>}
  </div>;

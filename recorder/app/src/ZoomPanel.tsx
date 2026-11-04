@@ -31,7 +31,7 @@ export function ZoomPanel({project:p,selected,playhead,change,select}:{project:P
    <div className="lp-seg" role="group" aria-label="How close">{CLOSE.map(c=><button key={c.name} type="button" aria-pressed={Math.abs(zoom.scale-c.scale)<.01} onClick={()=>update(z=>{z.scale=c.scale;})}>{c.name}</button>)}</div>
    <h4 style={{marginTop:14}}>How long</h4>
    <div className="lp-seg" role="group" aria-label="How long">{LENGTHS.map(n=><button key={n} type="button" aria-pressed={Math.abs(zoom.duration-n)<.01} onClick={()=>update(z=>{z.duration=n;})}>{n} s</button>)}</div>
-   <button type="button" className="btn sm danger" style={{marginTop:14}} onClick={()=>{change(d=>{d.zooms=d.zooms.filter(z=>z.id!==zoom.id);});}}>Remove this zoom</button>
+   <button type="button" className="btn sm danger" style={{marginTop:14}} onClick={()=>{change(d=>{d.zooms=d.zooms.filter(z=>z.id!==zoom.id);});}}>Delete zoom</button>
   </section>}
   {p.zooms.length>0&&<section className="lp-section">
    <h4>In this video</h4>

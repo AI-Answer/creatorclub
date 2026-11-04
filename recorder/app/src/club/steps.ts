@@ -55,7 +55,7 @@ export const GLOSSARY:readonly Term[]=[
 export const TREND_HELP=[
  ['Views a day','how many views the video gets each day since it went up.'],
  ['The 3× chip',"how many times the video beats its channel's usual views. No chip means that usual is not tracked yet."],
- ['Break this down','shows why it worked and gives you three concepts you could make.'],
+ ['Break down','shows why it worked and gives you three concepts you could make.'],
  ['Follow this channel','adds it to the channels Creator Compiler reads, so its new videos show up in Discover.'],
 ] as const;
 

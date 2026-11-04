@@ -167,6 +167,6 @@ export function ScenesColumn({target,onTarget,hasRecording,outline,known,focusId
      </details>}
     </div>;
    })}
-  {scenes.length>0&&<button type="button" className="addscene" style={dragIndex!==null&&overIndex===scenes.length?{boxShadow:'0 -3px 0 0 var(--cc-accent)'}:undefined} onClick={()=>add(scenes.length)}><Icon name="add" size={15}/>Add scene</button>}
+  {scenes.length>0&&<button type="button" className="addscene" style={dragIndex!==null&&overIndex===scenes.length?{outline:'2px solid var(--cc-accent)',outlineOffset:-2}:undefined} onClick={()=>add(scenes.length)}><Icon name="add" size={15}/>Add scene</button>}
  </section>;
 }

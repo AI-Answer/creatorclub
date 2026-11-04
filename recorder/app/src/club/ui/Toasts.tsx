@@ -38,10 +38,10 @@ export function ToastProvider({children}:{children:ReactNode}){
  return <ToastContext.Provider value={value}>
   {children}
   <div className="cc-toasts" role="status" aria-live="polite">
-   {toasts.map(toast=><div key={toast.id} className="cc-toast">
+   {toasts.map(toast=><div key={toast.id} className="cc-toast" style={{borderRadius:'var(--cc-r-lg)',background:'var(--cc-toast-bg)',color:'var(--cc-toast-text)',boxShadow:'var(--cc-shadow-toast)'}}>
     {!toast.options.refused&&<Icon name="check" size={15} className="ok"/>}{toast.message}
-    {toast.options.undo&&<button type="button" onClick={()=>{toast.options.undo?.();dismiss(toast.id);}}>Undo</button>}
-    {toast.options.action&&<button type="button" onClick={()=>{toast.options.action?.fn();dismiss(toast.id);}}>{toast.options.action.label}</button>}
+    {toast.options.undo&&<button type="button" style={{borderRadius:'var(--cc-r)'}} onClick={()=>{toast.options.undo?.();dismiss(toast.id);}}>Undo</button>}
+    {toast.options.action&&<button type="button" style={{borderRadius:'var(--cc-r)'}} onClick={()=>{toast.options.action?.fn();dismiss(toast.id);}}>{toast.options.action.label}</button>}
    </div>)}
   </div>
  </ToastContext.Provider>;

@@ -69,10 +69,10 @@ test('Breakdown on a YouTube tile sends the tile\'s own YouTube id, never the Cr
  const props={tile,videoId:'v-1a2b3c',onRemove(){},onOpen(){},onRetryRead(){},onBreakdown:(id:string)=>sent.push(id)};
  const ui=await mountUI(createElement(TileBody,props));
  try{
-  await act(async()=>[...ui.container.querySelectorAll('button')].find(b=>b.textContent?.trim()==='Breakdown')!.click());
+  await act(async()=>[...ui.container.querySelectorAll('button')].find(b=>b.textContent?.trim()==='Break down')!.click());
   assert.deepEqual(sent,['abcdefghijk']);
   await ui.render(createElement(TileBody,{...props,tile:{...tile,url:'https://example.com/not-youtube'}}));
-  assert.equal([...ui.container.querySelectorAll('button')].some(b=>b.textContent?.trim()==='Breakdown'),false,'a tile with no YouTube id has nothing to break down');
+  assert.equal([...ui.container.querySelectorAll('button')].some(b=>b.textContent?.trim()==='Break down'),false,'a tile with no YouTube id has nothing to break down');
  }finally{await ui.close();}
 });
 

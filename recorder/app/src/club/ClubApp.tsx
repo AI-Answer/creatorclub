@@ -56,7 +56,7 @@ function VideoRoute({id,tab,navigate}:{id:string;tab?:VideoTab;navigate(route:Ro
  },[id]);
  const stage=video?.stage;
  useEffect(()=>{if(stage&&!tab)navigate({name:'video',id,tab:defaultTab(stage)},{replace:true});},[stage,tab,id,navigate]);
- if(video===undefined)return <div className="flex flex-1 items-center justify-center"><Spinner label="Loading the video" size={20}/></div>;
+ if(video===undefined)return <div className="flex flex-1 items-center justify-center"><span className="row small muted" role="status"><Spinner label="Loading the video" size={20}/>Loading the video…</span></div>;
  if(video===null)return <EmptyState className="flex-1" title="Video not found" description="It may have been removed from the board." action={<Button onClick={()=>navigate({name:'videos',view:'board'})}>Open Videos</Button>}/>;
  return <VideoWorkspace key={video.id} video={video} tab={tab??defaultTab(video.stage)} back={videoBackRoute()} navigate={navigate} onVideo={setVideo}/>;
 }
@@ -138,7 +138,7 @@ function Shell(){
   case 'research':screen=<ResearchScreen navigate={navigate}/>;break;
   case 'settings':screen=<SettingsScreen section={route.section} onSetup={addChannel}/>;break;
  }
- if(needsChannel(route)&&channel!=='ready')screen=channel==='none'?<NoChannel onStart={addChannel}/>:<div className="flex flex-1 items-center justify-center"><Spinner label="Loading" size={20}/></div>;
+ if(needsChannel(route)&&channel!=='ready')screen=channel==='none'?<NoChannel onStart={addChannel}/>:<div className="flex flex-1 items-center justify-center"><span className="row small muted" role="status"><Spinner label="Loading your channel" size={20}/>Loading your channel…</span></div>;
  return <div className="shell">
   {route.name!=='welcome'&&<TabStrip route={route} tabs={openTabs.tabs} onClose={openTabs.close} onNewVideo={openNewVideo} onSearch={()=>setPaletteOpen(true)} onHelp={topic=>setHelp({topic})}/>}
   <div className="shell-row">

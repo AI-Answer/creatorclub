@@ -5,8 +5,8 @@
 .club-root .collapsed .compiler-nav-brand > span { display:none; }
 .club-root .sidebar { background:var(--cc-surface-2); }
 .club-root .sb-top { padding:12px 10px 8px; }
-.club-root .nav-item { height:37px; border-radius:var(--cc-r,9px); }
-.club-root .sb-search { height:35px; border-radius:var(--cc-r,9px); }
+.club-root .nav-item { height:37px; border-radius:var(--cc-r); }
+.club-root .sb-search { height:35px; border-radius:var(--cc-r); }
 .club-root .sb-bottom { padding-block:12px; }
 .club-desktop[data-platform=darwin] .sidebar.collapsed + .main-col .ws-top { padding-left:40px; }
 .club-root .page { padding-top:36px; }
@@ -16,7 +16,7 @@
 .club-root .card { box-shadow:var(--cc-shadow-card); }
 .club-root .tthumb .draft-mark { position:absolute; right:10%; top:18%; width:27%; aspect-ratio:1; opacity:.42; transform:rotate(-10deg); }
 .club-root .tthumb .draft-mark .compiler-mark { width:100%; height:100%; }
-.club-root .btn:where(:not(.club-embed *)) { height:36px; border-radius:var(--cc-r,9px); letter-spacing:-.01em; }
+.club-root .btn:where(:not(.club-embed *)) { height:36px; border-radius:var(--cc-r); letter-spacing:-.01em; }
 .club-root .btn.sm:where(:not(.club-embed *)) { height:30px; }
 .club-root .btn.primary:where(:not(.club-embed *)) { box-shadow:var(--cc-shadow-primary); }
 .club-root .settings-page { max-width:880px; }
@@ -26,7 +26,7 @@
 .club-root .srow { padding:20px; gap:16px; }
 .club-root .srow2 { padding:18px 20px; gap:16px; }
 .club-root .srow .logo,
-.club-root .srow2 .logo { width:46px; height:46px; border-radius:var(--cc-r-lg,13px); flex:none; display:flex; align-items:center; justify-content:center; background:var(--cc-provider-tile); color:var(--cc-text); border:1px solid var(--cc-line); }
+.club-root .srow2 .logo { width:46px; height:46px; border-radius:var(--cc-r-lg); flex:none; display:flex; align-items:center; justify-content:center; background:var(--cc-provider-tile); color:var(--cc-text); border:1px solid var(--cc-line); }
 .club-root .logo.logo-postiz { background:var(--cc-postiz-tile); color:var(--cc-on-media); }
 .club-root .srow .small { line-height:1.6; }
 .club-root .srow .grow > div:first-child { margin-bottom:3px; }
@@ -39,7 +39,7 @@
 .club-root .welcome-header { min-height:68px; border-bottom:1px solid var(--cc-line); }
 .club-root .welcome-header > b { font-size:var(--cc-text-base,14px); }
 .club-root .welcome-brand { width:30px; height:30px; display:inline-flex; flex:none; }
-.club-root .welcome-header .linkish { padding:7px 10px; border-radius:var(--cc-r,8px); font-size:var(--cc-text-sm,13px); }
+.club-root .welcome-header .linkish { padding:7px 10px; border-radius:var(--cc-r); font-size:var(--cc-text-sm,13px); }
 .club-root .welcome-header .linkish:hover { background:var(--cc-hover); text-decoration:none; }
 .club-root .welcome-body { padding-top:clamp(24px,5vh,56px); }
 .club-root .welcome-col { width:760px; }
@@ -47,10 +47,10 @@
 .club-root .welcome-why { margin:0 0 28px; font-size:var(--cc-text-lg,15px); line-height:1.65; max-width:620px; }
 .club-root .welcome .card { overflow:hidden; }
 .club-root .welcome .srow { padding:23px 24px; }
-.club-root .welcome .srow .logo { width:48px; height:48px; border-radius:var(--cc-r-lg,14px); }
+.club-root .welcome .srow .logo { width:48px; height:48px; border-radius:var(--cc-r-lg); }
 .club-root .welcome-foot { background:var(--cc-surface-2); padding-block:14px; }
 .club-root .welcome-foot .btn.primary { min-width:140px; }
-.club-root .pubx-route .logo-postiz { width:44px; height:44px; border-radius:var(--cc-r-lg,12px); flex:none; display:flex; align-items:center; justify-content:center; border:1px solid var(--cc-line); }
+.club-root .pubx-route .logo-postiz { width:44px; height:44px; border-radius:var(--cc-r-lg); flex:none; display:flex; align-items:center; justify-content:center; border:1px solid var(--cc-line); }
 .club-root .pubx-route .rh > .btn { flex-shrink:0; }
 .ai-app-tabs > button { display:inline-flex; align-items:center; justify-content:center; gap:8px; }
 .setup-wordmark > .compiler-mark { flex:none; }

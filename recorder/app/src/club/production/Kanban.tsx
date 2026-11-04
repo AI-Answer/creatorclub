@@ -100,7 +100,7 @@ export function Kanban({videos,scenes,ideas,onOpen,onMove,onResearch,onAdd}:{
    onDragOver={onDragOver(column)} onDrop={onDrop(column)} onDragLeave={event=>{if(!event.currentTarget.contains(event.relatedTarget as Node|null))setOver(current=>current?.stage===stage?null:current);}}>
    <div className="col-h"><span className={`col-dot st-${stage}`} aria-hidden/><span className="col-name">{STAGE_LABEL[stage]}</span><span className="n">{all.length}</span>
     {stage==='published'&&<button type="button" className="lane-toggle" aria-label={collapsed?'Expand Published':'Collapse Published'} aria-expanded={!collapsed} onClick={toggleCollapsed}><Icon name={collapsed?'back':'forward'} size={14}/></button>}
-    {!isCollapsed&&<button type="button" className="lane-plus" aria-label={`Quick add video to ${STAGE_LABEL[stage]}`} onClick={()=>{elements.current.get(stage)?.querySelector<HTMLButtonElement>('.lane-add')?.click();}}><Icon name="add" size={15}/></button>}
+    {!isCollapsed&&<button type="button" className="lane-plus" aria-label={`New video in ${STAGE_LABEL[stage]}`} onClick={()=>{elements.current.get(stage)?.querySelector<HTMLButtonElement>('.lane-add')?.click();}}><Icon name="add" size={15}/></button>}
    </div>
    {!isCollapsed&&<div className="lane-cards" ref={element=>{if(element)elements.current.set(stage,element);else elements.current.delete(stage);}}>
     {shown.map(video=><div key={video.id} className={dragId===video.id?'drag-source':undefined}>
@@ -114,7 +114,7 @@ export function Kanban({videos,scenes,ideas,onOpen,onMove,onResearch,onAdd}:{
       }} onDragEnd={reset}/>
     </div>)}
     {lineBefore==='end'&&gap}
-    {!shown.length&&!here&&<div className="lane-empty"><Icon name="video" size={18}/><span>No videos yet</span></div>}
+    {!shown.length&&!here&&<div className="lane-empty"><Icon name="video" size={18}/><span>No videos yet. Use New video below.</span></div>}
     <LaneAdd stage={stage} onAdd={onAdd}/>
    </div>}
   </section>;
@@ -123,13 +123,13 @@ export function Kanban({videos,scenes,ideas,onOpen,onMove,onResearch,onAdd}:{
 
 function LaneAdd({stage,onAdd}:{stage:VideoStage;onAdd(title:string,stage:VideoStage):Promise<void>}){
  const [open,setOpen]=useState(false),[title,setTitle]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState('');
- if(!open)return <button type="button" className="lane-add" aria-label={`Add video to ${STAGE_LABEL[stage]}`} onClick={()=>setOpen(true)}><Icon name="add" size={14}/><span>Add video</span></button>;
+ if(!open)return <button type="button" className="lane-add" aria-label={`New video in ${STAGE_LABEL[stage]}`} onClick={()=>setOpen(true)}><Icon name="add" size={14}/><span>New video</span></button>;
  return <form className="lane-add-form" onSubmit={async event=>{
   event.preventDefault();if(!title.trim()||busy)return;setBusy(true);setError('');
   try{await onAdd(title.trim(),stage);setTitle('');setOpen(false);}catch(reason){setError(errorMessage(reason,"Couldn't add video."));}finally{setBusy(false);}
  }}>
   <input autoFocus className="input" aria-label={`Video title for ${STAGE_LABEL[stage]}`} placeholder="Video title" value={title} maxLength={300} disabled={busy} onChange={event=>setTitle(event.target.value)} onKeyDown={event=>{if(event.key==='Escape'&&!busy)setOpen(false);}}/>
-  {error&&<div className="small muted" role="alert">{error}</div>}
-  <div className="row"><button className="btn sm" type="submit" disabled={busy||!title.trim()}>{busy?'Adding…':'Add video'}</button><button className="btn sm ghost" type="button" disabled={busy} onClick={()=>setOpen(false)}>Cancel</button></div>
+  {error&&<div className="small text-warn" role="alert">{error}</div>}
+  <div className="row"><button className="btn sm" type="submit" disabled={busy||!title.trim()}>{busy?'Adding…':'New video'}</button><button className="btn sm ghost" type="button" disabled={busy} onClick={()=>setOpen(false)}>Cancel</button></div>
  </form>;
 }

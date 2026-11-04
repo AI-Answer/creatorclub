@@ -1,12 +1,12 @@
 .transcript-editor {
-  --transcript-selection: hsl(221 90% 92%);
-  --transcript-current: #3b6cf6;
-  --transcript-current-text: #fff;
-  --transcript-muted: #737373;
-  --transcript-faint: #a3a3a3;
-  --transcript-hover: #f0f0f0;
-  --transcript-danger: #b91c1c;
-  --transcript-danger-hover: #fef2f2;
+  --transcript-selection:var(--cc-accent-soft);
+  --transcript-current:var(--cc-accent);
+  --transcript-current-text:var(--cc-on-accent);
+  --transcript-muted:var(--cc-text-3);
+  --transcript-faint:var(--cc-text-faint);
+  --transcript-hover:var(--cc-hover);
+  --transcript-danger:var(--cc-danger);
+  --transcript-danger-hover:var(--cc-danger-soft);
   position: relative;
   min-width: 0;
   min-height: 0;
@@ -18,14 +18,14 @@
   outline: none;
 }
 :root[data-theme=dark] .transcript-editor {
-  --transcript-selection: hsl(224 50% 26%);
-  --transcript-muted: #8a8a8a;
-  --transcript-faint: #6b6b6b;
-  --transcript-hover: #1f1f1f;
-  --transcript-danger: #fca5a5;
-  --transcript-danger-hover: #450a0a;
+  --transcript-selection:var(--cc-accent-soft);
+  --transcript-muted:var(--cc-text-3);
+  --transcript-faint:var(--cc-text-faint);
+  --transcript-hover:var(--cc-hover);
+  --transcript-danger:var(--cc-danger);
+  --transcript-danger-hover:var(--cc-danger-soft);
 }
-.transcript-editor:focus-visible { box-shadow: inset 0 0 0 2px #3b82f6; }
+.transcript-editor:focus-visible { outline:2px solid var(--cc-accent);outline-offset:-2px; }
 .transcript-editor .transcript-help { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .transcript-editor .transcript-word-list {
   overflow: auto;
@@ -36,7 +36,7 @@
   user-select: none;
   overscroll-behavior: contain;
   scrollbar-width: thin;
-  mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent);
+  mask-image: linear-gradient(to bottom, var(--cc-surface-2) calc(100% - 28px), transparent);
 }
 .transcript-editor .transcript-scene + .transcript-scene { margin-top: 10px; }
 .transcript-editor .transcript-scene-label {
@@ -53,9 +53,9 @@
   gap: 8px;
   max-width: 100%;
   padding: 0;
-  border-radius: 3px;
+  border-radius:var(--cc-r);
   background: none;
-  font-size:var(--cc-text-2xs,10px);
+  font-size:var(--cc-text-2xs);
   font-weight: 600;
   letter-spacing: .1em;
   text-transform: uppercase;
@@ -66,7 +66,7 @@
 .transcript-editor .transcript-scene-label span { font-weight: 500; letter-spacing: .06em; color: var(--transcript-faint); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .transcript-editor .transcript-paragraph {
   margin: 0 0 14px;
-  font-size:var(--cc-text-lg,15.5px);
+  font-size:var(--cc-text-lg);
   line-height: 1.72;
   font-weight: 400;
   color: var(--foreground);
@@ -76,21 +76,21 @@
 }
 .transcript-editor .transcript-word {
   cursor: pointer;
-  border-radius: 4px;
+  border-radius: var(--cc-r-sm);
   box-decoration-break: clone;
   -webkit-box-decoration-break: clone;
   transition: background-color 90ms ease, box-shadow 90ms ease, color 90ms ease;
 }
-.transcript-editor .transcript-word:hover { background: var(--transcript-hover); box-shadow: 0 0 0 2px var(--transcript-hover); }
-.transcript-editor .transcript-word[data-selected=true] { background: var(--transcript-selection); box-shadow: 0 0 0 2px var(--transcript-selection); color: var(--foreground); border-radius: 0; }
+.transcript-editor .transcript-word:hover { background: var(--transcript-hover); outline:2px solid var(--transcript-hover); }
+.transcript-editor .transcript-word[data-selected=true] { background: var(--transcript-selection); outline:2px solid var(--transcript-selection); color: var(--foreground); border-radius: 0; }
 .transcript-editor .transcript-word.untimed { text-decoration: underline dotted var(--transcript-faint); text-underline-offset: 4px; }
 .transcript-editor .transcript-word[data-current=true],
 .transcript-editor .transcript-word [data-current=true] {
   /* The pill is drawn with a box-shadow spread, which never affects line wrapping. */
   background: var(--transcript-current);
-  box-shadow: 0 0 0 3px var(--transcript-current);
+  outline:3px solid var(--transcript-current);
   color: var(--transcript-current-text);
-  border-radius: 4px;
+  border-radius: var(--cc-r-sm);
   text-decoration: none;
 }
 .transcript-editor .transcript-selection {
@@ -101,7 +101,7 @@
   min-height: 30px;
   padding: 5px 14px;
   border-top: 1px solid var(--line);
-  font-size:var(--cc-text-2xs,10px);
+  font-size:var(--cc-text-2xs);
   line-height: 1.4;
   color: var(--transcript-muted);
   background: var(--background);
@@ -109,14 +109,14 @@
 .transcript-editor .transcript-selection > span { flex: 1; min-width: 0; font-variant-numeric: tabular-nums; }
 .transcript-editor .transcript-selection.has-range { color: var(--foreground); background: var(--secondary); }
 .transcript-editor .transcript-selection strong { font-weight: 600; }
-.transcript-editor .transcript-selection .button { flex: none; min-height: 24px; padding: 2px 8px; gap: 5px; font-size:var(--cc-text-2xs,11px); }
+.transcript-editor .transcript-selection .button { flex: none; min-height: 24px; padding: 2px 8px; gap: 5px; font-size:var(--cc-text-2xs); }
 .transcript-editor .transcript-selection .button.danger { color: var(--transcript-danger); }
 .transcript-editor .transcript-selection .button.danger:hover { background: var(--transcript-danger-hover); }
-.transcript-editor .transcript-selection .button:focus-visible { outline: 2px solid var(--cc-accent,#3b82f6); outline-offset: 2px; }
+.transcript-editor .transcript-selection .button:focus-visible { outline: 2px solid var(--cc-accent); outline-offset: 2px; }
 /* Transcription status and Retry sit in a quiet footer under the prose instead of above it. */
 .transcript-panel > .transcript-editor { order: 1; }
-.transcript-panel > .transcription-status.transcription-status { order: 2; border-bottom: 0; border-top: 1px solid var(--line); padding: 5px 14px; font-size:var(--cc-text-2xs,10px); color: var(--muted); }
-.transcript-panel > .transcription-status button { font-size:var(--cc-text-2xs,10px); text-decoration: underline; text-underline-offset: 2px; }
+.transcript-panel > .transcription-status.transcription-status { order: 2; border-bottom: 0; border-top: 1px solid var(--line); padding: 5px 14px; font-size:var(--cc-text-2xs); color: var(--muted); }
+.transcript-panel > .transcription-status button { font-size:var(--cc-text-2xs); text-decoration: underline; text-underline-offset: 2px; }
 /* Wider reading column (Borumi ~340px). Doubled classes outrank original-theme.css, which loads after this file. */
 .edit-workspace.has-transcript.has-transcript { --transcript-width: 344px; grid-template-columns: 72px 300px minmax(0,1fr) var(--transcript-width); }
 .edit-workspace.has-transcript .transcript-panel.transcript-panel { width: var(--transcript-width); }
@@ -126,7 +126,7 @@
   .edit-workspace.has-transcript.has-transcript { --transcript-width: 260px; grid-template-columns: 72px 250px minmax(0,1fr) var(--transcript-width); }
   .edit-workspace.has-transcript.has-transcript .transport { padding-right: calc(var(--transcript-width) + 65px); }
   .transcript-editor .transcript-word-list { padding: 0 16px 35%; }
-  .transcript-editor .transcript-paragraph { font-size:var(--cc-text-base,14.5px); }
+  .transcript-editor .transcript-paragraph { font-size:var(--cc-text-base); }
 }
 @media (prefers-reduced-motion: reduce) {
   .transcript-editor .button, .transcript-editor .transcript-word { transition: none; }

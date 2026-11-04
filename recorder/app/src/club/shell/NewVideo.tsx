@@ -84,7 +84,7 @@ export function NewVideo({videos,onClose,onOpen}:{videos:readonly Video[];onClos
     {recentVideos.length?recentVideos.map(video=><button type="button" key={video.id} className="new-recent-row" disabled={busy} onClick={()=>open({name:'video',id:video.id})}>
      <Thumb cover={video.id} videoId={video.youtubeUrl?youtubeId(video.youtubeUrl):undefined} seed={video.id} fallback={<Icon name="video" size={17}/>}/>
      <b>{video.title}</b><time dateTime={video.updatedAt} title="Last updated">{relativeVideoTime(video.updatedAt)}</time><Icon name="forward" size={15}/>
-    </button>):<p className="small muted">Your videos will appear here.</p>}
+    </button>):<p className="small muted">No videos yet. Choose a planning or recording option above to make your first video.</p>}
    </section>
   </>:<>
    <p className="muted" style={{marginBottom:16}}>{mode==='title'?'Give your video a title to start planning.':'Paste a YouTube or Instagram link. Keep the concept you like.'}</p>

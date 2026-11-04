@@ -43,7 +43,7 @@ export function useMediaAccess(enabled:boolean,previews:PreviewSnapshot):Desktop
 /** Every problem as one amber card (the colour rule: amber is for problems to fix; a problem that blocks recording is in medium weight) that takes the place of the readiness line above the Record button: one sentence per problem, each with at most one button. Renders nothing when all is well. */
 export function RecorderWarnings({problems,onAction}:{problems:Problems|null;onAction(action:ProblemAction):void}){
  if(!problems)return null;
- return <div role="alert" data-tone={problems.tone} className={cn('club-recorder-warnings flex min-w-0 flex-1 gap-3 rounded-lg border p-3 font-sans text-sm border-warn/25 bg-warn-soft text-warn',problems.tone==='danger'&&'font-medium')}>
+ return <div role="alert" data-tone={problems.tone} className={cn('club-recorder-warnings flex min-w-0 flex-1 gap-3 rounded-[var(--cc-r-lg)] border p-3 font-sans text-sm border-warn/25 bg-warn-soft text-warn',problems.tone==='danger'&&'font-medium')}>
   <Icon name="warning" size={16} className="mt-0.5 shrink-0"/>
   <ul className="m-0 flex min-w-0 flex-1 list-none flex-col gap-2 p-0">{problems.lines.map(line=><li key={line.text} className="m-0 flex flex-col items-start gap-2">
    <span>{line.text}</span>

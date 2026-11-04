@@ -160,7 +160,7 @@ export function WelcomeScreen({navigate,initialStep}:{navigate(route:Route,optio
    <div className="welcome-col" aria-live="polite">
     <div className="row" style={{margin:'20px 0 14px',gap:10}}>
      <span className="small muted tnum">Step {shown+1} of 4</span>
-     <div style={{display:'flex',gap:4,flex:1,maxWidth:220}}>{WELCOME_STEPS.map((_,index)=><span key={index} style={{flex:1,height:4,borderRadius:4,background:index<=shown?'var(--cc-primary)':'var(--cc-line-strong)',transition:'background .3s'}}/>)}</div>
+     <div style={{display:'flex',gap:4,flex:1,maxWidth:220}}>{WELCOME_STEPS.map((_,index)=><span key={index} style={{flex:1,height:4,borderRadius:'var(--cc-r-sm)',background:index<=shown?'var(--cc-primary)':'var(--cc-line-strong)',transition:'background .3s'}}/>)}</div>
     </div>
     <h1 className="welcome-title">{title}</h1>
     <p className="muted welcome-why">{info.why}</p>

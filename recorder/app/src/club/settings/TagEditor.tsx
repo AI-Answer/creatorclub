@@ -10,8 +10,9 @@ export function TagEditor({label,values,placeholder,disabled,autoFocus,show=valu
   setText('');
  };
  return <div>
+  {values.length===0&&<p className="small muted" style={{marginBottom:8}}>No entries yet. Add one below.</p>}
   {values.length>0&&<ul aria-label={label} className="row" style={{flexWrap:'wrap',gap:6,marginBottom:8,padding:0,listStyle:'none'}}>{values.map(value=><li key={value} className="tag">{show(value)}
-   <button type="button" disabled={disabled} aria-label={`Remove ${show(value)}`} style={{border:0,background:'none',padding:0,cursor:'pointer',color:'var(--cc-text-3)',display:'inline-flex'}} onClick={()=>onChange(values.filter(item=>item!==value))}><Icon name="X" size={13}/></button>
+   <button type="button" disabled={disabled} aria-label={`Remove ${show(value)}`} style={{border:0,borderRadius:'var(--cc-r)',background:'none',padding:0,cursor:'pointer',color:'var(--cc-text-3)',display:'inline-flex'}} onClick={()=>onChange(values.filter(item=>item!==value))}><Icon name="close" size={13}/></button>
   </li>)}</ul>}
   <div className="row">
    <Input aria-label={label} autoFocus={autoFocus} value={text} disabled={disabled} autoComplete="off" spellCheck={false} placeholder={placeholder} style={{maxWidth:340}} onChange={event=>setText(event.target.value)} onKeyDown={event=>{if(event.key==='Enter'){event.preventDefault();add();}}}/>

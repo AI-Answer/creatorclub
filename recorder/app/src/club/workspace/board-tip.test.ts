@@ -23,13 +23,13 @@ test('the Board tip shows on the first visit and is saved when closed; the ? but
  try{
   await flush();await flush();
   assert.ok(tipShown(ui.container),'the tip shows on the first visit');
-  await act(async()=>button(ui.container,'Got it').click());await flush();
+  await act(async()=>button(ui.container,'Close').click());await flush();
   assert.ok(server.calls.some(call=>call.method==='POST'&&call.path==='/settings/help/board'),'closing the first visit saves it');
   assert.ok(!tipShown(ui.container),'the tip is gone');
   await act(async()=>ui.container.querySelector<HTMLButtonElement>('button[aria-label="How the board works"]')!.click());await flush();
   assert.ok(tipShown(ui.container),'the ? button opens it again');
   const posts=server.calls.filter(call=>call.method==='POST'&&call.path==='/settings/help/board').length;
-  await act(async()=>button(ui.container,'Got it').click());await flush();
+  await act(async()=>button(ui.container,'Close').click());await flush();
   assert.equal(server.calls.filter(call=>call.method==='POST'&&call.path==='/settings/help/board').length,posts,'reopening and closing saves nothing new');
  }finally{await ui.close();server.restore();}
 });

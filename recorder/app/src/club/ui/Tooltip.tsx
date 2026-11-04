@@ -40,7 +40,7 @@ export function Tooltip({text,shortcut,children,side='bottom'}:{text:string;shor
  if(box){
   const {rect}=box,center=rect.left+rect.width/2;
   const place:CSSProperties=side==='top'||rect.bottom+40>window.innerHeight?{bottom:window.innerHeight-rect.top+6}:{top:rect.bottom+6};
-  const node=<span id={id} role="tooltip" className="cc-tooltip" style={{position:'fixed',left:Math.max(8,Math.min(center,window.innerWidth-8)),...place}}>{text}{shortcut&&<kbd>{shortcut}</kbd>}</span>;
+  const node=<span id={id} role="tooltip" className="cc-tooltip" style={{position:'fixed',borderRadius:'var(--cc-r-lg)',background:'var(--cc-toast-bg)',color:'var(--cc-toast-text)',boxShadow:'var(--cc-shadow-2)',left:Math.max(8,Math.min(center,window.innerWidth-8)),...place}}>{text}{shortcut&&<kbd style={{borderRadius:'var(--cc-r-sm)',background:'var(--cc-toast-button)',color:'var(--cc-toast-text)'}}>{shortcut}</kbd>}</span>;
   tip=box.host?createPortal(node,box.host):node;
  }
  return <>{trigger}{tip}</>;

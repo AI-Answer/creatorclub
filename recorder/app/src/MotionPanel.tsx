@@ -56,7 +56,7 @@ function BlockFields({project:p,block,change}:{project:Project;block:MotionBlock
    <label className="field"><span>Start</span><input aria-label="Start" type="number" min={before} step={.1} value={Math.round(block.start*100)/100} onChange={e=>{const n=Number(e.target.value);if(Number.isFinite(n))update(m=>{m.start=Math.max(before,Math.min(n,after-m.duration));},'start');}}/></label>
    <label className="field"><span>Length</span><input aria-label="Length" type="number" min={template.minDuration} max={longest} step={.1} value={Math.round(block.duration*100)/100} onChange={e=>{const n=Number(e.target.value);if(Number.isFinite(n))update(m=>{m.duration=Math.max(Math.min(template.minDuration,longest),Math.min(longest,n));},'duration');}}/></label>
   </div>
-  <button type="button" className="button danger" onClick={()=>change(d=>{d.motion=(d.motion??[]).filter(m=>m.id!==block.id);})}><Trash2 size={14}/>Remove {template.label.toLowerCase()}</button>
+  <button type="button" className="button danger" onClick={()=>change(d=>{d.motion=(d.motion??[]).filter(m=>m.id!==block.id);})}><Trash2 size={14}/>Delete {template.label.toLowerCase()}</button>
  </section>;
 }
 

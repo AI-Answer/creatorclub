@@ -41,9 +41,9 @@ export function Sidebar({route,onSearch,onSwitched,onAdd,videos,epoch}:{route:Ro
 
 /** Shows the current channel and lists the others. Choosing one makes it the current channel; Add a channel opens first launch. */
 function ChannelSwitcher({collapsed,epoch,onSwitched,onAdd}:{collapsed:boolean;epoch:number;onSwitched():void;onAdd():void}){
- const [channels,setChannels]=useState<Channels|null>(null);
+ const [channels,setChannels]=useState<Channels|null>(null),[loadFailed,setLoadFailed]=useState(false);
  const toast=useToast();
- useEffect(()=>{let live=true;clubFetch<Channels>('/workspaces').then(next=>live&&setChannels(next),()=>{});return()=>{live=false;};},[epoch]);
+ useEffect(()=>{let live=true;setLoadFailed(false);clubFetch<Channels>('/workspaces').then(next=>live&&setChannels(next),()=>{if(live)setLoadFailed(true);});return()=>{live=false;};},[epoch]);
  const choose=useCallback((slug:string)=>{
   if(slug===channels?.current)return;
   clubFetch(`/workspaces/${encodeURIComponent(slug)}/current`,{method:'POST'}).then(()=>{
@@ -58,7 +58,7 @@ function ChannelSwitcher({collapsed,epoch,onSwitched,onAdd}:{collapsed:boolean;e
  </div>;
  const name=current?.name??'';
  return <ChannelMenu channels={channels} current={current} onChoose={choose} onAdd={onAdd} button={(toggle,open)=><button type="button" className="channel-btn" onClick={toggle} disabled={!channels} title={collapsed?name:undefined} aria-label="Switch channel" aria-haspopup="menu" aria-expanded={open}>
-  {channels?<Avatar name={name} src={current?.avatarUrl} size="lg" sq/>:<span aria-hidden style={{width:38,height:38,flex:'none',borderRadius:10,background:'var(--cc-bg-sunk)'}}/>}
+  {channels?<Avatar name={name} src={current?.avatarUrl} size="lg" sq/>:<span aria-hidden style={{width:38,height:38,flex:'none',borderRadius:'var(--cc-r-lg)',background:'var(--cc-bg-sunk)'}}/>}
   <span className="meta"><div className="name ellipsis">{name}</div><div className="sub">{channels?(current?.handle||'Starting fresh'):''}</div></span>
   <Icon name="choose" size={16} className="chev faint"/>
  </button>}/>;
