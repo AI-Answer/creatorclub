@@ -9,7 +9,7 @@ export const CANVAS_MIN={width:2600,height:1700};
 /** Room left past the right and bottom edge of the farthest tile. */
 const CANVAS_MARGIN=240;
 
-export const ZOOM={min:0.25,max:2,step:0.1,fit:0.7};
+export const ZOOM={min:0.02,max:2,step:0.1,fit:0.7};
 export const KEY_STEP=10;
 export const KEY_STEP_FAR=40;
 /** How long after the last key press a tile's new place is saved. */
@@ -45,7 +45,7 @@ export function keyMove(key:string,far:boolean):{dx:number;dy:number}|undefined{
 
 export const moveBy=(from:{x:number;y:number},move:{dx:number;dy:number})=>({x:Math.max(0,from.x+move.dx),y:Math.max(0,from.y+move.dy)});
 
-export const clampZoom=(zoom:number)=>Math.min(ZOOM.max,Math.max(ZOOM.min,Math.round(zoom*100)/100));
+export const clampZoom=(zoom:number)=>Math.min(ZOOM.max,Math.max(ZOOM.min,Math.round(zoom*10000)/10000));
 
 /** How tall a tile is assumed to be when looking for room (the screen draws them from about 150 to 500). */
 const TILE_HEIGHT=380;
@@ -133,3 +133,13 @@ export function boxAt(point:{x:number;y:number},boxes:readonly (Box&{id:string})
  for(let index=boxes.length-1;index>=0;index--){const box=boxes[index];if(point.x>=box.x&&point.x<=box.x+box.w&&point.y>=box.y&&point.y<=box.y+box.h)return box.id;}
  return undefined;
 }
+
+/** Shift-click toggles one card without disturbing the rest of the selection. */
+export const selectCard=(selected:readonly string[],id:string,extend:boolean)=>extend?(selected.includes(id)?selected.filter(each=>each!==id):[...selected,id]):selected.includes(id)?[...selected]:[id];
+/** A group stops together at the board edge, preserving the space between its cards. */
+export function groupDelta(points:readonly {x:number;y:number}[],dx:number,dy:number,zoom=1){
+ return {dx:Math.max(-Math.min(...points.map(point=>point.x)),Math.round(dx/zoom)),dy:Math.max(-Math.min(...points.map(point=>point.y)),Math.round(dy/zoom))};
+}
+
+/** New sections use the board's existing nonnegative storage coordinates. */
+export const sectionBox=(rect:Box):Box=>({x:Math.max(0,Math.round(rect.x)),y:Math.max(0,Math.round(rect.y)),w:Math.max(120,Math.round(rect.w)),h:Math.max(100,Math.round(rect.h))});

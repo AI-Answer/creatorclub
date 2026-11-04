@@ -5,9 +5,12 @@ import {clubFetch,errorMessage,notifyVideosChanged} from '../api';
 import {ErrorLine} from '../ErrorLine';
 import {Icon,IconButton,Menu,Spinner,cn,useToast,type MenuItem} from '../ui';
 import {tileFromText} from '../video-plan';
-import {ZOOM,boxAt,boxOf,canvasSize,dragTo,edgePoint,frameAround,inFrame,inRect,keyMove,linkLine,moveBy,nearestFree,rectBetween,tileBox,type Box} from './board-layout';
+import {ZOOM,boxAt,boxOf,canvasSize,dragTo,edgePoint,frameAround,inFrame,inRect,keyMove,linkLine,moveBy,nearestFree,rectBetween,sectionBox,selectCard,groupDelta,tileBox,type Box} from './board-layout';
 import {BoardTip} from './BoardTip';
-import {DEFAULT_VIEW,dotGrid,fitView,loadView,panBy,resizeNote,saveView,wheelIntent,wheelZoom,zoomAt,type View} from './board-view';
+import {DEFAULT_VIEW,dotGrid,fitView,panBy,resizeNote,wheelIntent,wheelPan,wheelZoom,zoomAt,type View} from './board-view';
+import './board.css';
+import {useBoardMotion} from './useBoardMotion';
+import {BoardMinimap} from './BoardMinimap';
 import {fitHeight} from './StickyNote';
 import {ReplaceScenes} from './ReplaceScenes';
 import {TileBody} from './TileBody';
@@ -17,7 +20,7 @@ import {useDraft} from './useDraft';
 import {NotePanel} from './NotePanel';
 import {NotesFolder} from './NotesFolder';
 import {importMessage,isDocFile} from './board-files';
-import {chooseNotesFolder,importNotes,pinNote,useBoardFiles} from './useBoardFiles';
+import {chooseNotesFolder,createImageCardFromFile,importNotes,pinNote,useBoardFiles} from './useBoardFiles';
 import {boardBase} from './board-base';
 import {useVideos} from '../useVideos';
 import {BreakdownDrawer} from '../BreakdownDrawer';
@@ -52,8 +55,9 @@ type Gesture=
  |{kind:'tiles';sx:number;sy:number;starts:Map<string,{x:number;y:number}>;pressed:string;els:Map<string,HTMLElement>;moved:boolean;/** A note's text pressed while not being written in: a press without a drag starts writing. */write?:HTMLTextAreaElement}
  |{kind:'pan';sx:number;sy:number;view:View;moved:boolean;clears:boolean}
  |{kind:'note';id:string;sx:number;sy:number;start:{w:number;h:number};el:HTMLElement;size:{w:number;h:number}}
- |{kind:'frame';id:string;sx:number;sy:number;start:{x:number;y:number};members:Map<string,{x:number;y:number}>}
- |{kind:'resize';id:string;sx:number;sy:number;start:{w:number;h:number}}
+ |{kind:'frame';id:string;sx:number;sy:number;start:{x:number;y:number};members:Map<string,{x:number;y:number}>;el:HTMLElement;els:Map<string,HTMLElement>}
+ |{kind:'resize';id:string;sx:number;sy:number;start:{w:number;h:number};el:HTMLElement;size:{w:number;h:number}}
+ |{kind:'section';start:{x:number;y:number}}
  |{kind:'marquee';start:{x:number;y:number};add:string[]}
  |{kind:'connect';from:string};
 
@@ -88,7 +92,7 @@ export function Board({video,board:boardProp,scenes,onDrafted=()=>{},refreshKey=
  const reloadBoard=board.reload;
  useEffect(()=>{if(refreshKey)reloadBoard();},[refreshKey,reloadBoard]);
  const toast=useToast();
- const [view,setView]=useState<View>(()=>loadView(boardProp??video?.id??CHANNEL_BOARD)??DEFAULT_VIEW);
+ const {view,viewNow,setView,canvasEl,scroller,onMotion}=useBoardMotion(boardId);
  const zoom=view.z;
  const [sel,setSel]=useState<string[]>([]),[dragId,setDragId]=useState<string|null>(null);
  const [selLink,setSelLink]=useState<string|null>(null),[selFrame,setSelFrame]=useState<string|null>(null);
@@ -101,34 +105,34 @@ export function Board({video,board:boardProp,scenes,onDrafted=()=>{},refreshKey=
  const [drawer,setDrawer]=useState<string|null>(null),[starting,setStarting]=useState(false);
  const [focusNote,setFocusNote]=useState<string|null>(null),[spaceHeld,setSpaceHeld]=useState(false);
  const space=useRef(false);
- const wrap=useRef<HTMLDivElement>(null),scroller=useRef<HTMLDivElement>(null),fileInput=useRef<HTMLInputElement>(null),canvasEl=useRef<HTMLDivElement>(null);
- const gesture=useRef<Gesture|null>(null);
- const viewNow=useRef(view);viewNow.current=view;
+ const [tool,setTool]=useState<'select'|'section'|'connect'>('select'),[search,setSearch]=useState<string|null>(null),[folded,setFolded]=useState<Set<string>>(new Set());
+ const wrap=useRef<HTMLDivElement>(null),fileInput=useRef<HTMLInputElement>(null);
+ const gesture=useRef<Gesture|null>(null),stopGesture=useRef<(()=>void)|null>(null);
+ useEffect(()=>()=>stopGesture.current?.(),[]);
 
- // The view is remembered for this Board, a moment after it stops changing.
- useEffect(()=>{const saveLater=setTimeout(()=>saveView(boardId,view),300);return()=>clearTimeout(saveLater);},[boardId,view]);
  const loaded=!!board.tiles;
- // Wheel: scrolling and pinching zoom towards the pointer; Shift + scroll or a sideways swipe pans.
+ // Wheel: two fingers pan; pinch and Command-wheel zoom around the pointer.
  useEffect(()=>{
   const el=scroller.current;if(!el)return;
   const onWheel=(event:WheelEvent)=>{
-   if(!event.ctrlKey&&(event.target as HTMLElement).closest?.('[data-wheel="own"]'))return;
+   if(!event.ctrlKey&&!event.metaKey&&(event.target as HTMLElement).closest?.('[data-wheel="own"]'))return;
    event.preventDefault();
    const rect=el.getBoundingClientRect();
    if(wheelIntent(event)==='zoom')
     setView(current=>zoomAt(current,wheelZoom(current.z,event.deltaY,event.deltaMode,event.ctrlKey),event.clientX-rect.left,event.clientY-rect.top));
-   else setView(current=>event.shiftKey&&!event.deltaX?panBy(current,-event.deltaY,0):panBy(current,-event.deltaX,-event.deltaY));
+   else {const {dx,dy}=wheelPan(event,el.clientHeight);setView(current=>panBy(current,dx,dy));}
   };
   el.addEventListener('wheel',onWheel,{passive:false});
   return()=>el.removeEventListener('wheel',onWheel);
- },[loaded]);
+ },[loaded,setView,scroller]);
  // Space held: the next drag pans, wherever it starts.
  useEffect(()=>{
   const typing=(event:globalThis.KeyboardEvent)=>!!(event.target as HTMLElement|null)?.closest?.(`${TYPING},button,a,[role="button"]`);
   const down=(event:globalThis.KeyboardEvent)=>{if(event.code!=='Space'||typing(event)||!wrap.current?.contains(document.activeElement)&&document.activeElement!==document.body)return;event.preventDefault();space.current=true;setSpaceHeld(true);};
   const up=(event:globalThis.KeyboardEvent)=>{if(event.code!=='Space')return;space.current=false;setSpaceHeld(false);};
-  window.addEventListener('keydown',down);window.addEventListener('keyup',up);window.addEventListener('blur',()=>{space.current=false;setSpaceHeld(false);});
-  return()=>{window.removeEventListener('keydown',down);window.removeEventListener('keyup',up);};
+  const blur=()=>{space.current=false;setSpaceHeld(false);};
+  window.addEventListener('keydown',down);window.addEventListener('keyup',up);window.addEventListener('blur',blur);
+  return()=>{window.removeEventListener('keydown',down);window.removeEventListener('keyup',up);window.removeEventListener('blur',blur);};
  },[]);
  const tiles=board.tiles;
  const count=tiles?.length??0;
@@ -149,13 +153,12 @@ export function Board({video,board:boardProp,scenes,onDrafted=()=>{},refreshKey=
  // The drawn height of every card, so lines, frames and the selection rectangle fit the cards as they are drawn.
  useLayoutEffect(()=>{
   const root=canvasEl.current;if(!root)return;
-  let changed=false;const next:Record<string,number>={};
-  for(const element of root.querySelectorAll<HTMLElement>('[data-tile]')){
-   const id=element.dataset.tile!,height=element.offsetHeight;
-   if(height>0){next[id]=height;if(heights[id]!==height)changed=true;}
-  }
-  if(changed||Object.keys(next).length!==Object.keys(heights).length)setHeights(next);
- });
+  const read=()=>{const next:Record<string,number>={};for(const el of root.querySelectorAll<HTMLElement>('[data-tile]'))if(el.offsetHeight>0)next[el.dataset.tile!]=el.offsetHeight;
+   setHeights(current=>Object.keys(next).length!==Object.keys(current).length||Object.entries(next).some(([id,h])=>current[id]!==h)?next:current);
+  };
+  read();const observer=new ResizeObserver(read);for(const el of root.querySelectorAll('[data-tile]'))observer.observe(el);
+  return()=>observer.disconnect();
+ },[count,loaded,boardId,canvasEl]);
  const boxes=useMemo(()=>new Map((tiles??[]).map(tile=>[tile.id,boxOf(tile,heights)])),[tiles,heights]);
  const shownLinks=useMemo(()=>links.filter(each=>boxes.has(each.from)&&boxes.has(each.to)),[links,boxes]);
 
@@ -166,38 +169,47 @@ export function Board({video,board:boardProp,scenes,onDrafted=()=>{},refreshKey=
  const clear=()=>{setSel([]);setSelLink(null);setSelFrame(null);setConnectFrom(null);setEditLink(null);};
 
  /** A point on the canvas, in canvas pixels, from a point on screen. */
- const toCanvas=(clientX:number,clientY:number)=>{const rect=canvasEl.current?.getBoundingClientRect();return {x:(clientX-(rect?.left??0))/zoom,y:(clientY-(rect?.top??0))/zoom};};
+ const toCanvas=(clientX:number,clientY:number)=>{const rect=canvasEl.current?.getBoundingClientRect();return {x:(clientX-(rect?.left??0))/viewNow.current.z,y:(clientY-(rect?.top??0))/viewNow.current.z};};
 
  /** Follows the pointer until it is let go: one gesture at a time, wherever the pointer goes. */
  const follow=(start:Gesture)=>{
-  gesture.current=start;
+  stopGesture.current?.();gesture.current=start;
+  const gestureZoom=viewNow.current.z;
   const move=(event:PointerEvent)=>{
    const now=gesture.current;if(!now)return;
    if(now.kind==='tiles'){
     if(!now.moved&&Math.abs(event.clientX-now.sx)+Math.abs(event.clientY-now.sy)<=3)return;
     now.moved=true;
     // A card follows the pointer by a transform on the card itself: no render per pixel; the new place is set when it is let go.
-    for(const [id,from] of now.starts){const at=dragTo(from,event.clientX-now.sx,event.clientY-now.sy,zoom);const el=now.els.get(id);if(el)el.style.transform=`translate3d(${at.x-from.x}px,${at.y-from.y}px,0)`;}
+    const delta=groupDelta([...now.starts.values()],event.clientX-now.sx,event.clientY-now.sy,gestureZoom);
+    for(const el of now.els.values())el.style.transform=`translate3d(${delta.dx}px,${delta.dy}px,0)`;
    }else if(now.kind==='pan'){
     const dx=event.clientX-now.sx,dy=event.clientY-now.sy;
     if(Math.abs(dx)+Math.abs(dy)>3)now.moved=true;
     setView(panBy(now.view,dx,dy));
    }else if(now.kind==='note'){
-    now.size=resizeNote(now.start,event.clientX-now.sx,event.clientY-now.sy,zoom);
+    now.size=resizeNote(now.start,event.clientX-now.sx,event.clientY-now.sy,gestureZoom);
     now.el.style.width=`${now.size.w}px`;now.el.style.minHeight=`${now.size.h}px`;
     fitHeight(now.el.querySelector('textarea'));
    }else if(now.kind==='frame'){
-    const at=dragTo(now.start,event.clientX-now.sx,event.clientY-now.sy,zoom),dx=at.x-now.start.x,dy=at.y-now.start.y;
-    canvas.changeFrame(now.id,at,false);
-    for(const [id,from] of now.members)board.preview(id,moveBy(from,{dx,dy}));
-   }else if(now.kind==='resize')canvas.changeFrame(now.id,{w:Math.max(120,Math.round(now.start.w+(event.clientX-now.sx)/zoom)),h:Math.max(100,Math.round(now.start.h+(event.clientY-now.sy)/zoom))},false);
-   else if(now.kind==='marquee')setMarquee(rectBetween(now.start,toCanvas(event.clientX,event.clientY)));
+    const at=dragTo(now.start,event.clientX-now.sx,event.clientY-now.sy,gestureZoom),dx=at.x-now.start.x,dy=at.y-now.start.y;
+    now.el.style.transform=`translate3d(${dx}px,${dy}px,0)`;
+    for(const el of now.els.values())el.style.transform=`translate3d(${dx}px,${dy}px,0)`;
+   }else if(now.kind==='resize'){now.size={w:Math.max(120,Math.round(now.start.w+(event.clientX-now.sx)/gestureZoom)),h:Math.max(100,Math.round(now.start.h+(event.clientY-now.sy)/gestureZoom))};now.el.style.width=`${now.size.w}px`;now.el.style.height=`${now.size.h}px`;}
+   else if(now.kind==='marquee'||now.kind==='section')setMarquee(rectBetween(now.start,toCanvas(event.clientX,event.clientY)));
    else setDrawing({from:now.from,to:toCanvas(event.clientX,event.clientY)});
   };
   const up=(event:PointerEvent)=>{
-   window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',up);window.removeEventListener('pointercancel',up);
+   stopGesture.current?.();stopGesture.current=null;
    const now=gesture.current;gesture.current=null;setDragId(null);
    if(!now)return;
+   if(event.type==='pointercancel'){
+    if(now.kind==='tiles'||now.kind==='frame')for(const el of now.els.values())el.style.transform='';
+    if(now.kind==='frame')now.el.style.transform='';
+    if(now.kind==='resize'){now.el.style.width=`${now.start.w}px`;now.el.style.height=`${now.start.h}px`;}
+    if(now.kind==='note'){now.el.style.width=`${now.start.w}px`;now.el.style.minHeight=`${now.start.h}px`;}
+    setMarquee(null);setDrawing(null);return;
+   }
    const dx=event.clientX-(('sx' in now)?now.sx:event.clientX),dy=event.clientY-(('sy' in now)?now.sy:event.clientY);
    if(now.kind==='pan'){
     if(!now.moved&&now.clears)clear();
@@ -206,19 +218,23 @@ export function Board({video,board:boardProp,scenes,onDrafted=()=>{},refreshKey=
    }else if(now.kind==='tiles'){
     let moved=false;
     for(const el of now.els.values())el.style.transform='';
-    if(now.moved)for(const [id,from] of now.starts){const at=dragTo(from,dx,dy,zoom);if(at.x!==from.x||at.y!==from.y){moved=true;board.place(id,at,'now');}}
+    const delta=groupDelta([...now.starts.values()],dx,dy,gestureZoom);
+    if(now.moved)for(const [id,from] of now.starts){const at=moveBy(from,delta);if(at.x!==from.x||at.y!==from.y){moved=true;board.place(id,at,'now');}}
     if(!moved&&now.write){const area=now.write;area.focus({preventScroll:true});area.setSelectionRange(area.value.length,area.value.length);return;}
     // A press on one card of a selection that did not move it picks that card alone.
     if(!moved&&now.starts.size>1)setSel([now.pressed]);
    }else if(now.kind==='frame'){
-    const at=dragTo(now.start,dx,dy,zoom);
+    now.el.style.transform='';for(const el of now.els.values())el.style.transform='';
+    const at=dragTo(now.start,dx,dy,gestureZoom);
     if(at.x!==now.start.x||at.y!==now.start.y){
      canvas.changeFrame(now.id,at);
      for(const [id,from] of now.members)board.place(id,moveBy(from,{dx:at.x-now.start.x,dy:at.y-now.start.y}),'now');
     }
    }else if(now.kind==='resize'){
-    const frame=framesNow.current.find(each=>each.id===now.id);
-    if(frame&&(frame.w!==now.start.w||frame.h!==now.start.h))canvas.changeFrame(now.id,{w:frame.w,h:frame.h});
+    if(now.size.w!==now.start.w||now.size.h!==now.start.h)canvas.changeFrame(now.id,now.size);
+   }else if(now.kind==='section'){
+    const rect=rectBetween(now.start,toCanvas(event.clientX,event.clientY));setMarquee(null);setTool('select');
+    void makeSection({...rect,w:Math.max(240,rect.w),h:Math.max(160,rect.h)});
    }else if(now.kind==='marquee'){
     const rect=rectBetween(now.start,toCanvas(event.clientX,event.clientY));
     setMarquee(null);
@@ -231,11 +247,11 @@ export function Board({video,board:boardProp,scenes,onDrafted=()=>{},refreshKey=
    }
   };
   window.addEventListener('pointermove',move);window.addEventListener('pointerup',up);window.addEventListener('pointercancel',up);
+  stopGesture.current=()=>{window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',up);window.removeEventListener('pointercancel',up);};
  };
  const tilesNow=useRef(tiles);tilesNow.current=tiles;
  const heightsNow=useRef(heights);heightsNow.current=heights;
  const boxesNow=useRef(boxes);boxesNow.current=boxes;
- const framesNow=useRef(frames);framesNow.current=frames;
  const selNow=useRef(sel);selNow.current=sel;
  const pointing=useRef(false);
 
@@ -249,8 +265,9 @@ export function Board({video,board:boardProp,scenes,onDrafted=()=>{},refreshKey=
   pointing.current=true;setTimeout(()=>{pointing.current=false;},0);
   setSelLink(null);setSelFrame(null);
   // Connecting (after the card's connect button, or C): the card pressed next is the other end.
+  if(tool==='connect'&&!connectFrom){setConnectFrom(id);return;}
   if(connectFrom&&connectFrom!==id){const from=connectFrom;setConnectFrom(null);void canvas.connect(from,id).then(made=>{if(made){setSelLink(made.id);setSel([]);setEditLink(made.id);}});return;}
-  if(event.shiftKey||event.metaKey||event.ctrlKey){setSel(current=>current.includes(id)?current.filter(each=>each!==id):[...current,id]);return;}
+  if(event.shiftKey||event.metaKey||event.ctrlKey){setSel(current=>selectCard(current,id,true));return;}
   const moving=selNow.current.includes(id)?selNow.current:[id];
   if(!selNow.current.includes(id))setSel([id]);
   setDragId(id);
@@ -261,27 +278,28 @@ export function Board({video,board:boardProp,scenes,onDrafted=()=>{},refreshKey=
  const onCanvasDown=(event:ReactPointerEvent<HTMLDivElement>)=>{
   const target=event.target as HTMLElement;
   const empty=isEmpty(target,event.currentTarget);
-  // Space + drag, the middle button, or a drag on the empty canvas (or the inside of a frame) pans; Shift + drag draws a selection rectangle.
+  // Space or the middle button pans. The selection tool draws a marquee on empty canvas.
   if(event.button===1||(event.button===0&&space.current)){event.preventDefault();follow({kind:'pan',sx:event.clientX,sy:event.clientY,view:viewNow.current,moved:false,clears:false});return;}
   if(event.button!==0||!empty)return;
   setEditLink(null);
   // Keys (Delete, Esc, arrows) go to the Board from here on.
   wrap.current?.focus({preventScroll:true});
-  if(event.shiftKey)follow({kind:'marquee',start:toCanvas(event.clientX,event.clientY),add:selNow.current});
-  else follow({kind:'pan',sx:event.clientX,sy:event.clientY,view:viewNow.current,moved:false,clears:true});
+  event.preventDefault();
+  if(tool==='section')follow({kind:'section',start:toCanvas(event.clientX,event.clientY)});
+  else follow({kind:'marquee',start:toCanvas(event.clientX,event.clientY),add:event.shiftKey?selNow.current:[]});
  };
  const onFrameDown=(event:ReactPointerEvent<HTMLElement>,frame:BoardFrame)=>{
-  if(event.button!==0||(event.target as HTMLElement).closest('button,input'))return;
+  if(event.button!==0||space.current||(event.target as HTMLElement).closest('button,input'))return;
   event.stopPropagation();
   setSelFrame(frame.id);setSelLink(null);setSel([]);
   const members=new Map(inFrame(frame,tiles??[]).map(id=>[id,{x:boxes.get(id)!.x,y:boxes.get(id)!.y}] as const));
-  follow({kind:'frame',id:frame.id,sx:event.clientX,sy:event.clientY,start:{x:frame.x,y:frame.y},members});
+  follow({kind:'frame',id:frame.id,sx:event.clientX,sy:event.clientY,start:{x:frame.x,y:frame.y},members,el:event.currentTarget.closest<HTMLElement>('.bframe')!,els:new Map([...members.keys()].flatMap(id=>{const el=canvasEl.current?.querySelector<HTMLElement>(`[data-tile="${id}"]`);return el?[[id,el] as const]:[];}))});
  };
  const onResizeDown=(event:ReactPointerEvent<HTMLElement>,frame:BoardFrame)=>{
-  if(event.button!==0)return;
+  if(event.button!==0||space.current)return;
   event.stopPropagation();event.preventDefault();
   setSelFrame(frame.id);
-  follow({kind:'resize',id:frame.id,sx:event.clientX,sy:event.clientY,start:{w:frame.w,h:frame.h}});
+  follow({kind:'resize',id:frame.id,sx:event.clientX,sy:event.clientY,start:{w:frame.w,h:frame.h},size:{w:frame.w,h:frame.h},el:event.currentTarget.closest<HTMLElement>('.bframe')!});
  };
  const onNoteResizeDown=(event:ReactPointerEvent<HTMLElement>,id:string)=>{
   if(event.button!==0)return;
@@ -299,7 +317,8 @@ export function Board({video,board:boardProp,scenes,onDrafted=()=>{},refreshKey=
 
  /** Moves the selected cards (or the focused frame and its cards) by a key press; saved a moment after the last one. */
  const moveSelection=(move:{dx:number;dy:number},ids:readonly string[])=>{
-  for(const id of ids){const tile=tiles?.find(item=>item.id===id);if(tile)board.place(id,moveBy(tileBox(tile),move),'soon');}
+  const chosen=(tiles??[]).filter(tile=>ids.includes(tile.id)),delta=groupDelta(chosen.map(tileBox),move.dx,move.dy);
+  for(const tile of chosen)board.place(tile.id,moveBy(tileBox(tile),delta),'soon');
  };
  const onTileKey=(event:KeyboardEvent<HTMLDivElement>,tileId:string)=>{
   if(event.target!==event.currentTarget)return;
@@ -309,6 +328,7 @@ export function Board({video,board:boardProp,scenes,onDrafted=()=>{},refreshKey=
    return;
   }
   if((event.key==='c'||event.key==='C')&&!event.metaKey&&!event.ctrlKey){event.preventDefault();setConnectFrom(tileId);toast('Pick the card to connect to: focus it and press Enter. Esc cancels.');return;}
+  if(event.metaKey||event.ctrlKey)return;
   const move=keyMove(event.key,event.shiftKey);if(!move)return;
   event.preventDefault();
   moveSelection(move,sel.includes(tileId)?sel:[tileId]);
@@ -316,11 +336,12 @@ export function Board({video,board:boardProp,scenes,onDrafted=()=>{},refreshKey=
  const onFrameKey=(event:KeyboardEvent<HTMLElement>,frame:BoardFrame)=>{
   if(event.target!==event.currentTarget)return;
   if(event.key==='Enter'){event.preventDefault();setEditFrame(frame.id);return;}
+  if(event.metaKey||event.ctrlKey)return;
   const move=keyMove(event.key,event.shiftKey);if(!move)return;
   event.preventDefault();
-  const at=moveBy(frame,move);
+  const delta=groupDelta([frame],move.dx,move.dy),at=moveBy(frame,delta);
   canvas.changeFrame(frame.id,at);
-  moveSelection(move,inFrame(frame,tiles??[]));
+  moveSelection(delta,inFrame(frame,tiles??[]));
  };
 
  /** Delete: whatever is selected goes, with Undo. Esc: the selection is cleared (and a connection being made is let go). */
@@ -329,9 +350,20 @@ export function Board({video,board:boardProp,scenes,onDrafted=()=>{},refreshKey=
   // Only keys pressed on the canvas or its selection bar: never while typing, nor in a panel opened over the Board.
   if(event.defaultPrevented||target.closest(TYPING)||!(target===event.currentTarget||target.closest('.canvas-scroll,.board-selbar')))return;
   if(event.key==='Escape'){
-   if(!sel.length&&!selLink&&!selFrame&&!connectFrom)return;
-   event.preventDefault();clear();return;
+   if(!sel.length&&!selLink&&!selFrame&&!connectFrom&&tool==='select')return;
+   event.preventDefault();clear();setTool('select');return;
   }
+  const mod=event.metaKey||event.ctrlKey,key=event.key.toLowerCase();
+  if(mod&&key==='a'){event.preventDefault();setSel((tiles??[]).map(tile=>tile.id));setSelLink(null);setSelFrame(null);return;}
+  if(event.shiftKey&&(event.code==='Digit1'||event.key==='!')){event.preventDefault();fit();return;}
+  if(mod&&['=','+','-','0','ArrowUp','ArrowDown'].includes(event.key)){event.preventDefault();if(event.key==='0')setView(current=>zoomAt(current,1,(scroller.current?.clientWidth??0)/2,(scroller.current?.clientHeight??0)/2));else zoomBy(event.key==='-'||event.key==='ArrowDown'?-ZOOM.step:ZOOM.step);return;}
+  if(!mod&&key==='v'){event.preventDefault();setTool('select');return;}
+  if(!mod&&key==='s'){event.preventDefault();setTool('section');return;}
+  if(!mod&&key==='n'){event.preventDefault();void addNote();return;}
+  if(!mod&&key==='t'){event.preventDefault();void addHere({kind:'text',text:'Text'});return;}
+  if(mod&&key==='f'){event.preventDefault();setSearch('');return;}
+  const move=keyMove(event.key,event.shiftKey);
+  if(move&&target===event.currentTarget){event.preventDefault();if(selFrame){const frame=frames.find(each=>each.id===selFrame);if(frame){const delta=groupDelta([frame],move.dx,move.dy);canvas.changeFrame(frame.id,moveBy(frame,delta));moveSelection(delta,inFrame(frame,tiles??[]));}}else moveSelection(move,sel);return;}
   if(event.key!=='Delete'&&event.key!=='Backspace')return;
   if(selLink){event.preventDefault();canvas.unlink(selLink);setSelLink(null);return;}
   if(selFrame){event.preventDefault();canvas.removeFrame(selFrame);setSelFrame(null);return;}
@@ -378,10 +410,14 @@ export function Board({video,board:boardProp,scenes,onDrafted=()=>{},refreshKey=
    toast(importMessage(result.tiles.length,[...result.skipped,...left]));
   }catch(reason){toast(errorMessage(reason,"Couldn't add those files."));}
  };
- const takeFiles=(picked:File[])=>{
+ /** An image dropped on the canvas lands where it was dropped, as a card holding the picture that can take a title and notes, like Heptabase. */
+ const dropImage=async(file:File,at:{x:number;y:number})=>{
+  try{board.adopt([await createImageCardFromFile(boardId,file,at)]);}catch(reason){toast(errorMessage(reason,"Couldn't add that image."));}
+ };
+ const takeFiles=(picked:File[],at?:{x:number;y:number})=>{
   const images=picked.filter(isImage),docs=picked.filter(file=>!isImage(file)&&isDocFile(file)),others=picked.filter(file=>!isImage(file)&&!isDocFile(file));
   if(!images.length&&!docs.length){toast(NOT_SUPPORTED);return;}
-  for(const file of images)void addImage(file);
+  images.forEach((file,index)=>void (at?dropImage(file,{x:at.x+index*24,y:at.y+index*24}):addImage(file)));
   if(docs.length)void takeNotes(docs,others);
   else if(others.length)toast(importMessage(0,others.map(file=>({name:file.name,reason:'Only images and Markdown or text files can be dropped here.'}))));
  };
@@ -395,7 +431,7 @@ export function Board({video,board:boardProp,scenes,onDrafted=()=>{},refreshKey=
  const drop=(event:DragEvent<HTMLDivElement>)=>{
   event.preventDefault();
   const files=[...event.dataTransfer.files];
-  if(files.length){takeFiles(files);return;}
+  if(files.length){takeFiles(files,toCanvas(event.clientX,event.clientY));return;}
   const text=event.dataTransfer.getData('text/uri-list').split('\n').find(line=>line&&!line.startsWith('#'))||event.dataTransfer.getData('text/plain');
   if(text.trim())void addFromText(addHere,text);
  };
@@ -406,11 +442,11 @@ export function Board({video,board:boardProp,scenes,onDrafted=()=>{},refreshKey=
  const copyPath=(text:string,message:string)=>{navigator.clipboard?.writeText(text).then(()=>toast(message),()=>toast("Couldn't copy that."));};
 
  /** Groups the selected cards in a frame drawn around them, and opens its name to type. */
- const group=async()=>{
-  const chosen=sel.flatMap(id=>boxes.get(id)??[]);if(!chosen.length)return;
-  const made=await canvas.addFrame({title:'Group',...frameAround(chosen)});
+ const makeSection=async(rect:Box)=>{
+  const made=await canvas.addFrame({title:'Section',...sectionBox(rect)});
   if(made){setSelFrame(made.id);setSel([]);setEditFrame(made.id);}
  };
+ const group=()=>{const chosen=sel.flatMap(id=>boxes.get(id)??[]);return chosen.length?makeSection(frameAround(chosen)):Promise.resolve();};
  /** Research: a new idea whose Board holds copies of the selected cards (a selected frame's cards, named after the frame). */
  const startVideo=async(ids:readonly string[],frameId?:string)=>{
   if(!ids.length||starting)return;
@@ -424,7 +460,8 @@ export function Board({video,board:boardProp,scenes,onDrafted=()=>{},refreshKey=
  };
  const openVideo=(target:Video)=>{if(target.stage==='ideas')setDrawer(target.id);else navigate(openRoute(target));};
 
- const noteOpen=openNote?tiles?.find(tile=>tile.id===openNote&&tile.doc):undefined;
+ const cardOpen=openNote?tiles?.find(tile=>tile.id===openNote):undefined;
+ const noteOpen=cardOpen?.doc?cardOpen:undefined;
  /** Shows every card and frame; an empty Board goes back to its start. */
  const fit=()=>{
   const holder=scroller.current;if(!holder)return;
@@ -435,6 +472,7 @@ export function Board({video,board:boardProp,scenes,onDrafted=()=>{},refreshKey=
  };
  /** Zooms by a step around the middle of the window (the buttons). */
  const zoomBy=(step:number)=>{const holder=scroller.current;setView(current=>zoomAt(current,Math.round((current.z+step)*100)/100,(holder?.clientWidth??0)/2,(holder?.clientHeight??0)/2));};
+ const focusCard=(id:string)=>{const box=boxes.get(id),holder=scroller.current;if(box&&holder){setSel([id]);setView(fitView(box,holder.clientWidth,holder.clientHeight,100));}};
  const grid=dotGrid(view);
  const size=canvasSize(tiles??[],heights);
  const frameSize=frames.reduce((most,frame)=>({width:Math.max(most.width,frame.x+frame.w+240),height:Math.max(most.height,frame.y+frame.h+240)}),size);
@@ -454,16 +492,16 @@ export function Board({video,board:boardProp,scenes,onDrafted=()=>{},refreshKey=
  const addMenu=(primary=false)=><Menu label="Add to the board" items={addItems} button={(toggle,open)=><button type="button" className={cn('btn sm',primary&&'primary')} aria-haspopup="menu" aria-expanded={open} onClick={toggle}><Icon name="add" size={15}/>Add to board</button>}/>;
  const emptyResearch=research&&tiles?.length===0&&!frames.length;
 
- return <div className="board-wrap" ref={wrap} tabIndex={-1} onPaste={paste} onDragOver={event=>event.preventDefault()} onDrop={drop} onKeyDown={onBoardKey} onClick={event=>{if(event.target===event.currentTarget)clear();}}>
+ return <div className="board-wrap hepta-board" ref={wrap} tabIndex={-1} onPaste={paste} onDragOver={event=>event.preventDefault()} onDrop={drop} onKeyDown={onBoardKey} onClick={event=>{if(event.target===event.currentTarget)clear();}}>
   {board.loadError?<div style={{padding:24}}><ErrorLine message={board.loadError} onRetry={board.reload}/></div>:!tiles?<div className="flex flex-1 items-center justify-center"><Spinner label="Loading the board" size={20}/></div>:
-  <div className={cn('canvas-scroll',spaceHeld&&'pan-ready')} ref={scroller} style={{backgroundSize:`${grid.size}px ${grid.size}px`,backgroundPosition:`${grid.x}px ${grid.y}px`}} onPointerDown={onCanvasDown} onDoubleClick={event=>{if(isEmpty(event.target as HTMLElement,event.currentTarget))void addNote('',toCanvas(event.clientX,event.clientY));}}>
+  <div className={cn('canvas-scroll',spaceHeld&&'pan-ready',tool==='section'&&'section-ready')} ref={scroller} style={{backgroundSize:`${grid.size}px ${grid.size}px`,backgroundPosition:`${grid.x}px ${grid.y}px`}} onPointerDown={onCanvasDown} onDoubleClick={event=>{if(isEmpty(event.target as HTMLElement,event.currentTarget))void addNote('',toCanvas(event.clientX,event.clientY));}}>
     <div className={cn('canvas',connectFrom&&'connecting')} ref={canvasEl} style={{width:frameSize.width,height:frameSize.height,transform:`translate3d(${view.x}px,${view.y}px,0) scale(${zoom})`}}>
      {tiles.length===0&&!research&&<p className="muted" style={{position:'absolute',left:60,top:70,maxWidth:380,fontSize:14,lineHeight:1.55}}>Drop links, screenshots, notes and Markdown files here. Claude reads the whole board when it drafts your scenes. Anything saved in this video's folder shows up here too.</p>}
      {frames.map(frame=><div key={frame.id} className={cn('bframe',selFrame===frame.id&&'sel')} style={{left:frame.x,top:frame.y,width:frame.w,height:frame.h}} data-frame={frame.id}>
-      <div className="bframe-h" role="group" tabIndex={0} aria-label={`Frame ${frame.title}. Arrow keys move it and its cards. Enter renames it.`} onPointerDown={event=>onFrameDown(event,frame)} onKeyDown={event=>onFrameKey(event,frame)} onFocus={()=>{setSelFrame(frame.id);setSel([]);setSelLink(null);}} onDoubleClick={()=>setEditFrame(frame.id)}>
+      <div className="bframe-h" role="group" tabIndex={0} aria-label={`Section ${frame.title}. Arrow keys move it and its cards. Enter renames it.`} onPointerDown={event=>onFrameDown(event,frame)} onKeyDown={event=>onFrameKey(event,frame)} onFocus={()=>{setSelFrame(frame.id);setSel([]);setSelLink(null);}} onDoubleClick={()=>setEditFrame(frame.id)}>
        <Icon name="frame" size={13}/>
        {editFrame===frame.id
-        ?<input className="bframe-name" autoFocus defaultValue={frame.title} aria-label="Frame name" maxLength={80}
+        ?<input className="bframe-name" autoFocus defaultValue={frame.title} aria-label="Section name" maxLength={80}
           onBlur={event=>{const title=event.target.value.trim()||frame.title;if(title!==frame.title)canvas.changeFrame(frame.id,{title});setEditFrame(null);}}
           onKeyDown={event=>{if(event.key==='Enter')event.currentTarget.blur();if(event.key==='Escape'){event.preventDefault();event.stopPropagation();event.currentTarget.value=frame.title;event.currentTarget.blur();}}}/>
         :<span className="ellipsis">{frame.title}</span>}
@@ -496,8 +534,17 @@ export function Board({video,board:boardProp,scenes,onDrafted=()=>{},refreshKey=
        onPointerDown={event=>{event.stopPropagation();setSelLink(each.id);setSel([]);}}>{each.label}</span>:null;
      })}
      {tiles.map(tile=>{const box={...tileBox(tile),h:tile.pos?.h};const selected=sel.includes(tile.id);return <div key={tile.id} data-tile={tile.id} tabIndex={0} role="group" aria-label={`${KIND_NAME[tile.kind]} card${tile.title?`: ${tile.title}`:''}. Arrow keys move it, C connects it.`}
-      className={cn('tile',tile.kind,selected&&'sel',dragId===tile.id&&'drag',fresh===tile.id&&'fresh',connectFrom===tile.id&&'connect-from')} style={{left:box.x,top:box.y,width:box.w,...(tile.kind==='note'&&box.h?{minHeight:box.h}:{})}}
-      onPointerDown={event=>onTileDown(event,tile.id)} onKeyDown={event=>onTileKey(event,tile.id)} onFocus={()=>{if(pointing.current){pointing.current=false;return;}if(!sel.includes(tile.id))setSel([tile.id]);setSelLink(null);setSelFrame(null);}}>
+      className={cn('tile',tile.kind,folded.has(tile.id)&&'folded',search&&!(tile.title+' '+tile.text).toLowerCase().includes(search.toLowerCase())&&'search-dim',selected&&'sel',dragId===tile.id&&'drag',fresh===tile.id&&'fresh',connectFrom===tile.id&&'connect-from')} style={{left:box.x,top:box.y,width:box.w,...(tile.kind==='note'&&box.h?{minHeight:box.h}:{})}}
+      onPointerDown={event=>onTileDown(event,tile.id)} onKeyDown={event=>onTileKey(event,tile.id)} onFocus={event=>{if(event.target!==event.currentTarget)return;if(pointing.current){pointing.current=false;return;}if(!sel.includes(tile.id))setSel([tile.id]);setSelLink(null);setSelFrame(null);}}>
+      <div className="board-card-head">
+       <IconButton icon={folded.has(tile.id)?'expand':'collapse'} iconSize={13} label={folded.has(tile.id)?'Unfold card':'Fold card'} onClick={()=>setFolded(current=>{const next=new Set(current);if(next.has(tile.id))next.delete(tile.id);else next.add(tile.id);return next;})}/>
+       <IconButton icon="fullscreen" iconSize={13} label="Expand card" onClick={()=>focusCard(tile.id)}/>
+       <IconButton icon="panel-open" iconSize={13} label="Open card in sidebar" onClick={()=>setOpenNote(tile.id)}/>
+       <span className="board-card-kind ellipsis">{tile.title||KIND_NAME[tile.kind]}</span>
+       <Menu align="right" button={toggle=><IconButton icon="more" iconSize={13} label="More for this card" onClick={toggle}/>} items={[{label:'Remove from the board',icon:'delete',fn:()=>board.remove(tile)}]}/>
+       <IconButton icon="comment" iconSize={13} label="Ask Claude about this card" onClick={()=>{setSel([tile.id]);const host=wrap.current?.parentElement?.closest('.ws,.research')??wrap.current?.parentElement?.parentElement;host?.querySelector<HTMLButtonElement>('.cmp-rail')?.click();host?.querySelector<HTMLTextAreaElement>('.cmp textarea')?.focus();}}/>
+       <IconButton icon="link" iconSize={13} label="Connect this card" onClick={()=>setConnectFrom(tile.id)}/>
+      </div>
       <TileBody tile={tile} videoId={boardId} reading={board.reading[tile.id]} onRemove={()=>board.remove(tile)} onOpen={()=>setOpenNote(tile.id)} onSaveText={tile.kind==='idea'||tile.kind==='text'?text=>board.saveNote(tile.id,text):undefined}
        onSaveNote={tile.kind==='note'?(text,base)=>board.saveNote(tile.id,text,base):undefined} autoFocus={focusNote===tile.id} onBlurEmpty={()=>noteLeftEmpty(tile.id)}
        onRetryRead={()=>board.read(tile)} onBreakdown={setBreakdown} mine={tile.kind==='mine'?(ready?listed.find(each=>each.id===tile.meta.videoId)??null:undefined):undefined} onOpenVideo={openVideo}/>
@@ -521,13 +568,24 @@ export function Board({video,board:boardProp,scenes,onDrafted=()=>{},refreshKey=
    </button>
   </div>}
   {(sel.length>0||frameNow)&&<div className="board-selbar" role="toolbar" aria-label="Selection">
-   <span className="small muted">{frameNow?`Frame “${frameNow.title}” · ${frameMembers.length} ${frameMembers.length===1?'card':'cards'}`:`${sel.length} ${sel.length===1?'card':'cards'} selected`}</span>
-   {!frameNow&&sel.length>1&&<button type="button" className="btn sm" onClick={()=>void group()}><Icon name="frame" size={14}/>Group in a frame</button>}
-   {research&&(frameNow?frameMembers.length>0:sel.length>0)&&<button type="button" className="btn sm primary" disabled={starting} onClick={()=>void(frameNow?startVideo(frameMembers,frameNow.id):startVideo(sel))}>{starting?<span className="spin"/>:<Icon name="video" size={14}/>}Start a video from this {frameNow?'frame':'selection'}</button>}
-   <IconButton icon="delete" label={frameNow?'Remove the frame (its cards stay) (Delete)':'Remove from the board (Delete)'} onClick={()=>{if(frameNow){canvas.removeFrame(frameNow.id);setSelFrame(null);}else{board.removeMany(sel);setSel([]);}}}/>
+   <span className="small muted">{frameNow?`Section “${frameNow.title}” · ${frameMembers.length} ${frameMembers.length===1?'card':'cards'}`:`${sel.length} ${sel.length===1?'card':'cards'} selected`}</span>
+   {!frameNow&&sel.length>1&&<button type="button" className="btn sm" onClick={()=>void group()}><Icon name="frame" size={14}/>Group in a section</button>}
+   {research&&(frameNow?frameMembers.length>0:sel.length>0)&&<button type="button" className="btn sm primary" disabled={starting} onClick={()=>void(frameNow?startVideo(frameMembers,frameNow.id):startVideo(sel))}>{starting?<span className="spin"/>:<Icon name="video" size={14}/>}Start a video from this {frameNow?'section':'selection'}</button>}
+   <IconButton icon="delete" label={frameNow?'Remove the section (its cards stay) (Delete)':'Remove from the board (Delete)'} onClick={()=>{if(frameNow){canvas.removeFrame(frameNow.id);setSelFrame(null);}else{board.removeMany(sel);setSel([]);}}}/>
    <IconButton icon="close" label="Clear the selection (Esc)" onClick={clear}/>
   </div>}
   {draft.failed&&<div className="board-actions" style={{top:'auto',bottom:70,right:18}}><ErrorLine message={draft.failed} onRetry={draft.start}/></div>}
+  <div className="board-tools" role="toolbar" aria-label="Whiteboard tools">
+   <button type="button" className={cn('board-select',tool==='select'&&'on')} title="Select (V)" aria-label="Select (V)" aria-pressed={tool==='select'} onClick={()=>{setTool('select');setConnectFrom(null);wrap.current?.focus();}}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M5 3v17l5-5 4 7 3-2-4-7h7Z"/></svg></button>
+   <IconButton icon="note" label="New card (N)" onClick={()=>void addNote()}/>
+   <IconButton icon="frame" label="Section (S): drag a region, or group selected cards" className={tool==='section'?'on':undefined} onClick={()=>{if(sel.length)void group();else{setTool('section');wrap.current?.focus();}}}/>
+   <IconButton icon="connect" label="Connector: pick two cards" className={tool==='connect'?'on':undefined} onClick={()=>{setTool('connect');setConnectFrom(sel.length===1?sel[0]:null);wrap.current?.focus();}}/>
+   <IconButton icon="text" label="Text (T)" onClick={()=>void addHere({kind:'text',text:'Text'})}/>
+   <IconButton icon="search" label="Search board (⌘F)" onClick={()=>setSearch('')}/>
+   <Menu label="More board tools" items={addItems} button={toggle=><IconButton icon="more" label="More board tools" onClick={toggle}/>}/>
+  </div>
+  {search!==null&&<div className="board-search"><input className="input" autoFocus aria-label="Search cards on board" placeholder="Search this board…" value={search} onChange={event=>setSearch(event.target.value)} onKeyDown={event=>{if(event.key==='Escape'){event.stopPropagation();setSearch(null);wrap.current?.focus();}}}/><IconButton icon="close" label="Close board search" onClick={()=>setSearch(null)}/></div>}
+  {tiles&&<BoardMinimap boxes={[...boxes.values()]} sections={frames} view={view} holder={scroller} onMotion={onMotion} onView={setView}/>}
   <div className="btoolbar">
    {!emptyResearch&&<>{addMenu()}<span className="sep"></span></>}
    <input ref={fileInput} type="file" accept="image/*,.md,.markdown,.txt" multiple hidden aria-label="Choose files to add" onChange={event=>{takeFiles([...event.target.files??[]]);event.target.value='';}}/>
@@ -544,7 +602,12 @@ export function Board({video,board:boardProp,scenes,onDrafted=()=>{},refreshKey=
    <Icon name="folder-open" size={14}/>Show files in Finder
   </button>}
   {!research&&draft.confirm&&<ReplaceScenes scenes={scenes??[]} action="Drafting again" undoLine="You can undo it from the message that follows." onKeep={()=>draft.setConfirm(false)} onReplace={draft.start}/>}
-  {noteOpen&&<NotePanel key={noteOpen.id} tile={noteOpen} save={(text,base)=>board.saveNote(noteOpen.id,text,base)} isNew={madeNote===noteOpen.id} onClose={discard=>{setOpenNote(null);setMadeNote(null);if(discard)void clubFetch(`${boardBase(boardId)}/research/${encodeURIComponent(noteOpen.id)}`,{method:'DELETE'}).then(()=>board.refresh(),()=>{});}} onCopyPath={name=>copyPath(name,'Copied the file name')}/>}
+  {noteOpen&&<NotePanel key={noteOpen.id} boardId={boardId} tile={noteOpen} save={(text,base)=>board.saveNote(noteOpen.id,text,base)} isNew={madeNote===noteOpen.id} onClose={discard=>{setOpenNote(null);setMadeNote(null);if(discard)void clubFetch(`${boardBase(boardId)}/research/${encodeURIComponent(noteOpen.id)}`,{method:'DELETE'}).then(()=>board.refresh(),()=>{});}} onCopyPath={name=>copyPath(name,'Copied the file name')}/>}
+  {cardOpen&&!noteOpen&&<aside className="board-card-panel" aria-label="Card sidebar" data-wheel="own">
+   <header><b className="ellipsis">{cardOpen.title||KIND_NAME[cardOpen.kind]}</b><IconButton icon="close" label="Close card sidebar" onClick={()=>setOpenNote(null)}/></header>
+   <div className="board-card-preview"><TileBody tile={cardOpen} videoId={boardId} reading={board.reading[cardOpen.id]} onRemove={()=>{board.remove(cardOpen);setOpenNote(null);}} onOpen={()=>{}} onRetryRead={()=>board.read(cardOpen)} onBreakdown={setBreakdown} mine={cardOpen.kind==='mine'?listed.find(each=>each.id===cardOpen.meta.videoId):undefined} onOpenVideo={openVideo}
+    onSaveText={cardOpen.kind==='text'||cardOpen.kind==='idea'?text=>board.saveNote(cardOpen.id,text):undefined}/></div>
+  </aside>}
   {folderOpen&&<NotesFolder notes={files?.notes??null} onClose={()=>setFolderOpen(false)}
    onChoose={async path=>{const result=await chooseNotesFolder(path);if('error' in result)return result.error;setFilesTick(tick=>tick+1);board.refresh();return undefined;}}
    onPin={async path=>{try{const tile=await pinNote(boardId,path);board.adopt([tile]);setFilesTick(tick=>tick+1);toast('Pinned to the board');}catch(reason){toast(errorMessage(reason,"Couldn't pin that file."));}}}/>}

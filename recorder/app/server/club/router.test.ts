@@ -14,7 +14,7 @@ const { clubRouter } = await import('./index.js');
 const { startJob } = await import('./jobs.js');
 
 const app = express();
-app.use('/api/club', clubRouter());
+app.use('/api/club', clubRouter({ avatarFetch: async () => new Response('', { status: 503 }) }));
 const server = app.listen(0, '127.0.0.1');
 await new Promise((r) => server.once('listening', r));
 const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}/api/club`;

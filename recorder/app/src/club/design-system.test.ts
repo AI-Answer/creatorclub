@@ -19,6 +19,79 @@ const sources=walk(club).filter(file=>/\.(css|tsx?)$/.test(file)&&!/\.test\.tsx?
 const RAW_COLOUR=/(?:^|[\s:,('"`])#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})\b(?![-/])|\b(?:rgba?|hsla?)\(/;
 const TOKENS='club/ui/tokens.css';
 
+/** Shipped Heptabase values are documented in docs/design/heptabase-dark-theme.md. */
+const declarations=(sheet:string,selector:string)=>{
+ const css=sheet.replace(/\/\*[\s\S]*?\*\//g,'');
+ const start=css.indexOf(selector);assert.ok(start>=0,`${selector} exists`);
+ const body=css.slice(css.indexOf('{',start)+1,css.indexOf('}',start));
+ return Object.fromEntries([...body.matchAll(/(--[\w-]+):\s*([^;]+);?/g)].map(([,name,value])=>[name,value.trim()]));
+};
+const themeTokens=()=>{
+ const css=fs.readFileSync(path.join(src,TOKENS),'utf8');
+ return {light:declarations(css,'.club-root {'),dark:declarations(css,'.club-root:where([data-theme=dark]')};
+};
+
+test('dark surfaces, text, focus and board primitives match Heptabase',()=>{
+ const {dark}=themeTokens();
+ for(const [name,value] of Object.entries({
+  '--cc-bg':'#212121','--cc-bg-sunk':'#191919','--cc-surface':'#242629','--cc-surface-2':'#242629',
+  '--cc-text':'#e1e1e1','--cc-text-2':'rgba(255, 255, 255, .65)','--cc-text-3':'#b0b0b5',
+  '--cc-line':'rgba(255, 255, 255, .08)','--cc-hover':'rgba(255, 255, 255, .06)',
+  '--cc-accent':'#61c6fa','--cc-accent-soft':'rgba(35, 131, 226, .2)',
+  '--cc-board-bg':'#191919','--cc-board-grid':'rgba(255, 255, 255, .18)',
+  '--cc-card-bg':'#242629','--cc-card-border':'rgba(255, 255, 255, .12)',
+  '--cc-card-border-hover':'rgba(255, 255, 255, .36)','--cc-selection':'#61c6fa',
+  '--cc-selection-bg':'rgba(35, 131, 226, .3)','--cc-section-bg':'rgba(47, 48, 49, .5)',
+  '--cc-section-title-bg':'hsl(210 2% 19%)','--cc-popover-bg':'#3d4046',
+ }))assert.equal(dark[name],value,name);
+});
+
+test('existing light shell colours stay unchanged and board primitives match Heptabase light',()=>{
+ const {light}=themeTokens();
+ for(const [name,value] of Object.entries({
+  '--cc-bg':'#ffffff','--cc-bg-sunk':'#fafafa','--cc-surface':'#fafafa','--cc-surface-2':'#fafafa',
+  '--cc-line':'#e5e5e5','--cc-text':'#0a0a0a','--cc-text-2':'#404040','--cc-text-3':'#737373',
+  '--cc-accent':'#3b82f6','--cc-primary':'#0a0a0a',
+  '--cc-board-bg':'#eeeded','--cc-board-grid':'rgba(0, 0, 0, .2)',
+  '--cc-card-bg':'#ffffff','--cc-card-border':'rgba(0, 0, 0, .13)',
+  '--cc-card-border-hover':'rgba(0, 0, 0, .32)','--cc-selection':'#207dff',
+  '--cc-selection-bg':'rgba(75, 155, 230, .3)','--cc-section-bg':'rgba(225, 225, 225, .4)',
+  '--cc-section-title-bg':'hsl(0 0% 88%)',
+ }))assert.equal(light[name],value,name);
+});
+
+test('global dark token blocks agree with the club theme',()=>{
+ const {dark}=themeTokens();
+ const aliases={'--background':'--cc-bg','--foreground':'--cc-text','--secondary':'--cc-surface-2','--line':'--cc-line','--muted':'--cc-text-2','--accent':'--cc-accent'};
+ const compact=(value:string)=>value.replace(/\s+/g,'');
+ for(const file of ['original-theme.css','creator-theme.css']){
+  const sheet=fs.readFileSync(path.join(src,file),'utf8');
+  const blocks=[...sheet.matchAll(/:root\[data-theme=dark\]\s*\{[^}]*\}/g)];assert.ok(blocks.length);
+  for(const [block] of blocks){
+   const tokens=declarations(block,':root[data-theme=dark]');
+   for(const [name,target] of Object.entries(aliases))if(tokens[name])assert.equal(compact(tokens[name]),compact(dark[target]),`${file}: ${name}`);
+  }
+ }
+ const interactions=declarations(fs.readFileSync(path.join(src,'interaction-theme.css'),'utf8'),':root[data-theme=dark]');
+ assert.equal(interactions['--focus-ring'],dark['--cc-selection']);
+ assert.equal(compact(interactions['--muted']),compact(dark['--cc-text-2']));
+});
+
+test('dark body and secondary text meet contrast targets on boards, panels, hover and menus',()=>{
+ const {dark}=themeTokens();
+ const rgba=(value:string):number[]=>value.startsWith('#')?[1,3,5].map(i=>parseInt(value.slice(i,i+2),16)):[...value.matchAll(/[\d.]+/g)].map(m=>Number(m[0]));
+ const over=(fg:number[],bg:number[])=>fg.slice(0,3).map((v,i)=>v*(fg[3]??1)+bg[i]*(1-(fg[3]??1)));
+ const luminance=(rgb:number[])=>rgb.map(v=>{const c=v/255;return c<=.04045?c/12.92:((c+.055)/1.055)**2.4;}).reduce((sum,v,i)=>sum+v*[.2126,.7152,.0722][i],0);
+ const contrast=(fg:number[],bg:number[])=>{const a=luminance(over(fg,bg)),b=luminance(bg);return (Math.max(a,b)+.05)/(Math.min(a,b)+.05);};
+ for(const background of ['--cc-board-bg','--cc-bg','--cc-surface','--cc-popover-bg']){
+  const bg=rgba(dark[background]);
+  for(const surface of [bg,over(rgba(dark['--cc-hover']),bg)])for(const [name,min] of [['--cc-text',4.5],['--cc-text-2',3],['--cc-text-3',3]] as const){
+   const ratio=contrast(rgba(dark[name]),surface);assert.ok(ratio>=min,`${name} on ${background}: ${ratio.toFixed(2)} >= ${min}`);
+  }
+ }
+ assert.ok(contrast(rgba(dark['--cc-on-accent']),rgba(dark['--cc-accent']))>=4.5,'text on the light blue accent stays readable');
+});
+
 /**
  * The editor's and recorder's own stylesheets restyle SceneForge's screens from outside `src/club`, and follow the same rule.
  * `original-theme.css` is SceneForge's standalone theme: it has no club-mode rule, and any rule that names a club class must use tokens too.

@@ -94,7 +94,7 @@ test('cards are selected together: Shift-click adds, Delete removes them all wit
   assert.ok(tile('a').classList.contains('sel')&&tile('b').classList.contains('sel')&&!tile('c').classList.contains('sel'));
   const bar=ui.container.querySelector('.board-selbar')!;
   assert.match(bar.textContent!,/2 cards selected/);
-  assert.ok(button(bar,'Group in a frame'));assert.ok(button(bar,'Start a video from this selection'));
+  assert.ok(button(bar,'Group in a section'));assert.ok(button(bar,'Start a video from this selection'));
   for(const icon of bar.querySelectorAll('.btn.icon-only'))assert.ok(icon.getAttribute('aria-label')&&icon.hasAttribute('data-tooltip'));
   await key(tile('b'),'Escape');
   assert.deepEqual(picked.at(-1),[]);
@@ -155,7 +155,7 @@ test('a connection by keyboard: C on one card, Enter on another; a line is focus
  }finally{await ui.close();server.restore();}
 });
 
-test('Group in a frame draws a frame around the selection; a frame selected offers Start a video from this frame',async()=>{
+test('Group in a section draws a frame around the selection; a frame selected offers Start a video from this section',async()=>{
  const tiles=[note('a','Alpha',60,60),note('b','Beta',400,60)];
  const server=fakeServer(tiles);
  const ui=await mount();
@@ -164,17 +164,17 @@ test('Group in a frame draws a frame around the selection; a frame selected offe
   const tile=(id:string)=>ui.container.querySelector<HTMLElement>(`[data-tile="${id}"]`)!;
   await pointer(tile('a'),'pointerdown');await pointer(window as unknown as Element,'pointerup');
   await pointer(tile('b'),'pointerdown',{shiftKey:true});
-  await act(async()=>button(ui.container.querySelector('.board-selbar')!,'Group in a frame').click());await flush();
+  await act(async()=>button(ui.container.querySelector('.board-selbar')!,'Group in a section').click());await flush();
   const made=server.calls.find(call=>call.path==='/channel/board/frames')!;
-  assert.deepEqual(made.body,{title:'Group',x:32,y:0,w:676,h:388},'drawn around both cards, with room for its name');
+  assert.deepEqual(made.body,{title:'Section',x:32,y:0,w:676,h:388},'drawn around both cards, with room for its name');
   const name=ui.container.querySelector<HTMLInputElement>('.bframe-name')!;
   assert.ok(name,'its name opens to type');
   name.value='Receipts';
   await act(async()=>{name.blur();});
   assert.deepEqual(server.calls.find(call=>call.method==='PATCH'&&call.path==='/channel/board/frames/f_new')?.body,{title:'Receipts'});
   const bar=ui.container.querySelector('.board-selbar')!;
-  assert.match(bar.textContent!,/Frame “Receipts” · 2 cards/);
-  await act(async()=>button(bar,'Start a video from this frame').click());await flush();
+  assert.match(bar.textContent!,/Section “Receipts” · 2 cards/);
+  await act(async()=>button(bar,'Start a video from this section').click());await flush();
   assert.deepEqual(server.calls.find(call=>call.path==='/channel/research/start-video')?.body,{tileIds:['a','b'],frameId:'f_new'});
   assert.ok(toasts(ui.container).some(text=>text?.startsWith('Started “Started” with 2 cards')));
  }finally{await ui.close();server.restore();}
@@ -192,5 +192,44 @@ test('a card for one of your ideas shows its stage and why, and opens its drawer
   assert.match(ui.container.querySelector('[data-tile="g"]')!.textContent!,/no longer in this channel/);
   await act(async()=>button(card,'Open idea').click());await flush();
   assert.ok(document.querySelector('[role=dialog]')?.textContent?.includes('Receipts with Claude'),'the idea drawer');
+ }finally{await ui.close();server.restore();}
+});
+
+test('Command-A selects every card; arrows from the board move them together and Escape clears',async()=>{
+ const server=fakeServer([note('a','Alpha',0,60),note('b','Beta',400,60)]),ui=await mount();
+ try{
+  await flush();await flush();const root=ui.container.querySelector<HTMLElement>('.board-wrap')!;
+  await key(root,'a',{metaKey:true});assert.equal(ui.container.querySelectorAll('.tile.sel').length,2);
+  await key(root,'ArrowLeft');await flush();
+  assert.equal(ui.container.querySelector<HTMLElement>('[data-tile="b"]')!.style.left,'400px','the group stops together at the left edge');
+  await key(root,'ArrowRight',{shiftKey:true});await flush();
+  assert.equal(ui.container.querySelector<HTMLElement>('[data-tile="a"]')!.style.left,'40px');
+  assert.equal(ui.container.querySelector<HTMLElement>('[data-tile="b"]')!.style.left,'440px');
+  await key(root,'Escape');assert.equal(ui.container.querySelectorAll('.tile.sel').length,0);
+ }finally{await ui.close();server.restore();}
+});
+
+test('the section tool draws a persisted region on empty canvas; Escape leaves the tool',async()=>{
+ const server=fakeServer([]),ui=await mount();
+ try{
+  await flush();await flush();const root=ui.container.querySelector<HTMLElement>('.board-wrap')!,surface=ui.container.querySelector<HTMLElement>('.canvas-scroll')!;
+  await key(root,'s');assert.ok(surface.classList.contains('section-ready'));
+  await pointer(surface,'pointerdown',{clientX:100,clientY:100});
+  await pointer(window as unknown as Element,'pointermove',{clientX:500,clientY:400});
+  await pointer(window as unknown as Element,'pointerup',{clientX:500,clientY:400});await flush();
+  assert.deepEqual(server.calls.find(call=>call.path==='/channel/board/frames'&&call.method==='POST')?.body,{title:'Section',x:100,y:100,w:400,h:300});
+  assert.ok(ui.container.querySelector('.bframe-name'));assert.ok(!surface.classList.contains('section-ready'));
+  await key(root,'s');await key(root,'Escape');assert.ok(!surface.classList.contains('section-ready'));
+ }finally{await ui.close();server.restore();}
+});
+
+test('a cancelled section gesture leaves no persisted section',async()=>{
+ const server=fakeServer([]),ui=await mount();
+ try{
+  await flush();await flush();const root=ui.container.querySelector<HTMLElement>('.board-wrap')!,surface=ui.container.querySelector<HTMLElement>('.canvas-scroll')!;
+  await key(root,'s');await pointer(surface,'pointerdown',{clientX:100,clientY:100});
+  await pointer(window as unknown as Element,'pointermove',{clientX:500,clientY:400});
+  await pointer(window as unknown as Element,'pointercancel',{clientX:500,clientY:400});await flush();
+  assert.ok(!ui.container.querySelector('.bmarquee'));assert.ok(!server.calls.some(call=>call.method==='POST'&&call.path==='/channel/board/frames'));
  }finally{await ui.close();server.restore();}
 });

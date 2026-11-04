@@ -2,16 +2,15 @@ import {useCallback,useEffect,useState} from 'react';
 import type {Video,Workspace} from '../../shared/club';
 import {clubFetch} from './api';
 import type {Route,RouteName} from './routes';
-import {Avatar,Icon,Menu,Tooltip,useToast,type IconName,type MenuItem} from './ui';
+import {Avatar,Icon,useToast,type IconName} from './ui';
+import {ChannelMenu} from './shell/ChannelMenu';
 
 type Channels={current:string|null;workspaces:Workspace[]};
 
 /** The places, in order. */
 const NAV:ReadonlyArray<{name:Extract<RouteName,'home'|'discover'|'videos'|'research'>;label:string;icon:IconName;href:string}>=[
- {name:'home',label:'Home',icon:'home',href:'#/home'},
- {name:'discover',label:'Discover',icon:'trending',href:'#/discover'},
- {name:'videos',label:'Videos',icon:'video',href:'#/videos'},
- {name:'research',label:'Research',icon:'research',href:'#/research'},
+ {name:'home',label:'Video board',icon:'production',href:'#/home'},
+ {name:'discover',label:'Research',icon:'research',href:'#/discover'},
 ];
 
 const IN_PRODUCTION:ReadonlyArray<Video['stage']>=['planning','recording','editing','publishing'];
@@ -19,23 +18,20 @@ const IN_PRODUCTION:ReadonlyArray<Video['stage']>=['planning','recording','editi
 /** Videos being made, the ones touched last first. */
 export const inProduction=(videos:readonly Video[])=>videos.filter(video=>IN_PRODUCTION.includes(video.stage)).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt));
 
-/**
- * The Home tab's left nav, laid out like Borumi's Settings nav (256px, one row per place): the channel switcher, search, then
- * Home, Discover, Videos (with the number of videos in progress) and Research. Settings and Help live in the tab strip.
- */
+/** The channel switcher, search, Video board with its in-progress count and Research. */
 export function Sidebar({route,onSearch,onSwitched,onAdd,videos,epoch}:{route:Route;onSearch():void;onSwitched():void;onAdd():void;videos:readonly Video[];epoch:number}){
- const counts:Partial<Record<RouteName,number>>={videos:inProduction(videos).length};
+ const counts:Partial<Record<RouteName,number>>={home:inProduction(videos).length};
  const collapsed=false;
  return <nav className="sidebar" aria-label="Main">
   <div className="sb-top">
    <ChannelSwitcher collapsed={collapsed} epoch={epoch} onSwitched={onSwitched} onAdd={onAdd}/>
   </div>
-  <button type="button" className="sb-search" onClick={onSearch} title="Search (⌘K)" aria-label="Search"><Icon name="search" size={15}/><span>Search</span><span className="kbd">⌘K</span></button>
+  <button type="button" className="sb-search" onClick={onSearch} title="Search (⌘K)" aria-label="Search"><Icon name="search" size={16}/><span>Search</span><span className="kbd">⌘K</span></button>
   <div className="nav">
    {NAV.map(({name,label,icon,href})=>{
-    const here=route.name===name,count=counts[name];
+    const here=route.name===name||(name==='home'&&route.name==='videos'),count=counts[name];
     const link=<a key={name} href={href} className={`nav-item${here?' active':''}`} aria-label={collapsed?label:undefined} aria-current={here?'page':undefined}>
-     <Icon name={icon} size={17}/><span className="label">{label}</span>{count?<span className="count" title={`${count} in progress`}>{count}</span>:null}
+     <Icon name={icon} size={16}/><span className="label">{label}</span>{count?<span className="count" title={`${count} in progress`}>{count}</span>:null}
     </a>;
     return link;
    })}
@@ -61,10 +57,9 @@ function ChannelSwitcher({collapsed,epoch,onSwitched,onAdd}:{collapsed:boolean;e
   <span className="meta"><div className="name ellipsis">No channel yet</div></span>
  </div>;
  const name=current?.name??'';
- const items:MenuItem[]=[{header:'Channels'},...(channels?.workspaces??[]).map(workspace=>({label:workspace.name,check:workspace.slug===channels?.current,fn:()=>choose(workspace.slug)})),'-',{label:'Add a channel',icon:'add',fn:onAdd}];
- return <Menu width={240} label="Channels" items={items} button={toggle=><button type="button" className="channel-btn" onClick={toggle} disabled={!channels} title={collapsed?name:undefined} aria-label="Switch channel" aria-haspopup="menu">
-  {channels?<Avatar name={name} size="lg" sq/>:<span aria-hidden style={{width:38,height:38,flex:'none',borderRadius:10,background:'var(--cc-bg-sunk)'}}/>}
+ return <ChannelMenu channels={channels} current={current} onChoose={choose} onAdd={onAdd} button={(toggle,open)=><button type="button" className="channel-btn" onClick={toggle} disabled={!channels} title={collapsed?name:undefined} aria-label="Switch channel" aria-haspopup="menu" aria-expanded={open}>
+  {channels?<Avatar name={name} src={current?.avatarUrl} size="lg" sq/>:<span aria-hidden style={{width:38,height:38,flex:'none',borderRadius:10,background:'var(--cc-bg-sunk)'}}/>}
   <span className="meta"><div className="name ellipsis">{name}</div><div className="sub">{channels?(current?.handle||'Starting fresh'):''}</div></span>
-  <Icon name="choose" size={15} className="chev faint"/>
+  <Icon name="choose" size={16} className="chev faint"/>
  </button>}/>;
 }

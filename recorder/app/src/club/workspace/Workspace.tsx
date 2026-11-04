@@ -146,7 +146,7 @@ export function Workspace({video,tab,back,navigate,onVideo}:{video:Video;tab:Vid
 
  // The companion is docked beside every step. On Edit it works through the open editor: it reads the playhead and selection,
  // previews a card on the stage and applies it as one of the editor's undo steps.
- const [boardKey,setBoardKey]=useState(0);
+ const [boardKey,setBoardKey]=useState(0),[boardSelection,setBoardSelection]=useState<readonly string[]>([]);
  const editorRef=useRef<EditorBridge|null>(null),[editState,setEditState]=useState<EditorState|null>(null);
  const onEditor=useCallback((bridge:EditorBridge|null)=>{editorRef.current=bridge;if(!bridge)setEditState(null);},[]);
  const companionEditor=useMemo<CompanionEditor|undefined>(()=>tab==='edit'?{get:()=>editorRef.current,state:editState}:undefined,[tab,editState]);
@@ -169,7 +169,7 @@ export function Workspace({video,tab,back,navigate,onVideo}:{video:Video;tab:Vid
   <div className="ws-row"><div className="ws-col">
   {moveError&&<div className="ws-body" style={{flex:'none',padding:'8px 18px'}}><ErrorLine message={moveError} onRetry={()=>void continueToNext()}/></div>}
   <div className="ws-body" key={tab}>
-   {tab==='board'&&<Board video={video} scenes={list} onDrafted={draftedNow} refreshKey={boardKey} navigate={navigate}/>}
+   {tab==='board'&&<Board key={video.id} video={video} onSelection={setBoardSelection} scenes={list} onDrafted={draftedNow} refreshKey={boardKey} navigate={navigate}/>}
    {tab==='plan'&&<Plan video={video} plan={plan} known={list} focusId={focusId} onFocus={setFocusId} onTitle={saveTitle}
     onTarget={seconds=>{clubFetch<Video>(`/videos/${id}`,{method:'PUT',body:{targetSeconds:seconds>0?seconds:null}}).then(onVideo,reason=>toast(errorMessage(reason,"Couldn't save the target.")));}}
     onRecordScene={sceneId=>{setFocusId(sceneId);setPickN(n=>n+1);navigate(tabRoute('record'));}}/>}
@@ -193,7 +193,7 @@ export function Workspace({video,tab,back,navigate,onVideo}:{video:Video;tab:Vid
     onTags={tags=>{plan.editPackage({...(pkgNow.current??EMPTY_PACKAGE),tags});void plan.flush().catch(()=>{});}}/>}
   </div>
   </div>
-  <Companion videoId={video.id} videoTitle={video.title} boardKey={boardKey} tab={tab} scene={companionScene} screen={screen} pkg={plan.pkg} outline={plan.outline} scenes={list} onChanged={companionChanged} beforeApply={plan.flush} editor={companionEditor} roomy={tab==='record'}/>
+  <Companion videoId={video.id} selection={tab==='board'?boardSelection:undefined} videoTitle={video.title} boardKey={boardKey} tab={tab} scene={companionScene} screen={screen} pkg={plan.pkg} outline={plan.outline} scenes={list} onChanged={companionChanged} beforeApply={plan.flush} editor={companionEditor} roomy={tab==='record'}/>
   </div>
   <Foot video={video} tab={tab} facts={facts} onTab={target=>void goToTab(target)} next={nextButton}/>
  </div>;

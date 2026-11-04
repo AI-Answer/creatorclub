@@ -1,8 +1,8 @@
 import {useCallback,useEffect,useRef,useState} from 'react';
-import type {ResearchTile} from '../../../shared/club';
+import {CHANNEL_BOARD,type ResearchTile} from '../../../shared/club';
 import {errorMessage} from '../api';
 import {Drawer,Icon,useToast} from '../ui';
-import {MarkdownEditor} from '../markdown/MarkdownEditor';
+import {Outliner} from './Outliner';
 import {SAVE_WAIT_MS,conflictLine,onFileChanged,rememberHash,savedLine} from './note-save';
 import type {NoteSaved} from './useBoard';
 
@@ -12,7 +12,7 @@ type Status='saved'|'saving'|'unsaved'|'failed';
  * A note to write in, as a panel beside the Board: the editor, the file it is saved to, and whether it is saved.
  * Writing is saved a moment after you stop. If the file is changed by something else while you write, your version wins and the other one is kept as a copy.
  */
-export function NotePanel({tile,save,onClose,onCopyPath,isNew}:{tile:ResearchTile;save(text:string,base:string|undefined):Promise<NoteSaved>;onClose(discard:boolean):void;onCopyPath(path:string):void;/** Made a moment ago to write in: closing it with nothing written takes it off the Board again. */isNew?:boolean}){
+export function NotePanel({tile,save,onClose,onCopyPath,isNew,boardId}:{boardId?:string;tile:ResearchTile;save(text:string,base:string|undefined):Promise<NoteSaved>;onClose(discard:boolean):void;onCopyPath(path:string):void;/** Made a moment ago to write in: closing it with nothing written takes it off the Board again. */isNew?:boolean}){
  const doc=tile.doc!;
  const toast=useToast();
  const [text,setText]=useState(tile.text??''),[status,setStatus]=useState<Status>('saved'),[notice,setNotice]=useState<{kind:'updated'|'conflict'|'failed';line:string}|null>(null);
@@ -25,7 +25,7 @@ export function NotePanel({tile,save,onClose,onCopyPath,isNew}:{tile:ResearchTil
  /** Writes what is in the editor. One save at a time; writing done meanwhile is saved right after. Resolves to false when it could not be saved. */
  const flush=useCallback(():Promise<boolean>=>{
   clearTimeout(timer.current);
-  // What is typed may not have been read from the page yet (it is read when typing pauses): read it now.
+  // Read the editor now too, so closing and autosave use the same current text.
   const typed=readNow.current?.();
   if(typed!==undefined&&typed!==view.current.text){view.current.text=typed;view.current.dirty=true;}
   if(running.current)return running.current.then(()=>view.current.dirty?flush():true);
@@ -56,7 +56,7 @@ export function NotePanel({tile,save,onClose,onCopyPath,isNew}:{tile:ResearchTil
   view.current.dirty=true;setStatus('unsaved');
   clearTimeout(timer.current);timer.current=setTimeout(()=>void flush(),SAVE_WAIT_MS);
  };
- // The page was read back into Markdown (typing paused, or a save asked for it). The save timer is the keystrokes', not this.
+ // The editor reports Markdown immediately; the keystrokes own the save timer.
  const change=(markdown:string)=>{view.current.text=markdown;view.current.dirty=true;setText(markdown);};
 
  // The file changed on disk (an agent, another app): taken in when nothing is unsaved here.
@@ -86,6 +86,9 @@ export function NotePanel({tile,save,onClose,onCopyPath,isNew}:{tile:ResearchTil
   {notice&&<div className={`md-notice ${notice.kind}`} role="status">{notice.kind!=='updated'&&<Icon name="warning" size={14}/>}{notice.line}{notice.kind==='failed'&&<button type="button" className="btn sm" style={{marginLeft:10}} onClick={()=>void flush()}>Try again</button>}</div>}
   {doc.missing?<p className="muted">This file is not in its folder any more. Remove the card, or put the file back and it opens again.</p>
    :doc.tooLarge?<p className="muted">This file is over 1 MB, which is too large to show here. It stays in its folder.</p>
-   :<MarkdownEditor value={text} onChange={change} onEdit={edited} readNow={readNow} label="Note" autoFocus/>}
+   :<Outliner boardId={boardId??boardFromHash()} tileId={tile.id} value={text} onChange={change} onEdit={edited} readNow={readNow} label="Note" autoFocus/>}
  </Drawer>;
 }
+
+/** Video and Research panels share the same routes; the Board can also pass the identity explicitly. */
+function boardFromHash(){const match=/^#\/video\/([^/]+)/.exec(window.location.hash);return match?decodeURIComponent(match[1]):CHANNEL_BOARD;}

@@ -82,7 +82,7 @@ const { getJob } = await import('./jobs.js');
 const { rootDir, listWorkspaces } = await import('./store.js');
 
 const app = express();
-app.use('/api/club', clubRouter({ ai: { extraDirs: [], pollMs: 10 } }));
+app.use('/api/club', clubRouter({ ai: { extraDirs: [], pollMs: 10 }, avatarFetch: async (input) => String(input).includes('youtube.com') ? new Response('<meta property="og:image" content="https://yt3.ggpht.com/fixture">') : new Response(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a82sAAAAASUVORK5CYII=', 'base64')) }));
 const server = app.listen(0, '127.0.0.1');
 await new Promise((r) => server.once('listening', r));
 const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}/api/club`;
@@ -120,6 +120,7 @@ test('Add channel reads the channel, saves 30-upload data and transcripts, then 
   const { workspace } = job.result;
   assert.equal(workspace.name, 'Fake first');
   assert.equal(workspace.handle, '@first');
+  assert.equal(workspace.avatarUrl, '/api/club/workspaces/fake-first/avatar');
   assert.equal(workspace.channelUrl, 'https://www.youtube.com/@first');
   assert.ok(workspace.topics.includes('claude') && workspace.topics.includes('agents'), `topics: ${workspace.topics}`);
 

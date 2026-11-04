@@ -348,3 +348,8 @@
 .club-embed .app-shell[data-mode=Edit] .club-edit .club-timeline-bar { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; height: auto; padding: 4px 8px; }
 .club-embed .app-shell[data-mode=Edit] .club-edit .ctb-center { flex: 1 0 auto; justify-content: center; }
 .club-embed .app-shell[data-mode=Edit] .club-edit .ctb-right { flex: 0 0 auto; margin-left: auto; }
+
+/* Menus inherit Heptabase's raised surface without changing their layout or light palette. */
+.club-root:where([data-theme=dark], [data-theme=dark] *) :is(.menu, .help-pop) {
+  --cc-bg: var(--cc-popover-bg);
+}

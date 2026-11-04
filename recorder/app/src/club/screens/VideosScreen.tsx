@@ -59,7 +59,7 @@ export function VideosScreen({route,navigate,onNewVideo,home=false}:{home?:boole
  const added=(id:string)=>{setLink(null);navigate({name:'videos',view:'board',new:id});};
  const wide=view==='board';
  return <div className={`page${wide?' wide video-board-page':''}`}>
-  <div className="page-head"><div className="video-board-heading"><h1>Videos</h1><span className="small muted" aria-label="Video count">{videos.length}</span>{!wide&&<div className="lede">Every video from idea to published.</div>}</div>
+  <div className="page-head"><div className="video-board-heading"><h1>{home?'Video board':'Videos'}</h1><span className="small muted" aria-label="Video count">{videos.length}</span>{!wide&&<div className="lede">Every video from idea to published.</div>}</div>
    <div className="actions">
     {!home&&<Tabs label="View" tabs={VIEWS} value={view} onChange={next=>navigate({name:'videos',view:next})}/>}
     <button type="button" className={`btn${newIdea?'':' primary'}`} onClick={onNewVideo}><Icon name="add" size={15}/>New video</button>

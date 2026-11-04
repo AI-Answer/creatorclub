@@ -37,7 +37,7 @@ test('channel switcher: shows the current channel, lists all of them, switches, 
    assert.equal(c.querySelector('[role="menu"]'),null,'closed at first');
    await press(trigger);
    const items=[...c.querySelectorAll('[role="menuitemradio"]')];
-   assert.deepEqual(items.map(i=>i.textContent!.trim()),['Samin Yasar','Ana']);
+   assert.deepEqual(items.map(i=>i.querySelector('.grow')?.textContent),['Samin Yasar','Ana']);
    assert.deepEqual(items.map(i=>i.getAttribute('aria-checked')),['true','false']);
    assert.ok([...c.querySelectorAll('[role="menuitem"]')].some(i=>i.textContent!.trim()==='Add a channel'));
    await press(items[1]);
@@ -107,6 +107,24 @@ test('Settings: Rebuild voice guide that needs answers shows the questions, and 
    assert.equal(c.querySelectorAll('section textarea').length,2,'the questions are gone');
    assert.equal([...c.querySelectorAll('textarea')][0].value,'Beginners learning Claude.','About picks up the audience answer');
    assert.equal((button(c,'Save changes') as HTMLButtonElement).disabled,true,'and is not marked as an unsaved edit');
+  }finally{await ui.close();}
+ });
+});
+
+test('channel pictures appear in the switcher and menu; an image failure reveals initials',async()=>{
+ const avatar='/api/club/workspaces/samin/avatar';
+ await withServer(call=>call.path==='/workspaces'?{body:{...two,workspaces:[{...two.workspaces[0],avatarUrl:avatar},two.workspaces[1]]}}:undefined,async()=>{
+  const ui=await mountUI(sidebar());
+  try{
+   await flush();const c=ui.container;
+   const picture=c.querySelector('.channel-btn .avatar img')!;
+   assert.equal(picture.getAttribute('src'),avatar);
+   await press(c.querySelector('.channel-btn')!);
+   assert.equal(c.querySelector('[role="menuitemradio"] .avatar img')?.getAttribute('src'),avatar);
+   assert.equal(c.querySelectorAll('[role="menuitemradio"]')[1].querySelector('.avatar')?.textContent,'AN');
+   await act(async()=>picture.dispatchEvent(new Event('error')));
+   assert.equal(c.querySelector('.channel-btn .avatar img'),null);
+   assert.equal(c.querySelector('.channel-btn .avatar')?.textContent,'SY');
   }finally{await ui.close();}
  });
 });

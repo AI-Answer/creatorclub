@@ -1,10 +1,12 @@
-import { promises as fs } from 'node:fs';
+import { randomBytes } from 'node:crypto';
+import { constants, promises as fs } from 'node:fs';
 import path from 'node:path';
 import { z } from 'zod';
 import { CHANNEL_BOARD, type ResearchTile, type StartedVideo, type Video } from '../../shared/club.js';
 import { addNote, boardTiles, docTitle } from './board-docs.js';
 import { changeCanvas, readCanvas } from './board-canvas.js';
-import { notFound } from './errors.js';
+import { imageFile } from './board-images.js';
+import { ClubError, notFound } from './errors.js';
 import { readSignal } from './signals.js';
 import { readTrendingItem } from './trending.js';
 import { signalTile, trendingTile } from './trend-ideas.js';
@@ -64,6 +66,121 @@ export const startVideoBody = z
 /** Where copied cards start on the new Board: their places kept, moved to the top left. */
 const ORIGIN = 60;
 
+interface ImageReference {
+  start: number;
+  end: number;
+}
+
+/** URL spans only: replacing these leaves the note's labels, titles, whitespace and other Markdown alone. */
+function imageReferences(text: string): ImageReference[] {
+  // Code examples are not image references. Mask them without changing offsets in the original text.
+  const markdown = text.replace(/(^ {0,3}(`{3,}|~{3,})[^\n]*\n[\s\S]*?^ {0,3}\2[ \t]*$)|(`+)[\s\S]*?\3/gm, (code) => code.replace(/[^\n]/g, ' '));
+  const references: ImageReference[] = [];
+  const labels = new Set<string>();
+  const labelOf = (label: string) => label.replace(/\\([\[\]\\])/g, '$1').trim().replace(/\s+/g, ' ').toLowerCase();
+  const bracketEnd = (open: number): number => {
+    let depth = 0;
+    for (let i = open; i < markdown.length; i++) {
+      if (markdown[i] === '\\') i++;
+      else if (markdown[i] === '[') depth++;
+      else if (markdown[i] === ']' && --depth === 0) return i;
+    }
+    return -1;
+  };
+  const targetAt = (at: number): ImageReference | undefined => {
+    while (/\s/.test(markdown[at] ?? '') && at < markdown.length) at++;
+    const angle = markdown[at] === '<';
+    const start = at + (angle ? 1 : 0);
+    let depth = 0;
+    for (let i = start; i < markdown.length; i++) {
+      const char = markdown[i];
+      if (char === '\\') { i++; continue; }
+      if (angle ? char === '>' : /\s/.test(char) || (char === ')' && depth === 0)) return i > start ? { start, end: i } : undefined;
+      if (!angle && char === '(') depth++;
+      if (!angle && char === ')') depth--;
+      if (angle && /[<>\r\n]/.test(char)) return undefined;
+    }
+    return !angle && start < markdown.length ? { start, end: markdown.length } : undefined;
+  };
+  for (const match of markdown.matchAll(/!\[/g)) {
+    // An escaped exclamation mark is literal text.
+    let escapes = 0;
+    while (markdown[match.index - escapes - 1] === '\\') escapes++;
+    if (escapes % 2) continue;
+    const close = bracketEnd(match.index + 1);
+    if (close < 0) continue;
+    const after = close + 1;
+    if (markdown[after] === '(') {
+      const reference = targetAt(after + 1);
+      if (reference) references.push(reference);
+    } else {
+      const end = markdown[after] === '[' ? bracketEnd(after) : -1;
+      const label = end > 0 ? markdown.slice(after + 1, end) : '';
+      labels.add(labelOf(label || markdown.slice(match.index + 2, close)));
+    }
+  }
+  for (const match of markdown.matchAll(/^ {0,3}\[([^\]\n]+)\]:[ \t]*/gm)) {
+    if (!labels.delete(labelOf(match[1]))) continue;
+    const reference = targetAt(match.index + match[0].length);
+    if (reference) references.push(reference);
+  }
+  return references.sort((a, b) => a.start - b.start);
+}
+
+/** Copies only images owned by the source Board; all new notes live in the destination's notes/ folder. */
+export async function copyNoteImages(slug: string, source: string, destination: string, tile: ResearchTile): Promise<string> {
+  const text = tile.text ?? '';
+  const references = imageReferences(text);
+  if (!references.length) return text;
+  await store.requireBoard(slug, destination);
+  const sourceRoot = await fs.realpath(store.boardDir(slug, source));
+  const destinationRoot = await fs.realpath(store.boardDir(slug, destination));
+  const copied = new Map<string, string>();
+  let result = '', last = 0;
+  for (const reference of references) {
+    const original = text.slice(reference.start, reference.end);
+    const url = original.replace(/\\([!"#$%&'()*+,\-./:;<=>?@[\]\\^_`{|}~])/g, '$1');
+    const file = await imageFile(slug, source, url, tile.doc ? tile.id : undefined).catch((error) => {
+      if (error instanceof ClubError || (error as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
+      throw error;
+    });
+    if (!file || !file.startsWith(sourceRoot + path.sep)) continue;
+    let relative = copied.get(file);
+    if (!relative) {
+      // Refuse symlinks in either destination component, just as image uploads do.
+      let dir = destinationRoot;
+      for (const part of ['notes', 'assets']) {
+        dir = path.join(dir, part);
+        await fs.mkdir(dir).catch((error) => { if (error.code !== 'EEXIST') throw error; });
+        const stat = await fs.lstat(dir);
+        if (!stat.isDirectory() || stat.isSymbolicLink()) throw new ClubError('The board assets folder is not a folder.');
+      }
+      let name = path.basename(file);
+      for (;;) {
+        try {
+          await fs.copyFile(file, path.join(dir, name), constants.COPYFILE_EXCL);
+          relative = `assets/${encodeURIComponent(name).replace(/\(/g, '%28').replace(/\)/g, '%29')}`;
+          copied.set(file, relative);
+          break;
+        } catch (error) {
+          const code = (error as NodeJS.ErrnoException).code;
+          if (code === 'ENOENT') break; // The source can disappear after it was resolved.
+          if (code !== 'EEXIST') throw error;
+          const ext = path.extname(file);
+          name = `${path.basename(file, ext)}-${randomBytes(6).toString('hex')}${ext}`;
+        }
+      }
+    }
+    if (!relative) continue;
+    // Keep the original spelling too when it already points at the copied file (e.g. assets/id.png).
+    const decoded = decodeURIComponent(url);
+    const replacement = path.resolve(destinationRoot, 'notes', decoded) === path.join(destinationRoot, 'notes', decodeURIComponent(relative)) ? original : relative;
+    result += text.slice(last, reference.start) + replacement;
+    last = reference.end;
+  }
+  return result + text.slice(last);
+}
+
 /** The new video's title: the one given, the frame's name, the first note's first line, the first card's title. */
 export function startTitle(tiles: readonly ResearchTile[], frameTitle?: string, given?: string): string {
   const named = given?.trim() || frameTitle?.trim();
@@ -97,7 +214,7 @@ export async function startVideoFrom(slug: string, input: z.infer<typeof startVi
   for (const tile of chosen) {
     let copy: ResearchTile;
     if (tile.kind === 'note' && tile.doc) {
-      copy = await addNote(slug, video.id, tile.text ?? '');
+      copy = await addNote(slug, video.id, await copyNoteImages(slug, CHANNEL_BOARD, video.id, tile));
     } else {
       const file = store.tileFilePath(slug, CHANNEL_BOARD, tile);
       copy = await store.addTile(slug, video.id, {

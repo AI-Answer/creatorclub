@@ -26,16 +26,30 @@ export const wheelZoom=(z:number,deltaY:number,deltaMode=0,pinch=false)=>{
 
 export const panBy=(view:View,dx:number,dy:number):View=>({...view,x:view.x+dx,y:view.y+dy});
 
-export interface WheelLike{ctrlKey:boolean;shiftKey?:boolean;deltaMode:number;deltaX:number;deltaY:number}
-/**
- * What a wheel event means. Scrolling up or down zooms towards the pointer, from a mouse wheel or two fingers on a trackpad, as does a pinch
- * (Ctrl + wheel). Shift + scroll and a sideways swipe pan; so does dragging the empty canvas.
- */
-export function wheelIntent(event:WheelLike):'zoom'|'pan'{
- if(event.ctrlKey)return 'zoom';
- if(event.shiftKey||Math.abs(event.deltaX)>Math.abs(event.deltaY))return 'pan';
- return 'zoom';
+export interface WheelLike{ctrlKey:boolean;metaKey?:boolean;shiftKey?:boolean;deltaMode:number;deltaX:number;deltaY:number}
+/** Trackpad scrolling pans; pinch (Ctrl-wheel) and Command-wheel zoom around the pointer. */
+export const wheelIntent=(event:WheelLike):'zoom'|'pan'=>event.ctrlKey||event.metaKey?'zoom':'pan';
+
+/** Wheel deltas in screen pixels, including mice reporting lines or pages. */
+export const wheelPan=(event:WheelLike,page=800)=>{
+ const scale=event.deltaMode===1?40:event.deltaMode===2?page:1;
+ return event.shiftKey&&!event.deltaX?{dx:-event.deltaY*scale,dy:0}:{dx:-event.deltaX*scale||0,dy:-event.deltaY*scale||0};
+};
+
+/** The visible rectangle in board coordinates. */
+export const viewportBox=(view:View,width:number,height:number)=>({x:-view.x/view.z,y:-view.y/view.z,w:width/view.z,h:height/view.z});
+/** Centres the viewport at a board point without changing zoom. */
+export const centreView=(view:View,point:{x:number;y:number},width:number,height:number):View=>({...view,x:width/2-point.x*view.z,y:height/2-point.y*view.z});
+
+/** One shared coordinate system for cards and the visible area, including empty space left of the board. */
+export function minimapLayout(boxes:readonly {x:number;y:number;w:number;h:number}[],view:View,width:number,height:number,mapW=180,mapH=112){
+ const viewport=viewportBox(view,width,height),all=[viewport,...boxes];
+ const x=Math.min(0,...all.map(box=>box.x))-80,y=Math.min(0,...all.map(box=>box.y))-80;
+ const w=Math.max(400,...all.map(box=>box.x+box.w))-x+80,h=Math.max(250,...all.map(box=>box.y+box.h))-y+80;
+ const scale=Math.min(mapW/w,mapH/h),ox=(mapW-w*scale)/2,oy=(mapH-h*scale)/2;
+ return {x,y,scale,ox,oy,viewport};
 }
+export const minimapPoint=(map:ReturnType<typeof minimapLayout>,x:number,y:number)=>({x:(x-map.ox)/map.scale+map.x,y:(y-map.oy)/map.scale+map.y});
 
 /** The view that shows `rect` (canvas pixels) inside a window `width` × `height`, with `pad` around it. Never zoomed in past 100%. */
 export function fitView(rect:{x:number;y:number;w:number;h:number},width:number,height:number,pad=80):View{

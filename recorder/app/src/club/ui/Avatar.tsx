@@ -1,6 +1,8 @@
+import {useState} from 'react';
 import {avatarColor,initials} from '../format';
 
-/** Two initials on a colour taken from the name. `size` is `xs`, `sm`, `lg` or empty; `sq` rounds the corners instead of a circle. */
-export function Avatar({name,size='',sq,color}:{name:string;size?:''|'xs'|'sm'|'lg';sq?:boolean;color?:string}){
- return <span aria-hidden className={`avatar ${size}${sq?' sq':''}`.replace(/\s+/g,' ').trim()} style={{background:color||avatarColor(name)}}>{initials(name)}</span>;
+/** A cached channel picture, falling back to two initials when it is absent or cannot load. */
+export function Avatar({name,src,size='',sq,color}:{name:string;src?:string;size?:''|'xs'|'sm'|'lg';sq?:boolean;color?:string}){
+ const [failed,setFailed]=useState<string>();
+ return <span aria-hidden className={`avatar ${size}${sq?' sq':''}`.replace(/\s+/g,' ').trim()} style={{background:color||avatarColor(name),overflow:'hidden',position:'relative'}}>{initials(name)}{src&&failed!==src&&<img src={src} alt="" onError={()=>setFailed(src)} style={{position:'absolute',inset:0,width:'100%',height:'100%',objectFit:'cover',borderRadius:'inherit'}}/>}</span>;
 }

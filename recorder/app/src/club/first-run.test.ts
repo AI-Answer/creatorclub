@@ -164,9 +164,9 @@ test('Welcome: the search for videos that work starts when the channel exists, r
    const line=c.querySelector('.welcome-body .progress-line')!;
    assert.match(text(line),/Searching for Claude \(1 of 3\)…/);
    assert.match(text(line),/Usually 1 to 2 minutes\./);
-   assert.match(text(line),/You don't have to wait\. Go to Home and the videos will be there when it finishes\./);
+   assert.match(text(line),/You don't have to wait\. Go to Video board and the videos will be there when it finishes\./);
    assert.equal(c.querySelector('[aria-label="Searching YouTube for your topics"][role="status"]'),null,'no bare spinner');
-   assert.equal(button(c,'Go to Home').disabled,false,'leaving is allowed while it runs');
+   assert.equal(button(c,'Go to Video board').disabled,false,'leaving is allowed while it runs');
    assert.equal([...c.querySelectorAll('button.primary')].length,0);
   }finally{await ui.close();}
  });

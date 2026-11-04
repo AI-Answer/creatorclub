@@ -16,7 +16,7 @@ async function follow(target:{name:string;channelId:string}){
 export function FollowChannel({item,showFollowing,onFollowed}:{item:Pick<TrendingEntry,'kind'|'channel'|'channelId'>;showFollowing?:boolean;onFollowed?():void}){
  const target=followTarget(item);
  const [state,setState]=useState<'idle'|'busy'|'done'|'failed'>('idle');
- const following=<span className="small muted follow-channel" role="status">Following {item.channel}</span>;
+ const following=<span className="small muted follow-channel" style={{whiteSpace:'normal',overflowWrap:'anywhere'}} role="status">Following {item.channel}</span>;
  if(state==='done')return following;
  if(!target)return showFollowing&&item.kind==='followed'?following:null;
  const click=(event:{stopPropagation():void})=>{
@@ -24,5 +24,5 @@ export function FollowChannel({item,showFollowing,onFollowed}:{item:Pick<Trendin
   setState('busy');
   follow(target).then(()=>{setState('done');onFollowed?.();},()=>setState('failed'));
  };
- return <button type="button" className="linkish small follow-channel" title="Adds this channel to the ones Creator Compiler reads for new videos" disabled={state==='busy'} onClick={click}>{state==='failed'?"Couldn't follow. Try again":'Follow this channel'}</button>;
+ return <button type="button" className="linkish small follow-channel" style={{whiteSpace:'normal',overflowWrap:'anywhere',textAlign:'left'}} title="Adds this channel to the ones Creator Compiler reads for new videos" disabled={state==='busy'} onClick={click}>{state==='failed'?"Couldn't follow. Try again":'Follow this channel'}</button>;
 }

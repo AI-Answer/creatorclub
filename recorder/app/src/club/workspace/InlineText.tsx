@@ -1,11 +1,11 @@
 import {useEffect,useRef,useState} from 'react';
 import {errorMessage} from '../api';
-import {MarkdownEditor} from '../markdown/MarkdownEditor';
+import {Outliner} from './Outliner';
 
 const SAVE_AFTER_MS=700;
 
 /**
- * Text you write right on a card, in the same rich editor as a note (headings, lists, bold, links, checklists, "/" commands).
+ * Text you write right on a card, in the same outliner as a note (headings, nested lists, bold, italic and links).
  * It saves a moment after you stop and when you click away; a failed save says so and offers to try again. Nothing else on the card moves while you type.
  */
 export function InlineText({value,label,placeholder,save}:{value:string;label:string;placeholder?:string;save(text:string):Promise<unknown>}){
@@ -26,7 +26,7 @@ export function InlineText({value,label,placeholder,save}:{value:string;label:st
  // Leaving the card with writing not yet saved saves it.
  useEffect(()=>()=>{clearTimeout(timer.current);if(dirty.current)void saveRef.current(latest.current).catch(()=>{});},[]);
  return <div className="inline-text">
-  <MarkdownEditor value={value} onChange={change} onBlur={flush} label={label} placeholder={placeholder}/>
+  <Outliner value={value} onChange={change} onBlur={flush} label={label} placeholder={placeholder}/>
   {state==='failed'&&<div className="small inline-text-err" role="alert">{problem} <button type="button" className="linkish" onClick={flush}>Try again</button></div>}
  </div>;
 }

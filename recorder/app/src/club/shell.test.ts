@@ -61,14 +61,14 @@ const withApp=async(hash:string,run:(ui:Awaited<ReturnType<typeof mountUI>>,serv
 };
 const navItems=(c:Element)=>[...c.querySelectorAll('.sidebar a.nav-item')].map(a=>a.querySelector('.label')!.textContent);
 
-test('the Home tab nav is the switcher, Search and four places (Videos with the videos in progress); Settings and Help sit in the tab strip',async()=>{
+test('the Video board nav is the switcher, Search and two places (Video board with the videos in progress); Settings and Help sit in the tab strip',async()=>{
  await withApp('#/home',async ui=>{
   const c=ui.container,bar=c.querySelector('.sidebar')!;
-  assert.deepEqual(navItems(c),['Home','Discover','Videos','Research']);
-  assert.deepEqual([...bar.querySelectorAll('a.nav-item')].map(a=>a.getAttribute('href')),['#/home','#/discover','#/videos','#/research']);
+  assert.deepEqual(navItems(c),['Video board','Research']);
+  assert.deepEqual([...bar.querySelectorAll('a.nav-item')].map(a=>a.getAttribute('href')),['#/home','#/discover']);
   const counts=Object.fromEntries([...bar.querySelectorAll('a.nav-item')].map(a=>[a.querySelector('.label')!.textContent,a.querySelector('.count')?.textContent]));
-  assert.deepEqual(counts,{Home:undefined,Discover:undefined,Videos:'2',Research:undefined},'only Videos has a number: the videos in progress');
-  assert.equal(bar.querySelector('a[aria-current="page"]')!.textContent,'Home');
+  assert.deepEqual(counts,{'Video board':'2',Research:undefined},'only Video board has a number: the videos in progress');
+  assert.equal(bar.querySelector('a[aria-current="page"]')!.textContent,'Video board2');
   const strip=c.querySelector('.tabstrip')!;
   assert.deepEqual([...strip.querySelectorAll('.ts-icon')].map(el=>[el.tagName,el.getAttribute('aria-label')]),[['BUTTON','Help'],['A','Settings']],'Help and Settings on the right of the tab strip, as in Borumi');
   const help=strip.querySelector('[aria-label="Help"]')!;
@@ -100,9 +100,9 @@ test('the sidebar counts and orders from the videos it is given',()=>{
 });
 
 test('Home, Discover and Videos open their own screens, and every old link lands on the new one with the sidebar on the right place',async()=>{
- for(const [hash,title,item,canonical] of [['#/home','Videos','Home','#/home'],['#/discover','Discover','Discover','#/discover'],['#/videos','Videos','Videos','#/videos'],
-  ['#/overview','Videos','Home','#/home'],['#/ideas?filter=later','Videos','Videos','#/videos?group=later'],['#/trending','Discover','Discover','#/discover?show=youtube'],
-  ['#/signals','Discover','Discover','#/discover'],['#/production/calendar','Videos','Videos','#/videos/calendar']]){
+ for(const [hash,title,item,canonical] of [['#/home','Video board','Video board','#/home'],['#/discover','Research','Research','#/discover'],['#/videos','Videos','Video board','#/videos'],
+  ['#/overview','Video board','Video board','#/home'],['#/ideas?filter=later','Videos','Video board','#/videos?group=later'],['#/trending','Research','Research','#/discover?show=youtube'],
+  ['#/signals','Research','Research','#/discover'],['#/production/calendar','Videos','Video board','#/videos/calendar']]){
   await withApp(hash,async ui=>{
    const c=ui.container;
    assert.equal(window.location.hash,canonical,hash);
@@ -112,19 +112,19 @@ test('Home, Discover and Videos open their own screens, and every old link lands
  }
 });
 
-test('the pinned tab is always Home, video tabs show stage dots, and + starts a new video',async()=>{
+test('the pinned tab is always Video board, video tabs show stage dots, and + starts a new video',async()=>{
  await withApp('#/home',async ui=>{
   const c=ui.container;
   for(const [hash,label] of [['#/home','Home'],['#/discover','Discover'],['#/videos','Videos'],['#/research','Research']]){
    await hashTo(hash);
-   assert.equal(c.querySelector('.ts-tab.on.home .ts-label')!.textContent,'Home',hash);
+   assert.equal(c.querySelector('.ts-tab.on.home .ts-label')!.textContent,'Video board',hash);
    assert.equal(c.querySelector('.ts-tab.home a')!.getAttribute('href'),'#/home');
    assert.ok(c.querySelector('.sidebar'),`${hash} shows the Home nav`);
   }
   await hashTo('#/video/p1');
   assert.equal(c.querySelector('.sidebar'),null,'a video has no Home nav');
   const home=c.querySelector<HTMLAnchorElement>('.ts-tab.home .ts-label')!;
-  assert.equal(home.textContent,'Home','the pinned tab keeps its name');
+  assert.equal(home.textContent,'Video board','the pinned tab keeps its name');
   assert.equal(c.querySelector('.ts-tab:not(.home) .ts-stage')!.getAttribute('aria-label'),'Planning');
   assert.equal(c.querySelector('.ts-tab:not(.home) .ts-id')?.textContent,'CC-7','the tab shows the video ID');
   assert.equal(home.getAttribute('href'),'#/home','and opens the video Kanban');
@@ -138,7 +138,7 @@ test('the pinned tab is always Home, video tabs show stage dots, and + starts a 
 test('a video opens on the tab for its stage, and each video opened gets its own tab',async()=>{
  await withApp('#/video/p1',async ui=>{
   const c=ui.container;
-  assert.equal(window.location.hash,'#/video/p1/plan','planning opens on Plan');
+  assert.equal(window.location.hash,'#/video/p1/board','planning opens on Board');
   await hashTo('#/video/r1');
   assert.equal(window.location.hash,'#/video/r1/record','recording opens on Record');
   assert.equal(c.querySelectorAll('.ts-tab:not(.home)').length,2,'both videos are open as tabs');
@@ -152,7 +152,7 @@ test('a video opens on the tab for its stage, and each video opened gets its own
 test('the old board and onboarding links land on Videos and the welcome screen',async()=>{
  await withApp('#/board',async ui=>{
   assert.equal(window.location.hash,'#/videos');
-  assert.equal(ui.container.querySelector('.sidebar a[aria-current="page"] .label')!.textContent,'Videos');
+  assert.equal(ui.container.querySelector('.sidebar a[aria-current="page"] .label')!.textContent,'Video board');
   await hashTo('#/onboarding');
   assert.equal(window.location.hash,'#/welcome');
   assert.equal(ui.container.querySelector('.sidebar'),null,'first launch uses the whole window');
@@ -163,7 +163,7 @@ test('switching channel tells the server, reloads the sidebar and goes Home',asy
  await withApp('#/videos',async (ui,server,calls)=>{
   const c=ui.container;
   await press(c.querySelector('.channel-btn')!);
-  await press([...c.querySelectorAll('[role="menuitemradio"]')].find(i=>i.textContent!.trim()==='Ana')!);
+  await press([...c.querySelectorAll('[role="menuitemradio"]')].find(i=>i.querySelector('.grow')?.textContent==='Ana')!);
   assert.deepEqual(calls.filter(call=>call.method==='POST').map(call=>call.path),['/workspaces/ana/current']);
   assert.equal(server.current,'ana');
   assert.equal(window.location.hash,'#/home');
@@ -191,7 +191,7 @@ test('Cmd+K opens search over actions, steps, places, settings and videos; typin
   await type(c.querySelector('.palette input')!,'hidden');
   assert.deepEqual(options(),['Hidden features in Claude Code']);
   await keyDown(c.querySelector('.palette input')!,'Enter');
-  assert.equal(c.querySelector('.palette'),null);assert.equal(window.location.hash,'#/video/p1/plan');
+  assert.equal(c.querySelector('.palette'),null);assert.equal(window.location.hash,'#/video/p1/board');
   await keyDown(window,'k',{ctrlKey:true});
   await type(c.querySelector('.palette input')!,'zzz');
   assert.match(c.querySelector('.palette .po')!.textContent!,/Nothing matches "zzz"\. Try a step, a setting or a word from the title\./);
@@ -237,7 +237,7 @@ test('search finds steps, settings groups, actions and help words, and a step op
 test('search opens an idea in its drawer on Videos and any other video on the tab for its stage',()=>{
  const routes=Object.fromEntries(searchOptions(videos,'').filter(option=>option.id.startsWith('video:')).map(option=>[option.label,'route' in option.target?option.target.route:undefined]));
  assert.deepEqual(routes['Claude for receipts'],{name:'videos',view:'board',open:'i1'});
- assert.deepEqual(routes['Hidden features in Claude Code'],{name:'video',id:'p1',tab:'plan'});
+ assert.deepEqual(routes['Hidden features in Claude Code'],{name:'video',id:'p1',tab:'board'});
  assert.deepEqual(routes['Agents for small shops'],{name:'video',id:'r1',tab:'record'});
  assert.deepEqual(routes['Already out'],{name:'video',id:'d1',tab:'publish'});
  assert.equal(searchOptions(videos,'RECEIPTS').length,1,'search ignores case');
@@ -379,14 +379,14 @@ test('a screen that fails to draw shows one sentence and Try again, never the er
  }finally{console.error=error;await ui.close();}
 });
 
-test('the Home tab nav lists the four places and marks the current one',async()=>{
+test('the Video board nav lists two places and marks the current one',async()=>{
  const ui=await mountUI(createElement(Sidebar,{route:{name:'videos',view:'board'},onSearch(){},onSwitched(){},onAdd(){},videos,epoch:0}));
  const fake=installFetch(()=>undefined);
  try{
   await flush();
   const nav=ui.container.querySelector('.sidebar')!;
-  assert.deepEqual([...nav.querySelectorAll('a.nav-item .label')].map(label=>label.textContent),['Home','Discover','Videos','Research']);
-  assert.equal(nav.querySelector('a[aria-current="page"] .label')!.textContent,'Videos');
+  assert.deepEqual([...nav.querySelectorAll('a.nav-item .label')].map(label=>label.textContent),['Video board','Research']);
+  assert.equal(nav.querySelector('a[aria-current="page"] .label')!.textContent,'Video board');
  }finally{await ui.close();fake.restore();}
 });
 
@@ -401,10 +401,10 @@ test('the sidebar count follows a change saved to a video, without leaving the p
  await withApp('#/videos',async (ui,_server,calls)=>{
   const c=ui.container;
   const count=(label:string)=>c.querySelector(`.sidebar a[href="#/${label}"] .count`)?.textContent;
-  assert.equal(count('videos'),'2');
+  assert.equal(count('home'),'2');
   await act(async()=>{await clubFetch('/videos/i1/move',{body:{stage:'planning'}});});await flush();
   assert.equal(window.location.hash,'#/videos','the route did not change');
-  assert.equal(count('videos'),'3');
+  assert.equal(count('home'),'3');
   const loads=calls.filter(call=>call.path==='/videos'&&call.method==='GET').length;
   await act(async()=>{await clubFetch('/videos');});await flush();
   assert.equal(calls.filter(call=>call.path==='/videos'&&call.method==='GET').length,loads+1,'reading videos does not reload the sidebar');

@@ -27,7 +27,7 @@ test('a file change is ignored when it is the panel\'s own save, taken in when n
 const tile=(text:string,hash='h1'):ResearchTile=>({id:'t1',kind:'note',title:'Plan',text,meta:{},createdAt:'2026-10-01T00:00:00.000Z',doc:{root:'video',path:'notes/plan.md',hash}});
 const flush=()=>act(async()=>{await new Promise(resolve=>setTimeout(resolve,0));});
 const wait=(ms:number)=>act(async()=>{await new Promise(resolve=>setTimeout(resolve,ms));});
-const edit=(container:Element,text:string)=>act(async()=>{const page=container.ownerDocument.querySelector('.md-editor')!;page.firstElementChild!.textContent=text;page.dispatchEvent(new Event('input',{bubbles:true}));});
+const edit=(container:Element,text:string)=>act(async()=>{const page=container.ownerDocument.querySelector('.cc-outliner [contenteditable=true]')!;page.textContent=text;page.dispatchEvent(new Event('input',{bubbles:true}));});
 
 test('writing in a note is saved a moment after you stop, with the hash it started from; closing saves what is waiting',async()=>{
  const saves:{text:string;base?:string}[]=[];
@@ -45,7 +45,7 @@ test('writing in a note is saved a moment after you stop, with the hash it start
   assert.equal(document.querySelector('[role=status]')!.textContent,'Unsaved');
   assert.equal(saves.length,0,'not while writing');
   await wait(SAVE_WAIT_MS+150);
-  assert.deepEqual(saves,[{text:'Plan, one two\n',base:'h1'}],'one save, with the hash the text came from');
+  assert.deepEqual(saves,[{text:'Plan, one two',base:'h1'}],'one save, with the hash the text came from');
   assert.equal(document.querySelector('[role=status]')!.textContent,'Saved');
   await edit(ui.container,'Plan, three');
   await wait(SAVE_WAIT_MS+150);
@@ -54,7 +54,7 @@ test('writing in a note is saved a moment after you stop, with the hash it start
   await edit(ui.container,'Plan, four');
   await act(async()=>{document.querySelector<HTMLButtonElement>('button[aria-label="Close"]')!.click();});
   await flush();
-  assert.equal(saves.at(-1)!.text,'Plan, four\n');
+  assert.equal(saves.at(-1)!.text,'Plan, four');
   assert.deepEqual(closed,[false]);
  }finally{await ui.close();}
 });
@@ -78,7 +78,7 @@ test('a failed save keeps the writing, says so with Try again, and does not clos
   assert.deepEqual(closed,[true],'a note that could not be saved stays open');
   fail=false;
   await act(async()=>{[...notice.querySelectorAll('button')].find(button=>button.textContent==='Try again')!.click();});await flush();
-  assert.equal(saves.at(-1),'precious words\n');
+  assert.equal(saves.at(-1),'precious words');
   assert.equal(document.querySelector('[role=status]')!.textContent,'Saved');
   assert.equal(document.querySelector('.md-notice'),null);
  }finally{await ui.close();}
@@ -105,11 +105,11 @@ test('the file changed by something else is taken into a note nobody is writing 
   await flush();
   await ui.render(make(tile('Plan and an agent line','h-agent')));
   await flush();
-  assert.match(document.querySelector('.md-editor')!.textContent!,/an agent line/,'taken in');
+  assert.match(document.querySelector('.cc-outliner')!.textContent!,/an agent line/,'taken in');
   assert.match(document.querySelector('.md-notice')!.textContent!,/changed in its file/);
   await edit(ui.container,'my own writing');
   await ui.render(make(tile('Agent again','h-agent-2')));await flush();
-  assert.match(document.querySelector('.md-editor')!.textContent!,/my own writing/,'unsaved writing is not overwritten');
+  assert.match(document.querySelector('.cc-outliner')!.textContent!,/my own writing/,'unsaved writing is not overwritten');
   await wait(SAVE_WAIT_MS+150);
  }finally{await ui.close();}
 });
@@ -119,7 +119,7 @@ test('a note whose file is missing or too large says so instead of showing an ed
  const ui=await mountUI(createElement(ToastProvider,null,createElement(NotePanel,{tile:missing,save:async()=>({tile:missing}),onClose:()=>{},onCopyPath:()=>{}})));
  try{
   await flush();
-  assert.equal(document.querySelector('.md-editor'),null);
+  assert.equal(document.querySelector('.cc-outliner'),null);
   assert.match(document.querySelector('[role=dialog]')!.textContent!,/not in its folder any more/);
   await ui.render(createElement(ToastProvider,null,createElement(NotePanel,{tile:{...missing,doc:{root:'video',path:'notes/big.md',tooLarge:true}},save:async()=>({tile:missing}),onClose:()=>{},onCopyPath:()=>{}})));
   assert.match(document.querySelector('[role=dialog]')!.textContent!,/over 1 MB/);

@@ -1,9 +1,10 @@
 /*
   Creator Compiler tokens: the one place a colour, a size, a radius, a shadow or a duration is written as a value.
   Every other club stylesheet and component reads these (`var(--cc-…)`, `var(--kind-…)`, or the Tailwind utilities mapped in club.css).
-  A test (`ui/tokens.test.ts`) fails when a raw colour literal appears anywhere in `src/club/**` outside this file.
+  A test (`design-system.test.ts`) fails when a raw colour literal appears anywhere in `src/club/**` outside this file.
 
-  The values are Borumi 0.32.1's (docs/v2/research/borumi-parity): neutral greys, near-black/white primary, blue-500 focus, 6px controls.
+  Light values are Borumi 0.32.1's (docs/v2/research/borumi-parity): neutral greys, near-black/white primary, blue-500 focus, 6px controls.
+  Dark surfaces, text and selection follow the shipped Heptabase palette (docs/design/heptabase-dark-theme.md).
   The colour rule:
   - one accent (blue) for focus, selection and links; the primary action is the near-black button (white in dark), as in Borumi;
   - red only for recording and destructive actions;
@@ -29,6 +30,17 @@
   --cc-line-hover: #d4d4d4;
   --cc-scrollbar: #d4d4d4;
   --cc-scrollbar-hover: #a3a3a3;
+  /* Heptabase board primitives; existing light shell tokens stay unchanged. */
+  --cc-board-bg: #eeeded;
+  --cc-board-grid: rgba(0, 0, 0, .2);
+  --cc-card-bg: #ffffff;
+  --cc-card-border: rgba(0, 0, 0, .13);
+  --cc-card-border-hover: rgba(0, 0, 0, .32);
+  --cc-selection: #207dff;
+  --cc-selection-bg: rgba(75, 155, 230, .3);
+  --cc-section-bg: rgba(225, 225, 225, .4);
+  --cc-section-title-bg: hsl(0 0% 88%);
+  --cc-popover-bg: var(--cc-bg);
   /* Text */
   --cc-text: #0a0a0a;
   --cc-text-2: #404040;
@@ -146,6 +158,7 @@
   --cc-r-sm: 4px;
   --cc-r: 6px;
   --cc-r-lg: 8px;
+  --cc-r-xl: 10px;
   --cc-r-pill: 999px;
   --cc-text-2xs: 11px;
   --cc-text-xs: 12px;
@@ -154,6 +167,11 @@
   --cc-text-lg: 16px;
   --cc-text-xl: 20px;
   --cc-text-2xl: 24px;
+  /* Heptabase's card outline scale: body, h4, h2 and the card title. */
+  --cc-text-outline: 15px;
+  --cc-text-outline-lg: 17px;
+  --cc-text-outline-h2: 25.5px;
+  --cc-text-outline-h1: 31.875px;
   /* Motion */
   --cc-ease: cubic-bezier(0.4, 0, 0.2, 1);
   --cc-dur-fast: 0.1s;
@@ -176,51 +194,63 @@
 
 .club-root:where([data-theme=dark], [data-theme=dark] *) {
   --cc-brand-soft: #38251f;
-  --cc-provider-tile: #272522;
+  --cc-provider-tile: #242629;
   --cc-shadow-card: none;
   /* The primary action on a dark surface: the light button */
   --cc-primary: #ffffff;
   --cc-primary-hover: rgb(255 255 255 / 0.9);
-  --cc-on-primary: #0a0a0a;
-  --cc-bg: #0a0a0a;
-  --cc-bg-sunk: #171717;
-  --cc-surface: #171717;
-  --cc-surface-2: #171717;
-  --cc-hover: #262626;
-  --cc-line: #262626;
-  --cc-line-strong: #404040;
-  --cc-line-hover: #404040;
-  --cc-scrollbar: #404040;
-  --cc-scrollbar-hover: #525252;
-  --cc-text: #ffffff;
-  --cc-text-2: #d4d4d4;
-  --cc-text-3: #a3a3a3;
-  --cc-placeholder: #737373;
-  --cc-text-faint: #525252;
-  --cc-accent: #3b82f6;
-  --cc-accent-hover: #60a5fa;
-  --cc-accent-soft: #172554;
-  --cc-accent-text: #60a5fa;
-  --cc-on-accent: #ffffff;
-  --cc-rec-soft: #450a0a;
-  --cc-danger: #ef4444;
-  --cc-danger-soft: #450a0a;
+  --cc-on-primary: #212121;
+  --cc-bg: #212121;
+  --cc-bg-sunk: #191919;
+  --cc-surface: #242629;
+  --cc-surface-2: #242629;
+  --cc-hover: rgba(255, 255, 255, .06);
+  --cc-line: rgba(255, 255, 255, .08);
+  --cc-line-strong: rgba(255, 255, 255, .12);
+  --cc-line-hover: rgba(255, 255, 255, .36);
+  --cc-scrollbar: rgba(255, 255, 255, .12);
+  --cc-scrollbar-hover: rgba(255, 255, 255, .36);
+  --cc-text: #e1e1e1;
+  --cc-text-2: rgba(255, 255, 255, .65);
+  --cc-text-3: #b0b0b5;
+  --cc-placeholder: rgba(255, 255, 255, .65);
+  --cc-text-faint: rgba(255, 255, 255, .36);
+  --cc-accent: #61c6fa;
+  --cc-accent-hover: #61c6fa;
+  --cc-accent-soft: rgba(35, 131, 226, .2);
+  --cc-accent-text: #61c6fa;
+  --cc-on-accent: #222222;
+  --cc-rec-soft: #4a2126;
+  --cc-danger: #ff7370;
+  --cc-danger-soft: #4a2126;
   --cc-ok: #22c55e;
-  --cc-ok-soft: #052e16;
+  --cc-ok-soft: #0f3830;
   --cc-warn: #f59e0b;
-  --cc-warn-soft: #6f3915;
-  --cc-note: #29261a;
-  --cc-note-line: #4a4224;
+  --cc-warn-soft: #403814;
+  --cc-note: #403814;
+  --cc-note-line: #d1a100;
   --cc-avatar-1: #57534d;
   --cc-avatar-2: #4a4844;
   --cc-avatar-3: #6b665e;
   --cc-avatar-4: #3f3c38;
-  --cc-toast-bg: #171717;
-  --cc-scrim: rgb(0 0 0 / 0.8);
-  --cc-shadow-1: 0 1px 2px 0 rgb(0 0 0 / 0.3);
-  --cc-shadow-2: 0 4px 6px -1px rgb(0 0 0 / 0.4);
-  --cc-shadow-3: 0 10px 15px -3px rgb(0 0 0 / 0.5);
+  --cc-toast-bg: #3d4046;
+  --cc-toast-text: #e1e1e1;
+  --cc-scrim: rgba(0, 0, 0, .64);
+  --cc-shadow-1: 0px 0px 0px 1px rgba(0, 0, 0, .2);
+  --cc-shadow-2: rgb(15 15 15 / 20%) 0 0 0 1px, rgb(15 15 15 / 20%) 0 2px 4px;
+  --cc-shadow-3: 0 0 0 1px rgba(15, 15, 15, .1), 0 3px 6px rgba(15, 15, 15, .2), 0 9px 24px rgba(15, 15, 15, .4);
   --cc-shadow-drag: 0 25px 50px -12px rgb(0 0 0 / 0.6);
+  /* Separate active outlines from the translucent text-selection fill. */
+  --cc-board-bg: #191919;
+  --cc-board-grid: rgba(255, 255, 255, .18);
+  --cc-card-bg: #242629;
+  --cc-card-border: rgba(255, 255, 255, .12);
+  --cc-card-border-hover: rgba(255, 255, 255, .36);
+  --cc-selection: #61c6fa;
+  --cc-selection-bg: rgba(35, 131, 226, .3);
+  --cc-section-bg: rgba(47, 48, 49, .5);
+  --cc-section-title-bg: hsl(210 2% 19%);
+  --cc-popover-bg: #3d4046;
   color-scheme: dark;
 }
 

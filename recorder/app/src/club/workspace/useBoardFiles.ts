@@ -47,3 +47,17 @@ export function importNotes(videoId:string,files:readonly File[]):Promise<Import
  for(const file of files)form.append('files',file);
  return clubUpload<ImportResult>(`${boardBase(videoId)}/board/import`,form);
 }
+
+export interface SavedBoardImage{path:string;markdown:string}
+/** Uploads pixels with the board's files; `markdown` is relative to the note, never a data URL. */
+export function saveBoardImage(board:string,file:File,tile?:string):Promise<SavedBoardImage>{
+ const form=new FormData();form.append('file',file);if(tile)form.append('tile',tile);
+ return clubUpload<SavedBoardImage>(`${boardBase(board)}/board/images`,form);
+}
+
+/** Empty-canvas drop hook: add the returned tile to the board's state (or refresh). */
+export async function createImageCardFromFile(board:string,file:File,point:{x:number;y:number}):Promise<ResearchTile>{
+ const saved=await saveBoardImage(board,file);
+ const tile=await clubFetch<ResearchTile>(`${boardBase(board)}/research`,{body:{kind:'note',text:`![](${saved.markdown})`}});
+ return clubFetch<ResearchTile>(`${boardBase(board)}/research/${encodeURIComponent(tile.id)}`,{method:'PATCH',body:{pos:point}});
+}

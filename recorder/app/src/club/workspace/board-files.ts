@@ -1,3 +1,4 @@
+import {boardBase} from './board-base';
 import type {BoardFiles,ResearchTile} from '../../../shared/club';
 
 /*
@@ -30,4 +31,11 @@ export function importMessage(added:number,skipped:readonly {name:string;reason:
 export function folderLabel(files:Pick<BoardFiles['folder'],'display'>):string{
  const parts=files.display.split('/').filter(Boolean);
  return parts.length>3?`…/${parts.slice(-3).join('/')}`:files.display;
+}
+
+/** Remote images stay remote; local Markdown paths are resolved by the server against the note's file. */
+export function boardImageSource(board:string|undefined,tile:string|undefined,source:string):string|undefined{
+ if(/^https?:\/\//i.test(source))return source;
+ if(!board||/^(?:[a-z][a-z\d+.-]*:|\/\/|\/|\\)/i.test(source))return undefined;
+ return `/api/club${boardBase(board)}/board/images?${new URLSearchParams({src:source,...(tile?{tile}:{})})}`;
 }

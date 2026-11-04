@@ -24,7 +24,7 @@ function HelpPopover({onHelp}:{onHelp(topic?:string):void}){
  },[open]);
  const choose=(topic?:string)=>{setOpen(false);onHelp(topic);};
  return <>
-  <Tooltip text="Help"><button ref={button} type="button" className={cn('ts-icon',open&&'on')} onClick={()=>setOpen(value=>!value)} aria-label="Help" aria-haspopup="dialog" aria-expanded={open}><Icon name="help" size={17}/></button></Tooltip>
+  <Tooltip text="Help"><button ref={button} type="button" className={cn('ts-icon',open&&'on')} onClick={()=>setOpen(value=>!value)} aria-label="Help" aria-haspopup="dialog" aria-expanded={open}><Icon name="help" size={16}/></button></Tooltip>
   {open&&<><div className="help-scrim" aria-hidden/>
    <div ref={panel} className="help-pop" role="dialog" aria-label="Need help?">
     <h2>Need help?</h2>
@@ -45,10 +45,8 @@ export function TabStrip({route,tabs,onClose,onNewVideo,onSearch,onHelp}:{route:
  useEffect(()=>{selected.current?.scrollIntoView?.({block:'nearest',inline:'nearest'});},[active,tabs.length]);
  const onHome=isHomeTab(route);
  const menu:MenuItem[]=[
-  {label:'Home',icon:'home',fn:()=>go('#/home')},
-  {label:'Discover',icon:'trending',fn:()=>go('#/discover')},
-  {label:'Videos',icon:'video',fn:()=>go('#/videos')},
-  {label:'Research',icon:'research',fn:()=>go('#/research')},
+  {label:'Video board',icon:'production',fn:()=>go('#/home')},
+  {label:'Research',icon:'research',fn:()=>go('#/discover')},
   '-',
   {label:'New video',icon:'add',fn:onNewVideo},
   {label:'Search',icon:'search',fn:onSearch},
@@ -60,10 +58,10 @@ export function TabStrip({route,tabs,onClose,onNewVideo,onSearch,onHelp}:{route:
   <div className="ts-traffic" aria-hidden/>
   <Menu label="Creator Compiler" width={230} items={menu} restoreFocus button={(toggle,open)=>
    <button type="button" className={cn('ts-logo',open&&'on')} onClick={toggle} aria-label="Creator Compiler menu" aria-haspopup="menu" aria-expanded={open}>
-    <BrandMark size={16}/><Icon name="expand" size={12} stroke={2.2}/>
+    <BrandMark size={16}/><Icon name="expand" size={12}/>
    </button>}/>
   <nav className="ts-tabs" aria-label="Open videos">
-   <div className={cn('ts-tab home',onHome&&'on')}><a href="#/home" className="ts-label" aria-current={onHome?'page':undefined}><Icon name="home" size={14}/>Home</a></div>
+   <div className={cn('ts-tab home',onHome&&'on')}><a href="#/home" className="ts-label" aria-current={onHome?'page':undefined}><Icon name="production" size={16}/>Video board</a></div>
    {tabs.map(tab=>{
     const on=tab.id===active,title=tab.title||'Untitled';
     return <div key={tab.id} ref={on?selected:undefined} className={cn('ts-tab',on&&'on')}>
@@ -75,6 +73,6 @@ export function TabStrip({route,tabs,onClose,onNewVideo,onSearch,onHelp}:{route:
   <Tooltip text="New video"><button type="button" className="ts-new" onClick={onNewVideo} aria-label="New video"><Icon name="add" size={15}/></button></Tooltip>
   <span className="grow"/>
   <HelpPopover onHelp={onHelp}/>
-  <Tooltip text="Settings"><a href="#/settings" className={cn('ts-icon',route.name==='settings'&&'on')} aria-label="Settings" aria-current={route.name==='settings'?'page':undefined}><Icon name="settings" size={17}/></a></Tooltip>
+  <Tooltip text="Settings"><a href="#/settings" className={cn('ts-icon',route.name==='settings'&&'on')} aria-label="Settings" aria-current={route.name==='settings'?'page':undefined}><Icon name="settings" size={16}/></a></Tooltip>
  </header>;
 }
