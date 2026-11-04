@@ -168,7 +168,7 @@ test('region cancel, renderer reset, and display hotplug deny capture without op
 test('unarmed trusted user gesture opens uncapped source picker; cancellation denies exactly once', async () => {
  const h = setup(); try {
   const result = h.response({ userGesture: true }); await tick();
-  assert.equal(h.handlers.get('capture-ui-data')!(h.uiEvent()).sources.length, 25);
+  assert.equal((await h.handlers.get('capture-ui-data')!(h.uiEvent())).sources.length, 25);
   h.finish({ sourceId: 'window:23:0', mode: 'window' }); assert.equal((await result).video.id, 'window:23:0');
   const canceled = h.response({ userGesture: true }); await tick(); h.finish(null); assert.equal(await canceled, null);
  } finally { h.manager.dispose(); }
@@ -225,4 +225,28 @@ test('screen access messages name the app macOS lists', async () => {
  h.state.screenStatus = 'denied';
  h.state.beforeSources = async () => { throw new Error('Failed to get sources.'); };
  await assert.rejects(h.manager.list(h.event), (error: Error) => /Screen recording is off for Creator Compiler Dev\. .*turn on Creator Compiler Dev .*reopen Creator Compiler Dev\./.test(error.message) && !/SceneForge/.test(error.message));
+});
+
+
+test('picker requests live thumbnails and app icons only on demand; later validation retains metadata only',async()=>{
+ const h=setup();try{
+  const image=(text:string)=>({isEmpty:()=>false,toDataURL:()=>`data:image/png;base64,${text}`});
+  Object.assign(h.state.sources[0],{thumbnail:image('screen'),appIcon:image('icon')});
+  const first=await h.manager.list(h.event,{thumbnails:true});
+  assert.deepEqual(h.calls[0],{types:['screen','window'],thumbnailSize:{width:480,height:300},fetchWindowIcons:true});
+  assert.equal(first.sources[0].thumbnail,'data:image/png;base64,screen');assert.equal(first.sources[0].appIcon,'data:image/png;base64,icon');
+  assert.deepEqual(first.sources[0].pixelSize,{width:3024,height:1964});
+  const next=await h.manager.list(h.event);assert.equal('thumbnail' in next.sources[0],false);assert.equal(h.calls[1].thumbnailSize.width,0);
+  const selecting=h.manager.choose(h.event,{sourceId:'screen:8:0',mode:'region'});await tick();
+  h.finish({x:.1,y:.1,width:.5,height:.5});await selecting;assert.equal(h.calls.at(-1).thumbnailSize.width,0);
+ }finally{h.manager.dispose();}
+});
+
+test('a closed native picker drops late thumbnails instead of returning images',async()=>{
+ const h=setup();try{
+  const selecting=h.response({userGesture:true});await tick();
+  let release!:()=>void;h.state.beforeSources=()=>new Promise(resolve=>{release=resolve;});
+  const refreshing=h.handlers.get('capture-ui-data')!(h.uiEvent());h.finish(null);release();
+  assert.deepEqual(await refreshing,{sources:[],displays:[]});assert.equal(await selecting,null);
+ }finally{h.manager.dispose();}
 });

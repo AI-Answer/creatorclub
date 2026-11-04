@@ -192,7 +192,7 @@ app.whenReady().then(async()=>{
  // The system picker bypasses this handler. Our explicit source choice still requires
  // macOS Screen Recording consent, and never falls back to a different source.
  session.defaultSession.setDisplayMediaRequestHandler((request,callback)=>captureManager.handleRequest(request,callback),{useSystemPicker:false});
- ipcMain.handle('list-capture-sources',e=>captureManager.list(e));
+ ipcMain.handle('list-capture-sources',(e,options)=>captureManager.list(e,options));
  ipcMain.handle('choose-capture-source',(e,options)=>captureManager.choose(e,options));
  ipcMain.handle('restore-capture-source',(e,selection)=>captureManager.restore(e,selection));
  ipcMain.handle('cancel-capture-selection',(e,token)=>captureManager.cancel(e,token));
