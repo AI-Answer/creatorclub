@@ -1,14 +1,14 @@
 .cutroom-panel { display:flex; flex-direction:column; gap:18px; }
-.cutroom-heading { padding:18px; background:var(--accent-soft); border-radius:var(--cc-r,10px); display:flex; gap:14px; align-items:center; }
-.cutroom-heading p { color:var(--muted); margin-top:5px; font-size:var(--cc-text-xs,12px); }
+.cutroom-heading { padding:18px; background:var(--accent-soft); border-radius:var(--cc-r); display:flex; gap:14px; align-items:center; }
+.cutroom-heading p { color:var(--muted); margin-top:5px; font-size:var(--cc-text-xs); }
 .cutroom-actions { display:flex; flex-wrap:wrap; gap:8px; }
 .cutroom-panel textarea { font:12px/1.7 ui-monospace,monospace; min-height:200px; width:100%; resize:vertical; }
-.cutroom-panel pre { padding:16px; background:var(--secondary); border-radius:var(--cc-r,8px); overflow:auto; max-height:180px; white-space:pre-wrap; font:11px/1.6 ui-monospace,monospace; }
-.cutroom-panel img { max-width:100%; border-radius:var(--cc-r,8px); border:1px solid var(--line); }
-.cutroom-status { color:var(--muted); font-size:var(--cc-text-xs,12px); }
+.cutroom-panel pre { padding:16px; background:var(--secondary); border-radius:var(--cc-r-lg); overflow:auto; max-height:180px; white-space:pre-wrap; font:11px/1.6 ui-monospace,monospace; }
+.cutroom-panel img { max-width:100%; border-radius:var(--cc-r-lg); border:1px solid var(--line); }
+.cutroom-status { color:var(--muted); font-size:var(--cc-text-xs); }
 .cutroom-graphic-form { display:grid; grid-template-columns:1.2fr 1fr 90px; gap:12px; margin:18px 0 12px; }
-.cutroom-graphic-form label { display:flex; flex-direction:column; gap:7px; font-size:var(--cc-text-2xs,11px); color:var(--muted); }
+.cutroom-graphic-form label { display:flex; flex-direction:column; gap:7px; font-size:var(--cc-text-2xs); color:var(--muted); }
 .cutroom-panel textarea.cutroom-copy { min-height:74px; font:14px/1.6 inherit; margin:8px 0 12px; }
 .cutroom-advanced { margin-top:18px; }
-.cutroom-advanced summary { cursor:pointer; color:var(--muted); font-size:var(--cc-text-xs,12px); padding:10px 0; }
+.cutroom-advanced summary { cursor:pointer; color:var(--muted); font-size:var(--cc-text-xs); padding:10px 0; }
 .platform-win32 .titlebar { padding-left:24px; }

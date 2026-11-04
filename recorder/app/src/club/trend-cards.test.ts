@@ -17,10 +17,10 @@ test('trend cards keep reason and actions separate, and Follow does not open the
   assert.equal(card.querySelector('.reason')?.getAttribute('title'),item.reason);
   const actions=card.querySelector('.trend-actions')!;
   assert.ok(actions.contains(button(card,'Follow this channel')));
-  assert.ok(actions.contains(button(card,'Break this down')));
+  assert.ok(actions.contains(button(card,'Break down')));
   await act(async()=>button(card,'Follow this channel').click());
   assert.equal(opened.length,0);
-  await act(async()=>button(card,'Break this down').click());
+  await act(async()=>button(card,'Break down').click());
   assert.deepEqual(opened,[item.videoId]);
   await ui.render(createElement(TrendCard,{item:{...item,reason:null},saved:true,onBreak:video=>opened.push(video.videoId)}));
   assert.equal(card.querySelector('.reason')?.textContent,'');

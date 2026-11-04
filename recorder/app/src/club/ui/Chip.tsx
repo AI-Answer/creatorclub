@@ -7,10 +7,10 @@ import {KIND_COLOR,type Kind} from './kinds';
  * With `kind`, the chip takes that kind's fixed colour as a dot (screen, camera, audio…), the same as on the timeline.
  */
 export type ChipTone='neutral'|'accent'|'ok'|'warn'|'rec';
-const tones:Record<ChipTone,string>={neutral:'',accent:'b-blue',ok:'b-green',warn:'c-warn',rec:'c-rec'};
+const tones:Record<ChipTone,string>={neutral:'bg-subtle text-[var(--cc-text-2)]',accent:'b-blue bg-accent-soft text-[var(--cc-accent-text)]',ok:'b-green bg-ok-soft text-ok',warn:'c-warn bg-warn-soft text-warn',rec:'c-rec bg-[var(--cc-rec-soft)] text-[var(--cc-rec)]'};
 
 export function Chip({tone='neutral',kind,outline,className,children,...props}:ComponentProps<'span'>&{tone?:ChipTone;kind?:Kind;outline?:boolean}){
- return <span className={cn('chip',tones[tone],outline&&'outline',className)} {...props}>
-  {kind&&<span aria-hidden className="chip-kind" style={{background:KIND_COLOR[kind].color}}/>}{children}
+ return <span className={cn('chip rounded-[var(--cc-r-sm)]',tones[tone],outline&&'outline border-line bg-card',className)} {...props}>
+  {kind&&<span aria-hidden className="chip-kind" style={{borderRadius:'50%',background:KIND_COLOR[kind].color}}/>}{children}
  </span>;
 }

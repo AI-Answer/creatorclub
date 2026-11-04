@@ -48,11 +48,11 @@ function NoticeLine({kind,notice,onAct}:{kind:PlanJobKind;notice?:Notice;onAct(k
  * what was replaced (Undo), and what is waiting (Use it).
  */
 export function Plan({video,plan,known,focusId,onFocus,onTitle,onTarget,onRecordScene}:{video:Video;plan:PlanState;known:readonly VideoScene[]|undefined;focusId:string|null;onFocus(sceneId:string):void;onTitle(title:string):void;onTarget(seconds:number):void;onRecordScene(sceneId:string):void}){
- if(plan.load.status==='loading')return <div className="grow" style={{display:'flex',alignItems:'center',justifyContent:'center',padding:'64px 0'}}><Spinner label="Loading the plan" size={20}/></div>;
+ if(plan.load.status==='loading')return <div className="grow" role="status" style={{display:'flex',alignItems:'center',justifyContent:'center',gap:8,padding:'64px 0'}}><Spinner label="Loading the plan" size={20}/><span className="small muted">Loading the plan…</span></div>;
  if(plan.load.status==='error')return <div style={{maxWidth:720,margin:'0 auto',padding:'32px 24px'}}><ErrorLine message={plan.load.message} onRetry={plan.reload}/></div>;
  const packaging=plan.packageJob.phase==='running',outlining=plan.outlineJob.phase==='running',scripting=plan.scriptJob.phase==='running';
  const lines=[
-  plan.changedScene!==undefined&&<p key="changed" role="status" className="small" style={{background:'var(--cc-warn-soft)',color:'var(--cc-warn)',padding:'10px 14px',borderRadius:10}}>{changedSceneLine(plan.changedScene)}</p>,
+  plan.changedScene!==undefined&&<p key="changed" role="status" className="small" style={{background:'var(--cc-warn-soft)',color:'var(--cc-warn-text)',padding:'10px 14px',borderRadius:'var(--cc-r-lg)'}}>{changedSceneLine(plan.changedScene)}</p>,
   plan.continueError&&<ErrorLine key="continue" message={plan.continueError} onRetry={()=>plan.continueAction?.run()}/>,
   plan.scenesSaveError&&<ErrorLine key="save" message={plan.scenesSaveError} onRetry={plan.retrySave}/>,
   plan.noticeError&&<ErrorLine key="notice" message={plan.noticeError} onRetry={()=>{for(const kind of PLAN_JOB_KINDS)if(plan.notices[kind]){void plan.resolveNotice(kind);break;}}}/>,

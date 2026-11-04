@@ -195,7 +195,7 @@ export function Companion({videoId,videoTitle,tab,scene,screen,selection,pkg,out
     <div className="cmp-title">{title}</div>
    </div>
    {applied.length>0&&<button type="button" className={cn('cmp-applied-btn',showApplied&&'on')} aria-pressed={showApplied} onClick={()=>setShowApplied(v=>!v)} title="Everything Claude changed in this video">Applied {applied.length}</button>}
-   <button type="button" className="btn ghost sm icon-only" onClick={()=>{setText('/');input.current?.focus();}} aria-label="Run one of your skills" title="Run one of your skills"><Icon name="Sparkles" size={15}/></button>
+   <button type="button" className="btn ghost sm icon-only" onClick={()=>{setText('/');input.current?.focus();}} aria-label="Run one of your skills" title="Run one of your skills"><Icon name="code" size={15}/></button>
    <button type="button" className="btn ghost sm icon-only" onClick={()=>toggle(false)} aria-label={`Hide ${title}`} title={`Hide ${title}`}><Icon name="PanelRightClose" size={16}/></button>
   </header>
   {/* One line for screen readers: the step, "Reply ready" or the failure. The timer is never in a live region. */}
@@ -211,7 +211,7 @@ export function Companion({videoId,videoTitle,tab,scene,screen,selection,pkg,out
   <div className="cmp-log" ref={log} onScroll={onScroll} role="log" aria-live="off" aria-busy={working} hidden={showApplied}>
    {hiddenCount>0&&<button type="button" className="cmp-earlier" onClick={()=>setShowEarlier(true)}>Show {hiddenCount} earlier {hiddenCount===1?'message':'messages'}</button>}
    {companion.loadError?<ErrorLine message={companion.loadError} onRetry={companion.reload}/>
-    :!messages?<div className="cmp-loading"><Spinner label="Loading the conversation" size={16}/></div>
+    :!messages?<div className="cmp-loading"><span className="row small muted" role="status"><Spinner label="Loading the conversation" size={16}/>Loading the conversation…</span></div>
     :fresh&&<div className="cmp-hello">
      <p>{greeting(tab,{scenes:sceneCount,tiles:tab==='board'||tab==='research'?tiles:undefined,recorded})}</p>
      {chips||null}
@@ -231,7 +231,7 @@ export function Companion({videoId,videoTitle,tab,scene,screen,selection,pkg,out
     <div className="cmp-skills-head">{tab==='edit'?'Video skills: each one runs and makes something for the timeline':'Your skills'}</div>
     <div className="cmp-skills-list">
     {!skills?<div className="cmp-skills-empty">Looking for your skills…</div>
-     :!choices.length?<div className="cmp-skills-empty">{offered?.length?'No skill with that name.':tab==='edit'?'No video skills are installed in your Claude Code yet.':'No skills are installed in your Claude Code yet.'}</div>
+     :!choices.length?<div className="cmp-skills-empty">{offered?.length?'No skill with that name. Try another name.':tab==='edit'?'No video skills are installed in your Claude Code yet. Add one in Settings → Skills.':'No skills are installed in your Claude Code yet. Add one in Settings → Skills.'}</div>
      :choices.map((skill,at)=><button key={skill.name} type="button" role="option" aria-selected={at===pick} className={cn('cmp-skill',at===pick&&'on')} onMouseEnter={()=>setPick(at)} onMouseDown={event=>event.preventDefault()} onClick={()=>choose(skill)}>
        <span className="cmp-skill-name">/{skill.name}</span><span className="cmp-skill-what">{skill.description}</span>
       </button>)}

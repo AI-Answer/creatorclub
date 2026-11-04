@@ -43,8 +43,8 @@
 .club-root .cmp-md ol { list-style: decimal; }
 .club-root .cmp-md > :last-child { margin-bottom: 0; }
 .club-root .cmp-md strong { font-weight: 650; }
-.club-root .cmp-md code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size:var(--cc-text-xs); background: var(--cc-bg-sunk); border-radius: 4px; padding: 1px 4px; }
-.club-root .cmp-md.streaming > :last-child::after { content: ""; display: inline-block; width: 6px; height: 13px; margin-left: 2px; vertical-align: -2px; border-radius: 1px; background: var(--cc-accent); animation: cmp-caret 1s steps(2) infinite; }
+.club-root .cmp-md code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size:var(--cc-text-xs); background: var(--cc-bg-sunk); border-radius: var(--cc-r-sm); padding: 1px 4px; }
+.club-root .cmp-md.streaming > :last-child::after { content: ""; display: inline-block; width: 6px; height: 13px; margin-left: 2px; vertical-align: -2px; border-radius: var(--cc-r-sm); background: var(--cc-accent); animation: cmp-caret 1s steps(2) infinite; }
 @keyframes cmp-caret { 50% { opacity: 0; } }
 .club-root .cmp-note { font-size:var(--cc-text-xs); color: var(--cc-text-3); }
 
@@ -88,13 +88,13 @@
 .club-root .cmp-card-est { margin-top: 6px; font-size:var(--cc-text-xs); color: var(--cc-text-2); display: flex; gap: 6px; align-items: flex-start; }
 /* Amber only for a warning: a cut that takes a quarter of the video or more, or a card that no longer fits the timeline. */
 .club-root .cmp-card-est.warn { color: var(--cc-text); }
-.club-root .cmp-card-est.warn .icon { flex: none; margin-top: 2px; color: var(--cc-warn); }
+.club-root .cmp-card-est.warn .icon { flex: none; margin-top: 2px; color: var(--cc-warn-text); }
 .club-root .cmp-card-err { font-size:var(--cc-text-xs); line-height: 1.45; color: var(--cc-text-2); display: flex; gap: 6px; align-items: flex-start; }
 .club-root .cmp-card-err .icon { flex: none; margin-top: 2px; color: var(--cc-text-3); }
 /* Read by screen readers only. */
 .club-root .cmp-sr { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 .club-root .cmp-preview { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size:var(--cc-text-xs); line-height: 1.45; }
-.club-root .cmp-preview-col { border-radius:var(--cc-r); background: var(--cc-bg-sunk); padding: 7px 9px; min-width: 0; overflow-wrap: anywhere; max-height: 180px; overflow: auto; color: var(--cc-text-2); }
+.club-root .cmp-preview-col { border-radius: var(--cc-r-lg); background: var(--cc-bg-sunk); padding: 7px 9px; min-width: 0; overflow-wrap: anywhere; max-height: 180px; overflow: auto; color: var(--cc-text-2); }
 .club-root .cmp-preview-col.after { background: var(--cc-accent-soft); color: var(--cc-text); }
 .club-root .cmp-preview-h { font-size:var(--cc-text-2xs); font-weight: 650; color: var(--cc-text-3); margin-bottom: 3px; }
 .club-root .cmp-preview-col.after .cmp-preview-h { color: var(--cc-accent-text); }
@@ -108,7 +108,7 @@
 .club-root .cmp-sugg button:hover { border-color: var(--cc-accent); color: var(--cc-text); background: var(--cc-accent-soft); }
 .club-root .cmp-sugg button:focus-visible { outline: 2px solid var(--cc-accent); outline-offset: 1px; }
 .club-root .cmp-input { display: flex; flex-direction: column; gap: 6px; border: 1px solid var(--cc-line-strong); border-radius: var(--cc-r-lg); background: var(--cc-surface); padding: 10px 10px 8px 12px; box-shadow: var(--cc-shadow-2); transition: border-color .15s, box-shadow .15s; }
-.club-root .cmp-input:focus-within { border-color: var(--cc-line-hover); box-shadow: var(--cc-shadow-3); }
+.club-root .cmp-input:focus-within { border-color: var(--cc-accent); outline: 1px solid var(--cc-accent); box-shadow: var(--cc-shadow-2); }
 .club-root .cmp-input textarea { width: 100%; border: 0; outline: none; resize: none; background: transparent; color: var(--cc-text); font: inherit; font-size: var(--cc-text-sm); line-height: 1.5; padding: 0; min-height: 40px; max-height: 160px; field-sizing: content; }
 .club-root .cmp-send { all: unset; box-sizing: border-box; cursor: pointer; flex: none; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: var(--cc-primary); color: var(--cc-on-primary); transition: background .15s; }
 .club-root .cmp-send:disabled { cursor: default; background: var(--cc-bg-sunk); color: var(--cc-text-faint); }
@@ -146,7 +146,7 @@
 .club-root .cmp-skills-list { overflow-y: auto; min-height: 0; flex: 1; }
 .club-root .cmp-skill-tag { margin-left: 8px; font-size:var(--cc-text-2xs); font-weight: 600; color: var(--cc-accent-text); background: var(--cc-accent-soft); border-radius:var(--cc-r-pill); padding: 1px 7px; }
 .club-root .cmp-prev { padding: 4px 4px 8px; }
-.club-root .cmp-prev-box { position: relative; overflow: hidden; border-radius:var(--cc-r); background: var(--cc-dark-stage); }
+.club-root .cmp-prev-box { position: relative; overflow: hidden; border-radius: var(--cc-r-lg); background: var(--cc-dark-stage); }
 .club-root .cmp-prev-box iframe { position: absolute; top: 0; left: 0; border: 0; transform-origin: 0 0; pointer-events: none; }
 .club-root .cmp-prev-box :is(img, video) { display: block; width: 100%; height: 100%; object-fit: contain; }
 .club-root .cmp-prev-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 4px 0; font-size:var(--cc-text-xs); color: var(--cc-text-2); }
@@ -159,7 +159,7 @@
 .club-root .cmp-skills-more:hover { background: var(--cc-accent-soft); }
 
 /* Chat polish: the creator's words get a soft tint, Claude's proposals are clear cards with a visible edge, buttons are comfortable to hit. */
-.club-root .cmp-me { background: var(--cc-accent-soft); }
+.club-root .cmp-me { background: var(--cc-bg-sunk); }
 .club-root .cmp-card { background: var(--cc-card); border-color: var(--cc-line-strong); border-radius:var(--cc-r-lg); padding: 12px 14px; box-shadow: var(--cc-shadow-1); }
 .club-root .cmp-card-h { font-size:var(--cc-text-xs); color: var(--cc-text-2); }
 .club-root .cmp-card-a .btn { min-height: 30px; }
@@ -170,7 +170,7 @@
 .club-root .inline-text .md-editor { min-height: 22px; padding-bottom: 0; font-size:var(--cc-text-sm); line-height: 1.5; }
 .club-root .inline-text .md-editor h1 { font-size: 1.25em; margin: .6em 0 .3em; }
 .club-root .inline-text .md-editor h2, .club-root .inline-text .md-editor h3 { font-size: 1.1em; margin: .6em 0 .3em; }
-.club-root .inline-text-err { color: var(--cc-warn); margin-top: 4px; }
+.club-root .inline-text-err { color: var(--cc-warn-text); margin-top: 4px; }
 /* Several proposals at once: one button to take them all. */
 .club-root .cmp-all { display: flex; align-items: center; gap: 10px; }
 
@@ -195,7 +195,7 @@
 .club-root .cmp-input-row .grow { flex: 1; }
 .club-root .cmp-context { display: inline-flex; align-items: center; gap: 5px; min-width: 0; max-width: 75%; height: 22px; padding: 0 8px; border-radius: var(--cc-r-pill); background: var(--cc-bg-sunk); color: var(--cc-text-2); font-size: var(--cc-text-2xs); font-weight: 550; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .club-root .cmp-context svg { flex: none; color: var(--cc-text-3); }
-.club-root .cmp-hello-mark { width: 36px; height: 36px; display: grid; place-items: center; border-radius: var(--cc-r-lg); background: var(--cc-accent-soft); color: var(--cc-accent); }
+.club-root .cmp-hello-mark { width: 36px; height: 36px; display: grid; place-items: center; border-radius: var(--cc-r-lg); background: var(--cc-bg-sunk); color: var(--cc-text-2); }
 .club-root .cmp-sugg.fresh button::before { content: ""; flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--cc-line-hover); }
 .club-root .cmp-sugg.fresh button:hover { background: var(--cc-hover); }
 .club-root .cmp-sugg.fresh button:hover::before { background: var(--cc-accent); }
@@ -204,13 +204,13 @@
 .club-root:has(.club-embed .app-shell[data-mode=Edit]) .cmp:not(.collapsed) { width: 320px; }
 /* Pictures in the chat: thumbnails in a sent message and above the box before sending; a skill's result plays in its card. */
 .club-root .cmp-pics { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
-.club-root .cmp-pics img { width: 64px; height: 48px; object-fit: cover; border-radius: var(--cc-r-sm); display: block; box-shadow: inset 0 0 0 1px var(--cc-line); }
+.club-root .cmp-pics img { width: 64px; height: 48px; object-fit: cover; border-radius: var(--cc-r-lg); display: block; outline: 1px solid var(--cc-line); outline-offset: -1px; }
 .club-root .cmp-pic { position: relative; display: inline-block; }
 .club-root .cmp-pic button { all: unset; cursor: pointer; position: absolute; top: -6px; right: -6px; width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; background: var(--cc-primary); color: var(--cc-on-primary); }
-.club-root .cmp-pic-err { margin: 0; font-size: var(--cc-text-xs); color: var(--cc-danger); }
+.club-root .cmp-pic-err { margin: 0; font-size: var(--cc-text-xs); color: var(--cc-warn-text); }
 .club-root .cmp-attach { cursor: pointer; display: grid; place-items: center; width: 28px; height: 28px; border-radius: var(--cc-r-sm); color: var(--cc-text-3); }
 .club-root .cmp-attach:hover { background: var(--cc-hover); color: var(--cc-text); }
-.club-root .cmp-made { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: contain; border-radius: var(--cc-r-sm); background: var(--cc-dark-stage); margin-bottom: 8px; }
+.club-root .cmp-made { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: contain; border-radius: var(--cc-r-lg); background: var(--cc-dark-stage); margin-bottom: 8px; }
 /* Applied by Claude: every change from the chat that is in the video now, for reference, with Undo. */
 .club-root .cmp-applied-btn { all: unset; cursor: pointer; height: 24px; padding: 0 9px; border-radius: var(--cc-r-pill); background: var(--cc-bg-sunk); color: var(--cc-text-2); font-size: var(--cc-text-2xs); font-weight: 600; white-space: nowrap; }
 .club-root .cmp-applied-btn:hover, .club-root .cmp-applied-btn.on { background: var(--cc-ok-soft); color: var(--cc-ok); }
@@ -243,6 +243,6 @@
 .club-root .cmp-card { animation: cmp-card-in .32s var(--cc-ease) both; }
 .club-root .cmp-card.applied .cmp-result svg { animation: cmp-pop .4s var(--cc-ease) both; }
 /* The header mark sits on a small glossy tile, lit while Claude works. */
-.club-root .cmp-head-mark { box-sizing: content-box; padding: 5px; border-radius: var(--cc-r); background: linear-gradient(160deg, var(--cc-surface) 0%, var(--cc-bg-sunk) 100%); box-shadow: inset 0 1px 0 var(--cc-media-glow), var(--cc-shadow-1), 0 0 0 1px var(--cc-line); }
-.club-root .cmp-head-mark.working { color: var(--cc-accent); box-shadow: inset 0 1px 0 var(--cc-media-glow), 0 2px 8px color-mix(in srgb, var(--cc-accent) 30%, transparent), 0 0 0 1px color-mix(in srgb, var(--cc-accent) 35%, var(--cc-line)); }
+.club-root .cmp-head-mark { box-sizing: content-box; padding: 5px; border-radius: var(--cc-r); background: var(--cc-surface); border: 1px solid var(--cc-line); box-shadow: var(--cc-shadow-1); }
+.club-root .cmp-head-mark.working { color: var(--cc-text-2); border-color: var(--cc-line-strong); box-shadow: var(--cc-shadow-1); }
 @media (prefers-reduced-motion: reduce) { .club-root .cmp-mark.working > path, .club-root .cmp-card, .club-root .cmp-card.applied .cmp-result svg { animation: none; } }

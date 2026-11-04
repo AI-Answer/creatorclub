@@ -1,5 +1,5 @@
 import {useEffect,useRef,useState} from 'react';
-import {Monitor,LoaderCircle,Check} from './Icons';
+import {Monitor,LoaderCircle,Check,X} from './Icons';
 import type {DesktopCaptureSource} from './desktop';
 import {captureSourceDetail} from './capture-preview-sources';
 import './capture-preview-picker.css';
@@ -30,7 +30,7 @@ export function CaptureSourcePicker({selectedId,region=false,busy=false,error,on
  },[onClose]);
  return <div className="capture-picker-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)onClose();}}>
   <div ref={dialog} className="capture-picker-dialog" role="dialog" aria-modal="true" aria-label="Choose capture source" tabIndex={-1}>
-   <header><div><strong>{region?'Choose a display for your region':'Choose what to record'}</strong><p>Live previews · nothing is being recorded</p></div><button type="button" aria-label="Close capture sources" onClick={onClose}>×</button></header>
+   <header><div><strong>{region?'Choose a display for your region':'Choose what to record'}</strong><p>Live previews · nothing is being recorded</p></div><button type="button" aria-label="Close capture sources" onClick={onClose}><X size={18}/></button></header>
    <div className="capture-picker-content" aria-busy={loading||busy}>
     {(['display','window'] as const).filter(kind=>!region||kind==='display').map(kind=><section key={kind}>
      <h3>{kind==='display'?'Displays':'Windows'}</h3>
@@ -39,10 +39,10 @@ export function CaptureSourcePicker({selectedId,region=false,busy=false,error,on
       <span className="capture-picker-name">{source.appIcon&&<img src={source.appIcon} alt=""/>}<span title={source.label}>{source.label}</span></span>
       <span className="capture-picker-detail">{captureSourceDetail(source)}</span>
      </button>)}</div>
-     {!loading&&!sources.some(source=>source.kind===kind)&&<p>No {kind==='display'?'displays':'windows'} available.</p>}
+     {!loading&&!sources.some(source=>source.kind===kind)&&<p>No {kind==='display'?'displays':'windows'} available. {kind==='display'?'Connect a display, then try again.':'Open the window you want to record.'}</p>}
     </section>)}
     {(loading||busy)&&<p role="status" className="capture-picker-progress"><LoaderCircle className="spin" size={14}/>{busy?'Opening your selection…':'Loading sources…'}</p>}
-    {(failure||error)&&<div role="alert"><p>{error||failure}</p>{!busy&&<button type="button" className="button compact" onClick={()=>refresh.current()}>Try again</button>}</div>}
+    {(failure||error)&&<div role="alert"><p>Couldn’t load capture sources. {error||failure}</p>{!busy&&<button type="button" className="button compact" onClick={()=>refresh.current()}>Try again</button>}</div>}
    </div>
    <footer>Choose a source to see its live preview.<span>Esc to close</span></footer>
   </div>

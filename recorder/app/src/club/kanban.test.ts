@@ -53,16 +53,20 @@ test('keyboard arrows navigate spatially, Enter opens, command/control arrows mo
  try{assert.ok(remount.container.querySelector('.col-collapsed'));}finally{await remount.close();localStorage.removeItem('cc-kanban-published-collapsed');}
 });
 
-test('cover tries the local thumbnail/frame before YouTube, then uses a tinted placeholder; errors reset for new sources',async()=>{
+test('cover shows only a real picture: local thumbnail/frame, then a published video\'s own YouTube thumbnail; no picture means no cover',async()=>{
  const video=mk('a',{stage:'published',youtubeUrl:'https://youtu.be/dQw4w9WgXcQ'});
  assert.match(coverSources(video)[0],/^\/api\/club\/videos\/a\/cover/);assert.match(coverSources(video)[1],/i.ytimg.com/);
+ assert.deepEqual(coverSources(mk('b',{stage:'planning'})).length,1,'an unpublished video has no YouTube fallback');
  const props={video,scenes:[],dragging:false,onOpen(){},onMove(){},onDragStart(){},onDragEnd(){}};
  const ui=await mountUI(createElement(KanbanCard,props));
  try{
-  const error=async()=>{await act(async()=>ui.container.querySelector('img')!.dispatchEvent(new Event('error')));};
-  assert.equal(ui.container.querySelector('img')!.getAttribute('loading'),'lazy');await error();
-  assert.match(ui.container.querySelector('img')!.getAttribute('src')!,/i.ytimg.com/);await error();assert.equal(ui.container.querySelector('img'),null);assert.ok(ui.container.querySelector('.kcard-placeholder'));
+  const img=()=>ui.container.querySelector('img'),cover=()=>ui.container.querySelector<HTMLElement>('.kcard-cover');
+  const fire=async(type:string)=>{await act(async()=>img()!.dispatchEvent(new Event(type)));};
+  assert.equal(img()!.getAttribute('loading'),null,'eager: a lazy image inside a hidden box never loads');assert.equal(cover()!.hidden,true,'hidden until the picture loads');
+  await fire('error');
+  assert.match(img()!.getAttribute('src')!,/i.ytimg.com/);await fire('load');assert.equal(cover()!.hidden,false);
+  await fire('error');assert.equal(cover(),null,'no picture, no cover');
   await ui.render(createElement(KanbanCard,{...props,video:{...video,updatedAt:'2026-10-02'}}));
-  assert.match(ui.container.querySelector('img')!.getAttribute('src')!,/\/cover/);
+  assert.match(img()!.getAttribute('src')!,/\/cover/);
  }finally{await ui.close();}
 });

@@ -8,10 +8,10 @@
   Imported from main.tsx after recording-club.css.
 */
 .club-embed .app-shell[data-mode=Edit]{
-  --background:var(--cc-card);--foreground:var(--cc-ink);--surface:var(--cc-card);
-  --primary:var(--cc-primary);--primary-foreground:var(--cc-primary-ink);
-  --secondary:var(--cc-subtle);--input:var(--cc-subtle);--line:var(--cc-line);--muted:var(--cc-muted);
-  --accent:var(--cc-primary);--accent-soft:var(--cc-subtle);--danger:var(--cc-danger);
+  --background:var(--cc-bg);--foreground:var(--cc-text);--surface:var(--cc-surface);
+  --primary:var(--cc-primary);--primary-foreground:var(--cc-on-primary);
+  --secondary:var(--cc-surface-2);--input:var(--cc-hover);--line:var(--cc-line);--muted:var(--cc-text-3);
+  --accent:var(--cc-accent);--accent-soft:var(--cc-accent-soft);--danger:var(--cc-danger);
   --tl-select:var(--cc-accent);--tl-row:var(--cc-surface-2);
   --tl-shade-soft:var(--cc-shade-soft);--tl-shade:var(--cc-shade);--tl-shade-strong:var(--cc-shade-strong);
   --club-rail:76px;--club-panel:308px;
@@ -26,7 +26,7 @@
 /* Undo, redo and history, in the video's header (rendered there from the editor). */
 .club-root .ws-edit-tools{display:flex;align-items:center;gap:2px}
 .club-root .ws-edit-tools:empty{display:none}
-.club-root .ws-edit-tools button{display:inline-grid;place-items:center;width:32px;height:32px;border:0;border-radius:var(--cc-r-sm);background:transparent;color:var(--cc-text-2)}
+.club-root .ws-edit-tools button{display:inline-grid;place-items:center;width:32px;height:32px;border:0;border-radius:var(--cc-r);background:transparent;color:var(--cc-text-2)}
 .club-root .ws-edit-tools button:hover:not(:disabled){background:var(--cc-hover);color:var(--cc-text)}
 .club-root .ws-edit-tools button:disabled{opacity:.4}
 .club-root .ws-edit-tools button:focus-visible{outline:2px solid var(--cc-accent);outline-offset:1px}
@@ -64,7 +64,7 @@
 
 /* The transcript: large, readable words. */
 .club-embed .app-shell[data-mode=Edit] .transcript-editor{font-size:var(--cc-text-lg);line-height:2;--transcript-selection:var(--cc-accent-soft);--transcript-current:var(--cc-accent);--transcript-current-text:var(--cc-on-accent);--transcript-muted:var(--cc-text-3);--transcript-faint:var(--cc-placeholder);--transcript-hover:var(--cc-hover);--transcript-danger:var(--cc-danger);--transcript-danger-hover:var(--cc-danger-soft)}
-.club-embed .app-shell[data-mode=Edit] .transcript-editor:focus-visible{box-shadow:inset 0 0 0 2px var(--cc-accent)}
+.club-embed .app-shell[data-mode=Edit] .transcript-editor:focus-visible{outline:2px solid var(--cc-accent);outline-offset:-2px}
 .club-embed .app-shell[data-mode=Edit] .transcript-panel .transcription-status{flex:0 1 auto;max-height:34%;min-height:0;overflow:auto}
 .club-embed .app-shell[data-mode=Edit] .transcript-panel .transcript-editor{min-height:0;overflow:hidden}
 .club-embed .app-shell[data-mode=Edit] .transcript-panel .transcript-word-list{min-height:0;padding-bottom:12px}
@@ -72,7 +72,7 @@
 /* Cut: sections (Mistakes, Silences…), each with its own Review and Cut all. */
 .club-embed .app-shell[data-mode=Edit] .club-sheet-grow{flex:1}
 .club-embed .app-shell[data-mode=Edit] .club-auto-row{display:flex;flex-direction:column;gap:8px;padding:12px;border:1px solid var(--cc-line);border-radius:var(--cc-r);background:var(--cc-surface);outline:none}
-.club-embed .app-shell[data-mode=Edit] .club-auto-row:focus-visible{box-shadow:0 0 0 2px var(--cc-accent)}
+.club-embed .app-shell[data-mode=Edit] .club-auto-row:focus-visible{outline:2px solid var(--cc-accent)}
 .club-embed .app-shell[data-mode=Edit] .club-auto-row.is-pinned{border-color:var(--cc-accent);background:var(--cc-accent-soft)}
 .club-embed .app-shell[data-mode=Edit] .club-auto-sheet .club-sheet-body{gap:8px;padding:0 12px 12px}
 .club-embed .app-shell[data-mode=Edit] .club-auto-title{display:flex;align-items:center;gap:8px;font-size:var(--cc-text-sm);font-weight:600}
@@ -89,13 +89,13 @@
 /* The picture: the video on a dark stage, centred. A preview is a badge over it; a cut's before/after plays in a corner inset. */
 .club-embed .app-shell[data-mode=Edit] .club-edit-stage{grid-column:3;grid-row:1;position:relative;display:flex;flex-direction:column;min-width:0;min-height:0;overflow:hidden}
 .club-embed .app-shell[data-mode=Edit] .club-edit-stage .stage-wrap{background:transparent;padding:14px 20px 10px}
-.club-embed .app-shell[data-mode=Edit] .club-edit-stage .stage{border-radius:var(--cc-r);background:var(--cc-dark-stage)}
+.club-embed .app-shell[data-mode=Edit] .club-edit-stage .stage{border-radius:var(--cc-r-lg);background:var(--cc-dark-stage)}
 .club-embed .app-shell[data-mode=Edit] .club-preview-badges{position:absolute;top:22px;left:28px;right:28px;z-index:6;display:flex;flex-wrap:wrap;gap:6px;align-items:center;max-width:calc(100% - 24px);pointer-events:none}
 .club-embed .app-shell[data-mode=Edit] .club-preview-badges>*{pointer-events:auto}
 .club-embed .app-shell[data-mode=Edit] .club-pill{display:inline-flex;align-items:center;height:26px;max-width:100%;padding:0 10px;border-radius:var(--cc-r-pill);background:var(--cc-card);border:1px solid var(--cc-line);font-size:var(--cc-text-xs);color:var(--cc-ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .club-embed .app-shell[data-mode=Edit] .club-seg{display:inline-flex;padding:2px;border-radius:var(--cc-r);background:var(--cc-subtle);gap:2px}
-.club-embed .app-shell[data-mode=Edit] .club-seg>button{height:24px;padding:0 10px;border-radius:var(--cc-r-sm);font-size:var(--cc-text-xs);color:var(--cc-muted)}
-.club-embed .app-shell[data-mode=Edit] .club-seg>button[aria-pressed=true]{background:var(--cc-card);color:var(--cc-ink);box-shadow:0 1px 2px var(--tl-shade-soft)}
+.club-embed .app-shell[data-mode=Edit] .club-seg>button{height:24px;padding:0 10px;border-radius:var(--cc-r);font-size:var(--cc-text-xs);color:var(--cc-muted)}
+.club-embed .app-shell[data-mode=Edit] .club-seg>button[aria-pressed=true]{background:var(--cc-card);color:var(--cc-ink);box-shadow:var(--cc-shadow-1)}
 .club-embed .app-shell[data-mode=Edit] .club-preview-inset{position:absolute;right:28px;bottom:18px;z-index:6;width:min(300px,38%);max-height:calc(100% - 70px);overflow:auto;padding:10px;border:1px solid var(--cc-line);border-radius:var(--cc-r-lg);background:var(--cc-card);box-shadow:var(--cc-shadow-3)}
 .club-embed .app-shell[data-mode=Edit] .club-preview-inset .cut-playback{border:0;padding:0;background:transparent;font-size:var(--cc-text-xs)}
 
@@ -144,7 +144,7 @@
 .club-embed .app-shell[data-mode=Edit] .club-ruler .tick.major{height:12px;background:var(--cc-line-strong)}
 .club-embed .app-shell[data-mode=Edit] .club-ruler .tick>b{position:absolute;left:4px;bottom:1px;font-size:var(--cc-text-2xs);font-weight:500;line-height:12px;color:var(--cc-text-3);white-space:nowrap;font-variant-numeric:tabular-nums}
 /* Each scene is a band along the top of the ruler, as wide as the scene. */
-.club-embed .app-shell[data-mode=Edit] .club-scene-tag{position:absolute;top:1px;box-sizing:border-box;height:14px;padding:0 6px;border:1px solid var(--cc-line-strong);border-radius:4px;background:var(--cc-bg-sunk);color:var(--cc-text-2);font-size:var(--cc-text-2xs);font-weight:600;line-height:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;z-index:1}
+.club-embed .app-shell[data-mode=Edit] .club-scene-tag{position:absolute;top:1px;box-sizing:border-box;height:14px;padding:0 6px;border:1px solid var(--cc-line-strong);border-radius:var(--cc-r-sm);background:var(--cc-bg-sunk);color:var(--cc-text-2);font-size:var(--cc-text-2xs);font-weight:600;line-height:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;z-index:1}
 .club-embed .app-shell[data-mode=Edit] .club-scene-tag:hover{background:var(--cc-text);border-color:var(--cc-text);color:var(--cc-surface)}
 .club-embed .app-shell[data-mode=Edit] .club-row{position:absolute;left:0;right:0;margin:0;border:0;border-block:3px solid var(--cc-surface);border-radius:var(--cc-r);background:var(--tl-row);cursor:default}
 .club-embed .app-shell[data-mode=Edit] .club-row::before{display:none}
@@ -163,10 +163,10 @@
 .club-embed .app-shell[data-mode=Edit] .club-wave{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
 .club-embed .app-shell[data-mode=Edit] .club-wave path{fill:color-mix(in srgb,var(--kind-audio) 60%,var(--cc-surface));stroke:currentColor;stroke-width:.5;vector-effect:non-scaling-stroke}
 .club-embed .app-shell[data-mode=Edit] .club-clip-label{position:sticky;left:4px;z-index:2;display:inline-flex;align-items:center;gap:4px;max-width:calc(100% - 12px);margin:0 0 0 2px;padding:0 5px;height:100%;color:var(--kind-ink);font-size:var(--cc-text-2xs);font-weight:600;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none}
-.club-embed .app-shell[data-mode=Edit] .club-clip:is(.clip-audio,.clip-music) .club-clip-label{height:auto;margin-top:3px;padding:1px 5px;border-radius:4px;background:color-mix(in srgb,var(--cc-surface) 75%,transparent);color:var(--cc-text)}
+.club-embed .app-shell[data-mode=Edit] .club-clip:is(.clip-audio,.clip-music) .club-clip-label{height:auto;margin-top:3px;padding:1px 5px;border-radius:var(--cc-r-sm);background:color-mix(in srgb,var(--cc-surface) 75%,transparent);color:var(--cc-text)}
 .club-embed .app-shell[data-mode=Edit] .club-timeline .trim-handle{position:absolute;top:0;bottom:0;width:6px;z-index:4;cursor:ew-resize;background:transparent}
-.club-embed .app-shell[data-mode=Edit] .club-timeline .trim-handle.left{left:0;border-radius:5px 0 0 5px}
-.club-embed .app-shell[data-mode=Edit] .club-timeline .trim-handle.right{right:0;border-radius:0 5px 5px 0}
+.club-embed .app-shell[data-mode=Edit] .club-timeline .trim-handle.left{left:0;border-radius:var(--cc-r) 0 0 var(--cc-r)}
+.club-embed .app-shell[data-mode=Edit] .club-timeline .trim-handle.right{right:0;border-radius:0 var(--cc-r) var(--cc-r) 0}
 .club-embed .app-shell[data-mode=Edit] .club-timeline :is(.club-clip,.club-effect):hover .trim-handle{background:color-mix(in srgb,var(--kind-ink) 55%,transparent)}
 /* Captions, graphics, text and zooms: solid chips in their kind's colour, with the words on them. */
 .club-embed .app-shell[data-mode=Edit] .club-timeline .timeline-effect.club-effect{position:absolute;top:3px;bottom:3px;height:auto;display:flex;align-items:center;padding:0 7px;border:0;border-radius:var(--cc-r-sm);background:var(--kind-graphics);color:var(--kind-ink);font-size:var(--cc-text-2xs);font-weight:600;line-height:1;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:default;user-select:none}
@@ -175,26 +175,26 @@
 .club-embed .app-shell[data-mode=Edit] .club-timeline .row-layouts .club-effect{background:var(--kind-layout)}
 .club-embed .app-shell[data-mode=Edit] .club-timeline .row-markers .club-effect{background:var(--kind-markers)}
 .club-embed .app-shell[data-mode=Edit] .club-effect>span{pointer-events:none;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.club-embed .app-shell[data-mode=Edit] .club-timeline .clip-drag-preview{opacity:.9;box-shadow:0 4px 12px var(--tl-shade);cursor:grabbing;z-index:6}
+.club-embed .app-shell[data-mode=Edit] .club-timeline .clip-drag-preview{opacity:.9;box-shadow:var(--cc-shadow-drag);cursor:grabbing;z-index:6}
 .club-embed .app-shell[data-mode=Edit] .club-ghost{position:absolute;top:3px;bottom:3px;border:1px dashed var(--cc-muted);border-radius:var(--cc-r-sm);pointer-events:none}
 .club-embed .app-shell[data-mode=Edit] .club-preview-cut{position:absolute;z-index:5;pointer-events:none;background:repeating-linear-gradient(135deg,color-mix(in srgb,var(--cc-danger) 30%,transparent) 0 4px,transparent 4px 8px);border-left:1px solid var(--cc-danger);border-right:1px solid var(--cc-danger)}
 .club-embed .app-shell[data-mode=Edit] .club-cut-mark{position:absolute;z-index:5;width:0;margin-left:-1px;border-left:2px dashed var(--cc-danger);pointer-events:none}
-.club-embed .app-shell[data-mode=Edit] .club-cut-mark::before{content:"Cut";position:absolute;top:2px;left:2px;padding:0 5px;border-radius:4px;background:var(--cc-danger);color:var(--cc-on-media);font-size:var(--cc-text-2xs);font-weight:600;line-height:15px}
+.club-embed .app-shell[data-mode=Edit] .club-cut-mark::before{content:"Cut";position:absolute;top:2px;left:2px;padding:0 5px;border-radius:var(--cc-r-sm);background:var(--cc-danger);color:var(--cc-on-media);font-size:var(--cc-text-2xs);font-weight:600;line-height:15px}
 .club-embed .app-shell[data-mode=Edit] .club-snap{position:absolute;top:0;bottom:0;width:0;margin-left:-1px;border-left:2px solid var(--tl-select);z-index:9;pointer-events:none;background:none}
 .club-embed .app-shell[data-mode=Edit] .club-snap>span{display:none}
 .club-embed .app-shell[data-mode=Edit] .club-insert-line{position:absolute;top:0;bottom:0;width:3px;margin-left:-1px;background:var(--tl-select);z-index:9;pointer-events:none}
 .club-embed .app-shell[data-mode=Edit] .club-drag-label{position:sticky;left:12px;top:34px;z-index:10;display:inline-block;margin:34px 0 0 12px;padding:3px 8px;border-radius:var(--cc-r-sm);background:var(--cc-toast-bg);color:var(--cc-toast-text);font-size:var(--cc-text-xs);pointer-events:none;white-space:nowrap}
-.club-embed .app-shell[data-mode=Edit] .club-timeline .playhead{position:absolute;top:0;bottom:0;left:0;width:2px;margin-left:-1px;border-radius:1px;background:var(--cc-accent);z-index:8;pointer-events:none}
-.club-embed .app-shell[data-mode=Edit] .club-timeline .playhead>span{position:absolute;top:2px;left:-5px;width:12px;height:16px;border-radius:4px;background:var(--cc-accent);box-shadow:0 0 0 2px var(--cc-surface),var(--cc-shadow-1)}
+.club-embed .app-shell[data-mode=Edit] .club-timeline .playhead{position:absolute;top:0;bottom:0;left:0;width:2px;margin-left:-1px;border-radius:var(--cc-r-sm);background:var(--cc-accent);z-index:8;pointer-events:none}
+.club-embed .app-shell[data-mode=Edit] .club-timeline .playhead>span{position:absolute;top:2px;left:-5px;width:12px;height:16px;border-radius:var(--cc-r-sm);background:var(--cc-accent);outline:2px solid currentColor;box-shadow:var(--cc-shadow-1)}
 .club-embed .app-shell[data-mode=Edit] .club-timeline .timeline-marquee{position:absolute;z-index:9;border:1px solid var(--tl-select);background:color-mix(in srgb,var(--tl-select) 12%,transparent);pointer-events:none}
 .club-embed .app-shell[data-mode=Edit] .club-timeline.tool-blade :is(.club-clip,.club-row){cursor:crosshair}
 .club-embed .app-shell[data-mode=Edit] .club-timeline.tool-blade .trim-handle{cursor:crosshair}
 .club-embed .app-shell[data-mode=Edit] .club-timeline.timeline-dragging,.club-embed .app-shell[data-mode=Edit] .club-timeline.timeline-dragging *{cursor:grabbing}
 /* Hover on the ruler shows the time under the pointer; at high zoom the spoken words sit on the audio row. */
 .club-embed .app-shell[data-mode=Edit] .club-hover{position:absolute;top:0;bottom:0;width:1px;background:var(--cc-text-3);pointer-events:none;z-index:4}
-.club-embed .app-shell[data-mode=Edit] .club-hover b{position:absolute;top:15px;left:4px;padding:1px 6px;border-radius:4px;background:var(--cc-toast-bg);color:var(--cc-toast-text);font-size:var(--cc-text-2xs);font-weight:600;white-space:nowrap}
-.club-embed .app-shell[data-mode=Edit] .club-word{position:absolute;top:2px;z-index:3;padding:0 3px;border-radius:3px;background:color-mix(in srgb,var(--cc-surface) 70%,transparent);color:var(--cc-text);font-size:var(--cc-text-2xs);line-height:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none}
-.club-embed .app-shell[data-mode=Edit] .club-hover-frame{position:absolute;top:38px;left:4px;display:block;border-radius:var(--cc-r-sm);border:2px solid var(--cc-toast-bg);background-color:var(--cc-dark-stage);background-repeat:no-repeat;box-shadow:0 4px 14px var(--tl-shade)}
+.club-embed .app-shell[data-mode=Edit] .club-hover b{position:absolute;top:15px;left:4px;padding:1px 6px;border-radius:var(--cc-r-sm);background:var(--cc-toast-bg);color:var(--cc-toast-text);font-size:var(--cc-text-2xs);font-weight:600;white-space:nowrap}
+.club-embed .app-shell[data-mode=Edit] .club-word{position:absolute;top:2px;z-index:3;padding:0 3px;border-radius:var(--cc-r-sm);background:color-mix(in srgb,var(--cc-surface) 70%,transparent);color:var(--cc-text);font-size:var(--cc-text-2xs);line-height:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none}
+.club-embed .app-shell[data-mode=Edit] .club-hover-frame{position:absolute;top:38px;left:4px;display:block;border-radius:var(--cc-r-sm);border:2px solid var(--cc-toast-bg);background-color:var(--cc-dark-stage);background-repeat:no-repeat;box-shadow:var(--cc-shadow-1)}
 /* A previewed change drawn on the timeline before it is applied: dashed, in the accent colour; a removal is hatched. */
 .club-embed .app-shell[data-mode=Edit] .club-fx-ghost{position:absolute;top:3px;bottom:3px;z-index:4;pointer-events:none;display:flex;align-items:center;padding:0 8px;border-radius:var(--cc-r-sm);font-size:var(--cc-text-2xs);font-weight:600;overflow:hidden;white-space:nowrap;border:1.5px dashed var(--cc-accent);background:color-mix(in srgb,var(--cc-accent) 14%,var(--cc-surface));color:var(--cc-accent-text);animation:fxGhost 1.6s ease-in-out infinite}
 .club-embed .app-shell[data-mode=Edit] .club-fx-ghost.removed{border-color:var(--cc-danger);color:var(--cc-danger);text-decoration:line-through;background:repeating-linear-gradient(135deg,color-mix(in srgb,var(--cc-danger) 22%,transparent) 0 4px,transparent 4px 8px)}
@@ -203,8 +203,8 @@
 
 /* A note on a moment: the pin takes the colour of how it was marked, a hairline runs down through the rows, and the note opens beside the pin. */
 /* A note is a round pin in its own lane at the top of the ruler (there once a video has notes), with a speech-bubble mark; filled once it has words. A thin line runs down from it. */
-.club-embed .app-shell[data-mode=Edit] .club-marker{position:absolute;top:2px;width:18px;height:18px;margin-left:-9px;display:grid;place-items:center;border-radius:50%;background:var(--cc-surface);color:var(--kind-markers);box-shadow:0 0 0 1.5px var(--kind-markers),var(--cc-shadow-1);cursor:grab;z-index:9;transition:transform var(--cc-dur-fast)}
-.club-embed .app-shell[data-mode=Edit] .club-marker.has-note{background:var(--kind-markers);color:var(--cc-on-primary);box-shadow:0 0 0 2px var(--cc-surface),var(--cc-shadow-1)}
+.club-embed .app-shell[data-mode=Edit] .club-marker{position:absolute;top:2px;width:18px;height:18px;margin-left:-9px;display:grid;place-items:center;border-radius:50%;background:var(--cc-surface);color:var(--kind-markers);outline:1.5px solid var(--kind-markers);box-shadow:var(--cc-shadow-1);cursor:grab;z-index:9;transition:transform var(--cc-dur-fast)}
+.club-embed .app-shell[data-mode=Edit] .club-marker.has-note{background:var(--kind-markers);color:var(--kind-ink);outline:2px solid currentColor;box-shadow:var(--cc-shadow-1)}
 .club-embed .app-shell[data-mode=Edit] .club-marker:hover{transform:scale(1.12)}
 .club-embed .app-shell[data-mode=Edit] .club-ruler.has-notes .club-scene-tag{top:23px}
 .club-embed .app-shell[data-mode=Edit] .club-ruler.has-notes{background:linear-gradient(var(--cc-surface-2) 0 22px,var(--cc-surface) 22px)}
@@ -231,13 +231,13 @@
 .club-embed .motion-gallery button b{font-size:var(--cc-text-xs);font-weight:600;padding:0 2px 2px}
 .club-embed .motion-gallery .motion-mini{display:block;position:relative;overflow:hidden;width:100%;height:0;padding:0 0 56.25%;border-radius:var(--cc-r-sm);background:var(--cc-dark-stage)}
 .club-embed .motion-mini i{position:absolute;display:block;background:var(--cc-on-media)}
-.club-embed .mm-lower-third i:nth-child(1){left:8%;bottom:18%;height:22%;width:56%;border-radius:3px;animation:mmSlide 1.9s infinite}
+.club-embed .mm-lower-third i:nth-child(1){left:8%;bottom:18%;height:22%;width:56%;border-radius:var(--cc-r-sm);animation:mmSlide 1.9s infinite}
 .club-embed .mm-lower-third i:nth-child(2){left:8%;bottom:11%;height:3px;width:30%;background:var(--cc-accent);animation:mmSlide 1.9s .15s infinite}
-.club-embed .mm-title-card i:nth-child(1){left:20%;top:41%;width:60%;height:18%;border-radius:3px;animation:mmPop 1.9s infinite}
+.club-embed .mm-title-card i:nth-child(1){left:20%;top:41%;width:60%;height:18%;border-radius:var(--cc-r-lg);animation:mmPop 1.9s infinite}
 .club-embed .mm-title-card i:nth-child(2){display:none}
 .club-embed .mm-callout i:nth-child(1){left:52%;top:22%;width:28%;height:46%;border:2px solid var(--cc-on-media);border-radius:50%;background:transparent;animation:mmPop 1.9s infinite}
-.club-embed .mm-callout i:nth-child(2){left:14%;top:62%;width:32%;height:14%;border-radius:3px;animation:mmSlide 1.9s .1s infinite}
-.club-embed .mm-chapter-label i:nth-child(1){left:10%;top:36%;width:80%;height:26%;border-radius:3px;animation:mmUp 1.9s infinite}
+.club-embed .mm-callout i:nth-child(2){left:14%;top:62%;width:32%;height:14%;border-radius:var(--cc-r-sm);animation:mmSlide 1.9s .1s infinite}
+.club-embed .mm-chapter-label i:nth-child(1){left:10%;top:36%;width:80%;height:26%;border-radius:var(--cc-r-sm);animation:mmUp 1.9s infinite}
 .club-embed .mm-chapter-label i:nth-child(2){display:none}
 @keyframes mmSlide{0%{transform:translateX(-120%);opacity:0}25%,80%{transform:none;opacity:1}100%{opacity:0}}
 @keyframes mmUp{0%{transform:translateY(60%);opacity:0}25%,80%{transform:none;opacity:1}100%{opacity:0}}
@@ -265,7 +265,7 @@
 .club-embed .app-shell[data-mode=Edit] .comparison-switch [aria-pressed=true]{background:var(--cc-accent);border-color:var(--cc-accent);color:var(--cc-on-accent)}
 .club-embed .app-shell[data-mode=Edit] :is(.icon-button,.button).is-active:not(.subtle){color:var(--cc-accent-text);background:var(--cc-accent-soft)}
 .club-embed .app-shell[data-mode=Edit] .color-swatches{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0}
-.club-embed .app-shell[data-mode=Edit] .color-swatch{width:22px;height:22px;padding:0;border-radius:50%;border:1px solid var(--cc-line);box-shadow:inset 0 0 0 1px var(--tl-shade-soft);display:inline-flex;align-items:center;justify-content:center;font-size:var(--cc-text-2xs);color:var(--cc-muted);background:var(--cc-card)}
+.club-embed .app-shell[data-mode=Edit] .color-swatch{width:22px;height:22px;padding:0;border-radius:50%;border:1px solid var(--cc-line);outline:1px solid currentColor;outline-offset:-1px;display:inline-flex;align-items:center;justify-content:center;font-size:var(--cc-text-2xs);color:var(--cc-muted);background:var(--cc-card)}
 .club-embed .app-shell[data-mode=Edit] .color-swatch.is-none{background:linear-gradient(135deg,transparent 45%,var(--cc-danger) 45% 55%,transparent 55%),var(--cc-card)}
 .club-embed .app-shell[data-mode=Edit] .color-swatch[aria-pressed=true]{outline:2px solid var(--tl-select);outline-offset:2px}
 
@@ -273,8 +273,8 @@
 .club-root:has(.club-embed) .cc-toasts{top:72px;right:20px;bottom:auto;left:auto;transform:none;align-items:flex-end}
 .club-embed .toast{top:72px;right:20px;bottom:auto;left:auto;transform:none}
 /* Handles on the picture: the selected camera or screen moves and resizes right where it is. */
-.club-embed .app-shell[data-mode=Edit] .stage-handles{position:absolute;z-index:30;box-sizing:border-box;border:1.5px solid var(--cc-accent);border-radius:var(--cc-r-sm);cursor:move;touch-action:none}
-.club-embed .app-shell[data-mode=Edit] .stage-grip{position:absolute;width:12px;height:12px;border-radius:50%;background:var(--cc-surface);box-shadow:0 0 0 1.5px var(--cc-accent),var(--cc-shadow-1)}
+.club-embed .app-shell[data-mode=Edit] .stage-handles{position:absolute;z-index:30;box-sizing:border-box;border:1.5px solid var(--cc-accent);border-radius:var(--cc-r-lg);cursor:move;touch-action:none}
+.club-embed .app-shell[data-mode=Edit] .stage-grip{position:absolute;width:12px;height:12px;border-radius:50%;background:var(--cc-surface);outline:1.5px solid var(--cc-accent);box-shadow:var(--cc-shadow-1)}
 .club-embed .app-shell[data-mode=Edit] .stage-grip.nw{left:-6px;top:-6px;cursor:nwse-resize}
 .club-embed .app-shell[data-mode=Edit] .stage-grip.ne{right:-6px;top:-6px;cursor:nesw-resize}
 .club-embed .app-shell[data-mode=Edit] .stage-grip.sw{left:-6px;bottom:-6px;cursor:nesw-resize}
@@ -284,22 +284,22 @@
 .club-embed .app-shell[data-mode=Edit] .lp-section{padding:14px 16px;border-bottom:1px solid var(--cc-line)}
 .club-embed .app-shell[data-mode=Edit] .lp-section h4{margin:0 0 8px;font-size:var(--cc-text-xs);font-weight:600;color:var(--cc-text-2)}
 .club-embed .app-shell[data-mode=Edit] .lp-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.club-embed .app-shell[data-mode=Edit] .lp-card{all:unset;box-sizing:border-box;cursor:pointer;display:flex;flex-direction:column;gap:6px;padding:5px;border-radius:var(--cc-r);border:1.5px solid transparent}
+.club-embed .app-shell[data-mode=Edit] .lp-card{all:unset;box-sizing:border-box;cursor:pointer;display:flex;flex-direction:column;gap:6px;padding:5px;border-radius:var(--cc-r-lg);border:1.5px solid transparent}
 .club-embed .app-shell[data-mode=Edit] .lp-card:hover{background:var(--cc-hover)}
 .club-embed .app-shell[data-mode=Edit] .lp-card.on{border-color:var(--cc-accent);background:var(--cc-accent-soft)}
 .club-embed .app-shell[data-mode=Edit] .lp-card:focus-visible{outline:2px solid var(--cc-accent);outline-offset:1px}
-.club-embed .app-shell[data-mode=Edit] .lp-preview{position:relative;display:block;aspect-ratio:16/9;border-radius:var(--cc-r-sm);overflow:hidden;box-shadow:inset 0 0 0 1px var(--cc-line)}
+.club-embed .app-shell[data-mode=Edit] .lp-preview{position:relative;display:block;aspect-ratio:16/9;border-radius:var(--cc-r-lg);overflow:hidden;outline:1px solid var(--cc-line);outline-offset:-1px}
 .club-embed .app-shell[data-mode=Edit] .lp-preview i{position:absolute;background-size:cover;background-position:center;background-color:var(--cc-line-strong)}
-.club-embed .app-shell[data-mode=Edit] .lp-preview .lp-camera{background-color:var(--kind-camera);box-shadow:0 1px 3px var(--tl-shade)}
+.club-embed .app-shell[data-mode=Edit] .lp-preview .lp-camera{background-color:var(--kind-camera);box-shadow:var(--cc-shadow-2)}
 .club-embed .app-shell[data-mode=Edit] .lp-name{font-size:var(--cc-text-xs);font-weight:550;color:var(--cc-text);padding:0 2px}
 .club-embed .app-shell[data-mode=Edit] .lp-card.on .lp-name{color:var(--cc-accent-text)}
 .club-embed .app-shell[data-mode=Edit] .lp-hint{margin:10px 2px 0;font-size:var(--cc-text-xs);line-height:1.45;color:var(--cc-text-3)}
 .club-embed .app-shell[data-mode=Edit] .lp-seg{display:flex;padding:2px;border-radius:var(--cc-r);background:var(--cc-bg-sunk)}
-.club-embed .app-shell[data-mode=Edit] .lp-seg button{all:unset;flex:1;text-align:center;cursor:pointer;height:28px;line-height:28px;border-radius:var(--cc-r-sm);font-size:var(--cc-text-xs);font-weight:550;color:var(--cc-text-2)}
+.club-embed .app-shell[data-mode=Edit] .lp-seg button{all:unset;flex:1;text-align:center;cursor:pointer;height:28px;line-height:28px;border-radius:var(--cc-r);font-size:var(--cc-text-xs);font-weight:550;color:var(--cc-text-2)}
 .club-embed .app-shell[data-mode=Edit] .lp-seg button[aria-pressed=true]{background:var(--cc-surface);color:var(--cc-text);box-shadow:var(--cc-shadow-1)}
 .club-embed .app-shell[data-mode=Edit] .lp-swatches{display:flex;gap:8px}
-.club-embed .app-shell[data-mode=Edit] .lp-swatches button{all:unset;cursor:pointer;width:26px;height:26px;border-radius:50%;box-shadow:inset 0 0 0 1px var(--tl-shade)}
-.club-embed .app-shell[data-mode=Edit] .lp-swatches button[aria-pressed=true]{box-shadow:0 0 0 2px var(--cc-surface),0 0 0 4px var(--cc-accent)}
+.club-embed .app-shell[data-mode=Edit] .lp-swatches button{all:unset;cursor:pointer;width:26px;height:26px;border-radius:50%;outline:1px solid currentColor;outline-offset:-1px}
+.club-embed .app-shell[data-mode=Edit] .lp-swatches button[aria-pressed=true]{outline:2px solid var(--cc-accent)}
 /* The timeline zoom in the play bar. */
 .club-embed .app-shell[data-mode=Edit] .club-zoom{display:flex;align-items:center;gap:4px;margin-right:6px}
 .club-embed .app-shell[data-mode=Edit] .club-zoom input[type=range]{width:110px;accent-color:var(--cc-text-2);height:4px}
@@ -309,12 +309,12 @@
 .club-embed .app-shell[data-mode=Edit] .gfx-ask{display:flex;flex-direction:column;gap:8px}
 .club-embed .app-shell[data-mode=Edit] .gfx-ask-btn{width:100%}
 .club-embed .app-shell[data-mode=Edit] .motion-gallery button{height:auto}
-.club-embed .app-shell[data-mode=Edit] .gfx-preview{position:relative;display:block;flex:none;width:100%;height:0;padding-bottom:56.25%;container-type:inline-size;border-radius:var(--cc-r-sm);overflow:hidden;background:var(--cc-dark-stage) center/cover no-repeat}
+.club-embed .app-shell[data-mode=Edit] .gfx-preview{position:relative;display:block;flex:none;width:100%;height:0;padding-bottom:56.25%;container-type:inline-size;border-radius:var(--cc-r-lg);overflow:hidden;background:var(--cc-dark-stage) center/cover no-repeat}
 .club-embed .app-shell[data-mode=Edit] .gfx-style .lp-seg{margin-top:6px}
 .club-embed .app-shell[data-mode=Edit] .stage-zoom-area{position:absolute;z-index:30;pointer-events:none}
 .club-embed .app-shell[data-mode=Edit] .stage-zoom-area .stage-handles{pointer-events:auto;border-style:dashed;background:color-mix(in srgb,var(--cc-accent) 10%,transparent)}
 .club-embed .app-shell[data-mode=Edit] .zp-list{display:flex;flex-direction:column;gap:2px;margin:0 -8px}
-.club-embed .app-shell[data-mode=Edit] .zp-list button{all:unset;cursor:pointer;display:flex;justify-content:space-between;padding:7px 8px;border-radius:var(--cc-r-sm);font-size:var(--cc-text-xs);color:var(--cc-text)}
+.club-embed .app-shell[data-mode=Edit] .zp-list button{all:unset;cursor:pointer;display:flex;justify-content:space-between;padding:7px 8px;border-radius:var(--cc-r);font-size:var(--cc-text-xs);color:var(--cc-text)}
 .club-embed .app-shell[data-mode=Edit] .zp-list button:hover{background:var(--cc-hover)}
 .club-embed .app-shell[data-mode=Edit] .zp-list button.on{background:var(--cc-accent-soft);color:var(--cc-accent-text)}
 .club-embed .app-shell[data-mode=Edit] .zp-list small{color:var(--cc-text-3)}
@@ -323,3 +323,5 @@
 .project-change-notice{position:fixed;right:24px;top:80px;z-index:1000;display:flex;gap:16px;max-width:440px;padding:16px 18px;border:1px solid var(--cc-line-strong);border-radius:var(--cc-r-lg);background:var(--cc-surface);color:var(--cc-text);box-shadow:var(--cc-shadow-toast);font-size:var(--cc-text-sm)}
 .project-change-notice b{display:block;margin-bottom:6px;font-weight:600}
 .project-change-notice .icon-button{flex:none}
+/* Active controls use the shared selection accent. */
+.club-embed .app-shell[data-mode=Edit] .club-seg>button[aria-pressed=true],.club-embed .app-shell[data-mode=Edit] .lp-seg button[aria-pressed=true]{background:var(--cc-accent-soft);color:var(--cc-accent-text)}

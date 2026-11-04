@@ -150,7 +150,7 @@ export function Publish({video,pkg,scenes,onVideo,onDescription,onTags,onGoTo,on
     :record?.unconfirmed?<SelfUpload video={video} onVideo={onVideo}/>:null}
   </ResultCard></div>{summary}</div></div>;
 
- const exportLine=file===undefined?<Spinner label="Looking for the exported video"/>:file
+ const exportLine=file===undefined?<span className="row small muted" role="status"><Spinner label="Looking for the exported video"/>Looking for the exported video…</span>:file
   ?<div className="row"><span className="club-export-done"><Icon name="check" size={15}/>Exported</span><span className="faint small">{exportFileName(file)}</span>
    {stale&&project&&<ClubExport quiet project={project} flush={async()=>project} onExported={now=>{if(now)setReread(n=>n+1);}}/>}
    {!stale&&file.outputPath&&window.sceneForge?.reveal&&<button type="button" className="linkish" onClick={()=>void window.sceneForge!.reveal(file.outputPath!).catch(()=>{})}>Show in Finder</button>}</div>
@@ -186,7 +186,7 @@ export function Publish({video,pkg,scenes,onVideo,onDescription,onTags,onGoTo,on
    <PubStep n={3} title="Send it to YouTube" done={false}
     line={publishing.error?undefined:!publishing.state?undefined:connected?`Postiz uploads it to ${channelName??'your channel'} on YouTube, now or at the time you pick.`:"Upload your exported file to YouTube and paste its link here. Postiz is optional."}>
     <SelfUpload video={video} onVideo={onVideo}/>
-    {publishing.error?<ErrorLine message={publishing.error} onRetry={publishing.reload}/>:!publishing.state?<Spinner label="Loading"/>
+    {publishing.error?<ErrorLine message={publishing.error} onRetry={publishing.reload}/>:!publishing.state?<span className="row small muted" role="status"><Spinner label="Loading publishing settings"/>Loading publishing settings…</span>
      :!connected?<div className="row" style={{gap:12,flexWrap:'wrap'}}><span className="logo logo-postiz"><BrandLogo brand="postiz" size={28}/></span><Button onClick={onSettings}>Set up optional publishing</Button></div>
      :<>
       <div className="pub-when">

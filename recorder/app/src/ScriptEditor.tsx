@@ -3,7 +3,7 @@ import {type Project,type Scene} from '../shared/types';
 import {resolveShortcut,loadShortcutOverrides} from './shortcuts';
 import {addRecordingScene,deleteRecordingScene,moveRecordingScene,splitRecordingSceneScript,mergeRecordingSceneScriptBackward} from './recording-scenes';
 import {registerPendingEdit,type ProjectChange} from './useStudio';
-import {Plus,Trash2,ChevronLeft,ChevronRight,Sparkles} from './Icons';
+import {Plus,Trash2,ChevronLeft,ChevronRight,FileText} from './Icons';
 const fieldSizing=typeof CSS!=='undefined'&&CSS.supports?.('field-sizing','content');
 function ScriptText({value,label,onChange,onKeyDown,onBlur,sceneId}:{onKeyDown:(event:React.KeyboardEvent<HTMLTextAreaElement>)=>void;onBlur:()=>void;sceneId:string;value:string;label:string;onChange:(value:string)=>void}){const ref=useRef<HTMLTextAreaElement>(null);useEffect(()=>{if(!fieldSizing&&ref.current){ref.current.style.height='auto';ref.current.style.height=`${Math.max(110,ref.current.scrollHeight)}px`;}},[value]);return <textarea ref={ref} style={fieldSizing?{fieldSizing:'content',minHeight:110} as React.CSSProperties:undefined} data-scene-text={sceneId} onKeyDown={onKeyDown} onBlur={onBlur} aria-label={label} value={value} placeholder="Start writing your amazing video…" onChange={e=>onChange(e.target.value)}/>;}
 const WordCount=memo(function WordCount({text}:{text:string}){return <span>{text.trim().split(/\s+/).filter(Boolean).length} words</span>;});
@@ -12,12 +12,12 @@ type SceneActions={write:(id:string,text:string)=>void;act:(operation:(draft:Pro
 const SceneSection=memo(function SceneSection({scene,script,index:i,count,actions:{write,act,key,commit,onAI,onRecord}}:{scene:Scene;script:string;index:number;count:number;actions:SceneActions}){return <section className="script-document-scene" id={`scene-${scene.id}`}>
   <input className="script-scene-name" aria-label={`Scene ${i+1} title`} value={scene.name} onChange={e=>act(draft=>{const current=draft.scenes.find(s=>s.id===scene.id);if(current)current.name=e.target.value;},{coalesce:`scene-name:${scene.id}`})}/>
   <div className="script-document-body"><ScriptText sceneId={scene.id} onKeyDown={event=>key(event,scene.id)} onBlur={commit} label={`Scene ${i+1} script`} value={script} onChange={value=>write(scene.id,value)}/>
-  {!script.trim()&&<p className="script-empty-guide">You can paste your script from your favorite editor, or <button onClick={onRecord}>Start recording</button> right away.</p>}
+  {!script.trim()&&<p className="script-empty-guide">You can paste your script from your favorite editor, or <button onClick={onRecord}>Record</button> right away.</p>}
   <footer><WordCount text={script}/><div>
    <button className="icon-button" aria-label={`Move scene ${i+1} up`} disabled={i===0} onClick={()=>act(draft=>{const index=draft.scenes.findIndex(s=>s.id===scene.id);if(index>0)moveRecordingScene(draft,scene.id,draft.scenes[index-1].id);})}><ChevronLeft className="rotate90" size={15}/></button>
    <button className="icon-button" aria-label={`Move scene ${i+1} down`} disabled={i===count-1} onClick={()=>act(draft=>{const index=draft.scenes.findIndex(s=>s.id===scene.id);if(index>=0&&index<draft.scenes.length-1)moveRecordingScene(draft,scene.id,draft.scenes[index+2]?.id);})}><ChevronRight className="rotate90" size={15}/></button>
    <button className="icon-button" aria-label={`Delete scene ${i+1}`} disabled={count===1} onClick={()=>act(draft=>deleteRecordingScene(draft,scene.id))}><Trash2 size={15}/></button>
-   <button className="button subtle compact" onClick={()=>{commit();onAI(scene.id);}}><Sparkles size={14}/>Improve script</button>
+   <button className="button subtle compact" onClick={()=>{commit();onAI(scene.id);}}><FileText size={14}/>Improve script</button>
   </div></footer></div></section>;});
 export function ScriptEditor({project:p,change,onAI,onRecord,onError}:{project:Project;change:ProjectChange;onAdd?:()=>void;onAI:(sceneId:string)=>void;onRecord:()=>void;onError?:(message:string)=>void}){
  const focus=useRef<{id:string;position:number}|null>(null);

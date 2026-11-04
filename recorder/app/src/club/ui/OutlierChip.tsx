@@ -10,9 +10,9 @@ const bands:Record<OutlierBand,string>={
  red:'bg-band-red-soft text-band-red',
 };
 
-/** A video's views over its channel's median, coloured by Eden's bands: "2.84×", "23×", or "2.84× usual views" with a label. Renders nothing without a number. */
+/** A video's views over its channel's median, using neutral bands: "2.84×", "23×", or "2.84× usual views" with a label. Renders nothing without a number. */
 export function OutlierChip({multiplier,label,className}:{multiplier:number;label?:string;className?:string}){
  if(!Number.isFinite(multiplier)||multiplier<0)return null;
  const band=outlierBand(multiplier);
- return <span data-band={band} className={cn('inline-flex h-6 items-center gap-1 rounded-full px-2.5 font-sans text-xs font-semibold whitespace-nowrap tabular-nums',bands[band],className)}>{formatMultiplier(multiplier)}{label&&<span className="font-medium">{label}</span>}</span>;
+ return <span data-band={band} className={cn('inline-flex h-6 items-center gap-1 rounded-[var(--cc-r-pill)] px-2.5 font-sans text-xs font-semibold whitespace-nowrap tabular-nums',bands[band],className)}>{formatMultiplier(multiplier)}{label&&<span className="font-medium">{label}</span>}</span>;
 }

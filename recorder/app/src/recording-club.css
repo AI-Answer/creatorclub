@@ -6,13 +6,13 @@
   Imported from main.tsx after club.css.
 */
 .club-embed .app-shell[data-mode=Record]{
-  --background:var(--cc-card);--foreground:var(--cc-ink);--surface:var(--cc-card);
-  --primary:var(--cc-primary);--primary-foreground:var(--cc-primary-ink);
-  --secondary:var(--cc-subtle);--input:var(--cc-subtle);--line:var(--cc-line);--muted:var(--cc-muted);
-  --accent:var(--cc-primary);--accent-soft:var(--cc-subtle);--danger:var(--cc-danger);
+  --background:var(--cc-bg);--foreground:var(--cc-text);--surface:var(--cc-surface);
+  --primary:var(--cc-primary);--primary-foreground:var(--cc-on-primary);
+  --secondary:var(--cc-surface-2);--input:var(--cc-hover);--line:var(--cc-line);--muted:var(--cc-text-3);
+  --accent:var(--cc-accent);--accent-soft:var(--cc-accent-soft);--danger:var(--cc-danger);
   font-family:var(--font-sans);font-size:var(--cc-text-base);color:var(--cc-ink);background:var(--cc-page);
 }
-.club-embed .app-shell[data-mode=Record] .recording-workspace{--recording-canvas:var(--cc-page);background:var(--cc-page)}
+.club-embed .app-shell[data-mode=Record] .recording-workspace{--recording-canvas:var(--cc-bg-sunk);background:var(--cc-page)}
 
 /* Chrome: the video's name is in the page header, the teleprompter is the panel on the right, importing is in the selected scene's menu,
    and exporting belongs to Edit. Nothing of SceneForge's own header or toolbar row is shown here. */
@@ -43,7 +43,7 @@
 .club-embed .app-shell[data-mode=Record] .recording-source-panel .capture-flatline{background:var(--cc-accent)}
 .club-embed .app-shell[data-mode=Record] :is(.capture-settings,.capture-area-controls,.capture-source-picker){border-color:var(--cc-line);border-radius:var(--cc-r-lg);background:var(--cc-page);font-size:var(--cc-text-sm)}
 .club-embed .app-shell[data-mode=Record] :is(.capture-settings,.capture-area-controls,.capture-source-picker) :is(select,small,p,.button,label){font-size:var(--cc-text-xs)}
-.club-embed .app-shell[data-mode=Record] :is(.capture-settings,.capture-area-controls) select{border-color:var(--cc-line);border-radius:var(--cc-r-sm);background:var(--cc-card)}
+.club-embed .app-shell[data-mode=Record] :is(.capture-settings,.capture-area-controls) select{border-color:var(--cc-line);border-radius:var(--cc-r);background:var(--cc-card)}
 .club-embed .app-shell[data-mode=Record] .capture-check input{accent-color:var(--cc-accent)}
 /* The problem itself is in the warnings card; only the way to fix it stays under Screen. */
 .club-embed .app-shell[data-mode=Record] .capture-source-error{padding:0;border:0;background:transparent}
@@ -53,16 +53,16 @@
 .club-embed .app-shell[data-mode=Record] .recording-main{background:var(--cc-page)}
 .club-embed .app-shell[data-mode=Record] .recording-scene-cards{background:var(--cc-page);color:var(--cc-ink);padding:24px}
 .club-embed .app-shell[data-mode=Record] .rsc-scene{border-color:var(--cc-line);border-radius:var(--cc-r-lg);background:var(--cc-card);padding:20px}
-.club-embed .app-shell[data-mode=Record] .rsc-scene.is-selected{border-color:transparent;box-shadow:0 0 0 2px var(--cc-accent)}
+.club-embed .app-shell[data-mode=Record] .rsc-scene.is-selected{border-color:transparent;outline:2px solid var(--cc-accent)}
 .club-embed .app-shell[data-mode=Record] .rsc-scene-name{font-size:var(--cc-text-base)!important;font-weight:600}
 .club-embed .app-shell[data-mode=Record] .rsc-status{background:var(--cc-line)}
 .club-embed .app-shell[data-mode=Record] .rsc-status.is-complete{background:var(--cc-success)}
 .club-embed .app-shell[data-mode=Record] .rsc-archive-toggle{font-size:var(--cc-text-sm)!important}
-.club-embed .app-shell[data-mode=Record] :is(.rsc-take,.rsc-take-preview){border-radius:var(--cc-r)}
+.club-embed .app-shell[data-mode=Record] :is(.rsc-take,.rsc-take-preview){border-radius:var(--cc-r-lg)}
 .club-embed .app-shell[data-mode=Record] .rsc-take{border-color:var(--cc-line);background:var(--cc-subtle)}
 .club-embed .app-shell[data-mode=Record] .rsc-take-badge{font-size:var(--cc-text-xs);line-height:16px}
 .club-embed .app-shell[data-mode=Record] .rsc-menu{border-color:var(--cc-line);border-radius:var(--cc-r-lg);background:var(--cc-card)}
-.club-embed .app-shell[data-mode=Record] .rsc-menu>button{font-size:var(--cc-text-sm)!important;border-radius:var(--cc-r-sm)}
+.club-embed .app-shell[data-mode=Record] .rsc-menu>button{font-size:var(--cc-text-sm)!important;border-radius:var(--cc-r)}
 .club-embed .app-shell[data-mode=Record] .rsc-menu>button.rsc-danger{color:var(--cc-danger)}
 .club-embed .app-shell[data-mode=Record] .rsc-menu-label,.club-embed .app-shell[data-mode=Record] .rsc-legacy-note{font-size:var(--cc-text-xs)}
 .club-embed .app-shell[data-mode=Record] .rsc-error{border-color:var(--cc-danger);border-radius:var(--cc-r-lg);font-size:var(--cc-text-sm)}
@@ -123,7 +123,7 @@
 .club-embed .app-shell[data-mode=Record] .take-settings :is(p,label,small){font-size:var(--cc-text-sm)}
 /* A take chip marks the kinds it holds with the same colours as the timeline (screen, camera, audio). */
 .club-embed .app-shell[data-mode=Record] .rsc-kinds{position:absolute;top:5px;left:5px;display:flex;gap:3px;pointer-events:none}
-.club-embed .app-shell[data-mode=Record] .rsc-kind{width:8px;height:8px;border-radius:2px;box-shadow:0 0 0 1px var(--cc-shade-soft)}
+.club-embed .app-shell[data-mode=Record] .rsc-kind{width:8px;height:8px;border-radius:var(--cc-r-sm);outline:1px solid currentColor}
 .club-embed .app-shell[data-mode=Record] .rsc-kind-screen{background:var(--kind-screen)}
 .club-embed .app-shell[data-mode=Record] .rsc-kind-camera{background:var(--kind-camera)}
 .club-embed .app-shell[data-mode=Record] .rsc-kind-audio{background:var(--kind-audio)}
@@ -136,3 +136,6 @@
 
 /* Only the selected scene's takes show here, so the selection ring says nothing: a plain card. */
 .club-embed .app-shell[data-mode=Record] .rsc-scene.rsc-compact.is-selected{border-color:var(--cc-line);box-shadow:none}
+
+/* Active controls use the shared selection accent. */
+.club-embed .app-shell[data-mode=Record] .recording-source-panel .capture-settings-button.selected{background:var(--cc-accent-soft);color:var(--cc-accent-text)}

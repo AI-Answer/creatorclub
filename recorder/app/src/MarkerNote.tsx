@@ -40,7 +40,7 @@ export function MarkerNote({time,name,anchor,onChange,onNudge,onDelete,onClose}:
   </div>
   <textarea ref={area} rows={2} value={name} placeholder="Write a note" aria-label="Your note" onChange={event=>onChange({name:event.target.value})}/>
   <div className="marker-note-a">
-   <button type="button" className="btn sm" onClick={onClose}>Done</button>
+   <button type="button" className="btn sm" onClick={onClose}>Close</button>
    <button type="button" className="btn sm primary" disabled={!written} onClick={ask}>Ask Claude</button>
   </div>
  </div>;

@@ -110,7 +110,7 @@ export function ScenesColumn({target,onTarget,hasRecording,outline,known,focusId
   </div>
   {scenes.length>0&&<div className="row" style={{marginBottom:14,gap:'8px 14px',flexWrap:'wrap'}}>
    <span className="doc-sub" style={{margin:0}}>Talk through each one when you record.</span><span className="grow"/>
-   <div className="len" style={{whiteSpace:'nowrap'}}><span className="tnum"><b style={{color:over?'var(--cc-warn)':'var(--cc-text)'}}>{clockTime(total)}</b>{target>0?' of':''}</span>
+   <div className="len" style={{whiteSpace:'nowrap'}}><span className="tnum"><b style={{color:over?'var(--cc-warn-text)':'var(--cc-text)'}}>{clockTime(total)}</b>{target>0?' of':''}</span>
     <select className="select" style={{height:26,fontSize:12.5}} value={target} onChange={event=>onTarget(Number(event.target.value))} aria-label="Target length">
      <option value={0}>No target</option>{TARGET_SECONDS.map(seconds=><option key={seconds} value={seconds}>{seconds/60} min</option>)}</select>
     {target>0&&<span className="bar" style={{width:110}}><i className={over?'over':''} style={{width:`${Math.min(100,total/target*100)}%`}}/></span>}</div>
@@ -167,6 +167,6 @@ export function ScenesColumn({target,onTarget,hasRecording,outline,known,focusId
      </details>}
     </div>;
    })}
-  {scenes.length>0&&<button type="button" className="addscene" style={dragIndex!==null&&overIndex===scenes.length?{boxShadow:'0 -3px 0 0 var(--cc-accent)'}:undefined} onClick={()=>add(scenes.length)}><Icon name="add" size={15}/>Add scene</button>}
+  {scenes.length>0&&<button type="button" className="addscene" style={dragIndex!==null&&overIndex===scenes.length?{outline:'2px solid var(--cc-accent)',outlineOffset:-2}:undefined} onClick={()=>add(scenes.length)}><Icon name="add" size={15}/>Add scene</button>}
  </section>;
 }

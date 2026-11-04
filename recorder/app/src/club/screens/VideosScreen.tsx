@@ -51,7 +51,7 @@ export function VideosScreen({route,navigate,onNewVideo,home=false}:{home?:boole
  const open=useCallback((video:Video)=>{if(view==='board')navigate({name:'video',id:video.id});else if(video.stage==='ideas')setDrawer(video.id);else navigate(openRoute(video));},[navigate,view]);
 
  if(state.status==='error')return <div className="page"><ErrorLine message={state.message} onRetry={reload} primary/></div>;
- if(!videos)return <div className="page"><Spinner label="Loading your videos" size={20}/></div>;
+ if(!videos)return <div className="page"><div className="row small muted" role="status"><Spinner label="Loading your videos" size={20}/>Loading your videos…</div></div>;
 
  const idea=drawer?videos.find(video=>video.id===drawer&&video.stage==='ideas'):undefined;
  const newIdea=newId?videos.find(video=>video.id===newId&&video.stage==='ideas'&&!video.hidden):undefined;
@@ -66,7 +66,7 @@ export function VideosScreen({route,navigate,onNewVideo,home=false}:{home?:boole
    </div></div>
 
   {newIdea&&<div className="card next-idea">
-   <Icon name="ai" size={18} style={{color:'var(--cc-accent)'}}/>
+   <Icon name="ai" size={18} style={{color:'var(--cc-text-2)'}}/>
    <div className="grow"><b>"{newIdea.title}" is in your ideas.</b><div className="small muted">Next: start planning it. You'll gather references on its board, then turn them into scenes.</div></div>
    <button type="button" className="btn primary" onClick={()=>void actions.startPlanning(newIdea)}><Icon name="next" size={15}/>Start planning</button>
   </div>}

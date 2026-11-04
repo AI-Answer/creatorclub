@@ -165,7 +165,7 @@ export function Workspace({video,tab,back,navigate,onVideo}:{video:Video;tab:Vid
 
 
  return <div className="ws">
-  <Header video={video} tab={tab} onTitle={saveTitle} onStage={stage=>void moveTo(stage,video.stage)} onDelete={deleteVideo}/>
+  <Header video={video} tab={tab} onTitle={saveTitle} onStage={stage=>void moveTo(stage,video.stage)} onDelete={deleteVideo} onHome={()=>void addReviewedTake().then(left=>{if(left)navigate({name:'home'});})}/>
   <div className="ws-row"><div className="ws-col">
   {moveError&&<div className="ws-body" style={{flex:'none',padding:'8px 18px'}}><ErrorLine message={moveError} onRetry={()=>void continueToNext()}/></div>}
   <div className="ws-body" key={tab}>
@@ -184,10 +184,10 @@ export function Workspace({video,tab,back,navigate,onVideo}:{video:Video;tab:Vid
       sceneId={recorderSceneFor(video,focusId)??undefined} sceneNonce={pickN} onSceneChange={recorderScene} onChanged={reloadScenes}
       onEditor={tab==='edit'?onEditor:undefined} onEditState={tab==='edit'?setEditState:undefined}/></div>
     </div>
-    :list===undefined?<div className="flex flex-1 items-center justify-center" style={{padding:'64px 0'}}><Spinner label="Loading the scenes" size={20}/></div>
+    :list===undefined?<div className="flex flex-1 items-center justify-center" style={{padding:'64px 0'}}><span className="row small muted" role="status"><Spinner label="Loading the scenes" size={20}/>Loading the scenes…</span></div>
     :<EmptyState icon={<Icon name="camera"/>} title={list.length?'Ready to record':'Record without a plan'} description={list.length?'Start the recording for these scenes.':'Start with one scene. You can plan and edit this video later.'}
       action={list.length?<Button variant="primary" size="md" disabled={!plan.continueAction||plan.continueAction.disabled} onClick={()=>plan.continueAction?.run()}>Start recording</Button>:<Button variant="primary" size="md" disabled={startingQuick} onClick={()=>void recordWithoutPlan()}>{startingQuick?'Opening recorder…':'Record without a plan'}</Button>}/>)}
-   {tab==='publish'&&scenes.state.status==='loading'&&video.stage!=='published'&&<div className="flex flex-1 items-center justify-center" style={{padding:'64px 0'}}><Spinner label="Loading the scenes" size={20}/></div>}
+   {tab==='publish'&&scenes.state.status==='loading'&&video.stage!=='published'&&<div className="flex flex-1 items-center justify-center" style={{padding:'64px 0'}}><span className="row small muted" role="status"><Spinner label="Loading the scenes" size={20}/>Loading the scenes…</span></div>}
    {tab==='publish'&&(scenes.state.status!=='loading'||video.stage==='published')&&<Publish video={video} pkg={plan.pkg} scenes={list} onVideo={onVideo} onSettings={()=>navigate({name:'settings',section:'publishing'})} onGoTo={target=>navigate(tabRoute(target))}
     saveError={plan.saveError} onRetry={plan.retrySave} onDescription={description=>plan.editPackage({...(pkgNow.current??EMPTY_PACKAGE),description})}
     onTags={tags=>{plan.editPackage({...(pkgNow.current??EMPTY_PACKAGE),tags});void plan.flush().catch(()=>{});}}/>}

@@ -35,13 +35,14 @@ export function WorkingStep({items,searching,scanLine,loadError,onReload,saved,v
  if(loadError)return <ErrorLine message={loadError} onRetry={onReload}/>;
  if(searching)return <div className="card" style={{padding:18}}><ProgressLine label="Searching YouTube for your topics" line={scanLine??'Starting the search on your topics…'} estimate={SCAN_ESTIMATE} note="You don't have to wait. Go to Video board and the videos will be there when it finishes."/></div>;
  if(items===null||saved===null)return <div className="row"><Spinner label="Loading what's working" size={18}/><span className="muted">Loading what's working…</span></div>;
- if(!items.length)return <div className="card"><Empty icon="trending" title="Nothing to start from yet">
-  Paste a link to any video that's working and we'll break it down. To see what's working in your space each day, follow channels in Settings.
+ if(!items.length)return <div className="card"><Empty icon="trending" title="Nothing to start from yet" action={<>
   <form onSubmit={paste} className="row" style={{marginTop:14,width:'100%',maxWidth:460}}>
    <Input aria-label="Video link" value={link} autoComplete="off" spellCheck={false} placeholder="youtube.com/watch?v=…" onChange={event=>setLink(event.target.value)}/>
    <Button type="submit" variant="primary" disabled={!link.trim()}>Break down</Button>
   </form>
   <button type="button" className="linkish" style={{marginTop:12}} onClick={onSettings}>Follow channels in Settings</button>
+ </>}>
+  Paste a link to any video that's working and we'll break it down. To see what's working in your space each day, follow channels in Settings.
  </Empty></div>;
  return <div>
   <div className="row" style={{marginBottom:10}}><b style={{fontSize:14}}>Working in your topics</b><span className="small muted">Each breakdown takes about a minute.</span></div>

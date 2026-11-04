@@ -14,10 +14,10 @@ export type TakeMenuItem={label:string;hint?:string;onSelect():void};
 export function TakeGearMenu({items,open,disabled,onOpenChange,menuRef}:{items:TakeMenuItem[];open:boolean;disabled:boolean;onOpenChange(open:boolean):void;menuRef?:Ref<HTMLDivElement>}){
  return <div ref={menuRef} className="relative">
   <button type="button" aria-label="Take options" aria-haspopup="menu" aria-expanded={open} disabled={disabled} onClick={()=>onOpenChange(!open)}
-   className="flex size-8 items-center justify-center rounded-md text-muted hover:bg-subtle hover:text-ink focus-visible:outline-2 focus-visible:outline-accent disabled:opacity-45"><Icon name="take-settings" size={18}/></button>
-  {open&&<div role="menu" aria-label="Take options" className="absolute top-full left-0 z-20 mt-1 flex w-72 flex-col gap-0.5 rounded-lg border border-line bg-card p-1 font-sans shadow-lg">
+   className="flex size-8 items-center justify-center rounded-[var(--cc-r)] text-muted hover:bg-subtle hover:text-ink focus-visible:outline-2 focus-visible:outline-accent disabled:opacity-45"><Icon name="take-settings" size={18}/></button>
+  {open&&<div role="menu" aria-label="Take options" className="absolute top-full left-0 z-20 mt-1 flex w-72 flex-col gap-0.5 rounded-[var(--cc-r-lg)] border border-line bg-card p-1 font-sans shadow-[var(--cc-shadow-3)]">
    {items.map(item=><button key={item.label} type="button" role="menuitem" disabled={disabled} onClick={()=>{onOpenChange(false);item.onSelect();}}
-    className="flex flex-col items-start gap-0.5 rounded-md px-3 py-2 text-left text-base text-ink hover:bg-subtle focus-visible:outline-2 focus-visible:outline-accent disabled:opacity-45">
+    className="flex flex-col items-start gap-0.5 rounded-[var(--cc-r)] px-3 py-2 text-left text-base text-ink hover:bg-subtle focus-visible:outline-2 focus-visible:outline-accent disabled:opacity-45">
     {item.label}{item.hint&&<span className="text-xs text-muted">{item.hint}</span>}
    </button>)}
   </div>}

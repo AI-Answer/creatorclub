@@ -60,9 +60,9 @@
   --cc-on-primary: #ffffff;
   /* Product and provider surfaces. Service artwork retains its official colours. */
   --cc-brand: #de5738;
-  --cc-brand-soft: #f8eae4;
-  --cc-provider-tile: #f5f3ef;
-  --cc-postiz-tile: #191817;
+  --cc-brand-soft: var(--cc-bg-sunk);
+  --cc-provider-tile: var(--cc-bg-sunk);
+  --cc-postiz-tile: var(--cc-dark-stage);
   --cc-shadow-card: none;
   /* Status: recording and destructive, done, warning */
   --cc-rec: #ef4444;
@@ -73,13 +73,15 @@
   --cc-ok-soft: #f0fdf4;
   --cc-warn: #f59e0b;
   --cc-warn-soft: #fefce8;
+  /* Warning words: amber dark enough to read as text on light surfaces; --cc-warn stays for fills and dots. */
+  --cc-warn-text: #b45309;
   /* A sticky note on the Board: a pale paper yellow, quieter than a warning. */
   --cc-note: #fef9c3;
   --cc-note-line: #fde68a;
   /* Over pictures and dark stages (thumbnails, previews, toasts) */
   --cc-dark-stage: #000000;
   --cc-on-media: #ffffff;
-  --cc-media-scrim: rgb(20 19 18 / 0.78);
+  --cc-media-scrim: var(--cc-scrim);
   --cc-media-glow: rgb(255 255 255 / 0.16);
   --cc-media-shape: rgb(255 255 255 / 0.28);
   --cc-media-shape-strong: rgb(255 255 255 / 0.4);
@@ -88,21 +90,21 @@
   --cc-toast-text: #ffffff;
   --cc-toast-button: rgb(255 255 255 / 0.1);
   --cc-toast-button-hover: rgb(255 255 255 / 0.18);
-  --cc-toast-ok: #6fd29a;
+  --cc-toast-ok: var(--cc-ok);
   --cc-scrim: rgb(0 0 0 / 0.8);
   /* Avatars and draft thumbnails: neutral, told apart by their initials and text, not by hue */
-  --cc-avatar-1: #57534d;
-  --cc-avatar-2: #736e66;
-  --cc-avatar-3: #3f3c38;
-  --cc-avatar-4: #8a847b;
-  --cc-thumb-1-from: #1b1a19;
-  --cc-thumb-1-to: #57534d;
-  --cc-thumb-2-from: #1e3a8a;
-  --cc-thumb-2-to: #2563eb;
-  --cc-thumb-3-from: #2c2a28;
-  --cc-thumb-3-to: #8a847b;
-  --cc-thumb-4-from: #3f3c38;
-  --cc-thumb-4-to: #736e66;
+  --cc-avatar-1: var(--cc-placeholder);
+  --cc-avatar-2: var(--cc-placeholder);
+  --cc-avatar-3: var(--cc-placeholder);
+  --cc-avatar-4: var(--cc-placeholder);
+  --cc-thumb-1-from: var(--cc-bg-sunk);
+  --cc-thumb-1-to: var(--cc-hover);
+  --cc-thumb-2-from: var(--cc-bg-sunk);
+  --cc-thumb-2-to: var(--cc-hover);
+  --cc-thumb-3-from: var(--cc-bg-sunk);
+  --cc-thumb-3-to: var(--cc-hover);
+  --cc-thumb-4-from: var(--cc-bg-sunk);
+  --cc-thumb-4-to: var(--cc-hover);
   /* Outlier multipliers: neutral only (blue is for focus, selection and links). The higher, the stronger the ink; the top bands are inverted. Under 1x is muted. */
   --cc-band-grey: var(--cc-text-3);
   --cc-band-grey-soft: var(--cc-bg-sunk);
@@ -238,12 +240,13 @@
   --cc-ok-soft: #0f3830;
   --cc-warn: #f59e0b;
   --cc-warn-soft: #403814;
+  --cc-warn-text: var(--cc-warn);
   --cc-note: #403814;
   --cc-note-line: #d1a100;
-  --cc-avatar-1: #57534d;
-  --cc-avatar-2: #4a4844;
-  --cc-avatar-3: #6b665e;
-  --cc-avatar-4: #3f3c38;
+  --cc-avatar-1: #525252;
+  --cc-avatar-2: #525252;
+  --cc-avatar-3: #525252;
+  --cc-avatar-4: #525252;
   --cc-toast-bg: #3d4046;
   --cc-toast-text: #e1e1e1;
   --cc-scrim: rgba(0, 0, 0, .64);

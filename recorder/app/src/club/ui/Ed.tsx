@@ -21,7 +21,7 @@ export function Ed({value,onChange,className='',ph='',multiline,tag='div',onEnte
  // eslint-disable-next-line react-hooks/exhaustive-deps
  },[]);
  return createElement(tag,{
-  ref,className:`ed ${className}`.trim(),contentEditable:true,suppressContentEditableWarning:true,'data-ph':ph,spellCheck:false,role:'textbox','aria-multiline':multiline||undefined,'aria-label':ph||'Edit text',style,
+  ref,className:`ed ${className}`.trim(),contentEditable:true,suppressContentEditableWarning:true,'data-ph':ph,spellCheck:false,role:'textbox','aria-multiline':multiline||undefined,'aria-label':ph||'Edit text',style:{borderRadius:'var(--cc-r)',...style},
   onBlur:(event:{currentTarget:HTMLElement})=>{const text=event.currentTarget.innerText.replace(/\n+$/,'');if(text!==(value||''))onChange(text);onLeave?.();},
   onInput:live?(event:{currentTarget:HTMLElement})=>{const text=event.currentTarget.innerText.replace(/\n+$/,'');if(text!==(value||''))onChange(text);}:undefined,
   onKeyDown:(event:KeyboardEvent<HTMLElement>)=>{

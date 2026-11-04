@@ -51,7 +51,7 @@ export function IdeaDrawer({video,actions,onClose,onRemove}:{video:Video;actions
   {!!notes.sources?.length&&<div><div className="small faint" style={{marginBottom:8}}>Sources</div>{notes.sources.map((source,index)=>{
    const id=youtubeId(source.url);
    return <div key={index} className="row" style={{padding:'6px 0',fontSize:13.5}}>
-    {id?<img src={ytThumb(id)} alt="" style={{width:48,height:27,borderRadius:4,objectFit:'cover'}}/>:<span className="src-ic" style={{background:'var(--cc-bg-sunk)',color:'var(--cc-text-2)'}}><Icon name="link" size={12}/></span>}
+    {id?<img src={ytThumb(id)} alt="" style={{width:48,height:27,borderRadius:'var(--cc-r-lg)',objectFit:'cover'}}/>:<span className="src-ic" style={{background:'var(--cc-bg-sunk)',color:'var(--cc-text-2)'}}><Icon name="link" size={12}/></span>}
     {source.url?<a href={source.url} target="_blank" rel="noopener noreferrer" className="ellipsis" style={{color:'var(--cc-accent-text)'}}>{source.label}</a>:<span className="ellipsis">{source.label}</span>}
    </div>;})}</div>}
   {reasons.length>0&&<div style={{marginTop:18}}><div className="small faint" style={{marginBottom:6}}>From the breakdown</div>

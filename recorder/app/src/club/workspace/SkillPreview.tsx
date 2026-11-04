@@ -19,15 +19,15 @@ export function SkillPreview({skill}:{skill:InstalledSkill}){
  useEffect(()=>{const hear=(event:MessageEvent)=>{const size=event.data?.skillPreviewSize;if(event.source===frame.current?.contentWindow&&Array.isArray(size)&&size[0]>0&&size[1]>0)setPage([size[0],size[1]]);};window.addEventListener('message',hear);return()=>window.removeEventListener('message',hear);},[]);
  const scale=Math.min(room/page[0],MAX_BOX_H/page[1]);
  // A page is fetched and shown as inline content of a sandboxed frame: it has no address of its own and no access to the app.
- const [html,setHtml]=useState<{url:string;text:string}|null>(null);
+ const [html,setHtml]=useState<{url:string;text:string}|null>(null),[failedUrl,setFailedUrl]=useState('');
  const file=skill.previews[Math.min(at,skill.previews.length-1)],count=skill.previews.length;
  const url=`/api/club/skills/${encodeURIComponent(skill.name)}/preview?file=${encodeURIComponent(file)}`;
  const isPage=/\.html?$/i.test(file),video=/\.(mp4|webm)$/i.test(file);
- useEffect(()=>{if(!isPage)return;const controller=new AbortController();fetch(url,{signal:controller.signal}).then(r=>r.ok?r.text():Promise.reject()).then(text=>setHtml({url,text}),()=>{});return()=>controller.abort();},[url,isPage]);
+ useEffect(()=>{if(!isPage)return;const controller=new AbortController();setFailedUrl('');fetch(url,{signal:controller.signal}).then(r=>r.ok?r.text():Promise.reject()).then(text=>setHtml({url,text}),()=>{if(!controller.signal.aborted)setFailedUrl(url);});return()=>controller.abort();},[url,isPage]);
  const step=(by:number)=>setAt(i=>(i+by+count)%count);
  return <div className="cmp-prev" aria-label={`Preview of ${skill.name}`}>
   <div className="cmp-prev-box" ref={box} style={{height:Math.round(page[1]*scale)}}>
-   {isPage?(html?.url===url&&<iframe key={url} ref={frame} title={`${skill.name}: ${label(file)}`} srcDoc={html.text} sandbox="allow-scripts" tabIndex={-1} style={{width:page[0],height:page[1],left:Math.round((room-page[0]*scale)/2),transform:`scale(${scale})`}}/>)
+   {isPage?(html?.url===url?<iframe key={url} ref={frame} title={`${skill.name}: ${label(file)}`} srcDoc={html.text} sandbox="allow-scripts" tabIndex={-1} style={{width:page[0],height:page[1],left:Math.round((room-page[0]*scale)/2),transform:`scale(${scale})`}}/>:failedUrl===url?<span className="small warn-text" role="alert">Couldn't load this preview. Choose another example or reopen the skill to try again.</span>:<span className="small muted" role="status">Loading the skill preview…</span>)
     :video?<video key={url} src={url} muted loop autoPlay playsInline/>
     :<img key={url} src={url} alt={`${skill.name}: ${label(file)}`}/>}
   </div>

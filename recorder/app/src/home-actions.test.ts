@@ -7,7 +7,7 @@ import {Home} from './Home';
 test('home offers distinct record, import-footage and write-script actions',async()=>{
  const actions:string[]=[],originalFetch=globalThis.fetch;globalThis.fetch=async()=>Response.json([]);
  const ui=await mountUI(createElement(Home,{projects:[],loading:false,onNew:()=>actions.push('write'),onQuick:()=>actions.push('record'),onImportMedia:()=>actions.push('footage'),onImport:()=>actions.push('project'),onOpen:()=>{},onDuplicate:()=>{},onDelete:()=>{},onRecovered:async()=>{},onError:()=>{},onTrash:()=>{}}));
- try{for(const label of ['Record a video','Import footage','Write a script']){const action=[...ui.container.querySelectorAll('button')].find(b=>b.querySelector('h2')?.textContent===label);assert.ok(action,`${label} is visible`);await act(async()=>action.click());}assert.deepEqual(actions,['record','footage','write']);}finally{globalThis.fetch=originalFetch;await ui.close();}
+ try{for(const label of ['Record','Import footage','Write a script']){const action=[...ui.container.querySelectorAll('button')].find(b=>b.querySelector('h2')?.textContent===label);assert.ok(action,`${label} is visible`);await act(async()=>action.click());}assert.deepEqual(actions,['record','footage','write']);}finally{globalThis.fetch=originalFetch;await ui.close();}
 });
 
 test('returning users can continue the most recently edited project and search older work',async()=>{

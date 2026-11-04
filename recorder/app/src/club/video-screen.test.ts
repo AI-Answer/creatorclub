@@ -215,7 +215,7 @@ test('the video\'s one menu moves it to a stage or deletes it, asking first; the
   assert.ok(!labels.some(label=>/Copy link/.test(label!)),'no link to a page that only opens on this computer');
   await act(async()=>[...doc.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(item=>item.textContent?.trim()==='Delete video')?.click());await flush();
   assert.match(doc.querySelector('[role="dialog"]')!.textContent!,/Delete this video\?/);
-  await act(async()=>button(doc.body,'Keep it').click());await flush();
+  await act(async()=>button(doc.body,'Cancel').click());await flush();
   assert.equal(routes.length,0,'kept: nothing happens');
   await act(async()=>[...(await items())].find(item=>item.textContent?.trim()==='Delete video')!.click());await flush();
   await act(async()=>button(doc.querySelector('[role="dialog"]')!,'Delete video').click());await flush();

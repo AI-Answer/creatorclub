@@ -17,5 +17,5 @@ test('Task 14: "Captions are not set up yet" is hidden when the video already ha
 
 test('Task 14: the Captions panel button says what it does',async()=>{
  const {readFile}=await import('node:fs/promises'),source=await readFile(new URL('./Inspector.tsx',import.meta.url),'utf8');
- assert.match(source,/Write captions from the speech/);assert.doesNotMatch(source,/>Create transcript</);
+ assert.match(source,/Generate captions/);assert.doesNotMatch(source,/>Create transcript</);
 });

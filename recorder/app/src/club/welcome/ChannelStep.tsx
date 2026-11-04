@@ -41,7 +41,7 @@ export function ChannelStep({path,onPath,url,onUrl,job,onAdd,block,onConnect,cha
     <label className="field" htmlFor="ch-url">Your channel</label>
     <div className="row"><Input id="ch-url" autoFocus autoComplete="off" spellCheck={false} disabled={running} value={url} placeholder="youtube.com/@yourchannel" onChange={event=>onUrl(event.target.value)}/><Button type="submit" variant="primary" disabled={!url.trim()||running||block!==null}>Add channel</Button></div>
     {block==='checking'&&!running&&<div className="small muted" style={{marginTop:10}}>Still checking your AI account (10 to 20 seconds). Adding a channel waits for it, because the AI writes how you talk.</div>}
-    {block==='missing'&&!running&&<div className="row" style={{marginTop:10,gap:10}}><span className="small" style={{color:'var(--cc-warn)'}}>No AI account is signed in yet. Adding a channel needs one.</span><Button size="sm" onClick={onConnect}>Connect an AI</Button></div>}
+    {block==='missing'&&!running&&<div className="row" style={{marginTop:10,gap:10}}><span className="small" style={{color:'var(--cc-warn-text)'}}>No AI account is signed in yet. Adding a channel needs one.</span><Button size="sm" onClick={onConnect}>Connect an AI</Button></div>}
     {running&&<div style={{marginTop:14}}><ProgressLine label="Adding your channel" line={job.line??'Reading your channel…'} estimate={ADD_CHANNEL_ESTIMATE} note="Skip setup, top right, leaves this for later."/></div>}
     {job.phase==='failed'&&<div style={{marginTop:12}}><ErrorLine message={job.message} onRetry={onAdd}/></div>}
    </form>}

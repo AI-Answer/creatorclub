@@ -40,14 +40,17 @@ test('the pure helpers: titles, file kinds, the import message, the folder line,
  assert.deepEqual([merged[0].pos,merged[1].pos],[{x:900,y:800,w:280},{x:60,y:60,w:280}]);
 });
 
-test('the toolbar has one Add menu for every kind of tile, and each icon-only button has a name and a tooltip',async()=>{
+test('an empty board explains itself at full size with the one Add menu for every kind of tile; each icon-only button has a name and a tooltip',async()=>{
  const server=board([]);
  const ui=await mount();
  try{
   await flush();await flush();
   const toolbar=ui.container.querySelector('.btoolbar')!;
-  assert.deepEqual([...toolbar.querySelectorAll('button')].map(item=>item.getAttribute('aria-label')||item.textContent?.trim()),['Add to board','Zoom out','Zoom in','Fit the whole board']);
-  await act(async()=>button(toolbar,'Add to board').click());
+  // While the board is empty, Add lives in the empty state (outside the zoomed canvas), not twice.
+  assert.deepEqual([...toolbar.querySelectorAll('button')].map(item=>item.getAttribute('aria-label')||item.textContent?.trim()),['Zoom out','Zoom in','Fit the whole board']);
+  const empty=ui.container.querySelector('.board-empty')!;
+  assert.match(empty.textContent!,/This video's board/);assert.equal(empty.closest('.canvas'),null,'not scaled with the canvas');
+  await act(async()=>button(empty,'Add to board').click());
   const items=[...document.querySelectorAll('[role=menuitem]')].map(item=>item.textContent);
   assert.deepEqual(items,['Note','Link','Image or Markdown file','Notes folder']);
   for(const icon of ui.container.querySelectorAll('.btn.icon-only')){
@@ -69,7 +72,7 @@ test('Add, Note puts a sticky note on the board to type in right away; left empt
  const ui=await mount();
  try{
   await flush();await flush();
-  await act(async()=>button(ui.container.querySelector('.btoolbar')!,'Add to board').click());
+  await act(async()=>button(ui.container.querySelector('.board-empty')!,'Add to board').click());
   await act(async()=>(document.querySelector('[role=menuitem]') as HTMLButtonElement).click());
   await flush();await flush();
   assert.deepEqual(server.calls.find(call=>call.method==='POST')?.body,{kind:'note',text:''});
@@ -163,7 +166,7 @@ test('the Notes folder: the dialog lists its files, pins one to the board, and s
  const ui=await mount();
  try{
   await flush();await flush();
-  await act(async()=>button(ui.container.querySelector('.btoolbar')!,'Add to board').click());
+  await act(async()=>button(ui.container.querySelector('.board-empty')!,'Add to board').click());
   await act(async()=>[...document.querySelectorAll<HTMLButtonElement>('[role=menuitem]')].find(item=>item.textContent==='Notes folder')!.click());
   await flush();
   const dialog=document.querySelector('[role=dialog]')!;
@@ -229,7 +232,8 @@ test('a card from another Notes folder says so; Show hidden files brings cards b
 
 test('a failed save and a refused Notes folder are warnings, not errors: amber with an icon, never red',async()=>{
  const css=(await import('node:fs')).readFileSync(new URL('../club.css',import.meta.url),'utf8');
- assert.match(css,/\.club-root \.warn-text \{ color: var\(--cc-warn\); \}/);
+ // Amber's text shade (--cc-warn-text), dark enough to read on a light surface.
+ assert.match(css,/\.club-root \.warn-text \{ color: var\(--cc-warn-text\); \}/);
  const panel=(await import('node:fs')).readFileSync(new URL('./NotePanel.tsx',import.meta.url),'utf8');
  const folder=(await import('node:fs')).readFileSync(new URL('./NotesFolder.tsx',import.meta.url),'utf8');
  for(const source of [panel,folder])assert.doesNotMatch(source,/--cc-rec|danger-text/);

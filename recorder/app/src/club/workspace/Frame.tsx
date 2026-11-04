@@ -10,18 +10,22 @@ import {fmtDate} from '../format';
 const STATE_WORDS={done:'Done',next:'Next step',open:undefined,current:undefined} as const;
 
 /**
- * The video's header, laid out like Borumi's project header (48px): the title centred (click to rename) with the stage after it,
+ * The video's header, laid out like Borumi's project header (48px): a way back to the Video board on the left, the title centred (click to rename) with the stage after it,
  * like Borumi's "Edited" note; on the right the date, the editor's undo, redo and history (on Edit), and the video's one menu ("…"),
  * which moves it to another stage or deletes it (asking first). The steps are in the bar at the bottom (`Foot`).
  */
-export function Header({video,tab,onTitle,onStage,onDelete}:{video:Video;tab:VideoTab;onTitle(title:string):void;onStage(stage:VideoStage):void;onDelete():void}){
+export function Header({video,tab,onTitle,onStage,onDelete,onHome}:{video:Video;tab:VideoTab;onTitle(title:string):void;onStage(stage:VideoStage):void;onDelete():void;/** Leaves for the Video board the way the other exits do (Record adds a take still under review first). */onHome?():void}){
  const [asking,setAsking]=useState(false);
  const toast=useToast();
  // Hands this video to the person's own agent (Settings › Your AI agent connects it).
  const copyPrompt=()=>{navigator.clipboard?.writeText(agentPrompt(video,tab)).then(()=>toast('Copied. Paste it into Claude Code or Codex.'),()=>toast("Couldn't copy the prompt.",{refused:true}));};
  const items:MenuItem[]=[{header:'Move to'},...VIDEO_STAGES.map((stage):MenuItem=>({label:STAGE_LABEL[stage],check:video.stage===stage,fn:()=>onStage(stage)})),'-',{label:'Copy prompt for your AI agent',icon:'copy',fn:copyPrompt},'-',{label:'Delete video',icon:'delete',danger:true,fn:()=>setAsking(true)}];
  return <div className="ws-top">
-  <div className="ws-top-l" id="ws-top-left"/>
+  <div className="ws-top-l">
+   {/* Every step of a video leads back to the Video board (the Kanban) from here. */}
+   <Tooltip text="Back to all your videos"><a href="#/home" className="ws-home" onClick={event=>{if(!onHome)return;event.preventDefault();onHome();}}><Icon name="back" size={16}/>Video board</a></Tooltip>
+   <div className="ws-top-slot" id="ws-top-left"/>
+  </div>
   <div className="ws-top-c">
    <span className="ws-video-id small faint">{videoHumanId(video)}</span>
    <Tooltip text={`${videoHumanId(video)} · Click to rename the video`}><Ed className="ws-title" value={video.title} ph="Video title" onChange={title=>{if(title.trim())onTitle(title.trim());}}/></Tooltip>
@@ -34,7 +38,7 @@ export function Header({video,tab,onTitle,onStage,onDelete}:{video:Video;tab:Vid
    <Menu align="right" button={toggle=><IconButton icon="more" label="More for this video" onClick={toggle}/>} items={items}/>
   </div>
   <Dialog open={asking} onClose={()=>setAsking(false)} title="Delete this video?" description={`“${video.title}” and its plan and board are removed. ${video.recorderProjectId?'Its recording stays in the recorder. ':''}You can undo it for a few seconds.`}
-   footer={<><Button onClick={()=>setAsking(false)}>Keep it</Button><Button variant="danger" onClick={()=>{setAsking(false);onDelete();}}>Delete video</Button></>}/>
+   footer={<><Button onClick={()=>setAsking(false)}>Cancel</Button><Button variant="danger" onClick={()=>{setAsking(false);onDelete();}}>Delete video</Button></>}/>
  </div>;
 }
 
