@@ -61,7 +61,7 @@ test('Videos and Discover keep only the query they understand',()=>{
 });
 
 test('a video opens on the tab for its stage',()=>{
- assert.deepEqual(VIDEO_STAGES.map(defaultTab),['board','plan','record','edit','publish','publish']);
+ assert.deepEqual(VIDEO_STAGES.map(defaultTab),['board','board','record','edit','publish','publish']);
 });
 
 test('the sidebar folds on its own on every step of a video, and nowhere else',()=>{
@@ -83,7 +83,7 @@ test('a video goes back to the screen it was opened from, whatever tabs or video
  assert.deepEqual(videoOrigin(ideas,overview,one),overview,'a new visit from another screen replaces it');
  assert.deepEqual(videoOrigin(ideas,one,overview),ideas,'leaving does not change it');
  assert.equal(videoOrigin(undefined,{name:'welcome'},one),undefined,'first launch is not somewhere to go back to');
- assert.equal(originLabel(ideas),'Videos');assert.equal(originLabel({name:'discover'}),'Discover');assert.equal(originLabel({name:'home'}),'Home');assert.equal(originLabel(undefined),'Videos');
+ assert.equal(originLabel(ideas),'Video board');assert.equal(originLabel({name:'discover'}),'Research');assert.equal(originLabel({name:'home'}),'Video board');assert.equal(originLabel(undefined),'Video board');
 });
 
 test('Welcome opens at a step and Settings at a section; an unknown step or section is ignored',()=>{

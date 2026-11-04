@@ -55,7 +55,7 @@ function videosRoute(view:VideosView,query:string,heldKey:'group'|'filter'):Rout
 }
 
 /** The tab a video opens on: its stage's step, Board for an idea. */
-export const defaultTab=(stage:VideoStage):VideoTab=>({ideas:'board',planning:'plan',recording:'record',editing:'edit',publishing:'publish',published:'publish'} as const)[stage];
+export const defaultTab=(stage:VideoStage):VideoTab=>({ideas:'board',planning:'board',recording:'record',editing:'edit',publishing:'publish',published:'publish'} as const)[stage];
 
 /**
  * Reads `#/home`, `#/discover?show=youtube`, `#/videos/table`, `#/research`, `#/videos?group=later&open=<id>`, `#/video/<id>/<tab>`, `#/settings/followed`, `#/welcome?step=2` and the rest.
@@ -128,9 +128,9 @@ export function videoOrigin(origin:Route|undefined,previous:Route,next:Route):Ro
  return previous.name==='welcome'?undefined:previous;
 }
 
-const ORIGIN_LABEL:Partial<Record<RouteName,string>>={home:'Home',discover:'Discover',videos:'Videos',research:'Research',settings:'Settings'};
+const ORIGIN_LABEL:Partial<Record<RouteName,string>>={home:'Video board',discover:'Research',videos:'Video board',research:'Channel board',settings:'Settings'};
 /** The name of a screen in "Back to …". */
-export const originLabel=(route:Route|undefined)=>(route&&ORIGIN_LABEL[route.name])||'Videos';
+export const originLabel=(route:Route|undefined)=>(route&&ORIGIN_LABEL[route.name])||'Video board';
 
 let origin:Route|undefined;
 /** Where a video's page goes back to: the screen it was opened from, else Videos. */

@@ -7,6 +7,8 @@ export interface Workspace {
   person?: string;
   handle: string;
   channelUrl: string;
+  /** The locally cached YouTube channel picture, served by this workspace. */
+  avatarUrl?: string;
   topics: string[];
   /** Who the channel makes videos for ("Complete beginners", "Developers"…). Empty until chosen. */
   audience: string[];

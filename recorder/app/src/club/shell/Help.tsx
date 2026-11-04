@@ -1,5 +1,5 @@
 import {useEffect,useRef} from 'react';
-import {FIND_IDEA,GLOSSARY,PLACES,SHORTCUTS,STEPS_SENTENCE,VIDEO_STEPS} from '../steps';
+import {FIND_IDEA,GLOSSARY,PLACES,SHORTCUTS,STEPS_SENTENCE,VIDEO_STEPS} from './labels';
 import {Dialog,Icon} from '../ui';
 
 const mark=(topic:string|undefined,key:string)=>topic===key?' on':'';
@@ -34,7 +34,7 @@ export function Help({topic,onClose}:{topic?:string;onClose():void}){
    <h4 data-topic="shortcuts">Keyboard shortcuts</h4>
    <dl className={`topic${mark(topic,'shortcuts')}`}>{SHORTCUTS.map(item=><div key={item.keys} style={{display:'contents'}}><dt>{item.keys}</dt><dd>{item.what}</dd></div>)}</dl>
 
-   <p className="small faint" style={{margin:'16px 0 0'}}>Open this again with Help at the bottom of the sidebar, or press ⌘K and type help.</p>
+   <p className="small faint" style={{margin:'16px 0 0'}}>Open this again with Help at the top right, or press ⌘K and type help.</p>
   </div>
  </Dialog>;
 }

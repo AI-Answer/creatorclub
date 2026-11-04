@@ -1088,8 +1088,8 @@
 /* ---------- Discover as a grid of cards ----------
  * Each video or post is a card: the picture on top (its rank on it), the title, one line of numbers, then Turn into idea and Add to Research.
  * Why a video is listed is said once above the grid ("Matched to your topics"), so a video's own reason is kept for screen readers only;
- * Follow this channel shows under the pointer or on focus, at the right of the actions. */
-.club-root .card.feed { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px; padding: 0; background: none; border: 0; box-shadow: none; border-radius: 0; }
+ * Follow this channel has its own row below the channel and view counts. */
+.club-root .card.feed { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr)); gap: 16px; padding: 0; background: none; border: 0; box-shadow: none; border-radius: 0; }
 .club-root .feed .frow { display: flex; flex-direction: column; gap: 8px; padding: 8px 8px 10px; border: 1px solid var(--cc-line); border-radius: var(--cc-r-lg); background: var(--cc-surface); transition: border-color .15s, box-shadow .15s, transform .15s var(--cc-ease); }
 .club-root .feed .frow + .frow { border-top: 1px solid var(--cc-line); border-radius: var(--cc-r-lg); }
 .club-root .feed .frow:hover, .club-root .feed .frow:focus-within { border-color: var(--cc-line-strong); box-shadow: var(--cc-shadow-2); }
@@ -1104,7 +1104,7 @@
 .club-root .feed .frow[data-kind="video"] .meta > .ellipsis { flex: 1 1 calc(100% - 32px); color: var(--cc-text-2); margin-left: -4px; }
 .club-root .feed .frow[data-kind="video"] .reason { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .club-root .feed .frow .acts { margin-top: auto; padding: 2px 0 0; }
-.club-root .feed .frow .follow { position: absolute; right: 12px; bottom: 15px; font-size: var(--cc-text-xs); visibility: hidden; }
+.club-root .feed .frow .follow { position: static; min-width: 0; max-width: 100%; padding-top: 4px; font-size: var(--cc-text-xs); }
 .club-root .feed .frow:hover .follow, .club-root .feed .frow:focus-within .follow { visibility: visible; }
 /* A post: the author's picture beside the name, or the post's own picture on top; the text clamped to six lines until Show more. */
 .club-root .feed .frow[data-kind="post"] { display: grid; grid-template-columns: 34px minmax(0, 1fr); column-gap: 10px; row-gap: 8px; align-content: start; }
@@ -1159,7 +1159,7 @@
 :where(.club-root) .trend .reason svg:where(:not(.club-embed *)) { flex: none; }
 :where(.club-root) .trend .reason .ellipsis:where(:not(.club-embed *)) { min-width: 0; display: block; }
 :where(.club-root) .trend-actions:where(:not(.club-embed *)) { margin-top: auto; display: flex; flex-direction: column; justify-content: flex-end; align-items: stretch; gap: 8px; min-height: 72px; }
-:where(.club-root) .trend-actions .follow-channel:where(:not(.club-embed *)) { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; align-self: flex-start; }
+:where(.club-root) .trend-actions .follow-channel:where(:not(.club-embed *)) { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: normal; overflow-wrap: anywhere; text-align: left; align-self: flex-start; }
 :where(.club-root) .trend-actions .btn:where(:not(.club-embed *)) { width: 100%; min-width: 0; white-space: nowrap; box-sizing: border-box; }
 
 /* The same quiet video board on Home and Videos. */

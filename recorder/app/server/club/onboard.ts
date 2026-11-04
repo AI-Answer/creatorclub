@@ -1,5 +1,6 @@
 import type { AddChannelResult, VoiceAnswers, VoiceResult, Workspace } from '../../shared/club.js';
 import { channelFile, parseChannelInput, readChannel, sameChannelUrl, savedTranscripts, type ChannelRead } from './channel.js';
+import { ensureChannelAvatar, type AvatarFetch } from './channel-avatar.js';
 import type { JobContext } from './jobs.js';
 import * as store from './store.js';
 import { prepareYtDlp, type ToolOptions } from './tools.js';
@@ -15,18 +16,19 @@ async function saveChannel(slug: string, read: ChannelRead) {
 }
 
 /** The job behind `POST /workspaces {channelUrl}`: reads the channel, saves it as a workspace and writes its voice guide. */
-export async function addChannel(channelUrl: string, context: JobContext, options: ToolOptions = {}): Promise<AddChannelResult> {
+export async function addChannel(channelUrl: string, context: JobContext, options: ToolOptions = {}, avatarFetch?: AvatarFetch): Promise<AddChannelResult> {
   const ref = parseChannelInput(channelUrl);
   // Adding a channel again (after the voice step failed, say) picks up the workspace that is already there.
   const existing = (await store.listWorkspaces()).find((workspace) => sameChannelUrl(workspace.channelUrl, ref.url));
   if (existing && (await hasVoiceGuide(existing.slug))) {
     await store.setCurrentWorkspace(existing.slug);
-    return { workspace: existing, voice: 'built' };
+    return { workspace: await ensureChannelAvatar(existing, avatarFetch), voice: 'built' };
   }
   const read = await readChannel(ref, { ...options, ytdlp: await yt(context, options), signal: context.signal, say: say(context) });
-  const workspace =
+  const created =
     existing ??
     (await store.createWorkspace({ name: read.data.name, handle: read.data.handle, channelUrl: ref.url, topics: read.data.topics, about: '', cta: '' }));
+  const workspace = await ensureChannelAvatar(created, avatarFetch);
   await saveChannel(workspace.slug, read);
   await store.setCurrentWorkspace(workspace.slug);
   if (read.transcripts.length < MIN_TRANSCRIPTS) return { workspace, voice: 'needs-answers' };

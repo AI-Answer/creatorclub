@@ -352,7 +352,7 @@ test('Welcome: a failed create shows one sentence with Try again; Skip setup sav
    fail=false;await click(c,'Try again');
    assert.match(text(c),/Step 4 of 4/);
    assert.equal(calls.find(call=>call.path==='/workspaces/fresh'&&!(call.body as {voice?:unknown}).voice)!==undefined,true,'skipped questions send no voice');
-   await click(c,"Go to Home");
+   await click(c,"Go to Video board");
    assert.deepEqual(routes.at(-1),{name:'home'});
   }finally{await ui.close();}
  });

@@ -32,10 +32,11 @@ test('the shell routes through Videos, video steps and settings, and keeps the p
   assert.ok(ui.container.querySelector('.tabstrip .ts-tab.on.home'),'Videos is part of the Home tab');
   assert.equal(ui.container.querySelector('[role="dialog"]'),null,'a returning visitor sees no dialog');
   await act(async()=>[...ui.container.querySelectorAll<HTMLElement>('[data-card]')].find(card=>/Hidden features/.test(card.textContent||''))!.click());await flush();
-  assert.equal(window.location.hash,'#/video/v1/plan');assert.equal(ui.container.querySelector('nav[aria-label="Main"]'),null,'a video is a tab of its own, without the Home nav');
+  assert.equal(window.location.hash,'#/video/v1/board');assert.equal(ui.container.querySelector('nav[aria-label="Main"]'),null,'a video is a tab of its own, without the Home nav');
   assert.match(ui.container.querySelector('.ts-tab.on .ts-label')!.textContent||'',/Hidden features/,'the video opens as a tab');
   assert.match(ui.container.querySelector('.ws-title')!.textContent||'',/Hidden features in Claude Code/);
   assert.ok(server.calls.some(call=>call.path==='/videos/v1/opened'&&call.method==='POST'),'opening a video is noted for Recent videos');
+  await act(async()=>[...ui.container.querySelectorAll<HTMLElement>('.ws-step')].find(a=>a.textContent==='Plan')!.click());
   assert.equal(ui.container.querySelector('.ws-steps [aria-current="page"]')!.textContent,'Plan');
   assert.equal(ui.container.querySelector('.strip'),null,'Plan has no scene chips');
   assert.ok(ui.container.querySelector('.pkg')&&ui.container.querySelector('.scn'),'Plan opens with the package and the scenes side by side');

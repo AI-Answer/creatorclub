@@ -1,13 +1,12 @@
 import type {CSSProperties} from 'react';
 import {
  AArrowDown,AArrowUp,ArrowDown,ArrowLeft,ArrowRight,ArrowUp,ArrowUpRight,AudioLines,BetweenHorizontalStart,Bookmark,Bot,Calendar,Camera,Captions,Check,ChevronDown,ChevronLeft,ChevronRight,ChevronUp,ChevronsUpDown,
- Circle,CircleCheck,CircleDot,CircleHelp,Clapperboard,Clock,Code,Copy,CornerDownRight,Download,Expand,Eye,EyeOff,FileText,Film,Flag,Folder,FolderOpen,GripVertical,Heading1,Heading2,Heading3,Heart,History,House,Image,Keyboard,Layers,LayoutTemplate,Lightbulb,
+ Circle,CircleCheck,CircleDot,CircleHelp,Clapperboard,Clock,Code,Copy,CornerDownRight,Download,Expand,Eye,EyeOff,FileText,Film,Flag,Folder,FolderOpen,GripVertical,Heading1,Heading2,Heading3,Heart,History,House,Image,Compass,Keyboard,Layers,LayoutTemplate,Lightbulb,
  Link,List,ListChecks,ListOrdered,LoaderCircle,Lock,Magnet,Maximize2,MessageCircle,MessagesSquare,Mic,Minus,Monitor,MoreHorizontal,MoveHorizontal,Music,Package,PanelLeftClose,PanelLeftOpen,PanelRightClose,PanelRightOpen,Pause,Pencil,Pilcrow,Play,Plus,Quote,Redo2,RotateCcw,
- Frame,Scissors,Search,Send,Settings,Settings2,SlidersHorizontal,Sparkles,Spline,Sprout,Square,SquareKanban,SquareSplitHorizontal,StickyNote,Sun,Table,Trash2,TrendingUp,TriangleAlert,Type,Undo2,Upload,Video,Wand2,X,Youtube,Waypoints,ZoomIn,ZoomOut,
+ Frame,Scissors,Search,Send,Settings,Settings2,SlidersHorizontal,Sparkles,Spline,Sprout,Square,SquareKanban,SquareSplitHorizontal,StickyNote,Sun,Table,Trash2,TrendingUp,TriangleAlert,Type,Undo2,Upload,Video,Wand2,X,Youtube,ZoomIn,ZoomOut,
  type LucideIcon,
 } from 'lucide-react';
 import {QuickRecord} from '../../Icons';
-import {CompanionMark} from './CompanionMark';
 
 /**
  * The one icon registry. Components ask for an icon by what it means (`add`, `close`, `record`, `split`, `companion`), never by
@@ -27,7 +26,7 @@ const glyphs={
  slide:MoveHorizontal,adjust:SlidersHorizontal,'take-settings':Settings2,layout:LayoutTemplate,
  // Places and things
  home:House,idea:Lightbulb,trending:TrendingUp,signals:MessagesSquare,production:SquareKanban,video:Clapperboard,scenes:Layers,script:FileText,
- research:Waypoints,frame:Frame,connect:Spline,
+ research:Compass,frame:Frame,connect:Spline,
  package:Package,note:StickyNote,folder:Folder,'folder-open':FolderOpen,table:Table,calendar:Calendar,duration:Clock,settings:Settings,
  help:CircleHelp,keyboard:Keyboard,theme:Sun,youtube:Youtube,comment:MessageCircle,like:Heart,assistant:Bot,'first-steps':Sprout,code:Code,
  preview:Eye,hide:EyeOff,'sidebar-close':PanelLeftClose,'sidebar-open':PanelLeftOpen,'panel-close':PanelRightClose,'panel-open':PanelRightOpen,
@@ -56,7 +55,7 @@ const legacy={
 } as const satisfies Record<string,GlyphName>;
 
 export type LegacyIconName=keyof typeof legacy;
-/** An icon by meaning. `companion` is Creator Compiler's own mark (see `CompanionMark`). */
+/** An icon by meaning; the companion uses the same outlined chat glyph as the shell. */
 export type SemanticIconName=GlyphName|'companion'|'quick-record';
 export type IconName=SemanticIconName|LegacyIconName;
 
@@ -64,12 +63,11 @@ export const iconNames=[...Object.keys(glyphs),'companion','quick-record'] as Se
 export const legacyIconNames=Object.keys(legacy) as LegacyIconName[];
 const resolve=(name:IconName):SemanticIconName=>name in legacy?legacy[name as LegacyIconName]:name as SemanticIconName;
 
-/** An icon by meaning, 16px with a 1.8 stroke. Decorative: the button around it carries the label (see `IconButton`). */
-export function Icon({name,size=16,stroke=1.8,className='',style,spin}:{name:IconName;size?:number;stroke?:number;className?:string;style?:CSSProperties;spin?:boolean}){
+/** An icon by meaning, 16px with a 1.75 stroke. Decorative: the button around it carries the label (see `IconButton`). */
+export function Icon({name,size=16,stroke=1.75,className='',style,spin}:{name:IconName;size?:number;stroke?:number;className?:string;style?:CSSProperties;spin?:boolean}){
  const key=resolve(name);
  if(key==='quick-record')return <QuickRecord size={size} className={className} style={style}/>;
- if(key==='companion')return <CompanionMark size={size} className={className} style={style}/>;
- const Glyph=glyphs[key];
+ const Glyph=key==='companion'?MessagesSquare:glyphs[key];
  // SceneForge's global CSS sets `svg.lucide{stroke-width:1.5}`; an inline style wins over it.
  return <Glyph aria-hidden size={size} className={`icon${spin?' animate-spin':''} ${className}`.trim()} style={{strokeWidth:stroke,...style}}/>;
 }

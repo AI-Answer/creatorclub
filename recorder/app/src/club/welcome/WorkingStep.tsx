@@ -33,7 +33,7 @@ export function WorkingStep({items,searching,scanLine,loadError,onReload,saved,v
   <BreakdownPanel key={pick.videoId??'link'} target={pick.target} videoId={pick.videoId} title={pick.title} multiplier={pick.multiplier} videos={videos} onAdded={onAdded} onCancel={()=>setPick(null)}/>
  </div>;
  if(loadError)return <ErrorLine message={loadError} onRetry={onReload}/>;
- if(searching)return <div className="card" style={{padding:18}}><ProgressLine label="Searching YouTube for your topics" line={scanLine??'Starting the search on your topics…'} estimate={SCAN_ESTIMATE} note="You don't have to wait. Go to Home and the videos will be there when it finishes."/></div>;
+ if(searching)return <div className="card" style={{padding:18}}><ProgressLine label="Searching YouTube for your topics" line={scanLine??'Starting the search on your topics…'} estimate={SCAN_ESTIMATE} note="You don't have to wait. Go to Video board and the videos will be there when it finishes."/></div>;
  if(items===null||saved===null)return <div className="row"><Spinner label="Loading what's working" size={18}/><span className="muted">Loading what's working…</span></div>;
  if(!items.length)return <div className="card"><Empty icon="trending" title="Nothing to start from yet">
   Paste a link to any video that's working and we'll break it down. To see what's working in your space each day, follow channels in Settings.

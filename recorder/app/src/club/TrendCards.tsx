@@ -3,6 +3,7 @@ import type {TrendingEntry} from '../../shared/club';
 import {FollowChannel} from './FollowChannel';
 import {creatorName,fmtNum} from './format';
 import {TREND_HELP} from './steps';
+import {shellCopy} from './shell/labels';
 import {Icon,MultChip,Thumb} from './ui';
 
 /**
@@ -18,7 +19,7 @@ export function TrendCard({item,saved,onBreak}:{item:TrendingEntry;saved:boolean
   <div className="tt clamp2" style={{fontSize:13.5}}>{item.title}</div>
   <div className="stats"><span><b>{fmtNum(item.views)}</b> views</span><span><b>{fmtNum(item.vpd)}</b> a day</span></div>
   <div className="reason" title={item.reason??undefined}>{item.reason&&<><Icon name="ai" size={12}/><span className="ellipsis">{item.reason}</span></>}</div>
-  <div className="trend-actions">
+  <div className="trend-actions" style={{minWidth:0,flexWrap:'wrap'}}>
   <FollowChannel item={item}/>
   <button type="button" className="btn sm" disabled={!saved&&!available} title={!saved&&!available?AI_CONNECT_HINT:undefined} onClick={event=>{event.stopPropagation();open();}}><Icon name={saved?'script':'ai'} size={14}/>{saved?'Open breakdown':'Break this down'}</button>
   </div>
@@ -27,5 +28,5 @@ export function TrendCard({item,saved,onBreak}:{item:TrendingEntry;saved:boolean
 
 /** What the words on a trend card mean, in plain words, once under the cards. */
 export function TrendHelp(){
- return <ul className="trend-help" aria-label="What the cards show">{TREND_HELP.map(([term,means])=><li key={term}><b>{term}</b> {means}</li>)}</ul>;
+ return <ul className="trend-help" aria-label="What the cards show">{TREND_HELP.map(([term,means])=><li key={term}><b>{term}</b> {shellCopy(means)}</li>)}</ul>;
 }

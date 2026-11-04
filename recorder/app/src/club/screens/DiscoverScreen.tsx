@@ -139,7 +139,7 @@ export function DiscoverScreen({show='fit',navigate}:{show?:DiscoverShow;navigat
  const view=viewOf(show);
 
  return <div className="page">
-  <div className="page-head"><div><h1>Discover</h1><div className="lede">What's working on YouTube, X and Reddit, ranked for your topics.</div></div>
+  <div className="page-head"><div><h1>Research</h1><div className="lede">What's working on YouTube, X and Reddit, ranked for your topics.</div></div>
    <div className="actions"><RefreshActions updatedAt={updatedAt} summary={summary} job={job} onRefresh={refresh}/></div></div>
   {trending.loadError&&!trending.data&&<div style={{marginBottom:14}}><ErrorLine message={trending.loadError} onRetry={()=>void trending.reload()}/></div>}
   {signals.loadError&&!signals.data&&<div style={{marginBottom:14}}><ErrorLine message={signals.loadError} onRetry={()=>void signals.reload()}/></div>}
@@ -152,7 +152,7 @@ export function DiscoverScreen({show='fit',navigate}:{show?:DiscoverShow;navigat
   <div className="disc-views">
    <div className="seg" role="group" aria-label="View">{DISCOVER_VIEWS.map(([key,label])=><button key={key} type="button" className={view===key?'on':''} aria-pressed={view===key} onClick={()=>choose(key)}>{label} <span className="n">{counts[key]}</span></button>)}</div>
    <span className="grow"/>
-   <button type="button" className="linkish ideas-shelf" onClick={()=>navigate({name:'videos',view:'board'})} title="Your ideas are the first lane of Videos"><Icon name="idea" size={14}/>Your ideas <b className="tnum">{ideas}</b></button>
+   <button type="button" className="linkish ideas-shelf" onClick={()=>navigate({name:'videos',view:'board'})} title="Your ideas are the first lane of Video board"><Icon name="idea" size={14}/>Your ideas <b className="tnum">{ideas}</b></button>
   </div>
   <div className="row disc-bar">
    {view==='fit'&&<div className="disc-sources" role="group" aria-label="Source">{DISCOVER_SOURCES.map(([key,label])=><button key={key} type="button" className={`fchip${show===key?' on':''}`} aria-pressed={show===key} onClick={()=>choose(key)}>{(key==='youtube'||key==='x'||key==='reddit')&&<BrandLogo brand={key} size={15}/>}{label} <span className="n">{counts[key]}</span></button>)}</div>}
@@ -188,10 +188,10 @@ export function DiscoverScreen({show='fit',navigate}:{show?:DiscoverShow;navigat
    :<Empty icon="trending" title="Nothing read yet" action={refreshButton()}>{running?(job.line??'Reading the channels you follow…'):'Refresh to read the channels you follow.'}</Empty>}</div>;
   // X and Reddit are separate: the X chip never offers subreddits, and each says how to add its own kind of source.
   if(show==='x'&&!lists.posts.some(post=>post.source==='x'))return <div className="card">{sourcesBy.x===0
-   ?<Empty icon="signals" title="Add X accounts to read" action={addSources}>Discover reads posts from the X accounts and searches you choose. Add a few in Settings and they show up here.</Empty>
+   ?<Empty icon="signals" title="Add X accounts to read" action={addSources}>Research reads posts from the X accounts and searches you choose. Add a few in Settings and they show up here.</Empty>
    :<Empty icon="signals" title="No X posts yet" action={refreshButton()}>{note||'Refresh to read the X accounts and searches you chose.'}</Empty>}</div>;
   if(show==='reddit'&&!lists.posts.some(post=>post.source==='reddit'))return <div className="card">{sourcesBy.reddit===0
-   ?<><Empty icon="signals" title="Add subreddits to read" action={addSources}>Discover reads posts from the subreddits you choose. Add a few in Settings, or pick one of these.</Empty>
+   ?<><Empty icon="signals" title="Add subreddits to read" action={addSources}>Research reads posts from the subreddits you choose. Add a few in Settings, or pick one of these.</Empty>
     <div style={{padding:'0 20px 24px',textAlign:'center'}}><SubredditChips topics={profile?.topics??[]} have={[]} center disabled={adding} onAdd={name=>void addSubreddit(name)}/></div></>
    :<Empty icon="signals" title="No Reddit posts yet" action={refreshButton()}>Refresh to read the subreddits you chose.</Empty>}</div>;
   if(show==='fit'&&noVideos&&noPosts)return <div className="card">{followed===0&&sources===0

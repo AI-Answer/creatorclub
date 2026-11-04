@@ -178,7 +178,7 @@ export function WelcomeScreen({navigate,initialStep}:{navigate(route:Route,optio
    <span className="grow"/>
    {shown<3
     ?<Button variant={allowed?'primary':'secondary'} disabled={!allowed} onClick={next}>Continue<Icon name="forward" size={15}/></Button>
-    :<Button onClick={home}>Go to Home<Icon name="forward" size={15}/></Button>}
+    :<Button onClick={home}>Go to Video board<Icon name="forward" size={15}/></Button>}
   </div></div>
  </div>;
 }

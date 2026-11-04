@@ -1,6 +1,7 @@
 import {useId,useMemo,useState} from 'react';
 import type {Video} from '../../../shared/club';
-import {searchOptions,type SearchOption} from '../search';
+import type {SearchOption} from '../search';
+import {shellOptions} from './labels';
 import type {Route} from '../routes';
 import {Icon} from '../ui';
 import {useFocusPanel} from '../ui/overlay';
@@ -12,7 +13,7 @@ import {useFocusPanel} from '../ui/overlay';
  */
 export function Palette({videos,openId,onClose,onOpen,onNewVideo,onHelp}:{videos:readonly Video[];openId?:string|null;onClose():void;onOpen(route:Route):void;onNewVideo():void;onHelp(topic?:string):void}){
  const [query,setQuery]=useState(''),[index,setIndex]=useState(0);
- const options=useMemo(()=>searchOptions(videos,query,openId),[videos,query,openId]);
+ const options=useMemo(()=>shellOptions(videos,query,openId),[videos,query,openId]);
  const panel=useFocusPanel();
  const listId=useId();
  const pick=(option:SearchOption)=>{

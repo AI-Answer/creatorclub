@@ -311,7 +311,7 @@ const chip=(c:Element,label:string)=>[...c.querySelectorAll('.disc-views .seg bu
 test('Discover: videos and posts in one ranked feed, a view switch and source chips with counts, the multiplier with its legend, reasons and one action on every card',async()=>{
  await mount(discoverAt(),discoverServer(),async (ui,_s,calls,routes)=>{
   const c=ui.container;
-  assert.equal(text(c.querySelector('h1')),'Discover');
+  assert.equal(text(c.querySelector('h1')),'Research');
   assert.match(text(c.querySelector('.actions')),/^Updated Oct 28 · 3 videos · 4 posts/);
   assert.equal(c.querySelectorAll('.actions svg').length,1,'one refresh icon: the button\'s, none beside "Updated"');
   assert.deepEqual(texts(c,'.disc-views .seg button'),['For you 6','Followed 2'],'the view switch');
@@ -604,7 +604,7 @@ test('Home is the video board, with six lanes, a count, and New video',async()=>
  const videos=[base('i','jk','ideas'),base('p','Planning video','planning'),base('d','Published video','published')];
  await mount(navigate=>createElement(HomeScreen,{navigate,onNewVideo:()=>opened.push('new')}),server({videos}),async(ui,_s,calls,routes)=>{
   const c=ui.container;
-  assert.equal(text(c.querySelector('h1')),'Videos');
+  assert.equal(text(c.querySelector('h1')),'Video board');
   assert.equal(text(c.querySelector('[aria-label="Video count"]')),'3');
   assert.deepEqual([...c.querySelectorAll('[data-column]')].map(el=>el.getAttribute('data-column')),['ideas','planning','recording','editing','publishing','published']);
   assert.equal(c.querySelectorAll('[data-card]').length,3);
