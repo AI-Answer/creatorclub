@@ -1625,7 +1625,8 @@ export function startExport(
   const p = structuredClone(project),
     o = structuredClone(options);
   // Layout stretches become clip pieces with their own transform, so slices and the renderer see plain clips.
-  bakeLayouts(p);
+  // Only rendered formats bake: a JSON project export keeps its stretches and unsplit clips.
+  if (["mp4", "webm", "wav"].includes(o.format)) bakeLayouts(p);
   let timelineStart = 0;
   return enqueue("export", async (j) => {
     if (o.range) {

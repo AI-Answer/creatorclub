@@ -133,3 +133,19 @@ test('the service fingerprints its renderer once: a source edited on disk during
  assert.equal(processRendererFingerprint(),first,'one fingerprint per process');
  assert.equal(await first,await rendererFingerprint(),'the same signature as reading the files now');
 });
+
+test('a JSON project export keeps layout stretches and unsplit clips; only rendered formats bake them',async()=>{
+ const {startExport}=await import('./media.js');const dir=await fs.mkdtemp(path.join(tmpdir(),'sceneforge-export-layouts-'));
+ const p=createProject('Layouts');p.media=[{id:'m',name:'Cam',path:path.join(dir,'cam.mov'),kind:'video',duration:10,width:320,height:180}];
+ p.clips=[{id:'cam',mediaId:'m',name:'Cam',track:'camera',start:0,sourceIn:0,sourceOut:10,speed:1,gain:1,muted:false,transform:defaultTransform(),effects:defaultEffects()}];
+ p.layouts=[{id:'l1',start:2,duration:3,preset:'Side by side'}];
+ try{
+  const job=startExport(p,{format:'json'},dir);
+  const deadline=Date.now()+10000;while(['queued','running'].includes(job.status)){if(Date.now()>deadline)throw Error('Export did not finish');await new Promise(resolve=>setTimeout(resolve,10));}
+  assert.equal(job.status,'complete',job.message);
+  const exported=JSON.parse(await fs.readFile(job.outputPath!,'utf8')) as Project;
+  assert.deepEqual(exported.layouts?.map(l=>[l.id,l.start,l.duration,l.preset]),[['l1',2,3,'Side by side']]);
+  assert.deepEqual(exported.clips.map(c=>c.id),['cam'],'the clip is not split at the stretch edges');
+  assert.deepEqual(p.layouts?.length,1,'the source project is never mutated');
+ }finally{await fs.rm(dir,{recursive:true,force:true});}
+});

@@ -304,8 +304,9 @@
 .club-embed .app-shell[data-mode=Edit] .club-edit .club-source-thumb.is-camera:not(:first-child) { aspect-ratio: 3 / 4; }
 /* Recorded clips say what was spoken; their source names remain in Clip and the tooltip. */
 .club-embed .app-shell[data-mode=Edit] .club-edit .club-clip:is(.clip-screen, .clip-camera, .clip-audio, .clip-music) .club-clip-label { display: none; }
-.club-embed .app-shell[data-mode=Edit] .club-edit .club-wave { opacity: 0.4; }
-.club-embed .app-shell[data-mode=Edit] .club-edit .club-clip:hover .club-wave { opacity: 0.8; }
+/* 0.75 keeps the black envelope at least 3:1 on every clip colour in both themes (dark blue is the lowest, about 3.3:1). */
+.club-embed .app-shell[data-mode=Edit] .club-edit .club-wave { opacity: 0.75; }
+.club-embed .app-shell[data-mode=Edit] .club-edit .club-clip:hover .club-wave { opacity: 0.95; }
 .club-embed .app-shell[data-mode=Edit] .club-edit .club-wave path { fill: var(--kind-audio-wave); stroke: none; }
 /* Notes on the timeline: a small dot on the ruler (filled once it has text), not a badge, and no line through the clips. */
 .club-embed .app-shell[data-mode=Edit] .club-edit .club-marker { top: 6px; width: 9px; height: 9px; margin-left: -4.5px; border-radius: var(--cc-r-pill); background: transparent; box-shadow: inset 0 0 0 1.5px var(--kind-markers); }

@@ -192,7 +192,14 @@ test('timeline kinds keep Borumi hues with readable dark graphics and controls',
  assert.match(css,/\.club-marker\{[^}]*var\(--kind-markers\)/,'markers use their token');
  assert.match(css,/:is\(\.club-clip,\.club-effect\)\.selected\{outline:2px solid var\(--tl-select\)/,'selection is an outline only');
  assert.match(club,/:is\(\.club-clip, \.club-effect\)\.selected \{ outline: 2px solid var\(--cc-accent\); outline-offset: 1px; \}/,'in the club, Borumi\'s blue-500 ring one pixel off');
- assert.match(club,/\.club-wave \{ opacity: 0\.4; \}/,'the waveform is black at 40%, as in Borumi');
+ // The waveform is Borumi's black envelope, but strong enough to read: at least 3:1 on every clip colour in both themes.
+ const waveOpacity=Number(/\.club-wave \{ opacity: ([\d.]+); \}/.exec(club)?.[1]);
+ const toRgb=(h:number,s:number,l:number)=>{s/=100;l/=100;const k=(n:number)=>(n+h/30)%12,a=s*Math.min(l,1-l),f=(n:number)=>l-a*Math.max(-1,Math.min(k(n)-3,Math.min(9-k(n),1)));return [f(0),f(8),f(4)];};
+ const lin=(v:number)=>v<=.03928?v/12.92:((v+.055)/1.055)**2.4,lum=(c:number[])=>.2126*lin(c[0])+.7152*lin(c[1])+.0722*lin(c[2]);
+ for(const [h,sat,l] of [[213,94,68],[142,69,58],[221,83,53],[142,76,36]] as const){
+  const bg=toRgb(h,sat,l),wave=bg.map(v=>v*(1-waveOpacity)),ratio=(lum(bg)+.05)/(lum(wave)+.05);
+  assert.ok(ratio>=3,`waveform contrast ${ratio.toFixed(2)}:1 on hsl(${h} ${sat}% ${l}%) at opacity ${waveOpacity}`);
+ }
  assert.match(club,/\.row-layouts \.club-effect \{[^}]*background: var\(--kind-layout\)/,'layout stretches are the control colour');
 });
 

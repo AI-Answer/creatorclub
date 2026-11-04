@@ -49,7 +49,7 @@ An isolated server on port 4288 used a 30-second real microphone speech excerpt,
 
 Regressions cover presentation grouping without project mutation, microphone preference, exposed independent layers, caption pills at overview/detail zoom, dense waveform scaling and one edit per grouped pointer gesture.
 
-Final validation on top of the caption review fixes: `npm run build` passed; serial `npm test` passed (1,717 tests, 1,716 passed, zero failed, one existing portrait-fixture skip). The isolated preview server and owned browser tab were stopped after evidence capture. No package, install or push was performed.
+Intermediate snapshot, after the caption review fixes: `npm run build` passed; serial `npm test` passed (1,717 tests, 1,716 passed, zero failed, one existing portrait-fixture skip). Later revisions are validated in the pull request description, which names each revision it covers. The isolated preview server and owned browser tab were stopped after evidence capture. No package, install or push was performed.
 
 
 ## Colours and control rows
