@@ -39,6 +39,22 @@ test('picker refreshes only while mounted and discards late results after close'
  }finally{globalThis.setTimeout=original;globalThis.clearTimeout=clear;}
 });
 
+test('a poll cancelled by an in-progress selection shows no error, but a real failure still does',async()=>{
+ const intervals:Function[]=[];const original=globalThis.setTimeout,clear=globalThis.clearTimeout;let loads=0;
+ globalThis.setTimeout=((fn:Function,ms?:number)=>ms===PICKER_REFRESH_MS?(intervals.push(fn),123):original(fn as ()=>void,ms)) as typeof setTimeout;
+ globalThis.clearTimeout=((id:any)=>{if(id!==123)clear(id);}) as typeof clearTimeout;
+ const load=async()=>{loads++;if(loads===1)return {sources};throw new Error('Capture selection was cancelled.');};
+ const props={load,onClose:()=>{},onSelect:()=>{}};
+ const ui=await mountUI(createElement(CaptureSourcePicker,{...props,busy:true}));
+ try{
+  await act(async()=>{intervals.shift()!();});await flush();
+  assert.equal(ui.container.querySelector('[role=alert]'),null);
+  await ui.render(createElement(CaptureSourcePicker,{...props,busy:false}));
+  await act(async()=>{intervals.shift()!();});await flush();
+  assert.match(ui.container.querySelector('[role=alert]')?.textContent??'',/cancelled/);
+ }finally{await ui.close();globalThis.setTimeout=original;globalThis.clearTimeout=clear;}
+});
+
 async function recordingFixture(permission='granted',saved?:DesktopCaptureSelection){
  const fetchBefore=globalThis.fetch,bridgeBefore=window.sceneForge,devicesBefore=Object.getOwnPropertyDescriptor(navigator,'mediaDevices');
  localStorage.clear();saveRecordingPreferences({...loadRecordingPreferences(),current:{...defaultRecordingSettings(),selection:{camera:true,microphone:false,screen:true,systemAudio:false}}});

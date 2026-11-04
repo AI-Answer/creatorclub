@@ -8,6 +8,8 @@ document.getElementById('cancel').addEventListener('click', () => { close(); win
 async function refresh() {
  try {
   const data = await window.capturePicker.getData(); if (closed) return;
+  // A rebuild between press and release would drop the pressed button and lose the click.
+  if (main.matches(':active')) return;
   const focused = document.activeElement?.dataset.sourceId;
   main.replaceChildren();
   for (const kind of ['display', 'window']) {

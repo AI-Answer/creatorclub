@@ -11,9 +11,11 @@ const loadSources=async()=>window.sceneForge?.listCaptureSources?.({thumbnails:t
 export function CaptureSourcePicker({selectedId,region=false,busy=false,error,onSelect,onClose,load=loadSources}:Props){
  const [sources,setSources]=useState<DesktopCaptureSource[]>([]),[loading,setLoading]=useState(true),[failure,setFailure]=useState('');
  const dialog=useRef<HTMLDivElement>(null),refresh=useRef<()=>void>(()=>{});
+ // A selection cancels the in-flight poll; that expected rejection is not an error to show.
+ const busyRef=useRef(busy);busyRef.current=busy;
  useEffect(()=>{
   let alive=true,timer:ReturnType<typeof setTimeout>;
-  const update=async()=>{try{const result=await load();if(alive){setSources(result.sources);setFailure('');}}catch(e){if(alive)setFailure((e as Error).message);}finally{if(alive){setLoading(false);timer=setTimeout(update,PICKER_REFRESH_MS);}}};
+  const update=async()=>{try{const result=await load();if(alive){setSources(result.sources);setFailure('');}}catch(e){if(alive&&!busyRef.current)setFailure((e as Error).message);}finally{if(alive){setLoading(false);timer=setTimeout(update,PICKER_REFRESH_MS);}}};
   refresh.current=()=>{clearTimeout(timer);setLoading(true);void update();};void update();
   return()=>{alive=false;clearTimeout(timer);};
  },[load]);
