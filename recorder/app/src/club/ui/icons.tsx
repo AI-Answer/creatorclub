@@ -3,7 +3,7 @@ import {
  AArrowDown,AArrowUp,ArrowDown,ArrowLeft,ArrowRight,ArrowUp,ArrowUpRight,AudioLines,BetweenHorizontalStart,Bookmark,Bot,Calendar,Camera,Captions,Check,ChevronDown,ChevronLeft,ChevronRight,ChevronUp,ChevronsUpDown,
  Circle,CircleCheck,CircleDot,CircleHelp,Clapperboard,Clock,Code,Copy,CornerDownRight,Download,Expand,Eye,EyeOff,FileText,Film,Flag,Folder,FolderOpen,GripVertical,Heading1,Heading2,Heading3,Heart,History,House,Image,Keyboard,Layers,LayoutTemplate,Lightbulb,
  Link,List,ListChecks,ListOrdered,LoaderCircle,Lock,Magnet,Maximize2,MessageCircle,MessagesSquare,Mic,Minus,Monitor,MoreHorizontal,MoveHorizontal,Music,Package,PanelLeftClose,PanelLeftOpen,PanelRightClose,PanelRightOpen,Pause,Pencil,Pilcrow,Play,Plus,Quote,Redo2,RotateCcw,
- Frame,Scissors,Search,Send,Settings,Settings2,SlidersHorizontal,Sparkles,Spline,Sprout,Square,SquareKanban,SquareSplitHorizontal,StickyNote,Sun,Table,Trash2,TrendingUp,TriangleAlert,Type,Undo2,Upload,Video,Wand2,X,Youtube,Waypoints,ZoomIn,ZoomOut,
+ Frame,Scissors,Search,Send,Settings,Settings2,SlidersHorizontal,Spline,Sprout,Square,SquareKanban,SquareSplitHorizontal,StickyNote,Sun,Table,Trash2,TrendingUp,TriangleAlert,Type,Undo2,Upload,Video,X,Youtube,Waypoints,ZoomIn,ZoomOut,
  type LucideIcon,
 } from 'lucide-react';
 import {QuickRecord} from '../../Icons';
@@ -18,7 +18,7 @@ const glyphs={
  // Actions
  add:Plus,close:X,check:Check,more:MoreHorizontal,delete:Trash2,copy:Copy,link:Link,edit:Pencil,search:Search,send:Send,
  upload:Upload,download:Download,retry:RotateCcw,undo:Undo2,redo:Redo2,history:History,save:Bookmark,'open-external':ArrowUpRight,
- ai:Sparkles,draft:Wand2,drag:GripVertical,fit:Maximize2,fullscreen:Expand,'zoom-in':ZoomIn,'zoom-out':ZoomOut,
+ ai:Bot,draft:FileText,drag:GripVertical,fit:Maximize2,fullscreen:Expand,'zoom-in':ZoomIn,'zoom-out':ZoomOut,
  'text-smaller':AArrowDown,'text-bigger':AArrowUp,'move-up':ArrowUp,'move-down':ArrowDown,next:ArrowRight,previous:ArrowLeft,
  back:ChevronLeft,forward:ChevronRight,expand:ChevronDown,collapse:ChevronUp,choose:ChevronsUpDown,reply:CornerDownRight,
  // Recording and editing

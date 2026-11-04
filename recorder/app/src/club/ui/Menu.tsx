@@ -63,10 +63,10 @@ export function Menu({button,items,align='left',width,label,restoreFocus,below=f
  };
  return <span ref={ref} onKeyDown={enter} style={{position:'relative',display:'inline-flex'}}>
   {button(toggle,open)}
-  {open&&inRoot(host,<div ref={placeMenu} className="menu" role="menu" aria-label={label} style={{position:'fixed',...place,minWidth:width}}>
+  {open&&inRoot(host,<div ref={placeMenu} className="menu border-line bg-card text-ink shadow-[var(--cc-shadow-3)]" role="menu" aria-label={label} style={{position:'fixed',borderRadius:'var(--cc-r-lg)',...place,minWidth:width}}>
    {items.map((item,index)=>item==='-'?<div key={index} className="sep"/>
     :'header' in item?<div key={index} className="hd">{item.header}</div>
-    :<button key={index} type="button" role={item.check===undefined?'menuitem':'menuitemradio'} aria-checked={item.check} disabled={item.disabled} title={item.title} onClick={()=>{giveBack.current=true;setOpen(false);item.fn();}} style={item.danger?{color:'var(--cc-danger)'}:undefined}>
+    :<button key={index} type="button" role={item.check===undefined?'menuitem':'menuitemradio'} aria-checked={item.check} disabled={item.disabled} title={item.title} className="hover:bg-[var(--cc-hover)] focus-visible:outline-accent" onClick={()=>{giveBack.current=true;setOpen(false);item.fn();}} style={{borderRadius:'var(--cc-r)',color:item.danger?'var(--cc-danger)':'var(--cc-text)'}}>
       {item.icon&&<Icon name={item.icon} size={15}/>}<span className="grow">{item.label}</span>{item.check&&<Icon name="check" size={15}/>}
      </button>)}
   </div>)}

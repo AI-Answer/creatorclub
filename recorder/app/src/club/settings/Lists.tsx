@@ -34,7 +34,7 @@ export function FollowedChannels({focus}:{focus?:boolean}){
  const list=useSavedList<FollowedChannel[]>('/followed',"Couldn't load the channels you follow.",loaded=>loaded as FollowedChannel[],value=>value);
  const byLabel=new Map((list.value??[]).map(channel=>[followedLabel(channel),channel]));
  return <Block first title="Followed channels" help="Discover shows what is doing better than usual on these channels.">
-  {list.value===null&&!list.error?<Spinner label="Loading followed channels" size={16}/>:null}
+  {list.value===null&&!list.error?<div className="row small muted" role="status"><Spinner label="Loading followed channels" size={16}/>Loading followed channels…</div>:null}
   {list.value!==null&&<TagEditor label="Followed channels" values={[...byLabel.keys()]} disabled={list.busy} autoFocus={focus} placeholder="@handle or channel link"
    onAdd={(labels,text)=>withFollowed(labels.map(label=>byLabel.get(label)!),text).map(followedLabel)}
    onChange={labels=>void list.save(labels.map(label=>byLabel.get(label)??withFollowed([],label)[0]))}/>}
@@ -51,7 +51,7 @@ export function SignalSources({focus,topics=[]}:{focus?:boolean;topics?:readonly
  const sources=list.value;
  const edit=(key:keyof Sources)=>(next:string[])=>{if(sources)void list.save({...sources,[key]:next});};
  return <Block id="set-sources" title="Signal sources" help="Discover reads posts from these places and shows the ones about your topics.">
-  {sources===null&&!list.error?<Spinner label="Loading signal sources" size={16}/>:null}
+  {sources===null&&!list.error?<div className="row small muted" role="status"><Spinner label="Loading signal sources" size={16}/>Loading signal sources…</div>:null}
   {sources&&<div style={{display:'flex',flexDirection:'column',gap:16}}>
    <div><div className="small" style={{fontWeight:600,marginBottom:6}}>X accounts</div><TagEditor label="X accounts" values={sources.x} disabled={list.busy} autoFocus={focus} placeholder="@account" show={asAccount} onAdd={withEntry} onChange={edit('x')}/></div>
    <div><div className="small" style={{fontWeight:600,marginBottom:6}}>X searches</div><TagEditor label="X searches" values={sources.xTopics} disabled={list.busy} placeholder="A word or a phrase in quotes" show={asSearch} onAdd={withEntry} onChange={edit('xTopics')}/></div>

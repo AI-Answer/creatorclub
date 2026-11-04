@@ -79,7 +79,7 @@ export function EditSuggestion({project,jobs,merge,reload,flush,refresh,onReview
  if(removed&&(project.updatedAt===removed.after||project.updatedAt===removed.before))return <div className="club-edit-suggestion is-quiet" role="status">
   <span>Removed {formatCutDuration(removed.seconds)}</span><span aria-hidden>·</span>
   <Button size="sm" variant="ghost" disabled={busy} onClick={()=>void undo()}>{busy&&<Icon name="loading" className="spin"/>}Undo</Button>
-  <button type="button" className="club-edit-dismiss" aria-label="Dismiss" disabled={busy} onClick={()=>setRemoved(null)}><Icon name="close" size={14}/></button>
+  <button type="button" className="club-edit-dismiss" aria-label="Close" disabled={busy} onClick={()=>setRemoved(null)}><Icon name="close" size={14}/></button>
  </div>;
  if(suggestion.state==='running')return <div className="club-edit-suggestion is-quiet" role="status"><Icon name="loading" className="spin" size={15}/><span>Looking for pauses and repeats…</span></div>;
  // A plan from before the latest edit no longer matches the timeline; the Auto-edit and style sheet offers to look again.

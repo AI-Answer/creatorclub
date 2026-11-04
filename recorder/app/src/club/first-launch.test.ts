@@ -209,7 +209,7 @@ test('Welcome with a channel: add it, see how you talk, break a video down, and 
    assert.match(text(c),/Because you picked Claude/);
    assert.doesNotMatch(text(c),/Not for you/,'only videos that fit your topics');
    assert.deepEqual([...c.querySelectorAll('button.primary')].map(b=>b.textContent),[],'no competing primary on the last step');
-   await click(c,'Break this down');
+   await click(c,'Break down');
    assert.deepEqual(calls.find(call=>call.path==='/breakdowns'&&call.method==='POST')?.body,{url:'https://www.youtube.com/watch?v=abcdefghijk'});
    await emit('done',breakdown);
    assert.match(text(c),/Add the concept you'd make\. That's your first idea\./);

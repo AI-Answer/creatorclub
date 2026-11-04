@@ -7,7 +7,7 @@ import {Icon,MultChip,Thumb} from './ui';
 
 /**
  * One video that is doing well, as the first-run screens show it: picture, the multiplier chip when the channel's usual is known (never a bare dash),
- * views and views a day, why it fits, Follow this channel and Break this down. A press anywhere on it breaks it down.
+ * views and views a day, why it fits, Follow this channel and Break down. A press anywhere on it breaks it down.
  */
 export function TrendCard({item,saved,onBreak}:{item:TrendingEntry;saved:boolean;onBreak(item:TrendingEntry):void}){
  const available=useAiAvailable();
@@ -20,7 +20,7 @@ export function TrendCard({item,saved,onBreak}:{item:TrendingEntry;saved:boolean
   <div className="reason" title={item.reason??undefined}>{item.reason&&<><Icon name="ai" size={12}/><span className="ellipsis">{item.reason}</span></>}</div>
   <div className="trend-actions">
   <FollowChannel item={item}/>
-  <button type="button" className="btn sm" disabled={!saved&&!available} title={!saved&&!available?AI_CONNECT_HINT:undefined} onClick={event=>{event.stopPropagation();open();}}><Icon name={saved?'script':'ai'} size={14}/>{saved?'Open breakdown':'Break this down'}</button>
+  <button type="button" className="btn sm" disabled={!saved&&!available} title={!saved&&!available?AI_CONNECT_HINT:undefined} onClick={event=>{event.stopPropagation();open();}}><Icon name={saved?'script':'ai'} size={14}/>{saved?'Open breakdown':'Break down'}</button>
   </div>
  </div>;
 }

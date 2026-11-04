@@ -2,7 +2,7 @@ import {BrandLogo} from './BrandLogo';
 import {useEffect,useState} from 'react';
 import type {Capabilities,MCPSettings,Project} from '../shared/types';
 import {api} from './api';
-import {Check,Copy,FolderOpen,Sparkles} from './Icons';
+import {Check,Copy,FolderOpen} from './Icons';
 import {Field,Section} from './Inspector';
 import {mcpSetup,type MCPApp,type MCPInfo} from './mcp-setup';
 import './ai-settings.css';
@@ -27,6 +27,6 @@ export function MCPConnection({project,capabilities,onError}:{project:Project|nu
    <div className="ai-path"><input aria-label="AI workspace path" readOnly value={settings?.workspacePath??''} placeholder="Choose an AI workspace folder"/>{settings&&copyButton(settings.workspacePath,'workspace','Copy AI workspace path')}</div>
   </section>
   <Section title="A reviewable editing workflow"><ol className="mcp-workflow"><li><b>Read the project.</b> The assistant inspects clips, scenes, captions and the current revision.</li><li><b>Stage the edit.</b> Timeline changes stay in an isolated transaction while the assistant reviews them.</li><li><b>Commit the result.</b> A change summary accompanies the commit. Conflicting edits are rejected.</li><li><b>Render and verify.</b> Export runs locally, with progress and cancellation tools.</li></ol><p className="hint">Committed assistant edits appear here automatically. If you have unsaved local changes, they are preserved and the editor asks you to resolve the conflict.</p></Section>
-  <Section title="Current project">{project?<><Field label="Project ID"><input aria-label="MCP project ID" readOnly value={project.id}/></Field><textarea aria-label="AI editing context" className="mcp-context" rows={5} readOnly value={context}/><button className="button" onClick={()=>void copy(context,'context')}>{copied==='context'?<Check size={15}/>:<Sparkles size={15}/>} {copied==='context'?'Project context copied':'Copy project context for AI'}</button></>:<p className="hint">Open a project to copy its ID and editing context for your assistant.</p>}</Section>
+  <Section title="Current project">{project?<><Field label="Project ID"><input aria-label="MCP project ID" readOnly value={project.id}/></Field><textarea aria-label="AI editing context" className="mcp-context" rows={5} readOnly value={context}/><button className="button" onClick={()=>void copy(context,'context')}>{copied==='context'?<Check size={15}/>:<Copy size={15}/>} {copied==='context'?'Project context copied':'Copy project context for AI'}</button></>:<p className="hint">Open a project to copy its ID and editing context for your assistant.</p>}</Section>
  </div>;
 }

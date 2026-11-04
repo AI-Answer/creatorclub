@@ -17,8 +17,8 @@ function DialogPanel({onClose,title,description,children,footer,width,className}
  useEscape(onClose);
  const panel=useFocusPanel();
  return <>
-  <div className="scrim" onClick={onClose}/>
-  <div ref={panel} tabIndex={-1} className={cn('dialog',className)} role="dialog" aria-modal="true" aria-labelledby={titleId} aria-describedby={description?descriptionId:undefined} style={width?{width}:undefined}>
+  <div className="scrim bg-scrim" onClick={onClose}/>
+  <div ref={panel} tabIndex={-1} className={cn('dialog rounded-[var(--cc-r-lg)] border-line bg-card text-ink shadow-[var(--cc-shadow-3)]',className)} role="dialog" aria-modal="true" aria-labelledby={titleId} aria-describedby={description?descriptionId:undefined} style={width?{width}:undefined}>
    <div className="dh" style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:12}}>
     <div><h3 id={titleId}>{title}</h3>{description&&<p id={descriptionId} className="muted" style={{marginTop:4}}>{description}</p>}</div>
     <IconButton icon="close" label="Close" shortcut="Esc" style={{marginRight:-6,marginTop:-2}} onClick={onClose}/>

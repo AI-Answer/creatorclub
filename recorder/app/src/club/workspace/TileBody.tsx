@@ -126,13 +126,13 @@ function VideoTile({tile,videoId,reading,onRemove,onRetryRead,onBreakdown}:TileB
     :meta.views!==undefined?<div className="stats"><span><b>{fmtNum(meta.views)}</b> views</span>{meta.ageDays!==undefined&&<span>{fmtDays(meta.ageDays)}</span>}</div>:null}
    <div className="row" style={{marginTop:8,gap:6,flexWrap:'wrap'}}>
     {tile.url&&<a className="btn sm ghost" href={tile.url} target="_blank" rel="noopener noreferrer"><Icon name="open-external" size={13}/>Open</a>}
-    {source&&<button type="button" className="btn sm ghost" onClick={()=>onBreakdown(source)}><Icon name="script" size={13}/>Breakdown</button>}
+    {source&&<button type="button" className="btn sm ghost" onClick={()=>onBreakdown(source)}><Icon name="script" size={13}/>Break down</button>}
     {meta.transcript&&<button type="button" className="btn sm ghost" aria-expanded={open} onClick={()=>setOpen(current=>!current)}>{open?'Hide transcript':'Transcript'}</button>}
    </div>
    {open&&(error?<div style={{marginTop:8}}><ErrorLine message={error} onRetry={()=>{setError('');setChapters(null);}}/></div>
-    :!chapters?<div style={{marginTop:8}}><Spinner label="Loading the transcript" size={14}/></div>
+    :!chapters?<div style={{marginTop:8}}><span className="row small muted" role="status"><Spinner label="Loading the transcript" size={14}/>Loading the transcript…</span></div>
     :<div data-wheel="own" style={{marginTop:8,display:'flex',flexDirection:'column',gap:8,maxHeight:240,overflow:'auto'}} aria-label="Transcript">
-      {chapters.map((chapter,index)=><div key={index}><div className="small" style={{fontWeight:600}}><span className="faint" style={{marginRight:6}}>{clockTime(chapter.start)}</span>{chapter.title}</div><p style={{margin:'2px 0 0',fontSize:13,lineHeight:1.5}}>{chapter.text}</p></div>)}
+      {!chapters.length&&<p className="small muted">No transcript chapters were found. Open the source video to check its captions.</p>}{chapters.map((chapter,index)=><div key={index}><div className="small" style={{fontWeight:600}}><span className="faint" style={{marginRight:6}}>{clockTime(chapter.start)}</span>{chapter.title}</div><p style={{margin:'2px 0 0',fontSize:13,lineHeight:1.5}}>{chapter.text}</p></div>)}
      </div>)}
   </div>
  </>;
@@ -144,14 +144,14 @@ function BreakdownTile({tile,videoId,onRemove,onBreakdown}:TileBodyProps){
   if(!tile.meta.breakdownId)return;
   clubFetch<Breakdown>(`/breakdowns/${encodeURIComponent(tile.meta.breakdownId)}`).then(setFound,()=>setFound(null));
  },[tile.meta.breakdownId]);
- if(found===undefined)return <><TileHead icon="ai" label="Breakdown" onRemove={onRemove}/><div className="tb"><Spinner label="Loading the breakdown" size={14}/></div></>;
- if(!found)return <><TileHead icon="ai" label="Breakdown" onRemove={onRemove}/><div className="tb small muted">This breakdown is no longer saved.</div></>;
+ if(found===undefined)return <><TileHead icon="ai" label="Breakdown" onRemove={onRemove}/><div className="tb"><span className="row small muted" role="status"><Spinner label="Loading the breakdown" size={14}/>Loading the breakdown…</span></div></>;
+ if(!found)return <><TileHead icon="ai" label="Breakdown" onRemove={onRemove}/><div className="tb small muted">This breakdown could not be loaded. Remove this card and break down the source video again.</div></>;
  const why=found.whyItWorked;
  const source=youtubeId(found.url);
  return <>
   <TileHead icon="ai" label={`Breakdown · ${creatorName(found.video.channel)}`} onRemove={onRemove}/>
   <div className="tb">
-   <div className="row" style={{gap:10,marginBottom:10}}><img src={found.video.thumbnail} alt="" style={{width:72,height:40,borderRadius:5,objectFit:'cover'}}/><div style={{fontWeight:600,fontSize:13,lineHeight:1.3}} className="clamp2">{found.video.title}</div></div>
+   <div className="row" style={{gap:10,marginBottom:10}}><img src={found.video.thumbnail} alt="" style={{width:72,height:40,borderRadius:'var(--cc-r-lg)',objectFit:'cover'}}/><div style={{fontWeight:600,fontSize:13,lineHeight:1.3}} className="clamp2">{found.video.title}</div></div>
    <div className="small faint" style={{marginBottom:6}}>Why it worked</div>
    <ol style={{margin:0,paddingLeft:18,fontSize:13,lineHeight:1.5,color:'var(--cc-text-2)',display:'flex',flexDirection:'column',gap:6}}>{[why.titlePackaging,why.hookSpeed,why.retention].filter(Boolean).slice(0,3).map((line,index)=><li key={index}>{line}</li>)}</ol>
    {source&&<button type="button" className="btn sm ghost" style={{marginTop:8}} onClick={()=>onBreakdown(source)}><Icon name="script" size={13}/>Open breakdown</button>}
@@ -177,7 +177,7 @@ function LinkTile({tile,onRemove}:TileBodyProps){
  return <>
   <TileHead icon="link" label="Link" onRemove={onRemove}/>
   <div className="tb row" style={{alignItems:'flex-start',gap:10}}>
-   <span style={{width:32,height:32,borderRadius:8,background:'var(--cc-bg-sunk)',fontWeight:700,color:'var(--cc-text-2)',display:'inline-flex',alignItems:'center',justifyContent:'center',flex:'none'}}>{host.charAt(0).toUpperCase()}</span>
+   <span style={{width:32,height:32,borderRadius:'var(--cc-r-lg)',background:'var(--cc-bg-sunk)',fontWeight:700,color:'var(--cc-text-2)',display:'inline-flex',alignItems:'center',justifyContent:'center',flex:'none'}}>{host.charAt(0).toUpperCase()}</span>
    <div style={{minWidth:0}}><div style={{fontWeight:600,fontSize:13.5,lineHeight:1.35}}>{tile.title??host}</div><a href={tile.url} target="_blank" rel="noopener noreferrer" className="small ellipsis" style={{color:'var(--cc-accent-text)',display:'block'}}>{host}</a></div>
   </div>
  </>;
@@ -188,7 +188,7 @@ function ImageTile({tile,videoId,onRemove}:TileBodyProps){
  return <>
   <TileHead icon="image" label="Screenshot" onRemove={onRemove}/>
   <div className="tb">
-   {picture?<img src={picture} alt={tile.title??''} style={{width:'100%',aspectRatio:'16/10',objectFit:'cover',borderRadius:8,border:'1px solid var(--cc-line)'}}/>:<div className="small muted"><Icon name="image" size={14}/> Image not found</div>}
+   {picture?<img src={picture} alt={tile.title??''} style={{width:'100%',aspectRatio:'16/10',objectFit:'cover',borderRadius:'var(--cc-r-lg)',border:'1px solid var(--cc-line)'}}/>:<div className="small muted"><Icon name="image" size={14}/> No image is saved. Remove this card and add the image again.</div>}
    <div className="small muted" style={{marginTop:8}}>{tile.title??'Screenshot'}</div>
   </div>
  </>;

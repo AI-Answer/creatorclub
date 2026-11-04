@@ -75,7 +75,7 @@ export function ResultCard({record,video,onCheck,onForget,children}:{record:Resu
   {children&&<div style={{width:'100%'}}>{children}</div>}
   {onForget&&<div className="row"><Button size="sm" onClick={()=>{setForgetError('');void onForget().catch(reason=>setForgetError(errorMessage(reason)));}}>I checked Postiz, it isn't there. Allow sending again</Button></div>}
   {forgetError&&<p role="alert" className="small warn-text" style={{margin:0}}>{forgetError}</p>}
-  {record.postizUrl&&reminder&&<p className="small muted" style={{margin:0}}>Postiz publishing is new here. Open the video on YouTube once and check that the made-for-kids answer and the thumbnail are as you set them. <button type="button" className="linkish" onClick={()=>{markReminderSeen();setReminder(false);}}>Got it</button></p>}
+  {record.postizUrl&&reminder&&<p className="small muted" style={{margin:0}}>Postiz publishing is new here. Open the video on YouTube once and check that the made-for-kids answer and the thumbnail are as you set them. <button type="button" className="linkish" onClick={()=>{markReminderSeen();setReminder(false);}}>Close</button></p>}
  </Card>;
 }
 

@@ -61,7 +61,7 @@ export function AgentSection(){
  return <section className="set-group" id="set-agent" aria-labelledby="set-agent-title"><h2 id="set-agent-title">Your AI agent</h2>
   <p>Work in Creator Compiler from Claude Code, Codex or any app that speaks MCP. Changes go through the same checks as Ask Claude, and each one can be undone.</p>
   <Card>
-   {error?<div style={{padding:16}}><ErrorLine message={error} onRetry={load}/></div>:info===undefined||!settings?<div style={{padding:16}}><Spinner label="Reading the agent settings"/></div>:<>
+   {error?<div style={{padding:16}}><ErrorLine message={error} onRetry={load}/></div>:info===undefined||!settings?<div className="row small muted" role="status" style={{padding:16}}><Spinner label="Reading the agent settings"/>Reading the agent settings…</div>:<>
     <div className="srow2">
      <div className="grow"><div className="st">Allow AI agents</div><div className="sd">{enabled?'Connected agents can read and change your videos.':'Connected agents are told it is turned off.'}</div></div>
      <button type="button" role="switch" aria-checked={enabled} aria-label="Allow AI agents" className="sk-switch" disabled={busy==='switch'} onClick={toggle}><span/></button>

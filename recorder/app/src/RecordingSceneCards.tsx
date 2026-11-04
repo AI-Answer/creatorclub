@@ -3,7 +3,7 @@ import type {DragEvent,ReactNode} from 'react';
 import type {Project,Scene} from '../shared/types';
 import type {SavedTake} from './recorded-takes';
 import {sceneCardData,type ListedTake} from './recording-scene-data';
-import {AudioLines,ChevronDown,FolderOpen,GripVertical,Play,Plus,Scissors,Settings2,Trash2,Upload,WandSparkles} from './Icons';
+import {AudioLines,ChevronDown,FolderOpen,GripVertical,Play,Plus,Scissors,Settings2,Trash2,Upload,LayoutTemplate} from './Icons';
 import './recording-scene-cards.css';
 import {takeThumbnailLabel} from './club/recorder/recorder-checks';
 import {takeKinds} from './club/ui/kinds';
@@ -100,13 +100,13 @@ export const RecordingSceneCards=memo(function RecordingSceneCards(props:Recordi
      </CardMenu>}</div></header>
      {scene.script&&<p className="rsc-script" dir="auto">{scene.script}</p>}
      <div className={`rsc-takes ${drop===`active:${scene.id}`?'is-over':''}`} aria-label={`${scene.name||'Scene'} confirmed takes`} onDragOver={e=>{if(!locked&&drag?.kind==='take'&&(props.onMoveTake||takes.find(t=>t.id===drag.id)?.sceneId===scene.id)){e.preventDefault();e.stopPropagation();setDrop(`active:${scene.id}`);}}} onDragLeave={()=>setDrop(null)} onDrop={e=>receiveTake(e,scene.id,false)}>
-      {recorded?<button type="button" className="rsc-record-tile" disabled={locked} onClick={()=>invoke(()=>props.onRecord(scene.id,recordOver?'record-over':'replace-matching'))}><Plus size={16}/>{recordOver?'Record Over':'Record'}</button>:<div className="rsc-empty-record-row"><button type="button" className="rsc-record-button" disabled={locked} onClick={()=>invoke(()=>props.onRecord(scene.id,'replace-matching'))}><span aria-hidden="true"/>Record</button><button type="button" className="rsc-import" disabled={locked} onClick={()=>invoke(()=>props.onImport(scene.id))}>or Import from file.</button></div>}
+      {recorded?<button type="button" className="rsc-record-tile" disabled={locked} onClick={()=>invoke(()=>props.onRecord(scene.id,recordOver?'record-over':'replace-matching'))}><Plus size={16}/>{recordOver?'Record over':'Record'}</button>:<div className="rsc-empty-record-row"><button type="button" className="rsc-record-button" disabled={locked} onClick={()=>invoke(()=>props.onRecord(scene.id,'replace-matching'))}><span aria-hidden="true"/>Record</button><button type="button" className="rsc-import" disabled={locked} onClick={()=>invoke(()=>props.onImport(scene.id))}>or Import from file.</button></div>}
       {active.map(t=>renderTake(t,scene.id))}
      </div>
      {legacyFootage&&<p className="rsc-legacy-note">Existing scene footage is available in Edit. Its take history is unavailable.</p>}
      {!props.club&&(props.onAutoCut||props.onVisualize)&&<div className="rsc-quick-actions" aria-label={`Quick actions for ${scene.name||`Scene ${index+1}`}`}>
       {props.onAutoCut&&<button type="button" disabled={locked||scene.duration<=0} title={scene.duration>0?'Review Auto-cut changes for this scene only':'Add footage to this scene first'} onClick={()=>invoke(()=>props.onAutoCut!(scene.id))}><Scissors size={14}/>Remove pauses</button>}
-      {props.onVisualize&&<button type="button" disabled={locked||scene.duration<=0} title={scene.duration>0?'Review visuals for this scene only':'Add footage to this scene first'} onClick={()=>invoke(()=>props.onVisualize!(scene.id))}><WandSparkles size={14}/>Style video</button>}
+      {props.onVisualize&&<button type="button" disabled={locked||scene.duration<=0} title={scene.duration>0?'Review visuals for this scene only':'Add footage to this scene first'} onClick={()=>invoke(()=>props.onVisualize!(scene.id))}><LayoutTemplate size={14}/>Style video</button>}
      </div>}
      {archived.length>0&&<><button type="button" className="rsc-archive-toggle" disabled={locked} aria-expanded={showArchive} onClick={()=>setExpanded({...expanded,[scene.id]:!showArchive})}>{showArchive?<ChevronDown size={15}/>:<FolderOpen size={15}/>}Archived ({archived.length})</button>{showArchive&&<div className={`rsc-takes rsc-archived ${drop===`archive:${scene.id}`?'is-over':''}`} aria-label={`${scene.name||'Scene'} archived takes`} onDragOver={e=>{if(!locked&&drag?.kind==='take'&&(props.onMoveTake||takes.find(t=>t.id===drag.id)?.sceneId===scene.id)){e.preventDefault();e.stopPropagation();setDrop(`archive:${scene.id}`);}}} onDragLeave={()=>setDrop(null)} onDrop={e=>receiveTake(e,scene.id,true)}>{archived.map(t=>renderTake(t,scene.id))}</div>}</>}
     </article>

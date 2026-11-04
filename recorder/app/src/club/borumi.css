@@ -96,7 +96,7 @@
 .club-embed .app-shell[data-mode=Record] .club-record .rsc-script { margin: 12px 0 16px; font-size: var(--cc-text-base); color: var(--cc-text); }
 .club-embed .app-shell[data-mode=Record] .club-record .rsc-add-between { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; height: 40px; margin: 6px 0; border-radius: var(--cc-r); font-size: var(--cc-text-base); font-weight: 600; color: var(--cc-text); }
 .club-embed .app-shell[data-mode=Record] .club-record .rsc-add-between:hover { background: var(--cc-surface); }
-.club-embed .app-shell[data-mode=Record] .club-record .capture-switch[aria-checked=true] { background: var(--cc-ok); }
+.club-embed .app-shell[data-mode=Record] .club-record .capture-switch[aria-checked=true] { background: var(--cc-accent); }
 .club-embed .app-shell[data-mode=Record] .club-record .capture-preview-empty { background: var(--cc-dark-stage); color: var(--cc-on-media); }
 .club-embed .app-shell[data-mode=Record] .club-record .capture-preview-empty .button { background: var(--cc-on-media); color: var(--cc-dark-stage); }
 .club-embed .app-shell[data-mode=Record] .club-record .source-readiness { display: none; }
@@ -206,7 +206,7 @@
 .club-root .page.home-b .sec-head { margin: 40px 0 12px; }
 .club-root .page.home-b .sec-head .sec { font-size: var(--cc-text-sm); font-weight: 700; color: var(--cc-text); letter-spacing: 0; }
 .club-root .page.home-b .sec-head .more { font-size: var(--cc-text-xs); font-weight: 600; color: var(--cc-text); }
-.club-root .page.home-b .card { border: 1px solid var(--cc-line); border-radius: var(--cc-r); background: var(--cc-surface); box-shadow: none; }
+.club-root .page.home-b .card { border: 1px solid var(--cc-line); border-radius: var(--cc-r-lg); background: var(--cc-surface); box-shadow: none; }
 .club-root .page.home-b .card.hov:hover { border-color: var(--cc-line-hover); }
 /* The other Home tab screens share the same cards and section headers. */
 .club-root .page :is(.card, .list-card) { box-shadow: none; }
@@ -217,9 +217,9 @@
 .club-root .help-scrim { position: fixed; inset: 0; z-index: 50; background: var(--cc-scrim); }
 .club-root .help-pop { position: fixed; top: 48px; right: 24px; z-index: 51; width: 320px; display: flex; flex-direction: column; gap: 12px; padding: 16px; border: 1px solid var(--cc-line); border-radius: var(--cc-r-lg); background: var(--cc-bg); box-shadow: var(--cc-shadow-3); }
 .club-root .help-pop h2 { margin: 0 0 4px; font-size: var(--cc-text-lg); font-weight: 600; color: var(--cc-text); }
-.club-root .help-card { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 16px; border: 1px solid var(--cc-line); border-radius: var(--cc-r); background: var(--cc-surface); text-align: left; color: var(--cc-text); transition: border-color var(--cc-dur) var(--cc-ease); }
+.club-root .help-card { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 16px; border: 1px solid var(--cc-line); border-radius: var(--cc-r-lg); background: var(--cc-surface); text-align: left; color: var(--cc-text); transition: border-color var(--cc-dur) var(--cc-ease); }
 .club-root .help-card:hover { border-color: var(--cc-accent); }
-.club-root .help-card + .help-card:hover { border-color: var(--cc-warn); }
+.club-root .help-card + .help-card:hover { border-color: var(--cc-accent); }
 .club-root .help-card b { display: flex; align-items: center; gap: 8px; font-size: var(--cc-text-base); font-weight: 600; }
 .club-root .help-card span { font-size: var(--cc-text-xs); color: var(--cc-text-3); }
 
@@ -229,8 +229,8 @@
 
 /* Menus: Borumi's (min-w-[8rem] rounded-md border bg-popover p-1 shadow-lg; rows text-sm px-2 py-1.5 rounded-sm, hover accent;
    fade and zoom-95 in). */
-.club-root .menu { min-width: 128px; padding: 4px; border: 1px solid var(--cc-line); border-radius: var(--cc-r); background: var(--cc-bg); box-shadow: var(--cc-shadow-3); animation: borumi-pop var(--cc-dur) var(--cc-ease); }
-.club-root .menu button { height: 32px; padding: 0 8px; border-radius: var(--cc-r-sm); font-size: var(--cc-text-sm); color: var(--cc-text); }
+.club-root .menu { min-width: 128px; padding: 4px; border: 1px solid var(--cc-line); border-radius: var(--cc-r-lg); background: var(--cc-bg); box-shadow: var(--cc-shadow-3); animation: borumi-pop var(--cc-dur) var(--cc-ease); }
+.club-root .menu button { height: 32px; padding: 0 8px; border-radius: var(--cc-r); font-size: var(--cc-text-sm); color: var(--cc-text); }
 .club-root .menu button:hover { background: var(--cc-hover); }
 @keyframes borumi-pop { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
 @media (prefers-reduced-motion: reduce) { .club-root .menu { animation: none; } }
@@ -304,7 +304,7 @@
 .club-embed .app-shell[data-mode=Edit] .club-edit .club-wave path { fill: var(--kind-audio-wave); }
 .club-embed .app-shell[data-mode=Edit] .club-edit .club-word { top: 6px; height: 16px; padding: 0 2px; border-radius: 0; background: transparent; color: var(--kind-ink); font-size: var(--cc-text-xs); line-height: 16px; font-weight: 600; z-index: 4; }
 /* Notes on the timeline: a small dot on the ruler (filled once it has text), not a badge, and no line through the clips. */
-.club-embed .app-shell[data-mode=Edit] .club-edit .club-marker { top: 6px; width: 9px; height: 9px; margin-left: -4.5px; border-radius: var(--cc-r-pill); background: transparent; box-shadow: inset 0 0 0 1.5px var(--kind-markers); }
+.club-embed .app-shell[data-mode=Edit] .club-edit .club-marker { top: 6px; width: 9px; height: 9px; margin-left: -4.5px; border-radius: var(--cc-r-pill); background: transparent; box-shadow: none; outline: 1.5px solid var(--kind-markers); outline-offset: -1.5px; }
 .club-embed .app-shell[data-mode=Edit] .club-edit .club-marker.has-note { background: var(--kind-markers); box-shadow: none; }
 .club-embed .app-shell[data-mode=Edit] .club-edit .club-marker > svg { display: none; }
 .club-embed .app-shell[data-mode=Edit] .club-edit .club-marker:hover { transform: scale(1.35); }
@@ -324,9 +324,9 @@
 .club-embed .app-shell[data-mode=Edit] .club-edit .club-clip-card.fold:not(.open) > h3 { margin-bottom: 0; }
 .club-embed .app-shell[data-mode=Edit] .club-edit .club-clip-card.fold.open .club-fold-h svg { transform: rotate(180deg); }
 .club-embed .app-shell[data-mode=Edit] .club-edit .caption-presets { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.club-embed .app-shell[data-mode=Edit] .club-edit .caption-tile { position: relative; display: flex; flex-direction: column; aspect-ratio: 16 / 10; padding: 8px; overflow: hidden; border: 1px solid var(--cc-line); border-radius: var(--cc-r-lg); background: linear-gradient(160deg, var(--cc-hover), var(--cc-surface-2)); cursor: pointer; font-weight: 700; line-height: 1.15; }
+.club-embed .app-shell[data-mode=Edit] .club-edit .caption-tile { position: relative; display: flex; flex-direction: column; aspect-ratio: 16 / 10; padding: 8px; overflow: hidden; border: 1px solid var(--cc-line); border-radius: var(--cc-r-lg); background: var(--cc-surface-2); cursor: pointer; font-weight: 700; line-height: 1.15; }
 .club-embed .app-shell[data-mode=Edit] .club-edit .caption-tile:hover { border-color: var(--cc-line-strong); }
-.club-embed .app-shell[data-mode=Edit] .club-edit .caption-tile.on { border-color: var(--kind-camera); box-shadow: 0 0 0 1px var(--kind-camera); background: color-mix(in srgb, var(--kind-camera) 22%, var(--cc-surface-2)); }
+.club-embed .app-shell[data-mode=Edit] .club-edit .caption-tile.on { border-color: var(--cc-accent); outline: 1px solid var(--cc-accent); box-shadow: none; background: var(--cc-accent-soft); }
 .club-embed .app-shell[data-mode=Edit] .club-edit .caption-tile.none { align-items: center; justify-content: center; color: var(--cc-text-2); font-size: var(--cc-text-sm); font-weight: 600; }
 .club-embed .app-shell[data-mode=Edit] .club-edit .caption-sample { align-self: center; padding: 1px 6px; border-radius: var(--cc-r-sm); white-space: nowrap; }
 .club-embed .app-shell[data-mode=Edit] .club-edit .caption-sample.at-bottom { margin-top: auto; }

@@ -36,6 +36,7 @@ export function CalendarView({videos,onOpen,onOpenPublish,onSchedule,today=new D
     <input type="date" className="input" style={{height:26,width:132,padding:'0 6px',fontSize:12.5}} aria-label={`Set publish date for ${video.title}`} value="" onChange={event=>{if(event.target.value)onSchedule(video.id,event.target.value);}}/>
    </span>)}</span>}
   </div>
+  {videos.length===0&&<p className="small muted" role="status">No videos yet. Use New video to add one, then set its publish date.</p>}
   <div className="cal">
    {WEEKDAYS.map(name=><div key={name} className="dow">{name}</div>)}
    {monthGrid(month).flat().map(cell=><div key={cell.key} data-day={cell.key} {...dropOn(cell.key)}
@@ -47,7 +48,7 @@ export function CalendarView({videos,onOpen,onOpenPublish,onSchedule,today=new D
        title={`${video.title} · ${STAGE_LABEL[video.stage]}${isSetDay(video)?'':` · Moved to ${STAGE_LABEL[video.stage]} this day`}`}
        onClick={()=>onOpen(video)} onKeyDown={event=>{if(event.key==='Enter')onOpen(video);}}
        onDragStart={draggable?event=>{event.dataTransfer.effectAllowed='move';event.dataTransfer.setData('text/plain',video.id);setDragId(video.id);}:undefined} onDragEnd={end}>
-       <Thumb videoId={videoThumbId(video)} cover={video.id} text={video.title} seed={video.id} className="mini" style={{width:30,height:17,aspectRatio:'auto',borderRadius:3,flex:'none'}}/>
+       <Thumb videoId={videoThumbId(video)} cover={video.id} text={video.title} seed={video.id} className="mini" style={{width:30,height:17,aspectRatio:'auto',borderRadius:'var(--cc-r-lg)',flex:'none'}}/>
        <span className="ellipsis">{video.title}</span>
       </div>;
      })}

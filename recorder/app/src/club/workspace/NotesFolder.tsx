@@ -21,7 +21,7 @@ export function NotesFolder({notes,onChoose,onPin,onClose}:{notes:BoardFiles['no
   if(folder)await use(folder);
  };
  return <Dialog title="Notes folder" description="Pick a folder with Markdown files, like an Obsidian vault or a folder an agent writes to. Each file shows up here and you can pin it to this board." onClose={onClose} width={560}
-  footer={<><Button variant="ghost" onClick={onClose}>Done</Button></>}>
+  footer={<><Button variant="ghost" onClick={onClose}>Close</Button></>}>
   <div className="notes-folder">
    {notes?<div className="row" style={{gap:8}}><Icon name="folder-open" size={15}/><span className="grow ellipsis" title={notes.path}>{notes.display}</span>
      <Button size="sm" variant="ghost" onClick={()=>void use(null)} disabled={!!busy}>Stop using</Button></div>:null}

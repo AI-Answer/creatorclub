@@ -45,9 +45,9 @@ export function Sidebar({route,onSearch,onSwitched,onAdd,videos,epoch}:{route:Ro
 
 /** Shows the current channel and lists the others. Choosing one makes it the current channel; Add a channel opens first launch. */
 function ChannelSwitcher({collapsed,epoch,onSwitched,onAdd}:{collapsed:boolean;epoch:number;onSwitched():void;onAdd():void}){
- const [channels,setChannels]=useState<Channels|null>(null);
+ const [channels,setChannels]=useState<Channels|null>(null),[loadFailed,setLoadFailed]=useState(false);
  const toast=useToast();
- useEffect(()=>{let live=true;clubFetch<Channels>('/workspaces').then(next=>live&&setChannels(next),()=>{});return()=>{live=false;};},[epoch]);
+ useEffect(()=>{let live=true;setLoadFailed(false);clubFetch<Channels>('/workspaces').then(next=>live&&setChannels(next),()=>{if(live)setLoadFailed(true);});return()=>{live=false;};},[epoch]);
  const choose=useCallback((slug:string)=>{
   if(slug===channels?.current)return;
   clubFetch(`/workspaces/${encodeURIComponent(slug)}/current`,{method:'POST'}).then(()=>{
@@ -63,8 +63,8 @@ function ChannelSwitcher({collapsed,epoch,onSwitched,onAdd}:{collapsed:boolean;e
  const name=current?.name??'';
  const items:MenuItem[]=[{header:'Channels'},...(channels?.workspaces??[]).map(workspace=>({label:workspace.name,check:workspace.slug===channels?.current,fn:()=>choose(workspace.slug)})),'-',{label:'Add a channel',icon:'add',fn:onAdd}];
  return <Menu width={240} label="Channels" items={items} button={toggle=><button type="button" className="channel-btn" onClick={toggle} disabled={!channels} title={collapsed?name:undefined} aria-label="Switch channel" aria-haspopup="menu">
-  {channels?<Avatar name={name} size="lg" sq/>:<span aria-hidden style={{width:38,height:38,flex:'none',borderRadius:10,background:'var(--cc-bg-sunk)'}}/>}
-  <span className="meta"><div className="name ellipsis">{name}</div><div className="sub">{channels?(current?.handle||'Starting fresh'):''}</div></span>
+  {channels?<Avatar name={name} size="lg" sq/>:<span aria-hidden style={{width:38,height:38,flex:'none',borderRadius:'var(--cc-r-lg)',background:'var(--cc-bg-sunk)'}}/>}
+  <span className="meta"><div className="name ellipsis">{channels?name:loadFailed?'Channels unavailable':'Loading channels…'}</div><div className="sub" role={loadFailed?'alert':undefined}>{loadFailed?"Couldn't load channels. Reopen the app to try again.":channels?(current?.handle||'Starting fresh'):''}</div></span>
   <Icon name="choose" size={15} className="chev faint"/>
  </button>}/>;
 }

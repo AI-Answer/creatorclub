@@ -224,7 +224,7 @@ test('the first-publish reminder shows until it is dismissed or a Postiz publish
  await withPublish({record:{...sent,state:'queued',url:undefined}},async ui=>{
   const c=ui.container;
   assert.ok(c.textContent?.includes(reminder));
-  await click(button(c,'Got it'));
+  await click(button(c,'Close'));
   assert.ok(!c.textContent?.includes(reminder));
  });
  await withPublish({record:{...sent,state:'queued',url:undefined}},async ui=>assert.ok(!ui.container.textContent?.includes(reminder),'dismissed for good'));

@@ -9,16 +9,16 @@
 .club-root .new-start-card:disabled, .club-root .new-recent-row:disabled { opacity: .6; cursor: wait; }
 .club-root .new-start-card b { margin-top: 2px; font-size: var(--cc-text-base); font-weight: 600; }
 .club-root .new-start-card > span:last-child { color: var(--cc-text-3); font-size: var(--cc-text-sm); line-height: 1.5; max-width: 240px; }
-.club-root .new-start-icon { display: grid; place-items: center; width: 44px; height: 44px; min-height: 44px; flex: none; aspect-ratio: 1; padding: 0; align-self: center; border-radius: 50%; }
-.club-root .new-start-plan { background: var(--cc-ok-soft); color: var(--cc-ok); }
-.club-root .new-start-quick { background: var(--cc-accent-soft); color: var(--cc-accent-text); }
+.club-root .new-start-icon { display: grid; place-items: center; width: 44px; height: 44px; min-height: 44px; flex: none; aspect-ratio: 1; padding: 0; align-self: center; border-radius: var(--cc-r-lg); }
+.club-root .new-start-plan { background: var(--cc-bg-sunk); color: var(--cc-text-2); }
+.club-root .new-start-quick { background: var(--cc-bg-sunk); color: var(--cc-text-2); }
 .club-root .new-breakdown { display: flex; align-items: center; gap: 6px; margin: 16px auto 0; font: inherit; font-size: var(--cc-text-xs); }
 .club-root .new-recents { margin-top: 24px; }
 .club-root .new-recents h4 { font-size: var(--cc-text-sm); font-weight: 600; }
 .club-root .new-recents > .row { margin-bottom: 10px; }
 .club-root .new-recent-row { display: flex; align-items: center; gap: 10px; width: 100%; border: 0; border-top: 1px solid var(--cc-line); background: transparent; color: var(--cc-text); padding: 9px 0; font: inherit; text-align: left; cursor: pointer; }
 .club-root .new-recent-row:hover { background: var(--cc-hover); }
-.club-root .new-recent-row .thumb { display: grid; place-items: center; width: 48px; height: 30px; color: var(--cc-text-3); background: var(--cc-bg-sunk); border: 1px solid var(--cc-line); flex: none; border-radius: var(--cc-r-sm); overflow: hidden; }
+.club-root .new-recent-row .thumb { display: grid; place-items: center; width: 48px; height: 30px; color: var(--cc-text-3); background: var(--cc-bg-sunk); border: 1px solid var(--cc-line); flex: none; border-radius: var(--cc-r-lg); overflow: hidden; }
 .club-root .new-recent-row b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--cc-text-sm); }
 .club-root .new-recent-row time { color: var(--cc-text-3); font-size: var(--cc-text-xs); white-space: nowrap; }
 @media (max-width: 580px) {

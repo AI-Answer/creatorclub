@@ -7,8 +7,8 @@ export function Sheet({children,header,footer,onClose,label,width}:{children?:Re
  useEscape(onClose);
  const panel=useFocusPanel();
  return <>
-  <div className="scrim" onClick={onClose}/>
-  <aside ref={panel} tabIndex={-1} className="drawer" role="dialog" aria-modal="true" aria-label={label} style={width?{width}:undefined}>
+  <div className="scrim bg-scrim" onClick={onClose}/>
+  <aside ref={panel} tabIndex={-1} className="drawer rounded-[var(--cc-r-lg)] border-line bg-card text-ink shadow-[var(--cc-shadow-3)]" role="dialog" aria-modal="true" aria-label={label} style={width?{width}:undefined}>
    <div className="dh">{header}<IconButton icon="close" label="Close" shortcut="Esc" style={{marginLeft:'auto'}} onClick={onClose}/></div>
    <div className="db">{children}</div>
    {footer&&<div className="df">{footer}</div>}

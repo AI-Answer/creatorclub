@@ -29,7 +29,7 @@ export function PublishingSection({publishing,error,onReload,onPublishing,savedT
    <div className="srow2" style={{alignItems:'flex-start'}}>
     <span className="logo logo-postiz"><BrandLogo brand="postiz" size={28}/></span>
     <div className="grow" style={{minWidth:0}}><div className="st">Postiz</div><div className="sd" style={{marginBottom:10}}>Publishes to your connected YouTube channel, now or on a schedule.</div>
-     {error?<ErrorLine message={error} onRetry={onReload}/>:publishing?<PostizSetup state={publishing} onState={onPublishing}/>:<Spinner label="Loading"/>}
+     {error?<ErrorLine message={error} onRetry={onReload}/>:publishing?<PostizSetup state={publishing} onState={onPublishing}/>:<div className="row small muted" role="status"><Spinner label="Loading publishing settings"/>Loading publishing settings…</div>}
     </div>
    </div>
    <div className="srow2"><div className="grow"><div className="st"><label htmlFor="set-vis">Who can watch new videos</label></div></div>

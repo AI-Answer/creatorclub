@@ -115,12 +115,12 @@ export function DiscoverScreen({show='fit',navigate}:{show?:DiscoverShow;navigat
    const config=await clubFetch<{reddit?:string[]}>('/signals-config');
    await clubFetch('/signals-config',{method:'PUT',body:{reddit:withEntry(config.reddit??[],name)}});
    void signals.reload();
-  }catch(reason){toast(errorMessage(reason,"Couldn't add that."));}
+  }catch(reason){toast(errorMessage(reason,"Couldn't add that."),{refused:true});}
   finally{setAdding(false);}
  };
 
  const loading=(trending.data===null&&trending.loadError===null)||(signals.data===null&&signals.loadError===null);
- if(loading)return <div className="page"><Spinner label="Loading what's working" size={20}/></div>;
+ if(loading)return <div className="page"><div className="row small muted" role="status"><Spinner label="Loading what's working" size={20}/>Loading videos and posts for your topics…</div></div>;
  if(trending.data===null&&signals.data===null)return <div className="page"><ErrorLine message={trending.loadError!} onRetry={()=>{void trending.reload();void signals.reload();}} primary/></div>;
 
  const followed=trending.data?.followed??0,sources=signals.data?.sources??0,sourcesBy=signals.data?.sourcesBy??{x:0,reddit:0};
@@ -179,7 +179,7 @@ export function DiscoverScreen({show='fit',navigate}:{show?:DiscoverShow;navigat
   const noVideos=!lists.videos.length,noPosts=!lists.posts.length;
   const settings=<button type="button" className="btn primary" onClick={()=>navigate({name:'settings',section:'followed'})}>Follow channels</button>;
   const addSources=<button type="button" className="btn primary" onClick={()=>navigate({name:'settings',section:'sources'})}><Icon name="add" size={15}/>Add sources</button>;
-  if((show==='youtube'||show==='followed'||(show==='fit'&&noPosts))&&noVideos&&trending.seeding)return <Spinner label="Searching YouTube for your topics" size={20}/>;
+  if((show==='youtube'||show==='followed'||(show==='fit'&&noPosts))&&noVideos&&trending.seeding)return <div className="row small muted" role="status"><Spinner label="Searching YouTube for your topics" size={20}/>Searching YouTube for your topics…</div>;
   if(show==='followed'&&followed===0)return <div className="card">{noVideos
    ?<Empty icon="trending" title="You follow no channels yet" action={settings}>Follow channels in Settings. The videos beating their usual views show up here.</Empty>
    :<Empty icon="trending" title="You follow no channels yet" action={<button type="button" className="btn primary" onClick={()=>choose('fit')}>Open For you</button>}>Follow one from For you.</Empty>}</div>;

@@ -34,7 +34,7 @@ export function Header({video,tab,onTitle,onStage,onDelete}:{video:Video;tab:Vid
    <Menu align="right" button={toggle=><IconButton icon="more" label="More for this video" onClick={toggle}/>} items={items}/>
   </div>
   <Dialog open={asking} onClose={()=>setAsking(false)} title="Delete this video?" description={`“${video.title}” and its plan and board are removed. ${video.recorderProjectId?'Its recording stays in the recorder. ':''}You can undo it for a few seconds.`}
-   footer={<><Button onClick={()=>setAsking(false)}>Keep it</Button><Button variant="danger" onClick={()=>{setAsking(false);onDelete();}}>Delete video</Button></>}/>
+   footer={<><Button onClick={()=>setAsking(false)}>Cancel</Button><Button variant="danger" onClick={()=>{setAsking(false);onDelete();}}>Delete video</Button></>}/>
  </div>;
 }
 
