@@ -62,6 +62,23 @@ test('unequal captures intersect into equal zero-start clips, matching content/c
  assert.deepEqual(await Promise.all(files.map(hash)),before,'original captures must remain byte-identical');
 });
 
+test('pre-roll keeps from half a second before go; sources armed earlier are trimmed and judged only on the kept window',async()=>{
+ const camera=path.join(folder,'preroll-camera.mp4'),screen=path.join(folder,'preroll-screen.mp4'),mic=path.join(folder,'preroll-mic.wav');
+ video(camera,3.9,2);video(screen,4,1);run(['-f','lavfi','-i','sine=frequency=440:sample_rate=48000:duration=4','-c:a','pcm_s16le',mic]);
+ const media=await Promise.all([source(camera),source(screen),source(mic,'microphone')]),tracks:TrackKind[]=['camera','screen','audio'],starts=[1100,2300,1000];
+ const input=(keepFromMs?:number)=>({startedAtMs:900,...(keepFromMs===undefined?{}:{keepFromMs}),sources:media.map((m,i)=>({mediaId:m.id,track:tracks[i],firstSampleAtMs:starts[i]}))});
+ // Go at 3000 ms: the take keeps from 2500 ms. Screen capture rolled 1.3 s after the microphone, still before the pre-roll.
+ const aligned=await synchronizeRecording(input(2500)),sync=aligned.synchronization;
+ near(sync.takeStart!,1.5,1e-9);near(sync.takeEnd!,4,1e-9);near(sync.duration,2.5,1e-9);assert.deepEqual(aligned.offsets,[0,0,0]);
+ assert.ok(sync.sources.every(s=>!s.intersectionExclusion),'a source that began before the kept window misses nothing');
+ near(sync.sources[0].sourceIn!,1.4,1e-9);near(sync.sources[1].sourceIn!,.2,1e-9);near(sync.sources[2].sourceIn!,1.5,1e-9);
+ assert.ok(sync.sources.every(s=>Math.abs(s.sourceOut!-s.sourceIn!-2.5)<1e-9),'every clip keeps the same length');
+ // Without a pre-roll window the late screen would count as missing 1.3 s of the clock and be left out.
+ assert.equal((await synchronizeRecording(input())).synchronization.sources[1].intersectionExclusion?.reason,'insufficient-coverage');
+ // Capture that armed after go (no countdown) has nothing before the pre-roll point: the result is unchanged.
+ assert.deepEqual((await synchronizeRecording(input(500))).synchronization,(await synchronizeRecording(input())).synchronization);
+ await assert.rejects(synchronizeRecording({...input(),keepFromMs:Number.NaN}),/Invalid recording synchronization/);
+});
 test('live WebM without Duration counts Opus samples and pre-skip without decoding or rewriting audio',async()=>{
  for(const packetDuration of [2.5,20,60]){
   const file=path.join(folder,`live-${packetDuration}.webm`);run(['-f','lavfi','-i','sine=sample_rate=48000:duration=1.25','-c:a','libopus','-frame_duration',String(packetDuration),'-live','1','-f','webm',file]);

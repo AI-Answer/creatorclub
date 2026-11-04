@@ -62,26 +62,31 @@ export async function recordingTiming(input:string,video:boolean){
  // before stream start, even though pre-skip starts the playback clock at zero.
  return {firstPts:video?first:Math.max(start,first),duration:video?end-first:samples/sampleRate!,fps,sampleRate,frames};
 }
-export interface SynchronizeInput {startedAtMs:number;sources:Array<{mediaId:string;track:TrackKind;firstSampleAtMs:number;sourceTimestampUs?:number}>;}
+/** `keepFromMs` is the wall time the take should begin. Capture arms during the countdown, so every source
+ * already holds samples from before it; the take keeps from that moment (the pre-roll) and trims the rest. */
+export interface SynchronizeInput {startedAtMs:number;keepFromMs?:number;sources:Array<{mediaId:string;track:TrackKind;firstSampleAtMs:number;sourceTimestampUs?:number}>;}
 /** Original assets remain the playable media. Only clip placement and source
  * bounds change; Stop never encodes, pads, writes files or registers new media.
  */
 export async function synchronizeRecording(input:SynchronizeInput):Promise<{media:Media[];offsets:number[];synchronization:TakeSynchronization}>{
- if(!input||!Number.isFinite(input.startedAtMs)||!Array.isArray(input.sources)||!input.sources.length||input.sources.length>8||input.sources.some(s=>!s||!['screen','camera','audio'].includes(s.track)||!Number.isFinite(s.firstSampleAtMs)||s.sourceTimestampUs!==undefined&&!Number.isFinite(s.sourceTimestampUs)||Math.abs(s.firstSampleAtMs-input.startedAtMs)>86400_000))throw Error('Invalid recording synchronization timestamps.');
+ if(!input||!Number.isFinite(input.startedAtMs)||!Array.isArray(input.sources)||!input.sources.length||input.sources.length>8||input.sources.some(s=>!s||!['screen','camera','audio'].includes(s.track)||!Number.isFinite(s.firstSampleAtMs)||s.sourceTimestampUs!==undefined&&!Number.isFinite(s.sourceTimestampUs)||Math.abs(s.firstSampleAtMs-input.startedAtMs)>86400_000)||input.keepFromMs!==undefined&&(!Number.isFinite(input.keepFromMs)||Math.abs(input.keepFromMs-input.startedAtMs)>86400_000))throw Error('Invalid recording synchronization timestamps.');
  const sources=await Promise.all(input.sources.map(async source=>{const media=await readMedia(source.mediaId);if((source.track==='audio')!==(media.kind==='audio'))throw Error('Recording source kind does not match its track.');return {...source,media,timing:await recordingTiming(media.path,media.kind==='video')};}));
  const primary=sources.find(s=>s.media.audioRole==='microphone')??sources.find(s=>s.track==='screen')??sources[0];
  const originAtMs=primary.firstSampleAtMs,clockDuration=primary.timing.duration;
  if(clockDuration<=0||clockDuration>86400)throw Error('Invalid recording duration.');
+ // The kept window on the clock. Samples armed before the pre-roll are not part of the take, so a source
+ // that started after the clock but before the window misses nothing.
+ const keepFrom=input.keepFromMs===undefined?0:Math.max(0,(input.keepFromMs-originAtMs)/1000),windowStart=keepFrom<clockDuration?keepFrom:0,windowLength=clockDuration-windowStart;
  const coverage=sources.map(s=>{
   const offset=(s.firstSampleAtMs-originAtMs)/1000,end=offset+s.timing.duration;
   if(offset>=clockDuration||end<=0)throw Error('A recording source has no samples overlapping the recording clock.');
-  const lostDuration=clockDuration-(Math.min(clockDuration,end)-Math.max(0,offset));
+  const lostDuration=windowLength-Math.max(0,Math.min(clockDuration,end)-Math.max(windowStart,offset));
   // A failed/partial device must not shorten healthy narration to a tiny take.
-  const excluded=s!==primary&&(lostDuration>1+1e-9||lostDuration>clockDuration*.25+1e-9);
+  const excluded=s!==primary&&(lostDuration>1+1e-9||lostDuration>windowLength*.25+1e-9);
   return {source:s,offset,end,lostDuration,excluded};
  });
  const included=coverage.filter(s=>!s.excluded);
- const rawStart=Math.max(...included.map(s=>s.offset)),rawEnd=Math.min(...included.map(s=>s.end));
+ const rawStart=Math.max(windowStart,...included.map(s=>s.offset)),rawEnd=Math.min(...included.map(s=>s.end));
  const frameRate=Math.max(0,...sources.filter(s=>s.media.kind==='video').map(s=>s.timing.fps));
  // One grid on the mic clock, rounded inward so no source is extended. Never
  // round each source trim independently: audio keeps its precise sample offset.

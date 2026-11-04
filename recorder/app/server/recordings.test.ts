@@ -74,3 +74,14 @@ test('a countdown session holds a short lease, a chunk queued before finish cann
  assert.deepEqual(await readdir(dir(fresh.id)),['metadata.json'],'a countdown still in progress is kept');assert.equal((await r.recoverableRecordings()).find(x=>x.id===crashed.id)?.chunks,1,'an old session with chunks stays recoverable');
  for(const id of [cancelled.id,fresh.id])await assert.rejects(r.finishRecording(id));await r.finishRecording(crashed.id);await r.waveformWarmup();assert.equal(captureActivity.remaining(false),0);
 });
+test('a start cancelled after capture armed discards its chunks: recovery never offers it, and a finished take is never removed',async()=>{
+ const {captureActivity}=await import('./capture-activity.js'),{readdir}=await import('node:fs/promises'),input=path.join(folder,'armed.webm');
+ await promisify(execFile)('ffmpeg',['-v','error','-f','lavfi','-i','sine=frequency=440:duration=0.4','-c:a','libopus','-y',input]);const bytes=await readFile(input);
+ const armed=await r.createRecording('Armed during countdown','audio/webm');await r.appendRecording(armed.id,0,bytes);
+ assert.ok((await r.recoverableRecordings()).some(x=>x.id===armed.id),'an armed session already holds a chunk');
+ assert.deepEqual(await r.discardRecording(armed.id),{ok:true});await assert.rejects(readdir(path.join(s.UPLOAD_DIR,'recordings',armed.id)));
+ assert.ok(!(await r.recoverableRecordings()).some(x=>x.id===armed.id));assert.equal(captureActivity.remaining(false),0,'its capture lease closes with it');
+ assert.deepEqual(await r.discardRecording(armed.id),{ok:true},'discarding twice is harmless');await assert.rejects(r.discardRecording('../outside'));
+ const kept=await r.createRecording('Finished take','audio/webm');await r.appendRecording(kept.id,0,bytes);const media=await r.finishRecording(kept.id);
+ await assert.rejects(r.discardRecording(kept.id),/completed recording/);assert.ok((await readFile(media.path)).length>0);await r.waveformWarmup();
+});

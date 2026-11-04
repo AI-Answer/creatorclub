@@ -31,6 +31,17 @@ A short test take showed staggered tracks: each clip started at a different time
 - **Linking:** a newly installed version 3 take's clips share one `linkId`, so they move, trim and split together. Version 1, version 2 and unsynchronized takes keep their original timing; existing edited timelines are never re-initialized.
 - **Captions:** they map through the clock source's `sourceIn` and are clipped to the take range. A word that crosses a split between contiguous clips of one take appears once.
 
+## Pre-roll
+
+Before, every source started only after the 3-2-1 countdown ended: storage sessions opened and ScreenCaptureKit started after "go", so the take began a few hundred milliseconds late and clipped a first word spoken on the beat.
+
+- **Capture arms during the countdown**, when it shows 2 (`ARM_AT_COUNT` in `src/recording-countdown.ts`). Storage sessions, recorders and native capture start then, in the same order as before, so the sources still start together.
+- **The take keeps half a second before go** (`PRE_ROLL_MS`). The renderer sends `keepFromMs = go − 500 ms` to `/recordings/synchronize`, and the common start becomes `max(keepFrom, starts)`. Everything earlier, including the 2 and 1 chimes, stays in the original files outside the take range; nothing is cut or re-encoded.
+- **The guardrail is judged on the kept window**, `[keepFrom, clock end]`. A source that began after the clock but before the pre-roll misses nothing.
+- With the countdown off or skipped, capture arms at go; `keepFrom` then falls before every first sample and changes nothing.
+- **A cancelled countdown keeps nothing.** Armed recorders stop without saving another chunk, `DELETE /recordings/:id` removes their sessions, and native capture is discarded with its take folder. A source that fails while arming cancels the start and reports why.
+- The recording clock counts the take itself, from the pre-roll.
+
 ## Verification
 
 Synthetic FFmpeg sources in `server/recording-sync.test.ts` cover:

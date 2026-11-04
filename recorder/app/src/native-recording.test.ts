@@ -44,7 +44,7 @@ test('native adapter refuses a helper output outside its managed take directory'
  const f=await fixture();try{const started=await f.manager.start({selection,systemAudio:true});f.children[0].send({type:'stopped',duration:1,videoPath:'/outside/screen.mp4'});await assert.rejects(f.manager.stop(started.id),/unexpected output/);assert.ok(f.events.some(e=>e.type==='error'));}finally{await f.close();}
 });
 test('renderer reset finalizes the owned session and keeps handlers reusable with source-aware state callbacks',async()=>{
- const f=await fixture();try{const first=await f.manager.start({selection,systemAudio:true});await f.manager.reset();assert.equal(f.handlers.size,5);assert.deepEqual(f.states.map(s=>s.type),['started','stopped']);assert.deepEqual(f.states[0].selection,selection);assert.equal(f.states[0].recordVideo,true);const second=await f.manager.start({selection,systemAudio:false});assert.notEqual(first.id,second.id);await f.manager.stop(second.id);}finally{await f.close();}
+ const f=await fixture();try{const first=await f.manager.start({selection,systemAudio:true});await f.manager.reset();assert.equal(f.handlers.size,6);assert.deepEqual(f.states.map(s=>s.type),['started','stopped']);assert.deepEqual(f.states[0].selection,selection);assert.equal(f.states[0].recordVideo,true);const second=await f.manager.start({selection,systemAudio:false});assert.notEqual(first.id,second.id);await f.manager.stop(second.id);}finally{await f.close();}
 });
 test('renderer reset invalidates a start still awaiting helper availability',async()=>{
  const f=await fixture();try{const pending=f.manager.start({selection,systemAudio:false});const rejected=assert.rejects(pending,/cancelled/);await f.manager.reset();await rejected;assert.equal(f.children.length,0);}finally{await f.close();}
@@ -97,4 +97,13 @@ test('an editor that is merely not frontmost at start keeps helper previews on, 
 });
 test('helpers without preview control never receive preview commands',async()=>{
  const f=await fixture();try{f.window.isVisible=()=>false;const started=await f.manager.start({selection,systemAudio:false});f.manager.setPreviewEnabled(false);f.manager.setPreviewEnabled(true);assert.deepEqual(f.commands.map(c=>c.command),['start']);await f.manager.stop(started.id);}finally{await f.close();}
+});
+test('discarding a take that never began stops the helper and removes its take folder; started takes are unaffected',async()=>{
+ const f=await fixture();try{
+  const started=await f.manager.start({selection,systemAudio:true}),directory=f.commands[0].directory;await fs.writeFile(path.join(directory,'screen.mp4'),'partial');
+  assert.deepEqual(await f.handlers.get('native-recording-discard')!(f.event,started.id),{id:started.id,status:'discarded'});
+  await assert.rejects(fs.access(directory));assert.deepEqual(f.commands.map(c=>c.command),['start','stop']);assert.deepEqual(f.states.map(s=>s.type),['started','stopped'],'the capture border and keep-awake end as for a stop');
+  await assert.rejects(f.handlers.get('native-recording-discard')!({...f.event,senderFrame:{url:'http://127.0.0.1:5000/'}},started.id),/Untrusted/);
+  const next=await f.manager.start({selection,systemAudio:false});const stopped=await f.manager.stop(next.id);await fs.access(path.dirname(stopped.videoPath));
+ }finally{await f.close();}
 });

@@ -17,3 +17,8 @@
 .take-review-note{display:flex;align-items:flex-start;gap:8px;margin:0 56px;padding:10px 12px;border-radius:var(--cc-r-sm,7px);background:var(--secondary);border:1px solid var(--line);font-size:var(--cc-text-sm,13px);line-height:1.5;color:var(--foreground)}
 .take-review-note svg{flex-shrink:0;margin-top:2px;color:var(--muted)}
 [data-theme=dark] .take-review>footer .take-delete:hover:not(:disabled){color:#fca5a5;background:rgba(127,29,29,.25);border-color:#7f1d1d}
+/* Review envelopes use the input meter palette and the complete tile height. */
+.take-audio-meter{--meter-top:#81dff2;--meter-bottom:#258dce;--meter-line:#54b8e5;position:absolute;inset:12px 0 42px}
+[data-theme=dark] .take-audio-meter{--meter-top:#81ecec;--meter-bottom:#0984e3;--meter-line:#74b9ff}
+.take-audio-meter canvas{display:block;width:100%;height:100%}
+.take-audio-hint{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:16px;color:var(--muted,#aaa);font-size:var(--cc-text-xs,12px);text-align:center;background:var(--secondary,#171717)}
