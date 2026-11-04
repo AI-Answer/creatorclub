@@ -325,3 +325,12 @@
 .project-change-notice .icon-button{flex:none}
 /* Active controls use the shared selection accent. */
 .club-embed .app-shell[data-mode=Edit] .club-seg>button[aria-pressed=true],.club-embed .app-shell[data-mode=Edit] .lp-seg button[aria-pressed=true]{background:var(--cc-accent-soft);color:var(--cc-accent-text)}
+
+/* Capture provenance stays visible after sources are split or unlinked. */
+.club-embed .app-shell[data-mode=Edit] .club-edit .club-timeline .timeline-clip.club-clip.take-related{outline:2px solid var(--take-outline);outline-offset:-2px}
+.club-embed .app-shell[data-mode=Edit] .club-edit .club-timeline .timeline-clip.club-clip.take-related-take{outline-style:dashed}
+.club-take-chain{position:absolute;right:5px;bottom:3px;z-index:4;color:var(--take-outline);pointer-events:none}
+.club-sync-badge{position:absolute;right:4px;top:3px;z-index:5;max-width:calc(100% - 8px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:2px 4px;border:0;border-radius:var(--cc-r-sm);font-size:var(--cc-text-2xs);background:var(--take-badge-bg);color:var(--take-badge-ink);cursor:pointer}
+.club-take-info ul{padding-left:16px;color:var(--cc-text-2);font-size:var(--cc-text-xs)}
+.club-take-actions{display:flex;flex-wrap:wrap;gap:6px}
+.club-take-actions button{font-size:var(--cc-text-xs)}

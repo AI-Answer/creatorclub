@@ -31,3 +31,8 @@ test('standalone music and muted audio still expose their waveform source',()=>{
  const p=takeFixture();p.clips=[{...p.clips[2],track:'music',linkId:undefined,muted:true}];assert.equal(takeClipViews(p)[0].sound?.id,'audio');
  p.clips[0].track='audio';assert.equal(takeClipViews(p)[0].sound?.id,'audio');
 });
+
+test('an explicit split flag on any source exposes all lanes without changing source links or provenance',()=>{
+ const p=takeFixture();p.clips[1].split=true;const before=structuredClone(p),views=takeClipViews(p);
+ assert.equal(views.length,3);assert.ok(views.every(v=>!v.grouped));assert.deepEqual(p,before);assert.ok(p.clips.every(c=>c.linkId==='take'&&c.recordingTakeId==='take'));
+});

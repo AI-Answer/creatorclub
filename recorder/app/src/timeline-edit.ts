@@ -1,7 +1,8 @@
 import {LAYOUT_EPS,retimeLayouts} from '../shared/layouts';
 import {clipDuration,clipEffectTiming,makeId,narrationPriority,projectDuration,type Clip,type Element,type MarkerTag,type Media,type MotionBlock,type Project,type TrackKind} from '../shared/types';
 import {cutTimelineRange,minimumPiece,relinkSlices} from '../shared/timeline-edits';
-import {clipLayerRowId} from '../shared/timeline-layers';
+import {clipLayerRowId,defaultClipRowId} from '../shared/timeline-layers';
+import {takeSourceRange} from '../shared/take-timing';
 import {plainClone,plainView} from './project-draft';
 import {MOTION_TEMPLATES} from '../shared/motion/templates';
 import {narrationClips,remapClipCaptions,snapshotCaptionTiming} from '../shared/caption-timing';
@@ -67,7 +68,69 @@ export function unlinkClips(p:Project,ids:Iterable<string>,newId:()=>string=make
 }
 /** Links the chosen clips (at least two, lined up so they overlap in time) into one group. */
 export function linkClips(p:Project,ids:Iterable<string>,newId:()=>string=makeId){
- const chosen=new Set(ids),clips=p.clips.filter(c=>chosen.has(c.id));if(clips.length<2||!connected(clips))return false;const id=newId();for(const c of clips)c.linkId=id;return true;
+ const chosen=new Set(ids),clips=p.clips.filter(c=>chosen.has(c.id));if(clips.length<2||!connected(clips))return false;const id=newId(),split=clips.some(c=>c.split);for(const c of clips){c.linkId=id;if(split)c.split=true;}return true;
+}
+
+/* ---------- Take packages ---------- */
+
+export function takeLinkMembers(p:Project,id:string){const ids=linkedIds(p.clips,[id]);return p.clips.filter(c=>ids.has(c.id));}
+/** Aligned sources on default lanes can be drawn as one block. */
+export function canCombineTake(p:Project,id:string,members=takeLinkMembers(p,id)){
+ const first=members[0],moment=first&&takeMoment(p,first);return members.length>1&&new Set(members.map(c=>clipLayerRowId(c,p))).size===members.length&&members.every(c=>
+  ['screen','camera','audio'].includes(c.track)&&clipLayerRowId(c,p)===defaultClipRowId(c,p)&&Math.abs(c.start-first.start)<1e-6&&Math.abs(clipDuration(c)-clipDuration(first))<1e-6&&(moment===undefined||takeMoment(p,c)===undefined||sameRate(c,first)&&Math.abs(takeMoment(p,c)!-moment)<1e-6));
+}
+/** Presentation only; all source ranges, provenance and links stay intact. */
+export function splitTakeSources(p:Project,id:string){const members=takeLinkMembers(p,id);if(members.length<2)return false;for(const c of members)c.split=true;return true;}
+export function combineTakeSources(p:Project,id:string){if(!canCombineTake(p,id))return false;for(const c of takeLinkMembers(p,id))delete c.split;return true;}
+/** Recording seconds at the clip's left edge. Normalized files and non-destructive synchronization use the same coordinate. */
+export function takeMoment(p:Project,c:Clip):number|undefined{
+ const take=p.recordedTakes?.find(t=>t.id===c.recordingTakeId),index=take?.media.findIndex(m=>m.id===c.mediaId)??-1;if(!take||index<0)return;
+ const range=takeSourceRange(take,index);return range.start+c.sourceIn-range.sourceIn;
+}
+const overlaps=(a:Clip,b:Clip)=>a.start<end(b)-EPS&&b.start<end(a)-EPS;
+const sameRate=(a:Clip,b:Clip)=>Math.abs(a.speed-b.speed)<1e-7;
+function takeSiblings(p:Project,c:Clip){return c.recordingTakeId?p.clips.filter(o=>o.id!==c.id&&o.recordingTakeId===c.recordingTakeId&&o.mediaId!==c.mediaId):[];}
+/** Positive means the piece is late. Only overlapping siblings with known capture timing can diagnose drift. */
+export function takeSyncOffset(p:Project,id:string):number|undefined{return takeSyncOffsets(p).get(id);}
+/** Compute once per project render; source/take indexing avoids rescanning the timeline for each visible block. */
+export function takeSyncOffsets(p:Project):Map<string,number>{
+ const groups=linkGroups(p.clips),sizes=new Map<string,number>(),takes=new Map<string,Clip[]>(),moments=new Map<string,number>(),out=new Map<string,number>();
+ for(const c of p.clips){const key=groups.get(c.id)!;sizes.set(key,(sizes.get(key)??0)+1);if(!c.recordingTakeId)continue;const list=takes.get(c.recordingTakeId)??[];list.push(c);takes.set(c.recordingTakeId,list);const moment=takeMoment(p,c);if(moment!==undefined)moments.set(c.id,moment);}
+ for(const list of takes.values())for(const c of list){const moment=moments.get(c.id);if(moment===undefined)continue;
+  const offset=(o:Clip)=>{const at=(Math.max(c.start,o.start)+Math.min(end(c),end(o)))/2;return (moments.get(o.id)!+(at-o.start)*o.speed-moment-(at-c.start)*c.speed)/c.speed;};
+  const siblings=list.filter(o=>o.mediaId!==c.mediaId&&overlaps(c,o)&&moments.has(o.id));
+  siblings.sort((a,b)=>sizes.get(groups.get(b.id)!)!-sizes.get(groups.get(a.id)!)!||Math.abs(offset(a))-Math.abs(offset(b))||a.id.localeCompare(b.id));
+  if(siblings.length){const value=offset(siblings[0]);out.set(c.id,Math.abs(value)>EPS?value:0);}
+ }
+ return out;
+}
+/** Relink only overlapping pieces that play the same recording moment; never join adjacent take slices. */
+export function linkBackToTake(p:Project,id:string,newId:()=>string=makeId){
+ const c=p.clips.find(c=>c.id===id);if(!c)return false;const moment=takeMoment(p,c);if(moment===undefined)return false;
+ const matches=takeSiblings(p,c).filter(o=>overlaps(c,o)&&sameRate(c,o)&&takeMoment(p,o)!==undefined&&Math.abs(c.start-o.start-(moment-takeMoment(p,o)!)/o.speed)<EPS);
+ const ids=linkedIds(p.clips,[id,...matches.map(o=>o.id)]),members=p.clips.filter(o=>ids.has(o.id));
+ if(!matches.length||members.some(o=>o.recordingTakeId!==c.recordingTakeId||!sameRate(c,o)||takeMoment(p,o)===undefined||Math.abs(c.start-o.start-(moment-takeMoment(p,o)!)/o.speed)>EPS))return false;
+ const groups=linkGroups(p.clips);if(members.every(o=>groups.get(o.id)===groups.get(c.id)))return false;
+ const link=newId(),split=members.some(o=>o.split);for(const o of members){o.linkId=link;if(split)o.split=true;}return true;
+}
+export interface TakeSnapResult {ok:boolean;message:string;delta?:number}
+/** Move the selected link group to a sibling's recording clock. A refusal never mutates the project. */
+export function snapBackToTake(p:Project,id:string,newId:()=>string=makeId):TakeSnapResult{
+ const c=p.clips.find(c=>c.id===id),missing={ok:false,message:'No matching take source is available.'};if(!c)return missing;
+ const moment=takeMoment(p,c);if(moment===undefined)return missing;
+ const moving=takeLinkMembers(p,id),ids=new Set(moving.map(o=>o.id));
+ const candidates=takeSiblings(p,c).filter(o=>!ids.has(o.id)&&sameRate(c,o)&&takeMoment(p,o)!==undefined&&Math.min(moment+clipDuration(c)*c.speed,takeMoment(p,o)!+clipDuration(o)*o.speed)-Math.max(moment,takeMoment(p,o)!)>EPS);
+ const groups=linkGroups(p.clips),size=(o:Clip)=>p.clips.filter(x=>groups.get(x.id)===groups.get(o.id)).length;
+ const delta=(o:Clip)=>o.start+(moment-takeMoment(p,o)!)/o.speed-c.start;
+ candidates.sort((a,b)=>size(b)-size(a)||Math.abs(delta(a))-Math.abs(delta(b))||a.id.localeCompare(b.id));
+ if(!candidates.length)return takeSiblings(p,c).some(o=>!ids.has(o.id)&&!sameRate(c,o))?{ok:false,message:'Match the source playback speeds before snapping.'}:missing;
+ const shift=delta(candidates[0]);
+ if(moving.some(o=>!sameRate(c,o)||takeMoment(p,o)===undefined||Math.abs(o.start-c.start-(takeMoment(p,o)!-moment)/c.speed)>EPS))return {ok:false,message:'Unlink the out-of-sync sources before snapping this piece.'};
+ const items=rowItems(p);if(collides(items.filter(o=>ids.has(o.id)),shift,items))return {ok:false,message:'The synced position is occupied on a source lane.'};
+ const draft=plainClone(plainView(p));applyClipStarts(draft,new Map(moving.map(o=>[o.id,Math.max(0,o.start+shift)])));
+ // Link restoration must succeed before committing any movement.
+ if(!linkBackToTake(draft,id,newId))return {ok:false,message:'The take sources cannot be linked at the synced position.'};
+ p.clips=draft.clips;updateCaptions(p,draft.captions);return {ok:true,message:'Back in sync and linked to its take.',delta:shift};
 }
 
 /* ---------- Split ---------- */
@@ -160,12 +223,13 @@ function remapAfterOpen(p:Project,before:ReturnType<typeof snapshotCaptionTiming
 /** Opens `length` seconds at `at` for an insert: clips on `rows` (all rows when omitted) that run across `at` are cut there first, so what is inserted overlaps nothing. */
 export function insertGap(p:Project,at:number,length:number,rows?:ReadonlySet<string>,newId:()=>string=makeId){
  const before=snapshotCaptionTiming(plainView(p));
- const fresh=new Map<string,string>(),piece=minimumPiece(p);
+ ensureLinks(p,newId);
+ const fresh=new Map<string,string>(),piece=minimumPiece(p),affected=new Set(p.clips.filter(c=>!rows||rows.has(clipLayerRowId(c,p))).map(c=>c.linkId).filter(id=>id!==undefined));
  // A linked take that starts on one row before the insert point and on another at or after it (an offset camera) would be torn apart by the shift:
  // its clips that run across the point are cut there too, whatever their row, so the later slice moves as one.
  const early=new Set<string>(),late=new Set<string>();for(const c of p.clips)if(c.linkId!==undefined)(c.start<at-EPS?early:late).add(c.linkId);
  for(const c of [...p.clips]){
-  if(!(c.start+EPS<at&&end(c)-EPS>at)||rows&&!rows.has(clipLayerRowId(c,p))&&!(c.linkId!==undefined&&early.has(c.linkId)&&late.has(c.linkId)))continue;
+  if(!(c.start+EPS<at&&end(c)-EPS>at)||rows&&!rows.has(clipLayerRowId(c,p))&&!(c.linkId!==undefined&&(affected.has(c.linkId)||early.has(c.linkId)&&late.has(c.linkId))))continue;
   // Within a frame of an edge, cut at the edge: the sliver goes and no piece is left.
   if(at-c.start<piece){c.sourceIn+=(at-c.start)*c.speed;c.start=at;continue;}
   if(end(c)-at<piece){c.sourceOut-=(end(c)-at)*c.speed;continue;}

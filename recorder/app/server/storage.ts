@@ -159,11 +159,12 @@ export function validateProject(value:unknown):Project{
  for(const c of p.clips){if(!mediaIds.has(c.mediaId))throw new Error('Clip references missing media');if(![c.start,c.sourceIn,c.sourceOut,c.speed,c.gain].every(Number.isFinite)||c.start<0||c.sourceIn<0||c.sourceOut<=c.sourceIn||c.speed<.05||c.speed>16||c.gain<0||c.gain>10)throw new Error('Invalid clip timing or gain');if(c.effectTiming&&(![c.effectTiming.sourceIn,c.effectTiming.sourceOut].every(Number.isFinite)||c.effectTiming.sourceIn<0||c.effectTiming.sourceOut<=c.effectTiming.sourceIn))throw new Error('Invalid clip effect timing');}
  for(const c of p.captions){if(!Number.isFinite(c.start)||!Number.isFinite(c.end)||c.start<0||c.end<=c.start||typeof c.text!=='string')throw new Error('Invalid caption timing');}
  for(const c of p.clips){
+  if(c.split!==undefined&&c.split!==true)throw new Error('Invalid clip split flag');
   if(c.audioRole!==undefined&&!isAudioRole(c.audioRole))throw new Error('Invalid clip audio role');
   if(!['screen','camera','audio','music','overlay'].includes(c.track)||!c.effects||!c.transform)throw new Error('Clip track, effects and transform are required');
   if(c.layerId!==undefined){
    if(typeof c.layerId!=='string')throw Error('Invalid clip layer');
-   const reserved:Record<string,'video'|'audio'>={'role:screen':'video','role:camera':'video','role:overlay':'video','role:audio':'audio','role:music':'audio'};
+   const reserved:Record<string,'video'|'audio'>={'role:screen':'video','role:camera':'video','role:overlay':'video','role:audio':'audio','role:system-audio':'audio','role:music':'audio'};
    const kind=reserved[c.layerId]??layerKinds.get(c.layerId);
    if(!kind||kind!==(c.track==='audio'||c.track==='music'?'audio':'video'))throw Error('Clip references an invalid or incompatible timeline layer');
   }

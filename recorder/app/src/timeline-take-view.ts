@@ -1,7 +1,7 @@
 import {narrationClips} from '../shared/caption-timing';
-import {clipDuration,type Clip,type Project} from '../shared/types';
+import {type Clip,type Project} from '../shared/types';
 import {clipLayerRowId} from '../shared/timeline-layers';
-import {linkGroups} from './timeline-edit';
+import {canCombineTake,linkGroups} from './timeline-edit';
 import {hasWaveform} from './timeline-waveform';
 
 export const TAKE_ROW='linked-takes';
@@ -12,8 +12,7 @@ export function takeClipViews(p:Project):TakeClipView[]{
  for(const c of p.clips){const key=links.get(c.id)!;groups.set(key,[...groups.get(key)??[],c]);}
  const out:TakeClipView[]=[];
  for(const members of groups.values()){
-  const first=members[0],grouped=members.length>1&&new Set(members.map(c=>c.track)).size===members.length&&members.every(c=>
-   ['screen','camera','audio'].includes(c.track)&&clipLayerRowId(c,p)===`role:${c.track}`&&Math.abs(c.start-first.start)<1e-6&&Math.abs(clipDuration(c)-clipDuration(first))<1e-6);
+  const grouped=!members.some(c=>c.split)&&canCombineTake(p,members[0].id,members);
   for(const parts of grouped?[members]:members.map(c=>[c])){
    const sounds=parts.filter(c=>{const m=media.get(c.mediaId);return (!grouped||narration.has(c.id))&&m&&hasWaveform(m);}).sort((a,b)=>(narration.get(a.id)??Infinity)-(narration.get(b.id)??Infinity));
    const clip=sounds[0]??parts.find(c=>c.track==='screen')??parts[0];
