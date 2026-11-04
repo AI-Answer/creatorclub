@@ -1,7 +1,7 @@
 import {memo,useEffect,useLayoutEffect,useMemo,useRef,useState} from 'react';
 import {Film,Plus} from './Icons';
 import type {Clip,Media,Project} from '../shared/types';
-import {clipEffectTiming} from '../shared/types';
+import {clipEffectTiming,projectDuration} from '../shared/types';
 import {isSoundTag} from '../shared/sound-tags';
 import {mediaUrl} from './api';
 import {useVisionPreview} from './useVisionPreview';
@@ -10,7 +10,7 @@ import {trackedCrop} from '../shared/face-tracking';
 import {previewAudioMixer} from './preview-audio';
 import {canvasBackgroundStyle} from '../shared/canvas-background';
 import {zoomScaleAt} from '../shared/zoom-timing';
-import {usePlayheadTime,type Playhead} from './playhead';
+import {clampToEnd,usePlayheadTime,type Playhead} from './playhead';
 import {clipFilterCss,cursorPointLookup,stageIndex,stageSlots} from './stage-view';
 import {MotionLayer} from './MotionLayer';
 import {drawnBlocks,onStage} from '../shared/look';
@@ -46,7 +46,9 @@ function ClipView({clip,media,time,visible,playing,quality,onSelect,project:p,pi
 }
 
 export const Stage=memo(function Stage({project:p,playhead,playing,playbackRate=1,onSelect,onImport,selected,onTransform,onZoom}:{project:Project;playhead:Playhead;playing:boolean;playbackRate?:number;onSelect:(id:string)=>void;onImport:()=>void;/** The selected clip: a camera or screen clip on the picture gets handles to move and resize it. */selected?:string|null;onTransform?:(id:string,box:Box,phase:'move'|'end')=>void;onZoom?:(id:string,where:{x:number;y:number;scale:number})=>void}){
- const time=usePlayheadTime(playhead);
+ const transportTime=usePlayheadTime(playhead),duration=useMemo(()=>projectDuration(p),[p.clips,p.elements,p.motion,p.scenes]);
+ // The transport may rest on the end boundary. Clips use half-open ranges, so preview the last frame there.
+ const time=transportTime>=duration&&duration>0?clampToEnd(transportTime,duration,p.canvas.fps):transportTime;
  const blocks=useMemo(()=>drawnBlocks(p),[p.clips,p.motion,p.look]);
  const ref=useRef<HTMLDivElement>(null),wrapper=useRef<HTMLDivElement>(null),[width,setWidth]=useState(640),[dimensions,setDimensions]=useState({width:640,height:360}),[wakes,wake]=useState(0),still=useRef({time,at:-Infinity}),mounted=useRef<ReadonlyMap<string,string>>(new Map());
  useEffect(()=>{if(!ref.current)return;const observer=new ResizeObserver(([entry])=>setWidth(entry.contentRect.width));observer.observe(ref.current);return()=>observer.disconnect();},[]);

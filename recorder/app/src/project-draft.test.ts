@@ -101,14 +101,16 @@ test('inspector edits match full copies and keep every untouched subtree',()=>{
 
 test('timeline editing operations match full copies',()=>{
  const scene=sceneWithTake(fixture,4),inside=scene.start+scene.duration/2,crossing=fixture.clips.filter(c=>c.start<inside&&c.start+clipDuration(c)>inside);
- same('split everything at the playhead',p=>{splitAt(p,inside,new Set());},['captions','media','scenes','cursor','recordedTakes']);
- same('split one selected clip',p=>{splitAt(p,inside,new Set([crossing[0].id]),crossing[0].id);},['captions','media','scenes']);
+ // Splits and trims now project caption words through each source slice, so captions are an edited subtree.
+ same('split everything at the playhead',p=>{splitAt(p,inside,new Set());},['media','scenes','cursor','recordedTakes']);
+ same('split one selected clip',p=>{splitAt(p,inside,new Set([crossing[0].id]),crossing[0].id);},['media','scenes']);
  const selection=new Set([...fixture.clips.slice(100,104).map(c=>c.id),fixture.elements[2].id,fixture.captions[30].id,fixture.zooms[1].id]);
- same('ripple delete',p=>deleteSelection(p,selection,true),['media','scenes','cursor','recordedTakes']);
+ // Closing deleted time also remaps scenes and cursor points on the whole timeline.
+ same('ripple delete',p=>deleteSelection(p,selection,true),['media','recordedTakes']);
  same('delete leaving a gap',p=>deleteSelection(p,selection,false),['media','scenes','cursor']);
  const trimmed=new Set([crossing[1].id]);
- same('trim left',p=>{trimSelection(p,trimmed,inside,'left');},['captions','media']);
- same('trim right',p=>{trimSelection(p,trimmed,inside,'right');},['captions','media']);
+ same('trim left',p=>{trimSelection(p,trimmed,inside,'left');},['media']);
+ same('trim right',p=>{trimSelection(p,trimmed,inside,'right');},['media']);
  const clipboard=copySelection(fixture,selection)!;
  same('paste clipboard',p=>{pasteSelection(p,clipboard,inside);},['scenes','cursor','recordedTakes']);
  same('duplicate from a draft copy',p=>{const data=copySelection(p,selection)!;pasteSelection(p,data,projectDuration(p));},['scenes','cursor']);

@@ -294,7 +294,8 @@ export async function filmstrip(m: Media, cacheDir: string): Promise<string> {
 }
 /** Absolute source-level peaks, uniformly covering [0, duration), never normalized. */
 export async function waveform(m: Media, cacheDir: string): Promise<number[]> {
-  if (!m.hasAudio && m.kind !== "audio") return [];
+  // Older video metadata has no hasAudio flag. Probe it instead of hiding its waveform.
+  if (m.kind !== "audio" && (m.kind !== "video" || m.hasAudio === false)) return [];
   if (!Number.isFinite(m.duration) || m.duration <= 0 || m.duration > 86400)
     throw new Error("Waveform requires a source duration between zero and 24 hours");
   await fs.mkdir(cacheDir, { recursive: true });
@@ -312,6 +313,7 @@ export async function waveform(m: Media, cacheDir: string): Promise<number[]> {
     const info = JSON.parse(await command(FFPROBE, ["-v", "error", "-select_streams", "a:0",
       "-show_entries", "stream=channels", "-of", "json", source.real]));
     const channels = info.streams?.[0]?.channels;
+    if (!info.streams?.length && m.kind === "video") return [];
     if (!Number.isInteger(channels) || channels < 1 || channels > 32)
       throw new Error("Waveform requires a supported audio stream with at most 32 channels");
     const bins = new Array<number>(count).fill(0), frameBytes = channels * 4;

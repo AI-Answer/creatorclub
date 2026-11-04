@@ -5,6 +5,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { spawnSync } from 'node:child_process';
 import { probeMedia, waveform } from './media.ts';
+import { waveformHeight } from '../src/timeline-waveform.ts';
 const ffmpeg = process.env.SCENEFORGE_FFMPEG || 'ffmpeg';
 async function writeWave(file: string, duration: number, amplitude: (t: number) => number, channels = 2) {
   const rate = 8000, samples = Math.round(duration * rate), data = Buffer.alloc(44 + samples * channels * 2);
@@ -28,6 +29,8 @@ test('full-source peaks retain quiet microphone levels, silence and opposite-pha
     assert.ok(quiet > .0059 && quiet < .0061, `quiet source must stay quiet: ${quiet}`);
     assert.ok(loud > .59 && loud < .61, `last ten seconds and opposite stereo channels must survive: ${loud}`);
     assert.ok(loud / quiet > 98 && loud / quiet < 102); assert.equal(largest(peaks.slice(2030, 4470)), 0);
+    assert.ok(waveformHeight(quiet,24)>9, 'quiet mic speech is visible after decoding and dB display scaling');
+    assert.ok(waveformHeight(loud,24)>waveformHeight(quiet,24)+12, 'loud speech remains visibly louder');
     const evidence = path.resolve('../evidence/qa/waveform'); await fs.mkdir(evidence, {recursive: true});
     await fs.writeFile(path.join(evidence, 'backend-acceptance.json'), JSON.stringify({pass: true, duration: media.duration, bins: peaks.length, quietPeak: quiet, loudPeak: loud, ratio: loud / quiet, tailFirstSecond: 90, channels: 'opposite-phase stereo', analysisRate: 8000, amplitude: 'absolute, not normalized'}, null, 2));
   } finally { await fs.rm(dir, {recursive: true, force: true}); }
@@ -62,5 +65,10 @@ test('video audio waveform preserves delayed audio start on the full video sourc
     assert.ok(largest(peaks.slice(at(.6), at(1.8))) > .24);
     assert.equal(largest(peaks.slice(at(2.2))), 0, 'video tail remains represented');
     assert.deepEqual(await waveform({...media, hasAudio: false}, cache), []);
+    assert.deepEqual(await waveform({...media, hasAudio: undefined}, cache), peaks, 'legacy video metadata still exposes its audio');
+    const silent = path.join(dir, 'silent.mov');
+    const stripped = spawnSync(ffmpeg, ['-v', 'error', '-nostdin', '-y', '-i', source, '-c:v', 'copy', '-an', silent], {timeout:30000});
+    assert.equal(stripped.status, 0, stripped.stderr.toString());
+    assert.deepEqual(await waveform({...media, path:silent, hasAudio:undefined}, cache), [], 'legacy silent video probes as empty without an error');
   } finally { await fs.rm(dir, {recursive: true, force: true}); }
 });

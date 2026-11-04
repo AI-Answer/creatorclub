@@ -5,6 +5,8 @@ import {EditHistory} from './edit-history';
 import {subscribeEvents} from './events';
 import {applyProjectChange} from './project-draft';
 import {runGuardedProjectOperation,projectRefreshDisposition} from './recovery-session';
+import {isCaptionOnlyUpdate,mergeCaptionUpdate} from './project-automation-merge';
+const EXTERNAL_CHANGE='This project has updates from another window. Your local edits are kept. Reload the saved version when you are ready.';
 
 /** Edits that share a coalesce key, with no other edit or history step between them and less than a second apart, form one undo step. */
 export type ProjectChange=(fn:(p:Project)=>void,opts?:{coalesce?:string})=>void;
@@ -19,7 +21,7 @@ export function useStudio(){
  current.current=project;
  // While a server change (a companion card) is being applied: the person's edits made meanwhile, to replay onto the server's result,
  // and where the undo history stood. Projects those edits produced are superseded once replayed, so they are never saved.
- const inFlight=useRef<{edits:Array<(p:Project)=>void>;made:Project[];past:number}|null>(null),superseded=useRef(new WeakSet<Project>());
+ const inFlight=useRef<{snapshot:Project|undefined;edits:Array<(p:Project)=>void>;made:Project[];past:number}|null>(null),superseded=useRef(new WeakSet<Project>());
  const refresh=useCallback(async()=>{setProjects(await api<ProjectSummary[]>('/projects'));},[]);
  useEffect(()=>{Promise.all([refresh(),api<Capabilities>('/health').then(setCapabilities)]).catch(e=>setError(e.message)).finally(()=>setLoading(false));},[refresh]);
  const select=useCallback((p:Project,etag?:string|null)=>{commitPendingEdits();saved.current=p;sent.current=null;size.current=0;revision.current=etag?Promise.resolve(etag):projectRevision(p);conflict.current=false;setConflicted(false);current.current=p;setProject(p);history.reset();setHistoryTick(x=>x+1);setSaveState('Saved locally');},[history]);
@@ -28,32 +30,89 @@ export function useStudio(){
  const change=useCallback<ProjectChange>((fn,opts)=>{const p=current.current;if(!p)return;const next=applyProjectChange(p,fn);history.record(p,historyLimit(p),opts?.coalesce);if(inFlight.current){inFlight.current.edits.push(fn);inFlight.current.made.push(next);}current.current=next;setProject(next);setHistoryTick(x=>x+1);setSaveState('Saving…');},[history]);
  const undo=useCallback(()=>{commitPendingEdits();if(!current.current||inFlight.current)return;const prev=history.undo(current.current);if(!prev)return;current.current=prev;setProject(prev);setHistoryTick(x=>x+1);},[history]);
  const redo=useCallback(()=>{commitPendingEdits();if(!current.current||inFlight.current)return;const next=history.redo(current.current);if(!next)return;current.current=next;setProject(next);setHistoryTick(x=>x+1);},[history]);
- const flush=useCallback(async()=>{commitPendingEdits();const p=current.current;if(!p)return;if(conflict.current)throw new Error('Autosave is paused because this project changed externally. Reload the server version before continuing.');const task=saveQueue.current.catch(()=>{}).then(async()=>{if(conflict.current)throw new Error('Project conflict: autosave is paused.');if(saved.current===p||sent.current===p||superseded.current.has(p))return;try{const expected=await revision.current,json=JSON.stringify(p);size.current=json.length;const result=await apiResult<unknown>(`/projects/${p.id}`,new JSONBody(json),'PUT',{'If-Match':expected,Prefer:'return=minimal'});if(result.etag)revision.current=Promise.resolve(result.etag);const adopted=adoptSavedProject(p,result.data);if(!result.etag)revision.current=projectRevision(adopted);saved.current=adopted;if(current.current===p){sent.current=p;current.current=adopted;setProject(adopted);setSaveState('Saved locally');}else{sent.current=null;setResave(x=>x+1);}}catch(e){if(e instanceof APIError&&e.status===409){conflict.current=true;setConflicted(true);setSaveState('Autosave paused');}throw e;}});saveQueue.current=task;await task;return current.current??p;},[]);
+ /** Rebase captions into the whole editing session, including history, without recording an edit. */
+ const mergeCaptions=useCallback((incoming:Project,etag:string|null)=>{
+  const baseline=saved.current,shown=current.current;
+  if(!baseline||!shown||shown.id!==incoming.id||!isCaptionOnlyUpdate(baseline,incoming))return null;
+  const rebased=new Map<Project,Project>(),rebase=(snapshot:Project)=>{
+   let next=rebased.get(snapshot);if(next)return next;
+   next=snapshot===baseline?incoming:mergeCaptionUpdate(baseline,incoming,snapshot);rebased.set(snapshot,next);superseded.current.add(snapshot);return next;
+  };
+  history.past=history.past.map(rebase);history.future=history.future.map(rebase);
+  // A caption event may already be queued when a companion's initial flush completes. Enrich the
+  // snapshot it compares against too, so this background update never appears as an untracked edit.
+  const flight=inFlight.current;if(flight){if(flight.snapshot)flight.snapshot=rebase(flight.snapshot);flight.made=flight.made.map(rebase);}
+  const next=rebase(shown);saved.current=incoming;sent.current=null;revision.current=etag?Promise.resolve(etag):projectRevision(incoming);
+  current.current=next;setProject(next);setHistoryTick(x=>x+1);setSaveState(next===incoming?'Saved locally':'Saving…');
+  return rebase;
+ },[history]);
+ const flush=useCallback(async()=>{
+  commitPendingEdits();const p=current.current;if(!p)return;
+  if(conflict.current)throw new Error(EXTERNAL_CHANGE);
+  const task=saveQueue.current.catch(()=>{}).then(async()=>{
+   if(conflict.current)throw new Error(EXTERNAL_CHANGE);
+   let candidate=p;
+   // An earlier queued caption event may have superseded the snapshot this flush captured.
+   if(superseded.current.has(candidate)){if(current.current?.id!==p.id)return;candidate=current.current;}
+   if(saved.current===candidate||sent.current===candidate)return;
+   for(let attempt=0;attempt<3;attempt++){
+    try{
+     const expected=await revision.current,json=JSON.stringify(candidate);size.current=json.length;
+     const result=await apiResult<unknown>(`/projects/${candidate.id}`,new JSONBody(json),'PUT',{'If-Match':expected,Prefer:'return=minimal'});
+     if(result.etag)revision.current=Promise.resolve(result.etag);
+     const adopted=adoptSavedProject(candidate,result.data);if(!result.etag)revision.current=projectRevision(adopted);saved.current=adopted;
+     if(current.current===candidate){sent.current=candidate;current.current=adopted;setProject(adopted);setSaveState('Saved locally');}
+     else{sent.current=null;setResave(x=>x+1);}
+     return;
+    }catch(error){
+     if(!(error instanceof APIError)||error.status!==409)throw error;
+     // Automatic transcription can win the write race before its SSE event arrives. Fetch and validate
+     // the actual delta rather than treating that harmless captions-only save as an external conflict.
+     const fresh=await apiResult<Project>(`/projects/${candidate.id}`);commitPendingEdits();
+     const rebase=!conflict.current&&mergeCaptions(fresh.data,fresh.etag);
+     if(!rebase){conflict.current=true;setConflicted(true);setSaveState('Autosave paused');throw new Error(EXTERNAL_CHANGE);}
+     candidate=rebase(candidate);
+    }
+   }
+   // Continuous transcription updates are retried by autosave, never by dropping the person's edits.
+   setResave(x=>x+1);
+  });
+  saveQueue.current=task;await task;return current.current??p;
+ },[mergeCaptions]);
  useEffect(()=>{if(!project||conflicted)return;if(project===saved.current){setSaveState('Saved locally');return;}setSaveState('Saving…');const timer=setTimeout(()=>{void flush().catch(e=>{if(!conflict.current)setSaveState('Save failed');setError(e.message);});},650);return()=>clearTimeout(timer);},[project,flush,conflicted,resave]);
  useEffect(()=>{
   let disposed=false,queue=Promise.resolve(),listTimer:ReturnType<typeof setTimeout>|undefined;
   const cleanRevision=(value:string)=>value.replace(/^W\//,'').replaceAll('"','');
   const refreshList=()=>{if(listTimer)clearTimeout(listTimer);listTimer=setTimeout(()=>{void refresh().catch(e=>setError(e.message));},200);};
-  const receive=(event:MessageEvent)=>{let update:{id:string;revision?:string;action?:string};try{update=JSON.parse(event.data);}catch{return;}
+  const receive=(event:MessageEvent)=>{let update:{id:string;revision?:string;action?:string;source?:string};try{update=JSON.parse(event.data);}catch{return;}
    queue=queue.catch(()=>{}).then(async()=>{
-    let pending=saveQueue.current;await pending.catch(()=>{});while(pending!==saveQueue.current){pending=saveQueue.current;await pending.catch(()=>{});}if(disposed)return;
-    if(current.current?.id!==update.id){refreshList();return;}
-    const acknowledged=await revision.current;if(disposed)return;if(update.action!=='trashed'&&update.revision&&cleanRevision(update.revision)===cleanRevision(acknowledged))return;
-    // Our own save's echo leaves text being typed alone; any other change is judged with that text included.
-    commitPendingEdits();const before=current.current;if(!before||before.id!==update.id){refreshList();return;}
-    const dirty=before!==saved.current;
-    if(dirty||conflict.current){conflict.current=true;setConflicted(true);setSaveState('Autosave paused');setError(update.action==='trashed'?'This project was moved to trash externally. Your unsaved edits are still open.':'An assistant or another window changed this project. Your unsaved edits are preserved; reload the server version to continue.');return;}
-    if(update.action==='trashed'){current.current=null;setProject(null);saved.current=null;sent.current=null;history.reset();setHistoryTick(x=>x+1);refreshList();return;}
-    const fresh=await apiResult<Project>(`/projects/${update.id}`);if(disposed)return;
-    // A local edit may arrive while the fresh version is being fetched.
-    commitPendingEdits();const disposition=projectRefreshDisposition(before,current.current,fresh.data,saved.current);if(disposition==='ignore')return;
-    if(disposition==='conflict'){conflict.current=true;setConflicted(true);setSaveState('Autosave paused');return;}
-    select(fresh.data,fresh.etag);
+    // Hold the same queue as autosave while fetching/adopting an event; a save cannot race the rebase.
+    const task=saveQueue.current.catch(()=>{}).then(async()=>{
+     if(disposed)return;
+     if(current.current?.id!==update.id){refreshList();return;}
+     const acknowledged=await revision.current;if(disposed)return;
+     if(update.action!=='trashed'&&update.revision&&cleanRevision(update.revision)===cleanRevision(acknowledged))return;
+     commitPendingEdits();const before=current.current;if(!before||before.id!==update.id){refreshList();return;}
+     // Caption automation is a background enrichment of this session, not another editing window.
+     if(update.action!=='trashed'&&!conflict.current){
+      const fresh=await apiResult<Project>(`/projects/${update.id}`);if(disposed)return;commitPendingEdits();
+      if(current.current?.id!==update.id)return;
+      if(mergeCaptions(fresh.data,fresh.etag))return;
+      const disposition=projectRefreshDisposition(before,current.current,fresh.data,saved.current);
+      if(disposition==='ignore')return;
+      if(disposition==='adopt'){select(fresh.data,fresh.etag);return;}
+     }
+     if(before!==saved.current||conflict.current||update.action!=='trashed'){
+      conflict.current=true;setConflicted(true);setSaveState('Autosave paused');setError(update.action==='trashed'?'This project was moved to trash in another window. Your local edits are kept.':EXTERNAL_CHANGE);return;
+     }
+     current.current=null;setProject(null);saved.current=null;sent.current=null;history.reset();setHistoryTick(x=>x+1);refreshList();
+    });
+    saveQueue.current=task;await task;
    }).catch(e=>{if(!disposed)setError(e.message);});
   };
   const ready=()=>{const id=current.current?.id;if(!id)return;void apiResult<Project>(`/projects/${id}`).then(fresh=>{if(disposed||current.current?.id!==id)return;return (fresh.etag?Promise.resolve(fresh.etag):projectRevision(fresh.data)).then(revision=>receive(new MessageEvent('project',{data:JSON.stringify({id,revision,action:'saved'})})));}).catch(()=>{});};
   const stopReady=subscribeEvents('ready',ready),stopProject=subscribeEvents('project',receive);return()=>{disposed=true;stopReady();stopProject();if(listTimer)clearTimeout(listTimer);};
- },[refresh,select,history]);
+ },[refresh,select,history,mergeCaptions]);
  /**
   * A change the server makes to the open project (the companion's Edit cards): pending edits are saved first, then `run` gets the saved revision,
   * and the project it returns becomes the current one as one undo step, so the editor's Undo and Redo work on it. It runs in the save queue,
@@ -62,12 +121,12 @@ export function useStudio(){
   */
  const commitServer=useCallback(async<T extends {project?:Project;revision?:string}>(run:(revision:string)=>Promise<T>):Promise<T>=>{
   const snapshot=await flush();
-  const flight={edits:[] as Array<(p:Project)=>void>,made:[] as Project[],past:history.past.length};
+  const flight={snapshot,edits:[] as Array<(p:Project)=>void>,made:[] as Project[],past:history.past.length};
   inFlight.current=flight;
   const task=saveQueue.current.catch(()=>{}).then(async()=>{
    try{
     const result=await run((await revision.current).replace(/^W\//,'').replaceAll('"',''));
-    const next=result.project;if(!next||!result.revision||!snapshot||next.id!==snapshot.id||current.current?.id!==snapshot.id)return result;
+    const next=result.project,snapshot=flight.snapshot;if(!next||!result.revision||!snapshot||next.id!==snapshot.id||current.current?.id!==snapshot.id)return result;
     commitPendingEdits();inFlight.current=null;
     let shown=next,lost=0;
     if(current.current!==snapshot){

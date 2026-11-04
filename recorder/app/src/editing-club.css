@@ -160,7 +160,7 @@
 .club-embed .app-shell[data-mode=Edit] .club-filmstrip>i{position:absolute;top:0;background-repeat:no-repeat}
 .club-embed .app-shell[data-mode=Edit] .club-filmstrip.is-image{background-repeat:repeat-x}
 .club-embed .app-shell[data-mode=Edit] .club-wave{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
-.club-embed .app-shell[data-mode=Edit] .club-wave path{fill:color-mix(in srgb,var(--kind-audio) 60%,var(--cc-surface))}
+.club-embed .app-shell[data-mode=Edit] .club-wave path{fill:color-mix(in srgb,var(--kind-audio) 60%,var(--cc-surface));stroke:currentColor;stroke-width:.5;vector-effect:non-scaling-stroke}
 .club-embed .app-shell[data-mode=Edit] .club-clip-label{position:sticky;left:4px;z-index:2;display:inline-flex;align-items:center;gap:4px;max-width:calc(100% - 12px);margin:0 0 0 2px;padding:0 5px;height:100%;color:var(--kind-ink);font-size:var(--cc-text-2xs);font-weight:600;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none}
 .club-embed .app-shell[data-mode=Edit] .club-clip:is(.clip-audio,.clip-music) .club-clip-label{height:auto;margin-top:3px;padding:1px 5px;border-radius:4px;background:color-mix(in srgb,var(--cc-surface) 75%,transparent);color:var(--cc-text)}
 .club-embed .app-shell[data-mode=Edit] .club-timeline .trim-handle{position:absolute;top:0;bottom:0;width:6px;z-index:4;cursor:ew-resize;background:transparent}
@@ -316,3 +316,8 @@
 .club-embed .app-shell[data-mode=Edit] .zp-list button:hover{background:var(--cc-hover)}
 .club-embed .app-shell[data-mode=Edit] .zp-list button.on{background:var(--cc-accent-soft);color:var(--cc-accent-text)}
 .club-embed .app-shell[data-mode=Edit] .zp-list small{color:var(--cc-text-3)}
+
+/* An external revision is a calm, dismissible status; the open draft stays editable. */
+.project-change-notice{position:fixed;right:24px;top:80px;z-index:1000;display:flex;gap:16px;max-width:440px;padding:16px 18px;border:1px solid var(--cc-line-strong);border-radius:var(--cc-r-lg);background:var(--cc-surface);color:var(--cc-text);box-shadow:var(--cc-shadow-toast);font-size:var(--cc-text-sm)}
+.project-change-notice b{display:block;margin-bottom:6px;font-weight:600}
+.project-change-notice .icon-button{flex:none}
