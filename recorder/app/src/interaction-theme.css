@@ -9,10 +9,10 @@
 }
 
 :root[data-theme=dark] {
-  --muted: #ababaf;
-  --focus-ring: #8ab4ff;
-  --danger: #ff9ca3;
-  --danger-soft: #3a2025;
+  --muted: rgba(255, 255, 255, .65);
+  --focus-ring: #61c6fa;
+  --danger: #ff7370;
+  --danger-soft: #4a2126;
   --surface-shadow: 0 8px 24px rgb(0 0 0 / .32), 0 0 0 1px rgb(255 255 255 / .04);
   --dialog-shadow: 0 24px 72px rgb(0 0 0 / .48), 0 0 0 1px rgb(255 255 255 / .06);
 }

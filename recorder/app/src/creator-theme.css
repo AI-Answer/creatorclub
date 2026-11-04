@@ -9,11 +9,11 @@
  --surface-shadow:0 8px 24px #282c2710; --dialog-shadow:0 24px 80px #22282030;
 }
 :root[data-theme=dark] {
- --background:#191c19; --foreground:#eeeee5; --surface:#222621;
- --secondary:#242923; --input:#2e342b; --line:#394033; --muted:#afb5a6;
- --primary:#f07b56; --primary-foreground:#191c19; --accent:#f07b56;
- --accent-dark:#f59070; --accent-soft:#3c2921; --brand:#f07b56;
- --focus-ring:#f07b56; color-scheme:dark;
+ --background:#212121; --foreground:#e1e1e1; --surface:#242629;
+ --secondary:#242629; --input:rgba(255,255,255,.06); --line:rgba(255,255,255,.08); --muted:rgba(255,255,255,.65);
+ --primary:#ffffff; --primary-foreground:#212121; --accent:#61c6fa;
+ --accent-dark:#61c6fa; --accent-soft:rgba(35,131,226,.2); --brand:#f07b56;
+ --focus-ring:#61c6fa; color-scheme:dark;
 }
 body { -webkit-font-smoothing:antialiased; }
 h1,h2,h3 { letter-spacing:-.035em; }
