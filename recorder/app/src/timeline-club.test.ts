@@ -122,3 +122,26 @@ test('linked sources render once with a sentence pill, paired thumbnails and den
   assert.ok(ui.container.querySelector('.club-caption-pill .club-word'),'zoomed-in words are positioned inside the same pill');
  }finally{await ui.close();}
 });
+
+test('Borumi\'s Layout row: a stretch is an orange block named for its arrangement; a click on the empty row makes one there and selects it',async()=>{
+ const p=project(['screen','camera','audio'].map(track=>clip(track,track as Clip['track'],0,12,'take')));
+ p.layouts=[{id:'side',start:0,duration:4,preset:'Side by side'}];p.zooms=[{id:'z',start:5,duration:2,scale:1.5,x:.5,y:.5,target:'screen',easing:'smooth'}];p.captions=[{id:'typed',start:1,end:2,text:'Hi'}];
+ assert.deepEqual(usedRows(p).map(r=>r.name),['Linked takes','Layout','Zoom','Captions'],'in Borumi\'s order: the control rows under the footage, layout first');
+ assert.equal(usedRows({...p,layouts:[]}).some(r=>r.name==='Layout'),false,'an empty Layout row is hidden, as in Borumi');
+ const state={project:p,selected:[] as string[]};const playhead=createPlayhead(0);
+ const element=(next:Project)=>createElement(TimelineClub,{project:next,playhead,scale:50,onScale:()=>{},selectedIds:new Set(state.selected),onSelectMany:(ids:string[])=>{state.selected=ids;},onSeek:()=>{},change:fn=>{state.project=applyProjectChange(state.project,fn);},onDropMedia:()=>{},tool:'select',onSplit:()=>{},follow:true,showWaveforms:false,onOpen:()=>{}});
+ const ui=await mountUI(element(state.project));
+ try{
+  const block=ui.container.querySelector<HTMLElement>('.row-layouts [data-effect-id="side"]')!;
+  assert.ok(block.classList.contains('is-layout'));assert.equal(block.textContent,'Side by side');assert.match(block.title,/^Layout: Side by side/);
+  const row=ui.container.querySelector<HTMLElement>('.row-layouts')!,hover=(type:string,x:number,buttons=0)=>row.dispatchEvent(new (window as unknown as {PointerEvent:typeof PointerEvent}).PointerEvent(type,{bubbles:true,cancelable:true,button:0,buttons,clientX:x,clientY:10,pointerId:1}));
+  await act(async()=>{hover('pointermove',400);});
+  const ghost=ui.container.querySelector<HTMLElement>('.club-layout-ghost');assert.ok(ghost?.querySelector('svg'),'"+ Layout" follows the pointer over the empty row');assert.equal(ghost!.style.left,'400px');
+  await act(async()=>{hover('pointermove',100);});assert.equal(ui.container.querySelector('.club-layout-ghost'),null,'nothing to add over a stretch');
+  await act(async()=>{hover('pointerdown',400,1);});await act(async()=>{pointer('pointerup',400);});
+  const made=state.project.layouts!.find(l=>l.id!=='side')!;
+  // The view has no width under the test DOM, so the stretch takes the shortest a click makes (half a second); in the app, a tenth of the view.
+  assert.deepEqual([made.start,made.duration,made.preset],[8,.5,'Full frame'],'where it was clicked, in the layout the clips have outside stretches');
+  assert.deepEqual(state.selected,[made.id],'the new stretch is selected, so the Layout panel opens on it');
+ }finally{await ui.close();}
+});

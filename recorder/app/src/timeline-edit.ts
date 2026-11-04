@@ -102,7 +102,7 @@ export function uncovered(range:readonly [number,number],clips:readonly Clip[]):
  for(const [s,e] of busy){if(e<=a+EPS)continue;if(s>=b-EPS)break;if(s>a+EPS)out.push([a,Math.min(s,b)]);a=Math.max(a,e);if(a>=b-EPS)break;}
  if(b-a>EPS)out.push([a,b]);return out;
 }
-/** Deletes clips (with their linked clips), elements, captions, zooms and markers. With `ripple` the time the deleted clips leave empty on every row is removed from the whole timeline: later clips, captions, graphics, zooms, scenes and markers move up. */
+/** Deletes clips (with their linked clips), elements, captions, zooms, layout stretches and markers. With `ripple` the time the deleted clips leave empty on every row is removed from the whole timeline: later clips, captions, graphics, zooms, scenes and markers move up. */
 /**
  * What a delete did: `closed` are the time ranges removed from every row (in timeline seconds before the delete), `swept` the ids of other clips
  * that lay wholly inside them and went with that time (music under a deleted piece). Clips that ran across a closed range are shortened.
@@ -112,6 +112,7 @@ export function deleteItems(p:Project,ids:Iterable<string>,ripple:boolean):Delet
  const before=snapshotCaptionTiming(plainView(p));
  const all=linkedIds(p.clips,ids),removed=p.clips.filter(c=>all.has(c.id)).map(c=>[c.start,end(c)] as [number,number]);
  p.clips=p.clips.filter(c=>!all.has(c.id));p.elements=p.elements.filter(e=>!all.has(e.id));p.captions=p.captions.filter(c=>!all.has(c.id));p.zooms=p.zooms.filter(z=>!all.has(z.id));
+ if(p.layouts)p.layouts=p.layouts.filter(l=>!all.has(l.id));
  if(p.motion)p.motion=p.motion.filter(m=>!all.has(m.id));
  if(p.markers)p.markers=p.markers.filter(m=>!all.has(m.id));
  updateCaptions(p,remapClipCaptions(before,plainView(p),before.captions.filter(c=>!all.has(c.id))));
@@ -139,6 +140,8 @@ export function openRange(p:Project,at:number,length:number){
  for(const c of p.clips)if(later(c.start))c.start+=length;
  for(const e of p.elements)if(later(e.start))e.start+=length;
  for(const z of p.zooms)if(later(z.start))z.start+=length;
+ // A layout stretch the opening lands inside grows with it, so the time that opens keeps the layout around it.
+ for(const l of p.layouts??[])if(later(l.start))l.start+=length;else if(l.start+l.duration>at+EPS)l.duration+=length;
  for(const m of p.motion??[])if(later(m.start))m.start+=length;
  for(const c of p.captions)if(later(c.start)){c.start+=length;c.end+=length;if(c.words)c.words=c.words.map(w=>({...w,start:w.start+length,end:w.end+length}));}
  for(const s of p.scenes)if(later(s.start)&&s.start>0)s.start+=length;
@@ -208,12 +211,12 @@ export function remapLinks(p:Project,ids:ReadonlySet<string>,newId:()=>string=ma
 
 /* ---------- Moves without overlaps ---------- */
 
-/** One timeline item for row checks: a clip on its layer row, or an element, caption, zoom or motion block on its own row. */
+/** One timeline item for row checks: a clip on its layer row, or an element, caption, zoom, motion block or layout stretch on its own row. */
 export interface RowItem {id:string;row:string;start:number;duration:number}
 export function rowItems(p:Project):RowItem[]{
  return [...p.clips.map(c=>({id:c.id,row:clipLayerRowId(c,p),start:c.start,duration:clipDuration(c)})),...p.elements.map(e=>({id:e.id,row:'elements',start:e.start,duration:e.duration})),
   ...p.captions.map(c=>({id:c.id,row:'captions',start:c.start,duration:c.end-c.start})),...p.zooms.map(z=>({id:z.id,row:'zooms',start:z.start,duration:z.duration})),
-  ...(p.motion??[]).map(m=>({id:m.id,row:MOTION_ROW,start:m.start,duration:m.duration}))];
+  ...(p.motion??[]).map(m=>({id:m.id,row:MOTION_ROW,start:m.start,duration:m.duration})),...(p.layouts??[]).map(l=>({id:l.id,row:'layouts',start:l.start,duration:l.duration}))];
 }
 /** True when the moving items, shifted by `delta`, start before zero or overlap a still item on their row. */
 export function collides(moving:readonly RowItem[],delta:number,others:readonly RowItem[]){
@@ -287,11 +290,12 @@ export function applyClipStarts(p:Project,starts:ReadonlyMap<string,number>,medi
  for(const c of p.clips){const d=deltas.get(groups.get(c.id)!);if(d!==undefined)c.start=Math.max(0,c.start+d);}
  updateCaptions(p,remapClipCaptions(before,plainView(p)));
 }
-/** Moves elements, captions, zooms or motion blocks by one delta (start only; length unchanged). */
+/** Moves elements, captions, zooms, layout stretches or motion blocks by one delta (start only; length unchanged). */
 export function moveEffects(p:Project,ids:ReadonlySet<string>,delta:number){
  for(const e of p.elements)if(ids.has(e.id))e.start=Math.max(0,e.start+delta);
  for(const m of p.motion??[])if(ids.has(m.id))m.start=Math.max(0,m.start+delta);
  for(const z of p.zooms)if(ids.has(z.id))z.start=Math.max(0,z.start+delta);
+ for(const l of p.layouts??[])if(ids.has(l.id))l.start=Math.max(0,l.start+delta);
  for(const c of p.captions)if(ids.has(c.id)){const d=Math.max(-c.start,delta);c.start+=d;c.end+=d;if(c.words)c.words=c.words.map(w=>({...w,start:w.start+d,end:w.end+d}));}
 }
 
@@ -335,7 +339,7 @@ export function trimClips(p:Project,chosen:ReadonlySet<string>,side:'left'|'righ
  if(side==='right'){openRange(p,Math.min(...clips.map(end)),delta);for(const c of p.clips)if(ids.has(c.id))c.sourceOut+=delta*c.speed;remapAfterOpen(p,before);return;}
  const length=-delta;openRange(p,Math.min(...clips.map(c=>c.start)),length);for(const c of p.clips)if(ids.has(c.id)){c.start-=length;c.sourceIn-=length*c.speed;}remapAfterOpen(p,before);
 }
-/** Resizes an element, caption, zoom or motion block edge within [0, neighbours] and keeps at least a tenth of a second (a motion block, its template's shortest length). */
+/** Resizes an element, caption, zoom, layout stretch or motion block edge within [0, neighbours] and keeps at least a tenth of a second (a motion block, its template's shortest length). */
 export function resizeEffect(p:Project,id:string,side:'left'|'right',delta:number){
  const items=rowItems(p),item=items.find(i=>i.id===id);if(!item)return;
  const others=items.filter(i=>i.row===item.row&&i.id!==id),stop=item.start+item.duration;
@@ -343,8 +347,8 @@ export function resizeEffect(p:Project,id:string,side:'left'|'right',delta:numbe
  const lo=side==='left'?Math.max(-item.start,...others.filter(o=>o.start+o.duration<=item.start+EPS).map(o=>o.start+o.duration-item.start)):shortest-item.duration;
  const hi=side==='left'?item.duration-shortest:Math.min(3600,...others.filter(o=>o.start>=stop-EPS).map(o=>o.start-stop));
  const d=Math.max(lo,Math.min(hi,delta)),start=side==='left'?item.start+d:item.start,length=side==='left'?item.duration-d:item.duration+d;
- const e=p.elements.find(x=>x.id===id),z=p.zooms.find(x=>x.id===id),c=p.captions.find(x=>x.id===id);
- if(e){e.start=start;e.duration=length;}if(z){z.start=start;z.duration=length;}if(c){c.start=start;c.end=start+length;}if(block){const m=p.motion!.find(x=>x.id===id)!;m.start=start;m.duration=length;}
+ const e=p.elements.find(x=>x.id===id),z=p.zooms.find(x=>x.id===id),c=p.captions.find(x=>x.id===id),l=p.layouts?.find(x=>x.id===id);
+ if(e){e.start=start;e.duration=length;}if(z){z.start=start;z.duration=length;}if(l){l.start=start;l.duration=length;}if(c){c.start=start;c.end=start+length;}if(block){const m=p.motion!.find(x=>x.id===id)!;m.start=start;m.duration=length;}
 }
 
 /* ---------- Markers ---------- */

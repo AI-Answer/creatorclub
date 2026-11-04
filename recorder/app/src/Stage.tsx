@@ -10,6 +10,7 @@ import {trackedCrop} from '../shared/face-tracking';
 import {previewAudioMixer} from './preview-audio';
 import {canvasBackgroundStyle} from '../shared/canvas-background';
 import {zoomScaleAt} from '../shared/zoom-timing';
+import {followsLayout,layoutAt,layoutTransform} from '../shared/layouts';
 import {clampToEnd,usePlayheadTime,type Playhead} from './playhead';
 import {clipFilterCss,cursorPointLookup,stageIndex,stageSlots} from './stage-view';
 import {MotionLayer} from './MotionLayer';
@@ -27,7 +28,8 @@ function ClipView({clip,media,time,visible,playing,quality,onSelect,project:p,pi
  // catch up: seeking it again would only restart the stall.
  useEffect(()=>{let failed=false;const live=playing&&visible;for(const el of [ref.current,audio.current,backdrop.current]){if(!el)continue;const isBackdrop=el===backdrop.current;if(isBackdrop){el.volume=0;el.muted=true;}else{try{previewAudioMixer.update(el,clip,time,live,playbackRate);}catch{el.muted=true;failed=true;}}const rate=Math.max(.0625,Math.min(16,clip.speed*playbackRate));if(el.playbackRate!==rate)el.playbackRate=rate;const target=clip.sourceIn+Math.max(0,time-clip.start)*clip.speed;if(Math.abs(el.currentTime-target)>(live?.22:.025)&&!(live&&(el.seeking||el.readyState>el.HAVE_NOTHING&&el.readyState<el.HAVE_FUTURE_DATA)))el.currentTime=target;if(live&&!isBackdrop){if(el.paused)el.play().catch(()=>{});}else if(!el.paused)el.pause();}setAudioError(failed);},[time,playing,clip,visible,vision.frame,playbackRate]);
  if(media.kind==='audio'||clip.track==='audio'||clip.track==='music')return <><audio ref={audio} src={mediaUrl(media)} preload={visible?'metadata':'auto'}/>{audioError&&visible&&<span role="status" className="vision-preview-status">Audio preview unavailable</span>}</>;
- const t={...clip.transform},e=clip.effects;
+ // A layout stretch places the camera and screen while it runs; an upcoming clip is pre-seeked in the place it opens with.
+ const t={...layoutTransform(p,clip,Math.max(time,clip.start))},e=clip.effects;
  const full=t.x===0&&t.y===0&&t.width===1&&t.height===1&&(clip.zIndex??0)>=0;
  if(full){const pad=Math.min(p.canvas.padding,Math.min(p.canvas.width,p.canvas.height)/3);t.x=pad/p.canvas.width;t.y=pad/p.canvas.height;t.width=1-2*t.x;t.height=1-2*t.y;}
  const zoom=p.zooms.find(z=>z.target===clip.track&&time>=z.start&&time<z.start+z.duration);
@@ -84,11 +86,12 @@ export const Stage=memo(function Stage({project:p,playhead,playing,playbackRate=
    if(playing||!selected)return null;
    const at=(c:Project['clips'][number])=>time>=c.start&&time<c.start+(c.sourceOut-c.sourceIn)/c.speed;
    const c=onTransform?p.clips.find(x=>x.id===selected&&(x.track==='camera'||x.track==='screen'||x.track==='overlay')):undefined;
-   if(c&&at(c))return <StageHandles box={c.transform} onChange={(box,phase)=>onTransform!(c.id,box,phase)}/>;
+   // Inside a layout stretch the stretch places the clip: it changes in the Layout panel, not by hand.
+   if(c&&at(c))return followsLayout(c)&&layoutAt(p,time)?null:<StageHandles box={c.transform} onChange={(box,phase)=>onTransform!(c.id,box,phase)}/>;
    // A selected zoom: a box over the clip it zooms shows where it looks; drag it to aim, a corner to zoom closer or wider.
    const z=onZoom?p.zooms.find(x=>x.id===selected):undefined,under=z&&p.clips.find(x=>x.track===z.target&&at(x));
    if(!z||!under)return null;
-   const t=under.transform,size=1/Math.max(1,z.scale);
+   const t=layoutTransform(p,under,time),size=1/Math.max(1,z.scale);
    return <div className="stage-zoom-area" style={{left:`${t.x*100}%`,top:`${t.y*100}%`,width:`${t.width*100}%`,height:`${t.height*100}%`}}>
     <StageHandles className="is-zoom" title="Drag to aim the zoom · drag a corner to zoom closer or wider" box={{x:z.x-size/2,y:z.y-size/2,width:size,height:size}}
      onChange={box=>onZoom!(z.id,{x:Math.min(1,Math.max(0,box.x+box.width/2)),y:Math.min(1,Math.max(0,box.y+box.height/2)),scale:Math.min(4,Math.max(1.05,1/box.width))})}/>

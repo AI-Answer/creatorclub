@@ -47,6 +47,10 @@ export type MotionPlace='left'|'right'|'top'|'bottom'|'stage';
 export interface MotionBlock { id:string; template:MotionTemplateId; style:string; start:number; duration:number; props:Record<string,string|number>; place?:MotionPlace;
  /** Not stored: the project's look, handed to the block by whatever draws it (the stage, the export). */ look?:import('./look').Look; }
 export interface Zoom { id:string; start:number; duration:number; scale:number; x:number;y:number; target:'screen'|'camera'; easing:'linear'|'smooth'; effectTiming?:{offset:number;duration:number}; }
+/** The camera-and-screen arrangements a Layout stretch can name (shared/layouts.ts places each). */
+export type LayoutPreset='Creator'|'Full frame'|'Picture in picture'|'Side by side'|'Camera spotlight';
+/** A stretch on Borumi's Layout row: from `start` for `duration` seconds the camera and screen take `preset`. Outside every stretch a clip keeps its own transform. */
+export interface LayoutSegment { id:string; start:number; duration:number; preset:LayoutPreset; }
 export interface CursorPoint { time:number;x:number;y:number;pressed?:boolean;visible?:boolean; }
 export interface CursorSettings { enabled:boolean; size:number; color:string; highlight:boolean; smoothing:number; points:CursorPoint[]; }
 /** Original capture timestamps and bounds on the recording clock. Version 1 used normalized files; version 2 used mic-length trims; version 3 uses a shared intersection. */
@@ -70,6 +74,8 @@ export interface Project {
  version:1; id:string; name:string; createdAt:string; updatedAt:string;
  canvas:Canvas; /** The video's look: type, colours, motion and the stage (shared/look.ts). Missing means Clean. */ look?:import('./look').Look; scenes:Scene[]; media:Media[]; clips:Clip[]; captions:Caption[]; captionStyle:CaptionStyle;
  elements:Element[]; zooms:Zoom[]; cursor:CursorSettings; notes:string;
+ /** Layout stretches, in time order and never overlapping; absent on projects made before them (read as none). */
+ layouts?:LayoutSegment[];
  /** Animated graphics blocks; absent on projects made before motion blocks (read as none). */
  motion?:MotionBlock[];
  recordedTakes?:RecordedTake[];

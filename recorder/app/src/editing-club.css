@@ -134,6 +134,7 @@
 .club-embed .app-shell[data-mode=Edit] .club-tl-head[data-kind=captions]>svg{color:var(--kind-captions)}
 .club-embed .app-shell[data-mode=Edit] .club-tl-head:is([data-kind=motion],[data-kind=elements])>svg{color:var(--kind-graphics)}
 .club-embed .app-shell[data-mode=Edit] .club-tl-head[data-kind=zooms]>svg{color:var(--kind-zoom)}
+.club-embed .app-shell[data-mode=Edit] .club-tl-head[data-kind=layouts]>svg{color:var(--kind-layout)}
 .club-embed .app-shell[data-mode=Edit] .club-timeline .timeline-scroll{flex:1;min-width:0;height:100%;overflow:auto;position:relative;outline:none}
 .club-embed .app-shell[data-mode=Edit] .club-timeline .timeline-content{position:relative;min-width:100%;background:none;overflow-x:clip}
 /* Near the end the hover time and frame open to the left, so they never widen the timeline (that made it scroll on forever). */
@@ -171,13 +172,14 @@
 .club-embed .app-shell[data-mode=Edit] .club-timeline .timeline-effect.club-effect{position:absolute;top:3px;bottom:3px;height:auto;display:flex;align-items:center;padding:0 7px;border:0;border-radius:var(--cc-r-sm);background:var(--kind-graphics);color:var(--kind-ink);font-size:var(--cc-text-2xs);font-weight:600;line-height:1;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:default;user-select:none}
 .club-embed .app-shell[data-mode=Edit] .club-timeline .row-captions .club-effect{background:var(--kind-captions)}
 .club-embed .app-shell[data-mode=Edit] .club-timeline .row-zooms .club-effect{background:var(--kind-zoom)}
+.club-embed .app-shell[data-mode=Edit] .club-timeline .row-layouts .club-effect{background:var(--kind-layout)}
 .club-embed .app-shell[data-mode=Edit] .club-timeline .row-markers .club-effect{background:var(--kind-markers)}
 .club-embed .app-shell[data-mode=Edit] .club-effect>span{pointer-events:none;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .club-embed .app-shell[data-mode=Edit] .club-timeline .clip-drag-preview{opacity:.9;box-shadow:0 4px 12px var(--tl-shade);cursor:grabbing;z-index:6}
 .club-embed .app-shell[data-mode=Edit] .club-ghost{position:absolute;top:3px;bottom:3px;border:1px dashed var(--cc-muted);border-radius:var(--cc-r-sm);pointer-events:none}
 .club-embed .app-shell[data-mode=Edit] .club-preview-cut{position:absolute;z-index:5;pointer-events:none;background:repeating-linear-gradient(135deg,color-mix(in srgb,var(--cc-danger) 30%,transparent) 0 4px,transparent 4px 8px);border-left:1px solid var(--cc-danger);border-right:1px solid var(--cc-danger)}
 .club-embed .app-shell[data-mode=Edit] .club-cut-mark{position:absolute;z-index:5;width:0;margin-left:-1px;border-left:2px dashed var(--cc-danger);pointer-events:none}
-.club-embed .app-shell[data-mode=Edit] .club-cut-mark::before{content:"Cut";position:absolute;top:2px;left:2px;padding:0 5px;border-radius:4px;background:var(--cc-danger);color:var(--kind-ink);font-size:var(--cc-text-2xs);font-weight:600;line-height:15px}
+.club-embed .app-shell[data-mode=Edit] .club-cut-mark::before{content:"Cut";position:absolute;top:2px;left:2px;padding:0 5px;border-radius:4px;background:var(--cc-danger);color:var(--cc-on-media);font-size:var(--cc-text-2xs);font-weight:600;line-height:15px}
 .club-embed .app-shell[data-mode=Edit] .club-snap{position:absolute;top:0;bottom:0;width:0;margin-left:-1px;border-left:2px solid var(--tl-select);z-index:9;pointer-events:none;background:none}
 .club-embed .app-shell[data-mode=Edit] .club-snap>span{display:none}
 .club-embed .app-shell[data-mode=Edit] .club-insert-line{position:absolute;top:0;bottom:0;width:3px;margin-left:-1px;background:var(--tl-select);z-index:9;pointer-events:none}

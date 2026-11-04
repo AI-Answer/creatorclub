@@ -136,7 +136,7 @@ test('club-mode rules of original-theme.css use tokens',()=>{
 test('the timeline, the scene chips and the take chips paint a kind with the one shared token, and the editor defines no kind colour of its own',()=>{
  const editor=fs.readFileSync(path.join(src,'editing-club.css'),'utf8').replace(/\/\*[\s\S]*?\*\//g,'');
  assert.doesNotMatch(editor,/--kind-[a-z-]+\s*:/,'editing-club.css reads --kind-* from tokens.css and does not redefine it');
- for(const kind of ['screen','camera','audio','graphics','captions','zoom','markers'])assert.match(editor,new RegExp(`var\\(--kind-${kind}\\)`),`the timeline uses --kind-${kind}`);
+ for(const kind of ['screen','camera','audio','graphics','captions','zoom','layout','markers'])assert.match(editor,new RegExp(`var\\(--kind-${kind}\\)`),`the timeline uses --kind-${kind}`);
  const recorder=fs.readFileSync(path.join(src,'recording-club.css'),'utf8');
  for(const kind of ['screen','camera','audio'])assert.match(recorder,new RegExp(`var\\(--kind-${kind}\\)`),`take chips use --kind-${kind}`);
 });
@@ -176,20 +176,24 @@ test('an icon-only button always has an accessible name',()=>{
  assert.deepEqual(found,[]);
 });
 
-test('timeline kinds: video and audio clips are Borumi\'s blues, captions and markers are told apart from blue and from "done" green',()=>{
- const tokens=fs.readFileSync(path.join(src,TOKENS),'utf8'),light=tokens.slice(0,tokens.indexOf('data-theme=dark'));
- const value=(name:string)=>light.match(new RegExp(`${name}:\\s*(#[0-9a-f]{6})`,'i'))?.[1];
- const hsl=(hex:string)=>{const [r,g,b]=[1,3,5].map(i=>parseInt(hex.slice(i,i+2),16)/255),max=Math.max(r,g,b),min=Math.min(r,g,b),d=max-min,l=(max+min)/2,s=d?d/(1-Math.abs(2*l-1)):0;
-  let h=0;if(d){h=max===r?((g-b)/d)%6:max===g?(b-r)/d+2:(r-g)/d+4;h=(h*60+360)%360;}return {h,s};};
- const far=(a:string,b:string,deg:number)=>{const x=hsl(a),y=hsl(b),dh=Math.min(Math.abs(x.h-y.h),360-Math.abs(x.h-y.h));return x.s<.15||dh>=deg;};
- const accent=value('--cc-accent')!,ok=value('--cc-ok')!;
- // Borumi paints video clips blue-600 and audio a darker blue; selection stays an outline, so it never relies on the fill.
- assert.equal(value('--kind-screen'),'#2563eb');assert.equal(value('--kind-camera'),'#2563eb');assert.equal(value('--kind-audio'),'#1e40af');
- for(const kind of ['--kind-captions','--kind-markers']){const v=value(kind);assert.ok(v,`${kind} is its own colour`);assert.ok(far(v!,accent,40),`${kind} is not selection blue`);assert.ok(far(v!,ok,40),`${kind} is not "done" green`);}
- assert.ok(far(value('--kind-captions')!,value('--kind-zoom')!,20)&&far(value('--kind-markers')!,value('--kind-zoom')!,15),'captions and markers differ from zoom');
- const css=fs.readFileSync(path.join(src,'editing-club.css'),'utf8');
+test('timeline kinds are Borumi\'s segment classes in both themes: video blue-400, audio alone green-400, overlays purple-400, control rows yellow-400',()=>{
+ const tokens=fs.readFileSync(path.join(src,TOKENS),'utf8'),split=tokens.indexOf('data-theme=dark'),light=tokens.slice(0,split),dark=tokens.slice(split);
+ const value=(block:string,name:string)=>block.match(new RegExp(`${name}:\\s*([^;]+);`))?.[1].trim();
+ // Borumi 0.32.1's scale (index-DXJH5HZm.css). Its dark scale runs backwards, so its blue-400 is a deeper blue and its yellow-400 an orange there.
+ for(const kind of ['--kind-screen','--kind-camera']){assert.equal(value(light,kind),'hsl(213 94% 68%)',`${kind} is light blue-400`);assert.equal(value(dark,kind),'hsl(221 83% 53%)',`${kind} is dark blue-400`);}
+ assert.equal(value(light,'--kind-audio'),'hsl(142 69% 58%)');assert.equal(value(dark,'--kind-audio'),'hsl(142 76% 36%)');
+ assert.equal(value(light,'--kind-control'),'hsl(43 96% 56%)');assert.equal(value(dark,'--kind-control'),'hsl(32 95% 44%)');
+ assert.equal(value(light,'--kind-graphics'),'rgb(192 132 252)');
+ for(const kind of ['--kind-captions','--kind-zoom','--kind-layout'])assert.equal(value(light,kind),'var(--kind-control)',`${kind} is a control row`);
+ // Words on a clip are Borumi's text-primary; on a take the pill is the background at half strength and the waveform black.
+ assert.equal(value(light,'--kind-ink'),'#0a0a0a');assert.equal(value(dark,'--kind-ink'),'#ffffff');
+ assert.equal(value(light,'--kind-audio-band'),'rgb(255 255 255 / 0.5)');assert.equal(value(dark,'--kind-audio-band'),'rgb(10 10 10 / 0.5)');
+ const css=fs.readFileSync(path.join(src,'editing-club.css'),'utf8'),club=fs.readFileSync(path.join(src,'club/borumi.css'),'utf8');
  assert.match(css,/\.club-marker\{[^}]*var\(--kind-markers\)/,'markers use their token');
- assert.match(css,/:is\(\.club-clip,\.club-effect\)\.selected\{outline:2px solid var\(--tl-select\)/,'selection is the accent outline only');
+ assert.match(css,/:is\(\.club-clip,\.club-effect\)\.selected\{outline:2px solid var\(--tl-select\)/,'selection is an outline only');
+ assert.match(club,/:is\(\.club-clip, \.club-effect\)\.selected \{ outline: 2px solid var\(--cc-accent\); outline-offset: 1px; \}/,'in the club, Borumi\'s blue-500 ring one pixel off');
+ assert.match(club,/\.club-wave \{ opacity: 0\.4; \}/,'the waveform is black at 40%, as in Borumi');
+ assert.match(club,/\.row-layouts \.club-effect \{[^}]*background: var\(--kind-layout\)/,'layout stretches are the control colour');
 });
 
 test('every stylesheet, the editor\'s included, takes text sizes and corner radii from the token scale',()=>{

@@ -1,6 +1,6 @@
 import {memo,useCallback,useEffect,useLayoutEffect,useMemo,useRef,useState} from 'react';
 import {flushSync} from 'react-dom';
-import {AudioLines,Camera,Clapperboard,Layers,Link2,Mic,Monitor,Music,Type,ZoomIn} from 'lucide-react';
+import {AudioLines,Camera,Clapperboard,Layers,LayoutTemplate,Link2,Mic,Monitor,Music,Plus,Type,ZoomIn} from 'lucide-react';
 import {motionLabel} from '../shared/motion/templates';
 import type {Clip,Media,Project,TrackKind} from '../shared/types';
 import {clipDuration,projectDuration} from '../shared/types';
@@ -15,6 +15,8 @@ import type {Playhead} from './playhead';
 import {captionWordsByClip} from '../shared/caption-timing';
 import {TAKE_ROW,takeClipViews,type TakeClipView} from './timeline-take-view';
 import {isSoundTag} from '../shared/sound-tags';
+import {baseLayout,insertLayout,layoutRoom} from '../shared/layouts';
+import {makeId} from '../shared/types';
 
 /**
  * The embedded (Creator Compiler) timeline. Rows exist only when used; a take's screen, camera and audio are linked;
@@ -24,26 +26,27 @@ import {isSoundTag} from '../shared/sound-tags';
  */
 type Change=(fn:(project:Project)=>void,opts?:{coalesce?:string})=>void;
 export interface TimelineControls {fit():void;width():number}
-type Effect='motion'|'elements'|'captions'|'zooms';
+type Effect='motion'|'elements'|'captions'|'zooms'|'layouts';
 interface Row {id:string;name:string;icon:typeof Camera;height:number;top:number;layer?:TimelineLayerRow;effect?:Effect;linked?:boolean;take?:boolean}
 interface Preview {start:number;duration:number;sourceIn?:number;dy?:number}
 interface Drag {items:Map<string,Preview>;ghosts:Array<{row:string;start:number;duration:number}>;guide:number|null;insert:number|null;label:string;markers?:Map<string,number>}
 /** Snapping reaches 8 px on screen, whatever the zoom, so a short neighbour does not pull an edit away from where it was dropped. */
 const RULER=30,SCENE_BAND=14,NOTES_LANE=22,SNAP_PX=8,STALE_DROP='The timeline changed during the drag, so nothing moved. Try again.',NOT_MOVED='Clips stay joined end to end. Drag a clip onto another one to change the order.';
 const icons:Record<TrackKind,typeof Camera>={screen:Monitor,camera:Camera,audio:Mic,music:Music,overlay:Layers};
-/** As in Borumi: media rows are tall blocks (52px), effect rows (graphics, text, captions, zooms) a slimmer 28px. */
+/** As in Borumi: media rows are tall blocks (52px), effect rows (graphics, text, layout, zooms, captions) Borumi's 32px lanes. */
 // Borumi's rows (screens/borumi/40): a picture row about 50px, an audio row a little taller for its words band.
-const ROW_H=28,MEDIA_H=52,AUDIO_H=60,TAKE_H=72;
+const ROW_H=32,MEDIA_H=52,AUDIO_H=60,TAKE_H=72;
 const heights:Record<TrackKind,number>={screen:MEDIA_H,camera:MEDIA_H,audio:AUDIO_H,music:MEDIA_H,overlay:MEDIA_H};
-const effectRows:Array<{id:Effect;name:string;icon:typeof Camera}>=[{id:'motion',name:'Graphics',icon:Clapperboard},{id:'elements',name:'Text',icon:Type},{id:'captions',name:'Captions',icon:AudioLines},{id:'zooms',name:'Zoom',icon:ZoomIn}];
+/** In Borumi's order: overlays (graphics, text), then the control rows (layout, zoom, captions) under them. */
+const effectRows:Array<{id:Effect;name:string;icon:typeof Camera}>=[{id:'motion',name:'Graphics',icon:Clapperboard},{id:'elements',name:'Text',icon:Type},{id:'layouts',name:'Layout',icon:LayoutTemplate},{id:'zooms',name:'Zoom',icon:ZoomIn},{id:'captions',name:'Captions',icon:AudioLines}];
 
-/** The items on the effect rows (graphics, text, captions, zooms) with the words the timeline shows on them. */
-const effectsOf=(p:Project)=>new Map<string,Array<{id:string;start:number;duration:number;name:string}>>([['motion',(p.motion??[]).map(m=>({id:m.id,start:m.start,duration:m.duration,name:motionLabel(m)}))],['elements',p.elements.map(e=>({id:e.id,start:e.start,duration:e.duration,name:e.text||e.type}))],['captions',p.captions.filter(c=>!isSoundTag(c.text)).map(c=>({id:c.id,start:c.start,duration:c.end-c.start,name:c.text}))],['zooms',p.zooms.map(z=>({id:z.id,start:z.start,duration:z.duration,name:`Zoom ${z.scale}×`}))]]);
+/** The items on the effect rows (graphics, text, captions, zooms, layout stretches) with the words the timeline shows on them. */
+const effectsOf=(p:Project)=>new Map<string,Array<{id:string;start:number;duration:number;name:string}>>([['motion',(p.motion??[]).map(m=>({id:m.id,start:m.start,duration:m.duration,name:motionLabel(m)}))],['elements',p.elements.map(e=>({id:e.id,start:e.start,duration:e.duration,name:e.text||e.type}))],['captions',p.captions.filter(c=>!isSoundTag(c.text)).map(c=>({id:c.id,start:c.start,duration:c.end-c.start,name:c.text}))],['zooms',p.zooms.map(z=>({id:z.id,start:z.start,duration:z.duration,name:`Zoom ${z.scale}×`}))],['layouts',(p.layouts??[]).map(l=>({id:l.id,start:l.start,duration:l.duration,name:l.preset}))]]);
 type FxGhost={row:string;id:string;start:number;duration:number;name:string;kind:'new'|'changed'|'removed'};
 /** What a previewed change would add, move, reword or remove on the effect rows, to draw over the timeline before it is applied. */
 function fxGhosts(now:Project,after:Project):FxGhost[]{
  const before=effectsOf(now),next=effectsOf(after),out:FxGhost[]=[];
- for(const row of ['motion','elements','captions','zooms']){
+ for(const row of ['motion','elements','captions','zooms','layouts']){
   const was=new Map((before.get(row)??[]).map(i=>[i.id,i])),will=new Map((next.get(row)??[]).map(i=>[i.id,i]));
   for(const [id,i] of will){const old=was.get(id);if(!old)out.push({row,...i,kind:'new'});else if(Math.abs(old.start-i.start)>1e-6||Math.abs(old.duration-i.duration)>1e-6||old.name!==i.name)out.push({row,...i,kind:'changed'});}
   for(const [id,i] of was)if(!will.has(id))out.push({row,...i,kind:'removed'});
@@ -119,7 +122,7 @@ export const TimelineClub=memo(function TimelineClub({project:p,playhead,scale,o
   const count=filmstripCount(m.duration),h=54,w=Math.round(h*(m.width>0&&m.height>0?Math.min(2.4,Math.max(.5,m.width/m.height)):16/9)),index=Math.max(0,Math.min(count-1,Math.floor((c.sourceIn+(t-c.start)*c.speed)/m.duration*count)));
   return <i className="club-hover-frame" style={{width:w,height:h,backgroundImage:`url(/api/media/${m.id}/filmstrip)`,backgroundSize:`${count*w}px ${h}px`,backgroundPosition:`${-index*w}px 0`}}/>;
  };
- const effects=useMemo(()=>effectsOf(p),[p.motion,p.elements,p.captions,p.zooms]);
+ const effects=useMemo(()=>effectsOf(p),[p.motion,p.elements,p.captions,p.zooms,p.layouts]);
  const ruler=rulerHeight(p);
  // A gesture lives in refs and closes over ids, not over project arrays: only the person ends it, and the drop applies to the project as it is then.
  const gesture=useRef<(()=>void)|null>(null),latest=useRef(p);latest.current=p;
@@ -188,7 +191,8 @@ export const TimelineClub=memo(function TimelineClub({project:p,playhead,scale,o
   if(tool==='blade'&&clip){const at=snapTime(contentX(e.clientX)/scale).time;onSplit(id,at);return;}
   const group=clip?[...linkedIds(base.clips,[id])]:[id];
   if(e.shiftKey||e.metaKey||e.ctrlKey){const next=new Set(selectedIds);const on=next.has(id);for(const g of group)on?next.delete(g):next.add(g);onSelectMany([...next]);return;}
-  const selection=selectedIds.has(id)?selectedIds:new Set(group);if(!selectedIds.has(id))onSelectMany(group);
+  // As in Borumi, a press always chooses (so the item's panel opens even when it was already selected); the pressed item comes first.
+  const selection=selectedIds.has(id)?selectedIds:new Set(group);onSelectMany(selectedIds.has(id)?[id,...[...selectedIds].filter(x=>x!==id)]:group);
   const el=ref.current!,thresholdPx=SNAP_PX,x0=e.clientX,left0=el.scrollLeft,y0=e.clientY;
   if(mode==='move'){
    const ids=clip?linkedIds(base.clips,[...selection].filter(s=>base.clips.some(c=>c.id===s))):new Set([...selection].filter(s=>items.some(i=>i.id===s&&!base.clips.some(c=>c.id===s))));
@@ -246,6 +250,16 @@ export const TimelineClub=memo(function TimelineClub({project:p,playhead,scale,o
   const items:SelectionItem[]=rowItems(latest.current).flatMap(i=>{const row=rowById.get(viewByClip.get(i.id)?.row??i.row);return row?[{id:i.id,x:i.start*scale,y:row.top+2,width:Math.max(6,i.duration*scale),height:row.height-4}]:[];});
   run(e,(x,y)=>{const rr=content.getBoundingClientRect();box=rectangleBetween(origin,{x:Math.max(0,x-rr.left),y:Math.max(0,y-rr.top)});setMarquee(box);},moved=>{if(!moved){onSeek(origin.x/scale);if(!e.shiftKey)onSelectMany([]);return;}onSelectMany([...linkedIds(latest.current.clips,itemsInRectangle(box,items,base))]);});
  }
+ /* Borumi's Layout row: over an empty part a "+ Layout" stretch follows the pointer; a click there makes it, a drag makes it as long as the drag.
+    The new stretch takes the layout the clips have outside stretches and opens in the Layout panel, where its arrangement is chosen. */
+ const [layoutGhost,setGhost]=useState<{start:number;stop:number}|null>(null),setLayoutGhost=(next:{start:number;stop:number}|null)=>setGhost(was=>was===next||was&&next&&was.start===next.start&&was.stop===next.stop?was:next);
+ const layoutSpan=(origin:number,current:number)=>layoutRoom(latest.current,origin,current,Math.max(.5,(end-start)/10),projectDuration(latest.current));
+ function beginLayout(e:React.PointerEvent){
+  if(e.button!==0)return;if(tool==='blade'){onSeek(snapTime(contentX(e.clientX)/scale).time);return;}
+  e.preventDefault();const origin=snapTime(contentX(e.clientX)/scale).time;let span=layoutSpan(origin,origin);setLayoutGhost(span);
+  run(e,x=>{span=layoutSpan(origin,snapTime(contentX(x)/scale).time);setLayoutGhost(span);},()=>{setLayoutGhost(null);if(!span)return;const chosen=span,id=makeId(),preset=baseLayout(latest.current)??'Creator';let made=false;
+   change(d=>{made=insertLayout(d,{...chosen,preset,id}).length>0;});if(made)onSelectMany([id]);});
+ }
  function beginRuler(e:React.PointerEvent){
   if(e.button!==0)return;e.preventDefault();const seek=(x:number)=>onSeek(Math.max(0,contentX(x)/scale));seek(e.clientX);run(e,x=>seek(x),()=>{});
  }
@@ -270,16 +284,18 @@ export const TimelineClub=memo(function TimelineClub({project:p,playhead,scale,o
      {sceneBand(p)&&(()=>{const i=p.scenes.findIndex(s=>s.duration<=0);return i>=0&&<div key="waiting" className="club-scene-tag is-waiting" style={{left:duration*scale+4}} title={`Scene ${i+1}: ${p.scenes[i].name} has no take yet`}>Scene {i+1}</div>;})()}
      {(p.markers??[]).map(m=>{const time=drag?.markers?.get(m.id)??m.time;return visible(time,0)&&<div key={m.id} data-marker-id={m.id} className={`club-marker${m.tag?` tag-${m.tag}`:''}${m.name?.trim()?' has-note':''}`} style={{left:Math.max(10,time*scale)}} title={`${m.name?.trim()?m.name.trim()+' · ':''}Note at ${secondsLabel(time)} · click to open, drag to move`} onPointerDown={e=>beginMarker(e,m.id)}><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12Z"/></svg></div>;})}
     </div>
-    {rows.map(r=><div key={r.id} className={`timeline-row club-row row-${r.layer?.track??r.effect??'layer'}`} data-track={r.id} style={{top:r.top,height:r.height}} onPointerDown={e=>{if(e.target===e.currentTarget)beginEmpty(e);}}
+    {rows.map(r=><div key={r.id} className={`timeline-row club-row row-${r.layer?.track??r.effect??'layer'}`} data-track={r.id} style={{top:r.top,height:r.height}} onPointerDown={e=>{if(e.target!==e.currentTarget)return;if(r.effect==='layouts')beginLayout(e);else beginEmpty(e);}}
+     onPointerMove={r.effect==='layouts'?e=>{if(e.buttons||gesture.current)return;const t=contentX(e.clientX)/scale;setLayoutGhost(e.target===e.currentTarget?layoutSpan(t,t):null);}:undefined} onPointerLeave={r.effect==='layouts'?()=>{if(!gesture.current)setLayoutGhost(null);}:undefined}
      onDragOver={e=>{if(r.layer)e.preventDefault();}} onDrop={e=>{e.preventDefault();const id=e.dataTransfer.getData('application/sceneforge-media'),media=mediaById.get(id);if(media&&r.layer&&(media.kind==='audio'?'audio':'video')===r.layer.kind)onDropMedia(id,r.layer.track??(r.layer.kind==='audio'?'audio':'screen'),snapTime(Math.max(0,contentX(e.clientX)/scale)).time,r.take?undefined:r.id);}}>
 
      {r.layer&&takeViews.filter(v=>v.row===r.id).map(v=>{const c=v.clip,pv=drag?.items.get(c.id),s=pv?.start??c.start,d=pv?.duration??clipDuration(c);if(!pv&&!visible(c.start,clipDuration(c)))return null;const sound=v.sound??c,m=mediaById.get(sound.mediaId);
       return <ClubClip key={c.id} view={v} media={m} row={r} preview={pv} selected={v.members.some(c=>selectedIds.has(c.id))} linked={(groupSize.get(groups.get(c.id)!)??1)>1} label={labels.get(c.id)??''} peaks={showWaveforms&&m?waveforms[waveformMediaKey(m)]:undefined} words={showWords?wordsByClip.get(sound.id):undefined} scale={scale} from={Math.max(start,s)} to={Math.min(end,s+d)} onBegin={beginItem} onOpen={onOpen}/>;})}
      {r.effect&&(effects.get(r.id)??[]).map(i=>{const pv=drag?.items.get(i.id),s=pv?.start??i.start,d=pv?.duration??i.duration;if(!pv&&!visible(i.start,i.duration))return null;
       const name=i.name;
-      return <div key={i.id} data-effect-id={i.id} className={`timeline-effect club-effect ${selectedIds.has(i.id)?'selected':''} ${pv?'clip-drag-preview':''}`} style={{left:s*scale,width:Math.max(6,d*scale)}} title={`${name} · drag to move, edges to resize, double-click to edit`} onPointerDown={e=>beginItem(e,i.id,'move')} onDoubleClick={()=>onOpen(i.id)}>
-       {/* Too narrow for a readable word: a plain block, with the words on hover. */}
-       {d*scale>=64&&<span>{name}</span>}{d*scale>=14&&<><i className="trim-handle left" onPointerDown={e=>beginItem(e,i.id,'left')}/><i className="trim-handle right" onPointerDown={e=>beginItem(e,i.id,'right')}/></>}</div>;})}
+      return <div key={i.id} data-effect-id={i.id} className={`timeline-effect club-effect ${r.effect==='layouts'?'is-layout':''} ${selectedIds.has(i.id)?'selected':''} ${pv?'clip-drag-preview':''}`} style={{left:s*scale,width:Math.max(6,d*scale)}} title={`${r.effect==='layouts'?`Layout: ${name}`:name} · drag to move, edges to resize, double-click to edit`} onPointerDown={e=>beginItem(e,i.id,'move')} onDoubleClick={()=>onOpen(i.id)}>
+       {/* Too narrow for a readable word: a plain block, with the words on hover. A layout stretch is centred, with its icon, as in Borumi. */}
+       {r.effect==='layouts'&&d*scale>=20&&<LayoutTemplate size={14} aria-hidden/>}{d*scale>=(r.effect==='layouts'?70:64)&&<span>{name}</span>}{d*scale>=14&&<><i className="trim-handle left" onPointerDown={e=>beginItem(e,i.id,'left')}/><i className="trim-handle right" onPointerDown={e=>beginItem(e,i.id,'right')}/></>}</div>;})}
+     {r.effect==='layouts'&&layoutGhost&&<div className="club-layout-ghost" style={{left:layoutGhost.start*scale,width:Math.max(8,(layoutGhost.stop-layoutGhost.start)*scale)}} aria-hidden><Plus size={13}/>{(layoutGhost.stop-layoutGhost.start)*scale>=70&&<span>Layout</span>}</div>}
      {ghosts.filter(g=>g.row===r.id).map(g=><div key={`${g.kind}:${g.id}`} className={`club-fx-ghost ${g.kind}`} style={{left:g.start*scale,width:Math.max(8,g.duration*scale)}} aria-hidden><span>{g.name}</span></div>)}
      {drag?.ghosts.filter(g=>g.row===r.id).map((g,i)=><div key={i} className="club-ghost" style={{left:g.start*scale,width:Math.max(4,g.duration*scale)}}/>)}
     </div>)}

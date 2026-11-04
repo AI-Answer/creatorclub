@@ -112,6 +112,8 @@ export function moveRecordingScene(p:Project,id:string,beforeId?:string):void {
   });
  });
  draft.elements=draft.elements.flatMap(item=>mapInterval(item.start,item.start+item.duration,'A graphic').map((part,index)=>({...item,id:index?makeId():item.id,start:part.start+part.delta,duration:part.stop-part.start})));
+ // A layout stretch follows the footage under it; the part of it past the last scene has nothing to place and is dropped.
+ if(draft.layouts)draft.layouts=draft.layouts.filter(l=>l.start<end-EPS).flatMap(l=>mapInterval(l.start,Math.min(end,l.start+l.duration),'A layout stretch').map((part,index)=>({...l,id:index?makeId():l.id,start:part.start+part.delta,duration:part.stop-part.start}))).sort((a,b)=>a.start-b.start);
  draft.zooms=draft.zooms.flatMap(zoom=>{
   const parts=mapInterval(zoom.start,zoom.start+zoom.duration,'A zoom');
   return parts.map((part,index)=>({...zoom,id:index?makeId():zoom.id,start:part.start+part.delta,duration:part.stop-part.start,

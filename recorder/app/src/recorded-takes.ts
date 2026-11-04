@@ -34,6 +34,8 @@ function appendLegacyTake(project:Project,take:Pick<SavedTake,'media'|'tracks'|'
  });
  project.elements=project.elements.flatMap(item=>{if(item.start>=start)return[{...item,start:item.start+duration}];if(item.start+item.duration<=start)return[item];return[{...item,duration:start-item.start},{...item,id:makeId(),start:start+duration,duration:item.start+item.duration-start}];});
  for(const zoom of project.zooms)if(zoom.start>=start)zoom.start+=duration;
+ // A take confirmed inside a layout stretch takes that layout: the stretch grows by the take.
+ for(const layout of project.layouts??[]){if(layout.start>=start)layout.start+=duration;else if(layout.start+layout.duration>start)layout.duration+=duration;}
  const prior=[...project.cursor.points].reverse().find(point=>point.time<start),exact=project.cursor.points.some(point=>point.time===start);
  for(const point of project.cursor.points)if(point.time>=start)point.time+=duration;
  if(prior){project.cursor.points.push({...prior,time:start,visible:false});if(!exact)project.cursor.points.push({...prior,time:start+duration});project.cursor.points.sort((a,b)=>a.time-b.time);}

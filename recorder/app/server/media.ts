@@ -16,6 +16,7 @@ import { isSoundTag } from "../shared/sound-tags.ts";
 import { clipShadow } from "../shared/clip-shadow.ts";
 import { canvasBackgroundBMP, canvasBackgroundGeometry, canvasBackgroundRepeatSize, MOVING_DOTS } from "../shared/canvas-background.ts";
 import { zoomTiming } from "../shared/zoom-timing.ts";
+import { bakeLayouts } from "../shared/layouts.ts";
 import { filmstripCount, FILMSTRIP_HEIGHT, FILMSTRIP_WIDTH } from "../shared/filmstrip.ts";
 import { renderMotionBlock } from "./motion-render.ts";
 import { onStage } from "../shared/look.ts";
@@ -1623,6 +1624,8 @@ export function startExport(
 ): Job {
   const p = structuredClone(project),
     o = structuredClone(options);
+  // Layout stretches become clip pieces with their own transform, so slices and the renderer see plain clips.
+  bakeLayouts(p);
   let timelineStart = 0;
   return enqueue("export", async (j) => {
     if (o.range) {
