@@ -43,6 +43,7 @@ function buildPlan(project:Project,source:BorumiProvenance,structural:Structural
   if(scene.script!==b.script)warnings.add('Edited scene scripts are exported as plain paragraphs; native rich text formatting is replaced.');
   if(scene.notes!==b.notes)warnings.add('Scene notes are SceneForge-only and are not included in Borumi.');
  }
+ if(project.clips.some(c=>c.split))warnings.add('Split source presentation is kept in Creator Compiler; this Borumi copy keeps its original source presentation.');
  if(!same([...ids(project.media)].sort(),[...ids(base.media)].sort()))blockers.add('Adding or removing media cannot be exported yet.');
  for(const media of project.media){const b=base.media.find(x=>x.id===media.id);if(b&&fields(media,b,['path','kind','duration','width','height','hasAudio','fps','audioRole']).length)blockers.add('Relinking or changing source media or its audio role cannot be exported yet.');}
  if(!structural&&!same([...ids(project.clips)].sort(),[...ids(base.clips)].sort()))blockers.add('Adding, splitting or removing clips cannot be exported yet.');
@@ -50,8 +51,8 @@ function buildPlan(project:Project,source:BorumiProvenance,structural:Structural
  for(const b of base.clips){const m=source.mapping.clips[b.id];if(m){const g=groups.get(m.segmentId)??[];g.push(b);groups.set(m.segmentId,g);}}
  for(const clip of structural?[]:project.clips){const b=base.clips.find(x=>x.id===clip.id);if(!b)continue;const m=source.mapping.clips[clip.id];
   if(clip.name!==b.name)warnings.add('Clip display names are SceneForge-only; source media names are preserved.');
-  if(!m){if(changed(clip,b,['name']))blockers.add('A generated background or unsupported native clip was changed.');continue;}
-  if(changed(clip,b,['name','gain','muted','start','sourceIn','sourceOut','speed','effects']))blockers.add('Clip track, source, transform or layer changes cannot be exported yet.');
+  if(!m){if(changed(clip,b,['name','split']))blockers.add('A generated background or unsupported native clip was changed.');continue;}
+  if(changed(clip,b,['name','gain','muted','start','sourceIn','sourceOut','speed','effects','split']))blockers.add('Clip track, source, transform or layer changes cannot be exported yet.');
   if(changed(clip.effects,b.effects,['flipX']))blockers.add('Clip effect changes other than horizontal flip cannot be exported yet.');
   if(clip.muted!==b.muted)blockers.add('Changed mute state cannot be encoded exactly yet; it is not approximated as a low volume.');
   const gainChanged=clip.gain!==b.gain,flipChanged=clip.effects.flipX!==b.effects.flipX;

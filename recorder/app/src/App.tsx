@@ -52,6 +52,7 @@ import type {EditOptions} from './editing-actions';
 import {Menu,useToast,type MenuItem} from './club/ui';
 import {CutPlayback} from './CutPlayback';
 import {recallEditView,rememberEditView} from './edit-session';
+import {takePackageActions} from './take-package-actions';
 import {timelineContextItems,timelineMoreItems,type TimelineMenuActions} from './edit-menus';
 import {TimelineClub,rowsHeight,usedRows,type TimelineControls} from './TimelineClub';
 import {type Deleted,secondsLabel,moveMarker,addMarker,addMotionBlock,noteMarker,removeMarker,applyClipStarts,clampScale,deleteItems,ensureLinks,freeDelta,insertGap,mergeRanges,moveEffects,rowItems,isLinked,linkClips,linkedIds,remapLinks,selectionCount,zoomSlider,syncScenesToTakes,rulerLabel,lengthLabel,showTenths,splitLinked,unlinkClips} from './timeline-edit';
@@ -216,7 +217,8 @@ export default function App({embedded}:{embedded?:EmbeddedRecorder}={}){
   studio.change(d=>{const items=rowItems(d);if(clipIds.size){const moving=items.filter(i=>clipIds.has(i.id)),delta=freeDelta(moving,want,items);if(delta){ensureLinks(d);applyClipStarts(d,new Map(moving.map(m=>[m.id,m.start+delta])));syncScenesToTakes(d);}}
    if(effectIds.size){const moving=items.filter(i=>effectIds.has(i.id)),delta=freeDelta(moving,want,items);if(delta)moveEffects(d,effectIds,delta);}},{coalesce:'timeline.nudge'});};
  const addMarkerAtPlayhead=()=>{if(!p)return;const time=Math.round(playhead.get());let id='';studio.change(d=>{id=addMarker(d,time);});requestAnimationFrame(()=>requestAnimationFrame(()=>{const box=document.querySelector(`[data-marker-id="${id}"]`)?.getBoundingClientRect();if(box)openNote(id,box);}));};
- const selectionLinked=Boolean(p&&[...selection].some(id=>isLinked(p.clips,id)));
+ const selectedClips=p?[...selection].filter(id=>p.clips.some(c=>c.id===id)):[];
+ const selectionLinked=Boolean(p&&selectedClips.length&&selectionCount(p.clips,selectedClips)===1&&isLinked(p.clips,selectedClips[0]));
  const toggleLink=()=>{if(!p)return;const clips=[...selection].filter(id=>p.clips.some(c=>c.id===id));if(selectionLinked){studio.change(d=>{unlinkClips(d,clips);});notify('Unlinked. Move or trim them separately.');}else if(clips.length>1){let linked=false;studio.change(d=>{linked=linkClips(d,clips);});notify(linked?'Linked. They move and trim together.':'They no longer line up, so they cannot be linked.');}else notify('Select two or more clips to link them.');};
  const copy=()=>{if(!p)return;const ids=linkedIds(p.clips,selection);clipboard.current=copySelection(p,ids);if(clipboard.current)notify(`Copied ${ids.size} timeline items.`);};
  const paste=()=>{if(!p||!clipboard.current)return;let ids:string[]=[];const data=clipboard.current;
@@ -296,7 +298,7 @@ export default function App({embedded}:{embedded?:EmbeddedRecorder}={}){
  /* As in Borumi, choosing the open tool again closes its panel. */
  const railActive=panel??(side==='auto'?'Automate':side==='media'?'media':'');
  const moreItems:MenuItem[]=[{label:'Graphics',fn:()=>openPanel('Motion')},{label:'Media in this video',fn:()=>openSide('media')},{label:'Cutroom cuts and graphics',icon:'cut',fn:()=>openModal('cutroom')},'-',{label:'Import media',icon:'Upload',fn:()=>beginImport()}];
- const menuActions:TimelineMenuActions|null=p?{split:()=>split(),deleteClose:()=>deleteSelected(true),deleteKeepGap:()=>deleteSelected(false),duplicate:duplicateSelected,copy,paste,selectAll:()=>{const ids=[...p.clips,...p.elements,...p.captions,...p.zooms,...(p.layouts??[])].map(x=>x.id);setSelectedIds(new Set(ids));setSelected(ids[0]||null);},
+ const menuActions:TimelineMenuActions|null=p?{takeItems:takePackageActions(p,[...selection].find(id=>p.clips.some(c=>c.id===id))??'').map(action=>({label:action.label,fn:()=>{let ok=false,message='';studio.change(d=>{({ok,message}=action.run(d));});(ok?notify:refuse)(message);}})),split:()=>split(),deleteClose:()=>deleteSelected(true),deleteKeepGap:()=>deleteSelected(false),duplicate:duplicateSelected,copy,paste,selectAll:()=>{const ids=[...p.clips,...p.elements,...p.captions,...p.zooms,...(p.layouts??[])].map(x=>x.id);setSelectedIds(new Set(ids));setSelected(ids[0]||null);},
   addMarker:addMarkerAtPlayhead,previousCut:()=>boundary(-1),nextCut:()=>boundary(1),toggleLink,linked:selectionLinked,blade:tool==='blade',toggleBlade:()=>setTool(v=>v==='blade'?'select':'blade'),waveforms:showWaveforms,toggleWaveforms:()=>setShowWaveforms(v=>!v),
   addVideoLayer:()=>studio.change(d=>{addTimelineLayer(d,'video');}),addAudioLayer:()=>studio.change(d=>{addTimelineLayer(d,'audio');})}:null;
  const timelineItems:MenuItem[]=menuActions?timelineMoreItems(menuActions):[],contextItems:MenuItem[]=menuActions?timelineContextItems(menuActions):[];
@@ -407,7 +409,7 @@ export default function App({embedded}:{embedded?:EmbeddedRecorder}={}){
   </div>
   {note&&(()=>{const m=p.markers?.find(x=>x.id===note.id);return m?<MarkerNote time={secondsLabel(m.time)} onNudge={seconds=>studio.change(d=>moveMarker(d,note.id,Math.max(0,Math.min(Math.round(projectDuration(d)),Math.round(m.time)+seconds))))} name={m.name??''} tag={m.tag} anchor={note} onChange={patch=>studio.change(d=>noteMarker(d,note.id,patch),{coalesce:`note:${note.id}`})} onDelete={()=>{studio.change(d=>removeMarker(d,note.id));setNote(null);}} onClose={()=>setNote(null)}/>:null;})()}
   <TimelineResize storageKey="creatorclub.timeline-height" auto={timelineAuto}/>
-  <TimelineClub project={p} playhead={playhead} scale={zoom} autoFit={!kept} onScale={setZoom} selectedIds={selection} onSelectMany={selectMany} onSeek={timelineSeek.run} change={studio.change} onDropMedia={dropMedia} tool={tool} onSplit={splitClip} follow={follow} showWaveforms={showWaveforms} previewRanges={preview?.ranges} previewAfter={preview?.after&&previewPhase==='after'?preview.after:null} onOpenMarker={openNote} cutMarks={cutMarks} onOpen={openItem} onContextMenu={openContext} onNotice={notify} controls={timelineControls}/>
+  <TimelineClub project={p} playhead={playhead} scale={zoom} autoFit={!kept} onScale={setZoom} selectedIds={selection} onSelectMany={selectMany} onSeek={timelineSeek.run} change={studio.change} onDropMedia={dropMedia} tool={tool} onSplit={splitClip} follow={follow} showWaveforms={showWaveforms} previewRanges={preview?.ranges} previewAfter={preview?.after&&previewPhase==='after'?preview.after:null} onOpenMarker={openNote} cutMarks={cutMarks} onOpen={openItem} onContextMenu={openContext} onNotice={notify} onRefuse={refuse} controls={timelineControls}/>
   {contextAt&&<ContextMenu at={contextAt} items={contextItems} onClose={closeContext}/>}
   {toolsHost&&createPortal(<>
    <button type="button" aria-label="Undo" title="Undo (⌘Z)" disabled={!studio.canUndo} onClick={studio.undo}><Undo2 size={17}/></button>

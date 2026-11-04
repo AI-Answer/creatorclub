@@ -47,12 +47,12 @@ export function planStructuralTimeline(project:Project,source:BorumiProvenance,r
   }else if(byId.has(c.id))b=byId.get(c.id);
   else{
    // Older imports lack explicit ancestry. Accept only an unambiguous match.
-   const candidates=base.clips.filter(b=>b.mediaId===c.mediaId&&b.track===c.track&&close(b.speed,c.speed)&&c.sourceIn>=b.sourceIn-EPS&&c.sourceOut<=b.sourceOut+EPS&&same(omit(c,['id','borumiOriginId','name','start','sourceIn','sourceOut','effectTiming']),omit(b,['id','borumiOriginId','name','start','sourceIn','sourceOut','effectTiming'])));
+   const candidates=base.clips.filter(b=>b.mediaId===c.mediaId&&b.track===c.track&&close(b.speed,c.speed)&&c.sourceIn>=b.sourceIn-EPS&&c.sourceOut<=b.sourceOut+EPS&&same(omit(c,['id','borumiOriginId','name','start','sourceIn','sourceOut','split','effectTiming']),omit(b,['id','borumiOriginId','name','start','sourceIn','sourceOut','split','effectTiming'])));
    if(candidates.length===1)b=candidates[0];else blockers.add('A new clip has missing or ambiguous Borumi origin; reimport before splitting this clip.');
   }
   if(!b){blockers.add('A new clip is not a validated descendant of an imported clip.');continue;}
   if(![c.start,c.sourceIn,c.sourceOut,c.speed,c.gain].every(Number.isFinite)||c.sourceOut<=c.sourceIn||c.sourceIn<b.sourceIn-EPS||c.sourceOut>b.sourceOut+EPS||!close(c.speed,b.speed))blockers.add('Compatible split/delete edits must retain source ranges and playback speed.');
-  if(!same(omit(c,['id','borumiOriginId','name','start','sourceIn','sourceOut','effectTiming','gain','effects']),omit(b,['id','borumiOriginId','name','start','sourceIn','sourceOut','effectTiming','gain','effects']))||!same(omit(c.effects,['flipX']),omit(b.effects,['flipX'])))blockers.add('Split/delete export cannot change clip sources, tracks, layers, geometry or effects.');
+  if(!same(omit(c,['id','borumiOriginId','name','start','sourceIn','sourceOut','split','effectTiming','gain','effects']),omit(b,['id','borumiOriginId','name','start','sourceIn','sourceOut','split','effectTiming','gain','effects']))||!same(omit(c.effects,['flipX']),omit(b.effects,['flipX'])))blockers.add('Split/delete export cannot change clip sources, tracks, layers, geometry or effects.');
   if(c.effectTiming&&!same(c.effectTiming,b.effectTiming)){
    const origin=b.effectTiming??{sourceIn:b.sourceIn,sourceOut:b.sourceOut};
    const timing=c.effectTiming;

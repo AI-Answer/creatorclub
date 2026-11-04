@@ -8,8 +8,12 @@ const roles:Record<TrackKind,{name:string;kind:LayerKind;order:number}>={
 };
 export const clipLayerKind=(clip:Clip):LayerKind=>roles[clip.track].kind;
 const roleId=(track:TrackKind)=>`role:${track}`;
+const systemRow:TimelineLayerRow={id:'role:system-audio',name:'System audio',kind:'audio',order:.5,track:'audio'};
+/** System audio is a separate source lane, even in projects saved before source lanes existed. */
+export const defaultClipRowId=(clip:Clip,project:Project)=>clip.track==='audio'&&(clip.audioRole??project.media.find(m=>m.id===clip.mediaId)?.audioRole)==='system'?systemRow.id:roleId(clip.track);
 const legacyId=(clip:Clip)=>`legacy:${clip.track}:${clip.zIndex}`;
 function assignedRow(clip:Clip,project:Project):TimelineLayerRow|undefined{
+ if(clip.layerId===systemRow.id&&clipLayerKind(clip)==='audio')return systemRow;
  const role=Object.entries(roles).find(([track])=>roleId(track as TrackKind)===clip.layerId);
  if(role&&role[1].kind===clipLayerKind(clip))return {id:clip.layerId!,track:role[0] as TrackKind,...role[1]};
  return project.timelineLayers?.find(layer=>layer.id===clip.layerId&&layer.kind===clipLayerKind(clip));
@@ -17,11 +21,12 @@ function assignedRow(clip:Clip,project:Project):TimelineLayerRow|undefined{
 /** Unassigned clips retain the exact pre-layer renderer order, including imported backgrounds. */
 export function clipCompositeOrder(clip:Clip,project:Project):number{return assignedRow(clip,project)?.order??clip.zIndex??roles[clip.track].order;}
 export function clipLayerRowId(clip:Clip,project:Project):string{
- return assignedRow(clip,project)?.id??(clip.zIndex!==undefined&&clip.zIndex!==roles[clip.track].order?legacyId(clip):roleId(clip.track));
+ return assignedRow(clip,project)?.id??(clip.zIndex!==undefined&&clip.zIndex!==roles[clip.track].order?legacyId(clip):defaultClipRowId(clip,project));
 }
 /** The top video row is the highest composite layer. Explicit old z-orders remain visible. */
 export function timelineRows(project:Project):TimelineLayerRow[]{
  const rows:TimelineLayerRow[]=Object.entries(roles).map(([track,value])=>({id:roleId(track as TrackKind),track:track as TrackKind,...value}));
+ if(project.clips.some(c=>defaultClipRowId(c,project)===systemRow.id))rows.push(systemRow);
  rows.push(...(project.timelineLayers??[]));
  const seen=new Set(rows.map(row=>row.id));
  for(const clip of project.clips){const id=clipLayerRowId(clip,project);if(seen.has(id))continue;seen.add(id);rows.push({id,track:clip.track,name:`${roles[clip.track].name} · layer ${clip.zIndex}`,kind:clipLayerKind(clip),order:clipCompositeOrder(clip,project),legacyZ:clip.zIndex});}
@@ -49,7 +54,7 @@ export function renameTimelineLayer(project:Project,id:string,name:string):boole
 /** Removing a row never removes media or clips, including edits saved in archived takes. */
 export function removeTimelineLayer(project:Project,id:string):boolean{
  if(!project.timelineLayers?.some(row=>row.id===id))return false;
- const move=(clip:Clip)=>{if(clip.layerId===id)clip.layerId=roleId(clip.track);};
+ const move=(clip:Clip)=>{if(clip.layerId===id)clip.layerId=defaultClipRowId(clip,project);};
  project.clips.forEach(move);for(const take of project.recordedTakes??[])take.timeline?.clips.forEach(move);
  project.timelineLayers=project.timelineLayers.filter(row=>row.id!==id);if(!project.timelineLayers.length)delete project.timelineLayers;return true;
 }

@@ -232,3 +232,20 @@ test('P2 small dark effect labels reach 4.5:1, including Layout at 80% opacity',
   assert.ok(ratio>=4.5,`${kind} at ${alpha}: ${ratio.toFixed(2)}`);
  }
 });
+
+test('take outlines and sync badges reach 3:1 against clip fills in both themes',()=>{
+ const {light,dark}=themeTokens();
+ for(const tokens of [light,{...light,...dark}]){
+  const rgb=(value:string):number[]=>{
+   if(value.startsWith('var('))return rgb(tokens[value.slice(4,-1)]);
+   if(value.startsWith('#'))return [1,3,5].map(i=>parseInt(value.slice(i,i+2),16)/255);
+   const n=[...value.matchAll(/[\d.]+/g)].map(m=>Number(m[0]));if(!value.startsWith('hsl'))return n.map(v=>v/255);
+   const [h,s,l]=[n[0]/30,n[1]/100,n[2]/100],a=s*Math.min(l,1-l),f=(k:number)=>{const x=(k+h)%12;return l-a*Math.max(-1,Math.min(x-3,9-x,1));};return [f(0),f(8),f(4)];
+  };
+  const lum=(v:string)=>rgb(v).map(c=>c<=.04045?c/12.92:((c+.055)/1.055)**2.4).reduce((a,c,i)=>a+c*[.2126,.7152,.0722][i],0);
+  const contrast=(a:string,b:string)=>(Math.max(lum(a),lum(b))+.05)/(Math.min(lum(a),lum(b))+.05);
+  for(const fill of ['--kind-screen','--kind-camera','--kind-audio','--kind-graphics','--kind-control'])assert.ok(contrast(tokens['--take-outline'],tokens[fill])>=3,fill);
+  assert.ok(contrast(tokens['--take-badge-ink'],tokens['--take-badge-bg'])>=4.5);
+ }
+ const css=fs.readFileSync(path.join(src,'editing-club.css'),'utf8');assert.match(css,/\.club-clip.take-related\{outline:2px solid var\(--take-outline\)/);assert.match(css,/\.club-clip.take-related-take\{outline-style:dashed/);
+});

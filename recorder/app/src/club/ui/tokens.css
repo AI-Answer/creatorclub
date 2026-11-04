@@ -118,6 +118,10 @@
   --cc-band-orange-soft: var(--cc-text);
   --cc-band-red: var(--cc-surface);
   --cc-band-red-soft: var(--cc-text);
+  /* Same-take outline, chain and out-of-sync badge on the timeline. */
+  --take-outline: #16304c;
+  --take-badge-bg: #16304c;
+  --take-badge-ink: #ffffff;
   /* Timeline kinds, Borumi's segment classes (`up()` in its timeline): bg-blue-400 for video, bg-green-400 for audio alone,
      bg-purple-400 for overlays, bg-yellow-400 for the control rows. Light values here, dark values in the dark block. */
   --kind-screen: hsl(213 94% 68%);
@@ -206,6 +210,9 @@
   --cc-primary: #ffffff;
   --cc-primary-hover: rgb(255 255 255 / 0.9);
   --cc-on-primary: #212121;
+  --take-outline: #ffffff;
+  --take-badge-bg: #ffffff;
+  --take-badge-ink: #16304c;
   --kind-screen: hsl(221 83% 53%);
   --kind-camera: hsl(221 83% 53%);
   --kind-audio: hsl(142 76% 36%);

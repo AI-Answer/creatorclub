@@ -38,6 +38,7 @@ export function planNewBorumiProject(p:Project):NewBorumiPlan{
   if(t.shadow)blockers.add('Clip shadows cannot be exported to a new Borumi project yet.');
   if(t.fit==='contain'&&t.borderRadius!==0)blockers.add('Contain-fit with rounded corners cannot be exported exactly yet.');
  }
+ if(p.clips.some(c=>c.split))warnings.push('Split source presentation is kept in Creator Compiler; new Borumi projects show their sources separately.');
  const videos=p.clips.filter(c=>['screen','camera'].includes(c.track));
  for(let i=0;i<videos.length;i++)for(let j=i+1;j<videos.length;j++)if(role(videos[i])===role(videos[j])&&videos[i].start<videos[j].start+clipDuration(videos[j])-epsilon&&videos[j].start<videos[i].start+clipDuration(videos[i])-epsilon)blockers.add('Overlapping videos on the same content track cannot be exported yet.');
  for(const s of p.scenes){const clips=p.clips.filter(c=>owner(p,c)?.id===s.id&&c.track!=='music');const actual=clips.length?Math.max(...clips.map(c=>c.start+clipDuration(c)))-s.start:0;if(Math.abs(actual-s.duration)>epsilon)blockers.add('Each scene duration must end at its last video or narration clip.');}

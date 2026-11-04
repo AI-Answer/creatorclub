@@ -21,6 +21,8 @@ export interface Clip {
  recordingTakeId?:string;
  /** Clips that share a link move, trim, split and delete together. New synchronized takes link their screen, camera and audio when installed. */
  linkId?:string;
+ /** Show linked sources on their own lanes, without unlinking them. */
+ split?:true;
  /** Opaque imported clip identity; copy export validates it against the preserved baseline. */
  borumiOriginId?:string;
  /** A camera clip that is the speaker's tile on the look's stage (a `set_stage` stretch): graphics over it take the middle of the frame. */
