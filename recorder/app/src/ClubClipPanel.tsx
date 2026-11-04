@@ -50,7 +50,7 @@ export function ClubClipPanel({project:p,clip,change,onNotice}:{project:Project;
   {clip.recordingTakeId&&<section className="inspector-section club-clip-card club-take-info">
    <h3>Part of the {scene?.name??'recorded'} take</h3>
    <ul>{[clip,...siblings].map(c=>{const offset=takeSyncOffset(p,c.id);return <li key={c.id}>{takeSourceName(p,c)} · {takeSourceState(p,c)}{offset!==undefined&&Math.abs(offset)>.001?` (${offset>0?'+':''}${offset.toFixed(1)} s)`:''}</li>;})}</ul>
-   <div className="club-take-actions">{actions.map(a=><button type="button" key={a.label} onClick={()=>{let message='';change(d=>{message=a.run(d).message;});onNotice?.(message);}}>{a.label}</button>)}</div>
+   <div className="club-take-actions">{actions.map(a=><button type="button" key={a.label} onClick={()=>{let ok=true,message='';change(d=>{({ok,message}=a.run(d));});if(!ok)onNotice?.(message);}}>{a.label}</button>)}</div>
   </section>}
   {mic&&<Card icon={<Mic size={15}/>} title="Microphone">
    <Slider label="Volume" suffix=" dB" value={Number.isFinite(db)?Math.max(DB.min,Math.min(DB.max,db)):DB.min} min={DB.min} max={DB.max} step={1} onChange={v=>update(mic.id,c=>{c.gain=dbToGain(v);},'gain')}/>

@@ -159,3 +159,8 @@ test('a snap moves only the clips it touches and the scene follows its take',()=
  for(const c of p.clips)c.start+=2;p.scenes[0].start=2;applyClipStarts(p,new Map([['mic',5]]));const camera=p.clips[0];
  assert.equal(snapBackToTake(p,'mic').ok,true);assert.equal(p.clips[0],camera);assert.equal(mic(p).start,2);assert.equal(p.scenes[0].start,2);assert.equal(p.scenes[0].duration,12);
 });
+test('removing a custom audio layer sends system audio back to its own lane, not the mic lane',async()=>{
+ const {removeTimelineLayer,clipLayerRowId}=await import('../shared/timeline-layers');
+ const p=packageFixture();p.timelineLayers=[{id:'layer',name:'Layer',kind:'audio',order:3}];const system=p.clips.find(c=>c.id==='system')!;system.layerId='layer';
+ assert.equal(removeTimelineLayer(p,'layer'),true);assert.equal(clipLayerRowId(system,p),'role:system-audio');assert.notEqual(clipLayerRowId(system,p),clipLayerRowId(mic(p),p));
+});

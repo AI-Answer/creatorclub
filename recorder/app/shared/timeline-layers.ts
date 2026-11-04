@@ -54,7 +54,7 @@ export function renameTimelineLayer(project:Project,id:string,name:string):boole
 /** Removing a row never removes media or clips, including edits saved in archived takes. */
 export function removeTimelineLayer(project:Project,id:string):boolean{
  if(!project.timelineLayers?.some(row=>row.id===id))return false;
- const move=(clip:Clip)=>{if(clip.layerId===id)clip.layerId=roleId(clip.track);};
+ const move=(clip:Clip)=>{if(clip.layerId===id)clip.layerId=defaultClipRowId(clip,project);};
  project.clips.forEach(move);for(const take of project.recordedTakes??[])take.timeline?.clips.forEach(move);
  project.timelineLayers=project.timelineLayers.filter(row=>row.id!==id);if(!project.timelineLayers.length)delete project.timelineLayers;return true;
 }
