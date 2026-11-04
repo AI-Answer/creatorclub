@@ -63,7 +63,6 @@ test('quick recordings expose real takes to Edit, scene batches and move facts; 
  const scenes=(await call('GET',`/videos/${video.id}/scenes`)).body;
  assert.equal(scenes.length,1);assert.equal(scenes[0].takes[0].kept,true);assert.equal(scenes[0].takes[0].seconds,12);
  assert.deepEqual((await call('GET','/videos/scenes')).body[video.id],scenes);
- assert.equal((await call('GET','/videos/move-facts')).body[video.id].takes,1);
  assert.equal((await call('POST',`/videos/${video.id}/move`,{stage:'editing'})).status,200);
  assert.equal((await call('PUT',`/videos/${video.id}`,{title:'Renamed recording'})).body.title,'Renamed recording');
  assert.equal((await call('GET',`/videos/${video.id}/plan`)).body.outline,null);

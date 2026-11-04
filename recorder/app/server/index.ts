@@ -47,7 +47,7 @@ app.use((req,res,next)=>{
  const origin=req.headers.origin;if(origin&&!['http://localhost:4173','http://127.0.0.1:4173','http://127.0.0.1:4183','http://localhost:4183',`http://localhost:${PORT}`,`http://127.0.0.1:${PORT}`].includes(origin)){res.status(403).json({error:'Origin is not allowed'});return;}
  res.setHeader('X-Content-Type-Options','nosniff');next();
 });
-app.use('/api/club',clubRouter({publishing:{projectExported:async projectId=>(await exportsStore.list(projectId,0,200)).some(record=>record.status==='complete'&&record.options.format==='mp4'&&record.output.status==='available'&&Boolean(record.outputPath)),exportFile:async id=>{
+app.use('/api/club',clubRouter({publishing:{exportFile:async id=>{
  const record=await exportsStore.get(id).catch(()=>undefined);
  if(!record||record.status!=='complete'||record.output.status!=='available'||record.options.format!=='mp4'||!record.outputPath)return undefined;
  const stat=await fs.stat(record.outputPath).catch(()=>undefined);

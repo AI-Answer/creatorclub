@@ -49,7 +49,7 @@ export function Companion({videoId,videoTitle,tab,scene,screen,selection,pkg,out
  const narrow=useNarrow(roomy);
  const [saved,setSaved]=useState(readOpen);
  const [openHere,setOpenHere]=useState(false);
- const open=aiAvailable&&(narrow?openHere:saved);
+ const open=narrow?openHere:saved;
  const [name,setName]=useState('Claude');
  useEffect(()=>{clubFetch<{defaultAi?:string}>('/settings').then(settings=>setName(settings.defaultAi==='codex'?'ChatGPT':'Claude'),()=>{});},[]);
  const editorNow=useRef(editor);editorNow.current=editor;
@@ -164,7 +164,7 @@ export function Companion({videoId,videoTitle,tab,scene,screen,selection,pkg,out
 
  const title=`Ask ${name}`;
  if(!open)return <aside className="cmp collapsed" aria-label={title}>
-  <button ref={rail} type="button" className="cmp-rail" onClick={()=>toggle(true)} aria-label={`Show ${title}`} disabled={!aiAvailable} title={!aiAvailable?AI_CONNECT_HINT:`Show ${title}`}>
+  <button ref={rail} type="button" className="cmp-rail" onClick={()=>toggle(true)} aria-label={`Show ${title}`} title={`Show ${title}`}>
    <BrandLogo brand={name==='ChatGPT'?'chatgpt':'claude'} size={20} working={working}/><span>{title}</span>
   </button>
  </aside>;
@@ -184,7 +184,7 @@ export function Companion({videoId,videoTitle,tab,scene,screen,selection,pkg,out
  const fresh=!!here&&!here.length&&!live&&!companion.loadError;
  // Proposals are waiting for a choice: the suggestions step aside so the cards are the one thing to act on.
  const lastMessage=messages?.at(-1),awaiting=!!lastMessage&&'cards' in lastMessage&&lastMessage.cards.some(card=>card.state==='offered'&&(tab==='edit'||!isEditAction(card.action)));
- const chips=ideas.length>0&&<div className={cn('cmp-sugg',fresh&&'fresh')} aria-label="Suggestions">{ideas.map(idea=><button key={idea} type="button" onClick={()=>void ask(idea)}>{idea}</button>)}</div>;
+ const chips=ideas.length>0&&<div className={cn('cmp-sugg',fresh&&'fresh')} aria-label="Suggestions">{ideas.map(idea=><button key={idea} type="button" disabled={!aiAvailable} title={!aiAvailable?AI_CONNECT_HINT:undefined} onClick={()=>void ask(idea)}>{idea}</button>)}</div>;
  const selected=tab==='edit'?editor?.state?.selected??0:tab==='research'?selection?.length??0:0;
  // For reference: every change from the chat that is applied now, newest first, with Undo.
  const applied=(messages??[]).flatMap(message=>message.role==='assistant'&&'cards' in message?message.cards.map((card,index)=>({message,card,index})):[]).filter(({card})=>card.state==='applied').reverse();
@@ -218,13 +218,14 @@ export function Companion({videoId,videoTitle,tab,scene,screen,selection,pkg,out
     </div>}
    {items.map(item=>item.kind==='divider'?<div key={item.key} className="cmp-divider" role="separator">{item.label}</div>
     :item.message.role==='user'?<div key={item.key} className="cmp-me">{item.message.attachments?.length?<div className="cmp-pics">{item.message.attachments.map(name=><img key={name} src={`/api/club${chatBase}/${name}`} alt=""/>)}</div>:null}{item.message.text}</div>
-    :<Reply key={item.key} name={name} message={item.message} answered={working||(messages?.at(-1)?.id!==item.message.id)} onChoose={answer=>void ask(answer)} pkg={pkg} outline={outline} scenes={scenes} busy={companion.busyCard} editor={editor} silences={silences}
+    :<Reply key={item.key} name={name} message={item.message} answered={!aiAvailable||working||(messages?.at(-1)?.id!==item.message.id)} onChoose={answer=>void ask(answer)} pkg={pkg} outline={outline} scenes={scenes} busy={companion.busyCard} editor={editor} silences={silences}
       onApply={index=>companion.apply(item.message.id,index)} onApplyAll={indices=>companion.applyAll(item.message.id,indices)} onUndo={index=>companion.undo(item.message.id,index)}/>)}
-   {live&&<LiveReply name={name} live={live} now={now} onRetry={()=>void contextNow().then(companion.retry)}/>}
+   {live&&<LiveReply name={name} live={live} now={now} onRetry={()=>{if(aiAvailable)void contextNow().then(companion.retry);}}/>}
    {companion.sendError&&<ErrorLine message={companion.sendError} onRetry={()=>void ask(text)}/>}
   </div>
   {behind&&<button type="button" className="cmp-jump" onClick={toBottom}><Icon name="ArrowDown" size={13}/>Jump to latest</button>}
   <div className="cmp-foot">
+   {!aiAvailable&&<p className="cmp-faint">{AI_CONNECT_HINT}</p>}
    {!working&&!fresh&&!awaiting&&chips}
    {pickerOpen&&<div className="cmp-skills" role="listbox" aria-label="Your skills">
     <div className="cmp-skills-head">{tab==='edit'?'Video skills: each one runs and makes something for the timeline':'Your skills'}</div>
@@ -240,14 +241,14 @@ export function Companion({videoId,videoTitle,tab,scene,screen,selection,pkg,out
    <form className="cmp-input" onSubmit={event=>{event.preventDefault();void ask(text);}} onDragOver={event=>event.preventDefault()} onDrop={event=>{event.preventDefault();void addPictures([...event.dataTransfer.files]);}}>
     {pics.length>0&&<div className="cmp-pics pending">{pics.map(name=><span key={name} className="cmp-pic"><img src={`/api/club${chatBase}/${name}`} alt=""/><button type="button" aria-label="Remove picture" onClick={()=>setPics(current=>current.filter(each=>each!==name))}><Icon name="X" size={11}/></button></span>)}</div>}
     {picError&&<p className="cmp-pic-err" role="alert">{picError}</p>}
-    <textarea ref={input} rows={2} value={text} onChange={event=>setText(event.target.value)} onKeyDown={onKeyDown} onPaste={event=>{const files=[...event.clipboardData.files];if(files.length){event.preventDefault();void addPictures(files);}}} placeholder={working?'Esc stops the reply':'Ask for a change, or type / for your skills'} aria-label={`Message to ${name}`}/>
+    <textarea disabled={!aiAvailable} title={!aiAvailable?AI_CONNECT_HINT:undefined} ref={input} rows={2} value={text} onChange={event=>setText(event.target.value)} onKeyDown={onKeyDown} onPaste={event=>{const files=[...event.clipboardData.files];if(files.length){event.preventDefault();void addPictures(files);}}} placeholder={working?'Esc stops the reply':'Ask for a change, or type / for your skills'} aria-label={`Message to ${name}`}/>
     <div className="cmp-input-row">
     <span className="cmp-context" title="What Claude is looking at"><Icon name="Eye" size={12}/>{lookingAt(tab,scene)}{scene&&<> · {scene.title}</>}{selected>0&&<> · {selected} selected</>}</span>
     <span className="grow"/>
     <label className="cmp-attach" title="Add a picture (or paste or drop one)"><Icon name="Image" size={15}/><input type="file" className="sr-only" accept="image/png,image/jpeg" multiple onChange={event=>{void addPictures([...(event.target.files??[])]);event.target.value='';}}/></label>
     {working
      ?<button type="button" className="cmp-send stop" onClick={stop} aria-label="Stop (Esc)" title="Stop (Esc)"><Icon name="Square" size={12} stroke={2.4}/></button>
-     :<button type="submit" className="cmp-send" disabled={!text.trim()} aria-label="Send (Enter)" title="Send (Enter) · Shift+Enter for a new line"><Icon name="ArrowUp" size={15} stroke={2.2}/></button>}
+     :<button type="submit" className="cmp-send" disabled={!aiAvailable||!text.trim()} aria-label="Send (Enter)" title={!aiAvailable?AI_CONNECT_HINT:"Send (Enter) · Shift+Enter for a new line"}><Icon name="ArrowUp" size={15} stroke={2.2}/></button>}
     </div>
    </form>
   </div>

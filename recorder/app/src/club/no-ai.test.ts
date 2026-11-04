@@ -120,15 +120,23 @@ test('no AI: Quick recording creates a video and opens Record with only local wr
  }finally{await ui.close();fake.restore();}
 });
 
-test('no AI: Companion is a disabled quiet rail even if previously open',async()=>{
+test('no AI: Companion preserves history and applied Undo, and its rail can reopen it',async()=>{
  rememberAiStatus(off);localStorage.setItem('cc.companion.open','1');
- const fake=installFetch(call=>call.path==='/ai/status'?{body:off}:call.path.endsWith('/companion')?{body:{messages:[]}}:undefined);
+ const message={id:'m1',role:'assistant',text:'Saved answer',tab:'plan',cards:[{action:{type:'use_title',text:'Saved title'},state:'applied',version:'v1',result:'Title changed'}]};
+ const fake=installFetch(call=>call.path==='/ai/status'?{body:off}:call.path.endsWith('/companion')?{body:{messages:[message]}}:call.path.endsWith('/undo')?{body:{message:{...message,cards:[]},changed:[]}}:undefined);
  const ui=await mountUI(createElement(Companion,{videoId:'v1',tab:'plan',screen:'Plan',pkg:null,outline:null,onChanged(){}}));
  try{
-  await flush();assert.ok(ui.container.querySelector('.cmp.collapsed'));
-  const rail=ui.container.querySelector<HTMLButtonElement>('.cmp-rail')!;
-  assert.equal(rail.disabled,true);assert.equal(rail.title,'Connect an AI in Settings');
-  assert.equal(ui.container.querySelector('textarea'),null);
-  assert.ok(!fake.calls.some(c=>c.method==='POST'));
+  await flush();const c=ui.container;
+  assert.match(c.textContent??'',/Saved answer/);
+  assert.match(c.textContent??'',/Connect an AI in Settings/);
+  assert.equal(c.querySelector<HTMLTextAreaElement>('textarea')!.disabled,true);
+  assert.equal(c.querySelector<HTMLButtonElement>('[aria-label="Send (Enter)"]')!.disabled,true);
+  await click(c,'Applied 1');await click(c,'Undo');
+  assert.ok(fake.calls.some(call=>call.path.endsWith('/undo')&&call.method==='POST'));
+  assert.ok(fake.calls.filter(call=>call.method==='POST').every(call=>call.path.endsWith('/undo')));
+  await act(async()=>c.querySelector<HTMLButtonElement>('[aria-label="Hide Ask Claude"]')!.click());await flush();
+  const rail=c.querySelector<HTMLButtonElement>('.cmp-rail')!;
+  assert.equal(rail.disabled,false);
+  await act(async()=>c.querySelector<HTMLButtonElement>('[aria-label="Show Ask Claude"]')!.click());await flush();assert.ok(c.querySelector('textarea'));
  }finally{await ui.close();fake.restore();localStorage.removeItem('cc.companion.open');}
 });

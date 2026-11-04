@@ -37,7 +37,7 @@ import { imageKind } from './publisher-routes.js';
 import { lock as companionLock } from './companion-actions.js';
 import { AGENT_HEADER, agentActionsBody, agentBoard, agentConnectBody, connectAgentApp, agentUndoBody, agentVideo, applyAgentActions, undoAgentAction } from './agent.js';
 import { editSilences } from './companion-edit.js';
-import { videoScenes, videosMoveFacts, videosScenes } from './scenes.js';
+import { videoScenes, videosScenes } from './scenes.js';
 import { HEIGHT_MAX, HEIGHT_MIN, POSITION_MAX, WIDTH_MAX, WIDTH_MIN } from './tile-layout.js';
 import { findTregCall, hasSources, NO_SOURCES, rankedSignals, readSignalsConfig, startSignalsRefresh, writeSignalsConfig, type SignalsSources } from './signals.js';
 import { ideaFromSignal, ideaFromTrending } from './trend-ideas.js';
@@ -481,8 +481,6 @@ export function clubRouter({ ai = {}, transcribe, runAI, readViews = ytDlpViews(
   router.get('/recent', handler(async (_req, res) => res.json(await store.recentVideoIds(await requireWorkspace()))));
   // Every video that is not published, in one request. Registered before /videos/:id so "scenes" is not read as an id.
   router.get('/videos/scenes', handler(async (_req, res) => res.json(await videosScenes(await requireWorkspace()))));
-  // What a move by hand depends on, for every video: the board refuses a move the server would refuse, before it is tried.
-  router.get('/videos/move-facts', handler(async (_req, res) => res.json(await videosMoveFacts(await requireWorkspace(), publishing.projectExported))));
   router.get('/videos/:id', handler(async (req, res) => res.json(await store.readVideo(await requireWorkspace(), param(req, 'id')))));
   // A proof shot: the real page behind a claim, scrolled to the words and highlighted, saved in the video's folder and registered as
   // media. With `at`, it is also placed on the Overlays row as one undoable change; with `runDir` (a skill run of this video), it is

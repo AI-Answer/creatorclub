@@ -33,11 +33,14 @@ test('onboarding requests native camera/mic prompts, opens settings for screen a
   await press('Camera');await press('Microphone');assert.deepEqual(requests,['camera','microphone']);assert.deepEqual(settings,[]);
   assert.equal(row('Camera').querySelector('.setup-status')?.textContent,'Allowed');
   await press('Screen recording');assert.deepEqual(settings,['screen']);
+  assert.match(host.textContent??'',/quit and reopen Creator Compiler/);
+  assert.doesNotMatch(host.textContent??'',/Restart Creator Compiler to apply/);
   access={...access,camera:'denied',microphone:'restricted',screen:'granted'};
   await act(async()=>changed?.(access));
   for(const name of ['Camera','Microphone']){assert.equal(row(name).querySelector('button')?.textContent,'Open settings');await press(name);}
   assert.deepEqual(requests,['camera','microphone']);assert.deepEqual(settings,['screen','camera','microphone']);
   assert.equal(row('Screen recording').querySelector('.setup-status')?.textContent,'Allowed');
+  assert.match(host.textContent??'',/Restart Creator Compiler to apply screen recording access/);
   const restart=Array.from(host.querySelectorAll('button')).find(button=>button.textContent==='Restart Creator Compiler');assert.ok(restart,'restart remains available after screen becomes granted');
   await act(async()=>{(restart as unknown as HTMLButtonElement).click();});assert.equal(restarts,1);
  }finally{

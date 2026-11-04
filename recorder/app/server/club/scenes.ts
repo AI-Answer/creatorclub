@@ -1,6 +1,5 @@
 import type { Outline, RecorderScene, ScenesByVideo, SceneTakeInfo, Video, VideoScene } from '../../shared/club.js';
 import { sceneStatus } from '../../shared/club-scene-status.js';
-import type { MoveFacts } from '../../shared/club-move.js';
 import type { Project, RecordedTake } from '../../shared/types.js';
 import { pool } from './channel.js';
 import { readOutline } from './planning.js';
@@ -75,34 +74,6 @@ export async function videosScenes(slug: string): Promise<ScenesByVideo> {
       return [video.id, await scenesOf(slug, video)] as const;
     } catch (error) {
       console.error('[club] scenes of', video.id, (error as Error).message);
-      return undefined;
-    }
-  });
-  return Object.fromEntries(found.filter((entry) => !!entry));
-}
-
-/** Whether a recording project has a finished MP4 export. SceneForge's server answers from its export history; without it, none has. */
-export type ProjectExported = (projectId: string) => Promise<boolean>;
-
-/** What moving a video by hand depends on (`moveProblem`): its scenes, its takes, an export, a YouTube link. */
-export async function moveFacts(slug: string, video: Video, exported?: ProjectExported): Promise<MoveFacts> {
-  const scenes = await scenesOf(slug, video);
-  return {
-    scenes: scenes.length,
-    takes: scenes.filter((scene) => scene.takes.length > 0).length,
-    exported: !!video.recorderProjectId && !!exported && (await exported(video.recorderProjectId).catch(() => false)),
-    published: !!video.youtubeUrl,
-  };
-}
-
-/** `GET /videos/move-facts`: the facts of every video, by id, so the board can refuse a move before it is tried. A video that cannot be read is left out. */
-export async function videosMoveFacts(slug: string, exported?: ProjectExported): Promise<Record<string, MoveFacts>> {
-  const videos = await store.listVideos(slug);
-  const found = await pool(videos, PARALLEL, async (video) => {
-    try {
-      return [video.id, await moveFacts(slug, video, exported)] as const;
-    } catch (error) {
-      console.error('[club] move facts of', video.id, (error as Error).message);
       return undefined;
     }
   });

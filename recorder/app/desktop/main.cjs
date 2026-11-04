@@ -10,7 +10,7 @@ const {createNativeRecordingManager}=require('./native-recording.cjs');
 const {createCaptureBorder}=require('./capture-border.cjs');
 const {createMediaPermissionRequests}=require('./media-permissions.cjs');
 const {createPermissionHelper}=require('./permission-helper.cjs');
-let permissionHelper=null,screenRestartRequired=false,relaunchRequested=false;
+let permissionHelper=null,screenRestartRequired=false,screenSettingsOpened=false,relaunchRequested=false;
 const {createMotionRenderer}=require('./motion-render.cjs');
 let motionRenderer=null;
 let mainWindow, service, captureManager, recordingHud, nativeRecording, captureBorder, ownService = false, quitting = false;
@@ -35,7 +35,9 @@ function getNativeMediaStatus(kind){
  try{const status=systemPreferences.getMediaAccessStatus(kind);return ['not-determined','granted','denied','restricted','unknown'].includes(status)?status:'unknown';}catch{return 'unknown';}
 }
 function getMediaPermissions(){
- return {platform:process.platform,camera:getNativeMediaStatus('camera'),microphone:getNativeMediaStatus('microphone'),screen:getNativeMediaStatus('screen'),systemAudio:'unknown',screenRestartRequired};
+ const screenStatus=getNativeMediaStatus('screen');
+ if(screenSettingsOpened&&screenStatus==='granted')screenRestartRequired=true;
+ return {platform:process.platform,camera:getNativeMediaStatus('camera'),microphone:getNativeMediaStatus('microphone'),screen:screenStatus,systemAudio:'unknown',screenRestartRequired};
 }
 async function requestMediaPermission(kind){
  return nativePermissionRequests.request(kind);
@@ -47,7 +49,7 @@ async function openPrivacySettings(section){
   // Register this running app in TCC before navigating to the privacy pane. Do not
   // wait on a native consent dialog or retain any screen thumbnails during setup.
   void desktopCapturer.getSources({types:['screen'],thumbnailSize:{width:0,height:0},fetchWindowIcons:false}).catch(()=>{});
-  screenRestartRequired=true;
+  screenSettingsOpened=true;
  }
  await shell.openExternal('x-apple.systempreferences:com.apple.preference.security?'+privacyPanes[section]);
  if(section==='screen'||(['camera','microphone'].includes(section)&&['denied','restricted'].includes(getNativeMediaStatus(section))))await permissionHelper.open(section);

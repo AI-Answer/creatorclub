@@ -18,10 +18,8 @@ process.env.SCENEFORGE_DATA_DIR = path.join(temp, 'sceneforge');
 
 const { clubRouter } = await import('./index.js');
 
-/** Recording projects with a finished export, as SceneForge's export history would answer. */
-const exported = new Set<string>();
 const app = express();
-app.use('/api/club', clubRouter({ publishing: { projectExported: async (id) => exported.has(id) } }));
+app.use('/api/club', clubRouter());
 const server = app.listen(0, '127.0.0.1');
 await new Promise((r) => server.once('listening', r));
 const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}/api/club`;
@@ -51,7 +49,7 @@ test('every stage can move directly to every other stage without scenes, takes, 
  }
 });
 
-test('manual moves preserve scene, recording, export and YouTube metadata', async () => {
+test('manual moves preserve scene, recording and YouTube metadata', async () => {
   const video = (await call('POST', '/videos', { title: 'Hidden features', stage: 'planning' })).body as Video;
   await call('PUT', `/videos/${video.id}/outline`, { scenes: [scene('Opening'), scene('Build')] });
   assert.equal((await move(video.id, 'recording')).status, 200, 'scenes exist');
@@ -64,11 +62,8 @@ test('manual moves preserve scene, recording, export and YouTube metadata', asyn
   await writeFile(projectFile(projectId), JSON.stringify(project));
   assert.equal((await move(video.id, 'editing')).status, 200, 'a take exists');
 
-  exported.add(projectId);
-  assert.equal((await move(video.id, 'publishing')).status, 200, 'an export exists');
+  assert.equal((await move(video.id, 'publishing')).status, 200, 'no export is required');
 
-  const facts = (await call('GET', '/videos/move-facts')).body;
-  assert.deepEqual(facts[video.id], { scenes: 2, takes: 1, exported: true, published: false }, 'the board reads the same facts');
   await call('PUT', `/videos/${video.id}`, { youtubeUrl: 'https://youtu.be/dQw4w9WgXcQ' });
   assert.equal((await move(video.id, 'published')).status, 200, 'it has a YouTube link');
 
@@ -76,11 +71,10 @@ test('manual moves preserve scene, recording, export and YouTube metadata', asyn
   for (const stage of ['editing', 'ideas', 'publishing', 'published']) assert.equal((await move(video.id, stage)).status, 200, stage);
 });
 
-test('a jump forward needs only what the target stage needs, and an idea with an export can skip to Publishing', async () => {
+test('an idea with a recording project can skip to Publishing without an export', async () => {
   const video = (await call('POST', '/videos', { title: 'Skipper' })).body as Video;
   await call('PUT', `/videos/${video.id}/outline`, { scenes: [scene('Only')] });
-  const withProject = (await call('POST', `/videos/${video.id}/recorder`)).body as Video;
+  await call('POST', `/videos/${video.id}/recorder`);
   await move(video.id, 'ideas');
-  exported.add(withProject.recorderProjectId!);
   assert.equal((await move(video.id, 'publishing')).status, 200);
 });

@@ -32,7 +32,7 @@ const drag=async(el:Element,type:string,y?:number)=>act(async()=>{el.dispatchEve
 const dragTo=async(source:Element,target:Element,y=10_000)=>{await drag(source,'dragstart');await drag(target,'dragover',y);await drag(target,'drop',y);await drag(source,'dragend');await settle();};
 const toasts=(c:Element)=>[...c.querySelectorAll('.cc-toast')].map(text);
 
-type Server={videos:Video[];welcomed:boolean;failMove:boolean;failLoad:boolean;outlines:Record<string,number>;unreadable?:string[];holdScenes?:Promise<void>;facts?:Record<string,import('../../shared/club-move').MoveFacts>};
+type Server={videos:Video[];welcomed:boolean;failMove:boolean;failLoad:boolean;outlines:Record<string,number>;unreadable?:string[];holdScenes?:Promise<void>};
 function serve(server:Server){
  const scenesReply=():FakeReply=>({body:fakeScenes(server.videos,{projects,outlines:server.outlines,unreadable:server.unreadable})});
  return (call:FakeCall):FakeReply|Promise<FakeReply>=>{
@@ -46,7 +46,6 @@ function serve(server:Server){
   if(path==='/ai/status')return {body:{claude:{installed:true,version:'2',signedIn:true},codex:{installed:false,version:null,signedIn:false}}};
   if(path==='/breakdowns'&&method==='GET')return {body:[]};
   if(path==='/videos/scenes')return server.holdScenes?server.holdScenes.then(scenesReply):scenesReply();
-  if(path==='/videos/move-facts')return server.facts?{body:server.facts}:undefined;
   const move=path.match(/^\/videos\/(\w+)\/move$/);
   if(move){
    if(server.failMove)return {status:500,body:{error:"Couldn't save that."}};
@@ -356,9 +355,11 @@ test('Calendar: a video with no day has a date field in the Not scheduled list; 
 });
 
 test('Board: menu and drag allow jumps to any stage without prerequisites',async()=>{
- const none={scenes:0,takes:0,exported:false,published:false};
- await withBoard({facts:{a:none,r:none}},'board',async(ui,calls)=>{
+ await withBoard({},'board',async(ui,calls)=>{
   const c=ui.container;
+  assert.equal(calls.some(call=>call.path==='/videos/move-facts'),false);
+  await act(async()=>window.dispatchEvent(new Event('club:videos-changed')));await settle();
+  assert.equal(calls.some(call=>call.path==='/videos/move-facts'),false);
   await press(c.querySelector('button[aria-label="Move Recorded to…"]')!);
   await press([...c.querySelectorAll('.menu button')].find(b=>text(b)==='Published')!);
   assert.ok(column(c,'published').querySelector('[data-card-id="r"]'));

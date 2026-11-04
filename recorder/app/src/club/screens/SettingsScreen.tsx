@@ -1,4 +1,4 @@
-import {rememberAiStatus} from '../ai-status';
+import {beginAiStatusRequest,rememberAiStatus} from '../ai-status';
 import {useCallback,useEffect,useState} from 'react';
 import type {AiStatus,ClubSettings,Workspace} from '../../../shared/club';
 import {clubFetch,errorMessage} from '../api';
@@ -59,7 +59,8 @@ export function SettingsScreen({section:linked,onSetup}:{section?:SettingsSectio
  },[linked,ready]);
  const readStatus=useCallback(()=>{
   setStatusError('');
-  clubFetch<AiStatus>('/ai/status').then(status=>{rememberAiStatus(status);setStatus(status);},reason=>setStatusError(errorMessage(reason,"Couldn't check the connected AI.")));
+  const token=beginAiStatusRequest();
+  clubFetch<AiStatus>('/ai/status').then(status=>{rememberAiStatus(status,token);setStatus(status);},reason=>setStatusError(errorMessage(reason,"Couldn't check the connected AI.")));
  },[]);
  const refresh=useCallback(()=>{
   setError('');

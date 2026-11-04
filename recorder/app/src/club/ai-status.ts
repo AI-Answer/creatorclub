@@ -6,10 +6,16 @@ import {clubFetch,errorMessage} from './api';
 let last:AiStatus|null=null;
 const listeners=new Set<()=>void>();
 let availabilityRequest:Promise<void>|null=null;
-export const rememberAiStatus=(status:AiStatus)=>{last=status;listeners.forEach(listener=>listener());};
+// Starting a newer read invalidates older in-flight answers, even before it resolves.
+let newestRequest=0;
+export const beginAiStatusRequest=()=>++newestRequest;
+export const rememberAiStatus=(status:AiStatus,token=beginAiStatusRequest())=>{
+ if(token<newestRequest)return;
+ newestRequest=token;last=status;listeners.forEach(listener=>listener());
+};
 export const lastAiStatus=()=>last;
 /** For tests. */
-export const forgetAiStatus=()=>{last=null;};
+export const forgetAiStatus=()=>{last=null;newestRequest++;listeners.forEach(listener=>listener());};
 
 export const anyConnected=(status:AiStatus|null)=>!!status&&(!!status.claude?.signedIn||!!status.codex?.signedIn);
 
@@ -34,9 +40,9 @@ export function useAiCheck(){
  const [check,setCheck]=useState<AiCheck>({phase:'checking',status:last});
  const latest=useRef(0);
  const load=useCallback(()=>{
-  const mine=++latest.current;
+  const mine=++latest.current,token=beginAiStatusRequest();
   setCheck(current=>({phase:'checking',status:current.status}));
-  clubFetch<AiStatus>('/ai/status').then(status=>{rememberAiStatus(status);if(latest.current===mine)setCheck({phase:'ready',status});},reason=>{if(latest.current===mine)setCheck(current=>({phase:'failed',status:current.status,message:errorMessage(reason)}));});
+  clubFetch<AiStatus>('/ai/status').then(status=>{rememberAiStatus(status,token);if(latest.current===mine)setCheck({phase:'ready',status});},reason=>{if(latest.current===mine)setCheck(current=>({phase:'failed',status:current.status,message:errorMessage(reason)}));});
  },[]);
  useEffect(()=>{load();return()=>{latest.current++;};},[load]);
  /** An account just finished signing in: show it as connected now, and read the real status again in the background. */
@@ -55,14 +61,16 @@ export function useAiCheck(){
  * Shared live availability, asked once per app session (the check takes the AI tools about 15 seconds).
  * Until the first answer the controls stay usable, so a signed-in creator never sees them greyed out while it runs; once an answer says nothing is connected, they are disabled.
  */
-export function useAiAvailable(){
- const available=useSyncExternalStore(subscribe,()=>last===null||anyConnected(last),()=>true);
+export function useAiAvailability(){
+ const status=useSyncExternalStore(subscribe,lastAiStatus,()=>null);
  useEffect(()=>{
   if(!last&&!availabilityRequest){
-   availabilityRequest=clubFetch<AiStatus>('/ai/status').then(rememberAiStatus,()=>{}).finally(()=>{availabilityRequest=null;});
+   const token=beginAiStatusRequest();
+   availabilityRequest=clubFetch<AiStatus>('/ai/status').then(status=>rememberAiStatus(status,token),()=>{}).finally(()=>{availabilityRequest=null;});
   }
  },[]);
- return available;
+ return {known:status!==null,available:status===null||anyConnected(status)};
 }
+export function useAiAvailable(){return useAiAvailability().available;}
 const subscribe=(listener:()=>void)=>{listeners.add(listener);return()=>{listeners.delete(listener);};};
 export const AI_CONNECT_HINT='Connect an AI in Settings';

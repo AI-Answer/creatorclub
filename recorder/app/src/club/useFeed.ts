@@ -1,4 +1,4 @@
-import {useAiAvailable} from './ai-status';
+import {useAiAvailability,useAiAvailable} from './ai-status';
 import {useCallback,useEffect,useRef,useState} from 'react';
 import type {SignalsRefreshResult,SignalsResponse,TrendingRefreshResult,TrendingResponse} from '../../shared/club';
 import {clubFetch,errorMessage} from './api';
@@ -42,12 +42,14 @@ function useFeed<Data,Result>(path:string,fallback:string):Feed<Data,Result>{
  * and `seeding` is true from the answer until that finishes, so the screen shows progress instead of an empty list.
  */
 export function useTrending(){
- const aiAvailable=useAiAvailable();
+ const {known,available:aiAvailable}=useAiAvailability();
  const feed=useFeed<TrendingResponse,TrendingRefreshResult>('/trending',"Couldn't load what's working now.");
  const {data,refresh,job}=feed;
  const started=useRef(false);
  const due=data!==null&&needsSeed(data);
- useEffect(()=>{if(aiAvailable&&due&&!started.current){started.current=true;refresh();}},[aiAvailable,due,refresh]);
- return {...feed,seeding:job.phase==='running'||(aiAvailable&&due&&job.phase==='idle')};
+ // Allow a later availability change to retry, without looping on a failed job.
+ useEffect(()=>{if(job.phase==='failed')started.current=false;},[job.phase]);
+ useEffect(()=>{if(known&&aiAvailable&&due&&!started.current){started.current=true;refresh();}},[known,aiAvailable,due,refresh]);
+ return {...feed,seeding:job.phase==='running'||(known&&aiAvailable&&due&&job.phase==='idle')};
 }
 export const useSignals=()=>useFeed<SignalsResponse,SignalsRefreshResult>('/signals',"Couldn't load the posts.");
