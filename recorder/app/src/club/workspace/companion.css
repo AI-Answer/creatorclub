@@ -88,7 +88,7 @@
 .club-root .cmp-card-est { margin-top: 6px; font-size:var(--cc-text-xs); color: var(--cc-text-2); display: flex; gap: 6px; align-items: flex-start; }
 /* Amber only for a warning: a cut that takes a quarter of the video or more, or a card that no longer fits the timeline. */
 .club-root .cmp-card-est.warn { color: var(--cc-text); }
-.club-root .cmp-card-est.warn .icon { flex: none; margin-top: 2px; color: var(--cc-warn); }
+.club-root .cmp-card-est.warn .icon { flex: none; margin-top: 2px; color: var(--cc-warn-text); }
 .club-root .cmp-card-err { font-size:var(--cc-text-xs); line-height: 1.45; color: var(--cc-text-2); display: flex; gap: 6px; align-items: flex-start; }
 .club-root .cmp-card-err .icon { flex: none; margin-top: 2px; color: var(--cc-text-3); }
 /* Read by screen readers only. */
@@ -170,7 +170,7 @@
 .club-root .inline-text .md-editor { min-height: 22px; padding-bottom: 0; font-size:var(--cc-text-sm); line-height: 1.5; }
 .club-root .inline-text .md-editor h1 { font-size: 1.25em; margin: .6em 0 .3em; }
 .club-root .inline-text .md-editor h2, .club-root .inline-text .md-editor h3 { font-size: 1.1em; margin: .6em 0 .3em; }
-.club-root .inline-text-err { color: var(--cc-warn); margin-top: 4px; }
+.club-root .inline-text-err { color: var(--cc-warn-text); margin-top: 4px; }
 /* Several proposals at once: one button to take them all. */
 .club-root .cmp-all { display: flex; align-items: center; gap: 10px; }
 
@@ -207,7 +207,7 @@
 .club-root .cmp-pics img { width: 64px; height: 48px; object-fit: cover; border-radius: var(--cc-r-lg); display: block; outline: 1px solid var(--cc-line); outline-offset: -1px; }
 .club-root .cmp-pic { position: relative; display: inline-block; }
 .club-root .cmp-pic button { all: unset; cursor: pointer; position: absolute; top: -6px; right: -6px; width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; background: var(--cc-primary); color: var(--cc-on-primary); }
-.club-root .cmp-pic-err { margin: 0; font-size: var(--cc-text-xs); color: var(--cc-warn); }
+.club-root .cmp-pic-err { margin: 0; font-size: var(--cc-text-xs); color: var(--cc-warn-text); }
 .club-root .cmp-attach { cursor: pointer; display: grid; place-items: center; width: 28px; height: 28px; border-radius: var(--cc-r-sm); color: var(--cc-text-3); }
 .club-root .cmp-attach:hover { background: var(--cc-hover); color: var(--cc-text); }
 .club-root .cmp-made { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: contain; border-radius: var(--cc-r-lg); background: var(--cc-dark-stage); margin-bottom: 8px; }

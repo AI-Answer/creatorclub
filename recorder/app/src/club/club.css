@@ -267,7 +267,7 @@
 :where(.club-root) .chip.b-grey:where(:not(.club-embed *)) { background: var(--cc-bg-sunk); color: var(--cc-text-3); }
 :where(.club-root) .chip.b-blue:where(:not(.club-embed *)) { background: var(--cc-accent-soft); color: var(--cc-accent-text); }
 :where(.club-root) .chip.b-green:where(:not(.club-embed *)) { background: var(--cc-ok-soft); color: var(--cc-ok); }
-:where(.club-root) .chip.c-warn:where(:not(.club-embed *)) { background: var(--cc-warn-soft); color: var(--cc-warn); }
+:where(.club-root) .chip.c-warn:where(:not(.club-embed *)) { background: var(--cc-warn-soft); color: var(--cc-warn-text); }
 :where(.club-root) .chip.c-rec:where(:not(.club-embed *)) { background: var(--cc-rec-soft); color: var(--cc-rec); }
 :where(.club-root) .chip-kind:where(:not(.club-embed *)) { width: 7px; height: 7px; border-radius: 50%; flex: none; }
 :where(.club-root) .chip.mult:is(.b-grey, .b-blue, .b-green, .b-amber, .b-orange, .b-red):where(:not(.club-embed *)) { background: var(--cc-band-soft); color: var(--cc-band); }
@@ -587,7 +587,7 @@
 :where(.club-root) .topt.on .radio:where(:not(.club-embed *))::after { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--cc-accent); }
 :where(.club-root) .topt .ed:where(:not(.club-embed *)) { font-weight: 600; font-size:var(--cc-text-lg); letter-spacing: -0.01em; flex: 1; }
 :where(.club-root) .topt .cnt:where(:not(.club-embed *)) { font-size:var(--cc-text-xs); color: var(--cc-text-3); white-space: nowrap; margin-top: 3px; font-variant-numeric: tabular-nums; }
-:where(.club-root) .topt .cnt.bad:where(:not(.club-embed *)) { color: var(--cc-warn); }
+:where(.club-root) .topt .cnt.bad:where(:not(.club-embed *)) { color: var(--cc-warn-text); }
 :where(.club-root) .hook-row:where(:not(.club-embed *)) { display: grid; grid-template-columns: 92px 1fr; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--cc-line); font-size:var(--cc-text-base); line-height: 1.5; }
 :where(.club-root) .hook-row:last-child:where(:not(.club-embed *)) { border-bottom: 0; }
 :where(.club-root) .hook-row .k:where(:not(.club-embed *)) { color: var(--cc-text-3); font-size:var(--cc-text-sm); padding-top: 1px; display: flex; gap: 6px; align-items: flex-start; }
@@ -675,7 +675,7 @@
 :where(.club-root) .pubx-route .rd:where(:not(.club-embed *)) { font-size:var(--cc-text-xs); color: var(--cc-text-3); }
 :where(.club-root) .pz .row:where(:not(.club-embed *)) { gap: 10px; }
 :where(.club-root) .pz .row > .input:where(:not(.club-embed *)) { flex: 1; min-width: 0; }
-:where(.club-root) .pz-err:where(:not(.club-embed *)) { color: var(--cc-warn); margin: 8px 0 0; font-weight: 550; }
+:where(.club-root) .pz-err:where(:not(.club-embed *)) { color: var(--cc-warn-text); margin: 8px 0 0; font-weight: 550; }
 :where(.club-root) .pz-hint:where(:not(.club-embed *)) { margin: 8px 0 0; }
 :where(.club-root) .pubx-form:where(:not(.club-embed *)) { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 16px; padding: 18px; }
 :where(.club-root) .pubx-form .full:where(:not(.club-embed *)) { grid-column: 1 / -1; }
@@ -696,7 +696,7 @@
 :where(.club-root) .tagsbox .chip button:where(:not(.club-embed *)) { border: 0; background: none; padding: 0; cursor: pointer; display: inline-flex; color: var(--cc-text-3); }
 :where(.club-root) .pubx-foot:where(:not(.club-embed *)) { display: flex; align-items: center; gap: 16px; }
 :where(.club-root) .pubx-foot .fi:where(:not(.club-embed *)) { flex: 1; font-size:var(--cc-text-sm); color: var(--cc-text-2); }
-:where(.club-root) .pubx-warn:where(:not(.club-embed *)) { color: var(--cc-warn); font-weight: 550; }
+:where(.club-root) .pubx-warn:where(:not(.club-embed *)) { color: var(--cc-warn-text); font-weight: 550; }
 :where(.club-root) .pubx-alt:where(:not(.club-embed *)) { font-size:var(--cc-text-sm); }
 :where(.club-root) .pubx-alt .row:where(:not(.club-embed *)) { gap: 10px; }
 :where(.club-root) .pubx aside .sec-h h2:where(:not(.club-embed *)) { font-size:var(--cc-text-sm); margin: 0 0 8px; color: var(--cc-text-2); font-weight: 650; }
@@ -829,7 +829,7 @@
 .club-root .notes-list li { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-bottom: 1px solid var(--cc-line); }
 .club-root .notes-list li:last-child { border-bottom: 0; }
 .club-root .md-notice { margin: 0 0 14px; padding: 9px 12px; border-radius: var(--cc-r); font-size:var(--cc-text-sm); line-height: 1.45; background: var(--cc-accent-soft); color: var(--cc-text); }
-.club-root .md-notice.conflict, .club-root .md-notice.failed { background: var(--cc-warn-soft); color: var(--cc-warn); }
+.club-root .md-notice.conflict, .club-root .md-notice.failed { background: var(--cc-warn-soft); color: var(--cc-warn-text); }
 
 .club-root .md-wrap { position: relative; }
 .club-root .md-editor, .club-root .md-view { font-size:var(--cc-text-lg); line-height: 1.65; color: var(--cc-text); overflow-wrap: anywhere; }
@@ -870,7 +870,7 @@
 .club-root .md-link { z-index: 60; display: flex; gap: 6px; padding: 8px; width: 330px; }
 .club-root .md-link .input { flex: 1; min-width: 0; height: 30px; }
 .club-root .md-link button { width: auto; flex: none; }
-.club-root .warn-text { color: var(--cc-warn); }
+.club-root .warn-text { color: var(--cc-warn-text); }
 .club-root .md-notice { display: flex; gap: 8px; align-items: flex-start; }
 .club-root .md-notice .icon { flex: none; margin-top: 2px; }
 .club-root .note-path { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size:var(--cc-text-2xs); overflow-wrap: anywhere; }
@@ -1012,7 +1012,7 @@
   .club-root .plan-lines { padding: 12px 24px 0; }
 }
 .club-root .pkg-save { font-size: var(--cc-text-xs); color: var(--cc-text-3); white-space: nowrap; }
-.club-root .pkg-save.bad { color: var(--cc-warn); }
+.club-root .pkg-save.bad { color: var(--cc-warn-text); }
 .club-root .pkg-save .linkish { font-size: var(--cc-text-xs); }
 .club-root .tline .tnote { flex: none; padding-top: 3px; }
 .club-root .pkg-thumb { position: relative; overflow: hidden; }
@@ -1047,7 +1047,7 @@
 .club-root .sk-desc { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .club-root .sk-why { margin-top: 4px; font-size: var(--cc-text-2xs); color: var(--cc-text-3); }
 .club-root .sk-why.added, .club-root .sk-why.declared { color: var(--cc-ok); }
-.club-root .sk-why.removed { color: var(--cc-warn); }
+.club-root .sk-why.removed { color: var(--cc-warn-text); }
 .club-root .sk-sub { font-size: var(--cc-text-xs); font-weight: 600; color: var(--cc-text-2); background: var(--cc-surface-2); }
 .club-root .sk-switch { all: unset; cursor: pointer; flex: none; position: relative; width: 36px; height: 20px; border-radius: var(--cc-r-pill); background: var(--cc-line-strong); transition: background var(--cc-dur) var(--cc-ease); }
 .club-root .sk-switch > span { position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: var(--cc-surface); box-shadow: var(--cc-shadow-1); transition: transform var(--cc-dur) var(--cc-ease); }
@@ -1075,7 +1075,7 @@
 .club-root .tile.note .sticky-text::placeholder { color: var(--cc-text-3); }
 /* Until it is being written in, a note moves like any card: the text cursor shows once it is. */
 .club-root .tile.note .sticky-text:not(:focus) { cursor: default; }
-.club-root .tile.note .sticky-err { color: var(--cc-warn); padding: 0 4px; }
+.club-root .tile.note .sticky-err { color: var(--cc-warn-text); padding: 0 4px; }
 .club-root .tile .note-resize { position: absolute; right: 0; bottom: 0; width: 18px; height: 18px; cursor: nwse-resize; opacity: 0; transition: opacity .12s; background: linear-gradient(135deg, transparent 55%, var(--cc-line-strong) 55% 63%, transparent 63% 73%, var(--cc-line-strong) 73% 81%, transparent 81%); border-radius: 0 0 var(--cc-r-lg) 0; }
 .club-root .tile:hover .note-resize, .club-root .tile.sel .note-resize { opacity: 1; }
 /* Settings › Your AI agent */

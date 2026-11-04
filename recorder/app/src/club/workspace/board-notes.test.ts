@@ -232,7 +232,8 @@ test('a card from another Notes folder says so; Show hidden files brings cards b
 
 test('a failed save and a refused Notes folder are warnings, not errors: amber with an icon, never red',async()=>{
  const css=(await import('node:fs')).readFileSync(new URL('../club.css',import.meta.url),'utf8');
- assert.match(css,/\.club-root \.warn-text \{ color: var\(--cc-warn\); \}/);
+ // Amber's text shade (--cc-warn-text), dark enough to read on a light surface.
+ assert.match(css,/\.club-root \.warn-text \{ color: var\(--cc-warn-text\); \}/);
  const panel=(await import('node:fs')).readFileSync(new URL('./NotePanel.tsx',import.meta.url),'utf8');
  const folder=(await import('node:fs')).readFileSync(new URL('./NotesFolder.tsx',import.meta.url),'utf8');
  for(const source of [panel,folder])assert.doesNotMatch(source,/--cc-rec|danger-text/);

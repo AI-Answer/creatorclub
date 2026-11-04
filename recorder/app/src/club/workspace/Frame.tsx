@@ -14,7 +14,7 @@ const STATE_WORDS={done:'Done',next:'Next step',open:undefined,current:undefined
  * like Borumi's "Edited" note; on the right the date, the editor's undo, redo and history (on Edit), and the video's one menu ("…"),
  * which moves it to another stage or deletes it (asking first). The steps are in the bar at the bottom (`Foot`).
  */
-export function Header({video,tab,onTitle,onStage,onDelete}:{video:Video;tab:VideoTab;onTitle(title:string):void;onStage(stage:VideoStage):void;onDelete():void}){
+export function Header({video,tab,onTitle,onStage,onDelete,onHome}:{video:Video;tab:VideoTab;onTitle(title:string):void;onStage(stage:VideoStage):void;onDelete():void;/** Leaves for the Video board the way the other exits do (Record adds a take still under review first). */onHome?():void}){
  const [asking,setAsking]=useState(false);
  const toast=useToast();
  // Hands this video to the person's own agent (Settings › Your AI agent connects it).
@@ -23,7 +23,7 @@ export function Header({video,tab,onTitle,onStage,onDelete}:{video:Video;tab:Vid
  return <div className="ws-top">
   <div className="ws-top-l">
    {/* Every step of a video leads back to the Video board (the Kanban) from here. */}
-   <Tooltip text="Back to all your videos"><a href="#/home" className="ws-home"><Icon name="back" size={16}/>Video board</a></Tooltip>
+   <Tooltip text="Back to all your videos"><a href="#/home" className="ws-home" onClick={event=>{if(!onHome)return;event.preventDefault();onHome();}}><Icon name="back" size={16}/>Video board</a></Tooltip>
    <div className="ws-top-slot" id="ws-top-left"/>
   </div>
   <div className="ws-top-c">

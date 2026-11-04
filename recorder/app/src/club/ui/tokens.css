@@ -73,6 +73,8 @@
   --cc-ok-soft: #f0fdf4;
   --cc-warn: #f59e0b;
   --cc-warn-soft: #fefce8;
+  /* Warning words: amber dark enough to read as text on light surfaces; --cc-warn stays for fills and dots. */
+  --cc-warn-text: #b45309;
   /* A sticky note on the Board: a pale paper yellow, quieter than a warning. */
   --cc-note: #fef9c3;
   --cc-note-line: #fde68a;
@@ -238,12 +240,13 @@
   --cc-ok-soft: #0f3830;
   --cc-warn: #f59e0b;
   --cc-warn-soft: #403814;
+  --cc-warn-text: var(--cc-warn);
   --cc-note: #403814;
   --cc-note-line: #d1a100;
-  --cc-avatar-1: var(--cc-placeholder);
-  --cc-avatar-2: var(--cc-placeholder);
-  --cc-avatar-3: var(--cc-placeholder);
-  --cc-avatar-4: var(--cc-placeholder);
+  --cc-avatar-1: #525252;
+  --cc-avatar-2: #525252;
+  --cc-avatar-3: #525252;
+  --cc-avatar-4: #525252;
   --cc-toast-bg: #3d4046;
   --cc-toast-text: #e1e1e1;
   --cc-scrim: rgba(0, 0, 0, .64);

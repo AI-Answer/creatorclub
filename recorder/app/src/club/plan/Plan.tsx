@@ -52,7 +52,7 @@ export function Plan({video,plan,known,focusId,onFocus,onTitle,onTarget,onRecord
  if(plan.load.status==='error')return <div style={{maxWidth:720,margin:'0 auto',padding:'32px 24px'}}><ErrorLine message={plan.load.message} onRetry={plan.reload}/></div>;
  const packaging=plan.packageJob.phase==='running',outlining=plan.outlineJob.phase==='running',scripting=plan.scriptJob.phase==='running';
  const lines=[
-  plan.changedScene!==undefined&&<p key="changed" role="status" className="small" style={{background:'var(--cc-warn-soft)',color:'var(--cc-warn)',padding:'10px 14px',borderRadius:'var(--cc-r-lg)'}}>{changedSceneLine(plan.changedScene)}</p>,
+  plan.changedScene!==undefined&&<p key="changed" role="status" className="small" style={{background:'var(--cc-warn-soft)',color:'var(--cc-warn-text)',padding:'10px 14px',borderRadius:'var(--cc-r-lg)'}}>{changedSceneLine(plan.changedScene)}</p>,
   plan.continueError&&<ErrorLine key="continue" message={plan.continueError} onRetry={()=>plan.continueAction?.run()}/>,
   plan.scenesSaveError&&<ErrorLine key="save" message={plan.scenesSaveError} onRetry={plan.retrySave}/>,
   plan.noticeError&&<ErrorLine key="notice" message={plan.noticeError} onRetry={()=>{for(const kind of PLAN_JOB_KINDS)if(plan.notices[kind]){void plan.resolveNotice(kind);break;}}}/>,
