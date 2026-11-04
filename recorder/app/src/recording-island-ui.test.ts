@@ -96,3 +96,17 @@ test('island has Borumi\'s controls: close, record again, More, and the countdow
   update({status:'paused'});assert.equal(doc.body.classList.contains('paused'),true);assert.equal(doc.getElementById('pause')?.getAttribute('aria-label'),'Resume recording');
  }finally{await browser.happyDOM.close();}
 });
+
+test('without a camera the island keeps its picture area and shows the microphone as a live waveform, as Borumi does',async()=>{
+ const browser=new Window({settings:{disableJavaScriptFileLoading:true,disableCSSFileLoading:true}});
+ const state={status:'recording',elapsed:3,projectName:'Demo',cameraEnabled:false,script:'',layout:{camera:true,script:true},microphoneLabel:'Mic',microphoneLevel:.5};
+ Object.assign(browser,{recordingPreview:{read:async()=>state,subscribe:()=>()=>{},command:async()=>{},layout:async(layout:any)=>layout}});
+ browser.document.write(await readFile(new URL('../desktop/recording-hud.html',import.meta.url),'utf8'));browser.eval(await readFile(new URL('../desktop/recording-hud.js',import.meta.url),'utf8'));await new Promise(resolve=>setTimeout(resolve,0));
+ const doc=browser.document;
+ try{
+  assert.equal((doc.getElementById('camera') as any).hidden,false,'the picture area stays, so the island is never a bare bar');
+  assert.ok(doc.body.classList.contains('audio-only'));
+  assert.equal((doc.getElementById('waveform') as any).hidden,false,'the waveform takes the camera\'s place');
+  assert.equal((doc.getElementById('mic-chip') as any).hidden,false);
+ }finally{await browser.happyDOM.close();}
+});

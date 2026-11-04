@@ -64,7 +64,6 @@ export function NewVideo({videos,onClose,onOpen}:{videos:readonly Video[];onClos
  };
  return <Dialog title={mode==='choose'?'How would you like to start?':mode==='title'?'Plan out this video':'Break down a video'} onClose={onClose} width={680} className="new-video-dialog" footer={mode!=='choose'?<>
   <Button variant="ghost" onClick={()=>{setMode('choose');setValue('');}} disabled={busy}>Back</Button>
-  <Button variant="ghost" onClick={onClose}>Cancel</Button>
   <Button variant="primary" onClick={()=>void submit()} disabled={!value.trim()||busy}>{mode==='link'?'Break down':'Start planning'}</Button>
  </>:undefined}>
   {mode==='choose'?<>

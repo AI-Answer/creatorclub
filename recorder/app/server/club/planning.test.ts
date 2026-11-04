@@ -684,3 +684,15 @@ test('a quote the model escaped twice reads as a plain quote', async () => {
   const { z } = await import('zod');
   assert.deepEqual(parseAnswer(z.object({ twist: z.string(), list: z.array(z.string()) }), { twist: 'Instead of vague \\"make it better\\" prompts', list: ['it\\\'s'] }, 'Claude', 'test'), { twist: 'Instead of vague "make it better" prompts', list: ["it's"] });
 });
+
+test('deleting a video sends its recording to the Trash, where it can still be restored', async () => {
+  const made = (await call('POST', '/videos', { title: 'Recorded then deleted' })).body as Video;
+  await call('PUT', `/videos/${made.id}/outline`, goodOutline);
+  const recorded = (await call('POST', `/videos/${made.id}/recorder`)).body as Video;
+  const projectFile = path.join(process.env.SCENEFORGE_DATA_DIR!, 'projects', `${recorded.recorderProjectId}.json`);
+  await readFile(projectFile);
+  assert.equal((await call('DELETE', `/videos/${made.id}`)).status, 204);
+  await assert.rejects(readFile(projectFile), 'the project is no longer among the projects');
+  const { listTrash } = await import('../storage.js');
+  assert.ok((await listTrash()).some((item: { id?: string; projectId?: string }) => item.id === recorded.recorderProjectId || item.projectId === recorded.recorderProjectId), 'it is in the Trash');
+});

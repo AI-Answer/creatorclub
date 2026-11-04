@@ -10,7 +10,7 @@ import type {JobRun} from '../useJobRun';
 import type {Notice,Plan,SaveStatus} from '../usePlan';
 import {Button,Ed,Icon,MultChip,Spinner,Thumb,cn,useToast} from '../ui';
 import {changedSceneLine} from '../video-plan';
-import {EMPTY_PACKAGE,blankScene} from '../plan/plan-logic';
+import {EMPTY_PACKAGE,blankScene,sceneCardId} from '../plan/plan-logic';
 import {ScenesColumn} from '../plan/ScenesColumn';
 import type {Route} from '../routes';
 import {Board,addFromText} from '../workspace/Board';
@@ -309,7 +309,7 @@ function PlanPage({video,plan,known,focusId,cards,ai,showPart,onOpen,onFocus,onT
     ?<ScenesColumn bare acceptDrops target={video.targetSeconds??0} onTarget={onTarget} hasRecording={!!video.recorderProjectId} outline={plan.outline} known={known} focusId={focusId}
       drafting={drafting} draftLine={plan.outlineJob.phase==='running'?plan.outlineJob.line:undefined} scripting={scripting} scriptingScene={plan.scriptScene} aiName={ai.name} aiBrand={ai.brand}
       onEdit={plan.editOutline} onFocus={onFocus} onDraft={plan.createOutline} onWriteScene={sceneId=>plan.writeScript(sceneId)} onWriteAll={()=>plan.writeScript()} onSceneScript={plan.saveSceneScript} onRecord={onRecordScene} onSaveNow={()=>void plan.flush().catch(()=>{})}/>
-    :<div className="doc-empty"><span className="idea-hint">{aiAvailable?'No scenes yet. Fill writes them, or':'No scenes yet.'}</span><button type="button" className="linkish" onClick={()=>{const scene=blankScene();plan.editOutline({scenes:[scene]});onFocus(scene.id!);}}>{aiAvailable?'add one yourself':'Add a scene'}</button></div>}
+    :<div className="doc-empty"><span className="idea-hint">{aiAvailable?'No scenes yet. Fill writes them, or':'No scenes yet.'}</span><button type="button" className="linkish" onClick={()=>{const scene=blankScene();plan.editOutline({scenes:[scene]});onFocus(scene.id!);requestAnimationFrame(()=>requestAnimationFrame(()=>document.getElementById(sceneCardId(scene.id!))?.scrollIntoView?.({block:'center',behavior:'smooth'})));}}>{aiAvailable?'add one yourself':'Add a scene'}</button></div>}
   </Part>
  </div>;
 }

@@ -74,8 +74,8 @@ test('Board: six flat lanes, compact cards, counts, no idea subgroups, and direc
   assert.equal(c.querySelectorAll('[data-column]').length,6);
   assert.equal(c.querySelector('.igroup-h'),null);
   assert.deepEqual(cardIds(column(c,'ideas')),['a','b','c','d']);
-  assert.match(text(card(c,'Planned')),/0\/3 scenes/);
-  assert.match(text(card(c,'Recorded')),/2\/5 scenes/);
+  assert.match(text(card(c,'Planned')),/0 of 3 scenes/);
+  assert.match(text(card(c,'Recorded')),/2 of 5 scenes/);
   assert.match(card(c,'Live').querySelector('img')!.getAttribute('src')!,/^\/api\/club\/videos\/x\/cover/);
   assert.equal(calls.filter(call=>call.method!=='GET').length,0);
   await press(button(c,'New video'));assert.equal(opened.count,1);
@@ -304,7 +304,7 @@ test('Board: unknown scenes show only a date; known scenes show compact progress
  await withBoard({videos,outlines:{p:3},holdScenes:hold},'board',async ui=>{
   assert.equal(ui.container.querySelector('.dots'),null);
   release();await settle();
-  assert.match(text(card(ui.container,'Planned')),/0\/3 scenes/);
+  assert.match(text(card(ui.container,'Planned')),/0 of 3 scenes/);
   assert.equal(ui.container.querySelectorAll('.dots i').length,0,'the compact card uses a fraction instead of duplicating progress dots');
  });
 });

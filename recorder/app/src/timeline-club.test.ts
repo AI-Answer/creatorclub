@@ -182,3 +182,19 @@ test('P2 muted mic uses camera narration and every hidden caption word is render
   assert.ok(words.includes('First words')||ui.container.querySelector('.row-captions'));
  }finally{await ui.close();}
 });
+
+test('the timeline fits the whole video once its clips arrive, not while the project is still empty (Borumi opens on the whole video)',async()=>{
+ const width=Object.getOwnPropertyDescriptor(HTMLElement.prototype,'clientWidth');
+ Object.defineProperty(HTMLElement.prototype,'clientWidth',{configurable:true,get:()=>800});
+ const scales:number[]=[];const {state,element}=harness(project([]));
+ const props=(p:Project)=>({...element(p).props,autoFit:true,onScale:(s:number)=>{scales.push(s);}});
+ const ui=await mountUI(createElement(TimelineClub,props(state.project)));
+ try{
+  await frame();
+  assert.deepEqual(scales,[],'nothing to fit yet');
+  const loaded=project([clip('a','camera',0,40)]);
+  await ui.render(createElement(TimelineClub,props(loaded)));await frame();
+  assert.equal(scales.length,1,'it fits once the clips are there');
+  assert.ok(scales[0]*40<=800,'the whole 40 s video is in view');
+ }finally{await ui.close();if(width)Object.defineProperty(HTMLElement.prototype,'clientWidth',width);else delete (HTMLElement.prototype as {clientWidth?:number}).clientWidth;}
+});

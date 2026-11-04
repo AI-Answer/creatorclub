@@ -44,13 +44,14 @@ function createRecordingHud({BrowserWindow,ipcMain,screen,getMainWindow,verifyMa
   if(!hiddenMain&&state.hideMain&&['starting','recording','paused'].includes(state.status)&&alive(main)){main.hide();hiddenMain=true;onMainVisibility();}if(['saving','idle'].includes(state.status))restore();}
  async function begin(value){
   const next=cleanState(value,true);if(alive(hud))end();sessionId=randomUUID();synced=false;const id=sessionId;
-  state={...next,layout:{camera:layout.camera&&next.cameraEnabled,script:layout.script&&Boolean(next.script.trim())}};const main=getMainWindow(),saved=preferences.bounds,valid=saved&&['x','y','width','height'].every(key=>Number.isFinite(saved[key]));
+  // The picture area is the camera, or the microphone's live waveform when there is no camera (as Borumi does): the island never shrinks to a bare bar.
+  state={...next,layout:{camera:layout.camera,script:layout.script&&Boolean(next.script.trim())}};const main=getMainWindow(),saved=preferences.bounds,valid=saved&&['x','y','width','height'].every(key=>Number.isFinite(saved[key]));
   const display=screen.getDisplayMatching(valid?saved:alive(main)?main.getBounds():screen.getPrimaryDisplay().bounds);area=display.workArea;
-  const width=Math.min(valid?Math.max(250,Math.min(620,saved.width)):250,area.width),expanded=state.layout.camera||state.layout.script;
+  const width=Math.min(valid?Math.max(250,saved.width):250,area.width),expanded=state.layout.camera||state.layout.script;
   const requiredHeight=islandHeight(width,state.layout);
   const height=Math.min(expanded?Math.max(requiredHeight,valid?saved.height:BAR):BAR,area.height-12);
   bounds={width,height,x:Math.round(Math.max(area.x,Math.min(area.x+area.width-width,valid?saved.x:area.x+area.width-width-20))),y:Math.round(Math.max(area.y,Math.min(area.y+area.height-height,valid?saved.y:area.y+24)))};
-  hud=new BrowserWindow({...bounds,minWidth:250,minHeight:BAR,maxWidth:620,title:`${appName} recording`,type:'panel',frame:false,transparent:true,backgroundColor:'#00000000',show:false,resizable:true,alwaysOnTop:true,skipTaskbar:true,roundedCorners:true,webPreferences:{preload:path.join(__dirname,'recording-hud-preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true,backgroundThrottling:false}});
+  hud=new BrowserWindow({...bounds,minWidth:250,minHeight:BAR,title:`${appName} recording`,type:'panel',frame:false,transparent:true,backgroundColor:'#00000000',show:false,resizable:true,alwaysOnTop:true,skipTaskbar:true,roundedCorners:true,webPreferences:{preload:path.join(__dirname,'recording-hud-preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true,backgroundThrottling:false}});
   // Defense in depth only. macOS ScreenCaptureKit also explicitly excludes this
   // application's PID in native-recording.swift; this flag alone is insufficient.
   hud.setContentProtection(true);hud.setAlwaysOnTop(true,'floating');
@@ -72,7 +73,7 @@ function createRecordingHud({BrowserWindow,ipcMain,screen,getMainWindow,verifyMa
    verifyHud(e);if(!value||typeof value.camera!=='boolean'||typeof value.script!=='boolean')throw Error('Choose valid preview panels.');
    // The choice is kept as made; what shows is limited to what this take has, so a take without a camera or script never turns a panel off for later takes.
    layout={camera:value.camera,script:value.script};layoutChosen=true;
-   const shown={camera:layout.camera&&state.cameraEnabled,script:layout.script&&Boolean(state.script?.trim())};
+   const shown={camera:layout.camera,script:layout.script&&Boolean(state.script?.trim())};
    bounds=hud.getBounds?.()??bounds;const height=Math.min(islandHeight(bounds.width,shown),Math.max(BAR,area.y+area.height-bounds.y-12));
    hud.setBounds({...bounds,height});bounds={...bounds,height};state={...state,layout:shown};remember();publish({layout:shown});return shown;
   },

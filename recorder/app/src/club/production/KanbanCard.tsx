@@ -2,6 +2,7 @@ import {useState,type DragEvent,type KeyboardEvent} from 'react';
 import {VIDEO_STAGES,videoHumanId,type Video,type VideoStage} from '../../../shared/club';
 import {STAGE_LABEL} from '../board';
 import {videoThumbId} from '../ideas';
+import {scenesLine} from '../production';
 import {recordedCount,type SceneProgress} from '../scene-status';
 import {Icon,Menu,type MenuItem} from '../ui';
 
@@ -47,7 +48,7 @@ export function KanbanCard({video,scenes,dragging,highlight,onOpen,onMove,onRese
    <div className="tt clamp2">{video.title.trim()||'Untitled video'}</div>
    <div className="na">
     <span className={`col-dot st-${video.stage}`} role="img" aria-label={STAGE_LABEL[video.stage]}/>
-    {scenes?<span>{recordedCount(scenes)}/{scenes.length} scenes</span>:<span>{STAGE_LABEL[video.stage]}</span>}
+    {scenes?.length?<span>{scenesLine(recordedCount(scenes),scenes.length)}</span>:<span>{STAGE_LABEL[video.stage]}</span>}
     {video.hidden&&<span>{video.hidden==='later'?'Later':'Skipped'}</span>}
     <time dateTime={video.updatedAt} title={`Updated ${new Date(video.updatedAt).toLocaleString()}`}>{relativeUpdated(video.updatedAt)}</time>
    </div>

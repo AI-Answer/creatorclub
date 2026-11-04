@@ -344,6 +344,8 @@
 .club-embed .app-shell[data-mode=Edit] .club-edit .caption-tile:hover { border-color: var(--cc-line-strong); }
 .club-embed .app-shell[data-mode=Edit] .club-edit .caption-tile.on { border-color: var(--cc-accent); outline: 1px solid var(--cc-accent); box-shadow: none; background: var(--cc-accent-soft); }
 .club-embed .app-shell[data-mode=Edit] .club-edit .caption-tile.none { align-items: center; justify-content: center; color: var(--cc-text-2); font-size: var(--cc-text-sm); font-weight: 600; }
+/* A style is shown on a dark, picture-like tile, as Borumi does: white and yellow captions stay readable. */
+.club-embed .app-shell[data-mode=Edit] .club-edit .caption-tile:not(.none), .club-embed .app-shell[data-mode=Edit] .club-edit .caption-tile.on:not(.none) { background: radial-gradient(120% 90% at 20% 0%, var(--cc-media-glow), transparent 60%), var(--cc-dark-stage); }
 .club-embed .app-shell[data-mode=Edit] .club-edit .caption-sample { align-self: center; padding: 1px 6px; border-radius: var(--cc-r-sm); white-space: nowrap; }
 .club-embed .app-shell[data-mode=Edit] .club-edit .caption-sample.at-bottom { margin-top: auto; }
 .club-embed .app-shell[data-mode=Edit] .club-edit .caption-sample.at-center { margin: auto 0; }

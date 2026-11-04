@@ -184,7 +184,7 @@ export function Publish({video,pkg,scenes,onVideo,onDescription,onTags,onGoTo,on
     </div>
    </PubStep>
    <PubStep n={3} title="Send it to YouTube" done={false}
-    line={publishing.error?undefined:!publishing.state?undefined:connected?`Postiz uploads it to ${channelName??'your channel'} on YouTube, now or at the time you pick.`:"Upload your exported file to YouTube and paste its link here. Postiz is optional."}>
+    line={publishing.error?undefined:!publishing.state?undefined:connected?`Postiz uploads it to ${channelName??'your channel'} on YouTube, now or at the time you pick.`:"Upload the exported file to YouTube yourself, then press I uploaded it myself to add its link. Postiz is optional."}>
     <SelfUpload video={video} onVideo={onVideo}/>
     {publishing.error?<ErrorLine message={publishing.error} onRetry={publishing.reload}/>:!publishing.state?<span className="row small muted" role="status"><Spinner label="Loading publishing settings"/>Loading publishing settings…</span>
      :!connected?<div className="row" style={{gap:12,flexWrap:'wrap'}}><span className="logo logo-postiz"><BrandLogo brand="postiz" size={28}/></span><Button onClick={onSettings}>Set up optional publishing</Button></div>

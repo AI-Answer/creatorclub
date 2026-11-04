@@ -40,8 +40,15 @@ button:focus-visible, input:focus-visible, #script:focus-visible { outline: 2px 
 
 /* The camera: edge to edge, cropped to fill; it takes what the bar and the script leave. */
 #camera { position: relative; flex: 1 1 auto; min-height: 0; background: #000; overflow: hidden; -webkit-app-region: drag; }
-body.has-script #camera { flex: 0 0 60vw; }
+/* With a script the picture takes 60% of the width, but never more than 55% of the height, so a large island still leaves the script room. */
+body.has-script #camera { flex: 0 0 min(60vw, 55vh); }
 #camera-video, #camera-image { width: 100%; height: 100%; object-fit: cover; display: block; }
+/* No camera: the microphone's live waveform fills the picture area, as in Borumi's recorder (a mirrored blue shape over a pale ground). */
+:root { --wave-ground: rgb(0 0 0 / 0.55); --wave-top: #8fd0ff; --wave-bottom: #3d8fe6; }
+:root[data-theme=light] { --wave-ground: #f2f3f5; }
+body.audio-only #camera { background: var(--wave-ground); }
+body.audio-only #camera-video, body.audio-only #camera-image, body.audio-only #camera-wait, body.audio-only #camera-chip { display: none !important; }
+#waveform { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 #camera-wait { position: absolute; inset: 0; display: grid; place-items: center; color: var(--ink-soft); font-size: 11px; }
 .chip { position: absolute; display: inline-flex; align-items: center; gap: 5px; max-width: calc(100% - 24px); height: 15px; padding: 0 7px; border-radius: 999px; background: var(--chip); color: var(--ink); font-size: 8px; font-weight: 600; white-space: nowrap; pointer-events: none; }
 .chip span { overflow: hidden; text-overflow: ellipsis; }
@@ -99,7 +106,7 @@ body.paused #pause .play-icon { display: block; }
 
 /* More: a small dark menu above the bar. */
 #menu { position: absolute; right: 8px; bottom: 48px; z-index: 6; width: 214px; max-height: calc(100% - 56px); overflow-y: auto; padding: 4px; border: 1px solid var(--menu-line); border-radius: 10px; background: var(--menu); box-shadow: 0 10px 30px rgb(0 0 0 / 0.35); }
-body.has-script #menu { bottom: auto; top: calc(60vw + 44px); }
+body.has-script #menu { bottom: auto; top: calc(min(60vw, 55vh) + 44px); }
 #menu { color: var(--ink-bar); }
 #menu > button, .menu-check { width: 100%; display: flex; align-items: center; gap: 8px; min-height: 28px; padding: 0 8px; border-radius: 6px; font-size: 12px; text-align: left; justify-content: flex-start; cursor: pointer; }
 #menu > button:hover, .menu-check:hover { background: var(--menu-hover); }

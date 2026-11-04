@@ -83,7 +83,9 @@ test('no AI: add the first scene, edit its title, talking points and empty scrip
   assert.equal(button(c,'Fill the empty parts with Claude').disabled,true);
   assert.equal(button(c,'Fill the empty parts with Claude').title,'Connect an AI in Settings');
   await click(c,'Add a scene');assert.ok(c.querySelector('[aria-label="Scene 1"]'));
-  await edit('Scene title','My introduction');await edit('Talking point','Explain the demo');await edit('Script','Here is the demo I made.');
+  await edit('Scene title','My introduction');await edit('Talking point','Explain the demo');
+  assert.equal(c.querySelector('[role="textbox"][aria-label="Script"]'),null,'the script is an extra, like Borumi\'s one line per scene');
+  await click(c,"Add what's on screen or a script");await edit('Script','Here is the demo I made.');
   await act(async()=>{await new Promise(resolve=>setTimeout(resolve,550));});
   const saved=outline as Outline|null;assert.ok(saved);
   assert.equal(saved.scenes[0].title,'My introduction');

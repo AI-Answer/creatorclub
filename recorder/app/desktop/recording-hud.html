@@ -2,7 +2,7 @@
  <!-- Borumi's recorder: the camera edge to edge with its source chips and a close button over it, then one control bar, then the script. -->
  <p class="sr-only"><strong id="status" role="status">Starting…</strong> <span id="title"></span></p>
  <main class="island-content">
-  <section id="camera" hidden><video id="camera-video" autoplay muted playsinline aria-label="Live camera preview" hidden></video><img id="camera-image" alt="Live camera preview" hidden><span id="camera-wait">Waiting for camera preview…</span>
+  <section id="camera" hidden><video id="camera-video" autoplay muted playsinline aria-label="Live camera preview" hidden></video><img id="camera-image" alt="Live camera preview" hidden><canvas id="waveform" aria-label="Microphone level" role="img" hidden></canvas><span id="camera-wait">Waiting for camera preview…</span>
    <span id="camera-chip" class="chip"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-2h6l2 2h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg><span id="camera-label">Camera</span></span>
    <span id="mic-chip" class="chip wide"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg><span id="microphone-hint"></span><span id="microphone-meter" role="meter" aria-label="Microphone input level" aria-valuemin="0" aria-valuemax="100"><span id="microphone-bar"></span></span></span>
   </section>

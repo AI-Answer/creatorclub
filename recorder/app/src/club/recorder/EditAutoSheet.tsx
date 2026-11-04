@@ -108,7 +108,7 @@ const actions=(option:AutoOption)=>{
   {actions(option)}
  </div>;
  return <aside className="club-sheet club-auto-sheet" aria-label="Auto-edit">
-  <header><b>Cut</b><span className="club-sheet-grow"/><button type="button" className="btn sm" onClick={onClose}>Show transcript</button></header>
+  <header><b>Automations</b><span className="club-sheet-grow"/><button type="button" className="btn sm" onClick={onClose}>Show transcript</button></header>
   <div className="club-sheet-body" ref={list} role="list">
    {row('fillers',<Icon name="audio" size={15}/>,'Filler words')}
    {row('pauses',<Icon name="cut" size={15}/>,'Silences',<>

@@ -182,10 +182,10 @@ test('a default layout opens the script, and only a chosen layout replaces it',a
  }finally{m.dispose();}
 });
 
-test('a take without a camera keeps the chosen camera panel for later takes',async()=>{
+test('a take without a camera keeps its picture area (the microphone waveform) and the chosen panel for later takes',async()=>{
  const h=harness(),m=createRecordingHud(h.opts);try{
   await opened(h,{status:'recording',cameraEnabled:false,script:'Read this'});
-  assert.deepEqual(h.handlers.get('recording-hud-layout')!(h.hudEvent(),{camera:true,script:true}),{camera:false,script:true});h.call('end-recording-hud');
+  assert.deepEqual(h.handlers.get('recording-hud-layout')!(h.hudEvent(),{camera:true,script:true}),{camera:true,script:true},'the picture area stays: Borumi shows the waveform there');h.call('end-recording-hud');
   await opened(h,{status:'recording',cameraEnabled:true,script:'Read this'});
   assert.deepEqual(h.handlers.get('recording-hud-read')!(h.hudEvent()).layout,{camera:true,script:true});
  }finally{m.dispose();}

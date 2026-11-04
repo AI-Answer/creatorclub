@@ -544,7 +544,11 @@ export function clubRouter({ avatarFetch, ai = {}, transcribe, runAI, readViews 
     res.json(await store.updateVideo(await requireWorkspace(), param(req, 'id'), videoPatchBody.parse(req.body)));
   }));
   router.delete('/videos/:id', handler(async (req, res) => {
-    await store.deleteVideo(await requireWorkspace(), param(req, 'id'));
+    const slug = await requireWorkspace();
+    const video = await store.readVideo(slug, param(req, 'id'));
+    await store.deleteVideo(slug, video.id);
+    // Its recordings go too, to the Trash, where they can still be restored: a deleted video leaves nothing of it behind.
+    if (video.recorderProjectId) await (await sceneforge()).trashProject(video.recorderProjectId).catch(() => {});
     res.status(204).end();
   }));
   router.post('/videos/:id/move', handler(async (req, res) => {

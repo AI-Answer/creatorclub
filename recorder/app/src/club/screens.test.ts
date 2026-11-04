@@ -605,7 +605,7 @@ test('Home is the video board, with six lanes, a count, and New video',async()=>
  await mount(navigate=>createElement(HomeScreen,{navigate,onNewVideo:()=>opened.push('new')}),server({videos}),async(ui,_s,calls,routes)=>{
   const c=ui.container;
   assert.equal(text(c.querySelector('h1')),'Video board');
-  assert.equal(text(c.querySelector('[aria-label="Video count"]')),'3');
+  assert.equal(c.querySelector('[aria-label="Video count"]'),null,'one count, in the sidebar; each lane says its own');
   assert.deepEqual([...c.querySelectorAll('[data-column]')].map(el=>el.getAttribute('data-column')),['ideas','planning','recording','editing','publishing','published']);
   assert.equal(c.querySelectorAll('[data-card]').length,3);
   assert.equal(c.querySelectorAll('.lane-add').length,6);
@@ -621,7 +621,6 @@ test('Home for an empty channel immediately shows six usable lanes',async()=>{
  await mount(navigate=>createElement(HomeScreen,{navigate,onNewVideo(){}}),server(),async ui=>{
   assert.equal(ui.container.querySelectorAll('[data-column]').length,6);
   assert.equal(ui.container.querySelectorAll('.lane-add').length,6);
-  assert.equal(text(ui.container.querySelector('[aria-label="Video count"]')),'0');
   assert.equal(ui.container.querySelector('.first-steps'),null);
  });
 });

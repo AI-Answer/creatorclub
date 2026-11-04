@@ -60,6 +60,8 @@ export function ScenesColumn({bare=false,acceptDrops=false,aiName='Claude',aiBra
  const leave=()=>{sendScript();onSaveNow?.();};
  // One scene open at a time: the focused one (picked in the strip, the companion, or here), until it is closed.
  const [openId,setOpenId]=useState<string|null>(focusId);
+ // What's on screen and the script are extras, like Borumi's one line per scene: shown once written, or when asked for.
+ const [extras,setExtras]=useState<ReadonlySet<string>>(new Set());
  useEffect(()=>{if(focusId)setOpenId(focusId);},[focusId]);
  const cards=useRef<Record<number,HTMLElement|null>>({});
  const total=totalSeconds(scenes),over=target>0&&total>target;
@@ -195,9 +197,12 @@ export function ScenesColumn({bare=false,acceptDrops=false,aiName='Claude',aiBra
      <ul className="pts">{scene.talkingPoints.map((point,k)=><li key={k}><Ed live onLeave={leave} value={point} ph="Talking point" autoFocus={point===''&&added===id}
       onChange={text=>setScene(i,{talkingPoints:editPoint(scene.talkingPoints,k,text)})}
       onEnter={()=>{const points=[...scene.talkingPoints];points.splice(k+1,0,'');setScene(i,{talkingPoints:points});}}/></li>)}</ul>
-     <button type="button" className="btn sm ghost" onClick={()=>setScene(i,{talkingPoints:[...scene.talkingPoints,'']})}>Add talking point</button>
-     <div className="scene-show"><Icon name="screen" size={14}/><span className="faint" style={{flex:'none'}}>Show</span><Ed live onLeave={leave} value={scene.show} ph="What's on screen" onChange={show=>setScene(i,{show})} style={{flex:1}}/></div>
-     <div className="script">{writing?<div className="shimmer" style={{height:44}}/>:<Ed multiline live onLeave={leave} value={scene.script} ph="Script" onChange={text=>scriptSoon(id,text)}/>}</div>
+     <div className="row" style={{gap:4,flexWrap:'wrap'}}>
+      <button type="button" className="btn sm ghost" onClick={()=>setScene(i,{talkingPoints:[...scene.talkingPoints,'']})}>Add talking point</button>
+      {!(scene.show?.trim()||scene.script?.trim()||writing||extras.has(id))&&<button type="button" className="btn sm ghost" onClick={()=>setExtras(now=>new Set(now).add(id))}>Add what's on screen or a script</button>}
+     </div>
+     {(scene.show?.trim()||scene.script?.trim()||writing||extras.has(id))&&<><div className="scene-show"><Icon name="screen" size={14}/><span className="faint" style={{flex:'none'}}>Show</span><Ed live onLeave={leave} value={scene.show} ph="What's on screen" onChange={show=>setScene(i,{show})} style={{flex:1}}/></div>
+     <div className="script">{writing?<div className="shimmer" style={{height:44}}/>:<Ed multiline live onLeave={leave} value={scene.script} ph="Script" onChange={text=>scriptSoon(id,text)}/>}</div></>}
      {decide.length>0&&<details className="decide" onClick={event=>event.stopPropagation()}>
       <summary>To decide ({decide.length})</summary>
       <ul>{decide.map((item,k)=><li key={k}><span>{item}</span><Button variant="quiet" size="sm" onClick={()=>setScene(i,{decide:decide.filter((_,n)=>n!==k)})}>Mark decided</Button></li>)}</ul>
