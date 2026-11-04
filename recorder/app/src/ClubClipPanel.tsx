@@ -2,7 +2,7 @@ import {useState} from 'react';
 import type {Clip,Project} from '../shared/types';
 import {clipDuration} from '../shared/types';
 import {takePackageActions,takeSourceName,takeSourceState,unlinkTakeAction} from './take-package-actions';
-import {applyClipStarts,collides,isLinked,linkedIds,rowItems,takeSyncOffset,trimClips} from './timeline-edit';
+import {applyClipStarts,collides,ensureLinks,isLinked,linkedIds,rowItems,takeSyncOffset,trimClips} from './timeline-edit';
 import {Camera,ChevronDown,Mic,Monitor} from './Icons';
 import {Field,NumberField,Slider,Toggle} from './Inspector';
 
@@ -39,7 +39,7 @@ export function ClubClipPanel({project:p,clip,change,onNotice}:{project:Project;
  const take=takeOf(p,clip);
  const mic=take.find(c=>c.track==='audio'||c.track==='music'),camera=take.find(c=>c.track==='camera'),screen=take.find(c=>c.track==='screen'||c.track==='overlay');
  const update=(id:string,fn:(c:Clip)=>void,key?:string)=>change(project=>{const c=project.clips.find(each=>each.id===id);if(c)fn(c);},key?{coalesce:`clip:${id}:${key}`}:undefined);
- const timing=(kind:'start'|'sourceIn'|'sourceOut',value:number)=>{let notice='';change(d=>{const c=d.clips.find(c=>c.id===clip.id);if(!c)return;const ids=linkedIds(d.clips,[c.id]);
+ const timing=(kind:'start'|'sourceIn'|'sourceOut',value:number)=>{let notice='';change(d=>{const c=d.clips.find(c=>c.id===clip.id);if(!c)return;ensureLinks(d);const ids=linkedIds(d.clips,[c.id]);
   if(kind==='start'){const items=rowItems(d),delta=value-c.start;if(collides(items.filter(i=>ids.has(i.id)),delta,items)){notice='That position is occupied on a source lane.';return;}applyClipStarts(d,new Map([[c.id,value]]));}
   else trimClips(d,ids,kind==='sourceIn'?'left':'right',(value-c[kind])/c.speed,false);
  },{coalesce:`clip:${clip.id}:${kind}`});if(notice)onNotice?.(notice);};

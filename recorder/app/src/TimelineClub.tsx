@@ -119,8 +119,10 @@ export const TimelineClub=memo(function TimelineClub({project:p,playhead,scale,o
  const groupSize=useMemo(()=>{const n=new Map<string,number>();for(const key of groups.values())n.set(key,(n.get(key)??0)+1);return n;},[groups]);
  const [hoverClip,setHoverClip]=useState<string|null>(null);
  const offsets=useMemo(()=>takeSyncOffsets(p),[p]);
- const related=p.clips.filter(c=>c.id===hoverClip||selectedIds.has(c.id));
- const syncPiece=(id:string)=>{let message='';change(d=>{message=snapBackToTake(d,id).message;});onNotice?.(message);};
+ /* Each take that has a hovered or selected clip, with the link groups of those clips: one lookup per drawn clip. */
+ const related=useMemo(()=>{const out=new Map<string,Set<string>>();for(const c of p.clips)if(c.recordingTakeId&&(c.id===hoverClip||selectedIds.has(c.id))){const set=out.get(c.recordingTakeId)??new Set<string>();set.add(groups.get(c.id)!);out.set(c.recordingTakeId,set);}return out;},[p.clips,hoverClip,selectedIds,groups]);
+ const syncRef=useRef<(id:string)=>void>(()=>{});syncRef.current=id=>{let message='';change(d=>{message=snapBackToTake(d,id).message;});onNotice?.(message);};
+ const syncPiece=useCallback((id:string)=>syncRef.current(id),[]);
  const start=win.left/scale,end=win.right/scale,tenths=showTenths(end-start),[hover,setHover]=useState<number|null>(null);
  /* The picture under the pointer, from the clip's filmstrip: the playhead stays where it is. */
  const hoverFrame=(t:number)=>{
@@ -297,7 +299,7 @@ export const TimelineClub=memo(function TimelineClub({project:p,playhead,scale,o
      onDragOver={e=>{if(r.layer)e.preventDefault();}} onDrop={e=>{e.preventDefault();const id=e.dataTransfer.getData('application/sceneforge-media'),media=mediaById.get(id);if(media&&r.layer&&(media.kind==='audio'?'audio':'video')===r.layer.kind)onDropMedia(id,r.layer.track??(r.layer.kind==='audio'?'audio':'screen'),snapTime(Math.max(0,contentX(e.clientX)/scale)).time,r.take?undefined:r.id);}}>
 
      {r.layer&&takeViews.filter(v=>v.row===r.id).map(v=>{const c=v.clip,pv=drag?.items.get(c.id),s=pv?.start??c.start,d=pv?.duration??clipDuration(c);if(!pv&&!visible(c.start,clipDuration(c)))return null;const sound=v.sound??c,m=mediaById.get(sound.mediaId);
-      return <ClubClip key={c.id} view={v} media={m} row={r} preview={pv} selected={v.members.some(c=>selectedIds.has(c.id))} linked={(groupSize.get(groups.get(c.id)!)??1)>1} relation={c.recordingTakeId&&related.some(o=>o.recordingTakeId===c.recordingTakeId)?related.some(o=>groups.get(o.id)===groups.get(c.id))?'linked':'take':undefined} offset={offsets.get(c.id)} label={labels.get(c.id)??''} peaks={showWaveforms&&m?waveforms[waveformMediaKey(m)]:undefined} words={showWords?wordsByClip.get(sound.id):undefined} scale={scale} from={Math.max(start,s)} to={Math.min(end,s+d)} onBegin={beginItem} onOpen={onOpen} onHover={setHoverClip} onSync={syncPiece}/>;})}
+      return <ClubClip key={c.id} view={v} media={m} row={r} preview={pv} selected={v.members.some(c=>selectedIds.has(c.id))} linked={(groupSize.get(groups.get(c.id)!)??1)>1} relation={c.recordingTakeId&&related.has(c.recordingTakeId)?related.get(c.recordingTakeId)!.has(groups.get(c.id)!)?'linked':'take':undefined} offset={offsets.get(c.id)} label={labels.get(c.id)??''} peaks={showWaveforms&&m?waveforms[waveformMediaKey(m)]:undefined} words={showWords?wordsByClip.get(sound.id):undefined} scale={scale} from={Math.max(start,s)} to={Math.min(end,s+d)} onBegin={beginItem} onOpen={onOpen} onHover={setHoverClip} onSync={syncPiece}/>;})}
      {r.effect&&(effects.get(r.id)??[]).map(i=>{const pv=drag?.items.get(i.id),s=pv?.start??i.start,d=pv?.duration??i.duration;if(!pv&&!visible(i.start,i.duration))return null;
       const name=i.name;
       return <div key={i.id} data-effect-id={i.id} className={`timeline-effect club-effect ${r.effect==='layouts'?'is-layout':''} ${selectedIds.has(i.id)?'selected':''} ${pv?'clip-drag-preview':''}`} style={{left:s*scale,width:Math.max(6,d*scale)}} title={`${r.effect==='layouts'?`Layout: ${name}`:name} · drag to move, edges to resize, double-click to edit`} onPointerDown={e=>beginItem(e,i.id,'move')} onDoubleClick={()=>onOpen(i.id)}>

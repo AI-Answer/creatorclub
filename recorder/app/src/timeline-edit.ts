@@ -107,8 +107,12 @@ export function takeSyncOffsets(p:Project):Map<string,number>{
 /** Relink only overlapping pieces that play the same recording moment; never join adjacent take slices. */
 export function linkBackToTake(p:Project,id:string,newId:()=>string=makeId){
  const c=p.clips.find(c=>c.id===id);if(!c)return false;const moment=takeMoment(p,c);if(moment===undefined)return false;
- const matches=takeSiblings(p,c).filter(o=>overlaps(c,o)&&sameRate(c,o)&&takeMoment(p,o)!==undefined&&Math.abs(c.start-o.start-(moment-takeMoment(p,o)!)/o.speed)<EPS);
- const ids=linkedIds(p.clips,[id,...matches.map(o=>o.id)]),members=p.clips.filter(o=>ids.has(o.id));
+ const aligned=takeSiblings(p,c).filter(o=>overlaps(c,o)&&sameRate(c,o)&&takeMoment(p,o)!==undefined&&Math.abs(c.start-o.start-(moment-takeMoment(p,o)!)/o.speed)<EPS);
+ // One clip per lane: when a source was cut on its own, only the slice that overlaps this piece most joins it.
+ const shared=(o:Clip)=>Math.min(end(c),end(o))-Math.max(c.start,o.start),best=new Map<string,Clip>();
+ for(const o of aligned){const row=clipLayerRowId(o,p),seen=best.get(row);if(!seen||shared(o)>shared(seen))best.set(row,o);}
+ const matches=[...best.values()],ids=linkedIds(p.clips,[id,...matches.map(o=>o.id)]),members=p.clips.filter(o=>ids.has(o.id));
+ if(new Set(members.map(o=>clipLayerRowId(o,p))).size<members.length)return false;
  if(!matches.length||members.some(o=>o.recordingTakeId!==c.recordingTakeId||!sameRate(c,o)||takeMoment(p,o)===undefined||Math.abs(c.start-o.start-(moment-takeMoment(p,o)!)/o.speed)>EPS))return false;
  const groups=linkGroups(p.clips);if(members.every(o=>groups.get(o.id)===groups.get(c.id)))return false;
  const link=newId(),split=members.some(o=>o.split);for(const o of members){o.linkId=link;if(split)o.split=true;}return true;
@@ -130,7 +134,9 @@ export function snapBackToTake(p:Project,id:string,newId:()=>string=makeId):Take
  const draft=plainClone(plainView(p));applyClipStarts(draft,new Map(moving.map(o=>[o.id,Math.max(0,o.start+shift)])));
  // Link restoration must succeed before committing any movement.
  if(!linkBackToTake(draft,id,newId))return {ok:false,message:'The take sources cannot be linked at the synced position.'};
- p.clips=draft.clips;updateCaptions(p,draft.captions);return {ok:true,message:'Back in sync and linked to its take.',delta:shift};
+ // Write back only what changed, so untouched clips keep their identity (and the undo patch stays small).
+ const changed=new Map(draft.clips.map(o=>[o.id,o]));for(const o of p.clips){const n=changed.get(o.id)!;if(o.start!==n.start)o.start=n.start;if(o.linkId!==n.linkId)o.linkId=n.linkId;if(n.split&&!o.split)o.split=true;}
+ updateCaptions(p,draft.captions);syncScenesToTakes(p);return {ok:true,message:'Back in sync and linked to its take.',delta:shift};
 }
 
 /* ---------- Split ---------- */

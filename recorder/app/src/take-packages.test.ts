@@ -147,3 +147,15 @@ test('different source speeds show drift and refuse a move that cannot restore s
  const p=packageFixture();unlinkClips(p,['mic']);mic(p).speed=2;assert.notEqual(takeSyncOffset(p,'mic'),0);assert.match(snapBackToTake(p,'mic').message,/playback speeds/);
  const q=packageFixture();mic(q).sourceIn+=.5;mic(q).sourceOut+=.5;assert.equal(canCombineTake(q,'mic'),false);assert.equal(takeClipViews(q).length,4);
 });
+test('link back takes one slice per lane, so a source cut on its own never stacks two pieces in one group',()=>{
+ const p=packageFixture();unlinkClips(p,['mic']);splitLinked(p,6,new Set(),'mic');
+ const right=p.clips.find(c=>c.mediaId==='mic'&&c.start===6)!;unlinkClips(p,['camera']);
+ // The camera overlaps both mic slices; linking it back must take the slice it shares most time with, not both.
+ assert.equal(linkBackToTake(p,'camera'),true);const group=takeLinkMembers(p,'camera');
+ assert.equal(group.filter(c=>c.mediaId==='mic').length,1);assert.ok(!group.some(c=>c.id===right.id)||!group.some(c=>c.id==='mic'));assert.equal(new Set(group.map(c=>c.track+':'+(c.audioRole??''))).size,group.length);
+});
+test('a snap moves only the clips it touches and the scene follows its take',()=>{
+ const p=packageFixture();unlinkClips(p,['mic']);p.clips[0].linkId=p.clips[2].linkId=p.clips[3].linkId='picture';
+ for(const c of p.clips)c.start+=2;p.scenes[0].start=2;applyClipStarts(p,new Map([['mic',5]]));const camera=p.clips[0];
+ assert.equal(snapBackToTake(p,'mic').ok,true);assert.equal(p.clips[0],camera);assert.equal(mic(p).start,2);assert.equal(p.scenes[0].start,2);assert.equal(p.scenes[0].duration,12);
+});
