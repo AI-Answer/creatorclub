@@ -29,3 +29,9 @@ test('precomputed scene card data matches the per-scene derivation for active, a
  // Only clips, media and scenes are read, so the cards can memoize on those and survive unrelated project changes.
  assert.deepEqual(sceneCardData({clips:p.clips,media:p.media,scenes:p.scenes},takes),data);
 });
+
+test('a synchronized source that starts late does not extend the take duration on the scene card',()=>{
+ const p=createProject(),t=take(p.scenes[0].id,'sync-card','now');t.offsets=[.5,0];
+ t.synchronization={version:2,startedAtMs:1000,originAtMs:1000,duration:3,sources:t.media.map((m,i)=>({mediaId:m.id,firstSampleAtMs:i===0?1500:1000,offset:i===0?.5:0,firstPts:0,decodedDuration:3,sourceIn:0,sourceOut:i===0?2.5:3}))};
+ assert.equal(listSceneTakes(p,[t],t.sceneId)[0].duration,3);confirmTake(p,t);assert.equal(listSceneTakes(p,p.recordedTakes!,t.sceneId)[0].duration,3);
+});

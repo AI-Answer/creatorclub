@@ -49,10 +49,10 @@ export interface MotionBlock { id:string; template:MotionTemplateId; style:strin
 export interface Zoom { id:string; start:number; duration:number; scale:number; x:number;y:number; target:'screen'|'camera'; easing:'linear'|'smooth'; effectTiming?:{offset:number;duration:number}; }
 export interface CursorPoint { time:number;x:number;y:number;pressed?:boolean;visible?:boolean; }
 export interface CursorSettings { enabled:boolean; size:number; color:string; highlight:boolean; smoothing:number; points:CursorPoint[]; }
-/** Original capture timestamps and decoded bounds before microphone-clock normalization. */
+/** Original capture timestamps and bounds on the recording clock. Version 1 used normalized files; version 2 uses source trims. */
 export interface TakeSynchronization {
- version:1;startedAtMs:number;originAtMs:number;duration:number;
- sources:Array<{mediaId:string;firstSampleAtMs:number;offset:number;firstPts:number;decodedDuration:number;sourceTimestampUs?:number}>;
+ version:1|2;startedAtMs:number;originAtMs:number;duration:number;
+ sources:Array<{mediaId:string;firstSampleAtMs:number;offset:number;firstPts:number;decodedDuration:number;sourceIn?:number;sourceOut?:number;sourceTimestampUs?:number}>;
 }
 /** Captured assets remain available even when their take has no active timeline clips. */
 export interface RecordedTake {

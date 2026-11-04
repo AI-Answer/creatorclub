@@ -19,3 +19,19 @@ test('take name can be cleared back to its automatic numbered label',()=>{const 
 test('legacy failed-flush cache adopts exact existing clip identities without duplicating then archives safely',()=>{const p=createProject(),t=take(p.scenes[0].id,'old',3,['camera','microphone']);t.clipIds=['legacy-camera','legacy-mic'];const {id,...legacy}=t;confirmTake(p,legacy);const before=p.clips.map(c=>({...c,recordingTakeId:undefined}));saveProjectTake(p,t);assert.equal(p.clips.length,2);assert.ok(p.clips.every(c=>c.recordingTakeId==='old'));assert.deepEqual(p.clips.map(c=>({...c,recordingTakeId:undefined})),before);assert.equal(sceneTakes(p,t.sceneId)[0].state,'active');archiveSceneTake(p,'old');assert.equal(p.clips.length,0);assert.equal(p.media.length,2);const q=createProject(),wrong=take(q.scenes[0].id,'bad',3,['camera']);wrong.clipIds=['wrong'];q.clips=[{...structuredClone(before[0]),id:'wrong',mediaId:'foreign'}];const exact=JSON.stringify(q);assert.throws(()=>saveProjectTake(q,wrong),/do not match/);assert.equal(JSON.stringify(q),exact);});
 test('archiving an unconfirmed saved take retains it without inventing a confirmation or activating clips',()=>{const p=createProject(),t=take(p.scenes[0].id,'pending');saveProjectTake(p,t);archiveSceneTake(p,t.id);assert.equal(sceneTakes(p,t.sceneId)[0].state,'archived');assert.equal(p.recordedTakes![0].confirmedAt,undefined);assert.equal(p.clips.length,0);assert.equal(p.media.length,4);confirmTake(p,t);assert.equal(p.clips.length,4);});
 test('recorded camera clips center the face by default while screen and audio clips keep neutral effects',()=>{const p=createProject(),s=p.scenes[0];confirmTake(p,take(s.id,'one',4));const camera=p.clips.find(c=>c.track==='camera')!;assert.equal(camera.effects.faceCenter,true);for(const c of p.clips.filter(c=>c.track!=='camera'))assert.deepEqual(c.effects,defaultEffects());assert.equal(takePreviewProject(p,p.recordedTakes![0]).clips.find(c=>c.track==='camera')!.effects.faceCenter,true);});
+
+test('version 1 synchronized takes retain their normalized ranges and editable offsets',()=>{
+ const p=createProject(),t=take(p.scenes[0].id,'normalized',4,['camera','microphone']);
+ t.offsets=[.1,0];t.synchronization={version:1,startedAtMs:1000,originAtMs:1100,duration:3,sources:t.media.map((m,i)=>({mediaId:'original-'+m.id,firstSampleAtMs:1000+i*100,offset:i===0?-.1:0,firstPts:0,decodedDuration:4}))};
+ assert.deepEqual(takePreviewProject(p,t).clips.map(c=>[c.start,c.sourceIn,c.sourceOut]),[[.1,0,3],[0,0,3]]);
+ confirmTake(p,t);assert.deepEqual(p.clips.map(c=>[c.start,c.sourceIn,c.sourceOut]),[[.1,0,3],[0,0,3]]);
+ updateSceneTake(p,t.id,{offsets:[.2,0]});assert.equal(p.clips[0].start,.2);assert.equal(p.clips[0].sourceOut,3);
+});
+
+test('original-source trims survive manual offsets, archive and restore without modifying media',()=>{
+ const p=createProject(),t=take(p.scenes[0].id,'originals',4,['camera','microphone']),media=structuredClone(t.media);
+ t.synchronization={version:2,startedAtMs:1000,originAtMs:1200,duration:3,sources:t.media.map((m,i)=>({mediaId:m.id,firstSampleAtMs:1000+i*200,offset:i===0?-.2:0,firstPts:0,decodedDuration:4,sourceIn:i===0?.2:0,sourceOut:i===0?3.2:3}))};
+ confirmTake(p,t);updateSceneTake(p,t.id,{offsets:[.1,0]});
+ const expected=p.clips.map(c=>[c.start,c.sourceIn,c.sourceOut]);archiveSceneTake(p,t.id);activateSceneTake(p,t.sceneId,t.id);
+ assert.deepEqual(p.clips.map(c=>[c.start,c.sourceIn,c.sourceOut]),expected);assert.deepEqual(p.media,media);
+});
