@@ -1192,9 +1192,7 @@
 .club-root .video-board-page .kcard-id { font-size: var(--cc-text-2xs); color: var(--cc-text-3); font-variant-numeric: tabular-nums; letter-spacing: .03em; }
 .club-root .video-board-page .kcard-cover { position: relative; aspect-ratio: 16/9; overflow: hidden; margin: 0 5px; border-radius: var(--cc-r-lg); background: var(--cc-bg-sunk); }
 .club-root .video-board-page .kcard-cover img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-.club-root .video-board-page .kcard-placeholder { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; width: 100%; height: 100%; background: linear-gradient(140deg, var(--cc-bg-sunk), var(--cc-hover)); color: var(--cc-text-3); }
-.club-root .video-board-page .kcard-cover:has(img) .kcard-placeholder > * { visibility: hidden; }
-.club-root .video-board-page .kcard-placeholder span { font-size: var(--cc-text-2xs); letter-spacing: .04em; opacity: .8; }
+.club-root .video-board-page .kcard-cover[hidden] { display: none; }
 .club-root .video-board-page .kanban .kcard .tt { min-width: 0; padding: 10px 10px 0; margin-bottom: 9px; font-size: var(--cc-text-sm); line-height: 1.45; font-weight: 550; overflow-wrap: anywhere; }
 .club-root .video-board-page .kanban .kcard .na { display: flex; flex-wrap: wrap; gap: 5px; padding: 0 10px 10px; color: var(--cc-text-3); font-size: var(--cc-text-2xs); }
 .club-root .video-board-page .kcard .na .col-dot { width: 6px; height: 6px; }
@@ -1216,7 +1214,6 @@
 .kanban-drag-preview { position: fixed; top: -2000px; left: -2000px; overflow: hidden; padding: 10px; background: var(--cc-surface); color: var(--cc-text); border: 1px solid var(--cc-line-strong); border-radius: var(--cc-r-lg); box-shadow: var(--cc-shadow-3); transform: rotate(2deg); font-size: var(--cc-text-sm); }
 .kanban-drag-preview .kcard-cover { aspect-ratio: 16/9; overflow: hidden; }
 .kanban-drag-preview .kcard-cover img { width: 100%; height: 100%; object-fit: cover; }
-.kanban-drag-preview .kcard-placeholder { display: none; }
 .kanban-drag-preview .kcard-id,.kanban-drag-preview .na { font-size: var(--cc-text-2xs); color: var(--cc-text-3); }
 @media (prefers-reduced-motion: reduce) { .club-root .video-board-page .kanban .kcard { transition: none; } }
 @media (max-width: 760px) {

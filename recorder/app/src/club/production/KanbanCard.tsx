@@ -5,18 +5,19 @@ import {videoThumbId} from '../ideas';
 import {recordedCount,type SceneProgress} from '../scene-status';
 import {Icon,Menu,type MenuItem} from '../ui';
 
-/** The server resolves picked thumbnail → recording frame. A source/published thumbnail is the last image fallback. */
+/** The server resolves picked thumbnail → recording frame. A published video's own YouTube thumbnail is the last fallback; an idea never borrows its source video's. */
 export function coverSources(video:Video):string[]{
- const thumb=videoThumbId(video);
+ const thumb=video.stage==='published'?videoThumbId(video):undefined;
  return [`/api/club/videos/${encodeURIComponent(video.id)}/cover?v=${encodeURIComponent(video.updatedAt)}`,...(thumb?[`https://i.ytimg.com/vi/${thumb}/mqdefault.jpg`]:[])];
 }
 
+/** Only a real picture earns a cover: nothing shows while it loads, and a card with no picture has no cover at all. */
 function Cover({video}:{video:Video}){
- const sources=coverSources(video),[failed,setFailed]=useState<string[]>([]);
+ const sources=coverSources(video),[failed,setFailed]=useState<string[]>([]),[loaded,setLoaded]=useState<string|null>(null);
  const picture=sources.find(source=>!failed.includes(source));
- return <div className={`kcard-cover st-${video.stage}`}>
-  <div className="kcard-placeholder" aria-hidden><Icon name={video.stage==='ideas'?'idea':'video'} size={25}/><span>{STAGE_LABEL[video.stage]}</span></div>
-  {picture&&<img key={picture} src={picture} alt="" loading="lazy" decoding="async" onError={()=>setFailed(current=>[...current,picture])}/>}
+ if(!picture)return null;
+ return <div className="kcard-cover" hidden={loaded!==picture}>
+  <img key={picture} src={picture} alt="" decoding="async" onLoad={()=>setLoaded(picture)} onError={()=>setFailed(current=>[...current,picture])}/>
  </div>;
 }
 
