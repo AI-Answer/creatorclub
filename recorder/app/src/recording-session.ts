@@ -1,5 +1,8 @@
 import type {AudioRole} from '../shared/types';
-/** The UI and native recorder use the same Unix-epoch clock. */
+/** The UI and native recorder use the same Unix-epoch clock: the wall clock. performance.timeOrigin+performance.now() stops while a Mac
+ * sleeps, so after a sleep it runs that long behind Date.now() and the native recorder's Date(): a take's timer then starts at hours (212:14)
+ * and its browser samples no longer line up with the native screen. */
+export const recordingNow=()=>Date.now();
 export class RecordingClock {
  private startedAt=0;
  private pauseAt:number|null=null;

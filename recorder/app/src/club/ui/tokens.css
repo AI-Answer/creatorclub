@@ -130,6 +130,9 @@
   /* On a take, as in Borumi: the caption pill is the background at half strength (bg-background/50), the waveform black at 40%. */
   --kind-audio-band: rgb(255 255 255 / 0.5);
   --kind-audio-wave: #000000;
+  /* A clip's waveform: a deep shade of the clip's own colour, as Borumi draws it (a darker blue shape on a blue take). */
+  --kind-take-wave: color-mix(in srgb, var(--kind-camera) 45%, #0b1d4d);
+  --kind-audio-wave-deep: color-mix(in srgb, var(--kind-audio) 45%, #0b3a1e);
   --kind-graphics: rgb(192 132 252);
   --kind-control: hsl(43 96% 56%);
   --kind-captions: var(--kind-control);

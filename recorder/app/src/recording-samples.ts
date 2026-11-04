@@ -1,3 +1,4 @@
+import {recordingNow} from './recording-session';
 /** Feed the recorder the same samples whose first delivery we timestamp. A cloned
  * preview or MediaRecorder's delayed `start` event cannot establish this boundary.
  * Keep source timestamps intact: rewriting them on delivery introduces VFR jitter.
@@ -9,7 +10,7 @@ type SampleAPI={
  MediaStreamTrackProcessor?:new(options:{track:MediaStreamTrack;maxBufferSize:number})=>Processor;
  MediaStreamTrackGenerator?:new(options:{kind:string})=>Generator;
 };
-export function recordingSamples(input:MediaStream,onFirst:(atMs:number,sourceTimestampUs:number)=>void,onError:(error:Error)=>void,clock=()=>performance.timeOrigin+performance.now()){
+export function recordingSamples(input:MediaStream,onFirst:(atMs:number,sourceTimestampUs:number)=>void,onError:(error:Error)=>void,clock=recordingNow){
  const api=globalThis as unknown as SampleAPI;
  if(!api.MediaStreamTrackProcessor||!api.MediaStreamTrackGenerator)throw Error('This browser cannot timestamp recording samples. Use the Creator Compiler desktop app.');
  const source=input.getTracks()[0].clone();

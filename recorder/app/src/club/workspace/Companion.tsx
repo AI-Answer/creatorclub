@@ -43,7 +43,8 @@ export function Companion({videoId,videoTitle,videoWhy,tab,part,scene,screen,sel
  /** Edit: the open editor. Messages carry its playhead and selection; timeline cards preview on its stage and apply as one of its undo steps. */
  editor?:CompanionEditor;
  /** The step needs its width (Record): in a narrow window the panel starts as its rail and opens over the step instead of beside it. */
- roomy?:boolean;
+ /** The step needs its width: `true` in a narrow window (Record), or a window width in px up to which it does (Edit with a panel open). */
+ roomy?:boolean|number;
 }){
  const aiAvailable=useAiAvailable();
  const narrow=useNarrow(roomy);
@@ -257,15 +258,16 @@ export function Companion({videoId,videoTitle,videoWhy,tab,part,scene,screen,sel
 
 const NARROW='(max-width: 1279px)';
 /** True while the window is narrow and the step asked for its width. */
-function useNarrow(roomy:boolean){
- const query=()=>roomy&&typeof window!=='undefined'&&!!window.matchMedia?.(NARROW).matches;
+function useNarrow(roomy:boolean|number){
+ const media=typeof roomy==='number'?`(max-width: ${roomy}px)`:NARROW;
+ const query=()=>Boolean(roomy)&&typeof window!=='undefined'&&!!window.matchMedia?.(media).matches;
  const [narrow,setNarrow]=useState(query);
  useEffect(()=>{
   setNarrow(query());
   if(!roomy||!window.matchMedia)return;
-  const list=window.matchMedia(NARROW),on=()=>setNarrow(list.matches);
+  const list=window.matchMedia(media),on=()=>setNarrow(list.matches);
   list.addEventListener?.('change',on);return()=>list.removeEventListener?.('change',on);
- },[roomy]);
+ },[roomy,media]);
  return narrow;
 }
 

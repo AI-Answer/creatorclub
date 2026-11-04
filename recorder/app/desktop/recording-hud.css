@@ -121,3 +121,13 @@ body.has-script #menu { bottom: auto; top: calc(min(60vw, 55vh) + 44px); }
 
 #notice { position: absolute; left: 8px; right: 8px; bottom: 48px; z-index: 7; margin: 0; padding: 0; font-size: 11px; color: #ffd6d3; text-shadow: 0 1px 2px #000; }
 #notice:empty { display: none; }
+
+/* A large island (Borumi's recorder dragged big): the camera fills it and the script floats as a card at the top, near the lens, so you
+   read with your eyes up. The camera's name moves to the bottom, beside the microphone, as Borumi's chips sit there. */
+@media (min-width: 480px) {
+  body.has-camera.has-script #camera { flex: 1 1 auto; }
+  body.has-camera.has-script .prompt { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); z-index: 3; width: min(380px, 62vw); height: min(200px, 36vh); padding-top: 10px; border-radius: 14px; background: var(--glass); box-shadow: 0 10px 30px rgb(0 0 0 / 0.25); }
+  body.has-camera.has-script #camera-chip { top: auto; bottom: 8px; left: 10px; transform: none; }
+  body.has-camera.has-script #mic-chip { left: auto; right: 10px; width: min(260px, 45vw); }
+  body.has-camera.has-script #menu { top: auto; bottom: 48px; }
+}

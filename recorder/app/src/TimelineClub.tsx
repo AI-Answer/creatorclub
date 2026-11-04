@@ -6,7 +6,7 @@ import type {Clip,Media,Project,TrackKind} from '../shared/types';
 import {clipDuration,projectDuration} from '../shared/types';
 import {clipLayerKind,clipLayerRowId,moveClipsToLayer,timelineRows,type TimelineLayerRow} from '../shared/timeline-layers';
 import {filmstripCount} from '../shared/filmstrip';
-import {hasWaveform,waveformMediaKey,waveformBars,waveformSpikesPath,timelineWaveformCache} from './timeline-waveform';
+import {hasWaveform,waveformMediaKey,waveformBars,waveformEnvelopePath,timelineWaveformCache} from './timeline-waveform';
 import {sameTimelineWindow,timelineWindow} from './timeline-viewport';
 import {groupMove,hitLayerDrop,snapTargets,snapTimelineDelta,timelinePointerDelta,type LayerDrop,type SnapTarget} from './timeline-drag';
 import {rectangleBetween,itemsInRectangle,type SelectionItem,type SelectionRect} from './timeline-selection';
@@ -89,9 +89,10 @@ const WORD_BAND=22;
 const ClubClip=memo(function ClubClip({view,media,row,preview,selected,linked,relation,offset,label,peaks,words,scale,from,to,onBegin,onOpen,onHover,onSync}:{view:TakeClipView;media?:Media;row:Row;preview?:Preview;selected:boolean;linked:boolean;relation?:'linked'|'take';offset?:number;label:string;peaks?:readonly number[];words?:Array<{text:string;start:number;end:number}>;scale:number;from:number;to:number;onBegin:(e:React.PointerEvent,id:string,mode:'move'|'left'|'right')=>void;onOpen:(id:string)=>void;onHover:(id:string|null)=>void;onSync:(id:string)=>void}){
  const c=view.clip,start=preview?.start??c.start,duration=preview?.duration??clipDuration(c),width=Math.max(4,duration*scale),h=row.height-6;
  const geometry=preview?{...c,start,sourceIn:preview.sourceIn??c.sourceIn,sourceOut:(preview.sourceIn??c.sourceIn)+duration*c.speed}:c;
- const shownWords=(words??[]).flatMap(w=>{const map=(t:number)=>geometry.start+(c.sourceIn+(t-c.start)*c.speed-geometry.sourceIn)/geometry.speed,a=Math.max(start,map(w.start)),b=Math.min(start+duration,map(w.end));return b>a?[{...w,start:a,end:b}]:[];});
+ // Whisper's non-speech tags ([BLANK_AUDIO], (music), stray brackets) are not words you said: the strip leaves them out, as the transcript does.
+ const shownWords=(words??[]).filter(w=>!isSoundTag(w.text)).flatMap(w=>{const map=(t:number)=>geometry.start+(c.sourceIn+(t-c.start)*c.speed-geometry.sourceIn)/geometry.speed,a=Math.max(start,map(w.start)),b=Math.min(start+duration,map(w.end));return b>a?[{...w,start:a,end:b}]:[];});
  const band=shownWords.length?WORD_BAND:0,waveH=h-band;
- const wave=useMemo(()=>media&&hasWaveform(media)&&peaks?.length?waveformSpikesPath(waveformBars(geometry,media,peaks,scale,from,to,4096,2),band+waveH/2,waveH/2-2):'',[media,peaks,geometry.start,geometry.sourceIn,geometry.sourceOut,geometry.speed,scale,from,to,band,waveH]);
+ const wave=useMemo(()=>media&&hasWaveform(media)&&peaks?.length?waveformEnvelopePath(waveformBars(geometry,media,peaks,scale,from,to,4096,2),band+waveH/2,waveH/2-2):'',[media,peaks,geometry.start,geometry.sourceIn,geometry.sourceOut,geometry.speed,scale,from,to,band,waveH]);
  return <div data-clip-id={c.id} data-linked-clip-ids={view.grouped?view.members.map(m=>m.id).join(' '):undefined} className={`timeline-clip club-clip clip-${c.track} ${view.grouped?'club-take':''} ${selected?'selected':''} ${c.muted?'muted':''} ${preview?'clip-drag-preview':''} ${linked?'is-linked':'is-unlinked'} ${relation?`take-related take-related-${relation}`:''}`} data-take-id={c.recordingTakeId} style={{left:start*scale,width,top:3,height:h,transform:preview?.dy?`translateY(${preview.dy}px)`:undefined}}
   onPointerEnter={()=>onHover(c.id)} onPointerLeave={()=>onHover(null)} onPointerDown={e=>onBegin(e,c.id,'move')} onDoubleClick={()=>onOpen(c.id)} title={`${c.name} · ${fmtLen(duration)}${linked?' · linked':''}. Click to move the playhead, drag to move, edges to trim, double-click for settings.`}>
   {!view.grouped&&linked&&<span className="club-take-chain" title="Linked sources move and trim together" aria-label="Linked sources"><Link2 size={12}/></span>}
@@ -147,11 +148,14 @@ export const TimelineClub=memo(function TimelineClub({project:p,playhead,scale,o
  // Zoom keeps the playhead where it is on screen (keys, buttons, slider); ⌘ scroll and pinch keep the time under the pointer; a fit starts at the beginning.
  const shownScale=useRef(scale),toStart=useRef(false),atPointer=useRef<{time:number;screen:number}|null>(null);
  useLayoutEffect(()=>{const el=ref.current;if(!el)return;const pointer=atPointer.current;atPointer.current=null;if(toStart.current){toStart.current=false;el.scrollLeft=0;}else if(shownScale.current!==scale)el.scrollLeft=pointer?pointerScroll({...pointer,to:scale}):anchoredScroll({anchor:playhead.get(),from:shownScale.current,to:scale,scrollLeft:el.scrollLeft,viewport:el.clientWidth});shownScale.current=scale;view(el.scrollLeft,el.clientWidth);},[scale]);
- const fit=useCallback(()=>{const el=ref.current;if(!el)return;toStart.current=true;onScale(fitScale(projectDuration(latest.current),el.clientWidth));},[onScale]);
+ // The scale the last fit set: while the zoom is still that, the view keeps fitting when the timeline's width changes (the chat column or a panel
+ // arriving after Edit opens), so the whole video stays in view as in Borumi. Zooming by hand ends it.
+ const fitScaleNow=useRef<number|null>(null);
+ const fit=useCallback(()=>{const el=ref.current;if(!el)return;toStart.current=true;const next=fitScale(projectDuration(latest.current),el.clientWidth);fitScaleNow.current=next;onScale(next);},[onScale]);
  useLayoutEffect(()=>{if(controls)controls.current={fit,width:()=>ref.current?.clientWidth??0};});
  // Fit once per project, but only once its clips are there: a fit on the still-empty project would keep the default zoom (Borumi opens on the whole video).
  const fitted=useRef('');useEffect(()=>{const el=ref.current;if(fitted.current===p.id||!el?.clientWidth||!(projectDuration(p)>0))return;fitted.current=p.id;if(autoFit||projectDuration(p)*scaleRef.current<el.clientWidth*.8){fit();return;}el.scrollLeft=Math.max(0,playhead.get()*scaleRef.current-el.clientWidth*.25);view(el.scrollLeft,el.clientWidth);});
- useEffect(()=>{const el=ref.current;if(!el)return;const ro=new ResizeObserver(()=>view(el.scrollLeft,el.clientWidth));ro.observe(el);return()=>ro.disconnect();},[view]);
+ useEffect(()=>{const el=ref.current;if(!el)return;let width=el.clientWidth;const ro=new ResizeObserver(()=>{view(el.scrollLeft,el.clientWidth);const fitted=fitScaleNow.current;if(el.clientWidth!==width&&fitted!==null&&Math.abs(scaleRef.current-fitted)<=fitted*1e-6)fit();width=el.clientWidth;});ro.observe(el);return()=>ro.disconnect();},[view,fit]);
  const scaleRef=useRef(scale);scaleRef.current=scale;
  useEffect(()=>{const el=ref.current;if(!el)return;let pending=0,frame=0;const apply=()=>{frame=0;const next=clampScale(scaleRef.current*Math.exp(-pending*.005));pending=0;if(next!==scaleRef.current)onScale(next);};
   const wheel=(event:WheelEvent)=>{if(!event.ctrlKey&&!event.metaKey)return;event.preventDefault();const screen=event.clientX-el.getBoundingClientRect().left;atPointer.current={time:(el.scrollLeft+screen)/scaleRef.current,screen};pending+=event.deltaY;frame||=requestAnimationFrame(apply);};el.addEventListener('wheel',wheel,{passive:false});return()=>{cancelAnimationFrame(frame);el.removeEventListener('wheel',wheel);};},[onScale]);

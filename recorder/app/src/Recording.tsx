@@ -17,7 +17,7 @@ import {clampRegion,cropCaptureStream,regionInset,type NormalizedRegion} from '.
 import type {DesktopCaptureSelection} from './desktop';
 import {CaptureSourcePicker} from './capture-preview-picker';
 import {defaultCaptureSource} from './capture-preview-sources';
-import {RecordingClock,RecordingTransitionGate,browserRecordingSelection,nativeRecordingOutputs,nativeRecordingOutputErrors,nativeRecordingNote,recorderMimeType,recorderOptions} from './recording-session';
+import {RecordingClock,RecordingTransitionGate,recordingNow,browserRecordingSelection,nativeRecordingOutputs,nativeRecordingOutputErrors,nativeRecordingNote,recorderMimeType,recorderOptions} from './recording-session';
 import {recordingSamples} from './recording-samples';
 import {RecordingHudSession} from './recording-hud-session';
 import {ACCESS_NOT_GRANTED,CapturePreviewManager,recordingSources,sameDeviceList,type CaptureKind,type CaptureRequest,type PreviewState} from './capture-preview';
@@ -282,7 +282,7 @@ export function Recording({project,change,commit,onRecorded,onError,onImport,onS
      recorder.onerror=()=>{capture.failure=new Error('A capture source failed. Saving the completed portion.');report(capture.failure.message);void stopRef.current();};
     }
     if(abort.signal.aborted)throw new DOMException('Start cancelled','AbortError');
-    let startedAtMs=performance.timeOrigin+performance.now();takeStartedAtMs.current=startedAtMs;
+    let startedAtMs=recordingNow();takeStartedAtMs.current=startedAtMs;
     if(wantsNative){const take=await bridge!.startNativeRecording!({selection:chosenSource.current!,systemAudio:selection.systemAudio,recordVideo:selection.screen,fps:screenFps,maxDimension:1920});nativeSession.current={id:take.id,recordVideo:selection.screen,systemAudio:selection.systemAudio};startedAtMs=take.startedAtMs;if(!mounted.current||abort.signal.aborted)throw new DOMException('Start cancelled','AbortError');}
     captures.current.forEach(c=>{c.recorder.start(1000);c.samples.start();});
     return startedAtMs;

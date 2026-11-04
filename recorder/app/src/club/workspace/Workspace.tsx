@@ -30,6 +30,8 @@ import {TAKE_NOT_ADDED,takesWaiting,continueFor,nextTab,stageForContinue,TAB_LAB
 
 /** The part of "Your video" a card changes: applying it there opens that part. */
 const PART_OF_CARD:Partial<Record<CompanionAction['type'],SectionKey>>={set_idea:'idea',set_pairs:'package',use_title:'package',set_thumbnail_text:'package',set_hook:'hook',use_hook:'hook',draft_scenes:'scenes',set_scene:'scenes',set_scene_script:'scenes'};
+/** Up to this window width the chat yields to an open Edit panel (it waits as its rail), so the picture keeps its room: Borumi has no chat column beside its panels. */
+const EDIT_PANEL_ROOM=1599;
 export function Workspace({video,tab,back,navigate,onVideo}:{video:Video;tab:VideoTab;back:Route;navigate(route:Route,options?:{replace?:boolean}):void;onVideo(video:Video):void}){
  const toast=useToast();
  const id=encodeURIComponent(video.id);
@@ -198,7 +200,7 @@ export function Workspace({video,tab,back,navigate,onVideo}:{video:Video;tab:Vid
     onTags={tags=>{plan.editPackage({...(pkgNow.current??EMPTY_PACKAGE),tags});void plan.flush().catch(()=>{});}}/>}
   </div>
   </div>
-  <Companion videoId={video.id} selection={tab==='idea'?boardSelection:undefined} videoTitle={video.title} videoWhy={video.idea?.why} part={tab==='idea'&&ideaPart?{key:ideaPart,name:SECTION_NAME[ideaPart]}:undefined} boardKey={boardKey} tab={tab} scene={companionScene} screen={screen} pkg={plan.pkg} outline={plan.outline} scenes={list} onChanged={companionChanged} beforeApply={plan.flush} editor={companionEditor} roomy={tab==='record'}/>
+  <Companion videoId={video.id} selection={tab==='idea'?boardSelection:undefined} videoTitle={video.title} videoWhy={video.idea?.why} part={tab==='idea'&&ideaPart?{key:ideaPart,name:SECTION_NAME[ideaPart]}:undefined} boardKey={boardKey} tab={tab} scene={companionScene} screen={screen} pkg={plan.pkg} outline={plan.outline} scenes={list} onChanged={companionChanged} beforeApply={plan.flush} editor={companionEditor} roomy={tab==='record'?true:tab==='edit'&&editState?.panelOpen?EDIT_PANEL_ROOM:false}/>
   </div>
   <Foot video={video} tab={tab} facts={facts} onTab={target=>void goToTab(target)} next={nextButton}/>
  </div>;

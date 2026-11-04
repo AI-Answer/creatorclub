@@ -115,7 +115,7 @@ test('linked sources render once with a sentence pill, paired thumbnails and den
   const clips=ui.container.querySelectorAll('.club-take');assert.equal(clips.length,2,'six sources become two take slices');
   const first=clips[0];assert.equal(first.querySelector('.club-caption-text')?.textContent,'First words');
   assert.equal(first.querySelectorAll('.club-source-thumb').length,2);assert.equal(first.querySelector('.club-wave')?.getAttribute('data-waveform-media'),'audio');
-  assert.ok(first.querySelector('.club-wave path')!.getAttribute('d')!.length>300,'the envelope spans the body at pixel density');
+  {const d=first.querySelector('.club-wave path')!.getAttribute('d')!;assert.ok(d.startsWith('M')&&d.endsWith('Z')&&d.split('M').length===2,'one filled, mirrored shape, as Borumi draws it, not a row of spikes');assert.ok(d.length>60,'it follows the speech');}
   assert.equal(first.getAttribute('data-linked-clip-ids')?.split(' ').length,3);
   await act(async()=>{pointer('pointerdown',150,ui.container.querySelector(`[data-clip-id="${right.id}"]`)!);pointer('pointermove',10);pointer('pointerup',10);});
   assert.equal(state.changes,1);assert.deepEqual(state.project.clips.filter(c=>c.linkId===right.linkId).map(c=>c.start),[0,0,0]);

@@ -310,9 +310,10 @@
 /* Recorded clips say what was spoken; their source names remain in Clip and the tooltip. */
 .club-embed .app-shell[data-mode=Edit] .club-edit .club-clip:is(.clip-screen, .clip-camera, .clip-audio, .clip-music) .club-clip-label { display: none; }
 /* 0.75 keeps the black envelope at least 3:1 on every clip colour in both themes (dark blue is the lowest, about 3.3:1). */
-.club-embed .app-shell[data-mode=Edit] .club-edit .club-wave { opacity: 0.75; }
-.club-embed .app-shell[data-mode=Edit] .club-edit .club-clip:hover .club-wave { opacity: 0.95; }
-.club-embed .app-shell[data-mode=Edit] .club-edit .club-wave path { fill: var(--kind-audio-wave); stroke: none; }
+.club-embed .app-shell[data-mode=Edit] .club-edit .club-wave { opacity: 1; }
+/* Borumi's waveform: one filled, mirrored shape in a deep shade of the clip's colour, not thin black spikes. */
+.club-embed .app-shell[data-mode=Edit] .club-edit .club-wave path { fill: var(--kind-audio-wave-deep); stroke: none; }
+.club-embed .app-shell[data-mode=Edit] .club-edit .club-take .club-wave path { fill: var(--kind-take-wave); }
 /* Notes on the timeline: a small dot on the ruler (filled once it has text), not a badge, and no line through the clips. */
 .club-embed .app-shell[data-mode=Edit] .club-edit .club-marker { top: 6px; width: 9px; height: 9px; margin-left: -4.5px; border-radius: var(--cc-r-pill); background: transparent; box-shadow: none; outline: 1.5px solid var(--kind-markers); outline-offset: -1.5px; }
 .club-embed .app-shell[data-mode=Edit] .club-edit .club-marker.has-note { background: var(--kind-markers); box-shadow: none; }

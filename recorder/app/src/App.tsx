@@ -117,7 +117,7 @@ function Toasts({bind}:{bind:{current:(message:string)=>void}}){const [toast,set
  */
 export type EditorContext={playhead:number;selection:string[];items?:SelectedItem[];range?:{start:number;end:number}};
 /** What the editor shows the companion as it changes: how many items are selected, which card's preview is on the stage, and the timeline's version (cards re-measure on it). */
-export type EditorState={selected:number;previewKey?:string;version?:string;/** Moments the creator marked as not liked. */notes?:number;
+export type EditorState={selected:number;previewKey?:string;version?:string;/** An edit panel (Canvas, Clip, Captions…) or Automations is open beside the picture. */panelOpen?:boolean;/** Moments the creator marked as not liked. */notes?:number;
  /** What the chat suggests next from: the stretches where nothing changes on screen, and whether the opening has a graphic and the creator is named. */
  stalls?:Array<{start:number;end:number}>;opening?:boolean;named?:boolean};
 /** The editor, as the companion uses it: what it is looking at, saving before a question, a card's preview on the stage, and a server change taken as one undo step. */
@@ -133,6 +133,7 @@ export interface EditorBridge{
  commit<T extends {project?:Project;revision?:string}>(run:(revision:string)=>Promise<T>):Promise<T>;
 }
 export type EmbeddedRecorder={projectId:string;mode:'Record'|'Edit';onBack():void;onMode?(mode:'Record'|'Edit'):void;onOpenFailed?():void;onProgress?(progress:RecordingProgress):void;onExported?(exported:boolean):void;/** The recording project's scene to select while recording (the strip's choice). */sceneId?:string;/** Changes on every strip click, so choosing the scene that is already chosen applies it again. */sceneNonce?:number;/** The recorder's own scene choice (its scene cards, or the next scene after Continue). */onSceneChange?(sceneId:string):void;/** The club asks this before it leaves Record for Edit: a take still under review is added to the timeline first. It resolves false when that failed, and the club stays. */registerLeaveGuard?(guard:(()=>Promise<boolean>)|null):void;/** Pauses were removed or put back, so the scenes' state changed. */onChanged?():void;/** Edit registers itself for the companion while it is open (null when it closes). */onEditor?(editor:EditorBridge|null):void;/** Edit's selection and stage preview, as they change. */onEditState?(state:EditorState):void};
+const WAVEFORMS_KEY='sceneforge.timeline-waveforms.v2';
 export default function App({embedded}:{embedded?:EmbeddedRecorder}={}){
  const studio=useStudio(),p=studio.project,change:Change=studio.change;
  useEffect(()=>{if(embedded&&studio.project?.id!==embedded.projectId)void studio.open(embedded.projectId);},[embedded?.projectId]);
@@ -141,8 +142,9 @@ export default function App({embedded}:{embedded?:EmbeddedRecorder}={}){
  // Playback time lives outside React state: a tick re-renders only the components that read the playhead.
  const [playhead]=useState(createPlayhead);
  const [recoveryRefresh,setRecoveryRefresh]=useState(0);
- const [showWaveforms,setShowWaveforms]=useState(()=>{try{return localStorage.getItem('sceneforge.timeline-waveforms.v1')!=='false';}catch{return true;}});
- useEffect(()=>{try{localStorage.setItem('sceneforge.timeline-waveforms.v1',String(showWaveforms));}catch{}},[showWaveforms]);
+ // Waveforms are on, as in Borumi: v2 starts everyone with them shown again (an old "off" hid every clip's sound). The ⋯ menu still turns them off.
+ const [showWaveforms,setShowWaveforms]=useState(()=>{try{return localStorage.getItem(WAVEFORMS_KEY)!=='false';}catch{return true;}});
+ useEffect(()=>{try{localStorage.setItem(WAVEFORMS_KEY,String(showWaveforms));}catch{}},[showWaveforms]);
  const [quickSceneId,setQuickSceneId]=useState<string|undefined>();
  const [scriptSceneId,setScriptSceneId]=useState<string|undefined>();
  const openSceneAction=useEvent((sceneId:string,kind:'auto-cut'|'visualize')=>{setQuickSceneId(sceneId);openModal(kind);});
@@ -350,7 +352,7 @@ export default function App({embedded}:{embedded?:EmbeddedRecorder}={}){
  // The pacing check and the two graphics most videos want (a title in the first seconds, the creator's name), for the chat's next steps.
  // The workspace recreates its embedded props after receiving this summary; only its presence affects these facts.
  const editFacts=useMemo(()=>p&&embedded?{stalls:pacingIssues(p).filter(issue=>issue.kind==='static').map(({start,end})=>({start,end})),opening:(p.motion??[]).some(m=>m.start<5&&(m.template==='title-card'||m.template==='keyword'))||p.elements.some(e=>e.type==='text'&&e.start<5),named:(p.motion??[]).some(m=>m.template==='lower-third')}:undefined,[p?.clips,p?.motion,p?.elements,p?.zooms,Boolean(embedded)]);
- useEffect(()=>{if(editOpen)onEditState?.({selected:selectedCount,previewKey,version:timelineVersion,notes:dislikes,...editFacts});},[onEditState,editOpen,selectedCount,previewKey,timelineVersion,dislikes,editFacts]);
+ useEffect(()=>{if(editOpen)onEditState?.({selected:selectedCount,previewKey,version:timelineVersion,notes:dislikes,panelOpen:Boolean(sideView),...editFacts});},[onEditState,editOpen,selectedCount,previewKey,timelineVersion,dislikes,editFacts,sideView]);
  // Undo, redo and history sit in the video's header, beside the steps; the header leaves a slot for them while Edit is open.
  const [toolsHost,setToolsHost]=useState<HTMLElement|null>(null);
  useEffect(()=>{setToolsHost(editOpen?document.getElementById('ws-edit-tools'):null);},[editOpen]);
@@ -367,7 +369,8 @@ export default function App({embedded}:{embedded?:EmbeddedRecorder}={}){
    {preview&&<div className="club-preview-badges" role="status"><span className="club-pill">Previewing at lower quality</span><span className="club-pill">{preview.label} · {preview.summary}</span>
     {preview.after&&<span className="club-seg" role="group" aria-label="Before or after">{(['before','after'] as const).map(v=><button key={v} type="button" aria-pressed={previewPhase===v} onClick={()=>setPreviewPhase(v)}>{v==='before'?'Before':'After'}</button>)}</span>}</div>}
   </main>
-  <div className="club-edit-side" hidden={!sideView}>
+  {/* Keyed by the open panel, so each one opens at its top (Borumi), not at the scroll of the panel before it. */}
+  <div className="club-edit-side" key={sideView==='panel'?`panel:${panel}`:String(sideView)} hidden={!sideView}>
    {sideView==='panel'&&panel&&<Inspector project={p} panel={panel} selected={selected} selectedIds={selection} playhead={playhead} change={studio.change} select={select} onImport={beginImport} onAI={openAI} club onClose={()=>setPanel(null)} onNotice={refuse} onHoverMotion={hoverMotion}/>}
    {sideView==='auto'&&<EditAutoSheet key={`${p.id}:${autoInitial??''}`} project={p} jobs={automation.jobs} merge={automation.merge} reload={automation.reload} flush={studio.flush} change={studio.change} refresh={studio.reload} onPreview={showPreview} onClose={()=>setSide(null)} onChanged={embedded.onChanged} notify={notify} initial={autoInitial}/>}
    {sideView==='media'&&<aside className="club-sheet club-media"><header><b>Media in this video</b><button type="button" className="club-sheet-close" aria-label="Close media" onClick={()=>setSide(null)}><X size={16}/></button></header><p className="club-sheet-hint">Drag onto a row of the timeline, or click to add at the playhead.</p>
