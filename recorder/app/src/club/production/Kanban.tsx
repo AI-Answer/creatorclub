@@ -1,20 +1,19 @@
 import {useRef,useState,type DragEvent} from 'react';
 import type {Video,VideoStage} from '../../../shared/club';
 import {STAGE_LABEL} from '../board';
-import {COLUMN_EMPTY,beforeIdAt,boardColumns,dropIndex,unordered,type BoardColumn} from '../production';
+import {beforeIdAt,boardColumns,dropIndex,unordered,type BoardColumn} from '../production';
 import type {IdeaHeld} from '../routes';
 import type {SceneProgress} from '../scene-status';
-import {IdeaLane,type IdeaActionSet} from './IdeaLane';
+import type {IdeaActionSet} from './IdeaLane';
+import {Icon} from '../ui';
+import {errorMessage} from '../api';
 import {KanbanCard} from './KanbanCard';
 
 type Over={stage:VideoStage;beforeId:string|null};
 
-/**
- * Six lanes, Ideas to Published, each the same width and as tall as the page, headed by its stage's dot, name and count. Ideas come first, in groups (`IdeaLane`); the others are in board order. Cards drag between lanes and within
- * the ordered ones (HTML5 drag); a line shows where the card will land. `ideas` carries what the Ideas lane needs: the idea just added,
- * a folded group to open, and the idea actions.
- */
-export function Kanban({videos,scenes,ideas,onOpen,onMove,onResearch}:{
+/** Six flat stage lanes shared by Home and Videos, with compact draggable cards and inline creation. */
+export function Kanban({videos,scenes,ideas,onOpen,onMove,onResearch,onAdd}:{
+ onAdd(title:string,stage:VideoStage):Promise<void>;
  videos:readonly Video[];scenes:Record<string,SceneProgress[]>;ideas:{newId?:string;openGroup?:IdeaHeld;actions:IdeaActionSet};onOpen(video:Video):void;
  /** "Add to Research" in a card's menu. */
  onResearch?(video:Video):void;
@@ -53,17 +52,29 @@ export function Kanban({videos,scenes,ideas,onOpen,onMove,onResearch}:{
   return <section key={stage} aria-label={STAGE_LABEL[stage]} data-column={stage} className={`col${here?' over':''}`}
    onDragOver={onDragOver(column)} onDrop={onDrop(column)} onDragLeave={onDragLeave(stage)}>
    <div className="col-h"><span className={`col-dot st-${stage}`} aria-hidden/><span className="col-name">{STAGE_LABEL[stage]}</span><span className="n">{all.length}</span></div>
-   {stage==='ideas'?<IdeaLane videos={videos} newId={ideas.newId} openGroup={ideas.openGroup} dragId={dragId} actions={ideas.actions} onOpen={onOpen} onMove={(id,to)=>onMove(id,to,null)} onResearch={onResearch}
-    onDragStart={(id,event)=>{event.dataTransfer.effectAllowed='move';event.dataTransfer.setData('text/plain',id);setDragId(id);}} onDragEnd={reset}/>
-   :<><div ref={element=>{if(element)elements.current.set(stage,element);else elements.current.delete(stage);}}>
+   <div className="lane-cards" ref={element=>{if(element)elements.current.set(stage,element);else elements.current.delete(stage);}}>
     {shown.map(video=><div key={video.id}>
      {lineBefore===video.id&&video.id!==dragId&&<div aria-hidden data-drop-line className="drop-line"/>}
-     <KanbanCard video={video} scenes={scenes[video.id]} dragging={dragId===video.id} onOpen={()=>onOpen(video)} onMove={to=>onMove(video.id,to,null)} onResearch={onResearch&&(()=>onResearch(video))}
+     <KanbanCard video={video} scenes={scenes[video.id]} highlight={ideas.newId===video.id} dragging={dragId===video.id} onOpen={()=>onOpen(video)} onMove={to=>onMove(video.id,to,null)} onResearch={onResearch&&(()=>onResearch(video))}
       onDragStart={event=>{event.dataTransfer.effectAllowed='move';event.dataTransfer.setData('text/plain',video.id);setDragId(video.id);}} onDragEnd={reset}/>
     </div>)}
     {lineBefore==='end'&&<div aria-hidden data-drop-line className="drop-line"/>}
    </div>
-   {!shown.length&&<div className="col-empty">{COLUMN_EMPTY[stage]}</div>}</>}
+   <LaneAdd stage={stage} onAdd={onAdd}/>
+
   </section>;
  })}</div>;
+}
+
+function LaneAdd({stage,onAdd}:{stage:VideoStage;onAdd(title:string,stage:VideoStage):Promise<void>}){
+ const [open,setOpen]=useState(false),[title,setTitle]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState('');
+ if(!open)return <button type="button" className="lane-add" aria-label={`Add video to ${STAGE_LABEL[stage]}`} onClick={()=>setOpen(true)}><Icon name="add" size={14}/><span>Add video</span></button>;
+ return <form className="lane-add-form" onSubmit={async event=>{
+  event.preventDefault();if(!title.trim()||busy)return;setBusy(true);setError('');
+  try{await onAdd(title.trim(),stage);setTitle('');setOpen(false);}catch(reason){setError(errorMessage(reason,"Couldn't add video."));}finally{setBusy(false);}
+ }}>
+  <input autoFocus className="input" aria-label={`Video title for ${STAGE_LABEL[stage]}`} placeholder="Video title" value={title} maxLength={300} disabled={busy} onChange={event=>setTitle(event.target.value)} onKeyDown={event=>{if(event.key==='Escape'&&!busy)setOpen(false);}}/>
+  {error&&<div className="small muted" role="alert">{error}</div>}
+  <div className="row"><button className="btn sm" type="submit" disabled={busy||!title.trim()}>{busy?'Adding…':'Add video'}</button><button className="btn sm ghost" type="button" disabled={busy} onClick={()=>setOpen(false)}>Cancel</button></div>
+ </form>;
 }

@@ -16,16 +16,16 @@ test('a video opens in the Ideas drawer when it is an idea, else on the tab for 
  assert.equal(scenesLine(2,5),'2 of 5 scenes');assert.equal(scenesLine(0,1),'0 of 1 scene');
 });
 
-test('the board has six columns in board order; Later and Skipped are out, Published has the latest first',()=>{
+test('the board has six columns in board order; including Later and Skipped, Published has the latest first',()=>{
  const a=video({id:'a',order:2}),b=video({id:'b',order:0}),c=video({id:'c',order:2,createdAt:'2026-01-01T00:00:00.000Z'}),later=video({id:'l',hidden:'later'}),skipped=video({id:'k',hidden:'skipped'});
  const old=video({id:'old',stage:'published',publishedAt:'2026-09-01',order:0}),fresh=video({id:'new',stage:'published',publishedAt:'2026-10-14',order:5});
  const columns=boardColumns([a,b,c,later,skipped,old,fresh]);
  assert.deepEqual(columns.map(column=>column.stage),['ideas','planning','recording','editing','publishing','published']);
- assert.deepEqual(ids(columns[0].all),['b','c','a']);
+ assert.deepEqual(ids(columns[0].all),['b','l','k','c','a']);
  assert.deepEqual(ids(columns[5].all),['new','old']);
  const many=Array.from({length:8},(_,i)=>video({id:`i${i}`,order:i}));
  const ideas=col(many,'ideas');
- assert.equal(ideas.all.length,8);assert.equal(ideas.shown.length,8,'every idea is drawn: the Ideas lane groups them itself');
+ assert.equal(ideas.all.length,8);assert.equal(ideas.shown.length,8,'every idea is drawn without extra groups');
  assert.equal(col(many,'planning').shown.length,0);
 });
 

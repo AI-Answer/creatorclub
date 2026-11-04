@@ -1,0 +1,134 @@
+import {mountUI,button} from '../test-dom';
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {act,createElement} from 'react';
+import type {AiStatus,Outline,Video,Workspace} from '../../shared/club';
+import {FakeEventSource,installFetch} from './test-fakes';
+import {rememberAiStatus} from './ai-status';
+const {WelcomeScreen}=await import('./screens/WelcomeScreen');
+const {Plan}=await import('./plan/Plan');
+const {usePlan}=await import('./usePlan');
+const {NewVideo}=await import('./shell/NewVideo');
+const {Companion}=await import('./workspace/Companion');
+const {ToastProvider}=await import('./ui');
+
+const off:AiStatus={claude:{installed:false,version:null,signedIn:false},codex:{installed:false,version:null,signedIn:false}};
+const workspace:Workspace={slug:'my-channel',name:'My channel',handle:'',channelUrl:'',topics:[],audience:[],about:'',cta:'',createdAt:''};
+const video:Video={id:'v1',title:'Handmade',stage:'planning',order:0,createdAt:'',updatedAt:'',stageDates:{},planning:{research:false,package:false,outline:false}};
+const flush=()=>act(async()=>{await new Promise(resolve=>setTimeout(resolve,0));});
+const click=async(c:Element,label:string)=>{await act(async()=>button(c,label).click());await flush();};
+
+// Explicitly signed out, including when a previous screen cached a signed-in account.
+test('no AI: skip creates a usable local workspace, saves setup, and lands on Home',async()=>{
+ rememberAiStatus(off);const routes:unknown[]=[];
+ const fake=installFetch(call=>{
+  if(call.path==='/ai/status')return {body:off};
+  if(call.path==='/workspaces')return {body:{current:null,workspaces:[]}};
+  if(call.path==='/workspaces/fresh')return {body:workspace};
+  if(call.path==='/settings/welcomed')return {body:{welcomed:true}};
+ });
+ const ui=await mountUI(createElement(WelcomeScreen,{navigate:route=>routes.push(route)}));
+ try{
+  await flush();assert.equal(button(ui.container,'Continue').disabled,false);
+  await click(ui.container,'Skip setup');
+  assert.deepEqual(routes.at(-1),{name:'home'});
+  assert.deepEqual(fake.calls.filter(c=>c.method==='POST').map(c=>[c.path,c.body]),[
+   ['/workspaces/fresh',{name:'My channel',topics:[],audience:[]}],['/settings/welcomed',undefined],
+  ]);
+ }finally{await ui.close();fake.restore();}
+});
+
+test('no AI: finish fresh setup without signing in or starting voice and discovery jobs',async()=>{
+ rememberAiStatus(off);FakeEventSource.install();const routes:unknown[]=[];
+ const fake=installFetch(call=>{
+  if(call.path==='/ai/status')return {body:off};
+  if(call.path==='/workspaces/fresh')return {body:workspace};
+  if(call.path==='/settings/welcomed')return {body:{welcomed:true}};
+ });
+ const ui=await mountUI(createElement(WelcomeScreen,{navigate:route=>routes.push(route)}));
+ try{
+  await flush();const c=ui.container;
+  await click(c,'Continue');
+  await act(async()=>c.querySelector<HTMLButtonElement>('[aria-label^="I\'m starting fresh"]')!.click());await flush();
+  await act(async()=>{const input=c.querySelector<HTMLInputElement>('#w-name')!;Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value')!.set!.call(input,'Samin');input.dispatchEvent(new Event('input',{bubbles:true}));});
+  await click(c,'Claude');await click(c,'Complete beginners');await click(c,'Continue');await click(c,'Continue');
+  assert.deepEqual(routes.at(-1),{name:'home'});
+  const writes=fake.calls.filter(call=>call.method==='POST');
+  assert.deepEqual(writes.map(call=>call.path),['/workspaces/fresh','/settings/welcomed']);
+  assert.equal('voice' in (writes[0].body as object),false);
+  assert.equal(FakeEventSource.all.length,0);
+ }finally{await ui.close();fake.restore();}
+});
+
+function Handmade(){
+ const plan=usePlan(video,{onVideo(){},onRecord(){}});
+ return createElement('div',null,createElement(Plan,{video,plan,known:[],focusId:null,onFocus(){},onTitle(){},onTarget(){},onRecordScene(){}}),createElement('button',{disabled:!plan.continueAction||plan.continueAction.disabled,onClick:()=>plan.continueAction?.run()},'Start planned recording'));
+}
+test('no AI: add the first scene, edit its title, talking points and empty script, then start planned recording',async()=>{
+ rememberAiStatus(off);FakeEventSource.install();let outline:Outline|null=null;
+ const fake=installFetch(call=>{
+  if(call.path==='/ai/status')return {body:off};
+  if(call.path==='/videos/v1/plan')return {body:{package:null,outline,running:{},ready:{}}};
+  if(call.path==='/videos/v1/outline'&&call.method==='PUT'){outline={scenes:(call.body as Outline).scenes};return {body:outline};}
+  if(call.path.startsWith('/videos/v1/script/scene/')&&call.method==='PUT'){
+   outline!.scenes[0].script=(call.body as {text:string}).text;return {body:{outline}};
+  }
+  if(call.path==='/videos/v1/recorder')return {body:{...video,recorderProjectId:'p1'}};
+ });
+ const ui=await mountUI(createElement(ToastProvider,null,createElement(Handmade)));
+ const edit=async(label:string,text:string)=>{const el=ui.container.querySelector<HTMLElement>(`[role="textbox"][aria-label="${label}"]`)!;assert.ok(el);await act(async()=>{el.innerText=text;el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('focusout',{bubbles:true}));});await flush();};
+ try{
+  await flush();const c=ui.container;
+  assert.equal(button(c,'Draft scenes from the board').disabled,true);
+  assert.equal(button(c,'Draft scenes from the board').title,'Connect an AI in Settings');
+  await click(c,'Add scene');assert.ok(c.querySelector('[aria-label="Scene 1"]'));
+  await edit('Scene title','My introduction');await edit('Talking point','Explain the demo');await edit('Script','Here is the demo I made.');
+  await act(async()=>{await new Promise(resolve=>setTimeout(resolve,550));});
+  const saved=outline as Outline|null;assert.ok(saved);
+  assert.equal(saved.scenes[0].title,'My introduction');
+  assert.deepEqual(saved.scenes[0].talkingPoints,['Explain the demo']);
+  assert.equal(saved.scenes[0].script,'Here is the demo I made.');
+  // Record is driven by usePlan, not by any AI job or account.
+  assert.ok(!fake.calls.some(c=>c.method==='POST'));
+  await click(c,'Start planned recording');
+  assert.deepEqual(fake.calls.filter(c=>c.method==='POST').map(c=>c.path),['/videos/v1/recorder']);
+  await act(async()=>c.querySelector<HTMLButtonElement>('button[aria-label="Scene options"]')!.click());await flush();
+  const aiScript=[...c.ownerDocument.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')].find(item=>item.textContent?.includes('Write the script again'))!;
+  assert.equal(aiScript.disabled,true);assert.equal(aiScript.title,'Connect an AI in Settings');
+  await click(c.ownerDocument.body,'Delete scene');
+  await act(async()=>{await new Promise(resolve=>setTimeout(resolve,550));});
+  assert.equal((outline as Outline|null)?.scenes.length,0);
+  assert.equal(c.querySelector('[aria-label="Scene 1"]'),null);
+ }finally{await ui.close();fake.restore();}
+});
+
+test('no AI: Quick recording creates a video and opens Record with only local writes',async()=>{
+ rememberAiStatus(off);const routes:unknown[]=[];
+ const fake=installFetch(call=>{
+  if(call.path==='/ai/status')return {body:off};
+  if(call.path==='/recent')return {body:[]};
+  if(call.path==='/videos')return {body:video};
+  if(call.path==='/videos/v1/recorder')return {body:{...video,recorderProjectId:'p1',quickRecording:true}};
+ });
+ const ui=await mountUI(createElement(ToastProvider,null,createElement(NewVideo,{videos:[],onClose(){},onOpen:route=>routes.push(route)})));
+ try{
+  await flush();assert.equal(button(ui.container,'Break down a video').disabled,true);
+  await act(async()=>ui.container.querySelector<HTMLButtonElement>('[aria-label="Quick recording"]')!.click());await flush();
+  assert.deepEqual(routes,[{name:'video',id:'v1',tab:'record'}]);
+  assert.deepEqual(fake.calls.filter(c=>c.method==='POST').map(c=>c.path),['/videos','/videos/v1/recorder']);
+  assert.deepEqual(fake.calls.find(c=>c.path==='/videos/v1/recorder')?.body,{quick:true});
+ }finally{await ui.close();fake.restore();}
+});
+
+test('no AI: Companion is a disabled quiet rail even if previously open',async()=>{
+ rememberAiStatus(off);localStorage.setItem('cc.companion.open','1');
+ const fake=installFetch(call=>call.path==='/ai/status'?{body:off}:call.path.endsWith('/companion')?{body:{messages:[]}}:undefined);
+ const ui=await mountUI(createElement(Companion,{videoId:'v1',tab:'plan',screen:'Plan',pkg:null,outline:null,onChanged(){}}));
+ try{
+  await flush();assert.ok(ui.container.querySelector('.cmp.collapsed'));
+  const rail=ui.container.querySelector<HTMLButtonElement>('.cmp-rail')!;
+  assert.equal(rail.disabled,true);assert.equal(rail.title,'Connect an AI in Settings');
+  assert.equal(ui.container.querySelector('textarea'),null);
+  assert.ok(!fake.calls.some(c=>c.method==='POST'));
+ }finally{await ui.close();fake.restore();localStorage.removeItem('cc.companion.open');}
+});

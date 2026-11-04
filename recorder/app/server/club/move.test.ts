@@ -6,10 +6,10 @@ import type { AddressInfo } from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import type { Video } from '../../shared/club.js';
-import { MOVE_NEEDS_EXPORT, MOVE_NEEDS_LINK, MOVE_NEEDS_SCENES, MOVE_NEEDS_TAKE, MOVE_REFUSED_STATUS } from '../../shared/club-move.js';
+import { VIDEO_STAGES } from '../../shared/club.js';
 import type { Project } from '../../shared/types.js';
 
-/* POST /videos/:id/move is the authority on moving a video by hand: forward only when the video has what that stage works on. */
+/* Manual moves are organizational changes and never require production artifacts. */
 
 const temp = await mkdtemp(path.join(os.tmpdir(), 'creatorclub-move-'));
 process.env.CREATORCLUB_DIR = path.join(temp, 'root');
@@ -40,30 +40,21 @@ const scene = (title: string) => ({ title, talkingPoints: ['a'], show: '', secon
 await call('POST', '/workspaces', { name: 'Maya Lopez', handle: '@maya', topics: ['claude'] });
 
 const move = (id: string, stage: string) => call('POST', `/videos/${id}/move`, { stage });
-const refused = async (id: string, stage: string, sentence: string) => {
-  const res = await move(id, stage);
-  assert.equal(res.status, MOVE_REFUSED_STATUS, `${stage}: ${JSON.stringify(res.body)}`);
-  assert.equal(res.body.error, sentence);
-};
 const stageOf = async (id: string) => ((await call('GET', `/videos/${id}`)).body as Video).stage;
 
-test('an idea with nothing behind it can go to Planning, and nowhere further, each refusal naming what is missing', async () => {
-  const idea = (await call('POST', '/videos', { title: 'Run Claude Doctor' })).body as Video;
-  await refused(idea.id, 'recording', MOVE_NEEDS_SCENES);
-  await refused(idea.id, 'editing', MOVE_NEEDS_TAKE);
-  await refused(idea.id, 'publishing', MOVE_NEEDS_EXPORT);
-  await refused(idea.id, 'published', MOVE_NEEDS_LINK);
-  assert.equal(await stageOf(idea.id), 'ideas', 'a refused move changes nothing');
-  assert.equal((await move(idea.id, 'planning')).status, 200);
-  assert.equal((await move(idea.id, 'ideas')).status, 200, 'back is always allowed');
+test('every stage can move directly to every other stage without scenes, takes, export or YouTube link',async()=>{
+ for(const from of VIDEO_STAGES)for(const to of VIDEO_STAGES){
+  const video=(await call('POST','/videos',{title:`${from} to ${to}`,stage:from})).body as Video;
+  const result=await move(video.id,to);
+  assert.equal(result.status,200,`${from} → ${to}: ${JSON.stringify(result.body)}`);
+  assert.equal(await stageOf(video.id),to);
+ }
 });
 
-test('each stage opens once the video has what it works on: scenes, a take, an export, a YouTube link', async () => {
+test('manual moves preserve scene, recording, export and YouTube metadata', async () => {
   const video = (await call('POST', '/videos', { title: 'Hidden features', stage: 'planning' })).body as Video;
-  await refused(video.id, 'recording', MOVE_NEEDS_SCENES);
   await call('PUT', `/videos/${video.id}/outline`, { scenes: [scene('Opening'), scene('Build')] });
   assert.equal((await move(video.id, 'recording')).status, 200, 'scenes exist');
-  await refused(video.id, 'editing', MOVE_NEEDS_TAKE);
 
   // Continue to recording makes the recording project; a take recorded but not kept counts as something to edit.
   const withProject = (await call('POST', `/videos/${video.id}/recorder`)).body as Video;
@@ -73,11 +64,9 @@ test('each stage opens once the video has what it works on: scenes, a take, an e
   await writeFile(projectFile(projectId), JSON.stringify(project));
   assert.equal((await move(video.id, 'editing')).status, 200, 'a take exists');
 
-  await refused(video.id, 'publishing', MOVE_NEEDS_EXPORT);
   exported.add(projectId);
   assert.equal((await move(video.id, 'publishing')).status, 200, 'an export exists');
 
-  await refused(video.id, 'published', MOVE_NEEDS_LINK);
   const facts = (await call('GET', '/videos/move-facts')).body;
   assert.deepEqual(facts[video.id], { scenes: 2, takes: 1, exported: true, published: false }, 'the board reads the same facts');
   await call('PUT', `/videos/${video.id}`, { youtubeUrl: 'https://youtu.be/dQw4w9WgXcQ' });

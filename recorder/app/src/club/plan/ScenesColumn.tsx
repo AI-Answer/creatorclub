@@ -1,3 +1,4 @@
+import {AI_CONNECT_HINT,useAiAvailable} from '../ai-status';
 import {useEffect,useRef,useState,type KeyboardEvent,type PointerEvent} from 'react';
 import {BrandLogo} from '../../BrandLogo';
 import type {Outline,OutlineScene,VideoScene} from '../../../shared/club';
@@ -27,6 +28,7 @@ export function ScenesColumn({target,onTarget,hasRecording,outline,known,focusId
  onSaveNow?():void;
 }){
  const toast=useToast();
+ const aiAvailable=useAiAvailable();
  const scenes=outline?.scenes??[];
  const [dragIndex,setDragIndex]=useState<number|null>(null),[overIndex,setOverIndex]=useState<number|null>(null);
  const [added,setAdded]=useState<string|null>(null);
@@ -54,11 +56,11 @@ export function ScenesColumn({target,onTarget,hasRecording,outline,known,focusId
 
  const open=(id:string)=>{setOpenId(id);onFocus(id);};
  const setScene=(index:number,next:Partial<OutlineScene>)=>outline&&onEdit({...outline,scenes:scenes.map((scene,i)=>i===index?{...scene,...next}:scene)});
- const setScenes=(next:OutlineScene[])=>outline&&onEdit({...outline,scenes:next});
+ const setScenes=(next:OutlineScene[])=>onEdit({...outline,scenes:next});
  const move=(from:number,to:number)=>setScenes(moveScene(scenes,from,to));
  const add=(at:number)=>{
   const scene=blankScene();
-  if(outline)onEdit({...outline,scenes:insertScene(scenes,at,scene)});
+  onEdit({...outline,scenes:insertScene(scenes,at,scene)});
   setAdded(scene.id!);open(scene.id!);
  };
  const remove=(index:number)=>{
@@ -84,7 +86,7 @@ export function ScenesColumn({target,onTarget,hasRecording,outline,known,focusId
  };
 
  const menuFor=(scene:OutlineScene,i:number,id:string):MenuItem[]=>[
-  {label:scene.script?'Write the script again':'Write script for this scene',icon:'script',fn:()=>onWriteScene(id)},
+  {label:scene.script?'Write the script again':'Write script for this scene',icon:'script',disabled:!aiAvailable,title:!aiAvailable?AI_CONNECT_HINT:undefined,fn:()=>onWriteScene(id)},
   ...(hasRecording?[{label:'Record this scene',icon:'microphone' as const,fn:()=>onRecord(id)}]:[]),
   '-',
   ...(i>0?[{label:'Move up',icon:'move-up' as const,fn:()=>move(i,i-1)}]:[]),
@@ -103,7 +105,7 @@ export function ScenesColumn({target,onTarget,hasRecording,outline,known,focusId
  return <section className="scn" aria-label="Scenes">
   <div className="doc-h"><h2>Scenes</h2>{scenes.length>0&&<span className="chip">{scenes.length}</span>}
    <span className="grow"/>
-   {scenes.length>0&&<Menu align="right" label="Write with Claude" items={writes} button={(toggle,open)=><Button size="sm" aria-expanded={open} aria-haspopup="menu" disabled={!writes.length} onClick={toggle}>
+   {scenes.length>0&&<Menu align="right" label="Write with Claude" items={writes} button={(toggle,open)=><Button size="sm" aria-expanded={open} aria-haspopup="menu" title={!aiAvailable?AI_CONNECT_HINT:undefined} disabled={!aiAvailable||!writes.length} onClick={toggle}>
     {busy?<span className="spin" role="status" aria-label="Writing"/>:<BrandLogo brand="claude" size={18}/>}Write with Claude<Icon name="expand" size={13}/></Button>}/>}
   </div>
   {scenes.length>0&&<div className="row" style={{marginBottom:14,gap:'8px 14px',flexWrap:'wrap'}}>
@@ -120,8 +122,9 @@ export function ScenesColumn({target,onTarget,hasRecording,outline,known,focusId
    ?(drafting
     ?<div className="card" style={{padding:16,display:'flex',flexDirection:'column',gap:10}} role="status" aria-label={draftLine??'Drafting scenes'}>{[0,1,2,3].map(i=><div key={i} className="shimmer" style={{height:74}}/>)}{draftLine&&<span className="faint small">{draftLine}</span>}</div>
     :<div className="plan-empty">
-      <p>Claude reads the board and writes the scenes you will talk through, and you can edit every word.</p>
-      <Button variant="primary" onClick={onDraft}><Icon name="draft" size={15}/>Draft scenes from the board</Button></div>)
+      <p>Add a scene and write your talking points or script. Drafting with AI is optional.</p>
+      <Button variant="primary" onClick={()=>add(0)}><Icon name="add" size={15}/>Add scene</Button>
+      <Button title={!aiAvailable?AI_CONNECT_HINT:undefined} disabled={!aiAvailable} onClick={onDraft}><Icon name="draft" size={15}/>Draft scenes from the board</Button></div>)
    :scenes.map((scene,i)=>{
     const id=scene.id??String(i);
     const progress=knownById.get(id);
@@ -154,8 +157,9 @@ export function ScenesColumn({target,onTarget,hasRecording,outline,known,focusId
      <ul className="pts">{scene.talkingPoints.map((point,k)=><li key={k}><Ed live onLeave={leave} value={point} ph="Talking point" autoFocus={point===''&&added===id}
       onChange={text=>setScene(i,{talkingPoints:editPoint(scene.talkingPoints,k,text)})}
       onEnter={()=>{const points=[...scene.talkingPoints];points.splice(k+1,0,'');setScene(i,{talkingPoints:points});}}/></li>)}</ul>
+     <button type="button" className="btn sm ghost" onClick={()=>setScene(i,{talkingPoints:[...scene.talkingPoints,'']})}>Add talking point</button>
      <div className="scene-show"><Icon name="screen" size={14}/><span className="faint" style={{flex:'none'}}>Show</span><Ed live onLeave={leave} value={scene.show} ph="What's on screen" onChange={show=>setScene(i,{show})} style={{flex:1}}/></div>
-     {(scene.script||writing)&&<div className="script">{writing?<div className="shimmer" style={{height:44}}/>:<Ed multiline live onLeave={leave} value={scene.script} ph="Script" onChange={text=>scriptSoon(id,text)}/>}</div>}
+     <div className="script">{writing?<div className="shimmer" style={{height:44}}/>:<Ed multiline live onLeave={leave} value={scene.script} ph="Script" onChange={text=>scriptSoon(id,text)}/>}</div>
      {decide.length>0&&<details className="decide" onClick={event=>event.stopPropagation()}>
       <summary>To decide ({decide.length})</summary>
       <ul>{decide.map((item,k)=><li key={k}><span>{item}</span><Button variant="quiet" size="sm" onClick={()=>setScene(i,{decide:decide.filter((_,n)=>n!==k)})}>Mark decided</Button></li>)}</ul>

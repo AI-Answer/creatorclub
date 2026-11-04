@@ -6,7 +6,7 @@ import {useClickAway} from './useClickAway';
 export type MenuItem=
  |'-'
  |{header:string}
- |{label:string;fn():void;icon?:IconName;check?:boolean;danger?:boolean};
+ |{label:string;fn():void;icon?:IconName;check?:boolean;danger?:boolean;disabled?:boolean;title?:string};
 
 /** The menu is drawn in the club's root when it has one, so no parent's overflow or transform affects it; without one (a test, another host) it stays in place. */
 const inRoot=(host:Element|null,menu:ReactNode)=>host?createPortal(menu,host):menu;
@@ -58,7 +58,7 @@ export function Menu({button,items,align='left',width,label,restoreFocus,below=f
  // The menu is drawn elsewhere in the page, so Tab from the button would skip it: it moves focus to the first item instead.
  const enter=(event:{key:string;shiftKey:boolean;preventDefault():void})=>{
   if(!open||event.key!=='Tab'||event.shiftKey)return;
-  const first=menu.current?.querySelector<HTMLElement>('button');
+  const first=menu.current?.querySelector<HTMLElement>('button:not(:disabled)');
   if(first){event.preventDefault();first.focus();}
  };
  return <span ref={ref} onKeyDown={enter} style={{position:'relative',display:'inline-flex'}}>
@@ -66,7 +66,7 @@ export function Menu({button,items,align='left',width,label,restoreFocus,below=f
   {open&&inRoot(host,<div ref={placeMenu} className="menu" role="menu" aria-label={label} style={{position:'fixed',...place,minWidth:width}}>
    {items.map((item,index)=>item==='-'?<div key={index} className="sep"/>
     :'header' in item?<div key={index} className="hd">{item.header}</div>
-    :<button key={index} type="button" role={item.check===undefined?'menuitem':'menuitemradio'} aria-checked={item.check} onClick={()=>{giveBack.current=true;setOpen(false);item.fn();}} style={item.danger?{color:'var(--cc-danger)'}:undefined}>
+    :<button key={index} type="button" role={item.check===undefined?'menuitem':'menuitemradio'} aria-checked={item.check} disabled={item.disabled} title={item.title} onClick={()=>{giveBack.current=true;setOpen(false);item.fn();}} style={item.danger?{color:'var(--cc-danger)'}:undefined}>
       {item.icon&&<Icon name={item.icon} size={15}/>}<span className="grow">{item.label}</span>{item.check&&<Icon name="check" size={15}/>}
      </button>)}
   </div>)}

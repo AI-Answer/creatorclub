@@ -1147,3 +1147,64 @@
 .club-root .kanban .igroup-h { padding: 4px 6px 8px; color: var(--cc-text-3); text-transform: none; }
 .club-root .kanban .col-empty { border: 0; padding: 10px 6px; font-size: var(--cc-text-xs); color: var(--cc-text-3); text-align: left; line-height: 1.45; }
 .club-root .kanban .drop-line { margin: -5px 2px 5px; }
+
+/* Shared trend cards: reserve title/reason space and keep every action inside its card. */
+:where(.club-root) .trend-grid:where(:not(.club-embed *)),
+:where(.club-root) .grid:has(> .trend):where(:not(.club-embed *)) { grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: 12px; align-items: stretch; }
+:where(.club-root) .trend:where(:not(.club-embed *)) { min-width: 0; text-align: left; height: 100%; box-sizing: border-box; }
+:where(.club-root) .trend > *:where(:not(.club-embed *)) { min-width: 0; }
+:where(.club-root) .trend .tt:where(:not(.club-embed *)) { min-height: 2.64em; overflow-wrap: anywhere; }
+:where(.club-root) .trend .stats:where(:not(.club-embed *)) { display: flex; justify-content: space-between; gap: 8px; flex-wrap: nowrap; font-size: var(--cc-text-xs); white-space: nowrap; }
+:where(.club-root) .trend .reason:where(:not(.club-embed *)) { display: flex; align-items: center; justify-content: flex-start; gap: 5px; min-height: 1.5em; font-size: var(--cc-text-xs); text-align: left; }
+:where(.club-root) .trend .reason svg:where(:not(.club-embed *)) { flex: none; }
+:where(.club-root) .trend .reason .ellipsis:where(:not(.club-embed *)) { min-width: 0; display: block; }
+:where(.club-root) .trend-actions:where(:not(.club-embed *)) { margin-top: auto; display: flex; flex-direction: column; justify-content: flex-end; align-items: stretch; gap: 8px; min-height: 72px; }
+:where(.club-root) .trend-actions .follow-channel:where(:not(.club-embed *)) { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; align-self: flex-start; }
+:where(.club-root) .trend-actions .btn:where(:not(.club-embed *)) { width: 100%; min-width: 0; white-space: nowrap; box-sizing: border-box; }
+
+/* The same quiet video board on Home and Videos. */
+.club-root .page.video-board-page { max-width: none; width: 100%; min-width: 0; padding: 20px 24px 24px; }
+.club-root .video-board-page .page-head { margin-bottom: 20px; align-items: center; gap: 12px; }
+.club-root .video-board-page .video-board-heading { display: flex; align-items: center; gap: 10px; }
+.club-root .page.video-board-page .page-head h1 { font-size: var(--cc-text-lg); line-height: 1.4; font-weight: 600; letter-spacing: 0; }
+.club-root .video-board-page .page-head .btn { font-size: var(--cc-text-xs); min-height: 30px; padding: 5px 10px; }
+.club-root .video-board-page .kanban { grid-template-columns: repeat(6, 280px); gap: 16px; padding: 0 0 24px; }
+.club-root .video-board-page .kanban .col { min-height: calc(100vh - 156px); padding: 0 8px 8px; background: transparent; border: 0; border-right: 1px solid var(--cc-line); border-radius: 0; box-shadow: none; }
+.club-root .video-board-page .kanban .col:last-child { border-right: 0; }
+.club-root .video-board-page .kanban .col.over { background: var(--cc-accent-soft); }
+.club-root .video-board-page .kanban .col-h { position: static; padding: 8px 4px 14px; font-size: var(--cc-text-xs); }
+.club-root .video-board-page .kanban .col-h .n { margin-left: 2px; min-width: 0; height: auto; padding: 0; background: transparent; border-radius: 0; line-height: inherit; font-weight: 400; color: var(--cc-text-3); }
+.club-root .video-board-page .kanban .kcard { display: grid; grid-template-columns: minmax(0, 1fr) auto; padding: 10px; margin-bottom: 6px; gap: 6px 8px; border-radius: var(--cc-r-sm); border: 1px solid var(--cc-line); box-shadow: none; transform: none; transition: background .15s, border-color .15s; }
+.club-root .video-board-page .kanban .kcard:hover { background: var(--cc-hover); border-color: var(--cc-line-strong); box-shadow: none; transform: none; }
+.club-root .video-board-page .kanban .kcard .tt { padding: 0 18px 0 0; min-width: 0; font-size: var(--cc-text-xs); font-weight: 500; line-height: 1.45; overflow-wrap: anywhere; }
+.club-root .video-board-page .kcard-thumb { grid-column: 2; grid-row: 2; width: 40px; height: 24px; object-fit: cover; border-radius: var(--cc-r-sm); }
+.club-root .video-board-page .kanban .kcard .na { grid-column: 1; grid-row: 2; padding: 0; font-size: var(--cc-text-2xs); min-width: 0; flex-wrap: wrap; }
+.club-root .video-board-page .kanban .kmove { top: 6px; right: 6px; }
+.club-root .video-board-page .kanban .kmove .btn { padding: 3px; min-height: 22px; width: 22px; background: transparent; border: 0; box-shadow: none; }
+.club-root .video-board-page .lane-add { display: flex; align-items: center; gap: 6px; width: 100%; margin-top: 4px; padding: 7px 4px; border: 0; background: transparent; color: var(--cc-text-3); font: inherit; font-size: var(--cc-text-xs); text-align: left; cursor: pointer; border-radius: var(--cc-r-sm); }
+.club-root .video-board-page .lane-add:hover { background: var(--cc-hover); color: var(--cc-text); }
+.club-root .video-board-page .lane-add-form { display: grid; gap: 8px; padding: 6px 0; }
+.club-root .video-board-page .lane-add-form input { width: 100%; min-width: 0; }
+@media (max-width: 760px) {
+ .club-root .page.video-board-page { padding: 16px; }
+ .club-root .video-board-page .page-head { flex-wrap: wrap; }
+}
+
+/* Lists always show a picture or a small, visible stand-in. */
+.club-root .video-table-thumb { display: grid; place-items: center; width: 48px; height: 30px; flex: none; border: 1px solid var(--cc-line); border-radius: var(--cc-r-sm); background: var(--cc-bg-sunk); color: var(--cc-text-3); }
+
+/* Keep sideways board scrolling within the available window height. Each lane owns its vertical scroll. */
+.club-root .page.video-board-page { display: flex; flex-direction: column; height: 100%; min-height: 0; overflow: hidden; }
+.club-root .video-board-page .page-head { flex: none; }
+.club-root .video-board-page .kanban { flex: 1; min-height: 0; }
+.club-root .video-board-page .kanban .col { min-height: 0; overflow-y: auto; }
+
+/* Use the workspace's available width, including when its companion is open. */
+.club-root .pubx { container-type: inline-size; }
+@container (max-width: 760px) {
+ .club-root .pubx-grid { grid-template-columns: minmax(0, 1fr); }
+}
+@container (max-width: 480px) {
+ .club-root .pubx-form, .club-root .pub-when { grid-template-columns: minmax(0, 1fr); }
+ .club-root .pub-step-body { padding-left: 18px; }
+}

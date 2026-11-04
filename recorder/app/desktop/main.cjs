@@ -9,6 +9,8 @@ const {createRecordingHud}=require('./recording-hud.cjs');
 const {createNativeRecordingManager}=require('./native-recording.cjs');
 const {createCaptureBorder}=require('./capture-border.cjs');
 const {createMediaPermissionRequests}=require('./media-permissions.cjs');
+const {createPermissionHelper}=require('./permission-helper.cjs');
+let permissionHelper=null,screenRestartRequired=false,relaunchRequested=false;
 const {createMotionRenderer}=require('./motion-render.cjs');
 let motionRenderer=null;
 let mainWindow, service, captureManager, recordingHud, nativeRecording, captureBorder, ownService = false, quitting = false;
@@ -33,7 +35,7 @@ function getNativeMediaStatus(kind){
  try{const status=systemPreferences.getMediaAccessStatus(kind);return ['not-determined','granted','denied','restricted','unknown'].includes(status)?status:'unknown';}catch{return 'unknown';}
 }
 function getMediaPermissions(){
- return {platform:process.platform,camera:getNativeMediaStatus('camera'),microphone:getNativeMediaStatus('microphone'),screen:getNativeMediaStatus('screen'),systemAudio:'unknown'};
+ return {platform:process.platform,camera:getNativeMediaStatus('camera'),microphone:getNativeMediaStatus('microphone'),screen:getNativeMediaStatus('screen'),systemAudio:'unknown',screenRestartRequired};
 }
 async function requestMediaPermission(kind){
  return nativePermissionRequests.request(kind);
@@ -41,7 +43,14 @@ async function requestMediaPermission(kind){
 async function openPrivacySettings(section){
  if(typeof section!=='string'||!Object.hasOwn(privacyPanes,section))throw new Error('Unknown privacy settings section.');
  if(process.platform!=='darwin')throw new Error('Native privacy settings are only available on macOS.');
+ if(section==='screen'){
+  // Register this running app in TCC before navigating to the privacy pane. Do not
+  // wait on a native consent dialog or retain any screen thumbnails during setup.
+  void desktopCapturer.getSources({types:['screen'],thumbnailSize:{width:0,height:0},fetchWindowIcons:false}).catch(()=>{});
+  screenRestartRequired=true;
+ }
  await shell.openExternal('x-apple.systempreferences:com.apple.preference.security?'+privacyPanes[section]);
+ if(section==='screen'||(['camera','microphone'].includes(section)&&['denied','restricted'].includes(getNativeMediaStatus(section))))await permissionHelper.open(section);
 }
 function verifyDesktopSender(event){
  if(!mainWindow||mainWindow.isDestroyed()||event.sender!==mainWindow.webContents||event.senderFrame!==mainWindow.webContents.mainFrame)throw new Error('Untrusted window');
@@ -170,6 +179,11 @@ app.whenReady().then(async()=>{
  // itself is served by the service, so it loads once the service answers.
  const serviceReady=startService();serviceReady.catch(()=>{});
  mainWindow=new BrowserWindow({width:1480,height:960,minWidth:1000,minHeight:680,title:CREATORCLUB.name,show:false,backgroundColor:nativeTheme.shouldUseDarkColors?'#0a0a0a':'#ffffff',titleBarStyle:process.platform==='darwin'?'hiddenInset':'default',...(process.platform==='darwin'?{trafficLightPosition:{x:13,y:13}}:{}),webPreferences:{preload:path.join(__dirname,'preload.cjs'),additionalArguments:[`--privacy-app-name=${appName}`],contextIsolation:true,nodeIntegration:false,sandbox:true,backgroundThrottling:false}});
+ if(process.platform==='darwin')permissionHelper=createPermissionHelper({app,BrowserWindow,ipcMain,screen,shell,nativeImage:require('electron').nativeImage,getStatus:getNativeMediaStatus,appName,onGranted:()=>{
+  if(!mainWindow||mainWindow.isDestroyed())return;
+  mainWindow.webContents.send('media-permissions-changed',getMediaPermissions());
+  if(mainWindow.isMinimized())mainWindow.restore();mainWindow.show();app.focus({steal:true});mainWindow.focus();
+ }});
  const trusted=(url)=>{try{return new URL(url).origin===base;}catch{return false;}};
  session.defaultSession.setPermissionRequestHandler((contents,permission,callback,details)=>callback(!quitting&&(trusted(contents.getURL())&&['media','display-capture'].includes(permission)||Boolean(recordingHud?.allowsCamera(contents,permission,details)))));
  captureManager=createCaptureManager({BrowserWindow,desktopCapturer,screen,ipcMain,session,systemPreferences,getMainWindow:()=>mainWindow,origin:base,appName});
@@ -189,7 +203,7 @@ app.whenReady().then(async()=>{
  ipcMain.handle('request-media-permission',(e,kind)=>{verifyDesktopSender(e);return requestMediaPermission(kind);});
  ipcMain.handle('open-privacy-settings',(e,section)=>{verifyDesktopSender(e);return openPrivacySettings(section);});
  // macOS applies a new screen-recording grant only to a fresh process.
- ipcMain.handle('relaunch-app',e=>{verifyDesktopSender(e);app.relaunch();app.quit();});
+ ipcMain.handle('relaunch-app',e=>{verifyDesktopSender(e);app.relaunch();relaunchRequested=true;app.quit();});
  ipcMain.handle('choose-folder',async e=>{verifyDesktopSender(e);const result=await dialog.showOpenDialog(mainWindow,{title:'Choose a project or media folder',properties:['openDirectory','createDirectory']});return result.canceled?null:result.filePaths[0]??null;});
  mainWindow.webContents.on('before-input-event',routeNativeInput);
  mainWindow.webContents.on('did-start-loading',resetShortcutContext);
@@ -199,7 +213,7 @@ app.whenReady().then(async()=>{
  mainWindow.webContents.on('did-start-loading',()=>{mainVisibility=null;});
  for(const name of ['show','hide','minimize','restore','focus'])mainWindow.on(name,publishMainVisibility);
  mainWindow.once('ready-to-show',()=>{if(mainWindow&&!mainWindow.isDestroyed())mainWindow.show();});
- mainWindow.on('closed',()=>{recordingHud.end({restoreMain:false});void nativeRecording.reset?.();captureManager.reset();clearGlobalShortcuts();shortcutContext=emptyShortcutContext();mainWindow=null;});
+ mainWindow.on('closed',()=>{permissionHelper?.close();recordingHud.end({restoreMain:false});void nativeRecording.reset?.();captureManager.reset();clearGlobalShortcuts();shortcutContext=emptyShortcutContext();mainWindow=null;});
  ipcMain.handle('choose-media',async e=>{verify(e);const result=await dialog.showOpenDialog(mainWindow,{title:'Import media',properties:['openFile','multiSelections'],filters:[{name:'Video, audio and images',extensions:['mp4','mov','webm','mkv','wav','mp3','m4a','aac','flac','png','jpg','jpeg','webp','gif']} ]});return result.canceled?[]:result.filePaths;});
  ipcMain.handle('choose-borumi',async e=>{verify(e);const result=await dialog.showOpenDialog(mainWindow,{title:'Import a Borumi project',properties:['openFile','openDirectory','treatPackageAsDirectory'],filters:[{name:'Borumi project',extensions:['bmproj','bmprojbundle']}]});return result.canceled?null:result.filePaths[0];});
  ipcMain.handle('reveal',async(e,file)=>{verify(e);if(typeof file!=='string'||!path.isAbsolute(file))throw new Error('Invalid path');shell.showItemInFolder(file);});
@@ -211,4 +225,4 @@ app.whenReady().then(async()=>{
  try{await mainWindow.loadURL(base);}finally{if(mainWindow&&!mainWindow.isDestroyed()&&!mainWindow.isVisible())mainWindow.show();}
 });
 app.on('window-all-closed',()=>app.quit());
-app.on('before-quit',e=>{if(quitting)return;e.preventDefault();quitting=true;captureBorder?.clear();recordingHud?.dispose();captureManager?.dispose();clearGlobalShortcuts();motionRenderer?.dispose();Promise.resolve(nativeRecording?.dispose()).catch(console.error).finally(()=>{if(ownService)service?.kill();app.quit();});});
+app.on('before-quit',e=>{if(quitting)return;e.preventDefault();quitting=true;permissionHelper?.dispose();captureBorder?.clear();recordingHud?.dispose();captureManager?.dispose();clearGlobalShortcuts();motionRenderer?.dispose();Promise.resolve(nativeRecording?.dispose()).catch(console.error).finally(()=>{if(ownService)service?.kill();if(relaunchRequested)app.exit(0);else app.quit();});});

@@ -12,7 +12,7 @@ import {TITLE_MAX,VISIBILITY_OPTIONS,unrecordedWarning,defaultSchedule,progressO
 import {usePublishing} from '../publishing/usePublishing';
 import {exportFileName,latestVideoExport} from '../recorder/edit-steps';
 import {clockTime} from '../video-plan';
-import {Button,EmptyState,Icon,Input,Spinner,Textarea} from '../ui';
+import {Button,Icon,Input,Spinner,Textarea} from '../ui';
 import {PackageSummary,PasteLinkForm,ProgressCard,ResultCard,SELF_UPLOAD_LINE,SelfUpload,TagsField} from './PublishParts';
 import {buildDescription} from './record-logic';
 import {recordedCount} from '../scene-status';
@@ -127,10 +127,6 @@ export function Publish({video,pkg,scenes,onVideo,onDescription,onTags,onGoTo,on
   }catch(reason){setRun({phase:'failed',message:errorMessage(reason),progress:null});}
  };
 
- if(!published&&scenes&&!scenes.some(scene=>scene.takes.length))return <div className="page"><div className="card"><EmptyState icon={<Icon name="upload"/>} title="Nothing to publish yet"
-  description={scenes.length?`Publishing starts once the scenes are recorded and edited. This video has ${scenes.length} ${scenes.length===1?'scene':'scenes'} waiting to be recorded.`:'Publishing starts once the scenes are recorded and edited. Draft the scenes first.'}
-  action={<Button variant="primary" size="md" onClick={()=>onGoTo(scenes.length?'record':'plan')}><Icon name={scenes.length?'microphone':'scenes'} size={15}/>{scenes.length?'Open record':'Open plan'}</Button>}/></div></div>;
-
  const scheduledDate=schedule&&'date' in schedule?schedule.date:null;
  // Scenes without a kept take are not on the timeline, so not in the exported video: said before it goes out.
  const unrecorded=scenes?unrecordedWarning(scenes.length,recordedCount(scenes)):null;
@@ -170,7 +166,7 @@ export function Publish({video,pkg,scenes,onVideo,onDescription,onTags,onGoTo,on
     <div className="pubx-export">{exportLine}</div>
     {unrecorded&&<p className="small pubx-warn" role="status">{unrecorded}</p>}
    </PubStep>
-   <PubStep n={2} title="Check the details" done={detailsDone} line="What viewers see on YouTube. Ask Claude to write or check any of it.">
+   <PubStep n={2} title="Check the details" done={detailsDone} line="Write and check the details viewers see on YouTube.">
     <div className="pubx-form">
      <div className="full"><label className="field" htmlFor="pub-title">Title</label><Input id="pub-title" maxLength={TITLE_MAX} value={title} onChange={event=>setTitle(event.target.value)}/></div>
      <div className="full"><label className="field" htmlFor="pub-desc">Description</label><Textarea id="pub-desc" rows={5} maxLength={DESCRIPTION_MAX} placeholder="What the viewer gets, then chapters." value={description}
@@ -188,9 +184,10 @@ export function Publish({video,pkg,scenes,onVideo,onDescription,onTags,onGoTo,on
     </div>
    </PubStep>
    <PubStep n={3} title="Send it to YouTube" done={false}
-    line={publishing.error?undefined:!publishing.state?undefined:connected?`Postiz uploads it to ${channelName??'your channel'} on YouTube, now or at the time you pick.`:"Publishing isn't set up yet. It uses Postiz, a paid service that uploads to YouTube for you; set it up once."}>
+    line={publishing.error?undefined:!publishing.state?undefined:connected?`Postiz uploads it to ${channelName??'your channel'} on YouTube, now or at the time you pick.`:"Upload your exported file to YouTube and paste its link here. Postiz is optional."}>
+    <SelfUpload video={video} onVideo={onVideo}/>
     {publishing.error?<ErrorLine message={publishing.error} onRetry={publishing.reload}/>:!publishing.state?<Spinner label="Loading"/>
-     :!connected?<div className="row" style={{gap:12,flexWrap:'wrap'}}><span className="logo logo-postiz"><BrandLogo brand="postiz" size={28}/></span><Button onClick={onSettings}>Set up publishing</Button><SelfUpload video={video} onVideo={onVideo}/></div>
+     :!connected?<div className="row" style={{gap:12,flexWrap:'wrap'}}><span className="logo logo-postiz"><BrandLogo brand="postiz" size={28}/></span><Button onClick={onSettings}>Set up optional publishing</Button></div>
      :<>
       <div className="pub-when">
        <div><label className="field" htmlFor="pub-when">When</label><select id="pub-when" className="select" value={when} onChange={event=>setWhen(event.target.value as 'now'|'schedule')}><option value="now">Publish now</option><option value="schedule">Schedule for later</option></select></div>

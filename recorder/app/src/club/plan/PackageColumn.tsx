@@ -1,3 +1,4 @@
+import {AI_CONNECT_HINT,useAiAvailable} from '../ai-status';
 import {useEffect,useRef,useState,type ReactNode} from 'react';
 import {BrandLogo} from '../../BrandLogo';
 import type {ConceptLevel,ConceptRating,Package} from '../../../shared/club';
@@ -55,6 +56,7 @@ export function PackageColumn({videoId,videoTitle,pkg,running,onEdit,onPickTitle
  /** Where saving the package stands, and how to save now (a field was left) or try a failed save again. */
  save?:SaveStatus;onSaveNow?():void;onRetrySave?():void;
 }){
+ const aiAvailable=useAiAvailable();
  const value=pkg??EMPTY_PACKAGE;
  const [more,setMore]=useState(false),[manual,setManual]=useState(false);
  // Title rows that stay while they are typed in, even empty; the one just added takes the focus.
@@ -101,10 +103,10 @@ export function PackageColumn({videoId,videoTitle,pkg,running,onEdit,onPickTitle
  if(view==='empty')return <section className="pkg" aria-label="Title, thumbnail and hook">
   {heading()}
   <div className="pkg-empty">
-   <p>The title, thumbnail text and hook decide whether people click. Claude writes them from the board, and you can change every word.</p>
+   <p>The title, thumbnail text and hook decide whether people click. Write them yourself, or optionally ask AI for suggestions.</p>
    <div className="row" style={{gap:14,flexWrap:'wrap'}}>
-    {onWrite&&<Button onClick={()=>onWrite()}><BrandLogo brand="claude" size={18}/>Write all three with Claude</Button>}
-    <button type="button" className="linkish quiet" onClick={()=>{setManual(true);setKeep([0]);setFocusSlot(0);}}>or fill it in yourself</button>
+    {onWrite&&<Button title={!aiAvailable?AI_CONNECT_HINT:undefined} disabled={!aiAvailable} onClick={()=>onWrite()}><BrandLogo brand="claude" size={18}/>Write all three with Claude</Button>}
+    <button type="button" className="linkish quiet" onClick={()=>{setManual(true);setKeep([0]);setFocusSlot(0);}}>Write it myself</button>
    </div>
   </div>
  </section>;
@@ -122,7 +124,7 @@ export function PackageColumn({videoId,videoTitle,pkg,running,onEdit,onPickTitle
   {label:hasEmptyPlace(pkg,'thumbnail')?'Write thumbnail text':'Write thumbnail text again',icon:'ai',fn:()=>writer.write('thumbnail')},
   {label:hasEmptyPlace(pkg,'hook')?'Write the hook':'Write the hook again',icon:'ai',fn:()=>writer.write('hook')},
  ];
- const menu=onWrite&&<Menu align="right" label="Write with Claude" items={writes} button={(toggle,open)=><Button size="sm" aria-expanded={open} aria-haspopup="menu" disabled={!writes.length} onClick={toggle}>
+ const menu=onWrite&&<Menu align="right" label="Write with Claude" items={writes} button={(toggle,open)=><Button size="sm" aria-expanded={open} aria-haspopup="menu" title={!aiAvailable?AI_CONNECT_HINT:undefined} disabled={!aiAvailable||!writes.length} onClick={toggle}>
   {running?<span className="spin" role="status" aria-label="Writing"/>:<BrandLogo brand="claude" size={18}/>}Write with Claude<Icon name="expand" size={13}/></Button>}/>;
  const titles=shownTitles(value.titles,keep);
  const own=chosen<0&&!!videoTitle.trim();

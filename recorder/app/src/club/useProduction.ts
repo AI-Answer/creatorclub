@@ -35,8 +35,6 @@ export const knownMoveProblem=(video:Pick<Video,'id'|'stage'>|undefined,stage:Vi
  */
 export function useProduction():{state:VideosState;videos:Video[]|null;reload():void;move(id:string,stage:VideoStage,beforeId:string|null):Promise<void>;schedule(id:string,day:string):Promise<void>}{
  const {state,reload}=useVideos();
- const facts=useMoveFacts();
- const factsRef=useRef(facts);factsRef.current=facts;
  const toast=useToast();
  const loaded=state.status==='ready'?state.videos:null;
  // What is shown until the videos are read again: the loaded list they were made from, and the list with the changes in it.
@@ -63,9 +61,6 @@ export function useProduction():{state:VideosState;videos:Video[]|null;reload():
  const move=useCallback(async(id:string,stage:VideoStage,beforeId:string|null)=>{
   const current=latest.current,plan=current&&planMove(current,id,stage,beforeId);
   if(!plan)return;
-  // The same rule the server holds to: a move it would refuse is not shown, and the sentence says what is missing.
-  const problem=knownMoveProblem(current.find(video=>video.id===id),stage,factsRef.current);
-  if(problem){toast(problem,{refused:true});return;}
   try{await place(id,stage,beforeId);}catch(reason){sayFailed(reason,"Couldn't save that change.");return;}
   const {previous}=plan;
   toast(plan.message,{undo:()=>{place(id,previous.stage,previous.beforeId,previous.stageDates).catch(reason=>sayFailed(reason,"Couldn't undo that."));}});

@@ -1,3 +1,4 @@
+import {useAiAvailable} from './ai-status';
 import {useCallback,useEffect,useRef,useState} from 'react';
 import type {Breakdown} from '../../shared/club';
 import {clubFetch,clubUpload} from './api';
@@ -26,6 +27,7 @@ export type BreakdownRun={
  * that was started, even when its id only arrives after the screen has gone, so nothing keeps working unseen.
  */
 export function useBreakdownRun(initial:BreakdownTarget):BreakdownRun{
+ const aiAvailable=useAiAvailable();
  const {state,run}=useJobRun();
  const [source,setSource]=useState(initial),[attempt,setAttempt]=useState(0);
  const [progress,setProgress]=useState<{step:number;comments?:number}>({step:0});
@@ -41,6 +43,7 @@ export function useBreakdownRun(initial:BreakdownTarget):BreakdownRun{
  useEffect(()=>{
   setProgress({step:0});
   if(source.kind==='saved'){void run(()=>clubFetch<Breakdown>(`/breakdowns/${encodeURIComponent(source.id)}`));return;}
+  if(!aiAvailable)return;
   const controller=new AbortController(),mine={gone:false};
   const cancel=(id:string)=>{clubFetch(`/jobs/${encodeURIComponent(id)}`,{method:'DELETE'}).catch(()=>{});};
   void run(async()=>{
@@ -64,7 +67,7 @@ export function useBreakdownRun(initial:BreakdownTarget):BreakdownRun{
    const id=jobId.current;jobId.current=undefined;
    if(id&&!finished.current)cancel(id);
   };
- },[attempt,source,run]);
+ },[attempt,source,run,aiAvailable]);
 
  const retry=useCallback(()=>setAttempt(n=>n+1),[]);
  const tryFile=useCallback((file:File)=>{setSource({kind:'file',file});setAttempt(n=>n+1);},[]);

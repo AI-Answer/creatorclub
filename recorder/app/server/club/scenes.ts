@@ -44,9 +44,19 @@ export function mergeScenes(outline: Outline | null, project: Project | undefine
 
 async function scenesOf(slug: string, video: Video): Promise<VideoScene[]> {
   const outline = await readOutline(slug, video.id);
-  if (!outline) return [];
+  if (!outline?.scenes.length && !video.quickRecording) return [];
   const project = await readProjectIfThere(video.recorderProjectId);
-  return mergeScenes(outline, project, migrateMapping(video.recorderScenes, recorderScenes(outline)));
+  const planned = mergeScenes(outline, project, migrateMapping(video.recorderScenes, outline ? recorderScenes(outline) : []));
+  // Keep the unplanned take visible even if the creator adds an outline later.
+  if (video.quickRecording && project) {
+    const outlineIds = new Set(outline?.scenes.map(scene => scene.id) ?? []);
+    const plannedRecorderIds = new Set(video.recorderScenes?.filter(entry => outlineIds.has(entry.outlineId)).map(entry => entry.sceneId) ?? []);
+    const extra = project.scenes.filter(scene => !plannedRecorderIds.has(scene.id));
+    const scenes = extra.map(scene => ({ id: scene.id, title: scene.name, seconds: scene.duration, talkingPoints: [], show: '' }));
+    const mapping = extra.map(scene => ({ outlineId: scene.id, sceneId: scene.id, text: '', changedAt: '' }));
+    return [...mergeScenes({ scenes }, project, mapping), ...planned];
+  }
+  return planned;
 }
 
 /** `GET /videos/:id/scenes`. */

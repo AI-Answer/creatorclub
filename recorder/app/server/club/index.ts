@@ -37,8 +37,7 @@ import { imageKind } from './publisher-routes.js';
 import { lock as companionLock } from './companion-actions.js';
 import { AGENT_HEADER, agentActionsBody, agentBoard, agentConnectBody, connectAgentApp, agentUndoBody, agentVideo, applyAgentActions, undoAgentAction } from './agent.js';
 import { editSilences } from './companion-edit.js';
-import { moveFacts, videoScenes, videosMoveFacts, videosScenes } from './scenes.js';
-import { MOVE_REFUSED_STATUS, moveProblem } from '../../shared/club-move.js';
+import { videoScenes, videosMoveFacts, videosScenes } from './scenes.js';
 import { HEIGHT_MAX, HEIGHT_MIN, POSITION_MAX, WIDTH_MAX, WIDTH_MIN } from './tile-layout.js';
 import { findTregCall, hasSources, NO_SOURCES, rankedSignals, readSignalsConfig, startSignalsRefresh, writeSignalsConfig, type SignalsSources } from './signals.js';
 import { ideaFromSignal, ideaFromTrending } from './trend-ideas.js';
@@ -538,9 +537,6 @@ export function clubRouter({ ai = {}, transcribe, runAI, readViews = ytDlpViews(
     const { stage: target, ...options } = moveBody.parse(req.body);
     const slug = await requireWorkspace();
     const video = await store.readVideo(slug, param(req, 'id'));
-    // The server is the authority on moves by hand: forward only when the video has what that stage works on. Back is always allowed.
-    const problem = moveProblem(video.stage, target, await moveFacts(slug, video, publishing.projectExported));
-    if (problem) throw new ClubError(problem, MOVE_REFUSED_STATUS);
     res.json(await store.moveVideo(slug, video.id, target, options));
   }));
   // Mark as published: the YouTube link and the date are saved and the card moves to Published. Views are read once afterwards.
@@ -770,7 +766,10 @@ export function clubRouter({ ai = {}, transcribe, runAI, readViews = ytDlpViews(
       }));
     }
   }
-  router.post('/videos/:id/recorder', handler(async (req, res) => res.json(await continueToRecording(await requireWorkspace(), param(req, 'id')))));
+  router.post('/videos/:id/recorder', handler(async (req, res) => {
+    const { quick } = z.object({ quick: z.boolean().optional() }).strict().parse(req.body ?? {});
+    res.json(await continueToRecording(await requireWorkspace(), param(req, 'id'), quick));
+  }));
   // The outline's scenes with the takes the recording project holds for each. Read only.
   router.get('/videos/:id/scenes', handler(async (req, res) => res.json(await videoScenes(await requireWorkspace(), param(req, 'id')))));
 

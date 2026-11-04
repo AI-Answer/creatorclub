@@ -1,3 +1,4 @@
+import {AI_CONNECT_HINT,useAiAvailable} from '../ai-status';
 import {useEffect,useLayoutEffect,useMemo,useRef,useState,type ClipboardEvent,type DragEvent,type FormEvent,type PointerEvent as ReactPointerEvent,type KeyboardEvent} from 'react';
 import {CHANNEL_BOARD,type BoardFrame,type ClubSettings,type ResearchTile,type StartedVideo,type Video,type VideoScene} from '../../../shared/club';
 import {clubFetch,errorMessage,notifyVideosChanged} from '../api';
@@ -79,6 +80,7 @@ export interface BoardProps{
  * the board works on the first visit; Research can start a new video from a selection.
  */
 export function Board({video,board:boardProp,scenes,onDrafted=()=>{},refreshKey=0,navigate=NO_NAVIGATE,onSelection}:BoardProps){
+ const aiAvailable=useAiAvailable();
  const boardId=boardProp??video?.id??CHANNEL_BOARD;
  const research=boardId===CHANNEL_BOARD;
  const board=useBoard(boardId);
@@ -513,7 +515,8 @@ export function Board({video,board:boardProp,scenes,onDrafted=()=>{},refreshKey=
   </div>}
   {!research&&<div className="board-actions">
    <IconButton icon="help" label="How the board works" size="md" onClick={()=>setTip('again')}/>
-   <button type="button" className={cn('btn',scenes&&scenes.length?'':'primary')} disabled={draft.running} onClick={draft.request}>
+   <button type="button" className="btn primary" onClick={()=>video&&navigate({name:'video',id:video.id,tab:'plan'})}>Write plan by hand</button>
+   <button type="button" className={cn('btn',scenes&&scenes.length?'':'primary')} title={!aiAvailable?AI_CONNECT_HINT:undefined} disabled={!aiAvailable||draft.running} onClick={draft.request}>
     {draft.running?<><span className="spin"/>{draft.line}</>:<><Icon name="draft" size={15}/>Draft scenes from board</>}
    </button>
   </div>}

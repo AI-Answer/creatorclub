@@ -1,3 +1,4 @@
+import {AI_CONNECT_HINT,useAiAvailable} from '../ai-status';
 import {BrandLogo} from '../../BrandLogo';
 import {useCallback,useEffect,useLayoutEffect,useMemo,useRef,useState,type KeyboardEvent} from 'react';
 import type {Outline,Package,VideoScene} from '../../../shared/club';
@@ -44,10 +45,11 @@ export function Companion({videoId,videoTitle,tab,scene,screen,selection,pkg,out
  /** The step needs its width (Record): in a narrow window the panel starts as its rail and opens over the step instead of beside it. */
  roomy?:boolean;
 }){
+ const aiAvailable=useAiAvailable();
  const narrow=useNarrow(roomy);
  const [saved,setSaved]=useState(readOpen);
  const [openHere,setOpenHere]=useState(false);
- const open=narrow?openHere:saved;
+ const open=aiAvailable&&(narrow?openHere:saved);
  const [name,setName]=useState('Claude');
  useEffect(()=>{clubFetch<{defaultAi?:string}>('/settings').then(settings=>setName(settings.defaultAi==='codex'?'ChatGPT':'Claude'),()=>{});},[]);
  const editorNow=useRef(editor);editorNow.current=editor;
@@ -77,7 +79,7 @@ export function Companion({videoId,videoTitle,tab,scene,screen,selection,pkg,out
  const input=useRef<HTMLTextAreaElement>(null);
  const rail=useRef<HTMLButtonElement>(null);
  // Focus follows the panel: into the message field when it opens, onto the rail that reopens it when it is hidden.
- const toggle=(next:boolean)=>{if(narrow)setOpenHere(next);else{setSaved(next);saveOpen(next);}setTimeout(()=>(next?input.current:rail.current)?.focus(),0);};
+ const toggle=(next:boolean)=>{if(narrow)setOpenHere(next);setSaved(next);saveOpen(next);setTimeout(()=>(next?input.current:rail.current)?.focus(),0);};
 
  // A clock for the steps while a reply is written.
  const [now,setNow]=useState(Date.now());
@@ -120,7 +122,7 @@ export function Companion({videoId,videoTitle,tab,scene,screen,selection,pkg,out
   }
  };
  const ask=async(question:string)=>{
-  if(!question.trim()||working)return;
+  if(!aiAvailable||!question.trim()||working)return;
   pinned.current=true;
   const sent=await companion.send(question,await contextNow(),undefined,pics);
   if(sent){setText('');setPics([]);}
@@ -149,7 +151,7 @@ export function Companion({videoId,videoTitle,tab,scene,screen,selection,pkg,out
  const choose=(skill:InstalledSkill)=>{setText(`/${skill.name} `);input.current?.focus();};
  // A button elsewhere on the page can ask the chat something for the creator: it opens, sends the question and the answer comes back as cards.
  const askRef=useRef(ask),toggleRef=useRef(toggle);askRef.current=ask;toggleRef.current=toggle;
- useEffect(()=>{const hear=(event:Event)=>{const text=(event as CustomEvent<{text:string}>).detail?.text;if(!text)return;toggleRef.current(true);void askRef.current(text);};window.addEventListener(ASK_CLAUDE,hear);return()=>window.removeEventListener(ASK_CLAUDE,hear);},[]);
+ useEffect(()=>{const hear=(event:Event)=>{const text=(event as CustomEvent<{text:string}>).detail?.text;if(!text||!aiAvailable)return;toggleRef.current(true);void askRef.current(text);};window.addEventListener(ASK_CLAUDE,hear);return()=>window.removeEventListener(ASK_CLAUDE,hear);},[aiAvailable]);
  const onKeyDown=(event:KeyboardEvent<HTMLTextAreaElement>)=>{
   if(pickerOpen&&choices.length){
    if(event.key==='ArrowDown'||event.key==='ArrowUp'){event.preventDefault();setPick(i=>(i+(event.key==='ArrowDown'?1:choices.length-1))%choices.length);return;}
@@ -162,7 +164,7 @@ export function Companion({videoId,videoTitle,tab,scene,screen,selection,pkg,out
 
  const title=`Ask ${name}`;
  if(!open)return <aside className="cmp collapsed" aria-label={title}>
-  <button ref={rail} type="button" className="cmp-rail" onClick={()=>toggle(true)} aria-label={`Show ${title}`} title={`Show ${title}`}>
+  <button ref={rail} type="button" className="cmp-rail" onClick={()=>toggle(true)} aria-label={`Show ${title}`} disabled={!aiAvailable} title={!aiAvailable?AI_CONNECT_HINT:`Show ${title}`}>
    <BrandLogo brand={name==='ChatGPT'?'chatgpt':'claude'} size={20} working={working}/><span>{title}</span>
   </button>
  </aside>;

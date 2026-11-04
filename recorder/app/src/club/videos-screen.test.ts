@@ -39,6 +39,7 @@ function serve(server:Server){
   const {path,method}=call;
   if(path==='/workspaces'&&method==='GET')return {body:{current:'maya',workspaces:[ws]}};
   if(path==='/videos'&&method==='GET')return server.failLoad?{status:500,body:{error:"Couldn't load your videos."}}:{body:server.videos};
+  if(path==='/videos'&&method==='POST'){const body=call.body as {title:string;stage:Video['stage']};const made=mk(`added${server.videos.length}`,body);server.videos.push(made);return {status:201,body:made};}
   if(path==='/recent')return {body:[]};
   if(path==='/settings'&&method==='GET')return {body:{defaultAi:'claude',welcomed:server.welcomed}};
   if(path==='/settings/welcomed')return {body:{welcomed:true}};
@@ -68,48 +69,28 @@ const withBoard=async(server:Partial<Server>,view:VideosView,run:(ui:Awaited<Ret
  try{await settle();await run(ui,fake.calls,routes,state,opened);}finally{await ui.close();fake.restore();}
 };
 
-test('Board: six lanes with counts, Ideas first, cards with scene dots and the next action, and nothing that is put off',async()=>{
- await withBoard({},'board',async(ui,calls,routes,_state,opened)=>{
+test('Board: six flat lanes, compact cards, counts, no idea subgroups, and direct video opening',async()=>{
+ await withBoard({},'board',async(ui,calls,routes,_,opened)=>{
   const c=ui.container;
-  assert.equal(text(c.querySelector('h1')),'Videos');
-  assert.equal(text(c.querySelector('.lede')),'Every video from idea to published. Drag a card to move it.');
-  assert.deepEqual([...c.querySelectorAll('[role="tab"]')].map(text),['Board','Table','Calendar']);
-  assert.equal(c.querySelector('[role="tab"][aria-selected="true"]')!.textContent,'Board');
-  assert.deepEqual([...c.querySelectorAll('.col')].map(col=>[col.getAttribute('aria-label'),text(col.querySelector('.col-h .n'))]),[['Ideas','2'],['Planning','1'],['Recording','1'],['Editing','0'],['Publishing','0'],['Published','1']]);
-  assert.deepEqual(cardIds(column(c,'ideas')),['a','b'],'Later and Skipped are folded');
-  assert.equal(text(column(c,'editing').querySelector('.col-empty')),'Recorded videos land here.');
-  assert.equal(text(column(c,'published').querySelector('.col-empty')),'');
-  const planned=card(c,'Planned');
-  assert.equal(planned.querySelectorAll('.dots i').length,3,'one dot per scene of the outline');
-  assert.match(text(planned),/0 of 3 scenesContinue to recording/);
-  const recorded=card(c,'Recorded');
-  assert.equal(recorded.querySelectorAll('.dots i.kept').length,2);
-  assert.match(text(recorded),/2 of 5 scenesRecord scene 3Oct 31/);
-  assert.match(text(card(c,'Alpha')),/Start planning/);
-  assert.equal(card(c,'Alpha').querySelector('.dots'),null,'an idea has no scenes');
-  assert.match(text(card(c,'Live')),/12K viewsOct 14/);
+  assert.equal(c.querySelectorAll('[data-column]').length,6);
+  assert.equal(c.querySelector('.igroup-h'),null);
+  assert.deepEqual(cardIds(column(c,'ideas')),['a','b','c','d']);
+  assert.match(text(card(c,'Planned')),/0 of 3 scenes/);
+  assert.match(text(card(c,'Recorded')),/2 of 5 scenes/);
   assert.equal(card(c,'Live').querySelector('img')!.getAttribute('src'),'https://i.ytimg.com/vi/dQw4w9WgXcQ/mqdefault.jpg');
-  assert.match(card(c,'Recorded').querySelector('.thumb img')?.getAttribute('src')??'',/\/api\/club\/videos\/[^/]+\/cover$/,'a video in production shows its own picture or a frame of its recording');
-  assert.equal(calls.filter(call=>call.method!=='GET').length,0,'looking changes nothing');
-  assert.deepEqual(calls.filter(call=>/scenes|\/plan$|api\/projects/.test(call.path)).map(call=>call.path),['/videos/scenes'],'the scenes of every card come in one request');
-  assert.equal(c.querySelectorAll('.btn.primary').length,1,'one primary button');
+  assert.equal(calls.filter(call=>call.method!=='GET').length,0);
   await press(button(c,'New video'));assert.equal(opened.count,1);
-  await press(recorded);await press(card(c,'Live'));await press(planned);
-  assert.deepEqual(routes,[{name:'video',id:'r',tab:'record'},{name:'video',id:'x',tab:'publish'},{name:'video',id:'p',tab:'plan'}]);
-  await press(card(c,'Alpha'));
-  assert.equal(text(c.querySelector('.drawer h2')),'Alpha','an idea opens in its drawer, here');assert.equal(routes.length,3);
+  await press(card(c,'Recorded'));await press(card(c,'Alpha'));
+  assert.deepEqual(routes,[{name:'video',id:'r'},{name:'video',id:'a'}]);
  });
 });
 
-test('Board: the Ideas lane shows every idea in its group, five at first, with Show all; nothing sends you elsewhere',async()=>{
- const ideas=Array.from({length:8},(_,i)=>mk(`i${i}`,{title:`Idea ${i}`,order:i}));
- await withBoard({videos:ideas},'board',async(ui,_calls,routes)=>{
-  const c=ui.container;
-  assert.equal(cardIds(column(c,'ideas')).length,5);assert.equal(text(column(c,'ideas').querySelector('.col-h .n')),'8');
-  await press(button(column(c,'ideas'),'Show all 8'));
-  assert.equal(cardIds(column(c,'ideas')).length,8);assert.deepEqual(routes,[]);
+test('Board: all ideas are visible without subgroup headings or Show all',async()=>{
+ const videos=Array.from({length:8},(_,i)=>mk(`i${i}`,{title:`Idea ${i}`,order:i}));
+ await withBoard({videos},'board',async ui=>{
+  assert.equal(cardIds(column(ui.container,'ideas')).length,8);
+  assert.equal(ui.container.querySelector('.igroup-h,.igroup-more'),null);
  });
- await withBoard({videos:ideas.slice(0,3)},'board',async ui=>{assert.equal([...ui.container.querySelectorAll('button')].some(b=>/Show all|View all/.test(b.textContent||'')),false);});
 });
 
 test('Board: dragging a card to another column moves it at once, saves it and offers Undo',async()=>{
@@ -123,7 +104,7 @@ test('Board: dragging a card to another column moves it at once, saves it and of
   assert.deepEqual(toasts(c),['Moved to RecordingUndo']);
   await press(button(c.querySelector('.cc-toast')!,'Undo'));
   assert.deepEqual(calls.filter(call=>call.method==='POST').slice(-1).map(call=>call.body),[{stage:'ideas',beforeId:'b',stageDates:{ideas:'2026-10-01T00:00:00.000Z'}}],'back to the stage, place and dates it had');
-  assert.deepEqual(cardIds(column(c,'ideas')),['a','b'],'Undo puts it back where it was');
+  assert.deepEqual(cardIds(column(c,'ideas')),['a','b','c','d'],'Undo puts it back where it was');
   assert.equal(column(c,'recording').querySelector('[data-card-id="a"]'),null);
  });
 });
@@ -316,31 +297,14 @@ test('Videos in the app: an old Production link lands on Videos, the views switc
  }finally{await ui.close();fake.restore();window.location.hash='';}
 });
 
-test('Board: scenes that are loading or could not be read say nothing about scenes; a known empty outline says so',async()=>{
- const videos=[mk('p',{title:'Planned',stage:'planning'}),mk('r',{title:'Recording one',stage:'recording'}),mk('e',{title:'Editing one',stage:'editing'})];
- // Could not be read.
- await withBoard({videos,unreadable:['p','r','e']},'board',async ui=>{
-  const c=ui.container;
-  assert.match(text(card(c,'Planned')),/Continue planning/);assert.match(text(card(c,'Recording one')),/Continue recording/);
-  assert.equal(c.querySelectorAll('.dots').length,0,'no dots for scenes nobody knows');
-  assert.equal(/scenes? from board|Continue to editing|0 of/.test(text(c.querySelector('.kanban'))),false);
- });
- // Still loading, then known.
+test('Board: unknown scenes show only a date; known scenes show compact progress',async()=>{
+ const videos=[mk('p',{title:'Planned',stage:'planning'})];
  let release=()=>{};const hold=new Promise<void>(resolve=>{release=resolve;});
- await withBoard({videos,outlines:{p:3,r:2},holdScenes:hold},'board',async ui=>{
-  const c=ui.container;
-  assert.match(text(card(c,'Planned')),/Continue planning/);assert.match(text(card(c,'Recording one')),/Continue recording/);
-  assert.equal(c.querySelectorAll('.dots').length,0);
+ await withBoard({videos,outlines:{p:3},holdScenes:hold},'board',async ui=>{
+  assert.equal(ui.container.querySelector('.dots'),null);
   release();await settle();
-  assert.match(text(card(c,'Planned')),/3 scenes?Continue to recording|0 of 3 scenesContinue to recording/);
-  assert.match(text(card(c,'Recording one')),/0 of 2 scenesRecord scene 1/);
-  assert.equal(c.querySelectorAll('.dots').length,2);
- });
- // Known to have no scenes.
- await withBoard({videos,outlines:{}},'board',async ui=>{
-  const c=ui.container;
-  assert.match(text(card(c,'Planned')),/Draft scenes from board/);assert.match(text(card(c,'Recording one')),/Draft scenes from board/);
-  assert.equal(c.querySelectorAll('.dots').length,0,'no scenes, so no dots');
+  assert.match(text(card(ui.container,'Planned')),/0 of 3 scenes/);
+  assert.equal(ui.container.querySelectorAll('.dots i').length,3);
  });
 });
 
@@ -391,27 +355,16 @@ test('Calendar: a video with no day has a date field in the Not scheduled list; 
  });
 });
 
-test('Board: a move the video is not ready for is refused by the menu and by a drag, with the one sentence the server would say, and nothing is sent',async()=>{
- const {MOVE_NEEDS_LINK,MOVE_NEEDS_EXPORT,MOVE_NEEDS_SCENES}=await import('../../shared/club-move');
+test('Board: menu and drag allow jumps to any stage without prerequisites',async()=>{
  const none={scenes:0,takes:0,exported:false,published:false};
- const facts={a:none,b:none,p:{...none,scenes:3},r:{...none,scenes:5,takes:2},x:{...none,scenes:4,takes:4,exported:true,published:true}};
- await withBoard({facts},'board',async(ui,calls)=>{
+ await withBoard({facts:{a:none,r:none}},'board',async(ui,calls)=>{
   const c=ui.container;
-  const moves=()=>calls.filter(call=>call.method==='POST'&&call.path.endsWith('/move'));
   await press(c.querySelector('button[aria-label="Move Recorded to…"]')!);
   await press([...c.querySelectorAll('.menu button')].find(b=>text(b)==='Published')!);
-  assert.deepEqual(toasts(c),[MOVE_NEEDS_LINK]);
-  assert.equal(c.querySelector('.cc-toast svg'),null,'a refusal has no check mark');
-  assert.ok(column(c,'recording').querySelector('[data-card-id="r"]'),'the card stays');
-  await dragTo(card(c,'Recorded'),column(c,'publishing'));
-  assert.ok(toasts(c).includes(MOVE_NEEDS_EXPORT),'the drag asks the same rule');
-  await dragTo(card(c,'Alpha'),column(c,'recording'));
-  assert.ok(toasts(c).includes(MOVE_NEEDS_SCENES));
-  assert.equal(moves().length,0,'nothing was sent');
-  // Allowed: an idea to Planning, a planned video with scenes to Recording, and back from Recording.
-  await dragTo(card(c,'Planned'),column(c,'recording'));
-  await dragTo(card(c,'Recorded'),column(c,'planning'));
-  assert.deepEqual(moves().map(call=>[call.path,(call.body as {stage:string}).stage]),[['/videos/p/move','recording'],['/videos/r/move','planning']]);
+  assert.ok(column(c,'published').querySelector('[data-card-id="r"]'));
+  await dragTo(card(c,'Alpha'),column(c,'publishing'));
+  assert.ok(column(c,'publishing').querySelector('[data-card-id="a"]'));
+  assert.deepEqual(calls.filter(call=>call.method==='POST').map(call=>[call.path,(call.body as {stage:string}).stage]),[['/videos/r/move','published'],['/videos/a/move','publishing']]);
  });
 });
 
@@ -422,5 +375,32 @@ test('Board: when the server refuses a move it did not know about, the card goes
   await dragTo(card(c,'Alpha'),column(c,'published'));
   assert.deepEqual(toasts(c),["Couldn't save that."]);
   assert.ok(column(c,'ideas').querySelector('[data-card-id="a"]'));
+ });
+});
+
+
+test('Board: each lane adds a titled video directly to that stage',async()=>{
+ await withBoard({videos:[]},'board',async(ui,calls)=>{
+  const c=ui.container;
+  for(const stage of ['ideas','planning','recording','editing','publishing','published']){
+   const lane=column(c,stage);
+   await press(lane.querySelector('.lane-add')!);
+   const input=lane.querySelector('input')!;
+   await act(async()=>{Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value')!.set!.call(input,`New ${stage}`);input.dispatchEvent(new Event('input',{bubbles:true}));});
+   await act(async()=>{lane.querySelector('form')!.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));});await settle();
+   assert.equal(lane.querySelector('form'),null);
+   assert.ok(text(lane).includes(`New ${stage}`));
+  }
+  assert.deepEqual(calls.filter(call=>call.path==='/videos'&&call.method==='POST').map(call=>call.body),['ideas','planning','recording','editing','publishing','published'].map(stage=>({title:`New ${stage}`,stage})));
+ });
+});
+
+test('Board: a missing thumbnail disappears, leaving the compact title and metadata',async()=>{
+ await withBoard({},'board',async ui=>{
+  const video=card(ui.container,'Alpha');const image=video.querySelector('img')!;
+  await act(async()=>image.dispatchEvent(new Event('error')));
+  assert.equal(video.querySelector('img'),null);
+  assert.equal(text(video.querySelector('.tt')),'Alpha');
+  assert.ok(text(video.querySelector('.na')));
  });
 });

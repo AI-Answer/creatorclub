@@ -1,3 +1,4 @@
+import {rememberAiStatus} from '../ai-status';
 import {mountUI,button} from '../../test-dom';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -11,6 +12,7 @@ import {normalizeThread,withPendingStops,withStep,withText} from './useCompanion
 const {Companion}=await import('./Companion');
 const {FakeEventSource,installFetch}=await import('../test-fakes');
 
+rememberAiStatus({claude:{installed:true,version:'test',signedIn:true},codex:{installed:false,version:null,signedIn:false}});
 const flush=()=>act(async()=>{await new Promise(resolve=>setTimeout(resolve,0));});
 const text=(root:Element)=>root.textContent??'';
 const pkg:Package={angle:'',twist:'',titles:['Old title','',''],thumbnailText:'',hook:{visual:'',spoken:'Old hook',text:''}};

@@ -1,3 +1,4 @@
+import {AI_CONNECT_HINT,useAiAvailable} from '../ai-status';
 import {BrandLogo} from '../../BrandLogo';
 import {useState,type KeyboardEvent} from 'react';
 import type {SignalEntry,TrendingEntry} from '../../../shared/club';
@@ -25,9 +26,10 @@ function ResearchButton({onResearch}:{onResearch?():void}){
  * "Follow this channel" (for a video found by a search) is always there, and "Following <channel>" once it is. `reason` is the server's sentence, shown small.
  */
 export function VideoRow({item,rank,isNew,reason,hasBreakdown,inIdeas,onBreak,onIdea,onFollowed,onResearch}:{item:TrendingEntry;rank:number;isNew?:boolean;reason?:string|null;hasBreakdown?:boolean;inIdeas:boolean;onBreak(item:TrendingEntry):void;onIdea(item:TrendingEntry):void;onFollowed?():void;onResearch?(item:TrendingEntry):void}){
+ const available=useAiAvailable();
  const who=creatorName(item.channel);
- const open=()=>onBreak(item);
- return <div className="frow hov" data-kind="video" onClick={open} tabIndex={0} title={hasBreakdown?'Open the breakdown':'Break it down to see why it works'} onKeyDown={(event:KeyboardEvent)=>{if(event.key==='Enter'&&event.target===event.currentTarget)open();}}>
+ const open=()=>{if(hasBreakdown||available)onBreak(item);};
+ return <div className="frow hov" data-kind="video" onClick={open} tabIndex={0} title={!hasBreakdown&&!available?AI_CONNECT_HINT:hasBreakdown?'Open the breakdown':'Break it down to see why it works'} onKeyDown={(event:KeyboardEvent)=>{if(event.key==='Enter'&&event.target===event.currentTarget)open();}}>
   <span className="rank" title={`Number ${rank} of the list`}>{rank}</span>
   <Thumb videoId={item.videoId} seed={item.videoId} className="fpic">{isNew&&<span className="chip solid br">New</span>}</Thumb>
   <div className="main">

@@ -64,6 +64,8 @@ test('island starts scrolling the script when the take starts recording, and res
 
 test('auto-scroll starts again on the next take unless it was switched off',async()=>{
  const browser=new Window({settings:{disableJavaScriptFileLoading:true,disableCSSFileLoading:true}});let update!:(state:any)=>void;
+ // No layout is measured in happy-dom. Keep frames pending so the zero-height script cannot reach its end before assertions.
+ browser.requestAnimationFrame=()=>1 as unknown as ReturnType<typeof browser.requestAnimationFrame>;browser.cancelAnimationFrame=()=>{};
  const state={status:'recording',elapsed:0,script:'First paragraph.',layout:{camera:false,script:true}};
  Object.assign(browser,{recordingPreview:{read:async()=>state,subscribe:(callback:typeof update)=>{update=callback;return()=>{};},command:async()=>{},layout:async(layout:any)=>{update({layout});return layout;}}});
  browser.document.write(await readFile(new URL('../desktop/recording-hud.html',import.meta.url),'utf8'));browser.eval(await readFile(new URL('../desktop/recording-hud.js',import.meta.url),'utf8'));await new Promise(resolve=>setTimeout(resolve,0));

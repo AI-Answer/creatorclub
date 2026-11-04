@@ -1,3 +1,4 @@
+import {AI_CONNECT_HINT,useAiAvailable} from './ai-status';
 import {useState,type DragEvent} from 'react';
 import type {Breakdown,Video} from '../../shared/club';
 import {ClubApiError,clubFetch,errorMessage,notifyVideosChanged} from './api';
@@ -18,6 +19,7 @@ const hasFiles=(event:DragEvent)=>[...(event.dataTransfer?.types??[])].includes(
  * and the breakdown's own number was read at another time. Without it the breakdown's own number shows. `onAdded` gets the new idea's id.
  */
 export function BreakdownPanel({target,videoId,title,multiplier,videos,onAdded,onCancel}:{target:BreakdownTarget;videoId?:string|null;title?:string;multiplier?:number|null;videos:readonly Video[];onAdded(videoId:string):void;onCancel?():void}){
+ const aiAvailable=useAiAvailable();
  const {state,step,comments,retry,tryFile}=useBreakdownRun(target);
  const [over,setOver]=useState(false),[dropError,setDropError]=useState('');
  const failed=state.phase==='failed';
@@ -30,6 +32,7 @@ export function BreakdownPanel({target,videoId,title,multiplier,videos,onAdded,o
   setDropError('');tryFile(file);
  };
 
+ if(!aiAvailable&&target.kind!=='saved')return <div className="bd"><button type="button" className="btn" disabled title={AI_CONNECT_HINT}>Break down</button></div>;
  if(state.phase==='done')return <BreakdownResult breakdown={state.result as Breakdown} multiplier={multiplier} videos={videos} onAdded={onAdded}/>;
  if(failed)return <div className="bd" onDragOver={event=>{if(hasFiles(event)){event.preventDefault();setOver(true);}}} onDragLeave={()=>setOver(false)} onDrop={drop}>
   <ErrorLine message={dropError||state.message} onRetry={()=>{setDropError('');retry();}}/>

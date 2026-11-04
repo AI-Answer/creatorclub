@@ -154,9 +154,9 @@ test('without Postiz connected Publish says so and sends you to Settings: the ke
   await click(c.querySelector('input[name=kids][value=no]'));
   assert.ok(![...c.querySelectorAll('button')].some(b=>b.textContent?.includes('Publish now')),'step 3 offers setting up publishing, not a button that cannot work');
   assert.equal(posts(server.calls).length,0);
-  assert.ok(c.textContent?.includes("Publishing isn't set up yet"));
+  assert.ok(c.textContent?.includes("Postiz is optional"));
   assert.equal(c.querySelector('#postiz-key'),null,'no key field on Publish: it lives in Settings');
-  await click(button(c,'Set up publishing'));
+  await click(button(c,'Set up optional publishing'));
   assert.deepEqual(settingsAsked,['publishing'],'the button opens Settings at Publishing');
  });
 });
@@ -246,9 +246,9 @@ test('Postiz saying published is not "on YouTube" until the video really is Publ
  });
 });
 
-test('with Postiz connected and working, the form never offers adding a link by hand',async()=>{
+test('with Postiz connected and working, the form also offers adding a link by hand',async()=>{
  await withPublish({},async ui=>{
-  assert.equal([...ui.container.querySelectorAll('button')].some(b=>/uploaded it myself|Paste the link/i.test(b.textContent??'')),false);
+  assert.equal([...ui.container.querySelectorAll('button')].some(b=>/uploaded it myself|Paste the link/i.test(b.textContent??'')),true);
  });
 });
 
@@ -313,20 +313,14 @@ test('your own thumbnail is uploaded with the video and can be removed',async()=
  });
 });
 
-test('Publish before anything is recorded leads back to Record, or to Plan without scenes',async()=>{
- const server=installFetch(()=>undefined);
- const goes:string[]=[];
- const empty=[{...scenes[1]}];
- let ui=await mountUI(createElement(Publish,{...props,scenes:empty,onGoTo:(tab:string)=>goes.push(tab)}));
- try{
-  await flush();
-  assert.ok(ui.container.textContent?.includes('Nothing to publish yet'));
-  assert.ok(ui.container.textContent?.includes('1 scene waiting to be recorded'));
-  await act(async()=>button(ui.container,'Open record').click());
- }finally{await ui.close();}
- ui=await mountUI(createElement(Publish,{...props,scenes:[],onGoTo:(tab:string)=>goes.push(tab)}));
- try{await flush();await act(async()=>button(ui.container,'Open plan').click());}finally{await ui.close();server.restore();}
- assert.deepEqual(goes,['record','plan']);
+test('Publish opens its form before recording, including when there is no plan',async()=>{
+ for(const scenes of [[{...props.scenes![1]}],[]]){
+  await withPublish({props:{scenes}},async ui=>{
+   assert.ok(ui.container.querySelector('.pubx'));
+   assert.ok(ui.container.textContent?.includes('Publish now'));
+   assert.ok(!ui.container.textContent?.includes('Draft the scenes first'));
+  });
+ }
 });
 
 test('with the timeline read, the chapters are where the scenes are cut, and unrecorded scenes are named before it goes out',async()=>{

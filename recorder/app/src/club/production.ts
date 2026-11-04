@@ -33,18 +33,18 @@ export const COLUMN_EMPTY:Record<VideoStage,string>={
  published:'Videos land here once they are on YouTube.',
 };
 
-/** `all` is every video the column holds, `shown` the ones drawn in board order. Later and Skipped ideas are in neither; the Ideas lane draws its ideas in groups (`ideaGroups`). */
+/** Every video in each stage is visible, including ideas marked Later or Skipped. */
 export interface BoardColumn{stage:VideoStage;all:Video[];shown:Video[]}
 
 /** The six columns: board order, except Published, which has the latest first. */
 export function boardColumns(videos:readonly Video[]):BoardColumn[]{
  return VIDEO_STAGES.map(stage=>{
-  const all=videos.filter(video=>video.stage===stage&&!video.hidden).sort(stage==='published'?byPublished:byOrder);
+  const all=videos.filter(video=>video.stage===stage).sort(stage==='published'?byPublished:byOrder);
   return {stage,all,shown:all};
  });
 }
 
-/** Lanes whose order is not yours to set: Ideas are grouped and ranked, Published has the latest first. A card dropped on them goes in, never between two cards. */
+/** Lanes whose order is not yours to set: Ideas keep their board order, Published has the latest first. A card dropped on them goes in, never between two cards. */
 export const unordered=(stage:VideoStage)=>stage==='ideas'||stage==='published';
 
 /** Where a dragged card lands: the index of the first card whose middle is below the pointer, else the end. */

@@ -1,3 +1,4 @@
+import {AI_CONNECT_HINT,useAiAvailable} from '../ai-status';
 import {useEffect,useMemo,useRef,useState} from 'react';
 import type {AutomationJob,AutomationMutation,CutReview,QuickActionRequest} from '../../../shared/automation';
 import {DEFAULT_PAUSE_LEVEL} from '../../../shared/companion';
@@ -67,7 +68,8 @@ export function EditAutoSheet({project:p,jobs,merge,reload,flush,change,refresh,
   return()=>controller.abort();
  },[active,styleJob?.id,styleJob?.status]);
 
- const plan=async(kind:QuickActionRequest['kind'])=>{setBusy(kind);setError('');retry.current=()=>void plan(kind);try{const fresh=await flush();if(!fresh||fresh.id!==p.id)throw Error('changed');merge(await api<AutomationJob>(`/projects/${p.id}/quick-action`,{kind,semantic:false} satisfies QuickActionRequest));}catch{setError(kind==='visualize'?"Couldn't suggest a layout.":"Couldn't look for pauses.");}finally{setBusy('');}};
+ const aiAvailable=useAiAvailable();
+ const plan=async(kind:QuickActionRequest['kind'])=>{if(kind==='visualize'&&!aiAvailable)return;setBusy(kind);setError('');retry.current=()=>void plan(kind);try{const fresh=await flush();if(!fresh||fresh.id!==p.id)throw Error('changed');merge(await api<AutomationJob>(`/projects/${p.id}/quick-action`,{kind,semantic:false} satisfies QuickActionRequest));}catch{setError(kind==='visualize'?"Couldn't suggest a layout.":"Couldn't look for pauses.");}finally{setBusy('');}};
  const apply=async(option:AutoOption)=>{
   setError('');retry.current=()=>void apply(option);
   if(option==='pauses'||option==='fillers'||option==='gaps'){
@@ -115,7 +117,7 @@ const actions=(option:AutoOption)=>{
    </>)}
    {row('gaps',<Icon name="slide" size={15}/>,'Gaps between clips')}
    {row('normalize',<Icon name="adjust" size={15}/>,'Volume')}
-   {row('style',<Icon name="image" size={15}/>,'Layout and titles',(!styleJob||styleJob.status!=='ready')&&<Button size="sm" disabled={!!busy||!p.clips.length||!!styleJob&&automationRunning(styleJob)} onClick={()=>void plan('visualize')}>{(busy==='visualize'||styleJob&&automationRunning(styleJob))&&<Icon name="loading" className="spin" aria-hidden/>}{styleJob?'Suggest again':'Suggest a layout'}</Button>)}
+   {row('style',<Icon name="image" size={15}/>,'Layout and titles',(!styleJob||styleJob.status!=='ready')&&<Button size="sm" title={!aiAvailable?AI_CONNECT_HINT:undefined} disabled={!aiAvailable||!!busy||!p.clips.length||!!styleJob&&automationRunning(styleJob)} onClick={()=>void plan('visualize')}>{(busy==='visualize'||styleJob&&automationRunning(styleJob))&&<Icon name="loading" className="spin" aria-hidden/>}{styleJob?'Suggest again':'Suggest a layout'}</Button>)}
   </div>
   {error&&<p className="club-sheet-error" role="alert">{error} <button type="button" onClick={()=>{setError('');retry.current();}}>Try again</button></p>}
   {pin&&<footer className="club-sheet-pin"><span>Previewing <b>{pin==='pauses'?`Remove pauses (${PAUSE_LEVEL_NAMES[level].toLowerCase()})`:pin==='fillers'?'Remove filler words':pin==='gaps'?'Close gaps between clips':pin==='normalize'?'Even out the volume':'Suggest a layout and titles'}</b></span>

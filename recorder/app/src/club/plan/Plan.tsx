@@ -64,6 +64,7 @@ export function Plan({video,plan,known,focusId,onFocus,onTitle,onTarget,onRecord
   <NoticeLine key="script-notice" kind="script" notice={plan.notices.script} onAct={plan.resolveNotice}/>,
  ].filter(Boolean);
  return <div className="plan-page">
+  {video.quickRecording&&!plan.outline?.scenes.length&&<p className="small muted" style={{padding:'12px 18px'}} role="status">This video started as a quick recording. Add a plan whenever you need one.</p>}
   {lines.length>0&&<div className="plan-lines">{lines}</div>}
   <div className="plan">
    <PackageColumn videoId={video.id} videoTitle={video.title} pkg={plan.pkg} running={packaging} onEdit={plan.editPackage} onPickTitle={onTitle} onWrite={group=>askClaude(packagePrompt(group))} save={plan.packageSave} onSaveNow={plan.flushPackage} onRetrySave={plan.retrySave}/>

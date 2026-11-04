@@ -115,118 +115,22 @@ const ideaCard=(c:Element,id:string)=>c.querySelector<HTMLElement>(`[data-column
 const laneIds=(c:Element)=>[...lane(c).querySelectorAll('[data-card]')].map(card=>card.getAttribute('data-card-id'));
 const moreOf=(c:Element,title:string)=>c.querySelector<HTMLElement>(`button[aria-label="More about ${title}"]`)!;
 
-test('Videos: ideas are the first lane, grouped Timely, Evergreen, Later and Skipped; a card shows the title, why it could work and its source',async()=>{
- const s=server({videos:[...ideaVideos(),base('t1','Claude news','ideas',{createdAt:'2026-10-06T00:00:00.000Z',idea:{lane:'timely'}})]});
- await mount(videosAt(),s,async ui=>{
+test('Videos: ideas form a flat compact lane, and clicking opens the video',async()=>{
+ await mount(videosAt(),server({videos:ideaVideos()}),async(ui,_s,_calls,routes)=>{
   const c=ui.container;
   assert.equal(text(c.querySelector('h1')),'Videos');
-  assert.deepEqual(texts(c,'.col .col-h').map(t=>t.replace(/\d+$/,'')),['Ideas','Planning','Recording','Editing','Publishing','Published'],'Ideas first, then the production lanes');
-  assert.equal(text(lane(c).querySelector('.col-h .n')),'2','ideas you have not put aside');
-  assert.deepEqual(texts(lane(c),'.igroup-h'),['Timely 1','Evergreen 1','Later 1','Skipped 1'],'each group says how many it holds');
-  assert.deepEqual(laneIds(c),['t1','i1'],'Later and Skipped are folded');
-  const card=ideaCard(c,'i1')!;
-  assert.equal(text(card.querySelector('.tt')),'Claude for receipts');
-  assert.equal(text(card.querySelector('.why')),'People ask about it.','why it could work, not the hook');
-  assert.equal(text(card.querySelector('.src')),'Receipts with Claude');
-  assert.equal([...card.querySelectorAll('.lvl, .chip, img')].filter(node=>!node.closest('.brand-logo')).length,0,'no rating chips and no picture on the card; a service mark may identify the source');
-  assert.deepEqual([...card.querySelectorAll('button')].map(text),['Start planning'],'Start planning on the card');
-  const more=moreOf(c,'Claude for receipts');
-  assert.equal(more.closest('[data-card]'),null,'the menu is beside the card, so pressing it does not open the idea');
-  assert.equal(more.getAttribute('aria-haspopup'),'menu');assert.equal(more.getAttribute('aria-expanded'),'false');
-
-  await press(button(lane(c),'Later 1'));
-  assert.deepEqual(laneIds(c),['t1','i1','i2']);
-  assert.deepEqual([...ideaCard(c,'i2')!.querySelectorAll('button')].map(text),['Restore']);
-  await press(button(lane(c),'Skipped 1'));
-  assert.equal(text(ideaCard(c,'i3')!.querySelector('.src')),'Skipped · Too generic');
-
-  await press(card);
-  const drawer=c.querySelector('.drawer')!;
-  assert.deepEqual([...drawer.querySelectorAll('.lvl')].map(l=>[l.className,text(l)]),[['lvl high','Demand'],['lvl mid','Gap'],['lvl high','Easy to show']],'the ratings are in the drawer');
- });
- await mount(videosAt({group:'skipped'}),server({videos:ideaVideos()}),async ui=>{
-  assert.deepEqual(laneIds(ui.container),['i1','i3'],'a link to Skipped opens that group');
-  assert.equal(button(lane(ui.container),'Skipped 1').getAttribute('aria-expanded'),'true');
- });
-});
-
-test('Videos: Timely is newest first, Evergreen best rated first, each shows five with Show all; an empty lane says how to get an idea',async()=>{
- const rate=(level:'high'|'mid'|'low')=>rated(level,'');
- const ever=Array.from({length:7},(_,n)=>base(`e${n}`,`Evergreen ${n}`,'ideas',{createdAt:`2026-10-0${n+1}T00:00:00.000Z`,idea:{demand:rate(n===2?'high':'low')}}));
- await mount(videosAt(),server({videos:ever}),async ui=>{
-  const c=ui.container;
-  assert.deepEqual(laneIds(c),['e2','e6','e5','e4','e3'],'the best rated first, then the newest');
-  await press(button(lane(c),'Show all 7'));
-  assert.equal(laneIds(c).length,7);
-  await press(button(lane(c),'Show fewer'));
-  assert.equal(laneIds(c).length,5);
- });
- await mount(videosAt(),server({videos:[base('p1','In planning','planning')]}),async ui=>{
-  assert.equal(text(lane(ui.container).querySelector('.col-empty')),'Break down a video to get your first idea.');
-  assert.equal(lane(ui.container).querySelectorAll('.igroup-h').length,0,'no empty groups');
- });
-});
-
-test('Start planning shows on every idea; the menu trigger keeps its state while open and gets focus back when the menu closes',async()=>{
- const many=[1,2,3].map(n=>base(`m${n}`,`Idea ${n}`,'ideas',{createdAt:`2026-10-0${n}T00:00:00.000Z`}));
- await mount(videosAt(),server({videos:many}),async (ui,_s,calls)=>{
-  const c=ui.container;
-  assert.deepEqual(laneIds(c).map(id=>text(ideaCard(c,id!)!.querySelector('.acts button'))),['Start planning','Start planning','Start planning']);
-  const trigger=moreOf(c,'Idea 2');
-  await press(trigger);
-  assert.equal(trigger.getAttribute('aria-expanded'),'true');assert.ok(trigger.classList.contains('menu-open'),'the open trigger is marked, so it keeps showing');
-  assert.ok(c.querySelector('[role="menu"]'));
-  await act(async()=>{document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));});await settle();
-  assert.ok(c.querySelector('[role="menu"]')===null);assert.equal(trigger.getAttribute('aria-expanded'),'false');
-  assert.equal(document.activeElement,trigger,'focus is back on the trigger after Escape');
-  await press(trigger);
-  await press(button(c.querySelector('[role="menu"]')!,'Bad timing'));
-  assert.ok(writes(calls).at(-1)!.startsWith('PUT /videos/m2 '));
- });
-});
-
-test('Idea actions: Later and Skip with a reason can be undone, Move to moves it with Undo, Start planning opens its Board, Restore brings it back',async()=>{
- await mount(videosAt(),server({videos:ideaVideos()}),async (ui,state,calls,routes)=>{
-  const c=ui.container;
-  await press(moreOf(c,'Claude for receipts'));
-  assert.deepEqual(texts(c,'[role="menu"] .hd, [role="menu"] button'),['Later','Add to Research','Skip it because…','Too generic','Not their style','Already covered',"Can't show it",'Bad timing','Move to','Planning','Recording','Editing','Publishing','Published','Delete idea']);
-  await press(button(c.querySelector('[role="menu"]')!,'Later'));
-  assert.deepEqual(writes(calls),['PUT /videos/i1 {"hidden":"later"}']);
-  assert.deepEqual(toasts(c),['Saved for laterUndo']);
-  assert.deepEqual(laneIds(c),[],'it leaves the open groups');assert.deepEqual(texts(lane(c),'.igroup-h'),['Later 2','Skipped 1']);
-  await press(button(c.querySelector('.cc-toast')!,'Undo'));
-  assert.equal(writes(calls).at(-1),'PUT /videos/i1 {"hidden":null}');assert.deepEqual(laneIds(c),['i1'],'and comes back');
-
-  await press(moreOf(c,'Claude for receipts'));
-  await press(button(c.querySelector('[role="menu"]')!,'Bad timing'));
-  assert.equal(writes(calls).at(-1),'PUT /videos/i1 {"hidden":"skipped","idea":{"dropReason":"Bad timing"}}');
-  assert.ok(toasts(c).some(t=>t==='Skipped · Bad timingUndo'));
-  await press(button([...c.querySelectorAll('.cc-toast')].find(t=>/Bad timing/.test(t.textContent!))!,'Undo'));
-  assert.equal(writes(calls).at(-1),'PUT /videos/i1 {"hidden":null,"idea":{"dropReason":null}}');
-
-  await press(moreOf(c,'Claude for receipts'));
-  await press(button(c.querySelector('[role="menu"]')!,'Editing'));
-  assert.equal(writes(calls).at(-1),'POST /videos/i1/move {"stage":"editing","beforeId":null}');
-  assert.ok(c.querySelector('[data-column="editing"] [data-card-id="i1"]'),'it is in Editing');
-  assert.ok(toasts(c).includes('Moved to EditingUndo'));
-  await press(button([...c.querySelectorAll('.cc-toast')].find(t=>/Moved to Editing/.test(t.textContent!))!,'Undo'));
-  assert.deepEqual(laneIds(c),['i1'],'Undo puts it back in Ideas');
-
-  await press(button(ideaCard(c,'i1')!,'Start planning'));
-  assert.deepEqual(writes(calls).at(-1),'POST /videos/i1/move {"stage":"planning"}');
-  assert.deepEqual(routes.at(-1),{name:'video',id:'i1',tab:'board'});assert.equal(state.videos.find(v=>v.id==='i1')!.stage,'planning');
- });
- await mount(videosAt({group:'skipped'}),server({videos:ideaVideos()}),async (ui,_s,calls)=>{
-  await press(button(ideaCard(ui.container,'i3')!,'Restore'));
-  assert.equal(writes(calls).at(-1),'PUT /videos/i3 {"hidden":null,"idea":{"dropReason":null}}');
-  assert.ok(toasts(ui.container).includes('Restored to New'));
+  assert.equal(c.querySelector('.igroup-h'),null);
+  assert.deepEqual(laneIds(c),['i3','i2','i1']);
+  assert.equal(text(ideaCard(c,'i1')!.querySelector('.tt')),'Claude for receipts');
+  await press(ideaCard(c,'i1')!);
+  assert.deepEqual(routes.at(-1),{name:'video',id:'i1'});
+  assert.equal(c.querySelector('.drawer'),null);
  });
 });
 
 test('the idea drawer edits every note where it stands and deleting waits so it can be undone',async()=>{
- await mount(videosAt(),server({videos:ideaVideos()}),async (ui,state,calls)=>{
+ await mount(videosAt({open:'i1'}),server({videos:ideaVideos()}),async (ui,state,calls)=>{
   const c=ui.container;
-  await press(ideaCard(c,'i1')!);
   const drawer=c.querySelector('.drawer')!;
   assert.ok(drawer);assert.equal(text(drawer.querySelector('.stage-pill')),'Ideas');
   assert.equal(text(drawer.querySelector('h2')),'Claude for receipts');
@@ -695,115 +599,30 @@ test('Discover shows thirty cards, then Show more',async()=>{
 
 // ---------------------------------------------------------------- Home
 
-const overviewVideos=()=>[
- base('r1','Agents for small shops','recording',{updatedAt:'2026-10-07T00:00:00.000Z',recorderProjectId:'proj1',publishDate:'2026-11-05'}),
- base('p1','Hidden features in Claude Code','planning',{updatedAt:'2026-10-05T00:00:00.000Z'}),
- base('i1','Claude for receipts','ideas',{idea:{demand:rated('high','x'),gap:rated('mid','y')}}),
- base('d1','Already out','published',{publishedAt:'2026-10-02',youtubeUrl:VIDEO_URL}),
-];
-const fullServer=()=>server({
- videos:overviewVideos(),recent:['p1','r1'],workspace:profile('Samin Yasar',['Claude']),projects:[{id:'proj1',sceneCount:3,recordedSceneCount:1}],outlines:{p1:6},
- trending:{items:trendItems(),updatedAt:'2026-10-28T09:00:00.000Z',followed:3},signals:{items:signalItems(),updatedAt:'2026-10-28T09:00:00.000Z',errors:[]},
-});
-
-test('Home: the next action, the other videos in production, then the picks working in your topics',async()=>{
+test('Home is the video board, with six lanes, a count, and New video',async()=>{
  const opened:string[]=[];
- await mount(navigate=>createElement(HomeScreen,{navigate,onNewVideo:()=>opened.push('new')}),fullServer(),async (ui,_s,calls,routes)=>{
+ const videos=[base('i','jk','ideas'),base('p','Planning video','planning'),base('d','Published video','published')];
+ await mount(navigate=>createElement(HomeScreen,{navigate,onNewVideo:()=>opened.push('new')}),server({videos}),async(ui,_s,calls,routes)=>{
   const c=ui.container;
-  assert.match(text(c.querySelector('h1')),/^Good (morning|afternoon|evening), Samin$/);
-  assert.equal(text(c.querySelector('.lede')),'2 videos in production · 1 idea waiting · 1 published');
-  assert.equal(c.querySelectorAll('.btn.primary').length,1,'one primary button: the next action');
+  assert.equal(text(c.querySelector('h1')),'Videos');
+  assert.equal(text(c.querySelector('[aria-label="Video count"]')),'3');
+  assert.deepEqual([...c.querySelectorAll('[data-column]')].map(el=>el.getAttribute('data-column')),['ideas','planning','recording','editing','publishing','published']);
+  assert.equal(c.querySelectorAll('[data-card]').length,3);
+  assert.equal(c.querySelectorAll('.lane-add').length,6);
+  assert.equal(c.querySelector('.checklist-row,.nextup,.trend,.greet'),null);
+  assert.equal(c.querySelector('[role="tablist"]'),null);
+  assert.equal(calls.some(call=>call.path==='/trending'||call.path==='/trending/refresh'),false);
   await press(button(c,'New video'));assert.deepEqual(opened,['new']);
-
-  assert.deepEqual(texts(c,'h2.sec'),['Next up','Also in production','Working in your topics'],'the next action stays first, the picks stay after it, no pipeline counts, ideas or signals');
-  assert.ok(c.querySelector('.pipeline')===null&&c.querySelector('.sig')===null&&c.querySelector('.list-card .li .lt')!==null);
-  assert.equal(c.querySelectorAll('.card.trend').length,2,'the videos that fit your topics (not the cat), as the same cards the first video has');
-  assert.equal(c.querySelector('.trend-help'),null,'after the first video the cards need no glossary under them');
-  assert.equal(text(c.querySelector('.sec-head .more')),'More in Discover');
-  const next=c.querySelector('.nextup')!;
-  assert.equal(text(next.querySelector('.title')),'Hidden features in Claude Code','the one opened last');
-  assert.equal(next.querySelector('.faint'),null,'the stage is said once, in its progress line');
-  assert.equal(text(next.querySelector('.row.small')),'Planning · 6 scenes drafted');assert.equal(next.querySelectorAll('.dots i').length,6);
-  assert.equal(text(next.querySelector('.btn.primary')),'Continue to recording');
-  const rows=c.querySelectorAll('.list-card .li');
-  assert.deepEqual([...rows].map(row=>text(row.querySelector('.grow .tt'))),['Agents for small shops']);
-  assert.equal(text(rows[0].querySelector('.row.small')),'Recording · 1 of 3 scenes');assert.deepEqual([...rows[0].querySelectorAll('.dots i')].map(i=>i.className),['kept','none','none']);
-  assert.equal(text(rows[0].querySelector('.btn')),'Record scene 2');assert.ok(rows[0].querySelector('.btn.primary')===null);
-  await press(button(rows[0],'Record scene 2'));assert.deepEqual(routes.at(-1),{name:'video',id:'r1',tab:'record'});
-  await press(button(next,'Continue to recording'));assert.deepEqual(routes.at(-1),{name:'video',id:'p1',tab:'record'});
-  await press(next);assert.deepEqual(routes.at(-1),{name:'video',id:'p1'});
-  assert.equal([...c.querySelectorAll('button,a')].some(el=>/production|Videos/i.test(text(el))),false,'no second way to Videos: the sidebar has it');
-  assert.equal(calls.filter(call=>call.path==='/signals').length,0,'it never reads Signals');
+  await press(c.querySelector('[data-card-id="i"]')!);assert.deepEqual(routes.at(-1),{name:'video',id:'i'});
  });
 });
 
-test('Home with one video in production has the next action and no list under it',async()=>{
- await mount(navigate=>createElement(HomeScreen,{navigate,onNewVideo:()=>{}}),server({videos:[base('p1','Hidden features','planning')],workspace:profile('Samin Yasar')}),async ui=>{
-  assert.ok(ui.container.querySelector('.nextup'));assert.deepEqual(texts(ui.container,'h2.sec'),['Next up']);
- });
-});
-
-test('Home for a channel with nothing in production is the first-video checklist, in second person and with no one else\'s name',async()=>{
- const s=server({workspace:profile('Maya Lopez',['Claude','AI agents'],['Complete beginners']),trending:{items:trendItems(),updatedAt:'2026-10-28T09:00:00.000Z',followed:3},signals:{items:signalItems(),updatedAt:null,errors:[]}});
- await mount(navigate=>createElement(HomeScreen,{navigate,onNewVideo:()=>{}}),s,async (ui,_s,calls,routes)=>{
-  const c=ui.container;
-  assert.match(text(c.querySelector('h1')),/, Maya$/);
-  assert.equal(text(c.querySelector('.lede')),"Let's find your first video. Start with what's already working in your space.");
-  assert.deepEqual([...c.querySelectorAll('.btn.primary')].map(b=>text(b)),['New video'],'one primary: with no idea yet, New video');
-  assert.equal(text(c.querySelector('h2.sec')),'Your first video');
-  assert.deepEqual(texts(c,'.checklist-row .ck-title'),['Set up','Discover','Board','Plan','Record','Edit','Publish'],'the real steps, named as everywhere else');
-  assert.deepEqual([...c.querySelectorAll('button.checklist-row .ck-title')].map(t=>text(t)),['Set up','Discover'],'only what has somewhere to go is a button before there is an idea');
-  assert.match(text([...c.querySelectorAll('.checklist-row')].at(-1)??null),/Postiz is the paid service that uploads your video to YouTube for you, from \$29 a month\./);
-  assert.ok(c.querySelector('.nextup')===null);assert.ok(c.querySelector('.pipeline')===null);assert.deepEqual(texts(c,'h2.sec'),['Your first video'],'the checklist and nothing else');
-  assert.doesNotMatch(text(c),/Samin|Resident Evil/);
-  const picks=c.querySelectorAll('.card.trend.hov');
-  assert.ok(picks.length>=2);assert.equal(text(picks[0].querySelector('.reason')),'Because you picked Claude');
-  assert.equal(picks[1].querySelector('.chip.mult'),null,'no bare dash when the usual is not known');
-  assert.match(text(picks[0].querySelector('.stats')),/a day/);assert.doesNotMatch(text(picks[0]),/\/day/);
-  assert.match(text(c.querySelector('.trend-help')),/Break this down/);assert.match(text(c.querySelector('.trend-help')),/Follow this channel/);
-  await press(button(picks[0],'Break this down'));
-  assert.ok(ui.container.querySelector('.drawer'));
-  assert.deepEqual(writes(calls),[`POST /breakdowns ${JSON.stringify({url:'https://www.youtube.com/watch?v=aaaaaaaaaaa'})}`]);
-  assert.deepEqual(routes,[]);
- });
-});
-
-test('Home with only published videos says nothing is in production, and videos in production show a draft, not the source video',async()=>{
- const published=base('d1','Already out','published',{publishedAt:'2026-10-02',youtubeUrl:VIDEO_URL});
- await mount(navigate=>createElement(HomeScreen,{navigate,onNewVideo:()=>{}}),server({videos:[published]}),async (ui,_s,_calls,routes)=>{
-  const c=ui.container;
-  assert.equal(text(c.querySelector('.lede')),'0 videos in production · 0 ideas waiting · 1 published');
-  assert.equal(text(c.querySelector('.card .empty h3')),'Nothing in production');
-  await press(button(c.querySelector('.card .empty')!,'Pick an idea'));assert.deepEqual(routes.at(-1),{name:'videos',view:'board'});
- });
- const planning=base('p1','Hidden features','planning',{idea:{sources:[{label:'v',url:VIDEO_URL}]}});
- await mount(navigate=>createElement(HomeScreen,{navigate,onNewVideo:()=>{}}),server({videos:[planning]}),async ui=>{
-  const thumb=ui.container.querySelector('.nextup .thumb')!;
-  assert.doesNotMatch(thumb.querySelector('img')?.getAttribute('src')??'',/ytimg/,'no YouTube picture: its own picture or a frame of its recording');assert.equal(text(thumb.querySelector('.tt')),'','no title painted on the picture, it is beside it');
- });
-});
-
-test('the greeting uses the person of the channel, and no name when only the channel name is known',async()=>{
- await mount(navigate=>createElement(HomeScreen,{navigate,onNewVideo:()=>{}}),server({workspace:profile('AI Business Lab',['Claude'],[],null)}),async ui=>{
-  assert.match(text(ui.container.querySelector('h1')),/^Good (morning|afternoon|evening)$/,'not "Good morning, AI"');
- });
- await mount(navigate=>createElement(HomeScreen,{navigate,onNewVideo:()=>{}}),server({workspace:{...profile('Maya\'s AI Lab',['Claude'],[],'Maya Lopez')}}),async ui=>{
-  assert.match(text(ui.container.querySelector('h1')),/, Maya$/);
- });
-});
-
-test('Home with an idea but no video in production says to start planning it, and every step opens for it',async()=>{
- const s=server({videos:[base('i1','Claude for receipts','ideas')],workspace:profile('Maya Lopez')});
- await mount(navigate=>createElement(HomeScreen,{navigate,onNewVideo:()=>{}}),s,async (ui,_s,_calls,routes)=>{
-  const c=ui.container;
-  assert.equal(text(c.querySelector('.lede')),'You have 1 idea. Open one and start planning.');
-  assert.match(text(c.querySelector('.card')),/You have an idea: "Claude for receipts"\. Start planning it\./);
-  assert.deepEqual([...c.querySelectorAll('.btn.primary')].map(b=>text(b)),['Start planning'],'one primary, and New video steps back');
-  assert.deepEqual([...c.querySelectorAll('button.checklist-row .ck-title')].map(t=>text(t)),['Set up','Discover','Board','Plan','Record','Edit','Publish'],'every row is a button now');
-  await press([...c.querySelectorAll('button.checklist-row')].find(b=>text(b.querySelector('.ck-title'))==='Record')!);assert.deepEqual(routes.at(-1),{name:'video',id:'i1',tab:'record'});
-  await press([...c.querySelectorAll('button.checklist-row')].find(b=>text(b.querySelector('.ck-title'))==='Discover')!);assert.deepEqual(routes.at(-1),{name:'discover'});
-  assert.equal(text(c.querySelector('.empty h3')),'No videos to start from yet');
-  await press(button(c,'Start planning'));assert.deepEqual(routes.at(-1),{name:'video',id:'i1',tab:'board'},'the idea moves to planning and its Board opens');
+test('Home for an empty channel immediately shows six usable lanes',async()=>{
+ await mount(navigate=>createElement(HomeScreen,{navigate,onNewVideo(){}}),server(),async ui=>{
+  assert.equal(ui.container.querySelectorAll('[data-column]').length,6);
+  assert.equal(ui.container.querySelectorAll('.lane-add').length,6);
+  assert.equal(text(ui.container.querySelector('[aria-label="Video count"]')),'0');
+  assert.equal(ui.container.querySelector('.first-steps'),null);
  });
 });
 
@@ -841,23 +660,4 @@ test('For you never lists a video under its creator\'s usual; it waits under Sho
  assert.deepEqual(trendList(items,'fit','vpd').map(i=>i.title),['Above','Exactly','Unknown']);
  assert.deepEqual(trendList(items,'all','vpd').map(i=>i.title),['Below','Unknown','Above','Exactly']);
  assert.equal(trendCounts(items).fit,3);
-});
-
-test('Home of a new channel shows the error and Try again when Working now fails to load, not an empty list',async()=>{
- const s=server({failTrending:true,workspace:profile('Maya Lopez',['Claude'])});
- await mount(navigate=>createElement(HomeScreen,{navigate,onNewVideo(){}}),s,async (ui)=>{
-  const c=ui.container;
-  assert.equal(text(c.querySelector('[role="alert"] p')),"Couldn't load what's working now.");
-  assert.ok(button(c,'Try again'));
-  assert.ok(!text(c).includes('No videos to start from yet'));
-  s.failTrending=false;
-  await press(button(c,'Try again'));
-  assert.equal(c.querySelector('[role="alert"]'),null);
- });
-});
-
-test('the greeting of a channel added from its link uses the first word of its name',async()=>{
- await mount(navigate=>createElement(HomeScreen,{navigate,onNewVideo:()=>{}}),server({workspace:{...profile('Maya Lopez',['Claude'],[],null),channelUrl:'https://www.youtube.com/@maya'}}),async ui=>{
-  assert.match(text(ui.container.querySelector('h1')),/, Maya$/);
- });
 });

@@ -1,3 +1,4 @@
+import {AI_CONNECT_HINT,useAiAvailable} from '../ai-status';
 import {useCallback,useEffect,useState,type ReactNode} from 'react';
 import {AUDIENCE_LABELS,type VoiceGuideSummary,type Workspace} from '../../../shared/club';
 import {clubFetch,errorMessage} from '../api';
@@ -97,6 +98,7 @@ function ChannelForm({workspace,onSaved,onSetup}:{workspace:Workspace;onSaved(wo
  * answers the three voice questions again instead, since there is nothing to learn from.
  */
 function VoiceGuide({workspace,onSaved}:{workspace:Workspace;onSaved(workspace:Workspace):void}){
+ const aiAvailable=useAiAvailable();
  const voice=useJobRun();
  const [answered,setAnswered]=useState(false),[asking,setAsking]=useState(false);
  const [guide,setGuide]=useState<VoiceGuideSummary|null>(null),[reads,setReads]=useState(0);
@@ -107,7 +109,7 @@ function VoiceGuide({workspace,onSaved}:{workspace:Workspace;onSaved(workspace:W
   clubFetch<VoiceGuideSummary|null>(`/workspaces/${slug}/voice`).then(found=>{if(live)setGuide(found);},()=>{});
   return()=>{live=false;};
  },[slug,reads]);
- const rebuild=()=>{setAnswered(false);void voice.run(()=>clubFetch(`/workspaces/${slug}/voice`,{method:'POST',body:{}}),()=>setReads(count=>count+1));};
+ const rebuild=()=>{if(!aiAvailable)return;setAnswered(false);void voice.run(()=>clubFetch(`/workspaces/${slug}/voice`,{method:'POST',body:{}}),()=>setReads(count=>count+1));};
  const answers=()=>{setAnswered(true);setAsking(false);setReads(count=>count+1);clubFetch<Workspace>(`/workspaces/${slug}`).then(onSaved,()=>{});};
  const state=voice.state;
  return <div style={{display:'flex',flexDirection:'column',gap:8}}>
@@ -118,8 +120,8 @@ function VoiceGuide({workspace,onSaved}:{workspace:Workspace;onSaved(workspace:W
    :<p className="small muted" style={{margin:0}}>{hasVideos?'No voice guide yet. Write one from your latest videos.':'No voice guide yet. Answer three questions and Creator Compiler writes one.'}</p>}
   <div className="row">
    {hasVideos
-    ?<Button disabled={state.phase==='running'} onClick={rebuild}>Rebuild voice guide</Button>
-    :<Button disabled={asking} onClick={()=>{setAsking(true);setAnswered(false);}}>Answer the three voice questions again</Button>}
+    ?<Button title={!aiAvailable?AI_CONNECT_HINT:undefined} disabled={!aiAvailable||state.phase==='running'} onClick={rebuild}>Rebuild voice guide</Button>
+    :<Button title={!aiAvailable?AI_CONNECT_HINT:undefined} disabled={!aiAvailable||asking} onClick={()=>{setAsking(true);setAnswered(false);}}>Answer the three voice questions again</Button>}
    {state.phase==='done'&&(!voiceNeedsAnswers(state.result)||answered)&&<span role="status" className="small muted">{answered?'Saved your voice guide':'Rebuilt your voice guide'}</span>}
    {answered&&!hasVideos&&<span role="status" className="small muted">Saved your voice guide</span>}</div>
   {hasVideos&&<p className="small muted" style={{margin:0}}>Learns how you talk again from your latest videos.</p>}

@@ -74,9 +74,13 @@ export function WelcomeScreen({navigate,initialStep}:{navigate(route:Route,optio
  /** Saves that setup is done. Resolves when it is saved; throws the one sentence to show when it is not. */
  const saveWelcomed=useCallback(async()=>{
   if(welcomed.current)return;
+  if(!channel&&!created.current){
+   const {workspaces}=await clubFetch<{workspaces:Workspace[]}>('/workspaces');
+   if(!workspaces.length)created.current=await clubFetch<Workspace>('/workspaces/fresh',{body:{name:'My channel',topics:[],audience:[]}});
+  }
   await clubFetch('/settings/welcomed',{method:'POST'});
   welcomed.current=true;
- },[]);
+ },[channel]);
  /** Leaves setup for `route`, but only once setup is saved, so a failed save does not send you back here at every launch. */
  const leave=useCallback(async(route:Route)=>{
   setLeaveError(null);
@@ -111,23 +115,23 @@ export function WelcomeScreen({navigate,initialStep}:{navigate(route:Route,optio
  const finishVoice=()=>{
   const answers=voiceFromDraft(voice);
   const wrote=sameVoice(answers,voiceFromDraft(savedVoice??{}));
-  if(path==='channel'&&channel?.voice==='needs-answers'&&canWriteVoice(answers)){
+  if(ai==='connected'&&path==='channel'&&channel?.voice==='needs-answers'&&canWriteVoice(answers)){
    const body={voice:answers.voice!,audience:answers.audience!,...(answers.moves&&{moves:answers.moves})};
    void save.run(()=>clubFetch(`/workspaces/${encodeURIComponent(channel.slug)}/voice`,{body:{answers:body}}),()=>{setChannel({...channel,voice:'built'});setSavedVoice(voice);goTo(3);});
    return;
   }
   if(path==='fresh'&&!channel){
-   const hasAnswers=Object.keys(answers).length>0;
+   const hasAnswers=ai==='connected'&&Object.keys(answers).length>0;
    void save.run(async()=>{
     // The channel is made once. A retry after a failed rename only repeats the rename.
     created.current??=await clubFetch<Workspace>('/workspaces/fresh',{body:{name:fresh.name.trim(),topics:fresh.topics,audience:fresh.audience,...(hasAnswers&&{voice:answers})}});
     const named=fresh.channelName.trim();
     return named?clubFetch<Workspace>(`/workspaces/${encodeURIComponent(created.current.slug)}`,{method:'PUT',body:{name:named}}):created.current;
-   },result=>{setChannel(asChannel(result as Workspace,hasAnswers?'built':'none'));setSavedFresh(fresh);setSavedVoice(voice);goTo(3);});
+   },result=>{setChannel(asChannel(result as Workspace,hasAnswers?'built':'none'));setSavedFresh(fresh);setSavedVoice(voice);if(ai==='connected')goTo(3);else void leave({name:'home'});});
    return;
   }
   // Back with a changed answer: the guide is written again from the new answers (it needs the first two).
-  if(channel&&!wrote&&canWriteVoice(answers)){
+  if(ai==='connected'&&channel&&!wrote&&canWriteVoice(answers)){
    const body={voice:answers.voice!,audience:answers.audience!,...(answers.moves&&{moves:answers.moves})};
    void save.run(()=>clubFetch(`/workspaces/${encodeURIComponent(channel.slug)}/voice`,{body:{answers:body}}),()=>{setChannel({...channel,voice:'built'});setSavedVoice(voice);goTo(3);});
    return;
@@ -163,7 +167,7 @@ export function WelcomeScreen({navigate,initialStep}:{navigate(route:Route,optio
     {shown===0&&<ConnectStep check={check} onReload={recheck} onConnected={result=>connected(result?.provider??'claude',result?.account)}/>}
     {shown===1&&<ChannelStep path={path} onPath={setPath} url={url} onUrl={setUrl} job={add.state} onAdd={addChannel} block={block} onConnect={()=>goTo(0)} channel={channel} fresh={fresh} onFresh={setFresh}/>}
     {shown===2&&<VoiceStep path={path} channel={channel} fromVideos={fromVideos} draft={voice} onDraft={setVoice} save={save.state} onRetry={finishVoice} incomplete={incomplete} saved={savedVoice!==null}/>}
-    {channel&&<WorkingData visible={shown===3} onAdded={id=>void leave({name:'videos',view:'board',new:id})} onSettings={()=>void leave({name:'settings',section:'followed'})} onScan={onScan}/>}
+    {channel&&ai==='connected'&&<WorkingData visible={shown===3} onAdded={id=>void leave({name:'videos',view:'board',new:id})} onSettings={()=>void leave({name:'settings',section:'followed'})} onScan={onScan}/>}
     {shown===1&&editFailed&&<div style={{marginTop:14}}><ErrorLine message={editFailed} onRetry={finishChannel}/></div>}
     {leaveError&&<div style={{marginTop:14}}><ErrorLine message={leaveError.message} onRetry={()=>void leave(leaveError.route)}/></div>}
    </div>

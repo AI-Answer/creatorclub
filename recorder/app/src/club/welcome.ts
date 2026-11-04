@@ -3,7 +3,7 @@ import type {AiState} from './ai-status';
 
 /** The four steps of first launch: what each one is called and why it is asked. */
 export const WELCOME_STEPS=[
- {title:'Connect your AI',why:'Creator Compiler uses your own Claude or ChatGPT account to find ideas and write your talking points. Nothing is billed here.'},
+ {title:'Your studio, your way',why:'Write, record, edit and export by hand. Connecting an AI is optional; you can add one later in Settings.'},
  {title:'Do you have a YouTube channel?',why:'Either is fine. With a channel we learn your topics and how you talk from your videos. Without one, you tell us in a minute.'},
  {title:'How you talk',why:'Talking points get written in your words, so recording feels like you, not like reading.'},
  {title:"Here's what's working in your space",why:"You don't need to know what to make yet. Pick a video that's doing well, see why, and keep the concept you'd make."},
@@ -56,12 +56,9 @@ export const freshReady=(name:string,topics:readonly string[],audience:readonly 
 /** What Welcome knows when it decides where you can go. */
 export interface WelcomeState{ai:AiState;path:WelcomePath|null;channelAdded:boolean;fresh:boolean}
 
-/**
- * Whether Continue works on a step. The last step has none. On step 1 it works unless no AI is signed in: while the accounts are still being checked,
- * or when the check itself failed, you can go on, because nothing on step 2 needs the AI until you add a channel.
- */
+/** Continue never waits for an AI account. Channel details are needed only on the channel step. */
 export function canContinue(step:number,state:WelcomeState):boolean{
- if(step===0)return state.ai!=='missing';
+ if(step===0)return true;
  if(step===1)return state.path==='channel'?state.channelAdded:state.path==='fresh'?state.fresh:false;
  return step===2;
 }
@@ -70,7 +67,7 @@ export function canContinue(step:number,state:WelcomeState):boolean{
 export function addChannelBlock(ai:AiState):'checking'|'missing'|null{return ai==='checking'||ai==='missing'?ai:null;}
 
 /**
- * The furthest step (0-based) the address may open: a step is reachable once what it needs exists. Step 2 needs an AI that is not known to be missing,
+ * The furthest step (0-based) the address may open: a step is reachable once what it needs exists. Step 2 needs no AI account;
  * step 3 a channel or a filled-in fresh start, step 4 a channel. A link to a step beyond that opens the furthest one instead.
  * `passedConnect` is true once step 1 was left on purpose.
  */
