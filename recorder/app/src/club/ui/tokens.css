@@ -289,7 +289,8 @@
   --cc-scrim: rgba(0, 0, 0, .6);
   --cc-calendar-chip: #2b2d30;
   --cc-card-meta: #c4c4c4;
-  --cc-switch-on: #808086;
+  --cc-switch-on: #e6e6e6;
+  --cc-switch-thumb: #1c1c1e;
   --cc-kanban-card: #2a2a2c;
   --cc-kanban-hover: #3a3a3e;
   --cc-palette-hint: #c4c4c4;
