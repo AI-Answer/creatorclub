@@ -2,6 +2,7 @@ const { app, BrowserWindow, ipcMain, dialog, shell, desktopCapturer, screen, ses
 const path = require('node:path');
 const { spawn } = require('node:child_process');
 const fs = require('node:fs');
+const net = require('node:net');
 const {CREATORCLUB,creatorClubPaths,isCreatorClubService,privacyAppName,runtimeEnvironment}=require('./runtime.cjs');
 const appName=privacyAppName();
 const {createCaptureManager}=require('./capture.cjs');
@@ -142,19 +143,50 @@ app.setPath('userData',paths.userData);
 const gotLock=app.requestSingleInstanceLock();
 if(!gotLock)app.quit();
 app.on('second-instance',()=>{if(mainWindow){mainWindow.show();mainWindow.focus();}});
+// Checked before Electron is ready, so a free port (the usual case) is already known and the service forks first thing.
+// A plain TCP probe: a refused connection answers in about a millisecond, with no HTTP client to start.
+const portOpen=()=>new Promise(resolve=>{const socket=net.connect(PORT,'127.0.0.1');socket.once('connect',()=>{socket.destroy();resolve(true);});socket.once('error',()=>resolve(false));});
+let portBusy=null;
+const portCheck=portOpen().then(busy=>portBusy=busy);
+// The window opens at once in the background the page last used (tokens.css --cc-bg), so it never flashes the other theme.
+const windowStatePath=path.join(paths.userData,'window.json'),themeBackground={light:'#ffffff',dark:'#212121'};
+let windowTheme=null;try{windowTheme=JSON.parse(fs.readFileSync(windowStatePath,'utf8')).theme;}catch{}
+if(windowTheme!=='light'&&windowTheme!=='dark')windowTheme=null;
 // /api/ready answers as soon as the service listens (no media probing). Only a Creator Compiler service counts: any other
 // holder of the port (a SceneForge service included) is never used, and the start deadline then reports the port.
-async function serviceAnswers(){
+// A service whose app has quit (it reports that app's pid) is about to stop itself, so it never counts.
+const processAlive=pid=>{try{process.kill(pid,0);return true;}catch(error){return error.code==='EPERM';}};
+async function serviceHealth(){
  const r=await fetch(base+'/api/ready',{signal:AbortSignal.timeout(2000)});
- if(!r.ok){await r.body?.cancel();return false;}
- return isCreatorClubService(await r.json());
+ if(!r.ok){await r.body?.cancel();return null;}
+ const health=await r.json();
+ return isCreatorClubService(health)?health:null;
 }
+const orphaned=health=>Boolean(health.parentPid&&!processAlive(health.parentPid));
+async function serviceAnswers(){const health=await serviceHealth();return Boolean(health)&&!orphaned(health);}
+// The installed app's own service bundle, compared with a running service's `build` (see server/index.ts).
+const ownBuild=(()=>{try{const file=fs.statSync(path.join(projectRoot,'server-dist/index.mjs'));return `${file.size}-${Math.round(file.mtimeMs)}`;}catch{return null;}})();
 async function startService(){
- try {if(await serviceAnswers())return;}catch{}
+ // Only an occupied port is asked whether it is already a Creator Compiler service; otherwise fork without waiting.
+ if(portBusy===null)await portCheck;
+ if(portBusy){
+  let leaving=null;
+  try{
+   const health=await serviceHealth();
+   // A service the assistant tools started on their own (no app of its own) from an older install is stopped and replaced,
+   // so an update always runs its own code. One whose app has quit is stopping itself. Anything else is used as it is.
+   const stale=Boolean(health&&app.isPackaged&&!health.parentPid&&health.pid&&health.build&&ownBuild&&health.build!==ownBuild);
+   if(health&&!stale&&!orphaned(health))return;
+   if(stale)process.kill(health.pid,'SIGTERM');
+   leaving=health?.pid||null;
+  }catch{}
+  // Wait for that process to exit, not just its port: it holds the data folder's export lock until it does.
+  for(const deadline=Date.now()+10000;Date.now()<deadline&&(leaving?processAlive(leaving):await portOpen());)await new Promise(r=>setTimeout(r,50));
+ }
  const entry=path.join(projectRoot,'server-dist/index.mjs');
  // Recordings and edits use SceneForge's storage format in Creator Compiler's own folder; SCENEFORGE_DATA_DIR still overrides it.
  // Only a launcher inside this app is offered for MCP; without one (the dev app) none is advertised, never SceneForge's.
- const env=runtimeEnvironment({root:projectRoot,data:paths.studio,modelsDir:paths.models,port:PORT});env.SCENEFORGE_MCP_COMMAND??='';
+ const env=runtimeEnvironment({root:projectRoot,data:paths.studio,modelsDir:paths.models,port:PORT});env.SCENEFORGE_MCP_COMMAND??='';env.CREATORCLUB_PARENT_PID=String(process.pid);
  if(!app.isPackaged)env.CREATORCLUB_DIR??=path.join(projectRoot,'.local','channels');
  // The service asks this process to capture motion blocks (see below); without the variable it uses Chrome, as in development.
  env.CREATORCLUB_MOTION_BRIDGE='1';
@@ -166,7 +198,7 @@ async function startService(){
  const post=message=>{try{if(typeof service.postMessage==='function')service.postMessage(message);else if(service.connected)service.send(message);}catch(error){console.error(error);}};
  service.on('message',message=>{motionRenderer.handle(message,post);});
  service.stdout?.on('data',d=>console.log(d.toString()));service.stderr?.on('data',d=>console.error(d.toString()));
- for(const deadline=Date.now()+30000;Date.now()<deadline;){try{if(await serviceAnswers())return;}catch{}await new Promise(r=>setTimeout(r,40));}
+ for(const deadline=Date.now()+30000;Date.now()<deadline;){try{if(await serviceAnswers())return;}catch{}await new Promise(r=>setTimeout(r,10));}
  throw new Error(`The local media service did not start. Reopen Creator Compiler and check that port ${PORT} is available.`);
 }
 // Hidden/minimized editor: the renderer pauses decorative work, the recorder stops previews.
@@ -180,7 +212,7 @@ app.whenReady().then(async()=>{
  // The window and its renderer process start while the service boots; the page
  // itself is served by the service, so it loads once the service answers.
  const serviceReady=startService();serviceReady.catch(()=>{});
- mainWindow=new BrowserWindow({width:1480,height:960,minWidth:1000,minHeight:680,title:CREATORCLUB.name,show:false,backgroundColor:nativeTheme.shouldUseDarkColors?'#0a0a0a':'#ffffff',titleBarStyle:process.platform==='darwin'?'hiddenInset':'default',...(process.platform==='darwin'?{trafficLightPosition:{x:13,y:13}}:{}),webPreferences:{preload:path.join(__dirname,'preload.cjs'),additionalArguments:[`--privacy-app-name=${appName}`],contextIsolation:true,nodeIntegration:false,sandbox:true,backgroundThrottling:false}});
+ mainWindow=new BrowserWindow({width:1480,height:960,minWidth:1000,minHeight:680,title:CREATORCLUB.name,show:true,backgroundColor:themeBackground[windowTheme??(nativeTheme.shouldUseDarkColors?'dark':'light')],titleBarStyle:process.platform==='darwin'?'hiddenInset':'default',...(process.platform==='darwin'?{trafficLightPosition:{x:13,y:13}}:{}),webPreferences:{preload:path.join(__dirname,'preload.cjs'),additionalArguments:[`--privacy-app-name=${appName}`],contextIsolation:true,nodeIntegration:false,sandbox:true,backgroundThrottling:false}});
  if(process.platform==='darwin')permissionHelper=createPermissionHelper({app,BrowserWindow,ipcMain,screen,shell,nativeImage:require('electron').nativeImage,getStatus:getNativeMediaStatus,appName,onGranted:()=>{
   if(!mainWindow||mainWindow.isDestroyed())return;
   mainWindow.webContents.send('media-permissions-changed',getMediaPermissions());
@@ -206,6 +238,11 @@ app.whenReady().then(async()=>{
  ipcMain.handle('open-privacy-settings',(e,section)=>{verifyDesktopSender(e);return openPrivacySettings(section);});
  // macOS applies a new screen-recording grant only to a fresh process.
  ipcMain.handle('relaunch-app',e=>{verifyDesktopSender(e);app.relaunch();relaunchRequested=true;app.quit();});
+ ipcMain.on('window-theme',(e,theme)=>{
+  if(!mainWindow||e.sender!==mainWindow.webContents||!trusted(e.senderFrame.url)||(theme!=='light'&&theme!=='dark')||theme===windowTheme)return;
+  windowTheme=theme;mainWindow.setBackgroundColor(themeBackground[theme]);
+  fs.promises.writeFile(windowStatePath,JSON.stringify({theme})).catch(console.error);
+ });
  ipcMain.handle('choose-folder',async e=>{verifyDesktopSender(e);const result=await dialog.showOpenDialog(mainWindow,{title:'Choose a project or media folder',properties:['openDirectory','createDirectory']});return result.canceled?null:result.filePaths[0]??null;});
  mainWindow.webContents.on('before-input-event',routeNativeInput);
  mainWindow.webContents.on('did-start-loading',resetShortcutContext);

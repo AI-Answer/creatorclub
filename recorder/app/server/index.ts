@@ -2,7 +2,8 @@ import express,{type Request,type Response,type NextFunction} from 'express';
 import multer from 'multer';
 import path from 'node:path';
 import os from 'node:os';
-import { promises as fs } from 'node:fs';
+import { promises as fs,statSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { randomUUID,createHash } from 'node:crypto';
 import * as storage from './storage.js';
 import * as cutroom from './cutroom.js';
@@ -72,7 +73,11 @@ app.post('/api/cutroom/:id/import-render',route(async(req,res)=>res.json(await c
 app.get('/api/cutroom/:id/preview.png',route((req,res)=>res.sendFile(cutroom.previewPath(param(req)),{dotfiles:'allow'})));
 app.get('/api/cutroom/:id/render.mp4',route((req,res)=>res.sendFile(cutroom.renderPath(param(req)),{dotfiles:'allow'})));
 app.get('/api/health',route(async(_,res)=>res.json({...await capabilities(),dataDir:storage.DATA_DIR})));
-app.get('/api/ready',(_req,res)=>{res.json({application:'Creator Compiler',product:'Creator Compiler',version:'0.1.0'});});
+// The desktop app passes its pid; /api/ready reports it so a relaunched app never reuses a service whose app is gone.
+// `build` (this bundle's size and time when it started) lets an updated app replace a service still running older code.
+const parentPid=Number(process.env.CREATORCLUB_PARENT_PID)||null;
+const build=(()=>{try{const file=statSync(fileURLToPath(import.meta.url));return `${file.size}-${Math.round(file.mtimeMs)}`;}catch{return null;}})();
+app.get('/api/ready',(_req,res)=>{res.json({application:'Creator Compiler',product:'Creator Compiler',version:'0.1.0',parentPid,pid:process.pid,build});});
 app.get('/api/capabilities',route(async(_,res)=>res.json(await capabilities())));
 app.get('/api/events',(_req,res)=>{
  res.setHeader('Content-Type','text/event-stream');res.setHeader('Cache-Control','no-cache, no-transform');res.setHeader('Connection','keep-alive');res.flushHeaders();
@@ -231,5 +236,8 @@ app.get('/{*rest}',(req,res)=>{if(req.path.startsWith('/api/'))res.status(404).j
 app.use((error:Error & {status?:number;code?:string},_req:Request,res:Response,_next:NextFunction)=>{console.error(error.message);res.status(error.status||(error.code==='ENOENT'?404:400)).json({error:error.message});});
 const server=app.listen(PORT,'127.0.0.1',(error?:Error)=>{if(error){console.error('Could not start Creator Compiler: '+error.message);void exportsStore.shutdown(media.shutdownJobs).finally(()=>{process.exitCode=1;});return;}console.log(`Creator Compiler is ready at http://127.0.0.1:${PORT}`);});
 let shuttingDown=false;
-const shutdown=()=>{if(shuttingDown)return;shuttingDown=true;server.close();cancelAllJobs();void Promise.allSettled([exportsStore.shutdown(media.shutdownJobs),agentChat.shutdownAgentChats(),automation.shutdown()]).then(results=>{for(const result of results)if(result.status==='rejected')console.error(result.reason);});};
+const shutdown=()=>{if(shuttingDown)return;shuttingDown=true;server.close();server.closeAllConnections();cancelAllJobs();void Promise.allSettled([exportsStore.shutdown(media.shutdownJobs),agentChat.shutdownAgentChats(),automation.shutdown()]).then(results=>{for(const result of results)if(result.status==='rejected')console.error(result.reason);});};
 process.on('SIGTERM',shutdown);process.on('SIGINT',shutdown);
+// When the desktop app is gone (force-quit, crash), this service stops too instead of holding the port for the next launch.
+// Jobs get ten seconds to wind down; then the process exits whatever is still open.
+if(parentPid){const watch=setInterval(()=>{try{process.kill(parentPid,0);}catch{clearInterval(watch);shutdown();setTimeout(()=>process.exit(0),10000).unref();}},2000);watch.unref();}

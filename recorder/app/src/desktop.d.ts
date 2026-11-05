@@ -110,6 +110,8 @@ export interface SceneForgeDesktopBridge {
  onMediaPermissionsChanged?(callback: (permissions: DesktopMediaPermissions) => void): () => void;
  /** Restarts the app so macOS applies a newly granted screen-recording permission. */
  relaunch?(): Promise<void>;
+ /** The theme the page shows, so the next launch opens its window in the same background color. */
+ setWindowTheme?(theme: 'light' | 'dark'): void;
  reveal(path: string): Promise<void>;
  onShortcutAction?(handler: (action: string) => void): () => void;
  setShortcutContext?(context: {workspace: 'home' | 'script' | 'record' | 'edit' | 'teleprompter'; editable: boolean; timelineFocused: boolean; availableActions: string[]; bindings?: ShortcutOverrides}): Promise<DesktopShortcutStatus>;
