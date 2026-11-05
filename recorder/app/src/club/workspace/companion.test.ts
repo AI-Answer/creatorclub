@@ -1,6 +1,6 @@
 import {rememberAiStatus} from '../ai-status';
 import {mountUI,button} from '../../test-dom';
-import test from 'node:test';
+import test,{before,after} from 'node:test';
 import assert from 'node:assert/strict';
 import {act,createElement} from 'react';
 import type {Outline,Package,VideoScene} from '../../../shared/club';
@@ -11,6 +11,11 @@ import {blocks} from './Markdown';
 import {normalizeThread,withPendingStops,withStep,withText} from './useCompanion';
 const {Companion}=await import('./Companion');
 const {FakeEventSource,installFetch}=await import('../test-fakes');
+
+// Conversation tests exercise the desktop panel; narrow-window behavior has its own regression test.
+let desktopWidth=window.innerWidth;
+before(()=>{desktopWidth=window.innerWidth;window.innerWidth=1440;});
+after(()=>{window.innerWidth=desktopWidth;});
 
 rememberAiStatus({claude:{installed:true,version:'test',signedIn:true},codex:{installed:false,version:null,signedIn:false}});
 const flush=()=>act(async()=>{await new Promise(resolve=>setTimeout(resolve,0));});

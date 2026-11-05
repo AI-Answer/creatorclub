@@ -1,3 +1,53 @@
-.onepager-heading{gap:8px;flex-wrap:wrap;margin-bottom:14px}.onepager-heading .doc-part-h{margin:0}.onepager-slide{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.25fr);border:1px solid var(--cc-line-strong);border-radius:var(--cc-r);overflow:hidden;background:var(--cc-card)}.onepager-slide>div{min-width:0;padding:18px}.onepager-slide h4{font-size:var(--cc-text-base);margin:0 0 10px;font-weight:650}.onepager-sketch{grid-column:1;grid-row:1/3;border-right:1px solid var(--cc-line-strong);text-align:center;display:flex;flex-direction:column;gap:12px}.onepager-sketch [aria-label="Thumbnail headline"]{font-size:var(--cc-text-xl);font-weight:700}.onepager-sketch [aria-label="Thumbnail visual"]{border:1px dashed var(--cc-line-strong);padding:18px 10px;min-height:100px;text-align:left}.onepager-sketch [aria-label="Thumbnail closer"]{font-size:var(--cc-text-xl);font-weight:650}.onepager-sketch [aria-label="Thumbnail layout"]{font-size:var(--cc-text-xs);color:var(--cc-text-2)}.onepager-titles{grid-column:2}.onepager-titles .row{gap:8px}.onepager-titles [aria-label="One-pager title"]{font-weight:650}.onepager-logline{grid-column:2}.onepager-skeleton{grid-column:2;grid-row:3}.onepager-beat{margin:0 0 7px;line-height:1.5}.onepager-beat .ed{display:inline}.onepager-beat>button{margin-left:8px}.onepager-whys{grid-column:1;grid-row:3;border-right:1px solid var(--cc-line-strong)}.onepager-why{display:flex;gap:4px;margin-bottom:12px;line-height:1.5}.onepager-why .ed{flex:1;min-width:0}.onepager-flags{grid-column:1/-1;border-top:1px solid var(--cc-line-strong)}
-@media(max-width:760px){.onepager-slide{display:flex;flex-direction:column}.onepager-sketch,.onepager-whys{border-right:0}.onepager-whys{order:4}.onepager-flags{order:5}}
-.narrow .onepager-slide{display:flex;flex-direction:column}.narrow .onepager-sketch,.narrow .onepager-whys{border-right:0}.narrow .onepager-whys{order:4}.narrow .onepager-flags{order:5}
+/* Package B: a compact, editable slide, with the picture and reasons beside the story. */
+.club-root .onepager-heading { gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+.club-root .onepager-heading .doc-part-h { margin: 0; }
+.club-root .onepager-heading .btn { font-weight: 500; }
+.club-root .onepager > .idea-hint { margin-bottom: 12px; }
+.club-root .onepager-slide { display: grid; grid-template-columns: minmax(0,.9fr) minmax(0,1.1fr); border: 1px solid var(--cc-line-strong); border-radius: var(--cc-r-lg); background: var(--cc-card-bg); overflow: hidden; }
+.club-root .onepager-slide > div { min-width: 0; padding: 16px 20px; }
+.club-root .onepager-slide h4 { margin: 0 0 8px; color: var(--cc-text-2); font-size: var(--cc-text-xs); font-weight: 600; line-height: 1.5; }
+.club-root .onepager-slide .ed { margin: 0; padding: 0; font-size: var(--cc-text-base); line-height: 1.5; overflow-wrap: anywhere; }
+.club-root .onepager-slide .ed:empty::before { font-weight: 400; color: var(--cc-placeholder); font-size: var(--cc-text-base); }
+.club-root .onepager-titles { grid-column: 1 / -1; border-bottom: 1px solid var(--cc-line); }
+.club-root .onepager-title-row { display: flex; align-items: baseline; gap: 10px; }
+.club-root .onepager-title-row .grow { min-width: 0; }
+.club-root .onepager-title-row .btn { flex: none; font-size: var(--cc-text-xs); font-weight: 500; }
+.club-root .onepager-title-row.lead .ed:not(:empty) { font-size: var(--cc-text-xl); font-weight: 600; line-height: 1.35; letter-spacing: -.015em; }
+.club-root .onepager-title-row.backup { margin-top: 8px; color: var(--cc-text-2); }
+.club-root .onepager-backup-label { flex: none; color: var(--cc-text-2); font-size: var(--cc-text-sm); }
+.club-root .onepager-in-use { display: inline-flex; align-items: center; gap: 4px; flex: none; color: var(--cc-text-2); font-size: var(--cc-text-xs); font-weight: 400; }
+.club-root .onepager-left { border-right: 1px solid var(--cc-line); }
+.club-root .onepager-sketch-box { aspect-ratio: 16 / 9; display: flex; flex-direction: column; justify-content: center; gap: 6px; padding: 10px; border: 1px solid var(--cc-line-strong); border-radius: var(--cc-r); background: var(--cc-surface); text-align: center; }
+.club-root .onepager-sketch-box [aria-label="Thumbnail headline"], .club-root .onepager-sketch-box [aria-label="Thumbnail closer"] { font-size: var(--cc-text-2xl); font-weight: 600; line-height: 1.25; }
+.club-root .onepager-sketch-box [aria-label="Thumbnail visual"] { text-align: left; font-size: var(--cc-text-base); line-height: 1.5; }
+.club-root .onepager-sketch-box [aria-label="Thumbnail closer"] { font-size: var(--cc-text-outline-lg); }
+.club-root .onepager-sketch [aria-label="Thumbnail layout"] { color: var(--cc-text-2); font-size: var(--cc-text-sm); margin-top: 8px; }
+.club-root .onepager-logline { margin-bottom: 20px; }
+.club-root .onepager-beat { margin-bottom: 8px; line-height: 1.5; font-size: var(--cc-text-base); }
+.club-root .onepager-beat b { font-weight: 600; }
+.club-root .onepager-beat .ed { display: inline; }
+/* The frame and the beat label already identify these editable regions. */
+.club-root .idea-doc .onepager-sketch-box .ed, .club-root .idea-doc .onepager-sketch-box .ed:empty, .club-root .idea-doc .onepager-beat .ed, .club-root .idea-doc .onepager-beat .ed:empty { margin: 0; padding: 0; border: 0; background: transparent; min-height: 0; }
+.club-root .idea-doc .onepager-sketch-box .ed:empty::before, .club-root .idea-doc .onepager-beat .ed:empty::before { font-size: inherit; }
+.club-root .idea-doc .onepager-sketch-box .ed:empty { font-weight: 400; }
+.club-root .idea-doc .onepager-beat .ed:empty { display: inline; }
+.club-root .onepager-beat > button { margin-left: 8px; }
+.club-root .onepager-whys { margin-top: 20px; }
+.club-root .onepager-why { display: flex; align-items: baseline; gap: 6px; margin: 0 0 8px; line-height: 1.5; }
+.club-root .onepager-why:last-child { margin-bottom: 0; }
+.club-root .onepager-why > b { flex: none; width: 12px; font-size: var(--cc-text-sm); font-weight: 600; color: var(--cc-text-2); }
+.club-root .onepager-why .ed { flex: 1; min-width: 0; }
+.club-root .onepager-flags { grid-column: 1 / -1; border-top: 1px solid var(--cc-line-strong); background: var(--cc-surface); }
+.club-root .onepager-flags .ed { color: var(--cc-text-2); }
+@media (max-width: 1199px) {
+ .club-root .onepager-slide { display: flex; flex-direction: column; }
+ .club-root .onepager-left { border-right: 0; border-bottom: 1px solid var(--cc-line); }
+ .club-root .onepager-sketch-box { max-width: 360px; }
+ .club-root .onepager-title-row { flex-wrap: wrap; }
+}
+
+/* Picture notes remain distinct from the words printed on the thumbnail. */
+.club-root .idea-doc .onepager-sketch-box [aria-label="Thumbnail visual"] { padding: 6px 8px; margin: 0 4px; border: 1px dashed var(--cc-line-strong); border-radius: var(--cc-r); color: var(--cc-text-2); font-size: var(--cc-text-sm); line-height: 1.4; }
+.club-root .onepager-sketch-box.empty { border-style: dashed; }
+.club-root .onepager-sketch-empty { padding: 12px; border: 0; background: transparent; color: var(--cc-placeholder); font: inherit; font-size: var(--cc-text-sm); font-weight: 400; line-height: 1.5; cursor: text; }
+.club-root .onepager-sketch-empty:focus-visible { outline: 2px solid var(--cc-accent); border-radius: var(--cc-r); }

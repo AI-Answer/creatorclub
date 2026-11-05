@@ -19,13 +19,13 @@ import {useAi,type ConnectedAi} from '../useAi';
 import {ThumbnailStudio} from './ThumbnailStudio';
 import {CARD_DRAG,cardText,emptyParts,pairChecks,proofCards,proofLine,type SectionKey} from './idea-logic';
 import {OnePager} from './OnePagerCard';
+import {publishIdeaSection,visibleIdeaSection,useIdeaView,type IdeaView} from './view';
+export type {IdeaView} from './view';
 import './onepager.css';
+import './idea.css';
 
 const WHAT:Record<PlanJobKind,string>={package:'title, thumbnail and hook',outline:'scenes',script:'script',onepager:'one-pager'};
 const LEVEL_WORD:Record<ConceptRating['level'],string>={high:'Strong',mid:'Okay',low:'Weak'};
-export type IdeaView='page'|'board';
-const VIEW_KEY='cc.idea.view';
-const readView=():IdeaView=>{try{return localStorage.getItem(VIEW_KEY)==='board'?'board':'page';}catch{return 'page';}};
 
 /** The thumbnail picture you added for the video, when there is one: the only picture the page shows (never a made-up one). */
 function useThumbnail(videoId:string){
@@ -113,16 +113,36 @@ export function IdeaPage({video,plan,known,focusId,boardKey,navigate,onOpen,show
  onSelection?(ids:readonly string[]):void;
 }){
  const ai=useAi(),aiAvailable=useAiAvailable();
- const [view,setView]=useState<IdeaView>(readView);
- const choose=(next:IdeaView)=>{setView(next);if(next==='page')onSelection?.([]);try{localStorage.setItem(VIEW_KEY,next);}catch{/* the view is not remembered */}};
+ const [view,setView]=useIdeaView();
+ const [scrolled,setScrolled]=useState(false);
+ const planScroller=useRef<HTMLElement>(null);
+ const readSection=()=>{const scroller=planScroller.current;if(scroller){setScrolled(scroller.scrollTop>0);publishIdeaSection(visibleIdeaSection(scroller));}};
+ useEffect(()=>{
+  const scroller=planScroller.current;if(!scroller)return;
+  const header=scroller.closest('.idea-page')?.querySelector<HTMLElement>('.idea-top');
+  const footer=scroller.closest('.ws')?.querySelector<HTMLElement>('.ws-foot');
+  const measure=()=>{
+   scroller.style.scrollPaddingTop=`${header?.getBoundingClientRect().height||57}px`;
+   const clearance=(footer?.getBoundingClientRect().height||64)+24;
+   scroller.style.paddingBottom=`${clearance}px`;scroller.style.scrollPaddingBottom=`${clearance}px`;
+   readSection();
+  };
+  measure();
+  if(typeof ResizeObserver==='undefined')return()=>publishIdeaSection(null);
+  const observer=new ResizeObserver(measure);if(header)observer.observe(header);if(footer)observer.observe(footer);
+  return()=>{observer.disconnect();publishIdeaSection(null);};
+ },[view,video.id,plan.load.status]);
+ const [selected,setSelected]=useState<readonly string[]>([]);
+ const choose=(next:IdeaView)=>{setView(next);setScrolled(false);if(next==='page'){setSelected([]);onSelection?.([]);}};
  const [cards,setCards]=useBoardCards(video.id,boardKey);
  const [showCard,setShowCard]=useState<{id:string;n:number}|undefined>();
+ const selectCard=(id:string)=>{choose('board');setSelected([id]);setShowCard(now=>({id,n:(now?.n??0)+1}));};
  const ready=plan.load.status==='ready';
  const pkg=plan.pkg;
  const packaging=plan.packageJob.phase==='running',drafting=plan.outlineJob.phase==='running';
 
  // Fill: one press writes every part that is empty. The package first (the scenes open with its hook), then the scenes.
- const empty=emptyParts(pkg,plan.outline);
+ const empty=emptyParts(pkg&&{...pkg,angle:pkg.angle||plan.onepager?.logline||''},plan.outline);
  const [chain,setChain]=useState(false);
  const fill=()=>{
   if(empty.package){plan.writePackage();setChain(empty.scenes);}
@@ -152,13 +172,13 @@ export function IdeaPage({video,plan,known,focusId,boardKey,navigate,onOpen,show
   ?plan.load.status==='error'?<ErrorLine message={plan.load.message} onRetry={plan.reload}/>:<div className="idea-loading" role="status"><Spinner label="Loading your video" size={18}/><span className="small muted">Loading your video…</span></div>
   :<PlanPage video={video} plan={plan} known={known} focusId={focusId} cards={cards} ai={ai} showPart={showPart}
     onOpen={onOpen} onFocus={onFocus} onTitle={onTitle} onTarget={onTarget} onRecordScene={onRecordScene} onVideo={onVideo}
-    onBoardChanged={onBoardChanged} onShowCard={id=>{choose('board');setShowCard(now=>({id,n:(now?.n??0)+1}));}} onDiscover={()=>navigate({name:'discover'})}/>;
+    onBoardChanged={onBoardChanged} onShowCard={selectCard} onDiscover={()=>navigate({name:'discover'})}/>;
 
- return <div className={cn('idea-page',view)}>
-  <div className="idea-top">
+ return <div className={cn('idea-page',view==='page'?'idea-plan-view':'idea-board-view')}>
+  <div className={cn("idea-top",scrolled&&"idea-top-scrolled")}>
    <div className="idea-views" role="group" aria-label="View">
-    <button type="button" aria-pressed={view==='page'} className={cn(view==='page'&&'on')} onClick={()=>choose('page')}><Icon name="script" size={14}/>Page</button>
-    <button type="button" aria-pressed={view==='board'} className={cn(view==='board'&&'on')} onClick={()=>choose('board')}><Icon name="research" size={14}/>Board</button>
+    <button type="button" aria-pressed={view==='page'} className={cn(view==='page'&&'on')} onClick={()=>choose('page')}><Icon name="script" size={14}/>Plan</button>
+    <button type="button" aria-pressed={view==='board'} className={cn(view==='board'&&'on')} onClick={()=>choose('board')}><Icon name="layout" size={14}/>Board</button>
    </div>
    <SaveLine status={plan.packageSave} onRetry={plan.retrySave}/>
    <span className="grow"/>
@@ -169,15 +189,17 @@ export function IdeaPage({video,plan,known,focusId,boardKey,navigate,onOpen,show
   {lines.length>0&&<div className="idea-lines">{lines}</div>}
   <div className="idea-body">
    {view==='page'
-    ?<><BoardList videoId={video.id} cards={cards} onCards={setCards} onAdded={onBoardChanged} onOpenBoard={()=>choose('board')}/><main className="idea-doc">{page}</main></>
-    :<><aside className="idea-doc narrow" aria-label="Your video">{page}</aside><div className="idea-board"><Board video={video} refreshKey={boardKey} navigate={navigate} onSelection={onSelection} onTiles={setCards} show={showCard}/></div></>}
+    ?<><BoardList selected={selected} onSelect={selectCard} videoId={video.id} cards={cards} onCards={setCards} onAdded={onBoardChanged} showDragHint={true}/><main className="idea-doc" ref={planScroller} onScroll={readSection}>{page}</main></>
+    :<><BoardList selected={selected} onSelect={selectCard} videoId={video.id} cards={cards} onCards={setCards} onAdded={onBoardChanged} showDragHint={false} summary={{video,logline:plan.onepager?.logline??'',idea:pkg?.angle||video.idea?.angle||video.idea?.why||'',research:()=>navigate({name:'discover'}),open:()=>choose('page')}}/><div className="idea-board"><Board video={video} refreshKey={boardKey} navigate={navigate} onSelection={ids=>{setSelected(ids);onSelection?.(ids);}} onTiles={setCards} show={showCard}/></div></>}
   </div>
  </div>;
 }
 
 /** Page view's board: the cards as a list you can read, add to, and drag onto a scene. Board view shows the same cards as a canvas. */
-function BoardList({videoId,cards,onCards,onAdded,onOpenBoard}:{videoId:string;cards:readonly ResearchTile[]|undefined;onCards(cards:readonly ResearchTile[]):void;onAdded():void;onOpenBoard():void}){
- const toast=useToast();
+function BoardList({videoId,cards,onCards,onAdded,showDragHint,summary,selected,onSelect}:{selected:readonly string[];onSelect(id:string):void;videoId:string;cards:readonly ResearchTile[]|undefined;onCards(cards:readonly ResearchTile[]):void;onAdded():void;showDragHint:boolean;summary?:{video:Video;logline:string;idea:string;research():void;open():void}}){
+ const toast=useToast(),ai=useAi();
+ const [expanded,setExpanded]=useState(false);
+ const [pane,setPane]=useState<'plan'|'items'>('plan');
  const [text,setText]=useState(''),[adding,setAdding]=useState(false);
  const add=async()=>{
   if(!text.trim()||adding)return;
@@ -189,21 +211,36 @@ function BoardList({videoId,cards,onCards,onAdded,onOpenBoard}:{videoId:string;c
   finally{setAdding(false);}
  };
  const drag=(event:DragEvent,card:ResearchTile)=>{event.dataTransfer.setData(CARD_DRAG,cardText(card));event.dataTransfer.effectAllowed='copy';};
- return <aside className="idea-list" aria-label="Board">
-  <div className="idea-list-h"><b>Board</b><span className="muted small">{cards?.length??0}</span><span className="grow"/><button type="button" className="linkish" onClick={onOpenBoard}>Open the board</button></div>
+ return <aside className={cn("idea-list",expanded&&"idea-list-expanded")} aria-label="Board">
+  <button type="button" className="idea-list-rail" aria-label={expanded?"Hide board items":"Show board items"} title={expanded?"Hide board items":"Show board items"} onClick={()=>{setExpanded(!expanded);if(!expanded)setPane('items');}}><Icon name="layout" size={16}/><span>Items</span></button>
+  <div className="idea-list-content">
+  {summary&&<div className="idea-pane-switch" role="group" aria-label="Board sidebar">
+   <button type="button" aria-pressed={pane==='plan'} onClick={()=>setPane('plan')}>Summary</button>
+   <button type="button" aria-pressed={pane==='items'} onClick={()=>setPane('items')}>Items{cards?.length?` · ${cards.length}`:''}</button>
+  </div>}
+  {summary&&pane==='plan'?<div className="idea-summary">
+   <dl><dt>Video title</dt><dd className="idea-summary-title">{summary.video.title}</dd>
+    <dt>Logline</dt><dd className={!summary.logline.trim()?'idea-placeholder':undefined}>{summary.logline.trim()||'Describe the video in one sentence.'}</dd>
+    <dt>The idea</dt><dd className={!summary.idea.trim()?'idea-placeholder':undefined}>{summary.idea||'What will viewers take away?'}</dd></dl>
+   <p className="idea-summary-proof">{proofLine(cards).text.replace(/\.$/,'')}{!cards?.some(card=>card.kind==='video')&&<> · <button type="button" className="idea-text-link" onClick={summary.research}>Find one in Research</button></>}</p>
+   <Button variant="ghost" size="sm" onClick={summary.open}><Icon name="script" size={14}/>Open in Plan</Button>
+  </div>:<>
+  {!summary&&<div className="idea-list-h"><b>Board</b>{!!cards?.length&&<span className="muted small">· {cards.length} {cards.length===1?'item':'items'}</span>}</div>}
   <form className="idea-list-add" onSubmit={event=>{event.preventDefault();void add();}}>
-   <input className="input" value={text} onChange={event=>setText(event.target.value)} placeholder="Paste a link or write a note" aria-label="Add to the board"/>
+   <input className="input" value={text} onChange={event=>setText(event.target.value)} placeholder="Paste a link or a note" aria-label="Add to the board"/><button type="submit" className="btn ghost sm" disabled={!text.trim()||adding} aria-label="Add to board" title="Add"><Icon name="add" size={14}/></button>
   </form>
   {cards===undefined?<div className="idea-loading"><Spinner size={14} label="Loading the board"/></div>
-   :cards.length===0?<p className="idea-hint">Videos, links and notes you add here are what the AI reads when it fills your video.</p>
-   :<ul className="idea-list-cards">{cards.map(card=><li key={card.id} draggable onDragStart={event=>drag(event,card)} title="Drag onto a scene to add it as a talking point">
+   :cards.length===0?<p className="idea-hint">{ai.name} reads these when it fills in your video.</p>
+   :<ul className="idea-list-cards">{cards.map(card=><li key={card.id} className={cn(selected.includes(card.id)&&'selected')} draggable onDragStart={event=>drag(event,card)} title="Drag onto a scene to add it as a talking point"><button type="button" className="idea-list-card" aria-pressed={selected.includes(card.id)} onClick={()=>onSelect(card.id)}>
      {card.kind==='video'
-      ?<Thumb seed={card.id} videoId={youtubeId(card.url)} src={card.meta.thumbnail} className="idea-card-thumb"/>
+      ?<Thumb seed={card.id} videoId={youtubeId(card.url)} src={card.meta.thumbnail} className="idea-card-thumb" fallback={<span className="board-video-placeholder"><Icon name="play" size={18}/></span>}/>
       :<span className="idea-list-ico" aria-hidden><Icon name={card.kind==='note'?'note':card.kind==='link'?'link':'image'} size={14}/></span>}
      <span className="grow"><span className="idea-card-t">{cardText(card)||'Reading…'}</span>{card.meta.channel&&<span className="idea-card-c">{card.meta.channel}</span>}</span>
      {card.kind==='video'&&<MultChip m={card.meta.multiplier}/>}
-    </li>)}</ul>}
-  {cards&&cards.length>0&&<p className="idea-hint">Drag a card onto a scene to add it there.</p>}
+    </button></li>)}</ul>}
+  {showDragHint&&cards&&cards.length>0&&<p className="idea-hint">Drag a card onto a scene to add it there.</p>}
+  </>}
+  </div>
  </aside>;
 }
 
@@ -234,6 +271,10 @@ function PlanPage({video,plan,known,focusId,cards,ai,showPart,onOpen,onFocus,onT
   setFlash(showPart.key);const off=setTimeout(()=>setFlash(null),1600);return()=>clearTimeout(off);
  },[showPart]);
  const [asking,setAsking]=useState<null|'pairs'|'hook'>(null);
+ const [editingTitle,setEditingTitle]=useState(false),[editingIdea,setEditingIdea]=useState(false);
+ const ideaText=value.angle||plan.onepager?.logline||'';
+ const usesLogline=!!plan.onepager?.logline.trim()&&ideaText.trim()===plan.onepager.logline.trim();
+ const usesOnepagerTitle=!!plan.onepager?.title.trim()&&video.title.trim()===plan.onepager.title.trim();
 
  // The idea
  const typed=useRef<string|null>(null);
@@ -270,27 +311,28 @@ function PlanPage({video,plan,known,focusId,cards,ai,showPart,onOpen,onFocus,onT
 
  return <div className="doc" ref={root}>
   <Part part="idea" title="What it's about" flash={flash==='idea'} onOpen={onOpen}>
-   <Line className="big"><Ed multiline live value={value.angle} ph="Add what this video does for the viewer, in one sentence" label="What it's about" onChange={angle=>edit({...value,angle})} onLeave={save}/></Line>
+   <div className="idea-intro">{usesLogline&&!editingIdea?<p className="idea-reuse">Uses the one-pager logline · <button type="button" className="idea-text-link" onClick={()=>setEditingIdea(true)}>Change</button></p>:<Line className="big"><Ed multiline live autoFocus={editingIdea} value={ideaText} ph="Add what this video does for the viewer, in one sentence" label="What it's about" onChange={angle=>edit({...value,angle})} onLeave={()=>{save();setEditingIdea(false);}}/></Line>}</div>
    <Line><span className="dline-k">Your twist</span><Ed multiline live value={value.twist} ph="Add what you show or do differently" label="Your twist" onChange={twist=>edit({...value,twist})} onLeave={save}/></Line>
    <Line><span className="dline-k">Why it could work</span><Ed multiline live value={video.idea?.why??''} ph="Add what tells you people want this" label="Why it could work" onChange={text=>{typed.current=text;}} onLeave={()=>{if(typed.current!==null)saveWhy(typed.current);typed.current=null;}}/></Line>
    <div className="doc-proof">
-    <span className={cn('idea-proof',proof.proven&&'ok')}><Icon name={proof.proven?'done':'pending'} size={14}/>{proof.text}</span>
+    <span className={cn('idea-proof',proof.proven&&'ok')}>{proof.text.startsWith('Reading ')?<Spinner size={16} label="Reading reference videos"/>:<Icon name={proof.proven?'done':'video'} size={14}/>}{proof.text}</span>
     {strong.map(card=><button key={card.id} type="button" className="doc-proof-card" onClick={()=>onShowCard(card.id)} title={`${card.title??''}: show it on the board`}><MultChip m={card.meta.multiplier}/><span className="ellipsis">{card.title}</span></button>)}
-    {!cards?.some(card=>card.kind==='video')&&<button type="button" className="linkish" onClick={onDiscover}>Find one in Research</button>}
+    {!cards?.some(card=>card.kind==='video')&&<Button variant="ghost" size="sm" onClick={onDiscover}><Icon name="search" size={14}/>Find one in Research</Button>}
     {strong.length>0&&<span className="idea-hint" title="How many times a video beat its channel's usual views">× = times its channel's usual views</span>}
    </div>
-   {ratings.length>0&&<p className="idea-hint">Rating (an AI's judgment, not a measurement): {ratings.map(([label,key])=>`${label} ${LEVEL_WORD[value[key]!.level].toLowerCase()}`).join(' · ')}</p>}
+   {ratings.length>0&&<p className="idea-hint">Rating ({ai.name}'s judgment, not a measurement): {ratings.map(([label,key])=>`${label} ${LEVEL_WORD[value[key]!.level].toLowerCase()}`).join(' · ')}</p>}
   </Part>
 
   <OnePager video={video} plan={plan} onTitle={onTitle} onBoardChanged={onBoardChanged}/>
 
   <Part part="package" title="Title and thumbnail" flash={flash==='package'} onOpen={onOpen}>
-   <Line className="title" actions={!packaging&&<>
+   {usesOnepagerTitle&&!editingTitle?<p className="idea-reuse idea-title-source">Uses the one-pager title · <button type="button" className="idea-text-link" onClick={()=>setEditingTitle(true)}>Change</button></p>:<Line className="title" actions={!packaging&&<>
     {versions.length>0&&(inUse<0||others.length>0)&&<button type="button" className="dline-btn" onClick={nextVersion}>{inUse<0?`Use one of ${versions.length} versions`:`Other version (${others.length})`}</button>}
     {versions.length>0&&<button type="button" className="dline-btn" disabled={!aiAvailable} title={!aiAvailable?AI_CONNECT_HINT:undefined} onClick={()=>setAsking('pairs')}>Rewrite</button>}
    </>}>
-    <Ed value={inUse<0?video.title:value.titles[inUse]} ph="Add a title" label="Title" onChange={setTitle}/>
-   </Line>
+    <span className="dline-k">Video title</span>
+    <Ed autoFocus={editingTitle} value={inUse<0?video.title:value.titles[inUse]} ph="Add a title" label="Video title" onChange={setTitle} onLeave={()=>setEditingTitle(false)}/>
+   </Line>}
    {asking==='pairs'&&confirm('pairs',()=>plan.writePackage('titles'))}
    <Line actions={!packaging&&versions.length>0&&<button type="button" className="dline-btn" disabled={!aiAvailable} title={!aiAvailable?AI_CONNECT_HINT:undefined} onClick={()=>plan.writePackage('thumbnail')}>Rewrite the words</button>}>
     <span className="dline-k">On the thumbnail</span>
@@ -305,8 +347,8 @@ function PlanPage({video,plan,known,focusId,cards,ai,showPart,onOpen,onFocus,onT
     <Ed multiline live value={value.hook.spoken} ph="Add the first line you say: it should confirm the title's promise" label="What you say first" onChange={text=>edit({...value,hook:{...value.hook,spoken:text}})} onLeave={save}/>
    </Line>
    {asking==='hook'&&confirm('hook',()=>plan.writePackage('hook'))}
-   <Line><span className="dline-k">They see</span><Ed multiline live value={value.hook.visual} ph="Add what is on screen first" label="What they see first" onChange={text=>edit({...value,hook:{...value.hook,visual:text}})} onLeave={save}/></Line>
-   <Line><span className="dline-k">On screen</span><Ed multiline live value={value.hook.text} ph="Add words on screen" label="Words on screen" onChange={text=>edit({...value,hook:{...value.hook,text}})} onLeave={save}/></Line>
+   <Line><span className="dline-k">On screen first</span><Ed multiline live value={value.hook.visual} ph="Add what is on screen first" label="What they see first" onChange={text=>edit({...value,hook:{...value.hook,visual:text}})} onLeave={save}/></Line>
+   <Line><span className="dline-k">Words on screen</span><Ed multiline live value={value.hook.text} ph="Add words on screen" label="Words on screen" onChange={text=>edit({...value,hook:{...value.hook,text}})} onLeave={save}/></Line>
   </Part>
 
   <Part part="scenes" title="Scenes" flash={flash==='scenes'} onOpen={onOpen}>
@@ -314,7 +356,7 @@ function PlanPage({video,plan,known,focusId,cards,ai,showPart,onOpen,onFocus,onT
     ?<ScenesColumn bare acceptDrops target={video.targetSeconds??0} onTarget={onTarget} hasRecording={!!video.recorderProjectId} outline={plan.outline} known={known} focusId={focusId}
       drafting={drafting} draftLine={plan.outlineJob.phase==='running'?plan.outlineJob.line:undefined} scripting={scripting} scriptingScene={plan.scriptScene} aiName={ai.name} aiBrand={ai.brand}
       onEdit={plan.editOutline} onFocus={onFocus} onDraft={plan.createOutline} onWriteScene={sceneId=>plan.writeScript(sceneId)} onWriteAll={()=>plan.writeScript()} onSceneScript={plan.saveSceneScript} onRecord={onRecordScene} onSaveNow={()=>void plan.flush().catch(()=>{})}/>
-    :<div className="doc-empty"><span className="idea-hint">{aiAvailable?'No scenes yet. Fill writes them, or':'No scenes yet.'}</span><button type="button" className="linkish" onClick={()=>{const scene=blankScene();plan.editOutline({scenes:[scene]});onFocus(scene.id!);requestAnimationFrame(()=>requestAnimationFrame(()=>document.getElementById(sceneCardId(scene.id!))?.scrollIntoView?.({block:'center',behavior:'smooth'})));}}>{aiAvailable?'add one yourself':'Add a scene'}</button></div>}
+    :<div className="doc-empty"><span className="idea-hint">No scenes yet.</span><button type="button" className="btn ghost sm" onClick={()=>{const scene=blankScene();plan.editOutline({scenes:[scene]});onFocus(scene.id!);requestAnimationFrame(()=>requestAnimationFrame(()=>document.getElementById(sceneCardId(scene.id!))?.scrollIntoView?.({block:'center',behavior:'smooth'})));}}><Icon name="add" size={14}/>Add scene</button><Button variant="ghost" size="sm" disabled={!aiAvailable} title={!aiAvailable?AI_CONNECT_HINT:undefined} onClick={plan.createOutline}><BrandLogo brand={ai.brand} size={14}/>Write with {ai.name}</Button></div>}
   </Part>
  </div>;
 }
@@ -335,7 +377,7 @@ function ThumbnailImage({videoId}:{videoId:string}){
  return <div className="doc-thumb">
   {shown&&<img className="idea-thumb" src={shown} alt="Your thumbnail"/>}
   <input ref={input} type="file" accept="image/png,image/jpeg,image/webp" hidden aria-label="Choose a thumbnail image" onChange={event=>{void choose(event.target.files?.[0]);event.target.value='';}}/>
-  <button type="button" className="linkish" onClick={()=>input.current?.click()}><Icon name="image" size={14}/>{shown?'Replace your thumbnail image':'Add your thumbnail image'}</button>
+  <button type="button" className="linkish idea-image-link" onClick={()=>input.current?.click()}><Icon name="image" size={14}/>{shown?'Replace your thumbnail image':'Add your thumbnail image'}</button>
   {error&&<p className="idea-error" role="alert">{error}</p>}
  </div>;
 }

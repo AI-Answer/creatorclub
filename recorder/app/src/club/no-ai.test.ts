@@ -82,7 +82,7 @@ test('no AI: add the first scene, edit its title, talking points and empty scrip
   await flush();const c=ui.container;
   assert.equal(button(c,'Fill the empty parts with Claude').disabled,true);
   assert.equal(button(c,'Fill the empty parts with Claude').title,'Connect an AI in Settings');
-  await click(c,'Add a scene');assert.ok(c.querySelector('[aria-label="Scene 1"]'));
+  await click(c,'Add scene');assert.ok(c.querySelector('[aria-label="Scene 1"]'));
   await edit('Scene title','My introduction');await edit('Talking point','Explain the demo');
   assert.equal(c.querySelector('[role="textbox"][aria-label="Script"]'),null,'the script is an extra, like Borumi\'s one line per scene');
   await click(c,"Add what's on screen or a script");await edit('Script','Here is the demo I made.');
@@ -130,6 +130,7 @@ test('no AI: Companion preserves history and applied Undo, and its rail can reop
  const ui=await mountUI(createElement(Companion,{videoId:'v1',tab:'idea',screen:'Idea',pkg:null,outline:null,onChanged(){}}));
  try{
   await flush();const c=ui.container;
+  if(c.querySelector('.cmp.collapsed'))await act(async()=>c.querySelector<HTMLButtonElement>('.cmp-rail')!.click());
   assert.match(c.textContent??'',/Saved answer/);
   assert.match(c.textContent??'',/Connect an AI in Settings/);
   assert.equal(c.querySelector<HTMLTextAreaElement>('textarea')!.disabled,true);
@@ -140,6 +141,6 @@ test('no AI: Companion preserves history and applied Undo, and its rail can reop
   await act(async()=>c.querySelector<HTMLButtonElement>('[aria-label="Hide Ask Claude"]')!.click());await flush();
   const rail=c.querySelector<HTMLButtonElement>('.cmp-rail')!;
   assert.equal(rail.disabled,false);
-  await act(async()=>c.querySelector<HTMLButtonElement>('[aria-label="Show Ask Claude"]')!.click());await flush();assert.ok(c.querySelector('textarea'));
+  await act(async()=>c.querySelector<HTMLButtonElement>('[aria-label="Open Ask Claude"]')!.click());await flush();assert.ok(c.querySelector('textarea'));
  }finally{await ui.close();fake.restore();localStorage.removeItem('cc.companion.open');}
 });

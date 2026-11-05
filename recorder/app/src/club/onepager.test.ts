@@ -54,9 +54,15 @@ test('manual template works without AI; every field saves inline and Saving… b
   const c=ui.container;
   assert.ok(button(c,'Write one-pager').disabled);assert.match(c.textContent!,/fill in the one-pager yourself/);
   assert.equal(c.querySelectorAll('[aria-label$=" sentence"]').length,6);
+  assert.equal(c.querySelector('.onepager-heading .btn.primary')?.textContent,'Write one-pager');
+  assert.ok(![...c.querySelectorAll('button')].some(b=>['Copy','Add to board','Use as video title'].includes(b.textContent??'')));
+  assert.equal(new Set([...c.querySelectorAll('[aria-label$=" sentence"]')].map(el=>el.getAttribute('data-ph'))).size,6);
+  assert.equal(c.querySelector('[aria-label="Thumbnail headline"]'),null,'an empty sketch is one quiet prompt');
+  await press(button(c,'Add a headline, the picture, and a closing line'));
   const fields:[string,string][]=[['One-pager title','My title'],['One-pager backup title','Backup'],['One-pager logline','A whole sentence.'],['Thumbnail headline','Big plant'],['Thumbnail visual','The plant and sensor.'],['Thumbnail closer','Try it'],['Thumbnail layout','Split view'],['Beat 1 label','The promise'],['Beat 1 sentence','We see the result.'],['Why 1','Find my related video.'],['Why 2','Find an external outlier.'],['Why 3','Anyone can try it.'],['One-pager flags','Check the soil.\nCheck the cost.']];
   for(const [label,text] of fields)await edit(c,label,text);
   assert.equal(server.saved()!.title,'My title');assert.equal(server.saved()!.skeleton[0].label,'The promise');assert.deepEqual(server.saved()!.flags,['Check the soil.','Check the cost.']);assert.match(c.textContent!,/Saved/);
+  await edit(c,'One-pager title',video.title);assert.match(c.querySelector('.onepager-in-use')!.textContent!,/Current title/);assert.equal([...c.querySelectorAll('button')].filter(b=>b.textContent==='Use as video title').length,1);assert.ok(button(c,'Use as video title'));
   await act(async()=>latest.editOnepager({...latest.onepager!,logline:'Unsaved typing'}));assert.equal(latest.onepagerSave,'saving');
   await act(async()=>latest.flush());assert.equal(latest.onepagerSave,'saved');
  }finally{await ui.close();server.restore();}
@@ -68,8 +74,8 @@ test('skeleton can grow to ten beats and shrink to six, and Copy/Add to board us
  const original=navigator.clipboard;let copied='';Object.defineProperty(navigator,'clipboard',{value:{writeText:async(text:string)=>{copied=text;}},configurable:true});
  try{
   const c=ui.container;
-  for(let i=0;i<4;i++)await press(button(c,'Add a beat'));
-  assert.equal(c.querySelectorAll('[aria-label$=" sentence"]').length,10);assert.ok(![...c.querySelectorAll('button')].some(b=>b.textContent==='Add a beat'));
+  for(let i=0;i<4;i++)await press(button(c,'Add a line'));
+  assert.equal(c.querySelectorAll('[aria-label$=" sentence"]').length,10);assert.ok(![...c.querySelectorAll('button')].some(b=>b.textContent==='Add a line'));
   for(let i=0;i<4;i++)await press(c.querySelector<HTMLButtonElement>('[aria-label="Remove beat 1"]')!);
   assert.equal(c.querySelectorAll('[aria-label$=" sentence"]').length,6);assert.equal(c.querySelector('[aria-label="Remove beat 1"]'),null);
   await press(button(c,'Copy'));assert.equal(copied,onepagerMarkdown(latest.onepager!));
@@ -78,12 +84,12 @@ test('skeleton can grow to ten beats and shrink to six, and Copy/Add to board us
  }finally{Object.defineProperty(navigator,'clipboard',{value:original,configurable:true});await ui.close();server.restore();}
 });
 
-test('both Use title buttons send package/text after pending edits, update the video title and refresh the package',async()=>{
+test('both Use as video title buttons send package/text after pending edits, update the video title and refresh the package',async()=>{
  rememberAiStatus({claude:connected,codex:disconnected});titles.length=0;
  const server=serve(),ui=await mountUI(createElement(Probe));
  try{
   const c=ui.container;
-  const buttons=()=>[...c.querySelectorAll('button')].filter(button=>button.textContent==='Use title');
+  const buttons=()=>[...c.querySelectorAll('button')].filter(button=>button.textContent==='Use as video title');
   await press(buttons()[0]);await press(buttons()[1]);
   assert.deepEqual(titles,[good.title,good.backupTitle]);
   assert.deepEqual(server.calls.filter(call=>call.path==='/videos/v1/package/text').map(call=>call.body),[{kind:'title',text:good.title},{kind:'title',text:good.backupTitle}]);
@@ -94,7 +100,7 @@ test('Write/Rewrite follows progress, failure retry, Stop, Undo and held-result 
  rememberAiStatus({claude:connected,codex:disconnected});FakeEventSource.install();
  const server=serve(),ui=await mountUI(createElement(Probe));
  try{
-  const c=ui.container;await press(button(c,'Rewrite'));
+  const c=ui.container;assert.equal(button(c,'Rewrite').classList.contains('primary'),false);await press(button(c,'Rewrite'));
   await act(async()=>FakeEventSource.last().emit('progress',{message:'Reading the board…'}));assert.match(c.textContent!,/Reading the board/);assert.ok(button(c,'Rewrite').disabled);
   await act(async()=>FakeEventSource.last().emit('failed',{message:'Try another time.'}));assert.match(c.textContent!,/Try another time/);
   await press(button(c,'Try again'));await press(button(c,'Stop'));assert.ok(server.calls.some(call=>call.path==='/jobs/job-one'&&call.method==='DELETE'));await act(async()=>FakeEventSource.last().emit('cancelled',{}));

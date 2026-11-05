@@ -24,10 +24,10 @@ export function proofLine(tiles:readonly ResearchTile[]|undefined):{proven:boole
  // A video card is read in the background after it is added: until then it has no views and no number.
  const reading=videos.filter(tile=>tile.meta.views===undefined&&tile.meta.multiplier===undefined).length;
  if(strong)return {proven:true,text:`${strong} ${strong===1?'video':'videos'} on your board got ${PROOF_TIMES}× or more their channel's usual views.`};
- if(reading)return {proven:false,text:`${reading===1?'1 video on your board is':`${reading} videos on your board are`} still being read. ${reading===1?'Its number shows':'Their numbers show'} here when it's done.`};
+ if(reading)return {proven:false,text:`Reading ${reading} reference ${reading===1?'video':'videos'}…`};
  if(cards.length)return {proven:false,text:`No video on your board got ${PROOF_TIMES}× its channel's usual views yet. The best got ${times(cards[0].meta.multiplier!)}.`};
  if(videos.length)return {proven:false,text:`The ${videos.length===1?'video':'videos'} on your board ${videos.length===1?'has':'have'} no number: ${videos.length===1?'its':'their'} channel's usual views aren't known.`};
- return {proven:false,text:'No proof yet: add a video like this one to the board.'};
+ return {proven:false,text:'No similar video on the board yet.'};
 }
 
 /** A check under a title and thumbnail pair: the rule it broke, or that it follows them all. */

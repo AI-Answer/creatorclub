@@ -35,7 +35,7 @@ export function NotesFolder({notes,onChoose,onPin,onClose}:{notes:BoardFiles['no
     :<ul className="notes-list" aria-label="Files in the Notes folder">
       {notes.files.map(file=><li key={file.path}>
        <Icon name="script" size={15}/>
-       <div className="grow" style={{minWidth:0}}><div className="ellipsis" style={{fontWeight:550}}>{file.title}</div><div className="small faint ellipsis">{file.path} · {fmtDate(file.modified)}</div></div>
+       <div className="grow" style={{minWidth:0}}><div className="ellipsis" style={{fontWeight:500}}>{file.title}</div><div className="small faint ellipsis">{file.path} · {fmtDate(file.modified)}</div></div>
        {file.pinned?<span className="small muted">On the board</span>:<Button size="sm" onClick={()=>{setBusy(file.path);void onPin(file.path).finally(()=>setBusy(''))}} disabled={!!busy}>Pin</Button>}
       </li>)}
      </ul>)}

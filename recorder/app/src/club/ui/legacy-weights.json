@@ -24,9 +24,5 @@
   "workspace/outliner.css|.cc-outliner h1.outliner-text:not(.outliner-title)|700": 1,
   "workspace/outliner.css|.cc-outliner h2.outliner-text|650": 1,
   "workspace/outliner.css|.cc-outliner h3.outliner-text|650": 1,
-  "workspace/outliner.css|.cc-outliner h4.outliner-text,.cc-outliner h5.outliner-text,.cc-outliner h6.outliner-text|650": 1,
-  "idea/onepager.css|.onepager-slide h4|650": 1,
-  "idea/onepager.css|.onepager-sketch [aria-label=\"Thumbnail headline\"]|700": 1,
-  "idea/onepager.css|.onepager-sketch [aria-label=\"Thumbnail closer\"]|650": 1,
-  "idea/onepager.css|.onepager-titles [aria-label=\"One-pager title\"]|650": 1
+  "workspace/outliner.css|.cc-outliner h4.outliner-text,.cc-outliner h5.outliner-text,.cc-outliner h6.outliner-text|650": 1
 }

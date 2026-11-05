@@ -18,7 +18,7 @@ const textChange=async(input:HTMLInputElement|HTMLTextAreaElement,value:string)=
 test('studio shows a quiet setup hint without generation controls when the CLI needs sign-in',async()=>{
  const fake=installFetch(({path})=>path==='/higgsfield/status'?{body:{installed:true,signedIn:false,hint:'Run higgsfield auth login in Terminal.'}}:path.endsWith('/thumbnails')?{body:[]}:undefined);
  const ui=await mountUI(createElement(ThumbnailStudio,{video,thumbnailText:'BUILD IT'}));
- try{await flush();assert.match(ui.container.textContent!,/Run higgsfield auth login in Terminal/);assert.equal(ui.container.querySelector('textarea'),null);assert.equal(fake.calls.some(c=>c.path==='/higgsfield/cost'),false);}finally{await ui.close();fake.restore();}
+ try{await flush();assert.match(ui.container.textContent!,/Sign in to Higgsfield to make thumbnails/);assert.ok(button(ui.container,'Open Settings').classList.contains('primary'));assert.doesNotMatch(ui.container.textContent!,/Run higgsfield auth login/);assert.equal(ui.container.querySelector('textarea'),null);assert.equal(fake.calls.some(c=>c.path==='/higgsfield/cost'),false);}finally{await ui.close();fake.restore();}
 });
 test('generation requires its current estimate, streams candidates, previews feed sizes, uses, varies, copies and removes',async()=>{
  FakeEventSource.install();localStorage.clear();let items:ThumbnailCandidate[]=[];
@@ -39,7 +39,7 @@ test('generation requires its current estimate, streams candidates, previews fee
   const call=fake.calls.find(c=>c.path.endsWith('/generate'))!;assert.equal((call.body as ThumbnailRequest).model,'nano_banana_pro');assert.match((call.body as ThumbnailRequest).prompt,/"BUILD IT"/);
   assert.ok(ui.container.querySelector('[aria-label="Making thumbnail"]'));
   items=[candidate];await act(async()=>FakeEventSource.last().emit('progress',{message:'Saved thumbnail 1 of 1.',candidate,done:1,total:1}));
-  assert.equal(ui.container.querySelectorAll('.ts-candidate').length,1);assert.ok(ui.container.querySelector('img[alt="Thumbnail at 168 pixels wide"]'));assert.ok(ui.container.querySelector('img[alt="Thumbnail at 360 pixels wide"]'));
+  assert.equal(ui.container.querySelectorAll('.ts-candidate').length,1);assert.ok(ui.container.querySelector('img[alt="Thumbnail at phone size"]'));assert.ok(ui.container.querySelector('img[alt="Thumbnail at desktop size"]'));
   await act(async()=>FakeEventSource.last().emit('done',items));await flush();assert.equal(ui.container.querySelector('[aria-label="Making thumbnail"]'),null);
   await act(async()=>button(ui.container,'Use as thumbnail').click());await flush();assert.ok(fake.calls.some(c=>c.path.endsWith('/h_candidate/use')));
   await act(async()=>button(ui.container,'Add to board').click());await flush();assert.ok(fake.calls.some(c=>c.path.endsWith('/h_candidate/board')));

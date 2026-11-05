@@ -2,11 +2,13 @@ import {useEffect,useLayoutEffect,useMemo,useRef,useState,type ClipboardEvent,ty
 import {CHANNEL_BOARD,type BoardFrame,type ClubSettings,type ResearchTile,type StartedVideo,type Video,type VideoScene} from '../../../shared/club';
 import {clubFetch,errorMessage,notifyVideosChanged} from '../api';
 import {ErrorLine} from '../ErrorLine';
-import {Icon,IconButton,Menu,Spinner,cn,useToast,type MenuItem} from '../ui';
+import {Icon,IconButton,Menu,Spinner,cn,useToast,type MenuItem,Tooltip} from '../ui';
 import {tileFromText} from '../video-plan';
 import {ZOOM,boxAt,boxOf,canvasSize,dragTo,edgePoint,frameAround,inFrame,inRect,keyMove,linkLine,moveBy,nearestFree,rectBetween,sectionBox,selectCard,groupDelta,tileBox,type Box} from './board-layout';
 import {BoardTip} from './BoardTip';
-import {DEFAULT_VIEW,dotGrid,fitView,panBy,resizeNote,wheelIntent,wheelPan,wheelZoom,zoomAt,type View} from './board-view';
+import {useAi} from '../useAi';
+import {readableBoardView} from '../plan/board-fit';
+import {DEFAULT_VIEW,dotGrid,panBy,resizeNote,wheelIntent,wheelPan,wheelZoom,zoomAt,type View} from './board-view';
 import './board.css';
 import {useBoardMotion} from './useBoardMotion';
 import {BoardMinimap} from './BoardMinimap';
@@ -83,6 +85,7 @@ export interface BoardProps{
  * visit (its scenes are drafted from the Idea page beside it); Research can start a new video from a selection.
  */
 export function Board({video,board:boardProp,refreshKey=0,navigate=NO_NAVIGATE,onSelection,onTiles,show}:BoardProps){
+ const ai=useAi();
  const boardId=boardProp??video?.id??CHANNEL_BOARD;
  const research=boardId===CHANNEL_BOARD;
  const board=useBoard(boardId);
@@ -103,6 +106,7 @@ export function Board({video,board:boardProp,refreshKey=0,navigate=NO_NAVIGATE,o
  const [drawer,setDrawer]=useState<string|null>(null),[starting,setStarting]=useState(false);
  const [focusNote,setFocusNote]=useState<string|null>(null),[spaceHeld,setSpaceHeld]=useState(false);
  const space=useRef(false);
+ const [minimapOpen,setMinimapOpen]=useState(false);
  const [tool,setTool]=useState<'select'|'section'|'connect'>('select'),[search,setSearch]=useState<string|null>(null),[folded,setFolded]=useState<Set<string>>(new Set());
  const wrap=useRef<HTMLDivElement>(null),fileInput=useRef<HTMLInputElement>(null);
  const gesture=useRef<Gesture|null>(null),stopGesture=useRef<(()=>void)|null>(null);
@@ -251,13 +255,15 @@ export function Board({video,board:boardProp,refreshKey=0,navigate=NO_NAVIGATE,o
  const tilesNow=useRef(tiles);tilesNow.current=tiles;
  const heightsNow=useRef(heights);heightsNow.current=heights;
  const boxesNow=useRef(boxes);boxesNow.current=boxes;
- // Something beside the board asked to see a card: it comes to the middle of the view, selected.
+ // Something beside the board asked to see a card: wait for its data, then select it once.
+ const shownRequest=useRef<BoardProps['show']>(undefined);
  useEffect(()=>{
   const box=show&&boxesNow.current.get(show.id),holder=scroller.current;
-  if(!show||!box||!holder)return;
-  setView(fitView(box,holder.clientWidth,holder.clientHeight,Math.max(80,Math.min(holder.clientWidth,holder.clientHeight)/4)));
+  if(!show||show===shownRequest.current||!box||!holder)return;
+  shownRequest.current=show;
+  setView(readableBoardView(box,holder.clientWidth,holder.clientHeight,Math.max(80,Math.min(holder.clientWidth,holder.clientHeight)/4)));
   setSel([show.id]);
- },[show]);
+ },[show,tiles?.length]);
  const framesNow=useRef(frames);framesNow.current=frames;
  const selNow=useRef(sel);selNow.current=sel;
  const pointing=useRef(false);
@@ -475,11 +481,11 @@ export function Board({video,board:boardProp,refreshKey=0,navigate=NO_NAVIGATE,o
   const parts=[...boxes.values(),...frames.map(frame=>({x:frame.x,y:frame.y,w:frame.w,h:frame.h}))];
   if(!parts.length){setView(DEFAULT_VIEW);return;}
   const left=Math.min(...parts.map(box=>box.x)),top=Math.min(...parts.map(box=>box.y));
-  setView(fitView({x:left,y:top,w:Math.max(...parts.map(box=>box.x+box.w))-left,h:Math.max(...parts.map(box=>box.y+box.h))-top},holder.clientWidth,holder.clientHeight));
+  setView(readableBoardView({x:left,y:top,w:Math.max(...parts.map(box=>box.x+box.w))-left,h:Math.max(...parts.map(box=>box.y+box.h))-top},holder.clientWidth,holder.clientHeight));
  };
  /** Zooms by a step around the middle of the window (the buttons). */
  const zoomBy=(step:number)=>{const holder=scroller.current;setView(current=>zoomAt(current,Math.round((current.z+step)*100)/100,(holder?.clientWidth??0)/2,(holder?.clientHeight??0)/2));};
- const focusCard=(id:string)=>{const box=boxes.get(id),holder=scroller.current;if(box&&holder){setSel([id]);setView(fitView(box,holder.clientWidth,holder.clientHeight,100));}};
+ const focusCard=(id:string)=>{const box=boxes.get(id),holder=scroller.current;if(box&&holder){setSel([id]);setView(readableBoardView(box,holder.clientWidth,holder.clientHeight,100));}};
  const grid=dotGrid(view);
  const size=canvasSize(tiles??[],heights);
  const frameSize=frames.reduce((most,frame)=>({width:Math.max(most.width,frame.x+frame.w+240),height:Math.max(most.height,frame.y+frame.h+240)}),size);
@@ -564,9 +570,10 @@ export function Board({video,board:boardProp,refreshKey=0,navigate=NO_NAVIGATE,o
   </div>}
   {/* Outside the zoomed canvas, so it reads at full size whatever the zoom. */}
   {emptyBoard&&<div className="board-empty" role="note">
-   {research
-    ?<p>Put what might become a video here: posts and videos from Research, your ideas, links, notes and Markdown files.</p>
-    :<><h3>This video's board</h3><p>Gather what this video needs: links, screenshots, notes and Markdown files. Drop them anywhere, or double-click to write a note. Your AI reads the whole board when it fills your title and scenes.</p></>}
+   <span className="board-empty-icon" aria-hidden><Icon name="layout" size={24}/></span>
+   <h3>{research?'Your research starts here':"This video's board is empty"}</h3>
+   <p>{research?'Paste a link, drop a screenshot, or press N for a note.':`Add links, images or notes. ${ai.name} uses them to help write your plan.`}</p>
+   {!research&&<p>Drop anything here or double-click to write a note.</p>}
    {addMenu(true)}
   </div>}
   {!research&&<div className="board-actions">
@@ -590,14 +597,17 @@ export function Board({video,board:boardProp,refreshKey=0,navigate=NO_NAVIGATE,o
   </div>
   {search!==null&&<div className="board-search"><input className="input" autoFocus aria-label="Search cards on board" placeholder="Search this board…" value={search} onChange={event=>setSearch(event.target.value)} onKeyDown={event=>{if(event.key==='Escape'){event.stopPropagation();setSearch(null);wrap.current?.focus();}}}/><IconButton icon="close" label="Close board search" onClick={()=>setSearch(null)}/></div>}
   {/* Nothing to map on an empty board, and it would sit over the empty board's Add to board. */}
-  {tiles&&!emptyBoard&&<BoardMinimap boxes={[...boxes.values()]} sections={frames} view={view} holder={scroller} onMotion={onMotion} onView={setView}/>}
+  {tiles&&!emptyBoard&&<>
+   {minimapOpen&&<BoardMinimap boxes={[...boxes.values()]} sections={frames} view={view} holder={scroller} onMotion={onMotion} onView={setView}/>}
+   <IconButton className="board-minimap-toggle" icon="layout" label={minimapOpen?"Hide minimap":"Show minimap"} aria-expanded={minimapOpen} onClick={()=>setMinimapOpen(open=>!open)}/>
+  </>}
   <div className="btoolbar">
    {!emptyBoard&&<>{addMenu()}<span className="sep"></span></>}
    <input ref={fileInput} type="file" accept="image/*,.md,.markdown,.txt" multiple hidden aria-label="Choose files to add" onChange={event=>{takeFiles([...event.target.files??[]]);event.target.value='';}}/>
    <IconButton icon="zoom-out" label="Zoom out" onClick={()=>zoomBy(-ZOOM.step)}/>
    <span className="zoom">{Math.round(zoom*100)}%</span>
    <IconButton icon="zoom-in" label="Zoom in" onClick={()=>zoomBy(ZOOM.step)}/>
-   <IconButton icon="fit" label="Fit the whole board" onClick={fit}/>
+   <Tooltip text="Fit the whole board" shortcut="Shift+1" side="top"><button type="button" className="btn ghost icon-only sm" aria-label="Fit the whole board (Shift+1)" data-tooltip="" onClick={fit}><Icon name="fit" size={15}/></button></Tooltip>
   </div>
   {linkOpen&&<form className="menu board-link" onSubmit={event=>void submitLink(event)}>
    <input className="input" autoFocus value={link} onChange={event=>setLink(event.target.value)} placeholder="YouTube, Instagram, X or any link" style={{height:32}} onKeyDown={event=>{if(event.key==='Escape')setLinkOpen(false);}} aria-label="Link to add"/>

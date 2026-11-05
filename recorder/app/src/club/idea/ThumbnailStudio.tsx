@@ -4,7 +4,8 @@ import {HIGGSFIELD_MODELS,thumbnailImageUrl,thumbnailPrompt,type HiggsfieldModel
 import {clubFetch,clubUpload,errorMessage,notifyVideosChanged} from '../api';
 import {youtubeId} from '../board';
 import {failureMessage,progressLine,watchJob,type StartedJob} from '../jobs';
-import {Button,Input,Spinner} from '../ui';
+import {Button,Icon,Input,Spinner} from '../ui';
+import {PlanSelect} from '../plan/PlanSelect';
 import './thumbnail-studio.css';
 
 export function ThumbnailStudio({video,thumbnailText,cards,brief,children}:{video:Video;thumbnailText:string;cards?:readonly ResearchTile[];brief?:ThumbnailSketch;children?:ReactNode}){
@@ -76,17 +77,18 @@ export function ThumbnailStudio({video,thumbnailText,cards,brief,children}:{vide
  const variations=(item:ThumbnailCandidate)=>{chooseModel(item.model);if(item.params.custom_reference_id)setSoul(item.params.custom_reference_id);setParent(item);setRefs([{kind:'candidate',id:item.id}]);setPrompt(item.prompt);setChange('');document.getElementById(`ts-change-${video.id}`)?.focus();};
  return <div className="thumbnail-studio">
   <div key={chosen}>{children}</div>
-  <details open={!status?.signedIn||items.length>0||busy}>
-   <summary>Thumbnails <span className="small muted">with Higgsfield</span></summary>
-   {!status?<p className="small muted">Checking Higgsfield…</p>:!status.signedIn?<p className="small muted">{status.hint} <button className="linkish" type="button" onClick={()=>void check()}>Check again</button></p>:<>
-    <label className="ts-field">Prompt<textarea className="input" rows={5} value={prompt} disabled={busy} onChange={event=>setPrompt(event.target.value)}/></label>
+  <details open>
+   <summary><Icon name="forward" size={14} className="idea-disclosure"/>Thumbnails <span className="small muted">Higgsfield</span></summary>
+   {!status?(!error&&<p className="ts-status" role="status">Checking Higgsfield…</p>):!status.signedIn?<div className="ts-setup"><Icon name="image" size={20}/><div><p>Sign in to Higgsfield to make thumbnails</p><div className="row"><Button size="sm" variant="primary" onClick={()=>{window.location.hash="#/settings/ai";}}>Open Settings</Button><button type="button" className="linkish" onClick={()=>void check()}>Check again</button></div></div></div>:<>
+    <p className="ts-intro">Describe the picture, choose a model, then review the credit estimate.</p>
+    <label className="ts-field">Description<textarea className="input" rows={5} value={prompt} disabled={busy} onChange={event=>setPrompt(event.target.value)}/></label>
     <div className="row ts-controls">
-     <label>Model <select className="input" aria-label="Thumbnail model" value={model} disabled={busy} onChange={event=>chooseModel(event.target.value as HiggsfieldModel)}>{HIGGSFIELD_MODELS.map(m=><option key={m.id} value={m.id}>{m.name}</option>)}</select></label>
-     <label>Images <select className="input" aria-label="Thumbnail count" value={count} disabled={busy} onChange={event=>setCount(Number(event.target.value))}>{[1,2,3,4].map(n=><option key={n}>{n}</option>)}</select></label>
+     <label>Model <PlanSelect label="Thumbnail model" value={model} disabled={busy} onChange={next=>chooseModel(next as HiggsfieldModel)} options={HIGGSFIELD_MODELS.map(m=>({value:m.id,label:m.name}))}/></label>
+     <label>How many <PlanSelect label="Thumbnail count" value={String(count)} disabled={busy} onChange={next=>setCount(Number(next))} options={[1,2,3,4].map(n=>({value:String(n),label:String(n)}))}/></label>
      {souls.length>0&&<label className="row"><input type="checkbox" checked={!!soul} disabled={busy} onChange={event=>{if(event.target.checked){chooseModel('text2image_soul_v2');setSoul(souls[0].id);}else{setSoul('');chooseModel('nano_banana_pro');}}}/>Put me in it</label>}
-     {soul&&souls.length>1&&<select className="input" aria-label="Your trained face" value={soul} disabled={busy} onChange={event=>setSoul(event.target.value)}>{souls.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select>}
+     {soul&&souls.length>1&&<PlanSelect label="Your trained face" value={soul} disabled={busy} onChange={setSoul} options={souls.map(s=>({value:s.id,label:s.name}))}/>}
     </div>
-    <details className="ts-references"><summary>Reference images ({refs.length}/{limit})</summary>
+    <details className="ts-references"><summary><Icon name="forward" size={14} className="idea-disclosure"/>Reference images · {refs.length} of {limit}</summary>
      <p className="small muted">Selected images are uploaded to your Higgsfield account when you generate.</p>
      {referenceChoice('Current thumbnail',{kind:'current'})}
      {parent&&referenceChoice('Variation reference',{kind:'candidate',id:parent.id},thumbnailImageUrl(video.id,parent.id))}
@@ -96,22 +98,30 @@ export function ThumbnailStudio({video,thumbnailText,cards,brief,children}:{vide
     </details>
     {parent&&<div className="ts-field"><label htmlFor={`ts-change-${video.id}`}>What should change?</label><Input id={`ts-change-${video.id}`} value={change} disabled={busy} onChange={event=>setChange(event.target.value)} placeholder="For example: make the background brighter"/><button type="button" className="linkish" disabled={busy} onClick={()=>{setParent(undefined);setRefs([]);setPrompt(initial);}}>Start a new thumbnail</button></div>}
     <div className="row ts-controls"><Button variant="primary" disabled={busy||uploading||!prompt.trim()||!!parent&&!change.trim()||cost?.key!==key||!!costError} onClick={()=>void generate()}>Generate</Button>
-     <span className="small muted" role="status">{costError?costError:cost?.key===key?`About ${cost.credits.toLocaleString()} credits`:'Estimating credits…'}</span>
+     <span className="small muted" role="status">{costError?costError:!prompt.trim()?'Add a description to estimate credits.':parent&&!change.trim()?'Describe a change to estimate credits.':cost?.key===key?`About ${cost.credits.toLocaleString()} credits`:'Estimating credits…'}</span>
      {costError&&<button className="linkish" type="button" onClick={()=>setCostRetry(n=>n+1)}>Try estimate again</button>}
      {busy&&<Button size="sm" onClick={()=>void act(()=>clubFetch(`/jobs/${jobId.current}`,{method:'DELETE'}))} disabled={!jobId.current}>Stop</Button>}
     </div>
    </>}
    {line&&<p className="small muted" role="status">{busy&&<Spinner size={12} label="Making thumbnails"/>} {line}</p>}
    {error&&<p className="idea-error" role="alert">{error}</p>}
-   <div className="ts-results">{items.map(item=><article className="ts-candidate" key={item.id}>
+   {status?.signedIn&&!items.length&&!busy&&!error&&<p className="ts-empty">Your thumbnails will appear here. Try one image first, then explore variations.</p>}
+   <div className="ts-results-heading">{items.length>0&&<h4>Thumbnails</h4>}</div>
+   <div className="ts-results">{items.map((item,index)=><article className="ts-candidate" key={item.id}>
+    <p className="ts-option">Option {index+1}</p>
     <img className="ts-image" src={thumbnailImageUrl(video.id,item.id)} alt={item.prompt}/>
     <div className="row ts-actions"><Button size="sm" onClick={()=>void act(async()=>{await clubFetch(`${base}/thumbnails/${item.id}/use`,{body:{}});setChosen(n=>n+1);setLine('Thumbnail selected for this video.');notifyVideosChanged();})}>Use as thumbnail</Button>
-     <Button size="sm" disabled={busy} onClick={()=>variations(item)}>Make variations</Button>
+     <Button size="sm" variant="ghost" disabled={busy} onClick={()=>variations(item)}>Make variations</Button>
+     <details className="ts-more" onKeyDown={event=>{if(event.key==='Escape'){event.currentTarget.open=false;event.currentTarget.querySelector('summary')?.focus();event.stopPropagation();}}}>
+      <summary aria-label="More thumbnail actions" title="More thumbnail actions"><Icon name="more" size={16}/></summary>
+      <div className="ts-more-menu">
      <a className="linkish small" href={thumbnailImageUrl(video.id,item.id)} target="_blank" rel="noopener noreferrer">Open full size</a>
-     <Button size="sm" onClick={()=>void act(async()=>{await clubFetch(`${base}/thumbnails/${item.id}/board`,{body:{}});setLine('Image added to the board.');})}>Add to board</Button>
-     <Button size="sm" disabled={busy} onClick={()=>void act(async()=>{await clubFetch(`${base}/thumbnails/${item.id}`,{method:'DELETE'});if(parent?.id===item.id){setParent(undefined);setRefs([]);setPrompt(initial);}await refresh();})}>Remove</Button>
+     <Button size="sm" variant="ghost" onClick={()=>void act(async()=>{await clubFetch(`${base}/thumbnails/${item.id}/board`,{body:{}});setLine('Image added to the board.');})}>Add to board</Button>
+     <Button size="sm" variant="ghost" disabled={busy} onClick={()=>void act(async()=>{await clubFetch(`${base}/thumbnails/${item.id}`,{method:'DELETE'});if(parent?.id===item.id){setParent(undefined);setRefs([]);setPrompt(initial);}await refresh();})}>Remove</Button>
+      </div>
+     </details>
     </div>
-    <div className="ts-feed" aria-label="YouTube feed preview">{[168,360].map(width=><div key={width} style={{width,maxWidth:'100%'}}><img src={thumbnailImageUrl(video.id,item.id)} alt={`Thumbnail at ${width} pixels wide`} style={{width:'100%',aspectRatio:'16/9',objectFit:'cover',borderRadius:'var(--cc-r-lg)'}}/><div className="ts-feed-title">{video.title}</div><div className="small muted">Your channel · {width} px preview</div></div>)}</div>
+    <details className="ts-feed-preview"><summary><Icon name="forward" size={14} className="idea-disclosure"/>Preview at phone and desktop sizes</summary><div className="ts-feed" aria-label="YouTube feed preview">{['phone','desktop'].map(size=><div key={size} className={`ts-feed-frame ${size}`}><div className="ts-feed-image"><img src={thumbnailImageUrl(video.id,item.id)} alt={`Thumbnail at ${size} size`}/></div><div className="ts-feed-title">{video.title}</div><div className="ts-feed-size">{size==='phone'?'Phone size':'Desktop size'}</div></div>)}</div></details>
    </article>)}{busy&&Array.from({length:pending},(_,i)=><div className="ts-image shimmer" key={`pending-${i}`} role="status" aria-label="Making thumbnail"/>)}</div>
   </details>
  </div>;

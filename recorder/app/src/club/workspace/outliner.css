@@ -2,11 +2,11 @@
 .outliner-row{position:relative;display:flex;align-items:flex-start;min-width:0;margin:1px 0;box-sizing:border-box}
 .cc-outliner .outliner-text{flex:1;min-width:0;outline:none;white-space:pre-wrap;overflow-wrap:anywhere;min-height:1.65em;margin:0;font-size:inherit;line-height:inherit;font-weight:400;color:inherit;cursor:text}
 .cc-outliner .outliner-text:empty:before{content:attr(data-placeholder);color:var(--cc-text-3);pointer-events:none}
-.cc-outliner .outliner-title{font-size:var(--cc-text-outline-h1);line-height:1.3;font-weight:700;letter-spacing:-.025em;margin:1px 0 14px}
-.cc-outliner h1.outliner-text:not(.outliner-title){font-size:var(--cc-text-outline-h1);line-height:1.3;font-weight:700;margin:14px 0 5px}
-.cc-outliner h2.outliner-text{font-size:var(--cc-text-outline-h2);line-height:1.3;font-weight:650;margin:12px 0 4px}
-.cc-outliner h3.outliner-text{font-size:var(--cc-text-xl);line-height:1.3;font-weight:650;margin:10px 0 4px}
-.cc-outliner h4.outliner-text,.cc-outliner h5.outliner-text,.cc-outliner h6.outliner-text{font-size:var(--cc-text-outline-lg);font-weight:650}
+.cc-outliner .outliner-title{font-size:var(--cc-text-outline-h1);line-height:1.3;font-weight: 600;letter-spacing:-.025em;margin:1px 0 14px}
+.cc-outliner h1.outliner-text:not(.outliner-title){font-size:var(--cc-text-outline-h1);line-height:1.3;font-weight: 600;margin:14px 0 5px}
+.cc-outliner h2.outliner-text{font-size:var(--cc-text-outline-h2);line-height:1.3;font-weight: 600;margin:12px 0 4px}
+.cc-outliner h3.outliner-text{font-size:var(--cc-text-xl);line-height:1.3;font-weight: 600;margin:10px 0 4px}
+.cc-outliner h4.outliner-text,.cc-outliner h5.outliner-text,.cc-outliner h6.outliner-text{font-size:var(--cc-text-outline-lg);font-weight: 600}
 .outliner-bullet{position:relative;flex:0 0 30px;width:30px;height:26px;padding:0;border:0;background:transparent;color:var(--cc-text-3);font:inherit;line-height:26px;text-align:center;cursor:text;border-radius:4px}
 .outliner-bullet.has-children{cursor:pointer;color:var(--cc-text)}
 .outliner-bullet.has-children:hover{background:var(--cc-hover)}

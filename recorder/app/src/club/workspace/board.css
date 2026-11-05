@@ -6,16 +6,16 @@
 .club-root .hepta-board .tile.sel, .club-root .hepta-board .tile:focus-visible { border-color: var(--cc-selection); outline: 2px solid var(--cc-selection); outline-offset: 1px; box-shadow: none; }
 .club-root .hepta-board .tile.sel::after { content: ''; position: absolute; width: 6px; height: 6px; right: -5px; bottom: -5px; background: var(--cc-selection); border: 1px solid var(--cc-card-bg); pointer-events: none; }
 .club-root .hepta-board .tile > .th { display: none; }
-.club-root .hepta-board .board-card-head { height: 28px; display: flex; align-items: center; gap: 1px; padding: 0 3px; border-radius: 8px 8px 0 0; background: var(--cc-card-bg); opacity: 0; transition: opacity 75ms; }
+.club-root .hepta-board .board-card-head { height: 28px; display: flex; align-items: center; gap: 1px; padding: 0 3px; border-radius: var(--cc-r-lg) var(--cc-r-lg) 0 0; background: var(--cc-card-bg); opacity: 0; transition: opacity var(--cc-dur-fast); }
 .club-root .hepta-board .tile:is(:hover,.sel,:focus-within) > .board-card-head { opacity: 1; }
 .club-root .hepta-board .board-card-head button { width: 23px; height: 23px; flex: none; }
 .club-root .hepta-board .board-card-kind { flex: 1; min-width: 0; font-size: var(--cc-text-2xs); color: var(--cc-text-3); user-select: none; }
 .club-root .hepta-board .tile.folded { min-height: 28px !important; height: 28px; }
 .club-root .hepta-board .tile.folded > :not(.board-card-head):not(.connect-handle) { display: none; }
 .club-root .hepta-board .tile.folded .board-card-head { opacity: 1; }
-.club-root .hepta-board .tile.note .sticky { padding-top: 0; }
+.club-root .hepta-board .tile.note .sticky { padding: 16px; }
 .club-root .hepta-board .tile.search-dim { opacity: .22; }
-.club-root .hepta-board .tile .tb { border-radius: 0 0 8px 8px; overflow: hidden; }
+.club-root .hepta-board .tile .tb { border-radius: 0 0 var(--cc-r-lg) var(--cc-r-lg); overflow: hidden; }
 .club-root .hepta-board .bframe { border: 2px solid var(--cc-card-border-hover); background: var(--cc-section-bg); border-radius: var(--cc-r-xl); }
 .club-root .hepta-board .bframe.sel { border-color: var(--cc-selection); }
 .club-root .hepta-board .bframe-h { left: -2px; right: auto; top: auto; bottom: calc(100% + 6px); height: 28px; max-width: 100%; padding: 0 9px; gap: 6px; background: var(--cc-section-title-bg); border: 1px solid var(--cc-card-border); border-radius: var(--cc-r); font-size: var(--cc-text-sm); font-weight: 600; color: var(--cc-text); white-space: nowrap; }
@@ -27,17 +27,17 @@
 .club-root .hepta-board .board-tools > button { width: 30px; height: 30px; }
 .club-root .hepta-board .board-select { display: flex; align-items: center; justify-content: center; background: transparent; border: 0; border-radius: var(--cc-r); color: var(--cc-text-2); cursor: pointer; }
 .club-root .hepta-board .board-tools .on { color: var(--cc-selection); background: color-mix(in srgb, var(--cc-selection) 16%, transparent); }
-.club-root .hepta-board .board-minimap { position: absolute; right: 14px; bottom: 60px; width: 180px; height: 112px; z-index: 5; border: 1px solid var(--cc-card-border); border-radius: var(--cc-r-lg); overflow: hidden; background: var(--cc-card-bg); box-shadow: var(--cc-shadow-1); }
+.club-root .hepta-board .board-minimap { position: absolute; right: 14px; bottom: 100px; width: 180px; height: 112px; z-index: 5; border: 1px solid var(--cc-card-border); border-radius: var(--cc-r-lg); overflow: hidden; background: var(--cc-card-bg); box-shadow: var(--cc-shadow-1); }
 .club-root .hepta-board .board-minimap svg { width: 100%; height: 100%; cursor: crosshair; touch-action: none; }
 .club-root .hepta-board .minimap-card { fill: var(--cc-card-border-hover); }
 .club-root .hepta-board .minimap-view { fill: color-mix(in srgb, var(--cc-selection) 10%, transparent); stroke: var(--cc-selection); stroke-width: 1; }
 .club-root .hepta-board .btoolbar { left: auto; right: 14px; bottom: 14px; transform: none; box-shadow: none; border-radius: var(--cc-r-lg); background: var(--cc-card-bg); border-color: var(--cc-card-border); }
-.club-root .hepta-board .board-selbar { bottom: 16px; max-width: calc(100% - 530px); flex-wrap: wrap; }
+.club-root .hepta-board .board-selbar { left: 50%; right: auto; bottom: 64px; transform: translateX(-50%); max-width: calc(100% - 32px); flex-wrap: wrap; }
 .club-root .hepta-board .board-search { position: absolute; left: 70px; top: 16px; display: flex; gap: 4px; z-index: 6; width: 290px; padding: 5px; background: var(--cc-card-bg); border: 1px solid var(--cc-card-border); border-radius: var(--cc-r-lg); }
 .club-root .hepta-board .board-search input { min-width: 0; }
-@media (max-width: 850px) { .club-root .hepta-board .board-minimap { width: 130px; height: 81px; } .club-root .hepta-board .board-selbar { left: 62px; right: 12px; bottom: 150px; transform: none; max-width: none; } }
+@media (max-width: 850px) { .club-root .hepta-board .board-minimap { width: 130px; height: 81px; } .club-root .hepta-board .board-selbar { left: 50%; right: auto; bottom: 64px; transform: translateX(-50%); max-width: calc(100% - 32px); } }
 @media (prefers-reduced-motion: reduce) { .club-root .hepta-board .board-card-head { transition: none; } }
-.club-root .hepta-board .tile.note { background: var(--cc-card-bg); border-color: var(--cc-card-border); }
+.club-root .hepta-board .tile.note { background: var(--cc-card-bg); border-color: var(--cc-line-strong); }
 .club-root .hepta-board .tile.note:hover { border-color: var(--cc-card-border-hover); }
 .club-root .hepta-board .tile.note.sel { border-color: var(--cc-selection); }
 .club-root .hepta-board .minimap-section { fill: none; stroke: var(--cc-card-border-hover); stroke-width: .7; }
@@ -46,3 +46,59 @@
 .club-root .hepta-board .board-card-panel > header b { flex: 1; }
 .club-root .hepta-board .board-card-preview { padding: 12px; }
 .club-root .hepta-board .board-card-preview > .th { display: none; }
+
+/* Package B: keyboard help and an inviting, shared board empty state. */
+.club-root .board-help { outline: none; }
+.club-root .board-help .dh h3 { font-size: var(--cc-text-base); font-weight: 600; }
+.club-root .board-help-moves { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.club-root .board-help-move { display: flex; flex-direction: column; gap: 8px; padding: 14px; border: 1px solid var(--cc-line); border-radius: var(--cc-r-lg); }
+.club-root .board-help-move > svg { color: var(--cc-text-3); }
+.club-root .board-help-move b { font-size: var(--cc-text-sm); font-weight: 600; }
+.club-root .board-help-move span { font-size: var(--cc-text-xs); color: var(--cc-text-2); line-height: 1.55; }
+.club-root .board-help-keys { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 24px; margin: 20px 0 16px; padding-top: 20px; border-top: 1px solid var(--cc-line); }
+.club-root .board-help-keys > div { display: flex; align-items: center; gap: 12px; }
+.club-root .board-help-keys dt { min-width: 88px; }
+.club-root .board-help-keys dd { margin: 0; font-size: var(--cc-text-xs); color: var(--cc-text-2); }
+.club-root .board-help-keys kbd { display: inline-block; padding: 3px 7px; border: 1px solid var(--cc-line); border-radius: var(--cc-r-sm); background: var(--cc-bg-sunk); color: var(--cc-text-2); font: inherit; font-size: var(--cc-text-xs); white-space: nowrap; }
+.club-root .board-help-hint { margin: 10px 0 0; font-size: var(--cc-text-xs); line-height: 1.5; color: var(--cc-text-3); }
+.club-root .board-empty { display: flex; flex-direction: column; align-items: center; gap: 12px; max-width: 360px; padding: 24px; border: 1px solid var(--cc-card-border); border-radius: var(--cc-r-lg); background: var(--cc-card-bg); box-shadow: var(--cc-shadow-1); }
+.club-root .board-empty-icon { display: grid; place-items: center; width: 44px; height: 44px; border-radius: var(--cc-r-lg); background: var(--cc-bg-sunk); color: var(--cc-text-3); }
+.club-root .board-empty h3 { font-size: var(--cc-text-base); font-weight: 600; color: var(--cc-text); margin: 0; }
+.club-root .board-empty p { margin: 0; font-size: var(--cc-text-sm); line-height: 1.55; color: var(--cc-text-2); }
+/* Selection marks the card; keyboard focus stays neutral and inside it. */
+.club-root .hepta-board .tile:focus-visible { border-color: var(--cc-card-border-hover); outline: 2px solid var(--cc-text-2); outline-offset: -4px; }
+.club-root .hepta-board .tile.sel { border-color: var(--cc-selection); outline: 2px solid var(--cc-selection); outline-offset: 1px; }
+.club-root .hepta-board .tile.sel:focus-visible { box-shadow: inset 0 0 0 2px var(--cc-card-bg), inset 0 0 0 3px var(--cc-text-2); }
+@keyframes board-card-in { from { opacity: 0; scale: .98; } to { opacity: 1; scale: 1; } }
+@media (prefers-reduced-motion: no-preference) {
+ .club-root .hepta-board .tile { animation: board-card-in 120ms var(--cc-ease); }
+}
+@media (max-width: 620px) {
+ .club-root .board-help-moves { grid-template-columns: 1fr; }
+ .club-root .board-help-keys { grid-template-columns: 1fr; }
+}
+/* Notes keep the board's reading scale; the full note editor keeps its larger headings. */
+.club-root .hepta-board .tile .outliner-title, .club-root .hepta-board .tile h1.outliner-text { font-size: var(--cc-text-lg); line-height: 1.4; font-weight: 600; letter-spacing: -.01em; }
+.club-root .hepta-board .tile .outliner-text { font-size: var(--cc-text-base); line-height: 1.55; }
+.club-root .hepta-board .tile h2.outliner-text, .club-root .hepta-board .tile h3.outliner-text { font-size: var(--cc-text-base); font-weight: 600; }
+/* Round 2: cards remain readable at their native scale. */
+.club-root .hepta-board .tile .tb, .club-root .hepta-board .tile .sticky { padding: 16px; font-size: var(--cc-text-base); line-height: 1.5; font-weight: 400; }
+.club-root .hepta-board .tile .outliner-title, .club-root .hepta-board .tile h1.outliner-text { font-size: var(--cc-text-lg); font-weight: 600; }
+.club-root .hepta-board .tile .outliner-text:not(h1):not(h2):not(h3) { font-size: var(--cc-text-base); font-weight: 400; }
+.club-root .board-video-placeholder { display: grid; place-items: center; width: 100%; height: 100%; min-height: 36px; background: var(--cc-surface); color: var(--cc-text-3); border: 1px solid var(--cc-line); border-radius: var(--cc-r); }
+.club-root .hepta-board .thumb, .club-root .idea-card-thumb { background: var(--cc-surface); }
+
+.club-root .hepta-board .tile .cc-outliner { padding: 0; background: transparent; }
+
+.club-root .hepta-board .tile > .board-card-head { position: absolute; top: -29px; left: 0; right: 0; border: 1px solid var(--cc-card-border); border-radius: var(--cc-r); }
+
+/* One close control, in the help footer. Escape and the scrim still dismiss it. */
+.club-root .board-help .dh > button[aria-label="Close"] { display: none; }
+.club-root .board-help-keys > div:first-child { grid-column: 1 / -1; }
+.club-root .board-video-placeholder { gap: 8px; align-content: center; padding: 16px; text-align: center; }
+.club-root .board-video-placeholder > span { font-size: var(--cc-text-base); font-weight: 500; line-height: 1.5; }
+
+[data-theme="dark"] .club-root .hepta-board .tile.note, .club-root[data-theme="dark"] .hepta-board .tile.note { background: color-mix(in srgb, var(--cc-card-bg) 90%, var(--cc-text) 10%); }
+
+.club-root .hepta-board .board-minimap-toggle { position: absolute; right: 14px; bottom: 60px; z-index: 5; width: 32px; height: 32px; border: 1px solid var(--cc-card-border); border-radius: var(--cc-r); background: var(--cc-card-bg); color: var(--cc-text-2); }
+.club-root .hepta-board .board-minimap-toggle:hover { background: var(--cc-hover); }

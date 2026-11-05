@@ -69,7 +69,7 @@ test('an empty Research shows one sentence and the Add menu, and no Draft scenes
  try{
   await flush();await flush();
   const empty=ui.container.querySelector('.board-empty')!;
-  assert.match(empty.textContent!,/Put what might become a video here/);
+  assert.match(empty.textContent!,/Your research starts here/);assert.match(empty.textContent!,/Paste a link, drop a screenshot, or press N for a note/);
   assert.equal(empty.querySelectorAll('p').length,1);
   assert.ok(button(empty,'Add to board'),'the Add menu');
   assert.equal(ui.container.querySelector('.btoolbar')!.textContent!.includes('Add to board'),false,'one Add menu, not two');

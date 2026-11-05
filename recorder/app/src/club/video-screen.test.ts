@@ -68,7 +68,7 @@ test('an empty Idea is one page: nothing is written until asked, then one Fill w
   assert.deepEqual(partNames(c),["What it's about",'One-pager','Title and thumbnail','What you say first','Scenes'],'the whole video on one page, in order');
   assert.equal(server.calls.filter(call=>call.method==='POST'&&call.path==='/videos/v1/package').length,0,'nothing runs on your AI account until you ask');
   assert.equal(button(c,'Fill the empty parts with Claude').title,'From your idea.','it says what the AI fills from, on the button');
-  assert.deepEqual(primaries(c),['Write one-pager'],'the one-pager is offered separately from Fill');
+  assert.deepEqual(primaries(c),['Write one-pager'],'one-pager writing is the section primary while Continue remains outline without scenes');
   await act(async()=>button(c,'Fill the empty parts with Claude').click());await flush();
   assert.equal(server.calls.filter(call=>call.method==='POST'&&call.path==='/videos/v1/package').length,1,'one press writes the package first');
   assert.ok(hasText(c,'Writing the title, thumbnail and hook…'),'and the page says so');
@@ -113,7 +113,7 @@ test('a drafted Idea: the title shows its other versions where it stands, edits 
   assert.equal(c.querySelectorAll('.scene').length,4,'the scenes are on the same page');
   await act(async()=>c.querySelectorAll<HTMLElement>('.scene-open')[1].click());await flush();
   await edit(c.querySelector('.scene.open .ed.t'),'Level 1: settings');
-  assert.deepEqual(primaries(c),['Write one-pager','Continue to recording'],'the one-pager is offered separately; the complete package and scenes do not offer Fill');
+  assert.deepEqual(primaries(c),['Write one-pager','Continue to recording'],'the one-pager has its section primary; Continue is solid once scenes exist');
   await act(async()=>button(c,'Continue to recording').click());await flush();
   assert.equal(state.pkg?.titles[1],'Seven Claude Code tricks','the edit landed on the version in use');
   assert.deepEqual(state.pkg?.thumbs,[pkg.thumbnailText,'',''],'the words stay with the version they were written for');
