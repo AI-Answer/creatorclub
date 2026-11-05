@@ -42,6 +42,26 @@
   --cc-section-bg: rgba(225, 225, 225, .4);
   --cc-section-title-bg: hsl(0 0% 88%);
   --cc-popover-bg: var(--cc-bg);
+  /* Package A council polish: fixed stage/today colors, contextual card contrast. */
+  --cc-stage-neutral: #808080;
+  --cc-stage-ideas: #808080;
+  --cc-stage-planning: #648bb8;
+  --cc-stage-recording: #c98b57;
+  --cc-stage-editing: #9980bd;
+  --cc-stage-publishing: #b59a4d;
+  --cc-stage-published: #5b9b78;
+  --cc-calendar-today: var(--cc-primary);
+  --cc-calendar-today-ink: var(--cc-on-primary);
+  --cc-calendar-chip: #f5f5f5;
+  --cc-card-meta: #595959;
+  --cc-palette-hint: #595959;
+  --cc-kanban-hover: #fafafa;
+  --cc-card-menu: #595959;
+  --cc-switch-on: var(--cc-primary);
+  --cc-switch-thumb: #ffffff;
+  --cc-kanban-card: #ffffff;
+  --cc-kanban-border: #e5e5e5;
+  --cc-nav-selected: #ececec;
   /* Text */
   --cc-text: #0a0a0a;
   --cc-text-2: #404040;
@@ -182,14 +202,21 @@
   --cc-text-2xl: 24px;
   /* Heptabase's card outline scale: body, h4, h2 and the card title. */
   --cc-text-outline: 15px;
+  --cc-text-section: 15px;
   --cc-text-outline-lg: 17px;
   --cc-text-outline-h2: 25.5px;
   --cc-text-outline-h1: 31.875px;
+  --cc-weight-regular: 400;
+  --cc-weight-medium: 500;
+  --cc-weight-semibold: 600;
   /* Motion */
   --cc-ease: cubic-bezier(0.4, 0, 0.2, 1);
   --cc-dur-fast: 0.1s;
   --cc-dur: 0.15s;
   --cc-dur-slow: 0.2s;
+  --cc-dur-long: 0.4s;
+  --cc-dur-progress: 1.3s;
+  --cc-dur-highlight: 1.6s;
   /* Layout */
   --cc-sidebar: 236px;
   color-scheme: light;
@@ -259,7 +286,17 @@
   --cc-avatar-4: #525252;
   --cc-toast-bg: #3d4046;
   --cc-toast-text: #e1e1e1;
-  --cc-scrim: rgba(0, 0, 0, .64);
+  --cc-scrim: rgba(0, 0, 0, .6);
+  --cc-calendar-chip: #2b2d30;
+  --cc-card-meta: #c4c4c4;
+  --cc-switch-on: #e6e6e6;
+  --cc-switch-thumb: #1c1c1e;
+  --cc-kanban-card: #2a2a2c;
+  --cc-kanban-hover: #3a3a3e;
+  --cc-palette-hint: #c4c4c4;
+  --cc-card-menu: #dedede;
+  --cc-kanban-border: #3f4044;
+  --cc-nav-selected: #2d3033;
   --cc-shadow-1: 0px 0px 0px 1px rgba(0, 0, 0, .2);
   --cc-shadow-2: rgb(15 15 15 / 20%) 0 0 0 1px, rgb(15 15 15 / 20%) 0 2px 4px;
   --cc-shadow-3: 0 0 0 1px rgba(15, 15, 15, .1), 0 3px 6px rgba(15, 15, 15, .2), 0 9px 24px rgba(15, 15, 15, .4);

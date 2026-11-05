@@ -67,8 +67,8 @@ test('the Video board nav is the switcher, Search and two places (Video board wi
   assert.deepEqual(navItems(c),['Video board','Research']);
   assert.deepEqual([...bar.querySelectorAll('a.nav-item')].map(a=>a.getAttribute('href')),['#/home','#/discover']);
   const counts=Object.fromEntries([...bar.querySelectorAll('a.nav-item')].map(a=>[a.querySelector('.label')!.textContent,a.querySelector('.count')?.textContent]));
-  assert.deepEqual(counts,{'Video board':'2',Research:undefined},'only Video board has a number: the videos in progress');
-  assert.equal(bar.querySelector('a[aria-current="page"]')!.textContent,'Video board2');
+  assert.deepEqual(counts,{'Video board':undefined,Research:undefined},'top-level navigation never shows a partial count');
+  assert.equal(bar.querySelector('a[aria-current="page"]')!.textContent,'Video board');
   const strip=c.querySelector('.tabstrip')!;
   assert.deepEqual([...strip.querySelectorAll('.ts-icon')].map(el=>[el.tagName,el.getAttribute('aria-label')]),[['BUTTON','Help'],['A','Settings']],'Help and Settings on the right of the tab strip, as in Borumi');
   const help=strip.querySelector('[aria-label="Help"]')!;
@@ -100,9 +100,9 @@ test('the sidebar counts and orders from the videos it is given',()=>{
 });
 
 test('Home, Discover and Videos open their own screens, and every old link lands on the new one with the sidebar on the right place',async()=>{
- for(const [hash,title,item,canonical] of [['#/home','Video board','Video board','#/home'],['#/discover','Research','Research','#/discover'],['#/videos','Videos','Video board','#/videos'],
-  ['#/overview','Video board','Video board','#/home'],['#/ideas?filter=later','Videos','Video board','#/videos?group=later'],['#/trending','Research','Research','#/discover?show=youtube'],
-  ['#/signals','Research','Research','#/discover'],['#/production/calendar','Videos','Video board','#/videos/calendar']]){
+ for(const [hash,title,item,canonical] of [['#/home','Video board','Video board','#/home'],['#/discover','Research','Research','#/discover'],['#/videos','Video board','Video board','#/videos'],
+  ['#/overview','Video board','Video board','#/home'],['#/ideas?filter=later','Video board','Video board','#/videos?group=later'],['#/trending','Research','Research','#/discover?show=youtube'],
+  ['#/signals','Research','Research','#/discover'],['#/production/calendar','Video board','Video board','#/videos/calendar']]){
   await withApp(hash,async ui=>{
    const c=ui.container;
    assert.equal(window.location.hash,canonical,hash);
@@ -112,22 +112,22 @@ test('Home, Discover and Videos open their own screens, and every old link lands
  }
 });
 
-test('the pinned tab is always Video board, video tabs show stage dots, and + starts a new video',async()=>{
+test('the pinned tab follows the sidebar page, video tabs show stage dots, and + starts a new video',async()=>{
  await withApp('#/home',async ui=>{
   const c=ui.container;
-  for(const [hash,label] of [['#/home','Home'],['#/discover','Discover'],['#/videos','Videos'],['#/research','Research']]){
+  for(const [hash,label] of [['#/home','Video board'],['#/discover','Research'],['#/videos','Video board'],['#/research','Channel board']]){
    await hashTo(hash);
-   assert.equal(c.querySelector('.ts-tab.on.home .ts-label')!.textContent,'Video board',hash);
-   assert.equal(c.querySelector('.ts-tab.home a')!.getAttribute('href'),'#/home');
+   assert.equal(c.querySelector('.ts-tab.on.home .ts-label')!.textContent,label,hash);
+   assert.equal(c.querySelector('.ts-tab.home a')!.getAttribute('href'),hash);
    assert.ok(c.querySelector('.sidebar'),`${hash} shows the Home nav`);
   }
   await hashTo('#/video/p1');
   assert.equal(c.querySelector('.sidebar'),null,'a video has no Home nav');
   const home=c.querySelector<HTMLAnchorElement>('.ts-tab.home .ts-label')!;
-  assert.equal(home.textContent,'Video board','the pinned tab keeps its name');
+  assert.equal(home.textContent,'Channel board','the pinned tab preserves the last page');
   assert.equal(c.querySelector('.ts-tab:not(.home) .ts-stage')!.getAttribute('aria-label'),'Planning');
   assert.equal(c.querySelector('.ts-tab:not(.home) .ts-id')?.textContent,'CC-7','the tab shows the video ID');
-  assert.equal(home.getAttribute('href'),'#/home','and opens the video Kanban');
+  assert.equal(home.getAttribute('href'),'#/research','and returns to that page');
   assert.equal(c.querySelector('.ts-tab.home .ts-close'),null,'it cannot be closed');
   assert.equal(c.querySelector('.tabstrip .ts-tab.home'),c.querySelector('.ts-tabs')!.firstElementChild,'it comes first');
   await press(c.querySelector('.tabstrip button.ts-new[aria-label="New video"]')!);
@@ -182,19 +182,25 @@ test('Cmd+K opens search over actions, steps, places, settings and videos; typin
   await keyDown(window,'k',{metaKey:true});
   assert.ok(c.querySelector('.palette'));assert.ok(document.activeElement===c.querySelector('.palette input'));
   const options=()=>[...c.querySelectorAll('.palette .po .po-label')].map(o=>o.textContent);
-  const kinds=()=>[...c.querySelectorAll('.palette .po .k')].map(o=>o.textContent);
   assert.deepEqual(options().slice(0,3),['New video','Add a channel','Help']);
-  assert.ok(options().includes('Record')&&options().includes('Publish'),'the steps are listed');
-  assert.ok(kinds().includes('Settings'),'settings groups are listed');
+  assert.ok(!options().includes('Record')&&!options().includes('Publish'),'steps appear only inside the current video');
+  assert.deepEqual([...c.querySelectorAll('.palette [role=group]')].find(group=>group.querySelector('.palette-group')?.textContent==='Pages')!.querySelectorAll('.po-label').length,3,'only the three linked pages appear at rest');
   assert.ok(!options().includes('First launch setup'),'no first launch entry');
   assert.ok(options().includes('Hidden features in Claude Code'));assert.ok(options().includes('Claude for receipts'));
+  const group=[...c.querySelectorAll('.palette [role=group]')].find(group=>group.querySelector('.palette-group')?.textContent==='Videos')!;
+  assert.equal(group.querySelectorAll('[role=option]').length,4,'three recent videos and Show all videos');
+  assert.equal(group.previousElementSibling?.querySelector('.palette-group')?.textContent,'Pages');
+  assert.ok(group.querySelector('.po-stage .col-dot'));
+  assert.doesNotMatch(group.querySelector('.po-stage')!.textContent!,/CC-/);
+  assert.equal(group.lastElementChild?.querySelector('.po-label')?.textContent,'Show all videos');
+  assert.equal(group.lastElementChild?.querySelector('svg'),null,'Show all videos has no film icon');
   await type(c.querySelector('.palette input')!,'hidden');
   assert.deepEqual(options(),['Hidden features in Claude Code']);
   await keyDown(c.querySelector('.palette input')!,'Enter');
   assert.equal(c.querySelector('.palette'),null);assert.equal(window.location.hash,'#/video/p1/idea');
   await keyDown(window,'k',{ctrlKey:true});
   await type(c.querySelector('.palette input')!,'zzz');
-  assert.match(c.querySelector('.palette .po')!.textContent!,/Nothing matches "zzz"\. Try a step, a setting or a word from the title\./);
+  assert.match(c.querySelector('.palette .po')!.textContent!,/Nothing matches "zzz"\. Try a video title, page or action\./);
   await keyDown(c.querySelector('.palette input')!,'Escape');
   assert.equal(c.querySelector('.palette'),null);
   await press(c.querySelector('.ts-logo')!);
@@ -207,6 +213,12 @@ test('search finds steps, settings groups, actions and help words, and a step op
  await withApp('#/video/r1/record',async ui=>{
   const c=ui.container;
   await keyDown(window,'k',{metaKey:true});
+  const steps=[...c.querySelectorAll('.palette [role=group]')].find(group=>group.querySelector('.palette-group')?.textContent==='Video steps')!;
+  assert.deepEqual([...steps.querySelectorAll('.po-label')].map(label=>label.textContent),['Idea','Record','Edit','Publish']);
+  assert.equal(steps.previousElementSibling?.querySelector('.palette-group')?.textContent,'Actions');
+  const groupLabel=steps.getAttribute('aria-labelledby')!;
+  assert.doesNotMatch(groupLabel,/\s/,'group labels use one valid element ID');
+  assert.equal(document.getElementById(groupLabel)?.textContent,'Video steps');
   const input=()=>c.querySelector('.palette input')!;
   const first=()=>c.querySelector('.palette .po')!;
   for(const [word,expected] of [['help','Help'],['record','Record'],['publish','Publish'],['scene','Scene'],['channel','Channel']] as const){
@@ -397,14 +409,14 @@ test('which writes count as changing a video',()=>{
  for(const [method,path] of no)assert.equal(changesVideos(method,path),false,`${method} ${path}`);
 });
 
-test('the sidebar count follows a change saved to a video, without leaving the page',async()=>{
+test('saved video changes refresh the list without introducing a sidebar count',async()=>{
  await withApp('#/videos',async (ui,_server,calls)=>{
   const c=ui.container;
   const count=(label:string)=>c.querySelector(`.sidebar a[href="#/${label}"] .count`)?.textContent;
-  assert.equal(count('home'),'2');
+  assert.equal(count('home'),undefined);
   await act(async()=>{await clubFetch('/videos/i1/move',{body:{stage:'planning'}});});await flush();
   assert.equal(window.location.hash,'#/videos','the route did not change');
-  assert.equal(count('home'),'3');
+  assert.equal(count('home'),undefined,'saving videos never introduces a top-level count');
   const loads=calls.filter(call=>call.path==='/videos'&&call.method==='GET').length;
   await act(async()=>{await clubFetch('/videos');});await flush();
   assert.equal(calls.filter(call=>call.path==='/videos'&&call.method==='GET').length,loads+1,'reading videos does not reload the sidebar');
@@ -467,4 +479,42 @@ test('before the channels load the switcher shows a neutral skeleton, never the 
   release();await flush();await flush();
   assert.match(ui.container.querySelector('.channel-btn')!.textContent!,/Samin Yasar@samin/);
  }finally{release();await ui.close();fake.restore();window.location.hash='';}
+});
+
+test('global shortcuts open New video and Help, keep typing intact, and never intercept Record or Edit',async()=>{
+ await withApp('#/home',async ui=>{
+  const c=ui.container;
+  await keyDown(window,'n');await flush();
+  assert.match(c.querySelector('[role="dialog"]')!.textContent!,/How would you like to start/);
+  await keyDown(document,'Escape');await flush();
+  assert.equal(c.querySelector('[role="dialog"]'),null);
+  await keyDown(window,'?',{shiftKey:true});await flush();
+  assert.ok(c.querySelector('[data-topic="shortcuts"]'));
+  await keyDown(document,'Escape');await flush();
+  const input=document.createElement('input');c.append(input);
+  await keyDown(input,'n');await flush();assert.equal(c.querySelector('[role="dialog"]'),null);input.remove();
+ });
+ const {shellShortcut,adjacentVideoTab}=await import('./shell/shortcuts');
+ for(const tab of ['record','edit'] as const)for(const event of [{key:'n'},{key:'?'},{key:'w',metaKey:true},{key:']',metaKey:true,shiftKey:true}])assert.equal(shellShortcut(event,{name:'video',id:'a',tab}),null);
+ assert.equal(shellShortcut({key:'n',isComposing:true},{name:'home'}),null);
+ assert.equal(shellShortcut({key:'n',repeat:true},{name:'home'}),null);
+ assert.equal(shellShortcut({key:'n'},{name:'home'},true),null);
+ assert.equal(shellShortcut({key:'w',metaKey:true},{name:'video',id:'a',tab:'idea'}),'close-tab');
+ assert.equal(adjacentVideoTab(['a','b'],'b',1),'a');
+ assert.equal(adjacentVideoTab(['a','b'],'a',-1),'b');
+ assert.equal(adjacentVideoTab(['a','b'],null,-1),'b');
+ assert.equal(adjacentVideoTab([],null,1),undefined);
+});
+
+test('unknown server diagnostics are console-only; the API keeps useful recovery copy',async()=>{
+ const {ClubApiError,errorMessage}=await import('./api');
+ const fake=installFetch(()=>({status:403,body:{error:'Origin is not allowed'}}));
+ try{
+  await assert.rejects(clubFetch('/signals'),reason=>reason instanceof ClubApiError&&errorMessage(reason,"Couldn't load Research.")==="Couldn't load Research.");
+  assert.equal(errorMessage(new ClubApiError("Couldn't save that.")),"Couldn't save that.");
+  for(const message of ['Some details were not valid.', 'Could not prepare recorder.', "Postiz didn't accept that key.", 'Paste the YouTube link of the uploaded video.']){
+   const recovery=installFetch(()=>({status:400,body:{error:message}}));
+   try{await assert.rejects(clubFetch('/settings'),reason=>reason instanceof ClubApiError&&errorMessage(reason)===message);}finally{recovery.restore();}
+  }
+ }finally{fake.restore();}
 });

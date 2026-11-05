@@ -2,8 +2,8 @@ import type {CSSProperties} from 'react';
 import {
  AArrowDown,AArrowUp,ArrowDown,ArrowLeft,ArrowRight,ArrowUp,ArrowUpRight,AudioLines,BetweenHorizontalStart,Bookmark,Bot,Calendar,Camera,Captions,Check,ChevronDown,ChevronLeft,ChevronRight,ChevronUp,ChevronsUpDown,
  Circle,CircleCheck,CircleDot,CircleHelp,Clapperboard,Clock,Code,Copy,CornerDownRight,Download,Expand,Eye,EyeOff,FileText,Film,Flag,Folder,FolderOpen,GripVertical,Heading1,Heading2,Heading3,Heart,History,House,Image,Compass,Keyboard,Layers,LayoutTemplate,Lightbulb,
- Link,List,ListChecks,ListOrdered,LoaderCircle,Lock,Magnet,Maximize2,MessageCircle,MessagesSquare,Mic,Minus,Monitor,MoreHorizontal,MoveHorizontal,Music,Package,PanelLeftClose,PanelLeftOpen,PanelRightClose,PanelRightOpen,Pause,Pencil,Pilcrow,Play,Plus,Quote,Redo2,RotateCcw,
- Frame,Scissors,Search,Send,Settings,Settings2,SlidersHorizontal,Sparkles,Spline,Sprout,Square,SquareKanban,SquareSplitHorizontal,StickyNote,Sun,Table,Trash2,TrendingUp,TriangleAlert,Type,Undo2,Upload,Video,Wand2,X,Youtube,Waypoints,ZoomIn,ZoomOut,
+ Link,List,ListChecks,ListOrdered,LoaderCircle,Lock,Magnet,Maximize2,MessageCircle,MessagesSquare,Mic,Minus,Monitor,MoreHorizontal,MoveHorizontal,Music,Package,PanelLeftClose,PanelLeftOpen,PanelRightClose,PanelRightOpen,Pause,Pencil,Pilcrow,Play,Plus,Presentation,Quote,Redo2,RotateCcw,
+ Frame,Scissors,Search,Send,Settings,Settings2,SlidersHorizontal,Sparkles,Spline,Sprout,Square,SquareKanban,SquareSplitHorizontal,StickyNote,Sun,Table,Trash2,TrendingUp,TriangleAlert,Type,Undo2,Upload,Video,Wand2,WifiOff,X,Youtube,Waypoints,ZoomIn,ZoomOut,
  type LucideIcon,
 } from 'lucide-react';
 import {QuickRecord} from '../../Icons';
@@ -25,8 +25,8 @@ const glyphs={
  microphone:Mic,camera:Video,snapshot:Camera,screen:Monitor,audio:AudioLines,music:Music,captions:Captions,film:Film,image:Image,text:Type,
  slide:MoveHorizontal,adjust:SlidersHorizontal,'take-settings':Settings2,layout:LayoutTemplate,
  // Places and things
- home:House,idea:Lightbulb,trending:TrendingUp,signals:MessagesSquare,production:SquareKanban,video:Clapperboard,scenes:Layers,script:FileText,
- research:Compass,frame:Frame,connect:Spline,
+ home:House,channel:Youtube,idea:Lightbulb,trending:TrendingUp,signals:MessagesSquare,production:SquareKanban,video:Clapperboard,scenes:Layers,script:FileText,
+ research:Compass,whiteboard:Presentation,offline:WifiOff,frame:Frame,connect:Spline,
  package:Package,note:StickyNote,folder:Folder,'folder-open':FolderOpen,table:Table,calendar:Calendar,duration:Clock,settings:Settings,
  help:CircleHelp,keyboard:Keyboard,theme:Sun,youtube:Youtube,comment:MessageCircle,like:Heart,assistant:Bot,'first-steps':Sprout,code:Code,
  preview:Eye,hide:EyeOff,'sidebar-close':PanelLeftClose,'sidebar-open':PanelLeftOpen,'panel-close':PanelRightClose,'panel-open':PanelRightOpen,

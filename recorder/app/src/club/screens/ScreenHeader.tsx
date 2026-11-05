@@ -1,6 +1,10 @@
-/** The page title row for sidebar screens. On the desktop app it also drags the window. */
-export function ScreenHeader({title}:{title:string}){
- return <header className="club-drag flex h-16 shrink-0 items-end px-8 pb-2">
-  <h1 className="text-2xl font-semibold tracking-tight text-ink">{title}</h1>
+import type {ReactNode} from 'react';
+import {Icon,type IconName} from '../ui';
+
+/** The shared title, description and actions row for every sidebar page. */
+export function ScreenHeader({title,description,actions,icon,compact=false}:{title:string;description?:string;actions?:ReactNode;icon?:IconName;compact?:boolean}){
+ return <header className={`page-head screen-header club-drag${compact?' compact':''}`}>
+  <div className="screen-heading"><h1>{icon&&<Icon name={icon} size={18}/>}{title}</h1>{description&&<p className="lede">{description}</p>}</div>
+  {actions&&<div className="actions club-no-drag">{actions}</div>}
  </header>;
 }

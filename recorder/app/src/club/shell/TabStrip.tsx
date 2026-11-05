@@ -2,7 +2,7 @@ import {useEffect,useRef,useState} from 'react';
 import {BrandMark} from '../../BrandMark';
 import {videoHumanId,type VideoStage} from '../../../shared/club';
 import {STAGE_LABEL} from '../board';
-import {type Route} from '../routes';
+import {routePath,type Route} from '../routes';
 import {Icon,Menu,Tooltip,cn,type MenuItem} from '../ui';
 
 export type OpenTab={id:string;title:string;number?:number;stage?:VideoStage};
@@ -24,7 +24,7 @@ function HelpPopover({onHelp}:{onHelp(topic?:string):void}){
  },[open]);
  const choose=(topic?:string)=>{setOpen(false);onHelp(topic);};
  return <>
-  <Tooltip text="Help"><button ref={button} type="button" className={cn('ts-icon',open&&'on')} onClick={()=>setOpen(value=>!value)} aria-label="Help" aria-haspopup="dialog" aria-expanded={open}><Icon name="help" size={16}/></button></Tooltip>
+  <Tooltip text="Help · ?"><button ref={button} type="button" className={cn('ts-icon',open&&'on')} onClick={()=>setOpen(value=>!value)} aria-label="Help" aria-haspopup="dialog" aria-expanded={open}><Icon name="help" size={16}/></button></Tooltip>
   {open&&<><div className="help-scrim" aria-hidden/>
    <div ref={panel} className="help-pop" role="dialog" aria-label="Need help?">
     <h2>Need help?</h2>
@@ -43,7 +43,10 @@ export function TabStrip({route,tabs,onClose,onNewVideo,onSearch,onHelp}:{route:
  const active=route.name==='video'?route.id:null;
  const selected=useRef<HTMLDivElement>(null);
  useEffect(()=>{selected.current?.scrollIntoView?.({block:'nearest',inline:'nearest'});},[active,tabs.length]);
- const onHome=isHomeTab(route);
+ const onHome=isHomeTab(route)||route.name==='settings';
+ const sidebarPage=useRef({label:'Video board',icon:'production' as 'production'|'research'|'whiteboard'|'settings',href:'#/home'});
+ if(onHome)sidebarPage.current=route.name==='settings'?{label:'Settings',icon:'settings',href:routePath(route)}:route.name==='discover'?{label:'Research',icon:'research',href:'#/discover'}:route.name==='research'?{label:'Channel board',icon:'whiteboard',href:'#/research'}:{label:'Video board',icon:'production',href:route.name==='videos'?routePath(route):'#/home'};
+ const page=sidebarPage.current;
  const menu:MenuItem[]=[
   {label:'Video board',icon:'production',fn:()=>go('#/home')},
   {label:'Research',icon:'research',fn:()=>go('#/discover')},
@@ -61,16 +64,16 @@ export function TabStrip({route,tabs,onClose,onNewVideo,onSearch,onHelp}:{route:
     <BrandMark size={16}/><Icon name="expand" size={12}/>
    </button>}/>
   <nav className="ts-tabs" aria-label="Open videos">
-   <div className={cn('ts-tab home',onHome&&'on')}><a href="#/home" className="ts-label" aria-current={onHome?'page':undefined}><Icon name="production" size={16}/>Video board</a></div>
+   <div className={cn('ts-tab home',onHome&&'on')}><a href={page.href} aria-label={page.label} className="ts-label" aria-current={onHome?'page':undefined}><Icon name={page.icon} size={16}/>{page.label}</a></div>
    {tabs.map(tab=>{
     const on=tab.id===active,title=tab.title||'Untitled';
     return <div key={tab.id} ref={on?selected:undefined} className={cn('ts-tab',on&&'on')}>
      <a href={`#/video/${encodeURIComponent(tab.id)}`} className="ts-label" aria-current={on?'page':undefined} title={[videoHumanId(tab),title].filter(Boolean).join(' · ')}>{tab.stage&&<span className={`col-dot ts-stage st-${tab.stage}`} role="img" aria-label={STAGE_LABEL[tab.stage]}/>}{videoHumanId(tab)&&<span className="ts-id">{videoHumanId(tab)}</span>}<span className="ts-title">{title}</span></a>
-     <button type="button" className="ts-close" onClick={()=>onClose(tab.id)} aria-label={`Close ${title}`}><Icon name="close" size={12} stroke={2.2}/></button>
+     <button type="button" className="ts-close" onClick={()=>onClose(tab.id)} aria-label={`Close ${title}`} title="Close video · ⌘W"><Icon name="close" size={12} stroke={2.2}/></button>
     </div>;
    })}
   </nav>
-  <Tooltip text="New video"><button type="button" className="ts-new" onClick={onNewVideo} aria-label="New video"><Icon name="add" size={15}/></button></Tooltip>
+  <Tooltip text="New video · N"><button type="button" className="ts-new" onClick={onNewVideo} aria-label="New video"><Icon name="add" size={15}/></button></Tooltip>
   <span className="grow"/>
   <HelpPopover onHelp={onHelp}/>
   <Tooltip text="Settings"><a href="#/settings" className={cn('ts-icon',route.name==='settings'&&'on')} aria-label="Settings" aria-current={route.name==='settings'?'page':undefined}><Icon name="settings" size={16}/></a></Tooltip>

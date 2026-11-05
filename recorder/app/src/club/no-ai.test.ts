@@ -115,7 +115,7 @@ test('no AI: Quick recording creates a video and opens Record with only local wr
  });
  const ui=await mountUI(createElement(ToastProvider,null,createElement(NewVideo,{videos:[],onClose(){},onOpen:route=>routes.push(route)})));
  try{
-  await flush();assert.equal(button(ui.container,'Break down a video').disabled,true);
+  await flush();assert.equal(button(ui.container,'Break down a videoPaste a YouTube link.').disabled,true);
   await act(async()=>ui.container.querySelector<HTMLButtonElement>('[aria-label="Quick recording"]')!.click());await flush();
   assert.deepEqual(routes,[{name:'video',id:'v1',tab:'record'}]);
   assert.deepEqual(fake.calls.filter(c=>c.method==='POST').map(c=>c.path),['/videos','/videos/v1/recorder']);

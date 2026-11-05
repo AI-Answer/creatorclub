@@ -47,14 +47,14 @@ export function PostizSetup({state,onState}:{state:PublishingState;onState(next:
  };
 
  if(!connected)return <form className="pz" onSubmit={event=>void connect(event)}>
-  <label className="field" htmlFor="postiz-key">Postiz API key</label>
+  <label className="field" htmlFor="postiz-key">Postiz key</label>
   <div className="row">
    <Input id="postiz-key" type="password" autoComplete="off" spellCheck={false} placeholder="Paste it once. It stays on this computer." value={key} aria-invalid={error?true:undefined} onChange={event=>{setKey(event.target.value);setError('');}}/>
    <Button type="submit" disabled={busy}>Connect</Button>
   </div>
-  {ownServer&&<div style={{marginTop:10}}><label className="field" htmlFor="postiz-address">Your Postiz address</label><Input id="postiz-address" inputMode="url" autoComplete="off" spellCheck={false} placeholder="https://postiz.example.com" value={server} onChange={event=>{setServer(event.target.value);setError('');}}/></div>}
   {error&&<p role="alert" className="small pz-err">{error}</p>}
-  <p className="small muted pz-hint">In Postiz, open Settings, then Public API, and copy the key.{!ownServer&&<> <button type="button" className="linkish" onClick={()=>setOwnServer(true)}>Use your own Postiz server</button></>}</p>
+  <p className="small muted pz-hint">In Postiz, open Settings, then Public API, and copy the key.</p>
+  <details className="postiz-advanced" open={ownServer||undefined}><summary>Advanced</summary>{ownServer?<div style={{marginTop:10}}><label className="field" htmlFor="postiz-address">Your Postiz address</label><Input id="postiz-address" inputMode="url" autoComplete="off" spellCheck={false} placeholder="https://postiz.example.com" value={server} onChange={event=>{setServer(event.target.value);setError('');}}/></div>:<button type="button" className="btn sm ghost" onClick={()=>setOwnServer(true)}>Use your own Postiz server</button>}</details>
  </form>;
 
  const noChannel=channels!==null&&channels.length===0;

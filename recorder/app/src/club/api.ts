@@ -2,7 +2,10 @@
 export class ClubApiError extends Error{constructor(message:string,readonly status?:number){super(message);}}
 
 export const CANT_REACH="Couldn't reach Creator Compiler.";
-const GENERIC='That did not work.';
+export const GENERIC='That did not work.';
+/** Server messages are written for people (ClubError); only diagnostics are held back: error codes, stack lines, file paths,
+  * markup, multi-line dumps, and the request guard's internal refusal. Everything else is shown as the server wrote it. */
+export const isUserMessage=(message:string)=>message.length>0&&message.length<=240&&!/[\n<>]|(?:\b\w*Error:|\bE[A-Z]{3,}\b|\bat \w+[.(]|(?:^|\s)\/(?:Users|private|tmp|var|home)\/|Origin is not allowed)/.test(message);
 // The shell and home screen can explicitly share their concurrent initial list read.
 // Share only concurrent reads, never a retained response or a caller-owned abort signal.
 const pendingReads=new Map<string,Promise<unknown>>();
@@ -44,7 +47,8 @@ async function send<T>(path:string,init:RequestInit,notify=true):Promise<T>{
  try{body=text?JSON.parse(text):undefined;}catch{body=undefined;}
  if(!response.ok){
   const message=typeof body==='object'&&body!==null&&'error' in body&&typeof body.error==='string'?body.error:GENERIC;
-  throw new ClubApiError(message,response.status);
+  console.error(`[Creator Compiler] ${init.method??'GET'} ${path} (${response.status}): ${message}`);
+  throw new ClubApiError(isUserMessage(message)?message:GENERIC,response.status);
  }
  // A read begun before a write must not be reused by the refresh after that write.
  if(init.method&&init.method!=='GET')pendingReads.clear();
@@ -53,4 +57,4 @@ async function send<T>(path:string,init:RequestInit,notify=true):Promise<T>{
 }
 
 /** The sentence to show for any thrown value. */
-export const errorMessage=(error:unknown,fallback=GENERIC)=>error instanceof ClubApiError?error.message:fallback;
+export const errorMessage=(error:unknown,fallback=GENERIC)=>error instanceof ClubApiError&&error.message!==GENERIC?error.message:fallback;

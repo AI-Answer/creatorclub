@@ -3,6 +3,7 @@ import {CHANNEL_BOARD} from '../../../shared/club';
 import type {CompanionChanged} from '../../../shared/companion';
 import {notifyVideosChanged} from '../api';
 import type {Route} from '../routes';
+import {ScreenHeader} from './ScreenHeader';
 import {Board} from '../workspace/Board';
 import {Companion} from '../workspace/Companion';
 
@@ -16,9 +17,9 @@ export function ResearchScreen({navigate}:{navigate(route:Route,options?:{replac
   if(what.includes('videos'))notifyVideosChanged();
   if(what.includes('board')||what.includes('videos'))setBoardKey(key=>key+1);
  },[]);
- const screen=useMemo(()=>selection.length?`Research, with ${selection.length} ${selection.length===1?'card':'cards'} selected`:'Research, the channel\'s own board',[selection.length]);
+ const screen=useMemo(()=>selection.length?`Channel board, with ${selection.length} ${selection.length===1?'card':'cards'} selected`:'Channel board, the channel\'s own board',[selection.length]);
  return <div className="ws research">
-  <header className="ws-top"><h1 className="research-title">Channel board</h1><span className="small muted ellipsis">Gather what might become a video, connect it, group it, and start a video from it.</span></header>
+  <ScreenHeader title="Channel board" icon="whiteboard" compact/>
   <div className="ws-row">
    <div className="ws-col"><div className="ws-body"><Board board={CHANNEL_BOARD} refreshKey={boardKey} navigate={navigate} onSelection={setSelection}/></div></div>
    <Companion videoId={CHANNEL_BOARD} tab="research" screen={screen} selection={selection} pkg={null} outline={null} onChanged={changed}/>

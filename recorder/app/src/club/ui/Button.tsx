@@ -17,6 +17,6 @@ const variants:Record<ButtonVariant,string>={
 };
 
 /** Verb-first label, 1–3 words. At most one `primary` per view. Styled by the design system's `.btn` classes. */
-export function Button({variant='secondary',size='md',type='button',className,...props}:ComponentProps<'button'>&{variant?:ButtonVariant;size?:ButtonSize}){
- return <button type={type} className={cn('btn rounded-[var(--cc-r)] focus-visible:outline-accent',variants[variant],size==='sm'&&'sm','[&_svg]:size-4 [&_svg]:shrink-0',className)} {...props}/>;
+export function Button({variant='secondary',size='md',type='button',className,disabled,...props}:ComponentProps<'button'>&{variant?:ButtonVariant;size?:ButtonSize}){
+ return <button type={type} disabled={disabled} className={cn('btn rounded-[var(--cc-r)] focus-visible:outline-accent',variants[variant],size==='sm'&&'sm',disabled&&'is-disabled','[&_svg]:size-4 [&_svg]:shrink-0',className)} {...props}/>;
 }

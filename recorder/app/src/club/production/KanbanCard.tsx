@@ -2,9 +2,8 @@ import {useState,type DragEvent,type KeyboardEvent} from 'react';
 import {VIDEO_STAGES,videoHumanId,type Video,type VideoStage} from '../../../shared/club';
 import {STAGE_LABEL} from '../board';
 import {videoThumbId} from '../ideas';
-import {scenesLine} from '../production';
-import {recordedCount,type SceneProgress} from '../scene-status';
-import {Icon,Menu,type MenuItem} from '../ui';
+import {type SceneProgress} from '../scene-status';
+import {Icon,Menu,StageBadge,type MenuItem} from '../ui';
 import {useNearViewport} from '../near-viewport';
 
 /** The server resolves picked thumbnail → recording frame. A published video's own YouTube thumbnail is the last fallback; an idea never borrows its source video's. */
@@ -33,28 +32,27 @@ export const relativeUpdated=(iso:string,now=Date.now())=>{
 };
 
 /** A cover-led video card with the same complete Move menu for mouse and keyboard users. */
-export function KanbanCard({video,scenes,dragging,highlight,onOpen,onMove,onResearch,onDragStart,onDragEnd,onKeyDown}:{
+export function KanbanCard({video,dragging,highlight,onOpen,onMove,onResearch,onDragStart,onDragEnd,onKeyDown}:{
  highlight?:boolean;video:Video;scenes:readonly SceneProgress[]|undefined;dragging:boolean;onOpen():void;onMove(stage:VideoStage):void;onResearch?():void;
  onDragStart(event:DragEvent):void;onDragEnd():void;onKeyDown?(event:KeyboardEvent<HTMLDivElement>):void;
 }){
  const humanId=videoHumanId(video);
  const stages:MenuItem[]=[{header:'Move to'},...VIDEO_STAGES.map(stage=>({label:STAGE_LABEL[stage],check:video.stage===stage,fn:()=>{if(stage!==video.stage)onMove(stage);}})),
-  ...(onResearch?['-' as const,{label:'Add to channel board',icon:'research' as const,fn:onResearch}]:[])];
+  ...(onResearch?['-' as const,{label:'Add to Channel board',icon:'research' as const,fn:onResearch}]:[])];
  return <div className="kwrap">
   <div id={video.stage==='ideas'?`idea-${video.id}`:undefined} className={`card kcard hov${highlight?' new':''}${dragging?' dragging':''}`} draggable data-card data-card-id={video.id} onDragStart={onDragStart} onDragEnd={onDragEnd}
-   role="button" aria-label={`${humanId} ${video.title.trim()||'Untitled video'}`} aria-keyshortcuts="Enter Space ArrowUp ArrowDown ArrowLeft ArrowRight Meta+ArrowLeft Meta+ArrowRight Control+ArrowLeft Control+ArrowRight"
+   title={video.title.trim()||'Untitled video'} role="button" aria-label={`${humanId} ${video.title.trim()||'Untitled video'}`} aria-keyshortcuts="Enter Space ArrowUp ArrowDown ArrowLeft ArrowRight Meta+ArrowLeft Meta+ArrowRight Control+ArrowLeft Control+ArrowRight"
    onClick={onOpen} tabIndex={0} onKeyDown={event=>{if(event.target!==event.currentTarget)return;if(event.key==='Enter'||event.key===' '){event.preventDefault();onOpen();}else onKeyDown?.(event);}}>
-   <div className="kcard-top"><span className="kcard-id">{humanId}</span>{highlight&&<span className="itag">New</span>}</div>
    <Cover video={video}/>
-   <div className="tt clamp2">{video.title.trim()||'Untitled video'}</div>
+   <div className="tt">{video.title.trim()||'Untitled video'}</div>
    <div className="na">
-    <span className={`col-dot st-${video.stage}`} role="img" aria-label={STAGE_LABEL[video.stage]}/>
-    {scenes?.length?<span>{scenesLine(recordedCount(scenes),scenes.length)}</span>:<span>{STAGE_LABEL[video.stage]}</span>}
-    {video.hidden&&<span>{video.hidden==='later'?'Later':'Skipped'}</span>}
+    <StageBadge stage={video.stage} dotOnly/>
+    {humanId&&<><span className="kcard-id">{humanId}</span><span aria-hidden>·</span></>}
     <time dateTime={video.updatedAt} title={`Updated ${new Date(video.updatedAt).toLocaleString()}`}>{relativeUpdated(video.updatedAt)}</time>
+
    </div>
   </div>
   <div className="kmove"><Menu align="right" label="Move to" items={stages} button={(toggle,open)=>
-   <button type="button" className="btn sm icon-only" aria-label={`Move ${video.title} to…`} title="Move to another stage, or add to Research" aria-haspopup="menu" aria-expanded={open} onClick={toggle}><Icon name="more" size={15}/></button>}/></div>
+   <button type="button" className="btn sm icon-only" aria-label={`Move ${video.title} to…`} title="Move to another stage, or add to Channel board" aria-haspopup="menu" aria-expanded={open} onClick={toggle}><Icon name="more" size={18}/></button>}/></div>
  </div>;
 }

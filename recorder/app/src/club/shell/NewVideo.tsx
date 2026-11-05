@@ -10,13 +10,8 @@ import './NewVideo.css';
 
 type Mode='choose'|'title'|'link';
 
-export function relativeVideoTime(date:string,now=Date.now()):string{
- const minutes=Math.max(0,Math.floor((now-Date.parse(date))/60000));
- if(!Number.isFinite(minutes))return '';
- if(minutes<1)return 'Just now';
- const [count,unit]=minutes<60?[minutes,'minute']:minutes<1440?[Math.floor(minutes/60),'hour']:[Math.floor(minutes/1440),'day'];
- return `${count} ${unit}${count===1?'':'s'} ago`;
-}
+export {relativeUpdated as relativeVideoTime} from '../production/KanbanCard';
+import {relativeUpdated as relativeVideoTime} from '../production/KanbanCard';
 
 /** All entry points share this chooser; planning keeps its title/link flow, recording needs no outline. */
 export function NewVideo({videos,onClose,onOpen}:{videos:readonly Video[];onClose():void;onOpen(route:Route):void}){
@@ -77,7 +72,7 @@ export function NewVideo({videos,onClose,onOpen}:{videos:readonly Video[];onClos
      <b>Quick recording</b><span>{busy?'Opening recorder…':'Start recording right away. Edit it after if you need to.'}</span>
     </button>
    </div>
-   <button type="button" className="linkish new-breakdown" title={!aiAvailable?AI_CONNECT_HINT:undefined} disabled={!aiAvailable||busy} onClick={()=>{setMode('link');setValue('');}}>Break down a video <Icon name="link" size={13}/></button>
+   <button type="button" className="new-breakdown" title={!aiAvailable?AI_CONNECT_HINT:undefined} disabled={!aiAvailable||busy} onClick={()=>{setMode('link');setValue('');}}><Icon name="link" size={17}/><span><b>Break down a video</b><span>Paste a YouTube link.</span></span><Icon name="forward" size={15}/></button>
    <section className="new-recents" aria-label="Recent videos">
     <div className="row"><h4>Recent videos</h4><span className="grow"/><button type="button" className="linkish" disabled={busy} onClick={()=>open({name:'videos',view:'board'})}>View all</button></div>
     {recentVideos.length?recentVideos.map(video=><button type="button" key={video.id} className="new-recent-row" disabled={busy} onClick={()=>open({name:'video',id:video.id})}>
@@ -88,7 +83,7 @@ export function NewVideo({videos,onClose,onOpen}:{videos:readonly Video[];onClos
   </>:<>
    <p className="muted" style={{marginBottom:16}}>{mode==='title'?'Give your video a title to start planning.':'Paste a YouTube or Instagram link. Keep the concept you like.'}</p>
    <input className="input" autoFocus key={mode} value={value} onChange={event=>setValue(event.target.value)} onKeyDown={event=>{if(event.key==='Enter')void submit();}} placeholder={mode==='title'?'e.g. Claude does my receipts automatically':'youtube.com/watch?v=…'} aria-label={mode==='title'?'Video title':'Video link'} disabled={busy}/>
-   {mode==='title'&&<button type="button" className="linkish new-breakdown" title={!aiAvailable?AI_CONNECT_HINT:undefined} disabled={!aiAvailable||busy} onClick={()=>{setMode('link');setValue('');}}>Break down a video</button>}
+   {mode==='title'&&<button type="button" className="new-breakdown" title={!aiAvailable?AI_CONNECT_HINT:undefined} disabled={!aiAvailable||busy} onClick={()=>{setMode('link');setValue('');}}>Break down a video</button>}
   </>}
  </Dialog>;
 }

@@ -16,7 +16,7 @@
 .club-root .ts-logo { display: inline-flex; align-items: center; gap: 5px; height: 100%; padding: 0 14px; border-right: 1px solid var(--cc-line); color: var(--cc-text-3); }
 .club-root .ts-logo:hover, .club-root .ts-logo.on { background: var(--cc-hover); color: var(--cc-text); }
 .club-root .ts-tabs { display: flex; align-items: stretch; min-width: 0; overflow-x: auto; scrollbar-width: none; }
-.club-root .ts-tab { display: flex; align-items: center; gap: 4px; flex: none; max-width: 220px; padding: 0 8px 0 14px; border-right: 1px solid var(--cc-line); color: var(--cc-text-2); font-size: var(--cc-text-xs); font-weight: 600; }
+.club-root .ts-tab { display: flex; align-items: center; gap: 4px; flex: none; max-width: 220px; padding: 0 8px 0 14px; border-right: 1px solid var(--cc-line); color: var(--cc-text-2); font-size: var(--cc-text-xs); font-weight: var(--cc-weight-semibold); }
 .club-root .ts-tab:hover { color: var(--cc-text); }
 .club-root .ts-tab.on { background: var(--cc-bg); color: var(--cc-text); }
 .club-root .ts-tab.home { padding-right: 14px; }
@@ -38,9 +38,9 @@
 .club-root .sidebar .channel-btn:hover { background: var(--cc-hover); }
 .club-root .sidebar .sb-search { margin: 0 0 12px; height: 36px; padding: 0 12px; border: 1px solid var(--cc-line); border-radius: var(--cc-r); background: transparent; color: var(--cc-text-3); }
 .club-root .sidebar .nav { display: flex; flex-direction: column; gap: 0; padding: 0; }
-.club-root .sidebar .nav-item { height: 44px; padding: 0 16px; gap: 8px; border-radius: var(--cc-r); color: var(--cc-text); font-size: var(--cc-text-base); font-weight: 500; box-shadow: none; }
+.club-root .sidebar .nav-item { height: 44px; padding: 0 16px; gap: 8px; border-radius: var(--cc-r); color: var(--cc-text); font-size: var(--cc-text-base); font-weight: var(--cc-weight-medium); box-shadow: none; }
 .club-root .sidebar .nav-item:hover { background: var(--cc-hover); }
-.club-root .sidebar .nav-item.active { background: var(--cc-surface); box-shadow: none; }
+.club-root .sidebar .nav-item.active { background: var(--cc-nav-selected); font-weight: var(--cc-weight-medium); box-shadow: none; }
 
 /* Video header: Borumi's project header (h-12 px-2, title centred text-xs bold, "| Edited" note, tools on the right) */
 .club-root .ws-top { position: relative; display: flex; align-items: stretch; gap: 0; height: 48px; min-height: 48px; padding: 0 8px; border-bottom: 1px solid var(--cc-line); background: var(--cc-bg); }
@@ -72,10 +72,10 @@
 .club-root .ws-foot .btn { height: 40px; padding: 0 16px; gap: 6px; border-radius: var(--cc-r); font-size: var(--cc-text-base); font-weight: 500; }
 
 /* Settings: Borumi's two columns (nav w-64 border-r p-4, "Settings" text-2xl bold mt-4 mb-8 ml-4, rows px-4 py-3 gap-2 rounded-md) */
-.club-root .settings-layout-b { display: flex; height: 100%; min-height: 0; }
+.club-root .settings-layout-b { display: flex; flex-direction: column; height: 100%; min-height: 0; }
 .club-root .settings-nav { width: 256px; flex: none; display: flex; flex-direction: column; padding: 16px; overflow-y: auto; border-right: 1px solid var(--cc-line); }
-.club-root .settings-nav h1 { margin: 16px 0 32px 16px; font-size: var(--cc-text-2xl); line-height: 32px; font-weight: 700; color: var(--cc-text); }
-.club-root .settings-tab { display: flex; align-items: center; gap: 8px; width: 100%; padding: 12px 16px; border-radius: var(--cc-r); font-size: var(--cc-text-base); font-weight: 500; color: var(--cc-text); }
+.club-root .settings-nav h1 { margin: 16px 0 32px 16px; font-size: var(--cc-text-2xl); line-height: 32px; font-weight: var(--cc-weight-semibold); color: var(--cc-text); }
+.club-root .settings-tab { display: flex; align-items: center; gap: 8px; width: 100%; padding: 12px 16px; border-radius: var(--cc-r); font-size: var(--cc-text-base); font-weight: var(--cc-weight-medium); color: var(--cc-text); }
 .club-root .settings-tab:hover { background: var(--cc-hover); }
 .club-root .settings-tab.on { background: var(--cc-surface); }
 .club-root .settings-body-b { flex: 1; min-width: 0; overflow-y: auto; padding: 24px 24px 48px; }
@@ -205,12 +205,12 @@
    the right ("View all"), and cards in bg-secondary with a 1px border that lightens on hover. */
 .club-root .page.home-b { max-width: 800px; margin: 0 auto; padding: 56px 40px 40px; }
 .club-root .page.home-b .page-head.greet { flex-direction: column; align-items: center; text-align: center; gap: 12px; margin-bottom: 40px; }
-.club-root .page.home-b .page-head.greet h1 { font-size: var(--cc-text-lg); font-weight: 700; letter-spacing: 0; }
+.club-root .page.home-b .page-head.greet h1 { font-size: var(--cc-text-lg); font-weight: var(--cc-weight-semibold); letter-spacing: 0; }
 .club-root .page.home-b .page-head.greet .lede { font-size: var(--cc-text-sm); color: var(--cc-text-3); }
 .club-root .page.home-b .page-head.greet .actions { margin: 0; }
 .club-root .page.home-b .sec-head { margin: 40px 0 12px; }
-.club-root .page.home-b .sec-head .sec { font-size: var(--cc-text-sm); font-weight: 700; color: var(--cc-text); letter-spacing: 0; }
-.club-root .page.home-b .sec-head .more { font-size: var(--cc-text-xs); font-weight: 600; color: var(--cc-text); }
+.club-root .page.home-b .sec-head .sec { font-size: var(--cc-text-sm); font-weight: var(--cc-weight-semibold); color: var(--cc-text); letter-spacing: 0; }
+.club-root .page.home-b .sec-head .more { font-size: var(--cc-text-xs); font-weight: var(--cc-weight-semibold); color: var(--cc-text); }
 .club-root .page.home-b .card { border: 1px solid var(--cc-line); border-radius: var(--cc-r-lg); background: var(--cc-surface); box-shadow: none; }
 .club-root .page.home-b .card.hov:hover { border-color: var(--cc-line-hover); }
 /* The other Home tab screens share the same cards and section headers. */
@@ -221,11 +221,11 @@
    blue or orange border on hover). */
 .club-root .help-scrim { position: fixed; inset: 0; z-index: 50; background: var(--cc-scrim); }
 .club-root .help-pop { position: fixed; top: 48px; right: 24px; z-index: 51; width: 320px; display: flex; flex-direction: column; gap: 12px; padding: 16px; border: 1px solid var(--cc-line); border-radius: var(--cc-r-lg); background: var(--cc-bg); box-shadow: var(--cc-shadow-3); }
-.club-root .help-pop h2 { margin: 0 0 4px; font-size: var(--cc-text-lg); font-weight: 600; color: var(--cc-text); }
+.club-root .help-pop h2 { margin: 0 0 4px; font-size: var(--cc-text-lg); font-weight: var(--cc-weight-semibold); color: var(--cc-text); }
 .club-root .help-card { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 16px; border: 1px solid var(--cc-line); border-radius: var(--cc-r-lg); background: var(--cc-surface); text-align: left; color: var(--cc-text); transition: border-color var(--cc-dur) var(--cc-ease); }
 .club-root .help-card:hover { border-color: var(--cc-accent); }
 .club-root .help-card + .help-card:hover { border-color: var(--cc-accent); }
-.club-root .help-card b { display: flex; align-items: center; gap: 8px; font-size: var(--cc-text-base); font-weight: 600; }
+.club-root .help-card b { display: flex; align-items: center; gap: 8px; font-size: var(--cc-text-base); font-weight: var(--cc-weight-semibold); }
 .club-root .help-card span { font-size: var(--cc-text-xs); color: var(--cc-text-3); }
 
 /* A take preview fills the window under the tab strip, as in Borumi: the video header, the step bar and the companion wait behind it. */
@@ -251,16 +251,16 @@
 
 /* Review pass (independent side-by-side against the Borumi screenshots). */
 /* Settings: a flat 768px column right after the nav; rows without a group card; 48px nav rows; white buttons. */
-.club-root .settings-body-b.page { padding: 24px 24px 48px; }
+.club-root .settings-body-b.page { padding: 24px 32px 48px; }
 .club-root .settings-body-b.page > * { max-width: 768px; }
 .club-root .settings-body-b .card { border: 0; border-radius: 0; background: transparent; box-shadow: none; }
 .club-root .settings-body-b .srow2 { padding: 16px 0; border-bottom: 0; }
-.club-root .settings-body-b .srow2 .st { font-size: var(--cc-text-base); font-weight: 700; }
+.club-root .settings-body-b .srow2 .st { font-size: var(--cc-text-base); font-weight: var(--cc-weight-semibold); }
 .club-root .settings-body-b .srow2 .sd { font-size: var(--cc-text-xs); color: var(--cc-text-3); }
-.club-root .settings-body-b .btn:not(.ghost):not(.danger):not(.primary) { height: 36px; padding: 0 14px; border-color: transparent; background: var(--cc-primary); color: var(--cc-on-primary); font-size: var(--cc-text-base); }
+.club-root .settings-body-b .btn:not(.ghost):not(.danger):not(.primary):not(:disabled) { height: 36px; padding: 0 14px; border-color: var(--cc-line-strong); background: var(--cc-bg); color: var(--cc-text); font-size: var(--cc-text-sm); }
 .club-root .settings-tab { height: 48px; padding: 0 16px; }
 /* Tab strip labels and header icons in full white, as in Borumi. */
-.club-root .ts-tab { color: var(--cc-text); font-size: var(--cc-text-base); font-weight: 500; }
+.club-root .ts-tab { color: var(--cc-text); font-size: var(--cc-text-base); font-weight: var(--cc-weight-medium); }
 .club-root .ts-icon, .club-root .ts-logo { color: var(--cc-text); }
 .club-root .ws-edit-tools button, .club-root .ws-top-r .icon-btn { color: var(--cc-text); }
 /* Help popover: 16px between cards, 16px semibold card titles, lighter descriptions, a 70% scrim. */

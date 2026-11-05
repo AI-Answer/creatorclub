@@ -18,12 +18,14 @@ import {useIdeaActions} from '../useIdeaActions';
 import {useProduction} from '../useProduction';
 import {useAddToResearch} from '../useAddToResearch';
 
+import {ScreenHeader} from './ScreenHeader';
+
 type VideosRoute=Extract<Route,{name:'videos'}>;
 const VIEWS:readonly Tab<VideosView>[]=[{id:'board',label:'Board',icon:'production'},{id:'table',label:'Table',icon:'table'},{id:'calendar',label:'Calendar',icon:'calendar'}];
 const NONE:never[]=[];
 
 /** Videos shares its flat board with Home and keeps alternate table/calendar views and explicit idea/breakdown drawers. */
-export function VideosScreen({route,navigate,onNewVideo,home=false}:{home?:boolean;route:VideosRoute;navigate(route:Route,options?:{replace?:boolean}):void;onNewVideo():void}){
+export function VideosScreen({route,navigate,onNewVideo}:{route:VideosRoute;navigate(route:Route,options?:{replace?:boolean}):void;onNewVideo():void}){
  const {state,videos,reload,move,schedule}=useProduction();
  const scenes=useSceneProgress(videos??NONE);
  const actions=useIdeaActions(navigate);
@@ -50,20 +52,20 @@ export function VideosScreen({route,navigate,onNewVideo,home=false}:{home?:boole
 
  const open=useCallback((video:Video)=>{if(view==='board')navigate({name:'video',id:video.id});else if(video.stage==='ideas')setDrawer(video.id);else navigate(openRoute(video));},[navigate,view]);
 
- if(state.status==='error')return <div className="page"><ErrorLine message={state.message} onRetry={reload} primary/></div>;
- if(!videos)return <div className="page"><div className="row small muted" role="status"><Spinner label="Loading your videos" size={20}/>Loading your videos…</div></div>;
+ const idea=drawer?videos?.find(video=>video.id===drawer&&video.stage==='ideas'):undefined;
+ const newIdea=newId?videos?.find(video=>video.id===newId&&video.stage==='ideas'&&!video.hidden):undefined;
+ const header=<ScreenHeader title="Video board" actions={<>
+  <Tabs label="View" tabs={VIEWS} value={view} onChange={next=>navigate({name:'videos',view:next})}/>
+  <button type="button" className={`btn${newIdea?'':' primary'}`} onClick={onNewVideo} title="New video · N"><Icon name="add" size={15}/>New video</button>
+ </>}/>;
+ if(state.status==='error')return <div className="page">{header}<ErrorLine message={state.message} fallback="Couldn't load Video board." onRetry={reload} primary/></div>;
+ if(!videos)return <div className="page">{header}<div className="row small muted" role="status"><Spinner label="Loading your videos" size={20}/>Loading your videos…</div></div>;
 
- const idea=drawer?videos.find(video=>video.id===drawer&&video.stage==='ideas'):undefined;
- const newIdea=newId?videos.find(video=>video.id===newId&&video.stage==='ideas'&&!video.hidden):undefined;
  const closeDrawer=()=>{setDrawer(null);if(route.open){const {open:_open,...rest}=route;navigate(rest,{replace:true});}};
  const added=(id:string)=>{setLink(null);navigate({name:'videos',view:'board',new:id});};
  const wide=view==='board';
  return <div className={`page${wide?' wide video-board-page':''}`}>
-  <div className="page-head"><div className="video-board-heading"><h1>{home?'Video board':'Videos'}</h1>{!wide&&<div className="lede">Every video from idea to published.</div>}</div>
-   <div className="actions">
-    {!home&&<Tabs label="View" tabs={VIEWS} value={view} onChange={next=>navigate({name:'videos',view:next})}/>}
-    <button type="button" className={`btn${newIdea?'':' primary'}`} onClick={onNewVideo}><Icon name="add" size={15}/>New video</button>
-   </div></div>
+  {header}
 
   {newIdea&&<div className="card next-idea">
    <Icon name="ai" size={18} style={{color:'var(--cc-text-2)'}}/>
