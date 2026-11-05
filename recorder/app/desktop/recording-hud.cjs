@@ -2,8 +2,10 @@ const path=require('node:path');
 const {pathToFileURL}=require('node:url');
 const {randomUUID}=require('node:crypto');
 const fs=require('node:fs');
+const {createSpeechFollower}=require('./speech-follower.cjs');
+const {createScriptWindow}=require('./script-window.cjs');
 
-const COMMANDS=new Set(['pause','resume','stop','retry','skip-countdown','cancel','show-editor','record','close','mirror']);
+const COMMANDS=new Set(['pause','resume','stop','retry','skip-countdown','cancel','show-editor','record','close','mirror','script-window']);
 // Borumi's island sizes (screens/borumi/62, 66): the bar, the camera's height for the window's width (taller without a script), and the script's room.
 // A first take's window: Borumi's compact toolbar, the camera at 60% of the width, and with a script the room Borumi gives it below.
 const BAR=48,CAMERA=.6,SCRIPT=132;
@@ -26,15 +28,24 @@ function cleanState(value,initial=false){
 
 // Electron does not emit 'hide' for BrowserWindow.hide() on macOS, so the HUD reports
 // each editor hide/show it makes through onMainVisibility instead of relying on that event.
-function createRecordingHud({BrowserWindow,ipcMain,screen,Menu,getMainWindow,verifyMain,onMainVisibility=()=>{},preferencesPath,appName='SceneForge'}){
- let hud=null,state=null,hiddenMain=false,ready=null,ending=false,sessionId=null,synced=false,area=null,bounds=null;
+function createRecordingHud({BrowserWindow,ipcMain,screen,Menu,shell,getMainWindow,verifyMain,onMainVisibility=()=>{},preferencesPath,scriptPreferencesPath,appName='SceneForge',createFollower=createSpeechFollower}){
+ let hud=null,authorization='notDetermined',state=null,hiddenMain=false,ready=null,ending=false,sessionId=null,synced=false,area=null,bounds=null;
  let preferences={};try{if(preferencesPath)preferences=JSON.parse(fs.readFileSync(preferencesPath,'utf8'));}catch{/* Missing or damaged preferences use the compact default. */}
  const documentURL=pathToFileURL(path.join(__dirname,'recording-hud.html')).href;
  const alive=w=>Boolean(w&&!w.isDestroyed());
+ // Voice follow: the helper's words and status go to the island, which matches them to the script.
+ const follower=createFollower({onEvent:event=>{if(event.type==='status')authorization=event.authorization;if(alive(hud))hud.webContents.send('recording-hud-speech',event);}});
+ // Borumi's "Open script as separate window": while it is open the island leaves the script to it (At), and the island's follower drives
+ // both. The island reports where it is; the window's seeks and changes come back to the island.
+ const scripts=createScriptWindow({BrowserWindow,ipcMain,screen,Menu,appName,preferencesPath:scriptPreferencesPath,
+  nearBounds:()=>alive(hud)?hud.getBounds():alive(getMainWindow())?getMainWindow().getBounds():null,
+  onOpen:open=>{if(!state)return;state={...state,scriptWindow:open};publish({scriptWindow:open});},
+  onRequest:request=>{if(alive(hud))hud.webContents.send('recording-hud-script-request',request);}});
+ const syncTake=()=>scripts.setTake(state?{active:true,script:state.script,appearance:state.appearance}:{active:false});
  function verifyHud(e){if(!alive(hud)||e.sender!==hud.webContents||e.senderFrame!==hud.webContents.mainFrame||e.senderFrame.url!==documentURL)throw new Error('Untrusted recording preview.');}
  function restore(){const main=getMainWindow();if(hiddenMain&&alive(main)){main.show();main.focus();hiddenMain=false;onMainVisibility();}hiddenMain=false;}
  function remember(){if(!alive(hud))return;bounds=hud.getBounds?.()??bounds;preferences={version:2,bounds};if(preferencesPath)try{fs.mkdirSync(path.dirname(preferencesPath),{recursive:true});const temp=preferencesPath+'.tmp';fs.writeFileSync(temp,JSON.stringify(preferences));fs.renameSync(temp,preferencesPath);}catch{/* Preference storage never interrupts a take. */}}
- function end({restoreMain=true,id}={}){if(id&&id!==sessionId)return;ending=true;remember();if(restoreMain)restore();else hiddenMain=false;if(alive(hud))hud.destroy();hud=null;state=null;ready=null;sessionId=null;synced=false;ending=false;}
+ function end({restoreMain=true,id}={}){if(id&&id!==sessionId)return;ending=true;follower.stop();remember();if(restoreMain)restore();else hiddenMain=false;if(alive(hud))hud.destroy();hud=null;state=null;ready=null;sessionId=null;synced=false;ending=false;syncTake();}
  // The loaded HUD gets the full state once, then only changed fields (it merges);
  // the script is not re-sent with every clock tick.
  function publish(patch){if(!state||!alive(hud))return;if(synced||!patch){hud.webContents.send('recording-hud-state',synced&&patch?patch:state);synced=true;}const main=getMainWindow();// As in Borumi, the editor steps away as soon as the island opens for a take (its countdown included), so the island is what you see.
@@ -42,12 +53,12 @@ function createRecordingHud({BrowserWindow,ipcMain,screen,Menu,getMainWindow,ver
  async function begin(value){
   const next=cleanState(value,true);if(alive(hud))end();sessionId=randomUUID();synced=false;const id=sessionId;
   // The picture area is the camera, or the microphone's live waveform when there is no camera (as Borumi does): the island never shrinks to a bare bar.
-  state={...next};const main=getMainWindow(),saved=preferences.bounds,valid=saved&&['x','y','width','height'].every(key=>Number.isFinite(saved[key]));
+  state={...next,scriptWindow:scripts.isOpen()};syncTake();const main=getMainWindow(),saved=preferences.bounds,valid=saved&&['x','y','width','height'].every(key=>Number.isFinite(saved[key]));
   const display=screen.getDisplayMatching(valid?saved:alive(main)?main.getBounds():screen.getPrimaryDisplay().bounds);area=display.workArea;
   // As Borumi's recorder, the window keeps the size it was given and its content follows that size (recording-hud.js); a first take opens
   // at 250px wide with room for the camera and, when there is one, the script.
   const width=Math.min(valid?Math.max(250,saved.width):250,area.width);
-  const height=Math.min(valid?Math.max(BAR,saved.height):islandHeight(width,Boolean(next.script.trim())),area.height-12);
+  const height=Math.min(valid?Math.max(BAR,saved.height):islandHeight(width,Boolean(next.script.trim())&&!scripts.isOpen()),area.height-12);
   bounds={width,height,x:Math.round(Math.max(area.x,Math.min(area.x+area.width-width,valid?saved.x:area.x+area.width-width-20))),y:Math.round(Math.max(area.y,Math.min(area.y+area.height-height,valid?saved.y:area.y+24)))};
   hud=new BrowserWindow({...bounds,minWidth:250,minHeight:48,title:`${appName} recording`,type:'panel',frame:false,transparent:true,backgroundColor:'#00000000',show:false,resizable:true,alwaysOnTop:true,skipTaskbar:true,roundedCorners:true,webPreferences:{preload:path.join(__dirname,'recording-hud-preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true,backgroundThrottling:false}});
   // Defense in depth only. macOS ScreenCaptureKit also explicitly excludes this
@@ -64,17 +75,20 @@ function createRecordingHud({BrowserWindow,ipcMain,screen,Menu,getMainWindow,ver
  }
  const handlers={
   'begin-recording-hud':async(e,value)=>{verifyMain(e);return begin(value);},
-  'update-recording-hud':(e,value,id)=>{verifyMain(e);const patch=cleanState(value);if(state&&(!id||id===sessionId)){state={...state,...patch};publish(patch);}return {visible:(!id||id===sessionId)&&alive(hud)};},
+  'update-recording-hud':(e,value,id)=>{verifyMain(e);const patch=cleanState(value);if(state&&(!id||id===sessionId)){state={...state,...patch};publish(patch);if('script'in patch||'appearance'in patch)syncTake();}return {visible:(!id||id===sessionId)&&alive(hud)};},
   'end-recording-hud':(e,id)=>{verifyMain(e);end({id});},
   'recording-hud-read':e=>{verifyHud(e);return state;},
   // Borumi's More (request.context_menu.show): a system menu. The island passes what it shows; the chosen item's id comes back.
   'recording-hud-menu':(e,value)=>{verifyHud(e);if(!Menu)return null;const v=value&&typeof value==='object'?value:{};const speeds=Array.isArray(v.speeds)?v.speeds.filter(n=>Number.isInteger(n)&&n>0&&n<1000).slice(0,40):[];
-   return new Promise(resolve=>{let chosen=null;const pick=id=>()=>{chosen=id;};const constant=v.mode==='ConstSpeed';
+   return new Promise(resolve=>{let chosen=null;const pick=id=>()=>{chosen=id;};const constant=v.mode==='ConstSpeed'||v.mode==='ConstSpeedVad',script=Boolean(v.scriptAvailable),voice=script&&v.voiceAvailable!==false;
+    // Borumi's Scrolling mode (Xe), in its order; the voice modes need the voice follower, which this Mac may not have.
+    const mode=(label,id,enabled=script)=>({label,type:'checkbox',checked:v.mode===id,enabled,click:pick('mode:'+id)});
     const menu=Menu.buildFromTemplate([
      {label:'Mirror camera',type:'checkbox',checked:Boolean(v.mirror),click:pick('mirror')},
      {label:'Show sources',type:'checkbox',checked:Boolean(v.showSources),click:pick('sources')},
      {type:'separator'},
-     {label:'Scrolling mode',submenu:[{label:'Manual',type:'checkbox',checked:v.mode==='Manual',enabled:Boolean(v.scriptAvailable),click:pick('mode:Manual')},{label:'Constant speed',type:'checkbox',checked:constant,enabled:Boolean(v.scriptAvailable),click:pick('mode:ConstSpeed')}]},
+     {label:'Open script as separate window',click:pick('script-window')},
+     {label:'Scrolling mode',submenu:[mode('Manual','Manual'),mode('Voice follow (Enhanced)','VoiceOptimistic',voice),mode('Voice follow','Voice',voice),mode('Constant speed (Voice activated)','ConstSpeedVad'),mode('Constant speed','ConstSpeed')]},
      {label:'Scrolling speed',enabled:Boolean(v.scriptAvailable)&&constant,submenu:speeds.map(n=>({label:String(n),type:'checkbox',checked:n===v.speed,enabled:Boolean(v.scriptAvailable)&&constant,click:pick('speed:'+n)}))},
      {type:'separator'},
      {label:'Close',click:pick('close')}
@@ -82,11 +96,21 @@ function createRecordingHud({BrowserWindow,ipcMain,screen,Menu,getMainWindow,ver
     menu.popup({window:hud,callback:()=>setImmediate(()=>resolve(chosen))});
    });
   },
-  'recording-hud-command':(e,command)=>{verifyHud(e);if(!COMMANDS.has(command))throw new Error('Unknown recording action.');const main=getMainWindow();if(command==='show-editor'){if(state)state.hideMain=false;if(alive(main)){main.show();main.focus();hiddenMain=false;onMainVisibility();}return;}if(alive(main))main.webContents.send('recording-hud-command',command);}
+  // Voice follow for the island: start and stop listening (with this take's microphone and script), its permission, and whether this Mac has it.
+  'recording-hud-follow':(e,action)=>{verifyHud(e);
+   if(action==='status'){follower.status();return {available:follower.available(),appName};}
+   if(action==='authorize'){if(['denied','restricted'].includes(authorization)&&shell)void shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_SpeechRecognition');else follower.authorize();return null;}
+   if(action==='start'){if(!state)return false;return follower.start({microphone:state.microphoneLabel==='Microphone'?'':state.microphoneLabel||'',text:state.script||''});}
+   if(action==='stop'){follower.stop();return null;}
+   throw new Error('Unknown voice follow action.');
+  },
+  // Where the island's follower is, for the script window: its position, mode, speed and whether it plays.
+  'recording-hud-script':(e,value)=>{verifyHud(e);scripts.setFollower(value);},
+  'recording-hud-command':(e,command)=>{verifyHud(e);if(!COMMANDS.has(command))throw new Error('Unknown recording action.');const main=getMainWindow();if(command==='script-window'){scripts.open();return;}if(command==='show-editor'){if(state)state.hideMain=false;if(alive(main)){main.show();main.focus();hiddenMain=false;onMainVisibility();}return;}if(alive(main))main.webContents.send('recording-hud-command',command);}
  };
  for(const [name,handler]of Object.entries(handlers))ipcMain.handle(name,handler);
  // The HUD opens its own live camera preview: video only, from its exact document.
  function allowsCamera(contents,permission,details){return permission==='media'&&alive(hud)&&contents===hud.webContents&&details?.requestingUrl===documentURL&&details?.isMainFrame!==false&&Array.isArray(details?.mediaTypes)&&details.mediaTypes.length===1&&details.mediaTypes[0]==='video';}
- return {end,allowsCamera,dispose(){end({restoreMain:false});for(const name of Object.keys(handlers))ipcMain.removeHandler(name);}};
+ return {end,allowsCamera,closeScript:()=>scripts.close(),dispose(){end({restoreMain:false});follower.dispose();scripts.dispose();for(const name of Object.keys(handlers))ipcMain.removeHandler(name);}};
 }
 module.exports={createRecordingHud,cleanState};

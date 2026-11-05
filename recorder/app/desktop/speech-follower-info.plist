@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+ <key>CFBundleIdentifier</key><string>com.aianswer.creatorcompiler.speech-follower</string>
+ <key>CFBundleName</key><string>Creator Compiler voice follow</string>
+ <key>NSSpeechRecognitionUsageDescription</key><string>Creator Compiler follows your voice to scroll the script while you record.</string>
+ <key>NSMicrophoneUsageDescription</key><string>Creator Compiler listens to your microphone to follow the script while you record.</string>
+</dict></plist>

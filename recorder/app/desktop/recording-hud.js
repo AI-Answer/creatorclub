@@ -6,10 +6,15 @@
  const put=(key,value,apply)=>{if(shown.has(key)&&shown.get(key)===value)return;shown.set(key,value);apply(value);};
  const remembered=key=>{try{return localStorage.getItem(key);}catch{return null;}},keep=(key,value)=>{try{localStorage.setItem(key,value);}catch{/* not remembered */}};
  let state={},previousScript=null,selected=null,showSources=remembered('island.showSources')!=='0',notice=null;
- // Script following: Manual, or Constant speed at Borumi's speeds (8 to 30, default 14), in pixels a second.
- const SPEEDS=[8,10,12,14,16,18,20,22,24,26,28,30];
- let mode=remembered('island.scrollMode')==='Manual'?'Manual':'ConstSpeed',speed=SPEEDS.includes(Number(remembered('island.scrollSpeed')))?Number(remembered('island.scrollSpeed')):14;
- let frame=0,lastTime=0,position=0,camera=null,cameraFor=null,cameraTicket=0,live=false,lastStatus=null,flashTimer=0,startingSince=0,startingTimer=0;
+ // Script following, Borumi's five modes (Xe). The Auto-scroll pill switches Manual and Voice follow (Enhanced); the constant modes read at
+ // Borumi's speeds, 8 to 30 characters a second (default 14), Voice activated only while you speak. The follower is script-follower.js.
+ const F=window.ScriptFollower,MODES=['Manual','VoiceOptimistic','Voice','ConstSpeedVad','ConstSpeed'],VOICE=new Set(['VoiceOptimistic','Voice']),SPEEDS=[8,10,12,14,16,18,20,22,24,26,28,30];
+ let mode=MODES.includes(remembered('island.scrollMode'))?remembered('island.scrollMode'):'VoiceOptimistic',speed=SPEEDS.includes(Number(remembered('island.scrollSpeed')))?Number(remembered('island.scrollSpeed')):14;
+ let tokens=[],spans=[],starts=[0],matcher=F.createMatcher([]),pace=F.createPace(),activity=F.createVoiceActivity(),index=0,confirmed=0,heardAt=-1,chars=0,scrollFrame=0;
+ let speech={available:false,authorization:'notDetermined',appName:'Creator Compiler'},following=false,followFailed=false;
+ // Borumi's is_playing, set from the script window's Play and Pause: held pauses a recording's follower, rehearsing plays it outside one.
+ let held=false,rehearsing=false,reported='';
+ let frame=0,lastTime=0,camera=null,cameraFor=null,cameraTicket=0,live=false,lastStatus=null,flashTimer=0,startingSince=0,startingTimer=0;
 
  // St and _t: what shows and how tall it is, from the window's size.
  const BAR=48,BAR_NORMAL=54,BANNER=100,ROOM=20,MIN_CLOSE=80,NARROW=350,SCRIPT_HIGH=250,CHIPS_NARROW=400,CHIPS_TOP=150;
@@ -60,7 +65,8 @@
   if(status==='starting'&&!startingSince){startingSince=Date.now();clearInterval(startingTimer);startingTimer=setInterval(render,1000);}
   if(status!=='starting'&&startingSince){startingSince=0;clearInterval(startingTimer);}
   const pick=selection(),kind=pick==='camera'?'video':pick==='microphone'?'audio':undefined;
-  const hasScript=Boolean(state.script?.trim()),error=state.error||null,warning=state.warning||notice||null;
+  // While the script window is open the island shows no script (At); the follower still runs for the window.
+  const scriptText=Boolean(state.script?.trim()),hasScript=scriptText&&!state.scriptWindow,error=state.error||null,warning=state.warning||notice||null;
   const L=layoutFor(innerWidth,innerHeight,{hasScript,hasErrors:Boolean(error),hasWarnings:Boolean(warning),starting,kind});
   put('status-text',({starting:'Starting…',ready:'Ready',recording:'Recording',paused:'Paused',saving:'Saving…',idle:'Saved'})[status]||'Starting…',v=>{el('status').textContent=v;});
   put('title',state.projectName||'',v=>{el('title').textContent=v;});
@@ -88,9 +94,17 @@
   put('warning',warning?`${L.warnings?.height||0}|${warning.title}|${warning.message}`:'',()=>{el('warning-banner').hidden=!(warning&&L.warnings);if(warning&&L.warnings){el('warning-banner').style.height=L.warnings.height+'px';el('warning-title').textContent=warning.title;el('warning-message').textContent=warning.message;}});
   // The script: bottom or floating at the top.
   put('script-layout',L.script?`${L.script.placement}|${L.script.height}`:'',()=>{const prompt=el('prompt');prompt.hidden=!L.script;if(L.script){prompt.classList.toggle('floating',L.script.placement==='floating');prompt.style.height=L.script.placement==='floating'?'':L.script.height+'px';}});
-  if(previousScript!==state.script){previousScript=state.script;script.replaceChildren();for(const paragraph of (state.script||'').split(/\n\s*\n|\n/)){const p=document.createElement('p');p.textContent=paragraph;script.appendChild(p);}const trail=document.createElement('div');trail.className='trail';script.appendChild(trail);script.scrollTop=0;position=0;}
-  put('pill',mode,v=>{const on=v!=='Manual';el('pill').classList.toggle('on',on);el('auto-pill').setAttribute('aria-pressed',String(on));el('auto-pill').title=on?'Disable scrolling for the script while recording':'Scroll script automatically while recording';el('rewind').hidden=!on;});
-  put('pill-hidden',Boolean(state.countdown),v=>{el('pill-row').hidden=v;});
+  if(previousScript!==state.script){previousScript=state.script;showScript();}
+  put('pill',mode,v=>{const on=v!=='Manual';el('pill').classList.toggle('on',on);el('auto-pill').setAttribute('aria-pressed',String(on));el('auto-pill').title=on?'Disable scrolling for the script while recording':'Scroll script automatically while recording';el('rewind').hidden=!on;document.body.classList.toggle('follow',on);});
+  // Borumi's permission card takes the pill's place while voice follow waits for Speech Recognition permission.
+  const asking=VOICE.has(mode)&&speech.available&&speech.authorization!=='authorized';
+  put('pill-hidden',`${Boolean(state.countdown)}|${asking}|${speech.appName}`,()=>{el('pill-row').hidden=Boolean(state.countdown)||asking;el('speech-prompt').hidden=Boolean(state.countdown)||!asking;el('speech-text').textContent=`${speech.appName} needs Speech Recognition permission to follow your voice.`;});
+  activity.update(state.status==='recording'?state.microphoneLevel:null,performance.now());
+  // Borumi seeks its follower to the start before each countdown, so every take reads from the top.
+  if(status==='starting'&&lastStatus!==null&&lastStatus!=='starting'){followFailed=false;seek(0);}
+  if(status!==lastStatus){held=false;rehearsing=false;}
+  // Back from the script window, the island's script picks up where the follower is.
+  put('script-window',Boolean(state.scriptWindow),v=>{if(!v&&lastStatus!==null&&tokens.length>1)requestAnimationFrame(()=>scrollTo(Math.max(0,Math.min(index,tokens.length-2)),index));});
   // Close, starting, countdown.
   put('close',L.close?(L.close.compact?'compact':'normal'):'',v=>{el('close').hidden=!v;el('close').classList.toggle('compact',v==='compact');});
   const waited=startingSince?(Date.now()-startingSince)/1000:0;
@@ -98,7 +112,7 @@
   put('countdown',state.countdown?`${state.countdown}|${L.countdown.horizontal}`:'',()=>{el('countdown').hidden=!state.countdown;el('countdown-number').textContent=String(state.countdown||'');el('countdown').classList.toggle('horizontal',L.countdown.horizontal);});
   // The flash: each time the take becomes Recording, 500 ms (Ht).
   if(status!==lastStatus){if(status==='recording'){el('flash').classList.add('on');clearTimeout(flashTimer);flashTimer=setTimeout(()=>el('flash').classList.remove('on'),500);}else{clearTimeout(flashTimer);el('flash').classList.remove('on');}lastStatus=status;}
-  paintCamera();syncWave();syncCamera(Boolean(L.preview));syncScroll();
+  paintCamera();syncWave();syncCamera(Boolean(L.preview));syncFollow(scriptText);syncScroll();report();
  }
 
  // A live <video> of the editor's camera, found by its label (device IDs are salted per origin); Chromium shares the running capture.
@@ -117,11 +131,74 @@
 
  async function command(name){try{notice=null;await window.recordingPreview.command(name);}catch(error){notice={title:'Warning!',message:error?.message||'The recording action could not finish.'};}render();}
 
- // Constant speed scrolls while recording; Manual leaves the script to the person. The fractional position lives here because Chromium
- // snaps scrollTop to device pixels.
- function syncScroll(){const run=mode==='ConstSpeed'&&state.status==='recording'&&!el('prompt').hidden;if(run){if(!frame){lastTime=0;position=script.scrollTop;frame=requestAnimationFrame(tick);}}else if(frame){cancelAnimationFrame(frame);frame=0;lastTime=0;}}
- function tick(now){frame=0;if(mode!=='ConstSpeed'||state.status!=='recording'){lastTime=0;return;}if(Math.abs(script.scrollTop-position)>1)position=script.scrollTop;if(lastTime){position+=Math.min(100,now-lastTime)/1000*speed;script.scrollTop=position;}lastTime=now;frame=requestAnimationFrame(tick);}
- function setMode(next){mode=next;keep('island.scrollMode',mode);render();}
+ // The script as Borumi's tokens (Re): one span a word, in a paragraph a line. A new script starts from the top.
+ function showScript(){
+  tokens=F.tokenize(state.script||'');({starts}=F.offsets(tokens));if(!starts.length)starts=[0];matcher=F.createMatcher(tokens);spans=[];script.replaceChildren();
+  let p=null;tokens.forEach((token,i)=>{if(!p){p=document.createElement('p');script.appendChild(p);}else p.appendChild(document.createTextNode(' '));
+   const span=document.createElement('span');span.className=token.secondary?'token secondary':'token';span.dataset.index=String(i);span.textContent=token.text;p.appendChild(span);spans.push(span);if(token.newline)p=null;});
+  const trail=document.createElement('div');trail.className='trail';script.appendChild(trail);index=-1;seek(0);script.scrollTop=0;
+ }
+ // Pe: the words read so far fade (token 0 only once a later one is reached, as Borumi's index 0 is the start); the next word's line scrolls up (pe).
+ function setIndex(next){
+  next=Math.max(0,Math.min(next,tokens.length-1));if(next===index)return;const from=index;index=next;
+  spans.forEach((span,i)=>span.classList.toggle('read',index>=1&&i<=index));
+  if(from>=0&&(mode!=='Manual'||state.status!=='recording')&&!el('prompt').hidden)scrollTo(index,from);
+  report();
+ }
+ function scrollTo(at,from){
+  const target=spans[at+1];if(!target)return;cancelAnimationFrame(scrollFrame);scrollFrame=0;
+  const top=target.getBoundingClientRect().top-script.getBoundingClientRect().top+script.scrollTop,end=Math.max(0,Math.min(top,script.scrollHeight-script.clientHeight)),begin=script.scrollTop;
+  if(Math.abs(begin-end)<1)return;const duration=F.scrollDuration(from,at),started=performance.now();
+  const step=now=>{const t=Math.max(0,Math.min(1,(now-started)/duration));script.scrollTop=begin+(end-begin)*F.ease(t);scrollFrame=t>=1||Math.abs(script.scrollTop-end)<1?0:requestAnimationFrame(step);if(!scrollFrame)script.scrollTop=end;};
+  scrollFrame=requestAnimationFrame(step);
+ }
+ // Borumi's seek: rewind (0) and a clicked word (it counts as read).
+ function seek(at){matcher.seek(at);confirmed=Math.max(0,Math.min(at,tokens.length-1));chars=starts[confirmed]||0;pace.clear();heardAt=-1;const before=index;setIndex(confirmed);if(before===index&&at===0){cancelAnimationFrame(scrollFrame);script.scrollTop=0;}}
+
+ // Voice follow listens only while a take is under way with a script, in a voice mode, once Speech Recognition is allowed.
+ function syncFollow(hasScript){
+  // After an error it waits for the next take or another mode rather than trying again at once.
+  const want=!followFailed&&VOICE.has(mode)&&speech.available&&speech.authorization==='authorized'&&hasScript&&['starting','recording','paused'].includes(state.status);
+  if(want&&!following){following=true;window.recordingPreview.follow?.('start')?.catch?.(()=>{});}
+  else if(!want&&following){following=false;window.recordingPreview.follow?.('stop')?.catch?.(()=>{});}
+ }
+ function heard(event){
+  if(event.type==='status'){speech={...speech,authorization:event.authorization,available:event.available!==false&&speech.available};render();return;}
+  if(event.type==='reset'){matcher.restart();return;}
+  if(event.type==='error'){following=false;followFailed=true;notice={title:'Voice follow stopped',message:event.message};render();return;}
+  if(event.type!=='words'||state.status!=='recording'||!VOICE.has(mode))return;
+  const now=performance.now(),at=matcher.hear(event.text);heardAt=now;
+  if(at!==null){confirmed=at;pace.add(now,starts[at]);if(mode==='Voice'||at<index)setIndex(at);}
+ }
+ // While recording: the constant modes read on at their speed (Voice activated only while you speak); Enhanced reads ahead of what was heard
+ // at your pace (F.optimisticIndex); Voice follow moves when words are heard. A voice mode on a Mac without the follower reads at constant speed,
+ // as Borumi falls back when its follower can't start.
+ const shownScript=()=>!el('prompt').hidden||Boolean(state.scriptWindow);
+ const playing=()=>mode!=='Manual'&&shownScript()&&tokens.length>0&&(state.status==='recording'?!held:rehearsing);
+ // The script window shows this follower: what changed goes to it through the main process.
+ function report(){
+  const value={index:Math.max(0,index),mode,speed,playing:playing(),voiceAvailable:speech.available,asking:VOICE.has(mode)&&speech.available&&speech.authorization!=='authorized',error:followFailed&&notice?notice.message.slice(0,500):null,appName:String(speech.appName).slice(0,80)};
+  const key=JSON.stringify(value);if(key===reported)return;reported=key;window.recordingPreview.script?.(value)?.catch?.(()=>{});
+ }
+ // What the script window asks of the follower.
+ function requested(r){
+  if(!r||typeof r!=='object')return;
+  if(Number.isInteger(r.seek))seek(r.seek);
+  else if(typeof r.mode==='string')setMode(r.mode);
+  else if(Number.isInteger(r.speed)&&r.speed>=8&&r.speed<=30){speed=r.speed;keep('island.scrollSpeed',String(speed));}
+  else if(typeof r.playing==='boolean'){if(state.status==='recording')held=!r.playing;else rehearsing=r.playing;}
+  else if(r.authorize===true)window.recordingPreview.follow?.('authorize')?.catch?.(()=>{});
+  render();
+ }
+ function syncScroll(){if(playing()){if(!frame){lastTime=0;frame=requestAnimationFrame(tick);}}else if(frame){cancelAnimationFrame(frame);frame=0;lastTime=0;}}
+ function tick(now){
+  frame=0;if(!playing()){lastTime=0;return;}const dt=lastTime?Math.min(100,now-lastTime)/1000:0;lastTime=now;
+  const constant=mode==='ConstSpeed'||mode==='ConstSpeedVad'||!speech.available;
+  if(constant){if(mode!=='ConstSpeedVad'||activity.update(state.microphoneLevel,now)){chars=Math.max(chars,starts[index]||0);chars=Math.min(chars+dt*speed,starts[starts.length-1]);setIndex(F.indexAt(starts,chars));}}
+  else if(mode==='VoiceOptimistic'){const next=F.optimisticIndex({confirmed,since:heardAt<0?-1:now-heardAt,rate:pace.rate(),starts});if(next>index||index>confirmed+1||index<confirmed)setIndex(next);}
+  frame=requestAnimationFrame(tick);
+ }
+ function setMode(next){if(!MODES.includes(next))return;mode=next;followFailed=false;keep('island.scrollMode',mode);chars=starts[index]||0;render();}
 
  el('record').addEventListener('click',()=>command('record'));
  el('stop').addEventListener('click',()=>command('stop'));
@@ -130,20 +207,26 @@
  el('start-now').addEventListener('click',()=>command('skip-countdown'));
  el('cancel-countdown').addEventListener('click',()=>command('cancel'));
  el('close').addEventListener('click',()=>command('close'));
- el('auto-pill').addEventListener('click',()=>setMode(mode==='Manual'?'ConstSpeed':'Manual'));
- el('rewind').addEventListener('click',()=>{script.scrollTop=0;position=0;});
+ el('auto-pill').addEventListener('click',()=>setMode(mode==='Manual'?'VoiceOptimistic':'Manual'));
+ el('rewind').addEventListener('click',()=>seek(0));
+ // Borumi's tokens are buttons while following: a click jumps the follower there.
+ script.addEventListener('click',event=>{const token=event.target?.closest?.('.token');if(token&&mode!=='Manual')seek(Number(token.dataset.index));});
+ el('speech-allow').addEventListener('click',()=>{window.recordingPreview.follow?.('authorize')?.catch?.(()=>{});});
  for(const chip of [el('camera-chip'),el('mic-chip')])chip.addEventListener('click',()=>{selected=chip.dataset.source;render();});
  // More is the system menu, as Borumi's (request.context_menu.show), built by the main process from these values.
  el('more').addEventListener('click',async()=>{
-  const choice=await window.recordingPreview.menu({mirror:Boolean(state.mirror),showSources,scriptAvailable:Boolean(state.script?.trim()),mode,speed,speeds:SPEEDS}).catch(()=>null);
+  const choice=await window.recordingPreview.menu({index:Math.max(0,index),mirror:Boolean(state.mirror),showSources,scriptAvailable:Boolean(state.script?.trim()),voiceAvailable:speech.available,mode,speed,speeds:SPEEDS}).catch(()=>null);
   if(choice==='mirror')void command('mirror');
+  else if(choice==='script-window')void command('script-window');
   else if(choice==='sources'){showSources=!showSources;keep('island.showSources',showSources?'1':'0');render();}
-  else if(choice==='mode:Manual'||choice==='mode:ConstSpeed')setMode(choice.slice(5));
-  else if(typeof choice==='string'&&choice.startsWith('speed:')&&SPEEDS.includes(Number(choice.slice(6)))){speed=Number(choice.slice(6));keep('island.scrollSpeed',String(speed));}
+  else if(typeof choice==='string'&&choice.startsWith('mode:'))setMode(choice.slice(5));
+  else if(typeof choice==='string'&&choice.startsWith('speed:')&&SPEEDS.includes(Number(choice.slice(6)))){speed=Number(choice.slice(6));keep('island.scrollSpeed',String(speed));report();}
   else if(choice==='close')void command('close');
  });
  addEventListener('resize',render);
 
+ // Voice follow's events, and whether this Mac has it (the main process answers with the helper's permission state as an event).
+ window.recordingPreview.onSpeech?.(heard);window.recordingPreview.onScript?.(requested);window.recordingPreview.follow?.('status')?.then?.(value=>{if(value){speech={...speech,available:Boolean(value.available),appName:value.appName||speech.appName};render();}})?.catch?.(()=>{});
  // The main process sends the full state once, then only changed fields; read() fills in whatever pushes have not.
  let pushed=false;window.recordingPreview.subscribe(value=>{pushed=true;state={...state,...value};render();});window.recordingPreview.read().then(value=>{state={...(value||{}),...state};render();}).catch(e=>{if(!pushed){notice={title:'Warning!',message:e.message};render();}});
 })();

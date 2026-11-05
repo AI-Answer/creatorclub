@@ -111,6 +111,16 @@ body.paused #pause .play-icon { display: block; }
 .prompt.floating #script { font-size: 14px; text-align: center; }
 #script p { margin: 0; }
 #script .trail { height: 25%; }
+/* Pe: a read word, and a [note], at opacity-30; while following, each word is a button to jump there (inline-block -mx-1 rounded-md px-1 hover:bg-primary/10). */
+#script .token.read, #script .token.secondary { opacity: .3; }
+body.follow #script .token { display: inline-block; margin: 0 -4px; padding: 0 4px; border-radius: 6px; cursor: pointer; transition: background-color 150ms; }
+body.follow #script .token:hover { background: color-mix(in srgb, var(--primary) 10%, transparent); }
+/* ut in the recorder: bottom-2, rounded-xl border-black/10 bg-black/90 text-white px-3 py-2 text-xs, Allow is h-7 px-3 rounded-md bg-white text-black. */
+.speech-prompt { position: absolute; bottom: 8px; left: 0; right: 0; z-index: 30; display: flex; justify-content: center; padding: 0 12px; pointer-events: none; }
+.speech-card { pointer-events: auto; display: flex; max-width: 384px; align-items: center; gap: 12px; border-radius: 12px; border: 1px solid rgb(0 0 0 / .1); background: rgb(0 0 0 / .9); color: #ffffff; padding: 8px 12px; box-shadow: 0 1px 2px 0 rgb(0 0 0 / .05); }
+.speech-card p { min-width: 0; font-size: 12px; line-height: 1.375; }
+#speech-allow { height: 28px; flex: none; border-radius: 6px; padding: 0 12px; font-size: 12px; background: #ffffff; color: #000000; }
+#speech-allow:hover { background: rgb(255 255 255 / .9); }
 .prompt.floating #script .trail { height: 30%; }
 /* pointer-events-none absolute bottom-2 left-0 right-0 z-30 flex justify-center px-2 */
 .pill-row { position: absolute; bottom: 8px; left: 0; right: 0; z-index: 30; display: flex; justify-content: center; padding: 0 8px; pointer-events: none; }

@@ -54,9 +54,34 @@ test('More opens a system menu with Borumi\'s items and returns the chosen one',
  const h=harness();let template:any[]=[];const Menu={buildFromTemplate:(t:any[])=>{template=t;return {popup:({callback}:any)=>{template[0].click();callback();}};}};const m=createRecordingHud({...h.opts,Menu});try{
   await opened(h,{status:'recording',cameraEnabled:true,script:'Read this'});
   const choice=await h.handlers.get('recording-hud-menu')!(h.hudEvent(),{mirror:true,showSources:true,scriptAvailable:true,mode:'ConstSpeed',speed:14,speeds:[8,10,12,14]});
-  assert.equal(choice,'mirror');assert.deepEqual(template.map(i=>i.label??i.type),['Mirror camera','Show sources','separator','Scrolling mode','Scrolling speed','separator','Close']);
-  assert.equal(template[0].checked,true);assert.deepEqual(template[3].submenu.map((i:any)=>i.label),['Manual','Constant speed']);assert.deepEqual(template[4].submenu.map((i:any)=>i.label),['8','10','12','14']);assert.equal(template[4].submenu[3].checked,true);
+  assert.equal(choice,'mirror');assert.deepEqual(template.map(i=>i.label??i.type),['Mirror camera','Show sources','separator','Open script as separate window','Scrolling mode','Scrolling speed','separator','Close']);
+  assert.equal(template[0].checked,true);assert.deepEqual(template[4].submenu.map((i:any)=>i.label),['Manual','Voice follow (Enhanced)','Voice follow','Constant speed (Voice activated)','Constant speed']);assert.deepEqual(template[5].submenu.map((i:any)=>i.label),['8','10','12','14']);assert.equal(template[5].submenu[3].checked,true);
+  assert.deepEqual(template[4].submenu.map((i:any)=>i.checked),[false,false,false,false,true]);assert.equal(template[5].enabled,true,'speeds are for the constant modes');
+  await h.handlers.get('recording-hud-menu')!(h.hudEvent(),{scriptAvailable:true,voiceAvailable:false,mode:'VoiceOptimistic',speed:14,speeds:[14]});
+  assert.deepEqual(template[4].submenu.map((i:any)=>i.enabled),[true,false,false,true,true],'without the voice follower its modes are off');assert.equal(template[5].enabled,false,'no speed for a voice mode');
+  await h.handlers.get('recording-hud-menu')!(h.hudEvent(),{scriptAvailable:true,voiceAvailable:true,mode:'ConstSpeedVad',speed:14,speeds:[14]});
+  assert.ok(template[4].submenu.every((i:any)=>i.enabled));assert.equal(template[5].enabled,true,'Constant speed (Voice activated) has a speed too');
  }finally{m.dispose();}
+});
+
+test('voice follow: the island starts and stops the follower with this take\'s microphone and script, and hears its events',async()=>{
+ const h=harness(),calls:any[]=[];let emit:(event:any)=>void=()=>{};const opened_:any[]=[];
+ const createFollower=({onEvent}:any)=>{emit=onEvent;return {available:()=>true,status:()=>{calls.push(['status']);emit({type:'status',authorization:'authorized',available:true});},authorize:()=>calls.push(['authorize']),start:(value:any)=>{calls.push(['start',value]);return true;},stop:()=>calls.push(['stop']),dispose:()=>calls.push(['dispose'])};};
+ const m=createRecordingHud({...h.opts,createFollower,appName:'Creator Compiler',shell:{openExternal:(url:string)=>opened_.push(url)}});try{
+  const {w}=await opened(h,{status:'recording',script:'Read this aloud',microphoneLabel:'MacBook Air Microphone'});
+  const follow=(action:string)=>h.handlers.get('recording-hud-follow')!(h.hudEvent(w),action);
+  assert.deepEqual(follow('status'),{available:true,appName:'Creator Compiler'});
+  assert.deepEqual(w.webContents.messages.at(-1),['recording-hud-speech',{type:'status',authorization:'authorized',available:true}]);
+  follow('start');assert.deepEqual(calls.at(-1),['start',{microphone:'MacBook Air Microphone',text:'Read this aloud'}]);
+  emit({type:'words',text:'read this'});assert.deepEqual(w.webContents.messages.at(-1),['recording-hud-speech',{type:'words',text:'read this'}]);
+  follow('stop');assert.deepEqual(calls.at(-1),['stop']);
+  follow('authorize');assert.deepEqual(calls.at(-1),['authorize']);
+  emit({type:'status',authorization:'denied',available:true});follow('authorize');assert.deepEqual(opened_,['x-apple.systempreferences:com.apple.preference.security?Privacy_SpeechRecognition'],'once denied, Allow opens the setting');
+  assert.throws(()=>follow('listen'),/Unknown voice follow action/);
+  assert.throws(()=>h.handlers.get('recording-hud-follow')!({sender:h.main.webContents,senderFrame:h.main.webContents.mainFrame},'start'),/Untrusted/);
+  m.end();assert.deepEqual(calls.at(-1),['stop'],'closing the island stops listening');
+ }finally{m.dispose();}
+ assert.deepEqual(calls.at(-1),['dispose']);
 });
 
 test('HUD accepts only trusted main and exact HUD main frame; blocks windows/navigation',async()=>{const h=harness(),m=createRecordingHud(h.opts);try{
@@ -167,3 +192,27 @@ test('HUD reports each editor hide and show it makes, since macOS does not emit 
 });
 
 
+
+test('"Open script as separate window" opens Borumi\'s script window; the island hides its script and its follower drives the window',async()=>{
+ const h=harness();let pick='script-window';const Menu={buildFromTemplate:(t:any[])=>({popup:({callback}:any)=>{t.find((i:any)=>i.click&&i.label===({'script-window':'Open script as separate window'} as any)[pick])?.click();callback();}})};
+ const m=createRecordingHud({...h.opts,Menu});try{
+  const {w:island,id}=await opened(h,{status:'recording',cameraEnabled:true,script:'One two three four.',appearance:'light'});
+  const choice=await h.handlers.get('recording-hud-menu')!(h.hudEvent(island),{index:2});assert.equal(choice,'script-window');assert.equal(h.windows.at(-1),island,'the island acts on the choice');
+  // As with Mirror camera, the island sends the choice back as a command, and the main process opens the window.
+  await h.handlers.get('recording-hud-command')!(h.hudEvent(island),'script-window');
+  const script=h.windows.at(-1);assert.notEqual(script,island);assert.equal(script.options.type,'panel');assert.equal(script.protected,true);script.resolve();await tick();
+  assert.deepEqual(island.webContents.messages.at(-1),['recording-hud-state',{scriptWindow:true}],'the island is told to hide its script');
+  const scriptEvent={sender:script.webContents,senderFrame:script.webContents.mainFrame};
+  assert.deepEqual(h.handlers.get('script-window-read')!(scriptEvent).take,{active:true,script:'One two three four.',appearance:'light'});
+  // The island reports; the window gets it. The window asks; the island gets it.
+  h.handlers.get('recording-hud-script')!(h.hudEvent(island),{index:3,mode:'ConstSpeed',speed:14,playing:true});
+  assert.deepEqual(script.webContents.messages.at(-1),['script-window-state',{follower:{index:3,mode:'ConstSpeed',speed:14,playing:true}}]);
+  h.handlers.get('script-window-follow')!(scriptEvent,{seek:1});assert.deepEqual(island.webContents.messages.at(-1),['recording-hud-script-request',{seek:1}]);
+  assert.throws(()=>h.handlers.get('recording-hud-script')!(scriptEvent,{index:1}),/Untrusted/,'only the island reports');
+  // A take that ends leaves the window waiting for the next one; the next island knows the window is open.
+  h.call('end-recording-hud',id);assert.equal(script.dead,false);assert.equal(h.handlers.get('script-window-read')!(scriptEvent).take.active,false);
+  const next=await opened(h,{status:'recording',cameraEnabled:true,script:'Again.'});
+  assert.equal(h.handlers.get('recording-hud-read')!(h.hudEvent(next.w)).scriptWindow,true);
+  h.handlers.get('script-window-close')!(scriptEvent);assert.equal(script.dead,true);assert.deepEqual(next.w.webContents.messages.at(-1),['recording-hud-state',{scriptWindow:false}]);
+ }finally{m.dispose();}
+});

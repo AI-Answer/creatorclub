@@ -47,6 +47,7 @@ async function main(){
  set('CFBundleIconFile','creatorclub.icns');
  set('NSCameraUsageDescription','Creator Compiler records your camera for the scenes you film.');
  set('NSMicrophoneUsageDescription','Creator Compiler records your microphone for the scenes you film.');
+ set('NSSpeechRecognitionUsageDescription','Creator Compiler follows your voice to scroll the script while you record.');
  await copyFile(path.join(root,'assets/icon.icns'),path.join(target,'Contents/Resources/creatorclub.icns'));
  // Electron loads Resources/app before its default app. A stub that requires the source entry runs the live tree and keeps the bundle sealed (no symlink out of the bundle).
  const stub=path.join(target,'Contents/Resources/app'),{version}=JSON.parse(await readFile(path.join(root,'package.json'),'utf8'));

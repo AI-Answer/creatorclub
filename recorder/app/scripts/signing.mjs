@@ -10,6 +10,7 @@ const hash=bytes=>createHash('sha256').update(bytes).digest('hex');
 const emptyEntitlements='<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd"><plist version="1.0"><dict/></plist>\n';
 export const customCode=Object.freeze([
  ['server-dist/sceneforge-screen-recorder','com.aianswer.creatorcompiler.screen-recorder'],
+ ['server-dist/sceneforge-speech-follower','com.aianswer.creatorcompiler.speech-follower'],
  ['server-dist/sceneforge-vision','com.aianswer.creatorcompiler.vision'],
  ['server-dist/sceneforge-text-renderer','com.aianswer.creatorcompiler.text-renderer'],
  ['runtime/bin/ffmpeg','com.aianswer.creatorcompiler.ffmpeg'],

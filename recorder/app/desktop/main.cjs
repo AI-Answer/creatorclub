@@ -228,7 +228,7 @@ app.whenReady().then(async()=>{
  ipcMain.handle('choose-capture-source',(e,options)=>captureManager.choose(e,options));
  ipcMain.handle('restore-capture-source',(e,selection)=>captureManager.restore(e,selection));
  ipcMain.handle('cancel-capture-selection',(e,token)=>captureManager.cancel(e,token));
- recordingHud=createRecordingHud({preferencesPath:path.join(app.getPath('userData'),'recording-island.json'),defaultLayout:{camera:true,script:true},appName,BrowserWindow,ipcMain,screen,Menu,getMainWindow:()=>mainWindow,verifyMain:verifyDesktopSender,onMainVisibility:publishMainVisibility});
+ recordingHud=createRecordingHud({shell,preferencesPath:path.join(app.getPath('userData'),'recording-island.json'),scriptPreferencesPath:path.join(app.getPath('userData'),'script-window.json'),defaultLayout:{camera:true,script:true},appName,BrowserWindow,ipcMain,screen,Menu,getMainWindow:()=>mainWindow,verifyMain:verifyDesktopSender,onMainVisibility:publishMainVisibility});
  captureBorder=createCaptureBorder({BrowserWindow});
  nativeRecording=createNativeRecordingManager({ipcMain,getMainWindow:()=>mainWindow,origin:base,dataDir:paths.studio,onState:event=>{captureBorder.update(event);keepAwakeWhileRecording(event.type);},onPrepare:event=>{if(event.recordVideo)captureBorder.prewarm();}});
  const verify=(e)=>{if(!trusted(e.senderFrame.url))throw new Error('Untrusted window');};
@@ -252,7 +252,7 @@ app.whenReady().then(async()=>{
  mainWindow.webContents.on('did-start-loading',()=>{mainVisibility=null;});
  for(const name of ['show','hide','minimize','restore','focus'])mainWindow.on(name,publishMainVisibility);
  mainWindow.once('ready-to-show',()=>{if(mainWindow&&!mainWindow.isDestroyed())mainWindow.show();});
- mainWindow.on('closed',()=>{permissionHelper?.close();recordingHud.end({restoreMain:false});void nativeRecording.reset?.();captureManager.reset();clearGlobalShortcuts();shortcutContext=emptyShortcutContext();mainWindow=null;});
+ mainWindow.on('closed',()=>{permissionHelper?.close();recordingHud.end({restoreMain:false});recordingHud.closeScript();void nativeRecording.reset?.();captureManager.reset();clearGlobalShortcuts();shortcutContext=emptyShortcutContext();mainWindow=null;});
  ipcMain.handle('choose-media',async e=>{verify(e);const result=await dialog.showOpenDialog(mainWindow,{title:'Import media',properties:['openFile','multiSelections'],filters:[{name:'Video, audio and images',extensions:['mp4','mov','webm','mkv','wav','mp3','m4a','aac','flac','png','jpg','jpeg','webp','gif']} ]});return result.canceled?[]:result.filePaths;});
  ipcMain.handle('choose-borumi',async e=>{verify(e);const result=await dialog.showOpenDialog(mainWindow,{title:'Import a Borumi project',properties:['openFile','openDirectory','treatPackageAsDirectory'],filters:[{name:'Borumi project',extensions:['bmproj','bmprojbundle']}]});return result.canceled?null:result.filePaths[0];});
  ipcMain.handle('reveal',async(e,file)=>{verify(e);if(typeof file!=='string'||!path.isAbsolute(file))throw new Error('Invalid path');shell.showItemInFolder(file);});

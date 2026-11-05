@@ -17,10 +17,12 @@
   </div>
   <section class="prompt" id="prompt" hidden><div id="script" role="document" aria-label="Recording script" tabindex="0"></div>
    <div class="pill-row" id="pill-row"><div class="pill" id="pill"><button id="auto-pill" type="button" aria-pressed="false" title="Scroll script automatically while recording"><svg class="icon on-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="currentColor"/><path d="m7.5 12.5 3 3 6-6.5" fill="none" stroke="#000" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><svg class="icon off-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M8 12h8" stroke-linecap="round"/></svg><span>Auto-scroll</span></button><button id="rewind" type="button" aria-label="Rewind to start" title="Rewind script to the top" hidden><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5h2v14H6zM20 5v14L9.5 12z" fill="currentColor"/></svg></button></div></div>
+   <div class="speech-prompt" id="speech-prompt" hidden><div class="speech-card"><p id="speech-text">Creator Compiler needs Speech Recognition permission to follow your voice.</p><button type="button" id="speech-allow">Allow</button></div></div>
   </section>
  </main>
  <div id="flash" aria-hidden="true"></div>
  <div id="init" role="status" hidden><div class="init-ring" aria-hidden="true"></div><div id="init-text">Getting things ready...</div></div>
  <div id="countdown" role="status" hidden><div class="countdown-inner"><div class="orb"><span id="countdown-number">3</span></div><div class="countdown-actions"><button id="start-now" type="button">Start now</button><button id="cancel-countdown" type="button" class="quiet">Cancel</button></div></div></div>
  <button id="close" class="overlay" aria-label="Close recorder" title="Close"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+ <script src="script-follower.js"></script>
  <script src="recording-hud.js"></script></body></html>
