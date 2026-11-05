@@ -379,7 +379,7 @@ test('Package it reads the idea and research, and fixes titles that break the ru
   assert.match(asked[0].prompt, /Title: Build it fast/);
   assert.match(asked[0].prompt, /Note: Remember the cost/, 'the research board is in the prompt');
   assert.match(asked[1].prompt, /Title 1 is a question\./);
-  assert.deepEqual((await call('GET', `/videos/${video.id}/plan`)).body, { package: goodPackage, outline: null, running: {}, ready: {} });
+  assert.deepEqual((await call('GET', `/videos/${video.id}/plan`)).body, { package: goodPackage, outline: null, onepager: null, running: {}, ready: {} });
 
   const edited = { ...goodPackage, angle: 'My own angle' };
   assert.deepEqual((await call('PUT', `/videos/${video.id}/package`, edited)).body, edited);

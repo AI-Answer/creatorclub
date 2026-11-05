@@ -19,11 +19,11 @@ export const VIDEOS_CHANGED='club:videos-changed';
 /** Tells everything that lists videos to load them again, for a change the server made that no request of ours reported. */
 export const notifyVideosChanged=()=>window.dispatchEvent(new Event(VIDEOS_CHANGED));
 
-/** Writes that add, change or remove a video: `/videos…` (not noting that one was opened, moving or editing a tile on its Board, asking the companion, or autosaving its package, outline or script) and a concept added from a breakdown. A plan job that finishes announces itself. */
+/** Writes that add, change or remove a video: `/videos…` (not noting that one was opened, moving or editing a tile on its Board, asking the companion, or autosaving its package, one-pager, outline or script) and a concept added from a breakdown. A plan job that finishes announces itself. */
 export function changesVideos(method:string|undefined,path:string):boolean{
  if(!method||method==='GET'||method==='HEAD')return false;
  const route=path.split('?')[0];
- if(/^\/videos(\/|$)/.test(route))return !/^\/videos\/[^/]+\/(opened|companion|board\/import|board\/pin)$/.test(route)&&!(method==='PUT'&&/^\/videos\/[^/]+\/(package|outline|script|script\/scene\/[^/]+)$/.test(route))&&!(method==='PATCH'&&/^\/videos\/[^/]+\/research\/[^/]+$/.test(route));
+ if(/^\/videos(\/|$)/.test(route))return !/^\/videos\/[^/]+\/(opened|companion|board\/import|board\/pin)$/.test(route)&&!(method==='PUT'&&/^\/videos\/[^/]+\/(package|onepager|outline|script|script\/scene\/[^/]+)$/.test(route))&&!(method==='PATCH'&&/^\/videos\/[^/]+\/research\/[^/]+$/.test(route));
  return /^\/breakdowns\/[^/]+\/concepts\/[^/]+\/add$/.test(route);
 }
 

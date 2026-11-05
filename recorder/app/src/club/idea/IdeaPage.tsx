@@ -18,8 +18,10 @@ import {youtubeId} from '../board';
 import {useAi,type ConnectedAi} from '../useAi';
 import {ThumbnailStudio} from './ThumbnailStudio';
 import {CARD_DRAG,cardText,emptyParts,pairChecks,proofCards,proofLine,type SectionKey} from './idea-logic';
+import {OnePager} from './OnePagerCard';
+import './onepager.css';
 
-const WHAT:Record<PlanJobKind,string>={package:'title, thumbnail and hook',outline:'scenes',script:'script'};
+const WHAT:Record<PlanJobKind,string>={package:'title, thumbnail and hook',outline:'scenes',script:'script',onepager:'one-pager'};
 const LEVEL_WORD:Record<ConceptRating['level'],string>={high:'Strong',mid:'Okay',low:'Weak'};
 export type IdeaView='page'|'board';
 const VIEW_KEY='cc.idea.view';
@@ -139,7 +141,7 @@ export function IdeaPage({video,plan,known,focusId,boardKey,navigate,onOpen,show
   plan.changedScene!==undefined&&<p key="changed" className="idea-warn" role="status">{changedSceneLine(plan.changedScene)}</p>,
   plan.continueError&&<ErrorLine key="continue" message={plan.continueError} onRetry={()=>plan.continueAction?.run()}/>,
   plan.scenesSaveError&&<ErrorLine key="save" message={plan.scenesSaveError} onRetry={plan.retrySave}/>,
-  plan.noticeError&&<ErrorLine key="notice" message={plan.noticeError} onRetry={()=>{for(const kind of ['package','outline','script'] as const)if(plan.notices[kind]){void plan.resolveNotice(kind);break;}}}/>,
+  plan.noticeError&&<ErrorLine key="notice" message={plan.noticeError} onRetry={()=>{for(const kind of ['package','outline','script','onepager'] as const)if(plan.notices[kind]){void plan.resolveNotice(kind);break;}}}/>,
   <JobLine key="package-job" what={WHAT.package} state={plan.packageJob} onRetry={()=>plan.writePackage()} onStop={()=>{setChain(false);plan.stop('package');}}/>,
   <JobLine key="outline-job" what={WHAT.outline} state={plan.outlineJob} onRetry={plan.createOutline} onStop={()=>plan.stop('outline')}/>,
   <JobLine key="script-job" what={WHAT.script} state={plan.scriptJob} onRetry={()=>plan.writeScript(plan.scriptScene)} onStop={()=>plan.stop('script')}/>,
@@ -150,7 +152,7 @@ export function IdeaPage({video,plan,known,focusId,boardKey,navigate,onOpen,show
   ?plan.load.status==='error'?<ErrorLine message={plan.load.message} onRetry={plan.reload}/>:<div className="idea-loading" role="status"><Spinner label="Loading your video" size={18}/><span className="small muted">Loading your video…</span></div>
   :<PlanPage video={video} plan={plan} known={known} focusId={focusId} cards={cards} ai={ai} showPart={showPart}
     onOpen={onOpen} onFocus={onFocus} onTitle={onTitle} onTarget={onTarget} onRecordScene={onRecordScene} onVideo={onVideo}
-    onShowCard={id=>{choose('board');setShowCard(now=>({id,n:(now?.n??0)+1}));}} onDiscover={()=>navigate({name:'discover'})}/>;
+    onBoardChanged={onBoardChanged} onShowCard={id=>{choose('board');setShowCard(now=>({id,n:(now?.n??0)+1}));}} onDiscover={()=>navigate({name:'discover'})}/>;
 
  return <div className={cn('idea-page',view)}>
   <div className="idea-top">
@@ -214,9 +216,9 @@ function Part({part,title,flash,onOpen,children}:{part:SectionKey;title:string;f
 /** A line you type into, with what you can do to it showing on hover (and when you are in it). */
 const Line=({className,actions,children}:{className?:string;actions?:ReactNode;children:ReactNode})=><div className={cn('dline',className)}>{children}{actions&&<span className="dline-act">{actions}</span>}</div>;
 
-function PlanPage({video,plan,known,focusId,cards,ai,showPart,onOpen,onFocus,onTitle,onTarget,onRecordScene,onVideo,onShowCard,onDiscover}:{
+function PlanPage({video,plan,known,focusId,cards,ai,showPart,onOpen,onFocus,onTitle,onTarget,onRecordScene,onVideo,onShowCard,onDiscover,onBoardChanged}:{
  video:Video;plan:Plan;known:readonly VideoScene[]|undefined;focusId:string|null;cards:readonly ResearchTile[]|undefined;ai:ConnectedAi;showPart?:{key:SectionKey;n:number};
- onOpen?(part:SectionKey|null):void;onFocus(sceneId:string):void;onTitle(title:string):void;onTarget(seconds:number):void;onRecordScene(sceneId:string):void;onVideo(video:Video):void;onShowCard(id:string):void;onDiscover():void;
+ onOpen?(part:SectionKey|null):void;onFocus(sceneId:string):void;onTitle(title:string):void;onTarget(seconds:number):void;onRecordScene(sceneId:string):void;onVideo(video:Video):void;onShowCard(id:string):void;onDiscover():void;onBoardChanged():void;
 }){
  const toast=useToast(),aiAvailable=useAiAvailable();
  const value=plan.pkg??EMPTY_PACKAGE;
@@ -279,6 +281,8 @@ function PlanPage({video,plan,known,focusId,cards,ai,showPart,onOpen,onFocus,onT
    </div>
    {ratings.length>0&&<p className="idea-hint">Rating (an AI's judgment, not a measurement): {ratings.map(([label,key])=>`${label} ${LEVEL_WORD[value[key]!.level].toLowerCase()}`).join(' · ')}</p>}
   </Part>
+
+  <OnePager video={video} plan={plan} onTitle={onTitle} onBoardChanged={onBoardChanged}/>
 
   <Part part="package" title="Title and thumbnail" flash={flash==='package'} onOpen={onOpen}>
    <Line className="title" actions={!packaging&&<>

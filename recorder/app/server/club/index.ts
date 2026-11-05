@@ -16,7 +16,7 @@ import { cachedChannelAvatar, ensureChannelAvatar, type AvatarFetch } from './ch
 import { parseChannelInput } from './channel.js';
 import { FILE_TOO_BIG, MAX_FILE_BYTES, detectSource } from './source.js';
 import { addChannel, rebuildVoice, startFresh } from './onboard.js';
-import { SCENE_ID, deletePackage, ensurePackage, heldResults, patchPackage, readOutline, readPackage, runningPlanJobs, saveOutline, savePackage, saveScript, saveSceneScript, startPlanJob, undoReplace, usePackageText, useHeld, type PlanOptions } from './planning.js';
+import { SCENE_ID, deletePackage, ensurePackage, heldResults, patchPackage, readOutline, readPackage, readOnePager, saveOnePager, runningPlanJobs, saveOutline, savePackage, saveScript, saveSceneScript, startPlanJob, undoReplace, usePackageText, useHeld, type PlanOptions } from './planning.js';
 import { continueToRecording, outlineChangedScene, videoFromProject } from './recorder.js';
 import { publishVideo, ytDlpViews, type ViewsReader } from './publish.js';
 import { publishingRoutes, type PublishingOptions } from './publisher-routes.js';
@@ -741,9 +741,9 @@ export function clubRouter({ higgsfield = {}, avatarFetch, ai = {}, transcribe, 
     const slug = await requireWorkspace();
     const id = param(req, 'id');
     const video = await store.readVideo(slug, id);
-    const [pkg, outline, ready] = await Promise.all([runningPlanJobs(slug, id).package ? readPackage(slug, id) : ensurePackage(slug, video), readOutline(slug, id), heldResults(slug, id)]);
+    const [pkg, outline, ready, onepager] = await Promise.all([runningPlanJobs(slug, id).package ? readPackage(slug, id) : ensurePackage(slug, video), readOutline(slug, id), heldResults(slug, id), readOnePager(slug, id)]);
     const changedScene = await outlineChangedScene(video, outline);
-    res.json({ package: pkg, outline, ...(changedScene ? { changedScene } : {}), running: runningPlanJobs(slug, id), ready });
+    res.json({ package: pkg, outline, onepager, ...(changedScene ? { changedScene } : {}), running: runningPlanJobs(slug, id), ready });
   }));
   // Plan's own saves take the same per-video lock as the companion's Undo, so Undo's check and its write see the same files.
   const planSave = async <T>(req: Request, save: (slug: string, id: string) => Promise<T>) => {
@@ -751,6 +751,8 @@ export function clubRouter({ higgsfield = {}, avatarFetch, ai = {}, transcribe, 
     const id = param(req, 'id');
     return store.withLock(companionLock(slug, id), () => save(slug, id));
   };
+  router.get('/videos/:id/onepager', handler(async (req, res) => res.json(await readOnePager(await requireWorkspace(), param(req, 'id')))));
+  router.put('/videos/:id/onepager', handler(async (req, res) => res.json(await planSave(req, (slug, id) => saveOnePager(slug, id, req.body)))));
   router.put('/videos/:id/package', handler(async (req, res) => res.json(await planSave(req, (slug, id) => patchPackage(slug, id, req.body)))));
   // Removes the package (set aside, not deleted): Undo of a first Use as hook or Use as title.
   router.delete('/videos/:id/package', handler(async (req, res) => {
@@ -797,8 +799,8 @@ export function clubRouter({ higgsfield = {}, avatarFetch, ai = {}, transcribe, 
         const id = param(req, 'id');
         const { token } = versionBody.parse(req.body);
         await (action === 'undo' ? undoReplace(slug, id, kind, token) : useHeld(slug, id, kind, token));
-        const [pkg, outline] = await Promise.all([readPackage(slug, id), readOutline(slug, id)]);
-        res.json({ package: pkg, outline });
+        const [pkg, outline, onepager] = await Promise.all([readPackage(slug, id), readOutline(slug, id), readOnePager(slug, id)]);
+        res.json({ package: pkg, outline, onepager });
       }));
     }
   }

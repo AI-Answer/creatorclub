@@ -2,7 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { z } from 'zod';
-import { PLAN_JOB_KINDS, type AiProvider, type JobSnapshot, type Outline, type OutlineScene, type Package, type PackageUseResult, type PlanData, type PlanJobKind, type PlanJobResult, type Video } from '../../shared/club.js';
+import { PLAN_JOB_KINDS, onepagerShape, type OnePager, type AiProvider, type JobSnapshot, type Outline, type OutlineScene, type Package, type PackageUseResult, type PlanData, type PlanJobKind, type PlanJobResult, type Video } from '../../shared/club.js';
 import { describeAngle } from '../../shared/description.js';
 import { mergePackage, type PackageGroup } from '../../shared/package-merge.js';
 import { chosenIndex, pairThumbs } from '../../shared/package-rules.js';
@@ -17,6 +17,8 @@ import {
   buildExpandPrompt,
   buildOutlinePrompt,
   buildPackagePrompt,
+  buildOnePagerPrompt,
+  onepagerProblems,
   buildSceneScriptPrompt,
   buildScriptPrompt,
   outlineProblems,
@@ -35,6 +37,7 @@ import * as store from './store.js';
  */
 
 export const PACKAGE_BUDGET_USD = 0.5;
+export const ONEPAGER_BUDGET_USD = PACKAGE_BUDGET_USD;
 export const OUTLINE_BUDGET_USD = 1;
 export const SCRIPT_BUDGET_USD = 1;
 export const EXPAND_BUDGET_USD = 0.5;
@@ -43,6 +46,7 @@ const EXPAND_BELOW = 0.8;
 const RECENT_TITLES = 10;
 
 export const packageFile = (slug: string, id: string) => path.join(store.videoDir(slug, id), 'package.json');
+export const onepagerFile = (slug: string, id: string) => path.join(store.videoDir(slug, id), 'onepager.json');
 export const outlineFile = (slug: string, id: string) => path.join(store.videoDir(slug, id), 'outline.md');
 export const scriptFile = (slug: string, id: string) => path.join(store.videoDir(slug, id), 'script.md');
 
@@ -339,6 +343,19 @@ export async function readPackage(slug: string, id: string): Promise<Package | n
   return parsed.success ? parsed.data : null;
 }
 
+export async function readOnePager(slug: string, id: string): Promise<OnePager | null> {
+  await store.readVideo(slug, id);
+  const parsed = onepagerShape.safeParse(await store.readJSON<unknown>(onepagerFile(slug, id)));
+  return parsed.success ? parsed.data : null;
+}
+
+export async function saveOnePager(slug: string, id: string, value: unknown): Promise<OnePager> {
+  await store.readVideo(slug, id);
+  const parsed = onepagerShape.parse(value);
+  await store.withLock(`onepager:${onepagerFile(slug, id)}`, () => store.writeJSON(onepagerFile(slug, id), parsed));
+  return parsed;
+}
+
 /**
  * Keeps the video's `planning` flags true to what exists: the package is done once it has a title and a spoken hook, the outline
  * once it has scenes. Read by the card's status line.
@@ -497,9 +514,9 @@ export async function saveSceneScript(slug: string, id: string, sceneId: string,
 
 // ---------------------------------------------------------------- versions: replace with Undo, or hold a late result
 
-const FILES: Record<PlanJobKind, (slug: string, id: string) => string> = { package: packageFile, outline: outlineFile, script: scriptFile };
+const FILES: Record<PlanJobKind, (slug: string, id: string) => string> = { package: packageFile, outline: outlineFile, script: scriptFile, onepager: onepagerFile };
 /** The files a step's result depends on: when any of them changes while the step runs, its result is held, not written. */
-const WATCHED: Record<PlanJobKind, PlanJobKind[]> = { package: ['package'], outline: ['outline', 'script'], script: ['outline', 'script'] };
+const WATCHED: Record<PlanJobKind, PlanJobKind[]> = { package: ['package'], outline: ['outline', 'script'], script: ['outline', 'script'], onepager: ['onepager'] };
 
 /** The current contents of a step's files, to tell whether the person changed them while the step ran. */
 async function snapshotOf(slug: string, id: string, kind: PlanJobKind): Promise<string> {
@@ -513,17 +530,21 @@ async function snapshotOf(slug: string, id: string, kind: PlanJobKind): Promise<
  * `<file>-earlier-<token>` (`replaced`, which Undo takes); Create outline sets the full script aside with it.
  */
 async function commitResult(slug: string, id: string, kind: PlanJobKind, before: string, content: string): Promise<{ replaced?: string; held?: string }> {
-  const token = stamp();
-  const file = FILES[kind](slug, id);
-  if ((await snapshotOf(slug, id, kind)) !== before) {
-    await store.writeFileAtomic(versionFile(file, 'new', token), content);
-    return { held: token };
-  }
-  let replaced = await setAside(file, 'earlier', token);
-  if (kind === 'outline') replaced = (await setAside(scriptFile(slug, id), 'earlier', token)) || replaced;
-  await store.writeFileAtomic(file, content);
-  await syncPlanningFlags(slug, id);
-  return replaced ? { replaced: token } : {};
+  const write = async () => {
+    const token = stamp();
+    const file = FILES[kind](slug, id);
+    if ((await snapshotOf(slug, id, kind)) !== before) {
+      await store.writeFileAtomic(versionFile(file, 'new', token), content);
+      return { held: token };
+    }
+    let replaced = await setAside(file, 'earlier', token);
+    if (kind === 'outline') replaced = (await setAside(scriptFile(slug, id), 'earlier', token)) || replaced;
+    await store.writeFileAtomic(file, content);
+    await syncPlanningFlags(slug, id);
+    return replaced ? { replaced: token } : {};
+  };
+  // A hand-save and a finished one-pager cannot slip between the snapshot check and its write.
+  return kind === 'onepager' ? store.withLock(`onepager:${FILES[kind](slug, id)}`, write) : write();
 }
 
 const checkToken = (token: string) => {
@@ -619,7 +640,7 @@ export function startPlanJob(slug: string, id: string, kind: PlanJobKind, option
     if ((runningScenes.get(key) ?? '') !== (sceneId ?? '')) throw new ClubError('Wait for the script that is running.', 409);
     return snapshot(job);
   }
-  const run: (slug: string, id: string, context: JobContext, options?: PlanOptions) => Promise<unknown> = sceneId && kind === 'script' ? (s, i, context, opts) => runSceneScript(s, i, sceneId, context, opts) : { package: runPackage, outline: runOutline, script: runScript }[kind];
+  const run: (slug: string, id: string, context: JobContext, options?: PlanOptions) => Promise<unknown> = sceneId && kind === 'script' ? (s, i, context, opts) => runSceneScript(s, i, sceneId, context, opts) : { package: runPackage, outline: runOutline, script: runScript, onepager: runOnePager }[kind];
   const started = startJob(kind, (context) =>
     run(slug, id, context, replace ? { ...options, replace } : options).finally(() => {
       if (runningJobs.get(key) !== started.id) return;
@@ -815,6 +836,27 @@ export async function runPackage(slug: string, id: string, context: JobContext, 
   // The package's thumbnail text is always the pair in use (the first while none is): what Publish and the prompts read.
   const value = merged.thumbs ? { ...merged, thumbnailText: merged.thumbs[Math.max(0, chosenIndex(merged.titles, video.title))] } : merged;
   return { value, ...(await commitResult(slug, id, 'package', before, JSON.stringify(value, null, 2) + '\n')) };
+}
+
+/** Develops the idea into a short slide; edits made during a run hold its answer for later. */
+export async function runOnePager(slug: string, id: string, context: JobContext, options: PlanOptions = {}): Promise<PlanJobResult<OnePager>> {
+  const video = await store.readVideo(slug, id);
+  const before = await snapshotOf(slug, id, 'onepager');
+  context.emit({ message: 'Reading your idea, package and research board…' });
+  const [channel, research, titles, pkg, history] = await Promise.all([loadChannelContext(slug), boardTiles(slug, id), recentTitles(slug), readPackage(slug, id), store.readJSON<ChannelData>(path.join(store.workspaceDir(slug), 'channel.json'))]);
+  const built = await buildOnePagerPrompt(channel, { idea: ideaFor(video), research, recentTitles: titles, pkg: pkg ?? undefined, uploads: history?.uploads });
+  const ai = await asker(context, options);
+  context.emit({ message: 'Writing the one-pager…' });
+  let value = parseAnswer(onepagerShape, (await ai.ask(built, ONEPAGER_BUDGET_USD)).json, ai.who, 'one-pager');
+  stopped(context);
+  const problems = onepagerProblems(value);
+  if (problems.length) {
+    context.emit({ message: 'Checking the one-pager…' });
+    value = parseAnswer(onepagerShape, (await ai.ask(repair(built, value, problems), ONEPAGER_BUDGET_USD)).json, ai.who, 'one-pager');
+    stopped(context);
+    if (onepagerProblems(value).length) throw new AiError('bad-answer', `${ai.who} sent an unfinished one-pager. Try again.`);
+  }
+  return { value, ...(await commitResult(slug, id, 'onepager', before, JSON.stringify(value, null, 2) + '\n')) };
 }
 
 /** The reusable outline of the video this one came from, when it came from a break down that still exists. */
