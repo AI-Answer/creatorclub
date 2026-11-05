@@ -39,7 +39,7 @@ test('it says what it is looking at, and the suggestions follow the step',()=>{
  }
  assert.equal(suggestions('record',{scenes:2,scene:{index:0}})[0],'Shorten scene 1 to fit its time');
  assert.equal(suggestions('publish',{scenes:2})[0],'Write the description');
- assert.deepEqual(suggestions('edit',{scenes:2}),['/proof-edit Polish the whole video','Add a title at the start','Add a lower third with my name']);
+ assert.deepEqual(suggestions('edit',{scenes:2}),['/proof-edit Polish the whole video','Add a title at the start','Add my name on screen']);
  assert.equal(suggestions('edit',{scenes:2,selected:3})[1],'Trim the selected clip to the speech');
 });
 
@@ -479,7 +479,7 @@ test('on Edit, a moment marked as not liked puts Fix the parts I marked first',(
  assert.deepEqual(suggestions('edit',{scenes:2,notes:1}),['/proof-edit Polish the whole video','Fix the parts I marked','Add a title at the start']);
  // After the polish, the next steps come from the video: the pacing check first, then what it still lacks, then whether it is ready.
  assert.deepEqual(suggestions('edit',{scenes:2,polished:true,stalls:[{start:26.4,end:34.2}],opening:true,named:true}),['Add something at 0:26–0:34: nothing changes on screen there','Cut the pauses']);
- assert.deepEqual(suggestions('edit',{scenes:2,polished:true,stalls:[],opening:true,named:false}),['Add a lower third with my name','Is this ready to publish?','Cut the pauses']);
+ assert.deepEqual(suggestions('edit',{scenes:2,polished:true,stalls:[],opening:true,named:false}),['Add my name on screen','Is this ready to publish?','Cut the pauses']);
  assert.equal(suggestions('edit',{scenes:2,notes:0})[1],'Add a title at the start');
 });
 

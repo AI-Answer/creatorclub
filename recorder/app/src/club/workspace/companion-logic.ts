@@ -98,7 +98,7 @@ export function suggestions(tab:CompanionTab,facts:SuggestionFacts):string[]{
     ...(facts.selected?['Trim the selected clip to the speech']:[]),
     // Not known (no editor open yet) counts as missing: the title and the name are what most videos still need.
     ...(facts.opening?[]:['Add a title at the start']),
-    ...(facts.named?[]:['Add a lower third with my name']),
+    ...(facts.named?[]:['Add my name on screen']),
     ...(facts.polished&&!stall?['Is this ready to publish?']:[]),
     'Cut the pauses',
    ];
