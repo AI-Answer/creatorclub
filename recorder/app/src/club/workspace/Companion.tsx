@@ -13,6 +13,7 @@ import {ASK_CLAUDE} from './ask-claude';
 import {Button,Icon,Spinner,cn,type IconName} from '../ui';
 import {STEP_NAME,type IdeaPartKey,atBottom,elapsed,greeting,lookingAt,previewOf,stepSummary,suggestions,tabOf,withDividers} from './companion-logic';
 import {Markdown} from './Markdown';
+import {visibleInterval} from '../visible-interval';
 import {ReplaceScenes} from './ReplaceScenes';
 import {useCompanion,type Live} from './useCompanion';
 import './companion.css';
@@ -69,8 +70,8 @@ export function Companion({videoId,videoTitle,videoWhy,tab,part,scene,screen,sel
   if(tab!=='idea'&&tab!=='research')return;
   let alive=true;
   const count=()=>clubFetch<unknown[]>(`${boardBase(videoId)}/research`).then(list=>{if(alive&&Array.isArray(list))setTiles(list.length);},()=>{});
-  void count();const timer=setInterval(()=>void count(),TILE_RECOUNT_MS);
-  return()=>{alive=false;clearInterval(timer);};
+  const stop=visibleInterval(count,TILE_RECOUNT_MS,true);
+  return()=>{alive=false;stop();};
  },[tab,videoId,boardKey]);
  const companion=useCompanion(videoId,{onChanged,beforeApply,editor:()=>editorNow.current?.get()??null});
  const {messages,live}=companion;

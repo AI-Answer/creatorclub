@@ -18,21 +18,22 @@ export function useVideos():{state:VideosState;reload():void}{
  const [error,setError]=useState<string|null>(null);
  const latest=useRef(0);
  const deleting=usePendingDeletes();
- const load=useCallback(()=>{
+ const load=useCallback((dedupe=false)=>{
   const mine=++latest.current;
-  Promise.all([clubFetch<Video[]>('/videos'),clubFetch<string[]>('/recent')]).then(([videos,recent])=>{
+  Promise.all([clubFetch<Video[]>('/videos',{dedupe}),clubFetch<string[]>('/recent')]).then(([videos,recent])=>{
    if(mine!==latest.current)return;
    setError(null);setLoaded({videos,recent});
   },reason=>{if(mine===latest.current)setError(errorMessage(reason,"Couldn't load your videos."));});
  },[]);
+ const reload=useCallback(()=>load(),[load]);
  useEffect(()=>{
-  load();
-  window.addEventListener(VIDEOS_CHANGED,load);
-  return()=>{latest.current++;window.removeEventListener(VIDEOS_CHANGED,load);};
- },[load]);
+  load(true);
+  window.addEventListener(VIDEOS_CHANGED,reload);
+  return()=>{latest.current++;window.removeEventListener(VIDEOS_CHANGED,reload);};
+ },[load,reload]);
  const state=useMemo<VideosState>(()=>{
   if(loaded)return {status:'ready',recent:loaded.recent,videos:deleting.size?loaded.videos.filter(video=>!deleting.has(video.id)):loaded.videos};
   return error!==null?{status:'error',message:error}:{status:'loading'};
  },[loaded,error,deleting]);
- return {state,reload:load};
+ return {state,reload};
 }

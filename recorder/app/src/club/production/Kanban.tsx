@@ -1,4 +1,4 @@
-import {useEffect,useLayoutEffect,useRef,useState,type DragEvent,type KeyboardEvent} from 'react';
+import {memo,useEffect,useLayoutEffect,useMemo,useRef,useState,type DragEvent,type KeyboardEvent} from 'react';
 import {VIDEO_STAGES,type Video,type VideoStage} from '../../../shared/club';
 import {STAGE_LABEL} from '../board';
 import {beforeIdAt,boardColumns,dropIndex,isSamePlace,type BoardColumn} from '../production';
@@ -8,6 +8,13 @@ import type {IdeaActionSet} from './IdeaLane';
 import {Icon} from '../ui';
 import {errorMessage} from '../api';
 import {KanbanCard} from './KanbanCard';
+import type {MutableRefObject} from 'react';
+
+type CardActions={open(video:Video):void;move(id:string,stage:VideoStage,beforeId:string|null):void;research?(video:Video):void;key(event:KeyboardEvent<HTMLDivElement>,video:Video):void;start(event:DragEvent,video:Video):void;end():void};
+// Handler closures live in the small wrapper. Drag-over and focus state no longer re-render every card.
+const KanbanItem=memo(function KanbanItem({video,scenes,highlight,dragging,research,actions}:{video:Video;scenes:readonly SceneProgress[]|undefined;highlight:boolean;dragging:boolean;research:boolean;actions:MutableRefObject<CardActions>}){
+ return <KanbanCard video={video} scenes={scenes} highlight={highlight} dragging={dragging} onOpen={()=>actions.current.open(video)} onMove={stage=>actions.current.move(video.id,stage,null)} onResearch={research?()=>actions.current.research?.(video):undefined} onKeyDown={event=>actions.current.key(event,video)} onDragStart={event=>actions.current.start(event,video)} onDragEnd={()=>actions.current.end()}/>;
+});
 
 type Over={stage:VideoStage;beforeId:string|null};
 const COLLAPSE_KEY='cc-kanban-published-collapsed';
@@ -19,7 +26,8 @@ export function Kanban({videos,scenes,ideas,onOpen,onMove,onResearch,onAdd}:{
  onResearch?(video:Video):void;
  onMove(id:string,stage:VideoStage,beforeId:string|null):void;
 }){
- const columns=boardColumns(videos);
+ const columns=useMemo(()=>boardColumns(videos),[videos]);
+ const actions=useRef<CardActions>(null!);
  const [dragId,setDragId]=useState<string|null>(null),[over,setOver]=useState<Over|null>(null);
  const [collapsed,setCollapsed]=useState(()=>{try{return localStorage.getItem(COLLAPSE_KEY)==='true';}catch{return false;}});
  const [announcement,setAnnouncement]=useState('');
@@ -91,6 +99,13 @@ export function Kanban({videos,scenes,ideas,onOpen,onMove,onResearch,onAdd}:{
   if(column.stage==='published'&&collapsed)toggleCollapsed();
   pendingFocus.current=id;reset();onMove(id,column.stage,beforeId);
  };
+ actions.current={open:onOpen,move:onMove,research:onResearch,key:(event,video)=>keyboard(video)(event),end:reset,start:(event,video)=>{
+  event.dataTransfer.effectAllowed='move';event.dataTransfer.setData('text/plain',video.id);
+  const card=event.currentTarget as HTMLElement;dragSize.current=card.getBoundingClientRect().height||220;
+  if(event.dataTransfer.setDragImage){const clone=card.cloneNode(true) as HTMLElement;clone.classList.add('kanban-drag-preview');clone.style.width=`${card.getBoundingClientRect().width}px`;(board.current?.closest('.club-root')??document.body).append(clone);event.dataTransfer.setDragImage(clone,24,24);preview.current=clone;}
+  const shown=columns.find(column=>column.stage===video.stage)!.shown;
+  setDragId(video.id);setOver({stage:video.stage,beforeId:shown[shown.findIndex(item=>item.id===video.id)+1]?.id??null});
+ }};
  const gap=<div aria-hidden data-drop-line className="drop-gap" style={{height:dragSize.current}}/>;
  return <><div className="sr-only" role="status" aria-live="polite">{announcement}</div>
  <div className={`kanban${collapsed?' published-collapsed':''}`} ref={board} aria-label="Video production board">{columns.map(column=>{
@@ -105,13 +120,7 @@ export function Kanban({videos,scenes,ideas,onOpen,onMove,onResearch,onAdd}:{
    {!isCollapsed&&<div className="lane-cards" ref={element=>{if(element)elements.current.set(stage,element);else elements.current.delete(stage);}}>
     {shown.map(video=><div key={video.id} className={dragId===video.id?'drag-source':undefined}>
      {lineBefore===video.id&&video.id!==dragId&&gap}
-     <KanbanCard video={video} scenes={scenes[video.id]} highlight={ideas.newId===video.id} dragging={dragId===video.id} onOpen={()=>onOpen(video)} onMove={to=>onMove(video.id,to,null)} onResearch={onResearch&&(()=>onResearch(video))} onKeyDown={keyboard(video)}
-      onDragStart={event=>{
-       event.dataTransfer.effectAllowed='move';event.dataTransfer.setData('text/plain',video.id);
-       const card=event.currentTarget as HTMLElement;dragSize.current=card.getBoundingClientRect().height||220;
-       if(event.dataTransfer.setDragImage){const clone=card.cloneNode(true) as HTMLElement;clone.classList.add('kanban-drag-preview');clone.style.width=`${card.getBoundingClientRect().width}px`;(board.current?.closest('.club-root')??document.body).append(clone);event.dataTransfer.setDragImage(clone,24,24);preview.current=clone;}
-       setDragId(video.id);setOver({stage:video.stage,beforeId:shown[shown.findIndex(item=>item.id===video.id)+1]?.id??null});
-      }} onDragEnd={reset}/>
+     <KanbanItem video={video} scenes={scenes[video.id]} highlight={ideas.newId===video.id} dragging={dragId===video.id} research={!!onResearch} actions={actions}/>
     </div>)}
     {lineBefore==='end'&&gap}
     {!shown.length&&!here&&<div className="lane-empty"><Icon name="video" size={18}/><span>No videos yet. Use New video below.</span></div>}

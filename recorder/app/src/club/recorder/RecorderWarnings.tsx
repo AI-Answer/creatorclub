@@ -1,3 +1,4 @@
+import {visibleInterval} from '../visible-interval';
 import {useEffect,useState} from 'react';
 import type {DiskSpace} from '../../../shared/club';
 import type {DesktopMediaPermissions} from '../../desktop';
@@ -17,8 +18,8 @@ export function useDiskSpace(enabled:boolean):DiskSpace|null{
   if(!enabled)return;
   let alive=true;
   const check=()=>void clubFetch<DiskSpace>('/disk').then(value=>{if(alive)setDisk(value);},()=>{});
-  check();const timer=setInterval(check,DISK_CHECK_MS);
-  return()=>{alive=false;clearInterval(timer);};
+  const stop=visibleInterval(check,DISK_CHECK_MS,true);
+  return()=>{alive=false;stop();};
  },[enabled]);
  return disk;
 }

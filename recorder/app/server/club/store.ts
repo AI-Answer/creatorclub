@@ -6,6 +6,7 @@ import { randomBytes } from 'node:crypto';
 import { ClubError, notFound } from './errors.js';
 import { arrangeColumn } from '../../shared/club-board.js';
 import { freeSpot } from './tile-layout.js';
+import { clubJsonCache } from './json-cache.js';
 import {
   CHANNEL_BOARD,
   HELP_STEPS,
@@ -84,6 +85,7 @@ export async function writeFileAtomic(file: string, data: string | Buffer, mode?
   try {
     await fs.writeFile(temp, data, mode === undefined ? undefined : { mode });
     await fs.rename(temp, file);
+    clubJsonCache.invalidate(file);
   } catch (error) {
     await fs.rm(temp, { force: true });
     throw error;
@@ -313,7 +315,7 @@ export async function listWorkspaces(): Promise<Workspace[]> {
 }
 
 export async function readWorkspace(slug: string): Promise<Workspace> {
-  const workspace = await readJSON<Workspace>(profileFile(slug));
+  const workspace = await clubJsonCache.read<Workspace>(profileFile(slug));
   if (!workspace) throw notFound('channel');
   // Channels saved before audiences existed have none.
   return { ...workspace, audience: Array.isArray(workspace.audience) ? workspace.audience : [] };
@@ -366,7 +368,7 @@ const videoLock = <T>(slug: string, id: string, fn: () => Promise<T>) => withLoc
 const videoFile = (slug: string, id: string) => path.join(videoDir(slug, id), 'video.json');
 
 export async function readVideo(slug: string, id: string): Promise<Video> {
-  const video = await readJSON<Video>(videoFile(slug, id));
+  const video = await clubJsonCache.read<Video>(videoFile(slug, id));
   if (!video) throw notFound('video');
   return video;
 }
@@ -571,7 +573,7 @@ export async function listTiles(slug: string, videoId: string): Promise<Research
     throw error;
   }
   const tiles = await Promise.all(
-    names.filter((n) => n.endsWith('.json') && !n.startsWith('.')).map((n) => readJSON<ResearchTile>(path.join(researchDir(slug, videoId), n)).catch(() => undefined)),
+    names.filter((n) => n.endsWith('.json') && !n.startsWith('.')).map((n) => clubJsonCache.read<ResearchTile>(path.join(researchDir(slug, videoId), n)).catch(() => undefined)),
   );
   return tiles.filter((t): t is ResearchTile => !!t).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 }
