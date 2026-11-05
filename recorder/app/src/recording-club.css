@@ -139,3 +139,56 @@
 
 /* Active controls use the shared selection accent. */
 .club-embed .app-shell[data-mode=Record] .recording-source-panel .capture-settings-button.selected{background:var(--cc-accent-soft);color:var(--cc-accent-text)}
+
+/* Round 2: explicit preview controls and visible off states. */
+.club-root .club-embed .app-shell[data-mode=Record] .capture-switch[aria-checked=false]{background:var(--cc-line-strong);outline:1px solid var(--cc-text-3);outline-offset:-1px}
+.club-root .club-embed .app-shell[data-mode=Record] .capture-switch[aria-checked=false]>span{background:var(--cc-text-2)}
+.club-root .club-embed .app-shell[data-mode=Record] .club-record .recording-countdown-toggle{font-size:var(--cc-text-sm);color:var(--cc-text-2)}
+.club-root .club-embed .app-shell[data-mode=Record] .capture-inline-action{display:inline-flex;align-items:center;justify-content:center;min-height:32px;margin-top:8px;padding:0 12px;background:var(--cc-surface);border:1px solid var(--cc-line-strong);border-radius:var(--cc-r);font-size:var(--cc-text-sm);color:var(--cc-text);text-decoration:none}
+.club-root .club-embed .app-shell[data-mode=Record] .capture-media-camera{position:relative}
+.club-root .club-embed .app-shell[data-mode=Record] .rec-preview-enlarge{position:absolute;top:8px;right:8px;z-index:6;min-height:32px;padding:0 10px;border:1px solid var(--cc-line-strong);border-radius:var(--cc-r);background:var(--cc-bg);color:var(--cc-text);font-size:var(--cc-text-xs);font-weight:500;cursor:pointer}
+.club-root .club-embed .app-shell[data-mode=Record] .capture-media-camera.rec-camera-expanded{position:fixed;inset:112px 96px 112px 220px;width:auto;height:auto;aspect-ratio:auto;z-index:80;margin:0;box-shadow:var(--cc-shadow-3);display:flex;align-items:center;justify-content:center;background:var(--cc-dark-stage)}
+.club-root .club-embed .app-shell[data-mode=Record] .rec-camera-expanded .capture-video{width:100%;height:100%;max-height:100%}
+.club-root .club-embed .app-shell[data-mode=Record] .club-record .rsc-scene{padding:16px}
+.club-root .club-embed .app-shell[data-mode=Record] .club-record .rsc-scene-heading{gap:8px;position:relative}
+.club-root .club-embed .app-shell[data-mode=Record] .club-record .rsc-scene-grip{display:none}
+.club-root .club-embed .app-shell[data-mode=Record] .club-record .rsc-status{position:absolute;left:0;top:6px}
+.club-root .club-embed .app-shell[data-mode=Record] .club-record .rsc-scene-name{margin-left:16px}
+.club-root .club-embed .app-shell[data-mode=Record] .club-record .rsc-script{margin-left:16px}
+.club-root .club-embed .app-shell[data-mode=Record] .take-review>header.club-take-header>div>span{font-size:var(--cc-text-sm);color:var(--cc-text-3);text-transform:none;letter-spacing:0}
+.club-root .club-embed .app-shell[data-mode=Record] .club-take-footer .club-take-delete{color:var(--cc-danger);background:transparent;border-color:transparent}
+.club-root .club-embed .app-shell[data-mode=Record] .club-take-footer .club-take-delete:hover{background:var(--cc-danger-soft)}
+.club-root .club-embed .app-shell[data-mode=Record] .club-take-footer .btn:disabled{background:var(--cc-hover);color:var(--cc-text-2);opacity:1}
+.club-root .club-embed .app-shell[data-mode=Record] .rec-meter-label{display:block;margin-top:12px;font-size:var(--cc-text-xs);color:var(--cc-text-2)}
+.club-root .club-embed .app-shell[data-mode=Record] .take-review:focus{outline:none}
+.club-root .club-embed .app-shell[data-mode=Record] .capture-preview-empty>span{color:var(--cc-on-media)}
+
+/* Round 3: the preview overlays its own reserved space; the mic is always visible. */
+.club-root .club-embed .app-shell[data-mode=Record] .rec-camera-slot{aspect-ratio:16/9;position:relative;margin-top:12px}
+.club-root .club-embed .app-shell[data-mode=Record] .rec-camera-slot .capture-media{margin-top:0}
+.club-root .club-embed .app-shell[data-mode=Record] .rec-preview-backdrop{position:fixed;inset:0;z-index:79;background:color-mix(in srgb,var(--cc-dark-stage) 62%,transparent)}
+.club-root .club-embed .app-shell[data-mode=Record] .rec-mic-level{position:relative;padding:12px 0 4px}
+.club-root .club-embed .app-shell[data-mode=Record] .rec-meter-heading{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;font-size:var(--cc-text-xs);color:var(--cc-text-2)}
+.club-root .club-embed .app-shell[data-mode=Record] .rec-meter-well{height:18px;padding:6px;border-radius:var(--cc-r);background:var(--cc-hover);border:1px solid var(--cc-line-strong)}
+.club-root .club-embed .app-shell[data-mode=Record] .rec-meter-well::before{content:"";display:block;height:6px;border-radius:var(--cc-r-sm);background:var(--cc-line-strong)}
+.club-root .club-embed .app-shell[data-mode=Record] .rec-meter-well>span{display:block;position:relative;top:-6px;height:6px;max-width:100%;width:0;border-radius:var(--cc-r-sm);background:var(--cc-success-text)}
+.club-root .club-embed .app-shell[data-mode=Record] .rec-meter-sampler{position:absolute;left:6px;right:6px;bottom:10px;height:6px;opacity:0;pointer-events:none}
+.club-root .club-embed .app-shell[data-mode=Record] .rec-meter-sampler .capture-audio{margin:0}
+.club-root .club-embed .app-shell[data-mode=Record] .rec-meter-sampler [role=meter]{height:6px}
+.club-root .club-embed .app-shell[data-mode=Record] .rec-meter-sampler .capture-source-hint{display:none}
+.club-root .club-embed .app-shell[data-mode=Record] .club-record .rsc-record-button{border:1px solid var(--cc-line-strong);background:var(--cc-hover)}
+
+.club-root .club-embed .app-shell[data-mode=Record] .rec-camera-slot>.capture-media:not(.rec-camera-expanded){height:100%;width:100%}
+
+.club-root .club-embed .app-shell[data-mode=Record] .club-record .rsc-record-tile{border:1px solid var(--cc-line-strong);background:var(--cc-hover)}
+
+/* Final review: source switches and preview-only controls. */
+.club-root .club-embed .app-shell[data-mode=Record] .rec-preview-backdrop{background:color-mix(in srgb,var(--cc-dark-stage) 65%,transparent)}
+.club-root .club-embed .app-shell[data-mode=Record] .recording-countdown-toggle{display:flex;align-items:center;gap:10px}
+.club-root .club-embed .app-shell[data-mode=Record] .recording-countdown-toggle .capture-switch{flex:none}
+.club-root .rec-record-dot{display:inline-block;flex:none;width:10px;height:10px;border-radius:var(--cc-r-pill);background:var(--cc-danger)}
+
+/* Expanded preview controls sit on its frame, clear of the picture. */
+.club-root .club-embed .app-shell[data-mode=Record] .capture-media-camera.rec-camera-expanded{overflow:visible}
+.club-root .club-embed .app-shell[data-mode=Record] .rec-camera-expanded .rec-preview-enlarge{top:-42px;right:0}
+.club-root .club-embed .app-shell[data-mode=Record] .rec-preview-caption{position:absolute;top:-34px;left:0;color:var(--cc-on-media);font-size:var(--cc-text-sm);font-weight:500}

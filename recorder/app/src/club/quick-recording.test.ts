@@ -109,6 +109,6 @@ test('an unplanned one-scene project opens the live recorder source controls, wh
   assert.ok(ui.container.textContent?.includes('This video started as a quick recording.'));
   await ui.render(page('edit'));await flush();
   assert.ok(ui.container.textContent?.includes('Nothing recorded yet'));
-  assert.equal(button(ui.container,'Open record').disabled,false);
+  assert.equal(button(ui.container,'Record a scene').disabled,false);
  }finally{await ui.close();fake.restore();Object.assign(globalThis,{EventSource:previousSource});}
 });

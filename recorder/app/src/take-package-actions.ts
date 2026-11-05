@@ -17,5 +17,5 @@ export function takePackageActions(p:Project,id:string):TakePackageAction[]{
  return actions;
 }
 export const takeSourceName=(p:Project,c:Clip)=>c.track==='audio'?(c.audioRole??p.media.find(m=>m.id===c.mediaId)?.audioRole)==='system'?'System audio':'Mic':c.track==='camera'?'Camera':c.track==='screen'?'Screen':c.name;
-export function takeSourceState(p:Project,c:Clip){const offset=takeSyncOffset(p,c.id);return offset!==undefined&&Math.abs(offset)>.001?'out of sync':!isLinked(p.clips,c.id)?'unlinked':c.split?'split, linked':'linked';}
+export function takeSourceState(p:Project,c:Clip){const offset=takeSyncOffset(p,c.id);return offset!==undefined&&Math.abs(offset)>.001?'out of sync':!isLinked(p.clips,c.id)?'not linked to the camera':c.split?'split, linked':'linked';}
 export function unlinkTakeAction(id:string):TakePackageAction{return {label:'Unlink',run:p=>({ok:unlinkClips(p,[id])>0,message:'Unlinked. Move or trim them separately.'})};}

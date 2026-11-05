@@ -33,7 +33,7 @@ function harness(p:Project){
 test('rows exist only when used: linked camera and audio share one take row; manual captions keep their row',()=>{
  assert.deepEqual(usedRows(project([])).map(r=>r.name),['Screen','Audio']);
  const p=project([clip('c','camera',0,5,'t'),clip('a','audio',0,5,'t')]);p.captions=[{id:'x',start:0,end:1,text:'Hi'}];
- assert.deepEqual(usedRows(p).map(r=>[r.name,r.linked??false]),[['Linked takes',true],['Captions',false]]);
+ assert.deepEqual(usedRows(p).map(r=>[r.name,r.linked??false]),[['Video',true],['Captions',false]]);
 });
 
 test('an Option-drag survives a background save or reload of the project and drops on the project as it is then',async()=>{
@@ -127,7 +127,7 @@ test('linked sources render once with a sentence pill, paired thumbnails and den
 test('Borumi\'s Layout row: a stretch is an orange block named for its arrangement; a click on the empty row makes one there and selects it',async()=>{
  const p=project(['screen','camera','audio'].map(track=>clip(track,track as Clip['track'],0,12,'take')));
  p.layouts=[{id:'side',start:0,duration:4,preset:'Side by side'}];p.zooms=[{id:'z',start:5,duration:2,scale:1.5,x:.5,y:.5,target:'screen',easing:'smooth'}];p.captions=[{id:'typed',start:1,end:2,text:'Hi'}];
- assert.deepEqual(usedRows(p).map(r=>r.name),['Linked takes','Layout','Zoom','Captions'],'in Borumi\'s order: the control rows under the footage, layout first');
+ assert.deepEqual(usedRows(p).map(r=>r.name),['Video','Layout','Zoom','Captions'],'in Borumi\'s order: the control rows under the footage, layout first');
  assert.equal(usedRows({...p,layouts:[]}).some(r=>r.name==='Layout'),false,'an empty Layout row is hidden, as in Borumi');
  const state={project:p,selected:[] as string[]};const playhead=createPlayhead(0);
  const element=(next:Project)=>createElement(TimelineClub,{project:next,playhead,scale:50,onScale:()=>{},selectedIds:new Set(state.selected),onSelectMany:(ids:string[])=>{state.selected=ids;},onSeek:()=>{},change:fn=>{state.project=applyProjectChange(state.project,fn);},onDropMedia:()=>{},tool:'select',onSplit:()=>{},follow:true,showWaveforms:false,onOpen:()=>{}});

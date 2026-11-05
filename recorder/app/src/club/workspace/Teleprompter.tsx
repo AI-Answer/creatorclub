@@ -11,8 +11,8 @@ export function Teleprompter({index,scene}:{index:number;scene:OutlineScene}){
  useEffect(()=>setAt(0),[scene.id,index]);
  return <aside className="prompter" aria-label="Talking points">
   <div className="ph">
-   <span className="n" style={{width:26,height:26,borderRadius:'var(--cc-r-sm)',background:'var(--cc-bg-sunk)',display:'inline-flex',alignItems:'center',justifyContent:'center',fontWeight:700,fontSize:12.5}}>{index+1}</span>
-   <div className="grow" style={{minWidth:0}}><div style={{fontWeight:650}} className="ellipsis">{scene.title}</div><div className="small faint">Talking points{scene.seconds?` · about ${clockTime(scene.seconds)}`:''}</div></div>
+   <span className="n" style={{width:26,height:26,borderRadius:'var(--cc-r-sm)',background:'var(--cc-bg-sunk)',display:'inline-flex',alignItems:'center',justifyContent:'center',fontWeight:600,fontSize:'var(--cc-text-xs)'}}>{index+1}</span>
+   <div className="grow" style={{minWidth:0}}><div style={{fontWeight:600}} className="ellipsis">{scene.title}</div><div className="small faint">Talking points{scene.seconds?` · about ${clockTime(scene.seconds)}`:''}</div></div>
    <IconButton icon="text-smaller" label="Smaller text" iconSize={16} disabled={size<=MIN} onClick={()=>setSize(value=>Math.max(MIN,value-2))}/>
    <IconButton icon="text-bigger" label="Bigger text" iconSize={16} disabled={size>=MAX} onClick={()=>setSize(value=>Math.min(MAX,value+2))}/>
   </div>

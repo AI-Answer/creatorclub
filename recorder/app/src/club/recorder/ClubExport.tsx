@@ -22,9 +22,10 @@ export const videoExportOptions=(project:Project):ExportOptions=>({format:'mp4',
  * history, and follows it. `onExported(true)` once a finished export matches the current timeline, so the bottom bar's
  * `Continue to publishing` becomes the primary; `false` again after the next edit.
  */
-export function ClubExport({project,flush,onExported,quiet}:{project:Project;flush():Promise<Project|undefined>;onExported?(exported:boolean):void;/** Not the primary button (another button on the page is). */quiet?:boolean}){
+export function ClubExport({project,flush,onExported,quiet,dirty=false}:{project:Project;flush():Promise<Project|undefined>;onExported?(exported:boolean):void;/** Not the primary button (another button on the page is). */quiet?:boolean;dirty?:boolean}){
  const [record,setRecord]=useState<ExportRecord|null>(null),[failed,setFailed]=useState(false),[busy,setBusy]=useState(false),[revision,setRevision]=useState('');
  const session=useRef(new ExportSession());
+
  useEffect(()=>{
   session.current.reset(project.id);
   const request=session.current.request();
@@ -43,16 +44,17 @@ export function ClubExport({project,flush,onExported,quiet}:{project:Project;flu
   return()=>clearTimeout(timer);
  },[record?.id,running]);
 
- const done=Boolean(record&&record.status==='complete'&&record.output.status==='available'&&revision&&record.projectRevision.replaceAll('"','')===revision);
+ const done=!dirty&&Boolean(record&&record.status==='complete'&&record.output.status==='available'&&revision&&record.projectRevision.replaceAll('"','')===revision);
  const exportedRef=useRef(onExported);exportedRef.current=onExported;
  useEffect(()=>{exportedRef.current?.(done);},[done]);
- useEffect(()=>()=>exportedRef.current?.(false),[]);
 
  const start=async()=>{
   setBusy(true);setFailed(false);
   const request=session.current.request();
   try{
-   const created=await exportCurrentVersion(request,flush,videoExportOptions(project),{mode:'full',sceneId:'',start:0,end:0},projectRevision,(snapshot,options,rev,signal)=>startSavedExport(snapshot.id,options,rev,signal));
+   const snapshot=await flush();
+   if(!snapshot||snapshot.id!==project.id||!request.active())return;
+   const created=await exportCurrentVersion(request,async()=>snapshot,videoExportOptions(snapshot),{mode:'full',sceneId:'',start:0,end:0},projectRevision,(snapshot,options,rev,signal)=>startSavedExport(snapshot.id,options,rev,signal));
    if(created&&request.active())setRecord(created);
   }catch{if(request.active())setFailed(true);}
   finally{if(request.active())setBusy(false);}
@@ -61,11 +63,11 @@ export function ClubExport({project,flush,onExported,quiet}:{project:Project;flu
 
  if(failed)return <div className="club-export" role="alert"><span className="text-warn">{EXPORT_FAILED}</span><Button size="sm" onClick={()=>void start()}>Try again</Button></div>;
  if(running&&record)return <div className="club-export" role="status">
-  <Icon name="loading" className="spin" size={15}/><span>Exporting {Math.round(record.progress*100)}%</span>
+  <Icon name="loading" className="spin" size={15}/><span>Exporting video · {Math.round(record.progress*100)}%</span>
   <Button size="sm" variant="ghost" onClick={cancel}>Cancel</Button>
  </div>;
  return <div className="club-export">
   {done&&<span className="club-export-done" role="status"><Icon name="check" size={15}/>Video exported</span>}
-  <Button size="sm" variant={done||quiet?'secondary':'primary'} disabled={busy||!project.clips.length} onClick={()=>void start()}>{busy&&<Icon name="loading" className="spin"/>}Export video</Button>
+  <Button size="sm" variant={done||quiet?'secondary':'primary'} disabled={busy||!project.clips.length} onClick={()=>void start()}>{busy&&<Icon name="loading" className="spin"/>}{busy?'Preparing export · Step 1 of 2':done?'Export again':'Export video'}</Button>
  </div>;
 }

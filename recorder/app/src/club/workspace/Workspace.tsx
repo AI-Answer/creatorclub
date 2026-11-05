@@ -4,6 +4,9 @@ import {ClubApiError,clubFetch,errorMessage,notifyVideosChanged} from '../api';
 import {MOVE_REFUSED_STATUS} from '../../../shared/club-move';
 import {deleteLater} from '../pending-delete';
 import {ClubRecorder} from '../ClubRecorder';
+import {api,listSavedExports,projectRevision} from '../../api';
+import type {Project} from '../../../shared/types';
+import {latestVideoExport} from '../recorder/edit-steps';
 import {ErrorLine} from '../ErrorLine';
 import {IdeaPage} from '../idea/IdeaPage';
 import {SECTION_NAME,type SectionKey} from '../idea/idea-logic';
@@ -43,7 +46,8 @@ export function Workspace({video,tab,back,navigate,onVideo}:{video:Video;tab:Vid
  /** The recorder moved to another scene (its own cards, or the next scene after Continue): the strip and the teleprompter follow. */
  const recorderScene=useCallback((sceneId:string)=>{const outlineId=outlineSceneFor(video,sceneId);if(outlineId)setFocusId(outlineId);},[video.recorderScenes]);
  const [moving,setMoving]=useState(false),[moveError,setMoveError]=useState('');
- const [startingQuick,setStartingQuick]=useState(false);
+ const [startingQuick,setStartingQuick]=useState(false),[editImport,setEditImport]=useState(0);
+ const importIntoNewProject=async()=>{if(quickPending.current)return;quickPending.current=true;setStartingQuick(true);try{onVideo(await clubFetch<Video>(`/videos/${id}/recorder`,{body:{quick:true}}));setEditImport(n=>n+1);reloadScenes();}catch(reason){toast(errorMessage(reason,"Couldn't open Import media."));}finally{quickPending.current=false;setStartingQuick(false);}};
  const quickPending=useRef(false);
  const recordWithoutPlan=async()=>{
   if(quickPending.current)return;
@@ -55,8 +59,16 @@ export function Workspace({video,tab,back,navigate,onVideo}:{video:Video;tab:Vid
 
 
  // Recording and editing report back through the recorder: whether every scene has a take, and whether the edit was exported.
- const [allRecorded,setAllRecorded]=useState(false),[exported,setExported]=useState(false);
+ const [allRecorded,setAllRecorded]=useState(false),[exported,setExported]=useState(false),[editState,setEditState]=useState<EditorState|null>(null);
  useEffect(()=>{setAllRecorded(false);setExported(false);},[video.recorderProjectId]);
+ // Record and Idea show the same completion check as Edit and Publish, verified against the saved revision.
+ useEffect(()=>{
+  const projectId=video.recorderProjectId;if(!projectId||tab==='edit'||tab==='publish')return;
+  const request=new AbortController();
+  void Promise.all([api<Project>(`/projects/${encodeURIComponent(projectId)}`,undefined,undefined,request.signal),listSavedExports(projectId,request.signal)])
+   .then(async([project,{jobs}])=>{const latest=latestVideoExport(jobs),revision=await projectRevision(project);if(!request.signal.aborted)setExported(!!latest&&latest.projectRevision.replaceAll('"','')===revision.replaceAll('"',''));}).catch(()=>{});
+  return()=>request.abort();
+ },[video.recorderProjectId,tab]);
  const reloadScenes=scenes.reload;
  // A take was kept or deleted: the strip reads the scenes again.
  const lastRecorded=useRef<number>(-1);
@@ -67,7 +79,8 @@ export function Workspace({video,tab,back,navigate,onVideo}:{video:Video;tab:Vid
  const onExported=useCallback((done:boolean)=>setExported(done),[]);
 
  const list=scenes.state.status==='ready'?scenes.state.scenes:undefined;
- const facts:TabFacts&LockFacts={stage:video.stage,scenes:list,allRecorded:allRecorded||undefined,exported,hasRecording:!!video.recorderProjectId};
+ const emptyEdit=tab==='edit'&&editState?.hasMedia===false;
+ const facts:TabFacts&LockFacts={stage:video.stage,scenes:list,allRecorded:!emptyEdit&&allRecorded||undefined,exported:!emptyEdit&&exported,hasRecording:!!video.recorderProjectId};
 
  // A finished outline job changes the scenes; they are read again so the strip and the tab's job follow it.
  const outlineDone=plan.outlineJob.phase==='done';
@@ -139,13 +152,13 @@ export function Workspace({video,tab,back,navigate,onVideo}:{video:Video;tab:Vid
   // Record without a recording project shows its own primary, Start recording.
   const ownPrimary=tab==='record'&&!video.recorderProjectId;
   const rule=continueFor(tab,facts,{ownPrimary});
-  if(rule)nextButton={...rule,disabled:rule.disabled||moving,run:()=>void continueToNext()};
+  if(rule)nextButton={...rule,...(emptyEdit?{disabled:true,primary:false,reason:'Record a scene or import media first'}:{}),disabled:emptyEdit||rule.disabled||moving,run:()=>void continueToNext()};
  }
 
  // The companion is docked beside every step. On Edit it works through the open editor: it reads the playhead and selection,
  // previews a card on the stage and applies it as one of the editor's undo steps.
  const [boardKey,setBoardKey]=useState(0),[boardSelection,setBoardSelection]=useState<readonly string[]>([]);
- const editorRef=useRef<EditorBridge|null>(null),[editState,setEditState]=useState<EditorState|null>(null);
+ const editorRef=useRef<EditorBridge|null>(null);
  const onEditor=useCallback((bridge:EditorBridge|null)=>{editorRef.current=bridge;if(!bridge)setEditState(null);},[]);
  const companionEditor=useMemo<CompanionEditor|undefined>(()=>tab==='edit'?{get:()=>editorRef.current,state:editState}:undefined,[tab,editState]);
  const refresh=plan.refresh;
@@ -181,21 +194,21 @@ export function Workspace({video,tab,back,navigate,onVideo}:{video:Video;tab:Vid
     onRecordScene={sceneId=>{setFocusId(sceneId);setPickN(n=>n+1);navigate(tabRoute('record'));}}/>}
    {/* Floats over the top of the editor, so the editor keeps its full height and the timeline is not cut off. */}
    {tab==='edit'&&waiting.length>0&&<div className="ws-take-notice"><div className="ws-notice" role="status"><span>{waiting.length===1?`The take for “${waiting[0]}” isn't on the timeline yet.`:`${waiting.length} takes aren't on the timeline yet.`}</span><Button size="sm" onClick={()=>navigate(tabRoute('record'))}>Open the take</Button></div></div>}
-   {tab==='edit'&&list!==undefined&&!list.some(scene=>scene.takes.length)&&<EmptyState icon={<Icon name="cut"/>} title="Nothing recorded yet" description="Record something to start editing." action={<Button variant="primary" onClick={()=>navigate(tabRoute('record'))}>Open record</Button>}/>}
-   {(tab==='record'||(tab==='edit'&&(list===undefined||list.some(scene=>scene.takes.length))))&&(video.recorderProjectId
+   {tab==='edit'&&!video.recorderProjectId&&list!==undefined&&<EmptyState icon={<Icon name="cut"/>} title="Nothing recorded yet" description="Record something to start editing." action={<div className="row"><Button variant="primary" onClick={()=>navigate(tabRoute('record'))}>Record a scene</Button><Button disabled={startingQuick} onClick={()=>void importIntoNewProject()}>Import media</Button></div>}/>}
+   {(tab==='record'||(tab==='edit'&&Boolean(video.recorderProjectId)))&&(video.recorderProjectId
     ?<div className="rec with-embed">
-     <div className="rec-left"><ClubRecorder projectId={video.recorderProjectId} mode={tab==='record'?'Record':'Edit'} onBack={()=>navigate({name:'videos',view:'board'})}
+     <div className="rec-left"><ClubRecorder importNonce={editImport||undefined} onImportOpened={()=>setEditImport(0)} projectId={video.recorderProjectId} mode={tab==='record'?'Record':'Edit'} onBack={()=>navigate({name:'videos',view:'board'})}
       registerLeaveGuard={registerLeaveGuard} onMode={mode=>{if(mode==='Edit'&&tab==='record')void continueToNext();else navigate(tabRoute(mode==='Edit'?'edit':'record'));}} onProgress={onProgress} onExported={tab==='edit'?onExported:undefined}
       onRestart={plan.continueAction?.run}
       sceneId={recorderSceneFor(video,focusId)??undefined} sceneNonce={pickN} onSceneChange={recorderScene} onChanged={reloadScenes}
       onEditor={tab==='edit'?onEditor:undefined} onEditState={tab==='edit'?setEditState:undefined}/></div>
     </div>
     :list===undefined?<div className="flex flex-1 items-center justify-center" style={{padding:'64px 0'}}><span className="row small muted" role="status"><Spinner label="Loading the scenes" size={20}/>Loading the scenes…</span></div>
-    :<EmptyState icon={<Icon name="camera"/>} title={list.length?'Ready to record':'Record without a plan'} description={list.length?`Start the recording for these ${list.length} ${list.length===1?'scene':'scenes'}.`:'Start with one scene and talk freely. You can plan the scenes on Idea and edit this video later.'}
+    :<EmptyState icon={<Icon name="camera"/>} title={list.length?'Ready to record':'No scenes planned yet'} description={list.length?`Start the recording for these ${list.length} ${list.length===1?'scene':'scenes'}.`:'Start with one scene and talk freely. You can plan the scenes on Idea and edit this video later.'}
       action={list.length?<Button variant="primary" size="md" disabled={!plan.continueAction||plan.continueAction.disabled} onClick={()=>plan.continueAction?.run()}>Start recording</Button>:<div className="row" style={{gap:12}}><Button variant="primary" size="md" disabled={startingQuick} onClick={()=>void recordWithoutPlan()}>{startingQuick?'Opening recorder…':'Record without a plan'}</Button>
        <Button size="md" onClick={()=>navigate(tabRoute('idea'))}>Plan the scenes</Button></div>}/>)}
    {tab==='publish'&&scenes.state.status==='loading'&&video.stage!=='published'&&<div className="flex flex-1 items-center justify-center" style={{padding:'64px 0'}}><span className="row small muted" role="status"><Spinner label="Loading the scenes" size={20}/>Loading the scenes…</span></div>}
-   {tab==='publish'&&(scenes.state.status!=='loading'||video.stage==='published')&&<Publish video={video} pkg={plan.pkg} scenes={list} onVideo={onVideo} onSettings={()=>navigate({name:'settings',section:'publishing'})} onGoTo={target=>navigate(tabRoute(target))}
+   {tab==='publish'&&(scenes.state.status!=='loading'||video.stage==='published')&&<Publish onExported={onExported} video={video} pkg={plan.pkg} scenes={list} onVideo={onVideo} onSettings={()=>navigate({name:'settings',section:'publishing'})} onGoTo={target=>navigate(tabRoute(target))}
     saveError={plan.saveError} onRetry={plan.retrySave} onDescription={description=>plan.editPackage({...(pkgNow.current??EMPTY_PACKAGE),description})}
     onTags={tags=>{plan.editPackage({...(pkgNow.current??EMPTY_PACKAGE),tags});void plan.flush().catch(()=>{});}}/>}
   </div>

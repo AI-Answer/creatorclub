@@ -40,6 +40,7 @@ function serve(jobs:(p:Project)=>AutomationJob[]){
   if(url==='/api/health')return Response.json({ffmpeg:true,ffprobe:true,transcription:{local:true,providers:[]},mcp:{},version:'test'});
   if(url==='/api/automation/settings')return Response.json({automaticTranscription:false});
   if(url===`/api/projects/${p.id}/automation`)return Response.json({jobs:jobs(p)});
+  if(url===`/api/projects/${p.id}/transcribe`)return Response.json({...plan(p),id:'transcription-r4',kind:'transcription',status:'running',proposal:undefined});
   if(url===`/api/projects/${p.id}/quick-action`)return Response.json({...plan(p),id:'j2',status:'running',proposal:undefined});
   if(url==='/api/automation/j1/apply'){current=cut;return Response.json({job:{...plan(p),status:'complete',applied:true,updatedAt:'2026-10-29T10:05:00.000Z'},project:cut});}
   if(url==='/api/automation/j1/undo'){current={...structuredClone(p),updatedAt:'2026-10-29T10:06:00.000Z'};return Response.json({job:{...plan(p),status:'complete',applied:true,undone:true,updatedAt:'2026-10-29T10:06:00.000Z'},project:current});}
@@ -67,18 +68,18 @@ test('embedded Edit: Borumi\'s layout (rail of nine tools, the transcript in its
   assert.equal(header.querySelector('.project-header-controls'),null,'the top strip holds no controls: they sit on the timeline bar');
   const bar=[...ui.container.querySelectorAll('.club-timeline-bar button')].map(b=>b.getAttribute('aria-label')??b.textContent?.trim());
   assert.deepEqual(bar,['Go to start','Play','Go to end','Playback speed','Select tool','Blade tool','Snap to edges','Transcript','Zoom out','Zoom in','View'],'Borumi\'s transport: start, play, end and speed in the middle; Select, Blade and Snap, the transcript toggle, the timeline zoom and View (fit, split, delete, notes) on the right; undo and history sit in the video\'s header');
-  assert.ok(!bar.includes('Export video'),'Export lives in Publish: Edit has one way forward, Continue to publishing');
+  assert.ok(!bar.includes('Export video'),'Export lives in the video header, keeping the transport controls consistent');
   assert.equal(ui.container.querySelector('.panel-rail'),null);
   assert.equal(ui.container.querySelector('.inspector'),null,'no tool panel is open yet');
   assert.ok(ui.container.querySelector('.club-edit-transcript .transcript-panel'),'the transcript has its own column beside the picture, as in Borumi');
   const rail=[...ui.container.querySelectorAll('.club-rail button')].map(b=>b.textContent?.trim());
-  assert.deepEqual(rail,['Canvas','Layout','Clip','Zoom','Elements','Music','Captions','Cursor','Automate','More'],'Borumi\'s nine tools in Borumi\'s order; Graphics, media and Cutroom sit under More');
+  assert.deepEqual(rail,['Canvas','Layout','Clip','Zoom','Elements','Music','Captions','Cursor','Auto-edit','More'],'Borumi\'s nine tools in Borumi\'s order; Graphics, media and Cutroom sit under More');
   await act(async()=>[...ui.container.querySelectorAll<HTMLButtonElement>('.club-rail button')].find(b=>b.textContent?.trim()==='Captions')!.click());
   assert.equal(ui.container.querySelector('.club-edit-side .inspector h2')?.textContent,'Captions','a tool opens its panel on the side');
   assert.ok(ui.container.querySelector('.club-edit-transcript .transcript-panel'),'and the transcript stays open beside the picture');
   await act(async()=>ui.container.querySelector<HTMLButtonElement>('button[aria-label="Close Captions"]')!.click());
   assert.equal(server.calls.filter(c=>c.url.endsWith('/quick-action')).length,0,'a plan already exists: none is started');
-  assert.ok(!primaries(ui.container).includes('Export video'),'no Export button competes with Continue to publishing');
+  assert.ok(primaries(ui.container).includes('Export video'),'Export is the primary while Continue waits for an export');
 
   await act(async()=>button(header,'Remove them').click());for(let i=0;i<12;i++)await flush();
   const apply=server.calls.find(c=>c.url==='/api/automation/j1/apply');
@@ -160,5 +161,90 @@ test('keys pressed in the companion panel stay there: M, S and Delete do nothing
   assert.ok(!ui.container.textContent?.includes('Move the playhead'),'S in the panel does not split');
   await press(document.body,'m');
   assert.equal(ui.container.querySelectorAll('.club-marker').length,1,'the same key on the editor still adds one');
+ }finally{await ui.close();server.restore();}
+});
+
+test('Edit exports from the visible workspace header, saves first, and reports the completed export',async()=>{
+ const server=serve(()=>[]),exported:boolean[]=[];
+ const ui=await mountUI(createElement('div',null,createElement('div',{id:'ws-edit-export'}),createElement(ClubRecorder,{projectId:server.p.id,mode:'Edit',onBack(){},onExported:done=>exported.push(done)})));
+ try{
+  for(let i=0;i<6;i++)await flush();
+  const host=ui.container.querySelector('#ws-edit-export')!;
+  assert.equal(button(host,'Export video').disabled,false,'the visible header has the export action');
+  assert.equal(ui.container.querySelector('.project-header')?.contains(button(host,'Export video')),false,'the action is outside the hidden editor header');
+  await act(async()=>button(host,'Export video').click());
+  for(let i=0;i<8;i++)await flush();
+  const request=server.calls.find(call=>call.url==='/api/export');
+  assert.ok(request,'export starts through the saved export API');
+  assert.ok(exported.includes(true),'the footer receives completion from the actual export control');
+  assert.ok(host.textContent?.includes('Video exported'));
+  assert.equal(button(host,'Export again').classList.contains('primary'),false,'Continue takes over as the primary after export');
+  assert.equal([...host.querySelectorAll('button')].filter(node=>node.textContent==='Export video').length,0);
+ }finally{await ui.close();server.restore();}
+});
+
+
+test('empty transcript keeps the named scene plan, one caption prompt, and Auto-edit uses the same caption action',async()=>{
+ localStorage.clear();const server=serve(()=>[]);
+ server.p.scenes[0].name='Opening';server.p.scenes[0].script='Here is the first planned line.';
+ const ui=await mountUI(createElement(ClubRecorder,{projectId:server.p.id,mode:'Edit',onBack(){}}));
+ try{
+  await flush();await flush();
+  const transcript=ui.container.querySelector('.club-edit-transcript')!;
+  assert.ok(transcript.textContent?.includes('Scene 1 · Opening'));
+  assert.ok(transcript.textContent?.includes('Here is the first planned line.'));
+  assert.equal(transcript.querySelector('.club-ts-empty'),null);
+  assert.equal(transcript.textContent?.match(/Make captions to edit by words\./g)?.length,1);
+  assert.equal([...transcript.querySelectorAll('button')].filter(b=>b.textContent==='Make captions').length,1);
+  await act(async()=>button(ui.container.querySelector('.club-rail')!,'Clip').click());
+  await act(async()=>button(ui.container.querySelector('.club-rail')!,'Auto-edit').click());
+  assert.deepEqual([...ui.container.querySelectorAll('.club-rail button[aria-pressed=true]')].map(b=>b.textContent),['Auto-edit']);
+  const sheet=ui.container.querySelector('.club-auto-sheet')!;
+  assert.ok(sheet.textContent?.includes('Even out volume'));assert.ok(sheet.textContent?.includes('Suggest layout and titles'));
+  await act(async()=>button(sheet,'Make captions').click());await flush();await flush();
+  assert.equal(server.calls.filter(c=>c.url===`/api/projects/${server.p.id}/transcribe`&&c.method==='POST').length,1);
+ }finally{await ui.close();server.restore();}
+});
+
+
+test('the Auto-edit caption error retries making captions',async()=>{
+ const {EditAutoSheet}=await import('./EditAutoSheet');const server=serve(()=>[]);let attempts=0;
+ const ui=await mountUI(createElement(EditAutoSheet,{project:server.p,jobs:[],merge(){},reload:async()=>{},flush:async()=>server.p,change(){},refresh:async()=>{},onPreview(){},onClose(){},notify(){},onMakeCaptions:async()=>{if(++attempts===1)throw Error('offline');}}));
+ try{
+  await act(async()=>button(ui.container,'Make captions').click());await flush();
+  assert.ok(ui.container.textContent?.includes("Couldn't make captions."));
+  await act(async()=>button(ui.container,'Try again').click());await flush();
+  assert.equal(attempts,2);assert.equal(ui.container.querySelector('[role=alert]'),null);
+  assert.equal(server.calls.filter(c=>c.url.endsWith('/quick-action')).length,0);
+ }finally{await ui.close();server.restore();}
+});
+
+
+test('embedded Edit with no media has only record and import actions and reports no selection',async()=>{
+ localStorage.clear();const server=serve(()=>[]);server.p.media=[];server.p.clips=[];
+ const modes:string[]=[],states:{selected:number}[]=[];
+ const ui=await mountUI(createElement(ClubRecorder,{projectId:server.p.id,mode:'Edit',onBack(){},onMode:mode=>modes.push(mode),onEditState:state=>states.push(state)}));
+ try{
+  await flush();await flush();
+  assert.ok(ui.container.textContent?.includes('Nothing recorded yet'));
+  for(const selector of ['.club-timeline','.club-timeline-bar','.transcription-status','.trim-handle','.stage-transform'])assert.equal(ui.container.querySelector(selector),null,selector);
+  assert.equal([...ui.container.querySelectorAll('button')].some(b=>/Export|Make captions/.test(b.textContent??'')),false);
+  assert.equal(states.at(-1)?.selected,0);
+  await act(async()=>button(ui.container,'Record a scene').click());assert.deepEqual(modes,['Record']);
+  await act(async()=>button(ui.container,'Import media').click());assert.ok(ui.container.querySelector('[role=dialog]'),'Import opens without needing footage');
+ }finally{await ui.close();server.restore();}
+});
+
+
+test('a new-project import request is acknowledged once and does not reopen on later renders',async()=>{
+ localStorage.clear();const server=serve(()=>[]);server.p.media=[];server.p.clips=[];let opened=0;
+ const props={projectId:server.p.id,mode:'Edit' as const,onBack(){},onImportOpened(){opened++;}};
+ const ui=await mountUI(createElement(ClubRecorder,{...props,importNonce:1}));
+ try{
+  await flush();await flush();assert.equal(opened,1);assert.ok(ui.container.querySelector('[role=dialog]'));
+  await ui.render(createElement(ClubRecorder,{...props,importNonce:undefined}));
+  await act(async()=>ui.container.querySelector<HTMLButtonElement>('[aria-label="Close dialog"]')!.click());
+  await ui.render(createElement(ClubRecorder,{...props,importNonce:undefined}));
+  assert.equal(opened,1);assert.equal(ui.container.querySelector('[role=dialog]'),null);
  }finally{await ui.close();server.restore();}
 });

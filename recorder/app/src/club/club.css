@@ -504,7 +504,7 @@
 :where(.club-root) .crumb:where(:not(.club-embed *)) { display: flex; align-items: center; gap: 6px; font-size:var(--cc-text-sm); color: var(--cc-text-3); white-space: nowrap; }
 :where(.club-root) .crumb a:where(:not(.club-embed *)) { color: var(--cc-text-2); font-weight: var(--cc-weight-medium); }
 :where(.club-root) .crumb a:hover:where(:not(.club-embed *)) { color: var(--cc-text); }
-:where(.club-root) .ws-title:where(:not(.club-embed *)) { font-size:var(--cc-text-lg); font-weight: 650; letter-spacing: -0.012em; padding: 3px 6px; border-radius:var(--cc-r-sm); outline: none; min-width: 60px; max-width: 420px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border: 1px solid transparent; }
+:where(.club-root) .ws-title:where(:not(.club-embed *)) { font-size:var(--cc-text-lg); font-weight: 600; letter-spacing: -0.012em; padding: 3px 6px; border-radius:var(--cc-r-sm); outline: none; min-width: 60px; max-width: 420px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border: 1px solid transparent; }
 :where(.club-root) .ws-title:hover:where(:not(.club-embed *)) { background: var(--cc-hover); }
 :where(.club-root) .ws-title:focus:where(:not(.club-embed *)) { background: var(--cc-surface); border-color: var(--cc-accent); text-overflow: clip; }
 :where(.club-root) .tabs:where(:not(.club-embed *)) { display: inline-flex; gap: 2px; padding: 3px; border-radius: var(--cc-r-pill); background: var(--cc-bg-sunk); border: 1px solid var(--cc-line); }

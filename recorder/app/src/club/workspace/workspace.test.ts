@@ -113,12 +113,12 @@ test('one Continue rule: it names the next step, says what is still missing, and
  assert.deepEqual(continueFor('idea',noScenes),{label:'Continue to recording',disabled:false,primary:false},'recording without a plan is allowed');
  assert.deepEqual(continueFor('idea',planned),{label:'Continue to recording',disabled:false,primary:true});
  assert.deepEqual(continueFor('idea',planned,{busy:true}),{label:'Continue to recording',disabled:true,reason:'Still writing',primary:false});
- {const next=continueFor('record',planned,{ownPrimary:true})!;assert.deepEqual([next.label,next.disabled,next.primary],['Continue to editing',false,false],'Edit opens even before a take; Continue is never the push forward then');assert.match(next.reason!,/recorded yet/);}
- assert.deepEqual(continueFor('record',started),{label:'Continue to editing',disabled:false,reason:"1 scene isn't recorded yet",primary:false},'scenes left to record: the Record button stays the primary, and Continue says what is missing');
+ assert.deepEqual(continueFor('record',planned,{ownPrimary:true}),{label:'Continue to editing',disabled:true,reason:'Record a scene first',primary:false});
+ assert.deepEqual(continueFor('record',started),{label:'Continue to editing',disabled:true,reason:'Record 1 more scene',primary:false});
  assert.deepEqual(continueFor('record',{...started,allRecorded:true}),{label:'Continue to editing',disabled:false,primary:true});
- assert.deepEqual(continueFor('edit',started),{label:'Continue to publishing',disabled:false,reason:"1 scene isn't recorded yet",primary:false},'Publish can open, but never as the push forward while scenes are missing');
- assert.deepEqual(continueFor('edit',{...started,exported:true}),{label:'Continue to publishing',disabled:false,reason:"1 scene isn't recorded yet",primary:false});
- assert.deepEqual(continueFor('edit',{...started,allRecorded:true,exported:true}),{label:'Continue to publishing',disabled:false,primary:true},'everything recorded and exported: Publish is the one next step');
- assert.equal(continueFor('publish',started),undefined,'the last step has no Continue');
- assert.deepEqual(continueFor('record',{stage:'recording',hasRecording:true}),{label:'Continue to editing',disabled:false,primary:false},'scenes not known yet: it waits, with nothing to explain');
+ assert.deepEqual(continueFor('edit',started),{label:'Continue to publishing',disabled:true,reason:'Export the video first',primary:false});
+ assert.deepEqual(continueFor('edit',{...started,exported:true}),{label:'Continue to publishing',disabled:false,primary:true},'an intentionally partial export can be published');
+ assert.deepEqual(continueFor('edit',{...started,stage:'publishing'}),{label:'Continue to publishing',disabled:true,reason:'Export the video first',primary:false},'moving the card is not proof of an export');
+ assert.equal(continueFor('publish',started),undefined);
+ assert.deepEqual(continueFor('record',{stage:'recording',hasRecording:true}),{label:'Continue to editing',disabled:true,reason:'Record a scene first',primary:false});
 });

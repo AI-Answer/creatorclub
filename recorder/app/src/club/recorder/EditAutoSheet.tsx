@@ -37,7 +37,7 @@ const seconds=(n:number)=>n<60?`${n.toFixed(1)}s`:formatCutDuration(n);
  * clicking pins it (Before/After on the stage, Apply or Cancel here); Enter applies. Cuts are applied as one undoable edit of the timeline;
  * Style video applies the planned layout and slates through SceneForge's automation, like before.
  */
-export function EditAutoSheet({project:p,jobs,merge,reload,flush,change,refresh,onPreview,onClose,onChanged,notify,initial}:{project:Project;jobs:AutomationJob[];merge(job:AutomationJob):void;reload():Promise<void>;flush():Promise<Project|undefined>;change(fn:(p:Project)=>void):void;refresh():Promise<void>;onPreview(preview:EditPreview|null):void;onClose():void;onChanged?():void;notify(message:string):void;initial?:AutoOption}){
+export function EditAutoSheet({project:p,jobs,merge,reload,flush,change,refresh,onPreview,onClose,onChanged,notify,initial,onMakeCaptions}:{project:Project;jobs:AutomationJob[];merge(job:AutomationJob):void;reload():Promise<void>;flush():Promise<Project|undefined>;change(fn:(p:Project)=>void):void;refresh():Promise<void>;onPreview(preview:EditPreview|null):void;onClose():void;onChanged?():void;notify(message:string):void;initial?:AutoOption;onMakeCaptions():Promise<void>}){
  const [level,setLevel]=useState<PauseLevel>(DEFAULT_PAUSE_LEVEL),[padding]=useState(.16),[hover,setHover]=useState<AutoOption|null>(null),[pin,setPin]=useState<AutoOption|null>(initial??null),[busy,setBusy]=useState(''),[error,setError]=useState('');
  const [styled,setStyled]=useState<{jobId:string;after:Project}|null>(null),list=useRef<HTMLDivElement>(null),retry=useRef<()=>void>(()=>{});
  const cutJob=latestCutJob(jobs),styleJob=latestStyleJob(jobs);
@@ -46,11 +46,11 @@ export function EditAutoSheet({project:p,jobs,merge,reload,flush,change,refresh,
  const ranges=useMemo(()=>({pauses:pauseRanges(cutJob,level,padding,stale),fillers:fillerRanges(p,cutJob,stale),gaps:gapRanges(p)}),[cutJob,level,padding,p,stale]);
  const active=pin??hover;
  const describe=(option:AutoOption)=>{
-  if(option==='pauses'){if(!cutJob)return 'Finds quiet gaps in your speech.';if(automationRunning(cutJob))return 'Looking for pauses…';if(stale)return 'The timeline changed since the last look.';const r=ranges.pauses;return r.length?`${r.length} ${r.length===1?'pause':'pauses'} · ${seconds(rangesSeconds(r))} shorter`:'No pauses left at this setting';}
-  if(option==='fillers'){const r=ranges.fillers;return r.length?`${r.length} found: "um", "uh" and repeated phrases · ${seconds(rangesSeconds(r))}`:p.captions.length?'No filler words found':'Needs a transcript first';}
+  if(option==='pauses'){if(!cutJob)return 'Not checked yet';if(automationRunning(cutJob))return 'Looking for pauses…';if(stale)return 'The timeline changed since the last look.';if(cutJob.status!=='ready'&&cutJob.status!=='complete')return 'Not checked yet';const r=ranges.pauses;return r.length?`${r.length} ${r.length===1?'pause':'pauses'} · ${seconds(rangesSeconds(r))} shorter`:'No pauses found';}
+  if(option==='fillers'){const r=ranges.fillers;return r.length?`${r.length} found: "um", "uh" and repeated phrases · ${seconds(rangesSeconds(r))}`:p.captions.length?'No filler words found':'Make captions first';}
   if(option==='gaps'){const r=ranges.gaps;return r.length?`${r.length} empty ${r.length===1?'stretch':'stretches'} between clips · ${seconds(rangesSeconds(r))}`:'No gaps between clips';}
   if(option==='normalize')return p.clips.length&&p.clips.every(c=>c.effects.normalize)?'On: loudness is evened out when you export':'Evens out loudness when you export';
-  if(!styleJob)return 'Claude picks a camera and screen layout and adds a title card for each scene. You preview it first.';if(automationRunning(styleJob))return 'Suggesting a layout and titles…';return styleJob.status==='ready'?(styleJob.proposal?.summary??'Ready to preview'):'Suggest a new layout and titles';
+  if(!styleJob)return 'Suggest a layout and scene titles to preview.';if(automationRunning(styleJob))return 'Suggesting a layout and titles…';return styleJob.status==='ready'?(styleJob.proposal?.summary??'Ready to preview'):'Suggest a new layout and titles';
  };
  // The preview follows the pinned or hovered choice.
  useEffect(()=>{
@@ -69,12 +69,17 @@ export function EditAutoSheet({project:p,jobs,merge,reload,flush,change,refresh,
  },[active,styleJob?.id,styleJob?.status]);
 
  const aiAvailable=useAiAvailable();
+ const runningJobs=[cutJob,styleJob].filter((job):job is AutomationJob=>!!job&&automationRunning(job));
+ const cancelJob=async(job:AutomationJob)=>{
+  try{merge(await api<AutomationJob>(`/automation/${job.id}`,undefined,'DELETE'));}
+  catch{setError("Couldn't cancel that action. Try again.");retry.current=()=>void cancelJob(job);}
+ };
  const plan=async(kind:QuickActionRequest['kind'])=>{if(kind==='visualize'&&!aiAvailable)return;setBusy(kind);setError('');retry.current=()=>void plan(kind);try{const fresh=await flush();if(!fresh||fresh.id!==p.id)throw Error('changed');merge(await api<AutomationJob>(`/projects/${p.id}/quick-action`,{kind,semantic:false} satisfies QuickActionRequest));}catch{setError(kind==='visualize'?"Couldn't suggest a layout.":"Couldn't look for pauses.");}finally{setBusy('');}};
  const apply=async(option:AutoOption)=>{
   setError('');retry.current=()=>void apply(option);
   if(option==='pauses'||option==='fillers'||option==='gaps'){
    const r=ranges[option];if(!r.length)return;
-   if(option!=='gaps'){const fresh=await flush().catch(()=>undefined),base=await planBase(cutJob);if(!fresh||base===undefined||planIsStale(base,fresh)){setError('The timeline changed since the last look. Find pauses again.');return;}}
+   if(option!=='gaps'){const fresh=await flush().catch(()=>undefined),base=await planBase(cutJob);if(!fresh||base===undefined||planIsStale(base,fresh)){setError('The timeline changed since the last look. Find pauses.');return;}}
    change(d=>{for(const [a,b] of [...r].sort((x,y)=>y[0]-x[0]))closeRange(d,a,b);});
    notify(option==='pauses'?`Removed ${r.length} ${r.length===1?'pause':'pauses'} (${seconds(rangesSeconds(r))}).`:option==='fillers'?`Removed ${r.length} filler ${r.length===1?'word':'words'}.`:`Closed ${r.length} ${r.length===1?'gap':'gaps'}.`);
    // The plan was made for the timeline before this cut; retire it so the suggestion does not offer it again.
@@ -93,31 +98,40 @@ export function EditAutoSheet({project:p,jobs,merge,reload,flush,change,refresh,
   if(event.key==='ArrowDown'||event.key==='ArrowUp'){event.preventDefault();const rows=[...list.current!.querySelectorAll<HTMLElement>('[data-option]')],i=rows.indexOf(event.currentTarget as HTMLElement);rows[(i+(event.key==='ArrowDown'?1:rows.length-1))%rows.length]?.focus();}
   if(event.key==='Escape'){event.preventDefault();event.stopPropagation();if(pin)setPin(null);else onClose();}
  };
-const actions=(option:AutoOption)=>{
+const makeCaptions=async()=>{
+  setBusy('captions');setError('');retry.current=()=>void makeCaptions();
+  try{await onMakeCaptions();}catch{setError("Couldn't make captions.");}finally{setBusy('');}
+ };
+ const actions=(option:AutoOption)=>{
+  if(option==='fillers'&&!p.captions.length){const transcribing=jobs.some(job=>job.kind==='transcription'&&automationRunning(job));return <Button size="sm" variant="secondary" className="edit-caption-action" disabled={!!busy||transcribing} onClick={()=>void makeCaptions()}>{busy==='captions'||transcribing?'Making captions…':'Make captions'}</Button>;}
   if(option==='normalize')return <div className="club-auto-actions"><Button size="sm" disabled={!p.clips.length||p.clips.every(c=>c.effects.normalize)} onClick={()=>void apply('normalize')}>Even out</Button></div>;
   if(option!=='pauses'&&option!=='fillers'&&option!=='gaps')return null;
   if(option==='pauses'&&(!cutJob||stale||cutJob.status!=='ready'))return null;
   // Nothing found: no buttons at all, rather than two that cannot be pressed.
   if(!ranges[option].length)return null;
-  return <div className="club-auto-actions"><Button size="sm" disabled={!!busy} onClick={()=>setPin(option)}>Review</Button><Button size="sm" disabled={!!busy} onClick={()=>void apply(option)}>{option==='pauses'?'Remove all':'Cut all'}</Button></div>;
+  return <div className="club-auto-actions"><Button size="sm" disabled={!!busy} onClick={()=>setPin(option)}>Review</Button></div>;
  };
  const row=(option:AutoOption,icon:React.ReactNode,title:string,extra?:React.ReactNode)=><div key={option} role="listitem" data-option={option} tabIndex={0} className={`club-auto-row ${pin===option?'is-pinned':''}`} aria-label={title}
   onMouseEnter={()=>setHover(option)} onMouseLeave={()=>setHover(h=>h===option?null:h)} onFocus={event=>{if(event.target===event.currentTarget)setHover(option);}} onBlur={()=>setHover(h=>h===option?null:h)}
   onClick={event=>{if((event.target as HTMLElement).closest('button,input'))return;setPin(option);}} onKeyDown={event=>keys(event,option)}>
-  <div className="club-auto-title">{icon}{title}</div><div className="club-auto-desc">{describe(option)}</div>{extra}
-  {actions(option)}
+  <div className="edit-auto-copy"><div className="club-auto-title">{icon}{title}</div><div className="club-auto-desc" title={describe(option)}>{describe(option)}</div></div><div className="edit-auto-actions">{extra}{actions(option)}</div>
  </div>;
  return <aside className="club-sheet club-auto-sheet" aria-label="Auto-edit">
-  <header><b>Automations</b><span className="club-sheet-grow"/><button type="button" className="btn sm" onClick={onClose}>Show transcript</button></header>
+  <header><Icon name="auto-edit" size={18}/><b>Auto-edit</b><span className="club-sheet-grow"/><button type="button" className="btn sm" onClick={onClose}>Show transcript</button></header>
+  {runningJobs.map(job=><div className="edit-auto-progress" role="status" key={job.id}>
+   <span>{job.kind==='auto-cut'?'Finding pauses':'Suggesting layout and titles'} · {Math.round(Math.max(0,Math.min(1,job.progress))*100)}%</span>
+   <progress aria-label={job.kind==='auto-cut'?'Finding pauses':'Suggesting layout and titles'} value={job.progress} max={1}/>
+   <Button size="sm" variant="ghost" onClick={()=>void cancelJob(job)}>Cancel</Button>
+  </div>)}
   <div className="club-sheet-body" ref={list} role="list">
    {row('fillers',<Icon name="audio" size={15}/>,'Filler words')}
-   {row('pauses',<Icon name="cut" size={15}/>,'Silences',<>
-    {(!cutJob||stale||cutJob.status!=='ready'&&!automationRunning(cutJob))&&<Button size="sm" disabled={!!busy||!p.clips.length} onClick={()=>void plan('auto-cut')}>{busy==='auto-cut'&&<Icon name="loading" className="spin" aria-hidden/>}{cutJob?'Find pauses again':'Find pauses'}</Button>}
-    {cutJob?.status==='ready'&&!stale&&<><div className="club-auto-control"><span className="club-seg" role="group" aria-label="How much to cut">{(Object.keys(PAUSE_LEVEL_NAMES) as PauseLevel[]).map(l=><button key={l} type="button" aria-pressed={level===l} onClick={()=>{setLevel(l);setPin('pauses');}}>{PAUSE_LEVEL_NAMES[l]}</button>)}</span></div></>}
+   {row('pauses',<Icon name="cut" size={15}/>,'Pauses',<>
+    {(!cutJob||stale||cutJob.status!=='ready'&&!automationRunning(cutJob)||cutJob.status==='ready'&&!ranges.pauses.length)&&<Button size="sm" disabled={!!busy||!p.clips.length} onClick={()=>void plan('auto-cut')}>{busy==='auto-cut'&&<Icon name="loading" className="spin" aria-hidden/>}Find pauses</Button>}
+    {cutJob?.status==='ready'&&!stale&&ranges.pauses.length>0&&pin==='pauses'&&<><div className="club-auto-control"><span className="club-seg" role="group" aria-label="How much to cut">{(Object.keys(PAUSE_LEVEL_NAMES) as PauseLevel[]).map(l=><button key={l} type="button" aria-pressed={level===l} onClick={()=>{setLevel(l);setPin('pauses');}}>{PAUSE_LEVEL_NAMES[l]}</button>)}</span></div></>}
    </>)}
    {row('gaps',<Icon name="slide" size={15}/>,'Gaps between clips')}
-   {row('normalize',<Icon name="adjust" size={15}/>,'Volume')}
-   {row('style',<Icon name="image" size={15}/>,'Layout and titles',(!styleJob||styleJob.status!=='ready')&&<Button size="sm" title={!aiAvailable?AI_CONNECT_HINT:undefined} disabled={!aiAvailable||!!busy||!p.clips.length||!!styleJob&&automationRunning(styleJob)} onClick={()=>void plan('visualize')}>{(busy==='visualize'||styleJob&&automationRunning(styleJob))&&<Icon name="loading" className="spin" aria-hidden/>}{styleJob?'Suggest again':'Suggest a layout'}</Button>)}
+   {row('normalize',<Icon name="adjust" size={15}/>,'Even out volume')}
+   {row('style',<Icon name="image" size={15}/>,'Suggest layout and titles',(!styleJob||styleJob.status!=='ready')&&<Button size="sm" title={!aiAvailable?AI_CONNECT_HINT:undefined} disabled={!aiAvailable||!!busy||!p.clips.length||!!styleJob&&automationRunning(styleJob)} onClick={()=>void plan('visualize')}>{(busy==='visualize'||styleJob&&automationRunning(styleJob))&&<Icon name="loading" className="spin" aria-hidden/>}{styleJob?'Suggest again':'Suggest'}</Button>)}
   </div>
   {error&&<p className="club-sheet-error" role="alert">{error} <button type="button" onClick={()=>{setError('');retry.current();}}>Try again</button></p>}
   {pin&&<footer className="club-sheet-pin"><span>Previewing <b>{pin==='pauses'?`Remove pauses (${PAUSE_LEVEL_NAMES[level].toLowerCase()})`:pin==='fillers'?'Remove filler words':pin==='gaps'?'Close gaps between clips':pin==='normalize'?'Even out the volume':'Suggest a layout and titles'}</b></span>

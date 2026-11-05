@@ -219,7 +219,7 @@ test('no step is locked: each one opens, and a step with nothing to work on yet 
   await ui.render(page('record'));await flush();await flush();
   assert.ok(hasText(c,'Start with one scene'));assert.equal(button(c,'Record without a plan').disabled,false);assert.ok(button(c,'Plan the scenes'));
   await ui.render(page('edit'));await flush();await flush();
-  assert.ok(hasText(c,'Nothing recorded yet'));assert.ok(button(c,'Open record'));
+  assert.ok(hasText(c,'Nothing recorded yet'));assert.ok(button(c,'Record a scene'));
   await ui.render(page('publish'));await flush();await flush();
   assert.ok(c.querySelector('.pubx'),'the publishing form opens');
   assert.deepEqual(seen,[],'nothing sends you to another step on its own');
@@ -301,7 +301,8 @@ test('Continue on Record moves the card to Editing, and never moves it back',asy
   assert.deepEqual(moves,[{stage:'editing'}]);assert.deepEqual(seen,['edit']);
   await ui.render(createElement(Workspace,{video:{...recording,stage:'published'},tab:'edit',back,navigate:route=>{if(route.name==='video')seen.push(route.tab!);},onVideo:()=>{}}));
   await act(async()=>button(ui.container,'Continue to publishing').click());await flush();
-  assert.equal(moves.length,1,'a published video is not moved back');assert.deepEqual(seen,['edit','publish']);
+  assert.equal(button(ui.container,'Continue to publishing').disabled,true,'a stage alone does not prove a current export');
+  assert.equal(moves.length,1,'a published video is not moved back');assert.deepEqual(seen,['edit']);
  }finally{await ui.close();server.restore();}
 });
 
@@ -324,7 +325,7 @@ test('a recording that cannot be opened shows one sentence and Try again',async(
   fail=false;
   await act(async()=>button(ui.container,'Try again').click());await flush();await flush();
   assert.equal(opened,3,'the first open, the check of why it failed, and the open again');
-  assert.ok(ui.container.querySelector('.edit-workspace'),'the editor opens on the second try');
+  assert.ok(ui.container.querySelector('.edit-empty'),'the empty editor opens on the second try');
  }finally{globalThis.fetch=originalFetch;await ui.close();}
 });
 

@@ -112,5 +112,5 @@ export function nextSceneToRecord(sceneIds:readonly string[],recorded:(id:string
 /** "Take 1 (00:07)", as on Borumi's take thumbnails. */
 export function takeThumbnailLabel(name:string,seconds:number){
  const whole=Math.max(0,Math.floor(seconds));
- return `${name} (${String(Math.floor(whole/60)).padStart(2,'0')}:${String(whole%60).padStart(2,'0')})`;
+ return `${name} · ${Math.floor(whole/60)}:${String(whole%60).padStart(2,'0')}`;
 }

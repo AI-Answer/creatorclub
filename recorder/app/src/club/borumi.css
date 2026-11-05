@@ -51,7 +51,7 @@
 .club-root .ws-top-slot { display: flex; align-items: center; gap: 4px; min-width: 0; }
 .club-root .ws-top-slot:not(:empty) { margin-left: 4px; padding-left: 8px; border-left: 1px solid var(--cc-line); }
 .club-root .ws-top-c { position: absolute; top: 0; bottom: 0; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 8px; max-width: min(50vw, 672px); }
-.club-root .ws-top .ws-title { min-width: 40px; padding: 4px 6px; border-radius: var(--cc-r); font-size: var(--cc-text-xs); font-weight: 700; letter-spacing: 0; color: var(--cc-text); }
+.club-root .ws-top .ws-title { min-width: 40px; padding: 4px 6px; border-radius: var(--cc-r); font-size: var(--cc-text-xs); font-weight: 600; letter-spacing: 0; color: var(--cc-text); }
 .club-root .ws-top .ws-title:hover { background: var(--cc-hover); }
 .club-root .ws-stage { padding-left: 8px; border-left: 1px solid var(--cc-line); font-size: var(--cc-text-xs); line-height: 14px; color: var(--cc-text-3); white-space: nowrap; }
 .club-root .ws-top-r { z-index: 1; display: flex; align-items: center; gap: 4px; margin-left: auto; }
@@ -63,7 +63,7 @@
 .club-root .ws-back { display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 12px; border-radius: var(--cc-r); font-size: var(--cc-text-base); font-weight: 500; color: var(--cc-text); }
 .club-root .ws-back:hover { background: var(--cc-hover); }
 .club-root .ws-steps { display: flex; align-items: center; gap: 6px; }
-.club-root .ws-step { display: inline-flex; align-items: center; gap: 8px; padding: 4px 14px 4px 4px; border-radius: var(--cc-r-pill); font-size: var(--cc-text-base); font-weight: 700; color: var(--cc-text); }
+.club-root .ws-step { display: inline-flex; align-items: center; gap: 8px; padding: 4px 14px 4px 4px; border-radius: var(--cc-r-pill); font-size: var(--cc-text-base); font-weight: 600; color: var(--cc-text); }
 .club-root .ws-step:hover { background: var(--cc-surface); }
 .club-root .ws-step .well { display: grid; place-items: center; width: 40px; height: 40px; border-radius: var(--cc-r-pill); background: color-mix(in srgb, var(--cc-primary) 5%, transparent); }
 .club-root .ws-step.on .well { background: var(--cc-primary); color: var(--cc-on-primary); }
