@@ -24,7 +24,7 @@ export const scenesLine=(recorded:number,total:number)=>`${recorded} of ${total}
 
 /** What an empty column says. */
 export const COLUMN_EMPTY:Record<VideoStage,string>={
- ideas:'Break down a video to get your first idea.',
+ ideas:'Find an idea in Discover to get your first one.',
  planning:'Start planning an idea to bring it here.',
  recording:'Videos land here once their scenes are planned.',
  editing:'Recorded videos land here.',

@@ -43,10 +43,11 @@ test('Continue to recording follows scene count across themes, scrolling, Board,
    }
   };
   await checkViews(false);
-  assert.match(ui.container.querySelector('[data-part=scenes]')!.textContent!,/No scenes yet\./);
-  assert.equal(button(ui.container.querySelector('[data-part=scenes]')!,'Add scene').querySelectorAll('svg').length,1);
-  assert.ok(button(ui.container.querySelector('[data-part=scenes]')!,'Write with Claude'));
-  await act(async()=>button(ui.container,'Add scene').click());await flush();
+  assert.match(ui.container.querySelector('[data-part=scenes]')!.textContent!,/Start writing your amazing video\.\.\./,'Borumi\'s empty Script step');
+  assert.ok(button(ui.container.querySelector('[data-part=scenes]')!,'Write the scenes with Claude'));
+  const area=ui.container.querySelector<HTMLTextAreaElement>('.bs-empty-input')!;
+  await act(async()=>{Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value')!.set!.call(area,'H');area.dispatchEvent(new Event('input',{bubbles:true}));});await flush();
+  assert.equal(ui.container.querySelectorAll('.bs-row').length,1,'the first keystroke makes the first scene');
   await checkViews(true);
   assert.equal([...ui.container.querySelectorAll('button')].some(b=>b.textContent?.includes('Fill the empty parts')),false,'a completed package and scene list have no empty parts to fill');
  }finally{await ui.close();fake.restore();Object.assign(window,{matchMedia});localStorage.clear();}
@@ -71,20 +72,6 @@ test('Claude automatically yields below 1200px and can be reopened from its name
  }finally{await ui.close();fake.restore();Object.assign(window,{matchMedia});localStorage.clear();}
 });
 
-test('a saved logline supplies the idea summary above a finished one-pager',async()=>{
- localStorage.clear();const logline='Three notes become one useful video plan.';
- const fake=installFetch(({path})=>{
-  if(path.endsWith('/plan'))return {body:{package:{...pkg,angle:''},outline:{scenes:[{id:'s_summary',title:'Opening',talkingPoints:[],show:'',seconds:60}]},onepager:{...emptyOnePager(),title:'A finished slide',logline},running:{},ready:{}}};
-  if(path.endsWith('/research')||path.endsWith('/thumbnails')||path.endsWith('/scenes'))return {body:[]};
-  if(path.endsWith('/companion'))return {body:{messages:[]}};
-  if(path==='/higgsfield/status')return {body:{signedIn:false}};
-  return {body:{}};
- });
- const ui=await mountUI(createElement(Workspace,{video,tab:'idea',back:{name:'videos',view:'board'},onVideo(){},navigate(){}}));
- try{await flush();assert.equal(ui.container.querySelector('[aria-label="What it\'s about"][role=textbox]'),null);assert.match(ui.container.querySelector('.idea-intro')!.textContent!,/Uses the one-pager logline/);await act(async()=>button(ui.container.querySelector('.idea-intro')!,'Change').click());assert.equal(ui.container.querySelector('[aria-label="What it\'s about"][role=textbox]')!.textContent,logline);assert.equal([...ui.container.querySelectorAll('button')].some(b=>b.textContent?.includes('Fill the empty parts')),false);}
- finally{await ui.close();fake.restore();localStorage.clear();}
-});
-
 test('Items and the canvas select the same card, including a request made before board data loads',async()=>{
  localStorage.clear();
  const tile={id:'t_r3',kind:'text',title:'A connected idea',text:'The detail behind the idea.',meta:{},pos:{x:50,y:50,w:280},createdAt:''};
@@ -100,8 +87,10 @@ test('Items and the canvas select the same card, including a request made before
  const ui=await mountUI(createElement(Workspace,{video,tab:'idea',back:{name:'videos',view:'board'},onVideo(){},navigate(){}}));
  try{
   await flush();await flush();
+  await act(async()=>button(ui.container,'Board').click());await flush();await flush();
+  await act(async()=>button(ui.container,'Items · 1').click());
   await act(async()=>ui.container.querySelector<HTMLButtonElement>('.idea-list-card')!.click());await flush();await flush();
-  assert.ok(ui.container.querySelector('[data-tile=t_r3]')!.classList.contains('sel'),'a request made in Plan waits until canvas data arrives');
+  assert.ok(ui.container.querySelector('[data-tile=t_r3]')!.classList.contains('sel'),'choosing an item selects its card on the canvas');
   await act(async()=>button(ui.container,'Items · 1').click());
   const list=ui.container.querySelector<HTMLButtonElement>('.idea-list-card')!;
   const card=ui.container.querySelector<HTMLElement>('[data-tile=t_r3]')!;

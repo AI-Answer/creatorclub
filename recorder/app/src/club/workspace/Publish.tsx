@@ -17,6 +17,7 @@ import {Button,Icon,Input,Menu,Spinner,Textarea} from '../ui';
 import {PackageSummary,PasteLinkForm,ProgressCard,ResultCard,SELF_UPLOAD_LINE,SelfUpload,TagsField} from './PublishParts';
 import {buildDescription} from './record-logic';
 import {recordedCount} from '../scene-status';
+import {ThumbnailStudio} from '../idea/ThumbnailStudio';
 
 export const PUBLISH_LINE='Upload your exported video to YouTube, then add its link here.';
 const AUTOMATIC_PUBLISH_LINE='Send your video to YouTube now, or schedule it for later.';
@@ -84,7 +85,7 @@ export function Publish({video,pkg,scenes,onVideo,onDescription,onTags,onGoTo,on
  const [kids,setKids]=useState<'yes'|'no'|null>(null),[tried,setTried]=useState(false);
  const kidsField=useRef<HTMLDivElement>(null);
  const [when,setWhen]=useState<'now'|'schedule'>('now'),[at,setAt]=useState(()=>defaultSchedule(new Date()));
- const [thumbnail,setThumbnail]=useState<string|null>(null),[thumbError,setThumbError]=useState('');
+ const [thumbnail,setThumbnail]=useState<string|null>(null),[thumbError,setThumbError]=useState(''),[making,setMaking]=useState(false);
  useEffect(()=>{
   let alive=true;
   void fetch(`/api/club/videos/${encodeURIComponent(video.id)}/thumbnail`).then(response=>{if(alive&&response.status===200)setThumbnail(`/api/club/videos/${encodeURIComponent(video.id)}/thumbnail?v=${Date.now()}`);},()=>{});
@@ -188,8 +189,11 @@ export function Publish({video,pkg,scenes,onVideo,onDescription,onTags,onGoTo,on
      <div className="full"><label className="field" htmlFor="pub-tags">Tags</label><TagsField tags={tags} onChange={onTags}/></div>
      <div className="full"><div className="field">Thumbnail</div><div className="small muted">{thumbnail?'Your own image. ':pkg?.thumbnailText?.trim()?'Your thumbnail text is only a preview: YouTube picks a frame unless you add one. ':'YouTube picks a frame unless you add one. '}
       <label className="linkish" style={{cursor:'pointer'}}>{thumbnail?'Use another image':'Upload an image'}<input type="file" className="sr-only" accept="image/png,image/jpeg" onChange={event=>{void pick(event.target.files?.[0]);event.target.value='';}}/></label>
-      {thumbnail&&<> <button type="button" className="linkish" onClick={dropThumbnail}>Remove image</button></>}</div>
-      {thumbError&&<p role="alert" className="small pz-err">{thumbError}</p>}</div>
+      {thumbnail&&<> <button type="button" className="linkish" onClick={dropThumbnail}>Remove image</button></>}
+      {' '}<button type="button" className="linkish" aria-expanded={making} onClick={()=>setMaking(open=>!open)}>{making?'Close':'Make one with AI'}</button></div>
+      {thumbError&&<p role="alert" className="small pz-err">{thumbError}</p>}
+      {/* Optional: the thumbnail is the last thing to decide, so making one lives here rather than in Idea. */}
+      {making&&<ThumbnailStudio video={video} thumbnailText={pkg?.thumbnailText??''} onChosen={()=>setThumbnail(`/api/club/videos/${encodeURIComponent(video.id)}/thumbnail?v=${Date.now()}`)}/>}</div>
      <div className="pub-pair"><label className="field" htmlFor="pub-vis">Who can watch</label><Menu label="Who can watch" restoreFocus below items={VISIBILITY_OPTIONS.map(option=>({label:option.label,check:visibility===option.value,fn:()=>setChosen(option.value)}))} button={(toggle,open)=><button id="pub-vis" type="button" className="select ws-visibility" aria-haspopup="menu" aria-expanded={open} onClick={toggle}>{VISIBILITY_OPTIONS.find(option=>option.value===visibility)?.label}<Icon name="expand" size={14}/></button>}/></div>
      <div className={`pub-pair ${tried&&!kids?'has-err':''}`}><div className="field" id="pub-kids-l">Made for kids?</div>
       <div className="radios ws-kids-segment" role="radiogroup" aria-labelledby="pub-kids-l" aria-describedby="pub-kids-h" ref={kidsField}>{(['no','yes'] as const).map(value=><label key={value} className={`rad ${kids===value?'is-selected':''}`}><input type="radio" name="kids" value={value} checked={kids===value} onChange={()=>setKids(value)}/>{kids===value&&<Icon name="check" size={13}/>}{value==='no'?'No':'Yes'}</label>)}</div>

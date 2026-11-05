@@ -21,16 +21,5 @@ let section:string|null=null;
 const subscribeSection=(onChange:()=>void)=>{window.addEventListener(SECTION_CHANGE,onChange);return()=>window.removeEventListener(SECTION_CHANGE,onChange);};
 export function publishIdeaSection(next:string|null){if(section!==next){section=next;window.dispatchEvent(new Event(SECTION_CHANGE));}}
 export function useIdeaSection(){return useSyncExternalStore(subscribeSection,()=>section,()=>null);}
-/** The section at the reading edge of the actual plan scroller, including nested studio results. */
-export function visibleIdeaSection(scroller:HTMLElement){
- const viewport=scroller.getBoundingClientRect();
- const sections=[...scroller.querySelectorAll<HTMLElement>('.doc-part, .thumbnail-studio')];
- let current=sections[0],mostVisible=-1;
- for(let index=0;index<sections.length;index++){
-  const node=sections[index],bounds=node.getBoundingClientRect();
-  const end=Math.min(bounds.bottom,sections[index+1]?.getBoundingClientRect().top??bounds.bottom);
-  const visible=Math.max(0,Math.min(end,viewport.bottom)-Math.max(bounds.top,viewport.top));
-  if(visible>mostVisible){current=node;mostVisible=visible;}
- }
- return current?.matches('.thumbnail-studio')?'Thumbnails':current?.getAttribute('aria-label')||current?.querySelector('h3')?.textContent||"What it's about";
-}
+/** The Idea page is one part now, Borumi's Script step: the companion always sees the script there. */
+export function visibleIdeaSection(_scroller:HTMLElement){return 'Script';}

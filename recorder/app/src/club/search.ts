@@ -1,4 +1,4 @@
-import {videoHumanId,type Video} from '../../shared/club';
+import {type Video} from '../../shared/club';
 import {STAGE_LABEL} from './board';
 import {defaultTab,type Route} from './routes';
 import {FIND_IDEA,GLOSSARY,SHORTCUTS,VIDEO_STEPS} from './steps';
@@ -57,7 +57,7 @@ export function fixedOptions(videos:readonly Video[],openId?:string|null):Search
 
 /** An idea opens in its drawer on Videos, any other video on the tab for its stage. */
 export const videoOption=(video:Video):SearchOption=>({
- id:`video:${video.id}`,label:video.title,hint:videoHumanId(video),words:video.number?String(video.number):undefined,kind:STAGE_LABEL[video.stage],icon:video.stage==='ideas'?'idea':'film',
+ id:`video:${video.id}`,label:video.title,words:video.number?String(video.number):undefined,kind:STAGE_LABEL[video.stage],icon:video.stage==='ideas'?'idea':'film',
  target:{route:video.stage==='ideas'?{name:'videos',view:'board',open:video.id}:{name:'video',id:video.id,tab:defaultTab(video.stage)}},
 });
 

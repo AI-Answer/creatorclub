@@ -32,10 +32,8 @@ test('Plan view avoids the global page layout and does not repeat board navigati
   await flush();await flush();
   const root=ui.container.querySelector('.idea-page')!;
   assert.ok(root);assert.equal(root.classList.contains('page'),false,'generic page adds inset padding and clips the Idea scroll area');
-  assert.equal(button(ui.container,'Plan').getAttribute('aria-pressed'),'true');
-  assert.equal(ui.container.querySelector('.idea-list-h')!.textContent,'Board');
-  assert.doesNotMatch(ui.container.textContent!,/Open the board/);
-  assert.ok(ui.container.querySelector('.idea-list-add button[type=submit]'),'adding is visible without hover');
+  assert.equal(button(ui.container,'Script').getAttribute('aria-pressed'),'true');
+  assert.equal(ui.container.querySelector('.idea-list'),null,'the script stands alone: links and notes are added on the Board');
   await act(async()=>button(ui.container,'Board').click());await flush();await flush();
   assert.equal(ui.container.querySelector('.idea-body .idea-doc'),null,'Board keeps the plan and slide on Plan');
   assert.ok(ui.container.querySelector('.idea-summary'),'Board defaults to its compact read-only Plan summary');
@@ -44,7 +42,7 @@ test('Plan view avoids the global page layout and does not repeat board navigati
   await act(async()=>button(ui.container,'Items').click());
   assert.ok(ui.container.querySelector('.idea-list-add'),'Items shows the existing card list');
   await act(async()=>ui.container.querySelector<HTMLButtonElement>('.idea-pane-switch button')!.click());
-  await act(async()=>button(ui.container,'Open in Plan').click());
+  await act(async()=>button(ui.container,'Open the script').click());
   assert.ok(ui.container.querySelector('.idea-doc'));
  }finally{await ui.close();fake.restore();}
 });

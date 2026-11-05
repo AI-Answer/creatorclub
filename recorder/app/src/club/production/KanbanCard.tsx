@@ -1,5 +1,5 @@
 import {useState,type DragEvent,type KeyboardEvent} from 'react';
-import {VIDEO_STAGES,videoHumanId,type Video,type VideoStage} from '../../../shared/club';
+import {VIDEO_STAGES,type Video,type VideoStage} from '../../../shared/club';
 import {STAGE_LABEL} from '../board';
 import {videoThumbId} from '../ideas';
 import {type SceneProgress} from '../scene-status';
@@ -36,18 +36,16 @@ export function KanbanCard({video,dragging,highlight,onOpen,onMove,onResearch,on
  highlight?:boolean;video:Video;scenes:readonly SceneProgress[]|undefined;dragging:boolean;onOpen():void;onMove(stage:VideoStage):void;onResearch?():void;
  onDragStart(event:DragEvent):void;onDragEnd():void;onKeyDown?(event:KeyboardEvent<HTMLDivElement>):void;
 }){
- const humanId=videoHumanId(video);
  const stages:MenuItem[]=[{header:'Move to'},...VIDEO_STAGES.map(stage=>({label:STAGE_LABEL[stage],check:video.stage===stage,fn:()=>{if(stage!==video.stage)onMove(stage);}})),
   ...(onResearch?['-' as const,{label:'Add to Channel board',icon:'research' as const,fn:onResearch}]:[])];
  return <div className="kwrap">
   <div id={video.stage==='ideas'?`idea-${video.id}`:undefined} className={`card kcard hov${highlight?' new':''}${dragging?' dragging':''}`} draggable data-card data-card-id={video.id} onDragStart={onDragStart} onDragEnd={onDragEnd}
-   title={video.title.trim()||'Untitled video'} role="button" aria-label={`${humanId} ${video.title.trim()||'Untitled video'}`} aria-keyshortcuts="Enter Space ArrowUp ArrowDown ArrowLeft ArrowRight Meta+ArrowLeft Meta+ArrowRight Control+ArrowLeft Control+ArrowRight"
+   title={video.title.trim()||'Untitled video'} role="button" aria-label={video.title.trim()||'Untitled video'} aria-keyshortcuts="Enter Space ArrowUp ArrowDown ArrowLeft ArrowRight Meta+ArrowLeft Meta+ArrowRight Control+ArrowLeft Control+ArrowRight"
    onClick={onOpen} tabIndex={0} onKeyDown={event=>{if(event.target!==event.currentTarget)return;if(event.key==='Enter'||event.key===' '){event.preventDefault();onOpen();}else onKeyDown?.(event);}}>
    <Cover video={video}/>
    <div className="tt">{video.title.trim()||'Untitled video'}</div>
    <div className="na">
     <StageBadge stage={video.stage} dotOnly/>
-    {humanId&&<><span className="kcard-id">{humanId}</span><span aria-hidden>·</span></>}
     <time dateTime={video.updatedAt} title={`Updated ${new Date(video.updatedAt).toLocaleString()}`}>{relativeUpdated(video.updatedAt)}</time>
 
    </div>

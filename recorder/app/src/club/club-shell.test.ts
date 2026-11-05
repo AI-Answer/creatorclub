@@ -38,7 +38,7 @@ test('the shell routes through Videos, video steps and settings, and keeps the p
   assert.ok(server.calls.some(call=>call.path==='/videos/v1/opened'&&call.method==='POST'),'opening a video is noted for Recent videos');
   assert.equal(ui.container.querySelector('.ws-steps [aria-current="page"]')!.textContent,'Idea');
   assert.equal(ui.container.querySelector('.strip'),null,'Idea has no scene chips');
-  assert.ok(ui.container.querySelector('.idea-doc')&&ui.container.querySelector('.idea-list'),'Idea opens on its page, with the board beside it as a list');
+  assert.ok(ui.container.querySelector('.idea-doc')&&!ui.container.querySelector('.idea-list'),'Idea opens on its script alone; the board is its own view');
   await act(async()=>[...ui.container.querySelectorAll<HTMLElement>('.ws-step')].find(a=>a.textContent==='Record')!.click());
   assert.equal(window.location.hash,'#/video/v1/record');
   assert.equal(ui.container.querySelector('.strip'),null,'Record has Borumi\'s scene cards, no chips above them');

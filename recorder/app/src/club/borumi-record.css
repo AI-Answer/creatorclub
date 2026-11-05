@@ -112,10 +112,7 @@
 .club-root .ws-foot .btn:not(.primary) { border: 1px solid var(--br-accent); background: var(--br-bg); box-shadow: var(--br-shadow-sm); }
 .club-root .ws-foot .btn:not(.primary):hover:not(:disabled) { background: var(--br-accent); }
 
-/* _8: the scene minimap. The list scrolls inside the scene area (T8's US is overflow-y-scroll); the bars stay on its right edge, one per
-   scene at 100/N % of the height, w-[15px] opacity-30, bg-success-500 (dark success-300) once recorded, else bg-warning-500 (warning-300). */
+/* The scene list scrolls inside the scene area (Borumi's T8 is overflow-y-scroll). Borumi's unlabeled scene minimap is left out: a
+   coloured strip with no words does not read for a new creator. */
 .club-root .club-embed .app-shell[data-mode=Record] .club-record .recording-main.scene-cards-mode { overflow: hidden; }
 .club-root .club-embed .app-shell[data-mode=Record] .club-record .recording-main.scene-cards-mode > .recording-scene-cards { height: 100%; overflow-y: auto; }
-.club-root .club-embed .app-shell[data-mode=Record] .club-record .rsc-minimap { position: absolute; top: 0; right: 0; bottom: 0; z-index: 0; display: flex; flex-direction: column; pointer-events: none; }
-.club-root .club-embed .app-shell[data-mode=Record] .club-record .rsc-minimap > span { display: block; width: 15px; opacity: .3; background: var(--br-minimap-todo); }
-.club-root .club-embed .app-shell[data-mode=Record] .club-record .rsc-minimap > span.is-done { background: var(--br-minimap-done); }

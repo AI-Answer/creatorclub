@@ -1,0 +1,58 @@
+/* Borumi's Script step (spec-script-step.md, from index-DXJH5HZm.css). Scroll root pt-12 gap-3 centred; column 850 / 700 / 600px;
+   a row is an 80px gutter, 16px gap, 4px bar, 16px gap, then the text at 16/24px. */
+.club-root .bs-root { display: flex; flex-direction: column; align-items: center; gap: 12px; width: 100%; padding-top: 48px; color: var(--br-fg); }
+.club-root .bs-col { display: flex; flex-direction: column; width: min(850px, 100%); }
+@media (max-width: 1279px) { .club-root .bs-col { width: min(700px, 100%); } }
+@media (max-width: 1023px) { .club-root .bs-col { width: min(600px, 100%); } }
+
+/* Each scene and the 12px after it ($b). While a scene is dragged the others slide by its height; the dragged one follows the pointer,
+   lifted over the rest. */
+.club-root .bs-item { padding-bottom: 12px; transition: transform .18s cubic-bezier(.2,0,0,1); }
+.club-root .bs-root.is-dragging { cursor: grabbing; user-select: none; }
+.club-root .bs-root.is-dragging .bs-item.is-lifted { position: relative; z-index: 5; transition: none; }
+.club-root .bs-item.is-lifted .bs-row { background: var(--br-bg); box-shadow: var(--br-shadow-lg), 0 0 0 1px var(--br-border); }
+/* FP: flex gap-4 group rounded-md transition-colors. */
+.club-root .bs-row { padding: 6px 8px 6px 0; display: flex; gap: 16px; border-radius: var(--br-r-md); transition: background-color .15s; }
+.club-root .bs-row.is-drop-on { background: color-mix(in srgb, var(--br-blue-100) 80%, transparent); }
+/* Gutter: w-20 text-right pt-1 opacity-60 text-xs; the name is click-to-rename (ring-[1.5px] ring-blue-400 while editing). */
+.club-root .bs-gutter { width: 80px; flex: none; padding-top: 4px; text-align: right; font-size: var(--cc-text-xs); line-height: 16px; }
+.club-root .bs-name { display: inline-flex; align-items: flex-start; justify-content: flex-end; gap: 2px; max-width: 100%; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: right; opacity: .6; cursor: grab; overflow-wrap: anywhere; touch-action: none; }
+.club-root .bs-name svg { width: 14px; height: 14px; flex: none; margin-top: 1px; opacity: 0; transition: opacity .2s; }
+.club-root .bs-row:hover .bs-name, .club-root .bs-name:focus-visible { opacity: 1; }
+.club-root .bs-row:hover .bs-name svg, .club-root .bs-name:focus-visible svg, .club-root .bs-item.is-lifted .bs-name svg { opacity: .6; }
+.club-root .bs-root.is-dragging .bs-name { cursor: grabbing; }
+.club-root .bs-name:focus-visible { outline: none; box-shadow: 0 0 0 1.5px var(--br-blue-400); border-radius: var(--cc-r-sm); }
+.club-root .bs-name-input { width: 100%; padding: 0 2px; border: 0; border-radius: var(--cc-r-sm); background: transparent; color: var(--br-fg); font: inherit; text-align: right; box-shadow: 0 0 0 1.5px var(--br-blue-400); outline: none; }
+/* Bar: h-full w-1 rounded-sm; bg-primary/20 (bg-success/60 once recorded); opacity-30 unless it is the active scene. */
+.club-root .bs-bar { position: relative; width: 4px; flex: none; border-radius: var(--cc-r-sm); background: color-mix(in srgb, var(--br-primary) 20%, transparent); opacity: .3; }
+.club-root .bs-row.is-recorded .bs-bar { background: color-mix(in srgb, var(--br-success) 60%, transparent); }
+.club-root .bs-row.is-selected .bs-bar, .club-root .bs-row:hover .bs-bar { opacity: 1; }
+/* Editor: 16px / 24px in the foreground colour, no border, no focus ring. */
+.club-root .bs-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.club-root .bs-text { display: block; width: 100%; min-height: 24px; padding: 0; border: 0; background: transparent; color: var(--br-fg); font: inherit; font-size: var(--cc-text-lg); line-height: 24px; resize: none; outline: none; field-sizing: content; overflow: hidden; }
+.club-root .bs-text::placeholder { color: color-mix(in srgb, var(--br-fg) 30%, transparent); }
+.club-root .bs-shimmer { height: 48px; border-radius: var(--br-r-md); background: var(--br-neutral-100); animation: bs-pulse 1.2s ease-in-out infinite; }
+.club-root .bs-col > .bs-shimmer + .bs-shimmer { margin-top: 12px; }
+@keyframes bs-pulse { 50% { opacity: .5; } }
+.club-root .bs-note { margin: 8px 0 0; font-size: var(--cc-text-sm); color: var(--br-muted); }
+
+/* "Add scene": flex flex-col pl-8 pt-4 pb-4; ghost h-9 rounded-md text-sm font-medium, pl-3 pr-4, a 16px plus with 8px after it. */
+.club-root .bs-add { display: flex; flex-direction: column; align-items: flex-start; padding: 16px 0 16px 32px; }
+.club-root .bs-add-btn { display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 8px 16px 8px 12px; border: 0; border-radius: var(--br-r-md); background: transparent; color: var(--br-fg); font: inherit; font-size: var(--cc-text-base); line-height: 20px; font-weight: 500; cursor: pointer; transition: background-color .15s; }
+.club-root .bs-add-btn:hover { background: var(--br-accent); }
+.club-root .bs-add-btn:focus-visible { outline: none; box-shadow: 0 0 0 1px var(--br-ring); }
+
+/* bD: the empty Script step at 50%: "Start writing…" 16/24 with 16px under it, then the 14/20 hint; Start Recording underlined bold. */
+.club-root .bs-empty { position: relative; min-height: 100px; opacity: .5; }
+.club-root .bs-empty-input { position: absolute; inset: 0; width: 100%; height: 100%; padding: 0; border: 0; background: transparent; color: var(--br-fg); font: inherit; resize: none; outline: none; z-index: 1; caret-color: var(--br-fg); color: transparent; }
+.club-root .bs-empty-h { position: relative; margin: 0 0 16px; font-size: var(--cc-text-lg); line-height: 24px; pointer-events: none; }
+.club-root .bs-empty-p { position: relative; margin: 0; font-size: var(--cc-text-base); line-height: 20px; pointer-events: none; }
+.club-root .bs-empty-link { position: relative; z-index: 2; padding: 0; border: 0; background: none; color: inherit; font: inherit; font-weight: var(--cc-weight-bold); text-decoration: underline; cursor: pointer; pointer-events: auto; }
+.club-root .bs-empty-ai { margin-top: 24px; }
+
+/* In-page scene menu (the desktop app uses the system menu instead). */
+.club-root .bs-menu { position: fixed; z-index: 60; min-width: 200px; padding: 4px; border: 1px solid var(--br-border); border-radius: var(--br-r-md); background: var(--br-popover); box-shadow: var(--br-shadow-md); }
+.club-root .bs-menu button { display: block; width: 100%; padding: 6px 8px; border: 0; border-radius: var(--cc-r-sm); background: transparent; color: var(--br-fg); font: inherit; font-size: var(--cc-text-base); text-align: left; cursor: default; }
+.club-root .bs-menu button:hover:not(:disabled) { background: var(--br-accent); }
+.club-root .bs-menu button:disabled { opacity: .5; }
+.club-root .bs-menu-sep { height: 1px; margin: 4px 0; background: var(--br-border); }

@@ -126,7 +126,7 @@ test('the pinned tab follows the sidebar page, video tabs show stage dots, and +
   const home=c.querySelector<HTMLAnchorElement>('.ts-tab.home .ts-label')!;
   assert.equal(home.textContent,'Channel board','the pinned tab preserves the last page');
   assert.equal(c.querySelector('.ts-tab:not(.home) .ts-stage')!.getAttribute('aria-label'),'Planning');
-  assert.equal(c.querySelector('.ts-tab:not(.home) .ts-id')?.textContent,'CC-7','the tab shows the video ID');
+  assert.equal(c.querySelector('.ts-tab:not(.home) .ts-id'),null,'the tab shows the title only, no CC- number');
   assert.equal(home.getAttribute('href'),'#/research','and returns to that page');
   assert.equal(c.querySelector('.ts-tab.home .ts-close'),null,'it cannot be closed');
   assert.equal(c.querySelector('.tabstrip .ts-tab.home'),c.querySelector('.ts-tabs')!.firstElementChild,'it comes first');
@@ -284,17 +284,17 @@ test('Tab stays inside the search and the New video dialog, and focus goes back 
  });
 });
 
-test('New video offers planning and quick recording; planning keeps its title flow and link breakdown',async()=>{
+test('New video offers two choices, planning and quick recording; planning takes a title to the Idea page',async()=>{
  await withApp('#/home',async (ui,server,calls)=>{
   const c=ui.container;
   await keyDown(window,'k',{metaKey:true});
   await type(c.querySelector('.palette input')!,'new video');
   await keyDown(c.querySelector('.palette input')!,'Enter');
   const dialog=()=>c.querySelector('[role="dialog"]:not(.drawer)');
-  assert.match(dialog()!.textContent!,/How would you like to start/);
-  assert.deepEqual([...dialog()!.querySelectorAll('.new-start-card b')].map(b=>b.textContent),['Plan out this video','Quick recording']);
+  assert.match(dialog()!.textContent!,/Start a new video/);
+  assert.deepEqual([...dialog()!.querySelectorAll('.new-start-card b')].map(b=>b.textContent),['Plan a video','Quick recording']);
   assert.ok(dialog()!.textContent!.includes('Recent videos'));
-  await press(dialog()!.querySelector('[aria-label="Plan out this video"]')!);
+  await press(dialog()!.querySelector('[aria-label="Plan a video"]')!);
   assert.equal(button(dialog()!,'Start planning').disabled,true);
 
   await type(dialog()!.querySelector('input')!,'  Claude does my taxes  ');
@@ -304,30 +304,11 @@ test('New video offers planning and quick recording; planning keeps its title fl
   assert.equal(dialog(),null);assert.equal(window.location.hash,'#/video/new1/idea','straight to its Idea page: no Add idea, no banner to press');
   assert.ok(server.videos.some(v=>v.id==='new1'));
 
-  await hashTo('#/home');
   await keyDown(window,'k',{metaKey:true});
   await type(c.querySelector('.palette input')!,'new video');
   await keyDown(c.querySelector('.palette input')!,'Enter');
-  await press(dialog()!.querySelector('.new-breakdown')!);
-  assert.equal((button(dialog()!,'Break down') as HTMLButtonElement).disabled,true,'nothing to break down yet');
-  await type(dialog()!.querySelector('input')!,'not a link');
-  await press(button(dialog()!,'Break down'));
-  assert.match(c.querySelector('.cc-toast')!.textContent!,/That doesn't look like a video link\. Paste the full address\./);
-  assert.ok(dialog(),'the dialog stays so the link can be fixed');
-  await type(dialog()!.querySelector('input')!,'https://youtu.be/dQw4w9WgXcQ?si=x');
-  await press(button(dialog()!,'Break down'));
-  assert.equal(dialog(),null);assert.equal(window.location.hash,'#/videos','Videos starts the breakdown and leaves the address');
-  assert.ok(c.querySelector('.drawer .bd'),'in a drawer');
-  assert.deepEqual(calls.filter(call=>call.method==='POST'&&call.path==='/breakdowns').map(call=>call.body),[{url:'https://www.youtube.com/watch?v=dQw4w9WgXcQ'}]);
-  assert.equal(calls.filter(call=>call.method==='POST'&&call.path==='/videos').length,1,'a link creates nothing by itself');
-
-  await keyDown(window,'k',{metaKey:true});
-  await type(c.querySelector('.palette input')!,'new video');
-  await keyDown(c.querySelector('.palette input')!,'Enter');
-  await press(dialog()!.querySelector('.new-breakdown')!);
-  await type(dialog()!.querySelector('input')!,'https://www.instagram.com/reel/C8aBcD_eFgH/');
-  await press(button(dialog()!,'Break down'));
-  assert.deepEqual(calls.filter(call=>call.method==='POST'&&call.path==='/breakdowns').map(call=>call.body).at(-1),{url:'https://www.instagram.com/reel/C8aBcD_eFgH/'},'an Instagram link works too');
+  assert.ok(!dialog()!.textContent!.includes('Break down'),'breaking down a video is a way to find an idea (Discover, the board), not a way to start one');
+  assert.equal(dialog()!.querySelector('.new-breakdown'),null);
  });
 });
 
@@ -341,7 +322,7 @@ test('New video: a failed save says one sentence and keeps what was typed; an id
  try{
   await flush();const c=ui.container;
   await keyDown(window,'k',{metaKey:true});await type(c.querySelector('.palette input')!,'new video');await keyDown(c.querySelector('.palette input')!,'Enter');
-  await press(c.querySelector('[aria-label="Plan out this video"]')!);
+  await press(c.querySelector('[aria-label="Plan a video"]')!);
   await type(c.querySelector('[role="dialog"] input')!,'My video');
   await press(button(c.querySelector('[role="dialog"]')!,'Start planning'));
   assert.match(c.querySelector('.cc-toast')!.textContent!,/Couldn't save that\./);
@@ -485,7 +466,7 @@ test('global shortcuts open New video and Help, keep typing intact, and never in
  await withApp('#/home',async ui=>{
   const c=ui.container;
   await keyDown(window,'n');await flush();
-  assert.match(c.querySelector('[role="dialog"]')!.textContent!,/How would you like to start/);
+  assert.match(c.querySelector('[role="dialog"]')!.textContent!,/Start a new video/);
   await keyDown(document,'Escape');await flush();
   assert.equal(c.querySelector('[role="dialog"]'),null);
   await keyDown(window,'?',{shiftKey:true});await flush();

@@ -82,8 +82,7 @@ export const RecordingSceneCards=memo(function RecordingSceneCards(props:Recordi
   </CardMenu>}</div>
  </div>;};
  // Borumi's scene minimap (main bundle _8, M:32325-32352): one bar per scene down the right edge, green once a scene has a take.
- const minimap=props.club&&project.scenes.length>0?<div className="rsc-minimap" aria-hidden="true">{project.scenes.map(scene=>{const card=cards.get(scene.id);const done=Boolean(card?.legacyFootage||card?.all.some(t=>t.active));return <span key={scene.id} className={done?'is-done':undefined} style={{height:`${100/project.scenes.length}%`}}/>;})}</div>:null;
- return <>{minimap}<div ref={root} className="recording-scene-cards" aria-label="Recording scenes" aria-busy={busy}>
+ return <><div ref={root} className="recording-scene-cards" aria-label="Recording scenes" aria-busy={busy}>
   {error&&<div className="rsc-error" role="alert">{error}<button type="button" aria-label="Dismiss scene action error" onClick={()=>setError('')}>×</button></div>}
   {/* Borumi's empty Record step (main bundle I8, M:33003-33099): nothing planned and nothing recorded yet. Creator Compiler's quick
       recording keeps one scene to record into, so the screen shows while that scene is still untouched. */}

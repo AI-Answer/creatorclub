@@ -24,7 +24,7 @@ export function sectionPart(section:string|null|undefined):IdeaPartKey|undefined
  if(name.includes('one-pager'))return 'onepager';
  if(name.includes('thumbnail')||name.includes('title'))return 'package';
  if(name.includes('say first'))return 'hook';
- if(name.includes('scene'))return 'scenes';
+ if(name.includes('scene')||name.includes('script'))return 'scenes';
  if(name.includes('about'))return 'idea';
  return undefined;
 }
@@ -75,7 +75,7 @@ export function suggestions(tab:CompanionTab,facts:SuggestionFacts):string[]{
    if(facts.part==='package')return facts.titles?['Which pair is strongest, and why?','Make the titles more specific','What should the thumbnail show?']:['What would make people click this?','Who is this video for?','What should the thumbnail show?'];
    if(facts.part==='hook')return ['Does the hook confirm the title?','Make the hook shorter','What could I show in the first seconds?'];
    if(facts.part==='onepager')return ['Make the logline sharper','Is the twist strong enough?','Which of the three reasons is weakest?'];
-   if(facts.part==='scenes'&&!facts.scenes)return ['Write the scenes from my one-pager','How long should this video be?','What should I show in each scene?'];
+   if(facts.part==='scenes'&&!facts.scenes)return ['Write the scenes from my board','How long should this video be?','What should I show in each scene?'];
    // Titles, hooks and scenes are written from the column's own buttons, so the chips here are for thinking and tightening.
    if(facts.scenes)return [scene?`Tighten ${scene}`:'Tighten the first scene',...((facts.longest??0)>90?['Cut the longest scene to 90 seconds']:[]),...(facts.hook?['Make the hook sharper']:[]),'What is missing before I record?','Is the order of the scenes right?'].slice(0,3);
    return (facts.tiles??0)>1

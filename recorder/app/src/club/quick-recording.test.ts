@@ -107,7 +107,7 @@ test('an unplanned one-scene project opens the live recorder source controls, wh
   assert.equal(button(ui.container,'Start recording').disabled,false,'a plan is never required to start recording');
   assert.ok(button(ui.container,'Import from file...'));
   await ui.render(page('idea'));await flush();
-  assert.ok(ui.container.textContent?.includes('This video started as a quick recording.'));
+  assert.ok(ui.container.querySelector('.bs-root'),'Idea is the script, there whenever a plan is wanted: never a step to get through first');
   await ui.render(page('edit'));await flush();
   assert.ok(ui.container.textContent?.includes('Nothing recorded yet'));
   assert.equal(button(ui.container,'Record a scene').disabled,false);

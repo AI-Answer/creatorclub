@@ -98,6 +98,8 @@ export interface SceneForgeDesktopBridge {
  onRecordingHudCommand?(handler:(command:RecordingHudCommand)=>void):()=>void;
  /** A system confirmation (OK / Cancel), as Borumi asks before deleting a take. Resolves true for OK. */
  confirmDialog?(value:{title:string;message:string}):Promise<boolean>;
+ /** A native context menu: the index of the chosen item, or -1. '-' is a separator. */
+ contextMenu?(items:ReadonlyArray<'-'|{label:string;enabled?:boolean}>):Promise<number>;
  getNativeRecordingStatus?(): Promise<{available:boolean;engine:string;excludesSceneForge:boolean}>;
  startNativeRecording?(options:{selection?:DesktopCaptureSelection;systemAudio:boolean;recordVideo?:boolean;fps?:number;maxDimension?:number}):Promise<DesktopNativeRecordingResult>;
  pauseNativeRecording?(id:string):Promise<DesktopNativeRecordingResult>;

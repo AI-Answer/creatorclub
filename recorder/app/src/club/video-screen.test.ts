@@ -53,11 +53,11 @@ function Harness({initial,tabs,start='idea'}:{initial:Video;tabs:VideoTab[];star
 }
 
 const edit=async(element:Element|null,value:string)=>{assert.ok(element,'field to edit');await act(async()=>{(element as HTMLElement).innerText=value;element!.dispatchEvent(new Event('focusout',{bubbles:true}));});};
-const sceneTitles=(root:Element)=>[...root.querySelectorAll('.scene .t')].map(t=>t.textContent);
+const sceneTitles=(root:Element)=>[...root.querySelectorAll('.bs-row .bs-name')].map(t=>t.textContent);
 /** The parts of "Your video": their names, which one is open, and opening one. */
 const partNames=(root:Element)=>[...root.querySelectorAll('.doc-part-h')].map(h=>h.textContent);
 
-test('an empty Idea is one page: nothing is written until asked, then one Fill writes the title, thumbnail and hook, and then the scenes',async()=>{
+test('an empty Idea is Borumi\'s empty Script step: nothing is written until asked, then Write the scenes with Claude drafts them',async()=>{
  FakeEventSource.install();
  const idea:Video={...planned,idea:{why:'People keep asking how'}};
  const state:Server={video:idea,pkg:null,outline:null,help:['research','board']},server=serve(state);
@@ -65,15 +65,13 @@ test('an empty Idea is one page: nothing is written until asked, then one Fill w
  try{
   await flush();await flush();
   const c=ui.container;
-  assert.deepEqual(partNames(c),["What it's about",'One-pager','Title and thumbnail','What you say first','Scenes'],'the whole video on one page, in order');
-  assert.equal(server.calls.filter(call=>call.method==='POST'&&call.path==='/videos/v1/package').length,0,'nothing runs on your AI account until you ask');
-  assert.equal(button(c,'Fill the empty parts with Claude').title,'From your idea.','it says what the AI fills from, on the button');
-  assert.deepEqual(primaries(c),['Write one-pager'],'one-pager writing is the section primary while Continue remains outline without scenes');
-  await act(async()=>button(c,'Fill the empty parts with Claude').click());await flush();
-  assert.equal(server.calls.filter(call=>call.method==='POST'&&call.path==='/videos/v1/package').length,1,'one press writes the package first');
-  assert.ok(hasText(c,'Writing the title, thumbnail and hook…'),'and the page says so');
-  await act(async()=>FakeEventSource.last().emit('done',{value:pkg}));await flush();
-  assert.ok(server.calls.some(call=>call.method==='POST'&&call.path==='/videos/v1/outline'),'then the scenes, from the same press');
+  assert.deepEqual(partNames(c),[],'one part, the script, with no headings over it');
+  assert.ok(hasText(c,'Start writing your amazing video...'));
+  assert.ok(hasText(c,'You can also paste your script from Notion, Google Docs, or your favorite editor, or Start Recording right away.'));
+  assert.ok(!hasText(c,'One-pager')&&!hasText(c,'Thumbnail')&&!hasText(c,'Fill the empty parts'),'no one-pager, thumbnail or Fill on the Idea page');
+  assert.equal(server.calls.filter(call=>call.method==='POST').length,0,'nothing runs on your AI account until you ask');
+  await act(async()=>button(c,'Write the scenes with Claude').click());await flush();
+  assert.equal(server.calls.filter(call=>call.method==='POST'&&call.path==='/videos/v1/outline').length,1,'one press drafts the scenes');
  }finally{await ui.close();server.restore();}
 });
 
@@ -89,34 +87,24 @@ test('every "with …" names the AI the person connected: ChatGPT here, not Clau
  const ui=await mountUI(createElement(Harness,{initial:planned,tabs:[]}));
  try{
   await flush();await flush();
-  assert.ok(button(ui.container,'Fill the empty parts with ChatGPT'));
+  assert.ok(button(ui.container,'Write the scenes with ChatGPT'));
   assert.ok(!hasText(ui.container,'with Claude'));
  }finally{await ui.close();server.restore();}
 });
 
-test('a drafted Idea: the title shows its other versions where it stands, edits land on the pair in use, a scene is edited, then Continue',async()=>{
+test('a drafted Idea: every scene is open in one column, a scene is renamed in its gutter, then Continue',async()=>{
  FakeEventSource.install();
  const state:Server={video:planned,pkg,outline,help:['research','board']},server=serve(state),tabs:VideoTab[]=[];
  const ui=await mountUI(createElement(Harness,{initial:planned,tabs}));
  try{
   await flush();
   const c=ui.container;
-  const title=()=>c.querySelector('.dline.title .ed')!.textContent;
-  assert.equal(title(),planned.title,'the video\'s own title while no version is in use');
-  await act(async()=>button(c,'Use one of 3 versions').click());await flush();
-  assert.equal(state.video.title,pkg.titles[0],'using a version makes it the video title');
-  await act(async()=>button(c,'Other version (2)').click());await flush();
-  assert.equal(state.video.title,pkg.titles[1],'the next version, in place');
-  assert.equal(title(),pkg.titles[1]);
-  await edit(c.querySelector('.dline.title .ed'),'Seven Claude Code tricks');
-  assert.equal(state.video.title,'Seven Claude Code tricks','typing the title renames the video');
-  assert.equal(c.querySelectorAll('.scene').length,4,'the scenes are on the same page');
-  await act(async()=>c.querySelectorAll<HTMLElement>('.scene-open')[1].click());await flush();
-  await edit(c.querySelector('.scene.open .ed.t'),'Level 1: settings');
-  assert.deepEqual(primaries(c),['Write one-pager','Continue to recording'],'the one-pager has its section primary; Continue is solid once scenes exist');
+  assert.deepEqual(sceneTitles(c),outline.scenes.map(scene=>scene.title),'the scene names sit in the gutter, every scene open');
+  await act(async()=>button(c,'Level 1').click());
+  const input=c.querySelector<HTMLInputElement>('input[aria-label="Scene name"]')!;
+  await act(async()=>{Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value')!.set!.call(input,'Level 1: settings');input.dispatchEvent(new Event('input',{bubbles:true}));input.blur();});await flush();
+  assert.ok(primaries(c).includes('Continue to recording'),'Continue is solid once scenes exist');
   await act(async()=>button(c,'Continue to recording').click());await flush();
-  assert.equal(state.pkg?.titles[1],'Seven Claude Code tricks','the edit landed on the version in use');
-  assert.deepEqual(state.pkg?.thumbs,[pkg.thumbnailText,'',''],'the words stay with the version they were written for');
   assert.equal(state.outline?.scenes[1].title,'Level 1: settings');
   assert.deepEqual(tabs,['record'],'Record opens');
  }finally{await ui.close();server.restore();}
@@ -361,32 +349,6 @@ test("SceneForge's own move to the editor goes through the club",async()=>{
   await ui.render(createElement(ClubRecorder,{projectId:p.id,mode:'Edit',onBack:()=>{},onMode:mode=>modes.push(mode)}));
   assert.ok(ui.container.querySelector('.edit-workspace'),'the club changes the step, and the editor opens');
  }finally{await ui.close();globalThis.fetch=originalFetch;globalThis.requestAnimationFrame=originalFrame;}
-});
-
-test('Fill on a planned package writes just the scenes, shows them in place and reads the scenes again, without leaving the page',async()=>{
- FakeEventSource.install();
- const state:Server={video:planned,pkg:null,outline:null,help:['research','board']};
- const inner=installFetch(({method,path})=>{
-  if(path==='/videos/v1/research')return {body:[]};
-  if(path==='/settings')return {body:{defaultAi:'claude',welcomed:true,helpSeen:['board']}};
-  if(path==='/videos/v1/plan')return {body:{package:pkg,outline:state.outline}};
-  if(path==='/videos/v1/scenes')return {body:(state.outline?.scenes??[]).map((s,i)=>({id:`s${i}`,title:s.title,seconds:s.seconds,takes:[],status:'Not recorded'}))};
-  if(path==='/videos/v1'&&method==='GET')return {body:state.video};
-  if(path==='/videos/v1/outline'&&method==='POST'){state.outline=outline;return {status:202,body:{id:'j-draft',status:'running'}};}
- });
- const tabs:VideoTab[]=[];
- const ui=await mountUI(createElement(Harness,{initial:planned,tabs}));
- try{
-  await flush();
-  const c=ui.container;
-  const reads=inner.calls.filter(call=>call.path==='/videos/v1/scenes').length;
-  await act(async()=>button(c,'Fill the empty parts with Claude').click());await flush();
-  await act(async()=>FakeEventSource.last().emit('done',{value:outline}));await flush();
-  assert.deepEqual(tabs,[],'the page stays where it is');
-  assert.ok(inner.calls.filter(call=>call.path==='/videos/v1/scenes').length>reads,'the strip read the scenes again');
-  assert.equal(c.querySelectorAll('.scene').length,4,'the scenes show without a reload');
-  assert.ok(primaries(c).includes('Continue to recording'),'Continue is ready');
- }finally{await ui.close();inner.restore();}
 });
 
 test('a recording project that is not on this computer says so and offers to start it again from the plan',async()=>{

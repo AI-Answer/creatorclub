@@ -236,6 +236,8 @@ app.whenReady().then(async()=>{
  ipcMain.handle('media-permissions',e=>{verifyDesktopSender(e);return getMediaPermissions();});
  // Borumi's confirmations are system dialogs ("Delete take?" / "Are you sure you want to delete this take?", OK and Cancel).
  ipcMain.handle('confirm-dialog',async(e,value)=>{verifyDesktopSender(e);const title=typeof value?.title==='string'?value.title.slice(0,200):'',message=typeof value?.message==='string'?value.message.slice(0,1000):'';if(!title)throw new Error('Invalid confirmation.');const options={type:'warning',message:title,detail:message,buttons:['OK','Cancel'],defaultId:0,cancelId:1,noLink:true};const result=mainWindow&&!mainWindow.isDestroyed()?await dialog.showMessageBox(mainWindow,options):await dialog.showMessageBox(options);return result.response===0;});
+ // A native context menu (Borumi's scene menu is native): the index of the chosen item, or -1 when it closes without one. '-' is a separator.
+ ipcMain.handle('context-menu',(e,items)=>{verifyDesktopSender(e);if(!Array.isArray(items)||items.length>40)throw new Error('Invalid menu.');return new Promise(resolve=>{let chosen=-1;const menu=Menu.buildFromTemplate(items.map((item,index)=>item==='-'?{type:'separator'}:{label:String(item?.label??'').slice(0,120),enabled:item?.enabled!==false,click:()=>{chosen=index;}}));const window=BrowserWindow.fromWebContents(e.sender)??mainWindow;menu.popup({window,callback:()=>setImmediate(()=>resolve(chosen))});});});
  ipcMain.handle('request-media-permission',(e,kind)=>{verifyDesktopSender(e);return requestMediaPermission(kind);});
  ipcMain.handle('open-privacy-settings',(e,section)=>{verifyDesktopSender(e);return openPrivacySettings(section);});
  // macOS applies a new screen-recording grant only to a fresh process.

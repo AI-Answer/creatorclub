@@ -12,13 +12,6 @@
 .club-root .new-start-icon { display: grid; place-items: center; width: 44px; height: 44px; min-height: 44px; flex: none; aspect-ratio: 1; padding: 0; align-self: center; border-radius: var(--cc-r-lg); }
 .club-root .new-start-plan { background: var(--cc-bg-sunk); color: var(--cc-text-2); }
 .club-root .new-start-quick { background: var(--cc-bg-sunk); color: var(--cc-text-2); }
-.club-root .new-breakdown { display: flex; align-items: center; gap: 12px; width: 100%; padding: 14px 16px; margin: 12px 0 0; border: 1px solid var(--cc-line); border-radius: var(--cc-r-lg); background: transparent; color: var(--cc-text-2); text-align: left; cursor: pointer; font: inherit; font-size: var(--cc-text-sm); transition: background var(--cc-dur) var(--cc-ease),border-color var(--cc-dur) var(--cc-ease); }
-.club-root .new-breakdown > span { display: flex; align-items: baseline; gap: 6px; flex: 1; }
-.club-root .new-breakdown b { font-weight: var(--cc-weight-medium); color: var(--cc-text); }
-.club-root .new-breakdown > span > span { color: var(--cc-text-3); }
-.club-root .new-breakdown:hover:enabled { border-color: var(--cc-line-hover); background: var(--cc-hover); }
-.club-root .new-breakdown:disabled { color: var(--cc-text-faint); cursor: not-allowed; }
-.club-root .new-breakdown:focus-visible { outline: 2px solid var(--cc-accent); outline-offset: 2px; }
 .club-root .new-recents { margin-top: 24px; }
 .club-root .new-recents h4 { font-size: var(--cc-text-sm); font-weight: var(--cc-weight-semibold); }
 .club-root .new-recents > .row { margin-bottom: 10px; }

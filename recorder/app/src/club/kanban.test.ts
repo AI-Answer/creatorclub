@@ -12,9 +12,9 @@ import type {IdeaActionSet} from './production/IdeaLane';
 const mk=(id:string,over:Partial<Video>={}):Video=>({id,number:12,title:'A thoughtful video',stage:'ideas',order:0,createdAt:'2026-10-01',updatedAt:'2026-10-01',stageDates:{},planning:{research:false,package:false,outline:false},...over});
 const flush=()=>act(async()=>{await new Promise(resolve=>setTimeout(resolve,0));});
 
-test('palette finds a video by its prefixed ID or bare number and shows the ID',()=>{
+test('the palette shows a video by its title only, with no CC- number',()=>{
  const videos=[mk('a'),mk('b',{number:13})];
- for(const query of ['CC-12','cc-12','12']){const results=searchOptions(videos,query);assert.equal(results.find(option=>option.id.startsWith('video:'))?.id,'video:a');assert.equal(results.find(option=>option.id==='video:a')?.hint,'CC-12');}
+ const found=searchOptions(videos,'thoughtful').filter(option=>option.id.startsWith('video:'));assert.equal(found.length,2);for(const option of found)if(option.id.startsWith('video:'))assert.equal(option.hint,undefined,'no CC- number next to the video');
 });
 
 test('a failed optimistic save rolls back only that move and preserves a later queued gesture',async()=>{

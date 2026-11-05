@@ -8,7 +8,7 @@ import {Button,Icon,Input,Spinner} from '../ui';
 import {PlanSelect} from '../plan/PlanSelect';
 import './thumbnail-studio.css';
 
-export function ThumbnailStudio({video,thumbnailText,cards,brief,children}:{video:Video;thumbnailText:string;cards?:readonly ResearchTile[];brief?:ThumbnailSketch;children?:ReactNode}){
+export function ThumbnailStudio({video,thumbnailText,cards,brief,children,onChosen}:{video:Video;thumbnailText:string;cards?:readonly ResearchTile[];brief?:ThumbnailSketch;children?:ReactNode;/** After a picture is chosen as the thumbnail. */onChosen?():void}){
  const initial=thumbnailPrompt(video.title,thumbnailText,brief);
  const [prompt,setPrompt]=useState(initial),[model,setModel]=useState<HiggsfieldModel>('nano_banana_pro'),[count,setCount]=useState(1);
  const [status,setStatus]=useState<HiggsfieldStatus>(),[souls,setSouls]=useState<SoulId[]>([]),[soul,setSoul]=useState('');
@@ -110,7 +110,7 @@ export function ThumbnailStudio({video,thumbnailText,cards,brief,children}:{vide
    <div className="ts-results">{items.map((item,index)=><article className="ts-candidate" key={item.id}>
     <p className="ts-option">Option {index+1}</p>
     <img className="ts-image" src={thumbnailImageUrl(video.id,item.id)} alt={item.prompt}/>
-    <div className="row ts-actions"><Button size="sm" onClick={()=>void act(async()=>{await clubFetch(`${base}/thumbnails/${item.id}/use`,{body:{}});setChosen(n=>n+1);setLine('Thumbnail selected for this video.');notifyVideosChanged();})}>Use as thumbnail</Button>
+    <div className="row ts-actions"><Button size="sm" onClick={()=>void act(async()=>{await clubFetch(`${base}/thumbnails/${item.id}/use`,{body:{}});setChosen(n=>n+1);setLine('Thumbnail selected for this video.');notifyVideosChanged();onChosen?.();})}>Use as thumbnail</Button>
      <Button size="sm" variant="ghost" disabled={busy} onClick={()=>variations(item)}>Make variations</Button>
      <details className="ts-more" onKeyDown={event=>{if(event.key==='Escape'){event.currentTarget.open=false;event.currentTarget.querySelector('summary')?.focus();event.stopPropagation();}}}>
       <summary aria-label="More thumbnail actions" title="More thumbnail actions"><Icon name="more" size={16}/></summary>

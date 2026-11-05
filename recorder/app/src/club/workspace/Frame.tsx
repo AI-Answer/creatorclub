@@ -1,6 +1,6 @@
 import {Fragment,useEffect,useState} from 'react';
 import {videoTabs,type VideoTab} from '../routes';
-import {VIDEO_STAGES,videoHumanId,type Video,type VideoStage} from '../../../shared/club';
+import {VIDEO_STAGES,type Video,type VideoStage} from '../../../shared/club';
 import {STAGE_LABEL} from '../board';
 import {Button,Dialog,Ed,Icon,IconButton,Menu,Tooltip,cn,useToast,type IconName,type MenuItem} from '../ui';
 import {agentPrompt} from '../agent-prompt';
@@ -27,8 +27,7 @@ export function Header({video,tab,onTitle,onStage,onDelete,onHome}:{video:Video;
    <div className="ws-top-slot" id="ws-top-left"/>
   </div>
   <div className="ws-top-c">
-   <span className="ws-video-id small faint">{videoHumanId(video)}</span>
-   <Tooltip text={`${videoHumanId(video)} · Click to rename the video`}><Ed className="ws-title" value={video.title} ph="Video title" onChange={title=>{if(title.trim())onTitle(title.trim());}}/></Tooltip>
+   <Tooltip text="Click to rename the video"><Ed className="ws-title" value={video.title} ph="Video title" onChange={title=>{if(title.trim())onTitle(title.trim());}}/></Tooltip>
   </div>
   <div className="ws-top-r">
    {video.stage!=='published'&&video.publishDate&&<span className="faint small row" style={{gap:5}}><Icon name="calendar" size={13}/>{fmtDate(video.publishDate)}</span>}

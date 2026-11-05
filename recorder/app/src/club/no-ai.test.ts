@@ -65,7 +65,7 @@ function Handmade(){
  const [focusId,setFocusId]=useState<string|null>(null);
  return createElement('div',null,createElement(IdeaPage,{video,plan,known:[],focusId,boardKey:0,navigate(){},onBoardChanged(){},onFocus:setFocusId,onTitle(){},onTarget(){},onRecordScene(){},onVideo(){}}),createElement('button',{disabled:!plan.continueAction||plan.continueAction.disabled,onClick:()=>plan.continueAction?.run()},'Start planned recording'));
 }
-test('no AI: add the first scene, edit its title, talking points and empty script, then start planned recording',async()=>{
+test('no AI: type the first scene, rename it, then start planned recording, and delete it from its menu',async()=>{
  rememberAiStatus(off);FakeEventSource.install();let outline:Outline|null=null;
  const fake=installFetch(call=>{
   if(call.path==='/ai/status')return {body:off};
@@ -80,24 +80,28 @@ test('no AI: add the first scene, edit its title, talking points and empty scrip
  const edit=async(label:string,text:string)=>{const el=ui.container.querySelector<HTMLElement>(`[role="textbox"][aria-label="${label}"]`)!;assert.ok(el);await act(async()=>{el.innerText=text;el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('focusout',{bubbles:true}));});await flush();};
  try{
   await flush();const c=ui.container;
-  assert.equal(button(c,'Fill the empty parts with Claude').disabled,true);
-  assert.equal(button(c,'Fill the empty parts with Claude').title,'Connect an AI in Settings');
-  await click(c,'Add scene');assert.ok(c.querySelector('[aria-label="Scene 1"]'));
-  await edit('Scene title','My introduction');await edit('Talking point','Explain the demo');
-  assert.equal(c.querySelector('[role="textbox"][aria-label="Script"]'),null,'the script is an extra, like Borumi\'s one line per scene');
-  await click(c,"Add what's on screen or a script");await edit('Script','Here is the demo I made.');
+  // Borumi's empty Script step: start typing. Writing the scenes with an AI waits for one to be connected.
+  assert.equal(button(c,'Write the scenes with Claude').disabled,true);
+  assert.equal(button(c,'Write the scenes with Claude').title,'Connect an AI in Settings');
+  const area=c.querySelector<HTMLTextAreaElement>('.bs-empty-input')!;
+  await act(async()=>{Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value')!.set!.call(area,'Here is the demo I made.');area.dispatchEvent(new Event('input',{bubbles:true}));});
+  await flush();await flush();
+  assert.ok(c.querySelector('[aria-label="Scene 1"]'),'the first keystroke makes the first scene');
+  await click(c,'Scene 1');
+  const name=c.querySelector<HTMLInputElement>('input[aria-label="Scene name"]')!;
+  await act(async()=>{Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value')!.set!.call(name,'My introduction');name.dispatchEvent(new Event('input',{bubbles:true}));name.blur();});
   await act(async()=>{await new Promise(resolve=>setTimeout(resolve,550));});
   const saved=outline as Outline|null;assert.ok(saved);
   assert.equal(saved.scenes[0].title,'My introduction');
-  assert.deepEqual(saved.scenes[0].talkingPoints,['Explain the demo']);
   assert.equal(saved.scenes[0].script,'Here is the demo I made.');
   // Record is driven by usePlan, not by any AI job or account.
   assert.ok(!fake.calls.some(c=>c.method==='POST'));
   await click(c,'Start planned recording');
   assert.deepEqual(fake.calls.filter(c=>c.method==='POST').map(c=>c.path),['/videos/v1/recorder']);
-  await act(async()=>c.querySelector<HTMLButtonElement>('button[aria-label="Scene options"]')!.click());await flush();
-  const aiScript=[...c.ownerDocument.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')].find(item=>item.textContent?.includes('Write the script again'))!;
-  assert.equal(aiScript.disabled,true);assert.equal(aiScript.title,'Connect an AI in Settings');
+  // Borumi's scene menu opens on right-click; the AI item waits for an AI.
+  await act(async()=>c.querySelector('[aria-label="Scene 1"]')!.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,clientX:10,clientY:10})));await flush();
+  const aiScript=[...c.ownerDocument.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')].find(item=>item.textContent?.includes('script with Claude'))!;
+  assert.equal(aiScript.disabled,true);
   await click(c.ownerDocument.body,'Delete scene');
   await act(async()=>{await new Promise(resolve=>setTimeout(resolve,550));});
   assert.equal((outline as Outline|null)?.scenes.length,0);
@@ -115,7 +119,7 @@ test('no AI: Quick recording creates a video and opens Record with only local wr
  });
  const ui=await mountUI(createElement(ToastProvider,null,createElement(NewVideo,{videos:[],onClose(){},onOpen:route=>routes.push(route)})));
  try{
-  await flush();assert.equal(button(ui.container,'Break down a videoPaste a YouTube link.').disabled,true);
+  await flush();assert.equal(ui.container.querySelector('.new-breakdown'),null,'no Break down in New video');
   await act(async()=>ui.container.querySelector<HTMLButtonElement>('[aria-label="Quick recording"]')!.click());await flush();
   assert.deepEqual(routes,[{name:'video',id:'v1',tab:'record'}]);
   assert.deepEqual(fake.calls.filter(c=>c.method==='POST').map(c=>c.path),['/videos','/videos/v1/recorder']);
