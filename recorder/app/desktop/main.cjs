@@ -145,23 +145,40 @@ if(!gotLock)app.quit();
 app.on('second-instance',()=>{if(mainWindow){mainWindow.show();mainWindow.focus();}});
 // Checked before Electron is ready, so a free port (the usual case) is already known and the service forks first thing.
 // A plain TCP probe: a refused connection answers in about a millisecond, with no HTTP client to start.
+const portOpen=()=>new Promise(resolve=>{const socket=net.connect(PORT,'127.0.0.1');socket.once('connect',()=>{socket.destroy();resolve(true);});socket.once('error',()=>resolve(false));});
 let portBusy=null;
-const portCheck=new Promise(resolve=>{const socket=net.connect(PORT,'127.0.0.1');socket.once('connect',()=>{socket.destroy();resolve(true);});socket.once('error',()=>resolve(false));}).then(busy=>portBusy=busy);
+const portCheck=portOpen().then(busy=>portBusy=busy);
 // The window opens at once in the background the page last used (tokens.css --cc-bg), so it never flashes the other theme.
 const windowStatePath=path.join(paths.userData,'window.json'),themeBackground={light:'#ffffff',dark:'#212121'};
 let windowTheme=null;try{windowTheme=JSON.parse(fs.readFileSync(windowStatePath,'utf8')).theme;}catch{}
-if(!themeBackground[windowTheme])windowTheme=null;
+if(windowTheme!=='light'&&windowTheme!=='dark')windowTheme=null;
 // /api/ready answers as soon as the service listens (no media probing). Only a Creator Compiler service counts: any other
 // holder of the port (a SceneForge service included) is never used, and the start deadline then reports the port.
-async function serviceAnswers(){
+// A service whose app has quit (it reports that app's pid) is about to stop itself, so it never counts.
+const processAlive=pid=>{try{process.kill(pid,0);return true;}catch(error){return error.code==='EPERM';}};
+async function serviceHealth(){
  const r=await fetch(base+'/api/ready',{signal:AbortSignal.timeout(2000)});
- if(!r.ok){await r.body?.cancel();return false;}
- return isCreatorClubService(await r.json());
+ if(!r.ok){await r.body?.cancel();return null;}
+ const health=await r.json();
+ return isCreatorClubService(health)&&!(health.parentPid&&!processAlive(health.parentPid))?health:null;
 }
+async function serviceAnswers(){return Boolean(await serviceHealth());}
+// The installed app's own service bundle, compared with a running service's `build` (see server/index.ts).
+const ownBuild=(()=>{try{const file=fs.statSync(path.join(projectRoot,'server-dist/index.mjs'));return `${file.size}-${Math.round(file.mtimeMs)}`;}catch{return null;}})();
 async function startService(){
  // Only an occupied port is asked whether it is already a Creator Compiler service; otherwise fork without waiting.
  if(portBusy===null)await portCheck;
- if(portBusy){try{if(await serviceAnswers())return;}catch{}}
+ if(portBusy){
+  try{
+   const health=await serviceHealth();
+   // A service the assistant tools started on their own (no app of its own) from an older install is stopped and replaced,
+   // so an update always runs its own code. Anything else that answers is used as it is.
+   if(health&&app.isPackaged&&!health.parentPid&&health.pid&&health.build&&ownBuild&&health.build!==ownBuild)process.kill(health.pid,'SIGTERM');
+   else if(health)return;
+  }catch{}
+  // A service left by a crashed app stops within a few seconds; let it free the port before starting a new one.
+  for(const deadline=Date.now()+5000;Date.now()<deadline&&await portOpen();)await new Promise(r=>setTimeout(r,50));
+ }
  const entry=path.join(projectRoot,'server-dist/index.mjs');
  // Recordings and edits use SceneForge's storage format in Creator Compiler's own folder; SCENEFORGE_DATA_DIR still overrides it.
  // Only a launcher inside this app is offered for MCP; without one (the dev app) none is advertised, never SceneForge's.
@@ -218,7 +235,7 @@ app.whenReady().then(async()=>{
  // macOS applies a new screen-recording grant only to a fresh process.
  ipcMain.handle('relaunch-app',e=>{verifyDesktopSender(e);app.relaunch();relaunchRequested=true;app.quit();});
  ipcMain.on('window-theme',(e,theme)=>{
-  if(!mainWindow||e.sender!==mainWindow.webContents||!trusted(e.senderFrame.url)||!themeBackground[theme]||theme===windowTheme)return;
+  if(!mainWindow||e.sender!==mainWindow.webContents||!trusted(e.senderFrame.url)||(theme!=='light'&&theme!=='dark')||theme===windowTheme)return;
   windowTheme=theme;mainWindow.setBackgroundColor(themeBackground[theme]);
   fs.promises.writeFile(windowStatePath,JSON.stringify({theme})).catch(console.error);
  });
