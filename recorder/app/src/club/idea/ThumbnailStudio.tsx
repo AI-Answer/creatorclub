@@ -1,14 +1,13 @@
 import {useEffect,useRef,useState,type ReactNode} from 'react';
 import type {ResearchTile,Video} from '../../../shared/club';
-import {HIGGSFIELD_MODELS,thumbnailImageUrl,thumbnailPrompt,type HiggsfieldModel,type HiggsfieldStatus,type SoulId,type ThumbnailCandidate,type ThumbnailReference,type ThumbnailRequest} from '../../../shared/higgsfield';
+import {HIGGSFIELD_MODELS,thumbnailImageUrl,thumbnailPrompt,type HiggsfieldModel,type ThumbnailSketch,type HiggsfieldStatus,type SoulId,type ThumbnailCandidate,type ThumbnailReference,type ThumbnailRequest} from '../../../shared/higgsfield';
 import {clubFetch,clubUpload,errorMessage,notifyVideosChanged} from '../api';
 import {youtubeId} from '../board';
 import {failureMessage,progressLine,watchJob,type StartedJob} from '../jobs';
 import {Button,Input,Spinner} from '../ui';
 import './thumbnail-studio.css';
 
-export function ThumbnailStudio({video,thumbnailText,cards,brief,children}:{video:Video;thumbnailText:string;cards?:readonly ResearchTile[];brief?:string;children?:ReactNode}){
- // TODO: Pass thumbnailBrief(onepager) as brief when src/club/idea/onepager.ts lands.
+export function ThumbnailStudio({video,thumbnailText,cards,brief,children}:{video:Video;thumbnailText:string;cards?:readonly ResearchTile[];brief?:ThumbnailSketch;children?:ReactNode}){
  const initial=thumbnailPrompt(video.title,thumbnailText,brief);
  const [prompt,setPrompt]=useState(initial),[model,setModel]=useState<HiggsfieldModel>('nano_banana_pro'),[count,setCount]=useState(1);
  const [status,setStatus]=useState<HiggsfieldStatus>(),[souls,setSouls]=useState<SoulId[]>([]),[soul,setSoul]=useState('');
