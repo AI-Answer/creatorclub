@@ -35,6 +35,7 @@ function getNativeMediaStatus(kind){
  if(process.platform!=='darwin')return 'unknown';
  try{const status=systemPreferences.getMediaAccessStatus(kind);return ['not-determined','granted','denied','restricted','unknown'].includes(status)?status:'unknown';}catch{return 'unknown';}
 }
+function relaunchApp(){app.relaunch();relaunchRequested=true;app.quit();}
 function getMediaPermissions(){
  const screenStatus=getNativeMediaStatus('screen');
  if(screenSettingsOpened&&screenStatus==='granted')screenRestartRequired=true;
@@ -213,7 +214,7 @@ app.whenReady().then(async()=>{
  // itself is served by the service, so it loads once the service answers.
  const serviceReady=startService();serviceReady.catch(()=>{});
  mainWindow=new BrowserWindow({width:1480,height:960,minWidth:1000,minHeight:680,title:CREATORCLUB.name,show:true,backgroundColor:themeBackground[windowTheme??(nativeTheme.shouldUseDarkColors?'dark':'light')],titleBarStyle:process.platform==='darwin'?'hiddenInset':'default',...(process.platform==='darwin'?{trafficLightPosition:{x:13,y:13}}:{}),webPreferences:{preload:path.join(__dirname,'preload.cjs'),additionalArguments:[`--privacy-app-name=${appName}`],contextIsolation:true,nodeIntegration:false,sandbox:true,backgroundThrottling:false}});
- if(process.platform==='darwin')permissionHelper=createPermissionHelper({app,BrowserWindow,ipcMain,screen,shell,nativeImage:require('electron').nativeImage,getStatus:getNativeMediaStatus,appName,onGranted:()=>{
+ if(process.platform==='darwin')permissionHelper=createPermissionHelper({app,BrowserWindow,ipcMain,screen,shell,nativeImage:require('electron').nativeImage,getStatus:getNativeMediaStatus,appName,relaunch:relaunchApp,onGranted:()=>{
   if(!mainWindow||mainWindow.isDestroyed())return;
   mainWindow.webContents.send('media-permissions-changed',getMediaPermissions());
   if(mainWindow.isMinimized())mainWindow.restore();mainWindow.show();app.focus({steal:true});mainWindow.focus();
@@ -241,7 +242,7 @@ app.whenReady().then(async()=>{
  ipcMain.handle('request-media-permission',(e,kind)=>{verifyDesktopSender(e);return requestMediaPermission(kind);});
  ipcMain.handle('open-privacy-settings',(e,section)=>{verifyDesktopSender(e);return openPrivacySettings(section);});
  // macOS applies a new screen-recording grant only to a fresh process.
- ipcMain.handle('relaunch-app',e=>{verifyDesktopSender(e);app.relaunch();relaunchRequested=true;app.quit();});
+ ipcMain.handle('relaunch-app',e=>{verifyDesktopSender(e);relaunchApp();});
  ipcMain.on('window-theme',(e,theme)=>{
   if(!mainWindow||e.sender!==mainWindow.webContents||!trusted(e.senderFrame.url)||(theme!=='light'&&theme!=='dark')||theme===windowTheme)return;
   windowTheme=theme;mainWindow.setBackgroundColor(themeBackground[theme]);
