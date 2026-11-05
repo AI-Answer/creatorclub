@@ -482,3 +482,16 @@ test('on Edit, a moment marked as not liked puts Fix the parts I marked first',(
  assert.deepEqual(suggestions('edit',{scenes:2,polished:true,stalls:[],opening:true,named:false}),['Add a lower third with my name','Is this ready to publish?','Cut the pauses']);
  assert.equal(suggestions('edit',{scenes:2,notes:0})[1],'Add a title at the start');
 });
+
+test('the Idea page suggestions follow the section the "Sees:" chip names', async () => {
+ const {sectionPart,suggestions}=await import('./companion-logic');
+ assert.equal(sectionPart('One-pager'),'onepager');
+ assert.equal(sectionPart('Thumbnails'),'package');
+ assert.equal(sectionPart('Title and thumbnail'),'package');
+ assert.equal(sectionPart('What you say first'),'hook');
+ assert.equal(sectionPart('Scenes'),'scenes');
+ assert.equal(sectionPart("What it's about"),'idea');
+ assert.match(suggestions('idea',{part:'onepager',scenes:2}).join(' '),/logline/);
+ assert.doesNotMatch(suggestions('idea',{part:'package',scenes:2,titles:3}).join(' '),/scene/i);
+ assert.match(suggestions('idea',{part:'scenes',scenes:0}).join(' '),/Write the scenes/);
+});

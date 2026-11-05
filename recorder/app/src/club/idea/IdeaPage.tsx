@@ -221,7 +221,8 @@ function BoardList({videoId,cards,onCards,onAdded,showDragHint,summary,selected,
   {summary&&pane==='plan'?<div className="idea-summary">
    <dl><dt>Video title</dt><dd className="idea-summary-title">{summary.video.title}</dd>
     <dt>Logline</dt><dd className={!summary.logline.trim()?'idea-placeholder':undefined}>{summary.logline.trim()||'Describe the video in one sentence.'}</dd>
-    <dt>The idea</dt><dd className={!summary.idea.trim()?'idea-placeholder':undefined}>{summary.idea||'What will viewers take away?'}</dd></dl>
+    {/* Same name as on Plan, and only when it says something the logline doesn't. */}
+    {summary.idea.trim()&&summary.idea.trim()!==summary.logline.trim()&&<><dt>What it's about</dt><dd>{summary.idea}</dd></>}</dl>
    <p className="idea-summary-proof">{proofLine(cards).text.replace(/\.$/,'')}{!cards?.some(card=>card.kind==='video')&&<> · <button type="button" className="idea-text-link" onClick={summary.research}>Find one in Research</button></>}</p>
    <Button variant="ghost" size="sm" onClick={summary.open}><Icon name="script" size={14}/>Open in Plan</Button>
   </div>:<>

@@ -11,7 +11,7 @@ import {featuredSkills,matchSkills,slashQuery,type EditSkill,type InstalledSkill
 import {ErrorLine} from '../ErrorLine';
 import {ASK_CLAUDE} from './ask-claude';
 import {Button,Icon,Spinner,cn,type IconName} from '../ui';
-import {STEP_NAME,type IdeaPartKey,atBottom,elapsed,greeting,lookingAt,previewOf,stepSummary,suggestions,tabOf,withDividers} from './companion-logic';
+import {STEP_NAME,type IdeaPartKey,atBottom,sectionPart,elapsed,greeting,lookingAt,previewOf,stepSummary,suggestions,tabOf,withDividers} from './companion-logic';
 import {Markdown} from './Markdown';
 import {visibleInterval} from '../visible-interval';
 import {ReplaceScenes} from './ReplaceScenes';
@@ -184,7 +184,7 @@ export function Companion({videoId,videoTitle,videoWhy,tab,part,scene,screen,sel
  const items=here?withDividers(here,tab):[];
  const sceneCount=outline?.scenes.length??0;
  const recorded=scenes?scenes.filter(one=>one.takes.length>0).length:undefined;
- const ideas=suggestions(tab,{part:boardView?undefined:part?.key,titles:pkg?.titles.filter(one=>one.trim()).length,scenes:boardView?0:sceneCount,scene:boardView?undefined:scene,selected:tab==='research'?selection?.length:editor?.state?.selected,notes:editor?.state?.notes,stalls:editor?.state?.stalls,opening:editor?.state?.opening,named:editor?.state?.named,polished:(messages??[]).some(one=>one.role==='user'&&one.text.trimStart().startsWith('/proof-edit')),hook:!!pkg?.hook.spoken.trim(),longest:Math.max(0,...(outline?.scenes??[]).map(one=>one.seconds||0)),
+ const ideas=suggestions(tab,{part:boardView?undefined:sectionPart(ideaSection)??part?.key,titles:pkg?.titles.filter(one=>one.trim()).length,scenes:boardView?0:sceneCount,scene:boardView?undefined:scene,selected:tab==='research'?selection?.length:editor?.state?.selected,notes:editor?.state?.notes,stalls:editor?.state?.stalls,opening:editor?.state?.opening,named:editor?.state?.named,polished:(messages??[]).some(one=>one.role==='user'&&one.text.trimStart().startsWith('/proof-edit')),hook:!!pkg?.hook.spoken.trim(),longest:Math.max(0,...(outline?.scenes??[]).map(one=>one.seconds||0)),
   tiles:tab==='idea'||tab==='research'?tiles:undefined,recorded,titled:!!videoTitle?.trim()||!!pkg?.titles.some(one=>one.trim()),thumbnail:!!pkg?.thumbnailText.trim()}).map(plainIdeaCopy);
  // Nothing asked yet: a short greeting for this step with the best prompts right under it, instead of a blank column.
  const fresh=!!here&&!here.length&&!live&&!companion.loadError;
@@ -219,7 +219,7 @@ export function Companion({videoId,videoTitle,videoWhy,tab,part,scene,screen,sel
    {companion.loadError?<ErrorLine message={companion.loadError} onRetry={companion.reload}/>
     :!messages?<div className="cmp-loading"><span className="row small muted" role="status"><Spinner label="Loading the conversation" size={16}/>Loading the conversation…</span></div>
     :fresh&&<div className="cmp-hello">
-     <p>{plainIdeaCopy(greeting(tab,{part:boardView?undefined:part?.key,scenes:boardView?0:sceneCount,tiles:tab==='idea'||tab==='research'?tiles:undefined,recorded}))}</p>
+     <p>{plainIdeaCopy(greeting(tab,{part:boardView?undefined:sectionPart(ideaSection)??part?.key,scenes:boardView?0:sceneCount,tiles:tab==='idea'||tab==='research'?tiles:undefined,recorded}))}</p>
      {chips||null}
     </div>}
    {items.map(item=>item.kind==='divider'?<div key={item.key} className="cmp-divider" role="separator">{item.label}</div>

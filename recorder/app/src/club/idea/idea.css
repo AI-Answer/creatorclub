@@ -115,7 +115,5 @@
 .club-root .idea-doc .doc-proof .idea-proof { display: flex; align-items: center; gap: 6px; margin: 0; }
 .club-root .idea-doc .doc-empty > .idea-hint { color: var(--cc-text); }
 .club-root .idea-doc :is(.doc-part, .thumbnail-studio, .ts-setup, .ts-results-heading, .ts-feed) { scroll-margin-top: 0; }
-.club-root:where([data-theme=dark], [data-theme=dark] *) .idea-page .btn.primary { background: transparent; border-color: var(--cc-line-strong); color: var(--cc-text); box-shadow: none; }
-.club-root:where([data-theme=dark], [data-theme=dark] *) .idea-page .btn.primary:hover { background: var(--cc-hover); }
 .club-root:where([data-theme=dark], [data-theme=dark] *) .idea-page :is(.idea-image-link, .linkish) { color: var(--cc-text); }
 .club-root .idea-image-link:hover { text-decoration: underline; }

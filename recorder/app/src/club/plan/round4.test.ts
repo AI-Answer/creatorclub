@@ -54,7 +54,8 @@ test('Board uses Summary and board prompts even with scenes, and restores Resear
  const ui=await mountUI(createElement(Workspace,{video,tab:'idea',back:{name:'videos',view:'board'},onVideo(){},navigate:route=>routes.push(route)}));
  try{
   await flush();await flush();
-  assert.match(ui.container.querySelector('.cmp-sugg')!.textContent!,/Tighten the first scene/);
+  // At the top of Plan the chip says "What it's about", so the suggestions are about the idea, not the scenes further down.
+  assert.match(ui.container.querySelector('.cmp-sugg')!.textContent!,/Fill in the idea from my board/);
   await act(async()=>button(ui.container,'Board').click());await flush();await flush();
   assert.equal(button(ui.container,'Summary').getAttribute('aria-pressed'),'true');
   assert.match(ui.container.querySelector('.idea-summary-proof')!.textContent!,/No similar video on the board yet · Find one in Research/);
@@ -64,6 +65,6 @@ test('Board uses Summary and board prompts even with scenes, and restores Resear
   await act(async()=>button(ui.container.querySelector('.idea-summary')!,'Find one in Research').click());
   assert.deepEqual(routes,[{name:'discover'}]);
   await act(async()=>button(ui.container,'Open in Plan').click());await flush();
-  assert.match(ui.container.querySelector('.cmp-sugg')!.textContent!,/Tighten the first scene/);
+  assert.match(ui.container.querySelector('.cmp-sugg')!.textContent!,/Fill in the idea from my board/);
  }finally{await ui.close();fake.restore();Object.assign(window,{matchMedia});localStorage.clear();}
 });
