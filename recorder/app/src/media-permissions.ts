@@ -2,6 +2,12 @@ import type {DesktopMediaAccessStatus,DesktopMediaPermissions,SceneForgeDesktopB
 import {requestDisplayMedia,requestUserMedia} from './media-access';
 
 export type CapturePermission='camera'|'microphone'|'screen';
+export const capturePermissionOrder=['camera','microphone','screen'] as const;
+export function capturePermissionProgress(permissions:Partial<Pick<DesktopMediaPermissions,CapturePermission>>|null){
+ // A device the Mac doesn't have (unsupported) can't be granted, so it never holds up "All set".
+ const current=capturePermissionOrder.find(kind=>!['granted','unsupported'].includes(permissions?.[kind]??''))??null;
+ return {current,allSet:current===null};
+}
 /** The name to turn on in macOS Privacy & Security: the running app's own, else SceneForge (the standalone app). */
 export const privacyAppName=()=>(typeof window==='undefined'?undefined:window.sceneForge?.appName)||'SceneForge';
 export const permissionLabels:Record<DesktopMediaAccessStatus,string>={

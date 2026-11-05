@@ -16,3 +16,10 @@
 .setup-steps li.active{color:var(--cc-accent-text)}
 .setup-steps li.active>span{background:var(--cc-accent);border-color:var(--cc-accent);color:var(--cc-on-accent)}
 .setup-steps li.done>span{background:var(--cc-ok);border-color:var(--cc-ok);color:var(--cc-on-accent)}
+
+/* One current capture ask; completed dashes stay clay as the next ask advances. */
+.setup-access-progress{display:flex;gap:6px;list-style:none;margin:0 0 18px;padding:0}.setup-access-progress li{height:4px;width:36px;border-radius:4px;background:var(--line)}.setup-access-progress li.granted{background:#c96442}
+.setup-permission.current{position:relative;border-radius:var(--cc-r-lg);box-shadow:inset 0 0 0 1.5px #c96442;background:color-mix(in srgb,#c96442 5%,var(--background))}.setup-permission.current .button.primary{background:#c96442;border-color:#c96442;color:#fff}
+.setup-permission-copy .setup-granted{display:flex;align-items:center;gap:5px;color:var(--cc-ok);animation:setup-grant-in .35s ease-out}.setup-granted svg{animation:setup-grant-in .35s ease-out}
+@keyframes setup-grant-in{from{opacity:0;transform:scale(.9)}to{opacity:1;transform:scale(1)}}
+@media(prefers-reduced-motion:reduce){.setup-permission-copy .setup-granted,.setup-granted svg{animation:none}}
