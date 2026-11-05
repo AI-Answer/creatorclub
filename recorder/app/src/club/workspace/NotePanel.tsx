@@ -77,7 +77,7 @@ export function NotePanel({tile,save,onClose,onCopyPath,isNew,boardId}:{boardId?
  const shown=tile.title||doc.path;
  return <Drawer width={760} label={`Note: ${shown}`} onClose={()=>void close()} header={<>
   <div style={{minWidth:0}}>
-   <div style={{fontWeight:650,fontSize:15}} className="ellipsis">{shown}</div>
+   <div style={{fontWeight:600,fontSize:15}} className="ellipsis">{shown}</div>
    <div className="row small muted" style={{gap:6}}><Icon name="script" size={12}/><span className="ellipsis" title={doc.path}>{doc.path}</span>
     <button type="button" className="btn ghost sm icon-only" style={{width:22,height:22}} aria-label="Copy file name" title="Copy file name" onClick={()=>onCopyPath(doc.path)}><Icon name="copy" size={12}/></button></div>
   </div>

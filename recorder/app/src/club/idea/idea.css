@@ -1,0 +1,119 @@
+/* Package B: document hierarchy and the full-height Idea workspace. */
+.club-root .idea-page { min-width: 0; overflow: clip; }
+.club-root .idea-body { flex: 1; min-height: 0; overflow: clip; }
+.club-root .idea-doc { min-height: 0; background: var(--cc-bg); overflow-y: auto; padding-bottom: 88px; scroll-padding: 64px 0 88px; box-sizing: border-box; }
+.club-root .idea-doc .doc { max-width: 880px; padding: 24px 32px 0; }
+.club-root .idea-doc .doc-part { margin-bottom: 24px; padding-top: 0; padding-bottom: 0; }
+.club-root .idea-doc .doc-part:last-child { margin-bottom: 0; }
+.club-root .idea-doc .doc-part-h { margin: 0 0 12px; font-size: var(--cc-text-base); font-weight: 600; color: var(--cc-text); }
+.club-root .idea-doc .dline { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; padding: 0; margin: 0 0 8px; }
+.club-root .idea-doc .dline-k { width: 120px; white-space: nowrap; font-size: var(--cc-text-sm); font-weight: 400; color: var(--cc-text-3); }
+.club-root .idea-doc .dline .ed { grid-column: 1; margin: 0; padding: 0; border: 0; color: var(--cc-text); font-weight: 400; }
+.club-root .idea-doc .dline.big .ed { font-size: var(--cc-text-base); font-weight: 400; }
+.club-root .idea-doc .dline.title .ed { font-weight: 600; }
+.club-root .idea-doc .ed:empty::before { color: var(--cc-placeholder); font-weight: 400; }
+.club-root .idea-doc .dline .ed:empty::before { font-size: var(--cc-text-base); }
+.club-root .idea-doc .dline-act { opacity: 1; margin-left: auto; }
+.club-root .idea-doc .dline-btn { color: var(--cc-text-2); background: transparent; font-weight: 500; }
+.club-root .idea-doc .dline-btn:hover:not(:disabled) { background: var(--cc-hover); }
+.club-root .idea-doc .idea-proof, .club-root .idea-doc .idea-checks .ok { color: var(--cc-text-2); }
+.club-root .idea-doc .idea-proof { font-size: var(--cc-text-xs); }
+.club-root .idea-doc .idea-proof.ok svg, .club-root .idea-doc .idea-checks .ok svg { color: var(--cc-text-2); }
+.club-root .idea-doc.narrow .doc { padding: 24px 20px 0; }
+.club-root .idea-doc.narrow .dline-k { width: 100%; }
+.club-root .idea-list { width: 260px; padding: 24px 18px; background: var(--cc-bg); }
+.club-root .idea-list-h { gap: 6px; margin-bottom: 14px; }
+.club-root .idea-list-h b { font-size: var(--cc-text-base); font-weight: 600; }
+.club-root .idea-list-add { position: relative; margin-bottom: 12px; }
+.club-root .idea-list-add .input { padding-right: 34px; font-size: var(--cc-text-sm); }
+.club-root .idea-list-add button { position: absolute; right: 3px; top: 3px; width: 28px; height: 28px; padding: 0; }
+.club-root .idea-list-cards { gap: 6px; margin: 12px -6px; }
+.club-root .idea-list-cards li { align-items: flex-start; padding: 8px 6px; }
+.club-root .idea-card-t { display: block; overflow: visible; font-weight: 500; line-height: 1.45; }
+.club-root .idea-card-c { line-height: 1.5; }
+.club-root .idea-top { padding: 12px 20px; }
+.club-root .idea-views button { font-weight: 500; }
+.club-root .idea-views button:focus-visible { outline: 2px solid var(--cc-accent); outline-offset: -2px; }
+.club-root .idea-board { min-height: 0; }
+@media (max-width: 1100px) {
+ .club-root .idea-list { width: 220px; padding: 20px 14px; }
+ .club-root .idea-doc .doc { padding-left: 24px; padding-right: 24px; }
+}
+@media (max-width: 850px) {
+ .club-root .idea-list { width: 190px; }
+ .club-root .idea-doc .dline-k { width: 100%; }
+ .club-root .idea-doc .dline .ed { flex-basis: 100%; }
+ .club-root .idea-doc.narrow { width: 320px; }
+ .club-root .idea-fill .btn { white-space: normal; height: auto; min-height: 30px; text-align: left; }
+}
+.club-root .idea-lines:empty { display: none; }
+.club-root .idea-doc .scene-open.stacked .t { display: block; overflow: visible; -webkit-line-clamp: unset; }
+/* Round 2: labels remain distinct from editable prompts. */
+.club-root .idea-doc .doc-part-h { font-size: var(--cc-text-lg); }
+.club-root .idea-doc .dline-k { grid-column: 1 / -1; width: auto; color: var(--cc-text-2); font-weight: 500; }
+.club-root .idea-doc .ed, .club-root .idea-doc .ed:empty { margin: 0; padding: 0; border: 0; border-radius: var(--cc-r); background: transparent; min-height: 1.5em; outline: none; box-shadow: none; }
+.club-root .idea-doc .ed:hover { outline: 1px solid var(--cc-line-strong); outline-offset: 3px; }
+.club-root .idea-doc .ed:focus { outline: 1px solid var(--cc-accent); outline-offset: 3px; }
+.club-root .idea-doc .dline:hover { background: transparent; }
+.club-root .idea-doc .ed:empty::before { font-size: var(--cc-text-sm); font-weight: 400; }
+.club-root .idea-doc .dline .ed:empty::before { font-size: var(--cc-text-sm); }
+.club-root .idea-doc .doc-proof > .btn.ghost, .club-root .idea-doc .onepager-skeleton > .btn.ghost { margin-left: -10px; }
+.club-root .idea-image-link { display: inline-flex; align-items: center; gap: 6px; color: var(--cc-accent-text); font-size: var(--cc-text-sm); font-weight: 500; }
+.club-root .idea-list-rail { display: none; }
+.club-root .idea-list-content { min-width: 0; }
+.club-root .idea-board-view .idea-list { padding: 16px; }
+.club-root .idea-doc .scene-open.stacked .t { border-left: 0; padding-left: 0; }
+.club-root .idea-doc .scene.closed { position: relative; padding-left: 32px; }
+.club-root .idea-doc .scene > .grip { opacity: 1; width: 24px; left: 4px; top: 0; bottom: 0; display: flex; align-items: center; justify-content: center; color: var(--cc-text-3); cursor: grab; }
+.club-root .idea-doc .scn-bar .len { display: flex; gap: 12px; align-items: center; }
+.club-root .idea-doc .scn-bar .tnum { white-space: nowrap; font-size: var(--cc-text-sm); }
+.club-root .idea-doc .scn-bar { gap: 12px; flex-wrap: wrap; }
+@media (max-width: 1199px) {
+ .club-root .idea-list { width: 80px; padding: 8px 4px; overflow: visible; position: relative; z-index: 8; }
+ .club-root .idea-board-view .idea-list { padding: 8px 4px; }
+ .club-root .idea-list-content { display: none; }
+ .club-root .idea-list-rail { display: inline-flex; align-items: center; justify-content: center; gap: 6px; width: 72px; height: 32px; font-size: var(--cc-text-sm); padding: 0; border: 0; border-radius: var(--cc-r); background: transparent; color: var(--cc-text-2); cursor: pointer; }
+ .club-root .idea-list-rail:hover { background: var(--cc-hover); }
+ .club-root .idea-list-rail:focus-visible { outline: 2px solid var(--cc-accent); }
+ .club-root .idea-list-expanded .idea-list-content { display: block; position: absolute; top: 0; left: 80px; width: 260px; height: 100%; padding: 16px; border: 1px solid var(--cc-line-strong); background: var(--cc-surface); box-shadow: var(--cc-shadow-2); overflow-y: auto; }
+}
+.club-root .idea-doc .scene.closed > .grip { position: absolute; opacity: 1; margin-top: 0; }
+
+.club-root .idea-scene-estimate { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; color: var(--cc-text-2); font-size: var(--cc-text-xs); }
+
+/* Round 3: a readable plan beside the canvas, with the item list one click away. */
+.club-root .idea-top-scrolled { border-bottom-color: var(--cc-line-strong); box-shadow: var(--cc-shadow-1); z-index: 9; }
+.club-root .idea-pane-switch { display: inline-flex; gap: 2px; padding: 3px; margin-bottom: 20px; border-radius: var(--cc-r); background: var(--cc-bg-sunk); }
+.club-root .idea-pane-switch button { padding: 5px 10px; border: 0; border-radius: var(--cc-r-sm); background: transparent; color: var(--cc-text-2); font-size: var(--cc-text-sm); font-weight: 500; white-space: nowrap; cursor: pointer; }
+.club-root .idea-pane-switch button[aria-pressed="true"] { background: var(--cc-card-bg); color: var(--cc-text); box-shadow: var(--cc-shadow-1); }
+.club-root .idea-pane-switch button:hover { color: var(--cc-text); }
+.club-root .idea-pane-switch button:focus-visible { outline: 2px solid var(--cc-accent); outline-offset: -2px; }
+.club-root .idea-summary dl { margin: 0; }
+.club-root .idea-summary dt { margin: 20px 0 6px; color: var(--cc-text-2); font-size: var(--cc-text-xs); font-weight: 600; }
+.club-root .idea-summary dt:first-child { margin-top: 0; }
+.club-root .idea-summary dd { margin: 0; font-size: var(--cc-text-base); line-height: 1.5; overflow-wrap: anywhere; }
+.club-root .idea-summary .idea-summary-title { font-size: var(--cc-text-lg); font-weight: 600; }
+.club-root .idea-summary > .btn { margin: 16px 0 0 -10px; white-space: nowrap; }
+.club-root .idea-doc .doc-empty { gap: 8px; }
+.club-root .idea-doc .doc-empty > .idea-hint { margin: 0 8px 0 0; }
+.club-root .idea-doc .doc-empty > .btn:first-of-type { margin-left: 0; }
+
+.club-root .idea-list-cards .idea-list-card { display: flex; align-items: flex-start; gap: 8px; width: 100%; padding: 0; border: 0; background: transparent; color: var(--cc-text); font: inherit; text-align: left; cursor: pointer; }
+.club-root .idea-list-cards .idea-list-card:focus-visible { outline: 2px solid var(--cc-accent); outline-offset: 4px; border-radius: var(--cc-r-sm); }
+.club-root .idea-list-cards li.selected { background: var(--cc-hover); box-shadow: inset 2px 0 var(--cc-text-3); }
+
+/* Round 4: document fields share a left edge and quiet prompts at rest. */
+.club-root .idea-placeholder, .club-root .idea-doc .ed:empty::before { color: var(--cc-placeholder); font-weight: 400; }
+.club-root .idea-doc .dline-act { grid-column: 2; grid-row: 2; }
+.club-root .idea-doc .dline:not(:has(.dline-k)) .dline-act { grid-row: 1; }
+.club-root .idea-reuse { margin: 0 0 12px; font-size: var(--cc-text-sm); line-height: 1.5; color: var(--cc-text-2); }
+.club-root .idea-text-link { display: inline; padding: 0; border: 0; background: transparent; color: var(--cc-text); font: inherit; cursor: pointer; }
+.club-root .idea-text-link:hover { text-decoration: underline; }
+.club-root .idea-text-link:focus-visible { outline: 2px solid var(--cc-accent); outline-offset: 2px; }
+.club-root .idea-summary-proof { margin: 20px 0 0; color: var(--cc-text-2); font-size: var(--cc-text-xs); line-height: 1.6; }
+.club-root .idea-doc .doc-proof { position: static; display: flex; clear: both; padding: 4px 0 8px; min-height: 24px; }
+.club-root .idea-doc .doc-proof .idea-proof { display: flex; align-items: center; gap: 6px; margin: 0; }
+.club-root .idea-doc .doc-empty > .idea-hint { color: var(--cc-text); }
+.club-root .idea-doc :is(.doc-part, .thumbnail-studio, .ts-setup, .ts-results-heading, .ts-feed) { scroll-margin-top: 0; }
+.club-root:where([data-theme=dark], [data-theme=dark] *) .idea-page :is(.idea-image-link, .linkish) { color: var(--cc-text); }
+.club-root .idea-image-link:hover { text-decoration: underline; }

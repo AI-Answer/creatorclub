@@ -47,9 +47,9 @@ test('an empty board explains itself at full size with the one Add menu for ever
   await flush();await flush();
   const toolbar=ui.container.querySelector('.btoolbar')!;
   // While the board is empty, Add lives in the empty state (outside the zoomed canvas), not twice.
-  assert.deepEqual([...toolbar.querySelectorAll('button')].map(item=>item.getAttribute('aria-label')||item.textContent?.trim()),['Zoom out','Zoom in','Fit the whole board']);
+  assert.deepEqual([...toolbar.querySelectorAll('button')].map(item=>item.getAttribute('aria-label')||item.textContent?.trim()),['Zoom out','Zoom in','Fit the whole board (Shift+1)']);
   const empty=ui.container.querySelector('.board-empty')!;
-  assert.match(empty.textContent!,/This video's board/);assert.equal(empty.closest('.canvas'),null,'not scaled with the canvas');
+  assert.match(empty.textContent!,/This video's board is empty/);assert.match(empty.textContent!,/Add links, images or notes/);assert.equal(empty.closest('.canvas'),null,'not scaled with the canvas');
   await act(async()=>button(empty,'Add to board').click());
   const items=[...document.querySelectorAll('[role=menuitem]')].map(item=>item.textContent);
   assert.deepEqual(items,['Note','Link','Image or Markdown file','Notes folder']);

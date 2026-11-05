@@ -19,7 +19,7 @@ test('the proof is the board\'s own videos that have a ×-number, the highest fi
  assert.deepEqual(cards.map(card=>card.id),['b','d','a'],'a video without a number and a note are not proof');
  assert.deepEqual(proofLine(cards),{proven:true,text:"2 videos on your board got 3× or more their channel's usual views."});
  assert.deepEqual(proofLine([tile('a',1.4)]),{proven:false,text:"No video on your board got 3× its channel's usual views yet. The best got 1.4×."});
- assert.equal(proofLine([]).text,'No proof yet: add a video like this one to the board.');
+ assert.equal(proofLine([]).text,'No similar video on the board yet.');
 });
 
 test('a pair is checked against the rules Claude is held to, and says which one it breaks', ()=>{
@@ -64,7 +64,7 @@ test('Fill writes what is still empty: the package while any part of it is, the 
 
 test('while a board video is still being read, the proof says so instead of asking for a video; one with no number says why', ()=>{
  const reading:ResearchTile={id:'r',kind:'video',url:'https://www.youtube.com/watch?v=abc',meta:{},createdAt:''};
- assert.deepEqual(proofLine([reading]),{proven:false,text:'1 video on your board is still being read. Its number shows here when it\'s done.'});
+ assert.deepEqual(proofLine([reading]),{proven:false,text:'Reading 1 reference video…'});
  const read:ResearchTile={...reading,title:'A video',meta:{views:1200}};
  assert.equal(proofLine([read]).text,"The video on your board has no number: its channel's usual views aren't known.");
  assert.equal(proofLine([read,tile('b',4)]).proven,true);

@@ -110,7 +110,7 @@ function MineTile({tile,mine,onRemove,onOpenVideo}:TileBodyProps){
   <div className="tb">
    {mine===null?<div className="small muted">“{tile.title??'This video'}” is no longer in this channel.</div>:<>
     {mine&&<div style={{marginBottom:6}}><StagePill stage={mine.stage}/></div>}
-    <div style={{fontWeight:600,fontSize:13.5,lineHeight:1.35}} className="clamp2">{mine?.title??tile.title}</div>
+    <div style={{fontWeight:600,fontSize:'var(--cc-text-lg)',lineHeight:1.4}} className="clamp2">{mine?.title??tile.title}</div>
     {why&&<p className="small muted clamp3" style={{margin:'6px 0 0',lineHeight:1.45}}>{why}</p>}
     {mine&&onOpenVideo&&<button type="button" className="btn sm ghost" style={{marginTop:8}} onClick={()=>onOpenVideo(mine)}><Icon name={idea?'idea':'open-external'} size={13}/>{idea?'Open idea':'Open video'}</button>}
    </>}
@@ -134,10 +134,10 @@ function VideoTile({tile,videoId,reading,onRemove,onRetryRead,onBreakdown}:TileB
  return <>
   <TileHead icon="youtube" label="YouTube" onRemove={onRemove}/>
   <div className="tb">
-   <Thumb videoId={source} src={source?undefined:picture} seed={tile.id} chip={<MultChip m={meta.multiplier} who={creator||undefined} onThumb dash/>}/>
-   <div style={{fontWeight:600,fontSize:13.5,lineHeight:1.35,margin:'10px 0 6px'}} className="clamp2">{tile.title??linkHost(tile.url??'')}</div>
+   <Thumb videoId={source} src={picture} seed={tile.id} fallback={<span className="board-video-placeholder"><Icon name="play" size={28}/><span>{tile.title||linkHost(tile.url??'')}</span></span>} chip={<MultChip m={meta.multiplier} who={creator||undefined} onThumb/>}/>
+   <div style={{fontWeight:600,fontSize:'var(--cc-text-lg)',lineHeight:1.4,margin:'10px 0 6px'}} className="clamp2">{tile.title??linkHost(tile.url??'')}</div>
    {meta.channel&&<div className="row small muted" style={{marginBottom:6}}><Avatar name={meta.channel} size="xs"/><span className="ellipsis">{meta.channel}</span></div>}
-   {unread?(reading?.phase==='failed'?<ErrorLine message={reading.message} onRetry={onRetryRead}/>:<div className="small muted row"><Spinner size={13} label="Reading the video"/>Reading the video…</div>)
+   {unread?(reading?.phase==='failed'?<ErrorLine message={reading.message} onRetry={onRetryRead}/>:<div className="small muted row"><Spinner size={16} label="Reading reference video"/>Reading 1 reference video…</div>)
     :meta.views!==undefined?<div className="stats"><span><b>{fmtNum(meta.views)}</b> views</span>{meta.ageDays!==undefined&&<span>{fmtDays(meta.ageDays)}</span>}</div>:null}
    <div className="row" style={{marginTop:8,gap:6,flexWrap:'wrap'}}>
     {tile.url&&<a className="btn sm ghost" href={tile.url} target="_blank" rel="noopener noreferrer"><Icon name="open-external" size={13}/>Open</a>}
@@ -192,8 +192,8 @@ function LinkTile({tile,onRemove}:TileBodyProps){
  return <>
   <TileHead icon="link" label="Link" onRemove={onRemove}/>
   <div className="tb row" style={{alignItems:'flex-start',gap:10}}>
-   <span style={{width:32,height:32,borderRadius:'var(--cc-r-lg)',background:'var(--cc-bg-sunk)',fontWeight:700,color:'var(--cc-text-2)',display:'inline-flex',alignItems:'center',justifyContent:'center',flex:'none'}}>{host.charAt(0).toUpperCase()}</span>
-   <div style={{minWidth:0}}><div style={{fontWeight:600,fontSize:13.5,lineHeight:1.35}}>{tile.title??host}</div><a href={tile.url} target="_blank" rel="noopener noreferrer" className="small ellipsis" style={{color:'var(--cc-accent-text)',display:'block'}}>{host}</a></div>
+   <span style={{width:32,height:32,borderRadius:'var(--cc-r-lg)',background:'var(--cc-bg-sunk)',fontWeight:600,color:'var(--cc-text-2)',display:'inline-flex',alignItems:'center',justifyContent:'center',flex:'none'}}>{host.charAt(0).toUpperCase()}</span>
+   <div style={{minWidth:0}}><div style={{fontWeight:600,fontSize:'var(--cc-text-lg)',lineHeight:1.4}}>{tile.title??host}</div><a href={tile.url} target="_blank" rel="noopener noreferrer" className="small ellipsis" style={{color:'var(--cc-accent-text)',display:'block'}}>{host}</a></div>
   </div>
  </>;
 }

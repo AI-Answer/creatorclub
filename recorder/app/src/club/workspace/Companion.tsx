@@ -11,11 +11,12 @@ import {featuredSkills,matchSkills,slashQuery,type EditSkill,type InstalledSkill
 import {ErrorLine} from '../ErrorLine';
 import {ASK_CLAUDE} from './ask-claude';
 import {Button,Icon,Spinner,cn,type IconName} from '../ui';
-import {STEP_NAME,type IdeaPartKey,atBottom,elapsed,greeting,lookingAt,previewOf,stepSummary,suggestions,tabOf,withDividers} from './companion-logic';
+import {STEP_NAME,type IdeaPartKey,atBottom,sectionPart,elapsed,greeting,lookingAt,previewOf,stepSummary,suggestions,tabOf,withDividers} from './companion-logic';
 import {Markdown} from './Markdown';
 import {visibleInterval} from '../visible-interval';
 import {ReplaceScenes} from './ReplaceScenes';
 import {useCompanion,type Live} from './useCompanion';
+import {useIdeaSection,useIdeaView} from '../idea/view';
 import './companion.css';
 import {boardBase} from './board-base';
 
@@ -48,9 +49,12 @@ export function Companion({videoId,videoTitle,videoWhy,tab,part,scene,screen,sel
  roomy?:boolean|number;
 }){
  const aiAvailable=useAiAvailable();
- const narrow=useNarrow(roomy);
+ const [ideaView]=useIdeaView(),ideaSection=useIdeaSection();
+ const boardView=tab==='idea'&&ideaView==='board';
+ const narrow=useNarrow(typeof roomy==='number'?Math.max(1199,roomy):roomy||1199);
  const [saved,setSaved]=useState(readOpen);
  const [openHere,setOpenHere]=useState(false);
+ useEffect(()=>{if(narrow)setOpenHere(false);},[narrow]);
  const open=narrow?openHere:saved;
  const [name,setName]=useState('Claude');
  useEffect(()=>{clubFetch<{defaultAi?:string}>('/settings').then(settings=>setName(settings.defaultAi==='codex'?'ChatGPT':'Claude'),()=>{});},[]);
@@ -76,7 +80,7 @@ export function Companion({videoId,videoTitle,videoWhy,tab,part,scene,screen,sel
  const companion=useCompanion(videoId,{onChanged,beforeApply,editor:()=>editorNow.current?.get()??null});
  const {messages,live}=companion;
  const working=live?.phase==='working';
- const context:CompanionContext=useMemo(()=>({tab,...(scene?{sceneId:scene.id,sceneTitle:scene.title}:{}),screen,...(selection?.length?{selection:[...selection].slice(0,200)}:{})}),[tab,scene,screen,selection]);
+ const context:CompanionContext=useMemo(()=>({tab,...(!boardView&&scene?{sceneId:scene.id,sceneTitle:scene.title}:{}),screen:tab==='idea'?(boardView?'Board':ideaSection??screen):screen,...(selection?.length?{selection:[...selection].slice(0,200)}:{})}),[tab,scene,screen,selection,boardView,ideaSection]);
  const [text,setText]=useState('');
  const input=useRef<HTMLTextAreaElement>(null);
  const rail=useRef<HTMLButtonElement>(null);
@@ -166,8 +170,8 @@ export function Companion({videoId,videoTitle,videoWhy,tab,part,scene,screen,sel
 
  const title=`Ask ${name}`;
  if(!open)return <aside className="cmp collapsed" aria-label={title}>
-  <button ref={rail} type="button" className="cmp-rail" onClick={()=>toggle(true)} aria-label={`Show ${title}`} title={`Show ${title}`}>
-   <BrandLogo brand={name==='ChatGPT'?'chatgpt':'claude'} size={20} working={working}/><span>{title}</span>
+  <button ref={rail} type="button" className="cmp-rail" onClick={()=>toggle(true)} aria-label={`Open ${title}`} title={title}>
+   <BrandLogo brand={name==='ChatGPT'?'chatgpt':'claude'} size={20} working={working}/><span className="cmp-sr">{title}</span>
   </button>
  </aside>;
 
@@ -180,14 +184,14 @@ export function Companion({videoId,videoTitle,videoWhy,tab,part,scene,screen,sel
  const items=here?withDividers(here,tab):[];
  const sceneCount=outline?.scenes.length??0;
  const recorded=scenes?scenes.filter(one=>one.takes.length>0).length:undefined;
- const ideas=suggestions(tab,{part:part?.key,titles:pkg?.titles.filter(one=>one.trim()).length,scenes:sceneCount,scene,selected:tab==='research'?selection?.length:editor?.state?.selected,notes:editor?.state?.notes,stalls:editor?.state?.stalls,opening:editor?.state?.opening,named:editor?.state?.named,polished:(messages??[]).some(one=>one.role==='user'&&one.text.trimStart().startsWith('/proof-edit')),hook:!!pkg?.hook.spoken.trim(),longest:Math.max(0,...(outline?.scenes??[]).map(one=>one.seconds||0)),
-  tiles:tab==='idea'||tab==='research'?tiles:undefined,recorded,titled:!!videoTitle?.trim()||!!pkg?.titles.some(one=>one.trim()),thumbnail:!!pkg?.thumbnailText.trim()});
+ const ideas=suggestions(tab,{part:boardView?undefined:sectionPart(ideaSection)??part?.key,titles:pkg?.titles.filter(one=>one.trim()).length,scenes:boardView?0:sceneCount,scene:boardView?undefined:scene,selected:tab==='research'?selection?.length:editor?.state?.selected,notes:editor?.state?.notes,stalls:editor?.state?.stalls,opening:editor?.state?.opening,named:editor?.state?.named,polished:(messages??[]).some(one=>one.role==='user'&&one.text.trimStart().startsWith('/proof-edit')),hook:!!pkg?.hook.spoken.trim(),longest:Math.max(0,...(outline?.scenes??[]).map(one=>one.seconds||0)),
+  tiles:tab==='idea'||tab==='research'?tiles:undefined,recorded,titled:!!videoTitle?.trim()||!!pkg?.titles.some(one=>one.trim()),thumbnail:!!pkg?.thumbnailText.trim()}).map(plainIdeaCopy);
  // Nothing asked yet: a short greeting for this step with the best prompts right under it, instead of a blank column.
  const fresh=!!here&&!here.length&&!live&&!companion.loadError;
  // Proposals are waiting for a choice: the suggestions step aside so the cards are the one thing to act on.
  const lastMessage=messages?.at(-1),awaiting=!!lastMessage&&'cards' in lastMessage&&lastMessage.cards.some(card=>card.state==='offered'&&(tab==='edit'||!isEditAction(card.action)));
- const chips=ideas.length>0&&<div className={cn('cmp-sugg',fresh&&'fresh')} aria-label="Suggestions">{ideas.map(idea=><button key={idea} type="button" disabled={!aiAvailable} title={!aiAvailable?AI_CONNECT_HINT:undefined} onClick={()=>void ask(idea)}>{idea}</button>)}</div>;
- const selected=tab==='edit'?editor?.state?.selected??0:tab==='research'?selection?.length??0:0;
+ const chips=ideas.length>0&&<div className={cn('cmp-sugg',fresh&&'fresh')} aria-label="Suggestions">{ideas.map(idea=><button key={idea} type="button" disabled={!aiAvailable} title={!aiAvailable?AI_CONNECT_HINT:undefined} onClick={()=>void ask(idea)}><span>{idea.replace(/^\/[\w-]+\s+/,'')}</span><Icon name="next" size={14}/></button>)}</div>;
+ const selected=tab==='edit'?editor?.state?.selected??0:tab==='research'||boardView?selection?.length??0:0;
  // For reference: every change from the chat that is applied now, newest first, with Undo.
  const applied=(messages??[]).flatMap(message=>message.role==='assistant'&&'cards' in message?message.cards.map((card,index)=>({message,card,index})):[]).filter(({card})=>card.state==='applied').reverse();
  return <aside className={cn('cmp',narrow&&'over')} aria-label={title} onKeyDown={onPanelKey}>
@@ -215,7 +219,7 @@ export function Companion({videoId,videoTitle,videoWhy,tab,part,scene,screen,sel
    {companion.loadError?<ErrorLine message={companion.loadError} onRetry={companion.reload}/>
     :!messages?<div className="cmp-loading"><span className="row small muted" role="status"><Spinner label="Loading the conversation" size={16}/>Loading the conversation…</span></div>
     :fresh&&<div className="cmp-hello">
-     <p>{greeting(tab,{part:part?.key,scenes:sceneCount,tiles:tab==='idea'||tab==='research'?tiles:undefined,recorded})}</p>
+     <p>{plainIdeaCopy(greeting(tab,{part:boardView?undefined:sectionPart(ideaSection)??part?.key,scenes:boardView?0:sceneCount,tiles:tab==='idea'||tab==='research'?tiles:undefined,recorded}))}</p>
      {chips||null}
     </div>}
    {items.map(item=>item.kind==='divider'?<div key={item.key} className="cmp-divider" role="separator">{item.label}</div>
@@ -245,7 +249,7 @@ export function Companion({videoId,videoTitle,videoWhy,tab,part,scene,screen,sel
     {picError&&<p className="cmp-pic-err" role="alert">{picError}</p>}
     <textarea disabled={!aiAvailable} title={!aiAvailable?AI_CONNECT_HINT:undefined} ref={input} rows={2} value={text} onChange={event=>setText(event.target.value)} onKeyDown={onKeyDown} onPaste={event=>{const files=[...event.clipboardData.files];if(files.length){event.preventDefault();void addPictures(files);}}} placeholder={working?'Esc stops the reply':'Ask for a change, or type / to use a skill'} aria-label={`Message to ${name}`}/>
     <div className="cmp-input-row">
-    <span className="cmp-context" title="What Claude is looking at"><Icon name="Eye" size={12}/>{lookingAt(tab,scene)}{scene&&<> · {scene.title}</>}{!scene&&part&&<> · {part.name}</>}{selected>0&&<> · {selected} selected</>}</span>
+    <span className="cmp-context" title={`What ${name} can see`}><Icon name="Eye" size={12}/>Sees: {tab==='idea'&&boardView?'Board':tab==='idea'&&ideaSection?ideaSection:lookingAt(tab,scene)}{!boardView&&!(tab==='idea'&&ideaSection)&&scene&&<> · {scene.title}</>}{!boardView&&!(tab==='idea'&&ideaSection)&&!scene&&part&&<> · {part.name}</>}{selected>0&&<> · {selected} selected</>}</span>
     <span className="grow"/>
     <label className="cmp-attach" title="Add a picture (or paste or drop one)"><Icon name="Image" size={15}/><input type="file" className="sr-only" accept="image/png,image/jpeg" multiple onChange={event=>{void addPictures([...(event.target.files??[])]);event.target.value='';}}/></label>
     {working
@@ -255,6 +259,13 @@ export function Companion({videoId,videoTitle,videoWhy,tab,part,scene,screen,sel
    </form>
   </div>
  </aside>;
+}
+
+/** Keep the prompts conversational while preserving skill commands when sent. */
+function plainIdeaCopy(text:string){
+ return text.replace('Which pair is strongest, and why?','Ask which title and thumbnail work best together')
+  .replace('Ask me which pair is strongest, or for titles and thumbnail words to choose from.','Ask which title and thumbnail work best together, or ask for title ideas and words for the thumbnail.')
+  .replace(/\bhooks\b/g,'first lines');
 }
 
 const NARROW='(max-width: 1279px)';

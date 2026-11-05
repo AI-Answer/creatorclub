@@ -1,0 +1,2 @@
+.club-root .idea-select { height: 32px; min-height: 32px; gap: 12px; padding: 0 10px; border: 1px solid var(--cc-line-strong); border-radius: var(--cc-r); font-size: var(--cc-text-sm); font-weight: 400; background: var(--cc-surface); }
+.club-root .idea-select > svg { flex: none; color: var(--cc-text-2); }

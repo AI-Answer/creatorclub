@@ -1,3 +1,4 @@
+import {PlanSelect} from './PlanSelect';
 import {AI_CONNECT_HINT,useAiAvailable} from '../ai-status';
 import {useEffect,useRef,useState,type DragEvent,type KeyboardEvent,type PointerEvent} from 'react';
 import {CARD_DRAG} from '../idea/idea-logic';
@@ -124,9 +125,8 @@ export function ScenesColumn({bare=false,acceptDrops=false,aiName='Claude',aiBra
  const busy=drafting||scripting;
  return <section className="scn" aria-label="Scenes">
   {bare&&scenes.length>0&&<div className="scn-bar">
-   <div className="len"><span className="tnum"><b style={{color:over?'var(--cc-warn)':'var(--cc-text)'}}>{clockTime(total)}</b>{target>0?' of':''}</span>
-    <select className="select" value={target} onChange={event=>onTarget(Number(event.target.value))} aria-label="Target length">
-     <option value={0}>No target</option>{TARGET_SECONDS.map(seconds=><option key={seconds} value={seconds}>{seconds/60} min</option>)}</select></div>
+   <div className="len"><span className="tnum"><b style={{color:over?'var(--cc-warn)':'var(--cc-text)'}}>Length {clockTime(total)}</b></span>
+    <PlanSelect label="Target length" value={String(target)} onChange={next=>onTarget(Number(next))} options={[{value:"0",label:"No target"},...TARGET_SECONDS.map(seconds=>({value:String(seconds),label:`${seconds/60} min`}))]}/></div>
    <span className="grow"/>
    <Menu align="right" label={`Write with ${aiName}`} items={writes} button={(toggle,open)=><Button size="sm" aria-expanded={open} aria-haspopup="menu" title={!aiAvailable?AI_CONNECT_HINT:undefined} disabled={!aiAvailable||!writes.length} onClick={toggle}>
     {busy?<span className="spin" role="status" aria-label="Writing"/>:<BrandLogo brand={aiBrand} size={18}/>}Write with {aiName}<Icon name="expand" size={13}/></Button>}/>
@@ -138,9 +138,8 @@ export function ScenesColumn({bare=false,acceptDrops=false,aiName='Claude',aiBra
   </div>}
   {!bare&&scenes.length>0&&<div className="row" style={{marginBottom:14,gap:'8px 14px',flexWrap:'wrap'}}>
    <span className="doc-sub" style={{margin:0}}>Talk through each one when you record.</span><span className="grow"/>
-   <div className="len" style={{whiteSpace:'nowrap'}}><span className="tnum"><b style={{color:over?'var(--cc-warn-text)':'var(--cc-text)'}}>{clockTime(total)}</b>{target>0?' of':''}</span>
-    <select className="select" style={{height:26,fontSize:12.5}} value={target} onChange={event=>onTarget(Number(event.target.value))} aria-label="Target length">
-     <option value={0}>No target</option>{TARGET_SECONDS.map(seconds=><option key={seconds} value={seconds}>{seconds/60} min</option>)}</select>
+   <div className="len" style={{whiteSpace:'nowrap'}}><span className="tnum"><b style={{color:over?'var(--cc-warn-text)':'var(--cc-text)'}}>Length {clockTime(total)}</b></span>
+    <PlanSelect label="Target length" value={String(target)} onChange={next=>onTarget(Number(next))} options={[{value:"0",label:"No target"},...TARGET_SECONDS.map(seconds=>({value:String(seconds),label:`${seconds/60} min`}))]}/>
     {target>0&&<span className="bar" style={{width:110}}><i className={over?'over':''} style={{width:`${Math.min(100,total/target*100)}%`}}/></span>}</div>
   </div>}
   {redraft&&<ReplaceScenes scenes={known?.length?known:scenes.map((scene,i)=>({id:scene.id??String(i),title:scene.title,seconds:scene.seconds,takes:[],status:''}))} action="Rewriting the scenes" undoLine="You can undo it from the line above the scenes."
@@ -150,7 +149,7 @@ export function ScenesColumn({bare=false,acceptDrops=false,aiName='Claude',aiBra
    ?(drafting
     ?<div className="card" style={{padding:16,display:'flex',flexDirection:'column',gap:10}} role="status" aria-label={draftLine??'Drafting scenes'}>{[0,1,2,3].map(i=><div key={i} className="shimmer" style={{height:74}}/>)}{draftLine&&<span className="faint small">{draftLine}</span>}</div>
     :<div className="plan-empty">
-      <p>Add a scene and write your talking points or script. Drafting with AI is optional.</p>
+      <p>Add a scene and write your talking points or script. Writing with {aiName} is optional.</p>
       <Button variant="primary" onClick={()=>add(0)}><Icon name="add" size={15}/>Add scene</Button>
       <Button title={!aiAvailable?AI_CONNECT_HINT:undefined} disabled={!aiAvailable} onClick={onDraft}><Icon name="draft" size={15}/>Draft scenes from the board</Button></div>)
    :scenes.map((scene,i)=>{
@@ -162,16 +161,16 @@ export function ScenesColumn({bare=false,acceptDrops=false,aiName='Claude',aiBra
     const isOpen=openId===id;
     const place=cn('card scene',isOpen?'open':'closed',focusId===id&&'focus',dragIndex===i&&'dragging',overIndex===i&&dragIndex!==null&&dragIndex!==i&&'drop-before');
     if(!isOpen)return <div key={id} id={sceneCardId(id)} ref={element=>{cards.current[i]=element;}} className={cn(place,dropOn===id&&'drop-on')} {...dropProps(id,i)}>
-     <span className="grip" aria-hidden onPointerDown={event=>onGrip(event,i)}><Icon name="drag" size={15}/></span>
+     <span className="grip" aria-hidden onPointerDown={event=>onGrip(event,i)}><Icon name="drag" size={14}/></span>
      {bare?<button type="button" className="scene-open stacked" aria-expanded={false} aria-label={`Scene ${i+1}: ${scene.title}`} aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"
       title="Open the scene. Alt+↑ or Alt+↓ moves it." onClick={()=>open(id)} onKeyDown={event=>moveKeys(event,i,true)}>
       <span className="scene-meta">
        {/* Not recorded is a quiet dot here, as on Borumi's scene cards: the words show once there is a take. */}
-       {progress&&progress.takes.length?status:<span className="sst"><span className="d"/><span className="sr-only">Not recorded</span></span>}
+       {progress&&progress.takes.length?status:null}
        <span className="n">Scene {i+1}</span><span className="grow"/>
        {decide.length>0&&<span className="faint small">{decide.length} to decide</span>}
        {writing&&<span className="spin" role="status" aria-label="Writing the script"/>}
-       <span className="tnum">{clockTime(scene.seconds)}</span>
+       <span className="tnum">Est. {clockTime(scene.seconds)}</span>
       </span>
       <span className="t">{scene.title||'Untitled'}</span>
      </button>
@@ -185,12 +184,12 @@ export function ScenesColumn({bare=false,acceptDrops=false,aiName='Claude',aiBra
     </div>;
     return <div key={id} id={sceneCardId(id)} ref={element=>{cards.current[i]=element;}} aria-label={`Scene ${i+1}`} className={cn(place,dropOn===id&&'drop-on')} {...dropProps(id,i)} onClick={()=>onFocus(id)}>
      <div className="scene-h">
-      <button type="button" className="grip" aria-label="Drag to reorder, or use the arrow keys" onPointerDown={event=>onGrip(event,i)} onClick={event=>event.stopPropagation()} onKeyDown={event=>moveKeys(event,i,false)}><Icon name="drag" size={15}/></button>
+      <button type="button" className="grip" aria-label="Drag to reorder, or use the arrow keys" onPointerDown={event=>onGrip(event,i)} onClick={event=>event.stopPropagation()} onKeyDown={event=>moveKeys(event,i,false)}><Icon name="drag" size={14}/></button>
       <span className="n">{i+1}</span>
       <Ed live onLeave={leave} className="t" value={scene.title} ph="Scene title" onChange={title=>setScene(i,{title})}/>
       {status}
-      <input className="dur" key={`${id}-${scene.seconds}`} defaultValue={clockTime(scene.seconds)} aria-label="Scene length" onClick={event=>event.stopPropagation()}
-       onBlur={event=>{const seconds=parseClock(event.target.value);if(seconds)setScene(i,{seconds});else event.target.value=clockTime(scene.seconds);}} onKeyDown={event=>event.key==='Enter'&&event.currentTarget.blur()}/>
+      <span className="idea-scene-estimate">Est. <input className="dur" key={`${id}-${scene.seconds}`} defaultValue={clockTime(scene.seconds)} aria-label="Scene length" onClick={event=>event.stopPropagation()}
+       onBlur={event=>{const seconds=parseClock(event.target.value);if(seconds)setScene(i,{seconds});else event.target.value=clockTime(scene.seconds);}} onKeyDown={event=>event.key==='Enter'&&event.currentTarget.blur()}/></span>
       <span onClick={event=>event.stopPropagation()}><Menu align="right" label="Scene options" button={toggle=><IconButton icon="more" label="Scene options" onClick={toggle}/>} items={menuFor(scene,i,id)}/></span>
       <span onClick={event=>event.stopPropagation()}><IconButton icon="collapse" label="Close scene" onClick={()=>setOpenId(null)}/></span>
      </div>
