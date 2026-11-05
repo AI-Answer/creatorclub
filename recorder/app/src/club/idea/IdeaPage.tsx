@@ -16,6 +16,7 @@ import type {Route} from '../routes';
 import {Board,addFromText} from '../workspace/Board';
 import {youtubeId} from '../board';
 import {useAi,type ConnectedAi} from '../useAi';
+import {ThumbnailStudio} from './ThumbnailStudio';
 import {CARD_DRAG,cardText,emptyParts,pairChecks,proofCards,proofLine,type SectionKey} from './idea-logic';
 
 const WHAT:Record<PlanJobKind,string>={package:'title, thumbnail and hook',outline:'scenes',script:'script'};
@@ -292,7 +293,7 @@ function PlanPage({video,plan,known,focusId,cards,ai,showPart,onOpen,onFocus,onT
     <Ed value={thumbs[pairAt]} ph="Add 2 to 5 words" label="Words on the thumbnail" onChange={text=>{edit(withThumb({...value,thumbs},pairAt,text,video.title));}} onLeave={save}/>
    </Line>
    {(versions.length>0||thumbs[pairAt].trim())&&checks.length>0&&<ul className="idea-checks">{checks.map(check=><li key={check.text} className={check.ok?'ok':'no'}><Icon name={check.ok?'check':'warning'} size={13}/>{check.text}</li>)}</ul>}
-   <ThumbnailImage videoId={video.id}/>
+   <ThumbnailStudio key={video.id} video={video} thumbnailText={thumbs[pairAt]} cards={cards}><ThumbnailImage videoId={video.id}/></ThumbnailStudio>
   </Part>
 
   <Part part="hook" title="What you say first" flash={flash==='hook'} onOpen={onOpen}>

@@ -4,6 +4,8 @@ import { createHash } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { z } from 'zod';
+import {imageExtension} from './board-images.js';
+import {findFfmpeg,runTool,toolEnv} from './tools.js';
 import { PUBLISH_VISIBILITIES, type PublishChannel, type PublishingState, type PublishRecord, type PublishVisibility } from '../../shared/club.js';
 import { ClubError } from './errors.js';
 import { runningOnce, startJobOnce } from './jobs.js';
@@ -59,6 +61,28 @@ export function imageKind(bytes: Buffer): (typeof THUMBNAIL_EXTENSIONS)[number] 
   if (bytes.length >= 8 && bytes.subarray(0, 8).equals(Buffer.from('89504e470d0a1a0a', 'hex'))) return 'png';
   if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return 'jpg';
   return undefined;
+}
+/** Shared with the thumbnail studio: publishing and the Idea page read these exact files. */
+export async function setThumbnail(slug:string,id:string,bytes:Buffer):Promise<void>{
+ await store.readVideo(slug,id);
+ let ext=imageKind(bytes);
+ if((!ext&&!imageExtension(bytes))||bytes.length>20*1024*1024)throw new ClubError(NOT_AN_IMAGE);
+ if(!ext||bytes.length>THUMBNAIL_MAX){
+  const ffmpeg=await findFfmpeg();if(!ffmpeg)throw new ClubError('Install ffmpeg to resize this image for YouTube.');
+  const scratch=await fs.mkdtemp(path.join(store.videoDir(slug,id),'.thumbnail-'));
+  try{
+   const source=path.join(scratch,'source'+imageExtension(bytes)),output=path.join(scratch,'thumbnail.jpg');
+   await fs.writeFile(source,bytes,{flag:'wx'});
+   const result=await runTool(ffmpeg,['-v','error','-i',source,'-frames:v','1','-vf','scale=1280:720:force_original_aspect_ratio=decrease','-q:v','3',output],{env:toolEnv({}),timeoutMs:30_000});
+   if(result.code!==0)throw new ClubError('Could not resize that thumbnail for YouTube.');
+   bytes=await fs.readFile(output);ext=imageKind(bytes);
+  }finally{await fs.rm(scratch,{recursive:true,force:true});}
+ }
+ if(!ext||bytes.length>THUMBNAIL_MAX)throw new ClubError(NOT_AN_IMAGE);
+ await store.withLock(`thumbnail:${store.videoDir(slug,id)}`,async()=>{
+  await store.writeFileAtomic(path.join(store.videoDir(slug,id),`thumbnail.${ext}`),bytes);
+  for(const other of THUMBNAIL_EXTENSIONS)if(other!==ext)await fs.rm(path.join(store.videoDir(slug,id),`thumbnail.${other}`),{force:true});
+ });
 }
 const thumbnailUpload = multer({ storage: multer.memoryStorage(), limits: { files: 1, fileSize: THUMBNAIL_MAX } });
 const NEEDS_EXPORT = 'Export the video again, then publish.';
@@ -166,8 +190,7 @@ export function publishingRoutes(router: Router, deps: { handler: (fn: (req: Req
     await store.readVideo(slug, id);
     const ext = req.file ? imageKind(req.file.buffer) : undefined;
     if (!req.file || !ext) throw new ClubError(NOT_AN_IMAGE);
-    for (const file of thumbnailFiles(slug, id)) await fs.rm(file, { force: true });
-    await store.writeFileAtomic(path.join(store.videoDir(slug, id), `thumbnail.${ext}`), req.file.buffer);
+    await setThumbnail(slug, id, req.file.buffer);
     res.status(204).end();
   }));
   router.get('/videos/:id/thumbnail', handler(async (req, res) => {

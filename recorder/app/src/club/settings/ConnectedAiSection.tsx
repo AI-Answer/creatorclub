@@ -6,6 +6,7 @@ import {ErrorLine} from '../ErrorLine';
 import {connectLabel} from '../useConnect';
 import {Button,Icon,Input,Tabs,type Tab} from '../ui';
 import {BrandLogo} from '../../BrandLogo';
+import {HiggsfieldRow} from './HiggsfieldRow';
 
 /** Claude and ChatGPT sign in with your own accounts. Gemini is optional and takes your own API key. Which AI writes is chosen here too. */
 export function ConnectedAiSection({status,statusError,settings,onStatus,onSettings}:{status:AiStatus|null;statusError?:string;settings:ClubSettings;onStatus():void;onSettings(next:Partial<ClubSettings>):void}){
@@ -15,6 +16,7 @@ export function ConnectedAiSection({status,statusError,settings,onStatus,onSetti
   <div className="card">
    {status?<AiRow settings provider="claude" status={status.claude} description="Used for ideas, packaging, scenes and scripts." onChanged={onStatus}/>:pending('Claude')}
    {status?<AiRow settings provider="codex" status={status.codex} description="Optional. Works the same way, if that is the account you have." onChanged={onStatus}/>:pending('ChatGPT')}
+   <HiggsfieldRow/>
    <GeminiRow saved={settings.geminiKey} onChanged={geminiKey=>onSettings({geminiKey})}/>
   </div>
   {statusError&&<div style={{marginTop:10}}><ErrorLine message={statusError} onRetry={onStatus}/></div>}

@@ -47,6 +47,8 @@ import { voiceSummary } from './voice.js';
 import { rankedTrending, readFollowed, startTrendingRefresh, startTrendingSeed, writeFollowed, ytDlpSearchSource, ytDlpSource, type SearchSourceFactory, type UploadsSourceFactory } from './trending.js';
 import * as store from './store.js';
 import type { ToolOptions } from './tools.js';
+import { higgsfieldRoutes } from './higgsfield-routes.js';
+import type { HiggsfieldOptions } from './higgsfield.js';
 
 /** One picture for the chat, held in memory while it is checked. */
 const chatUpload = multer({ storage: multer.memoryStorage(), limits: { files: 1, fileSize: 10 * 1024 * 1024 } });
@@ -231,6 +233,7 @@ const settingsBody = z.object({ defaultAi: z.enum(['claude', 'codex']), appearan
 const publishBody = z.object({ youtubeUrl: z.string().trim().min(1).max(2000) }).strict();
 
 export interface ClubRouterOptions {
+  higgsfield?: HiggsfieldOptions;
   /** Reads channel pictures. Tests supply fixtures instead of reaching YouTube. */
   avatarFetch?: AvatarFetch;
   /** Where to look for the AI command line tools and yt-dlp, and how fast to poll them. Tests point these at fake tools. */
@@ -251,7 +254,7 @@ export interface ClubRouterOptions {
   signals?: Partial<SignalsSources>;
 }
 
-export function clubRouter({ avatarFetch, ai = {}, transcribe, runAI, readViews = ytDlpViews(ai), publishing = {}, uploads = ytDlpSource(ai), search = ytDlpSearchSource(ai), signals = {} }: ClubRouterOptions = {}): Router {
+export function clubRouter({ higgsfield = {}, avatarFetch, ai = {}, transcribe, runAI, readViews = ytDlpViews(ai), publishing = {}, uploads = ytDlpSource(ai), search = ytDlpSearchSource(ai), signals = {} }: ClubRouterOptions = {}): Router {
   const signalSources: SignalsSources = { treg: findTregCall(ai), ...signals };
   const plan: PlanOptions = { extraDirs: ai.extraDirs, runAI };
   const router = Router();
@@ -267,6 +270,7 @@ export function clubRouter({ avatarFetch, ai = {}, transcribe, runAI, readViews 
     next();
   });
   router.use(express.json({ limit: '5mb' }));
+  higgsfieldRoutes(router,{handler,requireWorkspace},higgsfield);
 
   // ---- Recorder: free space where takes are saved, for the low-disk warning.
   router.get('/disk', handler(async (_req, res) => res.json(await recordingsDiskSpace())));
