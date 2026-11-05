@@ -1,5 +1,5 @@
 /** What the recording island asks the recorder to do: Borumi's Stop, pause and play, record again, and the countdown's Start now and Cancel. */
-export type RecordingHudCommand='pause'|'resume'|'stop'|'retry'|'skip-countdown'|'cancel';
+export type RecordingHudCommand='pause'|'resume'|'stop'|'retry'|'skip-countdown'|'cancel'|'record'|'close'|'mirror';
 import type { ShortcutOverrides } from './shortcuts';
 
 export type DesktopMediaAccessStatus = 'not-determined' | 'granted' | 'denied' | 'restricted' | 'unknown' | 'unsupported';
@@ -62,9 +62,11 @@ export interface DesktopCaptureSelection {
 export type SavedDesktopCaptureSelection = Omit<DesktopCaptureSelection,'token'>;
 export interface DesktopRecordingHudState {
  projectName: string; script: string; cameraEnabled: boolean; mirror: boolean;
- hideMain: boolean; status: 'starting'|'recording'|'paused'|'saving'|'idle'; elapsed: number;
+ hideMain: boolean; status: 'starting'|'ready'|'recording'|'paused'|'saving'|'idle'; elapsed: number;
+ /** Borumi's banners over the toolbar: a red error, an orange warning. */
+ error?:{title:string;message:string}|null; warning?:{title:string;message:string}|null;
  /** The HUD opens its own live camera by matching this label; device IDs are salted per origin. */
- cameraLabel?:string; microphoneLabel?:string; systemAudioLabel?:string; countdown?:number|null;
+ cameraLabel?:string; cameraRawLabel?:string; microphoneLabel?:string; systemAudioLabel?:string; countdown?:number|null;
  microphoneLevel?:number|null; appearance?:'light'|'dark';
 }
 export interface DesktopNativeRecordingResult {

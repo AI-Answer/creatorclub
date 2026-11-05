@@ -66,6 +66,8 @@ export interface TakeSynchronization {
 export interface RecordedTake {
  id:string;createdAt:string;sceneId:string;name?:string;media:Media[];tracks:TrackKind[];offsets:number[];
  labels?:string[];clipIds?:string[];retained?:boolean;confirmedAt?:string;recordOver?:boolean;
+ /** Recorded with Mirror camera on (Borumi's mirror_camera_recording): its camera clips start mirrored. */
+ mirrored?:boolean;
  synchronization?:TakeSynchronization;
  /** Edited clips/captions use scene-relative seconds; source trims/effects remain unchanged. */
  timeline?:{duration:number;start?:number;clips:Clip[];captions:Caption[]};
@@ -102,6 +104,8 @@ export const defaultTransform=():Transform=>({x:0,y:0,width:1,height:1,rotation:
 export const defaultEffects=():Clip['effects']=>({brightness:0,contrast:1,saturation:1,blur:0,grayscale:false,flipX:false,fadeIn:0,fadeOut:0,denoise:false,normalize:false});
 /** New camera clips follow the speaker's face by default; screen and other tracks keep the neutral effects. */
 export const effectsForTrack=(track:TrackKind):Clip['effects']=>track==='camera'?{...defaultEffects(),faceCenter:true}:defaultEffects();
+/** A take's clip effects: a camera recorded with Mirror camera on starts mirrored, as Borumi marks its camera clips. */
+export const takeEffects=(take:Pick<RecordedTake,'tracks'|'mirrored'>,index:number):Clip['effects']=>({...effectsForTrack(take.tracks[index]),...(take.mirrored&&take.tracks[index]==='camera'?{flipX:true}:{})});
 export const clipDuration=(clip:Clip)=>Math.max(0,(clip.sourceOut-clip.sourceIn)/Math.max(.05,clip.speed));
 /** Legacy untagged sources retain their original track priority. */
 export function narrationPriority(clip:Clip,media?:Media){const role=clip.audioRole??media?.audioRole;return role==='microphone'?-1:role==='system'?4:({audio:0,camera:1,screen:2,overlay:3,music:4})[clip.track];}

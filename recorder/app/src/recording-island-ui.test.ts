@@ -3,129 +3,111 @@ import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {Window} from 'happy-dom';
 
-test('island keeps recording controls visible while camera and script panels toggle independently',async()=>{
- const browser=new Window({settings:{disableJavaScriptFileLoading:true,disableCSSFileLoading:true}}),commands:string[]=[];let update!:(state:any)=>void;
- const state={status:'recording',elapsed:12,projectName:'Demo',cameraEnabled:true,script:'Read this paragraph.',layout:{camera:false,script:false},microphoneLabel:'Mic',microphoneLevel:.4};
- Object.assign(browser,{recordingPreview:{read:async()=>state,subscribe:(callback:typeof update)=>{update=callback;return()=>{};},command:async(value:string)=>commands.push(value),layout:async(layout:any)=>{update({layout});return layout;}}});
- browser.document.write(await readFile(new URL('../desktop/recording-hud.html',import.meta.url),'utf8'));browser.eval(await readFile(new URL('../desktop/recording-hud.js',import.meta.url),'utf8'));await new Promise(resolve=>setTimeout(resolve,0));
- const doc=browser.document;
- try{
-  assert.equal((doc.querySelector('.prompt') as any).hidden,true,'script starts hidden');assert.equal((doc.getElementById('camera') as any).hidden,true);
-  assert.match(doc.getElementById('status')?.textContent||'',/Recording/);assert.equal(doc.getElementById('clock')?.textContent,'00:12');
-  const stop=doc.getElementById('stop')!,parent=stop.parentElement;
-  (doc.getElementById('script-toggle') as any).click();assert.equal((doc.querySelector('.prompt') as any).hidden,false);assert.equal((doc.getElementById('camera') as any).hidden,true);
-  (doc.getElementById('camera-toggle') as any).click();assert.equal((doc.getElementById('camera') as any).hidden,false);assert.equal(stop.parentElement,parent);assert.deepEqual(commands,[]);
-  update({status:'paused'});assert.equal(doc.getElementById('status')?.textContent,'Paused');assert.equal(doc.getElementById('pause')?.textContent,'Resume');
-  (doc.getElementById('stop') as any).click();await new Promise(resolve=>setTimeout(resolve,0));assert.deepEqual(commands,['stop']);
- }finally{await browser.happyDOM.close();}
-});
-
-test('island defaults to native scrolling with optional auto-scroll in reading settings',async()=>{
- const browser=new Window({settings:{disableJavaScriptFileLoading:true,disableCSSFileLoading:true}});let update!:(state:any)=>void;
- const state={status:'paused',elapsed:12,script:'First paragraph.\n\nSecond paragraph.',layout:{camera:false,script:true}};
- Object.assign(browser,{recordingPreview:{read:async()=>state,subscribe:(callback:typeof update)=>{update=callback;return()=>{};},command:async()=>{},layout:async(layout:any)=>{update({layout});return layout;}}});
- browser.document.write(await readFile(new URL('../desktop/recording-hud.html',import.meta.url),'utf8'));browser.eval(await readFile(new URL('../desktop/recording-hud.js',import.meta.url),'utf8'));await new Promise(resolve=>setTimeout(resolve,0));
- const doc=browser.document;
- try{
-  const size=doc.querySelector('input[type="range"][aria-label="Script text size"]') as any;
-  assert.ok(size,'reading size uses a continuous labeled control');
-  (doc.getElementById('reading-settings') as any).click();assert.equal((doc.getElementById('reading-options') as any).hidden,false);
-  size.value='28';size.dispatchEvent(new browser.Event('input'));assert.equal((doc.getElementById('script') as any).style.fontSize,'28px');assert.equal(doc.getElementById('font-value')?.textContent,'28');
-  assert.equal(Boolean(doc.querySelector('[aria-label="Paragraph navigation"]')),false);
-  assert.equal(Boolean(doc.querySelector('[aria-label="Start script scrolling"]')),false);
-  const automatic=doc.querySelector('input[type="checkbox"][aria-label="Auto-scroll script"]') as any;
-  assert.ok(automatic,'automatic scrolling is optional in reading settings');assert.equal(automatic.checked,false);
-  const speed=doc.querySelector('[aria-label="Script scroll speed"]') as any;assert.equal(speed.disabled,false);
-  speed.value='55';speed.dispatchEvent(new browser.Event('input'));assert.equal(doc.getElementById('speed-value')?.textContent,'55');assert.equal(automatic.checked,false,'choosing speed does not start scrolling');
-  automatic.click();assert.equal(automatic.checked,true);assert.equal(speed.disabled,false);
-  const wheel=new browser.WheelEvent('wheel',{deltaY:80,cancelable:true});doc.getElementById('script')!.dispatchEvent(wheel);
-  assert.equal(wheel.defaultPrevented,false,'trackpad and mouse scrolling stay native');assert.equal(automatic.checked,false);assert.equal(speed.disabled,false);
-  automatic.click();const key=new browser.KeyboardEvent('keydown',{key:'ArrowDown',bubbles:true,cancelable:true});doc.getElementById('script')!.dispatchEvent(key);
-  assert.equal(key.defaultPrevented,false,'native keyboard scrolling is not intercepted');assert.equal(automatic.checked,false);
-  assert.equal(doc.getElementById('script-toggle')?.getAttribute('aria-label'),'Collapse teleprompter');
-  (doc.getElementById('script-toggle') as any).click();assert.equal(doc.getElementById('script-toggle')?.getAttribute('aria-label'),'Expand teleprompter');
- }finally{await browser.happyDOM.close();}
-});
-
-test('island starts scrolling the script when the take starts recording, and respects turning it off',async()=>{
- const browser=new Window({settings:{disableJavaScriptFileLoading:true,disableCSSFileLoading:true}});let update!:(state:any)=>void;
- const state={status:'starting',elapsed:0,script:'First paragraph.\n\nSecond paragraph.',layout:{camera:false,script:true}};
- Object.assign(browser,{recordingPreview:{read:async()=>state,subscribe:(callback:typeof update)=>{update=callback;return()=>{};},command:async()=>{},layout:async(layout:any)=>{update({layout});return layout;}}});
- browser.document.write(await readFile(new URL('../desktop/recording-hud.html',import.meta.url),'utf8'));browser.eval(await readFile(new URL('../desktop/recording-hud.js',import.meta.url),'utf8'));await new Promise(resolve=>setTimeout(resolve,0));
- const doc=browser.document,automatic=doc.querySelector('input[type="checkbox"][aria-label="Auto-scroll script"]') as any;
- try{
-  assert.equal(automatic.checked,false,'nothing scrolls before recording starts');
-  update({status:'recording'});assert.equal(automatic.checked,true,'the script scrolls once recording starts');
-  automatic.click();assert.equal(automatic.checked,false);update({status:'recording',elapsed:5});assert.equal(automatic.checked,false,'a take the person stopped scrolling stays stopped');
-  update({status:'paused'});update({status:'recording'});assert.equal(automatic.checked,false,'resuming does not restart it');
-  update({status:'idle'});update({status:'starting',script:'Next scene.'});update({status:'recording'});assert.equal(automatic.checked,false,'the next take keeps the choice to scroll by hand');
- }finally{await browser.happyDOM.close();}
-});
-
-test('auto-scroll starts again on the next take unless it was switched off',async()=>{
- const browser=new Window({settings:{disableJavaScriptFileLoading:true,disableCSSFileLoading:true}});let update!:(state:any)=>void;
- // No layout is measured in happy-dom. Keep frames pending so the zero-height script cannot reach its end before assertions.
+// The island is Borumi's recorder (its recorder bundle, index-DAWue-_s.js): these checks hold it to that bundle's rules.
+async function island(state:Record<string,unknown>,{width=560,height=520,choice=null as string|null}={}){
+ const browser=new Window({width,height,settings:{disableJavaScriptFileLoading:true,disableCSSFileLoading:true}}),commands:string[]=[],menus:any[]=[];let update!:(state:any)=>void;
  browser.requestAnimationFrame=()=>1 as unknown as ReturnType<typeof browser.requestAnimationFrame>;browser.cancelAnimationFrame=()=>{};
- const state={status:'recording',elapsed:0,script:'First paragraph.',layout:{camera:false,script:true}};
- Object.assign(browser,{recordingPreview:{read:async()=>state,subscribe:(callback:typeof update)=>{update=callback;return()=>{};},command:async()=>{},layout:async(layout:any)=>{update({layout});return layout;}}});
+ Object.assign(browser,{recordingPreview:{read:async()=>state,subscribe:(callback:typeof update)=>{update=callback;return()=>{};},command:async(value:string)=>{commands.push(value);},menu:async(value:any)=>{menus.push(value);return choice;}}});
  browser.document.write(await readFile(new URL('../desktop/recording-hud.html',import.meta.url),'utf8'));browser.eval(await readFile(new URL('../desktop/recording-hud.js',import.meta.url),'utf8'));await new Promise(resolve=>setTimeout(resolve,0));
- const doc=browser.document,automatic=doc.querySelector('input[type="checkbox"][aria-label="Auto-scroll script"]') as any;
+ const doc=browser.document,el=(id:string)=>doc.getElementById(id) as any,click=async(id:string)=>{el(id).click();await new Promise(resolve=>setTimeout(resolve,0));};
+ return {browser,doc,el,click,commands,menus,update:(value:any)=>update(value),close:()=>browser.happyDOM.close()};
+}
+const camera={cameraEnabled:true,cameraLabel:'MacBook Air Camera',microphoneLabel:'MacBook Air Microphone',microphoneLevel:.5};
+
+test('while recording: timer, Stop, pause and record again; Record only when ready; pause turns into play',async()=>{
+ const t=await island({status:'recording',elapsed:72,...camera,script:''});
  try{
-  assert.equal(automatic.checked,true,'a take that opens already recording scrolls');
-  update({status:'idle'});update({status:'recording',script:'Second scene.'});assert.equal(automatic.checked,true,'a new scene scrolls from its start');
- }finally{await browser.happyDOM.close();}
+  assert.equal(t.el('clock').textContent,'01:12');assert.equal(t.el('stop').hidden,false);assert.equal(t.el('record').hidden,true);assert.equal(t.el('bar-secondary').hidden,false);
+  await t.click('pause');t.update({status:'paused'});assert.ok(t.doc.body.classList.contains('paused'));assert.equal(t.el('pause').getAttribute('aria-label'),'Resume recording');
+  await t.click('pause');await t.click('retry');await t.click('stop');assert.deepEqual(t.commands,['pause','resume','retry','stop']);
+  t.update({status:'ready',elapsed:0});assert.equal(t.el('clock').textContent,'00:00');assert.equal(t.el('record').hidden,false);assert.equal(t.el('record').disabled,false);assert.equal(t.el('stop').hidden,true);assert.equal(t.el('bar-secondary').hidden,true,'pause and record again only while recording');
+  await t.click('record');assert.equal(t.commands.at(-1),'record');
+  t.update({error:{title:'Oh snap! Something went wrong.',message:'We don\'t recommend proceeding with the recording to avoid any data loss.'}});assert.equal(t.el('record').disabled,true,'Record is off while there is an error');
+ }finally{await t.close();}
 });
 
-test('island has Borumi\'s controls: close, record again, More, and the countdown\'s Start now and Cancel',async()=>{
- const browser=new Window({settings:{disableJavaScriptFileLoading:true,disableCSSFileLoading:true}}),commands:string[]=[];let update!:(state:any)=>void;
- const state={status:'starting',countdown:2,elapsed:0,cameraEnabled:true,cameraLabel:'MacBook Air Camera',microphoneLabel:'MacBook Air Microphone',script:'Line.',layout:{camera:true,script:true}};
- Object.assign(browser,{recordingPreview:{read:async()=>state,subscribe:(callback:typeof update)=>{update=callback;return()=>{};},command:async(value:string)=>commands.push(value),layout:async(layout:any)=>{update({layout});return layout;}}});
- browser.document.write(await readFile(new URL('../desktop/recording-hud.html',import.meta.url),'utf8'));browser.eval(await readFile(new URL('../desktop/recording-hud.js',import.meta.url),'utf8'));await new Promise(resolve=>setTimeout(resolve,0));
- const doc=browser.document,click=async(id:string)=>{(doc.getElementById(id) as any).click();await new Promise(resolve=>setTimeout(resolve,0));};
- try{
-  assert.equal((doc.getElementById('countdown') as any).hidden,false);assert.equal(doc.getElementById('countdown-number')?.textContent,'2');
-  assert.equal(doc.getElementById('camera-label')?.textContent,'MacBook Air Camera');assert.equal(doc.getElementById('microphone-hint')?.textContent,'MacBook Air Microphone');
-  await click('start-now');await click('cancel-countdown');await click('close');
-  assert.deepEqual(commands,['skip-countdown','cancel','cancel'],'during the countdown, close cancels the start');
-  update({status:'recording',countdown:null,elapsed:4});commands.length=0;
-  assert.equal(doc.getElementById('auto-pill')?.getAttribute('aria-pressed'),'true','the script scrolls once recording starts');
-  assert.equal((doc.getElementById('retry') as any).disabled,false);
-  await click('retry');await click('close');assert.deepEqual(commands,['retry','stop']);
-  assert.equal((doc.getElementById('menu') as any).hidden,true);await click('more');assert.equal((doc.getElementById('menu') as any).hidden,false);
-  await click('auto-pill');const pressed=doc.getElementById('auto-pill')?.getAttribute('aria-pressed');assert.equal(String((doc.getElementById('auto-scroll') as any).checked),pressed,'the pill and the setting agree');
-  update({status:'paused'});assert.equal(doc.body.classList.contains('paused'),true);assert.equal(doc.getElementById('pause')?.getAttribute('aria-label'),'Resume recording');
- }finally{await browser.happyDOM.close();}
+test('toolbar is 54px with a 36px Stop above 300×300, 48px and 32px below, as Borumi sizes it',async()=>{
+ const big=await island({status:'recording',elapsed:1,...camera,script:''},{width:560,height:520});
+ try{assert.equal(big.el('toolbar').style.height,'54px');assert.equal(big.doc.body.classList.contains('compact'),false);}finally{await big.close();}
+ const small=await island({status:'recording',elapsed:1,...camera,script:''},{width:250,height:330});
+ try{assert.equal(small.el('toolbar').style.height,'48px');assert.ok(small.doc.body.classList.contains('compact'));}finally{await small.close();}
+ const css=await readFile(new URL('../desktop/recording-hud.css',import.meta.url),'utf8');
+ assert.match(css,/\.primary \{ height: 36px; padding: 0 8px; border-radius: 8px;/);assert.match(css,/body\.compact \.primary \{ height: 32px; font-size: 12px;/);
+ assert.match(css,/--stop: hsl\(0 72% 51%\);/,'dark:bg-red-400');assert.match(css,/--window: #232323;/);
 });
 
-test('without a camera the island keeps its picture area and shows the microphone as a live waveform, as Borumi does',async()=>{
- const browser=new Window({settings:{disableJavaScriptFileLoading:true,disableCSSFileLoading:true}});
- const state={status:'recording',elapsed:3,projectName:'Demo',cameraEnabled:false,script:'',layout:{camera:true,script:true},microphoneLabel:'Mic',microphoneLevel:.5};
- Object.assign(browser,{recordingPreview:{read:async()=>state,subscribe:()=>()=>{},command:async()=>{},layout:async(layout:any)=>layout}});
- browser.document.write(await readFile(new URL('../desktop/recording-hud.html',import.meta.url),'utf8'));browser.eval(await readFile(new URL('../desktop/recording-hud.js',import.meta.url),'utf8'));await new Promise(resolve=>setTimeout(resolve,0));
- const doc=browser.document;
+test('the preview takes the room the toolbar leaves; a narrow window gives the script the rest under the toolbar',async()=>{
+ const wide=await island({status:'recording',elapsed:1,...camera,script:'Read this.'},{width:560,height:520});
  try{
-  assert.equal((doc.getElementById('camera') as any).hidden,false,'the picture area stays, so the island is never a bare bar');
-  assert.ok(doc.body.classList.contains('audio-only'));
-  assert.equal((doc.getElementById('waveform') as any).hidden,false,'the waveform takes the camera\'s place');
-  assert.equal((doc.getElementById('mic-chip') as any).hidden,false);
- }finally{await browser.happyDOM.close();}
+  assert.equal(wide.el('camera').style.height,`${520-54}px`);assert.ok(wide.el('prompt').classList.contains('floating'),'above 350×250 the script floats at the top');assert.equal(wide.el('prompt').hidden,false);
+ }finally{await wide.close();}
+ const narrow=await island({status:'recording',elapsed:1,...camera,script:'Read this.'},{width:300,height:500});
+ try{
+  assert.equal(narrow.el('camera').style.height,`${300*.6}px`,'60% of the width for a camera');assert.equal(narrow.el('prompt').classList.contains('floating'),false);assert.equal(narrow.el('prompt').style.height,`${500-48-180}px`);
+ }finally{await narrow.close();}
+ const short=await island({status:'recording',elapsed:1,...camera,script:'Read this.'},{width:500,height:240});
+ try{assert.equal(short.el('prompt').hidden,true,'wide but short: the camera takes it all, as Borumi');}finally{await short.close();}
 });
 
-test('island lays out its sources and bar as Borumi\'s recorder: one centred chip row, a 64 px level, a centred Stop, a dark bar',async()=>{
- const browser=new Window({settings:{disableJavaScriptFileLoading:true,disableCSSFileLoading:true}});
- const state={status:'recording',elapsed:3,cameraEnabled:true,cameraLabel:'MacBook Air Camera',microphoneLabel:'MacBook Air Microphone',microphoneLevel:.5,script:'',layout:{camera:true,script:false}};
- Object.assign(browser,{recordingPreview:{read:async()=>state,subscribe:()=>()=>{},command:async()=>{},layout:async(layout:any)=>layout}});
- browser.document.write(await readFile(new URL('../desktop/recording-hud.html',import.meta.url),'utf8'));browser.eval(await readFile(new URL('../desktop/recording-hud.js',import.meta.url),'utf8'));await new Promise(resolve=>setTimeout(resolve,0));
- const doc=browser.document,css=await readFile(new URL('../desktop/recording-hud.css',import.meta.url),'utf8');
+test('chips: one centred row at the bottom; in a narrow window the shown source moves to the top and the rest sit left',async()=>{
+ const wide=await island({status:'recording',elapsed:1,...camera,script:''});
  try{
-  const sources=doc.getElementById('sources')!;
-  assert.deepEqual([...sources.children].map(chip=>chip.id),['camera-chip','mic-chip'],'both chips share one row');
-  assert.match(css,/#sources \{[^}]*bottom: 8px;[^}]*justify-content: center;/,'the row sits centred at the bottom of the picture');
-  assert.match(css,/#microphone-meter \{[^}]*width: 64px; height: 4px;/);assert.match(css,/--level: #ffffff;/);
-  assert.equal(doc.getElementById('stop')!.parentElement!.className,'bar-center');assert.equal(doc.getElementById('pause')!.parentElement!.className,'bar-center');
-  assert.equal(doc.getElementById('more')!.parentElement!.className,'bar-end');
-  assert.match(css,/:root \{[^}]*--glass: #232323;/,'the bar is Borumi\'s dark grey in a dark app');
-  assert.equal((doc.getElementById('reading-settings') as any).hidden,true,'with no script there is nothing to scroll, so More does not offer it');
-  assert.match(css,/\.menu-check:has\(input:checked\)::before[^{]*\{ content: '✓'; \}/,'More marks what is on with a leading check, as a native menu');
- }finally{await browser.happyDOM.close();}
+  assert.deepEqual([...wide.el('sources').children].map((c:any)=>c.id),['camera-chip','mic-chip']);assert.equal(wide.el('sources').classList.contains('left'),false);
+  assert.equal(wide.el('camera-label').textContent,'MacBook Air Camera');assert.equal(wide.el('microphone-hint').textContent,'MacBook Air Microphone');
+  await wide.click('mic-chip');assert.ok(wide.el('camera').classList.contains('audio'),'choosing the microphone shows its wave');assert.equal(wide.el('waveform').hidden,false);
+  await wide.click('camera-chip');assert.equal(wide.el('camera').classList.contains('audio'),false);
+ }finally{await wide.close();}
+ const narrow=await island({status:'recording',elapsed:1,...camera,script:''},{width:300,height:400});
+ try{assert.equal(narrow.el('camera-chip').parentElement.id,'chips-top');assert.equal(narrow.el('mic-chip').parentElement.id,'sources');assert.ok(narrow.el('sources').classList.contains('left'));}finally{await narrow.close();}
+ const css=await readFile(new URL('../desktop/recording-hud.css',import.meta.url),'utf8');
+ assert.match(css,/\.chip \{[^}]*padding: 2px 6px;[^}]*background: rgb\(0 0 0 \/ 0\.4\);[^}]*font-size: 8px;/);assert.match(css,/#microphone-meter \{[^}]*width: 64px; height: 4px;/);
+});
+
+test('without a camera the microphone fills the preview as its wave',async()=>{
+ const t=await island({status:'recording',elapsed:3,cameraEnabled:false,microphoneLabel:'Mic',microphoneLevel:.5,script:''});
+ try{assert.equal(t.el('camera').hidden,false);assert.ok(t.doc.body.classList.contains('audio-only'));assert.equal(t.el('waveform').hidden,false);assert.equal(t.el('camera-chip').hidden,true);}finally{await t.close();}
+});
+
+test('starting shows "Getting things ready...", the countdown has Start now and Cancel, close sends close',async()=>{
+ const t=await island({status:'starting',countdown:null,elapsed:0,...camera,script:''});
+ try{
+  assert.equal(t.el('init').hidden,false);assert.equal(t.el('init-text').textContent,'Getting things ready...');
+  t.update({countdown:3});assert.equal(t.el('init').hidden,true);assert.equal(t.el('countdown').hidden,false);assert.equal(t.el('countdown-number').textContent,'3');
+  await t.click('start-now');await t.click('cancel-countdown');await t.click('close');assert.deepEqual(t.commands,['skip-countdown','cancel','close']);
+ }finally{await t.close();}
+});
+
+test('the flash shows when the take starts recording, and again on resume',async()=>{
+ const t=await island({status:'starting',countdown:1,elapsed:0,...camera,script:''});
+ try{
+  assert.equal(t.el('flash').classList.contains('on'),false);t.update({status:'recording',countdown:null});assert.ok(t.el('flash').classList.contains('on'));
+  t.update({status:'paused'});assert.equal(t.el('flash').classList.contains('on'),false);t.update({status:'recording'});assert.ok(t.el('flash').classList.contains('on'));
+ }finally{await t.close();}
+});
+
+test('banners: a red error and an orange warning above the toolbar, 100px each',async()=>{
+ const t=await island({status:'recording',elapsed:1,...camera,script:'',error:{title:'Oh snap! Something went wrong.',message:'We recommend stopping the recording to avoid any data loss.'},warning:{title:'No sound from microphone',message:'\'Mic\' has been silent for a while. Make sure the microphone is not muted.'}});
+ try{
+  assert.equal(t.el('error-banner').hidden,false);assert.equal(t.el('error-banner').style.height,'100px');assert.equal(t.el('error-title').textContent,'Oh snap! Something went wrong.');
+  assert.equal(t.el('warning-banner').hidden,false);assert.equal(t.el('warning-title').textContent,'No sound from microphone');
+  assert.equal(t.el('camera').style.height,`${520-54-200}px`);
+ }finally{await t.close();}
+});
+
+test('More is the system menu with Borumi\'s items; its choices mirror the camera, hide the sources, or close',async()=>{
+ const mirror=await island({status:'recording',elapsed:1,...camera,mirror:true,script:'A script.'},{choice:'mirror'});
+ try{await mirror.click('more');await new Promise(resolve=>setTimeout(resolve,0));const m=mirror.menus[0];assert.deepEqual([m.mirror,m.showSources,m.scriptAvailable,m.mode,m.speed,[...m.speeds].join()],[true,true,true,'ConstSpeed',14,'8,10,12,14,16,18,20,22,24,26,28,30']);assert.deepEqual(mirror.commands,['mirror']);}finally{await mirror.close();}
+ const sources=await island({status:'recording',elapsed:1,...camera,script:''},{choice:'sources'});
+ try{await sources.click('more');await new Promise(resolve=>setTimeout(resolve,0));assert.ok(sources.doc.body.classList.contains('no-sources'));}finally{await sources.close();}
+ const cjs=await readFile(new URL('../desktop/recording-hud.cjs',import.meta.url),'utf8');
+ for(const label of ['Mirror camera','Show sources','Scrolling mode','Scrolling speed','Close','Manual','Constant speed'])assert.ok(cjs.includes(`label:'${label}'`),label);
+});
+
+test('the script pill switches Constant speed and Manual, and rewinds while on',async()=>{
+ const t=await island({status:'recording',elapsed:1,...camera,script:'First.\n\nSecond.'});
+ try{
+  assert.equal(t.el('auto-pill').getAttribute('aria-pressed'),'true');assert.equal(t.el('rewind').hidden,false);
+  await t.click('auto-pill');assert.equal(t.el('auto-pill').getAttribute('aria-pressed'),'false');assert.equal(t.el('rewind').hidden,true);
+  t.update({countdown:2});assert.equal(t.el('pill-row').hidden,true,'no pill during the countdown');
+ }finally{await t.close();}
 });

@@ -21,6 +21,12 @@ export function rmsLevel(rms:number):number{
  const normalized=Math.max(0,Math.min(1,(20*Math.log10(rms)+60)/54));
  return normalized**.7;
 }
+/** Borumi's recorder level (its Ne): the frame's peak in dBFS, -50 to 0, as a straight 0 to 1. */
+export function peakLevel(data:Float32Array):number{
+ let peak=0;for(const value of data){const a=Math.abs(value);if(a>peak)peak=a;}
+ if(!(peak>0)||!Number.isFinite(peak))return 0;
+ const db=20*Math.log10(peak);return (Math.max(-50,Math.min(0,db))+50)/50;
+}
 export function audioLevel(data:Uint8Array):number{return rmsLevel(frameRms(data));}
 export function waveformLevel(data:Float32Array):number{return rmsLevel(frameRms(data));}
 /** Time-based attack/release behaves the same at 30, 60 and 120 Hz. */

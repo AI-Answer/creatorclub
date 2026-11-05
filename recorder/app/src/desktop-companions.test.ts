@@ -26,24 +26,14 @@ function harness(){
 }
 async function opened(h:ReturnType<typeof harness>,value:any={status:'recording'}){const promise=h.call('begin-recording-hud',value),w=h.windows.at(-1);w.resolve();return {...await promise,w};}
 
-test('HUD opens compact and expanding preview panels preserves the control bar position without recording commands',async()=>{
- const h=harness(),m=createRecordingHud(h.opts);try{
-  const {w}=await opened(h,{status:'recording',cameraEnabled:true,script:'Read this'});
-  assert.ok(w.options.height<=120,'compact controller does not open a large camera/script window');
-  const before={x:w.options.x,y:w.options.y};
-  h.handlers.get('recording-hud-layout')!(h.hudEvent(),{camera:true,script:true});
-  assert.ok(w.options.height>300);assert.deepEqual({x:w.options.x,y:w.options.y},before);assert.equal(h.main.webContents.messages.length,0);
-  h.handlers.get('recording-hud-layout')!(h.hudEvent(),{camera:false,script:false});assert.ok(w.options.height<=120);assert.equal(h.main.webContents.messages.length,0);
- }finally{m.dispose();}
-});
 
-test('HUD remembers panels and bounds between sessions and clamps a disconnected display',async()=>{
+test('HUD remembers its bounds between sessions and clamps a disconnected display',async()=>{
  const fs=require('node:fs'),os=require('node:os'),path=require('node:path'),dir=fs.mkdtempSync(path.join(os.tmpdir(),'hud-preferences-')),preferencesPath=path.join(dir,'hud.json');
  let h=harness(),m=createRecordingHud({...h.opts,preferencesPath});
  try{
-  const {w}=await opened(h,{status:'recording',cameraEnabled:true,script:'Script'});h.handlers.get('recording-hud-layout')!(h.hudEvent(),{camera:false,script:true});w.setBounds({x:-1200,y:100,width:420,height:410});h.call('end-recording-hud');m.dispose();
+  const {w}=await opened(h,{status:'recording',cameraEnabled:true,script:'Script'});w.setBounds({x:-1200,y:100,width:420,height:410});h.call('end-recording-hud');m.dispose();
   h=harness();m=createRecordingHud({...h.opts,preferencesPath});const next=await opened(h,{status:'recording',cameraEnabled:true,script:'Script'});
-  assert.equal(next.w.options.width,420);assert.equal(next.w.options.x,-1200);assert.ok(next.w.options.height>300);assert.deepEqual(h.handlers.get('recording-hud-read')!(h.hudEvent()).layout,{camera:false,script:true});
+  assert.equal(next.w.options.width,420);assert.equal(next.w.options.x,-1200);assert.equal(next.w.options.height,410,'the window keeps the size it was given, as Borumi\'s');
   h.call('end-recording-hud');m.dispose();
   fs.writeFileSync(preferencesPath,JSON.stringify({bounds:{x:9000,y:9000,width:420,height:410},layout:{camera:false,script:true}}));
   h=harness();m=createRecordingHud({...h.opts,preferencesPath});const moved=await opened(h,{status:'recording',cameraEnabled:true,script:'Script'});
@@ -51,11 +41,21 @@ test('HUD remembers panels and bounds between sessions and clamps a disconnected
  }finally{m.dispose();fs.rmSync(dir,{recursive:true,force:true});}
 });
 
-test('restored script remains readable after an intervening take with no script',async()=>{
+
+test('a first take opens 250 wide with Borumi\'s compact toolbar, the camera at 60% and room for a script',async()=>{
  const h=harness(),m=createRecordingHud(h.opts);try{
-  await opened(h,{status:'recording',script:'First script'});h.handlers.get('recording-hud-layout')!(h.hudEvent(),{camera:false,script:true});h.call('end-recording-hud');
-  const plain=await opened(h,{status:'recording',script:''});assert.ok(plain.w.options.height<=120);h.call('end-recording-hud');
-  const scripted=await opened(h,{status:'recording',script:'Next script'});assert.ok(scripted.w.options.height>=200,'expanded script has room after a compact no-script take');
+  const plain=await opened(h,{status:'recording',cameraEnabled:true,script:''});assert.equal(plain.w.options.width,250);assert.equal(plain.w.options.height,48+150);h.call('end-recording-hud');
+  const again=await opened(h,{status:'recording',cameraEnabled:true,script:'Read this'});assert.equal(again.w.options.height,48+150,'a later take keeps the size the window had');
+ }finally{m.dispose();}
+ const h2=harness(),m2=createRecordingHud(h2.opts);try{const scripted=await opened(h2,{status:'recording',cameraEnabled:true,script:'Read this'});assert.equal(scripted.w.options.height,48+150+132);}finally{m2.dispose();}
+});
+
+test('More opens a system menu with Borumi\'s items and returns the chosen one',async()=>{
+ const h=harness();let template:any[]=[];const Menu={buildFromTemplate:(t:any[])=>{template=t;return {popup:({callback}:any)=>{template[0].click();callback();}};}};const m=createRecordingHud({...h.opts,Menu});try{
+  await opened(h,{status:'recording',cameraEnabled:true,script:'Read this'});
+  const choice=await h.handlers.get('recording-hud-menu')!(h.hudEvent(),{mirror:true,showSources:true,scriptAvailable:true,mode:'ConstSpeed',speed:14,speeds:[8,10,12,14]});
+  assert.equal(choice,'mirror');assert.deepEqual(template.map(i=>i.label??i.type),['Mirror camera','Show sources','separator','Scrolling mode','Scrolling speed','separator','Close']);
+  assert.equal(template[0].checked,true);assert.deepEqual(template[3].submenu.map((i:any)=>i.label),['Manual','Constant speed']);assert.deepEqual(template[4].submenu.map((i:any)=>i.label),['8','10','12','14']);assert.equal(template[4].submenu[3].checked,true);
  }finally{m.dispose();}
 });
 
@@ -166,27 +166,4 @@ test('HUD reports each editor hide and show it makes, since macOS does not emit 
  }finally{m.dispose();}
 });
 
-test('a default layout opens the script, and only a chosen layout replaces it',async()=>{
- const fs=require('node:fs'),os=require('node:os'),path=require('node:path'),dir=fs.mkdtempSync(path.join(os.tmpdir(),'hud-default-')),preferencesPath=path.join(dir,'hud.json');
- // A file written before choices were recorded: its panels were saved on every session, not chosen.
- fs.writeFileSync(preferencesPath,JSON.stringify({bounds:{x:640,y:38,width:367,height:112},layout:{camera:false,script:false}}));
- let h=harness(),m=createRecordingHud({...h.opts,preferencesPath,defaultLayout:{camera:false,script:true}});
- try{
-  const first=await opened(h,{status:'recording',cameraEnabled:true,script:'Read this'});
-  assert.ok(first.w.options.height>=200,'the script opens with the controls');
-  assert.deepEqual(h.handlers.get('recording-hud-read')!(h.hudEvent()).layout,{camera:false,script:true});
-  h.handlers.get('recording-hud-layout')!(h.hudEvent(),{camera:false,script:false});h.call('end-recording-hud');m.dispose();
-  h=harness();m=createRecordingHud({...h.opts,preferencesPath,defaultLayout:{camera:false,script:true}});
-  const second=await opened(h,{status:'recording',cameraEnabled:true,script:'Read this'});
-  assert.ok(second.w.options.height<=120,'hiding the script is remembered');
- }finally{m.dispose();}
-});
 
-test('a take without a camera keeps its picture area (the microphone waveform) and the chosen panel for later takes',async()=>{
- const h=harness(),m=createRecordingHud(h.opts);try{
-  await opened(h,{status:'recording',cameraEnabled:false,script:'Read this'});
-  assert.deepEqual(h.handlers.get('recording-hud-layout')!(h.hudEvent(),{camera:true,script:true}),{camera:true,script:true},'the picture area stays: Borumi shows the waveform there');h.call('end-recording-hud');
-  await opened(h,{status:'recording',cameraEnabled:true,script:'Read this'});
-  assert.deepEqual(h.handlers.get('recording-hud-read')!(h.hudEvent()).layout,{camera:true,script:true});
- }finally{m.dispose();}
-});

@@ -183,7 +183,7 @@ export function validateProject(value:unknown):Project{
   const ids=new Set<string>(),scenes=new Set(p.scenes.map(s=>s.id));let totalClips=0;
   for(const take of p.recordedTakes){
    if(!take||typeof take.id!=='string'||typeof take.sceneId!=='string')throw Error('Invalid recorded take identity');
-   safeId(take.id);if(ids.has(take.id)||!scenes.has(take.sceneId)||typeof take.createdAt!=='string'||take.name!==undefined&&typeof take.name!=='string'||take.recordOver!==undefined&&typeof take.recordOver!=='boolean')throw Error('Invalid recorded take identity');ids.add(take.id);
+   safeId(take.id);if(ids.has(take.id)||!scenes.has(take.sceneId)||typeof take.createdAt!=='string'||take.name!==undefined&&typeof take.name!=='string'||take.recordOver!==undefined&&typeof take.recordOver!=='boolean'||take.mirrored!==undefined&&typeof take.mirrored!=='boolean')throw Error('Invalid recorded take identity');ids.add(take.id);
    if(!Array.isArray(take.media)||!take.media.length||take.media.length>10000||!Array.isArray(take.tracks)||!Array.isArray(take.offsets)||take.tracks.length!==take.media.length||take.offsets.length!==take.media.length||take.offsets.some(n=>!Number.isFinite(n)||n<0)||take.tracks.some(k=>!['screen','camera','audio','music','overlay'].includes(k)))throw Error('Invalid recorded take sources');
    if(take.synchronization!==undefined){
     const sync=take.synchronization;

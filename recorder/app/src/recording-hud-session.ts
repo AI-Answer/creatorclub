@@ -1,4 +1,4 @@
-export type RecordingHudState={status?:'starting'|'recording'|'paused'|'saving'|'idle';elapsed?:number;countdown?:number|null;microphoneLevel?:number|null};
+export type RecordingHudState={status?:'starting'|'ready'|'recording'|'paused'|'saving'|'idle';elapsed?:number;countdown?:number|null;microphoneLevel?:number|null;mirror?:boolean;error?:{title:string;message:string}|null;warning?:{title:string;message:string}|null};
 /** Serializes a single HUD's open/update/close lifecycle, coalescing pending updates. */
 export class RecordingHudSession {
  private closed=false;

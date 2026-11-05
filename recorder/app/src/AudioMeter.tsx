@@ -1,7 +1,7 @@
 import {useEffect,useRef,useState} from 'react';
-import {MeterAudio,WaveformHistory,drawWaveform,fitCanvas,frameRms,rmsLevel,smoothLevel} from './recording-meter';
+import {MeterAudio,WaveformHistory,drawWaveform,fitCanvas,frameRms,peakLevel,rmsLevel,smoothLevel} from './recording-meter';
 
-export function AudioMeter({stream,label,emptyHint,audio,live,background=false,onLevel}:{stream:MediaStream|null;label:string;emptyHint:string;audio:MeterAudio;live:boolean;background?:boolean;onLevel?:(level:number|null)=>void}){
+export function AudioMeter({stream,label,emptyHint,audio,live,background=false,onLevel,onPeak}:{stream:MediaStream|null;label:string;emptyHint:string;audio:MeterAudio;live:boolean;background?:boolean;onLevel?:(level:number|null)=>void;onPeak?:(level:number)=>void}){
  const canvas=useRef<HTMLCanvasElement>(null),meter=useRef<HTMLDivElement>(null),sample=useRef<((now:number,paint:boolean)=>void)|null>(null);
  const [heard,setHeard]=useState(false),[monitorError,setMonitorError]=useState(''),[shown,setShown]=useState(true);
  const hasAudio=Boolean(stream?.getAudioTracks().some(t=>t.readyState==='live'));
@@ -28,7 +28,7 @@ export function AudioMeter({stream,label,emptyHint,audio,live,background=false,o
    sample.current=(now,paint)=>{
     node.getFloatTimeDomainData(data);const rms=frameRms(data),target=rmsLevel(rms),elapsed=last?now-last:16.67;
     if(elapsed>250){history.clear();previous=0;}last=now;
-    const level=previous=smoothLevel(previous,target,Math.min(elapsed,100));onLevel?.(level);
+    const level=previous=smoothLevel(previous,target,Math.min(elapsed,100));onLevel?.(level);onPeak?.(peakLevel(data));
     const next=Math.round(level*100);if(percent!==next){percent=next;meter.current?.setAttribute('aria-valuenow',String(next));}
     // Sound detection keeps its original raw RMS threshold, independent of the display curve.
     if(rms>.006&&!heardAudio){heardAudio=true;setHeard(true);}

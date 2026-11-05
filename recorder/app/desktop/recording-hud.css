@@ -1,139 +1,170 @@
 /*
- * The recording island, laid out like Borumi's recorder (screens/borumi/60-66): the camera fills the top edge to edge with a round close
- * button, the camera's name and the microphone's level over it; one control bar (timer, red Stop, pause or play, record again, more);
- * then the script in large white type with an Auto-scroll pill. The window is transparent: on a Mac its glass shows through the bar
- * and the script, as Borumi's does; elsewhere they are a solid grey.
- * Dark values are sampled from Borumi's recorder in a dark app (its bar is #232323); the chips, the level and the bar's layout are its
- * own classes (recorder bundle: chips bg-black/40 px-1.5 text-[0.5rem], level ml-1 h-1 w-16 white, bar timer | centred Stop | more).
+ * The recording island is Borumi's recorder, value for value. Every class below names the Borumi class it reproduces, read from
+ * Borumi's recorder bundle (Contents/Resources/ui/assets/index-DAWue-_s.js) and its stylesheet (index-DXJH5HZm.css). Heights that
+ * depend on the window (toolbar, preview, banners, script) are set by recording-hud.js with Borumi's layout rules. The window's own
+ * colour is sampled from Borumi's recorder: #232323 in a dark app, #eaebed in a light one.
  */
 :root {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  font-size: 12px;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
   color-scheme: dark;
-  --glass: #232323;
-  --chip: rgb(0 0 0 / 0.4);
-  --chip-hover: rgb(0 0 0 / 0.6);
+  --window: #232323;
   --ink: #ffffff;
-  --ink-soft: rgb(255 255 255 / 0.85);
-  --stop: #ca3b33;
-  --stop-hover: #b2322b;
+  --stop: hsl(0 72% 51%);          /* dark:bg-red-400 */
+  --stop-hover: hsl(0 70% 35%);    /* dark:hover:bg-red-200 */
+  --danger: hsl(0 84% 60%);        /* bg-danger = red-500 */
+  --flash: hsl(0 84% 60%);         /* border-red-500 */
+  --card: hsl(0 0% 4% / 0.75);     /* bg-primary-foreground/75, dark */
+  --fade-top: rgb(0 0 0 / 0.8);    /* countdown, dark */
+  --fade-bottom: rgb(0 0 0 / 1);
+  --primary: #ffffff;              /* bg-primary, dark */
+  --on-primary: hsl(0 0% 4%);
+  --wave-ground: rgb(0 0 0 / 0.55);
+  --wave-top: #8fd0ff;
+  --wave-bottom: #3d8fe6;
   --focus: #8ab4ff;
-  --menu: #262628;
-  --menu-line: rgb(255 255 255 / 0.12);
-  --menu-hover: rgb(255 255 255 / 0.1);
-  --level: #ffffff;
   background: transparent;
   color: var(--ink);
 }
-/* Light, as Borumi's recorder in a light app (sampled): a pale grey bar and script with black type and icons, a white fade over the
-   camera behind the countdown with a black Start now. The chips and the close button stay dark glass over the picture. */
-:root[data-theme=light] { color-scheme: light; --glass: #eaebed; --ink-bar: #0a0a0a; --stop: #dd514b; --stop-hover: #c8443e; --menu: #ffffff; --menu-line: rgb(0 0 0 / 0.1); --menu-hover: rgb(0 0 0 / 0.06); --fade-top: rgb(255 255 255 / 0.5); --fade-bottom: rgb(255 255 255 / 1); --primary: #0a0a0a; --on-primary: #ffffff; }
-:root { --ink-bar: var(--ink); --fade-top: rgb(0 0 0 / 0.8); --fade-bottom: rgb(0 0 0 / 1); --primary: #ffffff; --on-primary: #0a0a0a; }
+:root[data-theme=light] {
+  color-scheme: light;
+  --window: #eaebed;
+  --ink: hsl(0 0% 9%);
+  --stop: hsl(0 84% 60%);          /* bg-red-500 */
+  --stop-hover: hsl(0 70% 35%);    /* hover:bg-red-800 */
+  --card: hsl(0 0% 100% / 0.75);   /* bg-primary-foreground/75, light */
+  --fade-top: rgb(255 255 255 / 0.5);
+  --fade-bottom: rgb(255 255 255 / 1);
+  --primary: hsl(0 0% 9%);
+  --on-primary: #ffffff;
+  --wave-ground: #f2f3f5;
+}
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
-body { position: relative; height: 100dvh; margin: 0; overflow: hidden; border-radius: 18px; background: var(--glass); }
-.island-content { height: 100%; display: flex; flex-direction: column; }
-button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; font: inherit; color: inherit; cursor: pointer; border: 0; background: transparent; padding: 0; -webkit-app-region: no-drag; }
-button:disabled { opacity: .4; cursor: default; }
-button:focus-visible, input:focus-visible, #script:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+html { overflow: hidden; }
+body { position: relative; height: 100vh; margin: 0; overflow: clip; border-radius: 18px; background: var(--window); user-select: none; -webkit-user-select: none; }
+p { margin: 0; }
+button { display: inline-flex; align-items: center; justify-content: center; white-space: nowrap; font: inherit; font-size: 14px; font-weight: 500; color: inherit; cursor: pointer; border: 0; background: transparent; padding: 0; transition: color 150ms, background-color 150ms; -webkit-app-region: no-drag; }
+button:disabled { opacity: .5; pointer-events: none; }
+button:focus-visible, #script:focus-visible { outline: 1px solid var(--focus); outline-offset: 1px; }
 .icon { width: 16px; height: 16px; display: block; flex: none; pointer-events: none; }
 
-/* The camera: edge to edge, cropped to fill; it takes what the bar and the script leave. */
-#camera { position: relative; flex: 1 1 auto; min-height: 0; background: #000; overflow: hidden; -webkit-app-region: drag; }
-/* With a script the picture takes 60% of the width, but never more than 55% of the height, so a large island still leaves the script room. */
-body.has-script #camera { flex: 0 0 min(60vw, 55vh); }
+/* h-full w-full flex flex-col */
+.recorder { height: 100%; width: 100%; display: flex; flex-direction: column; }
+
+/* The preview: relative, its height from the layout; the selected source fills it (camera picture, or the microphone's wave). */
+.preview { position: relative; flex: none; background: #000; overflow: hidden; -webkit-app-region: drag; }
 #camera-video, #camera-image { width: 100%; height: 100%; object-fit: cover; display: block; }
-/* No camera: the microphone's live waveform fills the picture area, as in Borumi's recorder (a mirrored blue shape over a pale ground). */
-:root { --wave-ground: rgb(0 0 0 / 0.55); --wave-top: #8fd0ff; --wave-bottom: #3d8fe6; }
-:root[data-theme=light] { --wave-ground: #f2f3f5; }
-body.audio-only #camera { background: var(--wave-ground); }
-body.audio-only #camera-video, body.audio-only #camera-image, body.audio-only #camera-wait, body.audio-only #camera-chip { display: none !important; }
+.preview.audio { background: var(--wave-ground); }
 #waveform { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
-#camera-wait { position: absolute; inset: 0; display: grid; place-items: center; color: var(--ink-soft); font-size: 11px; }
-/* The sources: one centred row at the bottom of the picture, each a small dark pill with its device's name; the microphone's ends in a
-   64 px white level. */
-#sources { position: absolute; left: 12px; right: 12px; bottom: 8px; z-index: 2; display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; pointer-events: none; }
-.chip { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; padding: 2px 6px; border-radius: 999px; background: var(--chip); color: var(--ink); font-size: 8px; line-height: 12px; font-weight: 500; white-space: nowrap; }
-.chip span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+
+/* Chips: the selected source at the top (absolute top-3 left-1 right-1 flex flex-wrap gap-1 justify-center) in a narrow window,
+   the rest at the bottom (absolute bottom-2 left-3 right-3 flex flex-col gap-2; row flex flex-wrap gap-1, centred or left). */
+.chips-top { position: absolute; top: 12px; left: 4px; right: 4px; display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; z-index: 2; }
+.chips-bottom { position: absolute; bottom: 8px; left: 12px; right: 12px; display: flex; flex-direction: column; gap: 8px; pointer-events: none; z-index: 2; }
+.chip-row { display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; pointer-events: auto; }
+.chip-row.left { justify-content: flex-start; }
+body.no-sources .chips-top, body.no-sources .chip-row { display: none; }
+/* bg-black/40 p-0.5 px-1.5 rounded-full text-white text-[0.5rem] flex items-center gap-1 max-w-full transition-colors hover:bg-black/55 */
+.chip { display: flex; align-items: center; gap: 4px; max-width: 100%; padding: 2px 6px; border-radius: 9999px; background: rgb(0 0 0 / 0.4); color: #ffffff; font-size: 8px; line-height: 12px; font-weight: 400; }
+.chip:hover { background: rgb(0 0 0 / 0.55); }
 .chip .icon { width: 8px; height: 8px; }
-#microphone-meter { flex: none; width: 64px; height: 4px; margin-left: 4px; border-radius: 2px; overflow: hidden; }
-#microphone-bar { display: block; width: 100%; height: 100%; background: var(--level); transform: scaleX(0); transform-origin: left; transition: transform 100ms linear; }
-body.no-sources #sources { display: none; }
+.chip .name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* ml-1 h-1 w-16, overflow-hidden rounded-sm; the fill is h-full w-full origin-left bg-white will-change-transform */
+#microphone-meter { flex: none; width: 64px; height: 4px; margin-left: 4px; border-radius: 4px; overflow: hidden; }
+#microphone-bar { display: block; width: 100%; height: 100%; background: #ffffff; transform: scaleX(0); transform-origin: left; will-change: transform; }
 
-/* The round close button over the camera's top left corner. */
-.round { width: 32px; height: 32px; border-radius: 999px; }
-.round:hover:not(:disabled) { background: color-mix(in srgb, var(--ink-bar) 12%, transparent); }
-#close.overlay { position: absolute; top: 10px; left: 10px; z-index: 5; background: var(--chip); color: var(--ink); }
-#close.overlay:hover { background: var(--chip-hover); }
-#close .icon { width: 16px; height: 16px; }
-/* With no camera there is nothing to sit over: Stop ends the take, so the close button steps aside. */
-body:not(.has-camera) #close.overlay { display: none; }
+/* Banners: bg-danger / bg-orange-300 text-orange-950, text-xs p-2 text-center flex flex-col items-center justify-center, 100px. */
+.banner { flex: none; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 8px; text-align: center; font-size: 12px; line-height: 16px; overflow: hidden; }
+.banner.error { background: var(--danger); color: #ffffff; }
+.banner.warning { background: rgb(253 186 116); color: rgb(67 20 7); }
+.banner-title { font-weight: 700; margin-bottom: 8px; display: flex; align-items: center; gap: 4px; }
+.banner-title .icon { width: 12px; min-width: 12px; height: 12px; }
+.banner .medium { font-weight: 500; }
 
-/* The control bar: the timer at the left, Stop with pause or play and record again in the middle, more at the right. */
-.recording-controls { flex: none; height: 44px; display: flex; align-items: center; padding: 0 8px 0 12px; color: var(--ink-bar); -webkit-app-region: drag; }
-.bar-center { flex: 1; display: flex; align-items: center; justify-content: center; gap: 4px; }
+/* The toolbar: flex w-full items-center cursor-default, 54px (48px compact). */
+.recording-controls { flex: none; width: 100%; display: flex; align-items: center; cursor: default; color: var(--ink); -webkit-app-region: drag; }
+/* leading-none font-medium opacity-85 flex items-center ml-3 min-w-12, text-md mr-3 (text-sm mr-2 compact) */
+#clock { display: flex; align-items: center; margin-left: 12px; margin-right: 12px; min-width: 48px; font-size: 16px; line-height: 1; font-weight: 500; opacity: .85; font-variant-numeric: normal; }
+body.compact #clock { font-size: 14px; margin-right: 8px; }
+.bar-center { flex: 1; display: flex; align-items: center; justify-content: center; }
+.bar-secondary { margin-left: 4px; display: flex; align-items: center; }
 .bar-end { min-width: 48px; display: flex; justify-content: flex-end; }
-#clock { min-width: 48px; margin-right: 8px; font-size: 15px; font-weight: 500; font-variant-numeric: tabular-nums; color: var(--ink-bar); opacity: .85; }
-#stop.primary { height: 28px; padding: 0 10px 0 8px; gap: 5px; border-radius: 8px; background: var(--stop); color: #ffffff; font-size: 13px; font-weight: 600; box-shadow: 0 1px 3px rgb(0 0 0 / 0.25); }
-#stop.primary:hover:not(:disabled) { background: var(--stop-hover); }
-#stop .icon { width: 12px; height: 12px; }
+/* Record and Stop: bg-red-500 dark:bg-red-400 text-white hover:bg-red-800 dark:hover:bg-red-200 rounded-lg px-2 shadow-md, text-sm h-9 (text-xs h-8 compact); icon w-3 h-3 mr-1.5 */
+.primary { height: 36px; padding: 0 8px; border-radius: 8px; background: var(--stop); color: #ffffff; font-size: 14px; line-height: 20px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / .1), 0 2px 4px -2px rgb(0 0 0 / .1); }
+.primary:hover { background: var(--stop-hover); }
+.primary .icon { width: 12px; height: 12px; margin-right: 6px; }
+body.compact .primary { height: 32px; font-size: 12px; line-height: 16px; }
+/* Pause, play, record again and more: ghost, rounded-full w-8 h-8 hover:bg-transparent */
+.round { width: 32px; height: 32px; border-radius: 9999px; color: var(--ink); }
 #pause .play-icon, body.paused #pause .pause-icon { display: none; }
 body.paused #pause .play-icon { display: block; }
 
-/* The script: a few lines of large type under the bar, then the Auto-scroll pill on its own row, never over the words. */
-.prompt { position: relative; flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; color: var(--ink-bar); }
-#script { flex: 1; min-height: 0; overflow-y: auto; padding: 2px 14px 6px; -webkit-mask-image: linear-gradient(to bottom, #000 82%, transparent); mask-image: linear-gradient(to bottom, #000 82%, transparent); font-size: 16px; font-weight: 500; line-height: 1.3; letter-spacing: -0.01em; scrollbar-width: none; }
+/* The script. Bottom placement: below the toolbar, 16px, left-aligned; floating-top: a 250×200 card at the top, rounded-b-lg,
+   shadow-lg, bg-primary-foreground/75, 14px and centred. Both: line-height 1.75, px-4, no leading space, trailing 25% / 30%. */
+.prompt { position: relative; flex: none; color: var(--ink); }
+.prompt.floating { position: absolute; top: 0; left: 50%; transform: translateX(-50%); z-index: 20; width: 250px; height: 200px !important; overflow: hidden; border-radius: 0 0 8px 8px; background: var(--card); box-shadow: 0 10px 15px -3px rgb(0 0 0 / .1), 0 4px 6px -4px rgb(0 0 0 / .1); }
+#script { position: absolute; inset: 0; z-index: 10; overflow-y: scroll; padding: 0 16px; font-size: 16px; line-height: 1.75; text-align: left; scrollbar-width: none; }
 #script::-webkit-scrollbar { display: none; }
-#script p { margin: 0 0 .6em; }
-#auto-pill { flex: none; align-self: center; margin: 2px 0 9px; color: var(--ink-bar); height: 24px; padding: 0 11px 0 8px; gap: 5px; border-radius: 999px; background: color-mix(in srgb, var(--ink-bar) 16%, transparent); font-size: 11px; font-weight: 600; }
-#auto-pill:hover { background: color-mix(in srgb, var(--ink-bar) 26%, transparent); }
-#auto-pill .icon { width: 13px; height: 13px; }
+.prompt.floating #script { font-size: 14px; text-align: center; }
+#script p { margin: 0; }
+#script .trail { height: 25%; }
+.prompt.floating #script .trail { height: 30%; }
+/* pointer-events-none absolute bottom-2 left-0 right-0 z-30 flex justify-center px-2 */
+.pill-row { position: absolute; bottom: 8px; left: 0; right: 0; z-index: 30; display: flex; justify-content: center; padding: 0 8px; pointer-events: none; }
+/* inline-flex items-center rounded-full border text-[11px] font-medium shadow-sm backdrop-blur-md; on: border-black/10 bg-black/45; off: bg-black/35 */
+.pill { pointer-events: auto; display: inline-flex; align-items: center; border-radius: 9999px; border: 1px solid rgb(0 0 0 / .1); background: rgb(0 0 0 / .35); color: #ffffff; font-size: 11px; font-weight: 500; box-shadow: 0 1px 2px 0 rgb(0 0 0 / .05); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); transition: background-color 150ms; }
+.pill.on { background: rgb(0 0 0 / .45); }
+/* inline-flex items-center gap-1.5 rounded-full px-2.5 py-1; on: rounded-r-none hover:bg-black/10; off: hover:bg-black/15 */
+#auto-pill { gap: 6px; padding: 4px 10px; border-radius: 9999px; font-size: 11px; line-height: 16px; }
+#auto-pill:hover { background: rgb(0 0 0 / .15); }
+.pill.on #auto-pill { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.pill.on #auto-pill:hover { background: rgb(0 0 0 / .1); }
+#auto-pill .icon, #rewind .icon { width: 12px; height: 12px; }
 #auto-pill .on-icon, #auto-pill[aria-pressed=true] .off-icon { display: none; }
-#auto-pill[aria-pressed=true] .on-icon { display: block; }
-#auto-pill .on-icon path { stroke: var(--glass); }
+#auto-pill[aria-pressed=true] .on-icon { display: block; color: #ffffff; }
+/* inline-flex h-6 w-6 items-center justify-center rounded-full rounded-l-none transition-colors hover:bg-black/10 */
+#rewind { width: 24px; height: 24px; border-radius: 0 9999px 9999px 0; }
+#rewind:hover { background: rgb(0 0 0 / .1); }
 
-/* The countdown, with Borumi's own values (recorder bundle, countdown overlay): a black gradient over the camera; a 96px ring of blue and
-   purple, blurred, turning every 1.5 s behind an 80px dark disc with the number; then Start now and Cancel. */
-#countdown { position: absolute; inset: 0; z-index: 4; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; background: linear-gradient(to bottom, var(--fade-top), var(--fade-bottom)); }
-.orb { position: relative; width: 80px; height: 80px; }
-.orb::before { content: ''; position: absolute; left: -8px; top: -8px; width: 96px; height: 96px; border-radius: 50%; background: conic-gradient(from 0deg, transparent 0deg, rgb(59 130 246) 60deg, rgb(147 51 234) 120deg, transparent 180deg, rgb(59 130 246) 240deg, rgb(147 51 234) 300deg, transparent 360deg); filter: blur(8px); animation: aura 1.5s cubic-bezier(0.4, 0, 0.6, 0.8) infinite; }
-@keyframes aura { to { transform: rotate(360deg); } }
-@media (prefers-reduced-motion: reduce) { .orb::before { animation: none; } }
-#countdown-number { position: relative; width: 80px; height: 80px; display: grid; place-items: center; border-radius: 50%; background: radial-gradient(circle, rgb(0 0 0 / 0.4) 0%, rgb(0 0 0 / 0.9) 100%); box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.25); font-size: 36px; font-weight: 500; line-height: 1; color: var(--ink); font-variant-numeric: tabular-nums; }
-.countdown-actions { display: flex; flex-direction: column; align-items: center; gap: 4px; }
-#start-now { height: 32px; padding: 0 12px; border-radius: 12px; background: var(--primary); color: var(--on-primary); font-size: 14px; font-weight: 500; box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1); }
-#start-now:hover { opacity: .85; }
-#cancel-countdown { height: 32px; padding: 0 12px; border-radius: 12px; color: var(--primary); font-size: 14px; font-weight: 500; }
-#cancel-countdown:hover { opacity: .5; }
+/* The flash when recording starts: absolute inset-0 pointer-events-none border-8 border-red-500 transition-opacity duration-300
+   opacity-0 blur-sm bg-red-500/10, rounded-[24px] on macOS; opacity-100 for 500 ms. */
+#flash { position: absolute; inset: 0; z-index: 40; pointer-events: none; border: 8px solid var(--flash); border-radius: 24px; background: hsl(0 84% 60% / .1); filter: blur(4px); opacity: 0; transition: opacity 300ms; }
+#flash.on { opacity: 1; }
 
-/* More: a small dark menu above the bar. */
-#menu { position: absolute; right: 8px; bottom: 48px; z-index: 6; width: 214px; max-height: calc(100% - 56px); overflow-y: auto; padding: 4px; border: 1px solid var(--menu-line); border-radius: 10px; background: var(--menu); box-shadow: 0 10px 30px rgb(0 0 0 / 0.35); }
-body.has-script #menu { bottom: auto; top: calc(min(60vw, 55vh) + 44px); }
-#menu { color: var(--ink-bar); }
-#menu > button, .menu-check { width: 100%; display: flex; align-items: center; gap: 8px; min-height: 28px; padding: 0 8px; border-radius: 6px; font-size: 12px; text-align: left; justify-content: flex-start; cursor: pointer; }
-#menu > button:hover, .menu-check:hover { background: var(--menu-hover); }
-/* As Borumi's native menu: a leading check on what is on, nothing on what is off; the scrolling settings open with a chevron. */
-.menu-check input { position: absolute; width: 1px; height: 1px; opacity: 0; margin: 0; }
-.menu-check:has(input:focus-visible) { outline: 2px solid var(--focus); outline-offset: -2px; }
-.menu-check::before, #camera-toggle::before, #script-toggle::before, #reading-settings::before, #editor::before { content: ''; width: 12px; flex: none; text-align: center; }
-.menu-check:has(input:checked)::before, #camera-toggle[aria-expanded=true]::before, #script-toggle[aria-expanded=true]::before { content: '✓'; }
-#reading-settings::after { content: '›'; margin-left: auto; font-size: 14px; line-height: 1; opacity: .7; transition: transform 120ms; }
-#reading-settings[aria-expanded=true]::after { transform: rotate(90deg); }
-#menu .sep { height: 1px; margin: 4px 2px; background: var(--menu-line); }
-#reading-options { display: grid; gap: 10px; padding: 8px; }
-#reading-options label { display: grid; gap: 4px; font-size: 11px; color: var(--ink-soft); }
-#reading-options .auto-scroll-option { display: flex; align-items: center; justify-content: space-between; }
-#reading-options input[type=range] { width: 100%; accent-color: var(--focus); }
-.speed-scale { display: flex; justify-content: space-between; font-size: 10px; color: rgb(255 255 255 / 0.5); }
+/* Starting: h-[100vh] w-[100vw] flex items-center justify-center (flex-col / flex-row); flex flex-col items-center gap-8; the ring
+   w-24 h-24 rounded-full animate-spin, conic gradient, blur(8px), 1 s cubic-bezier(.23,.89,.74,.73); the text text-sm font-medium. */
+#init { position: absolute; inset: 0; z-index: 45; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 32px; background: var(--window); color: var(--ink); }
+#init.horizontal { flex-direction: row; }
+#init.horizontal .init-ring { display: none; }
+.init-ring { width: 96px; height: 96px; border-radius: 50%; background: conic-gradient(from 0deg, transparent 0deg, rgba(59, 130, 246, 1) 60deg, rgba(147, 51, 234, 1) 120deg, transparent 180deg, rgba(59, 130, 246, 1) 240deg, rgba(147, 51, 234, 1) 300deg, transparent 360deg); filter: blur(8px); animation: spin 1s cubic-bezier(.23,.89,.74,.73) infinite; }
+#init-text { font-size: 14px; line-height: 20px; font-weight: 500; }
+@keyframes spin { to { transform: rotate(360deg); } }
 
-#notice { position: absolute; left: 8px; right: 8px; bottom: 48px; z-index: 7; margin: 0; padding: 0; font-size: 11px; color: #ffd6d3; text-shadow: 0 1px 2px #000; }
-#notice:empty { display: none; }
+/* The countdown: absolute inset-0 flex justify-center items-center pointer-events-none z-20, the black (white) gradient; vertical
+   (flex-col gap-4) from 200px high, else a row with the orb at half size. */
+#countdown { position: absolute; inset: 0; z-index: 46; display: flex; justify-content: center; align-items: center; pointer-events: none; background: linear-gradient(to bottom, var(--fade-top), var(--fade-bottom)); }
+.countdown-inner { display: flex; flex-direction: column; gap: 16px; align-items: center; }
+#countdown.horizontal .countdown-inner { flex-direction: row; gap: 0; }
+.orb { position: relative; }
+#countdown.horizontal .orb { transform: scale(.5); }
+.orb::before { content: ''; position: absolute; left: -8px; top: -8px; width: 96px; height: 96px; border-radius: 50%; background: conic-gradient(from 0deg, transparent 0deg, rgba(59, 130, 246, 1) 60deg, rgba(147, 51, 234, 1) 120deg, transparent 180deg, rgba(59, 130, 246, 1) 240deg, rgba(147, 51, 234, 1) 300deg, transparent 360deg); filter: blur(8px); animation: spin 1.5s cubic-bezier(0.4, 0.0, 0.6, 0.8) infinite; }
+#countdown-number { position: relative; width: 80px; height: 80px; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: radial-gradient(circle, rgba(0, 0, 0, 0.4) 0%, rgba(0, 0, 0, 0.9) 100%); box-shadow: 0 25px 50px -12px rgb(0 0 0 / .25); color: #ffffff; font-size: 36px; line-height: 40px; font-weight: 500; }
+@media (prefers-reduced-motion: reduce) { .orb::before, .init-ring { animation: none; } }
+/* flex flex-col pt-3 items-center gap-1 (flex-row when horizontal); size sm = h-8 px-3 text-xs; rounded-xl */
+.countdown-actions { display: flex; flex-direction: column; align-items: center; gap: 4px; padding-top: 12px; }
+#countdown.horizontal .countdown-actions { flex-direction: row; padding-top: 0; }
+#start-now, #cancel-countdown { pointer-events: auto; height: 32px; padding: 0 12px; border-radius: 12px; font-size: 12px; line-height: 16px; }
+#start-now { background: var(--primary); color: var(--on-primary); box-shadow: 0 10px 15px -3px rgb(0 0 0 / .1), 0 4px 6px -4px rgb(0 0 0 / .1); }
+#start-now:hover { background: color-mix(in srgb, var(--primary) 80%, transparent); }
+#cancel-countdown { color: var(--primary); }
+#cancel-countdown:hover { color: color-mix(in srgb, var(--primary) 50%, transparent); }
 
-/* A large island (Borumi's recorder dragged big): the camera fills it and the script floats as a card at the top, near the lens, so you
-   read with your eyes up. */
-@media (min-width: 480px) {
-  body.has-camera.has-script #camera { flex: 1 1 auto; }
-  body.has-camera.has-script .prompt { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); z-index: 3; width: min(380px, 62vw); height: min(200px, 36vh); padding-top: 10px; border-radius: 14px; background: var(--glass); box-shadow: 0 10px 30px rgb(0 0 0 / 0.25); }
-  body.has-camera.has-script #menu { top: auto; bottom: 48px; }
-}
+/* Close: absolute top-3 z-50 w-8 h-8 rounded-full bg-black/40 hover:bg-black/70 transition-colors, left-3 on macOS; x w-5 h-5 text-white;
+   h-6 w-6 while starting in a short window. */
+#close.overlay { position: absolute; top: 12px; left: 12px; z-index: 50; width: 32px; height: 32px; border-radius: 9999px; background: rgb(0 0 0 / .4); color: #ffffff; }
+#close.overlay:hover { background: rgb(0 0 0 / .7); }
+#close .icon { width: 20px; height: 20px; }
+#close.overlay.compact { width: 24px; height: 24px; }

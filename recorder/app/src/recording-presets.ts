@@ -1,18 +1,19 @@
 import type {NormalizedRegion} from './capture-region';
 import type {CaptureRequest} from './capture-preview';
-export type RecordingSettings={selection:{camera:boolean;microphone:boolean;screen:boolean;systemAudio:boolean};cameraId:string;microphoneId:string;cameraResolution:string;cameraFps:number;screenFps:number;mirror:boolean;echoCancellation:boolean;noiseSuppression:boolean;captureMode:'display'|'window'|'region';region:NormalizedRegion|null};
+export type RecordingSettings={selection:{camera:boolean;microphone:boolean;screen:boolean;systemAudio:boolean};cameraId:string;microphoneId:string;cameraResolution:string;cameraFps:number;screenFps:number;mirror:boolean;/** Set by saves made since Mirror camera replaced "Mirror preview only": older saves start with Borumi's default, on. */mirrorCamera?:true;echoCancellation:boolean;noiseSuppression:boolean;captureMode:'display'|'window'|'region';region:NormalizedRegion|null};
 export type RecordingPreset={id:string;name:string;settings:RecordingSettings};
 export type RecordingPreferences={version:1;current:RecordingSettings;activeId:string|null;presets:RecordingPreset[]};
 export const RECORDING_PREFERENCES_KEY='sceneforge.recording-preferences.v1';
-export const defaultRecordingSettings=():RecordingSettings=>({selection:{camera:true,microphone:true,screen:false,systemAudio:false},cameraId:'',microphoneId:'',cameraResolution:'1920x1080',cameraFps:30,screenFps:30,mirror:false,echoCancellation:true,noiseSuppression:true,captureMode:'display',region:null});
+export const defaultRecordingSettings=():RecordingSettings=>({selection:{camera:true,microphone:true,screen:false,systemAudio:false},cameraId:'',microphoneId:'',cameraResolution:'1920x1080',cameraFps:30,screenFps:30,mirror:true,mirrorCamera:true,echoCancellation:true,noiseSuppression:true,captureMode:'display',region:null});
 const clone=(s:RecordingSettings):RecordingSettings=>({...s,selection:{...s.selection},region:s.region?{...s.region}:null});
-function settingsFrom(value:unknown):RecordingSettings{
+export function settingsFrom(value:unknown):RecordingSettings{
  const d=defaultRecordingSettings(),s=(value&&typeof value==='object'?value:{}) as Partial<RecordingSettings>;
  for(const key of ['camera','microphone','screen','systemAudio'] as const)if(typeof s.selection?.[key]==='boolean')d.selection[key]=s.selection[key];
  for(const key of ['cameraId','microphoneId'] as const)if(typeof s[key]==='string')d[key]=s[key].slice(0,1024);
  if(['1280x720','1920x1080','3840x2160'].includes(s.cameraResolution!))d.cameraResolution=s.cameraResolution!;
  for(const key of ['cameraFps','screenFps'] as const)if([30,60].includes(s[key]!))d[key]=s[key]!;
- for(const key of ['mirror','echoCancellation','noiseSuppression'] as const)if(typeof s[key]==='boolean')d[key]=s[key];
+ for(const key of ['echoCancellation','noiseSuppression'] as const)if(typeof s[key]==='boolean')d[key]=s[key];
+ if(s.mirrorCamera===true&&typeof s.mirror==='boolean')d.mirror=s.mirror;
  if(['display','window','region'].includes(s.captureMode!))d.captureMode=s.captureMode!;
  if(s.region&&['x','y','width','height'].every(k=>typeof s.region?.[k as keyof NormalizedRegion]==='number'&&Number.isFinite(s.region[k as keyof NormalizedRegion]))&&s.region.x>=0&&s.region.y>=0&&s.region.width>0&&s.region.height>0&&s.region.x+s.region.width<=1&&s.region.y+s.region.height<=1)d.region={...s.region};
  return d;
