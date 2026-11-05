@@ -1,3 +1,5 @@
+import { z } from 'zod';
+
 // CreatorClub types shared by the server (server/club) and the UI (src/club).
 
 export interface Workspace {
@@ -280,6 +282,18 @@ export interface Package {
   tags?: string[];
 }
 
+/** Blank strings allow a creator to fill the same template by hand; generated answers are checked separately. */
+export const onepagerShape = z.object({
+  title: z.string().max(200),
+  backupTitle: z.string().max(200),
+  logline: z.string().max(1000),
+  thumbnail: z.object({ headline: z.string().max(200), visual: z.string().max(2000), closer: z.string().max(200), template: z.string().max(500).optional() }).strict(),
+  skeleton: z.array(z.object({ label: z.string().max(100), line: z.string().max(500) }).strict()).min(6).max(10),
+  whys: z.tuple([z.string().max(1000), z.string().max(1000), z.string().max(1000)]),
+  flags: z.array(z.string().max(500)).max(20).optional(),
+}).strict();
+export type OnePager = z.infer<typeof onepagerShape>;
+
 export interface OutlineScene {
   /** Stable for the scene's whole life: kept through edits, reorders and re-runs that keep its title. Links it to its recorder scene. */
   id?: string;
@@ -317,6 +331,7 @@ export type PlanStep = (typeof PLAN_STEPS)[number];
 export interface PlanData {
   package: Package | null;
   outline: Outline | null;
+  onepager: OnePager | null;
   /** The first scene (1-based, in the recorder's order) whose takes were recorded before the outline changed. */
   changedScene?: number;
   /** AI steps still running for this video, by step, so a page opened mid-run follows them. */
@@ -326,7 +341,7 @@ export interface PlanData {
 }
 
 /** The AI steps of Plan. Each runs at most once at a time per video. */
-export const PLAN_JOB_KINDS = ['package', 'outline', 'script'] as const;
+export const PLAN_JOB_KINDS = ['package', 'outline', 'script', 'onepager'] as const;
 export type PlanJobKind = (typeof PLAN_JOB_KINDS)[number];
 
 /** What a finished AI step returns: the new version, plus `replaced` (Undo puts the earlier one back) or `held` (it was kept aside, because the step changed while it ran). */

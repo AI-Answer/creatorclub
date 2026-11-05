@@ -42,6 +42,10 @@ test('prompt is deterministic, names one subject, exact headline, readable feed 
  assert.match(prompt,/16:9/);assert.match(prompt,/one clear subject/);assert.match(prompt,/high contrast/);assert.match(prompt,/spelled exactly "BUILD IT"/);assert.match(prompt,/No other text/);assert.match(prompt,/bright robot/);
  assert.match(thumbnailPrompt('Title','one two three four'),/spelled exactly "one two three"/);
  assert.match(thumbnailPrompt('Title',''),/Use no headline/);
+ const sketch=thumbnailPrompt('Claude Trader','Claude Trader',{visual:'Claude tile plus a stock chart',closer:'Is Insane',layout:'Tile equation'});
+ assert.match(sketch,/closing line in smaller type, spelled exactly "Is Insane"/);
+ assert.match(sketch,/Creative brief: Claude tile plus a stock chart\nLayout: Tile equation/);
+ assert.doesNotMatch(thumbnailPrompt('T','Words'),/closing line/);
  assert.equal(prompt,thumbnailPrompt('Build with AI','BUILD IT','A bright robot holding a camera'));
 });
 test('status, Soul IDs and multiplied cost use the allow-listed CLI environment',async()=>{

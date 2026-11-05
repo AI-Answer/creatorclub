@@ -11,11 +11,15 @@ export type ThumbnailReference={kind:'tile';id:string}|{kind:'upload';path:strin
 export interface ThumbnailRequest{prompt:string;model:HiggsfieldModel;count:number;references?:ThumbnailReference[];soulId?:string;parentId?:string;}
 export interface ThumbnailCandidate{id:string;prompt:string;model:HiggsfieldModel;params:Record<string,string>;file:string;createdAt:string;parentId?:string;removedAt?:string;}
 export const thumbnailImageUrl=(videoId:string,id:string)=>`/api/club/videos/${encodeURIComponent(videoId)}/thumbnails/${encodeURIComponent(id)}/image`;
+/** A one-pager's thumbnail sketch: the visual and layout steer the picture, and a closer is the only other words allowed. */
+export interface ThumbnailSketch{visual?:string;closer?:string;layout?:string;}
 /** Prefill with at most three words; the creator can edit the prompt before spending credits. */
-export function thumbnailPrompt(title:string,thumbnailText:string,brief?:string):string{
+export function thumbnailPrompt(title:string,thumbnailText:string,brief?:string|ThumbnailSketch):string{
  const headline=thumbnailText.trim().split(/\s+/).slice(0,3).join(' ');
+ const sketch=typeof brief==='string'?{visual:brief}:brief??{},closer=sketch.closer?.trim();
  return [`Create a 16:9 YouTube thumbnail for a video titled ${JSON.stringify(title.trim())}.`,
   'Use one clear subject, a simple composition, high contrast and a readable silhouette at small YouTube feed sizes.',
   headline?`Use a single 1–3 word headline, spelled exactly ${JSON.stringify(headline)}.`:'Use no headline.',
-  'No other text, logos, watermarks or tiny details.',brief?.trim()?`Creative brief: ${brief.trim()}`:''].filter(Boolean).join('\n');
+  closer?`Add one short closing line in smaller type, spelled exactly ${JSON.stringify(closer)}. No other text, logos, watermarks or tiny details.`:'No other text, logos, watermarks or tiny details.',
+  sketch.visual?.trim()?`Creative brief: ${sketch.visual.trim()}`:'',sketch.layout?.trim()?`Layout: ${sketch.layout.trim()}`:''].filter(Boolean).join('\n');
 }
