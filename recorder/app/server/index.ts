@@ -233,3 +233,6 @@ const server=app.listen(PORT,'127.0.0.1',(error?:Error)=>{if(error){console.erro
 let shuttingDown=false;
 const shutdown=()=>{if(shuttingDown)return;shuttingDown=true;server.close();cancelAllJobs();void Promise.allSettled([exportsStore.shutdown(media.shutdownJobs),agentChat.shutdownAgentChats(),automation.shutdown()]).then(results=>{for(const result of results)if(result.status==='rejected')console.error(result.reason);});};
 process.on('SIGTERM',shutdown);process.on('SIGINT',shutdown);
+// The desktop app passes its pid. If it is gone (force-quit, crash), this service stops too instead of holding the port for the next launch.
+const parentPid=Number(process.env.CREATORCLUB_PARENT_PID);
+if(parentPid>0)setInterval(()=>{try{process.kill(parentPid,0);}catch{shutdown();}},2000).unref();

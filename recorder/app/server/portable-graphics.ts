@@ -1,6 +1,9 @@
-import {Resvg} from '@resvg/resvg-js';
 import path from 'node:path';
 import {existsSync} from 'node:fs';
+import {createRequire} from 'node:module';
+// Loaded on first use: the native binding takes ~35 ms to open, which every service start would otherwise pay.
+let resvg:typeof import('@resvg/resvg-js')|undefined;
+const loadResvg=()=>resvg??=createRequire(import.meta.url)('@resvg/resvg-js') as typeof import('@resvg/resvg-js');
 type Config={width:number;height:number;type:string;text?:string;x:number;y:number;boxWidth:number;boxHeight:number;color?:string;background?:string;fontSize?:number;opacity?:number;rotation?:number;radius?:number};
 const esc=(s:string)=>s.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]!));
 const color=(s:string|undefined,fallback:string)=>s&&/^#[0-9a-f]{6}(?:[0-9a-f]{2})?$/i.test(s)?s:fallback;
@@ -20,5 +23,6 @@ export function portableGraphics(c:Config):Buffer{
  else if(c.type==='cursor')shape=`<path d="M${w*.47} ${h*.43}l0 ${h*.045} ${w*.009} -${h*.012} ${w*.009} ${h*.018} ${w*.008} -${h*.006} -${w*.01} -${h*.018} ${w*.014} 0Z" fill="${fg}" stroke="#000" stroke-width="2"/>`;
  else shape=`<rect x="${x}" y="${y}" width="${bw}" height="${bh}" rx="${c.type==='mask'?c.radius||0:8}" fill="${c.type==='mask'?'#ffffff':fg}"/>`;
  const font=path.join(process.env.CREATOR_COMPILER_RUNTIME_DIR||path.resolve(import.meta.dirname,'../../../engine/cutroom/crates/gfx/assets'),'fonts/Inter-SemiBold.ttf');
+ const {Resvg}=loadResvg();
  return Buffer.from(new Resvg(`<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><g opacity="${c.opacity??1}" transform="rotate(${c.rotation||0} ${x+bw/2} ${y+bh/2})">${shape}</g></svg>`,{font:{loadSystemFonts:true,...(existsSync(font)?{fontFiles:[font]}:{})}}).render().asPng());
 }
