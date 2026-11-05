@@ -99,7 +99,8 @@ test('main and inherited mac signing retain runtime rights and enable camera and
 test('settings placement pins to the right pane, clamps width, and preserves negative display coordinates',()=>{
  assert.deepEqual(settingsHelperBounds({found:true,x:100,y:50,width:1000,height:800}),{x:372,y:664,width:520,height:172});
  assert.deepEqual(settingsHelperBounds({found:true,x:-1512,y:-40,width:600,height:700}),{x:-1308,y:474,width:372,height:172});
- assert.equal(settingsHelperBounds({found:true,x:0,y:0,width:400,height:600},180)?.width,300);
+ assert.deepEqual(settingsHelperBounds({found:true,x:0,y:0,width:400,height:600},180),{x:88,y:406,width:300,height:180});
+ assert.equal(settingsHelperBounds({found:true,x:0,y:0,width:320,height:600}),null);
  for(const value of [{found:false},{found:true,x:NaN,y:0,width:700,height:600},{found:true,x:0,y:0,width:0,height:600}])assert.equal(settingsHelperBounds(value),null);
 });
 test('tracker follows Settings, falls back when absent, stops after manual movement, and dies on close',async()=>{

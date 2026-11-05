@@ -20,8 +20,10 @@ function permissionHelperOptions(workArea,preload){
 /** Settings bounds and Electron screen bounds both use global top-left coordinates. */
 function settingsHelperBounds(window,height=172){
  if(!window?.found||!['x','y','width','height'].every(key=>Number.isFinite(window[key]))||window.width<=0||window.height<=0)return null;
- const offset=Math.min(260,window.width*.32)+12;
- return {x:Math.round(window.x+offset),y:Math.round(window.y+window.height-height-14),width:Math.round(Math.max(300,Math.min(520,window.width-offset-24))),height};
+ const offset=Math.min(260,window.width*.32)+12,width=Math.round(Math.max(300,Math.min(520,window.width-offset-24)));
+ // A window too narrow for the helper gets the display fallback; otherwise slide left so the helper never overflows it.
+ if(window.width<width+24)return null;
+ return {x:Math.round(window.x+Math.max(12,Math.min(offset,window.width-width-12))),y:Math.round(window.y+window.height-height-14),width,height};
 }
 function createPermissionHelper({app,BrowserWindow,ipcMain,screen,shell,nativeImage,getStatus,onGranted,relaunch,appName='Creator Compiler',helperPath=path.resolve(__dirname,'../server-dist/sceneforge-settings-window'),spawnProcess=spawn,setInterval:every=setInterval,clearInterval:cancel=clearInterval,setTimeout:after=setTimeout,clearTimeout:cancelAfter=clearTimeout}){
  const page=pathToFileURL(path.join(__dirname,'permission-helper.html')).href;

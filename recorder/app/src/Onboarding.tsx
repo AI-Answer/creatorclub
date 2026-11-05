@@ -38,7 +38,8 @@ export function Onboarding({onClose,onRecord,onImport,initialStep=0,brand='Creat
  });
  const openSettings=(section:DesktopPrivacySection)=>void run('settings',async()=>{await bridge?.openPrivacySettings?.(section);await refresh();});
  const finish=(action:()=>void|Promise<void>)=>void run('finish',async()=>{await action();markSetupSeen();});
- const {current,allSet}=capturePermissionProgress(permissions);
+ // A passed browser check counts toward progress; the row still reads Not verified.
+ const {current,allSet}=capturePermissionProgress(permissions&&{...permissions,...Object.fromEntries(Object.keys(checks).map(kind=>[kind,'granted']))});
  const statuses=captureRows.map(row=>permissions?.[row.kind]||'unknown');
  return <div className="setup-backdrop" data-capture-setup><div className="setup-dialog" ref={dialog} role="dialog" aria-modal="true" aria-labelledby="setup-title" onKeyDown={e=>{
   if(e.key==='Escape'){e.stopPropagation();close();}
