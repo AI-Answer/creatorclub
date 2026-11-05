@@ -84,7 +84,8 @@ function Playhead_({playhead,scale,follow,onPage,height}:{playhead:Playhead;scal
  return <div className="playhead" ref={line} style={{height}}><span/></div>;
 }
 
-export const timelineStamp=(n:number)=>{const t=Math.max(0,Math.floor(n));return `${Math.floor(t/60)}:${String(t%60).padStart(2,'0')}`;};
+/** Borumi's ruler label (main bundle VB, M:38575-38676): `mm:ss`, both zero-padded, minutes not capped. */
+export const timelineStamp=(n:number)=>{const t=Math.max(0,Math.floor(n));return `${String(Math.floor(t/60)).padStart(2,'0')}:${String(t%60).padStart(2,'0')}`;};
 const fmtLen=timelineStamp;
 /** The height of the band the spoken words sit on, along the top of an audio clip. */
 const WORD_BAND=22;

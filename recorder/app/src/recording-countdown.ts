@@ -19,6 +19,11 @@ export async function countdownWithPreRoll<T>({countdown,arm,cancel,clock=record
  const goAtMs=clock();
  return {armed:await begin(),goAtMs,keepFromMs:goAtMs-PRE_ROLL_MS};
 }
+export type CountdownSound='Disabled'|'Beep';
+const SOUND_KEY='sceneforge.countdown-sound';
+/** Borumi's countdown sound, Disabled until chosen in Settings > Recording. */
+export function countdownSound():CountdownSound{try{return localStorage.getItem(SOUND_KEY)==='Beep'?'Beep':'Disabled';}catch{return 'Disabled';}}
+export function setCountdownSound(value:CountdownSound){try{localStorage.setItem(SOUND_KEY,value);}catch{/* not remembered */}}
 export function countdownChime(){
  const context=new AudioContext();void context.resume().catch(()=>{});
  return {play:()=>{const oscillator=context.createOscillator(),gain=context.createGain(),now=context.currentTime;oscillator.frequency.value=740;gain.gain.setValueAtTime(0,now);gain.gain.linearRampToValueAtTime(.14,now+.012);gain.gain.exponentialRampToValueAtTime(.001,now+.17);oscillator.connect(gain).connect(context.destination);oscillator.start(now);oscillator.stop(now+.18);oscillator.onended=()=>{oscillator.disconnect();gain.disconnect();};},close:()=>context.close().catch(()=>{})};

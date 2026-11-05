@@ -86,7 +86,7 @@ test('voice follow: the island starts and stops the follower with this take\'s m
 
 test('HUD accepts only trusted main and exact HUD main frame; blocks windows/navigation',async()=>{const h=harness(),m=createRecordingHud(h.opts);try{
  assert.throws(()=>h.handlers.get('update-recording-hud')!({sender:{},senderFrame:{}},{}),/Untrusted/);await assert.rejects(h.handlers.get('begin-recording-hud')!({sender:{},senderFrame:{}},{}),/Untrusted/);
- const {w}=await opened(h);assert.deepEqual(w.webContents.openHandler(),{action:'deny'});let blocked=false;w.webContents.emit('will-navigate',{preventDefault:()=>blocked=true});assert.equal(blocked,true);assert.equal(w.protected,true);
+ const {w}=await opened(h);assert.deepEqual(w.webContents.openHandler(),{action:'deny'});let blocked=false;w.webContents.emit('will-navigate',{preventDefault:()=>blocked=true});assert.equal(blocked,true);assert.equal(w.protected,false,'the island shows in screenshots, as Borumi\'s; native recording leaves it out');
  assert.throws(()=>h.handlers.get('recording-hud-read')!({sender:w.webContents,senderFrame:{...w.webContents.mainFrame}}),/Untrusted/);
  assert.throws(()=>h.handlers.get('recording-hud-read')!({sender:{},senderFrame:w.webContents.mainFrame}),/Untrusted/);
  assert.throws(()=>h.handlers.get('recording-hud-command')!(h.hudEvent(),'exec'),/Unknown/);
@@ -200,7 +200,7 @@ test('"Open script as separate window" opens Borumi\'s script window; the island
   const choice=await h.handlers.get('recording-hud-menu')!(h.hudEvent(island),{index:2});assert.equal(choice,'script-window');assert.equal(h.windows.at(-1),island,'the island acts on the choice');
   // As with Mirror camera, the island sends the choice back as a command, and the main process opens the window.
   await h.handlers.get('recording-hud-command')!(h.hudEvent(island),'script-window');
-  const script=h.windows.at(-1);assert.notEqual(script,island);assert.equal(script.options.type,'panel');assert.equal(script.protected,true);script.resolve();await tick();
+  const script=h.windows.at(-1);assert.notEqual(script,island);assert.equal(script.options.type,'panel');assert.equal(script.protected,false);script.resolve();await tick();
   assert.deepEqual(island.webContents.messages.at(-1),['recording-hud-state',{scriptWindow:true}],'the island is told to hide its script');
   const scriptEvent={sender:script.webContents,senderFrame:script.webContents.mainFrame};
   assert.deepEqual(h.handlers.get('script-window-read')!(scriptEvent).take,{active:true,script:'One two three four.',appearance:'light'});

@@ -7,6 +7,7 @@ import {AgentSection} from '../settings/AgentSection';
 import {ChannelSection} from '../settings/ChannelSection';
 import {ConnectedAiSection} from '../settings/ConnectedAiSection';
 import {AppearanceSection} from '../settings/AppearanceSection';
+import {RecordingSection} from '../settings/RecordingSection';
 import {PublishingSection} from '../settings/PublishingSection';
 import {SkillsSection} from '../settings/SkillsSection';
 import {usePublishing} from '../publishing/usePublishing';
@@ -27,7 +28,7 @@ async function load():Promise<Loaded>{
 }
 
 /** The element a link's section scrolls to. Followed channels and signal sources sit inside Channel. */
-const TARGET:Record<SettingsSection,string>={ai:'set-ai',agent:'set-agent',channel:'set-channel',followed:'set-followed',sources:'set-sources',skills:'set-skills',publishing:'set-publishing',appearance:'set-appearance'};
+const TARGET:Record<SettingsSection,string>={ai:'set-ai',agent:'set-agent',channel:'set-channel',followed:'set-followed',sources:'set-sources',skills:'set-skills',publishing:'set-publishing',recording:'set-recording',appearance:'set-appearance'};
 
 /** The page's shape while the settings are read: the three groups as grey blocks, so nothing jumps when they arrive. */
 function SettingsSkeleton(){
@@ -38,10 +39,10 @@ function SettingsSkeleton(){
  return <div aria-busy="true" aria-label="Loading settings" className="set-skel">{[3,2,2].map(group)}</div>;
 }
 
-type Tab='ai'|'agent'|'channel'|'skills'|'publishing'|'appearance';
+type Tab='ai'|'agent'|'channel'|'skills'|'publishing'|'recording'|'appearance';
 /** Borumi's Settings nav: one tab per group, each with its icon. Followed channels and signal sources open the Channel tab. */
 const TABS:ReadonlyArray<{key:Tab;label:string;icon:IconName}>=[
- {key:'ai',label:'Connected AI',icon:'ai'},{key:'agent',label:'Your AI agent',icon:'connect'},{key:'channel',label:'Channel',icon:'channel'},{key:'skills',label:'Skills',icon:'draft'},{key:'publishing',label:'Publishing',icon:'upload'},{key:'appearance',label:'Appearance',icon:'theme'},
+ {key:'ai',label:'Connected AI',icon:'ai'},{key:'agent',label:'Your AI agent',icon:'connect'},{key:'channel',label:'Channel',icon:'channel'},{key:'skills',label:'Skills',icon:'draft'},{key:'publishing',label:'Publishing',icon:'upload'},{key:'recording',label:'Recording',icon:'record'},{key:'appearance',label:'Appearance',icon:'theme'},
 ];
 const tabFor=(section?:SettingsSection):Tab=>section==='followed'||section==='sources'?'channel':section??'ai';
 
@@ -89,6 +90,7 @@ export function SettingsScreen({section:linked,onSetup}:{section?:SettingsSectio
       {tab==='agent'&&<AgentSection/>}
       {tab==='channel'&&<ChannelSection workspace={data.workspace} focus={linked==='followed'||linked==='sources'?linked:undefined} onSaved={workspace=>setData({...data,workspace})} onSetup={onSetup}/>}
       {tab==='skills'&&<SkillsSection/>}
+      {tab==='recording'&&<RecordingSection/>}
       {tab==='appearance'&&<AppearanceSection savedTheme={data.settings.appearance}/>}
       {tab==='publishing'&&<PublishingSection publishing={publishing.state} error={publishing.error} onReload={publishing.reload} onPublishing={publishing.setState}/>}
     </>}

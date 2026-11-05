@@ -1,0 +1,83 @@
+/* Borumi's Edit step, resolved from its stylesheet (index-DXJH5HZm.css) for each class in its markup (main bundle). Light is :root,
+   dark is .dark; here they follow CreatorClub's data-theme through the --br-* tokens. Loaded last so it wins over the older club CSS. */
+
+/* Tool rail AQ / item OQ (M:66709-66781): 72px; items px-3 py-2 gap-1 rounded-sm hover:bg-secondary, pt-3 on the first; a 36px
+   circle well bg-primary/5 (active bg-primary text-primary-foreground) around a 16px icon; label text-xs font-medium, 11px past 7
+   letters. "More" is CreatorClub's own (Graphics, media in this video, Cutroom). */
+.club-root .club-embed .app-shell[data-mode=Edit] .club-edit .club-rail { width: 72px; gap: 0; padding: 0; background: var(--br-bg); border-right: 1px solid var(--br-border); }
+.club-root .club-embed .app-shell[data-mode=Edit] .club-edit .club-rail button { display: flex; flex-direction: column; align-items: center; gap: 4px; width: 100%; padding: 8px 12px; border: 0; border-radius: var(--cc-r-sm); background: transparent; color: var(--br-primary); font-size: var(--cc-text-xs); line-height: 16px; font-weight: 500; cursor: default; }
+.club-root .club-embed .app-shell[data-mode=Edit] .club-edit .club-rail button:first-child { padding-top: 12px; }
+.club-root .club-embed .app-shell[data-mode=Edit] .club-edit .club-rail button[data-long] { font-size: var(--cc-text-2xs); }
+.club-root .club-embed .app-shell[data-mode=Edit] .club-edit .club-rail button:hover { background: var(--br-secondary); color: var(--br-primary); }
+.club-root .club-embed .app-shell[data-mode=Edit] .club-edit .club-rail button[aria-pressed=true] { background: transparent; color: var(--br-primary); }
+.club-root .club-embed .app-shell[data-mode=Edit] .club-edit .club-rail button > svg { box-sizing: content-box; width: 16px; height: 16px; padding: 10px; border-radius: var(--cc-r-pill); background: color-mix(in srgb, var(--br-primary) 5%, transparent); color: var(--br-primary); }
+.club-root .club-embed .app-shell[data-mode=Edit] .club-edit .club-rail button[aria-pressed=true] > svg { background: var(--br-primary); color: var(--br-on-primary); }
+
+/* Play bar nX (M:52176-52258): border-t border-b, flex justify-center gap-2. Left group flex-1 pl-2 with the time; the transport in
+   the middle; right group flex-1 justify-end pr-2 with the tools, a 1x16 rule and the zoom. Icon buttons are ghost 36x36 rounded-md;
+   toggles are 32x32 rounded-sm with bg-accent when on. The ⋯ menu is CreatorClub's own (follow, fit, split, notes). */
+.club-root .club-embed .app-shell[data-mode=Edit] .club-edit .club-timeline-bar { display: flex; flex-wrap: nowrap; align-items: center; justify-content: center; gap: 8px; height: auto; min-height: 0; padding: 0; border-top: 1px solid var(--br-border); border-bottom: 1px solid var(--br-border); background: var(--br-bg); user-select: none; }
+.club-root .club-embed .app-shell[data-mode=Edit] .club-edit .ctb-left { display: flex; flex: 1 1 0%; align-items: center; min-width: 0; padding-left: 8px; }
+.club-root .club-embed .app-shell[data-mode=Edit] .club-edit .ctb-center { display: flex; flex: none; align-items: center; justify-content: center; gap: 0; }
+.club-root .club-embed .app-shell[data-mode=Edit] .club-edit .ctb-right { display: flex; flex: 1 1 0%; align-items: center; justify-content: flex-end; gap: 0; min-width: 0; margin-left: 0; padding-right: 8px; }
+/* DU: flex gap-2 text-primary text-sm font-mono; the "/" and the total at opacity-60. */
+.club-root .club-embed .app-shell[data-mode=Edit] .club-edit .club-time { display: flex; gap: 8px; margin: 0; color: var(--br-primary); font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; font-size: var(--cc-text-base); line-height: 20px; font-weight: 400; white-space: nowrap; }
+.club-root .club-embed .app-shell[data-mode=Edit] .club-edit .club-time > span { color: inherit; font-weight: 400; }
+.club-root .club-embed .app-shell[data-mode=Edit] .club-edit .club-time > .club-time-dim { opacity: .6; }
+.club-root .club-embed .app-shell[data-mode=Edit] .club-edit .club-timeline-bar :is(.ctb-center .ctb-icon, .club-play) { width: 36px; height: 36px; padding: 0; border: 0; border-radius: var(--br-r-md); background: transparent; box-shadow: none; color: var(--br-primary); display: inline-flex; align-items: center; justify-content: center; }
+.club-root .club-embed .app-shell[data-mode=Edit] .club-edit .club-timeline-bar :is(.ctb-center .ctb-icon, .club-play):hover:not(:disabled) { background: var(--br-accent); }
+.club-root .club-embed .app-shell[data-mode=Edit] .club-edit .ctb-right .ctb-icon { width: 32px; height: 32px; padding: 0; border: 0; border-radius: var(--cc-r-sm); background: transparent; box-shadow: none; color: var(--br-primary); }
+.club-root .club-embed .app-shell[data-mode=Edit] .club-edit .ctb-right .ctb-icon:hover:not(:disabled) { background: var(--br-accent); }
+.club-root .club-embed .app-shell[data-mode=Edit] .club-edit .ctb-right .ctb-icon[aria-pressed=true] { background: var(--br-accent); color: var(--br-primary); }
+.club-root .club-embed .app-shell[data-mode=Edit] .club-edit .ctb-right .ctb-icon[aria-label=Transcript], .club-root .club-embed .app-shell[data-mode=Edit] .club-edit .ctb-right .ctb-icon[aria-label="Snap to edges"] { margin-left: 4px; }
+.club-root .club-embed .app-shell[data-mode=Edit] .club-edit .ctb-sep { width: 1px; height: 16px; margin: 0 8px; background: var(--br-border); flex: none; }
+/* Speed XU: a w-10 h-8 ghost label; the menu is one row of speeds. */
+.club-root .club-embed .app-shell[data-mode=Edit] .club-edit .club-timeline-bar .btp-menu-host button { font: inherit; color: var(--br-primary); background: transparent; border: 0; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; white-space: nowrap; }
+.club-root .club-embed .app-shell[data-mode=Edit] .club-edit .club-timeline-bar .btp-speed { width: 40px; height: 32px; padding: 0 12px; border-radius: var(--br-r-md); font-size: var(--cc-text-xs); line-height: 16px; font-weight: 500; }
+.club-root .club-embed .app-shell[data-mode=Edit] .club-edit .club-timeline-bar .btp-speed:hover { background: var(--br-accent); }
+.club-root .club-embed .app-shell[data-mode=Edit] .club-edit .club-timeline-bar .btp-speed-item { padding: 6px 12px; border-radius: var(--cc-r-sm); font-size: var(--cc-text-xs); line-height: 16px; font-weight: 500; }
+.club-root .club-embed .app-shell[data-mode=Edit] .club-edit .club-timeline-bar .btp-speed-item:hover { background: var(--br-accent); }
+.club-root .club-embed .app-shell[data-mode=Edit] .club-edit .club-timeline-bar .btp-speed-item.is-selected { background: color-mix(in srgb, var(--br-primary) 5%, transparent); }
+.club-root .club-embed .app-shell[data-mode=Edit] .club-edit .club-timeline-bar .btp-popover { z-index: 60; }
+/* Zoom nT: space-x-2; 16px zoom-out / zoom-in glyphs (hover:bg-secondary rounded-full) around an 80px slider: track h-1.5 bg-primary/20,
+   range bg-primary, thumb 12px border-primary/50 bg-background shadow. */
+.club-root .club-embed .app-shell[data-mode=Edit] .club-edit .club-zoom { display: flex; align-items: center; gap: 8px; margin: 0; }
+.club-root .club-embed .app-shell[data-mode=Edit] .club-edit .club-zoom-step { width: 16px; height: 16px; padding: 0; border: 0; border-radius: var(--cc-r-pill); background: transparent; color: var(--br-primary); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+.club-root .club-embed .app-shell[data-mode=Edit] .club-edit .club-zoom-step:hover { background: var(--br-secondary); }
+.club-root .club-embed .app-shell[data-mode=Edit] .club-edit .club-zoom input[type=range] { -webkit-appearance: none; appearance: none; width: 80px; height: 16px; margin: 0; background: transparent; cursor: pointer; }
+.club-root .club-embed .app-shell[data-mode=Edit] .club-edit .club-zoom input[type=range]::-webkit-slider-runnable-track { height: 6px; border-radius: var(--cc-r-pill); background: linear-gradient(to right, var(--br-primary) var(--br-progress, 0%), color-mix(in srgb, var(--br-primary) 20%, transparent) var(--br-progress, 0%)); }
+.club-root .club-embed .app-shell[data-mode=Edit] .club-edit .club-zoom input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 12px; margin-top: -3px; border-radius: var(--cc-r-pill); border: 1px solid color-mix(in srgb, var(--br-primary) 50%, transparent); background: var(--br-bg); box-shadow: var(--br-shadow); }
+.club-root .club-embed .app-shell[data-mode=Edit] .club-edit .ctb-right > .menu-host, .club-root .club-embed .app-shell[data-mode=Edit] .club-edit .ctb-right > :last-child { margin-left: 4px; }
+
+/* Header Export, oR (M:4843-4999): a default (black) h-9 button "Export" with the export glyph, rounded-r-none and a 50% white rule,
+   then a 36px chevron. Its menu: w-60 rounded-2xl border-primary/10 bg-primary-foreground p-1.5 shadow-2xl, aligned to the end;
+   rows gap-3 rounded-xl px-2 py-1.5 with a 36px bg-primary/5 well, an 18px glyph at 80%, a 13px title and an 11px muted line. */
+.club-root .ws .ws-edit-export .cex-split { position: relative; display: flex; align-items: center; }
+.club-root .ws .ws-edit-export :is(.cex-main, .cex-more) { height: 36px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; border: 0; background: var(--br-primary); color: var(--br-on-primary); box-shadow: var(--br-shadow); font: inherit; font-size: var(--cc-text-base); line-height: 20px; font-weight: 500; white-space: nowrap; cursor: pointer; transition: background-color .15s; }
+.club-root .ws .ws-edit-export :is(.cex-main, .cex-more):hover:not(:disabled) { background: color-mix(in srgb, var(--br-primary) 90%, transparent); }
+.club-root .ws .ws-edit-export :is(.cex-main, .cex-more):disabled { opacity: .5; pointer-events: none; }
+.club-root .ws .ws-edit-export :is(.cex-main, .cex-more):focus-visible { outline: none; box-shadow: 0 0 0 1px var(--br-ring); }
+.club-root .ws .ws-edit-export .cex-main { padding: 8px 16px 8px 12px; border-radius: var(--br-r-md) 0 0 var(--br-r-md); border-right: 1px solid color-mix(in srgb, var(--br-on-primary) 50%, transparent); }
+.club-root .ws .ws-edit-export .cex-more { width: 36px; padding: 0 8px; border-radius: 0 var(--br-r-md) var(--br-r-md) 0; }
+.club-root .ws .ws-edit-export .cex-menu { position: absolute; top: calc(100% + 4px); right: 0; z-index: 50; width: 240px; padding: 6px; border: 1px solid color-mix(in srgb, var(--br-primary) 10%, transparent); border-radius: var(--br-r-2xl); background: var(--br-on-primary); color: var(--br-primary); box-shadow: var(--br-shadow-2xl); }
+.club-root .ws .ws-edit-export .cex-item { width: 100%; display: flex; align-items: center; gap: 12px; padding: 6px 8px; border: 0; border-radius: var(--br-r-xl); background: transparent; color: var(--br-primary); font: inherit; text-align: left; cursor: default; }
+.club-root .ws .ws-edit-export .cex-item:is(:hover, :focus-visible) { outline: none; background: color-mix(in srgb, var(--br-primary) 5%, transparent); }
+.club-root .ws .ws-edit-export .cex-well { width: 36px; height: 36px; flex: none; display: flex; align-items: center; justify-content: center; border-radius: var(--cc-r-pill); background: color-mix(in srgb, var(--br-primary) 5%, transparent); }
+.club-root .ws .ws-edit-export .cex-item:is(:hover, :focus-visible) .cex-well { background: color-mix(in srgb, var(--br-primary) 10%, transparent); }
+.club-root .ws .ws-edit-export .cex-well svg { width: 18px; height: 18px; opacity: .8; }
+.club-root .ws .ws-edit-export .cex-text { display: flex; flex-direction: column; min-width: 0; }
+.club-root .ws .ws-edit-export .cex-title { font-size: var(--cc-text-sm); line-height: 1.25; font-weight: 500; }
+.club-root .ws .ws-edit-export .cex-sub { font-size: var(--cc-text-2xs); line-height: 1.25; color: var(--br-muted); }
+
+/* Ruler BB (M:38575-38676): bg-primary-foreground; a tick per interval, h-[60%] of the 24px row, 1px, neutral-200 fading down to
+   transparent; its label text-xs font-medium opacity-80, top-1, 8px right of the tick. No minor ticks. */
+.club-root .club-embed .app-shell[data-mode=Edit] .club-edit .club-ruler { background: var(--br-on-primary); }
+.club-root .club-embed .app-shell[data-mode=Edit] .club-edit .club-ruler .tick:not(.major) { display: none; }
+.club-root .club-embed .app-shell[data-mode=Edit] .club-edit .club-ruler .tick.major { top: 0; bottom: auto; width: 1px; height: 14px; background: linear-gradient(to bottom, var(--br-neutral-200), transparent); }
+.club-root .club-embed .app-shell[data-mode=Edit] .club-edit .club-ruler .tick > b { top: 4px; bottom: auto; left: 8px; margin-left: 0; font-size: var(--cc-text-xs); line-height: 16px; font-weight: 500; color: var(--br-primary); opacity: .8; }
+.club-root .club-embed .app-shell[data-mode=Edit] .club-edit .club-ruler.has-notes .tick.major { top: 22px; }
+/* After a finished export, Continue is the one primary: Export takes Borumi's outline variant (border bg-background shadow-sm
+   hover:bg-accent). */
+.club-root .ws .ws-edit-export .cex-split.is-quiet :is(.cex-main, .cex-more) { background: var(--br-bg); color: var(--br-primary); border: 1px solid var(--br-border); box-shadow: var(--br-shadow-sm); }
+.club-root .ws .ws-edit-export .cex-split.is-quiet .cex-more { border-left: 0; }
+.club-root .ws .ws-edit-export .cex-split.is-quiet :is(.cex-main, .cex-more):hover:not(:disabled) { background: var(--br-accent); }

@@ -1,0 +1,121 @@
+/*
+ * The Record step, value for value from Borumi's own code: the layout (P8, A8), the sources panel (CL, kL, DD, the preview tile), the
+ * scene cards (k8, p8, x8, QS, b8, v0) and the empty state (I8). Every value is resolved from Borumi's stylesheet for light (:root) and
+ * dark (.dark). This file loads last, so it settles anything the older Record styles set differently. CreatorClub's own parts (Ask Claude,
+ * the Idea step, Publish) are not touched here.
+ */
+
+/* P8: sources one third of the row, held between 350 and 520 px; the scene area takes the rest. */
+.club-root .club-embed .app-shell[data-mode=Record] .recording-workspace.club-record { grid-template-columns: clamp(350px, 33.333%, 520px) minmax(0, 1fr); background: var(--br-bg); }
+
+/* CL / kL / DD: the sources panel. Rows p-3 py-2, gap-2, a border between rows; the header min-h-8 gap-2; the name text-xs font-bold. */
+.club-root .club-embed .app-shell[data-mode=Record] .club-record .club-record-left { background: var(--br-bg); border-right: 0; }
+.club-root .club-embed .app-shell[data-mode=Record] .club-record .capture-source { display: flex; flex-direction: column; gap: 8px; padding: 8px 12px; border-top: 0; border-bottom: 1px solid var(--br-border); }
+.club-root .club-embed .app-shell[data-mode=Record] .club-record .capture-source:last-child { border-bottom: 0; }
+.club-root .club-embed .app-shell[data-mode=Record] .club-record .capture-source:not(.enabled) { opacity: .8; }
+.club-root .club-embed .app-shell[data-mode=Record] .club-record .capture-source > header { min-height: 32px; gap: 8px; }
+.club-root .club-embed .app-shell[data-mode=Record] .club-record .capture-source > header > strong { font-size: var(--cc-text-xs); line-height: 16px; font-weight: var(--cc-weight-bold); color: var(--br-fg); }
+.club-root .club-embed .app-shell[data-mode=Record] .club-record .capture-switch[aria-checked=true] { background: var(--br-green-600); }
+/* The preview tile: ring-4 ring-white (dark #0A0A0A) rounded-lg mb-1 overflow-hidden; 200 px for a camera or screen, 40 px for sound. */
+.club-root .club-embed .app-shell[data-mode=Record] .club-record .capture-media { margin: 0 0 4px; border-radius: var(--br-r-lg); overflow: hidden; box-shadow: 0 0 0 4px var(--br-tile-ring); }
+.club-root .club-embed .app-shell[data-mode=Record] .club-record .capture-media-camera, .club-root .club-embed .app-shell[data-mode=Record] .club-record .capture-media-screen { height: 200px; aspect-ratio: auto !important; }
+.club-root .club-embed .app-shell[data-mode=Record] .club-record .rec-mic-wave { position: relative; height: 40px; margin: 0 0 4px; border-radius: var(--br-r-lg); overflow: hidden; box-shadow: 0 0 0 4px var(--br-tile-ring); }
+.club-root .club-embed .app-shell[data-mode=Record] .club-record .rec-mic-wave-canvas { display: block; width: 100%; height: 100%; }
+.club-root .club-embed .app-shell[data-mode=Record] .club-record .rec-mic-wave .rec-meter-sampler { position: absolute; width: 1px; height: 1px; overflow: hidden; opacity: 0; pointer-events: none; }
+
+/* A8: the scene area, bg-neutral-100 with a border on its left. */
+.club-root .club-embed .app-shell[data-mode=Record] .club-record .recording-main { background: var(--br-neutral-100); border-left: 1px solid var(--br-border); }
+/* T8 rows pr-6 pl-3; k8 max-w-2xl mx-auto. */
+.club-root .club-embed .app-shell[data-mode=Record] .club-record .recording-scene-cards { max-width: none; padding: 16px 24px 16px 12px; gap: 0; }
+.club-root .club-embed .app-shell[data-mode=Record] .club-record .rsc-scene-container { max-width: 672px; margin: 0 auto !important; }
+/* k8: flex flex-col p-5 gap-3 rounded-md border border-border bg-background; active ring-2 ring-blue-500 border-transparent. */
+.club-root .club-embed .app-shell[data-mode=Record] .club-record .rsc-scene { display: flex; flex-direction: column; gap: 12px; padding: 20px; border: 1px solid var(--br-border); border-radius: var(--br-r-md); background: var(--br-bg); box-shadow: none; outline: 0; color: var(--br-fg); }
+.club-root .club-embed .app-shell[data-mode=Record] .club-record .rsc-scene.is-selected { border-color: transparent; box-shadow: 0 0 0 2px var(--br-ring); outline: 0; }
+.club-root .club-embed .app-shell[data-mode=Record] .club-record .rsc-scene-heading { display: flex; align-items: flex-start; gap: 8px; }
+.club-root .club-embed .app-shell[data-mode=Record] .club-record .rsc-status { width: 8px; height: 8px; border-radius: var(--cc-r-pill); background: var(--br-warning); align-self: center; }
+.club-root .club-embed .app-shell[data-mode=Record] .club-record .rsc-status.is-complete { background: var(--br-success); }
+.club-root .club-embed .app-shell[data-mode=Record] .club-record .rsc-scene-heading :is(.rsc-scene-name, .rsc-name-input) { font-size: var(--cc-text-xs) !important; line-height: 16px; font-weight: var(--cc-weight-regular); color: var(--br-fg); cursor: text; }
+.club-root .club-embed .app-shell[data-mode=Record] .club-record .rsc-gear { width: 36px; height: 36px; margin: -12px -12px 0 auto; border-radius: var(--br-r-md); }
+.club-root .club-embed .app-shell[data-mode=Record] .club-record .rsc-gear:hover { background: var(--br-secondary); }
+.club-root .club-embed .app-shell[data-mode=Record] .club-record .rsc-script { margin: 0 0 8px; font-size: var(--cc-text-base); line-height: 20px; color: var(--br-fg); }
+/* p8 / x8: takes in a wrapping row with 12 px gaps. */
+.club-root .club-embed .app-shell[data-mode=Record] .club-record .rsc-takes { display: flex; flex-wrap: wrap; gap: 12px; margin: -8px; padding: 8px; border-radius: var(--br-r-md); }
+.club-root .club-embed .app-shell[data-mode=Record] .club-record .rsc-takes.is-over { background: var(--br-blue-200); }
+.club-root .club-embed .app-shell[data-mode=Record] .club-record .rsc-empty-record-row { display: flex; align-items: center; }
+/* The Record button: Button default (bg-primary text-primary-foreground shadow), h-10, icon record mr-2. */
+.club-root .club-embed .app-shell[data-mode=Record] .club-record .rsc-record-button { height: 40px; padding: 0 16px 0 12px; gap: 8px; border: 0; border-radius: var(--br-r-md); background: var(--br-primary); color: var(--br-on-primary); font-size: var(--cc-text-base); line-height: 20px; font-weight: 500; box-shadow: var(--br-shadow); }
+.club-root .club-embed .app-shell[data-mode=Record] .club-record .rsc-record-button:hover:not(:disabled) { background: color-mix(in srgb, var(--br-primary) 90%, transparent); }
+.club-root .club-embed .app-shell[data-mode=Record] .club-record .rsc-record-button:disabled { opacity: .5; }
+.club-root .club-embed .app-shell[data-mode=Record] .club-record .rsc-record-button > span { width: 16px; height: 16px; padding: 0; border: 2px solid currentColor; border-radius: var(--cc-r-pill); background: transparent; box-shadow: inset 0 0 0 2px var(--br-primary), inset 0 0 0 8px currentColor; }
+/* "or Import from file.": ghost h-10 text-primary/80 text-xs hover:text-primary hover:bg-transparent */
+.club-root .club-embed .app-shell[data-mode=Record] .club-record .rsc-import { height: 40px; padding: 0 16px; border: 0; background: transparent; color: color-mix(in srgb, var(--br-primary) 80%, transparent); font-size: var(--cc-text-xs); line-height: 16px; font-weight: 500; }
+.club-root .club-embed .app-shell[data-mode=Record] .club-record .rsc-import:hover { color: var(--br-primary); background: transparent; }
+/* The dashed tile: h-16 w-28 border border-dashed border-primary/20 rounded-md gap-1.5; text-sm font-medium (text-xs for Record Over). */
+.club-root .club-embed .app-shell[data-mode=Record] .club-record .rsc-record-tile { width: 112px; height: 64px; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 0; border: 1px dashed color-mix(in srgb, var(--br-primary) 20%, transparent); border-radius: var(--br-r-md); background: transparent; color: var(--br-fg); font-size: var(--cc-text-base); line-height: 20px; font-weight: 500; }
+.club-root .club-embed .app-shell[data-mode=Record] .club-record .rsc-record-tile:hover:not(:disabled) { background: var(--br-secondary); border-color: var(--br-neutral-300); border-style: solid; }
+.club-root .club-embed .app-shell[data-mode=Record] .club-record .rsc-record-tile:disabled { opacity: .6; cursor: not-allowed; }
+.club-root .club-embed .app-shell[data-mode=Record] .club-record .rsc-record-tile > .rec-record-dot { display: none; }
+.club-root .club-embed .app-shell[data-mode=Record] .club-record .rsc-record-tile::before { content: ''; width: 16px; height: 16px; margin-left: -4px; background: currentColor; -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M12 5v14M5 12h14'/%3E%3C/svg%3E") center / contain no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M12 5v14M5 12h14'/%3E%3C/svg%3E") center / contain no-repeat; }
+/* QS: rounded-md overflow-hidden bg-background border border-border h-16 w-28; hover bg-secondary border-neutral-300. */
+.club-root .club-embed .app-shell[data-mode=Record] .club-record .rsc-take { width: 112px; height: 64px; border: 1px solid var(--br-border); border-radius: var(--br-r-md); overflow: hidden; background: var(--br-bg); }
+.club-root .club-embed .app-shell[data-mode=Record] .club-record .rsc-take:hover { background: var(--br-secondary); border-color: var(--br-neutral-300); }
+.club-root .club-embed .app-shell[data-mode=Record] .club-record .rsc-take-preview { width: 100%; height: 100%; border: 0; border-radius: 0; padding: 0; background: transparent; }
+.club-root .club-embed .app-shell[data-mode=Record] .club-record .rsc-take-preview img { width: 100%; height: 100%; object-fit: cover; }
+/* The name chip: text-[10px] text-white bg-black/50 rounded-md px-1.5 py-0.5 font-medium truncate backdrop-blur-md; the time font-light ml-1. */
+.club-root .club-embed .app-shell[data-mode=Record] .club-record .rsc-take-badge { position: absolute; left: 4px; right: auto; bottom: 4px; max-width: calc(100% - 8px); padding: 2px 6px; border-radius: var(--br-r-md); background: var(--br-black-50); color: var(--br-white); font-size: var(--br-text-10) !important; line-height: 15px !important; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+.club-root .club-embed .app-shell[data-mode=Record] .club-record .rsc-take-duration { margin-left: 4px; font-weight: var(--cc-weight-light); }
+/* The play button: w-8 h-8 bg-neutral-200 rounded-full; hidden, 50% on the tile's hover, 100% on its own. */
+.club-root .club-embed .app-shell[data-mode=Record] .club-record .rsc-play { position: absolute; top: 50%; left: 50%; width: 32px; height: 32px; margin: -16px 0 0 -16px; display: flex; align-items: center; justify-content: center; border-radius: var(--cc-r-pill); background: var(--br-neutral-200); color: var(--br-primary); opacity: 0; transition: opacity .1s; }
+.club-root .club-embed .app-shell[data-mode=Record] .club-record .rsc-take:hover .rsc-play { opacity: .5; }
+.club-root .club-embed .app-shell[data-mode=Record] .club-record .rsc-take .rsc-play:hover, .club-root .club-embed .app-shell[data-mode=Record] .club-record .rsc-take-preview:hover .rsc-play { opacity: 1; }
+.club-root .club-embed .app-shell[data-mode=Record] .club-record .rsc-drag-handle { top: 4px; left: 4px; width: 16px; height: 20px; border-radius: 4px; background: var(--br-black-20); color: var(--br-white); opacity: 0; }
+.club-root .club-embed .app-shell[data-mode=Record] .club-record .rsc-take:hover .rsc-drag-handle { opacity: 1; }
+/* b8: "Archived (N)", ghost text-xs, -ml-3 -mb-3. */
+.club-root .club-embed .app-shell[data-mode=Record] .club-record .rsc-archive-toggle { align-self: flex-start; height: 36px; margin: 0 0 -12px -12px; padding: 0 16px 0 12px; gap: 8px; border: 0; border-radius: var(--br-r-md); background: transparent; color: var(--br-fg); font-size: var(--cc-text-xs) !important; line-height: 16px; font-weight: 500; }
+.club-root .club-embed .app-shell[data-mode=Record] .club-record .rsc-archive-toggle:hover { background: var(--br-neutral-100); }
+[data-theme=dark] .club-root .club-embed .app-shell[data-mode=Record] .club-record .rsc-archive-toggle:hover { background: var(--br-neutral-100); }
+.club-root .club-embed .app-shell[data-mode=Record] .club-record .rsc-archived { margin: 8px 0 -8px -8px; }
+/* v0: "Add scene here" between scenes, 16 px tall, opening to 48 px after 300 ms of hover; the last is the "Add scene" button. */
+.club-root .club-embed .app-shell[data-mode=Record] .club-record .rsc-scene-container:not(:last-child) .rsc-add-between { display: flex !important; height: 16px; margin: 0; padding: 0; overflow: hidden; opacity: 0; gap: 0; border: 0; background: transparent; color: var(--br-fg); font-size: var(--cc-text-xs); line-height: 16px; font-weight: 500; cursor: default; transition: height .15s, opacity .15s; transition-delay: 0s; }
+.club-root .club-embed .app-shell[data-mode=Record] .club-record .rsc-scene-container:not(:last-child) .rsc-add-between:hover { height: 48px; opacity: 1; transition-delay: .3s; }
+.club-root .club-embed .app-shell[data-mode=Record] .club-record .rsc-scene-container:not(:last-child) .rsc-add-between svg { width: 12px; height: 12px; margin-right: 8px; }
+.club-root .club-embed .app-shell[data-mode=Record] .club-record .rsc-scene-container + .rsc-scene-container { margin-top: 0 !important; }
+.club-root .club-embed .app-shell[data-mode=Record] .club-record .rsc-scene-container:last-child .rsc-add-between { width: 100%; height: 36px; margin: 12px 0 0 !important; padding: 0 16px; gap: 8px; border: 0; border-radius: var(--br-r-md); background: transparent; color: var(--br-fg); font-size: var(--cc-text-base); line-height: 20px; font-weight: 500; }
+.club-root .club-embed .app-shell[data-mode=Record] .club-record .rsc-scene-container:last-child .rsc-add-between:hover { color: color-mix(in srgb, var(--br-primary) 70%, transparent); background: transparent; }
+
+/* I8: "Hey 👋 Ready to record?" */
+.club-root .club-embed .app-shell[data-mode=Record] .club-record .rsc-ready { --rsc-ready-check-ink: var(--br-bg); height: 100%; min-height: 420px; width: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--br-fg); }
+.club-root .club-embed .app-shell[data-mode=Record] .club-record .rsc-ready-inner { position: relative; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; }
+.club-root .club-embed .app-shell[data-mode=Record] .club-record .rsc-ready-copy { margin-bottom: 40px; }
+.club-root .club-embed .app-shell[data-mode=Record] .club-record .rsc-ready h1 { margin: -64px 0 32px; font-size: var(--cc-text-2xl); line-height: 32px; font-weight: 500; color: var(--br-primary); letter-spacing: 0; }
+.club-root .club-embed .app-shell[data-mode=Record] .club-record .rsc-ready-wave { font-size: var(--cc-text-2xl); margin-right: 4px; }
+.club-root .club-embed .app-shell[data-mode=Record] .club-record .rsc-ready-steps { display: flex; flex-direction: column; gap: 24px; max-width: 320px; text-align: left; }
+.club-root .club-embed .app-shell[data-mode=Record] .club-record .rsc-ready-steps > div { display: flex; align-items: center; gap: 12px; font-size: var(--cc-text-base); line-height: 20px; }
+.club-root .club-embed .app-shell[data-mode=Record] .club-record .rsc-ready-steps svg { width: 16px; min-width: 16px; height: 16px; opacity: .7; color: var(--br-fg); }
+.club-root .club-embed .app-shell[data-mode=Record] .club-record .rsc-ready-actions { display: flex; align-items: center; gap: 8px; }
+.club-root .club-embed .app-shell[data-mode=Record] .club-record :is(.rsc-ready-start, .rsc-ready-import) { display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 24px 16px; border: 0; border-radius: var(--br-r-md); font: inherit; font-size: var(--cc-text-base); line-height: 20px; font-weight: 500; cursor: pointer; }
+.club-root .club-embed .app-shell[data-mode=Record] .club-record .rsc-ready-start { padding-left: 12px; background: var(--br-primary); color: var(--br-on-primary); box-shadow: var(--br-shadow); }
+.club-root .club-embed .app-shell[data-mode=Record] .club-record .rsc-ready-start:hover:not(:disabled) { background: color-mix(in srgb, var(--br-primary) 90%, transparent); }
+.club-root .club-embed .app-shell[data-mode=Record] .club-record .rsc-ready-start .rec-record-dot { width: 16px; height: 16px; border-radius: var(--cc-r-pill); border: 2px solid currentColor; box-shadow: inset 0 0 0 2px var(--br-primary), inset 0 0 0 8px currentColor; }
+.club-root .club-embed .app-shell[data-mode=Record] .club-record .rsc-ready-import { background: transparent; color: var(--br-fg); }
+.club-root .club-embed .app-shell[data-mode=Record] .club-record .rsc-ready-import:hover:not(:disabled) { background: color-mix(in srgb, var(--br-primary) 5%, transparent); }
+.club-root .club-embed .app-shell[data-mode=Record] .club-record :is(.rsc-ready-start, .rsc-ready-import):disabled { opacity: .5; pointer-events: none; }
+
+/* aR / Eu: Borumi's step bar, the same on every step. A step is pl-2 pr-4 py-2 rounded-full with hover:bg-primary/5; its well h-10 w-10
+   rounded-full bg-primary/5 (bg-primary text-primary-foreground when active); the label text-sm font-bold ml-2. */
+.club-root .ws-foot .ws-step { gap: 0; padding: 8px 16px 8px 8px; border-radius: var(--cc-r-pill); font-size: var(--cc-text-base); line-height: 20px; font-weight: var(--cc-weight-bold); transition: all .15s; }
+.club-root .ws-foot .ws-step:hover { background: color-mix(in srgb, var(--br-primary) 5%, transparent); }
+.club-root .ws-foot .ws-step .well { width: 40px; height: 40px; margin-right: 8px; border-radius: var(--cc-r-pill); }
+.club-root .ws-foot .ws-step:not(.current) .well { background: color-mix(in srgb, var(--br-primary) 5%, transparent); color: var(--br-fg); }
+.club-root .ws-foot .ws-step.current .well { background: var(--br-primary); color: var(--br-on-primary); }
+/* Continue to Editing before every scene has a take: Button outline (border border-input bg-background shadow-sm hover:bg-accent). */
+.club-root .ws-foot .btn:not(.primary) { border: 1px solid var(--br-accent); background: var(--br-bg); box-shadow: var(--br-shadow-sm); }
+.club-root .ws-foot .btn:not(.primary):hover:not(:disabled) { background: var(--br-accent); }
+
+/* _8: the scene minimap. The list scrolls inside the scene area (T8's US is overflow-y-scroll); the bars stay on its right edge, one per
+   scene at 100/N % of the height, w-[15px] opacity-30, bg-success-500 (dark success-300) once recorded, else bg-warning-500 (warning-300). */
+.club-root .club-embed .app-shell[data-mode=Record] .club-record .recording-main.scene-cards-mode { overflow: hidden; }
+.club-root .club-embed .app-shell[data-mode=Record] .club-record .recording-main.scene-cards-mode > .recording-scene-cards { height: 100%; overflow-y: auto; }
+.club-root .club-embed .app-shell[data-mode=Record] .club-record .rsc-minimap { position: absolute; top: 0; right: 0; bottom: 0; z-index: 0; display: flex; flex-direction: column; pointer-events: none; }
+.club-root .club-embed .app-shell[data-mode=Record] .club-record .rsc-minimap > span { display: block; width: 15px; opacity: .3; background: var(--br-minimap-todo); }
+.club-root .club-embed .app-shell[data-mode=Record] .club-record .rsc-minimap > span.is-done { background: var(--br-minimap-done); }

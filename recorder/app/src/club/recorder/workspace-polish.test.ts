@@ -25,17 +25,18 @@ test('step keys map to Idea, Record, Edit and Publish without colliding with nat
  assert.ok(shortcutDefinitions.find(d=>d.id==='createSceneAtCursor')?.editable==='script','script Cmd+Enter must stay in the script');
 });
 
-test('Continue is disabled with an accessible reason, shortcuts respect fields and dialogs, and enabled Continue runs once',async()=>{
+test('Continue shows once a scene has a take, as Borumi\'s; shortcuts respect fields and dialogs, and Continue runs once',async()=>{
  const seen:string[]=[];
  let ran=0;
- const rule=continueFor('record',facts)!;
+ assert.equal(continueFor('record',facts),undefined,'no take yet: Borumi shows no Continue to Editing');
+ const some={...facts,scenes:[{takes:[{kept:true}]},{takes:[]}] as never};
+ const rule=continueFor('record',some)!;
  const props={video,tab:'record' as const,facts,onTab:(tab:string)=>seen.push(tab),next:{...rule,run:()=>ran++}};
  const ui=await mountUI(createElement(Foot,props));
  try{
   const next=button(ui.container,'Continue to editing');
-  assert.equal(next.disabled,true);assert.equal(next.classList.contains('primary'),false);
-  assert.equal(document.getElementById(next.getAttribute('aria-describedby')!)?.textContent,'Record a scene first');
-  await press(document.body,'Enter');assert.equal(ran,0);
+  assert.equal(next.disabled,false);assert.equal(next.classList.contains('primary'),false,'outlined until every scene has a take');
+  assert.equal(next.getAttribute('aria-describedby'),null,'no reason line beside it');
   for(const key of ['1','3','4'])await press(document.body,key);
   assert.deepEqual(seen,['idea','edit','publish']);
   const field=document.createElement('textarea');ui.container.append(field);

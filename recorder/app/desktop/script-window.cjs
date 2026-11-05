@@ -103,8 +103,8 @@ function createScriptWindow({BrowserWindow,ipcMain,screen,Menu,preferencesPath,a
   const x=bounds?bounds.x:area.x+Math.round((area.width-width)/2),y=bounds?bounds.y:area.y+Math.round((area.height-height)/2);
   bounds={width,height,x:Math.round(clamp(x,area.x,area.x+area.width-width)),y:Math.round(clamp(y,area.y,area.y+area.height-height))};
   win=new BrowserWindow({...bounds,minWidth:MIN.width,minHeight:MIN.height,title:`${appName} script`,type:'panel',frame:false,transparent:true,backgroundColor:'#00000000',show:false,resizable:true,alwaysOnTop:true,skipTaskbar:true,roundedCorners:true,hasShadow:true,webPreferences:{preload:path.join(__dirname,'script-window-preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true,backgroundThrottling:false}});
-  // Kept out of screen recordings, like the island (native-recording.swift also excludes this application's windows).
-  win.setContentProtection(true);win.setAlwaysOnTop(true,'floating');
+  // Shows in screenshots, as Borumi's script window; recordings leave it out (native-recording.swift excludes this application's windows).
+  win.setAlwaysOnTop(true,'floating');
   win.setVisibleOnAllWorkspaces(true,{visibleOnFullScreen:true,skipTransformProcessType:true});
   win.webContents.setWindowOpenHandler(()=>({action:'deny'}));win.webContents.on('will-navigate',e=>e.preventDefault());
   applyOpacity();

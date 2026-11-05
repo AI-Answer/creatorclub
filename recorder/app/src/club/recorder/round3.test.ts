@@ -15,7 +15,7 @@ test('planned scene text has a Script lane; real captions replace it without rel
  p.captions=[{id:'caption',start:0,end:8,text:'Spoken words'}];
  assert.ok(usedRows(p).some(r=>r.name==='Captions'));assert.equal(usedRows(p).some(r=>r.name==='Script'),false);
  assert.equal(p.captions[0].text,'Spoken words');
- assert.deepEqual([0,8,60,68.9].map(timelineStamp),['0:00','0:08','1:00','1:08']);
+ assert.deepEqual([0,8,60,68.9].map(timelineStamp),['00:00','00:08','01:00','01:08']);
 });
 
 test('camera permission, idle and starting states have distinct actions and no idle spinner',async()=>{
@@ -30,9 +30,12 @@ test('camera permission, idle and starting states have distinct actions and no i
  }finally{await ui.close();}
 });
 
-test('the mic shows its named level meter and silence state without a start button',async()=>{
+test('the mic is Borumi\'s 40px wave of its last 100 levels, with no start button',async()=>{
  const ui=await mountUI(createElement(MicLevel,{stream:null,audio:new MeterAudio(),live:true,background:false,onLevel(){}}));
- try{assert.ok(ui.container.textContent?.includes('Mic level'));assert.ok(ui.container.textContent?.includes('No sound yet'));assert.ok(ui.container.querySelector('[role=meter][aria-label="Microphone input level"]'));assert.equal(ui.container.querySelector('button'),null);assert.ok(ui.container.querySelector('.rec-meter-well'));}finally{await ui.close();}
+ try{
+  assert.ok(ui.container.querySelector('.rec-mic-wave[role=meter][aria-label="Microphone level"] canvas'));assert.equal(ui.container.querySelector('button'),null);
+  const css=(await import('node:fs')).readFileSync(new URL('../borumi-record.css',import.meta.url),'utf8');assert.match(css,/\.rec-mic-wave \{[^}]*height: 40px;/);
+ }finally{await ui.close();}
 });
 
 test('words lane text clears 4.5:1 and its edge clears 3:1 against the timeline canvas in each theme',async()=>{

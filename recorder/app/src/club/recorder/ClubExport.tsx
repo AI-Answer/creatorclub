@@ -7,6 +7,17 @@ import {activeExport,ExportSession,exportCurrentVersion} from '../../export-sess
 import {Button,Icon} from '../ui';
 import {latestVideoExport} from './edit-steps';
 
+/** Borumi's export menu rows, limited to what this app exports. Video is the one-click MP4; audio and the transcript open the export
+ * window on that format (it offers TXT, Markdown and SRT). */
+export const EXPORT_ITEMS:ReadonlyArray<{title:string;sub:string;icon:'video'|'music'|'text';format:'mp4'|'wav'|'srt'}>=[
+ {title:'Export Video',sub:'MP4 • Balanced quality',icon:'video',format:'mp4'},
+ {title:'Export Audio',sub:'WAV',icon:'music',format:'wav'},
+ {title:'Export Transcript',sub:'TXT, MD or SRT',icon:'text',format:'srt'},
+];
+
+/** The window event that asks the embedded editor to open its export window on a format. */
+export const EXPORT_FORMAT_EVENT='creatorclub:export-format';
+
 export const EXPORT_FAILED="Couldn't export the video.";
 const POLL_MS=900;
 
@@ -22,7 +33,9 @@ export const videoExportOptions=(project:Project):ExportOptions=>({format:'mp4',
  * history, and follows it. `onExported(true)` once a finished export matches the current timeline, so the bottom bar's
  * `Continue to publishing` becomes the primary; `false` again after the next edit.
  */
-export function ClubExport({project,flush,onExported,quiet,dirty=false}:{project:Project;flush():Promise<Project|undefined>;onExported?(exported:boolean):void;/** Not the primary button (another button on the page is). */quiet?:boolean;dirty?:boolean}){
+export function ClubExport({project,flush,onExported,quiet,dirty=false,onOtherFormat}:{project:Project;flush():Promise<Project|undefined>;onExported?(exported:boolean):void;/** Not the primary button (another button on the page is). */quiet?:boolean;dirty?:boolean;/** Opens the export window on audio or the transcript. */onOtherFormat?(format:'wav'|'srt'):void}){
+ const [menu,setMenu]=useState(false),menuRoot=useRef<HTMLDivElement>(null);
+ useEffect(()=>{if(!menu)return;const close=(event:PointerEvent)=>{if(!menuRoot.current?.contains(event.target as Node))setMenu(false);};const key=(event:KeyboardEvent)=>{if(event.key==='Escape')setMenu(false);};window.addEventListener('pointerdown',close);window.addEventListener('keydown',key);return()=>{window.removeEventListener('pointerdown',close);window.removeEventListener('keydown',key);};},[menu]);
  const [record,setRecord]=useState<ExportRecord|null>(null),[failed,setFailed]=useState(false),[busy,setBusy]=useState(false),[revision,setRevision]=useState('');
  const session=useRef(new ExportSession());
 
@@ -66,8 +79,21 @@ export function ClubExport({project,flush,onExported,quiet,dirty=false}:{project
   <Icon name="loading" className="spin" size={15}/><span>Exporting video · {Math.round(record.progress*100)}%</span>
   <Button size="sm" variant="ghost" onClick={cancel}>Cancel</Button>
  </div>;
+ if(busy)return <div className="club-export" role="status"><Icon name="loading" className="spin" size={15}/><span>Preparing export · Step 1 of 2</span></div>;
+ const empty=!project.clips.length;
+ const pick=(run:()=>void)=>{setMenu(false);run();};
  return <div className="club-export">
   {done&&<span className="club-export-done" role="status"><Icon name="check" size={15}/>Video exported</span>}
-  <Button size="sm" variant={done||quiet?'secondary':'primary'} disabled={busy||!project.clips.length} onClick={()=>void start()}>{busy&&<Icon name="loading" className="spin"/>}{busy?'Preparing export · Step 1 of 2':done?'Export again':'Export video'}</Button>
+  {/* Borumi's split Export button (main bundle M:4843-4999): Export, and a chevron with the formats this app exports. */}
+  <div className={`cex-split${quiet||done?' is-quiet':''}`} ref={menuRoot}>
+   <button type="button" className={`cex-main${quiet||done?'':' is-primary'}`} disabled={empty} onClick={()=>void start()}><Icon name="upload" size={16}/>Export</button>
+   <button type="button" className="cex-more" aria-label="Open export options" aria-haspopup="menu" aria-expanded={menu} disabled={empty} onClick={()=>setMenu(open=>!open)}><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>
+   {menu&&<div className="cex-menu" role="menu">
+    {EXPORT_ITEMS.map(item=><button key={item.title} type="button" role="menuitem" className="cex-item" onClick={()=>pick(()=>item.format==='mp4'?void start():onOtherFormat?.(item.format))}>
+     <span className="cex-well"><Icon name={item.icon} size={18}/></span>
+     <span className="cex-text"><span className="cex-title">{item.title}</span><span className="cex-sub">{item.sub}</span></span>
+    </button>)}
+   </div>}
+  </div>
  </div>;
 }

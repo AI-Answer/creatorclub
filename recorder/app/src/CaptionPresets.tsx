@@ -22,15 +22,17 @@ export function currentPreset(style:CaptionStyle):string|undefined{
 }
 
 /** The sample a tile shows: as many words as the style puts in one caption, up to two. */
-const sample=(maxWords:number)=>maxWords<=1?'Hey':'Hey there';
+export const captionSample=(maxWords:number)=>maxWords<=1?'Hey':'Hey there';
+/** How much a card shrinks the caption's size: the card is a small picture of the video. */
+export const CAPTION_CARD_SCALE=.32;
 
 export function CaptionPresetGrid({style,onPick}:{style:CaptionStyle;onPick(next:CaptionStyle):void}){
  const chosen=currentPreset(style);
  return <div className="caption-presets" role="radiogroup" aria-label="Caption style">
   <button type="button" role="radio" aria-checked={chosen==='none'} className={`caption-tile none${chosen==='none'?' on':''}`} onClick={()=>onPick({...style,enabled:false})}><span>No captions</span></button>
-  {CAPTION_PRESETS.map(preset=>{const s=preset.style,scale=.32;
+  {CAPTION_PRESETS.map(preset=>{const s=preset.style,scale=CAPTION_CARD_SCALE;
    return <button key={preset.id} type="button" role="radio" aria-checked={chosen===preset.id} aria-label={preset.name} title={preset.name} className={`caption-tile${chosen===preset.id?' on':''}`} onClick={()=>onPick({...s,enabled:true})}>
-    <span className={`caption-sample at-${s.position}`} style={{color:s.color,background:s.background,fontSize:Math.max(11,Math.round(s.fontSize*scale))}}>{sample(s.maxWords)}</span>
+    <span className={`caption-sample at-${s.position}`} style={{color:s.color,background:s.background,fontSize:Math.max(11,Math.round(s.fontSize*scale))}}>{captionSample(s.maxWords)}</span>
    </button>;})}
  </div>;
 }

@@ -15,6 +15,18 @@ import './cutroom.css';
 import './BrandLogo.css';
 import './club/borumi.css';
 import './club/polish.css';
+import './club/borumi-record.css';
+import './club/borumi-edit.css';
+import './club/edit-panels/br.css';
+import './club/edit-panels/Canvas.css';
+import './club/edit-panels/Layout.css';
+import './club/edit-panels/Clip.css';
+import './club/edit-panels/Zoom.css';
+import './club/edit-panels/Elements.css';
+import './club/edit-panels/Music.css';
+import './club/edit-panels/Captions.css';
+import './club/edit-panels/Cursor.css';
+import './club/edit-panels/Automate.css';
 import {initializeAppearance} from './appearance';
 initializeAppearance();
 

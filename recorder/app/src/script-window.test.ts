@@ -72,7 +72,7 @@ test('the window is a floating panel kept out of recordings, opened once and clo
  try{
   m.open();await tick();const w=h.windows[0];
   assert.equal(w.options.type,'panel');assert.equal(w.options.frame,false);assert.equal(w.options.transparent,true);assert.equal(w.options.resizable,true);
-  assert.equal(w.protected,true,'content protection, like the island');assert.deepEqual(w.onTop,[true,'floating']);assert.equal(w.workspaces[1].visibleOnFullScreen,true);
+  assert.equal(w.protected,false,'shows in screenshots, like the island');assert.deepEqual(w.onTop,[true,'floating']);assert.equal(w.workspaces[1].visibleOnFullScreen,true);
   assert.equal(w.shown,1);assert.deepEqual(opened,[true]);
   assert.deepEqual(w.webContents.openHandler(),{action:'deny'});
   m.open();assert.equal(h.windows.length,1,'a second open shows the same window');assert.equal(w.focused,1);

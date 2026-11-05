@@ -73,13 +73,13 @@ test('embedded Edit: Borumi\'s layout (rail of nine tools, the transcript in its
   assert.equal(ui.container.querySelector('.inspector'),null,'no tool panel is open yet');
   assert.ok(ui.container.querySelector('.club-edit-transcript .transcript-panel'),'the transcript has its own column beside the picture, as in Borumi');
   const rail=[...ui.container.querySelectorAll('.club-rail button')].map(b=>b.textContent?.trim());
-  assert.deepEqual(rail,['Canvas','Layout','Clip','Zoom','Elements','Music','Captions','Cursor','Auto-edit','More'],'Borumi\'s nine tools in Borumi\'s order; Graphics, media and Cutroom sit under More');
+  assert.deepEqual(rail,['Canvas','Layout','Clip','Zoom','Elements','Music','Captions','Cursor','Automate','More'],'Borumi\'s nine tools in Borumi\'s order; Graphics, media and Cutroom sit under More');
   await act(async()=>[...ui.container.querySelectorAll<HTMLButtonElement>('.club-rail button')].find(b=>b.textContent?.trim()==='Captions')!.click());
   assert.equal(ui.container.querySelector('.club-edit-side .inspector h2')?.textContent,'Captions','a tool opens its panel on the side');
   assert.ok(ui.container.querySelector('.club-edit-transcript .transcript-panel'),'and the transcript stays open beside the picture');
   await act(async()=>ui.container.querySelector<HTMLButtonElement>('button[aria-label="Close Captions"]')!.click());
   assert.equal(server.calls.filter(c=>c.url.endsWith('/quick-action')).length,0,'a plan already exists: none is started');
-  assert.ok(primaries(ui.container).includes('Export video'),'Export is the primary while Continue waits for an export');
+  assert.ok(primaries(ui.container).includes('Export'),'Export is the primary while Continue waits for an export');
 
   await act(async()=>button(header,'Remove them').click());for(let i=0;i<12;i++)await flush();
   const apply=server.calls.find(c=>c.url==='/api/automation/j1/apply');
@@ -170,16 +170,18 @@ test('Edit exports from the visible workspace header, saves first, and reports t
  try{
   for(let i=0;i<6;i++)await flush();
   const host=ui.container.querySelector('#ws-edit-export')!;
-  assert.equal(button(host,'Export video').disabled,false,'the visible header has the export action');
-  assert.equal(ui.container.querySelector('.project-header')?.contains(button(host,'Export video')),false,'the action is outside the hidden editor header');
-  await act(async()=>button(host,'Export video').click());
+  assert.equal(button(host,'Export').disabled,false,'the visible header has the export action');
+  assert.equal(ui.container.querySelector('.project-header')?.contains(button(host,'Export')),false,'the action is outside the hidden editor header');
+  await act(async()=>host.querySelector<HTMLButtonElement>('[aria-label="Open export options"]')!.click());
+  assert.deepEqual([...host.querySelectorAll('.cex-item .cex-title')].map(node=>node.textContent),['Export Video','Export Audio','Export Transcript'],'Borumi\'s export menu, limited to what this app exports');
+  await act(async()=>host.querySelector<HTMLButtonElement>('[aria-label="Open export options"]')!.click());
+  await act(async()=>button(host,'Export').click());
   for(let i=0;i<8;i++)await flush();
   const request=server.calls.find(call=>call.url==='/api/export');
   assert.ok(request,'export starts through the saved export API');
   assert.ok(exported.includes(true),'the footer receives completion from the actual export control');
   assert.ok(host.textContent?.includes('Video exported'));
-  assert.equal(button(host,'Export again').classList.contains('primary'),false,'Continue takes over as the primary after export');
-  assert.equal([...host.querySelectorAll('button')].filter(node=>node.textContent==='Export video').length,0);
+  assert.equal(button(host,'Export').classList.contains('is-primary'),false,'Continue takes over as the primary after export');
  }finally{await ui.close();server.restore();}
 });
 
@@ -197,10 +199,11 @@ test('empty transcript keeps the named scene plan, one caption prompt, and Auto-
   assert.equal(transcript.textContent?.match(/Make captions to edit by words\./g)?.length,1);
   assert.equal([...transcript.querySelectorAll('button')].filter(b=>b.textContent==='Make captions').length,1);
   await act(async()=>button(ui.container.querySelector('.club-rail')!,'Clip').click());
-  await act(async()=>button(ui.container.querySelector('.club-rail')!,'Auto-edit').click());
-  assert.deepEqual([...ui.container.querySelectorAll('.club-rail button[aria-pressed=true]')].map(b=>b.textContent),['Auto-edit']);
+  await act(async()=>button(ui.container.querySelector('.club-rail')!,'Automate').click());
+  assert.deepEqual([...ui.container.querySelectorAll('.club-rail button[aria-pressed=true]')].map(b=>b.textContent),['Automate']);
   const sheet=ui.container.querySelector('.club-auto-sheet')!;
   assert.ok(sheet.textContent?.includes('Even out volume'));assert.ok(sheet.textContent?.includes('Suggest layout and titles'));
+  await act(async()=>sheet.querySelector<HTMLButtonElement>('[data-option=fillers] [aria-label="More options"]')!.click());
   await act(async()=>button(sheet,'Make captions').click());await flush();await flush();
   assert.equal(server.calls.filter(c=>c.url===`/api/projects/${server.p.id}/transcribe`&&c.method==='POST').length,1);
  }finally{await ui.close();server.restore();}
@@ -211,6 +214,7 @@ test('the Auto-edit caption error retries making captions',async()=>{
  const {EditAutoSheet}=await import('./EditAutoSheet');const server=serve(()=>[]);let attempts=0;
  const ui=await mountUI(createElement(EditAutoSheet,{project:server.p,jobs:[],merge(){},reload:async()=>{},flush:async()=>server.p,change(){},refresh:async()=>{},onPreview(){},onClose(){},notify(){},onMakeCaptions:async()=>{if(++attempts===1)throw Error('offline');}}));
  try{
+  await act(async()=>ui.container.querySelector<HTMLButtonElement>('[data-option=fillers] [aria-label="More options"]')!.click());
   await act(async()=>button(ui.container,'Make captions').click());await flush();
   assert.ok(ui.container.textContent?.includes("Couldn't make captions."));
   await act(async()=>button(ui.container,'Try again').click());await flush();

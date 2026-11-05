@@ -41,7 +41,7 @@ test('Record is Borumi\'s two columns: the sources on the left, then a card per 
  try{
   const c=ui.container,left=c.querySelector('.club-record-left')!;
   assert.ok(left.querySelector('aside[aria-label="Recording sources"]'),'the source rows are always shown, as in Borumi');
-  assert.ok(left.textContent?.includes('3-second countdown'),'with the countdown option under them');
+  assert.ok(!left.textContent?.includes('3-second countdown'),'every take counts down, as Borumi; its sound is in Settings > Recording');
   assert.ok(c.querySelector('.recording-presets'),'Recording presets are there (in the header when there is one)');
   const cards=[...c.querySelectorAll('.rsc-scene')];
   assert.equal(cards.length,3,'one card per scene');

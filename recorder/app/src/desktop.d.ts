@@ -96,6 +96,8 @@ export interface SceneForgeDesktopBridge {
  updateRecordingHud?(state: Partial<DesktopRecordingHudState>, id?:string): Promise<{visible:boolean}>;
  endRecordingHud?(id?:string): Promise<void>;
  onRecordingHudCommand?(handler:(command:RecordingHudCommand)=>void):()=>void;
+ /** A system confirmation (OK / Cancel), as Borumi asks before deleting a take. Resolves true for OK. */
+ confirmDialog?(value:{title:string;message:string}):Promise<boolean>;
  getNativeRecordingStatus?(): Promise<{available:boolean;engine:string;excludesSceneForge:boolean}>;
  startNativeRecording?(options:{selection?:DesktopCaptureSelection;systemAudio:boolean;recordVideo?:boolean;fps?:number;maxDimension?:number}):Promise<DesktopNativeRecordingResult>;
  pauseNativeRecording?(id:string):Promise<DesktopNativeRecordingResult>;

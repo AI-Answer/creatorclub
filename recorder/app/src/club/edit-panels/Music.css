@@ -1,0 +1,34 @@
+/* Borumi's Music panel (spec e6). Tokens only; every rule is scoped under the club's Edit side panel. */
+.club-root .club-edit-side .club-music-panel { padding: 0 16px; }
+.club-root .club-edit-side .club-music-head { padding-top: 16px; }
+.club-root .club-edit-side .club-music-head .br-section-head { margin-bottom: 0; }
+
+/* Sticky tabs: sticky top-0 z-10 -ml-1 -mr-1 bg-background py-3 pl-1 pr-1. */
+.club-root .club-edit-side .club-music-tabs { position: sticky; top: 0; z-index: 10; margin: 0 -4px; padding: 12px 4px; background: var(--br-bg); }
+
+/* List: flex flex-col gap-2.5 pt-1 pb-4. */
+.club-root .club-edit-side .club-music-list { display: flex; flex-direction: column; gap: 10px; padding: 4px 0 16px; }
+
+/* Track row: h-9 rounded-md ring-1 ring-border/80 bg-background px-2 py-1.5; hover bg-accent/50; selected ring-2 (primary). */
+.club-root .club-edit-side .club-music-row { display: flex; align-items: center; width: 100%; height: 36px; padding: 6px 8px; overflow: hidden; border: 0; border-radius: var(--br-r-md); background: var(--br-bg); box-shadow: 0 0 0 1px color-mix(in srgb, var(--br-border) 80%, transparent); color: var(--br-primary); text-align: left; cursor: pointer; transition: background-color .15s; }
+.club-root .club-edit-side .club-music-row:hover { background: color-mix(in srgb, var(--br-accent) 50%, transparent); }
+.club-root .club-edit-side .club-music-row.is-selected { box-shadow: 0 0 0 2px var(--br-primary); }
+.club-root .club-edit-side .club-music-name { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1; }
+.club-root .club-edit-side .club-music-name > svg { flex: none; width: 16px; height: 16px; opacity: .7; }
+.club-root .club-edit-side .club-music-name > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--cc-text-xs); line-height: 16px; font-weight: 500; }
+
+/* Import row: h-9 w-full dashed border-border/80, hover border-border and bg-accent/40. */
+.club-root .club-edit-side .club-music-import { display: flex; align-items: center; gap: 8px; width: 100%; height: 36px; padding: 6px 8px; border: 1px dashed color-mix(in srgb, var(--br-border) 80%, transparent); border-radius: var(--br-r-md); background: var(--br-bg); color: var(--br-primary); text-align: left; cursor: pointer; }
+.club-root .club-edit-side .club-music-import:hover { border-color: var(--br-border); background: color-mix(in srgb, var(--br-accent) 40%, transparent); }
+.club-root .club-edit-side .club-music-import > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--cc-text-xs); line-height: 16px; font-weight: 500; opacity: .8; }
+.club-root .club-edit-side .club-music-import > svg { flex: none; width: 14px; height: 14px; }
+
+/* Footer: shrink-0 border-t border-border bg-background px-4 py-3, pinned to the bottom of the panel. */
+.club-root .club-edit-side .club-music-footer { position: sticky; bottom: 0; z-index: 10; margin: 0 -16px; padding: 12px 16px; border-top: 1px solid var(--br-border); background: var(--br-bg); display: flex; flex-direction: column; gap: 12px; }
+.club-root .club-edit-side .club-music-switches { display: flex; align-items: center; flex-wrap: wrap; gap: 16px; }
+.club-root .club-edit-side .club-music-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+.club-root .club-edit-side .club-music-field { display: flex; align-items: center; gap: 8px; font-size: var(--cc-text-xs); line-height: 16px; font-weight: 500; }
+.club-root .club-edit-side .club-music-field input { width: 84px; height: 28px; padding: 0 8px; border: 1px solid var(--br-input); border-radius: var(--br-r-md); background: var(--br-input); color: var(--br-primary); font: inherit; font-size: var(--cc-text-xs); }
+.club-root .club-edit-side .club-music-field input:focus-visible { outline: none; box-shadow: 0 0 0 1px var(--br-ring); }
+.club-root .club-edit-side .club-music-delete { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; margin-left: auto; padding: 0; border: 0; border-radius: var(--cc-r-pill); background: transparent; color: color-mix(in srgb, var(--br-primary) 70%, transparent); cursor: pointer; }
+.club-root .club-edit-side .club-music-delete:hover { background: color-mix(in srgb, var(--br-primary) 10%, transparent); color: var(--br-primary); }

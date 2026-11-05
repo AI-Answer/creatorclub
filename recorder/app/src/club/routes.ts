@@ -17,7 +17,7 @@ export const discoverShows=['fit','followed','youtube','x','reddit'] as const;
 export type DiscoverShow=typeof discoverShows[number];
 
 /** The parts of Settings a link can open: Connected AI, Your AI agent, Channel, the channels you follow and the signal sources (both inside Channel), Appearance. */
-export const settingsSections=['ai','agent','channel','followed','sources','skills','publishing','appearance'] as const;
+export const settingsSections=['ai','agent','channel','followed','sources','skills','publishing','recording','appearance'] as const;
 export type SettingsSection=typeof settingsSections[number];
 
 /**

@@ -352,10 +352,11 @@ test("SceneForge's own move to the editor goes through the club",async()=>{
   await flush();
   assert.ok(ui.container.querySelector('#recording-presets-slot'),'Record mode');
   assert.ok(!hasText(ui.container,'Edit & export'),'no second way to editing beside the bottom bar');
-  await act(async()=>ui.container.querySelector<HTMLButtonElement>('button[aria-label="Take options"]')!.click());
-  await act(async()=>[...ui.container.querySelectorAll<HTMLButtonElement>('[role=menuitem]')].find(item=>item.textContent?.startsWith('Use and edit'))!.click());
+  // Borumi's take preview has no "Use and edit": Confirm take adds the take and stays in Record, and the bottom bar leads to editing.
+  assert.equal([...ui.container.querySelectorAll('button')].some(b=>b.textContent?.includes('Use and edit')),false);
+  await act(async()=>[...ui.container.querySelectorAll<HTMLButtonElement>('.btp-footer button')].find(b=>b.textContent?.trim()==='Confirm take')!.click());
   await flush();await flush();
-  assert.deepEqual(modes,['Edit'],'the move to the editor is handed to the club');
+  assert.equal(modes.length,0,'confirming stays in Record');
   assert.ok(ui.container.querySelector('#recording-presets-slot'),'the embed stays in Record until the club changes the step');
   await ui.render(createElement(ClubRecorder,{projectId:p.id,mode:'Edit',onBack:()=>{},onMode:mode=>modes.push(mode)}));
   assert.ok(ui.container.querySelector('.edit-workspace'),'the club changes the step, and the editor opens');

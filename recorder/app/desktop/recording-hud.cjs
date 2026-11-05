@@ -61,9 +61,9 @@ function createRecordingHud({BrowserWindow,ipcMain,screen,Menu,shell,getMainWind
   const height=Math.min(valid?Math.max(BAR,saved.height):islandHeight(width,Boolean(next.script.trim())&&!scripts.isOpen()),area.height-12);
   bounds={width,height,x:Math.round(Math.max(area.x,Math.min(area.x+area.width-width,valid?saved.x:area.x+area.width-width-20))),y:Math.round(Math.max(area.y,Math.min(area.y+area.height-height,valid?saved.y:area.y+24)))};
   hud=new BrowserWindow({...bounds,minWidth:250,minHeight:48,title:`${appName} recording`,type:'panel',frame:false,transparent:true,backgroundColor:'#00000000',show:false,resizable:true,alwaysOnTop:true,skipTaskbar:true,roundedCorners:true,webPreferences:{preload:path.join(__dirname,'recording-hud-preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true,backgroundThrottling:false}});
-  // Defense in depth only. macOS ScreenCaptureKit also explicitly excludes this
-  // application's PID in native-recording.swift; this flag alone is insufficient.
-  hud.setContentProtection(true);hud.setAlwaysOnTop(true,'floating');
+  // As Borumi's recorder, the island shows in screenshots; recordings leave it out because native-recording.swift excludes this
+  // application's windows from ScreenCaptureKit.
+  hud.setAlwaysOnTop(true,'floating');
   // A panel joins full-screen Spaces without the Dock hide/show process transform.
   hud.setVisibleOnAllWorkspaces(true,{visibleOnFullScreen:true,skipTransformProcessType:true});
   hud.webContents.setWindowOpenHandler(()=>({action:'deny'}));hud.webContents.on('will-navigate',e=>e.preventDefault());

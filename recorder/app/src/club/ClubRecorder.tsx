@@ -2,7 +2,7 @@ import {lazy,Suspense,useCallback,useEffect,useMemo,useState} from 'react';
 import type {EmbeddedRecorder,EditorBridge,EditorState} from '../App';
 import {createPortal} from 'react-dom';
 import type {Project} from '../../shared/types';
-import {ClubExport} from './recorder/ClubExport';
+import {ClubExport,EXPORT_FORMAT_EVENT} from './recorder/ClubExport';
 const App=lazy(()=>import('../App'));
 import {ErrorLine} from './ErrorLine';
 import {Button} from './ui';
@@ -39,7 +39,7 @@ export function ClubRecorder({projectId,mode,importNonce,onImportOpened,onBack,o
   const fresh=await editor?.flush() as Project|undefined;
   if(fresh?.id===projectId){setProject(fresh);return fresh;}
  },[editor,projectId]);
- const exportControl=mode==='Edit'&&project&&hasMedia&&editor?<ClubExport project={project} flush={flushExport} dirty={!!version&&version!==project.updatedAt} onExported={onExported}/>:null;
+ const exportControl=mode==='Edit'&&project&&hasMedia&&editor?<ClubExport project={project} flush={flushExport} dirty={!!version&&version!==project.updatedAt} onExported={onExported} onOtherFormat={format=>window.dispatchEvent(new CustomEvent(EXPORT_FORMAT_EVENT,{detail:format}))}/>:null;
  const embedded=useMemo<EmbeddedRecorder>(()=>({projectId,mode,importNonce,onImportOpened,onBack,onMode,onOpenFailed,onProgress,onExported,sceneId,sceneNonce,onSceneChange,onChanged,registerLeaveGuard,onEditor:handleEditor,onEditState:handleState}),[projectId,mode,importNonce,onImportOpened,onBack,onMode,onOpenFailed,onProgress,onExported,sceneId,sceneNonce,onSceneChange,onChanged,registerLeaveGuard,handleEditor,handleState]);
  if(failed==='missing'&&onRestart)return <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center"><p className="text-base">{NOT_ON_THIS_COMPUTER}</p><Button variant="primary" onClick={onRestart}>Start the recording again from the plan</Button></div>;
  if(failed)return <div className="flex flex-1 items-center justify-center p-6"><ErrorLine message={OPEN_FAILED} onRetry={()=>{setFailed(null);setAttempt(n=>n+1);}}/></div>;

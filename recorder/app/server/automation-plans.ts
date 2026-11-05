@@ -13,7 +13,10 @@ export function narrationWindows(p:Project):NarrationWindow[]{
  const edges=[...new Set(clips.flatMap(c=>[c.start,c.start+clipDuration(c)]))].sort((a,b)=>a-b),out:NarrationWindow[]=[];
  for(let i=0;i<edges.length-1;i++){const start=edges[i],end=edges[i+1],mid=(start+end)/2;const c=clips.filter(c=>c.start<=mid&&c.start+clipDuration(c)>mid).sort((a,b)=>narrationPriority(a,media.get(a.mediaId))-narrationPriority(b,media.get(b.mediaId))||a.start-b.start||a.id.localeCompare(b.id))[0];if(!c)continue;const last=out.at(-1);if(last?.clip.id===c.id&&Math.abs(last.end-start)<1e-8)last.end=end;else out.push({clip:c,start,end});}return out;
 }
-export const speechSignature=(p:Project)=>hash({windows:narrationWindows(p).map(w=>({start:w.start,end:w.end,clip:{id:w.clip.id,mediaId:w.clip.mediaId,start:w.clip.start,sourceIn:w.clip.sourceIn,sourceOut:w.clip.sourceOut,speed:w.clip.speed}})),media:p.media.map(m=>({id:m.id,path:m.path})),maxWords:p.captionStyle.maxWords});
+/** What the captions are made from: the speech windows and the media. The caption look is not part of it: captions keep the
+ * transcript's grouping, and the preview and export split them into the look's word groups as they draw (shared/caption-parts.ts),
+ * so changing the look never rebuilds the saved captions and can always be undone by picking another look. */
+export const speechSignature=(p:Project)=>hash({windows:narrationWindows(p).map(w=>({start:w.start,end:w.end,clip:{id:w.clip.id,mediaId:w.clip.mediaId,start:w.clip.start,sourceIn:w.clip.sourceIn,sourceOut:w.clip.sourceOut,speed:w.clip.speed}})),media:p.media.map(m=>({id:m.id,path:m.path}))});
 export function mapSourceCaptions(p:Project,sources:Map<string,Caption[]>):Caption[]{
  const words:Word[]=[],segments:Caption[]=[];
  const intersectionTakes=new Set(p.recordedTakes?.filter(t=>t.synchronization?.version===3).map(t=>t.id));
@@ -32,7 +35,7 @@ export function mapSourceCaptions(p:Project,sources:Map<string,Caption[]>):Capti
   if(cap.words?.length){for(const w of cap.words){const a=mapped(w.start),b=mapped(w.end),mid=(a+b)/2;if(intersection?b>start&&a<end:mid>=start&&mid<end&&w.start>=c.sourceIn-1e-5&&w.end<=c.sourceOut+1e-5)words.push({text:w.text,start:Math.max(start,a),end:Math.min(end,b)});}}
   else {const a=mapped(cap.start),b=mapped(cap.end);if(intersection?b>start&&a<end:a>=start-1e-5&&b<=end+1e-5)segments.push({...cap,id:hash([c.id,cap.id,a,b]).slice(0,28),start:intersection?Math.max(start,a):a,end:intersection?Math.min(end,b):b});}
  }
- return [...captionsFromWords(words,p.captionStyle.maxWords),...segments].sort((a,b)=>a.start-b.start).map(c=>({...c,id:'auto-'+hash([c.start,c.end,c.text]).slice(0,24)}));
+ return [...captionsFromWords(words),...segments].sort((a,b)=>a.start-b.start).map(c=>({...c,id:'auto-'+hash([c.start,c.end,c.text]).slice(0,24)}));
 }
 export function mergeAutomaticCaptions(current:Caption[],generated:Caption[],previous:Caption[]=[]){
  const originals=new Map(previous.map(c=>[c.id,hash(c)]));const preserved=current.filter(c=>originals.get(c.id)!==hash(c));
@@ -97,7 +100,7 @@ export function applyOperations(before:Project,operations:PlanOperation[],ids:st
  if(cuts.length){p=ops.filter(o=>o.kind==='cut').every(o=>o.kind==='cut'&&o.sceneScope)?scopedCutProject(p,cuts):trimProject(p,cuts,true);const merged:number[][]=[];for(const [a,b] of cuts.sort((a,b)=>a[0]-b[0])){const last=merged.at(-1);if(last&&a<=last[1])last[1]=Math.max(last[1],b);else merged.push([a,b]);}const map=(t:number)=>t-merged.reduce((n,[a,b])=>n+Math.max(0,Math.min(t,b)-a),0);
   if(!ops.filter(o=>o.kind==='cut').every(o=>o.kind==='cut'&&o.sceneScope)){
   const words=transcriptWords(before).filter(w=>!merged.some(([a,b])=>w.start<b&&w.end>a)).map(w=>({...w,start:map(w.start),end:map(w.end)}));
-  p.captions=[...captionsFromWords(words,before.captionStyle.maxWords),...before.captions.filter(c=>!c.words?.length&&!merged.some(([a,b])=>c.start<b&&c.end>a)).map(c=>({...c,start:map(c.start),end:map(c.end)}))].sort((a,b)=>a.start-b.start);
+  p.captions=[...captionsFromWords(words),...before.captions.filter(c=>!c.words?.length&&!merged.some(([a,b])=>c.start<b&&c.end>a)).map(c=>({...c,start:map(c.start),end:map(c.end)}))].sort((a,b)=>a.start-b.start);
   }
  }
  for(const op of ops){if(op.kind==='elements'){const ids=new Set(op.elements.map(e=>e.id));p.elements=p.elements.filter(e=>!ids.has(e.id));p.elements.push(...structuredClone(op.elements));}if(op.kind==='layout'){

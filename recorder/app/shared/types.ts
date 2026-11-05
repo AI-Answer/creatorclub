@@ -29,7 +29,12 @@ export interface Clip {
  stage?:true;
  /** Original source interval for continuous fades and audio processing after a split. */
  effectTiming?:{sourceIn:number;sourceOut:number};
- effects:{brightness:number; contrast:number; saturation:number; blur:number; grayscale:boolean; flipX:boolean; fadeIn:number; fadeOut:number; denoise:boolean; normalize:boolean; background?:'none'|'remove'|'blur'; faceCenter?:boolean};
+ effects:{brightness:number; contrast:number; saturation:number; blur:number; grayscale:boolean; flipX:boolean; fadeIn:number; fadeOut:number; denoise:boolean; normalize:boolean; background?:'none'|'remove'|'blur'; faceCenter?:boolean;
+  /** Remove Noise strength, 0..1. Read only while `denoise` is on; absent means NOISE_ON. Use noiseStrength and setNoiseStrength. */
+  denoiseStrength?:number;
+  /** Enhance Voice level when `normalize` is on: absent means minimal. Use voiceLevel and setVoiceLevel. */
+  voiceLevel?:'extended';
+ };
 }
 export interface Scene { id:string; name:string; script:string; notes:string; start:number; duration:number; }
 export interface Caption { id:string; start:number; end:number; text:string; words?:Array<{text:string;start:number;end:number}>; }
@@ -102,6 +107,20 @@ export interface AISuggestion { id:string;type:'silence'|'filler'|'script'|'capt
 export interface Capabilities { ffmpeg:boolean;ffprobe:boolean;hardwareEncode:boolean;transcription:{local:boolean;command?:string;providers:string[]};version:string; }
 export const defaultTransform=():Transform=>({x:0,y:0,width:1,height:1,rotation:0,opacity:1,fit:'contain',borderRadius:0});
 export const defaultEffects=():Clip['effects']=>({brightness:0,contrast:1,saturation:1,blur:0,grayscale:false,flipX:false,fadeIn:0,fadeOut:0,denoise:false,normalize:false});
+/** Borumi's Remove Noise value when it is switched on. Old projects with `denoise: true` read as this strength. */
+export const NOISE_ON=.93;
+/** Borumi's Volume range, in dB. The export's gain ceiling is this top (gain = 10^(dB/20)). */
+export const CLIP_GAIN_MAX_DB=30;
+export type VoiceLevel='disabled'|'minimal'|'extended';
+const unit=(value:number)=>Math.min(1,Math.max(0,value));
+/** Remove Noise strength, 0..1. Old projects with `denoise: true` and no strength read as on (NOISE_ON). */
+export const noiseStrength=(fx:Clip['effects']):number=>!fx.denoise?0:Number.isFinite(fx.denoiseStrength)?unit(fx.denoiseStrength!):NOISE_ON;
+/** Enhance Voice level. Old projects with `normalize: true` read as minimal, the level they always had. */
+export const voiceLevel=(fx:Clip['effects']):VoiceLevel=>!fx.normalize?'disabled':fx.voiceLevel==='extended'?'extended':'minimal';
+/** Writes strength in one place: 0 is off (the flag and the stored strength are cleared), anything above is on at that strength. */
+export function setNoiseStrength(fx:Clip['effects'],strength:number){const value=unit(strength);fx.denoise=value>0;if(value>0)fx.denoiseStrength=value;else delete fx.denoiseStrength;}
+/** Writes the level in one place: `normalize` stays the on flag that older readers understand. */
+export function setVoiceLevel(fx:Clip['effects'],level:VoiceLevel){fx.normalize=level!=='disabled';if(level==='extended')fx.voiceLevel='extended';else delete fx.voiceLevel;}
 /** New camera clips follow the speaker's face by default; screen and other tracks keep the neutral effects. */
 export const effectsForTrack=(track:TrackKind):Clip['effects']=>track==='camera'?{...defaultEffects(),faceCenter:true}:defaultEffects();
 /** A take's clip effects: a camera recorded with Mirror camera on starts mirrored, as Borumi marks its camera clips. */

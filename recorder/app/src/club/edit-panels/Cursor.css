@@ -1,0 +1,24 @@
+/* Borumi's Cursor panel (spec e8). Tokens only; every rule is scoped under the club's Edit side panel. */
+.club-root .club-edit-side .club-cursor-panel { padding: 16px; }
+
+/* Style tiles: grid grid-cols-4 gap-2 (Borumi), so the two real styles keep Borumi's tile size. */
+.club-root .club-edit-side .club-cursor-tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.club-root .club-edit-side .club-cursor-tile { gap: 4px; min-width: 0; }
+.club-root .club-edit-side .club-cursor-art { display: flex; align-items: center; justify-content: center; width: 100%; height: 36px; }
+.club-root .club-edit-side .club-cursor-art svg { width: 18px; height: 24px; }
+.club-root .club-edit-side .club-cursor-art path { stroke: var(--br-primary); stroke-width: 1; }
+.club-root .club-edit-side .club-cursor-label { font-size: var(--cc-text-xs); line-height: 16px; font-weight: 500; }
+
+.club-root .club-edit-side .club-cursor-empty { margin-top: 16px; }
+.club-root .club-edit-side .club-cursor-highlight { display: flex; flex-direction: column; gap: 4px; }
+
+.club-root .club-edit-side .club-cursor-add { width: 100%; margin-top: 8px; }
+.club-root .club-edit-side .club-cursor-points { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+.club-root .club-edit-side .club-cursor-point { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.club-root .club-edit-side .club-cursor-point > b { min-width: 52px; font-size: var(--cc-text-xs); line-height: 16px; font-weight: 600; }
+.club-root .club-edit-side .club-cursor-field { display: flex; align-items: center; gap: 4px; font-size: var(--cc-text-xs); line-height: 16px; font-weight: 500; }
+.club-root .club-edit-side .club-cursor-field input { width: 60px; height: 28px; padding: 0 6px; border: 1px solid var(--br-input); border-radius: var(--br-r-md); background: var(--br-input); color: var(--br-primary); font: inherit; font-size: var(--cc-text-xs); }
+.club-root .club-edit-side .club-cursor-field input:focus-visible { outline: none; box-shadow: 0 0 0 1px var(--br-ring); }
+.club-root .club-edit-side .club-cursor-delete { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; margin-left: auto; padding: 0; border: 0; border-radius: var(--cc-r-pill); background: transparent; color: color-mix(in srgb, var(--br-primary) 70%, transparent); cursor: pointer; }
+.club-root .club-edit-side .club-cursor-delete:hover { background: color-mix(in srgb, var(--br-primary) 10%, transparent); color: var(--br-primary); }
+.club-root .club-edit-side .club-cursor-delete svg { width: 13px; height: 13px; }

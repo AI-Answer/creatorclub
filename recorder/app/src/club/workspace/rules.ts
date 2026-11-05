@@ -94,9 +94,9 @@ export function continueFor(tab:VideoTab,facts:TabFacts&LockFacts,{busy=false,ow
  // Continue is a completion action; the step links are available for freely exploring ahead.
  if(tab==='record'&&!tabDone(tab,facts)){
   const recorded=facts.scenes?.filter(isSceneRecorded).length??0;
-  const missing=(facts.scenes?.length??0)-recorded;
-  const reason=!recorded?'Record a scene first':missing===1?'Record 1 more scene':`Record ${missing} more scenes`;
-  return {label,disabled:true,reason,primary:false};
+  // Borumi's step bar (main bundle aR, M:5056-5085): Continue to Editing shows once any scene has a take, outlined until every scene has one.
+  if(!recorded)return undefined;
+  return {label,disabled:false,primary:false};
  }
  if(tab==='edit'&&!facts.exported)return {label,disabled:true,reason:facts.scenes!==undefined&&!facts.allRecorded&&!facts.scenes.some(isSceneRecorded)?'Record a scene or import media first':'Export the video first',primary:false};
  return {label,disabled:false,primary:continueIsPrimary(tabDone(tab,facts),ownPrimary)};

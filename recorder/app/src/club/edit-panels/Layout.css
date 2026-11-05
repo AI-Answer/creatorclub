@@ -1,0 +1,28 @@
+/* Layout panel (src/LayoutPanel.tsx), in Borumi's form (spec-edit-step.md, e2). Shared primitives are in br.css. */
+
+/* Root: relative flex h-full min-h-0 flex-col overflow-hidden, so the Properties drawer pins to its bottom. */
+.club-root .club-edit-side .layout-panel { position: relative; height: 100%; min-height: 0; overflow: hidden; }
+
+/* Scroll body: min-h-0 flex-1 overflow-y-auto, padding px-4 pb-16 pt-4 (the bottom room is for the drawer). */
+.club-root .club-edit-side .layout-scroll { min-height: 0; flex: 1; overflow-y: auto; padding: 16px 16px 64px; }
+
+/* Category tabs: sticky top-0 z-10 bg-background py-3 with a 4px side gutter. */
+.club-root .club-edit-side .layout-tabs { position: sticky; top: 0; z-index: 10; margin: 0 -4px; padding: 12px 4px; background: var(--br-bg); }
+
+/* Tile grid: grid gap-3, two columns (three for a portrait video). */
+.club-root .club-edit-side .layout-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 2px; overflow-anchor: none; }
+.club-root .club-edit-side .layout-grid.is-portrait { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+/* Tile: a gradient card with the video's aspect ratio and a border-border rule; selected is a blue ring on a blue gradient. */
+.club-root .club-edit-side .layout-tile { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; min-width: 0; padding: 0; overflow: hidden; border: 1px solid var(--br-border); border-radius: var(--br-r-md); background: linear-gradient(to bottom right, var(--br-neutral-100), var(--br-neutral-200)); cursor: pointer; transition: filter .15s; }
+.club-root .club-edit-side .layout-tile:hover { filter: brightness(.95); }
+.club-root .club-edit-side .layout-tile.is-selected { border-color: var(--br-blue-600); box-shadow: 0 0 0 2px var(--br-blue-600); background: linear-gradient(to bottom right, var(--br-blue-50), var(--br-blue-100)); }
+
+/* The picture inside a tile: the canvas colour behind a screen and a camera frame, both from the video's own frames when they exist. */
+.club-root .club-edit-side .layout-picture { position: absolute; inset: 0; display: block; }
+.club-root .club-edit-side .layout-picture i { position: absolute; display: block; background-size: cover; background-position: center; background-color: color-mix(in srgb, var(--br-primary) 14%, transparent); }
+.club-root .club-edit-side .layout-picture .layout-camera { background-color: color-mix(in srgb, var(--br-primary) 35%, transparent); box-shadow: var(--br-shadow); }
+
+.club-root .club-edit-side .layout-hint { margin-top: 12px; }
+.club-root .club-edit-side .layout-empty { padding: 16px; }
+.club-root .club-edit-side .layout-cards { display: flex; flex-direction: column; gap: 12px; }

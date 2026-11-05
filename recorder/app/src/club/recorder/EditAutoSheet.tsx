@@ -1,5 +1,5 @@
 import {AI_CONNECT_HINT,useAiAvailable} from '../ai-status';
-import {useEffect,useMemo,useRef,useState} from 'react';
+import {useEffect,useMemo,useRef,useState,type ReactNode} from 'react';
 import type {AutomationJob,AutomationMutation,CutReview,QuickActionRequest} from '../../../shared/automation';
 import {DEFAULT_PAUSE_LEVEL} from '../../../shared/companion';
 import type {Project} from '../../../shared/types';
@@ -7,7 +7,9 @@ import {projectDuration} from '../../../shared/types';
 import {api} from '../../api';
 import {automationRunning} from '../../automation-state';
 import {closeRange} from '../../timeline-edit';
-import {Button,Icon} from '../ui';
+import {Icon} from '../ui';
+import type {IconName} from '../ui/icons';
+import {BrSection,BrTabs} from '../edit-panels/br';
 import {UNKNOWN_PLAN,clipsFingerprint,cutReview,fillerRanges,gapRanges,latestCutJob,latestStyleJob,PAUSE_LEVEL_NAMES,pauseRanges,planIsStale,rangesSeconds,type PauseLevel,type Range} from './edit-auto';
 import {formatCutDuration} from './edit-steps';
 
@@ -39,7 +41,7 @@ const seconds=(n:number)=>n<60?`${n.toFixed(1)}s`:formatCutDuration(n);
  */
 export function EditAutoSheet({project:p,jobs,merge,reload,flush,change,refresh,onPreview,onClose,onChanged,notify,initial,onMakeCaptions}:{project:Project;jobs:AutomationJob[];merge(job:AutomationJob):void;reload():Promise<void>;flush():Promise<Project|undefined>;change(fn:(p:Project)=>void):void;refresh():Promise<void>;onPreview(preview:EditPreview|null):void;onClose():void;onChanged?():void;notify(message:string):void;initial?:AutoOption;onMakeCaptions():Promise<void>}){
  const [level,setLevel]=useState<PauseLevel>(DEFAULT_PAUSE_LEVEL),[padding]=useState(.16),[hover,setHover]=useState<AutoOption|null>(null),[pin,setPin]=useState<AutoOption|null>(initial??null),[busy,setBusy]=useState(''),[error,setError]=useState('');
- const [styled,setStyled]=useState<{jobId:string;after:Project}|null>(null),list=useRef<HTMLDivElement>(null),retry=useRef<()=>void>(()=>{});
+ const [styled,setStyled]=useState<{jobId:string;after:Project}|null>(null),[menuFor,setMenuFor]=useState<AutoOption|null>(null),list=useRef<HTMLDivElement>(null),retry=useRef<()=>void>(()=>{});
  const cutJob=latestCutJob(jobs),styleJob=latestStyleJob(jobs);
  // A plan made before the latest edit no longer matches the timeline: it is never applied, and the row offers to look again.
  const cutBase=usePlanBase(cutJob),stale=cutJob?.status==='ready'&&planIsStale(cutBase,p);
@@ -96,45 +98,76 @@ export function EditAutoSheet({project:p,jobs,merge,reload,flush,change,refresh,
   if(event.target!==event.currentTarget)return;
   if(event.key==='Enter'){event.preventDefault();void apply(option);return;}
   if(event.key==='ArrowDown'||event.key==='ArrowUp'){event.preventDefault();const rows=[...list.current!.querySelectorAll<HTMLElement>('[data-option]')],i=rows.indexOf(event.currentTarget as HTMLElement);rows[(i+(event.key==='ArrowDown'?1:rows.length-1))%rows.length]?.focus();}
-  if(event.key==='Escape'){event.preventDefault();event.stopPropagation();if(pin)setPin(null);else onClose();}
+  if(event.key==='Escape'){event.preventDefault();event.stopPropagation();if(menuFor)setMenuFor(null);else if(pin)setPin(null);else onClose();}
  };
 const makeCaptions=async()=>{
   setBusy('captions');setError('');retry.current=()=>void makeCaptions();
   try{await onMakeCaptions();}catch{setError("Couldn't make captions.");}finally{setBusy('');}
  };
- const actions=(option:AutoOption)=>{
-  if(option==='fillers'&&!p.captions.length){const transcribing=jobs.some(job=>job.kind==='transcription'&&automationRunning(job));return <Button size="sm" variant="secondary" className="edit-caption-action" disabled={!!busy||transcribing} onClick={()=>void makeCaptions()}>{busy==='captions'||transcribing?'Making captions…':'Make captions'}</Button>;}
-  if(option==='normalize')return <div className="club-auto-actions"><Button size="sm" disabled={!p.clips.length||p.clips.every(c=>c.effects.normalize)} onClick={()=>void apply('normalize')}>Even out</Button></div>;
-  if(option!=='pauses'&&option!=='fillers'&&option!=='gaps')return null;
-  if(option==='pauses'&&(!cutJob||stale||cutJob.status!=='ready'))return null;
-  // Nothing found: no buttons at all, rather than two that cannot be pressed.
-  if(!ranges[option].length)return null;
-  return <div className="club-auto-actions"><Button size="sm" disabled={!!busy} onClick={()=>setPin(option)}>Review</Button></div>;
- };
- const row=(option:AutoOption,icon:React.ReactNode,title:string,extra?:React.ReactNode)=><div key={option} role="listitem" data-option={option} tabIndex={0} className={`club-auto-row ${pin===option?'is-pinned':''}`} aria-label={title}
-  onMouseEnter={()=>setHover(option)} onMouseLeave={()=>setHover(h=>h===option?null:h)} onFocus={event=>{if(event.target===event.currentTarget)setHover(option);}} onBlur={()=>setHover(h=>h===option?null:h)}
-  onClick={event=>{if((event.target as HTMLElement).closest('button,input'))return;setPin(option);}} onKeyDown={event=>keys(event,option)}>
-  <div className="edit-auto-copy"><div className="club-auto-title">{icon}{title}</div><div className="club-auto-desc" title={describe(option)}>{describe(option)}</div></div><div className="edit-auto-actions">{extra}{actions(option)}</div>
- </div>;
- return <aside className="club-sheet club-auto-sheet" aria-label="Auto-edit">
-  <header><Icon name="auto-edit" size={18}/><b>Auto-edit</b><span className="club-sheet-grow"/><button type="button" className="btn sm" onClick={onClose}>Show transcript</button></header>
-  {runningJobs.map(job=><div className="edit-auto-progress" role="status" key={job.id}>
-   <span>{job.kind==='auto-cut'?'Finding pauses':'Suggesting layout and titles'} · {Math.round(Math.max(0,Math.min(1,job.progress))*100)}%</span>
-   <progress aria-label={job.kind==='auto-cut'?'Finding pauses':'Suggesting layout and titles'} value={job.progress} max={1}/>
-   <Button size="sm" variant="ghost" onClick={()=>void cancelJob(job)}>Cancel</Button>
-  </div>)}
-  <div className="club-sheet-body" ref={list} role="list">
-   {row('fillers',<Icon name="audio" size={15}/>,'Filler words')}
-   {row('pauses',<Icon name="cut" size={15}/>,'Pauses',<>
-    {(!cutJob||stale||cutJob.status!=='ready'&&!automationRunning(cutJob)||cutJob.status==='ready'&&!ranges.pauses.length)&&<Button size="sm" disabled={!!busy||!p.clips.length} onClick={()=>void plan('auto-cut')}>{busy==='auto-cut'&&<Icon name="loading" className="spin" aria-hidden/>}Find pauses</Button>}
-    {cutJob?.status==='ready'&&!stale&&ranges.pauses.length>0&&pin==='pauses'&&<><div className="club-auto-control"><span className="club-seg" role="group" aria-label="How much to cut">{(Object.keys(PAUSE_LEVEL_NAMES) as PauseLevel[]).map(l=><button key={l} type="button" aria-pressed={level===l} onClick={()=>{setLevel(l);setPin('pauses');}}>{PAUSE_LEVEL_NAMES[l]}</button>)}</span></div></>}
-   </>)}
-   {row('gaps',<Icon name="slide" size={15}/>,'Gaps between clips')}
-   {row('normalize',<Icon name="adjust" size={15}/>,'Even out volume')}
-   {row('style',<Icon name="image" size={15}/>,'Suggest layout and titles',(!styleJob||styleJob.status!=='ready')&&<Button size="sm" title={!aiAvailable?AI_CONNECT_HINT:undefined} disabled={!aiAvailable||!!busy||!p.clips.length||!!styleJob&&automationRunning(styleJob)} onClick={()=>void plan('visualize')}>{(busy==='visualize'||styleJob&&automationRunning(styleJob))&&<Icon name="loading" className="spin" aria-hidden/>}{styleJob?'Suggest again':'Suggest'}</Button>)}
+ /** One item of a card's More options menu. */
+type MenuItem={key:string;label:string;busy?:boolean;disabled?:boolean;title?:string;run():void};
+/** The actions an automation card offers, under its More options button. Each one is the same action the card offered before. */
+const menu=(option:AutoOption):MenuItem[]=>{
+ if(option==='fillers'&&!p.captions.length){const transcribing=jobs.some(job=>job.kind==='transcription'&&automationRunning(job));return [{key:'captions',label:busy==='captions'||transcribing?'Making captions…':'Make captions',busy:busy==='captions'||transcribing,disabled:!!busy||transcribing,run:()=>void makeCaptions()}];}
+ if(option==='normalize')return [{key:'even',label:'Even out',disabled:!p.clips.length||p.clips.every(c=>c.effects.normalize),run:()=>void apply('normalize')}];
+ if(option==='style'){
+  if(!styleJob||styleJob.status!=='ready')return [{key:'suggest',label:styleJob?'Suggest again':'Suggest',busy:busy==='visualize'||!!styleJob&&automationRunning(styleJob),title:!aiAvailable?AI_CONNECT_HINT:undefined,disabled:!aiAvailable||!!busy||!p.clips.length||!!styleJob&&automationRunning(styleJob),run:()=>void plan('visualize')}];
+  return [];
+ }
+ if(option==='pauses'){
+  const items:MenuItem[]=[];
+  if(!cutJob||stale||cutJob.status!=='ready'&&!automationRunning(cutJob)||cutJob.status==='ready'&&!ranges.pauses.length)items.push({key:'find',label:'Find pauses',busy:busy==='auto-cut',disabled:!!busy||!p.clips.length,run:()=>void plan('auto-cut')});
+  if(cutJob&&!stale&&cutJob.status==='ready'&&ranges.pauses.length)items.push({key:'review',label:'Review',disabled:!!busy,run:()=>setPin('pauses')});
+  return items;
+ }
+ // Nothing found: no action at all, rather than one that cannot be pressed.
+ if(!ranges[option].length)return [];
+ return [{key:'review',label:'Review',disabled:!!busy,run:()=>setPin(option)}];
+};
+const TITLES:Record<AutoOption,string>={fillers:'Filler words',pauses:'Pauses',gaps:'Gaps between clips',normalize:'Even out volume',style:'Suggest layout and titles'};
+const ICONS:Record<AutoOption,IconName>={fillers:'audio',pauses:'cut',gaps:'slide',normalize:'adjust',style:'image'};
+/** One automation as a card row: a 32px icon well, the name and its status, and a More options button for its actions. */
+const card=(option:AutoOption,extra?:ReactNode)=>{
+ const items=menu(option),open=menuFor===option&&items.length>0,title=TITLES[option];
+ return <div key={option} role="listitem" data-option={option} tabIndex={0} aria-label={title} className={`club-auto-card${pin===option?' is-pinned':''}`}
+  onMouseEnter={()=>setHover(option)} onMouseLeave={()=>setHover(h=>h===option?null:h)}
+  onFocus={event=>{if(event.target===event.currentTarget)setHover(option);}}
+  onBlur={event=>{setHover(h=>h===option?null:h);if(!event.currentTarget.contains(event.relatedTarget as Node|null))setMenuFor(m=>m===option?null:m);}}
+  onKeyDown={event=>keys(event,option)}>
+  <div className="club-auto-line">
+   <button type="button" className="club-auto-main" aria-pressed={pin===option} onClick={()=>setPin(option)}>
+    <span className="club-auto-well"><Icon name={ICONS[option]} size={16}/></span>
+    <span className="club-auto-text"><span className="club-auto-name">{title}</span><span className="club-auto-desc" title={describe(option)}>{describe(option)}</span></span>
+   </button>
+   {items.length>0&&<button type="button" className="club-auto-more" aria-label="More options" aria-haspopup="menu" aria-expanded={open} onClick={()=>setMenuFor(open?null:option)}><Icon name="more" size={16}/></button>}
   </div>
-  {error&&<p className="club-sheet-error" role="alert">{error} <button type="button" onClick={()=>{setError('');retry.current();}}>Try again</button></p>}
-  {pin&&<footer className="club-sheet-pin"><span>Previewing <b>{pin==='pauses'?`Remove pauses (${PAUSE_LEVEL_NAMES[level].toLowerCase()})`:pin==='fillers'?'Remove filler words':pin==='gaps'?'Close gaps between clips':pin==='normalize'?'Even out the volume':'Suggest a layout and titles'}</b></span>
-   <Button size="sm" variant="ghost" onClick={()=>setPin(null)}>Cancel</Button><Button size="sm" variant="primary" disabled={!!busy} onClick={()=>void apply(pin)}>{busy==='style'&&<Icon name="loading" className="spin" aria-hidden/>}Apply</Button></footer>}
+  {open&&<div className="club-auto-menu" role="menu" aria-label={`${title} actions`}>{items.map(item=><button key={item.key} type="button" role="menuitem" className="club-auto-menu-item" disabled={item.disabled} title={item.title}
+   onClick={()=>{setMenuFor(null);item.run();}}>{item.busy&&<Icon name="loading" className="spin" size={14}/>}{item.label}</button>)}</div>}
+  {extra&&pin===option&&<div className="club-auto-extra">{extra}</div>}
+ </div>;
+};
+// How much a pinned pause cut removes: the level control of the pauses card.
+const pauseLevels=(cutJob&&!stale&&cutJob.status==='ready'&&ranges.pauses.length)?<BrTabs<PauseLevel> value={level} label="How much to cut" full items={(Object.keys(PAUSE_LEVEL_NAMES) as PauseLevel[]).map(value=>({value,label:PAUSE_LEVEL_NAMES[value]}))} onChange={next=>{setLevel(next);setPin('pauses');}}/>:undefined;
+const pinLabel=pin==='pauses'?`Remove pauses (${PAUSE_LEVEL_NAMES[level].toLowerCase()})`:pin==='fillers'?'Remove filler words':pin==='gaps'?'Close gaps between clips':pin==='normalize'?'Even out the volume':'Suggest a layout and titles';
+ return <aside className="club-sheet club-auto-sheet br-panel" aria-label="Automations">
+  <div className="club-auto-scroll">
+   <BrSection title="Automations" actions={<button type="button" className="br-btn is-ghost is-sm" onClick={onClose}>Show transcript</button>}>
+    {runningJobs.map(job=><div className="club-auto-progress" role="status" key={job.id}>
+     <span>{job.kind==='auto-cut'?'Finding pauses':'Suggesting layout and titles'} · {Math.round(Math.max(0,Math.min(1,job.progress))*100)}%</span>
+     <progress aria-label={job.kind==='auto-cut'?'Finding pauses':'Suggesting layout and titles'} value={job.progress} max={1}/>
+     <button type="button" className="br-btn is-ghost is-sm" onClick={()=>void cancelJob(job)}>Cancel</button>
+    </div>)}
+    <div className="club-auto-list" ref={list} role="list">
+     {card('fillers')}
+     {card('pauses',pauseLevels)}
+     {card('gaps')}
+     {card('normalize')}
+     {card('style')}
+    </div>
+    {error&&<p className="club-auto-error" role="alert">{error} <button type="button" className="br-link" onClick={()=>{setError('');retry.current();}}>Try again</button></p>}
+   </BrSection>
+  </div>
+  {pin&&<footer className="club-auto-footer"><span>Previewing <b>{pinLabel}</b></span>
+   <div className="club-auto-footer-actions"><button type="button" className="br-btn is-ghost is-sm" onClick={()=>setPin(null)}>Cancel</button><button type="button" className="br-btn is-sm" disabled={!!busy} onClick={()=>void apply(pin)}>{busy==='style'&&<Icon name="loading" className="spin" size={14}/>}Apply</button></div></footer>}
  </aside>;
 }

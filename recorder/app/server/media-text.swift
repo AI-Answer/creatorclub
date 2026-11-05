@@ -37,9 +37,15 @@ if kind == "mask" { NSColor.white.setFill();NSBezierPath(roundedRect:rect,xRadiu
  let cg = context.cgContext;cg.saveGState();cg.translateBy(x:0,y:box.minY*2+box.height);cg.scaleBy(x:1,y:-1)
  text.draw(with:NSRect(x:box.minX+paddingX,y:box.minY+paddingY,width:max(1,box.width-paddingX*2),height:max(1,box.height-paddingY*2)),options:[.usesLineFragmentOrigin,.usesFontLeading]);cg.restoreGState()
 } else if kind == "cursor" { bg.setFill();NSBezierPath(ovalIn:NSRect(x:0,y:0,width:CGFloat(w)*0.65,height:CGFloat(h)*0.65)).fill();let p=NSBezierPath();p.move(to:NSPoint(x:1,y:1));p.line(to:NSPoint(x:CGFloat(w)*0.15,y:CGFloat(h)*0.64));p.line(to:NSPoint(x:CGFloat(w)*0.28,y:CGFloat(h)*0.45));p.line(to:NSPoint(x:CGFloat(w)*0.47,y:CGFloat(h)*0.43));p.close();NSColor.black.setStroke();p.lineWidth=2;p.stroke();fg.setFill();p.fill()
-} else if kind == "ellipse" { fg.setFill();NSBezierPath(ovalIn:rect).fill()
-} else if kind == "arrow" { fg.setStroke();fg.setFill();let p=NSBezierPath();p.lineWidth=max(3,n("fontSize",20)/5);p.move(to:NSPoint(x:rect.minX,y:rect.maxY));p.line(to:NSPoint(x:rect.maxX,y:rect.minY));p.stroke();let size=max(10,min(rect.width,rect.height)/3);let q=NSBezierPath();q.move(to:NSPoint(x:rect.maxX,y:rect.minY));q.line(to:NSPoint(x:rect.maxX-size,y:rect.minY));q.line(to:NSPoint(x:rect.maxX,y:rect.minY+size));q.close();q.fill()
-} else if kind == "highlight" { bg.setFill();NSBezierPath(rect:rect).fill();fg.setStroke();let p=NSBezierPath(roundedRect:rect,xRadius:8,yRadius:8);p.lineWidth=4;p.stroke()
+// Rectangle, ellipse and highlight: the background fills the box and the colour outlines it on the inside, as the preview's CSS border
+// draws them (src/Stage.tsx). strokeWidth and radius arrive in output pixels.
+} else if kind == "ellipse" { let lw=n("strokeWidth",3);bg.setFill();NSBezierPath(ovalIn:rect).fill();fg.setStroke();let p=NSBezierPath(ovalIn:rect.insetBy(dx:lw/2,dy:lw/2));p.lineWidth=lw;p.stroke()
+} else if kind == "rectangle" { let lw=n("strokeWidth",3);bg.setFill();NSBezierPath(rect:rect).fill();fg.setStroke();let p=NSBezierPath(rect:rect.insetBy(dx:lw/2,dy:lw/2));p.lineWidth=lw;p.stroke()
+} else if kind == "arrow" {
+ // The preview's arrow: in a 100x40 box stretched to the element, a shaft from (2,20) to (90,20) and a head (72,4)-(94,20)-(72,36), 4 units thick.
+ let sx=rect.width/100,sy=rect.height/40;let px={(x:CGFloat,y:CGFloat) in NSPoint(x:rect.minX+x*sx,y:rect.minY+y*sy)}
+ fg.setStroke();let p=NSBezierPath();p.lineWidth=max(1,4*sy);p.move(to:px(2,20));p.line(to:px(90,20));p.move(to:px(72,4));p.line(to:px(94,20));p.line(to:px(72,36));p.stroke()
+} else if kind == "highlight" { let lw=n("strokeWidth",4),r=n("radius",8);bg.setFill();NSBezierPath(roundedRect:rect,xRadius:r,yRadius:r).fill();fg.setStroke();let p=NSBezierPath(roundedRect:rect.insetBy(dx:lw/2,dy:lw/2),xRadius:max(0,r-lw/2),yRadius:max(0,r-lw/2));p.lineWidth=lw;p.stroke()
 } else { fg.setFill();NSBezierPath(roundedRect:rect,xRadius:8,yRadius:8).fill() }
 context.flushGraphics();NSGraphicsContext.restoreGraphicsState()
 let png=bitmap.representation(using:.png,properties:[:])!

@@ -15,6 +15,7 @@ import {clampToEnd,usePlayheadTime,type Playhead} from './playhead';
 import {clipFilterCss,cursorPointLookup,stageIndex,stageSlots} from './stage-view';
 import {MotionLayer} from './MotionLayer';
 import {drawnBlocks,onStage} from '../shared/look';
+import {captionPartAt} from '../shared/caption-parts';
 import {StageHandles,type Box} from './StageHandles';
 
 /** `visible` is false for a pre-rolled upcoming clip: it stays mounted, paused, silent and transparent, with no vision or face-tracking work. */
@@ -62,6 +63,8 @@ export const Stage=memo(function Stage({project:p,playhead,playing,playbackRate=
  useEffect(()=>{previewAudioMixer.transport(playing);},[playing]);
  useEffect(()=>()=>previewAudioMixer.release(),[]);
  const scale=width/p.canvas.width,caption=p.captionStyle.enabled&&!onStage(p,time)?p.captions.find(c=>time>=c.start&&time<c.end&&!isSoundTag(c.text)):null;
+ // The export burns each caption in groups of at most maxWords words (shared/caption-parts.ts); the preview shows the same group.
+ const captionPart=caption?captionPartAt(caption,p.captionStyle.maxWords,time):null;
  const pattern=p.canvas.backgroundPattern==='moving-dots',pixelRatio=typeof window==='undefined'?1:window.devicePixelRatio||1;
  const pointAt=useMemo(()=>p.cursor.enabled?cursorPointLookup(p.cursor.points):null,[p.cursor.enabled,p.cursor.points]),point=pointAt?.(time);
  const mediaById=useMemo(()=>new Map(p.media.map(m=>[m.id,m])),[p.media]);
@@ -80,8 +83,8 @@ export const Stage=memo(function Stage({project:p,playhead,playing,playbackRate=
   </div>
   {/* Motion blocks sit above the clips and under texts and captions, as in the export. The stage is their container (cqw). */}
   <MotionLayer blocks={blocks} time={time}/>
-  {p.elements.filter(e=>time>=e.start&&time<e.start+e.duration).map(e=><div key={e.id} className={`stage-element element-${e.type}`} onClick={event=>{event.stopPropagation();onSelect(e.id);}} style={{left:`${e.x*100}%`,top:`${e.y*100}%`,width:`${e.width*100}%`,height:`${e.height*100}%`,fontSize:e.fontSize*scale,color:e.color,background:e.type==='arrow'?'transparent':e.background,opacity:e.opacity,transform:`rotate(${e.rotation}deg)`,border:e.type==='rectangle'||e.type==='ellipse'?`${Math.max(1,3*scale)}px solid ${e.color}`:undefined,backdropFilter:e.type==='blur'?'blur(12px)':undefined}}>{e.type==='text'?e.text:e.type==='arrow'?<svg viewBox="0 0 100 40" preserveAspectRatio="none"><path d="M2 20H90 M72 4L94 20L72 36" fill="none" stroke={e.color} strokeWidth="4"/></svg>:null}</div>)}
-  {caption&&<div className={`stage-caption caption-${p.captionStyle.position}`} style={{fontSize:p.captionStyle.fontSize*scale,color:p.captionStyle.color}}><span style={{background:p.captionStyle.background}}>{caption.text}</span></div>}
+  {p.elements.filter(e=>time>=e.start&&time<e.start+e.duration).map(e=><div key={e.id} className={`stage-element element-${e.type}`} onClick={event=>{event.stopPropagation();onSelect(e.id);}} style={{left:`${e.x*100}%`,top:`${e.y*100}%`,width:`${e.width*100}%`,height:`${e.height*100}%`,fontSize:e.fontSize*scale,color:e.color,background:e.type==='arrow'?'transparent':e.background,opacity:e.opacity,transform:`rotate(${e.rotation}deg)`,border:e.type==='rectangle'||e.type==='ellipse'?`${Math.max(1,3*scale)}px solid ${e.color}`:e.type==='highlight'?`${Math.max(1,4*scale)}px solid ${e.color}`:undefined,borderRadius:e.type==='highlight'?8*scale:e.type==='ellipse'?'50%':undefined,boxSizing:'border-box',backdropFilter:e.type==='blur'?'blur(12px)':undefined}}>{e.type==='text'?e.text:e.type==='arrow'?<svg viewBox="0 0 100 40" preserveAspectRatio="none"><path d="M2 20H90 M72 4L94 20L72 36" fill="none" stroke={e.color} strokeWidth="4"/></svg>:null}</div>)}
+  {captionPart&&<div className={`stage-caption caption-${p.captionStyle.position}`} style={{fontSize:p.captionStyle.fontSize*scale,color:p.captionStyle.color}}><span style={{background:p.captionStyle.background}}>{captionPart.text}</span></div>}
   {(()=>{
    if(playing||!selected)return null;
    const at=(c:Project['clips'][number])=>time>=c.start&&time<c.start+(c.sourceOut-c.sourceIn)/c.speed;

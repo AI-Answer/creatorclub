@@ -113,12 +113,13 @@ test('one Continue rule: it names the next step, says what is still missing, and
  assert.deepEqual(continueFor('idea',noScenes),{label:'Continue to recording',disabled:false,primary:false},'recording without a plan is allowed');
  assert.deepEqual(continueFor('idea',planned),{label:'Continue to recording',disabled:false,primary:true});
  assert.deepEqual(continueFor('idea',planned,{busy:true}),{label:'Continue to recording',disabled:true,reason:'Still writing',primary:false});
- assert.deepEqual(continueFor('record',planned,{ownPrimary:true}),{label:'Continue to editing',disabled:true,reason:'Record a scene first',primary:false});
- assert.deepEqual(continueFor('record',started),{label:'Continue to editing',disabled:true,reason:'Record 1 more scene',primary:false});
+ // Borumi's step bar: no Continue to Editing until a scene has a take, then outlined until every scene has one.
+ assert.equal(continueFor('record',planned,{ownPrimary:true}),undefined);
+ assert.deepEqual(continueFor('record',started),{label:'Continue to editing',disabled:false,primary:false});
  assert.deepEqual(continueFor('record',{...started,allRecorded:true}),{label:'Continue to editing',disabled:false,primary:true});
  assert.deepEqual(continueFor('edit',started),{label:'Continue to publishing',disabled:true,reason:'Export the video first',primary:false});
  assert.deepEqual(continueFor('edit',{...started,exported:true}),{label:'Continue to publishing',disabled:false,primary:true},'an intentionally partial export can be published');
  assert.deepEqual(continueFor('edit',{...started,stage:'publishing'}),{label:'Continue to publishing',disabled:true,reason:'Export the video first',primary:false},'moving the card is not proof of an export');
  assert.equal(continueFor('publish',started),undefined);
- assert.deepEqual(continueFor('record',{stage:'recording',hasRecording:true}),{label:'Continue to editing',disabled:true,reason:'Record a scene first',primary:false});
+ assert.equal(continueFor('record',{stage:'recording',hasRecording:true}),undefined);
 });

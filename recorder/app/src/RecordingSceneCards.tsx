@@ -5,7 +5,6 @@ import type {SavedTake} from './recorded-takes';
 import {sceneCardData,type ListedTake} from './recording-scene-data';
 import {AudioLines,ChevronDown,FolderOpen,GripVertical,Play,Plus,Scissors,Settings2,Trash2,Upload,LayoutTemplate} from './Icons';
 import './recording-scene-cards.css';
-import {takeThumbnailLabel} from './club/recorder/recorder-checks';
 export {listSceneTakes} from './recording-scene-data';
 
 type ActionResult=void|Promise<void>;
@@ -30,6 +29,8 @@ export interface RecordingSceneCardsProps {
 }
 const dragType='application/x-sceneforge-record-card';
 type DragItem={projectId:string;kind:'scene'|'take';id:string;};
+/** Borumi's Sh: MM:SS from whole seconds, "Take 1 (00:16)". */
+export function borumiDuration(value:number){const seconds=Math.max(0,Math.floor(value));return `${String(Math.floor(seconds/60)).padStart(2,'0')}:${String(seconds%60).padStart(2,'0')}`;}
 function durationLabel(value:number){const seconds=Math.max(0,Math.floor(value));return `${Math.floor(seconds/60)}:${String(seconds%60).padStart(2,'0')}`;}
 function CardMenu({label,children}:{label:string;children:ReactNode}){
  const node=useRef<HTMLDivElement>(null),[offset,setOffset]=useState({x:0,y:0});
@@ -70,7 +71,7 @@ export const RecordingSceneCards=memo(function RecordingSceneCards(props:Recordi
  const menuButton=(id:string,label:string)=> <button type="button" className="rsc-gear" aria-label={label} title={label} aria-expanded={menu===id} aria-haspopup="menu" disabled={locked} onClick={e=>{e.stopPropagation();setMenu(menu===id?null:id);}}><Settings2 size={17}/></button>;
  const menuItem=(label:string,action:()=>ActionResult,options:{disabled?:boolean;danger?:boolean;icon?:ReactNode}={})=><button type="button" role="menuitem" disabled={locked||options.disabled} className={options.danger?'rsc-danger':undefined} onClick={()=>invoke(action)}>{options.icon}{label}</button>;
  const renderTake=(item:ListedTake,sceneId:string)=>{const {take,active,number,duration}=item,label=take.name||`Take ${number}`,key=`take:${take.id}`;return <div key={take.id} className="rsc-take" data-take-id={take.id} data-active={active} draggable={!locked} onDragStart={e=>startDrag(e,{projectId:project.id,kind:'take',id:take.id})} onDragEnd={endDrag} onContextMenu={e=>{e.preventDefault();e.stopPropagation();if(!locked)setMenu(key);}}>
-  <button type="button" className="rsc-take-preview" aria-label={`Preview ${label}`} disabled={locked} onClick={()=>invoke(()=>props.onPreview(take.id))}><TakeImage take={take}/><span className="rsc-play"><Play size={17}/></span><span className="rsc-take-badge">{props.club?takeThumbnailLabel(label,duration):<>{label}<small>({durationLabel(duration)})</small></>}</span></button>
+  <button type="button" className="rsc-take-preview" aria-label={`Preview ${label}`} disabled={locked} onClick={()=>invoke(()=>props.onPreview(take.id))}><TakeImage take={take}/><span className="rsc-play"><Play size={17}/></span><span className="rsc-take-badge">{props.club?<>{label}{duration>0&&<span className="rsc-take-duration">({borumiDuration(duration)})</span>}</>:<>{label}<small>({durationLabel(duration)})</small></>}</span></button>
   <span className="rsc-drag-handle" aria-hidden="true"><GripVertical size={15}/></span>
   {/* In Creator Compiler a take has no gear on the card: its preview holds the choices, and a right click still opens this menu. */}
   <div className="rsc-take-menu-anchor" data-rsc-menu>{!props.club&&menuButton(key,`Options for ${label}`)}{menu===key&&<CardMenu label={`${label} actions`}>
@@ -80,8 +81,27 @@ export const RecordingSceneCards=memo(function RecordingSceneCards(props:Recordi
    {menuItem('Delete take',()=>props.onDeleteTake(take.id),{danger:true,icon:<Trash2 size={15}/>})}
   </CardMenu>}</div>
  </div>;};
- return <div ref={root} className="recording-scene-cards" aria-label="Recording scenes" aria-busy={busy}>
+ // Borumi's scene minimap (main bundle _8, M:32325-32352): one bar per scene down the right edge, green once a scene has a take.
+ const minimap=props.club&&project.scenes.length>0?<div className="rsc-minimap" aria-hidden="true">{project.scenes.map(scene=>{const card=cards.get(scene.id);const done=Boolean(card?.legacyFootage||card?.all.some(t=>t.active));return <span key={scene.id} className={done?'is-done':undefined} style={{height:`${100/project.scenes.length}%`}}/>;})}</div>:null;
+ return <>{minimap}<div ref={root} className="recording-scene-cards" aria-label="Recording scenes" aria-busy={busy}>
   {error&&<div className="rsc-error" role="alert">{error}<button type="button" aria-label="Dismiss scene action error" onClick={()=>setError('')}>×</button></div>}
+  {/* Borumi's empty Record step (main bundle I8, M:33003-33099): nothing planned and nothing recorded yet. Creator Compiler's quick
+      recording keeps one scene to record into, so the screen shows while that scene is still untouched. */}
+  {props.club&&project.scenes.length===1&&!takes.length&&!cards.get(project.scenes[0].id)?.all.length&&!project.scenes[0].script.trim()?<div className="rsc-ready">
+   <div className="rsc-ready-inner">
+    <div className="rsc-ready-copy">
+     <h1>Hey <span className="rsc-ready-wave">👋</span> Ready to record?</h1>
+     <div className="rsc-ready-steps">
+      <div><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="currentColor"/><path d="m7.5 12.5 3 3 6-6.5" fill="none" stroke="var(--rsc-ready-check-ink)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/></svg>First, check your camera, microphone, and screen on the left.</div>
+      <div><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="currentColor"/><path d="m7.5 12.5 3 3 6-6.5" fill="none" stroke="var(--rsc-ready-check-ink)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/></svg>When you're ready, click "Start recording".</div>
+     </div>
+    </div>
+    <div className="rsc-ready-actions">
+     <button type="button" className="rsc-ready-start" disabled={locked} onClick={()=>invoke(()=>props.onRecord(project.scenes[0].id,'replace-matching'))}><span className="rec-record-dot" aria-hidden/>Start recording</button>
+     <button type="button" className="rsc-ready-import" disabled={locked} onClick={()=>invoke(()=>props.onImport(project.scenes[0].id))}>Import from file...</button>
+    </div>
+   </div>
+  </div>:<>
   {!project.scenes.length&&<div className="rsc-empty"><p>Add a scene to start recording.</p><button type="button" className="rsc-action" disabled={locked} onClick={()=>invoke(()=>props.onAddScene())}><Plus size={16}/>Add scene</button></div>}
   {project.scenes.map((scene,index)=>{const {all,legacyFootage}=cards.get(scene.id)!,active=all.filter(t=>t.active),archived=all.filter(t=>!t.active),showArchive=expanded[scene.id]??active.length===0,selected=props.selectedSceneId===scene.id,key=`scene:${scene.id}`;
    const recorded=active.length>0||legacyFootage,recordOver=alt&&recorded;
@@ -107,11 +127,11 @@ export const RecordingSceneCards=memo(function RecordingSceneCards(props:Recordi
       {props.onAutoCut&&<button type="button" disabled={locked||scene.duration<=0} title={scene.duration>0?'Review Auto-cut changes for this scene only':'Add footage to this scene first'} onClick={()=>invoke(()=>props.onAutoCut!(scene.id))}><Scissors size={14}/>Remove pauses</button>}
       {props.onVisualize&&<button type="button" disabled={locked||scene.duration<=0} title={scene.duration>0?'Review visuals for this scene only':'Add footage to this scene first'} onClick={()=>invoke(()=>props.onVisualize!(scene.id))}><LayoutTemplate size={14}/>Style video</button>}
      </div>}
-     {archived.length>0&&<><button type="button" className="rsc-archive-toggle" disabled={locked} aria-expanded={showArchive} onClick={()=>setExpanded({...expanded,[scene.id]:!showArchive})}>{showArchive?<ChevronDown size={15}/>:<FolderOpen size={15}/>}Archived ({archived.length})</button>{showArchive&&<div className={`rsc-takes rsc-archived ${drop===`archive:${scene.id}`?'is-over':''}`} aria-label={`${scene.name||'Scene'} archived takes`} onDragOver={e=>{if(!locked&&drag?.kind==='take'&&(props.onMoveTake||takes.find(t=>t.id===drag.id)?.sceneId===scene.id)){e.preventDefault();e.stopPropagation();setDrop(`archive:${scene.id}`);}}} onDragLeave={()=>setDrop(null)} onDrop={e=>receiveTake(e,scene.id,true)}>{archived.map(t=>renderTake(t,scene.id))}</div>}</>}
+     {archived.length>0&&<><button type="button" className="rsc-archive-toggle" disabled={locked} aria-expanded={showArchive} onClick={()=>setExpanded({...expanded,[scene.id]:!showArchive})}>{showArchive?<ChevronDown size={15} style={{transform:'rotate(180deg)'}}/>:<FolderOpen size={15}/>}Archived ({archived.length})</button>{showArchive&&<div className={`rsc-takes rsc-archived ${drop===`archive:${scene.id}`?'is-over':''}`} aria-label={`${scene.name||'Scene'} archived takes`} onDragOver={e=>{if(!locked&&drag?.kind==='take'&&(props.onMoveTake||takes.find(t=>t.id===drag.id)?.sceneId===scene.id)){e.preventDefault();e.stopPropagation();setDrop(`archive:${scene.id}`);}}} onDragLeave={()=>setDrop(null)} onDrop={e=>receiveTake(e,scene.id,true)}>{archived.map(t=>renderTake(t,scene.id))}</div>}</>}
     </article>
     <button type="button" className="rsc-add-between" disabled={locked} onClick={()=>invoke(()=>props.onAddScene(scene.id))}><Plus size={15}/> {index===project.scenes.length-1?'Add scene':'Add scene here'}</button>
    </div>;
-  })}
- </div>;
+  })}</>}
+ </div></>;
 });
 export default RecordingSceneCards;

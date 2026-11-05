@@ -357,3 +357,36 @@
   --ui-caption: var(--cc-text-2xs);
   color: var(--cc-text);
 }
+
+/*
+  Borumi's own values, for the screens CreatorClub copies from Borumi (the Record step, the take preview). Each is resolved from Borumi's
+  stylesheet (index-DXJH5HZm.css): light is its :root, dark its .dark. Named after Borumi's Tailwind classes so a rule can be checked
+  against its code. Text sizes and weights Borumi uses that the --cc scale lacks are here too.
+*/
+.club-root {
+  --br-bg: #ffffff; --br-fg: #0a0a0a; --br-primary: #0a0a0a; --br-on-primary: #ffffff; --br-secondary: #fafafa; --br-accent: #f5f5f5;
+  --br-border: #e6e6e6; --br-popover: #fafafa; --br-muted: #737373; --br-danger: #ef4343; --br-success-200: #bbf7d0;
+  --br-neutral-50: #fafafa; --br-neutral-100: #f5f5f5; --br-neutral-200: #e6e6e6; --br-neutral-300: #d4d4d4;
+  --br-warning: #f59f0a; --br-success: #21c45d; --br-ring: #3c83f6; --br-blue-400: #61a6fa; --br-blue-200: #bfdbfe; --br-green-600: hsl(142 76% 36%);
+  --br-tile-ring: #ffffff; --br-black-70: rgb(0 0 0 / .7); --br-black-50: rgb(0 0 0 / .5); --br-black-45: rgb(0 0 0 / .45); --br-black-35: rgb(0 0 0 / .35);
+  --br-black-20: rgb(0 0 0 / .2); --br-black-15: rgb(0 0 0 / .15); --br-black-10: rgb(0 0 0 / .1); --br-white: #ffffff; --br-black: #000000;
+  --br-shadow: 0 1px 3px 0 rgb(0 0 0 / .1), 0 1px 2px -1px rgb(0 0 0 / .1); --br-shadow-sm: 0 1px 2px 0 rgb(0 0 0 / .05);
+  --br-shadow-md: 0 4px 6px -1px rgb(0 0 0 / .1), 0 2px 4px -2px rgb(0 0 0 / .1); --br-shadow-lg: 0 10px 15px -3px rgb(0 0 0 / .1), 0 4px 6px -4px rgb(0 0 0 / .1);
+  /* The recorder's wave (capture-warnings bundle) and the take preview's waveform (main bundle zne). */
+  --br-wave-line: #74b9ff; --br-wave-top: #81ecec; --br-wave-bottom: #0984e3; --br-wave-ahead: #cceefc;
+  --br-minimap-done: #21c45d; --br-minimap-todo: #f59f0a;
+  --br-text-10: 10px; --br-text-18: 18px; --br-r-md: 6px; --br-r-lg: 8px; --br-r-xl: 12px; --br-r-2xl: 16px;
+  --br-shadow-2xl: 0 25px 50px -12px rgb(0 0 0 / .25);
+  /* The Edit panels (spec-edit-step colour table). */
+  --br-card: #fafafa; --br-input: #f5f5f5; --br-border-hover: #d4d4d4; --br-yellow-100: #fef3c8; --br-yellow-900: #76350f; --br-yellow-500: #eab308;
+  --br-red-100: #fee2e2; --br-red-900: #811d1d; --br-blue-50: #eff6ff; --br-blue-100: #dcebfe; --br-blue-500: #3c83f6; --br-blue-600: #2563eb;
+  --cc-weight-bold: 700; --cc-weight-light: 300;
+}
+.club-root:where([data-theme=dark], [data-theme=dark] *) {
+  --br-bg: #0a0a0a; --br-fg: #ffffff; --br-primary: #ffffff; --br-on-primary: #0a0a0a; --br-secondary: #171717; --br-accent: #171717;
+  --br-border: #262626; --br-popover: #0a0a0a; --br-success-200: #166434; --br-neutral-50: #0a0a0a; --br-neutral-100: #171717;
+  --br-neutral-200: #262626; --br-neutral-300: #404040; --br-blue-400: #2463eb; --br-green-600: hsl(142 69% 58%); --br-tile-ring: #0a0a0a;
+  --br-minimap-done: #157f3c; --br-minimap-todo: #b35309;
+  --br-card: #0a0a0a; --br-input: #262626; --br-border-hover: #404040; --br-yellow-100: #76350f; --br-yellow-900: #fef3c8;
+  --br-red-100: #811d1d; --br-red-900: #fee2e2; --br-blue-50: #172554; --br-blue-100: #1e3b8a;
+}

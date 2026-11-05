@@ -1,7 +1,7 @@
 import { DatabaseSync } from 'node:sqlite';
 import { readdir, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
-import { createProject, defaultEffects, defaultTransform, makeId, type Project, type Clip, type Media, type Caption, type Transform } from '../shared/types.js';
+import { createProject, defaultEffects, defaultTransform, makeId, setNoiseStrength, setVoiceLevel, type Project, type Clip, type Media, type Caption, type Transform } from '../shared/types.js';
 import {cursorForTimeline,decodeCursorSidecar,type RecordedCursorPoint} from './cursor-sidecar.js';
 import {decodeBorumiScript} from './borumi-script.js';
 import {preserveBorumiDatabase,finishBorumiPreservation,type BorumiMapping} from './borumi-provenance.js';
@@ -82,7 +82,10 @@ export async function importBorumi(input:string,options:{roundtripDirectory?:str
    const clip:Clip={id:makeId(),mediaId:media.id,name:media.name,track:k.kind==='AudioClip'?'audio':k.content_kind?.kind==='Camera'?'camera':'screen',start,sourceIn,sourceOut:sourceIn+duration*speed,speed,gain:Math.pow(10,numeric(k.volume_filter)/20),muted:k.kind==='VideoClip',transform:defaultTransform(),effects:defaultEffects()};
    if(k.kind==='AudioClip'&&['Microphone','SystemSound'].includes(k.content_kind?.kind))clip.audioRole=k.content_kind.kind==='Microphone'?'microphone':'system';
    if(k.kind==='VideoClip')retainTransitions(segment,k,['transition']);
-   clip.effects.flipX=!!k.mirrored;clip.effects.denoise=numeric(k.noise_cancelling_filter)>0;clip.effects.normalize=['Minimal','Extended'].includes(k.voice_enhancement_filter?.kind);
+   clip.effects.flipX=!!k.mirrored;
+   // Borumi's Remove Noise strength (0..1) and Enhance Voice level carry over as they are; its Quality mode has no SceneForge equivalent.
+   setNoiseStrength(clip.effects,numeric(k.noise_cancelling_filter));
+   const borumiVoice=k.voice_enhancement_filter?.kind;setVoiceLevel(clip.effects,borumiVoice==='Extended'?'extended':borumiVoice==='Minimal'?'minimal':'disabled');
    if(clip.track==='camera'&&k.face_tracking_mode?.kind==='Auto'){
     clip.effects.faceCenter=true;
     warnings.add('Explicit Auto camera face tracking uses SceneForge local sampled static face anchoring; it approximates Borumi dynamic tracking and may frame moving subjects differently. Original mode/settings are retained.');

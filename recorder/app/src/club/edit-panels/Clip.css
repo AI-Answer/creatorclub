@@ -1,0 +1,19 @@
+/* Clip panel (ClubClipPanel): Borumi's groups for the selected take, plus CreatorClub's take actions and timing. Scoped to the club's Edit side. */
+.club-root .club-edit-side .club-take-list { display: flex; flex-direction: column; gap: 4px; margin: 0; padding: 0; list-style: none; font-size: var(--cc-text-xs); line-height: 16px; }
+.club-root .club-edit-side .club-take-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.club-root .club-edit-side .club-take-actions .br-btn { height: 32px; }
+
+/* Enhance Voice trigger is Borumi's w-24 (96px) compact select. */
+.club-root .club-edit-side .br-select.is-compact.club-clip-enhance { width: 96px; }
+
+/* Stacked controls inside one group row (Color adjustments). */
+.club-root .club-edit-side .club-clip-stack { display: flex; flex-direction: column; gap: 16px; }
+
+/* Reset links that have nothing to reset stay quiet. */
+.club-root .club-edit-side .br-link:disabled { opacity: .3; cursor: default; text-decoration: none; }
+
+/* Timing group heading is a fold button; the chevron turns when closed. */
+.club-root .club-edit-side .club-clip-fold { display: flex; align-items: center; gap: 8px; width: 100%; padding: 0; border: 0; background: none; color: inherit; font: inherit; font-size: var(--cc-text-xs); line-height: 16px; font-weight: 500; cursor: pointer; }
+.club-root .club-edit-side .club-clip-fold > span { flex: 1; text-align: left; }
+.club-root .club-edit-side .club-clip-fold svg { width: 12px; height: 12px; transition: transform .15s; }
+.club-root .club-edit-side .club-clip-fold[aria-expanded=false] svg { transform: rotate(-90deg); }

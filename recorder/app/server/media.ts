@@ -14,6 +14,8 @@ import { mediaCapabilityProbe } from "./media-capabilities.ts";
 import { clipCompositeOrder } from "../shared/timeline-layers.ts";
 import { isSoundTag } from "../shared/sound-tags.ts";
 import { clipShadow } from "../shared/clip-shadow.ts";
+import { captionParts } from "../shared/caption-parts.ts";
+import { CLIP_GAIN_MAX_DB, NOISE_ON, noiseStrength, voiceLevel, type Clip as ClipEffectsSource } from "../shared/types.ts";
 import { canvasBackgroundBMP, canvasBackgroundGeometry, canvasBackgroundRepeatSize, MOVING_DOTS } from "../shared/canvas-background.ts";
 import { zoomTiming } from "../shared/zoom-timing.ts";
 import { bakeLayouts } from "../shared/layouts.ts";
@@ -714,6 +716,9 @@ async function createGraphics(
         fontSize: e.fontSize * (w / p.canvas.width),
         opacity: e.opacity,
         rotation: e.rotation,
+        // The preview's outline (src/Stage.tsx): 3 canvas pixels for shapes, 4 with an 8-pixel corner for a highlight.
+        strokeWidth: Math.max(1, (e.type === "highlight" ? 4 : 3) * (w / p.canvas.width)),
+        ...(e.type === "highlight" ? { radius: 8 * (w / p.canvas.width) } : {}),
       },
       dir,
       j,
@@ -726,6 +731,8 @@ async function createGraphics(
       for (const part of captionParts(c, p.captionStyle.maxWords)) {
         // On a stage stretch the panel carries the words: captions step aside there, as in the preview.
         if (onStage(p, part.start)) continue;
+        // The box is centred on the caption line: 14%, 49% or 87% of the height, the same spots as the preview (.caption-* in
+        // src/styles.css), 8% in from each side.
         const y =
           p.captionStyle.position === "top"
             ? 0.05
@@ -756,18 +763,6 @@ async function createGraphics(
     }
   return result;
 }
-/** Keep caption word timing stable when a render window cuts through a caption. */
-function captionParts(c: Project["captions"][number], maxWords: number) {
-  const timed = c as typeof c & { _wordStart?: number; _wordEnd?: number };
-  const words = c.text.trim().split(/\s+/), max = Math.max(1, Math.floor(maxWords));
-  const count = Math.ceil(words.length / max);
-  const start = timed._wordStart ?? c.start, end = timed._wordEnd ?? c.end;
-  return Array.from({ length: count }, (_, i) => ({
-    text: words.slice(i * max, (i + 1) * max).join(" "),
-    start: cleanTime(Math.max(c.start, start + (end - start) * i / count)),
-    end: cleanTime(Math.min(c.end, start + (end - start) * (i + 1) / count)),
-  })).filter((part) => part.end - part.start > TIME_EPSILON);
-}
 async function pruneAudioCache() {
   const entries = await Promise.all((await fs.readdir(audioCacheDir)).filter((name) => name.endsWith(".wav")).map(async (name) => {
     const file = path.join(audioCacheDir, name), stat = await fs.stat(file);
@@ -781,6 +776,22 @@ async function pruneAudioCache() {
     bytes -= entry.bytes;
   }
 }
+const VOICE_LOUDNESS = "loudnorm=I=-16:TP=-1.5:LRA=11";
+/**
+ * Remove Noise and Enhance Voice as ffmpeg filters, in order, for one clip's continuous audio. Remove Noise scales afftdn's reduction
+ * with its strength, so the on value (0.93) is the 12 dB this export has always used. Enhance Voice Minimal is level balancing and
+ * normalization (loudnorm). Extended adds EQ (an 80 Hz high-pass and a 3 kHz presence lift of 2 dB) and noise reduction before the same
+ * loudnorm. Borumi's own EQ and reduction curves are native and not visible in its UI code, so these values are ours.
+ */
+export function audioEffectFilters(fx: ClipEffectsSource["effects"]): string[] {
+  const filters: string[] = [];
+  const noise = noiseStrength(fx);
+  if (noise > 0) filters.push(`afftdn=nf=-25:nr=${Number((12 * noise / NOISE_ON).toFixed(2))}`);
+  const level = voiceLevel(fx);
+  if (level === "extended") filters.push("highpass=f=80", "equalizer=f=3000:width_type=q:width=1:g=2", "afftdn=nf=-25");
+  if (level !== "disabled") filters.push(VOICE_LOUDNESS);
+  return filters;
+}
 /** Process the entire original interval once so stateful effects never reset at render joins. */
 async function processedAudio(c: AudioOriginClip, media: Media, job: Job) {
   const source = await identity(media.path), speed = clamp(c.speed, 0.05, 16);
@@ -789,8 +800,8 @@ async function processedAudio(c: AudioOriginClip, media: Media, job: Job) {
   const duration = (end - start) / speed, samples = Math.round(duration * 48000);
   if (!Number.isFinite(duration) || duration <= 0) throw Error("Invalid audio processing interval");
   const runtime = await (audioRuntimeKey ??= command(FFMPEG, ["-version"]).then(hash));
-  const key = hash(JSON.stringify({ version: 2, source: source.key, runtime, start, end, speed,
-    denoise: c.effects.denoise, normalize: c.effects.normalize, rate: 48000, channels: 2 }));
+  const key = hash(JSON.stringify({ version: 3, source: source.key, runtime, start, end, speed,
+    effects: audioEffectFilters(c.effects), rate: 48000, channels: 2 }));
   const file = path.join(audioCacheDir, `${key}.wav`);
   await fs.mkdir(audioCacheDir, { recursive: true });
   // Current render windows may hold several files; eviction must not remove any
@@ -803,8 +814,7 @@ async function processedAudio(c: AudioOriginClip, media: Media, job: Job) {
       const temp = path.join(audioCacheDir, `${key}.${randomUUID()}.tmp`);
       const filters = [`atrim=duration=${seconds(end - start)}`, "asetpts=PTS-STARTPTS", ...tempo(speed),
         "aresample=48000", "aformat=sample_fmts=fltp:channel_layouts=stereo"];
-      if (c.effects.denoise) filters.push("afftdn=nf=-25");
-      if (c.effects.normalize) filters.push("loudnorm=I=-16:TP=-1.5:LRA=11");
+      filters.push(...audioEffectFilters(c.effects));
       filters.push("aresample=48000", `apad=whole_len=${samples}`, `atrim=end_sample=${samples}`, "asetpts=N/SR/TB");
       job.message = "Preparing continuous audio effects";
       try {
@@ -1251,7 +1261,7 @@ async function executeExport(
           ...audioTempo,
           "aresample=48000",
           `aformat=sample_fmts=fltp:channel_layouts=stereo`,
-          `volume=${clamp(c.gain, 0, 8)}`,
+          `volume=${clamp(c.gain, 0, 10 ** (CLIP_GAIN_MAX_DB / 20))}`,
         ];
         const elapsed = (c as Clip & { _elapsed?: number })._elapsed ?? clipEffectTiming(c).offset,
           whole = (c as Clip & { _fullDuration?: number })._fullDuration ?? clipEffectTiming(c).duration;

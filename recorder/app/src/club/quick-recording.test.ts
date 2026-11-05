@@ -102,9 +102,10 @@ test('an unplanned one-scene project opens the live recorder source controls, wh
  try{
   await flush();await flush();
   assert.ok(ui.container.querySelector('aside[aria-label="Recording sources"]'),'source picker is mounted');
-  assert.equal(ui.container.querySelectorAll('.rsc-scene').length,1);
-  assert.equal(ui.container.querySelector<HTMLButtonElement>('.rsc-record-button')!.disabled,false,'a plan is never required to press Record');
-  assert.ok(!ui.container.textContent?.includes('Ready to record'));
+  // Borumi's empty Record step: nothing planned and nothing recorded yet.
+  assert.ok(ui.container.textContent?.includes('Ready to record?'));
+  assert.equal(button(ui.container,'Start recording').disabled,false,'a plan is never required to start recording');
+  assert.ok(button(ui.container,'Import from file...'));
   await ui.render(page('idea'));await flush();
   assert.ok(ui.container.textContent?.includes('This video started as a quick recording.'));
   await ui.render(page('edit'));await flush();

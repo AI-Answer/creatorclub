@@ -1,0 +1,134 @@
+/* Borumi's shared Edit-panel primitives (br.tsx), resolved from its stylesheet (index-DXJH5HZm.css). Scoped to the club's Edit side
+   panel. Light is :root and dark is .dark in Borumi; here the --br-* tokens follow CreatorClub's data-theme. */
+.club-root .club-edit-side { --br-panel: var(--br-bg); }
+.club-root .club-edit-side .br-panel { display: flex; flex-direction: column; min-height: 100%; background: var(--br-bg); color: var(--br-primary); font-size: var(--cc-text-base); }
+.club-root .club-edit-side .br-panel.is-card { background: var(--br-card); }
+.club-root .club-edit-side .br-panel :where(p, h3) { margin: 0; }
+.club-root .club-edit-side .br-panel :where(button) { font: inherit; color: inherit; }
+
+/* Se: title p text-[10px] flex items-center gap-1; span opacity-60 uppercase font-semibold; header row justify-between gap-2, mb-3. */
+.club-root .club-edit-side .br-section { display: flex; flex-direction: column; }
+.club-root .club-edit-side .br-section-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.club-root .club-edit-side .br-section-head.has-body { margin-bottom: 12px; }
+.club-root .club-edit-side .br-section-title { display: flex; align-items: center; gap: 4px; font-size: var(--br-text-10); line-height: 14px; }
+.club-root .club-edit-side .br-section-title > span { opacity: .6; text-transform: uppercase; font-weight: 600; }
+
+/* Ae: title font-medium text-sm (text-xs compact) flex gap-1; secondary text-xs opacity-70; description Xt mt-1; body mt-2. */
+.club-root .club-edit-side .br-sub { display: flex; flex-direction: column; }
+.club-root .club-edit-side .br-sub-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.club-root .club-edit-side .br-sub-title { display: flex; align-items: center; gap: 4px; font-size: var(--cc-text-base); line-height: 20px; font-weight: 500; }
+.club-root .club-edit-side .br-sub.is-compact .br-sub-title { font-size: var(--cc-text-xs); line-height: 16px; }
+.club-root .club-edit-side .br-sub-secondary { font-size: var(--cc-text-xs); line-height: 16px; font-weight: 400; opacity: .7; }
+.club-root .club-edit-side .br-sub-desc { margin-top: 4px; }
+.club-root .club-edit-side .br-sub-body { margin-top: 8px; }
+.club-root .club-edit-side .br-link { padding: 0; border: 0; background: none; font-size: var(--cc-text-xs); line-height: 16px; color: var(--br-primary); opacity: .6; cursor: pointer; }
+.club-root .club-edit-side .br-link:hover { opacity: 1; text-decoration: underline; }
+
+/* Xt: text-xs opacity-50; compact text-[10px]. */
+.club-root .club-edit-side .br-empty { font-size: var(--cc-text-xs); line-height: 16px; opacity: .5; }
+.club-root .club-edit-side .br-empty.is-compact { font-size: var(--br-text-10); line-height: 14px; }
+
+/* SG / jG: rounded-md border border-border bg-primary-foreground px-4; header -mx-4 px-4 pt-3 pb-3 border-b text-xs font-medium
+   text-primary/70 with a 12px glyph; rows -mx-4 px-4 pb-4 (pt-4 first). */
+.club-root .club-edit-side .br-group { border: 1px solid var(--br-border); border-radius: var(--br-r-md); background: var(--br-on-primary); padding: 0 16px; }
+.club-root .club-edit-side .br-group-head { display: flex; align-items: center; gap: 8px; margin: 0 -16px; padding: 12px 16px; border-bottom: 1px solid var(--br-border); font-size: var(--cc-text-xs); line-height: 16px; font-weight: 500; color: color-mix(in srgb, var(--br-primary) 70%, transparent); }
+.club-root .club-edit-side .br-group-icon { display: inline-flex; width: 12px; height: 12px; flex: none; }
+.club-root .club-edit-side .br-group-icon svg { width: 12px; height: 12px; }
+.club-root .club-edit-side .br-group-rows { display: flex; flex-direction: column; }
+.club-root .club-edit-side .br-group-row { margin: 0 -16px; padding: 0 16px 16px; }
+.club-root .club-edit-side .br-group-row.is-first { padding-top: 16px; }
+.club-root .club-edit-side .br-group-row:has(> .br-sep) { padding-bottom: 0; }
+.club-root .club-edit-side .br-sep { height: 1px; margin: 0 -16px 16px; border: 0; background: var(--br-border); }
+.club-root .club-edit-side .br-groups { display: flex; flex-direction: column; gap: 12px; padding: 12px; }
+
+/* Switch: h-5 w-9 rounded-full border-2 transparent shadow-sm; on bg-primary, off bg-primary/20; thumb h-4 w-4 bg-background
+   shadow-lg, translate-x-4 when on. */
+.club-root .club-edit-side .br-switch { position: relative; display: inline-flex; align-items: center; flex: none; width: 36px; height: 20px; padding: 0; border: 2px solid transparent; border-radius: var(--cc-r-pill); background: color-mix(in srgb, var(--br-primary) 20%, transparent); box-shadow: var(--br-shadow-sm); cursor: pointer; transition: background-color .15s; }
+.club-root .club-edit-side .br-switch[data-state=checked] { background: var(--br-primary); }
+.club-root .club-edit-side .br-switch:disabled { opacity: .5; cursor: not-allowed; }
+.club-root .club-edit-side .br-switch:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--br-bg), 0 0 0 4px var(--br-ring); }
+.club-root .club-edit-side .br-switch-thumb { display: block; width: 16px; height: 16px; border-radius: var(--cc-r-pill); background: var(--br-bg); box-shadow: var(--br-shadow-lg); transform: translateX(0); transition: transform .15s; pointer-events: none; }
+.club-root .club-edit-side .br-switch[data-state=checked] .br-switch-thumb { transform: translateX(16px); }
+/* Hf: flex items-center gap-2; label font-medium select-none cursor-pointer text-sm (text-xs compact). */
+.club-root .club-edit-side .br-toggle-row { display: flex; align-items: center; gap: 8px; }
+.club-root .club-edit-side .br-toggle-label { font-size: var(--cc-text-base); line-height: 20px; font-weight: 500; user-select: none; cursor: pointer; }
+.club-root .club-edit-side .br-toggle-row.is-compact .br-toggle-label { font-size: var(--cc-text-xs); line-height: 16px; }
+
+/* Slider qt: h-4 root; track h-1.5 rounded-full bg-primary/20; range bg-primary; thumb h-3 w-3 border-primary/50 bg-background shadow. */
+.club-root .club-edit-side .br-slider { -webkit-appearance: none; appearance: none; display: block; width: 100%; height: 16px; margin: 0; padding: 0; background: transparent; cursor: pointer; accent-color: auto; }
+.club-root .club-edit-side .br-slider::-webkit-slider-runnable-track { height: 6px; border-radius: var(--cc-r-pill); background: linear-gradient(to right, var(--br-primary) var(--br-progress, 0%), color-mix(in srgb, var(--br-primary) 20%, transparent) var(--br-progress, 0%)); }
+.club-root .club-edit-side .br-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 12px; margin-top: -3px; border-radius: var(--cc-r-pill); border: 1px solid color-mix(in srgb, var(--br-primary) 50%, transparent); background: var(--br-bg); box-shadow: var(--br-shadow); transition: all .15s; }
+.club-root .club-edit-side .br-slider:disabled { opacity: .5; cursor: not-allowed; }
+.club-root .club-edit-side .br-slider:focus-visible { outline: none; }
+.club-root .club-edit-side .br-slider:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 1px var(--br-ring); }
+.club-root .club-edit-side .br-slider-labels { display: flex; justify-content: space-between; margin-top: 4px; font-size: var(--br-text-10); line-height: 14px; opacity: .6; }
+
+/* Select trigger: h-9 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm; _d compact h-7 px-2 11px
+   bg-background border-primary/10. */
+.club-root .club-edit-side .br-select { position: relative; display: inline-flex; width: 100%; }
+.club-root .club-edit-side .br-select select { -webkit-appearance: none; appearance: none; width: 100%; height: 36px; padding: 8px 32px 8px 12px; border: 1px solid var(--br-input); border-radius: var(--br-r-md); background: transparent; color: var(--br-primary); font: inherit; font-size: var(--cc-text-base); line-height: 20px; box-shadow: var(--br-shadow-sm); cursor: pointer; }
+.club-root .club-edit-side .br-select select:focus-visible { outline: none; box-shadow: 0 0 0 1px var(--br-ring); }
+.club-root .club-edit-side .br-select select:disabled { opacity: .5; cursor: not-allowed; }
+.club-root .club-edit-side .br-select svg { position: absolute; right: 10px; top: 50%; width: 16px; height: 16px; margin-top: -8px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; opacity: .5; pointer-events: none; }
+.club-root .club-edit-side .br-select.is-compact { width: 128px; }
+.club-root .club-edit-side .br-select.is-compact select { height: 28px; padding: 0 24px 0 8px; border-color: color-mix(in srgb, var(--br-primary) 10%, transparent); background: var(--br-bg); font-size: var(--cc-text-2xs); line-height: 16px; }
+.club-root .club-edit-side .br-select.is-compact svg { right: 6px; width: 14px; height: 14px; margin-top: -7px; }
+
+/* Tabs el: inline-flex items-center bg-neutral-100 rounded-md p-1; tab px-2 py-1 text-xs font-medium rounded-md; selected
+   bg-primary-foreground text-primary shadow-sm; others text-primary/60 hover:text-primary. */
+.club-root .club-edit-side .br-tabs { display: inline-flex; flex-wrap: wrap; align-items: center; padding: 4px; border-radius: var(--br-r-md); background: var(--br-neutral-100); }
+.club-root .club-edit-side .br-tabs.is-full { display: flex; width: 100%; }
+.club-root .club-edit-side .br-tabs.is-full .br-tab { flex: 1 1 0%; }
+.club-root .club-edit-side .br-tab { padding: 4px 8px; border: 0; border-radius: var(--br-r-md); background: transparent; color: color-mix(in srgb, var(--br-primary) 60%, transparent); font-size: var(--cc-text-xs); line-height: 16px; font-weight: 500; cursor: pointer; white-space: nowrap; }
+.club-root .club-edit-side .br-tab:hover { color: var(--br-primary); }
+.club-root .club-edit-side .br-tab[aria-selected=true] { background: var(--br-on-primary); color: var(--br-primary); box-shadow: var(--br-shadow-sm); }
+
+/* Rt: swatch h-[30px] w-[30px] rounded-l-md border border-input; hex h-[30px] w-[74px] rounded-r-md border border-input border-l-0
+   bg-input px-2 text-[11px] uppercase; border-destructive when invalid. */
+.club-root .club-edit-side .br-color { display: inline-flex; align-items: stretch; }
+.club-root .club-edit-side .br-color-swatch { position: relative; width: 30px; height: 30px; flex: none; border: 1px solid var(--br-input); border-radius: var(--br-r-md) 0 0 var(--br-r-md); cursor: pointer; overflow: hidden; }
+.club-root .club-edit-side .br-color-swatch input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+.club-root .club-edit-side .br-color-hex { width: 74px; min-width: 74px; height: 30px; padding: 0 8px; border: 1px solid var(--br-input); border-left: 0; border-radius: 0 var(--br-r-md) var(--br-r-md) 0; background: var(--br-input); color: var(--br-primary); font: inherit; font-size: var(--cc-text-2xs); text-transform: uppercase; }
+.club-root .club-edit-side .br-color-hex:focus-visible { outline: none; box-shadow: 0 0 0 1px var(--br-ring); }
+.club-root .club-edit-side .br-color-hex.is-invalid { border-color: var(--br-danger); }
+
+/* rT: text-[11px] bg-yellow-100 p-2 px-3 rounded-md flex items-start gap-2 text-yellow-900; icon w-3. */
+.club-root .club-edit-side .br-warning { display: flex; align-items: flex-start; gap: 8px; padding: 8px 12px; border-radius: var(--br-r-md); background: var(--br-yellow-100); color: var(--br-yellow-900); font-size: var(--cc-text-2xs); line-height: 16px; }
+.club-root .club-edit-side .br-warning svg { width: 12px; min-width: 12px; height: 12px; margin-top: 2px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+/* Ghost sm full-width Show more. */
+.club-root .club-edit-side .br-show-more { display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: 100%; height: 32px; padding: 0 12px; border: 0; border-radius: var(--br-r-md); background: transparent; color: var(--br-primary); font-size: var(--cc-text-xs); line-height: 16px; font-weight: 500; cursor: pointer; }
+.club-root .club-edit-side .br-show-more:hover { background: var(--br-accent); }
+.club-root .club-edit-side .br-show-more svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+/* Ghost / default buttons used inside panels (W, S:19280-19345). */
+.club-root .club-edit-side .br-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 36px; padding: 8px 16px; border: 0; border-radius: var(--br-r-md); background: var(--br-primary); color: var(--br-on-primary); font-size: var(--cc-text-base); line-height: 20px; font-weight: 500; white-space: nowrap; box-shadow: var(--br-shadow); cursor: pointer; transition: background-color .15s; }
+.club-root .club-edit-side .br-btn:hover:not(:disabled) { background: color-mix(in srgb, var(--br-primary) 90%, transparent); }
+.club-root .club-edit-side .br-btn.is-sm { height: 32px; padding: 0 12px; font-size: var(--cc-text-xs); line-height: 16px; }
+.club-root .club-edit-side .br-btn.is-ghost { background: transparent; color: var(--br-primary); box-shadow: none; }
+.club-root .club-edit-side .br-btn.is-ghost:hover:not(:disabled) { background: var(--br-accent); }
+.club-root .club-edit-side .br-btn.is-outline { background: var(--br-bg); color: var(--br-primary); border: 1px solid var(--br-input); box-shadow: var(--br-shadow-sm); }
+.club-root .club-edit-side .br-btn.is-outline:hover:not(:disabled) { background: var(--br-accent); }
+.club-root .club-edit-side .br-btn:disabled { opacity: .5; pointer-events: none; }
+.club-root .club-edit-side .br-btn svg { width: 16px; height: 16px; flex: none; }
+
+/* QX / KJ drawer: pinned to the bottom; 45px closed with border-t bg-background; the panel bg-card; toggle h-11 px-4 gap-2 text-xs
+   font-medium with a 12px gear and a 16px chevron; body fades in. */
+.club-root .club-edit-side .br-drawer { position: absolute; inset: 0; z-index: 20; display: flex; flex-direction: column; justify-content: flex-end; overflow: hidden; pointer-events: none; }
+.club-root .club-edit-side .br-drawer-panel { display: flex; flex-direction: column; min-height: 0; max-height: 45px; overflow: hidden; background: var(--br-card); pointer-events: auto; transition: max-height .15s ease-out; border-top: 1px solid var(--br-border); }
+.club-root .club-edit-side .br-drawer:not(.is-open) .br-drawer-panel { background: var(--br-bg); }
+.club-root .club-edit-side .br-drawer.is-open .br-drawer-panel { max-height: 100%; }
+.club-root .club-edit-side .br-drawer-toggle { display: flex; flex: none; align-items: center; gap: 8px; width: 100%; height: 44px; padding: 0 16px; border: 0; background: transparent; color: var(--br-primary); font-size: var(--cc-text-xs); line-height: 16px; font-weight: 500; cursor: pointer; transition: background-color .15s; }
+.club-root .club-edit-side .br-drawer-toggle:hover { background: var(--br-card); }
+.club-root .club-edit-side .br-drawer-toggle span { flex: 1; text-align: left; }
+.club-root .club-edit-side .br-drawer-gear { width: 12px; height: 12px; }
+.club-root .club-edit-side .br-drawer-chevron { width: 16px; height: 16px; }
+.club-root .club-edit-side .br-drawer svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.club-root .club-edit-side .br-drawer-body { min-height: 0; flex: 1; overflow-y: auto; background: var(--br-card); opacity: 0; pointer-events: none; transition: opacity 75ms; }
+.club-root .club-edit-side .br-drawer.is-open .br-drawer-body { opacity: 1; pointer-events: auto; transition: opacity .1s .075s; }
+
+/* Tiles shared by Canvas, Layout, Elements and Captions: bg-neutral-100 rounded-md, hover bg-neutral-200, selected ring-2 ring-primary. */
+.club-root .club-edit-side .br-tile { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 12px 12px 8px; border: 0; border-radius: var(--br-r-md); background: var(--br-neutral-100); color: var(--br-primary); cursor: pointer; transition: background-color .15s; }
+.club-root .club-edit-side .br-tile:hover:not(:disabled) { background: var(--br-neutral-200); }
+.club-root .club-edit-side .br-tile[aria-pressed=true] { box-shadow: 0 0 0 2px var(--br-primary); }
+.club-root .club-edit-side .br-tile:disabled { opacity: .6; cursor: not-allowed; }

@@ -33,7 +33,8 @@ export function Header({video,tab,onTitle,onStage,onDelete,onHome}:{video:Video;
   <div className="ws-top-r">
    {video.stage!=='published'&&video.publishDate&&<span className="faint small row" style={{gap:5}}><Icon name="calendar" size={13}/>{fmtDate(video.publishDate)}</span>}
    {/* On Edit the editor puts undo, redo and history here. */}
-   {tab==='edit'&&<><div id="ws-edit-tools" className="ws-edit-tools" role="group" aria-label="Undo and history"/><div id="ws-edit-export" className="ws-edit-export"/></>}
+   {/* Always mounted so the editor's portal never points at a replaced element; shown on Record and Edit, as Borumi's header. */}
+   <div id="ws-edit-tools" className="ws-edit-tools" role="group" aria-label="Undo and history" hidden={tab!=='edit'&&tab!=='record'}/>{tab==='edit'&&<div id="ws-edit-export" className="ws-edit-export"/>}
    <Menu align="right" button={toggle=><IconButton icon="more" label="More for this video" onClick={toggle}/>} items={items}/>
   </div>
   <Dialog open={asking} onClose={()=>setAsking(false)} title="Delete this video?" description={`“${video.title}” and its plan and board are removed. ${video.recorderProjectId?'Its recording stays in the recorder. ':''}You can undo it for a few seconds.`}

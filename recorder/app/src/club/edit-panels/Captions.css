@@ -1,0 +1,16 @@
+/* Borumi's Captions panel (spec-edit-step.md e7): the look cards, then the Properties groups. The panel root, scroller, fields and
+   drawer pieces are Elements.css's (el-*), shared with the Elements panel. Scoped to the club's Edit side. */
+
+.club-root .club-edit-side .cap-stack { display: flex; flex-direction: column; gap: 16px; }
+
+/* Look cards: a two-up grid (gap-2) of 16:10 cards, a gradient like Borumi's preview tiles, the chosen one with a 2px ring. */
+.club-root .club-edit-side .cap-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.club-root .club-edit-side .cap-card { display: flex; flex-direction: column; align-items: center; justify-content: center; aspect-ratio: 16 / 10; min-width: 0; padding: 8px; overflow: hidden; border: 0; border-radius: var(--br-r-md); background: linear-gradient(to bottom right, var(--br-neutral-100), var(--br-neutral-200)); color: var(--br-primary); cursor: pointer; }
+.club-root .club-edit-side .cap-card:hover { filter: brightness(.95); }
+.club-root .club-edit-side .cap-card[aria-checked=true] { box-shadow: 0 0 0 2px var(--br-primary); }
+.club-root .club-edit-side .cap-card.is-top { justify-content: flex-start; padding-top: 16px; }
+.club-root .club-edit-side .cap-card.is-bottom { justify-content: flex-end; padding-bottom: 16px; }
+.club-root .club-edit-side .cap-card.is-none { font-size: var(--cc-text-sm); line-height: 20px; font-weight: 600; color: color-mix(in srgb, var(--br-primary) 70%, transparent); }
+
+/* The sample caption: the look's own text colour and box, on one line, scaled to the card. */
+.club-root .club-edit-side .cap-sample { max-width: 100%; padding: 2px 6px; border-radius: var(--cc-r-sm); font-weight: 600; line-height: 1.35; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

@@ -257,7 +257,8 @@ test('club CSS uses the 400/500/600 scale; no new non-scale weight can enter any
  for(const file of sources.filter(file=>file.endsWith('.css')&&rel(file)!==TOKENS)){
   const css=fs.readFileSync(file,'utf8').replace(/\/\*[\s\S]*?\*\//g,'');
   for(const [,selector,body] of css.matchAll(/([^{}]+)\{([^{}]*)\}/g))for(const [,weight] of body.matchAll(/font-weight:\s*([^;}]+)/g)){
-   if(['400','500','600','inherit','var(--cc-weight-regular)','var(--cc-weight-medium)','var(--cc-weight-semibold)'].includes(weight.trim()))continue;
+   // Borumi's bold (700) and light (300) are tokens too, for the screens copied from Borumi's code (the Record step, the take preview).
+   if(['400','500','600','inherit','var(--cc-weight-regular)','var(--cc-weight-medium)','var(--cc-weight-semibold)','var(--cc-weight-bold)','var(--cc-weight-light)'].includes(weight.trim()))continue;
    const key=`${path.relative(club,file).split(path.sep).join('/')}|${selector.trim().replace(/\s+/g,' ')}|${weight}`;
    seen[key]=(seen[key]??0)+1;
    if(seen[key]>(allowed[key]??0))found.push(key);

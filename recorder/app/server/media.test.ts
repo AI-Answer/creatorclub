@@ -21,6 +21,7 @@ import {
   getCapabilities,
   proxyFile,
   inspectFrames,
+  audioEffectFilters,
 } from "./media.ts";
 const ffmpegBinary = process.env.SCENEFORGE_FFMPEG || "ffmpeg";
 const ffprobeBinary = process.env.SCENEFORGE_FFPROBE || "ffprobe";
@@ -99,7 +100,7 @@ test("continuous audio effects preserve whole-clip timing, gain, cache identity 
     assert.equal(quietMetrics.chunks.reduce((n: number, c: any) => n + c.audioCacheMisses, 0), 0, "Gain changes reuse preprocessing");
     p.clips[0].effects.denoise = true; p.clips[0].speed = 1.25; p.scenes[0].duration = duration / 1.25;
     const ranged = await wait(startExport(p, { format: "wav", quality: "high", masterLoudness: false, range: { start: 7.5, end: 12.5 } }, path.join(dir, "out")).id);
-    const spedReference = samples(source, "atempo=1.25,aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,afftdn=nf=-25,loudnorm=I=-16:TP=-1.5:LRA=11,aresample=48000,atrim=start=7.5:end=12.5,asetpts=PTS-STARTPTS,volume=.25,alimiter=limit=.95:latency=1");
+    const spedReference = samples(source, "atempo=1.25,aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,afftdn=nf=-25:nr=12,loudnorm=I=-16:TP=-1.5:LRA=11,aresample=48000,atrim=start=7.5:end=12.5,asetpts=PTS-STARTPTS,volume=.25,alimiter=limit=.95:latency=1");
     assert.ok(relativeError(samples(ranged.outputPath!), spedReference) < .001, "Range seek must preserve full-interval denoising, speed and normalization state");
     const changedMetrics = JSON.parse(await fs.readFile(ranged.outputPath! + ".metrics.json", "utf8"));
     assert.equal(changedMetrics.audioCacheMisses, 1, "Effect/speed changes invalidate the processed cache");
@@ -334,7 +335,8 @@ test(
           width: 0.2,
           height: 0.2,
           color: "#00ff00",
-          background: "#000000",
+          // A rectangle is outlined in its colour and filled with its background, as the preview draws it.
+          background: "#00ff00",
           fontSize: 18,
           opacity: 1,
           rotation: 0,
@@ -598,6 +600,18 @@ test(
     }
   },
 );
+
+test('Remove Noise and Enhance Voice map to export filters, and old boolean effects read as on', () => {
+  const fx = (over: Partial<Clip["effects"]>) => ({ ...defaultEffects(), ...over });
+  // Old projects: denoise true is Remove Noise on (0.93, the 12 dB reduction), normalize true is Enhance Voice Minimal.
+  assert.deepEqual(audioEffectFilters(fx({ denoise: true })), ["afftdn=nf=-25:nr=12"]);
+  assert.deepEqual(audioEffectFilters(fx({ normalize: true })), ["loudnorm=I=-16:TP=-1.5:LRA=11"]);
+  assert.deepEqual(audioEffectFilters(fx({ denoise: true, denoiseStrength: .5 })), ["afftdn=nf=-25:nr=6.45"]);
+  assert.deepEqual(audioEffectFilters(fx({ normalize: true, voiceLevel: "extended" })), [
+    "highpass=f=80", "equalizer=f=3000:width_type=q:width=1:g=2", "afftdn=nf=-25", "loudnorm=I=-16:TP=-1.5:LRA=11",
+  ]);
+  assert.deepEqual(audioEffectFilters(defaultEffects()), []);
+});
 
 test('transcript ripple cuts keep normalized audio and fades on their original continuous source', {timeout:60000},async()=>{
  const {cutTimelineRange}=await import('../shared/timeline-edits.ts');

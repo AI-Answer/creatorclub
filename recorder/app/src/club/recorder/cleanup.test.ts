@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createElement} from 'react';
+import {act,createElement} from 'react';
 import {mountUI,button} from '../../test-dom';
 import {deviceLabel} from './device-label';
 import {validYouTubeLink} from '../workspace/PublishParts';
@@ -36,6 +36,7 @@ test('pause status distinguishes an unchecked or failed scan from an empty compl
   assert.ok(ui.container.querySelector('[data-option=pauses]')?.textContent?.includes('Not checked yet'));
   await ui.render(createElement(EditAutoSheet,{...props,jobs:[{...job,status:'complete'}]}));
   assert.ok(ui.container.querySelector('[data-option=pauses]')?.textContent?.includes('No pauses found'));
+  await act(async()=>ui.container.querySelector<HTMLButtonElement>('[data-option=pauses] [aria-label="More options"]')!.click());
   assert.ok(button(ui.container,'Find pauses'));
  }finally{await ui.close();}
 });
