@@ -217,8 +217,11 @@ test('Calendar: only publish dates enter the grid; undated videos stay above it,
   assert.equal(text(c.querySelector('h2.sec')),new Intl.DateTimeFormat('en-US',{month:'long',year:'numeric'}).format(now));
   const undated=c.querySelector('[aria-label="Unscheduled"]')!;
   assert.deepEqual([...undated.querySelectorAll('.calendar-title')].map(text),['Bravo','Gamma','Idea']);
-  await press(undated.querySelector('[title="Gamma · Editing"]')!);
-  assert.deepEqual(routes,[{name:'video',id:'g',tab:'publish'}],'it opens on the Publish tab, where the day is set');
+  await press(undated.querySelector('[aria-label="Set publish date for Gamma"]')!);
+  assert.ok(c.querySelector('.calendar-date-popover input[type=date]'));
+  assert.deepEqual(routes,[],'the whole chip opens a date picker without navigating');
+  await act(async()=>{c.querySelector('.calendar-date-popover')!.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));});
+  assert.equal(c.querySelector('.calendar-date-popover'),null);
 
   const other=[...c.querySelectorAll<HTMLElement>('[data-day]')].find(el=>el.dataset.day!==today&&el.dataset.day!.slice(0,7)===today.slice(0,7))!;
   const chip=(title:string)=>[...c.querySelectorAll<HTMLElement>('.ev')].find(el=>text(el.querySelector('.calendar-title'))===title)!;
@@ -229,7 +232,7 @@ test('Calendar: only publish dates enter the grid; undated videos stay above it,
   await press(button(c.querySelector('.cc-toast')!,'Undo'));
   assert.deepEqual(calls.filter(call=>call.method==='PUT').slice(-1).map(call=>call.body),[{publishDate:null}]);
   assert.equal(chips(today).includes('Bravo'),false,'Undo never substitutes a stage date');
-  assert.ok(c.querySelector('[aria-label="Unscheduled"] [title="Bravo · Recording"]'));
+  assert.ok(c.querySelector('[aria-label="Unscheduled"] [aria-label="Set publish date for Bravo"]'));
 
   await press(c.querySelector('[aria-label="Next month"]')!);
   assert.notEqual(text(c.querySelector('h2.sec')),new Intl.DateTimeFormat('en-US',{month:'long',year:'numeric'}).format(now));
@@ -393,16 +396,16 @@ test('Board: when the server refuses a move it did not know about, the card goes
 test('Board: each lane adds a titled video directly to that stage',async()=>{
  await withBoard({videos:[]},'board',async(ui,calls)=>{
   const c=ui.container;
-  for(const stage of ['ideas','planning','recording','editing','publishing']){
+  for(const stage of ['ideas','planning','recording','editing','publishing','published']){
    const lane=column(c,stage);
-   await press(lane.querySelector('.lane-add')!);
+   await press(lane.querySelector(stage==='published'?'.lane-plus':'.lane-add')!);
    const input=lane.querySelector('input')!;
    await act(async()=>{Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value')!.set!.call(input,`New ${stage}`);input.dispatchEvent(new Event('input',{bubbles:true}));});
    await act(async()=>{lane.querySelector('form')!.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));});await settle();
    assert.equal(lane.querySelector('form'),null);
    assert.ok(text(lane).includes(`New ${stage}`));
   }
-  assert.deepEqual(calls.filter(call=>call.path==='/videos'&&call.method==='POST').map(call=>call.body),['ideas','planning','recording','editing','publishing'].map(stage=>({title:`New ${stage}`,stage})));
+  assert.deepEqual(calls.filter(call=>call.path==='/videos'&&call.method==='POST').map(call=>call.body),['ideas','planning','recording','editing','publishing','published'].map(stage=>({title:`New ${stage}`,stage})));
  });
 });
 

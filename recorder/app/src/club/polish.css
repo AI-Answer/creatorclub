@@ -70,7 +70,7 @@
 /* One header grammar across the channel's pages. */
 .club-root .page-head.screen-header { flex: none; min-height: 36px; gap: 24px; align-items: flex-start; }
 .club-root .screen-header .screen-heading { min-width: 0; }
-.club-root .screen-header h1 { margin: 0; font-size: var(--cc-text-2xl); font-weight: var(--cc-weight-semibold); line-height: 1.2; color: var(--cc-text); }
+.club-root .screen-header h1 { display: flex; align-items: center; gap: 10px; margin: 0; font-size: var(--cc-text-2xl); font-weight: var(--cc-weight-semibold); line-height: 1.2; color: var(--cc-text); }
 .club-root .screen-header .lede { margin: 6px 0 0; font-size: var(--cc-text-sm); line-height: 1.5; color: var(--cc-text-3); }
 .club-root .screen-header .actions { flex: none; -webkit-app-region: no-drag; }
 .club-root .research > .screen-header, .club-root .settings-layout-b > .screen-header { padding: 24px 32px 0; margin: 0 0 24px; border: 0; }
@@ -80,10 +80,10 @@
 .club-root .btn.is-disabled:disabled, .club-root .btn:disabled { opacity: 1; background: var(--cc-bg-sunk); color: var(--cc-text-faint); border-color: var(--cc-line); box-shadow: none; transform: none; cursor: not-allowed; }
 .club-root .video-board-page .lane-plus { opacity: .6; transition: opacity var(--cc-dur-fast) var(--cc-ease); }
 .club-root .video-board-page .col:hover .lane-plus, .club-root .video-board-page .col:focus-within .lane-plus { opacity: 1; }
-.club-root .palette-group { padding: 12px 10px 6px; color: var(--cc-text-3); font-size: var(--cc-text-xs); font-weight: var(--cc-weight-medium); }
+.club-root .palette-group { display: flex; align-items: center; height: 36px; padding: 0 10px; color: var(--cc-text-3); font-size: var(--cc-text-xs); font-weight: var(--cc-weight-medium); }
 .club-root .palette .po .key-chip { margin-left: auto; flex: none; }
-.club-root .palette .po .po-label { display: block; max-width: 100%; }
-.club-root .palette .po .po-hint { display: block; text-align: left; margin-top: 3px; color: var(--cc-palette-hint); }
+.club-root .palette .po .po-label { display: block; flex: 0 1 auto; min-width: 0; max-width: 100%; }
+.club-root .palette .po .po-hint { display: block; flex: 1; text-align: left; margin-top: 0; color: var(--cc-palette-hint); }
 .club-root .palette .po.on { box-shadow: inset 0 0 0 1px var(--cc-line); }
 @media (hover: none) { .club-root .video-board-page .lane-plus { opacity: 1; } }
 @media (max-width: 760px) {
@@ -123,7 +123,7 @@
 .club-root .dialog:focus { outline: none; }
 .club-root .palette { display: flex; flex-direction: column; max-height: calc(86vh - 24px); }
 .club-root .palette .pi { flex: none; }
-.club-root .palette .pl { flex: 1; min-height: 0; max-height: min(560px, 60vh); padding-bottom: 24px; mask-image: linear-gradient(to bottom, var(--cc-dark-stage) calc(100% - 20px), transparent); }
+.club-root .palette .pl { flex: 1; min-height: 0; max-height: min(540px, 60vh); max-height: round(down, min(560px, 60vh, calc(86vh - 110px)), 36px); padding: 0 8px; scroll-padding-block: 0; }
 .club-root .palette .po .key-chip { margin-left: auto; flex: none; }
 .club-root .palette-footer { flex: none; height: 32px; padding: 8px 18px; border-top: 1px solid var(--cc-line); color: var(--cc-text-3); font-size: var(--cc-text-2xs); }
 .club-root .settings-body-b .set-group > h2, .club-root .settings-body-b .agent-can-h { font-size: var(--cc-text-section); font-weight: var(--cc-weight-semibold); }
@@ -154,25 +154,26 @@
 .club-root .settings-content .settings-nav { padding-top: 0; }
 .club-root .settings-content .settings-body-b { padding-top: 0; }
 .club-root .screen-header .lede { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.club-root .calendar-hint { margin: 0 0 10px; }
+.club-root .calendar-undated-heading { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; margin-bottom: 8px; }
+.club-root .calendar-undated-heading h3, .club-root .calendar-hint { margin: 0; }
 .club-root .calendar-set-date { display: inline-flex; padding: 5px 0; color: var(--cc-text-2); background: transparent; border: 0; font-size: var(--cc-text-2xs); cursor: pointer; }
 .club-root .calendar-set-date:hover { color: var(--cc-text); text-decoration: underline; }
 .club-root .calendar-date-popover { position: fixed; z-index: 45; width: 220px; padding: 12px; border: 1px solid var(--cc-line-strong); border-radius: var(--cc-r-lg); background: var(--cc-surface); box-shadow: var(--cc-shadow-2); outline: none; }
 .club-root .calendar-date-popover input { margin-top: 8px; width: 100%; }
-.club-root .palette .po-copy { flex: 1; min-width: 0; }
-.club-root .palette .po { align-items: flex-start; padding: 6px 10px; }
-.club-root .palette .po > .icon { margin-top: 2px; flex: none; }
-.club-root .palette .po .key-chip { margin-top: 1px; }
+.club-root .palette .po-copy { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; overflow: hidden; }
+.club-root .palette .po { align-items: center; height: 36px; padding: 0 10px; }
+.club-root .palette .po > .icon { margin-top: 0; flex: none; }
+.club-root .palette .po .key-chip { margin-top: 0; }
 .club-root .shortcuts-grid { display: grid; grid-template-columns: 104px minmax(0,1fr); align-items: center; column-gap: 20px; row-gap: 10px; }
 .club-root .shortcuts-grid dt, .club-root .shortcuts-grid dd { margin: 0; }
 .club-root .shortcut-heading { grid-column: 1 / -1; font-size: var(--cc-text-2xs); font-weight: var(--cc-weight-semibold); color: var(--cc-text-3); margin: 16px 0 2px; }
 .club-root .shortcut-heading:first-child { margin-top: 0; }
-.club-root .settings-body-b .card > .sk-row { position: relative; padding-block: 12px; }
-.club-root .settings-body-b .sk-row .st, .club-root .settings-body-b .sk-row .sk-desc { padding-right: 66px; }
-.club-root .settings-body-b .sk-desc { display: block; overflow: visible; margin-top: 4px; font-size: var(--cc-text-xs); }
-.club-root .skill-details > summary { position: absolute; right: 72px; top: 12px; cursor: pointer; list-style: none; color: var(--cc-text-2); font-size: var(--cc-text-2xs); }
-.club-root .skill-details > summary::-webkit-details-marker { display: none; }
-.club-root .skill-details[open] { margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--cc-line); }
+.club-root .settings-body-b .card > .sk-row { display: block; padding-block: 12px; }
+.club-root .sk-row-main { display: flex; align-items: center; gap: 12px; }
+.club-root .skill-details-toggle { flex: none; }
+.club-root .settings-body-b .sk-row .sk-desc { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.club-root .settings-body-b .sk-desc { display: block; margin-top: 4px; font-size: var(--cc-text-xs); }
+.club-root .skill-details:not([hidden]) { margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--cc-line); }
 .club-root .skill-details p { margin-top: 8px; font-size: var(--cc-text-xs); line-height: 1.5; color: var(--cc-text-3); }
 .club-root .optional-badge { background: transparent; border: 1px solid var(--cc-line-strong); color: var(--cc-text-2); height: 20px; font-size: var(--cc-text-2xs); }
 .club-root .new-recents .linkish { color: var(--cc-primary); }
@@ -181,3 +182,23 @@
 .club-root .research-recovery p { margin: -6px 0 0; }
 .club-root .video-board-page .kwrap:hover .kmove, .club-root .video-board-page .kwrap:focus-within .kmove { opacity: 1; }
 .club-root .lane-empty-state p { color: var(--cc-card-meta); }
+
+/* Final council: compact canvas chrome and single-line scheduling/search rows. */
+.club-root .research > .screen-header.compact { height: 56px; min-height: 56px; padding: 0 32px; margin: 0; align-items: center; }
+.club-root .screen-header.compact h1 { font-size: var(--cc-text-lg); }
+.club-root .calendar-view .calendar-unscheduled-chip { width: 100%; align-items: center; height: 32px; }
+.club-root .calendar-unscheduled-chip .calendar-title { display: block; min-width: 0; flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.club-root .calendar-view .calendar-unscheduled-chip .col-dot { margin-top: 0; }
+.club-root .calendar-chip-icon { opacity: 0; flex: none; }
+.club-root .calendar-unscheduled-chip:hover .calendar-chip-icon, .club-root .calendar-unscheduled-chip:focus-visible .calendar-chip-icon { opacity: 1; }
+.club-root .palette .po .po-stage { display: inline-flex; flex: none; align-items: center; gap: 6px; }
+.club-root .po-stage .col-dot { width: 6px; height: 6px; }
+.club-root .lane-published-empty p { padding: 0; white-space: nowrap; text-align: center; }
+.club-root .research-recovery .research-error-copy { margin: 0; color: var(--cc-text); font-size: var(--cc-text-base); }
+.club-root .postiz-advanced { margin-top: 10px; font-size: var(--cc-text-xs); color: var(--cc-text-2); }
+.club-root .postiz-advanced > summary { width: fit-content; cursor: pointer; }
+.club-root .postiz-advanced > .btn { margin-top: 8px; }
+@media (hover: none) { .club-root .calendar-chip-icon { opacity: 1; } }
+
+.club-root #set-appearance .seg button { color: var(--cc-text); }
+.club-root #set-appearance .seg button.on { background: var(--cc-primary); color: var(--cc-on-primary); }

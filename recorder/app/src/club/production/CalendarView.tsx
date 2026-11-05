@@ -21,7 +21,7 @@ export function publishCalendarPlan(videos:readonly Video[]){
 }
 
 /** A publish calendar with an explicit holding row for videos without a date. */
-export function CalendarView({videos,onOpen,onOpenPublish,onSchedule,today=new Date()}:{
+export function CalendarView({videos,onOpen,onSchedule,today=new Date()}:{
  videos:readonly Video[];onOpen(video:Video):void;onOpenPublish(video:Video):void;onSchedule(id:string,day:string):void;today?:Date;
 }){
  const [month,setMonth]=useState(()=>monthOf(today)),[expanded,setExpanded]=useState<string|null>(null);
@@ -34,9 +34,9 @@ export function CalendarView({videos,onOpen,onOpenPublish,onSchedule,today=new D
   onDragLeave:(event:DragEvent)=>{if(!event.currentTarget.contains(event.relatedTarget as Node|null))setOverKey(current=>current===key?null:current);},
   onDrop:(event:DragEvent)=>{if(!dragId)return;event.preventDefault();const id=dragId;end();onSchedule(id,key);},
  });
- const chip=(video:Video,undated=false)=>{
+ const chip=(video:Video)=>{
   const draggable=video.stage!=='published';
-  const open=()=>undated?onOpenPublish(video):onOpen(video);
+  const open=()=>onOpen(video);
   return <div key={video.id} className="ev" role="button" tabIndex={0} draggable={draggable} title={`${video.title} · ${STAGE_LABEL[video.stage]}`}
    onClick={open} onKeyDown={event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();open();}}}
    onDragStart={draggable?event=>{event.dataTransfer.effectAllowed='move';event.dataTransfer.setData('text/plain',video.id);setDragId(video.id);}:undefined} onDragEnd={end}>
@@ -50,8 +50,8 @@ export function CalendarView({videos,onOpen,onOpenPublish,onSchedule,today=new D
    <button type="button" className="btn sm icon-only" aria-label="Next month" onClick={()=>setMonth(shiftMonth(month,1))}><Icon name="forward" size={15}/></button>
    <button type="button" className="btn sm" onClick={()=>setMonth(monthOf(today))}>Today</button>
   </div>
-  {unscheduled.length>0&&<section className="calendar-undated" aria-label="Unscheduled"><h3>Unscheduled</h3><p className="small muted calendar-hint">Set a publish date to place a video on the calendar.</p><div className="calendar-undated-list">{unscheduled.map(video=><div className="calendar-undated-item" key={video.id}>
-   {chip(video,true)}<PublishDateButton video={video} onSchedule={onSchedule}/>
+  {unscheduled.length>0&&<section className="calendar-undated" aria-label="Unscheduled"><div className="calendar-undated-heading"><h3>Unscheduled</h3><p className="small muted calendar-hint">Set a publish date to place a video on the calendar.</p></div><div className="calendar-undated-list">{unscheduled.map(video=><div className="calendar-undated-item" key={video.id}>
+   <UnscheduledChip video={video} onSchedule={onSchedule} onDragStart={event=>{event.dataTransfer.effectAllowed='move';event.dataTransfer.setData('text/plain',video.id);setDragId(video.id);}} onDragEnd={end}/>
   </div>)}</div></section>}
   {videos.length===0&&<p className="small muted" role="status">No videos yet. Use New video to make one, then set its publish date.</p>}
   <div className="cal">
@@ -70,7 +70,7 @@ export function CalendarView({videos,onOpen,onOpenPublish,onSchedule,today=new D
 
 
 /** A date field appears only when requested; the tray stays compact and readable. */
-function PublishDateButton({video,onSchedule}:{video:Video;onSchedule(id:string,day:string):void}){
+function UnscheduledChip({video,onSchedule,onDragStart,onDragEnd}:{video:Video;onSchedule(id:string,day:string):void;onDragStart(event:DragEvent<HTMLButtonElement>):void;onDragEnd():void}){
  const [open,setOpen]=useState(false),[position,setPosition]=useState({left:0,top:0});
  const anchor=useRef<HTMLButtonElement>(null),popover=useRef<HTMLDivElement>(null);
  useClickAway([anchor,popover],()=>setOpen(false),open);
@@ -80,5 +80,5 @@ function PublishDateButton({video,onSchedule}:{video:Video;onSchedule(id:string,
  const content=open?<div ref={popover} tabIndex={-1} className="calendar-date-popover" role="dialog" aria-label={`Publish date for ${video.title}`} style={{left:position.left,top:position.top}} onKeyDown={event=>{if(event.key==='Escape')close();}}>
   <label className="small muted">Publish date<input type="date" className="input" aria-label={`Set publish date for ${video.title}`} onChange={event=>{if(event.target.value){onSchedule(video.id,event.target.value);close();}}}/></label>
  </div>:null;
- return <><button ref={anchor} type="button" className="calendar-set-date" aria-label={`Set publish date for ${video.title}`} aria-haspopup="dialog" aria-expanded={open} onClick={()=>{const box=anchor.current!.getBoundingClientRect();setPosition({left:Math.min(box.left,window.innerWidth-228),top:box.bottom+6});setOpen(current=>!current);}}>Set publish date</button>{host?createPortal(content,host):content}</>;
+ return <><button ref={anchor} type="button" className="ev calendar-unscheduled-chip" draggable={video.stage!=='published'} onDragStart={onDragStart} onDragEnd={onDragEnd} title={video.title} aria-label={`Set publish date for ${video.title}`} aria-haspopup="dialog" aria-expanded={open} onClick={()=>{const box=anchor.current!.getBoundingClientRect();setPosition({left:Math.min(box.left,window.innerWidth-228),top:box.bottom+6});setOpen(current=>!current);}}><StageBadge stage={video.stage} dotOnly decorative/><span className="calendar-title">{video.title}</span><Icon name="calendar" size={13} className="calendar-chip-icon"/></button>{host?createPortal(content,host):content}</>;
 }

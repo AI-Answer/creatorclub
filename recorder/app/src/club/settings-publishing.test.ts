@@ -53,6 +53,9 @@ test('Postiz is connected here with the key pasted once; a wrong key is one sent
   assert.ok(c.textContent?.includes('In Postiz, open Settings, then Public API, and copy the key.'));
   await type(input,'wrong');await click(button(c.querySelector('#set-publishing')!,'Connect'));
   assert.ok(c.textContent?.includes("Postiz didn't accept that key."));
+  const advanced=c.querySelector<HTMLDetailsElement>('.postiz-advanced')!;
+  assert.equal(advanced.open,false,'server settings are behind Advanced');
+  await click(advanced.querySelector('summary')!);
   await click(button(c,'Use your own Postiz server'));
   await type(c.querySelector('#postiz-address')!,'https://postiz.example.com');
   await type(c.querySelector('#postiz-key')!,'my-postiz-api-key-0001');await click(button(c.querySelector('#set-publishing')!,'Connect'));
@@ -154,8 +157,9 @@ test('Skills keep a readable name and one complete sentence, with commands and t
   assert.match(summary,/[.!?]$/);
   assert.doesNotMatch(summary,/ingest|remotion|engine|runs for real/i);
  }
- assert.equal(skillSummary(skills[0]),'Edit your recording into a finished video.');
- assert.equal(skillSummary({name:'sagecut',description:'Ingest recordings and edit your video with the Remotion engine.'}),'Edit your recording into a finished video.');
+ assert.equal(new Set(['cutroom','proof-edit','proof-first-video-editor','sagecut','screenplay-edit','video-edit-pipeline'].map(name=>skillSummary({name,description:'Edit videos.'}))).size,6);
+ assert.equal(skillSummary(skills[0]),'Shape talking-head recordings into polished animated tutorials.');
+ assert.equal(skillSummary({name:'sagecut',description:'Ingest recordings and edit your video with the Remotion engine.'}),'Review and improve animated graphics for your video.');
  const server=installFetch(call=>call.path==='/skills/edit'?{body:skills}:undefined);
  const ui=await mountUI(createElement(SkillsSection));
  try{
@@ -163,10 +167,18 @@ test('Skills keep a readable name and one complete sentence, with commands and t
   assert.equal(ui.container.querySelectorAll('.sk-row').length,2);
   for(const row of ui.container.querySelectorAll('.sk-row')){
    assert.doesNotMatch(row.querySelector('.st')!.textContent!,/\//);
-   assert.equal(row.querySelector('details')?.open,false);
-   assert.ok(row.querySelector('details .sk-command')?.textContent?.startsWith('/'));
+   const details=row.querySelector<HTMLElement>('.skill-details')!;
+   const disclosure=row.querySelector('.skill-details-toggle')!;
+   assert.equal(details.hidden,true);
+   assert.equal(disclosure.getAttribute('aria-expanded'),'false');
+   assert.ok(details.querySelector('.sk-command')?.textContent?.startsWith('/'));
+   await click(disclosure);
+   assert.equal(details.hidden,false);
+   assert.equal(disclosure.getAttribute('aria-expanded'),'true');
+   await click(disclosure);
+   assert.equal(details.hidden,true);
    assert.equal(row.querySelectorAll('.sk-why').length,1,'selection reasons live only in Details');
-   assert.ok(row.querySelector('details .sk-why'));
+   assert.ok(row.querySelector('.skill-details .sk-why'));
   }
  }finally{await ui.close();server.restore();}
 });

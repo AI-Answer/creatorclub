@@ -624,8 +624,10 @@ test('Home for an empty channel immediately shows six usable lanes',async()=>{
   assert.equal(ui.container.querySelectorAll('.lane-add').length,5);
   assert.equal(ui.container.querySelector('.first-steps'),null);
   const published=ui.container.querySelector('[data-column=published]')!;
-  assert.match(text(published),/No published videos yet.*Finished videos land here/s);
-  assert.equal(published.querySelector('.lane-add,.lane-plus'),null);
+  assert.equal(text(published.querySelector('.lane-empty-state')),'Finished videos land here.');
+  assert.equal(published.querySelector('.lane-add'),null);
+  assert.ok(published.querySelector('.lane-plus'));
+  assert.equal(ui.container.querySelectorAll('.lane-plus').length,6);
  });
 });
 
@@ -670,8 +672,10 @@ test('Research failure with no content is one retry state, without empty-feed co
  await mount(discoverAt(),discoverServer({failTrending:true,signals:{items:[],updatedAt:null,errors:[],sources:0}}),async(ui,s)=>{
   const c=ui.container;
   assert.equal(c.querySelectorAll('[role="alert"]').length,1);
-  assert.equal(text(c.querySelector('[role="alert"]')),"Research couldn't loadCheck your internet connection, then try again.Try againManage channels");
+  assert.equal(text(c.querySelector('[role="alert"]')),"Couldn't get your research. Try again in a moment.Try again");
   assert.equal(c.querySelectorAll('.disc-views,.disc-sources,.disc-bar,.empty').length,0);
+  assert.doesNotMatch(text(c.querySelector('.screen-header')),/Last updated|Refresh/);
+  assert.equal([...c.querySelectorAll('button')].some(button=>button.textContent==='Manage channels'),false);
   assert.equal([...c.querySelectorAll('button')].some(button=>button.textContent==='Follow channels'),false);
   s.failTrending=false;await press(button(c,'Try again'));
   assert.ok(c.querySelector('.disc-views'),'controls return when content loads');
@@ -685,8 +689,10 @@ test('Research refresh failure with empty cached lists hides the empty feed and 
   await press(button(c,'Refresh'));
   await emit('failed',{message:'Origin is not allowed'});
   assert.equal(c.querySelectorAll('[role="alert"]').length,1);
-  assert.equal(text(c.querySelector('[role="alert"]')),"Research couldn't loadCheck your internet connection, then try again.Try againManage channels");
+  assert.equal(text(c.querySelector('[role="alert"]')),"Couldn't get your research. Try again in a moment.Try again");
   assert.equal(c.querySelectorAll('.disc-views,.disc-sources,.disc-bar,.empty').length,0);
+  assert.doesNotMatch(text(c.querySelector('.screen-header')),/Last updated|Refresh/);
+  assert.equal([...c.querySelectorAll('button')].some(button=>button.textContent==='Manage channels'),false);
   assert.equal([...c.querySelectorAll('button')].filter(button=>button.textContent==='Try again').length,1);
  });
 });

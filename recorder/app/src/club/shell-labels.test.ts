@@ -7,8 +7,8 @@ test('palette uses the two current places and keeps legacy names as search alias
  assert.equal(pages.find(option=>option.id==='page:home')?.label,'Video board');
  assert.equal(pages.find(option=>option.id==='page:discover')?.label,'Research');
  assert.ok(!pages.some(option=>option.id==='page:videos'));
- assert.equal(pages.find(option=>option.id==='page:research')?.label,'Channel board');
- assert.deepEqual(pages.find(option=>option.id==='page:research')?.target,{route:{name:'research'}});
+ assert.deepEqual(pages.map(option=>option.label),['Video board','Research','Settings']);
+ assert.equal(shellOptions([],'Channel board').some(option=>option.id==='page:research'),false);
  for(const query of ['research','discover']){
   const option=shellOptions([],query).find(option=>option.id==='page:discover')!;
   assert.equal(option.label,'Research');assert.deepEqual(option.target,{route:{name:'discover'}});
@@ -31,6 +31,6 @@ test('palette uses one board name and exposes steps only for the open video',()=
  assert.equal(steps.length,4);
  for(const step of steps)assert.ok('route' in step.target&&step.target.route.name==='video'&&step.target.route.id==='a');
  assert.equal(shellOptions(videos,'','missing').filter(option=>option.kind==='Step').length,0);
- assert.equal(shellOptions(videos,'').find(option=>option.id==='page:table')?.label,'Video board as a table');
- assert.equal(shellOptions(videos,'').find(option=>option.id==='page:calendar')?.label,'Video board as a calendar');
+ assert.equal(shellOptions(videos,'table').find(option=>option.id==='page:table')?.label,'Video board as a table');
+ assert.equal(shellOptions(videos,'calendar').find(option=>option.id==='page:calendar')?.label,'Video board as a calendar');
 });

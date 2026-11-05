@@ -115,8 +115,8 @@ export function Kanban({videos,scenes,ideas,onOpen,onMove,onResearch,onAdd}:{
   return <section key={stage} aria-label={STAGE_LABEL[stage]} data-column={stage} className={`col${here?' over':''}${isCollapsed?' col-collapsed':''}`}
    onDragOver={onDragOver(column)} onDrop={onDrop(column)} onDragLeave={event=>{if(!event.currentTarget.contains(event.relatedTarget as Node|null))setOver(current=>current?.stage===stage?null:current);}}>
    <div className="col-h"><StageBadge stage={stage} dotOnly decorative/><span className="col-name">{STAGE_LABEL[stage]}</span><span className="n">{all.length}</span>
-    {stage==='published'&&<button type="button" className="lane-toggle" aria-label={collapsed?'Expand Published':'Collapse Published'} aria-expanded={!collapsed} onClick={toggleCollapsed}><Icon name={collapsed?'back':'forward'} size={14}/></button>}
-    {!isCollapsed&&stage!=='published'&&<button type="button" className="lane-plus" aria-label={`New video in ${STAGE_LABEL[stage]}`} onClick={()=>setAdding(stage)}><Icon name="add" size={15}/></button>}
+    {stage==='published'&&<button type="button" className="lane-toggle" title={collapsed?'Expand Published':'Collapse Published'} aria-label={collapsed?'Expand Published':'Collapse Published'} aria-expanded={!collapsed} onClick={toggleCollapsed}><Icon name={collapsed?'panel-open':'panel-close'} size={14}/></button>}
+    {!isCollapsed&&<button type="button" className="lane-plus" aria-label={`New video in ${STAGE_LABEL[stage]}`} onClick={()=>setAdding(stage)}><Icon name="add" size={15}/></button>}
    </div>
    {!isCollapsed&&<div className="lane-cards" ref={element=>{if(element)elements.current.set(stage,element);else elements.current.delete(stage);}}>
     {shown.map(video=><div key={video.id} className={dragId===video.id?'drag-source':undefined}>
@@ -132,7 +132,7 @@ export function Kanban({videos,scenes,ideas,onOpen,onMove,onResearch,onAdd}:{
 
 function LaneAdd({stage,onAdd,open,empty,onOpen,onClose}:{stage:VideoStage;onAdd(title:string,stage:VideoStage):Promise<void>;open:boolean;empty:boolean;onOpen():void;onClose():void}){
  const [title,setTitle]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState('');
- if(stage==='published')return empty?<div className="lane-empty-state"><p>No published videos yet</p><p>Finished videos land here.</p></div>:null;
+ if(stage==='published'&&!open)return empty?<div className="lane-empty-state lane-published-empty"><p>Finished videos land here.</p></div>:null;
  if(!open)return <div className={empty?'lane-empty-state':undefined}>{empty&&<p>Nothing here yet</p>}<button type="button" className="lane-add" aria-label={`New video in ${STAGE_LABEL[stage]}`} onClick={onOpen}><Icon name="add" size={14}/><span>New video</span></button></div>;
  return <form className="lane-add-form" onSubmit={async event=>{
   event.preventDefault();if(!title.trim()||busy)return;setBusy(true);setError('');

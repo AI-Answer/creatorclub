@@ -57,6 +57,8 @@
   --cc-palette-hint: #595959;
   --cc-kanban-hover: #fafafa;
   --cc-card-menu: #595959;
+  --cc-switch-on: var(--cc-primary);
+  --cc-switch-thumb: #ffffff;
   --cc-kanban-card: #ffffff;
   --cc-kanban-border: #e5e5e5;
   --cc-nav-selected: #ececec;
@@ -287,8 +289,9 @@
   --cc-scrim: rgba(0, 0, 0, .6);
   --cc-calendar-chip: #2b2d30;
   --cc-card-meta: #c4c4c4;
-  --cc-kanban-card: #3a3a3e;
-  --cc-kanban-hover: #414145;
+  --cc-switch-on: #808086;
+  --cc-kanban-card: #2a2a2c;
+  --cc-kanban-hover: #3a3a3e;
   --cc-palette-hint: #c4c4c4;
   --cc-card-menu: #dedede;
   --cc-kanban-border: #606064;

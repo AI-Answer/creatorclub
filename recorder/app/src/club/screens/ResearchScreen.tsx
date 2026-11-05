@@ -19,7 +19,7 @@ export function ResearchScreen({navigate}:{navigate(route:Route,options?:{replac
  },[]);
  const screen=useMemo(()=>selection.length?`Channel board, with ${selection.length} ${selection.length===1?'card':'cards'} selected`:'Channel board, the channel\'s own board',[selection.length]);
  return <div className="ws research">
-  <ScreenHeader title="Channel board" description="Gather references, connect ideas, and start a video."/>
+  <ScreenHeader title="Channel board" icon="whiteboard" compact/>
   <div className="ws-row">
    <div className="ws-col"><div className="ws-body"><Board board={CHANNEL_BOARD} refreshKey={boardKey} navigate={navigate} onSelection={setSelection}/></div></div>
    <Companion videoId={CHANNEL_BOARD} tab="research" screen={screen} selection={selection} pkg={null} outline={null} onChanged={changed}/>

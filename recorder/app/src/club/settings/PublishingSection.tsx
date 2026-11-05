@@ -16,7 +16,7 @@ export function PublishingSection({publishing,error,onReload,onPublishing}:{publ
   setProblem('');
   clubFetch<PublishingState>('/publishing',{method:'PUT',body:{defaultVisibility:next}}).then(onPublishing,reason=>{retry.current=()=>chooseVisibility(next);setProblem(errorMessage(reason,"Couldn't save that choice."));});
  };
- return <section className="set-group" id="set-publishing" aria-labelledby="set-publishing-title"><h2 id="set-publishing-title">Publishing</h2><p>Choose where your videos go and who can watch them.</p>
+ return <section className="set-group" id="set-publishing" aria-labelledby="set-publishing-title"><h2 id="set-publishing-title">Publishing</h2><p>Connect Postiz to publish to YouTube.</p>
   <Card>
    <div className="srow2" style={{alignItems:'flex-start'}}>
     <span className="logo logo-postiz"><BrandLogo brand="postiz" size={28}/></span>
