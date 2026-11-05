@@ -160,24 +160,28 @@ async function serviceHealth(){
  const r=await fetch(base+'/api/ready',{signal:AbortSignal.timeout(2000)});
  if(!r.ok){await r.body?.cancel();return null;}
  const health=await r.json();
- return isCreatorClubService(health)&&!(health.parentPid&&!processAlive(health.parentPid))?health:null;
+ return isCreatorClubService(health)?health:null;
 }
-async function serviceAnswers(){return Boolean(await serviceHealth());}
+const orphaned=health=>Boolean(health.parentPid&&!processAlive(health.parentPid));
+async function serviceAnswers(){const health=await serviceHealth();return Boolean(health)&&!orphaned(health);}
 // The installed app's own service bundle, compared with a running service's `build` (see server/index.ts).
 const ownBuild=(()=>{try{const file=fs.statSync(path.join(projectRoot,'server-dist/index.mjs'));return `${file.size}-${Math.round(file.mtimeMs)}`;}catch{return null;}})();
 async function startService(){
  // Only an occupied port is asked whether it is already a Creator Compiler service; otherwise fork without waiting.
  if(portBusy===null)await portCheck;
  if(portBusy){
+  let leaving=null;
   try{
    const health=await serviceHealth();
    // A service the assistant tools started on their own (no app of its own) from an older install is stopped and replaced,
-   // so an update always runs its own code. Anything else that answers is used as it is.
-   if(health&&app.isPackaged&&!health.parentPid&&health.pid&&health.build&&ownBuild&&health.build!==ownBuild)process.kill(health.pid,'SIGTERM');
-   else if(health)return;
+   // so an update always runs its own code. One whose app has quit is stopping itself. Anything else is used as it is.
+   const stale=Boolean(health&&app.isPackaged&&!health.parentPid&&health.pid&&health.build&&ownBuild&&health.build!==ownBuild);
+   if(health&&!stale&&!orphaned(health))return;
+   if(stale)process.kill(health.pid,'SIGTERM');
+   leaving=health?.pid||null;
   }catch{}
-  // A service left by a crashed app stops within a few seconds; let it free the port before starting a new one.
-  for(const deadline=Date.now()+5000;Date.now()<deadline&&await portOpen();)await new Promise(r=>setTimeout(r,50));
+  // Wait for that process to exit, not just its port: it holds the data folder's export lock until it does.
+  for(const deadline=Date.now()+10000;Date.now()<deadline&&(leaving?processAlive(leaving):await portOpen());)await new Promise(r=>setTimeout(r,50));
  }
  const entry=path.join(projectRoot,'server-dist/index.mjs');
  // Recordings and edits use SceneForge's storage format in Creator Compiler's own folder; SCENEFORGE_DATA_DIR still overrides it.

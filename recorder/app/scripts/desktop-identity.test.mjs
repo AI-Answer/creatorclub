@@ -47,7 +47,8 @@ test('the desktop shell sets its name and user-data folder before the single-ins
  assert.match(main, /const PORT=Number\(process\.env\.SCENEFORGE_PORT\|\|\(app\.isPackaged\?CREATORCLUB\.port:4184\)\)/);
  assert.match(main, /title:CREATORCLUB\.name/);
  assert.match(main, /label:CREATORCLUB\.name,submenu/);
- assert.match(main, /const health=await r\.json\(\);\n return isCreatorClubService\(health\)&&!\(health\.parentPid&&!processAlive\(health\.parentPid\)\)/, 'a service whose app has quit is never reused');
+ assert.match(main, /const health=await r\.json\(\);\n return isCreatorClubService\(health\)\?health:null;/);
+ assert.match(main, /const orphaned=health=>Boolean\(health\.parentPid&&!processAlive\(health\.parentPid\)\);/, 'a service whose app has quit is never reused');
  assert.match(main, /data:paths\.studio/);
  assert.match(main, /dataDir:paths\.studio/);
  assert.match(main, /SCENEFORGE_MCP_COMMAND\?\?=''/, 'no launcher of its own means no MCP launcher is advertised');

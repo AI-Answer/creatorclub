@@ -240,4 +240,4 @@ const shutdown=()=>{if(shuttingDown)return;shuttingDown=true;server.close();serv
 process.on('SIGTERM',shutdown);process.on('SIGINT',shutdown);
 // When the desktop app is gone (force-quit, crash), this service stops too instead of holding the port for the next launch.
 // Jobs get ten seconds to wind down; then the process exits whatever is still open.
-if(parentPid)setInterval(()=>{try{process.kill(parentPid,0);}catch{shutdown();setTimeout(()=>process.exit(0),10000).unref();}},2000).unref();
+if(parentPid){const watch=setInterval(()=>{try{process.kill(parentPid,0);}catch{clearInterval(watch);shutdown();setTimeout(()=>process.exit(0),10000).unref();}},2000);watch.unref();}
