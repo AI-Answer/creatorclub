@@ -1,3 +1,4 @@
+import {visibleInterval} from '../visible-interval';
 import {BrandLogo} from '../../BrandLogo';
 import {useCallback,useEffect,useMemo,useRef,useState,type ReactNode} from 'react';
 import type {Package,PublishProgress,PublishRecord,PublishVisibility,Video,VideoScene} from '../../../shared/club';
@@ -63,7 +64,7 @@ export function Publish({video,pkg,scenes,onVideo,onDescription,onTags,onGoTo,on
  useEffect(()=>{void loadRecord().catch(()=>setRecord(null));},[video.id]);// eslint-disable-line react-hooks/exhaustive-deps
  // A video scheduled for later is not asked about until its time has come.
  const waiting=record?.state==='queued'&&(Boolean(record.unconfirmed)||!(record.scheduledFor&&new Date(record.scheduledFor).getTime()>Date.now()));
- useEffect(()=>{if(!waiting)return;const timer=setInterval(()=>void loadRecord().catch(()=>{}),RECHECK_MS);return()=>clearInterval(timer);},[waiting,loadRecord]);
+ useEffect(()=>{if(!waiting)return;return visibleInterval(()=>void loadRecord().catch(()=>{}),RECHECK_MS);},[waiting,loadRecord]);
 
  // ---- the form
  const [title,setTitle]=useState(video.title);

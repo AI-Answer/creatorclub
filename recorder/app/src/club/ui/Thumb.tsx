@@ -18,7 +18,7 @@ export function Thumb({videoId,src,cover,text,seed,chip,children,className='',st
  const [failed,setFailed]=useState(false);
  const picture=src||(videoId?ytThumb(videoId):cover?`/api/club/videos/${encodeURIComponent(cover)}/cover`:null);
  return <div className={`thumb bg-subtle ${className}`.trim()} style={{borderRadius:'var(--cc-r-lg)',...style}}>
-  {picture&&!failed?<img src={picture} alt="" loading="lazy" onError={()=>setFailed(true)}/>:(fallback??<DraftThumb text={text} seed={seed}/>)}
+  {picture&&!failed?<img decoding="async" loading="lazy" src={picture} alt="" onError={()=>setFailed(true)}/>:(fallback??<DraftThumb text={text} seed={seed}/>)}
   {chip}
   {children}
  </div>;

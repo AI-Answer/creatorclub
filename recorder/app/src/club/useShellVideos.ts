@@ -1,4 +1,4 @@
-import {useEffect,useMemo,useState} from 'react';
+import {useEffect,useMemo,useRef,useState} from 'react';
 import type {Video} from '../../shared/club';
 import {VIDEOS_CHANGED,clubFetch} from './api';
 import {usePendingDeletes} from './pending-delete';
@@ -8,6 +8,7 @@ import {usePendingDeletes} from './pending-delete';
  * Nothing is loaded while `enabled` is false (no channel yet). Ideas that were just deleted (and can still be undone) are left out. Loads again when `refreshKey` changes and whenever a screen saves a change to a video (`VIDEOS_CHANGED`). A channel with no videos, or a server that can't be reached, is an empty list.
  */
 export function useShellVideos(refreshKey:string,enabled=true):Video[]{
+ const first=useRef(true);
  const [videos,setVideos]=useState<Video[]>([]);
  const [reloads,setReloads]=useState(0);
  useEffect(()=>{
@@ -19,7 +20,8 @@ export function useShellVideos(refreshKey:string,enabled=true):Video[]{
  useEffect(()=>{
   if(!enabled){setVideos([]);return;}
   let live=true;
-  clubFetch<Video[]>('/videos').then(found=>{if(live)setVideos(found);},()=>{});
+  clubFetch<Video[]>('/videos',{dedupe:first.current}).then(found=>{if(live)setVideos(found);},()=>{});
+  first.current=false;
   return()=>{live=false;};
  },[refreshKey,reloads,enabled]);
  const deleting=usePendingDeletes();

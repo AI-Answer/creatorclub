@@ -5,6 +5,7 @@ import {videoThumbId} from '../ideas';
 import {scenesLine} from '../production';
 import {recordedCount,type SceneProgress} from '../scene-status';
 import {Icon,Menu,type MenuItem} from '../ui';
+import {useNearViewport} from '../near-viewport';
 
 /** The server resolves picked thumbnail → recording frame. A published video's own YouTube thumbnail is the last fallback; an idea never borrows its source video's. */
 export function coverSources(video:Video):string[]{
@@ -14,12 +15,12 @@ export function coverSources(video:Video):string[]{
 
 /** Only a real picture earns a cover: nothing shows while it loads, and a card with no picture has no cover at all. */
 function Cover({video}:{video:Video}){
+ const {ref,near}=useNearViewport();
  const sources=coverSources(video),[failed,setFailed]=useState<string[]>([]),[loaded,setLoaded]=useState<string|null>(null);
  const picture=sources.find(source=>!failed.includes(source));
- if(!picture)return null;
- return <div className="kcard-cover" hidden={loaded!==picture}>
+ return <><span ref={ref} hidden/>{near&&picture&&<div className="kcard-cover" hidden={loaded!==picture}>
   <img key={picture} src={picture} alt="" decoding="async" onLoad={()=>setLoaded(picture)} onError={()=>setFailed(current=>[...current,picture])}/>
- </div>;
+ </div>}</>;
 }
 
 export const relativeUpdated=(iso:string,now=Date.now())=>{

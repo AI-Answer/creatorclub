@@ -1,15 +1,15 @@
-import {useCallback,useEffect,useMemo,useRef,useState} from 'react';
+import {lazy,Suspense,useCallback,useEffect,useMemo,useRef,useState} from 'react';
 import type {ClubSettings,Video,Workspace} from '../../shared/club';
 import {setAppearance} from '../appearance';
 import {clubFetch} from './api';
 import {Sidebar} from './Sidebar';
 import {defaultTab,routePath,useHashRoute,videoBackRoute,type Route,type VideoTab} from './routes';
-import {WelcomeScreen} from './screens/WelcomeScreen';
-import {DiscoverScreen} from './screens/DiscoverScreen';
+const WelcomeScreen=lazy(()=>import('./screens/WelcomeScreen').then(module=>({default:module.WelcomeScreen})));
+const DiscoverScreen=lazy(()=>import('./screens/DiscoverScreen').then(module=>({default:module.DiscoverScreen})));
 import {HomeScreen} from './screens/HomeScreen';
 import {VideosScreen} from './screens/VideosScreen';
-import {SettingsScreen} from './screens/SettingsScreen';
-import {ResearchScreen} from './screens/ResearchScreen';
+const SettingsScreen=lazy(()=>import('./screens/SettingsScreen').then(module=>({default:module.SettingsScreen})));
+const ResearchScreen=lazy(()=>import('./screens/ResearchScreen').then(module=>({default:module.ResearchScreen})));
 import {Help} from './shell/Help';
 import {NewVideo} from './shell/NewVideo';
 import {Palette} from './shell/Palette';
@@ -20,7 +20,10 @@ import type {Video as ShellVideo} from '../../shared/club';
 import {Button,EmptyState,Spinner,ToastProvider,cn} from './ui';
 import {useChannelState} from './useChannelState';
 import {useShellVideos} from './useShellVideos';
-import {Workspace as VideoWorkspace} from './workspace/Workspace';
+const loadVideoWorkspace=()=>import('./workspace/Workspace');
+const VideoWorkspace=lazy(()=>loadVideoWorkspace().then(module=>({default:module.Workspace})));
+// Fill the existing main area without adding a second surface or moving the shell.
+const screenFallback=<div className="flex flex-1" aria-label="Loading screen" role="status"/>;
 
 /**
  * First launch is needed until setup was finished or skipped once (`welcomed`). An install that already has a channel
@@ -46,6 +49,8 @@ function VideoRoute({id,tab,navigate}:{id:string;tab?:VideoTab;navigate(route:Ro
  const [video,setVideo]=useState<Video|null|undefined>(undefined);
  useEffect(()=>{
   let live=true;setVideo(undefined);
+  // Fetch the screen chunk alongside the video, instead of waiting for the API response.
+  void loadVideoWorkspace().catch(()=>{});
   const path=`/videos/${encodeURIComponent(id)}`;
   clubFetch<Video>(path).then(found=>{
    if(!live)return;
@@ -145,7 +150,7 @@ function Shell(){
    {isHomeTab(route)&&<Sidebar route={route} onSearch={()=>setPaletteOpen(true)} onSwitched={switched} onAdd={addChannel} videos={videos} epoch={channelEpoch}/>}
    <div className="main-col">
     {window.sceneForge&&route.name==='welcome'&&<div className="club-drag main-drag" aria-hidden/>}
-    <main key={channelEpoch} ref={main} className="main" id="main"><ScreenBoundary key={route.name==='video'?`video/${route.id}`:path}>{screen}</ScreenBoundary></main>
+    <main key={channelEpoch} ref={main} className="main" id="main"><ScreenBoundary key={route.name==='video'?`video/${route.id}`:path}><Suspense fallback={screenFallback}>{screen}</Suspense></ScreenBoundary></main>
    </div>
   </div>
   {paletteOpen&&<Palette videos={videos} openId={route.name==='video'?route.id:null} onClose={()=>setPaletteOpen(false)} onOpen={navigate} onNewVideo={()=>setNewOpen(true)} onHelp={topic=>setHelp({topic})}/>}

@@ -1,5 +1,6 @@
-import {useCallback,useMemo,useState} from 'react';
-import App,{type EmbeddedRecorder} from '../App';
+import {lazy,Suspense,useCallback,useMemo,useState} from 'react';
+import type {EmbeddedRecorder} from '../App';
+const App=lazy(()=>import('../App'));
 import {ErrorLine} from './ErrorLine';
 import {Button} from './ui';
 
@@ -22,5 +23,5 @@ export function ClubRecorder({projectId,mode,onBack,onMode,onProgress,onExported
  const embedded=useMemo<EmbeddedRecorder>(()=>({projectId,mode,onBack,onMode,onOpenFailed,onProgress,onExported,sceneId,sceneNonce,onSceneChange,onChanged,registerLeaveGuard,onEditor,onEditState}),[projectId,mode,onBack,onMode,onOpenFailed,onProgress,onExported,sceneId,sceneNonce,onSceneChange,onChanged,registerLeaveGuard,onEditor,onEditState]);
  if(failed==='missing'&&onRestart)return <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center"><p className="text-base">{NOT_ON_THIS_COMPUTER}</p><Button variant="primary" onClick={onRestart}>Start the recording again from the plan</Button></div>;
  if(failed)return <div className="flex flex-1 items-center justify-center p-6"><ErrorLine message={OPEN_FAILED} onRetry={()=>{setFailed(null);setAttempt(n=>n+1);}}/></div>;
- return <div className="club-embed"><App key={`${projectId}:${attempt}`} embedded={embedded}/></div>;
+ return <div className="club-embed"><Suspense fallback={<div className="flex flex-1" role="status" aria-label="Loading editor"/>}><App key={`${projectId}:${attempt}`} embedded={embedded}/></Suspense></div>;
 }

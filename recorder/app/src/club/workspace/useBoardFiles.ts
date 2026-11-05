@@ -14,12 +14,22 @@ export function useBoardEvents(videoId:string,onChange:()=>void,wait=150){
  const latest=useRef(onChange);latest.current=onChange;
  useEffect(()=>{
   if(typeof EventSource==='undefined')return;
-  const source=new EventSource(`/api/club${boardBase(videoId)}/board/events`);
+  let source:EventSource|undefined;
   let timer:ReturnType<typeof setTimeout>|undefined,opened=false;
-  const soon=()=>{clearTimeout(timer);timer=setTimeout(()=>latest.current(),wait);};
-  source.addEventListener('files',soon);
-  source.addEventListener('open',()=>{if(opened)soon();opened=true;});
-  return()=>{clearTimeout(timer);source.close();};
+  const soon=()=>{clearTimeout(timer);if(!document.hidden)timer=setTimeout(()=>{if(!document.hidden)latest.current();},wait);};
+  const connect=()=>{
+   clearTimeout(timer);source?.close();source=undefined;
+   if(document.hidden)return;
+   source=new EventSource(`/api/club${boardBase(videoId)}/board/events`);
+   source.addEventListener('files',soon);
+   source.addEventListener('open',()=>{if(opened)soon();opened=true;});
+   // Returning to a visible board also catches changes when the stream had never opened.
+   if(resuming)soon();
+   resuming=true;
+  };
+  let resuming=document.hidden;
+  connect();document.addEventListener('visibilitychange',connect);
+  return()=>{clearTimeout(timer);source?.close();document.removeEventListener('visibilitychange',connect);};
  },[videoId,wait]);
 }
 

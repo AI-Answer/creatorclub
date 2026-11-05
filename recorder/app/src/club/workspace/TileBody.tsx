@@ -1,4 +1,4 @@
-import {useEffect,useState,type ReactNode} from 'react';
+import {memo,useEffect,useMemo,useRef,useState,type ReactNode} from 'react';
 import type {Breakdown,ResearchTile,TranscriptChapter,Video} from '../../../shared/club';
 import {clubFetch,errorMessage} from '../api';
 import {clockTime,linkHost} from '../video-plan';
@@ -46,6 +46,21 @@ export interface TileBodyProps{
 
 /** One tile on the Board, drawn per kind as the prototype does. */
 export function TileBody(props:TileBodyProps){
+ const latest=useRef(props);latest.current=props;
+ const saveText=!!props.onSaveText,saveNote=!!props.onSaveNote,openVideo=!!props.onOpenVideo,blurEmpty=!!props.onBlurEmpty;
+ // Board selection and canvas gestures supply new closures. Forward them through stable
+ // handlers so the rich note editors render only when their own content changes.
+ const handlers=useMemo(()=>({
+  onRemove:()=>latest.current.onRemove(),onOpen:()=>latest.current.onOpen(),onRetryRead:()=>latest.current.onRetryRead(),
+  onBreakdown:(id:string)=>latest.current.onBreakdown(id),
+  onSaveText:saveText?(text:string)=>latest.current.onSaveText!(text):undefined,
+  onSaveNote:saveNote?(text:string,base:string|undefined)=>latest.current.onSaveNote!(text,base):undefined,
+  onOpenVideo:openVideo?(video:Video)=>latest.current.onOpenVideo!(video):undefined,
+  onBlurEmpty:blurEmpty?()=>latest.current.onBlurEmpty!():undefined,
+ }),[saveText,saveNote,openVideo,blurEmpty]);
+ return <TileContent {...props} {...handlers}/>;
+}
+const TileContent=memo(function TileContent(props:TileBodyProps){
  const {tile}=props;
  switch(tile.kind){
   case 'note':return <NoteTile {...props}/>;
@@ -58,7 +73,7 @@ export function TileBody(props:TileBodyProps){
   case 'idea':return <IdeaTile {...props}/>;
   case 'mine':return <MineTile {...props}/>;
  }
-}
+});
 
 /** A note: a sticky note to type in right on the Board. Its full editor (Markdown, headings, lists) opens from the button on its head; the file it is saved in is its tooltip. */
 function NoteTile({tile,videoId,onRemove,onOpen,onSaveNote,autoFocus,onBlurEmpty}:TileBodyProps){
@@ -151,7 +166,7 @@ function BreakdownTile({tile,videoId,onRemove,onBreakdown}:TileBodyProps){
  return <>
   <TileHead icon="ai" label={`Breakdown · ${creatorName(found.video.channel)}`} onRemove={onRemove}/>
   <div className="tb">
-   <div className="row" style={{gap:10,marginBottom:10}}><img src={found.video.thumbnail} alt="" style={{width:72,height:40,borderRadius:'var(--cc-r-lg)',objectFit:'cover'}}/><div style={{fontWeight:600,fontSize:13,lineHeight:1.3}} className="clamp2">{found.video.title}</div></div>
+   <div className="row" style={{gap:10,marginBottom:10}}><img decoding="async" loading="lazy" src={found.video.thumbnail} alt="" style={{width:72,height:40,borderRadius:'var(--cc-r-lg)',objectFit:'cover'}}/><div style={{fontWeight:600,fontSize:13,lineHeight:1.3}} className="clamp2">{found.video.title}</div></div>
    <div className="small faint" style={{marginBottom:6}}>Why it worked</div>
    <ol style={{margin:0,paddingLeft:18,fontSize:13,lineHeight:1.5,color:'var(--cc-text-2)',display:'flex',flexDirection:'column',gap:6}}>{[why.titlePackaging,why.hookSpeed,why.retention].filter(Boolean).slice(0,3).map((line,index)=><li key={index}>{line}</li>)}</ol>
    {source&&<button type="button" className="btn sm ghost" style={{marginTop:8}} onClick={()=>onBreakdown(source)}><Icon name="script" size={13}/>Open breakdown</button>}
@@ -188,7 +203,7 @@ function ImageTile({tile,videoId,onRemove}:TileBodyProps){
  return <>
   <TileHead icon="image" label="Screenshot" onRemove={onRemove}/>
   <div className="tb">
-   {picture?<img src={picture} alt={tile.title??''} style={{width:'100%',aspectRatio:'16/10',objectFit:'cover',borderRadius:'var(--cc-r-lg)',border:'1px solid var(--cc-line)'}}/>:<div className="small muted"><Icon name="image" size={14}/> No image is saved. Remove this card and add the image again.</div>}
+   {picture?<img decoding="async" loading="lazy" src={picture} alt={tile.title??''} style={{width:'100%',aspectRatio:'16/10',objectFit:'cover',borderRadius:'var(--cc-r-lg)',border:'1px solid var(--cc-line)'}}/>:<div className="small muted"><Icon name="image" size={14}/> No image is saved. Remove this card and add the image again.</div>}
    <div className="small muted" style={{marginTop:8}}>{tile.title??'Screenshot'}</div>
   </div>
  </>;
