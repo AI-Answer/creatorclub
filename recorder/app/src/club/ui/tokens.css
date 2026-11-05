@@ -230,6 +230,12 @@
   --cc-accent-ink: var(--cc-on-accent);
   --cc-success: var(--cc-ok);
   --cc-success-soft: var(--cc-ok-soft);
+  /* package C */
+  --cc-success-text: #15803d;
+  /* package C */
+  --cc-script-fill: #e9ddbd;
+  --cc-script-edge: #8a7139;
+  --cc-script-text: #493714;
 }
 
 .club-root:where([data-theme=dark], [data-theme=dark] *) {
@@ -313,6 +319,12 @@
   --cc-section-title-bg: hsl(210 2% 19%);
   --cc-popover-bg: #3d4046;
   color-scheme: dark;
+  /* package C */
+  --cc-success-text: #4ade80;
+  /* package C */
+  --cc-script-fill: #6a542b;
+  --cc-script-edge: #b69b5d;
+  --cc-script-text: #fff2cf;
 }
 
 /*

@@ -51,7 +51,7 @@ async function withPublish(options:{state?:object;record?:object|null;reply?:Par
   const given=options.props as {video?:Video;pkg?:Package|null}|undefined;
   const [current,setCurrent]=useState<Video>(given?.video??video);
   const [shown,setShown]=useState<Package|null>(given&&'pkg' in given?given.pkg??null:pkg);
-  return createElement(Publish,{...props,...options.props,video:current,pkg:shown,onTags:(tags:string[])=>setShown(was=>({...(was??pkg),tags})),onVideo:(next:Video)=>{changes.push(next);setCurrent(next);}});
+  return createElement('div',null,createElement(Publish,{...props,...options.props,video:current,pkg:shown,onTags:(tags:string[])=>setShown(was=>({...(was??pkg),tags})),onVideo:(next:Video)=>{changes.push(next);setCurrent(next);}}),createElement('footer',{id:'ws-publish-action'}));
  };
  const ui=await mountUI(createElement(Harness));
  try{await flush();await run(ui,server,changes);}finally{await ui.close();server.restore();}
@@ -60,16 +60,18 @@ async function withPublish(options:{state?:object;record?:object|null;reply?:Par
 test('Publish: the export line, Postiz connected, the form YouTube asks for, and Publish now as the one primary',async()=>{
  await withPublish({},async ui=>{
   const c=ui.container,text=c.textContent??'';
-  assert.ok(text.includes(PUBLISH_LINE));
+  assert.ok(text.includes('Send your video to YouTube now, or schedule it for later.'));
   assert.ok(text.includes('Exported')&&text.includes('Hidden features-e1.mp4'),'the newest export');
-  assert.ok(text.includes('Postiz uploads it to Samin Yasar on YouTube'));
-  assert.deepEqual([...c.querySelectorAll('.pub-step h3')].map(h=>h.textContent),['Export the video','Check the details','Send it to YouTube'],'three numbered steps');
+  assert.ok(text.includes('Uploads to Samin Yasar on YouTube'));
+  assert.deepEqual([...c.querySelectorAll('.pub-step h3')].map(h=>h.textContent),['Export the video','Check the details','Upload to YouTube'],'three numbered steps');
   assert.equal(field(c,'pub-title').value,video.title);
   assert.equal((c.querySelector('#pub-desc') as HTMLTextAreaElement).value,'You never opened this.\n\nMost people use one feature.','no chapters until the timeline is read');
-  assert.equal((c.querySelector('#pub-vis') as HTMLSelectElement).value,'public');
+  assert.equal(c.querySelector('#pub-vis')?.textContent,'Public');
   assert.deepEqual([...c.querySelectorAll('input[name=kids]')].map(input=>(input as HTMLInputElement).checked),[false,false],'made for kids has no default');
+  assert.deepEqual(primaries(c),[],'a disabled action has neutral styling');
+  await click(c.querySelector('input[name=kids][value=no]'));
   assert.deepEqual(primaries(c),['Publish now']);
-  assert.ok(c.querySelector('aside[aria-label="How it will look"]')?.textContent?.includes('Hidden features'),'the package summary shows the thumbnail text and title');
+  assert.ok(c.querySelector('aside[aria-label="How it will look"]')?.textContent?.includes('No thumbnail yet'),'the neutral preview says when no thumbnail exists');
   assert.ok(!c.textContent?.includes('Mark as published'),'pasting a link is behind a link');
   assert.ok(!/Borumi|successfully|please|!/i.test(text));
  });
@@ -79,13 +81,15 @@ test('Publish now needs the made-for-kids answer; then it sends the form and fol
  await withPublish({},async(ui,server,changes)=>{
   const c=ui.container;
   assert.equal(button(c,'Publish now').disabled,true,'it cannot be pressed without the answer');
-  assert.equal(c.querySelector('#pub-why')?.textContent,"Choose whether it's made for kids, which YouTube requires.",'and says why beside it');
+  assert.ok(c.querySelector('#ws-publish-action')?.contains(button(c,'Publish now')),'the action is in the persistent footer');
+  assert.equal(c.querySelector('.pubx')?.contains(button(c,'Publish now')),false,'there is no competing inline publish action');
+  assert.equal(c.querySelector('#ws-publish-why')?.textContent,"Choose whether it's made for kids, which YouTube requires.",'and says why beside it');
   await click(button(c,'Publish now'));
   assert.equal(posts(server.calls).length,0,'nothing is sent without the answer');
   await type(c.querySelector('#pub-tags')!,'claude');await key(c.querySelector('#pub-tags')!,'Enter');
   await type(c.querySelector('#pub-tags')!,'ai agents, mods');await key(c.querySelector('#pub-tags')!,'Enter');
   assert.deepEqual([...c.querySelectorAll('.tagsbox .chip')].map(chip=>chip.textContent),['claude','ai agents','mods']);
-  await choose(c.querySelector('#pub-vis')!,'unlisted');
+  await click(c.querySelector('#pub-vis'));await click(button(document.body,'Unlisted: only people with the link'));
   await click(c.querySelector('input[name=kids][value=no]'));
   await type(field(c,'pub-title'),'A better title');
   await click(button(c,'Publish now'));await flush();
@@ -128,17 +132,17 @@ test('Schedule for later asks for a time, refuses one that has passed, and sends
   await choose(c.querySelector('#pub-when')!,'schedule');
   const at=field(c,'pub-at');
   assert.match(at.value,/^\d{4}-\d\d-\d\dT15:00$/,'tomorrow at 15:00');
-  assert.match(like(c,/^Schedule for/).textContent!,/^Schedule for \w{3} \d+ \w{3}, 15:00$/);
+  assert.equal(button(c,'Schedule').textContent,'Schedule');
   await click(c.querySelector('input[name=kids][value=no]'));
   await type(at,'2020-01-01T10:00');
-  assert.equal(like(c,/^Schedule for/).disabled,true);
-  await click(like(c,/^Schedule for/));
+  assert.equal(button(c,'Schedule').disabled,true);
+  await click(button(c,'Schedule'));
   assert.ok(c.textContent?.includes('Pick a time in the future.'));
   assert.equal(posts(server.calls).length,0);
   const later=new Date(Date.now()+3*86_400_000);later.setSeconds(0,0);
   const pad=(n:number)=>String(n).padStart(2,'0');
   await type(at,`${later.getFullYear()}-${pad(later.getMonth()+1)}-${pad(later.getDate())}T${pad(later.getHours())}:${pad(later.getMinutes())}`);
-  await click(like(c,/^Schedule for/));await flush();
+  await click(button(c,'Schedule'));await flush();
   assert.equal((posts(server.calls)[0].body as {scheduledFor:string}).scheduledFor,later.toISOString());
   await act(async()=>{FakeEventSource.last().emit('progress',{step:'post',message:'Scheduling it in Postiz'});});
   assert.ok(c.textContent?.includes('Scheduling it in Postiz'));
@@ -152,11 +156,13 @@ test('without Postiz connected Publish says so and sends you to Settings: the ke
  await withPublish({state:notConnected},async(ui,server)=>{
   const c=ui.container;
   await click(c.querySelector('input[name=kids][value=no]'));
-  assert.ok(![...c.querySelectorAll('button')].some(b=>b.textContent?.includes('Publish now')),'step 3 offers setting up publishing, not a button that cannot work');
+  assert.equal(c.querySelector('button[aria-label="Publish now"]'),null);
+  assert.equal(c.querySelector('#ws-publish-action a')?.textContent?.trim(),'Open YouTube');
+  assert.ok(c.textContent?.includes(PUBLISH_LINE));
   assert.equal(posts(server.calls).length,0);
-  assert.ok(c.textContent?.includes("Postiz is optional"));
+  assert.ok(!c.textContent?.includes("Postiz is optional"));
   assert.equal(c.querySelector('#postiz-key'),null,'no key field on Publish: it lives in Settings');
-  await click(button(c,'Set up optional publishing'));
+  await click(button(c,'Or publish automatically'));
   assert.deepEqual(settingsAsked,['publishing'],'the button opens Settings at Publishing');
  });
 });
@@ -189,7 +195,7 @@ test('a post Postiz did not confirm shows Check again and Open in Postiz, and ne
   assert.ok(c.querySelector('a[href^="https://platform.postiz.com"]'),'Open in Postiz');
   assert.equal([...c.querySelectorAll('button')].some(b=>b.textContent==='Try again'),false,'no Try again');
   assert.equal(c.querySelector('#pub-title'),null,'no form to send it again');
-  await click(button(c,'I uploaded it myself'));
+  await click(button(c,'Upload it yourself'));
   assert.ok(c.textContent?.includes('Add the link so Creator Compiler can mark it Published.'),'a quiet way out for an unconfirmed post');
   assert.equal(posts(server.calls).length,1);
   record={...sent,state:'queued',url:undefined};
@@ -248,7 +254,7 @@ test('Postiz saying published is not "on YouTube" until the video really is Publ
 
 test('with Postiz connected and working, the form also offers adding a link by hand',async()=>{
  await withPublish({},async ui=>{
-  assert.equal([...ui.container.querySelectorAll('button')].some(b=>/uploaded it myself|Paste the link/i.test(b.textContent??'')),true);
+  assert.equal([...ui.container.querySelectorAll('button')].some(b=>/Upload it yourself|Paste the link/i.test(b.textContent??'')),true);
  });
 });
 
@@ -260,11 +266,14 @@ test('without Postiz, a video uploaded outside Creator Compiler can still be mar
   }
  }},async(ui,server,changes)=>{
   const c=ui.container;
-  await click(button(c,'I uploaded it myself'));
+  await click(button(c,'Upload it yourself'));
   assert.ok(c.textContent?.includes('Add the link so Creator Compiler can mark it Published.'));
   assert.equal(button(c,'Mark as published').disabled,true,'needs a link first');
   const link=field(c,'club-youtube-link');
   await type(link,'https://vimeo.com/1');await click(button(c,'Mark as published'));await flush();
+  assert.equal(button(c,'Mark as published').disabled,true);
+  assert.equal(button(c.querySelector('#ws-publish-action')!,'Done').disabled,true);
+  assert.equal(server.calls.filter(call=>call.path==='/videos/v1/publish').length,0,'invalid link never reaches the API');
   assert.ok(c.textContent?.includes('Paste the YouTube link of the uploaded video.'));
   assert.equal(link.getAttribute('aria-invalid'),'true');
   await type(link,'https://youtu.be/dQw4w9WgXcQ');await click(button(c,'Mark as published'));await flush();
@@ -293,7 +302,7 @@ test('no exported video yet says where to export it',async()=>{
   await click(button(c,'Export it in Edit'));
   assert.deepEqual(goes,['edit']);
   await click(c.querySelector('input[name=kids][value=no]'));await click(button(c,'Publish now'));
-  assert.ok(c.textContent?.includes('Export the video first.'));
+  assert.ok(c.textContent?.includes('Export the video first'));
  });
 });
 
@@ -369,4 +378,61 @@ test('a failed description save says so with Try again, and the description is s
   await act(async()=>{description.dispatchEvent(new Event('focusout',{bubbles:true}));});
   assert.deepEqual(saved,['My own words']);
  });
+});
+
+
+test('manual publishing footer follows export, upload and adding the link, without an automatic send',async()=>{
+ const tabs:string[]=[];
+ await withPublish({state:notConnected,props:{onGoTo:(tab:string)=>tabs.push(tab)},reply:call=>call.path.startsWith('/api/exports?')?{body:{jobs:[],nextOffset:null}}:undefined},async(ui,server)=>{
+  const c=ui.container;
+  assert.ok(c.textContent?.includes(PUBLISH_LINE));
+  await click(button(c,'Export in Edit'));
+  assert.deepEqual(tabs,['edit']);
+  assert.equal(posts(server.calls).length,0);
+  assert.equal([...c.querySelectorAll('button')].some(b=>b.textContent==='Publish now'),false);
+ });
+ await withPublish({state:notConnected},async(ui,server)=>{
+  const c=ui.container,open=c.querySelector('#ws-publish-action a')!;
+  assert.equal(open.getAttribute('href'),'https://www.youtube.com/upload');
+  await click(button(c,'Upload it yourself'));await flush();
+  assert.equal(button(c.querySelector('#ws-publish-action')!,'Done').disabled,true);
+  assert.ok(field(c,'club-youtube-link'));
+  assert.equal([...c.querySelectorAll('button')].filter(b=>b.textContent==='Mark as published').length,1,'only the action beside the input has this label');
+  assert.equal(posts(server.calls).length,0);
+ });
+});
+
+
+test('manual footer submits the shared link form even without a local export',async()=>{
+ await withPublish({state:notConnected,reply:call=>call.path.startsWith('/api/exports?')?{body:{jobs:[],nextOffset:null}}:call.path==='/videos/v1/publish'&&call.method==='POST'?{body:{...video,stage:'published',youtubeUrl:sent.url}}:undefined},async(ui,server,changes)=>{
+  const c=ui.container;assert.ok(button(c,'Export it in Edit'));
+  await click(button(c,'Upload it yourself'));await flush();
+  const footer=button(c.querySelector('#ws-publish-action')!,'Done');
+  assert.equal(footer.type,'submit');assert.equal(footer.form,c.querySelector('.self-upload form'));
+  assert.equal(footer.disabled,true);
+  await type(field(c,'club-youtube-link'),sent.url);await flush();assert.equal(footer.disabled,false);
+  await click(footer);await flush();
+  assert.equal(server.calls.filter(call=>call.path==='/videos/v1/publish'&&call.method==='POST').length,1);
+  assert.equal(changes.at(-1)?.stage,'published');
+ });
+});
+
+test('readable export names retain the title and extension without a machine suffix',async()=>{
+ const {readableExportName}=await import('./Publish');
+ assert.equal(readableExportName('The agent experiment-47df4d22-4f98-4707-9baa-d4e806d1af32.mp4','Video'),'The agent experiment.mp4');
+ assert.equal(readableExportName('47df4d22-4f98-4707-9baa-d4e806d1af32.mp4','My video'),'My video.mp4');
+});
+
+
+test('Copy details copies the current title and description beside Open YouTube',async()=>{
+ const previous=Object.getOwnPropertyDescriptor(navigator,'clipboard'),copied:string[]=[];
+ Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async(value:string)=>{copied.push(value);}}});
+ try{await withPublish({state:notConnected},async ui=>{
+  const c=ui.container;await type(field(c,'pub-title'),'My edited title');await type(field(c,'pub-desc'),'My edited description',HTMLTextAreaElement);
+  const copy=button(c,'Copy details');assert.equal(copy.parentElement?.id,'ws-publish-action');
+  await click(copy);assert.deepEqual(copied,['My edited title\n\nMy edited description']);
+  assert.ok(c.textContent?.includes('Details copied'));
+  assert.equal(c.querySelector('.doc-sub')?.textContent,'Prepare your details and finish on YouTube.');
+  await click(c.querySelector('input[name=kids][value=no]'));assert.ok(c.querySelector('.ws-kids-segment .is-selected svg'),'the selected answer retains its check');
+ });}finally{if(previous)Object.defineProperty(navigator,'clipboard',previous);else Reflect.deleteProperty(navigator,'clipboard');}
 });

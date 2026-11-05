@@ -5,7 +5,7 @@ export type TakeStatus='confirmed'|'archived'|'new';
 
 /** The badge beside the take's name: green once the take is on the timeline. */
 export function TakeStatusBadge({status}:{status:TakeStatus}){
- return status==='confirmed'?<Badge tone="success">Confirmed</Badge>:status==='archived'?<Badge>Archived</Badge>:<Badge tone="accent">New take</Badge>;
+ return status==='confirmed'?<Badge tone="success">Used in this scene</Badge>:status==='archived'?<Badge>Archived</Badge>:<Badge tone="accent">New take</Badge>;
 }
 
 export type TakeMenuItem={label:string;hint?:string;onSelect():void};
@@ -24,14 +24,13 @@ export function TakeGearMenu({items,open,disabled,onOpenChange,menuRef}:{items:T
  </div>;
 }
 
-/** Exactly three choices: `Delete take` on the left; `Record another take` and the primary `Continue` on the right. Delete asks once more before acting. */
-export function TakePreviewFooter({busy,deleteArmed,onDelete,onRetake,onContinue}:{busy:boolean;deleteArmed:boolean;onDelete?():void;onRetake():void;onContinue():void}){
+/** Delete stays quiet; a new take can be used once, then its confirmation is shown in place. */
+export function TakePreviewFooter({busy,confirmed=false,deleteArmed,onDelete,onRetake,onContinue}:{busy:boolean;confirmed?:boolean;deleteArmed:boolean;onDelete?():void;onRetake():void;onContinue():void}){
  return <footer className="club-take-footer flex shrink-0 items-center gap-3 border-t border-line bg-card px-6 py-4 font-sans">
-  {/* Borumi's three choices: a red Delete take, a plain Record another take and the white Confirm take (which here also moves to the next scene). */}
-  {onDelete&&<Button variant="danger" disabled={busy} onClick={onDelete} className={cn('club-take-delete',deleteArmed&&'is-armed')}><Icon name="delete"/>{deleteArmed?'Click again to delete':'Delete take'}</Button>}
+  {onDelete&&<Button variant="ghost" disabled={busy} onClick={onDelete} className={cn('club-take-delete',deleteArmed&&'is-armed')}><Icon name="delete"/>{deleteArmed?'Click again to delete':'Delete take'}</Button>}
   <div className="ml-auto flex items-center gap-3">
    <Button variant="ghost" disabled={busy} onClick={onRetake}><Icon name="undo"/>Record another take</Button>
-   <Button variant="primary" disabled={busy} onClick={onContinue}><Icon name="check"/>Confirm take</Button>
+   <Button variant="primary" disabled={busy} onClick={onContinue}>{confirmed?'Done':<>Use this take<Icon name="check"/></>}</Button>
   </div>
  </footer>;
 }

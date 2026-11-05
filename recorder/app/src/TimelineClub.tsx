@@ -28,7 +28,7 @@ import {plainClone} from './project-draft';
 type Change=(fn:(project:Project)=>void,opts?:{coalesce?:string})=>void;
 export interface TimelineControls {fit():void;width():number}
 type Effect='motion'|'elements'|'captions'|'zooms'|'layouts';
-interface Row {id:string;name:string;icon:typeof Camera;height:number;top:number;layer?:TimelineLayerRow;effect?:Effect;linked?:boolean;take?:boolean}
+interface Row {id:string;name:string;icon:typeof Camera;height:number;top:number;layer?:TimelineLayerRow;effect?:Effect;linked?:boolean;take?:boolean;script?:boolean}
 interface Preview {start:number;duration:number;sourceIn?:number;dy?:number}
 interface Drag {items:Map<string,Preview>;ghosts:Array<{row:string;start:number;duration:number}>;guide:number|null;insert:number|null;label:string;markers?:Map<string,number>}
 /** Snapping reaches 8 px on screen, whatever the zoom, so a short neighbour does not pull an edit away from where it was dropped. */
@@ -65,25 +65,27 @@ export function usedRows(p:Project):Row[]{
  const custom=new Set(p.timelineLayers?.map(l=>l.id)),groups=linkGroups(p.clips),sizes=new Map<string,number>();for(const key of groups.values())sizes.set(key,(sizes.get(key)??0)+1);
  const layers=timelineRows(p).filter(l=>counts.has(l.id)||custom.has(l.id)||!p.clips.length&&(l.id==='role:screen'||l.id==='role:audio'));
  const rows:Row[]=[];let top=rulerHeight(p);
- if(counts.has(TAKE_ROW)){rows.push({id:TAKE_ROW,name:'Linked takes',icon:Link2,height:TAKE_H,top,take:true,linked:true,layer:{id:TAKE_ROW,name:'Linked takes',kind:'video',order:0,track:'screen'}});top+=TAKE_H;}
+ if(counts.has(TAKE_ROW)){rows.push({id:TAKE_ROW,name:'Video',icon:Link2,height:TAKE_H,top,take:true,linked:true,layer:{id:TAKE_ROW,name:'Video',kind:'video',order:0,track:'screen'}});top+=TAKE_H;}
  const linkedRow=(id:string)=>p.clips.some(c=>clipLayerRowId(c,p)===id&&sizes.get(groups.get(c.id)!)!>1);
  for(const l of layers){const height=l.track?heights[l.track]:ROW_H;rows.push({id:l.id,name:l.track==='screen'?'Screen':l.name,icon:l.track?icons[l.track]:l.kind==='video'?Layers:Music,height,top,layer:l,linked:linkedRow(l.id)});top+=height;}
  // As in Borumi, captions spoken on an audio row show as its words, not as a row of their own; captions typed in (no word timings) keep their row.
  const owned=captionWordsByClip(p),seconds=(words:Array<{start:number;end:number}>)=>words.reduce((sum,w)=>sum+Math.max(0,w.end-w.start),0),wordsOnAudio=p.captions.length>0&&p.captions.every(c=>c.words?.length)&&Math.abs(seconds(p.captions.flatMap(c=>c.words??[]))-seconds(views.flatMap(v=>owned.get(v.clip.id)??[])))<1e-6;
  for(const e of effectRows){if(!(p[e.id]??[]).length||e.id==='captions'&&wordsOnAudio)continue;rows.push({id:e.id,name:e.name,icon:e.icon,height:ROW_H,top,effect:e.id});top+=ROW_H;}
+ if(!p.captions.length&&p.clips.length&&p.scenes.some(s=>s.script.trim()&&s.duration>0)){rows.push({id:'script',name:'Script',icon:Type,height:ROW_H,top,script:true});}
  return rows;
 }
 export const rowsHeight=(rows:readonly Row[])=>(rows[0]?.top??RULER)+rows.reduce((n,r)=>n+r.height,0)+10;
 
-function Playhead_({playhead,scale,follow,onPage}:{playhead:Playhead;scale:number;follow:boolean;onPage:(el:HTMLElement)=>void}){
+function Playhead_({playhead,scale,follow,onPage,height}:{playhead:Playhead;scale:number;follow:boolean;height:number;onPage:(el:HTMLElement)=>void}){
  const line=useRef<HTMLDivElement>(null),lastSeen=useRef({time:NaN}); // Kept across rescales: a zoom keeps the playhead in place instead of paging.
  useLayoutEffect(()=>{const el=line.current?.closest<HTMLElement>('.timeline-scroll'),seen=lastSeen.current;const update=()=>{const time=playhead.get(),x=time*scale,ratio=window.devicePixelRatio||1;
   if(el&&follow&&time!==seen.time){seen.time=time;if(x<el.scrollLeft||x>el.scrollLeft+el.clientWidth-40){el.scrollLeft=Math.max(0,x-el.clientWidth*.25);onPage(el);}}
   if(line.current)line.current.style.transform=`translateX(${Math.round(x*ratio)/ratio}px)`;};update();return playhead.subscribe(update);},[playhead,scale,follow,onPage]);
- return <div className="playhead" ref={line}><span/></div>;
+ return <div className="playhead" ref={line} style={{height}}><span/></div>;
 }
 
-const fmtLen=lengthLabel;
+export const timelineStamp=(n:number)=>{const t=Math.max(0,Math.floor(n));return `${Math.floor(t/60)}:${String(t%60).padStart(2,'0')}`;};
+const fmtLen=timelineStamp;
 /** The height of the band the spoken words sit on, along the top of an audio clip. */
 const WORD_BAND=22;
 const ClubClip=memo(function ClubClip({view,media,row,preview,selected,linked,relation,offset,label,peaks,words,scale,from,to,onBegin,onOpen,onHover,onSync}:{view:TakeClipView;media?:Media;row:Row;preview?:Preview;selected:boolean;linked:boolean;relation?:'linked'|'take';offset?:number;label:string;peaks?:readonly number[];words?:Array<{text:string;start:number;end:number}>;scale:number;from:number;to:number;onBegin:(e:React.PointerEvent,id:string,mode:'move'|'left'|'right')=>void;onOpen:(id:string)=>void;onHover:(id:string|null)=>void;onSync:(id:string)=>void}){
@@ -284,6 +286,7 @@ export const TimelineClub=memo(function TimelineClub({project:p,playhead,scale,o
  }
  const visible=(s:number,d:number)=>s+d>=start&&s<=end;
  const ticks=useMemo(()=>rulerTicks(start,end,scale),[start,end,scale]);
+ const rulerRight=Math.min(width,(ref.current?.scrollLeft??0)+(ref.current?.clientWidth??1000));
  const placeHeads=()=>{const el=ref.current;if(heads.current&&el)heads.current.style.transform=`translateY(${-el.scrollTop}px)`;};
  return <div className={`timeline club-timeline tool-${tool} ${drag?'timeline-dragging':''}`} onContextMenu={e=>{if(!onContextMenu)return;e.preventDefault();const hit=(e.target as HTMLElement).closest<HTMLElement>('[data-clip-id],[data-effect-id]'),id=hit?.dataset.clipId??hit?.dataset.effectId;
   if(id&&!selectedIds.has(id))onSelectMany(hit?.dataset.clipId?[...linkedIds(latest.current.clips,[id])]:[id]);onContextMenu(e.clientX,e.clientY);}}>
@@ -291,19 +294,20 @@ export const TimelineClub=memo(function TimelineClub({project:p,playhead,scale,o
   <div className="timeline-scroll" ref={ref} tabIndex={-1} onScroll={e=>{const el=e.currentTarget;placeHeads();view(el.scrollLeft,el.clientWidth);}}>
    <div className="timeline-content" style={{width,height:contentHeight}}>
     <div className={`club-ruler${p.markers?.length?' has-notes':''}`} style={{height:ruler}} onPointerDown={beginRuler} onPointerMove={e=>{if(e.buttons)return;const box=e.currentTarget.getBoundingClientRect();setHover(Math.max(0,(e.clientX-box.left)/scale));}} onPointerLeave={()=>setHover(null)} title="Click or drag to move the playhead">
-     {hover!==null&&<span className={`club-hover${hover*scale>width-160?' flip':''}`} style={{left:hover*scale}} aria-hidden><b>{rulerLabel(hover,tenths)}</b>{hoverFrame(hover)}</span>}
-     {ticks.map(t=><span key={t.time} className={t.major?'tick major':'tick'} style={{left:t.time*scale}}>{t.label&&<b>{t.label}</b>}</span>)}
+     {hover!==null&&<span className={`club-hover${hover*scale>width-160?' flip':''}`} style={{left:hover*scale}} aria-hidden><b>{timelineStamp(hover)}</b>{hoverFrame(hover)}</span>}
+     {ticks.map(t=><span key={t.time} className={t.major?'tick major':'tick'} style={{left:t.time*scale}}>{t.label&&Math.abs(t.time-Math.round(t.time))<1e-5&&<b className={t.time*scale>rulerRight-52&&t.time*scale<=rulerRight?'edit-tick-end':undefined}>{timelineStamp(t.time)}</b>}</span>)}
      {sceneBand(p)&&p.scenes.map((s,i)=>s.duration>0&&visible(s.start,Math.max(1,s.duration))&&<div key={s.id} className={`club-scene-tag${i%2?' alt':''}`} style={{left:s.start*scale,width:Math.max(24,s.duration*scale-2)}} title={`Scene ${i+1}: ${s.name}`} onPointerDown={e=>{e.stopPropagation();onSeek(s.start);}}>Scene {i+1}</div>)}
      {/* A scene still waiting for its take: its label after the footage, over the hatched area. */}
      {sceneBand(p)&&(()=>{const i=p.scenes.findIndex(s=>s.duration<=0);return i>=0&&<div key="waiting" className="club-scene-tag is-waiting" style={{left:duration*scale+4}} title={`Scene ${i+1}: ${p.scenes[i].name} has no take yet`}>Scene {i+1}</div>;})()}
-     {(p.markers??[]).map(m=>{const time=drag?.markers?.get(m.id)??m.time;return visible(time,0)&&<div key={m.id} data-marker-id={m.id} className={`club-marker${m.tag?` tag-${m.tag}`:''}${m.name?.trim()?' has-note':''}`} style={{left:Math.max(10,time*scale)}} title={`${m.name?.trim()?m.name.trim()+' · ':''}Note at ${secondsLabel(time)} · click to open, drag to move`} onPointerDown={e=>beginMarker(e,m.id)}><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12Z"/></svg></div>;})}
+     {(p.markers??[]).map(m=>{const time=drag?.markers?.get(m.id)??m.time;return visible(time,0)&&<div key={m.id} data-marker-id={m.id} className={`club-marker${m.tag?` tag-${m.tag}`:''}${m.name?.trim()?' has-note':''}`} style={{left:Math.max(10,time*scale)}} title={`${m.name?.trim()?m.name.trim()+' · ':''}Note at ${secondsLabel(time)} · click to open, drag to move`} onPointerDown={e=>beginMarker(e,m.id)}><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12Z"/></svg></div>;})}
     </div>
-    {rows.map(r=><div key={r.id} className={`timeline-row club-row row-${r.layer?.track??r.effect??'layer'}`} data-track={r.id} style={{top:r.top,height:r.height}} onPointerDown={e=>{if(e.target!==e.currentTarget)return;if(r.effect==='layouts')beginLayout(e);else beginEmpty(e);}}
+    {rows.map(r=><div key={r.id} className={`timeline-row club-row row-${r.layer?.track??r.effect??(r.script?'script':'layer')}`} data-track={r.id} style={{top:r.top,height:r.height}} onPointerDown={e=>{if(e.target!==e.currentTarget)return;if(r.effect==='layouts')beginLayout(e);else beginEmpty(e);}}
      onPointerMove={r.effect==='layouts'?e=>{if(e.buttons||gesture.current)return;const t=contentX(e.clientX)/scale;setLayoutGhost(e.target===e.currentTarget?layoutSpan(t,t):null);}:undefined} onPointerLeave={r.effect==='layouts'?()=>{if(!gesture.current)setLayoutGhost(null);}:undefined}
      onDragOver={e=>{if(r.layer)e.preventDefault();}} onDrop={e=>{e.preventDefault();const id=e.dataTransfer.getData('application/sceneforge-media'),media=mediaById.get(id);if(media&&r.layer&&(media.kind==='audio'?'audio':'video')===r.layer.kind)onDropMedia(id,r.layer.track??(r.layer.kind==='audio'?'audio':'screen'),snapTime(Math.max(0,contentX(e.clientX)/scale)).time,r.take?undefined:r.id);}}>
 
      {r.layer&&takeViews.filter(v=>v.row===r.id).map(v=>{const c=v.clip,pv=drag?.items.get(c.id),s=pv?.start??c.start,d=pv?.duration??clipDuration(c);if(!pv&&!visible(c.start,clipDuration(c)))return null;const sound=v.sound??c,m=mediaById.get(sound.mediaId);
       return <ClubClip key={c.id} view={v} media={m} row={r} preview={pv} selected={v.members.some(c=>selectedIds.has(c.id))} linked={(groupSize.get(groups.get(c.id)!)??1)>1} relation={c.recordingTakeId&&related.has(c.recordingTakeId)?related.get(c.recordingTakeId)!.has(groups.get(c.id)!)?'linked':'take':undefined} offset={offsets.get(c.id)} label={labels.get(c.id)??''} peaks={showWaveforms&&m?waveforms[waveformMediaKey(m)]:undefined} words={showWords?wordsByClip.get(sound.id):undefined} scale={scale} from={Math.max(start,s)} to={Math.min(end,s+d)} onBegin={beginItem} onOpen={onOpen} onHover={setHoverClip} onSync={syncPiece}/>;})}
+     {r.script&&p.scenes.filter(s=>s.script.trim()&&s.duration>0).map(s=><div key={s.id} className="timeline-effect club-effect edit-script" style={{left:s.start*scale,width:Math.max(6,s.duration*scale)}} title="Planned scene text"><span>{s.script}</span></div>)}
      {r.effect&&(effects.get(r.id)??[]).map(i=>{const pv=drag?.items.get(i.id),s=pv?.start??i.start,d=pv?.duration??i.duration;if(!pv&&!visible(i.start,i.duration))return null;
       const name=i.name;
       return <div key={i.id} data-effect-id={i.id} className={`timeline-effect club-effect ${r.effect==='layouts'?'is-layout':''} ${selectedIds.has(i.id)?'selected':''} ${pv?'clip-drag-preview':''}`} style={{left:s*scale,width:Math.max(6,d*scale)}} title={`${r.effect==='layouts'?`Layout: ${name}`:name} · drag to move, edges to resize, double-click to edit`} onPointerDown={e=>beginItem(e,i.id,'move')} onDoubleClick={()=>onOpen(i.id)}>
@@ -321,7 +325,7 @@ export const TimelineClub=memo(function TimelineClub({project:p,playhead,scale,o
     {drag?.insert!==null&&drag?.insert!==undefined&&<div className="club-insert-line" style={{left:drag.insert*scale}}/>}
     {drag?.label&&<div className="club-drag-label" role="status">{drag.label}</div>}
     {marquee&&<div className="timeline-marquee" style={{left:marquee.x,top:marquee.y,width:marquee.width,height:marquee.height}}/>}
-    <Playhead_ playhead={playhead} scale={scale} follow={follow} onPage={page}/>
+    <Playhead_ playhead={playhead} scale={scale} follow={follow} onPage={page} height={contentHeight-10}/>
    </div>
   </div>
  </div>;

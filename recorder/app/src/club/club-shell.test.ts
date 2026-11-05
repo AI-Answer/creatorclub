@@ -88,7 +88,7 @@ test('ClubRecorder opens one project in the forced mode without SceneForge navig
   assert.equal(ui.container.querySelector('.workflow-tabs'),null,'no Script/Record/Edit step bar');
   assert.ok(![...ui.container.querySelectorAll('button')].some(b=>b.textContent?.trim()==='Projects'),'no Projects button');
   assert.equal(ui.container.querySelector('.onboarding, [aria-label="Close setup"]'),null,'no SceneForge welcome');
-  assert.ok(ui.container.querySelector('.edit-workspace'),'Edit mode is shown');
+  assert.ok(ui.container.querySelector('.edit-empty'),'empty Edit mode is shown');
   await ui.render(createElement(ClubRecorder,{projectId:p.id,mode:'Record',onBack}));
   assert.ok(ui.container.querySelector('#recording-presets-slot'),'Record mode follows the prop');
   await act(async()=>(ui.container.querySelector('[aria-label="Close project"]') as HTMLButtonElement).click());
@@ -100,6 +100,7 @@ test('ClubRecorder opens one project in the forced mode without SceneForge navig
 
 test('leaving a video step saves edits the autosave has not written yet',async()=>{
  const p=createProject('Hidden features'),originalFetch=globalThis.fetch,saved:boolean[]=[];
+ const {insertMedia}=await import('../api');insertMedia(p,[{id:'autosave-test',name:'Saved clip',path:'/tmp/cc-ui-c/test.mp4',kind:'video',duration:8,width:1280,height:720,hasAudio:false}]);
  localStorage.clear();
  class Source extends EventTarget{close(){}}Object.assign(globalThis,{EventSource:Source});
  globalThis.fetch=async(input,init)=>{

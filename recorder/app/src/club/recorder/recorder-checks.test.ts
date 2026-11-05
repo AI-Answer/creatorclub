@@ -92,7 +92,7 @@ test('the next scene to record comes after the current one, then wraps to the ea
  assert.equal(nextSceneToRecord(ids,()=>true,'b'),null);
 });
 
-test('take thumbnails read "Take 1 (00:07)"',()=>{
- assert.equal(takeThumbnailLabel('Take 1',7.9),'Take 1 (00:07)');
- assert.equal(takeThumbnailLabel('Intro',125),'Intro (02:05)');
+test('take thumbnails read "Take 1 · 0:07"',()=>{
+ assert.equal(takeThumbnailLabel('Take 1',7.9),'Take 1 · 0:07');
+ assert.equal(takeThumbnailLabel('Intro',125),'Intro · 2:05');
 });

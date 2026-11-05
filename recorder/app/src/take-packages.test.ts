@@ -78,7 +78,7 @@ test('shared commands offer only eligible split/combine actions and plain notice
  const p=packageFixture();assert.equal(takeSourceName(p,mic(p)),'Mic');assert.equal(takeSourceName(p,p.clips[3]),'System audio');assert.equal(takeSourceState(p,mic(p)),'linked');
  let actions=takePackageActions(p,'mic');assert.deepEqual(actions.map(a=>a.label),['Split audio and video']);assert.equal(actions[0].run(p).ok,true);assert.equal(takeSourceState(p,mic(p)),'split, linked');
  actions=takePackageActions(p,'mic');assert.deepEqual(actions.map(a=>a.label),['Combine into one block']);assert.equal(actions[0].run(p).ok,true);
- assert.equal(unlinkTakeAction('mic').run(p).ok,true);assert.equal(takeSourceState(p,mic(p)),'unlinked');assert.ok(takePackageActions(p,'mic').some(a=>a.label==='Link back to its take'));
+ assert.equal(unlinkTakeAction('mic').run(p).ok,true);assert.equal(takeSourceState(p,mic(p)),'not linked to the camera');assert.ok(takePackageActions(p,'mic').some(a=>a.label==='Link back to its take'));
  mic(p).start=2;assert.match(takePackageActions(p,'mic').find(a=>a.label==='Link back to its take')!.run(p).message,/Snap it back/);assert.equal(takePackageActions(p,'missing').length,0);
 });
 
@@ -109,7 +109,7 @@ test('render: same-take solid/dashed outlines, split chain, signed badge and one
 });
 test('render: inspector names the scene, all four sources and shared package controls',async()=>{
  let p=packageFixture();const ui=await mountUI(createElement(ClubClipPanel,{project:p,clip:mic(p),change:fn=>{p=applyProjectChange(p,fn);}}));
- try{assert.match(ui.container.textContent!,/Part of the Scene 2 take/);for(const label of ['Camera','Screen','Mic','System audio'])assert.match(ui.container.querySelector('.club-take-info')!.textContent!,new RegExp(label));
+ try{assert.match(ui.container.textContent!,/Scene 2 take/);for(const label of ['Camera','Screen','Mic','System audio'])assert.match(ui.container.querySelector('.club-take-info')!.textContent!,new RegExp(label));
   const split=[...ui.container.querySelectorAll('button')].find(b=>b.textContent==='Split audio and video')!;await act(async()=>split.click());assert.ok(p.clips.every(c=>c.split));assert.equal(takeLinkMembers(p,'mic').length,4);
  }finally{await ui.close();}
 });
@@ -136,8 +136,9 @@ test('Borumi export treats source presentation as editor metadata and explains i
 test('inspector timing moves and trims all linked sources instead of separating the microphone',async()=>{
  let p=packageFixture();splitTakeSources(p,'mic');const ui=await mountUI(createElement(ClubClipPanel,{project:p,clip:mic(p),change:fn=>{p=applyProjectChange(p,fn);}}));
  try{
-  await act(async()=>[...ui.container.querySelectorAll('button')].find(b=>b.textContent==='Timing')!.click());
-  const input=ui.container.querySelector<HTMLInputElement>('[aria-label="Starts at (seconds)"]')!;
+  assert.equal([...ui.container.querySelectorAll('button')].find(b=>b.textContent==='Timing')!.getAttribute('aria-expanded'),'true');
+  assert.ok(ui.container.querySelector('[aria-label="Trim in"]'),'in and out fields are visible on opening');
+  const input=ui.container.querySelector<HTMLInputElement>('[aria-label="Start"]')!;
   await act(async()=>{Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value')!.set!.call(input,'2');input.dispatchEvent(new Event('input',{bubbles:true}));input.dispatchEvent(new Event('change',{bubbles:true}));});
   assert.ok(p.clips.every(c=>c.start===2));assert.equal(takeLinkMembers(p,'mic').length,4);
  }finally{await ui.close();}

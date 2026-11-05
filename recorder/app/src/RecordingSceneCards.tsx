@@ -6,7 +6,6 @@ import {sceneCardData,type ListedTake} from './recording-scene-data';
 import {AudioLines,ChevronDown,FolderOpen,GripVertical,Play,Plus,Scissors,Settings2,Trash2,Upload,LayoutTemplate} from './Icons';
 import './recording-scene-cards.css';
 import {takeThumbnailLabel} from './club/recorder/recorder-checks';
-import {takeKinds} from './club/ui/kinds';
 export {listSceneTakes} from './recording-scene-data';
 
 type ActionResult=void|Promise<void>;
@@ -71,7 +70,7 @@ export const RecordingSceneCards=memo(function RecordingSceneCards(props:Recordi
  const menuButton=(id:string,label:string)=> <button type="button" className="rsc-gear" aria-label={label} title={label} aria-expanded={menu===id} aria-haspopup="menu" disabled={locked} onClick={e=>{e.stopPropagation();setMenu(menu===id?null:id);}}><Settings2 size={17}/></button>;
  const menuItem=(label:string,action:()=>ActionResult,options:{disabled?:boolean;danger?:boolean;icon?:ReactNode}={})=><button type="button" role="menuitem" disabled={locked||options.disabled} className={options.danger?'rsc-danger':undefined} onClick={()=>invoke(action)}>{options.icon}{label}</button>;
  const renderTake=(item:ListedTake,sceneId:string)=>{const {take,active,number,duration}=item,label=take.name||`Take ${number}`,key=`take:${take.id}`;return <div key={take.id} className="rsc-take" data-take-id={take.id} data-active={active} draggable={!locked} onDragStart={e=>startDrag(e,{projectId:project.id,kind:'take',id:take.id})} onDragEnd={endDrag} onContextMenu={e=>{e.preventDefault();e.stopPropagation();if(!locked)setMenu(key);}}>
-  <button type="button" className="rsc-take-preview" aria-label={`Preview ${label}`} disabled={locked} onClick={()=>invoke(()=>props.onPreview(take.id))}><TakeImage take={take}/><span className="rsc-play"><Play size={17}/></span><span className="rsc-take-badge">{props.club?takeThumbnailLabel(label,duration):<>{label}<small>({durationLabel(duration)})</small></>}</span>{props.club&&<span className="rsc-kinds" aria-hidden="true">{takeKinds(take.tracks).map(kind=><i key={kind} className={`rsc-kind rsc-kind-${kind}`}/>)}</span>}</button>
+  <button type="button" className="rsc-take-preview" aria-label={`Preview ${label}`} disabled={locked} onClick={()=>invoke(()=>props.onPreview(take.id))}><TakeImage take={take}/><span className="rsc-play"><Play size={17}/></span><span className="rsc-take-badge">{props.club?takeThumbnailLabel(label,duration):<>{label}<small>({durationLabel(duration)})</small></>}</span></button>
   <span className="rsc-drag-handle" aria-hidden="true"><GripVertical size={15}/></span>
   {/* In Creator Compiler a take has no gear on the card: its preview holds the choices, and a right click still opens this menu. */}
   <div className="rsc-take-menu-anchor" data-rsc-menu>{!props.club&&menuButton(key,`Options for ${label}`)}{menu===key&&<CardMenu label={`${label} actions`}>
@@ -100,7 +99,7 @@ export const RecordingSceneCards=memo(function RecordingSceneCards(props:Recordi
      </CardMenu>}</div></header>
      {scene.script&&<p className="rsc-script" dir="auto">{scene.script}</p>}
      <div className={`rsc-takes ${drop===`active:${scene.id}`?'is-over':''}`} aria-label={`${scene.name||'Scene'} confirmed takes`} onDragOver={e=>{if(!locked&&drag?.kind==='take'&&(props.onMoveTake||takes.find(t=>t.id===drag.id)?.sceneId===scene.id)){e.preventDefault();e.stopPropagation();setDrop(`active:${scene.id}`);}}} onDragLeave={()=>setDrop(null)} onDrop={e=>receiveTake(e,scene.id,false)}>
-      {recorded?<button type="button" className="rsc-record-tile" disabled={locked} onClick={()=>invoke(()=>props.onRecord(scene.id,recordOver?'record-over':'replace-matching'))}><Plus size={16}/>{recordOver?'Record over':'Record'}</button>:<div className="rsc-empty-record-row"><button type="button" className="rsc-record-button" disabled={locked} onClick={()=>invoke(()=>props.onRecord(scene.id,'replace-matching'))}><span aria-hidden="true"/>Record</button><button type="button" className="rsc-import" disabled={locked} onClick={()=>invoke(()=>props.onImport(scene.id))}>or Import from file.</button></div>}
+      {recorded?<button type="button" className="rsc-record-tile" disabled={locked} onClick={()=>invoke(()=>props.onRecord(scene.id,recordOver?'record-over':'replace-matching'))}><span className="rec-record-dot" aria-hidden/>{recordOver?'Record over':'Record'}</button>:<div className="rsc-empty-record-row"><button type="button" className="rsc-record-button" disabled={locked} onClick={()=>invoke(()=>props.onRecord(scene.id,'replace-matching'))}><span aria-hidden="true"/>Record</button><button type="button" className="rsc-import" disabled={locked} onClick={()=>invoke(()=>props.onImport(scene.id))}>or Import from file.</button></div>}
       {active.map(t=>renderTake(t,scene.id))}
      </div>
      {legacyFootage&&<p className="rsc-legacy-note">Existing scene footage is available in Edit. Its take history is unavailable.</p>}

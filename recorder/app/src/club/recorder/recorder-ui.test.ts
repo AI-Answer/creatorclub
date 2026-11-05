@@ -40,11 +40,14 @@ test('the take preview shows the take name, a status badge and exactly three cho
   const header=ui.container.querySelector('header.club-take-header')!;
   assert.equal(header.querySelector('h1')?.textContent,'Take 1');
   assert.ok(header.textContent?.includes('New take'),'an unused take is badged as new');
-  assert.deepEqual(footerLabels(ui.container),['Delete take','Record another take','Confirm take']);
-  assert.ok(footerButton(ui.container,'Confirm take').classList.contains('primary'),'Confirm take is the primary');
+  assert.deepEqual(footerLabels(ui.container),['Delete take','Record another take','Use this take']);
+  assert.ok(footerButton(ui.container,'Use this take').classList.contains('primary'),'Use this take is the primary');
   assert.equal(ui.container.querySelectorAll('.take-source-select').length,0,'no hidden "Show in main preview" buttons on the sources');
-  assert.ok(!ui.container.textContent?.includes('Use this take'),'the old confirm button is gone');
-  await click(footerButton(ui.container,'Confirm take'));
+  assert.ok(!ui.container.textContent?.includes('Confirm take'),'the action says what will happen');
+  assert.equal(footerButton(ui.container,'Delete take').classList.contains('danger'),false,'Delete is a quiet ghost action');
+  assert.equal(header.querySelector('span')?.textContent,project.scenes[0].name,'the scene label has no preview prefix');
+  assert.deepEqual([...ui.container.querySelectorAll('.take-source-label')].map(node=>node.textContent),['Screen','Camera']);
+  await click(footerButton(ui.container,'Use this take'));
   assert.deepEqual(calls,['confirm:record:replace-matching'],'Continue confirms the take the same way as before');
   await click(footerButton(ui.container,'Record another take'));
   assert.equal(calls.at(-1),'retake');
@@ -66,21 +69,21 @@ test('the gear holds archive, keep both, use and edit, the sources and sync, run
  try{
   assert.equal(Boolean(ui.container.querySelector('[role=menu]')),false,'the gear menu starts closed');
   await openGear(ui.container);
-  assert.deepEqual(menuItems(ui.container).map(itemLabel),['Archive take','Keep both takes','Replace and edit','Show Camera (FaceTime) in main preview','Rename and adjust sync']);
+  assert.deepEqual(menuItems(ui.container).map(itemLabel),['Archive take','Keep both takes','Replace and edit','Show Camera in main preview','Rename and adjust sync']);
   const pick=async(label:string)=>{await openGear(ui.container);if(!menuItems(ui.container).length)await openGear(ui.container);await click(menuItems(ui.container).find(item=>itemLabel(item)===label)!);};
   await pick('Keep both takes');assert.equal(calls.at(-1),'confirm:record:keep-both');
   await pick('Replace and edit');assert.equal(calls.at(-1),'confirm:edit:replace-matching');
   await pick('Archive take');assert.equal(calls.at(-1),'close','archive keeps the take off the timeline, as before');
-  await pick('Show Camera (FaceTime) in main preview');
-  assert.equal(ui.container.querySelector('.take-main-source [aria-label="Camera (FaceTime)"]')?.tagName,'SECTION','the camera moves to the main preview');
+  await pick('Show Camera in main preview');
+  assert.equal(ui.container.querySelector('.take-main-source [aria-label="Camera"]')?.tagName,'SECTION','the camera moves to the main preview');
   await pick('Rename and adjust sync');
   assert.ok(ui.container.querySelector('form.take-settings'),'the existing take settings open');
   assert.ok(button(ui.container,'Reset sync'));
-  assert.deepEqual(footerLabels(ui.container),['Delete take','Record another take','Confirm take'],'the bottom still has only the three choices');
+  assert.deepEqual(footerLabels(ui.container),['Delete take','Record another take','Use this take'],'the bottom still has only the three choices');
  }finally{await ui.close();}
 });
 
-test('a take recorded over earlier footage offers Replace earlier take in the gear; a confirmed take only Continue closes',async()=>{
+test('a take recorded over earlier footage offers Replace earlier take in the gear; a confirmed take has one disabled confirmation status',async()=>{
  const project=createProject('Demo');
  project.media=[camera];project.scenes[0].duration=5;
  project.clips=[{id:'old',mediaId:'m1',name:'cam',track:'camera',start:0,sourceIn:0,sourceOut:5,speed:1,gain:1,muted:false,transform:{} as never,effects:{} as never,recordingTakeId:'earlier'}];
@@ -91,18 +94,19 @@ test('a take recorded over earlier footage offers Replace earlier take in the ge
   assert.ok(menuItems(over.container).map(itemLabel).includes('Replace earlier take'));
   await click(menuItems(over.container).find(item=>itemLabel(item)==='Replace earlier take')!);
   assert.equal(calls.at(-1),'confirm:record:replace-matching');
-  await click(footerButton(over.container,'Confirm take'));
+  await click(footerButton(over.container,'Use this take'));
   assert.equal(calls.at(-1),'confirm:record:record-over','Continue keeps the record-over mode');
  }finally{await over.close();}
  const confirmed={...project,clips:[...project.clips,{...project.clips[0],id:'c2',recordingTakeId:'t1'}]};
  calls.length=0;
  const done=await mountReview(confirmed,takeFor(confirmed),calls);
  try{
-  assert.ok(done.container.querySelector('header.club-take-header')!.textContent?.includes('Confirmed'));
+  assert.ok(done.container.querySelector('header.club-take-header')!.textContent?.includes('Used in this scene'));
   await openGear(done.container);
-  assert.deepEqual(menuItems(done.container).map(itemLabel),['Show Camera (FaceTime) in main preview','Rename and adjust sync'],'nothing to confirm on a confirmed take');
-  await click(footerButton(done.container,'Confirm take'));
-  assert.deepEqual(calls,['close']);
+  assert.deepEqual(menuItems(done.container).map(itemLabel),['Show Camera in main preview','Rename and adjust sync'],'nothing to confirm on a confirmed take');
+  assert.equal(footerButton(done.container,'Done').hasAttribute('disabled'),false);
+  await click(footerButton(done.container,'Done'));
+  assert.deepEqual(calls,['close'],'Done closes review without confirming again');
  }finally{await done.close();}
 });
 
@@ -177,7 +181,7 @@ test('leaving Record for Edit with a take still under review puts the take on th
  const ui=await mountUI(createElement(ClubRecorder,{projectId:server.p.id,mode:'Record',onBack:()=>{},registerLeaveGuard:next=>{leave.guard=next;}}));
  try{
   await flush();await flush();
-  assert.deepEqual(footerLabels(ui.container),['Delete take','Record another take','Confirm take'],'the take is still under review');
+  assert.deepEqual(footerLabels(ui.container),['Delete take','Record another take','Use this take'],'the take is still under review');
   assert.ok(leave.guard,'the club can ask before it leaves');
   assert.equal(server.saved(),null,'nothing is on the timeline yet');
   assert.equal(await leave.guard!(),true,'the take was added');
@@ -195,9 +199,9 @@ test('inside Creator Compiler, Continue confirms the take, selects the next scen
  try{
   await flush();await flush();
   const c=ui.container;
-  assert.deepEqual(footerLabels(c),['Delete take','Record another take','Confirm take'],'the new take opens in its preview');
+  assert.deepEqual(footerLabels(c),['Delete take','Record another take','Use this take'],'the new take opens in its preview');
   assert.equal(progress.at(-1),'0/2');
-  await click(footerButton(c,'Confirm take'));await flush();await flush();
+  await click(footerButton(c,'Use this take'));await flush();await flush();
   assert.equal(Boolean(c.querySelector('footer.club-take-footer')),false,'the preview closes');
   assert.ok(server.saved()?.clips.some(clip=>clip.recordingTakeId==='t1'),'the take is on the timeline');
   assert.equal(c.querySelector('.rsc-scene.is-selected')?.getAttribute('data-scene-id'),'s2','scene 2 is next to record');
@@ -222,7 +226,7 @@ test('the bottom bar makes Continue to edit the primary only once every scene ha
  try{
   await flush();await flush();
   assert.ok(!bar().classList.contains('primary'),'while scenes are left, the Record button is the one big action');
-  await click(footerButton(ui.container,'Confirm take'));await flush();await flush();
+  await click(footerButton(ui.container,'Use this take'));await flush();await flush();
   assert.ok(!bar().classList.contains('primary'),'one of two scenes recorded');
   const scene2=ui.container.querySelector('.rsc-scene[data-scene-id="s2"]')!;
   assert.ok(scene2.classList.contains('is-selected'));
@@ -276,6 +280,7 @@ test('several blocked sources keep one sentence each and a single Open Mac setup
  const {ui,close}=await mountClubRecording({camera:true,microphone:true,screen:true,systemAudio:true},'denied');
  try{
   assert.deepEqual(cardLines(ui.container).map(line=>line.text),['camera','microphone','screen','computer audio'].map(name=>`macOS isn't allowing the ${name}: open Mac setup to allow it.`));
+  assert.equal(ui.container.querySelectorAll('.club-recorder-warnings[role=alert]').length,1,'all simultaneous problems share a single banner');
   assert.equal([...ui.container.querySelectorAll('.club-recorder-warnings button')].length,1);
  }finally{await close();}
 });
@@ -312,4 +317,38 @@ test('a source that is switched off never shows in the card, even after it faile
   await click(ui.container.querySelector('[role="switch"][aria-label="Computer audio"]')!);await flush();
   assert.equal(Boolean(ui.container.querySelector('.club-recorder-warnings')),false,'switching the source off clears its warning');
  }finally{await close();}
+});
+
+test('Record shows the saved Edit completion check only while its export matches this revision',async()=>{
+ const {projectRevision}=await import('../../api');
+ for(const matches of [true,false]){
+  localStorage.clear();const server=serveProject();server.p.recordedTakes=[];
+  const revision=await projectRevision(server.p),original=globalThis.fetch;
+  globalThis.fetch=async(input,init)=>{
+   const url=String(input);
+   if(url.startsWith('/api/exports?'))return Response.json({jobs:[{id:'exported',status:'complete',options:{format:'mp4'},output:{status:'available'},outputPath:'/tmp/export.mp4',projectRevision:matches?revision:'older-edit',startedAt:'2026-11-05T00:00:00Z'}]});
+   if(url.startsWith('/api/club/videos/v1/plan'))return Response.json({package:null,outline:null});
+   if(url==='/api/club/settings')return Response.json({helpSeen:[]});
+   return original(input,init);
+  };
+  const video={id:'v1',title:'Demo',stage:'recording' as const,order:0,createdAt:'',updatedAt:'',stageDates:{},planning:{research:false,package:false,outline:false},recorderProjectId:server.p.id};
+  const ui=await mountUI(createElement(Workspace,{video,tab:'record',back:{name:'home'},navigate(){},onVideo(){}}));
+  try{
+   for(let i=0;i<6;i++)await flush();
+   assert.equal(ui.container.querySelector('a[href$="/edit"]')?.classList.contains('done'),matches);
+  }finally{await ui.close();globalThis.fetch=original;server.restore();}
+ }
+});
+
+test('camera preview names its loading state and offers Try again after failure',async()=>{
+ const {VideoPreview}=await import('../../Recording');let retried=0;
+ const source={stream:null,status:'loading' as const,key:'',error:''};
+ const props={source,label:'Camera',onEnable:()=>retried++};
+ const ui=await mountUI(createElement(VideoPreview,props));
+ try{
+  assert.ok(ui.container.textContent?.includes('Starting the camera…'));
+  assert.ok(ui.container.querySelector('.spin'));
+  await ui.render(createElement(VideoPreview,{...props,source:{...source,status:'error',error:'Camera unavailable'}}));
+  await click(button(ui.container,'Try again'));assert.equal(retried,1);
+ }finally{await ui.close();}
 });

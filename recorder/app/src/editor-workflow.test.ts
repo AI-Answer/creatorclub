@@ -26,7 +26,7 @@ test('an empty editor prioritizes the preview and reveals controls on request',a
   await act(async()=>button(ui.container,'Canvas').click());assert.ok(ui.container.querySelector('.inspector'));
   await act(async()=>button(ui.container,'Canvas').click());assert.equal(Boolean(ui.container.querySelector('.inspector')),false,'inspector starts collapsed');
   await act(async()=>button(ui.container,'Transcript').click());assert.ok(ui.container.querySelector('.transcript-panel'));
-  const transcribe=[...ui.container.querySelectorAll('.transcript-panel button')].filter(b=>/transcri(be|pt)/i.test(b.textContent||''));assert.equal(transcribe.length,1);
+  const transcribe=[...ui.container.querySelectorAll('.transcript-panel button')].filter(b=>b.textContent?.trim()==='Make captions');assert.equal(transcribe.length,1);
   // Standalone SceneForge keeps its editor chat (Creator Compiler's Edit has the docked companion instead).
   const ask=ui.container.querySelector<HTMLButtonElement>('button[aria-label="Edit with Claude"]');assert.ok(ask,'Ask Claude is still there');
   await act(async()=>ask!.click());assert.ok(ui.container.querySelector('.agent-chat:not([hidden])'),'and opens the editor chat');

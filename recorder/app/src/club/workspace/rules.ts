@@ -1,6 +1,6 @@
 import type {VideoScene,VideoStage} from '../../../shared/club';
 import {videoTabs,type VideoTab} from '../routes';
-import {movesForward,stageReached} from '../video-plan';
+import {movesForward} from '../video-plan';
 import {isSceneRecorded} from '../scene-status';
 
 /*
@@ -37,14 +37,14 @@ export const allScenesKept=(scenes:readonly Pick<VideoScene,'takes'>[]|undefined
 
 /**
  * Whether the tab's own job is done. Idea: there are scenes. Record: every scene has a kept take.
- * Edit: the edit was exported, or the video moved on to publishing (a take on the timeline is not a finished edit). Publish: it is published.
+ * Edit: the current edit was exported (a take on the timeline is not a finished edit). Publish: it is published.
  */
 export function tabDone(tab:VideoTab,{stage,scenes,allRecorded,exported}:TabFacts):boolean{
  const hasScenes=!!scenes?.length;
  switch(tab){
   case 'idea':return hasScenes;
   case 'record':return !!allRecorded||allScenesKept(scenes);
-  case 'edit':return !!exported||stageReached(stage,'publishing');
+  case 'edit':return !!exported;
   case 'publish':return stage==='published';
  }
 }
@@ -83,7 +83,7 @@ export const CONTINUE_LABEL:Record<VideoTab,string>={idea:'Continue to planning'
 export type ContinueButton={label:string;disabled:boolean;reason?:string;primary:boolean};
 
 /**
- * Continue opens the next step without requiring earlier steps to be finished. While the AI writes it waits and says so.
+ * Continue waits for the current step's work. Direct step navigation remains available. While the AI writes it waits and says so.
  * It is the primary only once the step's job is done and the step shows no primary of its own (`ownPrimary`). The last step has none.
  */
 export function continueFor(tab:VideoTab,facts:TabFacts&LockFacts,{busy=false,ownPrimary=false}:{busy?:boolean;ownPrimary?:boolean}={}):ContinueButton|undefined{
@@ -91,9 +91,14 @@ export function continueFor(tab:VideoTab,facts:TabFacts&LockFacts,{busy=false,ow
  if(!next)return undefined;
  const label=CONTINUE_LABEL[next];
  if(busy)return {label,disabled:true,reason:'Still writing',primary:false};
- // Edit and Publish can open with only some scenes recorded, but Continue says so and never pushes forward as the primary.
- const missing=(next==='edit'||next==='publish')&&facts.scenes&&!facts.allRecorded?facts.scenes.length-facts.scenes.filter(isSceneRecorded).length:0;
- if(missing>0)return {label,disabled:false,reason:missing===1?'1 scene isn\'t recorded yet':`${missing} scenes aren't recorded yet`,primary:false};
+ // Continue is a completion action; the step links are available for freely exploring ahead.
+ if(tab==='record'&&!tabDone(tab,facts)){
+  const recorded=facts.scenes?.filter(isSceneRecorded).length??0;
+  const missing=(facts.scenes?.length??0)-recorded;
+  const reason=!recorded?'Record a scene first':missing===1?'Record 1 more scene':`Record ${missing} more scenes`;
+  return {label,disabled:true,reason,primary:false};
+ }
+ if(tab==='edit'&&!facts.exported)return {label,disabled:true,reason:facts.scenes!==undefined&&!facts.allRecorded&&!facts.scenes.some(isSceneRecorded)?'Record a scene or import media first':'Export the video first',primary:false};
  return {label,disabled:false,primary:continueIsPrimary(tabDone(tab,facts),ownPrimary)};
 }
 
@@ -111,3 +116,13 @@ export const TAKE_NOT_ADDED="Couldn't add your take to the timeline. Press Conti
 export function takesWaiting(scenes: Array<{title:string;takes:Array<{kept:boolean;retained:boolean}>}>|undefined):string[]{
  return (scenes??[]).filter(scene=>scene.takes.length>0&&!isSceneRecorded(scene)&&scene.takes.some(take=>!take.retained)).map(scene=>scene.title);
 }
+
+/** Workspace keys have no overlap with the recorder's global shortcuts or the editor's script commands. */
+export function workspaceShortcut(event:{key:string;metaKey?:boolean;ctrlKey?:boolean;altKey?:boolean;shiftKey?:boolean;repeat?:boolean;isComposing?:boolean}):VideoTab|'continue'|undefined{
+ if(!(event.metaKey||event.ctrlKey)||event.altKey||event.shiftKey||event.repeat||event.isComposing)return;
+ if(event.key==='Enter')return 'continue';
+ return ({'1':'idea','2':'record','3':'edit','4':'publish'} as const)[event.key as '1'|'2'|'3'|'4'];
+}
+
+/** The title and muted ID identify the video consistently on every step. */
+export const showHeaderStage=(_stage:VideoStage,_tab:VideoTab)=>false;

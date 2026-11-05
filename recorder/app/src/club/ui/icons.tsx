@@ -17,7 +17,7 @@ const glyphs={
  // Actions
  add:Plus,close:X,check:Check,more:MoreHorizontal,delete:Trash2,copy:Copy,link:Link,edit:Pencil,search:Search,send:Send,
  upload:Upload,download:Download,retry:RotateCcw,undo:Undo2,redo:Redo2,history:History,save:Bookmark,'open-external':ArrowUpRight,
- ai:Bot,draft:FileText,drag:GripVertical,fit:Maximize2,fullscreen:Expand,'zoom-in':ZoomIn,'zoom-out':ZoomOut,
+ ai:Bot,draft:FileText,'auto-edit':Wand2,drag:GripVertical,fit:Maximize2,fullscreen:Expand,'zoom-in':ZoomIn,'zoom-out':ZoomOut,
  'text-smaller':AArrowDown,'text-bigger':AArrowUp,'move-up':ArrowUp,'move-down':ArrowDown,next:ArrowRight,previous:ArrowLeft,
  back:ChevronLeft,forward:ChevronRight,expand:ChevronDown,collapse:ChevronUp,choose:ChevronsUpDown,reply:CornerDownRight,
  // Recording and editing

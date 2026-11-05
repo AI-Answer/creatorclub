@@ -1,5 +1,8 @@
-import {lazy,Suspense,useCallback,useMemo,useState} from 'react';
-import type {EmbeddedRecorder} from '../App';
+import {lazy,Suspense,useCallback,useEffect,useMemo,useState} from 'react';
+import type {EmbeddedRecorder,EditorBridge,EditorState} from '../App';
+import {createPortal} from 'react-dom';
+import type {Project} from '../../shared/types';
+import {ClubExport} from './recorder/ClubExport';
 const App=lazy(()=>import('../App'));
 import {ErrorLine} from './ErrorLine';
 import {Button} from './ui';
@@ -15,13 +18,30 @@ export const NOT_ON_THIS_COMPUTER="This video's recording isn't on this computer
  * A project that cannot be opened shows one sentence and `Try again`, which opens it afresh. A project that is not there at all
  * (the data came from another computer) says so, with `onRestart` (starting the recording again from the plan) as its one button.
  */
-export function ClubRecorder({projectId,mode,onBack,onMode,onProgress,onExported,sceneId,sceneNonce,onSceneChange,onChanged,registerLeaveGuard,onEditor,onEditState,onRestart}:Omit<EmbeddedRecorder,'onOpenFailed'>&{onRestart?():void}){
+export function ClubRecorder({projectId,mode,importNonce,onImportOpened,onBack,onMode,onProgress,onExported,sceneId,sceneNonce,onSceneChange,onChanged,registerLeaveGuard,onEditor,onEditState,onRestart}:Omit<EmbeddedRecorder,'onOpenFailed'>&{onRestart?():void}){
  const [failed,setFailed]=useState<'error'|'missing'|null>(null),[attempt,setAttempt]=useState(0);
  const onOpenFailed=useCallback(()=>{
   fetch(`/api/projects/${encodeURIComponent(projectId)}`).then(response=>setFailed(response.status===404?'missing':'error'),()=>setFailed('error'));
  },[projectId]);
- const embedded=useMemo<EmbeddedRecorder>(()=>({projectId,mode,onBack,onMode,onOpenFailed,onProgress,onExported,sceneId,sceneNonce,onSceneChange,onChanged,registerLeaveGuard,onEditor,onEditState}),[projectId,mode,onBack,onMode,onOpenFailed,onProgress,onExported,sceneId,sceneNonce,onSceneChange,onChanged,registerLeaveGuard,onEditor,onEditState]);
+ // The embedded app omits its old header controls. Reuse its editor bridge so export saves the current edit first.
+ const [editor,setEditor]=useState<EditorBridge|null>(null),[project,setProject]=useState<Project|null>(null),[version,setVersion]=useState<string>(),[hasMedia,setHasMedia]=useState(false);
+ const [exportHost,setExportHost]=useState<HTMLElement|null>(null);
+ useEffect(()=>{setExportHost(document.getElementById('ws-edit-export'));},[mode]);
+ useEffect(()=>{
+  setProject(null);if(mode!=='Edit'||!editor)return;
+  let alive=true;
+  void editor.flush().then(value=>{const fresh=value as Project|undefined;if(alive&&fresh?.id===projectId)setProject(fresh);},()=>{});
+  return()=>{alive=false;};
+ },[projectId,mode,attempt,editor]);
+ const handleEditor=useCallback((bridge:EditorBridge|null)=>{setEditor(bridge);onEditor?.(bridge);},[onEditor]);
+ const handleState=useCallback((state:EditorState)=>{setVersion(state.version);setHasMedia(Boolean(state.hasMedia));if(state.hasMedia===false)onExported?.(false);onEditState?.(state);},[onEditState,onExported]);
+ const flushExport=useCallback(async()=>{
+  const fresh=await editor?.flush() as Project|undefined;
+  if(fresh?.id===projectId){setProject(fresh);return fresh;}
+ },[editor,projectId]);
+ const exportControl=mode==='Edit'&&project&&hasMedia&&editor?<ClubExport project={project} flush={flushExport} dirty={!!version&&version!==project.updatedAt} onExported={onExported}/>:null;
+ const embedded=useMemo<EmbeddedRecorder>(()=>({projectId,mode,importNonce,onImportOpened,onBack,onMode,onOpenFailed,onProgress,onExported,sceneId,sceneNonce,onSceneChange,onChanged,registerLeaveGuard,onEditor:handleEditor,onEditState:handleState}),[projectId,mode,importNonce,onImportOpened,onBack,onMode,onOpenFailed,onProgress,onExported,sceneId,sceneNonce,onSceneChange,onChanged,registerLeaveGuard,handleEditor,handleState]);
  if(failed==='missing'&&onRestart)return <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center"><p className="text-base">{NOT_ON_THIS_COMPUTER}</p><Button variant="primary" onClick={onRestart}>Start the recording again from the plan</Button></div>;
  if(failed)return <div className="flex flex-1 items-center justify-center p-6"><ErrorLine message={OPEN_FAILED} onRetry={()=>{setFailed(null);setAttempt(n=>n+1);}}/></div>;
- return <div className="club-embed"><Suspense fallback={<div className="flex flex-1" role="status" aria-label="Loading editor"/>}><App key={`${projectId}:${attempt}`} embedded={embedded}/></Suspense></div>;
+ return <div className="club-embed"><Suspense fallback={<div className="flex flex-1" role="status" aria-label="Loading editor"/>}><App key={`${projectId}:${attempt}`} embedded={embedded}/></Suspense>{exportHost&&exportControl?createPortal(exportControl,exportHost):exportControl}</div>;
 }
