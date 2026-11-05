@@ -15,7 +15,7 @@ export function Select<T extends string>({id,label,value,options,onChange,disabl
   if(!menu()){anchor.current?.click();window.requestAnimationFrame(()=>focusItem(event.key==='ArrowUp'||event.key==='End'));return;}
   const items=[...(menu()?.querySelectorAll<HTMLButtonElement>('button:not(:disabled)')??[])];
   const at=items.indexOf(document.activeElement as HTMLButtonElement);
-  const next=event.key==='Home'?0:event.key==='End'?items.length-1:(at+(event.key==='ArrowDown'?1:-1)+items.length)%items.length;
+  const next=event.key==='Home'?0:event.key==='End'?items.length-1:at<0?(event.key==='ArrowDown'?0:items.length-1):(at+(event.key==='ArrowDown'?1:-1)+items.length)%items.length;
   items[next]?.focus();
  }}><Menu label={label} align="right" restoreFocus items={options.map(option=>({label:option.label,check:option.value===value,fn:()=>onChange(option.value)}))}
  button={(toggle,open)=><button ref={anchor} id={id} type="button" className="btn select-button" aria-label={label} aria-haspopup="menu" aria-expanded={open} disabled={disabled} onClick={toggle}>{selected?.label}<Icon name="expand" size={14}/></button>}/></span>;

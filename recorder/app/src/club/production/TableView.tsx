@@ -1,7 +1,7 @@
 import {useMemo,useState} from 'react';
 import type {Video} from '../../../shared/club';
 import {fmtNum} from '../format';
-import {videoThumbId} from '../ideas';
+import {coverSources} from './KanbanCard';
 import {TABLE_HEAD,clickSort,isDescending,tableDateText,tableRows,type TableSort} from '../production';
 import {recordedCount,type SceneProgress} from '../scene-status';
 import {Empty,SceneDots,StagePill} from '../ui';
@@ -9,10 +9,11 @@ import {Empty,SceneDots,StagePill} from '../ui';
 const NONE:readonly SceneProgress[]=[];
 
 function TableCover({video}:{video:Video}){
- const [loaded,setLoaded]=useState(false),[failed,setFailed]=useState(false);
- if(failed)return null;
- const youtube=videoThumbId(video);
- return <img className="video-table-cover" hidden={!loaded} alt="" src={youtube?`https://i.ytimg.com/vi/${youtube}/mqdefault.jpg`:`/api/club/videos/${encodeURIComponent(video.id)}/cover`} onLoad={()=>setLoaded(true)} onError={()=>setFailed(true)}/>;
+ const [loaded,setLoaded]=useState(false),[at,setAt]=useState(0);
+ // The same order as the board's cards: the chosen cover, then a published video's own YouTube thumbnail.
+ const source=coverSources(video)[at];
+ if(!source)return null;
+ return <img key={source} className="video-table-cover" hidden={!loaded} alt="" src={source} onLoad={()=>setLoaded(true)} onError={()=>{setLoaded(false);setAt(n=>n+1);}}/>;
 }
 
 /** Every video in a table: stage, scenes recorded, publish date and views. Press a heading to sort; press a row to open the video. */

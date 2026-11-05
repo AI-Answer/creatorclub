@@ -45,7 +45,7 @@ export function TabStrip({route,tabs,onClose,onNewVideo,onSearch,onHelp}:{route:
  useEffect(()=>{selected.current?.scrollIntoView?.({block:'nearest',inline:'nearest'});},[active,tabs.length]);
  const onHome=isHomeTab(route)||route.name==='settings';
  const sidebarPage=useRef({label:'Video board',icon:'production' as 'production'|'research'|'whiteboard'|'settings',href:'#/home'});
- if(onHome)sidebarPage.current=route.name==='settings'?{label:'Settings',icon:'settings',href:'#/settings'}:route.name==='discover'?{label:'Research',icon:'research',href:'#/discover'}:route.name==='research'?{label:'Channel board',icon:'whiteboard',href:'#/research'}:{label:'Video board',icon:'production',href:route.name==='videos'?routePath(route):'#/home'};
+ if(onHome)sidebarPage.current=route.name==='settings'?{label:'Settings',icon:'settings',href:routePath(route)}:route.name==='discover'?{label:'Research',icon:'research',href:'#/discover'}:route.name==='research'?{label:'Channel board',icon:'whiteboard',href:'#/research'}:{label:'Video board',icon:'production',href:route.name==='videos'?routePath(route):'#/home'};
  const page=sidebarPage.current;
  const menu:MenuItem[]=[
   {label:'Video board',icon:'production',fn:()=>go('#/home')},

@@ -57,6 +57,7 @@ export function AgentSection(){
   <span className={`logo ${app==='claude'?'logo-claude':'logo-codex'}`}><BrandLogo brand={app==='claude'?'claude':'chatgpt'} size={22}/></span>
   <div className="grow" style={{minWidth:0}}><div className="st">{APP_LABEL[app]}</div><div className="sd">{added.includes(app)?'Connected':`Work on your videos from ${APP_LABEL[app]}.`}</div></div>
   <Button size="sm" variant="secondary" disabled={!enabled||!!busy} onClick={()=>added.includes(app)?setOther(true):connect(app)}>{busy===app?<span className="spin"/>:<Icon name={added.includes(app)?'check':'add'} size={14}/>}{added.includes(app)?'Manage':`Add to ${APP_LABEL[app]}`}</Button>
+  {added.includes(app)&&<Button size="sm" variant="ghost" disabled={!enabled||!!busy} onClick={()=>connect(app)}>Reconnect</Button>}
  </div>;
  return <section className="set-group" id="set-agent" aria-labelledby="set-agent-title"><h2 id="set-agent-title">Your AI agent</h2>
   <p>Work on your videos from Claude Code, Codex or another AI app. You can undo every change.</p>
