@@ -1,4 +1,4 @@
-import {deviceLabel} from './club/recorder/device-label';
+import {deviceLabel,deviceName} from './club/recorder/device-label';
 import {useEffect,useInsertionEffect,useMemo,useRef,useState,useSyncExternalStore,type RefObject} from 'react';
 import {createPortal} from 'react-dom';
 import './recording.css';
@@ -128,7 +128,7 @@ export function Recording({project,change,commit,onRecorded,onError,onImport,onS
   let id:string|undefined;let reported=false;
   const warn=(error:unknown)=>{if(reported||!mounted.current||(hudSession.current!==session&&!id))return;reported=true;const text=`Floating controls are unavailable: ${(error as Error).message}. The take is still recording; use this window to stop.`;if(statusRef.current==='starting')hudFailure.current=text;else setCaptureNotice(text);};
   const snapshot=manager.getSnapshot();
-  const session=new RecordingHudSession({begin:async()=>{const opened=await bridge.beginRecordingHud!({appearance:document.documentElement.dataset.theme==='dark'?'dark':'light',projectName:project.name,script:(project.scenes.find(scene=>scene.id===captureScene.current)?.script||'').slice(0,100000),cameraEnabled:selection.camera,cameraLabel:snapshot.camera.stream?.getVideoTracks()[0]?.label||'',microphoneLabel:selection.microphone?snapshot.microphone.stream?.getAudioTracks()[0]?.label||'Microphone':'',systemAudioLabel:selection.systemAudio?chosenSource.current?.label||'System sound':'',mirror,hideMain:true,status:'starting',elapsed:0,countdown});id=opened.id;if(!opened.visible)throw new Error('The preview window did not open');},update:patch=>bridge.updateRecordingHud!(patch,id),end:()=>bridge.endRecordingHud!(id)},warn);
+  const session=new RecordingHudSession({begin:async()=>{const opened=await bridge.beginRecordingHud!({appearance:document.documentElement.dataset.theme==='dark'?'dark':'light',projectName:project.name,script:(project.scenes.find(scene=>scene.id===captureScene.current)?.script||'').slice(0,100000),cameraEnabled:selection.camera,cameraLabel:deviceName(snapshot.camera.stream?.getVideoTracks()[0]?.label||''),microphoneLabel:selection.microphone?deviceName(snapshot.microphone.stream?.getAudioTracks()[0]?.label||'')||'Microphone':'',systemAudioLabel:selection.systemAudio?chosenSource.current?.label||'System sound':'',mirror,hideMain:true,status:'starting',elapsed:0,countdown});id=opened.id;if(!opened.visible)throw new Error('The preview window did not open');},update:patch=>bridge.updateRecordingHud!(patch,id),end:()=>bridge.endRecordingHud!(id)},warn);
   hudSession.current=session;void session.start();
  };
  useEffect(()=>{void hudSession.current?.update({status,elapsed});},[status,elapsed]);

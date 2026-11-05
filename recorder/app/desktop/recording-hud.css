@@ -3,12 +3,14 @@
  * button, the camera's name and the microphone's level over it; one control bar (timer, red Stop, pause or play, record again, more);
  * then the script in large white type with an Auto-scroll pill. The window is transparent: on a Mac its glass shows through the bar
  * and the script, as Borumi's does; elsewhere they are a solid grey.
+ * Dark values are sampled from Borumi's recorder in a dark app (its bar is #232323); the chips, the level and the bar's layout are its
+ * own classes (recorder bundle: chips bg-black/40 px-1.5 text-[0.5rem], level ml-1 h-1 w-16 white, bar timer | centred Stop | more).
  */
 :root {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   font-size: 12px;
   color-scheme: dark;
-  --glass: rgb(126 127 128 / 0.94);
+  --glass: #232323;
   --chip: rgb(0 0 0 / 0.4);
   --chip-hover: rgb(0 0 0 / 0.6);
   --ink: #ffffff;
@@ -19,7 +21,7 @@
   --menu: #262628;
   --menu-line: rgb(255 255 255 / 0.12);
   --menu-hover: rgb(255 255 255 / 0.1);
-  --level: #34c759;
+  --level: #ffffff;
   background: transparent;
   color: var(--ink);
 }
@@ -36,7 +38,6 @@ button { display: inline-flex; align-items: center; justify-content: center; gap
 button:disabled { opacity: .4; cursor: default; }
 button:focus-visible, input:focus-visible, #script:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .icon { width: 16px; height: 16px; display: block; flex: none; pointer-events: none; }
-.grow { flex: 1; }
 
 /* The camera: edge to edge, cropped to fill; it takes what the bar and the script leave. */
 #camera { position: relative; flex: 1 1 auto; min-height: 0; background: #000; overflow: hidden; -webkit-app-region: drag; }
@@ -50,15 +51,15 @@ body.audio-only #camera { background: var(--wave-ground); }
 body.audio-only #camera-video, body.audio-only #camera-image, body.audio-only #camera-wait, body.audio-only #camera-chip { display: none !important; }
 #waveform { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 #camera-wait { position: absolute; inset: 0; display: grid; place-items: center; color: var(--ink-soft); font-size: 11px; }
-.chip { position: absolute; display: inline-flex; align-items: center; gap: 5px; max-width: calc(100% - 24px); height: 15px; padding: 0 7px; border-radius: 999px; background: var(--chip); color: var(--ink); font-size: 8px; font-weight: 600; white-space: nowrap; pointer-events: none; }
-.chip span { overflow: hidden; text-overflow: ellipsis; }
-.chip .icon { width: 9px; height: 9px; }
-#camera-chip { top: 9px; left: 50%; transform: translateX(-50%); }
-#mic-chip { left: 10px; right: 10px; bottom: 8px; max-width: none; }
-#mic-chip #microphone-hint { flex: none; }
-#microphone-meter { flex: 1; height: 4px; margin-left: 4px; border-radius: 2px; overflow: hidden; background: rgb(255 255 255 / 0.18); }
+/* The sources: one centred row at the bottom of the picture, each a small dark pill with its device's name; the microphone's ends in a
+   64 px white level. */
+#sources { position: absolute; left: 12px; right: 12px; bottom: 8px; z-index: 2; display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; pointer-events: none; }
+.chip { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; padding: 2px 6px; border-radius: 999px; background: var(--chip); color: var(--ink); font-size: 8px; line-height: 12px; font-weight: 500; white-space: nowrap; }
+.chip span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.chip .icon { width: 8px; height: 8px; }
+#microphone-meter { flex: none; width: 64px; height: 4px; margin-left: 4px; border-radius: 2px; overflow: hidden; }
 #microphone-bar { display: block; width: 100%; height: 100%; background: var(--level); transform: scaleX(0); transform-origin: left; transition: transform 100ms linear; }
-body.no-sources .chip { display: none; }
+body.no-sources #sources { display: none; }
 
 /* The round close button over the camera's top left corner. */
 .round { width: 32px; height: 32px; border-radius: 999px; }
@@ -69,9 +70,11 @@ body.no-sources .chip { display: none; }
 /* With no camera there is nothing to sit over: Stop ends the take, so the close button steps aside. */
 body:not(.has-camera) #close.overlay { display: none; }
 
-/* The control bar: timer, Stop, pause or play, record again, more. */
-.recording-controls { flex: none; height: 44px; display: flex; align-items: center; gap: 4px; padding: 0 8px 0 12px; color: var(--ink-bar); -webkit-app-region: drag; }
-#clock { min-width: 46px; margin-right: 6px; font-size: 16px; font-weight: 500; font-variant-numeric: tabular-nums; color: var(--ink-bar); opacity: .85; }
+/* The control bar: the timer at the left, Stop with pause or play and record again in the middle, more at the right. */
+.recording-controls { flex: none; height: 44px; display: flex; align-items: center; padding: 0 8px 0 12px; color: var(--ink-bar); -webkit-app-region: drag; }
+.bar-center { flex: 1; display: flex; align-items: center; justify-content: center; gap: 4px; }
+.bar-end { min-width: 48px; display: flex; justify-content: flex-end; }
+#clock { min-width: 48px; margin-right: 8px; font-size: 15px; font-weight: 500; font-variant-numeric: tabular-nums; color: var(--ink-bar); opacity: .85; }
 #stop.primary { height: 28px; padding: 0 10px 0 8px; gap: 5px; border-radius: 8px; background: var(--stop); color: #ffffff; font-size: 13px; font-weight: 600; box-shadow: 0 1px 3px rgb(0 0 0 / 0.25); }
 #stop.primary:hover:not(:disabled) { background: var(--stop-hover); }
 #stop .icon { width: 12px; height: 12px; }
@@ -110,8 +113,13 @@ body.has-script #menu { bottom: auto; top: calc(min(60vw, 55vh) + 44px); }
 #menu { color: var(--ink-bar); }
 #menu > button, .menu-check { width: 100%; display: flex; align-items: center; gap: 8px; min-height: 28px; padding: 0 8px; border-radius: 6px; font-size: 12px; text-align: left; justify-content: flex-start; cursor: pointer; }
 #menu > button:hover, .menu-check:hover { background: var(--menu-hover); }
-#menu > button[aria-expanded=true]::after { content: '✓'; margin-left: auto; }
-.menu-check input { margin: 0; accent-color: var(--focus); }
+/* As Borumi's native menu: a leading check on what is on, nothing on what is off; the scrolling settings open with a chevron. */
+.menu-check input { position: absolute; width: 1px; height: 1px; opacity: 0; margin: 0; }
+.menu-check:has(input:focus-visible) { outline: 2px solid var(--focus); outline-offset: -2px; }
+.menu-check::before, #camera-toggle::before, #script-toggle::before, #reading-settings::before, #editor::before { content: ''; width: 12px; flex: none; text-align: center; }
+.menu-check:has(input:checked)::before, #camera-toggle[aria-expanded=true]::before, #script-toggle[aria-expanded=true]::before { content: '✓'; }
+#reading-settings::after { content: '›'; margin-left: auto; font-size: 14px; line-height: 1; opacity: .7; transition: transform 120ms; }
+#reading-settings[aria-expanded=true]::after { transform: rotate(90deg); }
 #menu .sep { height: 1px; margin: 4px 2px; background: var(--menu-line); }
 #reading-options { display: grid; gap: 10px; padding: 8px; }
 #reading-options label { display: grid; gap: 4px; font-size: 11px; color: var(--ink-soft); }
@@ -123,11 +131,9 @@ body.has-script #menu { bottom: auto; top: calc(min(60vw, 55vh) + 44px); }
 #notice:empty { display: none; }
 
 /* A large island (Borumi's recorder dragged big): the camera fills it and the script floats as a card at the top, near the lens, so you
-   read with your eyes up. The camera's name moves to the bottom, beside the microphone, as Borumi's chips sit there. */
+   read with your eyes up. */
 @media (min-width: 480px) {
   body.has-camera.has-script #camera { flex: 1 1 auto; }
   body.has-camera.has-script .prompt { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); z-index: 3; width: min(380px, 62vw); height: min(200px, 36vh); padding-top: 10px; border-radius: 14px; background: var(--glass); box-shadow: 0 10px 30px rgb(0 0 0 / 0.25); }
-  body.has-camera.has-script #camera-chip { top: auto; bottom: 8px; left: 10px; transform: none; }
-  body.has-camera.has-script #mic-chip { left: auto; right: 10px; width: min(260px, 45vw); }
   body.has-camera.has-script #menu { top: auto; bottom: 48px; }
 }

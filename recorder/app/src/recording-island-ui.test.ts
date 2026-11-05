@@ -110,3 +110,22 @@ test('without a camera the island keeps its picture area and shows the microphon
   assert.equal((doc.getElementById('mic-chip') as any).hidden,false);
  }finally{await browser.happyDOM.close();}
 });
+
+test('island lays out its sources and bar as Borumi\'s recorder: one centred chip row, a 64 px level, a centred Stop, a dark bar',async()=>{
+ const browser=new Window({settings:{disableJavaScriptFileLoading:true,disableCSSFileLoading:true}});
+ const state={status:'recording',elapsed:3,cameraEnabled:true,cameraLabel:'MacBook Air Camera',microphoneLabel:'MacBook Air Microphone',microphoneLevel:.5,script:'',layout:{camera:true,script:false}};
+ Object.assign(browser,{recordingPreview:{read:async()=>state,subscribe:()=>()=>{},command:async()=>{},layout:async(layout:any)=>layout}});
+ browser.document.write(await readFile(new URL('../desktop/recording-hud.html',import.meta.url),'utf8'));browser.eval(await readFile(new URL('../desktop/recording-hud.js',import.meta.url),'utf8'));await new Promise(resolve=>setTimeout(resolve,0));
+ const doc=browser.document,css=await readFile(new URL('../desktop/recording-hud.css',import.meta.url),'utf8');
+ try{
+  const sources=doc.getElementById('sources')!;
+  assert.deepEqual([...sources.children].map(chip=>chip.id),['camera-chip','mic-chip'],'both chips share one row');
+  assert.match(css,/#sources \{[^}]*bottom: 8px;[^}]*justify-content: center;/,'the row sits centred at the bottom of the picture');
+  assert.match(css,/#microphone-meter \{[^}]*width: 64px; height: 4px;/);assert.match(css,/--level: #ffffff;/);
+  assert.equal(doc.getElementById('stop')!.parentElement!.className,'bar-center');assert.equal(doc.getElementById('pause')!.parentElement!.className,'bar-center');
+  assert.equal(doc.getElementById('more')!.parentElement!.className,'bar-end');
+  assert.match(css,/:root \{[^}]*--glass: #232323;/,'the bar is Borumi\'s dark grey in a dark app');
+  assert.equal((doc.getElementById('reading-settings') as any).hidden,true,'with no script there is nothing to scroll, so More does not offer it');
+  assert.match(css,/\.menu-check:has\(input:checked\)::before[^{]*\{ content: '✓'; \}/,'More marks what is on with a leading check, as a native menu');
+ }finally{await browser.happyDOM.close();}
+});
