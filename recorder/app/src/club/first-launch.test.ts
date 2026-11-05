@@ -390,9 +390,9 @@ test('Settings: Claude and ChatGPT with their status and Connect or Reconnect, a
    assert.match(text(c),/Lets Creator Compiler watch videos with sound and motion when it breaks them down\./);
    assert.ok(c.querySelector('input[aria-label="Gemini API key"]'));
    assert.equal(c.querySelector('[aria-label="Default AI"] [aria-selected="true"]')!.textContent,'Claude','falls back to the connected AI');
-   await ui.render(createElement(SettingsScreen,{section:'publishing',onSetup(){}}));await flush();
-   assert.deepEqual([...c.querySelectorAll('[aria-label="Theme"] button')].map(b=>b.textContent),['System default','Light','Dark']);
-   assert.equal(c.querySelector('[aria-label="Theme"] [aria-pressed="true"]')!.textContent,'System default','follows the system by default');
+   await ui.render(createElement(SettingsScreen,{section:'appearance',onSetup(){}}));await flush();
+   assert.deepEqual([...c.querySelectorAll('[aria-label="Theme"] button')].map(b=>b.textContent),['Light','Dark','System default']);
+   assert.equal(c.querySelector('[aria-label="Theme"] [aria-pressed="true"]')!.textContent,'Light','new installs start in Light');
   }finally{await ui.close();localStorage.clear();}
  });
 });
@@ -486,7 +486,7 @@ test('Settings: the default AI and the theme are saved in settings when chosen, 
    await click(c.querySelector('[aria-label="Default AI"]')!,'ChatGPT');
    assert.deepEqual(calls.find(call=>call.method==='PUT')?.body,{defaultAi:'codex'});
    assert.equal(c.querySelector('[aria-label="Default AI"] [aria-selected="true"]')!.textContent,'ChatGPT');
-   await ui.render(createElement(SettingsScreen,{section:'publishing',onSetup(){}}));await flush();
+   await ui.render(createElement(SettingsScreen,{section:'appearance',onSetup(){}}));await flush();
    await click(c.querySelector('[aria-label="Theme"]')!,'Dark');
    assert.deepEqual(calls.filter(call=>call.method==='PUT').at(-1)?.body,{appearance:'dark'});
    assert.equal(document.documentElement.dataset.theme,'dark');
@@ -503,7 +503,7 @@ test('Settings: a saved theme is the one selected',async()=>{
   if(call.path==='/settings')return {body:{defaultAi:null,appearance:'dark',geminiKey:null}};
   if(call.path==='/workspaces'&&call.method==='GET')return {body:none};
  },async()=>{
-  const ui=await mountUI(createElement(SettingsScreen,{section:'publishing',onSetup(){}}));
+  const ui=await mountUI(createElement(SettingsScreen,{section:'appearance',onSetup(){}}));
   try{await flush();assert.equal(ui.container.querySelector('[aria-label="Theme"] [aria-pressed="true"]')!.textContent,'Dark');}finally{await ui.close();}
  });
 });
@@ -579,7 +579,7 @@ test('Settings: followed channels and signal sources save at once, and a failed 
 
    fail=true;
    await act(async()=>c.querySelector<HTMLButtonElement>('button[aria-label="Remove @NateHerk"]')!.click());await flush();
-   assert.match(text(c),/That did not work\./);
+   assert.match(text(c),/Couldn't save that\./);
    assert.ok(c.querySelector('button[aria-label="Remove @NateHerk"]'),'the list is as it was');
 
    await type(c.querySelector('input[aria-label="Subreddits"]')!,'r/Claude');

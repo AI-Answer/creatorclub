@@ -5,7 +5,7 @@ import {beforeIdAt,boardColumns,dropIndex,isSamePlace,type BoardColumn} from '..
 import type {IdeaHeld} from '../routes';
 import type {SceneProgress} from '../scene-status';
 import type {IdeaActionSet} from './IdeaLane';
-import {Icon} from '../ui';
+import {Icon,StageBadge} from '../ui';
 import {errorMessage} from '../api';
 import {KanbanCard} from './KanbanCard';
 import type {MutableRefObject} from 'react';
@@ -31,6 +31,7 @@ export function Kanban({videos,scenes,ideas,onOpen,onMove,onResearch,onAdd}:{
  const [dragId,setDragId]=useState<string|null>(null),[over,setOver]=useState<Over|null>(null);
  const [collapsed,setCollapsed]=useState(()=>{try{return localStorage.getItem(COLLAPSE_KEY)==='true';}catch{return false;}});
  const [announcement,setAnnouncement]=useState('');
+ const [adding,setAdding]=useState<VideoStage|null>(null);
  const board=useRef<HTMLDivElement>(null),elements=useRef(new Map<VideoStage,HTMLDivElement>());
  const dragSize=useRef(220),pendingFocus=useRef<string|null>(null),preview=useRef<HTMLElement|null>(null);
  const positions=useRef(new Map<string,DOMRect>());
@@ -44,7 +45,7 @@ export function Kanban({videos,scenes,ideas,onOpen,onMove,onResearch,onAdd}:{
    const id=card.dataset.cardId!,box=card.getBoundingClientRect(),old=positions.current.get(id);next.set(id,box);
    if(old&&id!==dragId&&!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches){
     const x=old.left-box.left,y=old.top-box.top;
-    if((x||y)&&card.animate)card.animate([{transform:`translate(${x}px, ${y}px)`},{transform:'translate(0, 0)'}],{duration:180,easing:'ease-out'});
+    if((x||y)&&card.animate)card.animate([{transform:`translate(${x}px, ${y}px)`},{transform:'translate(0, 0)'}],{duration:parseFloat(getComputedStyle(card).getPropertyValue('--cc-dur'))*1000||150,easing:getComputedStyle(card).getPropertyValue('--cc-ease').trim()||'ease-out'});
    }
    if(pendingFocus.current===id){card.focus({preventScroll:true});card.scrollIntoView?.({block:'nearest',inline:'nearest'});pendingFocus.current=null;}
   }
@@ -113,9 +114,9 @@ export function Kanban({videos,scenes,ideas,onOpen,onMove,onResearch,onAdd}:{
   const lineBefore=here&&dragId&&!isSamePlace(videos,dragId,stage,over.beforeId)?(over.beforeId&&shown.some(video=>video.id===over.beforeId)?over.beforeId:'end'):undefined;
   return <section key={stage} aria-label={STAGE_LABEL[stage]} data-column={stage} className={`col${here?' over':''}${isCollapsed?' col-collapsed':''}`}
    onDragOver={onDragOver(column)} onDrop={onDrop(column)} onDragLeave={event=>{if(!event.currentTarget.contains(event.relatedTarget as Node|null))setOver(current=>current?.stage===stage?null:current);}}>
-   <div className="col-h"><span className={`col-dot st-${stage}`} aria-hidden/><span className="col-name">{STAGE_LABEL[stage]}</span><span className="n">{all.length}</span>
+   <div className="col-h"><StageBadge stage={stage} dotOnly decorative/><span className="col-name">{STAGE_LABEL[stage]}</span><span className="n">{all.length}</span>
     {stage==='published'&&<button type="button" className="lane-toggle" aria-label={collapsed?'Expand Published':'Collapse Published'} aria-expanded={!collapsed} onClick={toggleCollapsed}><Icon name={collapsed?'back':'forward'} size={14}/></button>}
-    {!isCollapsed&&<button type="button" className="lane-plus" aria-label={`New video in ${STAGE_LABEL[stage]}`} onClick={()=>{elements.current.get(stage)?.querySelector<HTMLButtonElement>('.lane-add')?.click();}}><Icon name="add" size={15}/></button>}
+    {!isCollapsed&&stage!=='published'&&<button type="button" className="lane-plus" aria-label={`New video in ${STAGE_LABEL[stage]}`} onClick={()=>setAdding(stage)}><Icon name="add" size={15}/></button>}
    </div>
    {!isCollapsed&&<div className="lane-cards" ref={element=>{if(element)elements.current.set(stage,element);else elements.current.delete(stage);}}>
     {shown.map(video=><div key={video.id} className={dragId===video.id?'drag-source':undefined}>
@@ -123,22 +124,22 @@ export function Kanban({videos,scenes,ideas,onOpen,onMove,onResearch,onAdd}:{
      <KanbanItem video={video} scenes={scenes[video.id]} highlight={ideas.newId===video.id} dragging={dragId===video.id} research={!!onResearch} actions={actions}/>
     </div>)}
     {lineBefore==='end'&&gap}
-    {!shown.length&&!here&&<div className="lane-empty"><Icon name="video" size={18}/><span>No videos yet. Use New video below.</span></div>}
-    <LaneAdd stage={stage} onAdd={onAdd}/>
+    <LaneAdd stage={stage} onAdd={onAdd} open={adding===stage} empty={!shown.length&&!here} onOpen={()=>setAdding(stage)} onClose={()=>setAdding(null)}/>
    </div>}
   </section>;
  })}</div></>;
 }
 
-function LaneAdd({stage,onAdd}:{stage:VideoStage;onAdd(title:string,stage:VideoStage):Promise<void>}){
- const [open,setOpen]=useState(false),[title,setTitle]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState('');
- if(!open)return <button type="button" className="lane-add" aria-label={`New video in ${STAGE_LABEL[stage]}`} onClick={()=>setOpen(true)}><Icon name="add" size={14}/><span>New video</span></button>;
+function LaneAdd({stage,onAdd,open,empty,onOpen,onClose}:{stage:VideoStage;onAdd(title:string,stage:VideoStage):Promise<void>;open:boolean;empty:boolean;onOpen():void;onClose():void}){
+ const [title,setTitle]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState('');
+ if(stage==='published')return empty?<div className="lane-empty-state"><p>No published videos yet</p><p>Finished videos land here.</p></div>:null;
+ if(!open)return <div className={empty?'lane-empty-state':undefined}>{empty&&<p>Nothing here yet</p>}<button type="button" className="lane-add" aria-label={`New video in ${STAGE_LABEL[stage]}`} onClick={onOpen}><Icon name="add" size={14}/><span>New video</span></button></div>;
  return <form className="lane-add-form" onSubmit={async event=>{
   event.preventDefault();if(!title.trim()||busy)return;setBusy(true);setError('');
-  try{await onAdd(title.trim(),stage);setTitle('');setOpen(false);}catch(reason){setError(errorMessage(reason,"Couldn't add video."));}finally{setBusy(false);}
+  try{await onAdd(title.trim(),stage);setTitle('');onClose();}catch(reason){setError(errorMessage(reason,"Couldn't add video."));}finally{setBusy(false);}
  }}>
-  <input autoFocus className="input" aria-label={`Video title for ${STAGE_LABEL[stage]}`} placeholder="Video title" value={title} maxLength={300} disabled={busy} onChange={event=>setTitle(event.target.value)} onKeyDown={event=>{if(event.key==='Escape'&&!busy)setOpen(false);}}/>
+  <input autoFocus className="input" aria-label={`Video title for ${STAGE_LABEL[stage]}`} placeholder="Video title" value={title} maxLength={300} disabled={busy} onChange={event=>setTitle(event.target.value)} onKeyDown={event=>{if(event.key==='Escape'&&!busy)onClose();}}/>
   {error&&<div className="small text-warn" role="alert">{error}</div>}
-  <div className="row"><button className="btn sm" type="submit" disabled={busy||!title.trim()}>{busy?'Adding…':'New video'}</button><button className="btn sm ghost" type="button" disabled={busy} onClick={()=>setOpen(false)}>Cancel</button></div>
+  <div className="row"><button className="btn sm" type="submit" disabled={busy||!title.trim()}>{busy?'Adding…':'New video'}</button><button className="btn sm ghost" type="button" disabled={busy} onClick={()=>onClose()}>Cancel</button></div>
  </form>;
 }

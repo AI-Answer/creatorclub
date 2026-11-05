@@ -45,7 +45,7 @@ test('Level, StagePill, Avatar, SourceIcon and Empty draw what the prototype dra
  try{
   const c=ui.container;
   const level=c.querySelector('.lvl')!;assert.ok(level.classList.contains('high'));assert.equal(level.getAttribute('title'),'Lots of searches');assert.equal(level.querySelectorAll('.bars i').length,3);assert.equal(c.querySelectorAll('.lvl').length,1,'no rating, no level');
-  const pill=c.querySelector('.stage-pill')!;assert.ok(pill.classList.contains('st-recording'));assert.equal(pill.textContent,'Recording');
+  const pill=c.querySelector('.stage-pill')!;assert.ok(pill.classList.contains('stage-badge'));assert.ok(pill.querySelector('.col-dot.st-recording'));assert.equal(pill.textContent,'Recording');
   const avatars=c.querySelectorAll('.avatar');assert.equal(avatars[0].textContent,'SY');assert.ok(avatars[0].classList.contains('lg')&&avatars[0].classList.contains('sq'));assert.match((avatars[0] as HTMLElement).style.background,/^(#123456|rgb\(18, 52, 86\))$/);assert.equal(avatars[1].textContent,'AN');
   assert.equal(c.querySelector('.src-x')!.getAttribute('title'),'X');assert.equal(c.querySelector('.src-reddit')!.getAttribute('title'),'Reddit');
   const empty=c.querySelector('.empty')!;assert.equal(empty.querySelector('h3')!.textContent,'No ideas yet');assert.equal(empty.querySelector('p')!.textContent,'Paste a link to start.');assert.ok(empty.querySelector('.ic svg'));
@@ -112,7 +112,7 @@ test('Dialog closes on Escape, the scrim and Close; Drawer the same; neither dra
   const dialog=c.querySelector('[role="dialog"]')!;
   assert.equal(dialog.getAttribute('aria-modal'),'true');assert.equal(document.getElementById(dialog.getAttribute('aria-labelledby')!)!.textContent,'New video');
   assert.equal(c.querySelector('.df button')!.textContent,'Go');
-  assert.equal(document.activeElement,dialog,'focus moves into the dialog');
+  assert.equal(document.activeElement,dialog,'focus moves to the dialog without a control ring');
   await key(document,'Escape');assert.equal(closed,1);
   await press(c.querySelector('.scrim')!);assert.equal(closed,2);
   await press(dialog.querySelector('[aria-label="Close"]')!);assert.equal(closed,3);

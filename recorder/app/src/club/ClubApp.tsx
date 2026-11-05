@@ -10,6 +10,7 @@ import {HomeScreen} from './screens/HomeScreen';
 import {VideosScreen} from './screens/VideosScreen';
 const SettingsScreen=lazy(()=>import('./screens/SettingsScreen').then(module=>({default:module.SettingsScreen})));
 const ResearchScreen=lazy(()=>import('./screens/ResearchScreen').then(module=>({default:module.ResearchScreen})));
+import {adjacentVideoTab,shellShortcut} from './shell/shortcuts';
 import {Help} from './shell/Help';
 import {NewVideo} from './shell/NewVideo';
 import {Palette} from './shell/Palette';
@@ -111,9 +112,23 @@ function Shell(){
 
  useEffect(()=>{if(main.current&&route.name!=='video')main.current.scrollTop=0;},[path,route.name]);
  useEffect(()=>{
-  const key=(event:KeyboardEvent)=>{if((event.metaKey||event.ctrlKey)&&event.key.toLowerCase()==='k'){event.preventDefault();setPaletteOpen(open=>!open);}};
+  const key=(event:KeyboardEvent)=>{
+   if(!event.defaultPrevented&&!event.isComposing&&(event.metaKey||event.ctrlKey)&&!event.altKey&&!event.shiftKey&&event.key.toLowerCase()==='k'){
+    event.preventDefault();setPaletteOpen(open=>!open);return;
+   }
+   const action=shellShortcut(event,route,paletteOpen||newOpen||help!==null||!!document.querySelector('[aria-modal="true"],[role="dialog"],[role="menu"]'));
+   if(!action)return;
+   event.preventDefault();
+   if(action==='new-video')setNewOpen(true);
+   if(action==='shortcuts')setHelp({topic:'shortcuts'});
+   if(action==='close-tab'&&route.name==='video')openTabs.close(route.id);
+   if(action==='next-tab'||action==='previous-tab'){
+    const id=adjacentVideoTab(openTabs.tabs.map(tab=>tab.id),route.name==='video'?route.id:null,action==='next-tab'?1:-1);
+    if(id)navigate({name:'video',id});
+   }
+  };
   window.addEventListener('keydown',key);return()=>window.removeEventListener('keydown',key);
- },[]);
+ },[route,paletteOpen,newOpen,help,openTabs.tabs,openTabs.close,navigate]);
 
  // Reaching Home or Videos before setup was finished or skipped sends you to first launch. Checked once, and only if you are still on one of them.
  const current=useRef(route);current.current=route;

@@ -209,7 +209,7 @@ test('Home for a new channel opens the empty video board without starting a disc
   try{
    await flush();await flush();
    assert.equal(ui.container.querySelectorAll('[data-column]').length,6);
-   assert.equal(ui.container.querySelectorAll('.lane-add').length,6);
+   assert.equal(ui.container.querySelectorAll('.lane-add').length,5);
    assert.equal(ui.container.querySelector('.checklist-row,.progress-line'),null);
    assert.equal(calls.some(call=>call.path==='/trending/refresh'),false);
   }finally{await ui.close();}

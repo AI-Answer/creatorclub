@@ -83,7 +83,8 @@ const flush=()=>act(async()=>{await new Promise(resolve=>setTimeout(resolve,0));
 const settle=async()=>{await flush();await flush();};
 const press=async(element:Element)=>{await act(async()=>(element as HTMLElement).click());await settle();};
 const type=async(input:Element,value:string)=>act(async()=>{Object.getOwnPropertyDescriptor(input instanceof HTMLTextAreaElement?HTMLTextAreaElement.prototype:HTMLInputElement.prototype,'value')!.set!.call(input,value);input.dispatchEvent(new Event('input',{bubbles:true}));});
-const choose=async(select:Element,value:string)=>act(async()=>{Object.getOwnPropertyDescriptor(Object.getPrototypeOf(select),'value')!.set!.call(select,value);select.dispatchEvent(new Event('change',{bubbles:true}));});
+const sortOptions=async(c:Element)=>{await press(c.querySelector('#discover-sort')!);return [...c.ownerDocument.querySelectorAll('[role=menuitemradio]')];};
+const choose=async(select:Element,value:string)=>{await press(select);const label=value==='new'?'Newest':'Most views';await press([...select.ownerDocument.querySelectorAll('[role=menuitemradio]')].find(item=>item.textContent===label)!);};
 const emit=(kind:string,data?:unknown)=>act(async()=>{FakeEventSource.last().emit(kind,data);});
 const text=(el:Element|null)=>(el?.textContent??'').replace(/\s+/g,' ').trim();
 const texts=(c:Element,selector:string)=>[...c.querySelectorAll(selector)].map(text);
@@ -118,7 +119,7 @@ const moreOf=(c:Element,title:string)=>c.querySelector<HTMLElement>(`button[aria
 test('Videos: ideas form a flat compact lane, and clicking opens the video',async()=>{
  await mount(videosAt(),server({videos:ideaVideos()}),async(ui,_s,_calls,routes)=>{
   const c=ui.container;
-  assert.equal(text(c.querySelector('h1')),'Videos');
+  assert.equal(text(c.querySelector('h1')),'Video board');
   assert.equal(c.querySelector('.igroup-h'),null);
   assert.deepEqual(laneIds(c),['i3','i2','i1']);
   assert.equal(text(ideaCard(c,'i1')!.querySelector('.tt')),'Claude for receipts');
@@ -185,7 +186,7 @@ test('a new idea is marked and the banner starts planning it; it is the one prim
  await mount(videosAt({new:'i1'}),server({videos:ideaVideos()}),async (ui,_s,calls,routes)=>{
   const c=ui.container;
   assert.match(text(c.querySelector('.next-idea')),/"Claude for receipts" is in your ideas\.Next: start planning it\./);
-  assert.ok(ideaCard(c,'i1')!.classList.contains('new'));assert.equal(text(ideaCard(c,'i1')!.querySelector('.itag')),'New');
+  assert.ok(ideaCard(c,'i1')!.classList.contains('new'),'the new card is highlighted without another metadata badge');
   assert.equal(c.querySelectorAll('.btn.primary').length,1,'one primary button on the page');
   await press(button(c.querySelector('.next-idea')!,'Start planning'));
   assert.equal(writes(calls).at(-1),'POST /videos/i1/move {"stage":"planning"}');assert.deepEqual(routes.at(-1),{name:'video',id:'i1',tab:'idea'});
@@ -339,7 +340,7 @@ test('Discover: videos and posts in one ranked feed, a view switch and source ch
   const shown=(row:Element)=>[...row.querySelectorAll('.acts button')].filter(button=>!button.closest('.quiet'));
   assert.ok(rows(c).every(row=>shown(row).map(text).join()==='Turn into idea'),'one action on every card');
   assert.ok(rows(c).every(row=>shown(row)[0].getAttribute('aria-label')!.startsWith('Turn into idea')),'the accessible name holds the visible words');
-  assert.ok(rows(c).every(row=>row.querySelector('.acts .quiet [aria-label="Add to channel board"]')),'Add to channel board on every card, under the pointer or on focus');
+  assert.ok(rows(c).every(row=>row.querySelector('.acts .quiet [aria-label="Add to Channel board"]')),'Add to Channel board on every card, under the pointer or on focus');
   const long=rows(c)[5];
   assert.equal(text(long.querySelector('.text')),`${'A'.repeat(250)}…Show more`,'long posts are cut');
   assert.match(text(long.querySelector('.meta')),/Video/);
@@ -370,17 +371,17 @@ test('Discover: videos and posts in one ranked feed, a view switch and source ch
 test('Discover has one sort that says what it orders by; each chip offers the orders that fit it',async()=>{
  await mount(discoverAt(),discoverServer(),async ui=>{
   const c=ui.container,select=()=>c.querySelector('#discover-sort')!;
-  assert.deepEqual([...select().querySelectorAll('option')].map(o=>o.textContent),['Views per day and likes','Newest']);
-  await choose(select(),'new');
+  assert.deepEqual((await sortOptions(c)).map(o=>o.textContent),['Views per day and likes','Newest']);
+  await press(select());await choose(select(),'new');
   assert.deepEqual(rowTitles(c),['AAAAAAAAAAAA','Claude can n','Claude Code in 20 minutes','Which agent ','Agents that run a shop','My cat learns to code'],'videos and posts in one order of age');
  });
  await mount(discoverAt('youtube'),discoverServer(),async ui=>{
   const c=ui.container,select=()=>c.querySelector('#discover-sort')!;
-  assert.deepEqual([...select().querySelectorAll('option')].map(o=>o.textContent),['Most views per day','Most views','Furthest above their usual','Newest']);
-  await choose(select(),'views');assert.deepEqual(rowTitles(c),['Claude Code in 20 minutes','Agents that run a shop','My cat learns to code'],'videos known to beat their usual come first');
+  assert.deepEqual((await sortOptions(c)).map(o=>o.textContent),['Most views per day','Most views','Furthest above their usual','Newest']);
+  await press(select());await choose(select(),'views');assert.deepEqual(rowTitles(c),['Claude Code in 20 minutes','Agents that run a shop','My cat learns to code'],'videos known to beat their usual come first');
  });
  await mount(discoverAt('x'),discoverServer(),async ui=>{
-  assert.deepEqual([...ui.container.querySelectorAll('#discover-sort option')].map(o=>o.textContent),['Most liked','Newest']);
+  assert.deepEqual((await sortOptions(ui.container)).map(o=>o.textContent),['Most liked','Newest']);
  });
 });
 
@@ -599,18 +600,18 @@ test('Discover shows thirty cards, then Show more',async()=>{
 
 // ---------------------------------------------------------------- Home
 
-test('Home is the video board, with six lanes, a count, and New video',async()=>{
+test('Home is the Video board, with six lanes, view controls, and New video',async()=>{
  const opened:string[]=[];
  const videos=[base('i','jk','ideas'),base('p','Planning video','planning'),base('d','Published video','published')];
  await mount(navigate=>createElement(HomeScreen,{navigate,onNewVideo:()=>opened.push('new')}),server({videos}),async(ui,_s,calls,routes)=>{
   const c=ui.container;
   assert.equal(text(c.querySelector('h1')),'Video board');
-  assert.equal(c.querySelector('[aria-label="Video count"]'),null,'one count, in the sidebar; each lane says its own');
+  assert.equal(c.querySelector('[aria-label="Video count"]'),null,'only each lane says its own count');
   assert.deepEqual([...c.querySelectorAll('[data-column]')].map(el=>el.getAttribute('data-column')),['ideas','planning','recording','editing','publishing','published']);
   assert.equal(c.querySelectorAll('[data-card]').length,3);
-  assert.equal(c.querySelectorAll('.lane-add').length,6);
+  assert.equal(c.querySelectorAll('.lane-add').length,5);
   assert.equal(c.querySelector('.checklist-row,.nextup,.trend,.greet'),null);
-  assert.equal(c.querySelector('[role="tablist"]'),null);
+  assert.ok(c.querySelector('[role="tablist"]'),'the view switch is also shown on Home');
   assert.equal(calls.some(call=>call.path==='/trending'||call.path==='/trending/refresh'),false);
   await press(button(c,'New video'));assert.deepEqual(opened,['new']);
   await press(c.querySelector('[data-card-id="i"]')!);assert.deepEqual(routes.at(-1),{name:'video',id:'i'});
@@ -620,8 +621,11 @@ test('Home is the video board, with six lanes, a count, and New video',async()=>
 test('Home for an empty channel immediately shows six usable lanes',async()=>{
  await mount(navigate=>createElement(HomeScreen,{navigate,onNewVideo(){}}),server(),async ui=>{
   assert.equal(ui.container.querySelectorAll('[data-column]').length,6);
-  assert.equal(ui.container.querySelectorAll('.lane-add').length,6);
+  assert.equal(ui.container.querySelectorAll('.lane-add').length,5);
   assert.equal(ui.container.querySelector('.first-steps'),null);
+  const published=ui.container.querySelector('[data-column=published]')!;
+  assert.match(text(published),/No published videos yet.*Finished videos land here/s);
+  assert.equal(published.querySelector('.lane-add,.lane-plus'),null);
  });
 });
 
@@ -659,4 +663,30 @@ test('For you never lists a video under its creator\'s usual; it waits under Sho
  assert.deepEqual(trendList(items,'fit','vpd').map(i=>i.title),['Above','Exactly','Unknown']);
  assert.deepEqual(trendList(items,'all','vpd').map(i=>i.title),['Below','Unknown','Above','Exactly']);
  assert.equal(trendCounts(items).fit,3);
+});
+
+
+test('Research failure with no content is one retry state, without empty-feed controls',async()=>{
+ await mount(discoverAt(),discoverServer({failTrending:true,signals:{items:[],updatedAt:null,errors:[],sources:0}}),async(ui,s)=>{
+  const c=ui.container;
+  assert.equal(c.querySelectorAll('[role="alert"]').length,1);
+  assert.equal(text(c.querySelector('[role="alert"]')),"Research couldn't loadCheck your internet connection, then try again.Try againManage channels");
+  assert.equal(c.querySelectorAll('.disc-views,.disc-sources,.disc-bar,.empty').length,0);
+  assert.equal([...c.querySelectorAll('button')].some(button=>button.textContent==='Follow channels'),false);
+  s.failTrending=false;await press(button(c,'Try again'));
+  assert.ok(c.querySelector('.disc-views'),'controls return when content loads');
+ });
+});
+
+
+test('Research refresh failure with empty cached lists hides the empty feed and controls',async()=>{
+ await mount(discoverAt(),discoverServer({trending:{items:[],updatedAt:'2026-10-28T00:00:00.000Z',followed:1},signals:{items:[],updatedAt:null,errors:[],sources:0}}),async(ui)=>{
+  const c=ui.container;
+  await press(button(c,'Refresh'));
+  await emit('failed',{message:'Origin is not allowed'});
+  assert.equal(c.querySelectorAll('[role="alert"]').length,1);
+  assert.equal(text(c.querySelector('[role="alert"]')),"Research couldn't loadCheck your internet connection, then try again.Try againManage channels");
+  assert.equal(c.querySelectorAll('.disc-views,.disc-sources,.disc-bar,.empty').length,0);
+  assert.equal([...c.querySelectorAll('button')].filter(button=>button.textContent==='Try again').length,1);
+ });
 });

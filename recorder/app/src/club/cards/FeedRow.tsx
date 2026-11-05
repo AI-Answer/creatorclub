@@ -15,9 +15,9 @@ function IdeaButton({title,inIdeas,onIdea}:{title:string;inIdeas:boolean;onIdea(
   :<button type="button" className="btn sm" onClick={onIdea} aria-label={`Turn into idea: ${title}`}><Icon name="idea" size={14}/>Turn into idea</button>;
 }
 
-/** "Add to Research", beside Turn into idea: shows under the pointer or on focus, like the row's other quiet actions. */
+/** "Add to Channel board", beside Turn into idea: shows under the pointer or on focus, like the row's other quiet actions. */
 function ResearchButton({onResearch}:{onResearch?():void}){
- return onResearch?<span className="quiet"><IconButton icon="research" label="Add to channel board" onClick={onResearch}/></span>:null;
+ return onResearch?<span className="quiet"><IconButton icon="research" label="Add to Channel board" onClick={onResearch}/></span>:null;
 }
 
 /**

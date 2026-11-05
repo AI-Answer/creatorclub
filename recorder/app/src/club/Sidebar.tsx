@@ -18,9 +18,8 @@ const IN_PRODUCTION:ReadonlyArray<Video['stage']>=['planning','recording','editi
 /** Videos being made, the ones touched last first. */
 export const inProduction=(videos:readonly Video[])=>videos.filter(video=>IN_PRODUCTION.includes(video.stage)).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt));
 
-/** The channel switcher, search, Video board with its in-progress count and Research. */
-export function Sidebar({route,onSearch,onSwitched,onAdd,videos,epoch}:{route:Route;onSearch():void;onSwitched():void;onAdd():void;videos:readonly Video[];epoch:number}){
- const counts:Partial<Record<RouteName,number>>={home:inProduction(videos).length};
+/** The channel switcher, search, Video board and Research. */
+export function Sidebar({route,onSearch,onSwitched,onAdd,epoch}:{route:Route;onSearch():void;onSwitched():void;onAdd():void;videos:readonly Video[];epoch:number}){
  const collapsed=false;
  return <nav className="sidebar" aria-label="Main">
   <div className="sb-top">
@@ -29,9 +28,9 @@ export function Sidebar({route,onSearch,onSwitched,onAdd,videos,epoch}:{route:Ro
   <button type="button" className="sb-search" onClick={onSearch} title="Search (⌘K)" aria-label="Search"><Icon name="search" size={16}/><span>Search</span><span className="kbd">⌘K</span></button>
   <div className="nav">
    {NAV.map(({name,label,icon,href})=>{
-    const here=route.name===name||(name==='home'&&route.name==='videos'),count=counts[name];
+    const here=route.name===name||(name==='home'&&route.name==='videos');
     const link=<a key={name} href={href} className={`nav-item${here?' active':''}`} aria-label={collapsed?label:undefined} aria-current={here?'page':undefined}>
-     <Icon name={icon} size={16}/><span className="label">{label}</span>{count?<span className="count" title={`${count} in progress`}>{count}</span>:null}
+     <Icon name={icon} size={16}/><span className="label">{label}</span>
     </a>;
     return link;
    })}

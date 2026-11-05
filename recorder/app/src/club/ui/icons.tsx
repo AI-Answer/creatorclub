@@ -25,7 +25,7 @@ const glyphs={
  microphone:Mic,camera:Video,snapshot:Camera,screen:Monitor,audio:AudioLines,music:Music,captions:Captions,film:Film,image:Image,text:Type,
  slide:MoveHorizontal,adjust:SlidersHorizontal,'take-settings':Settings2,layout:LayoutTemplate,
  // Places and things
- home:House,idea:Lightbulb,trending:TrendingUp,signals:MessagesSquare,production:SquareKanban,video:Clapperboard,scenes:Layers,script:FileText,
+ home:House,channel:Youtube,idea:Lightbulb,trending:TrendingUp,signals:MessagesSquare,production:SquareKanban,video:Clapperboard,scenes:Layers,script:FileText,
  research:Compass,frame:Frame,connect:Spline,
  package:Package,note:StickyNote,folder:Folder,'folder-open':FolderOpen,table:Table,calendar:Calendar,duration:Clock,settings:Settings,
  help:CircleHelp,keyboard:Keyboard,theme:Sun,youtube:Youtube,comment:MessageCircle,like:Heart,assistant:Bot,'first-steps':Sprout,code:Code,

@@ -74,8 +74,8 @@ test('Board: six flat lanes, compact cards, counts, no idea subgroups, and direc
   assert.equal(c.querySelectorAll('[data-column]').length,6);
   assert.equal(c.querySelector('.igroup-h'),null);
   assert.deepEqual(cardIds(column(c,'ideas')),['a','b','c','d']);
-  assert.match(text(card(c,'Planned')),/0 of 3 scenes/);
-  assert.match(text(card(c,'Recorded')),/2 of 5 scenes/);
+  assert.equal(text(card(c,'Planned').querySelector('.na')).includes('scenes'),false,'board metadata stays focused on identity and time');
+  assert.equal(card(c,'Recorded').querySelector('[aria-label="Recording"]')?.getAttribute('role'),'img','every card has its stage identity');
   assert.match(card(c,'Live').querySelector('img')!.getAttribute('src')!,/^\/api\/club\/videos\/x\/cover/);
   assert.equal(calls.filter(call=>call.method!=='GET').length,0);
   await press(button(c,'New video'));assert.equal(opened.count,1);
@@ -172,8 +172,8 @@ test('Table: video, stage, scenes recorded, publish date and views; a heading so
   const rows=()=>[...c.querySelectorAll('tbody tr')].map(tr=>[text(tr.querySelector('td .row > span')),...[...tr.children].slice(1).map(td=>text(td))]);
   assert.deepEqual(rows().map(row=>row[0]),['Live','Recorded','Planned','Alpha','Bravo'],'furthest along first; Later and Skipped are not listed');
   assert.deepEqual(rows().find(row=>row[0]==='Recorded'),['Recorded','Recording','2 of 5','Oct 31 · planned','—']);
-  assert.deepEqual(rows().find(row=>row[0]==='Live'),['Live','Published','—','Oct 14','12K']);
-  assert.deepEqual(rows().find(row=>row[0]==='Planned'),['Planned','Planning','0 of 3','—','—']);
+  assert.deepEqual(rows().find(row=>row[0]==='Live'),['Live','Published','None yet','Oct 14','12K']);
+  assert.deepEqual(rows().find(row=>row[0]==='Planned'),['Planned','Planning','None yet','Not scheduled','—']);
   await press([...c.querySelectorAll('th')].find(th=>/Video/.test(th.textContent||''))!);
   assert.deepEqual(rows().map(row=>row[0]),['Alpha','Bravo','Live','Planned','Recorded']);
   assert.equal(c.querySelector('th[aria-sort="ascending"]')!.textContent,'Video ↑');
@@ -192,7 +192,7 @@ test('Table: with no videos it says so',async()=>{
 
 const dayOf=(date:Date)=>`${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
 
-test('Calendar: a video sits on its publish day, else the day it entered its stage; videos with no day are listed, and a drop on a day plans it',async()=>{
+test('Calendar: only publish dates enter the grid; undated videos stay above it, overflow opens, and drag/Undo keep dates honest',async()=>{
  const now=new Date(),today=dayOf(now);
  const noon=new Date(now.getFullYear(),now.getMonth(),now.getDate(),12).toISOString();
  const videos=[
@@ -205,25 +205,31 @@ test('Calendar: a video sits on its publish day, else the day it entered its sta
  await withBoard({videos},'calendar',async(ui,calls,routes)=>{
   const c=ui.container;
   const cell=(day:string)=>c.querySelector<HTMLElement>(`[data-day="${day}"]`)!;
-  const chips=(day:string)=>[...cell(day).querySelectorAll('.ev .ellipsis')].map(text);
-  assert.deepEqual(chips(today),['Alpha','Bravo','Live']);
+  const chips=(day:string)=>[...cell(day).querySelectorAll('.ev .calendar-title')].map(text);
+  assert.deepEqual(chips(today),['Alpha']);
+  assert.equal(text(cell(today).querySelector('.calendar-more')),'+1 more');
+  await press(button(cell(today),'+1 more'));
+  const overflow=c.querySelector('[role="dialog"]')!;
+  assert.deepEqual([...overflow.querySelectorAll('.calendar-title')].map(text),['Alpha','Live']);
+  assert.equal(overflow.querySelector('[title="Live · Published"]')!.getAttribute('draggable'),'false');
+  await press(overflow.querySelector('[aria-label="Close"]')!);
   assert.ok(cell(today).classList.contains('today'));
   assert.equal(text(c.querySelector('h2.sec')),new Intl.DateTimeFormat('en-US',{month:'long',year:'numeric'}).format(now));
-  assert.equal(cell(today).querySelector('.ev.st-recording')!.getAttribute('title'),'Bravo · Recording · Moved to Recording this day');
-  assert.equal(text(c.querySelector('[aria-label="Not scheduled"]')),'Not scheduled: Gamma');
-  await press(button(c.querySelector('[aria-label="Not scheduled"]')!,'Gamma'));
+  const undated=c.querySelector('[aria-label="Unscheduled"]')!;
+  assert.deepEqual([...undated.querySelectorAll('.calendar-title')].map(text),['Bravo','Gamma','Idea']);
+  await press(undated.querySelector('[title="Gamma · Editing"]')!);
   assert.deepEqual(routes,[{name:'video',id:'g',tab:'publish'}],'it opens on the Publish tab, where the day is set');
 
   const other=[...c.querySelectorAll<HTMLElement>('[data-day]')].find(el=>el.dataset.day!==today&&el.dataset.day!.slice(0,7)===today.slice(0,7))!;
-  const chip=(title:string)=>[...c.querySelectorAll<HTMLElement>('.ev')].find(el=>text(el.querySelector('.ellipsis'))===title)!;
-  assert.equal(chip('Live').getAttribute('draggable'),'false','a published video is not planned on a day');
+  const chip=(title:string)=>[...c.querySelectorAll<HTMLElement>('.ev')].find(el=>text(el.querySelector('.calendar-title'))===title)!;
   await dragTo(chip('Bravo'),other);
   assert.deepEqual(calls.filter(call=>call.method==='PUT').map(call=>[call.path,call.body]),[['/videos/b',{publishDate:other.dataset.day}]]);
   assert.ok(chips(other.dataset.day!).includes('Bravo'),'on its new day');
   assert.match(toasts(c)[0],/^Planned for [A-Z][a-z]{2} \d+Undo$/);
   await press(button(c.querySelector('.cc-toast')!,'Undo'));
   assert.deepEqual(calls.filter(call=>call.method==='PUT').slice(-1).map(call=>call.body),[{publishDate:null}]);
-  assert.ok(chips(today).includes('Bravo'),'back on the day it entered Recording');
+  assert.equal(chips(today).includes('Bravo'),false,'Undo never substitutes a stage date');
+  assert.ok(c.querySelector('[aria-label="Unscheduled"] [title="Bravo · Recording"]'));
 
   await press(c.querySelector('[aria-label="Next month"]')!);
   assert.notEqual(text(c.querySelector('h2.sec')),new Intl.DateTimeFormat('en-US',{month:'long',year:'numeric'}).format(now));
@@ -288,7 +294,7 @@ test('Videos in the app: an old Production link lands on Videos, the views switc
  try{
   await settle();
   assert.equal(window.location.hash,'#/videos/table','the old link is rewritten');
-  assert.equal(text(ui.container.querySelector('h1')),'Videos');
+  assert.equal(text(ui.container.querySelector('h1')),'Video board');
   assert.equal(ui.container.querySelector('[role="tab"][aria-selected="true"]')!.textContent,'Table');
   await press([...ui.container.querySelectorAll('[role="tab"]')].find(tab=>tab.textContent==='Board')!);
   assert.equal(window.location.hash,'#/videos');
@@ -298,13 +304,13 @@ test('Videos in the app: an old Production link lands on Videos, the views switc
  }finally{await ui.close();fake.restore();window.location.hash='';}
 });
 
-test('Board: unknown scenes show only a date; known scenes show compact progress',async()=>{
+test('Board: loading scene progress never adds a redundant card metadata row',async()=>{
  const videos=[mk('p',{title:'Planned',stage:'planning'})];
  let release=()=>{};const hold=new Promise<void>(resolve=>{release=resolve;});
  await withBoard({videos,outlines:{p:3},holdScenes:hold},'board',async ui=>{
   assert.equal(ui.container.querySelector('.dots'),null);
   release();await settle();
-  assert.match(text(card(ui.container,'Planned')),/0 of 3 scenes/);
+  assert.equal(text(card(ui.container,'Planned').querySelector('.na')).includes('scenes'),false,'scene progress remains in the table');
   assert.equal(ui.container.querySelectorAll('.dots i').length,0,'the compact card uses a fraction instead of duplicating progress dots');
  });
 });
@@ -317,7 +323,7 @@ test('Board: Move to on a card is a button you can reach with the keyboard; it m
   assert.equal(trigger.closest('[data-card]'),null,'it is not inside the card, so pressing it does not open the video');
   await press(trigger);
   const menu=c.querySelector('.menu')!;
-  assert.deepEqual([...menu.querySelectorAll('.hd,button')].map(text),['Move to','Ideas','Planning','Recording','Editing','Publishing','Published','Add to channel board']);
+  assert.deepEqual([...menu.querySelectorAll('.hd,button')].map(text),['Move to','Ideas','Planning','Recording','Editing','Publishing','Published','Add to Channel board']);
   assert.equal(menu.querySelector('[aria-checked="true"]')!.textContent,'Planning','the stage it is in is marked');
   await press([...menu.querySelectorAll('button')].find(b=>text(b)==='Planning')!);
   assert.equal(calls.filter(call=>call.method==='POST').length,0,'its own stage does nothing');
@@ -338,21 +344,23 @@ test('Board: Move to on a card is a button you can reach with the keyboard; it m
  });
 });
 
-test('Calendar: a video with no day has a date field in the Not scheduled list; choosing a day plans it, with Undo',async()=>{
+test('Calendar: a video with no day opens a date field from its Unscheduled row; choosing a day plans it, with Undo',async()=>{
  const videos=[mk('g',{title:'Gamma',stage:'editing',stageDates:{}}),mk('h',{title:'Hotel',stage:'planning',stageDates:{}})];
  await withBoard({videos},'calendar',async(ui,calls)=>{
   const c=ui.container;
   const field=(title:string)=>c.querySelector<HTMLInputElement>(`input[type="date"][aria-label="Set publish date for ${title}"]`)!;
-  assert.ok(field('Gamma')&&field('Hotel'));assert.equal(field('Gamma').tabIndex>=0,true);
+  assert.equal(c.querySelector('input[type=date]'),null,'date inputs are hidden until requested');
+  await press(c.querySelector('button[aria-label="Set publish date for Gamma"]')!);
+  assert.ok(field('Gamma'));assert.equal(field('Gamma').tabIndex>=0,true);
   const day=dayOf(new Date(new Date().getFullYear(),new Date().getMonth(),15,12));
   await act(async()=>{Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value')!.set!.call(field('Gamma'),day);field('Gamma').dispatchEvent(new Event('input',{bubbles:true}));});await settle();
   assert.deepEqual(calls.filter(call=>call.method==='PUT').map(call=>[call.path,call.body]),[['/videos/g',{publishDate:day}]]);
-  assert.ok([...c.querySelector(`[data-day="${day}"]`)!.querySelectorAll('.ev .ellipsis')].some(el=>text(el)==='Gamma'),'on that day');
-  assert.equal(field('Gamma'),null,'and out of the list');assert.ok(field('Hotel'));
+  assert.ok([...c.querySelector(`[data-day="${day}"]`)!.querySelectorAll('.ev .calendar-title')].some(el=>text(el)==='Gamma'),'on that day');
+  assert.equal(field('Gamma'),null,'the picker closes after choosing');assert.ok(c.querySelector('button[aria-label="Set publish date for Hotel"]'));
   assert.match(toasts(c)[0],/^Planned for [A-Z][a-z]{2} \d+Undo$/);
   await press(button(c.querySelector('.cc-toast')!,'Undo'));
   assert.deepEqual(calls.filter(call=>call.method==='PUT').slice(-1).map(call=>call.body),[{publishDate:null}]);
-  assert.ok(field('Gamma'),'back in the list');
+  assert.ok(c.querySelector('button[aria-label="Set publish date for Gamma"]'),'back in the list');
  });
 });
 
@@ -385,7 +393,7 @@ test('Board: when the server refuses a move it did not know about, the card goes
 test('Board: each lane adds a titled video directly to that stage',async()=>{
  await withBoard({videos:[]},'board',async(ui,calls)=>{
   const c=ui.container;
-  for(const stage of ['ideas','planning','recording','editing','publishing','published']){
+  for(const stage of ['ideas','planning','recording','editing','publishing']){
    const lane=column(c,stage);
    await press(lane.querySelector('.lane-add')!);
    const input=lane.querySelector('input')!;
@@ -394,7 +402,7 @@ test('Board: each lane adds a titled video directly to that stage',async()=>{
    assert.equal(lane.querySelector('form'),null);
    assert.ok(text(lane).includes(`New ${stage}`));
   }
-  assert.deepEqual(calls.filter(call=>call.path==='/videos'&&call.method==='POST').map(call=>call.body),['ideas','planning','recording','editing','publishing','published'].map(stage=>({title:`New ${stage}`,stage})));
+  assert.deepEqual(calls.filter(call=>call.path==='/videos'&&call.method==='POST').map(call=>call.body),['ideas','planning','recording','editing','publishing'].map(stage=>({title:`New ${stage}`,stage})));
  });
 });
 
@@ -405,5 +413,15 @@ test('Board: a missing thumbnail disappears, leaving the compact title and metad
   assert.equal(video.querySelector('img'),null);
   assert.equal(text(video.querySelector('.tt')),'Alpha');
   assert.ok(text(video.querySelector('.na')));
+ });
+});
+
+test('Table always shows Views and missing cover images leave no placeholder',async()=>{
+ await withBoard({videos:[mk('a',{title:'Alpha',stage:'planning'})]},'table',async ui=>{
+  assert.ok([...ui.container.querySelectorAll('th')].some(th=>text(th)==='Views'));
+  const image=ui.container.querySelector('tbody img')!;
+  assert.ok(image.hasAttribute('hidden'),'no tile while an optional cover is loading');
+  await act(async()=>image.dispatchEvent(new Event('error')));
+  assert.equal(ui.container.querySelector('tbody img,.video-table-thumb'),null);
  });
 });

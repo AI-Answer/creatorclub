@@ -5,12 +5,13 @@ import {act,createElement} from 'react';
 import type {AiStatus,PublishingState} from '../../shared/club';
 import {FakeEventSource,installFetch,type FakeCall,type FakeReply} from './test-fakes';
 const {SettingsScreen}=await import('./screens/SettingsScreen');
+const {SkillsSection,skillSummary,skillTitle}=await import('./settings/SkillsSection');
 
 const status:AiStatus={claude:{installed:true,version:'2',signedIn:true,account:'dani@example.com'},codex:{installed:false,version:null,signedIn:false}};
 const flush=()=>act(async()=>{await new Promise(resolve=>setTimeout(resolve,0));});
 const click=async(element:Element|null)=>{await act(async()=>{(element as HTMLElement).click();});await flush();};
 const type=(input:Element,value:string)=>act(async()=>{Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value')!.set!.call(input,value);input.dispatchEvent(new Event('input',{bubbles:true}));});
-const choose=async(select:Element,value:string)=>{await act(async()=>{(select as HTMLSelectElement).value=value;select.dispatchEvent(new Event('change',{bubbles:true}));});await flush();};
+const choose=async(select:Element,value:string)=>{if(select.tagName==='BUTTON'){await click(select);const label=value==='private'?'Private':'Unlisted';await click([...select.ownerDocument.querySelectorAll('[role=menuitemradio]')].find(item=>item.textContent?.startsWith(label))!);return;}await act(async()=>{(select as HTMLSelectElement).value=value;select.dispatchEvent(new Event('change',{bubbles:true}));});await flush();};
 const off:PublishingState={postiz:{connected:false,address:null,channel:null},defaultVisibility:'public'};
 const on:PublishingState={postiz:{connected:true,address:null,channel:{id:'int_yt1',name:'Samin Yasar'}},defaultVisibility:'public'};
 
@@ -21,16 +22,17 @@ async function withSettings(reply:(call:FakeCall)=>FakeReply,run:(ui:Awaited<Ret
  try{await flush();await run(ui,server.calls);}finally{await ui.close();server.restore();}
 }
 
-test('Settings is Borumi\'s two columns: a nav with one tab per group, and Publishing and look has Postiz, who can watch new videos and the theme',async()=>{
+test('Settings is Borumi\'s two columns: a nav with one tab per group, and Publishing has Postiz, who can watch new videos with Appearance separate',async()=>{
  await withSettings(call=>call.path==='/publishing'?{body:off}:undefined,async ui=>{
   const c=ui.container;
-  assert.deepEqual([...c.querySelectorAll('.settings-nav a')].map(a=>a.textContent),['AI','Your AI agent','Channel','Skills','Publishing & look']);
-  assert.equal(c.querySelector('.settings-nav [aria-current="page"]')!.textContent,'Publishing & look');
-  assert.deepEqual([...c.querySelectorAll('.settings-body-b h2')].map(h=>h.textContent),['Publishing and look'],'one group at a time');
+  assert.deepEqual([...c.querySelectorAll('.settings-nav a')].map(a=>a.textContent),['Connected AI','Your AI agent','Channel','Skills','Publishing','Appearance']);
+  assert.equal(c.querySelector('.settings-nav [aria-current="page"]')!.textContent,'Publishing');
+  assert.deepEqual([...c.querySelectorAll('.settings-body-b h2')].map(h=>h.textContent),['Publishing'],'one group at a time');
   const group=c.querySelector('#set-publishing')!;
   assert.ok(group.textContent?.includes('Postiz'));
   assert.ok(group.querySelector('label[for="set-vis"]')?.textContent==='Who can watch new videos');
-  assert.deepEqual([...group.querySelectorAll('[aria-label="Theme"] button')].map(b=>b.textContent),['System default','Light','Dark']);
+  assert.equal(group.querySelector('[aria-label="Theme"]'),null,'Appearance owns theme controls');
+  assert.equal(group.querySelector('label[for="postiz-key"]')?.textContent,'Postiz key');
   assert.ok(!/please|successfully|!/i.test(group.textContent??''));
  });
 });
@@ -96,7 +98,7 @@ test('Disconnect forgets the key, and the default visibility is saved when chose
   const c=ui.container;
   await choose(c.querySelector('#set-vis')!,'unlisted');
   assert.deepEqual(calls.filter(call=>call.method==='PUT'&&call.path==='/publishing').at(-1)?.body,{defaultVisibility:'unlisted'});
-  assert.equal((c.querySelector('#set-vis') as HTMLSelectElement).value,'unlisted');
+  assert.equal(c.querySelector('#set-vis')!.textContent,'Unlisted: only people with the link');
   await click(button(c,'Disconnect'));
   assert.equal(calls.filter(call=>call.method==='DELETE'&&call.path==='/publishing/postiz').length,1);
   assert.ok(c.querySelector('#postiz-key'),'the key field is back');
@@ -106,7 +108,7 @@ test('Disconnect forgets the key, and the default visibility is saved when chose
 test('Settings still opens and says why when the publishing settings cannot be read',async()=>{
  await withSettings(call=>call.path==='/publishing'?{status:500}:undefined,async ui=>{
   const c=ui.container;
-  assert.ok(c.textContent?.includes("That did not work."));
+  assert.ok(c.textContent?.includes("Couldn't load the publishing settings."));
   assert.ok(c.querySelector('.settings-nav a[href="#/settings/ai"]'),'the other tabs are still there');
  });
 });
@@ -128,4 +130,43 @@ test('a failed save of the default visibility says so, and Try again sends that 
   assert.deepEqual(puts[1].body,{defaultVisibility:'private'});
   assert.equal(c.querySelector('#set-publishing [role="alert"]'),null,'the error is gone once it worked');
  });
+});
+
+
+test('Appearance is a separate section and preserves an existing saved theme',async()=>{
+ await withSettings(call=>call.path==='/publishing'?{body:off}:call.path==='/settings'?{body:{appearance:'dark',defaultAi:'claude',geminiKey:null}}:undefined,async(ui,calls)=>{
+  await ui.render(createElement(SettingsScreen,{section:'appearance',onSetup(){}}));await flush();
+  const c=ui.container;
+  assert.equal(c.querySelector('.settings-nav [aria-current=page]')?.textContent,'Appearance');
+  assert.equal(c.querySelector('#set-appearance [aria-pressed=true]')?.textContent,'Dark');
+  assert.equal(c.querySelector('#set-publishing'),null);
+  await click(button(c.querySelector('#set-appearance')!,'Light'));
+  assert.deepEqual(calls.filter(call=>call.path==='/settings'&&call.method==='PUT').at(-1)?.body,{appearance:'light'});
+ });
+});
+
+
+test('Skills keep a readable name and one complete sentence, with commands and technical text in Details',async()=>{
+ const skills=[{name:'screenplay-edit',description:'Ingest footage with the Remotion engine and edit recordings.',on:true,reason:'declared'}, {name:'motion-designer',description:'Create animated visuals for your videos.',on:true,reason:'added'}];
+ assert.equal(skillTitle('/screenplay-edit'),'Screenplay Edit');
+ for(const skill of skills){
+  const summary=skillSummary(skill);
+  assert.match(summary,/[.!?]$/);
+  assert.doesNotMatch(summary,/ingest|remotion|engine|runs for real/i);
+ }
+ assert.equal(skillSummary(skills[0]),'Edit your recording into a finished video.');
+ assert.equal(skillSummary({name:'sagecut',description:'Ingest recordings and edit your video with the Remotion engine.'}),'Edit your recording into a finished video.');
+ const server=installFetch(call=>call.path==='/skills/edit'?{body:skills}:undefined);
+ const ui=await mountUI(createElement(SkillsSection));
+ try{
+  await flush();
+  assert.equal(ui.container.querySelectorAll('.sk-row').length,2);
+  for(const row of ui.container.querySelectorAll('.sk-row')){
+   assert.doesNotMatch(row.querySelector('.st')!.textContent!,/\//);
+   assert.equal(row.querySelector('details')?.open,false);
+   assert.ok(row.querySelector('details .sk-command')?.textContent?.startsWith('/'));
+   assert.equal(row.querySelectorAll('.sk-why').length,1,'selection reasons live only in Details');
+   assert.ok(row.querySelector('details .sk-why'));
+  }
+ }finally{await ui.close();server.restore();}
 });

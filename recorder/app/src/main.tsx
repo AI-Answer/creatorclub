@@ -12,9 +12,9 @@ import './club/club.css';
 import './recording-club.css';
 import './editing-club.css';
 import './cutroom.css';
-import './club/polish.css';
 import './BrandLogo.css';
 import './club/borumi.css';
+import './club/polish.css';
 import {initializeAppearance} from './appearance';
 initializeAppearance();
 

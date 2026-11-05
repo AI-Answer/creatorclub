@@ -24,7 +24,7 @@ export function IdeaCard({video,highlight,dragging,actions,onOpen,onMove,onResea
  const remove:MenuItem={label:'Delete idea',icon:'delete',danger:true,fn:()=>actions.remove(video)};
  const items:MenuItem[]=held?[remove]:[
   {label:'Later',icon:'save',fn:()=>void actions.later(video)},
-  ...(onResearch?[{label:'Add to channel board',icon:'research' as const,fn:onResearch}]:[]),'-',
+  ...(onResearch?[{label:'Add to Channel board',icon:'research' as const,fn:onResearch}]:[]),'-',
   {header:'Skip it because…'},...SKIP_REASONS.map(reason=>({label:reason,fn:()=>void actions.skip(video,reason)})),'-',
   {header:'Move to'},...VIDEO_STAGES.filter(stage=>stage!=='ideas').map(stage=>({label:STAGE_LABEL[stage],fn:()=>onMove(stage)})),'-',
   remove,
@@ -44,7 +44,7 @@ export function IdeaCard({video,highlight,dragging,actions,onOpen,onMove,onResea
    </div>
   </div>
   <div className="kmove"><Menu align="right" label={`More about ${video.title}`} items={items} restoreFocus button={(toggle,open)=>
-   <button type="button" className={`btn sm icon-only${open?' menu-open':''}`} aria-label={`More about ${video.title}`} aria-haspopup="menu" aria-expanded={open} title={onResearch?'Later, Add to Research, Skip, Move to, Delete':'Later, Skip, Move to, Delete'} onClick={toggle}><Icon name="more" size={15}/></button>}/></div>
+   <button type="button" className={`btn sm icon-only${open?' menu-open':''}`} aria-label={`More about ${video.title}`} aria-haspopup="menu" aria-expanded={open} title={onResearch?'Later, Add to Channel board, Skip, Move to, Delete':'Later, Skip, Move to, Delete'} onClick={toggle}><Icon name="more" size={15}/></button>}/></div>
  </div>;
 }
 

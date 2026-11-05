@@ -12,6 +12,7 @@ const click=async(element:Element|null)=>{await act(async()=>{(element as HTMLEl
 const mcp={command:'/Applications/Creator Compiler.app/Contents/MacOS/sceneforge-mcp',args:[],toolCount:63};
 
 async function withAgentTab(reply:(call:FakeCall)=>FakeReply,run:(ui:Awaited<ReturnType<typeof mountUI>>,calls:FakeCall[])=>Promise<void>){
+ localStorage.removeItem('cc.agent.added');
  FakeEventSource.install();
  const server=installFetch(call=>reply(call)??(call.path==='/settings'?{body:{defaultAi:'claude',appearance:null,geminiKey:null}}:call.path==='/workspaces'?{body:{current:null,workspaces:[]}}:call.path==='/ai/status'?{body:{claude:{installed:true,version:'2',signedIn:true},codex:{installed:false,version:null,signedIn:false}}}:undefined));
  const ui=await mountUI(createElement(ToastProvider,null,createElement(SettingsScreen,{section:'agent',onSetup(){}})));
@@ -32,8 +33,12 @@ test('Your AI agent: one switch allows agents, Claude Code and Codex are added i
   assert.ok(group.textContent?.includes('Cut pauses and filler words')||group.textContent?.includes('cut pauses and filler words'));
   await click(button(c,'Add to Claude Code'));
   assert.deepEqual(calls.filter(call=>call.path==='/agent/connect').map(call=>call.body),[{app:'claude'}]);
-  assert.ok(group.textContent?.includes('Added. Start a new session to use it.'));
-  await click(button(c,'Show'));
+  assert.ok(group.textContent?.includes('Connected'));
+  assert.ok(button(c,'Manage'));
+  assert.deepEqual(JSON.parse(localStorage.getItem('cc.agent.added')!),['claude']);
+  await click(button(c,'Manage'));
+  assert.ok(c.querySelector('[aria-label="MCP configuration"]'));
+  assert.equal(calls.filter(call=>call.path==='/agent/connect').length,1,'Manage never reconnects the agent');
   assert.match(c.querySelector('[aria-label="MCP configuration"]')!.textContent!,/"creator-compiler"[\s\S]*sceneforge-mcp/);
   await click(c.querySelector('[role="switch"][aria-label="Allow AI agents"]'));
   assert.deepEqual(calls.filter(call=>call.method==='PUT'&&call.path==='/api/mcp/settings').map(call=>call.body),[{enabled:false}]);

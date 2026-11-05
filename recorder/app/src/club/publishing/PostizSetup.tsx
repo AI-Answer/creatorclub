@@ -47,7 +47,7 @@ export function PostizSetup({state,onState}:{state:PublishingState;onState(next:
  };
 
  if(!connected)return <form className="pz" onSubmit={event=>void connect(event)}>
-  <label className="field" htmlFor="postiz-key">Postiz API key</label>
+  <label className="field" htmlFor="postiz-key">Postiz key</label>
   <div className="row">
    <Input id="postiz-key" type="password" autoComplete="off" spellCheck={false} placeholder="Paste it once. It stays on this computer." value={key} aria-invalid={error?true:undefined} onChange={event=>{setKey(event.target.value);setError('');}}/>
    <Button type="submit" disabled={busy}>Connect</Button>

@@ -1,20 +1,26 @@
 /* Keep chooser styles separate from the full-page Plan layout. */
 .club-root .new-video-dialog .dh { position: relative; justify-content: center !important; padding: 24px 48px 4px; }
-.club-root .new-video-dialog .dh h3 { text-align: center; font-size: var(--cc-text-lg); font-weight: 600; }
+.club-root .new-video-dialog .dh h3 { text-align: center; font-size: var(--cc-text-lg); font-weight: var(--cc-weight-semibold); }
 .club-root .new-video-dialog .dh > button { position: absolute; right: 20px; top: 20px; }
 .club-root .new-start-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
 .club-root .new-start-card { display: flex; align-items: center; flex-direction: column; gap: 10px; padding: 24px 20px; border: 1px solid var(--cc-line); border-radius: var(--cc-r-lg); background: var(--cc-bg); color: var(--cc-text); cursor: pointer; font: inherit; text-align: center; }
 .club-root .new-start-card:hover { background: var(--cc-hover); border-color: var(--cc-line-hover); }
 .club-root .new-start-card:focus-visible, .club-root .new-recent-row:focus-visible { outline: 2px solid var(--cc-accent); outline-offset: 2px; }
 .club-root .new-start-card:disabled, .club-root .new-recent-row:disabled { opacity: .6; cursor: wait; }
-.club-root .new-start-card b { margin-top: 2px; font-size: var(--cc-text-base); font-weight: 600; }
+.club-root .new-start-card b { margin-top: 2px; font-size: var(--cc-text-base); font-weight: var(--cc-weight-semibold); }
 .club-root .new-start-card > span:last-child { color: var(--cc-text-3); font-size: var(--cc-text-sm); line-height: 1.5; max-width: 240px; }
 .club-root .new-start-icon { display: grid; place-items: center; width: 44px; height: 44px; min-height: 44px; flex: none; aspect-ratio: 1; padding: 0; align-self: center; border-radius: var(--cc-r-lg); }
 .club-root .new-start-plan { background: var(--cc-bg-sunk); color: var(--cc-text-2); }
 .club-root .new-start-quick { background: var(--cc-bg-sunk); color: var(--cc-text-2); }
-.club-root .new-breakdown { display: flex; align-items: center; gap: 6px; margin: 16px auto 0; font: inherit; font-size: var(--cc-text-xs); }
+.club-root .new-breakdown { display: flex; align-items: center; gap: 12px; width: 100%; padding: 14px 16px; margin: 12px 0 0; border: 1px solid var(--cc-line); border-radius: var(--cc-r-lg); background: transparent; color: var(--cc-text-2); text-align: left; cursor: pointer; font: inherit; font-size: var(--cc-text-sm); transition: background var(--cc-dur) var(--cc-ease),border-color var(--cc-dur) var(--cc-ease); }
+.club-root .new-breakdown > span { display: flex; align-items: baseline; gap: 6px; flex: 1; }
+.club-root .new-breakdown b { font-weight: var(--cc-weight-medium); color: var(--cc-text); }
+.club-root .new-breakdown > span > span { color: var(--cc-text-3); }
+.club-root .new-breakdown:hover:enabled { border-color: var(--cc-line-hover); background: var(--cc-hover); }
+.club-root .new-breakdown:disabled { color: var(--cc-text-faint); cursor: not-allowed; }
+.club-root .new-breakdown:focus-visible { outline: 2px solid var(--cc-accent); outline-offset: 2px; }
 .club-root .new-recents { margin-top: 24px; }
-.club-root .new-recents h4 { font-size: var(--cc-text-sm); font-weight: 600; }
+.club-root .new-recents h4 { font-size: var(--cc-text-sm); font-weight: var(--cc-weight-semibold); }
 .club-root .new-recents > .row { margin-bottom: 10px; }
 .club-root .new-recent-row { display: flex; align-items: center; gap: 10px; width: 100%; border: 0; border-top: 1px solid var(--cc-line); background: transparent; color: var(--cc-text); padding: 9px 0; font: inherit; text-align: left; cursor: pointer; }
 .club-root .new-recent-row:hover { background: var(--cc-hover); }

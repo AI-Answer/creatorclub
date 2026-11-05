@@ -249,3 +249,50 @@ test('take outlines and sync badges reach 3:1 against clip fills in both themes'
  }
  const css=fs.readFileSync(path.join(src,'editing-club.css'),'utf8');assert.match(css,/\.club-clip.take-related\{outline:2px solid var\(--take-outline\)/);assert.match(css,/\.club-clip.take-related-take\{outline-style:dashed/);
 });
+
+/** B/C own these exact pre-existing declarations. The allowance only shrinks as their packages land. */
+test('club CSS uses the 400/500/600 scale; no new non-scale weight can enter any package',()=>{
+ const allowed=JSON.parse(fs.readFileSync(path.join(club,'ui/legacy-weights.json'),'utf8')) as Record<string,number>;
+ const seen:Record<string,number>={},found:string[]=[];
+ for(const file of sources.filter(file=>file.endsWith('.css')&&rel(file)!==TOKENS)){
+  const css=fs.readFileSync(file,'utf8').replace(/\/\*[\s\S]*?\*\//g,'');
+  for(const [,selector,body] of css.matchAll(/([^{}]+)\{([^{}]*)\}/g))for(const [,weight] of body.matchAll(/font-weight:\s*([^;}]+)/g)){
+   if(['400','500','600','inherit','var(--cc-weight-regular)','var(--cc-weight-medium)','var(--cc-weight-semibold)'].includes(weight.trim()))continue;
+   const key=`${path.relative(club,file).split(path.sep).join('/')}|${selector.trim().replace(/\s+/g,' ')}|${weight}`;
+   seen[key]=(seen[key]??0)+1;
+   if(seen[key]>(allowed[key]??0))found.push(key);
+  }
+ }
+ assert.deepEqual(found,[],'Use --cc-weight-regular, --cc-weight-medium or --cc-weight-semibold.');
+ const {light}=themeTokens();
+ for(const [name,value] of Object.entries({'--cc-weight-regular':'400','--cc-weight-medium':'500','--cc-weight-semibold':'600'}))assert.equal(light[name],value);
+});
+
+test('all sidebar page headers use ScreenHeader instead of separate title markup',()=>{
+ for(const name of ['VideosScreen','DiscoverScreen','ResearchScreen','SettingsScreen']){
+  const source=fs.readFileSync(path.join(club,`screens/${name}.tsx`),'utf8');
+  assert.match(source,/<ScreenHeader\b/,name);
+  assert.doesNotMatch(source,/<h1\b/,`${name} must use the shared title hierarchy`);
+ }
+ const home=fs.readFileSync(path.join(club,'screens/HomeScreen.tsx'),'utf8');
+ assert.match(home,/<VideosScreen\b/,'Home shares the Video board header and controls');
+});
+
+test('round 2 card metadata reaches 4.5:1 and today/stage colors stay stable across themes',()=>{
+ const {light,dark}=themeTokens();
+ const rgb=(hex:string)=>hex.slice(1).match(/../g)!.map(part=>parseInt(part,16)/255);
+ const luminance=(hex:string)=>rgb(hex).map(n=>n<=.04045?n/12.92:((n+.055)/1.055)**2.4).reduce((sum,n,i)=>sum+n*[.2126,.7152,.0722][i],0);
+ for(const theme of [light,{...light,...dark}]){
+  const [a,b]=[luminance(theme['--cc-card-meta']),luminance(theme['--cc-kanban-card'])].sort((a,b)=>b-a);
+  assert.ok((a+.05)/(b+.05)>=4.5,'small card metadata stays readable');
+  assert.equal(theme['--cc-calendar-today'],'var(--cc-primary)');
+  const stages=['ideas','planning','recording','editing','publishing','published'].map(stage=>theme[`--cc-stage-${stage}`]);
+  assert.equal(new Set(stages).size,6,'each stage has a distinct color');
+  for(const stage of ['ideas','planning','recording','editing','publishing','published'])assert.equal(theme[`--cc-stage-${stage}`],light[`--cc-stage-${stage}`]);
+  for(const [ink,surface,minimum] of [['--cc-card-meta','--cc-kanban-hover',4.5],['--cc-card-menu','--cc-kanban-card',3],['--cc-palette-hint','--cc-kanban-card',4.5]] as const){
+   const [hi,lo]=[luminance(theme[ink]),luminance(theme[surface])].sort((a,b)=>b-a);assert.ok((hi+.05)/(lo+.05)>=minimum,`${ink} contrast`);
+  }
+  assert.equal(theme['--cc-stage-neutral'],light['--cc-stage-neutral']);
+ }
+ for(const file of ['production/Kanban.tsx','production/CalendarView.tsx','ui/StagePill.tsx'])assert.match(fs.readFileSync(path.join(club,file),'utf8'),/StageBadge/,file);
+});

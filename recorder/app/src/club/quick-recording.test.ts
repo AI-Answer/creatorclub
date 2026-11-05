@@ -43,8 +43,8 @@ test('recents follow opened order, show covers and relative update times, and op
   await act(async()=>rows[0].click());
   await act(async()=>button(ui.container,'View all').click());
   assert.deepEqual(routes,[{name:'video',id:'b'},{name:'videos',view:'board'}]);
-  assert.equal(relativeVideoTime('2026-11-03T12:00:00Z',Date.parse('2026-11-03T12:58:00Z')),'58 minutes ago');
-  assert.equal(relativeVideoTime('2026-11-03T12:00:00Z',Date.parse('2026-11-03T13:00:00Z')),'1 hour ago');
+  assert.equal(relativeVideoTime('2026-11-03T12:00:00Z',Date.parse('2026-11-03T12:58:00Z')),'58m ago');
+  assert.equal(relativeVideoTime('2026-11-03T12:00:00Z',Date.parse('2026-11-03T13:00:00Z')),'1h ago');
  }finally{await ui.close();fake.restore();}
 });
 

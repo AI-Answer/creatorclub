@@ -6,11 +6,14 @@ import {ErrorLine} from '../ErrorLine';
 import {AgentSection} from '../settings/AgentSection';
 import {ChannelSection} from '../settings/ChannelSection';
 import {ConnectedAiSection} from '../settings/ConnectedAiSection';
+import {AppearanceSection} from '../settings/AppearanceSection';
 import {PublishingSection} from '../settings/PublishingSection';
 import {SkillsSection} from '../settings/SkillsSection';
 import {usePublishing} from '../publishing/usePublishing';
 import type {SettingsSection} from '../routes';
 import {Icon,cn,type IconName} from '../ui';
+
+import {ScreenHeader} from './ScreenHeader';
 
 type Loaded={settings:ClubSettings;workspace:Workspace|null};
 
@@ -24,7 +27,7 @@ async function load():Promise<Loaded>{
 }
 
 /** The element a link's section scrolls to. Followed channels and signal sources sit inside Channel. */
-const TARGET:Record<SettingsSection,string>={ai:'set-ai',agent:'set-agent',channel:'set-channel',followed:'set-followed',sources:'set-sources',skills:'set-skills',publishing:'set-publishing'};
+const TARGET:Record<SettingsSection,string>={ai:'set-ai',agent:'set-agent',channel:'set-channel',followed:'set-followed',sources:'set-sources',skills:'set-skills',publishing:'set-publishing',appearance:'set-appearance'};
 
 /** The page's shape while the settings are read: the three groups as grey blocks, so nothing jumps when they arrive. */
 function SettingsSkeleton(){
@@ -35,16 +38,16 @@ function SettingsSkeleton(){
  return <div aria-busy="true" aria-label="Loading settings" className="set-skel">{[3,2,2].map(group)}</div>;
 }
 
-type Tab='ai'|'agent'|'channel'|'skills'|'publishing';
+type Tab='ai'|'agent'|'channel'|'skills'|'publishing'|'appearance';
 /** Borumi's Settings nav: one tab per group, each with its icon. Followed channels and signal sources open the Channel tab. */
 const TABS:ReadonlyArray<{key:Tab;label:string;icon:IconName}>=[
- {key:'ai',label:'AI',icon:'ai'},{key:'agent',label:'Your AI agent',icon:'connect'},{key:'channel',label:'Channel',icon:'video'},{key:'skills',label:'Skills',icon:'draft'},{key:'publishing',label:'Publishing & look',icon:'upload'},
+ {key:'ai',label:'Connected AI',icon:'ai'},{key:'agent',label:'Your AI agent',icon:'connect'},{key:'channel',label:'Channel',icon:'channel'},{key:'skills',label:'Skills',icon:'draft'},{key:'publishing',label:'Publishing',icon:'upload'},{key:'appearance',label:'Appearance',icon:'theme'},
 ];
 const tabFor=(section?:SettingsSection):Tab=>section==='followed'||section==='sources'?'channel':section??'ai';
 
 /**
- * Settings, laid out like Borumi's: a 256px nav on the left (the title, then one row per group) and the chosen group on the right.
- * The groups: Connected AI, Channel, Skills, and Publishing and look. Connected AI, Channel, and Publishing and look. `onSetup` opens first launch to add or set up a channel.
+ * Settings: a shared page title above the section nav and the chosen preferences.
+ * `onSetup` opens first launch to add or set up a channel.
  * The page shows as soon as the saved settings are read; the AI rows follow when the slower AI check answers (a skeleton until then).
  * A link to a `section` (`#/settings/followed`) scrolls there once the settings are loaded; the followed channels' or the signal sources' first input is focused.
  */
@@ -73,20 +76,23 @@ export function SettingsScreen({section:linked,onSetup}:{section?:SettingsSectio
  },[readStatus]);
  const tab=tabFor(linked);
  return <div className="settings-layout-b">
+  <ScreenHeader title="Settings" description="Your AI, channel and publishing preferences."/>
+  <div className="settings-content">
   <nav className="settings-nav" aria-label="Settings">
-   <h1>Settings</h1>
    {TABS.map(({key,label,icon})=><a key={key} href={`#/settings/${key}`} className={cn('settings-tab',tab===key&&'on')} aria-current={tab===key?'page':undefined}><Icon name={icon} size={16}/>{label}</a>)}
   </nav>
   <div className="settings-body-b page settings-page">
-   {error?<ErrorLine message={error} onRetry={refresh} primary/>
+   {error?<ErrorLine message={error} fallback="Couldn't load Settings." onRetry={refresh} primary/>
     :!data?<SettingsSkeleton/>
     :<>
       {tab==='ai'&&<ConnectedAiSection status={status} statusError={statusError} settings={data.settings} onStatus={refreshStatus} onSettings={change=>setData({...data,settings:{...data.settings,...change}})}/>}
       {tab==='agent'&&<AgentSection/>}
       {tab==='channel'&&<ChannelSection workspace={data.workspace} focus={linked==='followed'||linked==='sources'?linked:undefined} onSaved={workspace=>setData({...data,workspace})} onSetup={onSetup}/>}
       {tab==='skills'&&<SkillsSection/>}
-      {tab==='publishing'&&<PublishingSection publishing={publishing.state} error={publishing.error} onReload={publishing.reload} onPublishing={publishing.setState} savedTheme={data.settings.appearance}/>}
+      {tab==='appearance'&&<AppearanceSection savedTheme={data.settings.appearance}/>}
+      {tab==='publishing'&&<PublishingSection publishing={publishing.state} error={publishing.error} onReload={publishing.reload} onPublishing={publishing.setState}/>}
     </>}
+  </div>
   </div>
  </div>;
 }

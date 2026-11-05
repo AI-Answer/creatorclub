@@ -32,12 +32,12 @@ export function trapTab(panel:HTMLElement,active:Element|null,shift:boolean):HTM
  * Moves focus into the panel when it opens (unless something inside already took it), keeps Tab and Shift Tab inside it while it is open,
  * and gives focus back to what had it before when it closes.
  */
-export function useFocusPanel(){
+export function useFocusPanel(focusSelf=false){
  const panel=useRef<HTMLDivElement>(null);
  // Read while rendering: a field inside with `autoFocus` takes focus before effects run, and would be remembered instead of what opened the panel.
  const [before]=useState(()=>document.activeElement as HTMLElement|null);
  useEffect(()=>{
-  if(panel.current&&!panel.current.contains(document.activeElement))panel.current.focus({preventScroll:true});
+  if(panel.current&&(focusSelf||!panel.current.contains(document.activeElement)))panel.current.focus({preventScroll:true});
   const key=(event:KeyboardEvent)=>{
    if(event.key!=='Tab'||!panel.current)return;
    // Another dialog on top owns Tab: only the panel that holds focus traps it.
@@ -53,6 +53,6 @@ export function useFocusPanel(){
    const now=document.activeElement;
    if(before?.isConnected&&(!now||now===document.body||!!node?.contains(now)))before.focus?.({preventScroll:true});
   };
- },[before]);
+ },[before,focusSelf]);
  return panel;
 }

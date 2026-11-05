@@ -4,6 +4,18 @@ import {clubFetch,errorMessage} from '../api';
 import {ErrorLine} from '../ErrorLine';
 import {Card,Input,Spinner} from '../ui';
 
+export const skillTitle=(name:string)=>name.replace(/^\/+/, '').replace(/[-_]+/g,' ').replace(/\b\w/g,char=>char.toUpperCase());
+
+/** Keep the row useful at a glance; the full supplied text remains in Details. */
+export function skillSummary(skill:Pick<EditSkill,'name'|'description'>):string{
+ const sentence=skill.description.trim().split(/(?<=[.!?])\s/)[0].replace(/\s+/g,' ').replace(/[.!?]$/,'');
+ if(sentence.length<=96&&!/\b(ingest|remotion|engine)\b|runs for real/i.test(sentence))return `${sentence||'Create and refine your video'}.`;
+ if(/edit|editor|cutroom/i.test(skill.name))return 'Edit your recording into a finished video.';
+ if(/motion|animat/i.test(skill.name)||/animated|animation|motion graphics/i.test(sentence))return 'Create and refine animated visuals for your video.';
+ if(/caption/i.test(skill.description)&&!/edit|record/i.test(skill.name))return 'Add clear, readable captions to your video.';
+ return 'Edit your recording into a finished video.';
+}
+
 /**
  * Which of your Claude Code skills show on Edit, where a skill runs for real and makes something for the timeline. Video skills are
  * picked from their own description, and a skill can say it is for Edit (`creatorclub: edit`); a switch here adds or removes any
@@ -22,20 +34,20 @@ export function SkillsSection(){
  const on=found.filter(skill=>skill.on),off=found.filter(skill=>!skill.on);
  const row=(skill:EditSkill)=><div key={skill.name} className="srow2 sk-row">
   <div className="grow" style={{minWidth:0}}>
-   <div className="st">/{skill.name}</div>
-   <div className="sd sk-desc">{skill.description}</div>
-   <div className={`sk-why ${skill.reason}`}>{EDIT_SKILL_WHY[skill.reason]}{(skill.reason==='added'||skill.reason==='removed')&&<> · <button type="button" className="linkish" onClick={()=>choose(skill.name,null)}>Automatic</button></>}</div>
+   <div className="st">{skillTitle(skill.name)}</div>
+   <div className="sd sk-desc">{skillSummary(skill)}</div>
+   <details className="skill-details"><summary>Details</summary><div className="sk-command">/{skill.name}</div><p>{skill.description}</p><div className="sk-why">{EDIT_SKILL_WHY[skill.reason]}{(skill.reason==='added'||skill.reason==='removed')&&<> · <button type="button" className="linkish" onClick={()=>choose(skill.name,null)}>Automatic</button></>}</div></details>
   </div>
   <button type="button" role="switch" aria-checked={skill.on} aria-label={`Show /${skill.name} on Edit`} className="sk-switch" onClick={()=>choose(skill.name,!skill.on)}><span/></button>
  </div>;
- return <section className="set-group" id="set-skills" aria-labelledby="set-skills-title"><h2 id="set-skills-title">Skills on Edit</h2>
-  <p>On Edit, a skill runs for real and makes something for the timeline. Video skills are picked for you; switch any skill on or off here.</p>
+ return <section className="set-group" id="set-skills" aria-labelledby="set-skills-title"><h2 id="set-skills-title">Skills</h2>
+  <p>Choose the tools available when you edit a video. Turn any skill on or off here.</p>
   <Card>
    {error?<div style={{padding:16}}><ErrorLine message={error} onRetry={load}/></div>:!skills?<div className="row small muted" role="status" style={{padding:16}}><Spinner label="Reading your skills"/>Reading your skills…</div>:<>
     <div className="srow2"><Input aria-label="Find a skill" placeholder="Find a skill" value={query} onChange={event=>setQuery(event.target.value)}/></div>
     {on.length?on.map(row):<div className="srow2 sd">{q?'No skills match this search on Edit. Try another name or description.':skills.length?'No skills are on Edit. Show the other skills below to turn one on.':'No skills found. Add a Claude Code skill, then reopen Settings.'}</div>}
     {off.length>0&&(showAll||q?<><div className="srow2 sk-sub">Not on Edit · {off.length}</div>{off.map(row)}</>
-     :<div className="srow2"><button type="button" className="linkish" onClick={()=>setShowAll(true)}>Show the other {off.length} skills</button></div>)}
+     :<div className="srow2"><button type="button" className="btn sm" onClick={()=>setShowAll(true)}>Show the other {off.length} skills</button></div>)}
    </>}
   </Card>
  </section>;

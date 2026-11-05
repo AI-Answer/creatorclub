@@ -15,7 +15,7 @@ export function Dialog({open=true,onClose,title,description,children,footer,widt
 function DialogPanel({onClose,title,description,children,footer,width,className}:{onClose():void;title:string;description?:string;children?:ReactNode;footer?:ReactNode;width?:number;className?:string}){
  const titleId=useId(),descriptionId=useId();
  useEscape(onClose);
- const panel=useFocusPanel();
+ const panel=useFocusPanel(true);
  return <>
   <div className="scrim bg-scrim" onClick={onClose}/>
   <div ref={panel} tabIndex={-1} className={cn('dialog rounded-[var(--cc-r-lg)] border-line bg-card text-ink shadow-[var(--cc-shadow-3)]',className)} role="dialog" aria-modal="true" aria-labelledby={titleId} aria-describedby={description?descriptionId:undefined} style={width?{width}:undefined}>

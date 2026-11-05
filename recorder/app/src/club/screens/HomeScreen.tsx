@@ -1,7 +1,7 @@
 import type {Route} from '../routes';
 import {VideosScreen} from './VideosScreen';
 
-/** Video board is the pipeline without the alternate-view controls. */
+/** Home is an alias for the same Video board and its view controls. */
 export function HomeScreen({navigate,onNewVideo}:{navigate(route:Route):void;onNewVideo():void}){
- return <VideosScreen route={{name:'videos',view:'board'}} navigate={navigate} onNewVideo={onNewVideo} home/>;
+ return <VideosScreen route={{name:'videos',view:'board'}} navigate={navigate} onNewVideo={onNewVideo}/>;
 }

@@ -13,7 +13,7 @@ import type {DiscoverShow,Route} from '../routes';
 import {withEntry} from '../settings';
 import {SubredditChips} from '../settings/SubredditChips';
 import {isNew} from '../trending-view';
-import {Empty,Icon,Spinner,useToast} from '../ui';
+import {Empty,Icon,Select,Spinner,useToast} from '../ui';
 import {savedBreakdown,useBreakdowns} from '../useBreakdowns';
 import {useSignals,useTrending} from '../useFeed';
 import {ideaFromSource,trendingUrl,useIdeaFrom} from '../useIdeaFrom';
@@ -21,6 +21,8 @@ import type {JobRun} from '../useJobRun';
 import {useProfile} from '../useProfile';
 import {useVideos} from '../useVideos';
 import {useAddToResearch} from '../useAddToResearch';
+
+import {ScreenHeader} from './ScreenHeader';
 
 const plural=(n:number,word:string)=>`${n} ${word}${n===1?'':'s'}`;
 /** How many cards show before "Show more". */
@@ -120,8 +122,9 @@ export function DiscoverScreen({show='fit',navigate}:{show?:DiscoverShow;navigat
  };
 
  const loading=(trending.data===null&&trending.loadError===null)||(signals.data===null&&signals.loadError===null);
- if(loading)return <div className="page"><div className="row small muted" role="status"><Spinner label="Loading what's working" size={20}/>Loading videos and posts for your topics…</div></div>;
- if(trending.data===null&&signals.data===null)return <div className="page"><ErrorLine message={trending.loadError!} onRetry={()=>{void trending.reload();void signals.reload();}} primary/></div>;
+ if(loading)return <div className="page"><ScreenHeader title="Research" description="What's working on YouTube, X and Reddit, ranked for your topics."/><div className="row small muted" role="status"><Spinner label="Loading what's working" size={20}/>Loading videos and posts for your topics…</div></div>;
+ const failedWithoutContent=!live.videos.length&&!live.posts.length&&(trending.loadError||signals.loadError||trending.job.phase==='failed'||signals.job.phase==='failed'||failedChannels.length>0||(signals.data?.errors.length??0)>0);
+ if(failedWithoutContent)return <div className="page"><ScreenHeader title="Research" description="What's working on YouTube, X and Reddit, ranked for your topics." actions={<><span className="small muted">{latestRead(trending.data?.updatedAt,signals.data?.updatedAt)?`Last updated ${new Date(latestRead(trending.data?.updatedAt,signals.data?.updatedAt)!).toLocaleDateString()}`:'Last updated: never'}</span><button type="button" className="btn" onClick={refresh}><Icon name="retry" size={15}/>Refresh</button></>}/><div className="research-recovery" role="alert"><span className="research-error-icon"><Icon name="research" size={20}/></span><h2>Research couldn't load</h2><p className="muted">Check your internet connection, then try again.</p><div className="row"><button type="button" className="btn primary" onClick={()=>{if(trending.loadError||signals.loadError){void trending.reload();void signals.reload();}else refresh();}}>Try again</button><button type="button" className="btn" onClick={()=>navigate({name:'settings',section:'followed'})}>Manage channels</button></div></div></div>;
 
  const followed=trending.data?.followed??0,sources=signals.data?.sources??0,sourcesBy=signals.data?.sourcesBy??{x:0,reddit:0};
  const ideas=openIdeas(videos).length;
@@ -139,14 +142,13 @@ export function DiscoverScreen({show='fit',navigate}:{show?:DiscoverShow;navigat
  const view=viewOf(show);
 
  return <div className="page">
-  <div className="page-head"><div><h1>Research</h1><div className="lede">What's working on YouTube, X and Reddit, ranked for your topics.</div></div>
-   <div className="actions"><RefreshActions updatedAt={updatedAt} summary={summary} job={job} onRefresh={refresh}/></div></div>
-  {trending.loadError&&!trending.data&&<div style={{marginBottom:14}}><ErrorLine message={trending.loadError} onRetry={()=>void trending.reload()}/></div>}
-  {signals.loadError&&!signals.data&&<div style={{marginBottom:14}}><ErrorLine message={signals.loadError} onRetry={()=>void signals.reload()}/></div>}
-  {trending.job.phase==='failed'&&<div style={{marginBottom:14}}><ErrorLine message={trending.job.message} onRetry={retryVideos}/></div>}
-  {signals.job.phase==='failed'&&<div style={{marginBottom:14}}><ErrorLine message={signals.job.message} onRetry={()=>retryPosts()}/></div>}
-  {!running&&failedChannels.length>0&&<div style={{marginBottom:14}}><ErrorLine message={`Couldn't read ${sourceList(failedChannels)}, so their earlier videos stay.`} onRetry={retryVideos}/></div>}
-  {!running&&postErrors.length>0&&signals.job.phase!=='failed'&&<div style={{marginBottom:14}}><ErrorLine message={`Couldn't read ${sourceList(postErrors)}, so their earlier posts stay.`} onRetry={()=>retryPosts(postErrors)}/></div>}
+  <ScreenHeader title="Research" description="What's working on YouTube, X and Reddit, ranked for your topics." actions={<RefreshActions updatedAt={updatedAt} summary={summary} job={job} onRefresh={refresh}/>}/>
+  {trending.loadError&&!trending.data&&<div style={{marginBottom:14}}><ErrorLine fallback="Couldn't load Research." message={trending.loadError} onRetry={()=>void trending.reload()}/></div>}
+  {signals.loadError&&!signals.data&&<div style={{marginBottom:14}}><ErrorLine fallback="Couldn't load Research." message={signals.loadError} onRetry={()=>void signals.reload()}/></div>}
+  {trending.job.phase==='failed'&&<div style={{marginBottom:14}}><ErrorLine fallback="Couldn't load Research." message={trending.job.message} onRetry={retryVideos}/></div>}
+  {signals.job.phase==='failed'&&<div style={{marginBottom:14}}><ErrorLine fallback="Couldn't load Research." message={signals.job.message} onRetry={()=>retryPosts()}/></div>}
+  {!running&&failedChannels.length>0&&<div style={{marginBottom:14}}><ErrorLine fallback="Couldn't load Research." message={`Couldn't read ${sourceList(failedChannels)}, so their earlier videos stay.`} onRetry={retryVideos}/></div>}
+  {!running&&postErrors.length>0&&signals.job.phase!=='failed'&&<div style={{marginBottom:14}}><ErrorLine fallback="Couldn't load Research." message={`Couldn't read ${sourceList(postErrors)}, so their earlier posts stay.`} onRetry={()=>retryPosts(postErrors)}/></div>}
   {note&&<div className="small muted" style={{marginBottom:14}}>{note}</div>}
 
   <div className="disc-views">
@@ -158,7 +160,7 @@ export function DiscoverScreen({show='fit',navigate}:{show?:DiscoverShow;navigat
    {view==='fit'&&<div className="disc-sources" role="group" aria-label="Source">{DISCOVER_SOURCES.map(([key,label])=><button key={key} type="button" className={`fchip${show===key?' on':''}`} aria-pressed={show===key} onClick={()=>choose(key)}>{(key==='youtube'||key==='x'||key==='reddit')&&<BrandLogo brand={key} size={15}/>}{label} <span className="n">{counts[key]}</span></button>)}</div>}
    <span className="grow"/>
    <label className="small muted" htmlFor="discover-sort">Sort by</label>
-   <select id="discover-sort" className="select" value={sort} onChange={event=>{if(!running&&held)showNew();setSort(event.target.value as DiscoverSort);}}>{sortsFor(show).map(([key,label])=><option key={key} value={key}>{label}</option>)}</select>
+   <Select id="discover-sort" label="Sort by" value={sort} options={sortsFor(show).map(([value,label])=>({value,label}))} onChange={value=>{if(!running&&held)showNew();setSort(value as DiscoverSort);}}/>
   </div>
   {topics.length>0&&(show==='fit'||show==='youtube')&&<div className="small muted disc-note">Matched to your topics: {topics.join(', ')}.</div>}
   {newResults&&<div className="disc-new"><button type="button" className="btn sm" onClick={showNew}><Icon name="retry" size={14}/>New results</button><span className="small muted">The list was read again. Show it in its new order.</span></div>}

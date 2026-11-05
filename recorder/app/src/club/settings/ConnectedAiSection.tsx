@@ -4,7 +4,7 @@ import {clubFetch,errorMessage} from '../api';
 import {AiRow} from '../AiRow';
 import {ErrorLine} from '../ErrorLine';
 import {connectLabel} from '../useConnect';
-import {Button,Icon,Input,Tabs,type Tab} from '../ui';
+import {Button,Card,Icon,Input,Tabs,type Tab} from '../ui';
 import {BrandLogo} from '../../BrandLogo';
 import {HiggsfieldRow} from './HiggsfieldRow';
 
@@ -14,8 +14,8 @@ export function ConnectedAiSection({status,statusError,settings,onStatus,onSetti
  const pending=(label:string)=><div className="srow set-skel" aria-busy="true" aria-label={`Checking ${label}`}><span className={`logo ${label==='Claude'?'logo-claude':'logo-codex'}`}><BrandLogo brand={label==='Claude'?'claude':'chatgpt'} size={26}/></span><div className="grow" style={{display:'flex',flexDirection:'column',gap:6}}><div className="shimmer" style={{height:14,width:'40%'}}/><div className="shimmer" style={{height:12,width:'70%'}}/></div></div>;
  return <section className="set-group" id="set-ai" aria-labelledby="set-ai-title"><h2 id="set-ai-title">Connected AI</h2><p>Creator Compiler uses your own Claude or ChatGPT account. Nothing is billed here.</p>
   <div className="card">
-   {status?<AiRow settings provider="claude" status={status.claude} description="Used for ideas, packaging, scenes and scripts." onChanged={onStatus}/>:pending('Claude')}
-   {status?<AiRow settings provider="codex" status={status.codex} description="Optional. Works the same way, if that is the account you have." onChanged={onStatus}/>:pending('ChatGPT')}
+   {status?<AiRow settings primary={!status.claude.signedIn} provider="claude" status={status.claude} description="Used for ideas, packaging, scenes and scripts." onChanged={onStatus}/>:pending('Claude')}
+   {status?<AiRow settings primary={status.claude.signedIn&&!status.codex.signedIn} provider="codex" status={status.codex} description="Optional. Works the same way, if that is the account you have." onChanged={onStatus}/>:pending('ChatGPT')}
    <HiggsfieldRow/>
    <GeminiRow saved={settings.geminiKey} onChanged={geminiKey=>onSettings({geminiKey})}/>
   </div>
@@ -34,11 +34,13 @@ function DefaultAi({status,saved,onSaved}:{status:AiStatus;saved:AiProvider|null
   clubFetch('/settings',{method:'PUT',body:{defaultAi:provider}}).then(()=>onSaved(provider),()=>setError(provider));
  },[onSaved]);
  return <div style={{marginTop:18}}>
-  <div className="field" id="default-ai-label">Use for writing and thinking</div>
+  <h3 className="settings-subtitle" id="default-ai-label">Use for writing and thinking</h3>
+  <Card className="default-ai-card"><div className="srow2"><div className="grow">
   <p className="small muted" style={{margin:'-2px 0 8px'}}>Which AI writes your titles, hooks and scripts, breaks videos down and answers in Ask Claude.</p>
   <Tabs label="Default AI" tabs={aiTabs} value={value} onChange={choose}/>
   {error&&<div style={{marginTop:10}}><ErrorLine message="Couldn't save that choice." onRetry={()=>choose(error)}/></div>}
   {!error&&!status[value].signedIn&&<p className="small muted" style={{margin:'8px 0 0'}}>{connectLabel[value]} is not connected yet.</p>}
+  </div></div></Card>
  </div>;
 }
 
@@ -61,7 +63,7 @@ function GeminiRow({saved,onChanged}:{saved:string|null;onChanged(masked:string|
  return <div className="srow" style={{alignItems:'flex-start'}}>
   <span className="logo logo-gemini"><BrandLogo brand="gemini" size={27}/></span>
   <div className="grow">
-   <div style={{fontWeight:600}}>Gemini <span className="chip" style={{marginLeft:6}}>Optional</span></div>
+   <div style={{fontWeight:600}}>Gemini <span className="chip optional-badge" style={{marginLeft:6}}>Optional</span></div>
    <div className="small muted" style={{marginBottom:10}}>Lets Creator Compiler watch videos with sound and motion when it breaks them down.</div>
    {saved?<div className="row small"><span className="dotok"/>Key saved {saved} <button type="button" className="linkish" disabled={busy} onClick={()=>void remove()}>Remove key</button></div>
     :<form className="row" onSubmit={(event:FormEvent)=>{event.preventDefault();void save();}}>
