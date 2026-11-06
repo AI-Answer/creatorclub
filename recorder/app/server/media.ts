@@ -257,13 +257,16 @@ export async function probeMedia(
 }
 export async function thumbnail(m: Media, cacheDir: string): Promise<string> {
   await fs.mkdir(cacheDir, { recursive: true });
+  // A see-through clip (a graphic over the video) shows what it holds: a middle frame, its alpha kept, on the dark stage colour.
+  const alpha = m.kind === "video" ? await alphaDecoder(m.path) : [];
   const key = (await identity(m.path)).key,
-    file = path.join(cacheDir, `${key}.thumb.jpg`);
+    file = path.join(cacheDir, `${key}.thumb${alpha.length ? "-alpha" : ""}.jpg`);
   return unique(file, async () => {
     if (await exists(file)) return file;
     const tmp = path.join(cacheDir, `${key}.${randomUUID()}.tmp.jpg`);
-    const input =
-      m.kind === "audio"
+    const input = alpha.length
+      ? [...alpha, "-ss", String(Math.max(0, m.duration / 2)), "-i", m.path, "-filter_complex", "color=c=0x121212:s=480x270[bg];[0:v]scale=480:270:force_original_aspect_ratio=decrease,format=rgba[f];[bg][f]overlay=(W-w)/2:(H-h)/2:shortest=1"]
+      : m.kind === "audio"
         ? [
             "-i",
             m.path,

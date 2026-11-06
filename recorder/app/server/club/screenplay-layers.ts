@@ -31,13 +31,18 @@ interface Scene {
   duration: number;
   transitionIn?: string;
   app?: string;
-  elements?: unknown[];
+  /** A stage scene's own title. */
+  title?: string;
+  /** A chapter card's place in the chapters. */
+  index?: number;
+  elements?: { type?: string; text?: string }[];
 }
 export interface ScreenplayTimeline {
   fps: number;
   durationInFrames: number;
   scenes: Scene[];
   webcam?: { frame: number; mode: string }[];
+  chapters?: { index: number; title: string }[];
 }
 export interface Aroll {
   segments?: { srcStart: number; srcEnd?: number; outStart: number }[];
@@ -74,7 +79,17 @@ export function sourceTime(aroll: Aroll, t: number): number {
 }
 
 const TITLE: Record<string, string> = { chapter: 'Chapter card', stage: 'Graphic', talking: 'Over the face', plug: 'Plug', board: 'Board' };
-const titleOf = (s: Scene) => (s.kind === 'app' ? `${(s.app ?? 'App').replace(/^./, (c) => c.toUpperCase())} scene` : TITLE[s.kind] ?? 'Scene');
+const plain = (text: string) => text.replace(/[*_`]/g, '').replace(/\s+/g, ' ').trim().slice(0, 60);
+/** A block's name on the timeline: what it shows (its title, its headline, its chapter), so the row reads as the video's outline. */
+const titleOf = (s: Scene, t: ScreenplayTimeline) => {
+  if (s.kind === 'chapter') {
+    const chapter = t.chapters?.find((c) => c.index === s.index);
+    return chapter ? `Chapter: ${plain(chapter.title)}` : TITLE.chapter;
+  }
+  const own = s.title?.trim() || s.elements?.find((e) => typeof e.text === 'string' && e.text.trim())?.text;
+  if (own) return plain(own);
+  return s.kind === 'app' ? `${(s.app ?? 'App').replace(/^./, (c) => c.toUpperCase())} scene` : TITLE[s.kind] ?? 'Scene';
+};
 
 export interface LayerBlock {
   id: string;
@@ -101,7 +116,7 @@ export function layerPlan(t: ScreenplayTimeline, aroll: Aroll): { blocks: LayerB
     const f0 = starts[i], f1 = Math.min(t.durationInFrames, i + 1 < scenes.length ? starts[i + 1] : s.from + s.duration);
     if (f1 <= f0 || (s.kind === 'talking' && !s.elements?.length)) return;
     const start = sourceTime(aroll, f0 / t.fps);
-    blocks.push({ id: s.id, title: titleOf(s), f0, f1, start, duration: sourceTime(aroll, f1 / t.fps) - start });
+    blocks.push({ id: s.id, title: titleOf(s, t), f0, f1, start, duration: sourceTime(aroll, f1 / t.fps) - start });
   });
   // The speaker is a tile wherever screenplay's webcam is: from each change of mode to the next.
   const modes = [...(t.webcam ?? [{ frame: 0, mode: 'tile' }])].sort((a, b) => a.frame - b.frame);

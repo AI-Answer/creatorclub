@@ -132,3 +132,19 @@ test('a see-through VP9 WebM overlay keeps its alpha in the export: the clip und
   assert.ok(pixel(out,96,72)[0]>200&&pixel(out,96,72)[2]<40,`the square stays red, got ${pixel(out,96,72)}`);
  }finally{await fs.rm(dir,{recursive:true,force:true});}
 });
+
+test('a see-through clip\'s timeline picture shows what it holds, on the dark stage colour, not an empty grey frame',{timeout:60000},async()=>{
+ const dir=await fs.mkdtemp(path.join(os.tmpdir(),'sceneforge-alpha-thumb-'));
+ try{
+  const overlay=path.join(dir,'overlay.webm');
+  command(['-f','lavfi','-i','color=c=black@0:s=192x108:r=30:d=1,format=rgba','-f','lavfi','-i','color=c=red:s=64x36:r=30:d=1','-filter_complex','[0][1]overlay=64:36:format=auto,format=yuva420p','-c:v','libvpx-vp9','-auto-alt-ref','0',overlay]);
+  const media=await probeMedia(overlay,path.join(dir,'cache'));
+  const {thumbnail}=await import('./media.js');
+  const file=await thumbnail(media,path.join(dir,'cache'));
+  assert.match(file,/thumb-alpha\.jpg$/);
+  const px=command(['-i',file,'-vf','scale=480:270','-frames:v','1','-f','rawvideo','-pix_fmt','rgb24','pipe:1']);
+  const at=(x:number,y:number)=>[...px.subarray((y*480+x)*3,(y*480+x)*3+3)];
+  assert.ok(at(240,135)[0]>180,`the graphic shows in the middle, got ${at(240,135)}`);
+  assert.ok(at(10,10).every(v=>v<40),`around it is the dark stage, got ${at(10,10)}`);
+ }finally{await fs.rm(dir,{recursive:true,force:true});}
+});

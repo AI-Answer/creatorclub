@@ -7,7 +7,7 @@ import type {EditorBridge,EditorState} from '../../App';
 import {describeEditAction,type SilencePlan} from '../../editing-actions';
 import {MOTION_TEMPLATES} from '../../../shared/motion/templates';
 import {clubFetch,clubUpload,errorMessage} from '../api';
-import {featuredSkills,matchSkills,slashQuery,type EditSkill,type InstalledSkill} from '../../../shared/skills';
+import {EDIT_FIRST,editFirst,featuredSkills,matchSkills,slashQuery,type EditSkill,type InstalledSkill} from '../../../shared/skills';
 import {ErrorLine} from '../ErrorLine';
 import {ASK_CLAUDE} from './ask-claude';
 import {Button,Icon,Spinner,cn,type IconName} from '../ui';
@@ -154,7 +154,8 @@ export function Companion({videoId,videoTitle,videoWhy,tab,part,scene,screen,sel
  // "/" alone lists a short set; typing searches every installed skill, and "Show all" lists them all.
  // On Edit only the skills that edit or make video are listed: there a skill runs for real and makes something for the timeline.
  const offered=skills&&tab==='edit'?(skills as EditSkill[]).filter(skill=>skill.on):skills;
- const short=offered?(tab==='edit'?offered:featuredSkills(offered)):[];
+ const first=offered&&tab==='edit'?editFirst(offered):[];
+ const short=offered?(tab==='edit'?(first.length?first:offered):featuredSkills(offered)):[];
  const choices=query!==undefined&&offered&&!dismissed?(query!==''||showAll||!short.length?matchSkills(offered,query):short):[];
  const hidden=query===''&&!showAll&&offered&&short.length>0?offered.length-short.length:0;
  const pickerOpen=query!==undefined&&!dismissed&&!working;
@@ -229,12 +230,12 @@ export function Companion({videoId,videoTitle,videoWhy,tab,part,scene,screen,sel
   <div className="cmp-foot">
    {!aiAvailable&&<p className="cmp-faint">{AI_CONNECT_HINT}</p>}
    {pickerOpen&&<div className="cmp-skills" role="listbox" aria-label="Your skills">
-    <div className="cmp-skills-head">{tab==='edit'?'Video skills: each one runs and makes something for the timeline':'Your skills'}</div>
+    <div className="cmp-skills-head">{tab==='edit'?(query===''&&!showAll&&first.length?'Edit your video with':'Video skills: each one runs and makes something for the timeline'):'Your skills'}</div>
     <div className="cmp-skills-list">
     {!skills?<div className="cmp-skills-empty">Looking for your skills…</div>
      :!choices.length?<div className="cmp-skills-empty">{offered?.length?'No skill with that name. Try another name.':tab==='edit'?'No video skills are installed in your Claude Code yet. Add one in Settings → Skills.':'No skills are installed in your Claude Code yet. Add one in Settings → Skills.'}</div>
      :choices.map((skill,at)=><button key={skill.name} type="button" role="option" aria-selected={at===pick} className={cn('cmp-skill',at===pick&&'on')} onMouseEnter={()=>setPick(at)} onMouseDown={event=>event.preventDefault()} onClick={()=>choose(skill)}>
-       <span className="cmp-skill-name">/{skill.name}</span><span className="cmp-skill-what">{skill.description}</span>
+       <span className="cmp-skill-name">/{skill.name}</span><span className="cmp-skill-what">{tab==='edit'&&EDIT_FIRST[skill.name]?EDIT_FIRST[skill.name]:skill.description}</span>
       </button>)}
      {hidden>0&&<button type="button" className="cmp-skills-more" onMouseDown={event=>event.preventDefault()} onClick={()=>setShowAll(true)}>Show all {offered!.length} skills, or type a name</button>}
     {tab==='edit'&&<a className="cmp-skills-more" href="#/settings/skills">Missing a skill? Choose which ones show here in Settings</a>}</div>

@@ -73,3 +73,13 @@ export const EDIT_SKILL_WHY:Record<EditSkillReason,string>={added:'You added it'
 export const FEATURED_SKILLS=['write-hook','write-setup','build-points','write-cta','reel-editor','motion-graphics','motion-showreel'] as const;
 /** The featured skills that are installed, in the order above. */
 export const featuredSkills=(skills:readonly InstalledSkill[]):InstalledSkill[]=>FEATURED_SKILLS.flatMap(name=>skills.filter(s=>s.name===name));
+
+/**
+ * On Edit, "/" lists first the skills that edit the recording itself, each with what it does in plain words; the creator's other video
+ * skills are one click away (Show all) or found by typing.
+ */
+export const EDIT_FIRST:Readonly<Record<string,string>>={
+  'screenplay-edit':'Edits the whole video: motion graphics on your timeline, with you as a tile beside them.',
+  'proof-edit':'Adds graphics and proof on your words, on your timeline.',
+};
+export const editFirst=(skills:readonly InstalledSkill[]):InstalledSkill[]=>Object.keys(EDIT_FIRST).flatMap(name=>skills.filter(s=>s.name===name));
