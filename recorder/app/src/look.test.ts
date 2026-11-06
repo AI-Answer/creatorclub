@@ -54,7 +54,7 @@ test('the stage card makes the camera inside the stretch a tile on the stage and
  assert.equal(tile.effects.faceCenter,true,'the face stays in the tile');
  const box=stageTile(EDITORIAL_LOOK.stage!,p.canvas);
  assert.deepEqual([tile.transform.x,tile.transform.y,tile.transform.width,tile.transform.height],[box.x,box.y,box.width,box.height]);
- assert.ok(box.x>.75&&Math.abs(box.width*p.canvas.width*1.6-box.height*p.canvas.height)<1,'a portrait tile (5:8) on the right edge');
+ assert.ok(box.x>.75&&Math.abs(box.width*p.canvas.width*1.35-box.height*p.canvas.height)<1,'a portrait tile (about 3:4) on the right edge');
  assert.equal(at('screen',8).transform.opacity,0);
  assert.equal(at('screen',2).transform.opacity,1);
  for(const c of [before,after]){assert.equal(c.stage,undefined);assert.equal(c.transform.width,1);}

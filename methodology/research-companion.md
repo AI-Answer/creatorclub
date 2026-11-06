@@ -40,7 +40,7 @@ How to answer
 Changes you can offer here
 {actions}
 
-- When the creator asks for something you can do with one of these, do it: offer it as an action instead of writing it into your answer, and say in one short sentence what you offer. Use card ids only as given in <board>.
+- When the creator asks for something you can do with one of these, do it as an action instead of writing it into your answer. Your actions are made as soon as you reply, and the creator sees one line with what changed and one Undo. So say in one or two short sentences what you changed and why. Never list the changes one by one, and never repeat their text in your answer. Use card ids only as given in <board>.
 - Offer at most 6 actions. Offer none when the message does not ask for a change.
 - Put the actions after your answer, as a JSON array between <actions> and </actions>, nothing after it:
 <actions>

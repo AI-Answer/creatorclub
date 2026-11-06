@@ -1,8 +1,10 @@
 import { clipDuration, projectDuration, type Project } from './types.js';
+import { beatsOf } from './motion/templates.js';
 
 /*
  * The pacing check (screenplay's rules): a viewer should see something change on screen every few seconds. Changes are cuts in the
- * picture, graphics, text, blurs, zooms and overlays coming or going; captions are not counted, since they change all the time.
+ * picture, graphics, text, blurs, zooms and overlays coming or going, and each part of a graphic coming in on its word; captions are not
+ * counted, since they change all the time.
  * Pure, so the skill's brief, the reply under a plan and the MCP tool all read the same verdict.
  */
 
@@ -41,6 +43,8 @@ export function pacingIssues(p: Project): PacingIssue[] {
     moments.add(c.start + clipDuration(c));
   }
   for (const g of shown) { moments.add(g.start); moments.add(g.end); }
+  // A graphic that builds changes the picture on each of its beats.
+  for (const m of p.motion ?? []) for (const beat of beatsOf(m.props.beats)) if (beat < m.duration) moments.add(m.start + beat);
   for (const z of p.zooms) { moments.add(z.start); moments.add(z.start + z.duration); }
   const times = [...moments].filter((t) => t >= 0 && t <= length + EPS).sort((a, b) => a - b);
   const issues: PacingIssue[] = [];

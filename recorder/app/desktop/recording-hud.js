@@ -11,7 +11,8 @@
  const F=window.ScriptFollower,MODES=['Manual','VoiceOptimistic','Voice','ConstSpeedVad','ConstSpeed'],VOICE=new Set(['VoiceOptimistic','Voice']),SPEEDS=[8,10,12,14,16,18,20,22,24,26,28,30];
  let mode=MODES.includes(remembered('island.scrollMode'))?remembered('island.scrollMode'):'VoiceOptimistic',speed=SPEEDS.includes(Number(remembered('island.scrollSpeed')))?Number(remembered('island.scrollSpeed')):14;
  let tokens=[],spans=[],starts=[0],matcher=F.createMatcher([]),pace=F.createPace(),activity=F.createVoiceActivity(),index=0,confirmed=0,heardAt=-1,chars=0,scrollFrame=0;
- let speech={available:false,authorization:'notDetermined',appName:'Creator Compiler'},following=false,followFailed=false;
+ // available is null until the app says: a voice mode neither falls back to constant speed nor asks for permission before then.
+ let speech={available:null,authorization:'notDetermined',appName:'Creator Compiler'},following=false,followFailed=false;
  // Borumi's is_playing, set from the script window's Play and Pause: held pauses a recording's follower, rehearsing plays it outside one.
  let held=false,rehearsing=false,reported='';
  let frame=0,lastTime=0,camera=null,cameraFor=null,cameraTicket=0,live=false,lastStatus=null,flashTimer=0,startingSince=0,startingTimer=0;
@@ -163,7 +164,7 @@
   else if(!want&&following){following=false;window.recordingPreview.follow?.('stop')?.catch?.(()=>{});}
  }
  function heard(event){
-  if(event.type==='status'){speech={...speech,authorization:event.authorization,available:event.available!==false&&speech.available};render();return;}
+  if(event.type==='status'){speech={...speech,authorization:event.authorization,available:event.available===false?false:speech.available};render();return;}
   if(event.type==='reset'){matcher.restart();return;}
   if(event.type==='error'){following=false;followFailed=true;notice={title:'Voice follow stopped',message:event.message};render();return;}
   if(event.type!=='words'||state.status!=='recording'||!VOICE.has(mode))return;
@@ -177,7 +178,7 @@
  const playing=()=>mode!=='Manual'&&shownScript()&&tokens.length>0&&(state.status==='recording'?!held:rehearsing);
  // The script window shows this follower: what changed goes to it through the main process.
  function report(){
-  const value={index:Math.max(0,index),mode,speed,playing:playing(),voiceAvailable:speech.available,asking:VOICE.has(mode)&&speech.available&&speech.authorization!=='authorized',error:followFailed&&notice?notice.message.slice(0,500):null,appName:String(speech.appName).slice(0,80)};
+  const value={index:Math.max(0,index),mode,speed,playing:playing(),voiceAvailable:speech.available!==false,asking:VOICE.has(mode)&&speech.available&&speech.authorization!=='authorized',error:followFailed&&notice?notice.message.slice(0,500):null,appName:String(speech.appName).slice(0,80)};
   const key=JSON.stringify(value);if(key===reported)return;reported=key;window.recordingPreview.script?.(value)?.catch?.(()=>{});
  }
  // What the script window asks of the follower.
@@ -193,7 +194,7 @@
  function syncScroll(){if(playing()){if(!frame){lastTime=0;frame=requestAnimationFrame(tick);}}else if(frame){cancelAnimationFrame(frame);frame=0;lastTime=0;}}
  function tick(now){
   frame=0;if(!playing()){lastTime=0;return;}const dt=lastTime?Math.min(100,now-lastTime)/1000:0;lastTime=now;
-  const constant=mode==='ConstSpeed'||mode==='ConstSpeedVad'||!speech.available;
+  const constant=mode==='ConstSpeed'||mode==='ConstSpeedVad'||speech.available===false;
   if(constant){if(mode!=='ConstSpeedVad'||activity.update(state.microphoneLevel,now)){chars=Math.max(chars,starts[index]||0);chars=Math.min(chars+dt*speed,starts[starts.length-1]);setIndex(F.indexAt(starts,chars));}}
   else if(mode==='VoiceOptimistic'){const next=F.optimisticIndex({confirmed,since:heardAt<0?-1:now-heardAt,rate:pace.rate(),starts});if(next>index||index>confirmed+1||index<confirmed)setIndex(next);}
   frame=requestAnimationFrame(tick);
@@ -215,7 +216,7 @@
  for(const chip of [el('camera-chip'),el('mic-chip')])chip.addEventListener('click',()=>{selected=chip.dataset.source;render();});
  // More is the system menu, as Borumi's (request.context_menu.show), built by the main process from these values.
  el('more').addEventListener('click',async()=>{
-  const choice=await window.recordingPreview.menu({index:Math.max(0,index),mirror:Boolean(state.mirror),showSources,scriptAvailable:Boolean(state.script?.trim()),voiceAvailable:speech.available,mode,speed,speeds:SPEEDS}).catch(()=>null);
+  const choice=await window.recordingPreview.menu({index:Math.max(0,index),mirror:Boolean(state.mirror),showSources,scriptAvailable:Boolean(state.script?.trim()),voiceAvailable:speech.available!==false,mode,speed,speeds:SPEEDS}).catch(()=>null);
   if(choice==='mirror')void command('mirror');
   else if(choice==='script-window')void command('script-window');
   else if(choice==='sources'){showSources=!showSources;keep('island.showSources',showSources?'1':'0');render();}
@@ -226,7 +227,10 @@
  addEventListener('resize',render);
 
  // Voice follow's events, and whether this Mac has it (the main process answers with the helper's permission state as an event).
- window.recordingPreview.onSpeech?.(heard);window.recordingPreview.onScript?.(requested);window.recordingPreview.follow?.('status')?.then?.(value=>{if(value){speech={...speech,available:Boolean(value.available),appName:value.appName||speech.appName};render();}})?.catch?.(()=>{});
+ window.recordingPreview.onSpeech?.(heard);window.recordingPreview.onScript?.(requested);{const asked=window.recordingPreview.follow?.('status');
+  // Without a follower (not a Mac, or no helper) the voice modes read at constant speed from the start.
+  if(!asked?.then)speech={...speech,available:false};
+  else asked.then(value=>{speech={...speech,available:Boolean(value?.available),authorization:value?.authorization||speech.authorization,appName:value?.appName||speech.appName};render();}).catch(()=>{speech={...speech,available:false};render();});}
  // The main process sends the full state once, then only changed fields; read() fills in whatever pushes have not.
  let pushed=false;window.recordingPreview.subscribe(value=>{pushed=true;state={...state,...value};render();});window.recordingPreview.read().then(value=>{state={...(value||{}),...state};render();}).catch(e=>{if(!pushed){notice={title:'Warning!',message:e.message};render();}});
 })();

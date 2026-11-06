@@ -1,4 +1,11 @@
 import type {Media,MotionPlace,MotionTemplateId,Project} from './types';
+import type {LookStage} from './look';
+
+/** The timeline row a whole edit's graphics go on, one block per scene. */
+export const SCREENPLAY_ROW = 'screenplay';
+
+/** A whole edit's graphics as blocks on the creator's own timeline: see-through clips, the stretches where the speaker is a tile, and the tile's shape. */
+export interface ClipLayers { blocks: { media: Media; start: number; duration: number; title: string }[]; stages: { start: number; end: number }[]; stage: LookStage }
 
 /*
  * The companion: one conversation per video across Board, Plan, Record, Edit and Publish (`companion.json` in the video's folder).
@@ -37,6 +44,8 @@ export type EditAction =
   | { type: 'set_caption_style'; enabled?: boolean; fontSize?: number; color?: string; background?: string; position?: TextPosition; maxWords?: number }
   | { type: 'add_caption'; start: number; end: number; text: string }
   | { type: 'add_text'; start: number; duration: number; text: string; position?: TextPosition }
+  /** A note on the timeline's notes row: an idea the creator did not ask for, left for them to decide on. */
+  | { type: 'add_timeline_note'; time: number; text: string }
   /** Hides a box of the frame (a price, an email, a key on screen) for a stretch: x, y, width and height are fractions of the frame. */
   | { type: 'add_blur'; start: number; duration: number; x: number; y: number; width: number; height: number }
   /** The stage for a stretch: the speaker becomes a tile at the side of the look's stage, and the content takes the frame. */
@@ -45,16 +54,16 @@ export type EditAction =
   | { type: 'set_look'; preset?: 'clean' | 'editorial'; name?: string; display?: 'sans' | 'serif'; paper?: string; ink?: string; accent?: string; muted?: string; motion?: 'still' | 'subtle' | 'lively'; stage?: { background?: string; side?: 'right' | 'left'; size?: number } | null }
   | { type: 'set_zoom'; start: number; duration: number; scale: number; x?: number; y?: number; target?: 'screen' | 'camera' }
   /** An animated graphic on the Motion row: `text` is its main line (title, name, label or chapter title), `detail` the second (subtitle, role, chapter number), `x`/`y` a callout's point. */
-  | { type: 'add_motion_block'; template: MotionTemplateId; style?: string; start: number; duration?: number; text: string; detail?: string; x?: number; y?: number; /** Set when the card is offered: the side or band away from the speaker's face. */ place?: MotionPlace }
+  | { type: 'add_motion_block'; template: MotionTemplateId; style?: string; start: number; duration?: number; text: string; detail?: string; x?: number; y?: number; /** Timeline times, one per item, when each item comes in: on the word that says it. */ beats?: number[]; /** Set when the card is offered: the side or band away from the speaker's face. */ place?: MotionPlace }
   /** Changes the motion graphic that is on screen at `at`: its words, style, point, start or length. Leave out what stays. */
   | { type: 'update_motion_block'; at: number; text?: string; detail?: string; style?: string; start?: number; duration?: number; x?: number; y?: number }
   /** Removes the motion graphic that is on screen at `at`. */
   | { type: 'remove_motion_block'; at: number }
   | { type: 'normalize_audio' }
   /** A file one of the creator's own skills made in this video's folder, placed on the Overlays row from `start`. Only a skill run creates it, never a reply. */
-  | { type: 'add_clip'; media: Media; start: number; duration: number; title: string };
+  | { type: 'add_clip'; media: Media; start: number; duration: number; title: string; /** A whole-recording edit's finished video: it takes the timeline's place. */ whole?: boolean; /** Screenplay's graphics, one block per scene on their own row, with the speaker as its tile in the stretches given. `media` is the first block's. */ layers?: ClipLayers };
 export type EditActionType = EditAction['type'];
-export const EDIT_ACTION_TYPES = ['cut_pauses', 'remove_fillers', 'close_gaps', 'split_at', 'trim_clip', 'delete_range', 'set_caption_style', 'add_caption', 'add_text', 'add_blur', 'set_stage', 'set_look', 'set_zoom', 'add_motion_block', 'update_motion_block', 'remove_motion_block', 'add_clip', 'normalize_audio'] as const satisfies readonly EditActionType[];
+export const EDIT_ACTION_TYPES = ['cut_pauses', 'remove_fillers', 'close_gaps', 'split_at', 'trim_clip', 'delete_range', 'set_caption_style', 'add_caption', 'add_text', 'add_timeline_note', 'add_blur', 'set_stage', 'set_look', 'set_zoom', 'add_motion_block', 'update_motion_block', 'remove_motion_block', 'add_clip', 'normalize_audio'] as const satisfies readonly EditActionType[];
 export const isEditAction = (action: { type: string }): action is EditAction => (EDIT_ACTION_TYPES as readonly string[]).includes(action.type);
 
 export type CompanionAction =
@@ -67,6 +76,8 @@ export type CompanionAction =
   | { type: 'set_pairs'; pairs: { title: string; thumb: string }[]; use?: number }
   /** Idea: the opening, all three parts. Leave out what stays. */
   | { type: 'set_hook'; spoken?: string; visual?: string; text?: string }
+  /** Idea: the sketch (title, backup title, thumbnail, logline, why, talking points). Leave out what stays. */
+  | { type: 'set_sketch'; title?: string; backupTitle?: string; logline?: string; thumbnail?: { headline?: string; visual?: string; closer?: string }; whys?: string[]; skeleton?: { label: string; line: string }[] }
   | { type: 'add_note'; text: string }
   | { type: 'set_scene'; sceneId: string; title?: string; talkingPoints?: string[] }
   /** The words the creator says out loud in one scene that exists. */
@@ -82,11 +93,11 @@ export type CompanionAction =
   | EditAction;
 export type CompanionActionType = CompanionAction['type'];
 
-export const COMPANION_ACTION_TYPES = ['use_hook', 'use_title', 'set_thumbnail_text', 'set_idea', 'set_pairs', 'set_hook', 'add_note', 'set_scene', 'set_scene_script', 'draft_scenes', 'ask_choice', 'set_description', 'group_tiles', 'start_video', ...EDIT_ACTION_TYPES] as const satisfies readonly CompanionActionType[];
+export const COMPANION_ACTION_TYPES = ['use_hook', 'use_title', 'set_thumbnail_text', 'set_idea', 'set_pairs', 'set_hook', 'set_sketch', 'add_note', 'set_scene', 'set_scene_script', 'draft_scenes', 'ask_choice', 'set_description', 'group_tiles', 'start_video', ...EDIT_ACTION_TYPES] as const satisfies readonly CompanionActionType[];
 
 /** The actions the companion may offer on each step. */
 export const TAB_ACTIONS: Record<CompanionTab, readonly CompanionActionType[]> = {
-  idea: ['set_idea', 'set_pairs', 'set_hook', 'use_hook', 'use_title', 'set_thumbnail_text', 'set_scene', 'set_scene_script', 'draft_scenes', 'add_note', 'ask_choice'],
+  idea: ['set_sketch', 'set_idea', 'set_pairs', 'set_hook', 'use_hook', 'use_title', 'set_thumbnail_text', 'set_scene', 'set_scene_script', 'draft_scenes', 'add_note', 'ask_choice'],
   record: ['set_scene', 'add_note', 'ask_choice'],
   // A clip made by a skill comes from a skill run, never from a reply: the model is not offered `add_clip`.
   edit: [...EDIT_ACTION_TYPES.filter((type) => type !== 'add_clip'), 'ask_choice'],
@@ -102,6 +113,7 @@ export const ACTION_TITLE: Record<CompanionActionType, string> = {
   set_idea: 'The idea',
   set_pairs: 'Titles and thumbnails',
   set_hook: 'Hook',
+  set_sketch: 'Sketch',
   add_note: 'Note for the board',
   set_scene: 'Scene',
   set_scene_script: 'Scene script',
@@ -119,6 +131,7 @@ export const ACTION_TITLE: Record<CompanionActionType, string> = {
   set_caption_style: 'Caption style',
   add_caption: 'Caption',
   add_text: 'Text on screen',
+  add_timeline_note: 'Note on the timeline',
   add_blur: 'Blur',
   set_stage: 'Stage',
   set_look: 'Look',
@@ -138,6 +151,7 @@ export const ACTION_STEP: Record<CompanionActionType, string> = {
   set_idea: 'Writing the idea',
   set_pairs: 'Writing titles and thumbnails',
   set_hook: 'Writing the hook',
+  set_sketch: 'Sketching the video',
   add_note: 'Writing a note',
   set_scene: 'Rewriting the scene',
   set_scene_script: 'Writing the script',
@@ -155,6 +169,7 @@ export const ACTION_STEP: Record<CompanionActionType, string> = {
   set_caption_style: 'Styling captions',
   add_caption: 'Writing a caption',
   add_text: 'Writing text',
+  add_timeline_note: 'Leaving a note',
   add_blur: 'Finding what to hide',
   set_stage: 'Setting the stage',
   set_look: 'Choosing the look',
@@ -174,6 +189,7 @@ export const ACTION_VERB: Record<CompanionActionType, string> = {
   set_idea: 'Use it',
   set_pairs: 'Use these',
   set_hook: 'Use this hook',
+  set_sketch: 'Use it',
   add_note: 'Add to board',
   set_scene: 'Apply',
   set_scene_script: 'Use this script',
@@ -191,6 +207,7 @@ export const ACTION_VERB: Record<CompanionActionType, string> = {
   set_caption_style: 'Apply',
   add_caption: 'Add it',
   add_text: 'Add it',
+  add_timeline_note: 'Leave the note',
   add_blur: 'Blur it',
   set_stage: 'Use the stage',
   set_look: 'Use this look',

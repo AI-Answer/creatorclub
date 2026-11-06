@@ -34,18 +34,19 @@ const slug=channel.slug;
 async function video(){const result=await call('POST','/videos',{title:'Water a plant'});assert.equal(result.status,201);const v=result.body as Video;await call('PUT',`/videos/${v.id}`,{idea:{why:'Test it in real soil.'}});return v;}
 async function finish(id:string){for(let i=0;i<200;i++){const job=(await call('GET',`/jobs/${id}`)).body;if(job.status!=='running')return job;await new Promise(resolve=>setTimeout(resolve,10));}throw Error('Job did not finish');}
 
-test('onepager shape accepts blank hand editing, 6–10 labeled beats and exactly three whys; rejects extra fields and oversized values',()=>{
+test('onepager shape accepts blank hand editing, 1–20 talking points and exactly three whys; rejects extra fields and oversized values',()=>{
  assert.ok(PLAN_JOB_KINDS.includes('onepager'));
  assert.deepEqual(onepagerShape.parse(good),good);
  assert.ok(onepagerShape.safeParse(emptyOnePager()).success);
- for(const invalid of [{...good,skeleton:good.skeleton.slice(0,5)},{...good,skeleton:Array(11).fill(good.skeleton[0])},{...good,whys:['one','two']},{...good,whys:['one','two','three','four']},{...good,extra:1},{...good,thumbnail:{...good.thumbnail,extra:1}},{...good,skeleton:good.skeleton.map(beat=>({...beat,seconds:5}))},{...good,title:'x'.repeat(201)}])assert.equal(onepagerShape.safeParse(invalid).success,false);
+ assert.ok(onepagerShape.safeParse({...good,skeleton:good.skeleton.slice(0,3)}).success,'the creator can keep fewer talking points');
+ for(const invalid of [{...good,skeleton:[]},{...good,skeleton:Array(21).fill(good.skeleton[0])},{...good,whys:['one','two']},{...good,whys:['one','two','three','four']},{...good,extra:1},{...good,thumbnail:{...good.thumbnail,extra:1}},{...good,skeleton:good.skeleton.map(beat=>({...beat,seconds:5}))},{...good,title:'x'.repeat(201)}])assert.equal(onepagerShape.safeParse(invalid).success,false);
  assert.throws(()=>p.parseAnswer(onepagerShape,{title:'Only a title'},'Claude','one-pager'),/shape we could not read/);
  assert.equal(p.parseAnswer(onepagerShape,{...good,title:'A \\"quoted\\" title'},'Claude','one-pager').title,'A "quoted" title');
 });
 
 test('prompt carries the gold method and this creator’s voice, evidence and package without hardcoded brand facts',async()=>{
  const built=await prompts.buildOnePagerPrompt({workspace:{name:'Garden Maker',about:'Tiny gardens',topics:['plants'],cta:''},voice:'# Voice\nUse short friendly sentences.'},{idea:{title:'Water a plant',why:'Test the soil.'},research:[{id:'proof',kind:'video',title:'Self watering pots',meta:{channel:'Plant Maker',views:88000,multiplier:4.5},createdAt:''},{id:'note',kind:'note',text:'Our thumbnail has a yellow background.',meta:{},createdAt:''}],recentTitles:['Grow Your Own Herbs'],pkg:{angle:'Build a soil sensor',twist:'Different soil',titles:['Garden Sensor','',''],thumbnailText:'DRY SOIL',hook:{spoken:'Watch this plant.',visual:'A plant',text:'DRY'}},uploads:[{id:'u1',title:'My herbs',views:12000,date:null}]});
- for(const text of ['Paddy Galloway','6–10','no fragments','no jargon','twist halfway','practical payoff','big-idea ending','Why 1','Why 2','Why 3','Never invent numbers','what evidence to go find','Garden Maker','friendly sentences','88,000 views','4.5x','yellow background','Garden Sensor','12,000 views'])assert.ok(built.prompt.includes(text),text);
+ for(const text of ['Paddy Galloway','6–8','no fragments','no jargon','twist halfway','practical payoff','big-idea ending','Why 1','Why 2','Why 3','Never invent numbers','what evidence to go find','Garden Maker','friendly sentences','88,000 views','4.5x','yellow background','Garden Sensor','12,000 views'])assert.ok(built.prompt.includes(text),text);
  assert.ok(!built.prompt.includes('Samin'));assert.ok(!built.prompt.includes('Is Insane'));assert.ok(!built.prompt.includes('884K'));
  assert.equal((built.schema as {title:string}).title,'onepager');
  const noData=await prompts.buildOnePagerPrompt({workspace:{name:'A creator',about:'',topics:[],cta:''},voice:''},{idea:{title:'An idea'},research:[]});

@@ -17,6 +17,7 @@ import {MotionLayer} from './MotionLayer';
 import {drawnBlocks,onStage} from '../shared/look';
 import {captionPartAt} from '../shared/caption-parts';
 import {StageHandles,type Box} from './StageHandles';
+import {morphNow} from '../shared/stage-morph';
 
 /** `visible` is false for a pre-rolled upcoming clip: it stays mounted, paused, silent and transparent, with no vision or face-tracking work. */
 function ClipView({clip,media,time,visible,playing,quality,onSelect,project:p,pixelScale,playbackRate}:{clip:Clip;media:Media;time:number;visible:boolean;playing:boolean;quality:boolean;onSelect:()=>void;project:Project;pixelScale:number;playbackRate:number}){
@@ -33,6 +34,10 @@ function ClipView({clip,media,time,visible,playing,quality,onSelect,project:p,pi
  const t={...layoutTransform(p,clip,Math.max(time,clip.start))},e=clip.effects;
  const full=t.x===0&&t.y===0&&t.width===1&&t.height===1&&(clip.zIndex??0)>=0;
  if(full){const pad=Math.min(p.canvas.padding,Math.min(p.canvas.width,p.canvas.height)/3);t.x=pad/p.canvas.width;t.y=pad/p.canvas.height;t.width=1-2*t.x;t.height=1-2*t.y;}
+ // Between the tile and the full frame the camera morphs (shared/stage-morph.ts), the same frames the export draws.
+ const morph=visible?morphNow(clip,p,time):undefined;
+ if(morph){t.x=morph.box.x;t.y=morph.box.y;t.width=morph.box.width;t.height=morph.box.height;}
+ const radius=morph?morph.box.radius:(t.borderRadius||(full?p.canvas.radius:0)),morphBlur=morph&&morph.blur>0?` blur(${(morph.blur*p.canvas.width*pixelScale).toFixed(2)}px)`:'';
  const zoom=p.zooms.find(z=>z.target===clip.track&&time>=z.start&&time<z.start+z.duration);
  const zoomScale=zoom?zoomScaleAt(zoom,time):1;
  let position='50% 50%';
@@ -43,9 +48,9 @@ function ClipView({clip,media,time,visible,playing,quality,onSelect,project:p,pi
  const fadeIn=Math.min(1,e.fadeIn?Math.max(0,effectElapsed)/e.fadeIn:1),fadeOut=Math.min(1,e.fadeOut?Math.max(0,timing.duration-effectElapsed)/e.fadeOut:1);
  const opacity=t.opacity*(clip.effectTiming?fadeIn*fadeOut:Math.min(fadeIn,fadeOut));
  // Pre-roll is transparent rather than display:none, so its first frame is already decoded and composited at the cut.
- const style={left:`${t.x*100}%`,top:`${t.y*100}%`,width:`${t.width*100}%`,height:`${t.height*100}%`,opacity:visible?opacity:0,pointerEvents:visible?undefined:'none',transform:`rotate(${t.rotation}deg) scaleX(${e.flipX?-1:1})`,borderRadius:(t.borderRadius||(full?p.canvas.radius:0))*pixelScale,filter:clipFilterCss(e,t,pixelScale)} as const;
+ const style={left:`${t.x*100}%`,top:`${t.y*100}%`,width:`${t.width*100}%`,height:`${t.height*100}%`,opacity:visible?opacity:0,pointerEvents:visible?undefined:'none',transform:`rotate(${t.rotation}deg) scaleX(${e.flipX?-1:1})`,borderRadius:radius*pixelScale,filter:(clipFilterCss(e,t,pixelScale).replace(/^none$/,'')+morphBlur).trim()||'none'} as const;
  const blurBackground=Boolean(vision.frame&&e.background==='blur');
- return <div className="stage-media" style={style} aria-hidden={visible?undefined:true} onClick={e=>{e.stopPropagation();onSelect();}}>{blurBackground&&(media.kind==='image'?<img className="vision-background" src={mediaUrl(media)} style={{...mediaStyle,filter:`blur(${18*pixelScale}px)`}} alt=""/>:<video className="vision-background" ref={backdrop} src={mediaUrl(media,quality)} muted playsInline preload="metadata" style={{...mediaStyle,filter:`blur(${18*pixelScale}px)`}}/>)}{media.kind==='image'?<img src={mediaUrl(media)} style={{...mediaStyle,...mask}} alt={media.name}/>:<video ref={ref} src={mediaUrl(media,quality)} playsInline preload={visible?'metadata':'auto'} style={{...mediaStyle,...mask}}/>}{audioError&&<span role="status" className="vision-preview-status">Audio preview unavailable</span>}{!playing&&(tracking.error||tracking.slow)?<span role="status" className="vision-preview-status" title={tracking.error}>{tracking.error?'Face centering unavailable':'Centering face…'}</span>:null}{visionEnabled&&(playing||vision.loading||vision.error)&&<span className="vision-preview-status">{playing?'Background effects preview while paused':vision.loading?'Preparing subject preview…':vision.error}</span>}</div>;
+ return <div className="stage-media" style={style} data-mirrored={e.flipX||undefined} aria-hidden={visible?undefined:true} onClick={e=>{e.stopPropagation();onSelect();}}>{blurBackground&&(media.kind==='image'?<img className="vision-background" src={mediaUrl(media)} style={{...mediaStyle,filter:`blur(${18*pixelScale}px)`}} alt=""/>:<video className="vision-background" ref={backdrop} src={mediaUrl(media,quality)} muted playsInline preload="metadata" style={{...mediaStyle,filter:`blur(${18*pixelScale}px)`}}/>)}{media.kind==='image'?<img src={mediaUrl(media)} style={{...mediaStyle,...mask}} alt={media.name}/>:<video ref={ref} src={mediaUrl(media,quality)} playsInline preload={visible?'metadata':'auto'} style={{...mediaStyle,...mask}}/>}{audioError&&<span role="status" className="vision-preview-status">Audio preview unavailable</span>}{!playing&&(tracking.error||tracking.slow)?<span role="status" className="vision-preview-status" title={tracking.error}>{tracking.error?'Face centering unavailable':'Centering face…'}</span>:null}{visionEnabled&&(playing||vision.loading||vision.error)&&<span className="vision-preview-status">{playing?'Background effects preview while paused':vision.loading?'Preparing subject preview…':vision.error}</span>}</div>;
 }
 
 export const Stage=memo(function Stage({project:p,playhead,playing,playbackRate=1,onSelect,onImport,selected,onTransform,onZoom}:{project:Project;playhead:Playhead;playing:boolean;playbackRate?:number;onSelect:(id:string)=>void;onImport:()=>void;/** The selected clip: a camera or screen clip on the picture gets handles to move and resize it. */selected?:string|null;onTransform?:(id:string,box:Box,phase:'move'|'end')=>void;onZoom?:(id:string,where:{x:number;y:number;scale:number})=>void}){

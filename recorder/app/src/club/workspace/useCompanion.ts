@@ -1,3 +1,4 @@
+import {askSettled,askStarted} from './ask-claude';
 import {useCallback,useEffect,useRef,useState} from 'react';
 import type {JobSnapshot} from '../../../shared/club';
 import {isEditAction,type CompanionActionType,type CompanionApplied,type CompanionAsked,type CompanionChanged,type CompanionContext,type CompanionEvent,type CompanionMessage,type CompanionReplyMessage,type CompanionTab,type CompanionThread} from '../../../shared/companion';
@@ -89,6 +90,7 @@ export function useCompanion(videoId:string,{onChanged,beforeApply,editor}:{onCh
   stopFollowing.current?.();
   const now=Date.now();
   const steps=(from?.steps??[]).map(step=>typeof step==='string'?{label:step,started:now}:step);
+  if(liveRef.current?.jobId!==jobId)askStarted();
   setLive({jobId,questionId,tab,steps,text:from?.text??'',started:liveRef.current?.jobId===jobId?liveRef.current.started:now,phase:'working'});
   // Only a step not seen before is announced; a replayed one is not.
   let seen=steps.length;
@@ -106,13 +108,14 @@ export function useCompanion(videoId:string,{onChanged,beforeApply,editor}:{onCh
     const reply=event.data as CompanionReplyMessage;
     setMessages(current=>[...(current??[]).filter(message=>message.id!==reply.id),reply]);
     setLive(null);setAnnounce('Reply ready');
+    askSettled({ok:true,choice:reply.cards?.some(card=>card.action.type==='ask_choice')??false});
    }else if(event.type==='failed'){
     const message=failureMessage(event.data,NO_ANSWER);
     // The connection dropped, not the reply: ask how the job is doing before saying anything failed.
     if(message===LOST_JOB){void recover(jobId,questionId,tab);return;}
     setLive(current=>current&&current.jobId===jobId?{...current,phase:'failed',error:message}:current);
-    setAnnounce(message);
-   }else setLive(current=>current?.jobId===jobId?null:current);
+    setAnnounce(message);askSettled({ok:false,choice:false});
+   }else{setLive(current=>current?.jobId===jobId?null:current);askSettled({ok:false,choice:false});}
   });
  },[]);
 
@@ -121,10 +124,10 @@ export function useCompanion(videoId:string,{onChanged,beforeApply,editor}:{onCh
   const job=await clubFetch<JobSnapshot>(`/jobs/${encodeURIComponent(jobId)}`).catch(()=>undefined);
   const current=liveRef.current;
   if(job?.status==='running'){follow(jobId,questionId,tab,current?.jobId===jobId?{text:current.text,steps:current.steps}:undefined);return;}
-  if(job?.status==='done'){setLive(null);loadRef.current();setAnnounce('Reply ready');return;}
+  if(job?.status==='done'){setLive(null);loadRef.current();setAnnounce('Reply ready');askSettled({ok:true,choice:false});return;}
   const message=job?.status==='failed'&&job.error?job.error:NO_ANSWER;
   setLive(live=>live&&live.jobId===jobId?{...live,phase:'failed',error:message}:live);
-  setAnnounce(message);
+  setAnnounce(message);askSettled({ok:false,choice:false});
  },[follow]);
 
  const load=useCallback(()=>{
@@ -191,7 +194,7 @@ export function useCompanion(videoId:string,{onChanged,beforeApply,editor}:{onCh
    pendingStops.current.set(current.jobId,{questionId:current.questionId,message,tries:0});
    setMessages(list=>withPendingStops(list??[],new Map([[current.jobId,{questionId:current.questionId,message}]])).messages);
   }
-  setLive(null);setAnnounce('Stopped');
+  setLive(null);setAnnounce('Stopped');askSettled({ok:false,choice:false});
   // A reply that finished just before the stop, or the stopped part the server keeps, comes back from the server in a moment.
   void clubFetch(`/jobs/${encodeURIComponent(current.jobId)}`,{method:'DELETE'}).catch(()=>{}).then(()=>setTimeout(()=>loadRef.current(),SETTLE_MS));
  },[]);

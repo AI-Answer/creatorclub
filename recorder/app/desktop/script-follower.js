@@ -50,7 +50,9 @@
  // The voice matcher. Borumi aligns what was heard with the script near where you are and moves only on enough evidence: a word counts at
  // 0.75 similarity and fully at 0.9 (its thresholds), and a longer jump needs more matching words (its evidence steps at 1, 5 and 13 words).
  // The exact counts below, the 8-word window and the tie-breaking toward the nearest place are ours.
- const MATCH=.75,STRONG=.9,TAIL=8,BACK=40,AHEAD=60;
+ // The search covers the whole script, so skipping a part (or going back to redo one) is found again; a jump past 60 words needs five
+ // matching words in a row, so a common phrase far away does not pull the script there.
+ const MATCH=.75,STRONG=.9,TAIL=8,NEAR=60;
  function createMatcher(tokens){
   const script=[];tokens.forEach((token,index)=>{if(!token.secondary)for(const word of words(token.text))script.push({word,token:index});});
   let position=-1,heard=[],ignore=0;
@@ -75,7 +77,9 @@
    if(jump===2)return m.matches>=2||(m.first>=STRONG&&word.length>=5);
    if(jump<=5)return m.matches>=2&&m.score>=2;
    if(jump<13)return m.matches>=3&&m.score>=3;
+   if(jump>NEAR)return m.matches>=5&&m.score>=5;
    if(jump>0)return m.matches>=4&&m.score>=4;
+   if(jump<-NEAR)return m.matches>=5&&m.score>=5;
    return m.matches>=3&&m.score>=3;// back to a place already read: you started a sentence again
   }
   const index=()=>position<0?0:script[position].token;
@@ -88,10 +92,10 @@
     const tail=heard.slice(Math.max(ignore,heard.length-TAIL));if(!tail.length||!script.length)return null;
     // Staying put competes too: a place is taken only when the words fit it better than where you are. Going back needs the last word heard.
     const here=position>=0?alignAt(tail,position):null;let best={end:position,rank:here?here.score:-Infinity};
-    for(let end=Math.max(0,position-BACK);end<=Math.min(script.length-1,position+AHEAD);end++){
+    for(let end=0;end<script.length;end++){
      const jump=end-position;if(jump===0)continue;
      const m=alignAt(tail,end);if(!m||!enough(jump,m,script[end].word)||(jump<0&&!m.last))continue;
-     const rank=m.score-(jump>0?.05*(jump-1):.1*-jump);
+     const rank=m.score-Math.min(jump>0?.05*(jump-1):.1*-jump,2);
      if(rank>best.rank)best={end,rank};
     }
     if(best.end===position)return null;

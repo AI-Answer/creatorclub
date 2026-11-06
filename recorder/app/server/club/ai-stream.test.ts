@@ -53,6 +53,15 @@ test('claude: a tool use is reported once, as its block starts, not again in the
   assert.deepEqual(plain, [{ type: 'tool', name: 'Read' }], 'without partial messages the whole message reports it');
 });
 
+test('claude: a structured answer streams as json pieces, and is not reported as a tool', () => {
+  const events: AIEvent[] = [];
+  const reader = createStreamReader('claude', (event) => events.push(event));
+  reader.feed(line({ type: 'stream_event', event: { type: 'content_block_start', index: 0, content_block: { type: 'tool_use', name: 'StructuredOutput', input: {} } } }));
+  reader.feed(line({ type: 'stream_event', event: { type: 'content_block_delta', index: 0, delta: { type: 'input_json_delta', partial_json: '{"title": "A' } } }));
+  reader.feed(line({ type: 'stream_event', event: { type: 'content_block_delta', index: 0, delta: { type: 'input_json_delta', partial_json: ' title"}' } } }));
+  assert.deepEqual(events, [{ type: 'json', text: '{"title": "A' }, { type: 'json', text: ' title"}' }]);
+});
+
 test('claude: an error result and a budget stop are recorded as failures', () => {
   const failed = createStreamReader('claude', () => {});
   failed.feed(line({ type: 'result', subtype: 'success', is_error: true, result: 'Invalid API key · Please run /login' }));

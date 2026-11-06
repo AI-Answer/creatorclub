@@ -375,10 +375,13 @@
   /* The recorder's wave (capture-warnings bundle) and the take preview's waveform (main bundle zne). */
   --br-wave-line: #74b9ff; --br-wave-top: #81ecec; --br-wave-bottom: #0984e3; --br-wave-ahead: #cceefc;
   --br-minimap-done: #21c45d; --br-minimap-todo: #f59f0a;
-  --br-text-10: 10px; --br-text-18: 18px; --br-r-md: 6px; --br-r-lg: 8px; --br-r-xl: 12px; --br-r-2xl: 16px;
+  --br-text-8: 8px; --br-text-10: 10px; --br-text-18: 18px; --br-r-sm: 2px; --br-r-md: 6px; --br-r-lg: 8px; --br-r-xl: 12px; --br-r-2xl: 16px;
+  /* The timeline (Borumi's DH/AV/TV/eC classes): the selection ring's offset (ring-offset-1), the bottom shade of a segment (timeline-segment:before),
+     the hatch of a scene still waiting for a take (repeating-linear-gradient in Borumi's nz), and the bg-primary/3 wash behind it. */
+  --br-ring-offset: #ffffff; --br-segment-shade: inset 0 -4px 8px rgb(0 0 0 / .149); --br-hatch: rgb(127 127 127 / .18); --br-wash: rgb(10 10 10 / .03);
   --br-shadow-2xl: 0 25px 50px -12px rgb(0 0 0 / .25);
   /* The Edit panels (spec-edit-step colour table). */
-  --br-card: #fafafa; --br-input: #f5f5f5; --br-border-hover: #d4d4d4; --br-yellow-100: #fef3c8; --br-yellow-900: #76350f; --br-yellow-500: #eab308;
+  --br-card: #fafafa; --br-input: #f5f5f5; --br-border-hover: #d4d4d4; --br-yellow-100: #fef3c8; --br-yellow-900: #76350f; --br-yellow-500: hsl(38 92% 50%);
   --br-red-100: #fee2e2; --br-red-900: #811d1d; --br-blue-50: #eff6ff; --br-blue-100: #dcebfe; --br-blue-500: #3c83f6; --br-blue-600: #2563eb;
   --cc-weight-bold: 700; --cc-weight-light: 300;
 }
@@ -389,4 +392,5 @@
   --br-minimap-done: #157f3c; --br-minimap-todo: #b35309;
   --br-card: #0a0a0a; --br-input: #262626; --br-border-hover: #404040; --br-yellow-100: #76350f; --br-yellow-900: #fef3c8;
   --br-red-100: #811d1d; --br-red-900: #fee2e2; --br-blue-50: #172554; --br-blue-100: #1e3b8a;
+  --br-ring-offset: #000000; --br-wash: rgb(255 255 255 / .05);
 }

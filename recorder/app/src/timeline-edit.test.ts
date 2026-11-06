@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createProject,defaultEffects,defaultTransform,clipDuration,type Clip,type Media,type Project} from '../shared/types';
 import {applyProjectChange} from './project-draft';
-import {secondsLabel,noteMarker,addMarker,anchoredScroll,openRange,remapLinks,applyClipStarts,closeRange,collides,deleteItems,ensureLinks,filmstripTiles,fitScale,freeDelta,insertPlan,isLinked,linkClips,linkGroups,linkedIds,moveEffects,moveMarker,planClipMove,removeMarker,resizeEffect,rowItems,rulerLabel,rulerTicks,splitLinked,timelineGaps,trimBounds,trimClips,insertGap,trimGroup,rowsOverlap,uncovered,unlinkClips,DRAG_DEAD_ZONE_PX,showTenths,lengthLabel,MAX_SCALE} from './timeline-edit';
+import {secondsLabel,noteMarker,addMarker,anchoredScroll,openRange,remapLinks,applyClipStarts,closeRange,collides,deleteItems,ensureLinks,filmstripTiles,fitScale,freeDelta,insertPlan,isLinked,linkClips,linkGroups,linkedIds,moveEffects,moveMarker,planClipMove,removeMarker,resizeEffect,rowItems,rulerLabel,rulerTicks,splitLinked,timelineGaps,trimBounds,trimClips,insertGap,trimGroup,rowsOverlap,uncovered,unlinkClips,DRAG_DEAD_ZONE_PX,moveDeadZone,showTenths,lengthLabel,MAX_SCALE} from './timeline-edit';
 
 const media=(id:string,duration=600):Media=>({id,name:id,path:`/tmp/${id}.mov`,kind:'video',duration,width:1920,height:1080,hasAudio:true});
 const clip=(id:string,track:Clip['track'],start:number,length:number,extra:Partial<Clip>={}):Clip=>({id,mediaId:track==='camera'?'cam':track==='audio'?'mic':'scr',name:id,track,start,sourceIn:0,sourceOut:length,speed:1,gain:1,muted:false,transform:defaultTransform(),effects:defaultEffects(),...extra});
@@ -173,6 +173,8 @@ test('Task 14: a move never opens a gap before the first clip; a sole clip canno
  assert.equal(planClipMove(sliver,linkedIds(sliver.clips,['screen1']),4.4,6).starts.get('screen1'),0,'default insertion closes the leading sliver');
  const closeSliver=planClipMove(sliver,linkedIds(sliver.clips,['screen1']),-.03,0);assert.equal(closeSliver.starts.get('screen1'),0,'closing that sliver is fine');
  assert.equal(DRAG_DEAD_ZONE_PX,6);
+ // As in Borumi, a press moves a clip only after 1.5% of the visible timeline: a click that slips a few pixels still moves the playhead.
+ assert.equal(moveDeadZone(1450),21.75);assert.equal(moveDeadZone(200),6,'never under the small dead zone');
 });
 
 test('Task 14: ⌘ scroll zooms at the pointer; the zoom slider is linear in the seconds in view, with a sensible maximum',async()=>{

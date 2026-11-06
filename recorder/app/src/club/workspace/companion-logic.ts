@@ -21,7 +21,7 @@ export type IdeaPartKey='idea'|'package'|'hook'|'scenes'|'onepager';
 export function sectionPart(section:string|null|undefined):IdeaPartKey|undefined{
  if(!section)return undefined;
  const name=section.toLowerCase();
- if(name.includes('one-pager'))return 'onepager';
+ if(name.includes('one-pager')||name.includes('sketch'))return 'onepager';
  if(name.includes('thumbnail')||name.includes('title'))return 'package';
  if(name.includes('say first'))return 'hook';
  if(name.includes('scene')||name.includes('script'))return 'scenes';
@@ -74,7 +74,7 @@ export function suggestions(tab:CompanionTab,facts:SuggestionFacts):string[]{
    if(facts.part==='idea')return [facts.tiles?'Fill in the idea from my board':'What should this video be about?','Who is this video for?','What makes this different from what is out there?'];
    if(facts.part==='package')return facts.titles?['Which pair is strongest, and why?','Make the titles more specific','What should the thumbnail show?']:['What would make people click this?','Who is this video for?','What should the thumbnail show?'];
    if(facts.part==='hook')return ['Does the hook confirm the title?','Make the hook shorter','What could I show in the first seconds?'];
-   if(facts.part==='onepager')return ['Make the logline sharper','Is the twist strong enough?','Which of the three reasons is weakest?'];
+   if(facts.part==='onepager')return ['Make the logline sharper','Give me three other titles','What should I check before filming?'];
    if(facts.part==='scenes'&&!facts.scenes)return ['Write the scenes from my board','How long should this video be?','What should I show in each scene?'];
    // Titles, hooks and scenes are written from the column's own buttons, so the chips here are for thinking and tightening.
    if(facts.scenes)return [scene?`Tighten ${scene}`:'Tighten the first scene',...((facts.longest??0)>90?['Cut the longest scene to 90 seconds']:[]),...(facts.hook?['Make the hook sharper']:[]),'What is missing before I record?','Is the order of the scenes right?'].slice(0,3);
@@ -116,7 +116,7 @@ export function greeting(tab:CompanionTab,facts:{scenes:number;tiles?:number;rec
    if(facts.part==='idea')return facts.tiles?'Tell me what the video is about, or ask me to fill it in from your board.':'Tell me what the video is about, and I can write it up for you.';
    if(facts.part==='package')return 'Ask me which pair is strongest, or for titles and thumbnail words to choose from.';
    if(facts.part==='hook')return 'Ask me to check the hook against your title, or to make it shorter.';
-   if(facts.part==='onepager')return 'Ask me to sharpen the logline, the twist or the reasons.';
+   if(facts.part==='onepager')return 'Ask me to change any part of the sketch: the title, the thumbnail, the logline or the talking points.';
    return facts.scenes
    ?'I can tighten a scene, or write hooks and titles to choose from.'
    :facts.tiles===0

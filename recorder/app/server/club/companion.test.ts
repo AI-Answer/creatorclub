@@ -709,6 +709,26 @@ test('the Idea cards fill the idea, the three pairs and the whole hook, and each
   assert.equal((await read()).idea?.why, 'My own words');
 });
 
+test('a sketch card changes only the parts it gives, the prompt sees the sketch, and Undo puts the sketch back', async () => {
+  const sketch = (await call<{ title: string; logline: string; skeleton: { label: string; line: string }[] } | null>('GET', `/videos/${video.id}/onepager`)).body;
+  const reply = await replyWith([
+    { type: 'set_sketch', logline: 'I let Claude file my receipts, break it on a messy one, then fix it.', skeleton: [{ label: 'Intro', line: 'The receipts file themselves.' }, { label: 'The twist', line: 'A crumpled receipt breaks it.' }] },
+    { type: 'set_sketch' },
+  ]);
+  assert.deepEqual(reply.cards.map((card) => card.action.type), ['set_sketch'], 'a sketch card that changes nothing is left out');
+  assert.ok(asked.at(-1)!.prompt.includes('<sketch>'), 'the companion is shown the sketch');
+  const applied = await apply(reply, 0);
+  assert.equal(applied.status, 200, JSON.stringify(applied.body));
+  assert.deepEqual(applied.body.changed, ['package']);
+  const after = (await call<{ title: string; logline: string; skeleton: { label: string; line: string }[] }>('GET', `/videos/${video.id}/onepager`)).body;
+  assert.equal(after.logline, 'I let Claude file my receipts, break it on a messy one, then fix it.');
+  assert.deepEqual(after.skeleton.map((beat) => beat.label), ['Intro', 'The twist'], 'the talking points are replaced as a list');
+  assert.equal(after.title, sketch?.title ?? '', 'what the card leaves out stays');
+  await undo(reply, 0);
+  const back = (await call<{ logline: string } | null>('GET', `/videos/${video.id}/onepager`)).body;
+  assert.equal(back?.logline ?? '', sketch?.logline ?? '');
+});
+
 test('Use as title moves each title with its own thumbnail words', async () => {
   await call('PUT', `/videos/${video.id}/package`, { titles: ['First title here', 'Second title here', ''], thumbs: ['FIRST WORDS', 'SECOND WORDS', ''] });
   const reply = await replyWith([{ type: 'use_title', text: 'Second title here' }]);

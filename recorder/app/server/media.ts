@@ -1,5 +1,6 @@
 import {portableGraphics} from './portable-graphics.js';
-import { spawn, type ChildProcess } from "node:child_process";
+import { execFile, spawn, type ChildProcess } from "node:child_process";
+import { promisify } from "node:util";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { tmpdir } from "node:os";
@@ -11,7 +12,9 @@ import { faceCropCommands } from "./face-crop.ts";
 import type { FaceTrack } from "../shared/face-tracking.ts";
 import { filterSum } from "./filter-expression.ts";
 import { mediaCapabilityProbe } from "./media-capabilities.ts";
-import { clipCompositeOrder } from "../shared/timeline-layers.ts";
+import { clipCompositeOrder, clipLayerRowId } from "../shared/timeline-layers.ts";
+import { morphNow, morphOwner, morphSource } from "../shared/stage-morph.ts";
+import { trackedCrop } from "../shared/face-tracking.ts";
 import { isSoundTag } from "../shared/sound-tags.ts";
 import { clipShadow } from "../shared/clip-shadow.ts";
 import { captionParts } from "../shared/caption-parts.ts";
@@ -20,12 +23,14 @@ import { canvasBackgroundBMP, canvasBackgroundGeometry, canvasBackgroundRepeatSi
 import { zoomTiming } from "../shared/zoom-timing.ts";
 import { bakeLayouts } from "../shared/layouts.ts";
 import { filmstripCount, FILMSTRIP_HEIGHT, FILMSTRIP_WIDTH } from "../shared/filmstrip.ts";
-import { renderMotionBlock } from "./motion-render.ts";
+import { renderMorph, renderMotionBlock, type MorphFrame } from "./motion-render.ts";
 import { onStage } from "../shared/look.ts";
 import { PLACEABLE } from "../shared/motion/templates.ts";
 import {
   clipDuration,
   clipEffectTiming,
+  defaultEffects,
+  defaultTransform,
   projectDuration,
   type Media,
   type Project,
@@ -37,8 +42,26 @@ import {
 /** A motion block cut by a chunk or an export range: `_offset` seconds into the block, which is `_length` seconds long in all. */
 type SlicedMotion = MotionBlock & { _offset?: number; _length?: number };
 
+const execFileAsync = promisify(execFile);
 const FFMPEG = process.env.SCENEFORGE_FFMPEG || "ffmpeg",
   FFPROBE = process.env.SCENEFORGE_FFPROBE || "ffprobe";
+/** ffmpeg's own VP8/VP9 decoder drops a WebM's alpha: a see-through overlay would cover the frame in black. */
+const alphaDecoders = new Map<string, Promise<string[]>>();
+function alphaDecoder(file: string): Promise<string[]> {
+  if (!/\.webm$/i.test(file)) return Promise.resolve([]);
+  let found = alphaDecoders.get(file);
+  if (!found) {
+    found = command(FFPROBE, ["-v", "error", "-select_streams", "v:0", "-show_entries", "stream=codec_name:stream_tags=alpha_mode", "-of", "json", file])
+      .then((out) => {
+        const s = JSON.parse(out).streams?.[0];
+        if (String(s?.tags?.alpha_mode ?? s?.tags?.ALPHA_MODE) !== "1") return [];
+        return s.codec_name === "vp9" ? ["-c:v", "libvpx-vp9"] : s.codec_name === "vp8" ? ["-c:v", "libvpx"] : [];
+      })
+      .catch(() => []);
+    alphaDecoders.set(file, found);
+  }
+  return found;
+}
 const pending = new Map<string, Promise<unknown>>();
 let activeWork = 0;
 const workWaiters: Array<() => void> = [];
@@ -838,6 +861,61 @@ async function processedAudio(c: AudioOriginClip, media: Media, job: Job) {
 /** The export's master after the mix: one loudness pass over the whole mix (so a chunked export sounds the same throughout), then the limiter. */
 const MASTER_LOUDNESS = "loudnorm=I=-16:TP=-1.5:LRA=11,aresample=48000";
 const masterChain = (loudness: boolean) => `${loudness ? `${MASTER_LOUDNESS},` : ""}alimiter=limit=0.95:latency=1`;
+/**
+ * The camera changes between tile and full frame on a timeline (shared/stage-morph.ts), each rendered like the preview draws it: the
+ * source frames of the change, in their moving box, blurred, captured in Chromium as one see-through clip the size of the frame.
+ */
+async function cameraMorphs(p: Project, w: number, h: number, fps: number, dir: string, j: Job): Promise<{ of: string[]; clip: Clip; media: Media; end: number }[]> {
+  const out: { of: string[]; clip: Clip; media: Media; end: number }[] = [];
+  for (const owner of p.clips) {
+    const count = Math.round((owner.morphIn ?? 0) * fps);
+    if (!morphSource(owner, p) || count < 2) continue;
+    j.message = "Drawing the camera's changes";
+    // Each frame of the change comes from the piece under it: the change runs on through cuts that keep the camera in its place.
+    const frames: (MorphFrame | undefined)[] = [], pieces = new Map<Clip, number[]>();
+    for (let i = 0; i < count; i++) {
+      const time = owner.start + i / fps, c = p.clips.find((x) => x.track === owner.track && time >= x.start - 1e-6 && time < x.start + clipDuration(x) && morphOwner(x, p, time) === owner);
+      if (!c) break;
+      (pieces.get(c) ?? pieces.set(c, []).get(c)!).push(i);
+    }
+    const frameDir = path.join(dir, `morph-${out.length}`);
+    await fs.mkdir(frameDir, { recursive: true });
+    for (const [c, indices] of pieces) {
+      const m = p.media.find((x) => x.id === c.mediaId);
+      if (!m || m.kind !== "video") continue;
+      const speed = clamp(c.speed, 0.05, 16), first = indices[0], sourceAt = (i: number) => c.sourceIn + (owner.start + i / fps - c.start) * speed;
+      const prefix = path.join(frameDir, `p${first}-`);
+      await execFileAsync(FFMPEG, ["-v", "error", "-nostdin", "-y", "-ss", seconds(sourceAt(first)), "-i", m.path, "-frames:v", String(indices.length), "-vf", `setpts=(PTS-STARTPTS)/${speed},fps=${fps}`, "-q:v", "2", `${prefix}%04d.jpg`]);
+      const track = c.effects.faceCenter ? await getFaceTrack(m, { start: sourceAt(first), end: sourceAt(indices[indices.length - 1]) + 0.5 }).catch(() => undefined) : undefined;
+      for (const [k, i] of indices.entries()) {
+        const jpeg = await fs.readFile(`${prefix}${String(k + 1).padStart(4, "0")}.jpg`).catch(() => undefined), at = morphNow(c, p, owner.start + i / fps);
+        if (!jpeg || !at) continue;
+        const bw = Math.max(2, at.box.width * w), bh = Math.max(2, at.box.height * h);
+        let position = "50% 50%";
+        if (c.effects.faceCenter) {
+          const crop = trackedCrop(track?.points ?? [], sourceAt(i), m.width || bw, m.height || bh, Math.round(bw), Math.round(bh));
+          position = `${crop.maxX ? (crop.x / crop.maxX) * 100 : 50}% ${crop.maxY ? (crop.y / crop.maxY) * 100 : 50}%`;
+        }
+        frames[i] = { jpeg, x: at.box.x * w, y: at.box.y * h, width: bw, height: bh, radius: (at.box.radius * w) / p.canvas.width, blur: at.blur * w, position };
+      }
+    }
+    // A frame that could not be read keeps the one before it, so the change stays one unbroken clip.
+    const drawn: MorphFrame[] = [];
+    for (let i = 0; i < frames.length; i++) { const f = frames[i] ?? drawn[i - 1]; if (!f) break; drawn.push(f); }
+    if (drawn.length < 2) continue;
+    const file = await renderMorph(drawn, w, h, fps);
+    const id = `morph-${owner.id}`, duration = drawn.length / fps;
+    out.push({
+      of: [...pieces.keys()].map((c) => c.id),
+      end: owner.start + duration,
+      media: { id, name: "Camera change", path: file, kind: "video", duration, width: w, height: h, hasAudio: false } as Media,
+      // In the camera's row, so it composites where the camera does; not full-frame, so the canvas padding is not added again.
+      clip: { id, mediaId: id, name: "Camera change", track: "overlay", layerId: clipLayerRowId(owner, p), zIndex: -1, start: owner.start, sourceIn: 0, sourceOut: duration, speed: 1, gain: 0, muted: true, transform: { ...defaultTransform(), x: 0, y: 0, width: 1, height: 1, fit: "contain" }, effects: defaultEffects() },
+    });
+  }
+  return out;
+}
+
 async function executeExport(
   project: Project,
   options: ExportOptions & { losslessAudio?: boolean; frameCount?: number; audioSamples?: number },
@@ -947,14 +1025,19 @@ async function executeExport(
     let layer = 0;
     const sourceInputs = new Map<string, number>();
     const order = { screen: 0, camera: 1, audio: 2, music: 3, overlay: 4 };
-    const clips = p.clips
+    // A camera clip that opens with the change between tile and full frame: the change is drawn as its own see-through clip in the
+    // camera's place, and the clip's own picture starts after it (its sound plays as it is).
+    const morphs = video ? await cameraMorphs(p, w, h, fps, dir, j) : [];
+    const hideUntil = new Map(morphs.flatMap((x) => x.of.map((id) => [id, x.end] as const)));
+    const media = [...p.media, ...morphs.map((x) => x.media)];
+    const clips = [...p.clips, ...morphs.map((x) => x.clip)]
       .map((clip, index) => ({ clip, index }))
       .sort(
         (a, b) =>
           clipCompositeOrder(a.clip,p) - clipCompositeOrder(b.clip,p) || a.index - b.index,
       );
     for (const { clip: c, index: ci } of clips) {
-      const m = p.media.find((m) => m.id === c.mediaId);
+      const m = media.find((m) => m.id === c.mediaId);
       if (!m) throw new Error(`Clip ${c.name} has missing media`);
       const d = clipDuration(c);
       if (d <= TIME_EPSILON) continue;
@@ -999,6 +1082,7 @@ async function executeExport(
             seconds(c.sourceIn),
             "-t",
             seconds(sourceDur),
+            ...(await alphaDecoder(m.path)),
             "-i",
             m.path,
           );
@@ -1234,12 +1318,12 @@ async function executeExport(
           const blur=shadow.blur>0?`,gblur=sigma=${shadow.blur/2}:steps=2:planes=8`:'';
           filters.push(`[shadowInput${ci}]pad=iw+${margin*2}:ih+${margin*2}:${margin}:${margin}:color=black@0,format=rgba,lutrgb=r=${shadow.r}:g=${shadow.g}:b=${shadow.b},colorchannelmixer=aa=${shadow.alpha}${blur}[shadow${ci}]`);
           const shadowBase=`base${++layer}`;
-          filters.push(`[${base}][shadow${ci}]overlay=x=${Math.round(t.x*w+shadow.x-margin)}:y=${Math.round(t.y*h+shadow.y-margin)}:enable='gte(t,${c.start})*lt(t,${c.start+d})':eof_action=pass:repeatlast=0[${shadowBase}]`);
+          filters.push(`[${base}][shadow${ci}]overlay=x=${Math.round(t.x*w+shadow.x-margin)}:y=${Math.round(t.y*h+shadow.y-margin)}:enable='gte(t,${hideUntil.get(c.id)??c.start})*lt(t,${c.start+d})':eof_action=pass:repeatlast=0[${shadowBase}]`);
           base=shadowBase;foreground=`foreground${ci}`;
         }
         const next = `base${++layer}`;
         filters.push(
-          `[${base}][${foreground}]overlay=x=${Math.round(t.x * w)}:y=${Math.round(t.y * h)}:enable='gte(t,${c.start})*lt(t,${c.start + d})':eof_action=pass:repeatlast=0[${next}]`,
+          `[${base}][${foreground}]overlay=x=${Math.round(t.x * w)}:y=${Math.round(t.y * h)}:enable='gte(t,${hideUntil.get(c.id) ?? c.start})*lt(t,${c.start + d})':eof_action=pass:repeatlast=0[${next}]`,
         );
         base = next;
       }
@@ -1568,6 +1652,8 @@ function sliceProject(p: Project, start: number, end: number): Project {
         _elapsed: elapsed + ((c as Clip & { _elapsed?: number })._elapsed ?? clipEffectTiming(c).offset),
         _fullDuration:
           (c as Clip & { _fullDuration?: number })._fullDuration ?? clipEffectTiming(c).duration,
+        // A camera change opens its clip: a piece that starts later is drawn plain.
+        ...(elapsed > TIME_EPSILON ? { morphIn: undefined } : {}),
       },
     ];
   });

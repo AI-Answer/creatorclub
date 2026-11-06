@@ -12,8 +12,9 @@ import { addNote, hydrate, removeNote } from './board-docs.js';
 import { addFrame, FRAME_TITLE_MAX, frameAround, readCanvas, removeFrame } from './board-canvas.js';
 import { startVideoFrom, videoSignature } from './research-board.js';
 import { ClubError } from './errors.js';
-import type { BoardFrame, Package, VideoScene } from '../../shared/club.js';
-import { outlineFile, packageFile, parseOutline, patchPackage, readOutline, readPackage, saveOutline, savePackage, saveScript, saveSceneScript, scriptFile, syncPlanningFlags, usePackageText } from './planning.js';
+import type { BoardFrame, OnePager, Package, VideoScene } from '../../shared/club.js';
+import { emptyOnePager } from '../../src/club/idea/onepager.js';
+import { outlineFile, packageFile, parseOutline, patchPackage, readOnePager, readOutline, saveOnePager, readPackage, saveOutline, savePackage, saveScript, saveSceneScript, scriptFile, syncPlanningFlags, usePackageText } from './planning.js';
 import { videoScenes } from './scenes.js';
 import { titleProblems } from './prompts.js';
 import { chosenIndex, pairThumbs, thumbProblems } from '../../shared/package-rules.js';
@@ -32,6 +33,8 @@ const block = (max: number) => z.string().transform((text) => text.trim()).pipe(
 const SCENE_ID = /^[A-Za-z0-9_-]{1,40}$/;
 /** Timeline seconds: finite, never negative, at most ten hours. Whether a time lies inside the video is checked against the timeline. */
 const time = z.number().finite().min(0).max(36_000);
+/** A picture or video a skill run made. */
+const clipMedia = z.object({ id: z.string().max(100), name: z.string().max(300), path: z.string().max(4000), kind: z.enum(['video', 'image']), duration: z.number().min(0), width: z.number().min(1), height: z.number().min(1) }).passthrough();
 const CLIP_ID = z.string().min(1).max(100);
 const COLOR = z.string().regex(/^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$/);
 const POSITION = z.enum(['top', 'center', 'bottom']);
@@ -50,6 +53,17 @@ export const actionShape = z.discriminatedUnion('type', [
   z.object({ type: z.literal('use_hook'), text: line(2000) }).strict(),
   z.object({ type: z.literal('use_title'), text: line(200).refine((title) => !titleProblems(title).length, { message: 'breaks the title rules' }) }).strict(),
   z.object({ type: z.literal('set_thumbnail_text'), text: line(200).refine((thumb) => !thumbProblems(thumb).length, { message: 'needs 2 to 5 words' }) }).strict(),
+  z
+    .object({
+      type: z.literal('set_sketch'),
+      title: z.string().trim().max(60).optional(),
+      backupTitle: z.string().trim().max(60).optional(),
+      logline: line(1000).optional(),
+      thumbnail: z.object({ headline: z.string().trim().max(200).optional(), visual: z.string().trim().max(2000).optional(), closer: z.string().trim().max(200).optional() }).strict().optional(),
+      whys: z.array(z.string().trim().max(1000)).min(1).max(3).optional(),
+      skeleton: z.array(z.object({ label: z.string().trim().max(100), line: z.string().trim().max(500) }).strict()).min(1).max(20).optional(),
+    })
+    .strict(),
   z
     .object({ type: z.literal('set_idea'), angle: line(2000).optional(), twist: line(2000).optional(), why: line(2000).optional() })
     .strict(),
@@ -88,12 +102,13 @@ export const actionShape = z.discriminatedUnion('type', [
     .strict(),
   z.object({ type: z.literal('add_caption'), start: time, end: time, text: line(300) }).strict(),
   z.object({ type: z.literal('add_text'), start: time, duration: z.number().min(0.2).max(60), text: line(200), position: POSITION.optional() }).strict(),
+  z.object({ type: z.literal('add_timeline_note'), time, text: line(200) }).strict(),
   z.object({ type: z.literal('set_stage'), start: time, end: time }).strict(),
   z.object({ type: z.literal('set_look'), preset: z.enum(['clean', 'editorial']).optional(), name: z.string().trim().min(1).max(40).optional(), display: z.enum(['sans', 'serif']).optional(), paper: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(), ink: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(), accent: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(), muted: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(), motion: z.enum(['still', 'subtle', 'lively']).optional(), stage: z.object({ background: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(), side: z.enum(['right', 'left']).optional(), size: z.number().min(0.12).max(0.3).optional() }).strict().nullable().optional() }).strict(),
   z.object({ type: z.literal('add_blur'), start: time, duration: z.number().min(0.2).max(120), x: z.number().min(0).max(0.98), y: z.number().min(0).max(0.98), width: z.number().min(0.02).max(1), height: z.number().min(0.02).max(1) }).strict(),
   z.object({ type: z.literal('set_zoom'), start: time, duration: z.number().min(0.3).max(120), scale: z.number().min(1.05).max(4), x: z.number().min(0).max(1).optional(), y: z.number().min(0).max(1).optional(), target: z.enum(['screen', 'camera']).optional() }).strict(),
   z
-    .object({ type: z.literal('add_motion_block'), template: z.enum(MOTION_TEMPLATE_IDS as [MotionTemplateId, ...MotionTemplateId[]]), style: z.string().max(20).optional(), start: time, duration: z.number().min(1).max(20).optional(), text: line(240), detail: line(300).optional(), x: z.number().min(0).max(1).optional(), y: z.number().min(0).max(1).optional(), place: z.enum(['left', 'right', 'top', 'bottom', 'stage']).optional() })
+    .object({ type: z.literal('add_motion_block'), template: z.enum(MOTION_TEMPLATE_IDS as [MotionTemplateId, ...MotionTemplateId[]]), style: z.string().max(20).optional(), start: time, duration: z.number().min(1).max(20).optional(), text: line(240), detail: line(300).optional(), x: z.number().min(0).max(1).optional(), y: z.number().min(0).max(1).optional(), beats: z.array(time).max(8).optional(), place: z.enum(['left', 'right', 'top', 'bottom', 'stage']).optional() })
     .strict(),
   z
     .object({ type: z.literal('update_motion_block'), at: time, text: line(240).optional(), detail: line(160).optional(), style: z.string().max(20).optional(), start: time.optional(), duration: z.number().min(1).max(20).optional(), x: z.number().min(0).max(1).optional(), y: z.number().min(0).max(1).optional() })
@@ -102,10 +117,21 @@ export const actionShape = z.discriminatedUnion('type', [
   z
     .object({
       type: z.literal('add_clip'),
-      media: z.object({ id: z.string().max(100), name: z.string().max(300), path: z.string().max(4000), kind: z.enum(['video', 'image']), duration: z.number().min(0), width: z.number().min(1), height: z.number().min(1) }).passthrough(),
+      media: clipMedia,
       start: time,
       duration: z.number().positive().max(600),
       title: line(80),
+      /** A whole-recording edit's finished video, which takes the timeline's place. */
+      whole: z.boolean().optional(),
+      /** Screenplay's graphics as blocks on the timeline. */
+      layers: z
+        .object({
+          blocks: z.array(z.object({ media: clipMedia, start: time, duration: z.number().positive().max(600), title: line(80) }).strict()).min(1).max(300),
+          stages: z.array(z.object({ start: time, end: time }).strict()).max(300),
+          stage: z.object({ background: z.string().regex(/^#[0-9a-fA-F]{6}$/), side: z.enum(['right', 'left']), size: z.number().min(0.12).max(0.3), aspect: z.number().min(1).max(2.2).optional(), margin: z.number().min(0).max(0.1).optional(), radius: z.number().min(0).max(0.05).optional() }).strict(),
+        })
+        .strict()
+        .optional(),
     })
     .strict(),
   z.object({ type: z.literal('normalize_audio') }).strict(),
@@ -125,6 +151,7 @@ export const MAX_CARDS = 6;
 /** What the shape alone cannot say about an Idea card: it changes something, and the pair it uses is one it gives. */
 export function ideaCardProblem(action: CompanionAction): string | undefined {
   if (action.type === 'set_idea' && action.angle === undefined && action.twist === undefined && action.why === undefined) return 'needs the angle, the twist or why';
+  if (action.type === 'set_sketch' && [action.title, action.backupTitle, action.logline, action.thumbnail, action.whys, action.skeleton].every((part) => part === undefined)) return 'needs a part of the sketch';
   if (action.type === 'set_hook' && action.spoken === undefined && action.visual === undefined && action.text === undefined) return 'needs a part of the hook';
   if (action.type === 'set_pairs' && action.use !== undefined && action.use > action.pairs.length) return `uses pair ${action.use}, and it gives ${action.pairs.length}`;
   return undefined;
@@ -224,6 +251,7 @@ type Undo =
   | { kind: 'scene'; sceneId: string; before: SceneText; after: SceneText }
   | { kind: 'script'; sceneId: string; before: string; after: string }
   | { kind: 'tile'; tileId: string; text: string }
+  | { kind: 'sketch'; before: OnePager | null; after: OnePager }
   | { kind: 'frame'; frame: BoardFrame }
   | { kind: 'video'; videoId: string; signature: string }
   | { kind: 'outline'; outline: { before: string | null; after: string | null }; script: { before: string | null; after: string | null } };
@@ -258,6 +286,8 @@ function partOf(undo: Undo): string {
       return 'outline';
     case 'tile':
       return `tile:${undo.tileId}`;
+    case 'sketch':
+      return 'sketch';
     case 'frame':
       return `frame:${undo.frame.id}`;
     case 'video':
@@ -371,6 +401,24 @@ const HANDLERS: { [K in CompanionActionType]: Handler<Extract<CompanionAction, {
         pkg: { ...(action.angle !== undefined ? { angle: action.angle } : {}), ...(action.twist !== undefined ? { twist: action.twist } : {}) },
         ...(action.why !== undefined ? { why: action.why } : {}),
       }))(slug, id),
+  },
+  set_sketch: {
+    changed: ['package'],
+    apply: async (slug, id, action) => {
+      const before = await readOnePager(slug, id);
+      const now = before ?? emptyOnePager();
+      const whys = action.whys ? ([0, 1, 2].map((index) => action.whys![index] ?? now.whys[index]) as OnePager['whys']) : now.whys;
+      const after = await saveOnePager(slug, id, {
+        ...now,
+        ...(action.title !== undefined ? { title: action.title } : {}),
+        ...(action.backupTitle !== undefined ? { backupTitle: action.backupTitle } : {}),
+        ...(action.logline !== undefined ? { logline: action.logline } : {}),
+        thumbnail: { ...now.thumbnail, ...action.thumbnail },
+        whys,
+        ...(action.skeleton ? { skeleton: action.skeleton } : {}),
+      });
+      return { result: 'Updated your sketch', undo: { kind: 'sketch' as const, before, after } };
+    },
   },
   set_pairs: {
     changed: ['package', 'videos'],
@@ -486,6 +534,7 @@ const HANDLERS: { [K in CompanionActionType]: Handler<Extract<CompanionAction, {
   set_caption_style: edit,
   add_caption: edit,
   add_text: edit,
+  add_timeline_note: edit,
   set_zoom: edit,
   add_motion_block: edit,
   add_blur: edit,
@@ -498,8 +547,10 @@ const HANDLERS: { [K in CompanionActionType]: Handler<Extract<CompanionAction, {
     changed: ['timeline'],
     apply: async (slug, id, action, options) => {
       const root = await fs.realpath(path.join(store.videoDir(slug, id), SKILL_RUNS)).catch(() => '');
-      const file = await fs.realpath(action.media.path).catch(() => '');
-      if (!root || !file.startsWith(root + path.sep)) throw new ClubError("That file isn't one your skill made for this video.", 409);
+      for (const media of [action.media, ...(action.layers?.blocks.map((b) => b.media) ?? [])]) {
+        const file = await fs.realpath(media.path).catch(() => '');
+        if (!root || !file.startsWith(root + path.sep)) throw new ClubError("That file isn't one your skill made for this video.", 409);
+      }
       return edit.apply(slug, id, action, options);
     },
   },
@@ -582,6 +633,11 @@ async function undoChange(slug: string, id: string, version: string, undo: Undo,
       const scene = outline?.scenes.find((each) => each.id === undo.sceneId);
       if (!scene || (scene.script ?? '').trim() !== undo.after) throw new ClubError(CHANGED_SINCE, 409);
       await saveSceneScript(slug, id, undo.sceneId, undo.before);
+      return;
+    }
+    case 'sketch': {
+      if (!same(await readOnePager(slug, id), undo.after)) throw new ClubError(CHANGED_SINCE, 409);
+      await saveOnePager(slug, id, undo.before ?? emptyOnePager());
       return;
     }
     case 'tile': {

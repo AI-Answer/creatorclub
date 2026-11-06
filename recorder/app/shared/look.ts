@@ -15,6 +15,12 @@ export interface LookStage {
   side: 'right' | 'left';
   /** The tile's width as a share of the frame's width. */
   size: number;
+  /** The tile's height over its width (about 1.35, a 3:4 portrait, when unset). Screenplay's house tile is 1.75. */
+  aspect?: number;
+  /** The gap from the frame's edge to the tile, as a share of the frame's width (0.035 when unset). */
+  margin?: number;
+  /** The tile's corner radius, as a share of the frame's width (9% of the tile's width when unset). */
+  radius?: number;
 }
 export interface Look {
   name: string;
@@ -36,7 +42,7 @@ export interface Look {
 
 export const CLEAN_LOOK: Look = { name: 'Clean', display: 'sans', paper: '#ffffff', ink: '#151413', accent: '#2563eb', muted: '#b8b3ab', motion: 'lively' };
 /** Dark stage, the speaker as a tile on the right, serif headlines in white and grey: the long-form "explainer" look. */
-export const EDITORIAL_LOOK: Look = { name: 'Editorial', display: 'serif', paper: '#f4f2ee', ink: '#1b1b1b', accent: '#f4f2ee', muted: '#8a8781', motion: 'subtle', stage: { background: '#1c1c1c', side: 'right', size: 0.2 } };
+export const EDITORIAL_LOOK: Look = { name: 'Editorial', display: 'serif', paper: '#f4f2ee', ink: '#1b1b1b', accent: '#f4f2ee', muted: '#8a8781', motion: 'subtle', stage: { background: '#1c1c1c', side: 'right', size: 0.14 } };
 export const LOOKS: readonly Look[] = [CLEAN_LOOK, EDITORIAL_LOOK];
 
 const HEX = /^#[0-9a-f]{6}$/i;
@@ -53,19 +59,28 @@ export function normalizeLook(value: unknown): Look {
     accent: colour(v.accent, CLEAN_LOOK.accent),
     muted: colour(v.muted, CLEAN_LOOK.muted),
     motion: v.motion === 'still' || v.motion === 'subtle' ? v.motion : 'lively',
-    ...(stage ? { stage: { background: colour(stage.background, '#1c1c1c'), side: stage.side === 'left' ? 'left' : 'right', size: Math.min(0.3, Math.max(0.12, Number(stage.size) || 0.2)) } } : {}),
+    ...(stage ? { stage: { background: colour(stage.background, '#1c1c1c'), side: stage.side === 'left' ? 'left' : 'right', size: Math.min(0.3, Math.max(0.12, Number(stage.size) || 0.2)), ...tileShape(stage) } } : {}),
   };
 }
 
-const MARGIN = 0.035, GAP = 0.025;
-/** The tile the speaker becomes on the stage, as a clip transform: a portrait (5:8 on screen), centred down the chosen edge. */
-export function stageTile(stage: LookStage, canvas: { width: number; height: number }) {
-  const width = stage.size, height = Math.min(0.9, (stage.size * canvas.width * 1.6) / canvas.height);
-  return { x: stage.side === 'right' ? 1 - width - MARGIN : MARGIN, y: (1 - height) / 2, width, height };
+const MARGIN = 0.035, GAP = 0.025, ASPECT = 1.35;
+/** A stage's own tile shape, each value kept in a sane range; unset values fall back to the defaults. */
+function tileShape(stage: Partial<LookStage>): Pick<LookStage, 'aspect' | 'margin' | 'radius'> {
+  const num = (v: unknown, lo: number, hi: number) => (typeof v === 'number' && Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : undefined);
+  const aspect = num(stage.aspect, 1, 2.2), margin = num(stage.margin, 0, 0.1), radius = num(stage.radius, 0, 0.05);
+  return { ...(aspect !== undefined ? { aspect } : {}), ...(margin !== undefined ? { margin } : {}), ...(radius !== undefined ? { radius } : {}) };
 }
+/** The tile the speaker becomes on the stage, as a clip transform: a portrait (about 3:4 on screen, as in the reference, unless the stage says), centred down the chosen edge. */
+export function stageTile(stage: LookStage, canvas: { width: number; height: number }) {
+  const margin = stage.margin ?? MARGIN, width = stage.size, height = Math.min(0.9, (stage.size * canvas.width * (stage.aspect ?? ASPECT)) / canvas.height);
+  return { x: stage.side === 'right' ? 1 - width - margin : margin, y: (1 - height) / 2, width, height };
+}
+/** The tile's corner radius in pixels of the frame. */
+export const stageTileRadius = (stage: LookStage, canvas: { width: number }) => Math.round((stage.radius ?? stage.size * 0.09) * canvas.width);
 /** The panel beside the tile, where the stage's content goes (the same box `motionMarkup` draws graphics in): proof shots land here. */
 export function stagePanel(stage: LookStage) {
-  return { x: stage.side === 'right' ? MARGIN : MARGIN + stage.size + GAP, y: 0.05, width: 1 - stage.size - MARGIN * 2 - GAP, height: 0.9 };
+  const margin = stage.margin ?? MARGIN;
+  return { x: stage.side === 'right' ? margin : margin + stage.size + GAP, y: 0.05, width: 1 - stage.size - margin * 2 - GAP, height: 0.9 };
 }
 
 /** Whether the speaker is a tile on the stage at `time`. */

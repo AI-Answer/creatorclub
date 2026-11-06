@@ -7,7 +7,7 @@ const {Companion}=await import('./workspace/Companion');
 
 const flush=()=>act(async()=>{await new Promise(resolve=>setTimeout(resolve,0));});
 
-test('on Edit the chat waits as its rail while a panel is open in a window up to 1600 px, and comes back when the panel closes',async()=>{
+test('a step that asks for its width (up to a window size) keeps the chat as its rail, and gets it back when it no longer asks',async()=>{
  localStorage.setItem('cc.companion.open','1');
  const original=window.matchMedia;
  Object.assign(window,{matchMedia:(query:string)=>({matches:query==='(max-width: 1599px)',media:query,addEventListener(){},removeEventListener(){}})});

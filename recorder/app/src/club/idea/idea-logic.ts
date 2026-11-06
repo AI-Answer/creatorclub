@@ -1,34 +1,10 @@
-import type {Outline,Package,ResearchTile,Video} from '../../../shared/club';
+import type {OnePager,Outline,Package,ResearchTile,Video} from '../../../shared/club';
 import {chosenIndex,pairThumbs,thumbProblems,titleProblems} from '../../../shared/package-rules';
 
 /*
- * The Idea page's rules that need no screen: the proof an idea has on its board, what each section of "Your video" says while it
- * is closed and whether it is done, which section opens first, the checks under each title and thumbnail pair, and the questions
- * asked before the scenes are drafted.
+ * The Idea page's rules that need no screen: what each section of "Your video" says while it is closed and whether it is done, which
+ * section opens first, the checks under each title and thumbnail pair, and the questions asked before the scenes are drafted.
  */
-
-/** A video beats its channel's usual views by this much or more: the board's proof that people want the idea. */
-export const PROOF_TIMES=3;
-
-/** The board's video cards that have a ×-number, the highest first. */
-export const proofCards=(tiles:readonly ResearchTile[]|undefined)=>(tiles??[])
- .filter(tile=>tile.kind==='video'&&typeof tile.meta.multiplier==='number'&&Number.isFinite(tile.meta.multiplier)&&tile.meta.multiplier>0)
- .sort((a,b)=>b.meta.multiplier!-a.meta.multiplier!);
-
-const times=(m:number)=>`${m>=10?Math.round(m):Math.round(m*10)/10}×`;
-
-/** One line on the proof, from the board's own cards: how many beat their channel's usual by 3× or more, which are still being read, or what is missing. */
-export function proofLine(tiles:readonly ResearchTile[]|undefined):{proven:boolean;text:string}{
- const videos=(tiles??[]).filter(tile=>tile.kind==='video'),cards=proofCards(tiles);
- const strong=cards.filter(tile=>tile.meta.multiplier!>=PROOF_TIMES).length;
- // A video card is read in the background after it is added: until then it has no views and no number.
- const reading=videos.filter(tile=>tile.meta.views===undefined&&tile.meta.multiplier===undefined).length;
- if(strong)return {proven:true,text:`${strong} ${strong===1?'video':'videos'} on your board got ${PROOF_TIMES}× or more their channel's usual views.`};
- if(reading)return {proven:false,text:`Reading ${reading} reference ${reading===1?'video':'videos'}…`};
- if(cards.length)return {proven:false,text:`No video on your board got ${PROOF_TIMES}× its channel's usual views yet. The best got ${times(cards[0].meta.multiplier!)}.`};
- if(videos.length)return {proven:false,text:`The ${videos.length===1?'video':'videos'} on your board ${videos.length===1?'has':'have'} no number: ${videos.length===1?'its':'their'} channel's usual views aren't known.`};
- return {proven:false,text:'No similar video on the board yet.'};
-}
 
 /** A check under a title and thumbnail pair: the rule it broke, or that it follows them all. */
 export type PairCheck={ok:boolean;text:string};
@@ -40,17 +16,21 @@ export function pairChecks(title:string,thumb:string):PairCheck[]{
  return problems.length?problems.map(text=>({ok:false,text})):[{ok:true,text:'Follows the title and thumbnail rules.'}];
 }
 
-export const SECTIONS=['idea','package','hook','scenes'] as const;
+export const SECTIONS=['sketch','idea','package','hook','scenes'] as const;
 export type SectionKey=typeof SECTIONS[number];
-export const SECTION_NAME:Record<SectionKey,string>={idea:'The idea',package:'Title and thumbnail',hook:'Hook',scenes:'Scenes'};
+export const SECTION_NAME:Record<SectionKey,string>={sketch:'Sketch',idea:'The idea',package:'Title and thumbnail',hook:'Hook',scenes:'Scenes'};
 
 /** What a closed section says, and whether its part of the video is there. */
 export type SectionStatus={done:boolean;summary:string};
 
 const clock=(seconds:number)=>`${Math.floor(seconds/60)}:${String(Math.round(seconds%60)).padStart(2,'0')}`;
 
-export function sectionStatus(key:SectionKey,{video,pkg,outline}:{video:Video;pkg:Package|null;outline:Outline|null}):SectionStatus{
+export function sectionStatus(key:SectionKey,{video,pkg,outline,sketch}:{video:Video;pkg:Package|null;outline:Outline|null;sketch?:OnePager|null}):SectionStatus{
  switch(key){
+  case 'sketch':{
+   const logline=sketch?.logline.trim()??'';
+   return {done:!!logline,summary:logline||'Sketch the video.'};
+  }
   case 'idea':{
    const about=pkg?.angle.trim()||video.idea?.why?.trim()||'';
    return {done:!!about,summary:about||'Say what the video is about.'};

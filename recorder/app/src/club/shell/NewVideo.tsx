@@ -58,7 +58,7 @@ export function NewVideo({videos,onClose,onOpen}:{videos:readonly Video[];onClos
    <div className="new-start-options">
     <button type="button" className="new-start-card" aria-label="Plan a video" disabled={busy} onClick={()=>setMode('title')}>
      <span className="new-start-icon new-start-plan"><Icon name="script" size={20}/></span>
-     <b>Plan a video</b><span>Write the idea, plan the scenes, then record and edit them.</span>
+     <b>Plan a video</b><span>Sketch the idea, write the script, then record and edit it.</span>
     </button>
     <button type="button" className="new-start-card" aria-label="Quick recording" disabled={busy} onClick={()=>void quickRecord()}>
      <span className="new-start-icon new-start-quick"><Icon name="quick-record" size={20}/></span>
@@ -73,8 +73,8 @@ export function NewVideo({videos,onClose,onOpen}:{videos:readonly Video[];onClos
     </button>):<p className="small muted">No videos yet. Choose a planning or recording option above to make your first video.</p>}
    </section>
   </>:<>
-   <p className="muted" style={{marginBottom:16}}>Give your video a title to start planning.</p>
-   <input className="input" autoFocus key={mode} value={value} onChange={event=>setValue(event.target.value)} onKeyDown={event=>{if(event.key==='Enter')void submit();}} placeholder="e.g. Claude does my receipts automatically" aria-label="Video title" disabled={busy}/>
+   <p className="muted" style={{marginBottom:16}}>What's the video about? One sentence is enough. You can add notes and links next.</p>
+   <input className="input" autoFocus key={mode} value={value} onChange={event=>setValue(event.target.value)} onKeyDown={event=>{if(event.key==='Enter')void submit();}} placeholder="e.g. Claude does my receipts automatically" aria-label="What the video is about" disabled={busy}/>
   </>}
  </Dialog>;
 }

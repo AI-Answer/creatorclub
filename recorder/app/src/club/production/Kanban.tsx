@@ -124,16 +124,16 @@ export function Kanban({videos,scenes,ideas,onOpen,onMove,onResearch,onAdd}:{
      <KanbanItem video={video} scenes={scenes[video.id]} highlight={ideas.newId===video.id} dragging={dragId===video.id} research={!!onResearch} actions={actions}/>
     </div>)}
     {lineBefore==='end'&&gap}
-    <LaneAdd stage={stage} onAdd={onAdd} open={adding===stage} empty={!shown.length&&!here} onOpen={()=>setAdding(stage)} onClose={()=>setAdding(null)}/>
+    <LaneAdd stage={stage} onAdd={onAdd} open={adding===stage} empty={!shown.length&&!here} onClose={()=>setAdding(null)}/>
    </div>}
   </section>;
  })}</div></>;
 }
 
-function LaneAdd({stage,onAdd,open,empty,onOpen,onClose}:{stage:VideoStage;onAdd(title:string,stage:VideoStage):Promise<void>;open:boolean;empty:boolean;onOpen():void;onClose():void}){
+function LaneAdd({stage,onAdd,open,empty,onClose}:{stage:VideoStage;onAdd(title:string,stage:VideoStage):Promise<void>;open:boolean;empty:boolean;onClose():void}){
  const [title,setTitle]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState('');
- if(stage==='published'&&!open)return empty?<div className="lane-empty-state lane-published-empty"><p>Finished videos land here.</p></div>:null;
- if(!open)return <div className={empty?'lane-empty-state':undefined}>{empty&&<p>Nothing here yet</p>}<button type="button" className="lane-add" aria-label={`New video in ${STAGE_LABEL[stage]}`} onClick={onOpen}><Icon name="add" size={14}/><span>New video</span></button></div>;
+ // An empty lane says one line; new videos start from the + in its header.
+ if(!open)return empty?<div className="lane-empty-state"><p>{stage==='published'?'Finished videos land here.':'Nothing here yet'}</p></div>:null;
  return <form className="lane-add-form" onSubmit={async event=>{
   event.preventDefault();if(!title.trim()||busy)return;setBusy(true);setError('');
   try{await onAdd(title.trim(),stage);setTitle('');onClose();}catch(reason){setError(errorMessage(reason,"Couldn't add video."));}finally{setBusy(false);}

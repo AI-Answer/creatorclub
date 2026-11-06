@@ -98,7 +98,8 @@ function createRecordingHud({BrowserWindow,ipcMain,screen,Menu,shell,getMainWind
   },
   // Voice follow for the island: start and stop listening (with this take's microphone and script), its permission, and whether this Mac has it.
   'recording-hud-follow':(e,action)=>{verifyHud(e);
-   if(action==='status'){follower.status();return {available:follower.available(),appName};}
+   // The permission last reported comes back at once, so a take in Voice follow starts listening as the island opens (during the countdown).
+   if(action==='status'){follower.status();return {available:follower.available(),appName,authorization};}
    if(action==='authorize'){if(['denied','restricted'].includes(authorization)&&shell)void shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_SpeechRecognition');else follower.authorize();return null;}
    if(action==='start'){if(!state)return false;return follower.start({microphone:state.microphoneLabel==='Microphone'?'':state.microphoneLabel||'',text:state.script||''});}
    if(action==='stop'){follower.stop();return null;}

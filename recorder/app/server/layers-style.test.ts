@@ -117,3 +117,18 @@ test('actual rounded camera shadow is colored, offset, blurred and visible outsi
   p.clips[0].transform.shadow={x:-20,y:-12,blur:0,color:'#00ff00ff'};const negative=frame(await render(p,path.join(dir,'out'))),left=pixel(negative,35,65);assert.ok(left[1]>220&&left[0]<30&&left[2]<30,'Negative-offset opaque shadow appears left of the clip without a gray or black RGB fringe');
  }finally{await fs.rm(dir,{recursive:true,force:true});}
 });
+
+test('a see-through VP9 WebM overlay keeps its alpha in the export: the clip under it shows through',{timeout:60000},async()=>{
+ const dir=await fs.mkdtemp(path.join(os.tmpdir(),'sceneforge-webm-alpha-'));
+ try{
+  const p=fixture();p.media=[];p.clips=[];p.scenes[0].duration=.3;
+  const blue=path.join(dir,'blue.mp4'),overlay=path.join(dir,'overlay.webm');
+  command(['-f','lavfi','-i','color=c=blue:s=192x144:r=30:d=0.3','-c:v','libx264','-pix_fmt','yuv420p',blue]);
+  // A red square in the middle, fully transparent everywhere else.
+  command(['-f','lavfi','-i','color=c=black@0:s=192x144:r=30:d=0.3,format=rgba','-f','lavfi','-i','color=c=red:s=64x48:r=30:d=0.3','-filter_complex','[0][1]overlay=64:48:format=auto,format=yuva420p','-c:v','libvpx-vp9','-auto-alt-ref','0',overlay]);
+  for(const [i,file] of [blue,overlay].entries()){const media=await probeMedia(file,path.join(dir,'cache'));p.media.push(media);p.clips.push({id:'c'+i,mediaId:media.id,name:'c'+i,track:i?'overlay':'screen',start:0,sourceIn:0,sourceOut:.3,speed:1,gain:1,muted:true,transform:defaultTransform(),effects:defaultEffects()});}
+  const out=frame(await render(p,path.join(dir,'out')));
+  assert.ok(pixel(out,10,10)[2]>200&&pixel(out,10,10)[0]<40,`the transparent corner shows the blue clip, got ${pixel(out,10,10)}`);
+  assert.ok(pixel(out,96,72)[0]>200&&pixel(out,96,72)[2]<40,`the square stays red, got ${pixel(out,96,72)}`);
+ }finally{await fs.rm(dir,{recursive:true,force:true});}
+});

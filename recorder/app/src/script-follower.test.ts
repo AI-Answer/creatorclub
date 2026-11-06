@@ -94,3 +94,16 @@ test('the follower helper runs once, takes commands as JSON lines and passes on 
  f.dispose();
  const off=createSpeechFollower({platform:'win32',spawnProcess,onEvent:(e:any)=>events.push(e)});assert.equal(off.available(),false);off.status();assert.deepEqual(events.at(-1),{type:'status',authorization:'notDetermined',available:false});assert.equal(off.start({}),false);assert.equal(spawned.length,3);
 });
+
+test('the matcher finds you again after you skip far ahead, or talk off the script and come back to it',()=>{
+ const filler=Array.from({length:120},(_,i)=>`word${i}`).join(' ');
+ const tokens=F.tokenize(`so today we start here. ${filler} and now the second part begins with a clear sentence about recording. ${filler} the end comes last`),m=F.createMatcher(tokens),text=(i:number)=>tokens[i]?.text;
+ assert.equal(text(m.hear('so today we start here')),'here.');
+ // Skipping 120 words: five matching words in a row are enough to move there.
+ assert.equal(text(m.hear('so today we start here and now the second part begins')),'begins');
+ // Talking off the script for a while moves nothing, then the script is found again where you pick it up.
+ m.restart();assert.equal(m.hear('um let me tell you a quick story about my dog yesterday'),null);
+ assert.equal(text(m.hear('um let me tell you a quick story about my dog yesterday with a clear sentence about recording')),'recording.');
+ // One common word far away does not pull the script there.
+ const at=m.index();m.restart();assert.equal(m.hear('the'),null);assert.equal(m.index(),at);
+});

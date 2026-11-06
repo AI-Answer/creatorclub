@@ -315,3 +315,67 @@ test('update_motion_block rewords, restyles, moves and resizes the graphic on sc
  assert.match(gone.result,/removed from 0:12/);
  assert.equal(editActionProblem(gone.next,{type:'remove_motion_block',at:14}),'There is no motion graphic at that time.');
 });
+
+test('a timeline note is an idea on the notes row, at its time, and moves nothing else', () => {
+  const p = make();
+  const { next, result } = apply(p, { type: 'add_timeline_note', time: 12, text: 'This pause feels long' });
+  assert.equal(result, 'Note left at 0:12');
+  assert.deepEqual(next.markers?.map(({ time, name, tag }) => ({ time, name, tag })), [{ time: 12, name: 'This pause feels long', tag: 'idea' }]);
+  const place = (c: Clip) => [c.id, c.start, c.sourceIn, c.sourceOut, c.speed];
+  assert.deepEqual(next.clips.map(place), p.clips.map(place), 'the clips stay where they are');
+  assert.equal(editActionProblem(p, { type: 'add_timeline_note', time: 999, text: 'x' }), 'That time is outside the video.');
+  assert.equal(describeEditAction({ type: 'add_timeline_note', time: 12, text: 'Hi' }), '“Hi” at 0:12.');
+});
+
+test('a whole-recording edit\'s finished video takes the timeline\'s place, and the old timeline comes back with an undo snapshot',()=>{
+ const p=createProject('Whole');
+ p.clips.push({id:'cam',mediaId:'m1',name:'Camera',track:'camera',start:0,sourceIn:0,sourceOut:20,speed:1,gain:1,muted:false,transform:defaultTransform(),effects:defaultEffects()});
+ p.motion=[newMotionBlock('stat',2,'b1')];p.captions.push({id:'k',start:1,end:2,text:'hi'});
+ p.scenes=[{...p.scenes[0],id:'s1',start:0,duration:8},{...p.scenes[0],id:'s2',name:'Two',start:8,duration:12}];
+ const media={id:'fin',kind:'video',name:'Final',path:'/tmp/final.mp4',duration:14,width:1920,height:1080,hasAudio:true} as never;
+ const action:EditAction={type:'add_clip',media,start:0,duration:14,title:'Screenplay edit',whole:true};
+ assert.equal(editActionProblem(p,action),undefined);
+ const next=applyProjectChange(p,d=>{applyEditAction(d,action);});
+ assert.deepEqual(next.clips.map(c=>[c.track,c.mediaId,c.start,c.sourceOut]),[['screen','fin',0,14]]);
+ assert.deepEqual([next.motion?.length,next.captions.length],[0,0],'its own graphics and words are in the video');
+ assert.deepEqual(next.scenes.map(sc=>[+sc.start.toFixed(2),+sc.duration.toFixed(2)]),[[0,5.6],[5.6,8.4]],'each scene keeps its share, none is left without a take');
+ assert.match(describeEditAction(action),/takes the place of your timeline/);
+ assert.deepEqual(p.clips.map(c=>c.id),['cam'],'the timeline it replaced is untouched, for Undo');
+});
+
+test('a screenplay plan goes on the timeline: one block per scene on its own row, the speaker as the tile in its stretches, the cut kept',()=>{
+ const p=createProject('Layers');p.canvas={...p.canvas,width:1920,height:1080,padding:40,radius:20};
+ p.clips.push({id:'cam',mediaId:'m1',name:'Camera',track:'camera',start:0,sourceIn:0,sourceOut:20,speed:1,gain:1,muted:false,transform:defaultTransform(),effects:defaultEffects()});
+ p.motion=[newMotionBlock('stat',2,'b1')];p.captions.push({id:'k',start:1,end:2,text:'hi'});
+ const media=(id:string,duration:number)=>({id,kind:'video',name:id,path:`/tmp/${id}.webm`,duration,width:1920,height:1080,hasAudio:false}) as never;
+ const stage={background:'#121212',side:'right' as const,size:353.9/1920,aspect:620.7/353.9,margin:36.6/1920,radius:19.2/1920};
+ const action:EditAction={type:'add_clip',media:media('a',5),start:0,duration:12,title:'Screenplay',layers:{blocks:[{media:media('a',5),start:0,duration:5,title:'Graphic'},{media:media('b',7),start:5,duration:7,title:'Browser scene'}],stages:[{start:2,end:12}],stage}};
+ assert.equal(editActionProblem(p,action),undefined);
+ const next=applyProjectChange(p,d=>{applyEditAction(d,action);});
+ const blocks=next.clips.filter(c=>c.layerId==='screenplay');
+ assert.deepEqual(blocks.map(c=>[c.mediaId,c.start,c.sourceOut,c.track]),[['a',0,5,'overlay'],['b',5,7,'overlay']]);
+ assert.equal(clipLayerRowId(blocks[0],next),'screenplay');
+ assert.ok(next.timelineLayers?.some(r=>r.id==='screenplay'&&r.name==='Screenplay'));
+ const cams=next.clips.filter(c=>c.track==='camera');
+ assert.deepEqual(cams.map(c=>[c.start,!!c.stage]),[[0,false],[2,true],[12,false]],'the face is full frame outside the stretch');
+ assert.equal(+cams[1].transform.width.toFixed(4),+(353.9/1920).toFixed(4),'the tile is screenplay\'s');
+ assert.deepEqual([next.motion?.length,next.captions.length,next.canvas.padding],[0,1,0],'its graphics replace the old ones; captions stay; blocks fill the frame');
+ assert.match(describeEditAction(action),/2 scenes on the Screenplay row/);
+ // A second run replaces the first one's blocks instead of stacking them.
+ const again=applyProjectChange(next,d=>{applyEditAction(d,action);});
+ assert.equal(again.clips.filter(c=>c.layerId==='screenplay').length,2);
+ assert.deepEqual(p.clips.map(c=>c.id),['cam'],'the timeline before it is untouched, for Undo');
+});
+
+test('a screenplay plan morphs the camera where the speaker goes between the tile and the full frame, and a split keeps it on the first piece',()=>{
+ const p=createProject('Morph');p.canvas={...p.canvas,width:1920,height:1080};
+ p.clips.push({id:'cam',mediaId:'m1',name:'Camera',track:'camera',start:0,sourceIn:0,sourceOut:20,speed:1,gain:1,muted:false,transform:defaultTransform(),effects:defaultEffects()});
+ const media=(id:string,duration:number)=>({id,kind:'video',name:id,path:`/tmp/${id}.webm`,duration,width:1920,height:1080,hasAudio:false}) as never;
+ const stage={background:'#121212',side:'right' as const,size:353.9/1920,aspect:620.7/353.9,margin:36.6/1920,radius:19.2/1920};
+ const action:EditAction={type:'add_clip',media:media('a',5),start:0,duration:12,title:'Screenplay',layers:{blocks:[{media:media('a',12),start:0,duration:12,title:'Graphic'}],stages:[{start:2,end:12}],stage}};
+ const next=applyProjectChange(p,d=>{applyEditAction(d,action);});
+ const cams=next.clips.filter(c=>c.track==='camera').sort((a,b)=>a.start-b.start);
+ assert.deepEqual(cams.map(c=>[c.start,!!c.stage,c.morphIn??0]),[[0,false,0],[2,true,.45],[12,false,.45]],'into the tile at 2 s and out of it at 12 s');
+ const split=applyProjectChange(next,d=>{splitLinked(d,3,new Set(),cams[1].id);});
+ assert.deepEqual(split.clips.filter(c=>c.track==='camera').sort((a,b)=>a.start-b.start).map(c=>[c.start,c.morphIn??0]),[[0,0],[2,.45],[3,0],[12,.45]]);
+});

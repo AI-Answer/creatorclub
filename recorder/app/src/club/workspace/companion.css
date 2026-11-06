@@ -212,19 +212,6 @@
 .club-root .cmp-attach:hover { background: var(--cc-hover); color: var(--cc-text); }
 .club-root .cmp-made { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: contain; border-radius: var(--cc-r-lg); background: var(--cc-dark-stage); margin-bottom: 8px; }
 /* Applied by Claude: every change from the chat that is in the video now, for reference, with Undo. */
-.club-root .cmp-applied-btn { all: unset; cursor: pointer; height: 24px; padding: 0 9px; border-radius: var(--cc-r-pill); background: var(--cc-bg-sunk); color: var(--cc-text-2); font-size: var(--cc-text-2xs); font-weight: 600; white-space: nowrap; }
-.club-root .cmp-applied-btn:hover, .club-root .cmp-applied-btn.on { background: var(--cc-ok-soft); color: var(--cc-ok); }
-.club-root .cmp-applied { flex: 1; min-height: 0; overflow-y: auto; padding: 14px 16px; }
-.club-root .cmp-applied-h { display: flex; flex-direction: column; gap: 2px; margin-bottom: 12px; }
-.club-root .cmp-applied-h b { font-size: var(--cc-text-sm); }
-.club-root .cmp-applied-h span { font-size: var(--cc-text-xs); color: var(--cc-text-3); }
-.club-root .cmp-applied ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
-.club-root .cmp-applied li { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; align-items: center; padding: 10px 12px; border: 1px solid var(--cc-line); border-radius: var(--cc-r); background: var(--cc-surface); }
-.club-root .cmp-applied-t { display: flex; flex-direction: column; gap: 1px; min-width: 0; grid-column: 1; }
-.club-root .cmp-applied-what { font-size: var(--cc-text-sm); font-weight: 600; }
-.club-root .cmp-applied-when { padding-left: 29px; font-size: var(--cc-text-2xs); color: var(--cc-text-3); white-space: nowrap; }
-.club-root .cmp-applied-r { grid-column: 1; padding-left: 29px; font-size: var(--cc-text-xs); color: var(--cc-text-2); line-height: 1.45; }
-.club-root .cmp-applied li > .btn { grid-column: 2; grid-row: 1 / span 2; }
 /* Each card's icon says what it changes. Edits to the picture and timeline share the kind colours the timeline uses. */
 .club-root .cmp-card-h { gap: 7px; }
 .club-root .cmp-card-ico { flex: none; width: 22px; height: 22px; border-radius: var(--cc-r-sm); display: grid; place-items: center; background: var(--cc-bg-sunk); color: var(--cc-text-2); }
@@ -233,7 +220,6 @@
 .club-root .cmp-card-ico.k-layout, .club-root .cmp-card-ico.k-film { background: color-mix(in srgb, var(--kind-graphics) 14%, var(--cc-surface)); color: var(--kind-graphics); }
 .club-root .cmp-card-ico.k-zoom-in { background: color-mix(in srgb, var(--kind-zoom) 14%, var(--cc-surface)); color: var(--kind-zoom); }
 .club-root .cmp-card-ico.k-music { background: color-mix(in srgb, var(--kind-audio) 14%, var(--cc-surface)); color: var(--kind-audio); }
-.club-root .cmp-applied-what { display: flex; align-items: center; gap: 7px; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* Motion where it means something: the mark turns while Claude works, a new card slides in, an applied tick pops once. */
 @keyframes cmp-turn { from { transform: rotate(0deg) scale(1); } 50% { transform: rotate(180deg) scale(.88); } to { transform: rotate(360deg) scale(1); } }
@@ -275,3 +261,60 @@
 /* A collapsed panel never exposes fragments of its full header during resizing. */
 .club-root .cmp.collapsed { flex: 0 0 40px; min-width: 40px; overflow: clip; }
 .club-root .cmp-rail .cmp-sr { clip-path: inset(50%); }
+
+/* What a reply changed: one quiet line under its words, with one Undo for all of it and the single changes behind "Show changes". */
+.club-root .cmp-changed { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin-top: 8px; font-size: var(--cc-text-sm); color: var(--cc-text-2); }
+.club-root .cmp-changed-line { display: inline-flex; align-items: center; gap: 6px; }
+.club-root .cmp-changed-line svg { color: var(--cc-text-3); }
+.club-root .cmp-changed-undo, .club-root .cmp-changed-more { display: inline-flex; align-items: center; gap: 4px; padding: 0; border: 0; background: none; color: var(--cc-text-3); font: inherit; cursor: pointer; }
+.club-root .cmp-changed-undo:hover, .club-root .cmp-changed-more:hover { color: var(--cc-text); text-decoration: underline; text-underline-offset: 2px; }
+.club-root .cmp-changed + .cmp-card, .club-root .cmp-changed ~ .cmp-card { margin-top: 8px; }
+
+/* Composer: one line that grows with what is typed, to about six lines, like Claude's own; the buttons in a slim row under it. The foot never
+   stretches to fill spare height in the panel. */
+.club-root .cmp-foot { flex: none; padding: 8px 12px 12px; }
+.club-root .cmp-input { gap: 2px; padding: 8px 8px 4px 12px; }
+.club-root .cmp-input textarea { min-height: 20px; max-height: 120px; line-height: 20px; height: 20px; }
+.club-root .cmp-input-row { min-height: 28px; }
+
+/* Like Claude's own chat: your messages in a light-grey bubble on the right; Claude's replies as plain text on the background. */
+.club-root .cmp-me { max-width: 85%; padding: 8px 12px; border-radius: var(--br-r-xl); background: color-mix(in srgb, var(--cc-text) 7%, var(--cc-surface)); font-size: var(--cc-text-sm); line-height: 20px; }
+.club-root .cmp-reply { gap: 6px; }
+/* Under a reply: one muted 13px line, its actions as plain words split by a middle dot, no borders. */
+.club-root .cmp-changed { gap: 0; margin-top: 2px; font-size: var(--cc-text-sm); color: var(--cc-text-3); }
+.club-root .cmp-changed-line { color: var(--cc-text-2); }
+.club-root .cmp-changed-line.is-off { color: var(--cc-text-3); }
+.club-root .cmp-changed > button::before { content: '·'; display: inline-block; margin: 0 6px; color: var(--cc-text-3); text-decoration: none; }
+.club-root .cmp-changed > button:hover::before { text-decoration: none; }
+.club-root .cmp-changed-undo:disabled { opacity: .5; cursor: default; }
+/* Suggestion chips: compact one-line pills, the arrow inline at the end; a long one ends in an ellipsis instead of wrapping. */
+.club-root .cmp-sugg:not(.fresh) button { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; height: 28px; padding: 0 10px; font-size: var(--cc-text-sm); font-weight: 400; color: var(--cc-text-2); border: 1px solid var(--cc-line); white-space: nowrap; }
+.club-root .cmp-sugg:not(.fresh) button span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.club-root .cmp-sugg:not(.fresh) button svg { flex: none; width: 13px; height: 13px; color: var(--cc-text-3); }
+/* The line stays one row in a narrow panel: what changed shortens with an ellipsis, Undo and Show changes stay whole. */
+.club-root .cmp-changed { flex-wrap: nowrap; white-space: nowrap; min-width: 0; }
+.club-root .cmp-changed-line { min-width: 0; overflow: hidden; text-overflow: ellipsis; display: block; }
+.club-root .cmp-changed-line svg { vertical-align: -2px; margin-right: 6px; }
+.club-root .cmp-changed > button { flex: none; }
+/* Suggestions: two plain text links under the greeting of an empty chat. No borders, no arrows. */
+.club-root .cmp-sugg.fresh { flex-direction: column; align-items: flex-start; gap: 6px; margin: 0; }
+.club-root .cmp-sugg.fresh button { display: inline; width: auto; padding: 0; border: 0; border-radius: 0; background: none; font-size: var(--cc-text-sm); line-height: 20px; color: var(--cc-text-2); text-decoration: underline; text-decoration-color: var(--cc-line-strong); text-underline-offset: 3px; }
+.club-root .cmp-sugg.fresh button:hover:not(:disabled) { background: none; color: var(--cc-text); text-decoration-color: currentColor; }
+/* Show changes: one line per change, its icon, what it did; Preview only on a timeline change not made yet. */
+.club-root .cmp-change-list { margin: 2px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; }
+.club-root .cmp-change { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: var(--cc-text-sm); line-height: 20px; color: var(--cc-text-2); }
+.club-root .cmp-change.undone, .club-root .cmp-change.offered { color: var(--cc-text-3); }
+.club-root .cmp-change .cmp-card-ico { flex: none; }
+.club-root .cmp-change-what { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.club-root .cmp-change-preview { flex: none; padding: 0; border: 0; background: none; color: var(--cc-text-3); font: inherit; cursor: pointer; }
+.club-root .cmp-change-preview:hover, .club-root .cmp-change-preview[aria-pressed=true] { color: var(--cc-text); text-decoration: underline; text-underline-offset: 2px; }
+.club-root .cmp-changed-line svg { display: inline-block; }
+/* What changed is one short row: the summary (a count, or one change in its own words) shortens with an ellipsis in a narrow panel, its
+   full words on hover and in Details; the check, Undo and Details stay whole beside it. */
+.club-root .cmp-changed-line { display: flex; align-items: center; flex: 0 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; }
+.club-root .cmp-changed-line svg { flex: none; }
+.club-root .cmp-changed-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* The change line's Undo, Apply and the list of changes are small icons with their names on hover, not words. */
+.club-root .cmp-changed > button.is-icon { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; margin-left: 2px; border-radius: var(--cc-r-sm); color: var(--cc-text-3); }
+.club-root .cmp-changed > button.is-icon::before { content: none; }
+.club-root .cmp-changed > button.is-icon:hover:not(:disabled) { background: var(--cc-accent-soft); color: var(--cc-text); text-decoration: none; }

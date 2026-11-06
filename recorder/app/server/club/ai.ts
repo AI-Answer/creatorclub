@@ -140,6 +140,8 @@ export type AIEvent =
   | { type: 'text'; text: string }
   /** A piece of text as it is written. Claude with `stream` only; codex sends whole messages. */
   | { type: 'delta'; text: string }
+  /** A piece of a structured answer (`jsonSchema`) as it is written. Claude with `stream` only. */
+  | { type: 'json'; text: string }
   | { type: 'tool'; name: string };
 
 export interface RunAIOptions extends Lookup {
@@ -159,6 +161,10 @@ export interface RunAIOptions extends Lookup {
    * settings; edits and commands are allowed without asking because the person started this run for this folder.
    */
   agent?: { cwd: string; dirs: string[]; tools: string[] };
+  /** Codex: it may write files in its working folder (`agent.cwd`), as a picture it makes with its image tool. Read-only otherwise. */
+  writable?: boolean;
+  /** More environment for the run, such as Claude Code's own limits on how long one shell command may take. */
+  env?: Record<string, string>;
   onEvent?: (event: AIEvent) => void;
   /** Claude: also send the text as it is written (`--include-partial-messages`), as `delta` events. */
   stream?: boolean;
@@ -223,7 +229,7 @@ async function codexInvocation(o: RunAIOptions, cwd: string): Promise<Invocation
   const args = ['exec', '--json', '--skip-git-repo-check', '--ephemeral'];
   // -i takes several values, so it goes before other flags and the trailing "-" (prompt from stdin) stays a prompt.
   for (const image of o.images ?? []) args.push('-i', path.resolve(image));
-  args.push('-s', 'read-only', '-C', cwd);
+  args.push('-s', o.writable && o.agent ? 'workspace-write' : 'read-only', '-C', cwd);
   if (o.model) args.push('-m', o.model);
   let cleanup: Invocation['cleanup'];
   if (o.jsonSchema) {
@@ -245,6 +251,8 @@ export interface StreamState {
   budgetHit?: boolean;
   costUsd?: number;
   structured?: unknown;
+  /** The index of the content block that holds the structured answer (`--json-schema`), while it streams. */
+  structuredBlock?: number;
   finished?: boolean;
 }
 
@@ -260,7 +268,12 @@ function readClaudeLine(event: Json, state: StreamState, emit: (e: AIEvent) => v
     state.streamed = true;
     const inner = event.event ?? {};
     if (inner.type === 'content_block_delta' && inner.delta?.type === 'text_delta' && typeof inner.delta.text === 'string' && inner.delta.text) emit({ type: 'delta', text: inner.delta.text });
-    if (inner.type === 'content_block_start' && inner.content_block?.type === 'tool_use') emit({ type: 'tool', name: String(inner.content_block.name) });
+    // Only the structured answer's own block streams as `json`: another tool's input is not part of the answer.
+    if (inner.type === 'content_block_delta' && inner.delta?.type === 'input_json_delta' && inner.index === state.structuredBlock && typeof inner.delta.partial_json === 'string' && inner.delta.partial_json) emit({ type: 'json', text: inner.delta.partial_json });
+    if (inner.type === 'content_block_start' && inner.content_block?.type === 'tool_use') {
+      if (inner.content_block.name === 'StructuredOutput') state.structuredBlock = inner.index;
+      else emit({ type: 'tool', name: String(inner.content_block.name) });
+    }
   }
   if (event.type === 'assistant') {
     for (const block of event.message?.content ?? []) {
@@ -335,7 +348,8 @@ export async function runAI(options: RunAIOptions): Promise<RunAIResult> {
   if (!file) throw new AiError('not-installed', `${label} is not installed on this Mac.`);
   if (options.signal?.aborted) throw new AiError('cancelled', 'That was stopped.');
 
-  if (options.agent && provider !== 'claude') throw new AiError('not-installed', 'Skills run with Claude only.');
+  // Codex works in a folder only to write a file it makes there (a picture from its image tool); a skill run is Claude's.
+  if (options.agent && provider !== 'claude' && !options.writable) throw new AiError('not-installed', 'Skills run with Claude only.');
   const cwd = options.agent?.cwd ?? (await neutralCwd());
   const invocation = provider === 'claude' ? await claudeInvocation(options) : await codexInvocation(options, cwd);
   const reader = createStreamReader(provider, (event) => options.onEvent?.(event));
@@ -346,7 +360,7 @@ export async function runAI(options: RunAIOptions): Promise<RunAIResult> {
     // check and the listener registered inside the promise below, so no abort can slip through.
     if (options.signal?.aborted) throw new AiError('cancelled', 'That was stopped.');
     const { code, stderr, interrupted } = await new Promise<{ code: number | null; stderr: string; interrupted?: 'timeout' | 'abort' | 'spawn' }>((resolve) => {
-      const child = spawn(file, invocation.args, { cwd, env: childEnv(options), stdio: ['pipe', 'pipe', 'pipe'] });
+      const child = spawn(file, invocation.args, { cwd, env: { ...childEnv(options), ...options.env }, stdio: ['pipe', 'pipe', 'pipe'] });
       let stderr = '';
       let interrupted: 'timeout' | 'abort' | 'spawn' | undefined;
       const stop = (reason: 'timeout' | 'abort') => {

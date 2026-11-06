@@ -36,6 +36,17 @@ export function slashSkill(text:string):string|undefined{
 }
 
 /**
+ * On Edit, a plain request to add graphics or to polish the video runs the bundled proof-edit skill, as "/proof-edit" would: that is where
+ * the editing style, the word timing and the short answers live. A request to change, move or remove something already there is a small
+ * edit the companion makes itself.
+ */
+const STYLE_ASK=/\b(motion[- ]?graph(?:ic|ics|s)?|graphics?|animations?|animate|diagrams?|infographics?|on-screen text|polish|edit (?:the|my|this) (?:whole |full )?video|make (?:it|the video|this) (?:look |feel )?(?:more |a lot more |much )?(?:pro|professional|polished|better|engaging))\b/i;
+const SMALL_EDIT=/\b(remove|delete|take (?:out|off)|get rid|move|shift|nudge|earlier|later|shorter|longer|rename|reword|change|fix|replace|swap|undo|instead)\b/i;
+export function editSkillAsked(text:string):'proof-edit'|undefined{
+  return !slashSkill(text)&&STYLE_ASK.test(text)&&!SMALL_EDIT.test(text)?'proof-edit':undefined;
+}
+
+/**
  * Whether a skill edits or makes video, judged by what its own description says (HyperFrames, Remotion, b-roll, motion graphics,
  * video effects, a video editor, explainers, talking-head edits). Plain "render" is not enough: other skills render diagrams or pages. Only these are listed and run on Edit; writing skills
  * and skills about other things (transcripts, thumbnails, scraping) are not, even when they mention videos.

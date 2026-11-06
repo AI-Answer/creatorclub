@@ -18,7 +18,11 @@ arrow-right plug cpu app-window mouse-pointer-click hand coffee moon sun calenda
 `.split(/\s+/).filter(Boolean);
 const BRANDS = `claude anthropic youtube instagram tiktok x github notion figma google googledrive gmail googlecalendar googlesheets discord stripe
 vercel linear googlechrome apple cursor zapier n8n make airtable hubspot shopify wordpress obsidian whatsapp telegram spotify supabase python react
-nextdotjs googlegemini perplexity framer webflow loom calendly`.split(/\s+/).filter(Boolean);
+nextdotjs googlegemini perplexity framer webflow loom calendly
+meta facebook reddit threads bluesky substack medium trello asana clickup jira confluence miro dropbox googledocs googleslides googlemeet zoom
+quickbooks paypal gumroad typeform mailchimp ghost wix squarespace replit windsurf githubcopilot docker npm nodedotjs typescript javascript
+tailwindcss firebase postgresql mongodb raycast arc safari firefox brave pinterest snapchat twitch kick patreon tldraw excalidraw deepseek
+huggingface ollama mistralai elevenlabs davinciresolve`.split(/\s+/).filter(Boolean);
 
 const lucideDir = path.join(path.dirname(require.resolve('lucide-react/package.json')), 'dist/esm/icons');
 const attrs = (o) => Object.entries(o).filter(([k]) => k !== 'key').map(([k, v]) => `${k}="${String(v).replace(/"/g, '&quot;')}"`).join(' ');

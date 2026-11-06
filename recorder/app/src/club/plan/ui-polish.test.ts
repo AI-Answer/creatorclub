@@ -15,7 +15,7 @@ const video:Video={id:'v_polish',title:'A small useful board',stage:'planning',o
 rememberAiStatus({claude:{installed:true,version:'test',signedIn:true},codex:{installed:false,version:null,signedIn:false}});
 function PlanProbe(){
  const plan=usePlan(video,{onVideo(){},onRecord(){}});
- return createElement(IdeaPage,{video,plan,known:[],focusId:null,boardKey:0,navigate(){},onBoardChanged(){},onFocus(){},onTitle(){},onTarget(){},onRecordScene(){},onVideo(){}});
+ return createElement(IdeaPage,{video,plan,known:[],focusId:null,boardKey:0,navigate(){},onFocus(){},onTitle(){},onTarget(){},onRecordScene(){},onVideo(){}});
 }
 test('Plan view avoids the global page layout and does not repeat board navigation or a zero count',async()=>{
  localStorage.clear();
@@ -32,17 +32,15 @@ test('Plan view avoids the global page layout and does not repeat board navigati
   await flush();await flush();
   const root=ui.container.querySelector('.idea-page')!;
   assert.ok(root);assert.equal(root.classList.contains('page'),false,'generic page adds inset padding and clips the Idea scroll area');
-  assert.equal(button(ui.container,'Script').getAttribute('aria-pressed'),'true');
+  assert.equal(button(ui.container,'Sketch').getAttribute('aria-pressed'),'true','a video with no scenes opens on its sketch');
+  assert.match(ui.container.querySelector('.sk-start')!.textContent!,/What's this video about\?/);
+  await act(async()=>button(ui.container,'Script').click());await flush();
   assert.equal(ui.container.querySelector('.idea-list'),null,'the script stands alone: links and notes are added on the Board');
   await act(async()=>button(ui.container,'Board').click());await flush();await flush();
-  assert.equal(ui.container.querySelector('.idea-body .idea-doc'),null,'Board keeps the plan and slide on Plan');
-  assert.ok(ui.container.querySelector('.idea-summary'),'Board defaults to its compact read-only Plan summary');
-  assert.equal(ui.container.querySelector('.idea-summary [contenteditable]'),null);
-  assert.match(ui.container.querySelector('.idea-summary')!.textContent!,/A small useful board/);
-  await act(async()=>button(ui.container,'Items').click());
-  assert.ok(ui.container.querySelector('.idea-list-add'),'Items shows the existing card list');
-  await act(async()=>ui.container.querySelector<HTMLButtonElement>('.idea-pane-switch button')!.click());
-  await act(async()=>button(ui.container,'Open the script').click());
+  assert.equal(ui.container.querySelector('.idea-body .idea-doc'),null,'Board is the canvas alone: no script beside it');
+  assert.equal(ui.container.querySelector('.idea-summary,.idea-list'),null,'no Summary or Items pane');
+  assert.ok(ui.container.querySelector('.idea-board'),'the board fills the space');
+  await act(async()=>button(ui.container,'Script').click());
   assert.ok(ui.container.querySelector('.idea-doc'));
  }finally{await ui.close();fake.restore();}
 });

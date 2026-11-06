@@ -6,7 +6,8 @@ import { PLAN_JOB_KINDS, onepagerShape, type OnePager, type AiProvider, type Job
 import { describeAngle } from '../../shared/description.js';
 import { mergePackage, type PackageGroup } from '../../shared/package-merge.js';
 import { chosenIndex, pairThumbs } from '../../shared/package-rules.js';
-import { AiError, aiLabel, runAI, type RunAIOptions } from './ai.js';
+import { AiError, aiLabel, runAI, type AIEvent, type RunAIOptions } from './ai.js';
+import { parsePartialJSON } from './partial-json.js';
 import { boardTiles } from './board-docs.js';
 import { readBreakdown } from './breakdown.js';
 import type { ChannelData } from './channel.js';
@@ -19,6 +20,7 @@ import {
   buildPackagePrompt,
   buildOnePagerPrompt,
   onepagerProblems,
+  sketchDirection,
   buildSceneScriptPrompt,
   buildScriptPrompt,
   outlineProblems,
@@ -769,7 +771,8 @@ async function recentTitles(slug: string): Promise<string[]> {
 }
 
 export interface Asker {
-  ask(built: { prompt: string; system?: string; schema?: object }, budgetUsd: number): Promise<{ text: string; json?: unknown }>;
+  /** `onPartial` gets the structured answer written so far, each time more arrives (Claude only; others answer all at once). */
+  ask(built: { prompt: string; system?: string; schema?: object }, budgetUsd: number, onPartial?: (json: string) => void): Promise<{ text: string; json?: unknown }>;
   who: string;
 }
 
@@ -779,8 +782,9 @@ export async function asker(context: Pick<JobContext, 'signal'>, options: PlanOp
   const run = options.runAI ?? runAI;
   return {
     who: aiLabel(provider),
-    ask: (built, budgetUsd) =>
-      run({
+    ask: (built, budgetUsd, onPartial) => {
+      let written = '';
+      return run({
         extraDirs: options.extraDirs,
         provider,
         prompt: built.prompt,
@@ -789,7 +793,11 @@ export async function asker(context: Pick<JobContext, 'signal'>, options: PlanOp
         model: provider === 'claude' ? 'sonnet' : undefined,
         budgetUsd,
         signal: context.signal,
-      }),
+        ...(onPartial && provider === 'claude'
+          ? { stream: true, onEvent: (event: AIEvent) => { if (event.type === 'json') { written += event.text; onPartial(written); } } }
+          : {}),
+      });
+    },
   };
 }
 
@@ -842,19 +850,31 @@ export async function runPackage(slug: string, id: string, context: JobContext, 
 export async function runOnePager(slug: string, id: string, context: JobContext, options: PlanOptions = {}): Promise<PlanJobResult<OnePager>> {
   const video = await store.readVideo(slug, id);
   const before = await snapshotOf(slug, id, 'onepager');
-  context.emit({ message: 'Reading your idea, package and research board…' });
+  context.emit({ message: 'Reading your idea and your board…' });
   const [channel, research, titles, pkg, history] = await Promise.all([loadChannelContext(slug), boardTiles(slug, id), recentTitles(slug), readPackage(slug, id), store.readJSON<ChannelData>(path.join(store.workspaceDir(slug), 'channel.json'))]);
   const built = await buildOnePagerPrompt(channel, { idea: ideaFor(video), research, recentTitles: titles, pkg: pkg ?? undefined, uploads: history?.uploads });
   const ai = await asker(context, options);
-  context.emit({ message: 'Writing the one-pager…' });
-  let value = parseAnswer(onepagerShape, (await ai.ask(built, ONEPAGER_BUDGET_USD)).json, ai.who, 'one-pager');
+  const message = 'Sketching your video…';
+  context.emit({ message });
+  // The sketch shows as it is written: what has arrived so far, at most a few times a second.
+  let shown = 0, last = '';
+  const partial = (json: string) => {
+    if (Date.now() - shown < 150) return;
+    const value = parsePartialJSON(json);
+    const text = JSON.stringify(value ?? null);
+    if (!value || typeof value !== 'object' || text === last) return;
+    shown = Date.now();
+    last = text;
+    context.emit({ message, partial: value });
+  };
+  let value = parseAnswer(onepagerShape, (await ai.ask(built, ONEPAGER_BUDGET_USD, partial)).json, ai.who, 'one-pager');
   stopped(context);
   const problems = onepagerProblems(value);
   if (problems.length) {
-    context.emit({ message: 'Checking the one-pager…' });
+    context.emit({ message: 'Checking the sketch…' });
     value = parseAnswer(onepagerShape, (await ai.ask(repair(built, value, problems), ONEPAGER_BUDGET_USD)).json, ai.who, 'one-pager');
     stopped(context);
-    if (onepagerProblems(value).length) throw new AiError('bad-answer', `${ai.who} sent an unfinished one-pager. Try again.`);
+    if (onepagerProblems(value).length) throw new AiError('bad-answer', `${ai.who} sent an unfinished sketch. Try again.`);
   }
   return { value, ...(await commitResult(slug, id, 'onepager', before, JSON.stringify(value, null, 2) + '\n')) };
 }
@@ -876,8 +896,8 @@ export async function runOutline(slug: string, id: string, context: JobContext, 
   say('Reading your idea, package and research board…');
   const before = await snapshotOf(slug, id, 'outline');
   const previous = (await readOutline(slug, id))?.scenes ?? [];
-  const [channel, pkg, shape, research] = await Promise.all([loadChannelContext(slug), readPackage(slug, id), reusableOutline(slug, video), boardTiles(slug, id)]);
-  const built = await buildOutlinePrompt(channel, { idea: ideaFor(video), pkg: pkg ?? undefined, reusableOutline: shape, research });
+  const [channel, pkg, shape, research, sketch] = await Promise.all([loadChannelContext(slug), readPackage(slug, id), reusableOutline(slug, video), boardTiles(slug, id), readOnePager(slug, id)]);
+  const built = await buildOutlinePrompt(channel, { idea: ideaFor(video), pkg: pkg ?? undefined, reusableOutline: shape, research, direction: sketchDirection(sketch) });
   const ai = await asker(context, options);
   say(shape ? 'Following the shape of the video you broke down. This takes about a minute…' : 'Writing the scenes. This takes about a minute…');
   let outline = parseAnswer(outlineShape, (await ai.ask(built, OUTLINE_BUDGET_USD)).json, ai.who, 'outline');

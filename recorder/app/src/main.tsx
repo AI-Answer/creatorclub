@@ -28,6 +28,10 @@ import './club/edit-panels/Captions.css';
 import './club/edit-panels/Cursor.css';
 import './club/edit-panels/Automate.css';
 import {initializeAppearance} from './appearance';
+import {reloadForNewBuild} from './stale-build';
+
+// Code from an older build asked for a file a newer build removed: reload onto the new build once (see stale-build.ts).
+window.addEventListener('vite:preloadError',event=>{if(reloadForNewBuild())event.preventDefault();});
 initializeAppearance();
 
 /** Last-resort error screen: one sentence and `Try again`, never the raw error (that goes to the console). */

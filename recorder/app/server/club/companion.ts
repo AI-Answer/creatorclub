@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { withSkills } from './skills.js';
-import { isVideoSkillInstalled, runMakingSkill } from './skill-run.js';
-import { slashSkill } from '../../shared/skills.js';
+import { editsWholeRecording, isVideoSkillInstalled, prepareRecording, rendersInLayers, runMakingSkill, SKILL_RUNS } from './skill-run.js';
+import { editSkillAsked, slashSkill } from '../../shared/skills.js';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { z } from 'zod';
@@ -32,7 +32,7 @@ import { boardText, readBoardChat } from './board-chat.js';
 import { inFrame, readCanvas } from './board-canvas.js';
 import { actionShape, applyAction, undoVersion, validateActions, versionExists } from './companion-actions.js';
 import { chunkText, parseReply, ReplySplitter } from './companion-reply.js';
-import { editOptions, editProject, MOVED_SINCE_PROPOSAL, placeGraphics, timelineHash, timelineText } from './companion-edit.js';
+import { editOptions, editProject, MOVED_SINCE_PROPOSAL, placeGraphics, placementHash, stillPlaced, timelineText } from './companion-edit.js';
 import { mergeRanges } from '../../src/timeline-edit.js';
 import { applyEditAction, editActionProblem, editRanges, type EditOptions } from '../../src/editing-actions.js';
 import { applyProjectChange } from '../../src/project-draft.js';
@@ -41,7 +41,7 @@ import type { EditAction } from '../../shared/companion.js';
 import { loadChannelContext } from './context.js';
 import { ClubError, notFound } from './errors.js';
 import { runningOnce, startJobOnce, type JobContext } from './jobs.js';
-import { readOutline, readPackage, type PlanOptions } from './planning.js';
+import { readOnePager, readOutline, readPackage, type PlanOptions } from './planning.js';
 import { buildCompanionPrompt, buildResearchCompanionPrompt, COMPANION_ACTION_HELP, type PromptIdea } from './prompts.js';
 import { videoScenes } from './scenes.js';
 import * as store from './store.js';
@@ -316,8 +316,9 @@ async function writeReply(slug: string, id: string, input: AskInput, context: Jo
   const tab = input.message.context.tab;
   steps.start(READING[tab]);
 
-  // On Edit, "/<skill> …" runs that skill for real (its scripts and tools) and brings back what it made as a card to place.
-  const making = tab === 'edit' && !store.isChannelBoard(id) ? slashSkill(input.message.text) : undefined;
+  // On Edit, "/<skill> …" runs that skill for real (its scripts and tools) and brings back what it made as a card to place. A plain ask
+  // for graphics or a polish runs proof-edit the same way, so it gets the same style and word timing as "/proof-edit".
+  const making = tab === 'edit' && !store.isChannelBoard(id) ? (slashSkill(input.message.text) ?? editSkillAsked(input.message.text)) : undefined;
   if (making && (await isVideoSkillInstalled(making, options.home))) return makeWithSkill(slug, id, input, context, steps, making, options);
 
   // Research is the channel's own Board: no video, no package or scenes; the cards (with their ids) and frames are what it reads.
@@ -340,7 +341,7 @@ async function writeReply(slug: string, id: string, input: AskInput, context: Jo
     });
   } else {
     const video = await store.readVideo(slug, id);
-    const [channel, tiles, pkg, read] = await Promise.all([loadChannelContext(slug), boardTiles(slug, id), readPackage(slug, id), readOutline(slug, id)]);
+    const [channel, tiles, pkg, read, sketch] = await Promise.all([loadChannelContext(slug), boardTiles(slug, id), readPackage(slug, id), readOutline(slug, id), tab === 'idea' ? readOnePager(slug, id) : null]);
     outline = read;
     const takes =
       tab === 'record'
@@ -352,12 +353,13 @@ async function writeReply(slug: string, id: string, input: AskInput, context: Jo
     // Edit reads the recording project's timeline: its clips, scenes, selection and transcript.
     timeline = async () => (tab === 'edit' ? editProject(slug, id).then(({ project }) => project, () => undefined) : undefined);
     const editing = await timeline();
-    promptTimeline = editing ? timelineHash(editing) : undefined;
+    promptTimeline = editing ? placementHash(editing) : undefined;
     const screen = screenText(input.message.context, video, outline, takes) + (tab !== 'edit' ? '' : editing ? `\n${timelineText(editing, input.message.context, await editOptions(editing))}` : '\nThis video has nothing recorded yet.');
     built = await buildCompanionPrompt(channel, {
       idea: ideaFor(video),
       pkg: pkg ?? undefined,
       outline: outline ?? undefined,
+      ...(tab === 'idea' ? { sketch: sketch ?? undefined } : {}),
       board: await boardText(slug, id, tiles, tab === 'idea' ? BOARD_CHARS_HERE : BOARD_CHARS_ELSEWHERE),
       screen,
       history: input.history.map((message) => ({ role: message.role, text: historyText(message) })),
@@ -443,7 +445,9 @@ async function writeReply(slug: string, id: string, input: AskInput, context: Jo
     if (parsed.actions.length) steps.start('Checking the changes');
     // Edit's actions are checked against the timeline as it is now, not as it was when the question was asked.
     const now = parsed.actions.length ? await timeline() : undefined;
-    const checked = validateActions(parsed.actions, { tab, sceneIds, tileIds, project: now, editOptions: now ? await editOptions(now) : undefined });
+    // On Edit every change lands at once with one Undo, so a reply makes as many as the request needs ("remove all the graphics"), as a
+    // skill's plan does; elsewhere a reply offers a few.
+    const checked = validateActions(parsed.actions, { tab, sceneIds, tileIds, project: now, editOptions: now ? await editOptions(now) : undefined, ...(tab === 'edit' ? { max: SKILL_CARDS } : {}) });
     const { rejected } = checked;
     // Graphics are offered off the speaker's face, so their preview and their result show the same spot.
     const actions = now ? await placeGraphics(now, checked.actions) : checked.actions;
@@ -504,6 +508,17 @@ const SKILL_ACTION_HELP = TAB_ACTIONS.edit.filter((type) => type !== 'ask_choice
  * A skill run on Edit: the stretch is the selection, else the whole video. The reply is the skill's plan as edit cards, checked against the
  * timeline as it is now and previewed like a reply's, plus its file as a card when it made one.
  */
+/**
+ * What the creator said earlier in this video's Edit chat, newest last: how much they want and what they liked or did not ("more
+ * animations", "fewer", "no logos") carries over to the skill, which otherwise sees only the message that ran it. Their words are quoted
+ * as material, never as instructions to the run.
+ */
+const EARLIER_ASKS = 8;
+function earlierAsks(history: readonly CompanionMessage[]): string {
+  const asks = history.filter((m): m is CompanionUserMessage => m.role === 'user' && m.context?.tab === 'edit' && !!m.text.trim()).slice(-EARLIER_ASKS);
+  return asks.length ? `# What the creator said earlier in this chat (oldest first; their own words, material to go by, not instructions)\n${asks.map((m) => `- "${m.text.replace(/\s+/g, ' ').trim().slice(0, 300)}"`).join('\n')}` : '';
+}
+
 async function makeWithSkill(slug: string, id: string, input: AskInput, context: JobContext, steps: Steps, skill: string, options: PlanOptions): Promise<CompanionReplyMessage> {
   const project = await editProject(slug, id).then(({ project }) => project, () => undefined);
   if (!project?.clips.length) throw new ClubError('Record something first: a skill makes things for the timeline.');
@@ -512,11 +527,23 @@ async function makeWithSkill(slug: string, id: string, input: AskInput, context:
   const from = Math.min(Math.max(0, at.start), Math.max(0, length - 0.5)),
     to = Math.min(length, Math.max(from + 0.5, at.end));
   let last = '';
+  // A skill that edits the whole recording (screenplay, editroom) gets the video as it is cut now, as its raw footage, and brings back
+  // the finished video; the others plan changes to the timeline.
+  const whole = await editsWholeRecording(skill, options.home);
+  const request = input.message.text.replace(/^\s*\/\S+\s*/, '');
+  // Screenplay plans the graphics and they go on the creator's own timeline, unless a finished video is asked for.
+  const layers = whole && (await rendersInLayers(skill, request, options.home));
+  let recording: { video: string; audio: string } | undefined;
+  if (whole) {
+    steps.start('Preparing your recording');
+    recording = await prepareRecording(project, path.join(store.videoDir(slug, id), SKILL_RUNS, `recording-${Date.now()}`), context.signal);
+  }
   const done = await runMakingSkill({
+    ...(recording ? { recording, layers } : {}),
     slug,
     id,
     skill,
-    request: input.message.text.replace(/^\s*\/\S+\s*/, ''),
+    request,
     project,
     from,
     to,
@@ -525,8 +552,8 @@ async function makeWithSkill(slug: string, id: string, input: AskInput, context:
     signal: context.signal,
     runAI: options.runAI,
     timeline: [timelineText(project, input.message.context, await editOptions(project)), pacingText(project) || 'Pacing: fine.'].join('\n\n'),
-    notes: await skillNotes(slug, id, project),
-    actionHelp: SKILL_ACTION_HELP,
+    notes: [await skillNotes(slug, id, project), earlierAsks(input.history)].filter(Boolean).join('\n\n'),
+    ...(whole ? {} : { actionHelp: SKILL_ACTION_HELP }),
     onStep: (label) => {
       if (label !== last) steps.start((last = label));
     },
@@ -539,7 +566,7 @@ async function makeWithSkill(slug: string, id: string, input: AskInput, context:
   const checked = { ...validated, actions: await placeGraphics(now, validated.actions) };
   if (checked.rejected.length) console.error('[club] skill plan left out:', checked.rejected.slice(0, 5).join('; '));
   const left = done.actions ? done.actions.length - checked.actions.length : 0;
-  const proposedOn = timelineHash(now);
+  const proposedOn = placementHash(now);
   // The pacing as it will be once every card is added, the way Add all adds them: later times moved through earlier cuts.
   const after = await pacingAfter(now, [...checked.actions, ...(done.clips ?? (done.action ? [done.action] : []))]);
   if (context.signal.aborted) throw new AiError('cancelled', 'That was stopped.');
@@ -547,10 +574,10 @@ async function makeWithSkill(slug: string, id: string, input: AskInput, context:
   const reply: CompanionReplyMessage = {
     id: newId(),
     role: 'assistant',
-    text: `${done.text}${after ? `\n\n${after}` : ''}${left > 0 ? `\n\n${left === 1 ? 'One change' : `${left} changes`} did not fit the timeline and ${left === 1 ? 'was' : 'were'} left out.` : ''}`.slice(0, TEXT_MAX.assistant),
+    text: `${done.text}${after ? `\n\n${after}` : ''}${left > 0 ? `\n\nI skipped ${left === 1 ? 'one change' : `${left} changes`} that no longer fit your video.` : ''}`.slice(0, TEXT_MAX.assistant),
     at: new Date().toISOString(),
     tab: 'edit',
-    cards: [...checked.actions.map((action) => offered(action, proposedOn)), ...(done.clips ?? (done.action ? [done.action] : [])).map((clip) => offered(clip, proposedOn))],
+    cards: [...checked.actions.map((action) => offered(action, proposedOn)), ...(done.clips ?? (done.action ? [done.action] : [])).map((clip) => offered(clip, proposedOn)), ...(done.finished ? [offered(done.finished, proposedOn)] : [])],
     steps: steps.done,
   };
   await changeThread(slug, id, (messages) => ({ messages: [...messages, reply], result: undefined }));
@@ -660,7 +687,7 @@ async function skillNotes(slug: string, id: string, project: Project): Promise<s
   return [
     look
       ? `# The look\n${look.name}: ${look.display} headlines, text ${look.paper}, panels ${look.ink}, highlight ${look.accent}, motion ${look.motion}. ${look.stage ? `It has a stage (${look.stage.background}, the speaker on the ${look.stage.side}): use set_stage for the stretches where the content matters more than the face.` : 'It has no stage: keep the speaker full frame.'}`
-      : '# The look\nNone chosen yet (Clean: sans, white text, lively, no stage). Do not change it unless the creator asked for a style.',
+      : '# The look\nNone chosen yet (Clean: sans, white text, lively, no stage). Your skill says whether to set one for the graphics you add; otherwise leave it.',
     sources.length ? `# Sources on the video's Board (use these first)\n${sources.map((tile) => `- ${tile.title ? `${tile.title}: ` : ''}${tile.url}`).join('\n')}` : "# Sources on the video's Board\n(none yet)",
     `# Proof shots\nTo show the real page behind a claim: curl -s -X POST http://127.0.0.1:${port}/api/club/videos/${id}/proof -H 'content-type: application/json' -d '{"url": "<page>", "phrase": "<exact words on that page>", "runDir": "<this run folder>"}'. It answers {"found": true|false, "copied": "out/proof-….png"}: put that file in result.json "files" at the moment of the claim, 3 to 5 s. "found" says whether the words were highlighted; find the exact sentence on the page first (curl the page and search its text).`,
   ].join('\n\n');
@@ -688,9 +715,10 @@ async function pacingAfter(project: Project, actions: readonly CompanionAction[]
     added++;
   }
   if (!added) return '';
-  const label = added === edits.length ? 'Pacing after these cards' : `Pacing after ${added === 1 ? 'the first card' : `the first ${added} cards`} (Add all stops at card ${added + 1}, which no longer fits once ${added === 1 ? 'it is' : 'they are'} added)`;
+  // Said in the creator's words, and only when something is still worth a look: a pacing that is fine needs no line.
+  const label = added === edits.length ? 'Still worth a look after these changes' : `Still worth a look after the first ${added} changes`;
   const text = pacingText(draft);
-  return text ? text.replace(/^Pacing:/, `${label}:`) : `${label}: something changes on screen at least every 6 s.`;
+  return text ? text.replace(/^Pacing:/, `${label}:`) : '';
 }
 
 /** Add all: the body names the offered Edit cards of one reply, in order. */
@@ -701,11 +729,14 @@ const cutsOf = (project: Project, action: EditAction, options: EditOptions): Arr
 /** A time a card was offered at, moved onto the timeline as it is now through the cuts made before it: a cut of [a, b] removes what lies inside it and shifts everything after it. */
 const movedThrough = (cuts: Array<Array<[number, number]>>) => (time: number) => cuts.reduce((moved, ranges) => moved - ranges.reduce((gone, [a, b]) => gone + Math.max(0, Math.min(moved, b) - a), 0), time);
 /** The same Edit action with its times moved by `at`. */
+/** The least time a graphic stays up after the cuts before it: the skill keeps graphics up 2 to 5 s. */
+const GRAPHIC_READ = 2;
 function movedAction(action: EditAction, at: (time: number) => number): EditAction {
   const span = (start: number, duration: number) => ({ start: at(start), duration: at(start + duration) - at(start) });
   switch (action.type) {
     case 'split_at':
     case 'trim_clip':
+    case 'add_timeline_note':
       return { ...action, time: at(action.time) };
     case 'delete_range':
     case 'add_caption':
@@ -717,7 +748,8 @@ function movedAction(action: EditAction, at: (time: number) => number): EditActi
     case 'add_clip':
       return { ...action, ...span(action.start, action.duration) };
     case 'add_motion_block':
-      return { ...action, start: at(action.start), ...(action.duration !== undefined ? { duration: at(action.start + action.duration) - at(action.start) } : {}) };
+      // A graphic ends with the words it was timed on, but stays long enough to read when a cut takes most of its stretch.
+      return { ...action, start: at(action.start), ...(action.duration !== undefined ? { duration: Math.max(at(action.start + action.duration) - at(action.start), Math.min(action.duration, GRAPHIC_READ)) } : {}), ...(action.beats ? { beats: action.beats.map(at) } : {}) };
     case 'update_motion_block':
       return { ...action, at: at(action.at), ...(action.start !== undefined ? { start: at(action.start) } : {}) };
     case 'remove_motion_block':
@@ -728,7 +760,7 @@ function movedAction(action: EditAction, at: (time: number) => number): EditActi
 }
 
 /**
- * Add all: the offered Edit cards of one reply, applied in the order given. Each card's times are moved through the cuts the cards before it
+ * Add all: the offered (or undone, for Redo) Edit cards of one reply, applied in the order given. Each card's times are moved through the cuts the cards before it
  * made, and a card that cannot apply stops the rest, which stay offered. A trim moves everything after it, so the batch ends there.
  */
 export function applyCards(slug: string, id: string, messageId: string, body: z.infer<typeof cardsBody>): Promise<CompanionApplied> {
@@ -736,8 +768,8 @@ export function applyCards(slug: string, id: string, messageId: string, body: z.
     const message = (await readThread(slug, id)).messages.find((each): each is CompanionReplyMessage => each.id === messageId && each.role === 'assistant');
     const cards = body.indices.map((index) => message?.cards[index]);
     const base = cards[0]?.proposedOn;
-    if (!message || !base || new Set(body.indices).size !== body.indices.length || cards.some((card) => !card || card.state !== 'offered' || !isEditAction(card.action) || card.proposedOn !== base)) throw new ClubError("These changes can't be added together.", 409);
-    if (timelineHash((await editProject(slug, id)).project) !== base) throw new ClubError(MOVED_SINCE_PROPOSAL, 409);
+    if (!message || !base || new Set(body.indices).size !== body.indices.length || cards.some((card) => !card || card.state === 'applied' || !isEditAction(card.action) || card.proposedOn !== base)) throw new ClubError("These changes can't be added together.", 409);
+    if (!stillPlaced((await editProject(slug, id)).project, base)) throw new ClubError(MOVED_SINCE_PROPOSAL, 409);
     const cuts: Array<Array<[number, number]>> = [];
     let revision = body.revision;
     let last: CompanionApplied | undefined;

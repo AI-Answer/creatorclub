@@ -193,7 +193,7 @@ test('timeline kinds keep Borumi hues with readable dark graphics and controls',
  const css=fs.readFileSync(path.join(src,'editing-club.css'),'utf8'),club=fs.readFileSync(path.join(src,'club/borumi.css'),'utf8');
  assert.match(css,/\.club-marker\{[^}]*var\(--kind-markers\)/,'markers use their token');
  assert.match(css,/:is\(\.club-clip,\.club-effect\)\.selected\{outline:2px solid var\(--tl-select\)/,'selection is an outline only');
- assert.match(club,/:is\(\.club-clip, \.club-effect\)\.selected \{ outline: 2px solid var\(--cc-accent\); outline-offset: 1px; \}/,'in the club, Borumi\'s blue-500 ring one pixel off');
+ assert.match(club,/:is\(\.timeline-clip\.club-clip, \.timeline-effect\.club-effect\)\.selected \{ outline: 0; box-shadow: 0 0 0 1px var\(--br-ring-offset\), 0 0 0 3px var\(--br-ring\), var\(--br-shadow-lg\); z-index: 20; \}/,'in the club, Borumi\'s ring-2 ring-offset-1 ring-blue-500: a blue ring one pixel off the block');
  // The waveform is Borumi's black envelope, but strong enough to read: at least 3:1 on every clip colour in both themes.
  const waveOpacity=Number(/\.club-wave \{ opacity: ([\d.]+); \}/.exec(club)?.[1]);
  const toRgb=(h:number,s:number,l:number)=>{s/=100;l/=100;const k=(n:number)=>(n+h/30)%12,a=s*Math.min(l,1-l),f=(n:number)=>l-a*Math.max(-1,Math.min(k(n)-3,Math.min(9-k(n),1)));return [f(0),f(8),f(4)];};

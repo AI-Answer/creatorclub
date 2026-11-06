@@ -10,7 +10,7 @@ import {hasWaveform,waveformMediaKey,waveformBars,waveformEnvelopePath,timelineW
 import {sameTimelineWindow,timelineWindow} from './timeline-viewport';
 import {groupMove,hitLayerDrop,snapTargets,snapTimelineDelta,timelinePointerDelta,type LayerDrop,type SnapTarget} from './timeline-drag';
 import {rectangleBetween,itemsInRectangle,type SelectionItem,type SelectionRect} from './timeline-selection';
-import {takeSyncOffsets,snapBackToTake,secondsLabel,syncScenesToTakes,anchoredScroll,applyClipStarts,clampScale,ensureLinks,fitScale,freeDelta,linkGroups,linkedIds,moveEffects,moveMarker,planClipMove,removeMarker,resizeEffect,rowItems,rulerTicks,rulerLabel,lengthLabel,pointerScroll,showTenths,trimBounds,trimClips,trimGroup,DRAG_DEAD_ZONE_PX} from './timeline-edit';
+import {takeSyncOffsets,snapBackToTake,secondsLabel,syncScenesToTakes,anchoredScroll,applyClipStarts,clampScale,ensureLinks,fitScale,freeDelta,linkGroups,linkedIds,moveEffects,moveMarker,planClipMove,removeMarker,resizeEffect,rowItems,rulerTicks,rulerLabel,lengthLabel,pointerScroll,showTenths,trimBounds,trimClips,trimGroup,moveDeadZone} from './timeline-edit';
 import type {Playhead} from './playhead';
 import {captionWordsByClip} from '../shared/caption-timing';
 import {TAKE_ROW,takeClipViews,type TakeClipView} from './timeline-take-view';
@@ -32,12 +32,12 @@ interface Row {id:string;name:string;icon:typeof Camera;height:number;top:number
 interface Preview {start:number;duration:number;sourceIn?:number;dy?:number}
 interface Drag {items:Map<string,Preview>;ghosts:Array<{row:string;start:number;duration:number}>;guide:number|null;insert:number|null;label:string;markers?:Map<string,number>}
 /** Snapping reaches 8 px on screen, whatever the zoom, so a short neighbour does not pull an edit away from where it was dropped. */
-const RULER=30,SCENE_BAND=14,NOTES_LANE=22,SNAP_PX=8,STALE_DROP='The timeline changed during the drag, so nothing moved. Try again.',NOT_MOVED='Clips stay joined end to end. Drag a clip onto another one to change the order.';
+const RULER=24,SCENE_BAND=20,NOTES_LANE=22,SNAP_PX=8,STALE_DROP='The timeline changed during the drag, so nothing moved. Try again.',NOT_MOVED='Clips stay joined end to end. Drag a clip onto another one to change the order.';
 const icons:Record<TrackKind,typeof Camera>={screen:Monitor,camera:Camera,audio:Mic,music:Music,overlay:Layers};
-/** As in Borumi: media rows are tall blocks (52px), effect rows (graphics, text, layout, zooms, captions) Borumi's 32px lanes. */
-// Borumi's rows (screens/borumi/40): a picture row about 50px, an audio row a little taller for its words band.
-const ROW_H=32,MEDIA_H=52,AUDIO_H=60,TAKE_H=72;
-const heights:Record<TrackKind,number>={screen:MEDIA_H,camera:MEDIA_H,audio:AUDIO_H,music:MEDIA_H,overlay:MEDIA_H};
+/** Borumi's track rows (main bundle, mj): 32px for overlays and the control rows (graphics, text, layout, zoom, captions), 48px for media,
+ *  56px for a row that carries spoken words. Rows sit 4px apart (gap-1), 8px below the ruler (pt-2). */
+const ROW_H=32,MEDIA_H=48,WORDS_H=56,ROW_GAP=4,ROWS_PAD=8;
+const heights:Record<TrackKind,number>={screen:MEDIA_H,camera:MEDIA_H,audio:MEDIA_H,music:MEDIA_H,overlay:ROW_H};
 /** In Borumi's order: overlays (graphics, text), then the control rows (layout, zoom, captions) under them. */
 const effectRows:Array<{id:Effect;name:string;icon:typeof Camera}>=[{id:'motion',name:'Graphics',icon:Clapperboard},{id:'elements',name:'Text',icon:Type},{id:'layouts',name:'Layout',icon:LayoutTemplate},{id:'zooms',name:'Zoom',icon:ZoomIn},{id:'captions',name:'Captions',icon:AudioLines}];
 
@@ -59,29 +59,34 @@ function fxGhosts(now:Project,after:Project):FxGhost[]{
 /** Scene labels sit under the times whenever the video has footage, as in Borumi ("• SCENE 1"), including a scene still waiting for its take. */
 const sceneBand=(p:Project)=>p.scenes.length>0&&p.clips.length>0;
 /** The ruler's height: the times, the scene names when there are several, and a lane on top for note pins once the video has notes. */
-export const rulerHeight=(p:Project)=>RULER-(sceneBand(p)?0:SCENE_BAND)+(p.markers?.length?NOTES_LANE:0);
+export const rulerHeight=(p:Project)=>RULER+(sceneBand(p)?SCENE_BAND:0)+(p.markers?.length?NOTES_LANE:0);
+/** Borumi's scene tag (eC, UB, XB): "Scene N" where it fits, the number alone where only that fits, nothing in the narrowest. */
+const sceneLabel=(i:number,width:number)=>{const digits=String(i+1).length;return width>=43+digits*5?`Scene ${i+1}`:width>=14+digits*5?String(i+1):'';};
 export function usedRows(p:Project):Row[]{
  const views=takeClipViews(p),counts=new Map<string,number>();for(const view of views){counts.set(view.row,(counts.get(view.row)??0)+1);}
  const custom=new Set(p.timelineLayers?.map(l=>l.id)),groups=linkGroups(p.clips),sizes=new Map<string,number>();for(const key of groups.values())sizes.set(key,(sizes.get(key)??0)+1);
  const layers=timelineRows(p).filter(l=>counts.has(l.id)||custom.has(l.id)||!p.clips.length&&(l.id==='role:screen'||l.id==='role:audio'));
- const rows:Row[]=[];let top=rulerHeight(p);
- if(counts.has(TAKE_ROW)){rows.push({id:TAKE_ROW,name:'Video',icon:Link2,height:TAKE_H,top,take:true,linked:true,layer:{id:TAKE_ROW,name:'Video',kind:'video',order:0,track:'screen'}});top+=TAKE_H;}
+ // A row with spoken words is a transcript row (56px), as in Borumi.
+ const owned=captionWordsByClip(p),wordRows=new Set(views.filter(v=>(owned.get((v.sound??v.clip).id)?.length??0)>0).map(v=>v.row));
+ const rows:Row[]=[];let top=rulerHeight(p)+ROWS_PAD;const add=(row:Omit<Row,'top'>)=>{rows.push({...row,top});top+=row.height+ROW_GAP;};
+ if(counts.has(TAKE_ROW))add({id:TAKE_ROW,name:'Video',icon:Link2,height:wordRows.has(TAKE_ROW)?WORDS_H:MEDIA_H,take:true,linked:true,layer:{id:TAKE_ROW,name:'Video',kind:'video',order:0,track:'screen'}});
  const linkedRow=(id:string)=>p.clips.some(c=>clipLayerRowId(c,p)===id&&sizes.get(groups.get(c.id)!)!>1);
- for(const l of layers){const height=l.track?heights[l.track]:ROW_H;rows.push({id:l.id,name:l.track==='screen'?'Screen':l.name,icon:l.track?icons[l.track]:l.kind==='video'?Layers:Music,height,top,layer:l,linked:linkedRow(l.id)});top+=height;}
+ for(const l of layers){const base=l.track?heights[l.track]:ROW_H;add({id:l.id,name:l.track==='screen'?'Screen':l.name,icon:l.track?icons[l.track]:l.kind==='video'?Layers:Music,height:base===MEDIA_H&&wordRows.has(l.id)?WORDS_H:base,layer:l,linked:linkedRow(l.id)});}
  // As in Borumi, captions spoken on an audio row show as its words, not as a row of their own; captions typed in (no word timings) keep their row.
- const owned=captionWordsByClip(p),seconds=(words:Array<{start:number;end:number}>)=>words.reduce((sum,w)=>sum+Math.max(0,w.end-w.start),0),wordsOnAudio=p.captions.length>0&&p.captions.every(c=>c.words?.length)&&Math.abs(seconds(p.captions.flatMap(c=>c.words??[]))-seconds(views.flatMap(v=>owned.get(v.clip.id)??[])))<1e-6;
- for(const e of effectRows){if(!(p[e.id]??[]).length||e.id==='captions'&&wordsOnAudio)continue;rows.push({id:e.id,name:e.name,icon:e.icon,height:ROW_H,top,effect:e.id});top+=ROW_H;}
- if(!p.captions.length&&p.clips.length&&p.scenes.some(s=>s.script.trim()&&s.duration>0)){rows.push({id:'script',name:'Script',icon:Type,height:ROW_H,top,script:true});}
+ const seconds=(words:Array<{start:number;end:number}>)=>words.reduce((sum,w)=>sum+Math.max(0,w.end-w.start),0),wordsOnAudio=p.captions.length>0&&p.captions.every(c=>c.words?.length)&&Math.abs(seconds(p.captions.flatMap(c=>c.words??[]))-seconds(views.flatMap(v=>owned.get(v.clip.id)??[])))<1e-6;
+ for(const e of effectRows){if(!(p[e.id]??[]).length||e.id==='captions'&&wordsOnAudio)continue;add({id:e.id,name:e.name,icon:e.icon,height:ROW_H,effect:e.id});}
+ if(!p.captions.length&&p.clips.length&&p.scenes.some(s=>s.script.trim()&&s.duration>0)){add({id:'script',name:'Script',icon:Type,height:ROW_H,script:true});}
  return rows;
 }
-export const rowsHeight=(rows:readonly Row[])=>(rows[0]?.top??RULER)+rows.reduce((n,r)=>n+r.height,0)+10;
+export const rowsHeight=(rows:readonly Row[])=>(rows[0]?.top??RULER)+rows.reduce((n,r,i)=>n+r.height+(i?ROW_GAP:0),0)+10;
 
 function Playhead_({playhead,scale,follow,onPage,height}:{playhead:Playhead;scale:number;follow:boolean;height:number;onPage:(el:HTMLElement)=>void}){
  const line=useRef<HTMLDivElement>(null),lastSeen=useRef({time:NaN}); // Kept across rescales: a zoom keeps the playhead in place instead of paging.
  useLayoutEffect(()=>{const el=line.current?.closest<HTMLElement>('.timeline-scroll'),seen=lastSeen.current;const update=()=>{const time=playhead.get(),x=time*scale,ratio=window.devicePixelRatio||1;
   if(el&&follow&&time!==seen.time){seen.time=time;if(x<el.scrollLeft||x>el.scrollLeft+el.clientWidth-40){el.scrollLeft=Math.max(0,x-el.clientWidth*.25);onPage(el);}}
   if(line.current)line.current.style.transform=`translateX(${Math.round(x*ratio)/ratio}px)`;};update();return playhead.subscribe(update);},[playhead,scale,follow,onPage]);
- return <div className="playhead" ref={line} style={{height}}><span/></div>;
+ // Borumi's playhead handle: a teardrop, 17 x 18, hung off the top of the line.
+ return <div className="playhead" ref={line} style={{height}}><svg width="17" height="18" viewBox="0 0 17 18" fill="none" aria-hidden><path d="M8.44906 16C4.44907 13 1.44907 3 8.44907 3C15.4491 3 12.4491 13 8.44906 16Z" fill="currentColor"/></svg></div>;
 }
 
 /** Borumi's ruler label (main bundle VB, M:38575-38676): `mm:ss`, both zero-padded, minutes not capped. */
@@ -90,19 +95,20 @@ const fmtLen=timelineStamp;
 /** The height of the band the spoken words sit on, along the top of an audio clip. */
 const WORD_BAND=22;
 const ClubClip=memo(function ClubClip({view,media,row,preview,selected,linked,relation,offset,label,peaks,words,scale,from,to,onBegin,onOpen,onHover,onSync}:{view:TakeClipView;media?:Media;row:Row;preview?:Preview;selected:boolean;linked:boolean;relation?:'linked'|'take';offset?:number;label:string;peaks?:readonly number[];words?:Array<{text:string;start:number;end:number}>;scale:number;from:number;to:number;onBegin:(e:React.PointerEvent,id:string,mode:'move'|'left'|'right')=>void;onOpen:(id:string)=>void;onHover:(id:string|null)=>void;onSync:(id:string)=>void}){
- const c=view.clip,start=preview?.start??c.start,duration=preview?.duration??clipDuration(c),width=Math.max(4,duration*scale),h=row.height-6;
+ // A clip fills its row and stops one pixel short of the next clip, as Borumi's segments do (width i-1, h-full).
+ const c=view.clip,start=preview?.start??c.start,duration=preview?.duration??clipDuration(c),width=Math.max(4,duration*scale-1),h=row.height;
  const geometry=preview?{...c,start,sourceIn:preview.sourceIn??c.sourceIn,sourceOut:(preview.sourceIn??c.sourceIn)+duration*c.speed}:c;
  // Whisper's non-speech tags ([BLANK_AUDIO], (music), stray brackets) are not words you said: the strip leaves them out, as the transcript does.
  const shownWords=(words??[]).filter(w=>!isSoundTag(w.text)).flatMap(w=>{const map=(t:number)=>geometry.start+(c.sourceIn+(t-c.start)*c.speed-geometry.sourceIn)/geometry.speed,a=Math.max(start,map(w.start)),b=Math.min(start+duration,map(w.end));return b>a?[{...w,start:a,end:b}]:[];});
  const band=shownWords.length?WORD_BAND:0,waveH=h-band;
  const wave=useMemo(()=>media&&hasWaveform(media)&&peaks?.length?waveformEnvelopePath(waveformBars(geometry,media,peaks,scale,from,to,4096,2),band+waveH/2,waveH/2-2):'',[media,peaks,geometry.start,geometry.sourceIn,geometry.sourceOut,geometry.speed,scale,from,to,band,waveH]);
- return <div data-clip-id={c.id} data-linked-clip-ids={view.grouped?view.members.map(m=>m.id).join(' '):undefined} className={`timeline-clip club-clip clip-${c.track} ${view.grouped?'club-take':''} ${selected?'selected':''} ${c.muted?'muted':''} ${preview?'clip-drag-preview':''} ${linked?'is-linked':'is-unlinked'} ${relation?`take-related take-related-${relation}`:''}`} data-take-id={c.recordingTakeId} style={{left:start*scale,width,top:3,height:h,transform:preview?.dy?`translateY(${preview.dy}px)`:undefined}}
+ return <div data-clip-id={c.id} data-linked-clip-ids={view.grouped?view.members.map(m=>m.id).join(' '):undefined} className={`timeline-clip club-clip clip-${c.track} ${view.grouped?`club-take${view.members.some(m=>m.track==='camera'||m.track==='screen')?'':' take-audio-only'}`:''} ${selected?'selected':''} ${c.muted?'muted':''} ${preview?'clip-drag-preview':''} ${linked?'is-linked':'is-unlinked'} ${relation?`take-related take-related-${relation}`:''}`} data-take-id={c.recordingTakeId} style={{left:start*scale,width,top:0,height:h,transform:preview?.dy?`translateY(${preview.dy}px)`:undefined}}
   onPointerEnter={()=>onHover(c.id)} onPointerLeave={()=>onHover(null)} onPointerDown={e=>onBegin(e,c.id,'move')} onDoubleClick={()=>onOpen(c.id)} title={`${c.name} · ${fmtLen(duration)}${linked?' · linked':''}. Click to move the playhead, drag to move, edges to trim, double-click for settings.`}>
   {!view.grouped&&linked&&<span className="club-take-chain" title="Linked sources move and trim together" aria-label="Linked sources"><Link2 size={12}/></span>}
   {offset!==undefined&&Math.abs(offset)>.001&&<button type="button" className="club-sync-badge" aria-label={`Snap back in sync, ${offset>0?'+':''}${offset.toFixed(1)} seconds`} title="Out of sync · click to snap back" onPointerDown={e=>e.stopPropagation()} onDoubleClick={e=>e.stopPropagation()} onClick={e=>{e.stopPropagation();onSync(c.id);}}>Out of sync {offset>0?'+':''}{offset.toFixed(1)} s</button>}
   {wave&&<svg className="club-wave" data-waveform-media={media?.id} viewBox={`0 0 ${width} ${h}`} preserveAspectRatio="none" aria-hidden><path d={wave}/></svg>}
   {band>0&&<div className="club-caption-pill" title={shownWords.map(w=>w.text).join(' ')} style={{height:WORD_BAND-6}} aria-hidden>{scale<90?<span className="club-caption-text">{shownWords.map(w=>w.text).join(' ')}</span>:shownWords.map((w,i)=><span key={i} className="club-word" style={{left:Math.max(0,(w.start-start)*scale-4),width:Math.max(0,(w.end-w.start)*scale)}}>{w.text}</span>)}</div>}
-  {view.pictures.length>0&&width>=36&&<div className="club-take-pictures" style={{top:band+4}} aria-hidden>{view.pictures.map(picture=><i key={picture.id} className={`club-source-thumb is-${picture.track}`} style={{backgroundImage:`url(/api/media/${picture.mediaId}/thumbnail)`}}/>)}</div>}
+  {view.pictures.length>0&&width>=36&&<div className="club-take-pictures" style={{top:band?24:4}} aria-hidden>{view.pictures.map(picture=><i key={picture.id} className={`club-source-thumb is-${picture.track}`} style={{backgroundImage:`url(/api/media/${picture.mediaId}/thumbnail)`}}/>)}</div>}
   {media?.kind==='image'&&<div className="club-filmstrip is-image" aria-hidden style={{backgroundImage:`url(/api/media/${media.id}/thumbnail)`,backgroundSize:`auto ${h}px`}}/>}
   {label&&<span className="club-clip-label club-move-handle" title="Drag to move">{linked&&<Link2 size={11} aria-hidden/>}{label}</span>}
   {width>=18&&<><i className="trim-handle left" onPointerDown={e=>onBegin(e,c.id,'left')}/><i className="trim-handle right" onPointerDown={e=>onBegin(e,c.id,'right')}/></>}
@@ -233,7 +239,7 @@ export const TimelineClub=memo(function TimelineClub({project:p,playhead,scale,o
      // Every clip the plan moves (an insert shifts the rest of the row) must still be where it was when the drag began.
      change(d=>{if(!sameClips(chosen.starts.keys(),base)){changed=true;return;}ensureLinks(d);applyClipStarts(d,chosen.starts);syncScenesToTakes(d);});if(changed)onNotice?.(STALE_DROP);
     }else if(Math.abs(effectDelta)>1e-9){const d=effectDelta;change(draft=>moveEffects(draft,ids,d));}
-   },DRAG_DEAD_ZONE_PX);
+   },moveDeadZone(el.clientWidth));
    return;
   }
   // Trims: every clip linked to the clip trims by the same amount (camera and audio stay together); ripple unless Alt is held.
@@ -297,7 +303,7 @@ export const TimelineClub=memo(function TimelineClub({project:p,playhead,scale,o
     <div className={`club-ruler${p.markers?.length?' has-notes':''}`} style={{height:ruler}} onPointerDown={beginRuler} onPointerMove={e=>{if(e.buttons)return;const box=e.currentTarget.getBoundingClientRect();setHover(Math.max(0,(e.clientX-box.left)/scale));}} onPointerLeave={()=>setHover(null)} title="Click or drag to move the playhead">
      {hover!==null&&<span className={`club-hover${hover*scale>width-160?' flip':''}`} style={{left:hover*scale}} aria-hidden><b>{timelineStamp(hover)}</b>{hoverFrame(hover)}</span>}
      {ticks.map(t=><span key={t.time} className={t.major?'tick major':'tick'} style={{left:t.time*scale}}>{t.label&&Math.abs(t.time-Math.round(t.time))<1e-5&&<b className={t.time*scale>rulerRight-52&&t.time*scale<=rulerRight?'edit-tick-end':undefined}>{timelineStamp(t.time)}</b>}</span>)}
-     {sceneBand(p)&&p.scenes.map((s,i)=>s.duration>0&&visible(s.start,Math.max(1,s.duration))&&<div key={s.id} className={`club-scene-tag${i%2?' alt':''}`} style={{left:s.start*scale,width:Math.max(24,s.duration*scale-2)}} title={`Scene ${i+1}: ${s.name}`} onPointerDown={e=>{e.stopPropagation();onSeek(s.start);}}>Scene {i+1}</div>)}
+     {sceneBand(p)&&p.scenes.map((s,i)=>s.duration>0&&visible(s.start,Math.max(1,s.duration))&&<div key={s.id} className={`club-scene-tag${i%2?' alt':''}`} style={{left:s.start*scale,width:Math.max(24,s.duration*scale-2)}} title={`Scene ${i+1}: ${s.name}`} onPointerDown={e=>{e.stopPropagation();onSeek(s.start);}}>{sceneLabel(i,Math.max(24,s.duration*scale-2))}</div>)}
      {/* A scene still waiting for its take: its label after the footage, over the hatched area. */}
      {sceneBand(p)&&(()=>{const i=p.scenes.findIndex(s=>s.duration<=0);return i>=0&&<div key="waiting" className="club-scene-tag is-waiting" style={{left:duration*scale+4}} title={`Scene ${i+1}: ${p.scenes[i].name} has no take yet`}>Scene {i+1}</div>;})()}
      {(p.markers??[]).map(m=>{const time=drag?.markers?.get(m.id)??m.time;return visible(time,0)&&<div key={m.id} data-marker-id={m.id} className={`club-marker${m.tag?` tag-${m.tag}`:''}${m.name?.trim()?' has-note':''}`} style={{left:Math.max(10,time*scale)}} title={`${m.name?.trim()?m.name.trim()+' · ':''}Note at ${secondsLabel(time)} · click to open, drag to move`} onPointerDown={e=>beginMarker(e,m.id)}><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12Z"/></svg></div>;})}
@@ -306,6 +312,7 @@ export const TimelineClub=memo(function TimelineClub({project:p,playhead,scale,o
      onPointerMove={r.effect==='layouts'?e=>{if(e.buttons||gesture.current)return;const t=contentX(e.clientX)/scale;setLayoutGhost(e.target===e.currentTarget?layoutSpan(t,t):null);}:undefined} onPointerLeave={r.effect==='layouts'?()=>{if(!gesture.current)setLayoutGhost(null);}:undefined}
      onDragOver={e=>{if(r.layer)e.preventDefault();}} onDrop={e=>{e.preventDefault();const id=e.dataTransfer.getData('application/sceneforge-media'),media=mediaById.get(id);if(media&&r.layer&&(media.kind==='audio'?'audio':'video')===r.layer.kind)onDropMedia(id,r.layer.track??(r.layer.kind==='audio'?'audio':'screen'),snapTime(Math.max(0,contentX(e.clientX)/scale)).time,r.take?undefined:r.id);}}>
 
+     <span className="club-row-name" aria-hidden>{r.name}</span>
      {r.layer&&takeViews.filter(v=>v.row===r.id).map(v=>{const c=v.clip,pv=drag?.items.get(c.id),s=pv?.start??c.start,d=pv?.duration??clipDuration(c);if(!pv&&!visible(c.start,clipDuration(c)))return null;const sound=v.sound??c,m=mediaById.get(sound.mediaId);
       return <ClubClip key={c.id} view={v} media={m} row={r} preview={pv} selected={v.members.some(c=>selectedIds.has(c.id))} linked={(groupSize.get(groups.get(c.id)!)??1)>1} relation={c.recordingTakeId&&related.has(c.recordingTakeId)?related.get(c.recordingTakeId)!.has(groups.get(c.id)!)?'linked':'take':undefined} offset={offsets.get(c.id)} label={labels.get(c.id)??''} peaks={showWaveforms&&m?waveforms[waveformMediaKey(m)]:undefined} words={showWords?wordsByClip.get(sound.id):undefined} scale={scale} from={Math.max(start,s)} to={Math.min(end,s+d)} onBegin={beginItem} onOpen={onOpen} onHover={setHoverClip} onSync={syncPiece}/>;})}
      {r.script&&p.scenes.filter(s=>s.script.trim()&&s.duration>0).map(s=><div key={s.id} className="timeline-effect club-effect edit-script" style={{left:s.start*scale,width:Math.max(6,s.duration*scale)}} title="Planned scene text"><span>{s.script}</span></div>)}

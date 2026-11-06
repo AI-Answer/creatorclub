@@ -65,6 +65,9 @@ test('an empty Idea is Borumi\'s empty Script step: nothing is written until ask
  try{
   await flush();await flush();
   const c=ui.container;
+  assert.equal(button(c,'Sketch').getAttribute('aria-pressed'),'true','an empty video opens on its sketch');
+  assert.equal(server.calls.filter(call=>call.method==='POST').length,0,'the sketch waits for Suggest');
+  await act(async()=>button(c,'Script').click());await flush();
   assert.deepEqual(partNames(c),[],'one part, the script, with no headings over it');
   assert.ok(hasText(c,'Start writing your amazing video...'));
   assert.ok(hasText(c,'You can also paste your script from Notion, Google Docs, or your favorite editor, or Start Recording right away.'));
@@ -87,6 +90,9 @@ test('every "with …" names the AI the person connected: ChatGPT here, not Clau
  const ui=await mountUI(createElement(Harness,{initial:planned,tabs:[]}));
  try{
   await flush();await flush();
+  assert.ok(button(ui.container,'Suggest a sketch'));
+  assert.ok(hasText(ui.container,'ChatGPT sketches the title'),'the sketch names the AI the person connected');
+  await act(async()=>button(ui.container,'Script').click());await flush();
   assert.ok(button(ui.container,'Write the scenes with ChatGPT'));
   assert.ok(!hasText(ui.container,'with Claude'));
  }finally{await ui.close();server.restore();}
@@ -174,6 +180,7 @@ test('a changed outline is flagged',async()=>{
   await flush();
   const c=ui.container;
   assert.ok(hasText(c,'Your outline changed after you recorded scene 3.'));
+  assert.equal(c.querySelector('.idea-changed')?.textContent,'Your outline changed after you recorded scene 3.','one quiet line on the Script view');
   assert.deepEqual([...c.querySelectorAll('.ws-steps a.on')].map(a=>a.textContent),['Idea'],'Idea is the open tab');
  }finally{await ui.close();server.restore();}
 });

@@ -4,7 +4,7 @@ import {clubFetch} from './api';
 import {followTarget} from './trending-view';
 
 /** Adds a channel to the ones Working now reads, unless it is there already. */
-async function follow(target:{name:string;channelId:string}){
+export async function follow(target:{name:string;channelId:string}){
  const list=await clubFetch<FollowedChannel[]>('/followed');
  if(!list.some(channel=>channel.channelId===target.channelId))await clubFetch('/followed',{method:'PUT',body:[...list,target]});
 }

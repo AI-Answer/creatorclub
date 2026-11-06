@@ -70,7 +70,7 @@ test('voice follow: the island starts and stops the follower with this take\'s m
  const m=createRecordingHud({...h.opts,createFollower,appName:'Creator Compiler',shell:{openExternal:(url:string)=>opened_.push(url)}});try{
   const {w}=await opened(h,{status:'recording',script:'Read this aloud',microphoneLabel:'MacBook Air Microphone'});
   const follow=(action:string)=>h.handlers.get('recording-hud-follow')!(h.hudEvent(w),action);
-  assert.deepEqual(follow('status'),{available:true,appName:'Creator Compiler'});
+  assert.deepEqual(follow('status'),{available:true,appName:'Creator Compiler',authorization:'authorized'},'the last permission comes back at once, so a take starts listening as the island opens');
   assert.deepEqual(w.webContents.messages.at(-1),['recording-hud-speech',{type:'status',authorization:'authorized',available:true}]);
   follow('start');assert.deepEqual(calls.at(-1),['start',{microphone:'MacBook Air Microphone',text:'Read this aloud'}]);
   emit({type:'words',text:'read this'});assert.deepEqual(w.webContents.messages.at(-1),['recording-hud-speech',{type:'words',text:'read this'}]);

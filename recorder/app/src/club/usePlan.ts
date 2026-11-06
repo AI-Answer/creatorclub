@@ -204,7 +204,7 @@ export function usePlan(video:Video,{onVideo,onRecord}:{onVideo(video:Video):voi
   packageJob:packageJob.state,outlineJob:outlineJob.state,scriptJob:scriptJob.state,onepagerJob:onepagerJob.state,
   saveError:packageSaver.error||outlineSaver.error||onepagerSaver.error||sceneError,
   onepagerSave:onepagerSaver.status,
-  flushOnepager:()=>{void onepagerSaver.flush().catch(()=>{});},
+  flushOnepager:()=>onepagerSaver.flush().catch(()=>{}),
   /** The package's saving, shown beside its heading (its failure is said there, not in the lines above the columns). */
   packageSave:packageSaver.status,
   /** The scenes' saving failure, for the lines above the columns. */

@@ -86,10 +86,13 @@ export const SELF_UPLOAD_LINE='Add the link so Creator Compiler can mark it Publ
  * For a video uploaded outside Creator Compiler: a quiet "I uploaded it myself" that opens the link field. Never a main option; Publish shows it
  * only when Postiz is not set up, or when a post is stuck. `open` shows the field at once, for the stuck case, with `line` saying why.
  */
-export function SelfUpload({video,onVideo,label='Upload it yourself',line=SELF_UPLOAD_LINE,open=false,onOpen,formId,onSubmitReady}:{video:Video;onVideo(video:Video):void;label?:string;line?:string;open?:boolean;onOpen?():void;formId?:string;onSubmitReady?(ready:boolean):void}){
+export function SelfUpload({video,onVideo,label='Upload it yourself',line=SELF_UPLOAD_LINE,open=false,onOpen,formId,onSubmitReady,note}:{video:Video;onVideo(video:Video):void;label?:string;line?:string;open?:boolean;onOpen?():void;formId?:string;onSubmitReady?(ready:boolean):void;/** A quiet line under the button while the form is closed. */note?:ReactNode}){
  const [shown,setShown]=useState(open);
  useEffect(()=>{if(open)setShown(true);},[open]);
- if(!shown)return <Button className="ws-self-upload" onClick={()=>{setShown(true);onOpen?.();}}>{label}</Button>;
+ if(!shown)return <>
+  <Button className="ws-self-upload" onClick={()=>{setShown(true);onOpen?.();}}>{label}</Button>
+  {note&&<p className="pub-line">{note}</p>}
+ </>;
  return <div className="self-upload"><p className="small muted" style={{margin:'0 0 8px'}}>{line}</p><PasteLinkForm video={video} published={false} onVideo={onVideo} formId={formId} onSubmitReady={onSubmitReady}/></div>;
 }
 

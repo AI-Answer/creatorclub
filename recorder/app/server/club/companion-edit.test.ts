@@ -292,11 +292,11 @@ test('a card offered on a timeline that has since moved is refused; Add all move
   assert.match(stale.cards[0].proposedOn ?? '', /^[0-9a-f]{64}$/, 'the card records the timeline it was offered on');
   const moved = await state();
   const next = structuredClone(moved.project ?? (JSON.parse(moved.json) as Project));
-  next.clips[0].gain = 0.5;
+  next.clips[0].start += 1;
   await storage.commitProject(next, { expectedRevision: moved.revision });
   const refused = await card(stale, 0, 'apply', { revision: (await state()).revision });
   assert.equal(refused.status, 409);
-  assert.match(JSON.stringify(refused.body), /changed after this was offered, so it would land on other content/);
+  assert.match(JSON.stringify(refused.body), /Your video changed after I planned this, so it would land in the wrong place/);
   const kept = (await thread()).messages.find((each): each is CompanionReplyMessage => each.id === stale.id && each.role === 'assistant');
   assert.equal(kept?.cards[0].state, 'offered', 'a refused card stays offered');
 
@@ -331,6 +331,75 @@ test('Add all refuses a card listed twice, so no card is applied twice', async (
 });
 
 
+test('Redo makes an undone batch again, even after captions changed elsewhere', async () => {
+  const clear = await state();
+  await storage.commitProject({ ...(clear.project ?? (JSON.parse(clear.json) as Project)), captions: [] }, { expectedRevision: clear.revision });
+  const batch = await reply('Two captions', [
+    { type: 'add_caption', start: 6, end: 7, text: 'Redo one' },
+    { type: 'add_caption', start: 8, end: 9, text: 'Redo two' },
+  ]);
+  const first = await call<CompanionApplied>('POST', `/videos/${video.id}/companion/${batch.id}/cards/apply-all`, { indices: [0, 1], revision: (await state()).revision });
+  assert.equal(first.status, 200, JSON.stringify(first.body));
+  assert.equal((await card(batch, 1, 'undo', { revision: (await state()).revision })).status, 200);
+  assert.equal((await card(batch, 0, 'undo', { revision: (await state()).revision })).status, 200);
+  const now = await state();
+  const next = structuredClone(now.project ?? (JSON.parse(now.json) as Project));
+  next.captions.push({ id: 'cap-elsewhere', start: 3, end: 4, text: 'Made by the transcript' } as Project['captions'][number]);
+  await storage.commitProject(next, { expectedRevision: now.revision });
+  const again = await call<CompanionApplied>('POST', `/videos/${video.id}/companion/${batch.id}/cards/apply-all`, { indices: [0, 1], revision: (await state()).revision });
+  assert.equal(again.status, 200, JSON.stringify(again.body));
+  assert.deepEqual(again.body.message.cards.map((each) => each.state), ['applied', 'applied']);
+  const saved = (await state()).project ?? (JSON.parse((await state()).json) as Project);
+  assert.deepEqual(saved.captions.filter((each) => each.text.startsWith('Redo')).map((each) => each.start), [6, 8]);
+});
+
+test('Redo after undoing a cut and the changes planned after it: the cut made again puts the clips back where they were planned', async () => {
+  const clear = await state();
+  await storage.commitProject({ ...(clear.project ?? (JSON.parse(clear.json) as Project)), captions: [] }, { expectedRevision: clear.revision });
+  const cut = await reply('Cut a moment', [{ type: 'delete_range', start: 3, end: 3.5 }]);
+  assert.equal((await card(cut, 0, 'apply', { revision: (await state()).revision })).status, 200);
+  const later = await reply('Two captions after the cut', [
+    { type: 'add_caption', start: 6, end: 7, text: 'After one' },
+    { type: 'add_caption', start: 8, end: 9, text: 'After two' },
+  ]);
+  const ids = () => state().then((now) => (now.project ?? (JSON.parse(now.json) as Project)).clips.map((each) => each.id).sort().join());
+  assert.equal((await call('POST', `/videos/${video.id}/companion/${later.id}/cards/apply-all`, { indices: [0, 1], revision: (await state()).revision })).status, 200);
+  const before = await ids();
+  assert.equal((await card(later, 1, 'undo', { revision: (await state()).revision })).status, 200);
+  assert.equal((await card(later, 0, 'undo', { revision: (await state()).revision })).status, 200);
+  assert.equal((await card(cut, 0, 'undo', { revision: (await state()).revision })).status, 200);
+  const redone = await card(cut, 0, 'apply', { revision: (await state()).revision });
+  assert.equal(redone.status, 200, JSON.stringify(redone.body));
+  assert.notEqual(await ids(), before, 'the cut made again gives its clips new ids');
+  const again = await call<CompanionApplied>('POST', `/videos/${video.id}/companion/${later.id}/cards/apply-all`, { indices: [0, 1], revision: (await state()).revision });
+  assert.equal(again.status, 200, JSON.stringify(again.body));
+  assert.deepEqual(again.body.message.cards.map((each) => each.state), ['applied', 'applied']);
+});
+
+test('Undo still works after the app remakes the captions, and puts back the captions from before', async () => {
+  const before = await state();
+  const cut = await reply('Cut a moment', [{ type: 'delete_range', start: 2, end: 2.5 }]);
+  assert.equal((await card(cut, 0, 'apply', { revision: before.revision })).status, 200);
+  const now = await state();
+  const remade = structuredClone(now.project ?? (JSON.parse(now.json) as Project));
+  remade.captions = [{ id: 'cap-remade', start: 0, end: 1, text: 'Remade after the cut' } as Project['captions'][number]];
+  await storage.commitProject(remade, { expectedRevision: now.revision });
+  const undone = await card(cut, 0, 'undo', { revision: (await state()).revision });
+  assert.equal(undone.status, 200, JSON.stringify(undone.body));
+  const back = JSON.parse((await state()).json) as Project;
+  const was = before.project ?? (JSON.parse(before.json) as Project);
+  assert.deepEqual(back.clips, was.clips);
+  assert.deepEqual(back.captions, was.captions, 'the captions from before come back with the clips');
+
+  const again = await reply('Cut a moment', [{ type: 'delete_range', start: 2, end: 2.5 }]);
+  assert.equal((await card(again, 0, 'apply', { revision: (await state()).revision })).status, 200);
+  const edited = await state();
+  const moved = structuredClone(edited.project ?? (JSON.parse(edited.json) as Project));
+  moved.clips[0].start += 0.5;
+  await storage.commitProject(moved, { expectedRevision: edited.revision });
+  assert.equal((await card(again, 0, 'undo', { revision: (await state()).revision })).status, 409, 'a clip moved by hand still blocks Undo');
+});
+
 test('the brief says the pauses come from the audio, and which transcript words fall in quiet', async () => {
   const { timelineText } = await import('./companion-edit.js');
   const p = createProject('Quiet');
@@ -341,5 +410,25 @@ test('the brief says the pauses come from the audio, and which transcript words 
   const text = timelineText(p, { tab: 'edit' }, { silences });
   assert.match(text, /Pauses that cut_pauses would cut \(where the audio is quiet\): gentle 1 \(14\.7 s\)/);
   assert.match(text, /likely not said: 0:12\.0 "cc"\./);
+  assert.match(text, /Quiet stretches a cut of pauses takes out \(put no graphic in them\): 0:03\.\d to 0:17\.\d\./);
   assert.match(timelineText(p, { tab: 'edit' }), /\(between words\)/, 'without the audio measured, it says so');
+});
+
+test('while a new take\'s captions are still being made, the timeline says so in plain words instead of "no transcript"', async () => {
+  const { projectSummary } = await import('./companion-edit.js');
+  const p = { ...createProject('Pending'), captions: [] } as Project;
+  assert.match(projectSummary(p, { captionsPending: true }), /the captions of the newest take are still being made/);
+  assert.doesNotMatch(projectSummary(p, { captionsPending: true }), /no transcript/);
+  assert.match(projectSummary(p), /no transcript yet/, 'with nothing being made, there is none yet');
+});
+
+test('a change that moves nothing (captions remade after a cut, a volume) leaves a fresh reply\'s changes usable', async () => {
+  const fresh = await reply('Title it', [{ type: 'add_text', start: 1, duration: 2, text: 'Hello' }]);
+  const now = await state();
+  const next = structuredClone(now.project ?? (JSON.parse(now.json) as Project));
+  next.captions = [...next.captions, { id: 'c-new', start: 0.5, end: 1.5, text: 'remade' }];
+  next.clips[0].gain = 0.5;
+  await storage.commitProject(next, { expectedRevision: now.revision });
+  const applied = await card(fresh, 0, 'apply', { revision: (await state()).revision });
+  assert.equal(applied.status, 200, JSON.stringify(applied.body));
 });

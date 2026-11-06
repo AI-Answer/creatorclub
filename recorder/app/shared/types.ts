@@ -27,6 +27,8 @@ export interface Clip {
  borumiOriginId?:string;
  /** A camera clip that is the speaker's tile on the look's stage (a `set_stage` stretch): graphics over it take the middle of the frame. */
  stage?:true;
+ /** Seconds over which this camera clip opens with screenplay's blur-morph from the clip that ends where it starts (shared/stage-morph.ts). */
+ morphIn?:number;
  /** Original source interval for continuous fades and audio processing after a split. */
  effectTiming?:{sourceIn:number;sourceOut:number};
  effects:{brightness:number; contrast:number; saturation:number; blur:number; grayscale:boolean; flipX:boolean; fadeIn:number; fadeOut:number; denoise:boolean; normalize:boolean; background?:'none'|'remove'|'blur'; faceCenter?:boolean;
@@ -44,7 +46,7 @@ export interface Element {
  x:number;y:number;width:number;height:number;color:string;background:string;fontSize:number;opacity:number;rotation:number;
 }
 /** The animated graphics templates (`shared/motion/`): the same template renders the preview and the export. */
-export type MotionTemplateId='title-card'|'lower-third'|'callout'|'chapter-label'|'bullets'|'stat'|'compare'|'steps'|'quote'|'keyword'|'flow'|'tree';
+export type MotionTemplateId='title-card'|'lower-third'|'callout'|'chapter-label'|'bullets'|'stat'|'compare'|'steps'|'quote'|'keyword'|'flow'|'tree'|'headline'|'versus'|'logos';
 /**
  * An animated title, lower third, callout or chapter label on the timeline's Motion row. Blocks may overlap clips of other rows but never
  * each other. `props` holds the template's text and positions (`shared/motion/templates.ts` names and limits them).

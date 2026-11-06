@@ -4,7 +4,7 @@ import {failureMessage,isStartedJob,progressLine,watchJob} from './jobs';
 
 export type JobRun=
  |{phase:'idle'}
- |{phase:'running';line?:string}
+ |{phase:'running';line?:string;/** What a structured answer holds so far, while it is written. */partial?:unknown}
  |{phase:'done';result?:unknown}
  |{phase:'failed';message:string};
 
@@ -28,7 +28,10 @@ export function useJobRun(){
   if(!isStartedJob(started)){set({phase:'done',result:started});onDone?.(started);return;}
   jobId.current=started.id;
   stop.current=watchJob(started.id,event=>{
-   if(event.type==='progress'){const line=progressLine(event.data);if(line)set({phase:'running',line});}
+   if(event.type==='progress'){
+    const line=progressLine(event.data),partial=(event.data as {partial?:unknown}|null)?.partial;
+    if(line||partial)set({phase:'running',line:line||undefined,...(partial?{partial}:{})});
+   }
    else if(event.type==='done'){set({phase:'done',result:event.data});onDone?.(event.data);}
    else if(event.type==='failed')set({phase:'failed',message:failureMessage(event.data)});
    else set({phase:'idle'});

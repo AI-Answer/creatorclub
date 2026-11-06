@@ -15,4 +15,5 @@ export async function mountUI(element:ReactNode){
  await act(async()=>{root.render(element);});
  return {container,render:async(next:ReactNode)=>{await act(async()=>root.render(next));},close:async()=>{await act(async()=>root.unmount());container.remove();}};
 }
-export function button(container:Element,text:string){const found=[...container.querySelectorAll('button')].find(button=>button.textContent?.trim()===text);if(!found)throw Error(`Button not found: ${text}`);return found;}
+/** A button by what it says, or by its accessible name when it is an icon. */
+export function button(container:Element,text:string){const found=[...container.querySelectorAll('button')].find(button=>button.textContent?.trim()===text||(!button.textContent?.trim()&&button.getAttribute('aria-label')===text));if(!found)throw Error(`Button not found: ${text}`);return found;}

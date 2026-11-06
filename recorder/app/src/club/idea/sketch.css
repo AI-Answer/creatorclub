@@ -1,0 +1,115 @@
+/* The Sketch view as one screen. Left: the video as a viewer meets it in the feed (thumbnail, title, channel) and why it will work.
+   Right: the logline and the talking points. Text is typed straight into, with no boxes; Claude's quick changes show on hover. */
+.club-root .sk-root { container-type: inline-size; padding: 32px 40px 32px; color: var(--br-fg); }
+.club-root .sk-root .sk-slide { display: grid; grid-template-columns: minmax(240px, 340px) minmax(0, 1fr); gap: 32px 56px; max-width: 1080px; margin: 0 auto; align-items: start; }
+@container (max-width: 720px) { .club-root .sk-root .sk-slide { grid-template-columns: minmax(0, 1fr); } }
+.club-root .sk-root .sk-col { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+.club-root .sk-root .sk-block { position: relative; }
+
+/* Fields read as plain text: no box, no ring, just the caret. */
+.club-root .sk-root .bs-text, .club-root .sk-root .sk-clamp { margin: 0; padding: 0; width: 100%; border: 0; border-radius: 0; background: transparent; box-shadow: none; outline: none; font-size: var(--cc-text-base); line-height: 22px; color: inherit; }
+.club-root .sk-root .bs-text::placeholder { color: color-mix(in srgb, currentColor 35%, transparent); }
+.club-root .sk-root .sk-clamp { display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden; cursor: text; white-space: pre-wrap; overflow-wrap: anywhere; }
+.club-root .sk-root .sk-clamp:focus-visible { box-shadow: 0 0 0 2px var(--br-blue-400); border-radius: var(--cc-r-sm); }
+.club-root .sk-root .sk-read { white-space: pre-wrap; overflow-wrap: anywhere; }
+
+/* While a sketch is written, the thumbnail waits as an empty frame (the real one lives in sketch-thumbnail.css). */
+.club-root .sk-root .sk-thumb { display: flex; align-items: center; justify-content: center; width: 100%; aspect-ratio: 16 / 9; border-radius: var(--cc-r-xl); background: var(--br-neutral-100); }
+.club-root .sk-root .sk-thumb-empty { color: var(--br-muted); }
+.club-root .sk-root .bs-text.sk-thumb-words { margin-top: 10px; font-weight: var(--cc-weight-semibold); }
+.club-root .sk-root .sk-caption { margin-top: 2px; font-size: var(--cc-text-sm); line-height: 20px; }
+
+/* The title: the title alone. */
+.club-root .sk-root .sk-title { font-size: var(--cc-text-lg); line-height: 23px; font-weight: var(--cc-weight-semibold); }
+
+/* Why it will work: three short lines, one icon each for where the proof comes from. */
+.club-root .sk-root .sk-proof { display: flex; flex-direction: column; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.club-root .sk-root .sk-proof li { display: flex; align-items: flex-start; gap: 10px; }
+.club-root .sk-root .sk-proof li > svg { flex: none; margin-top: 3px; color: var(--br-muted); }
+.club-root .sk-root .sk-proof :is(.bs-text, .sk-clamp, .sk-read) { font-size: var(--cc-text-sm); line-height: 20px; color: var(--br-muted); }
+.club-root .sk-root .sk-proof li:focus-within :is(.bs-text, .sk-clamp) { color: var(--br-fg); }
+
+/* The logline as a statement. */
+.club-root .sk-root .sk-logline { font-family: 'Instrument Serif', Georgia, serif; font-size: var(--cc-text-2xl); line-height: 32px; letter-spacing: -.005em; }
+
+/* Talking points: a quiet name, one line. */
+.club-root .sk-root .sk-points { display: flex; flex-direction: column; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.club-root .sk-root .sk-point { display: grid; grid-template-columns: 104px minmax(0, 1fr); gap: 16px; padding: 7px 10px; margin: 0 -10px; border-radius: var(--cc-r-lg); transition: background-color .15s; }
+.club-root .sk-root .sk-point:hover, .club-root .sk-root .sk-point:focus-within { background: var(--br-neutral-100); }
+.club-root .sk-root .sk-point-label, .club-root .sk-root .sk-point .sk-point-label { padding-top: 3px; text-align: right; font-size: var(--cc-text-xs); line-height: 16px; font-weight: var(--cc-weight-medium); color: var(--br-muted); }
+.club-root .sk-root .sk-point-line { font-size: var(--cc-text-base); line-height: 22px; }
+.club-root .sk-root .sk-add { display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; margin-left: 120px; padding: 4px 0; border: 0; background: none; color: var(--br-muted); font: inherit; font-size: var(--cc-text-sm); cursor: pointer; }
+.club-root .sk-root .sk-add:hover { color: var(--br-fg); }
+
+/* Claude's quick changes: a small bar on the part under the pointer or focus. */
+.club-root .sk-root .sk-tools { position: absolute; z-index: 3; right: 0; top: -30px; display: flex; gap: 2px; padding: 3px; border: 1px solid var(--br-border); border-radius: var(--cc-r-lg); background: var(--br-bg); box-shadow: var(--br-shadow-md); opacity: 0; pointer-events: none; transform: translateY(2px); transition: opacity .12s, transform .12s; }
+.club-root .sk-root .sk-block:hover > .sk-tools, .club-root .sk-root .sk-block:focus-within > .sk-tools { opacity: 1; pointer-events: auto; transform: none; }
+.club-root .sk-root .sk-tools button { display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; border: 0; border-radius: var(--cc-r-sm); background: none; color: var(--br-muted); font: inherit; font-size: var(--cc-text-xs); line-height: 16px; cursor: pointer; white-space: nowrap; }
+.club-root .sk-root .sk-tools button:hover { background: var(--br-neutral-100); color: var(--br-fg); }
+.club-root .sk-root .sk-point > .sk-tools { right: 6px; }
+
+.club-root .sk-root .sk-next { display: flex; align-items: center; gap: 12px; padding-top: 8px; margin-left: 120px; }
+.club-root .sk-root .sk-next-p { font-size: var(--cc-text-sm); color: var(--br-muted); }
+@container (max-width: 720px) { .club-root .sk-root :is(.sk-next, .sk-add) { margin-left: 0; } }
+
+/* While it is written: quiet bars where words are still coming, and words that settle in as they land. */
+.club-root .sk-root .sk-wait { display: block; height: 12px; margin: 5px 0; border-radius: var(--cc-r-sm); background: var(--br-neutral-200); animation: bs-pulse 1.2s ease-in-out infinite; }
+.club-root .sk-root .sk-logline + .sk-wait, .club-root .sk-root .sk-col > .sk-wait:first-child { height: 22px; }
+.club-root .sk-root .is-streaming .sk-read { animation: sk-in .35s ease-out; }
+@keyframes sk-in { from { opacity: 0; transform: translateY(2px); } }
+
+/* The start: one sentence, anything else under it, then Suggest. */
+.club-root .sk-start { gap: 12px; max-width: 640px; }
+.club-root .sk-start-h { margin: 0; font-size: var(--cc-text-2xl); line-height: 32px; font-weight: var(--cc-weight-semibold); }
+.club-root .sk-start-p { margin: 0 0 8px; font-size: var(--cc-text-base); line-height: 20px; color: var(--br-muted); }
+.club-root .sk-start .bs-text { padding: 12px 14px; box-sizing: border-box; border: 1px solid var(--br-border); border-radius: var(--br-r-lg); background: var(--br-bg); }
+.club-root .sk-start .bs-text:focus { border-color: var(--br-blue-400); }
+.club-root .sk-start-idea { font-size: var(--cc-text-lg); }
+.club-root .sk-start-more { min-height: 96px; font-size: var(--cc-text-base); line-height: 22px; }
+.club-root .sk-start-a { display: flex; align-items: center; gap: 12px; margin-top: 4px; }
+.club-root .sk-link { padding: 0; border: 0; background: none; color: var(--br-muted); font: inherit; font-size: var(--cc-text-sm); cursor: pointer; }
+.club-root .sk-link:hover { color: var(--br-fg); text-decoration: underline; }
+
+/* A quick change under way: the part's words breathe while Claude writes, the tools give way to a line saying what is happening, and
+   the new words land with a brief wash. The line stays put (it does not need hover) until the change is done. */
+.club-root .sk-root .sk-status { position: absolute; z-index: 3; right: 0; top: -30px; display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px 4px 8px; border: 1px solid var(--br-border); border-radius: var(--cc-r-lg); background: var(--br-bg); box-shadow: var(--br-shadow-md); color: var(--br-muted); font-size: var(--cc-text-xs); line-height: 16px; white-space: nowrap; animation: sk-in .15s ease-out; }
+.club-root .sk-root .sk-status.is-inline { position: static; padding: 0; border: 0; background: none; box-shadow: none; }
+.club-root .sk-root .sk-status.is-changed { color: var(--cc-ok); }
+.club-root .sk-root .sk-status.is-failed { color: var(--cc-warn-text); }
+.club-root .sk-root .sk-status.is-choose { color: var(--br-fg); }
+.club-root .sk-root .sk-point > .sk-status { right: 6px; }
+.club-root .sk-root .sk-tools button:disabled { opacity: .45; cursor: default; }
+.club-root .sk-root .sk-tools button:disabled:hover { background: none; color: var(--br-muted); }
+.club-root .sk-root :is(.sk-block, .sk-section):is(.is-working, .is-settling) :is(.bs-text, .sk-clamp) { animation: sk-breathe 1.4s ease-in-out infinite; }
+.club-root .sk-root :is(.sk-block, .sk-section).is-changed { animation: sk-landed 2.6s ease-out; border-radius: var(--cc-r-lg); }
+@keyframes sk-breathe { 50% { opacity: .4; } }
+@keyframes sk-landed { 0%, 30% { background-color: var(--cc-ok-soft); } 100% { background-color: transparent; } }
+@media (prefers-reduced-motion: reduce) {
+  .club-root .sk-root :is(.sk-block, .sk-section):is(.is-working, .is-settling) :is(.bs-text, .sk-clamp) { animation: none; opacity: .55; }
+  .club-root .sk-root .sk-status .spin { animation: none; }
+}
+
+/* Every part the same way: a small label, its actions as quiet icons beside it (on hover or focus), the part under it, a hairline between
+   parts. Nothing else takes space. */
+.club-root .sk-root .sk-section { position: relative; border-radius: var(--cc-r-lg); }
+.club-root .sk-root .sk-col > .sk-section + .sk-section { padding-top: 20px; border-top: 1px solid var(--br-border); border-radius: 0; }
+.club-root .sk-root .sk-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 26px; margin-bottom: 6px; }
+.club-root .sk-root .sk-label { margin: 0; font-size: var(--cc-text-xs); line-height: 16px; font-weight: var(--cc-weight-semibold); letter-spacing: .02em; color: var(--br-muted); }
+/* A part's actions: always there, quiet; each says what it does. */
+.club-root .sk-root .sk-head-a { display: inline-flex; gap: 12px; }
+.club-root .sk-root .sk-act { display: inline-flex; align-items: center; gap: 5px; padding: 2px 0; border: 0; background: none; color: var(--br-muted); font: inherit; font-size: var(--cc-text-xs); line-height: 16px; cursor: pointer; }
+.club-root .sk-root .sk-act:hover:not(:disabled) { color: var(--br-fg); }
+.club-root .sk-root .sk-act:disabled { opacity: .45; cursor: default; }
+.club-root .sk-root .sk-status-under { margin-bottom: 6px; }
+
+/* Other titles, listed under the title: one click uses one. */
+.club-root .sk-root .sk-choices { display: flex; flex-direction: column; margin-top: 10px; padding: 4px; border: 1px solid var(--br-border); border-radius: var(--cc-r-lg); background: var(--br-bg); box-shadow: var(--br-shadow-md); }
+.club-root .sk-root .sk-choice { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 10px; border: 0; border-radius: var(--cc-r-md); background: none; color: var(--br-fg); font: inherit; font-size: var(--cc-text-sm); line-height: 18px; text-align: left; cursor: pointer; }
+.club-root .sk-root .sk-choice:hover, .club-root .sk-root .sk-choice:focus-visible { background: var(--br-neutral-100); }
+.club-root .sk-root .sk-choice-use { flex: none; color: var(--br-muted); font-size: var(--cc-text-xs); opacity: 0; }
+.club-root .sk-root .sk-choice:hover .sk-choice-use, .club-root .sk-root .sk-choice:focus-visible .sk-choice-use { opacity: 1; }
+.club-root .sk-root .sk-choices-close { align-self: flex-start; margin: 4px 10px 6px; padding: 0; border: 0; background: none; color: var(--br-muted); font: inherit; font-size: var(--cc-text-xs); cursor: pointer; }
+.club-root .sk-root .sk-choices-close:hover { color: var(--br-fg); text-decoration: underline; }
+
+/* A talking point's actions float inside its own row, at its right end, on hover: never over another row, and no space kept for them. */
+.club-root .sk-root .sk-point > .sk-tools, .club-root .sk-root .sk-point > .sk-status { top: 4px; right: 6px; transform: none; }

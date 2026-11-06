@@ -9,7 +9,7 @@ import {describeEditAction} from '../../editing-actions';
 import {atBottom,elapsed,greeting,lookingAt,previewOf,screenSummary,stepSummary,suggestions,withDividers} from './companion-logic';
 import {blocks} from './Markdown';
 import {normalizeThread,withPendingStops,withStep,withText} from './useCompanion';
-const {Companion}=await import('./Companion');
+const {Companion,changedLine,forgetCompanionHistory}=await import('./Companion');
 const {FakeEventSource,installFetch}=await import('../test-fakes');
 
 // Conversation tests exercise the desktop panel; narrow-window behavior has its own regression test.
@@ -142,7 +142,15 @@ function serve(state:State){
 }
 
 const recordedScenes:VideoScene[]=[{id:'s1',title:'Opening',seconds:60,takes:[{id:'t1',seconds:50,kept:true,retained:false}],status:'Kept take 1'},{id:'s2',title:'Level 1',seconds:120,takes:[],status:'Not recorded'}];
-const mount=(changed:CompanionChanged[][]=[],scenes?:VideoScene[])=>mountUI(createElement(Companion,{videoId:'v1',tab:'idea',scene:{id:'s2',index:1,title:'Level 1'},screen:'Package',pkg,outline,scenes,onChanged:(list:CompanionChanged[])=>changed.push(list)}));
+const mount=(changed:CompanionChanged[][]=[],scenes?:VideoScene[])=>(forgetCompanionHistory(),mountUI(createElement(Companion,{videoId:'v1',tab:'idea',scene:{id:'s2',index:1,title:'Level 1'},screen:'Package',pkg,outline,scenes,onChanged:(list:CompanionChanged[])=>changed.push(list)})));
+/** Asks the next question: with a suggestion when the chat is empty, else in the composer (no suggestions under replies). */
+const askNext=async(c:Element,question:string)=>{
+ const chip=[...c.querySelectorAll<HTMLButtonElement>('.cmp-sugg button')].find(b=>b.textContent===question);
+ if(chip){await act(async()=>chip.click());return;}
+ const field=c.querySelector<HTMLTextAreaElement>('.cmp textarea')!;
+ await act(async()=>{Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value')!.set!.call(field,question);field.dispatchEvent(new Event('input',{bubbles:true}));});
+ await act(async()=>c.querySelector<HTMLButtonElement>('[aria-label="Send (Enter)"]')!.click());
+};
 const status=(root:Element)=>root.querySelector('.cmp-sr[role="status"]')?.textContent;
 
 test('asking streams: the steps with their time, a skeleton before the first words, the words without the actions, then the reply and its card',async()=>{
@@ -157,7 +165,7 @@ test('asking streams: the steps with their time, a skeleton before the first wor
   // Nothing asked yet: the step's greeting with its three prompts right under it, not a blank column and not the old welcome.
   const hello=c.querySelector('.cmp-log .cmp-hello')!;
   assert.match(text(hello),/^I can tighten a scene/);
-  assert.deepEqual([...hello.querySelectorAll('.cmp-sugg button')].map(b=>b.textContent),['Tighten scene 2','Cut the longest scene to 90 seconds','Make the hook sharper']);
+  assert.deepEqual([...hello.querySelectorAll('.cmp-sugg button')].map(b=>b.textContent),['Tighten scene 2','Cut the longest scene to 90 seconds'],'two at most, on an empty chat only');
   assert.equal(c.querySelector('.cmp-foot .cmp-sugg'),null,'the prompts are not repeated at the bottom');
   assert.doesNotMatch(text(c),/with you on this video/);
   await act(async()=>button(c,'Tighten scene 2').click());await flush();
@@ -165,7 +173,7 @@ test('asking streams: the steps with their time, a skeleton before the first wor
   assert.deepEqual(asked.body,{message:'Tighten scene 2',context:{tab:'idea',sceneId:'s2',sceneTitle:'Level 1',screen:'Package'}},'the screen goes with the question');
   assert.equal(FakeEventSource.last().url,'/api/club/jobs/j1/events','the reply is followed over SSE');
   assert.ok(c.querySelector('.cmp-me')?.textContent==='Tighten scene 2','your message shows at once');
-  assert.ok(c.querySelector('.cmp-skel'),'a skeleton before the first words');
+  assert.deepEqual([...c.querySelectorAll('.cmp-steps.live li')].map(li=>li.textContent),['Thinking'],'one quiet line before the first step');
   assert.ok(c.querySelector('button[aria-label="Stop (Esc)"]'),'Send becomes Stop');
   assert.equal(c.querySelector('.cmp-sugg'),null,'suggestions wait while it works');
 
@@ -176,11 +184,11 @@ test('asking streams: the steps with their time, a skeleton before the first wor
   assert.equal(c.querySelector('.cmp-log')?.getAttribute('aria-live'),'off','the log and its timer are not announced');
   assert.equal(c.querySelector('.cmp-reply.live')?.getAttribute('aria-live'),'off');
   const steps=()=>[...c.querySelectorAll('.cmp-steps.live li')].map(li=>({on:li.classList.contains('on'),text:li.querySelector('span:not(.cmp-t):not(.cmp-pulse)')?.textContent}));
-  assert.deepEqual(steps(),[{on:false,text:'Reading the plan'},{on:true,text:'Thinking it through'}],'a replayed step is not shown twice');
+  assert.deepEqual(steps(),[{on:true,text:'Thinking it through'}],'one line: only what it is doing now, a replayed step not shown twice');
   await act(async()=>FakeEventSource.last().emit('progress',{type:'text',at:0,text:'Three **hooks** '}));
   await act(async()=>FakeEventSource.last().emit('progress',{type:'text',at:0,text:'Three **hooks** '}));
   await act(async()=>FakeEventSource.last().emit('progress',{type:'text',at:16,text:'below.'}));
-  assert.equal(c.querySelector('.cmp-skel'),null,'the skeleton goes when words arrive');
+  assert.equal(c.querySelectorAll('.cmp-steps.live li').length,1,'still one line while the words arrive');
   assert.equal(c.querySelector('.cmp-md.streaming')?.textContent,'Three hooks below.','a replayed piece is not shown twice');
   assert.equal(c.querySelector('.cmp-md.streaming strong')?.textContent,'hooks','markdown renders while it streams');
 
@@ -189,19 +197,93 @@ test('asking streams: the steps with their time, a skeleton before the first wor
   await act(async()=>FakeEventSource.last().emit('done',reply));await flush();
   assert.equal(c.querySelector('.cmp-reply.live'),null);
   assert.equal(status(c),'Reply ready');
-  assert.equal(c.querySelector('.cmp-sum-line')?.textContent,'Read the plan, wrote hooks · 4s','the steps fold into one line');
+  assert.equal(c.querySelector('.cmp-sum-line'),null,'a finished reply shows no steps: its words and its one line of changes are enough');
   assert.equal(c.querySelector('.cmp-steps'),null);
-  await act(async()=>(c.querySelector('.cmp-sum-line') as HTMLElement).click());
-  assert.equal(c.querySelectorAll('.cmp-steps li').length,2,'and open again');
+  assert.equal(c.querySelector('.cmp-sugg'),null,'once there is a conversation, no suggestions under replies');
 
-  await act(async()=>button(c,'Preview').click());
-  assert.match(c.querySelector('.cmp-preview')?.textContent??'',/NowOld hookAfterYou never opened this\./);
-  await act(async()=>button(c,'Use as hook').click());await flush();
+  await flush();
+  // A reply that arrives applies its change by itself, says what changed in one quiet line, and keeps the single change behind Details.
+  assert.ok(server.calls.some(call=>call.method==='POST'&&call.path==='/videos/v1/companion/r1/cards/0/apply'),'applied without a press');
   assert.deepEqual(changed,[['package']],'the screen hears what changed');
-  assert.match(c.querySelector('.cmp-card')?.textContent??'',/Set as your spoken hook/);
-  await act(async()=>button(c,'Undo').click());await flush();
-  assert.ok(button(c,'Apply again'),'an undone card can be applied again');
-  assert.equal(changed.length,2);
+  assert.match(c.querySelector('.cmp-changed-line')?.textContent??'',/Set as your spoken hook/);
+  assert.equal(c.querySelector('.cmp-card'),null,'no card per change');
+  assert.equal([...c.querySelectorAll('button')].some(b=>/^Add all/.test(b.textContent??'')),false,'no Add all');
+  await act(async()=>button(c,'Show the changes').click());
+  assert.equal(c.querySelector('.cmp-change')?.textContent,'Set as your spoken hook','the change itself, one line, one press away');
+  await act(async()=>c.querySelector<HTMLButtonElement>('.cmp-changed-undo')!.click());await flush();
+  assert.equal(changed.length,2,'one Undo undoes it');
+  assert.ok(button(c,'Redo'),'an undone change can be made again');
+  assert.equal(c.querySelector('.cmp-change')?.textContent,'Spoken hook · “You never opened this.”','and the list says what it would do');
+  assert.match(c.querySelector('.cmp-changed-line')?.textContent??'',/^Undone$/,'and the line says it was undone, not that it was made');
+ }finally{server.restore();await ui.close();}
+});
+
+test('a reply says what it changed in one short line: the scenes it rewrote, then one change in its words or several as a count',()=>{
+ const script=(sceneId:string)=>({action:{type:'set_scene_script' as const,sceneId,script:'Words.'},state:'applied' as const});
+ assert.equal(changedLine([script('s1')],outline),'Updated scene 1');
+ assert.equal(changedLine([script('s2'),script('s1'),{action:{type:'set_scene' as const,sceneId:'s1',title:'Hi'},state:'applied' as const}],outline),'Updated scenes 1 and 2','a scene counts once, in order');
+ assert.equal(changedLine([script('s1'),{action:{type:'use_hook',text:'Hook'},state:'applied',result:'Set as your spoken hook'}],outline),'Updated scene 1 · Set as your spoken hook');
+ const added=(result:string)=>({action:{type:'use_hook' as const,text:result},state:'applied' as const,result});
+ assert.equal(changedLine([added('Added a keyword'),added('Added a flow'),added('Added a title'),added('Added a keyword')],outline),'Made 4 changes','a polish pass reads as a count, not a list');
+ const graphic=(result:string)=>({action:{type:'add_motion_block' as const,template:'title-card' as const,start:1,duration:2,text:'x'},state:'applied' as const,result});
+ assert.equal(changedLine([graphic('Flow at 0:08'),graphic('Title at 0:01'),graphic('Stat at 0:20')],outline),'Added 3 graphics','many of one kind are named by what they are');
+ const note=(text:string)=>({action:{type:'add_timeline_note' as const,time:3,text},state:'applied' as const,result:'Note left at 0:03'});
+ assert.equal(changedLine([note('a'),note('b'),note('c')],outline),'Left 3 notes on the timeline');
+ assert.equal(changedLine([added('Added a flow'),note('a')],outline),'Added a flow · 1 note','beside other changes a note is a short count');
+ // Two changes are a count too, not two sentences that wrap around Undo ("Logos removed from 0:55 · Keyword removed from 0:59").
+ const removed=(result:string)=>({action:{type:'remove_motion_block' as const,at:55},state:'applied' as const,result});
+ assert.equal(changedLine([removed('Logos removed from 0:55'),removed('Keyword removed from 0:59')],outline),'Removed 2 graphics');
+ assert.equal(changedLine([graphic('Flow at 0:08'),removed('Keyword removed from 0:59')],outline),'Changed 2 graphics');
+ assert.equal(changedLine([added('Set as your spoken hook'),graphic('Flow at 0:08')],outline),'Made 2 changes');
+ assert.equal(changedLine([removed('Logos removed from 0:55')],outline),'Logos removed from 0:55','one change keeps its own words');
+});
+
+test('a reply with several changes applies them all as it arrives, in order, and one Undo takes them all back, last first',async()=>{
+ FakeEventSource.install();
+ const state={messages:[] as CompanionMessage[]},server=serve(state),changed:CompanionChanged[][]=[];
+ const ui=await mount(changed);
+ try{
+  await flush();const c=ui.container;
+  await askNext(c,'Tighten scene 2');await flush();
+  const reply:CompanionReplyMessage={id:'r1',role:'assistant',text:'Both scenes, tighter.',tab:'idea',cards:[
+   {action:{type:'set_scene_script',sceneId:'s1',script:'One.'},state:'offered'},{action:{type:'set_scene_script',sceneId:'s2',script:'Two.'},state:'offered'}]};
+  state.messages.push(reply);
+  await act(async()=>FakeEventSource.last().emit('done',reply));await flush();await flush();
+  const cardCalls=()=>server.calls.filter(call=>/\/cards\/\d\/(apply|undo)$/.test(call.path)).map(call=>call.path.split('/').slice(-2).join(' '));
+  assert.deepEqual(cardCalls(),['0 apply','1 apply'],'both applied, in order, with no press');
+  assert.equal(c.querySelector('.cmp-changed-line')?.textContent,'Updated scenes 1 and 2');
+  assert.equal(c.querySelector('.cmp-card'),null,'no stack of cards');
+  await act(async()=>c.querySelector<HTMLButtonElement>('.cmp-changed-undo')!.click());await flush();
+  assert.deepEqual(cardCalls(),['0 apply','1 apply','1 undo','0 undo'],'one Undo, last change first');
+  assert.ok(button(c,'Redo'),'and they can be made again');
+ }finally{server.restore();await ui.close();}
+});
+
+test('a reply that arrives while the panel is away (another step, a remount) still applies by itself when the panel comes back',async()=>{
+ FakeEventSource.install();
+ const state={messages:[{id:'q0',role:'user',text:'Hook',context:{tab:'idea'}}] as CompanionMessage[]},server=serve(state);
+ const first=await mount();
+ await flush();await first.close();
+ state.messages.push({id:'r1',role:'assistant',text:'Done.',tab:'idea',cards:[{action:{type:'use_hook',text:'Hook'},state:'offered'}]});
+ // The same app session: the panel mounts again, as on another step, without forgetting what it saw first.
+ const again=await mountUI(createElement(Companion,{videoId:'v1',tab:'idea',screen:'Package',pkg,outline,onChanged(){}}));
+ try{
+  await flush();await flush();
+  assert.equal(server.calls.filter(call=>call.path==='/videos/v1/companion/r1/cards/0/apply').length,1,'applied: it was not in the conversation when the app first loaded it');
+ }finally{server.restore();await again.close();}
+});
+
+test('a reply that was already in the conversation is not applied by itself when the panel opens',async()=>{
+ FakeEventSource.install();
+ const reply:CompanionReplyMessage={id:'r1',role:'assistant',text:'Earlier.',tab:'idea',cards:[{action:{type:'use_hook',text:'Hook'},state:'offered'}]};
+ const server=serve({messages:[{id:'q0',role:'user',text:'Hook',context:{tab:'idea'}},reply]});
+ const ui=await mount();
+ try{
+  await flush();await flush();
+  assert.equal(server.calls.filter(call=>call.path.endsWith('/apply')).length,0);
+  assert.match(ui.container.querySelector('.cmp-changed-line')?.textContent??'',/Not applied/,'a quiet line, no big button');
+  await act(async()=>button(ui.container,'Apply').click());await flush();
+  assert.equal(server.calls.filter(call=>call.path.endsWith('/apply')).length,1,'one press makes it');
  }finally{server.restore();await ui.close();}
 });
 
@@ -236,7 +318,7 @@ test('Esc stops a reply and keeps what had arrived; a failure says so and Try ag
   assert.match(text(c),/Half an answer/);
   assert.equal(c.querySelector('.cmp-note')?.textContent,'Stopped');
 
-  await act(async()=>button(c,'Tighten scene 2').click());await flush();
+  await askNext(c,'Tighten scene 2');await flush();
   await act(async()=>FakeEventSource.last().emit('failed',{message:'Claude is not signed in.'}));
   assert.match(c.querySelector('[role="alert"]')?.textContent??'',/Claude is not signed in\.Try again/);
   await act(async()=>button(c,'Try again').click());await flush();
@@ -256,13 +338,13 @@ test('a reopened panel finds the reply still being written, and the panel rememb
   assert.equal(FakeEventSource.last().url,'/api/club/jobs/j9/events');
   assert.ok(c.querySelector('.cmp-reply.live'));
   assert.equal(c.querySelector('.cmp-md.streaming')?.textContent,'Half of the','the text written so far shows at once');
-  assert.equal(c.querySelectorAll('.cmp-steps.live li').length,2);
+  assert.equal(c.querySelectorAll('.cmp-steps.live li').length,1);
   // The replay from the start adds nothing that is already shown.
   await act(async()=>FakeEventSource.last().emit('progress',{type:'step',label:'Reading the board',index:0}));
   await act(async()=>FakeEventSource.last().emit('progress',{type:'text',at:0,text:'Half'}));
   await act(async()=>FakeEventSource.last().emit('progress',{type:'text',at:4,text:' of the reply'}));
   assert.equal(c.querySelector('.cmp-md.streaming')?.textContent,'Half of the reply');
-  assert.equal(c.querySelectorAll('.cmp-steps.live li').length,2);
+  assert.equal(c.querySelectorAll('.cmp-steps.live li').length,1);
   assert.match(text(c),/Show 1 earlier message/,'what was asked on another step is one quiet line');
   await act(async()=>(c.querySelector('.cmp-earlier') as HTMLElement).click());
   assert.match(text(c),/Record/,'opened, a divider names the step it was asked on');
@@ -296,7 +378,7 @@ test('a dropped connection is not a failure while the reply still runs; Try agai
  try{
   await flush();
   const c=ui.container;
-  await act(async()=>button(c,'Tighten scene 2').click());await flush();
+  await askNext(c,'Tighten scene 2');await flush();
   await act(async()=>FakeEventSource.last().emit('progress',{type:'text',at:0,text:'Some '}));
   const first=FakeEventSource.last();
   // The browser gave up on the stream: the job is asked about, found running, and followed again.
@@ -376,8 +458,11 @@ test('an applied card whose version is gone says it is too old to undo, and offe
  try{
   await flush();
   const c=ui.container;
-  assert.match(c.querySelector('.cmp-card')?.textContent??'',/Too old to undo/);
-  assert.equal([...c.querySelectorAll('.cmp-card button')].some(b=>b.textContent?.includes('Undo')),false);
+  assert.match(c.querySelector('.cmp-changed-line')?.textContent??'',/Set as your spoken hook/);
+  assert.equal(c.querySelector('.cmp-changed-undo'),null,'no Undo for a change too old to undo');
+  await act(async()=>button(c,'Show the changes').click());
+  assert.equal(c.querySelector('.cmp-change')?.textContent,'Set as your spoken hook');
+  assert.equal([...c.querySelectorAll('.cmp-reply button')].some(b=>b.textContent?.includes('Undo')),false,'nothing offers to undo it');
  }finally{server.restore();await ui.close();}
 });
 
@@ -428,28 +513,34 @@ test('on Edit: a message carries the playhead and selection, a timeline card pre
  };
  const changed:CompanionChanged[][]=[];
  const props=()=>({videoId:'v1',tab:'edit' as const,screen:'The editor',pkg,outline,onChanged:(list:CompanionChanged[])=>changed.push(list),editor:{get:()=>bridge as never,state:{selected:2,previewKey}}});
+ forgetCompanionHistory();
  const ui=await mountUI(createElement(Companion,props()));
  try{
   await flush();
   const c=ui.container;
   assert.match(text(c.querySelector('.cmp-context')!),/Edit · 2 selected/);
-  assert.match(c.querySelector('.cmp-card')?.textContent??'',/Cut pausesCut pauses between your words longer than 1 s, keeping a breath on each side\./,'the card says what it does');
-  assert.equal(c.querySelector('.cmp-card-est')?.textContent,'3 cuts · 0.9 s shorter','and how much it takes out');
+  // A reply from earlier is not applied by itself: it offers one button, and its single changes are behind Details.
+  assert.ok(button(c,'Apply'));
+  assert.equal(c.querySelector('.cmp-card'),null);
+  await act(async()=>button(c,'Show the changes').click());
+  assert.equal(c.querySelector('.cmp-card'),null,'one line per change, no boxes');
+  assert.equal(c.querySelector('.cmp-change')?.textContent,'Cut pauses · 3 cuts · 0.9 s shorterPreview','what it does and how much it takes out, in one line');
   await act(async()=>button(c,'Preview').click());
   assert.deepEqual(log,['preview cut_pauses'],'Preview shows the cut on the stage');
   await ui.render(createElement(Companion,props()));
   assert.ok(button(c,'Hide preview'),'pressed while its preview is the one on the stage');
-  await act(async()=>button(c,'Cut them').click());await flush();
+  await act(async()=>button(c,'Apply').click());await flush();
   assert.deepEqual(log,['preview cut_pauses','preview off','commit'],'the preview goes, then the editor saves and applies');
   const applied=server.calls.find(call=>call.path==='/videos/v1/companion/r1/cards/0/apply')!;
   assert.deepEqual(applied.body,{revision:'rev-1'},'with the revision the editor saved');
   assert.deepEqual(changed,[['timeline']]);
-  assert.match(c.querySelector('.cmp-card')?.textContent??'',/Cut 2 pauses, 6\.4 s shorter/);
-  await act(async()=>button(c,'Undo').click());await flush();
+  assert.match(c.querySelector('.cmp-change')?.textContent??'',/^Cut 2 pauses, 6\.4 s shorter$/,'made, the line says what it did, with no Preview');
+  assert.match(c.querySelector('.cmp-changed-line')?.textContent??'',/Cut 2 pauses, 6\.4 s shorter/,'the reply says what changed in one line');
+  await act(async()=>c.querySelector<HTMLButtonElement>('.cmp-changed-undo')!.click());await flush();
   assert.equal(log.filter(entry=>entry==='commit').length,2,'Undo goes through the editor too');
   assert.deepEqual(server.calls.find(call=>call.path==='/videos/v1/companion/r1/cards/0/undo')!.body,{revision:'rev-1'});
 
-  await act(async()=>button(c,'Add a title at the start').click());await flush();
+  await askNext(c,'Add a title at the start');await flush();
   const asked=server.calls.find(call=>call.method==='POST'&&call.path==='/videos/v1/companion')!;
   assert.deepEqual(asked.body,{message:'Add a title at the start',context:{tab:'edit',screen:'The editor',playhead:6.5,selection:['screen-1'],range:{start:0,end:20}}},'the editor saves first, then its playhead and selection go with the question');
   assert.ok(log.includes('flush'));

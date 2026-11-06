@@ -1,5 +1,5 @@
 import {useEffect,useLayoutEffect,useMemo,useRef,useState,type ClipboardEvent,type DragEvent,type FormEvent,type PointerEvent as ReactPointerEvent,type KeyboardEvent} from 'react';
-import {CHANNEL_BOARD,type BoardFrame,type ClubSettings,type ResearchTile,type StartedVideo,type Video,type VideoScene} from '../../../shared/club';
+import {CHANNEL_BOARD,type BoardFrame,type ClubSettings,type ResearchTile,type StartedVideo,type Video} from '../../../shared/club';
 import {clubFetch,errorMessage,notifyVideosChanged} from '../api';
 import {ErrorLine} from '../ErrorLine';
 import {Icon,IconButton,Menu,Spinner,cn,useToast,type MenuItem,Tooltip} from '../ui';
@@ -73,8 +73,6 @@ export interface BoardProps{
  onSelection?(ids:readonly string[]):void;
  /** The board's cards whenever they change, for what is shown beside it (the Idea page's proof). */
  onTiles?(tiles:readonly ResearchTile[]):void;
- /** Brings this card into view and selects it; a new `n` does it again for the same card. */
- show?:{id:string;n:number};
 }
 
 /**
@@ -84,7 +82,7 @@ export interface BoardProps{
  * them together. Delete removes what is selected, with Undo; Esc clears the selection. A video's Board shows how the board works on the first
  * visit (its scenes are drafted from the Idea page beside it); Research can start a new video from a selection.
  */
-export function Board({video,board:boardProp,refreshKey=0,navigate=NO_NAVIGATE,onSelection,onTiles,show}:BoardProps){
+export function Board({video,board:boardProp,refreshKey=0,navigate=NO_NAVIGATE,onSelection,onTiles}:BoardProps){
  const ai=useAi();
  const boardId=boardProp??video?.id??CHANNEL_BOARD;
  const research=boardId===CHANNEL_BOARD;
@@ -255,15 +253,6 @@ export function Board({video,board:boardProp,refreshKey=0,navigate=NO_NAVIGATE,o
  const tilesNow=useRef(tiles);tilesNow.current=tiles;
  const heightsNow=useRef(heights);heightsNow.current=heights;
  const boxesNow=useRef(boxes);boxesNow.current=boxes;
- // Something beside the board asked to see a card: wait for its data, then select it once.
- const shownRequest=useRef<BoardProps['show']>(undefined);
- useEffect(()=>{
-  const box=show&&boxesNow.current.get(show.id),holder=scroller.current;
-  if(!show||show===shownRequest.current||!box||!holder)return;
-  shownRequest.current=show;
-  setView(readableBoardView(box,holder.clientWidth,holder.clientHeight,Math.max(80,Math.min(holder.clientWidth,holder.clientHeight)/4)));
-  setSel([show.id]);
- },[show,tiles?.length]);
  const framesNow=useRef(frames);framesNow.current=frames;
  const selNow=useRef(sel);selNow.current=sel;
  const pointing=useRef(false);

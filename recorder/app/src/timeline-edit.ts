@@ -152,6 +152,8 @@ export function splitLinked(p:Project,time:number,selection:ReadonlySet<string>,
  for(const c of targets){
   const cut=c.sourceIn+(time-c.start)*c.speed,origin=clipEffectTiming(c);c.effectTiming={sourceIn:origin.sourceIn,sourceOut:origin.sourceOut};
   const right={...plainClone(plainView(c)),id:newId(),start:time,sourceIn:cut};
+  // The change between tile and full frame opens the left piece only.
+  delete right.morphIn;
   if(c.linkId!==undefined){if(!groups.has(c.linkId))groups.set(c.linkId,newId());right.linkId=groups.get(c.linkId);}
   p.clips.push(right);c.sourceOut=cut;
  }
@@ -324,6 +326,14 @@ export function insertPlan(moving:readonly RowItem[],pointer:number,others:reado
 }
 /** A press on a clip body becomes a move only after the pointer travels this far, so a click or a small slip never slides a clip. */
 export const DRAG_DEAD_ZONE_PX=6;
+/**
+ * Borumi's segment move (main bundle `da`, `Fr=.015`): a press on a clip is a move only once the pointer has travelled 1.5% of the
+ * visible timeline; until then it is a click, which moves the playhead. About 20 px on a laptop-wide timeline, so a hand's slip during a
+ * click still seeks.
+ */
+export const MOVE_SHARE=.015;
+/** How far a press on a clip must travel before it moves the clip, for a timeline `width` px wide. */
+export const moveDeadZone=(width:number)=>Math.max(DRAG_DEAD_ZONE_PX,width*MOVE_SHARE);
 type MovePlan={kind:'move'|'slide'|'insert'|'none';starts:Map<string,number>;delta:number;at?:number};
 /** Where the first screen, camera, audio or overlay clip starts once `starts` are applied. */
 function firstStart(p:Project,starts:ReadonlyMap<string,number>){const list=p.clips.filter(c=>gapTracks.has(c.track)).map(c=>starts.get(c.id)??c.start);return list.length?Math.min(...list):0;}

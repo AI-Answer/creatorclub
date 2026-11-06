@@ -25,6 +25,18 @@ export type Timeline = Partial<Pick<Project, (typeof TIMELINE_KEYS)[number]>>;
 // Motion blocks are left out while a project has none, so the timelines of projects made before them hash as they did.
 export const timelineOf = (p: Project): Timeline => Object.fromEntries(TIMELINE_KEYS.filter((key) => key !== 'motion' || p.motion !== undefined).map((key) => [key, p[key] ?? null])) as Timeline;
 export const timelineHash = (p: Project) => createHash('sha256').update(JSON.stringify(timelineOf(p))).digest('hex');
+const hashOf = (value: unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
+const uncaptionedHash = (p: Project) => hashOf({ ...timelineOf(p), captions: null });
+/**
+ * Where things sit on the timeline: each clip's place, trim and speed, which set every time and length. A card's times stay right while these stay as they
+ * were, so a proposal is stamped with this, not with the whole timeline: the captions being remade after a cut, a note, a graphic or a
+ * caption style do not move anything, and must not leave a fresh reply's changes unusable. Clip ids are left out: a cut that is undone and
+ * made again gives new ids to clips in the same places.
+ */
+export const placementHash = (p: Project) => hashOf((p.clips ?? []).map((clip) => [clip.track, clip.mediaId, clip.start, clip.sourceIn, clip.sourceOut, clip.speed]));
+const placementWithIds = (p: Project) => hashOf((p.clips ?? []).map((clip) => [clip.id, clip.track, clip.mediaId, clip.start, clip.sourceIn, clip.sourceOut, clip.speed]));
+/** True when a card stamped `proposedOn` still lands where it was planned. Older cards carry the clip ids too, or the whole timeline's hash. */
+export const stillPlaced = (p: Project, proposedOn: string) => proposedOn === placementHash(p) || proposedOn === placementWithIds(p) || proposedOn === timelineHash(p);
 
 function withTimeline(p: Project, timeline: Timeline): Project {
   const next: Record<string, unknown> = { ...p };
@@ -71,6 +83,8 @@ export interface TimelineUndo {
   before: Timeline;
   /** The timeline the action wrote, as a hash: Undo goes back only while the timeline still equals it. */
   after: string;
+  /** The same, with the captions left out: the app remakes captions after a change that splits or moves clips, and that must not block Undo. */
+  afterUncaptioned?: string;
   /** The timeline it was applied on, as a hash: when the editor's own Undo already went back to it, the card is simply undone. */
   beforeHash?: string;
 }
@@ -78,7 +92,7 @@ export interface TimelineUndo {
 /** Applying a card again after it was undone: only on the timeline it was first applied on, so a cut never lands on other content. */
 export const MOVED_SINCE_UNDO = 'The timeline changed since this was undone, so applying it again could change the wrong part. Ask again.';
 /** A card's times mean the timeline its reply was built on; once that timeline has moved, applying it would land on other content. */
-export const MOVED_SINCE_PROPOSAL = 'The timeline changed after this was offered, so it would land on other content. Ask again.';
+export const MOVED_SINCE_PROPOSAL = 'Your video changed after I planned this, so it would land in the wrong place. Ask me again.';
 
 /**
  * Where this timeline's audio is quiet, measured from its own media (each file once, then from memory), with the fingerprint of the clips
@@ -94,7 +108,19 @@ let silencesOf = async (project: Project): Promise<SilencePlan | null> => {
 export const readSilencesWith = (reader: typeof silencesOf) => {
   silencesOf = reader;
 };
-export const editOptions = async (project: Project): Promise<EditOptions> => ({ silences: await silencesOf(project).catch(() => null) });
+/** Whether the app is making this project's captions right now (a new take was just recorded or imported). */
+let captionsPendingOf = async (project: Project): Promise<boolean> => {
+  const { automation } = await import('../automation.js');
+  return (await automation.list(project.id)).some((job) => job.kind === 'transcription' && (job.status === 'queued' || job.status === 'running'));
+};
+/** Tests replace where the caption state is read from. */
+export const readCaptionsPendingWith = (reader: typeof captionsPendingOf) => {
+  captionsPendingOf = reader;
+};
+export const editOptions = async (project: Project): Promise<EditOptions> => {
+  const [silences, captionsPending] = await Promise.all([silencesOf(project).catch(() => null), captionsPendingOf(project).catch(() => false)]);
+  return { silences, captionsPending };
+};
 /** `GET /videos/:id/companion/silences`: the plan the editor previews cuts of pauses with, so its preview matches what Apply does. */
 export async function editSilences(slug: string, id: string): Promise<SilencePlan | null> {
   const { project } = await editProject(slug, id);
@@ -106,26 +132,31 @@ export async function applyEdit(slug: string, id: string, action: EditAction, ex
   const { project, revision } = await editProject(slug, id);
   sameRevision(expected, revision);
   const beforeHash = timelineHash(project);
-  if (appliedOn !== undefined && beforeHash !== appliedOn) throw new ClubError(MOVED_SINCE_UNDO, 409);
+  // Made again after its Undo: on the timeline it was first made on, or anywhere its clips are still where it was planned (captions remade
+  // or other notes and graphics since do not move it).
+  if (appliedOn !== undefined && beforeHash !== appliedOn && !(proposedOn !== undefined && stillPlaced(project, proposedOn))) throw new ClubError(MOVED_SINCE_UNDO, 409);
   const options = await editOptions(project);
   const problem = editActionProblem(project, action, options);
   if (problem) throw new ClubError(problem, 409);
-  if (proposedOn !== undefined && beforeHash !== proposedOn) throw new ClubError(MOVED_SINCE_PROPOSAL, 409);
+  if (proposedOn !== undefined && !stillPlaced(project, proposedOn)) throw new ClubError(MOVED_SINCE_PROPOSAL, 409);
   let result = '';
   const next = applyProjectChange(project, (draft) => {
     result = applyEditAction(draft, action, options);
   });
   const saved = await save(next, revision);
-  return { result, undo: { kind: 'timeline', projectId: project.id, before: timelineOf(project), after: timelineHash(saved.project), beforeHash }, ...saved };
+  return { result, undo: { kind: 'timeline', projectId: project.id, before: timelineOf(project), after: timelineHash(saved.project), afterUncaptioned: uncaptionedHash(saved.project), beforeHash }, ...saved };
 }
 
-/** Puts back the timeline an action replaced, only while the timeline still holds exactly what the action wrote. */
+/**
+ * Puts back the timeline an action replaced, only while the timeline still holds what the action wrote. Captions remade since (the app does
+ * that after clips are split or moved) do not count: Undo puts back the captions from before, which fit the clips it puts back.
+ */
 export async function undoEdit(slug: string, id: string, undo: TimelineUndo, expected?: string): Promise<{ project: Project; revision: string }> {
   const { project, revision } = await editProject(slug, id);
   const now = project.id === undo.projectId ? timelineHash(project) : '';
   // The editor's own Undo already went back to the timeline the card was applied on: nothing to write, the card is undone.
   if (undo.beforeHash && now === undo.beforeHash) return { project, revision };
-  if (now !== undo.after) throw new ClubError(CHANGED_SINCE, 409);
+  if (now !== undo.after && !(project.id === undo.projectId && undo.afterUncaptioned === uncaptionedHash(project))) throw new ClubError(CHANGED_SINCE, 409);
   sameRevision(expected, revision);
   return save(withTimeline(project, undo.before), revision);
 }
@@ -136,13 +167,22 @@ const clock = (t: number) => `${Math.floor(Math.max(0, t) / 60)}:${(Math.max(0, 
 const CLIPS_LISTED = 60;
 const TRANSCRIPT_CHARS = 6000;
 
+/**
+ * Whether the words are there. While a new take's captions are still being made there are none for a moment: the reply says so in plain
+ * words instead of calling it "no transcript", and places what it adds from the script and the clips.
+ */
+function transcriptState(p: Project, options: EditOptions) {
+  if (hasTranscript(p)) return 'a transcript with word timings';
+  if (options.captionsPending) return 'the captions of the newest take are still being made, so there are no word timings for a moment. If you need them, tell the creator in plain words that the captions are still being made, and place what you add from the script and the clips';
+  return 'no transcript yet';
+}
 /** One line about the timeline: how long, how many clips of each kind, whether there is a transcript. */
-export function projectSummary(p: Project): string {
+export function projectSummary(p: Project, options: EditOptions = {}): string {
   const kinds = new Map<string, number>();
   for (const clip of p.clips) kinds.set(clip.track, (kinds.get(clip.track) ?? 0) + 1);
   const clips = [...kinds].map(([kind, count]) => `${count} ${kind}`).join(', ') || 'no clips';
   const extra = [p.elements.length ? `${p.elements.length} text or graphics` : '', p.motion?.length ? `${p.motion.length} motion blocks` : '', p.zooms.length ? `${p.zooms.length} zooms` : '', p.markers?.length ? `${p.markers.length} markers` : ''].filter(Boolean);
-  return `${clock(projectDuration(p))} long; clips: ${clips}${extra.length ? `; ${extra.join(', ')}` : ''}; ${hasTranscript(p) ? 'a transcript with word timings' : 'no transcript yet'}`;
+  return `${clock(projectDuration(p))} long; clips: ${clips}${extra.length ? `; ${extra.join(', ')}` : ''}; ${transcriptState(p, options)}`;
 }
 
 /** Transcript words that lie wholly in measured quiet, at most 20. */
@@ -155,7 +195,7 @@ function quietWords(p: Project, quiet: readonly [number, number][]) {
  * and the transcript with times. The transcript is the creator's recorded speech: it is quoted as material, never as instructions.
  */
 export function timelineText(p: Project, context: CompanionContext, options: EditOptions = {}): string {
-  const lines = [`Timeline: ${projectSummary(p)}`, 'When you write to the creator, give every time as minutes and seconds, like 0:12 or 1:05, never as seconds with decimals.'];
+  const lines = [`Timeline: ${projectSummary(p, options)}`, 'When you write to the creator, give every time as minutes and seconds, like 0:12 or 1:05, never as seconds with decimals.'];
   if (context.playhead !== undefined) lines.push(`Playhead: ${clock(context.playhead)} (${context.playhead.toFixed(2)} s)`);
   const known = new Set(p.clips.map((clip) => clip.id));
   const selected = (context.selection ?? []).filter((clipId) => known.has(clipId));
@@ -174,6 +214,9 @@ export function timelineText(p: Project, context: CompanionContext, options: Edi
     // Speech-to-text hears words in silence and noise: say where, so nothing is pinned to words nobody said.
     const unheard = measured ? quietWords(p, options.silences!.ranges) : [];
     if (unheard.length) lines.push(`The audio is quiet where the transcript has these words, so they were likely not said: ${unheard.map((w) => `${clock(w.start)} "${w.text}"`).join(', ')}.`);
+    // A graphic pinned inside a pause is pinned to nothing said, and a cut of pauses takes its time away.
+    const gaps = measured ? wordPauseRanges(p, 'gentle', options).filter(([a, b]) => b - a >= 3) : [];
+    if (gaps.length) lines.push(`Quiet stretches a cut of pauses takes out (put no graphic in them): ${gaps.slice(0, 20).map(([a, b]) => `${clock(a)} to ${clock(b)}`).join(', ')}.`);
   }
   const scenes = p.scenes.filter((scene) => scene.duration > 0);
   if (scenes.length) lines.push('Scenes on the timeline:', ...scenes.map((scene, index) => `${index + 1}. ${scene.name}: ${scene.start.toFixed(2)} s to ${(scene.start + scene.duration).toFixed(2)} s`));

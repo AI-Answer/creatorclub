@@ -35,7 +35,6 @@
 .club-root .src-ic { width:22px; height:22px; display:flex; align-items:center; justify-content:center; background:var(--cc-surface); border:1px solid var(--cc-line); box-shadow:var(--cc-shadow-1); }
 .club-root .src-x,
 .club-root .src-reddit { background:var(--cc-surface); }
-.club-root .fchip { display:inline-flex; align-items:center; gap:7px; }
 .club-root .welcome-header { min-height:68px; border-bottom:1px solid var(--cc-line); }
 .club-root .welcome-header > b { font-size:var(--cc-text-base,14px); }
 .club-root .welcome-brand { width:30px; height:30px; display:inline-flex; flex:none; }
@@ -193,7 +192,6 @@
 .club-root .calendar-unscheduled-chip:hover .calendar-chip-icon, .club-root .calendar-unscheduled-chip:focus-visible .calendar-chip-icon { opacity: 1; }
 .club-root .palette .po .po-stage { display: inline-flex; flex: none; align-items: center; gap: 6px; }
 .club-root .po-stage .col-dot { width: 6px; height: 6px; }
-.club-root .lane-published-empty p { padding: 0; white-space: nowrap; text-align: center; }
 .club-root .research-recovery .research-error-copy { margin: 0; color: var(--cc-text); font-size: var(--cc-text-base); }
 .club-root .postiz-advanced { margin-top: 10px; font-size: var(--cc-text-xs); color: var(--cc-text-2); }
 .club-root .postiz-advanced > summary { width: fit-content; cursor: pointer; }

@@ -19,7 +19,6 @@ import {buildDescription} from './record-logic';
 import {recordedCount} from '../scene-status';
 import {ThumbnailStudio} from '../idea/ThumbnailStudio';
 
-export const PUBLISH_LINE='Upload your exported video to YouTube, then add its link here.';
 const AUTOMATIC_PUBLISH_LINE='Send your video to YouTube now, or schedule it for later.';
 /** What the server keeps of a description. */
 export const DESCRIPTION_MAX=5000;
@@ -165,32 +164,30 @@ export function Publish({video,pkg,scenes,onVideo,onDescription,onTags,onGoTo,on
     :record?.unconfirmed?<SelfUpload video={video} onVideo={onVideo}/>:null}
   </ResultCard></div>{summary}</div></div>;
 
- const exportLine=file===undefined?<span className="row small muted" role="status"><Spinner label="Looking for the exported video"/>Looking for the exported video…</span>:file
-  ?<div className="row ws-export-file"><span className="club-export-done"><Icon name="check" size={15}/>Exported</span><ExportName name={exportFileName(file)} fallback={video.title}/>
-   {stale&&<Button size="sm" onClick={()=>onGoTo('edit')}>Export in Edit</Button>}
-   {!stale&&file.outputPath&&window.sceneForge?.reveal&&<button type="button" className="linkish" onClick={()=>void window.sceneForge!.reveal(file.outputPath!).catch(()=>{})}>Show in Finder</button>}</div>
-  :<span className="small muted">No exported video yet. <button type="button" className="linkish" onClick={()=>onGoTo('edit')}>Export it in Edit</button></span>;
- const connected=Boolean(publishing.state?.postiz.connected),channelName=publishing.state?.postiz.channel?.name;
- const detailsDone=Boolean(title.trim()&&kids);
+ const exportEdit=<button type="button" className="linkish" onClick={()=>onGoTo('edit')}>Export it in Edit</button>;
+ const exportLine=file===undefined?<p className="pub-line" role="status"><Spinner label="Looking for the exported video"/>Looking for the exported video…</p>
+  :file&&!stale?<p className="pub-line"><span className="club-export-done"><Icon name="check" size={15}/>Exported</span> · <ExportName name={exportFileName(file)} fallback={video.title}/>
+   {file.outputPath&&window.sceneForge?.reveal&&<> <Menu label="More export options" restoreFocus align="right" items={[{label:'Show in Finder',fn:()=>void window.sceneForge!.reveal(file.outputPath!).catch(()=>{})}]}
+    button={(toggle,open)=><button type="button" className="linkish" aria-label="More export options" aria-haspopup="menu" aria-expanded={open} onClick={toggle}>⋯</button>}/></>}</p>
+  :<p className="pub-line">{stale?'Edited since the last export':'No exported video yet'} · {exportEdit}</p>;
 
  return <div className="pubx ws-publish">{head}{footerAction}
-  <div className="pubx-grid"><div className="pub-steps">
-   <PubStep n={1} title="Export the video" done={exported}
-    line={exported?'The latest edit is exported. This file is what goes to YouTube.':stale?'You edited it after the last export, so export it again.':'The exported file is what goes to YouTube.'}>
-    <div className="pubx-export">{exportLine}</div>
-    {unrecorded&&<p className="small pubx-warn" role="status">{unrecorded}</p>}
+  <div className="pubx-grid"><div className="pub-sections">
+   <PubStep title="Export the video">
+    {exportLine}
+    {unrecorded&&<p className="pub-line pub-note" role="status">{unrecorded}</p>}
    </PubStep>
-   <PubStep n={2} title="Check the details" done={detailsDone} line="Write and check the details viewers see on YouTube.">
+   <PubStep title="Check the details">
     <div className="pubx-form">
      <div className="full"><label className="field" htmlFor="pub-title">Title</label><Input id="pub-title" maxLength={TITLE_MAX} value={title} onChange={event=>setTitle(event.target.value)}/></div>
      <div className="full"><label className="field" htmlFor="pub-desc">Description</label><Textarea id="pub-desc" rows={5} maxLength={DESCRIPTION_MAX} placeholder="What the viewer gets, then chapters." value={description}
       onChange={event=>setEdited(event.target.value)} onBlur={()=>{if(edited!==undefined&&edited!==pkg?.description)onDescription(edited);}}/>
       {saveError&&<ErrorLine message="Couldn't save the description." onRetry={onRetry}/>}</div>
      <div className="full"><label className="field" htmlFor="pub-tags">Tags</label><TagsField tags={tags} onChange={onTags}/></div>
-     <div className="full"><div className="field">Thumbnail</div><div className="small muted">{thumbnail?'Your own image. ':pkg?.thumbnailText?.trim()?'Your thumbnail text is only a preview: YouTube picks a frame unless you add one. ':'YouTube picks a frame unless you add one. '}
+     <div className="full"><div className="field">Thumbnail</div><p className="pub-line">{thumbnail?'Your own image.':'YouTube picks a frame unless you add one.'}{' '}
       <label className="linkish" style={{cursor:'pointer'}}>{thumbnail?'Use another image':'Upload an image'}<input type="file" className="sr-only" accept="image/png,image/jpeg" onChange={event=>{void pick(event.target.files?.[0]);event.target.value='';}}/></label>
-      {thumbnail&&<> <button type="button" className="linkish" onClick={dropThumbnail}>Remove image</button></>}
-      {' '}<button type="button" className="linkish" aria-expanded={making} onClick={()=>setMaking(open=>!open)}>{making?'Close':'Make one with AI'}</button></div>
+      {thumbnail&&<> · <button type="button" className="linkish" onClick={dropThumbnail}>Remove</button></>}
+      {' · '}<button type="button" className="linkish" aria-expanded={making} onClick={()=>setMaking(open=>!open)}>{making?'Close':'Make one with AI'}</button></p>
       {thumbError&&<p role="alert" className="small pz-err">{thumbError}</p>}
       {/* Optional: the thumbnail is the last thing to decide, so making one lives here rather than in Idea. */}
       {making&&<ThumbnailStudio video={video} thumbnailText={pkg?.thumbnailText??''} onChosen={()=>setThumbnail(`/api/club/videos/${encodeURIComponent(video.id)}/thumbnail?v=${Date.now()}`)}/>}</div>
@@ -201,30 +198,26 @@ export function Publish({video,pkg,scenes,onVideo,onDescription,onTags,onGoTo,on
       {tried&&!kids&&<p role="alert" className="small pz-err">Choose one, because YouTube won't accept the video without it.</p>}</div>
     </div>
    </PubStep>
-   <PubStep n={3} title="Upload to YouTube" done={false}
-    line={postizReady?`Uploads to ${channelName??'your channel'} on YouTube, now or at the time you pick.`:PUBLISH_LINE}>
-    {!postizReady&&<p className="small muted ws-paste-note" role="status">{copyStatus||'These details are saved here for you to paste into YouTube.'}</p>}
-    <div ref={uploadSection} className="ws-manual-upload"><SelfUpload video={video} onVideo={onVideo} open={selfUpload} onOpen={()=>setSelfUpload(true)} formId={linkFormId} onSubmitReady={setLinkReady}/></div>
-    {publishing.error?<ErrorLine message={publishing.error} onRetry={publishing.reload}/>:!publishing.state?<span className="row small muted" role="status"><Spinner label="Loading publishing settings"/>Loading publishing settings…</span>
-     :!postizReady?<div className="ws-publish-setup"><button type="button" className="linkish ws-automatic-link" onClick={onSettings}>Or publish automatically</button><details><summary>How automatic publishing works</summary><p className="small muted">Connect Postiz and choose your YouTube channel in Settings to publish or schedule from here.</p></details></div>
-     :<>
+   <PubStep title="Upload to YouTube">
+    <div ref={uploadSection} className="ws-manual-upload"><SelfUpload video={video} onVideo={onVideo} open={selfUpload} onOpen={()=>setSelfUpload(true)} formId={linkFormId} onSubmitReady={setLinkReady}
+     note={postizReady?undefined:copyStatus||'These details are saved here for you to paste into YouTube.'}/></div>
+    {publishing.error?<ErrorLine message={publishing.error} onRetry={publishing.reload}/>:!publishing.state?<p className="pub-line" role="status"><Spinner label="Loading publishing settings"/>Loading publishing settings…</p>
+     :postizReady?<>
       <div className="pub-when">
        <div><label className="field" htmlFor="pub-when">When</label><select id="pub-when" className="select" value={when} onChange={event=>setWhen(event.target.value as 'now'|'schedule')}><option value="now">Publish now</option><option value="schedule">Schedule for later</option></select></div>
        {when==='schedule'&&<div><label className="field" htmlFor="pub-at">Date and time</label><Input id="pub-at" type="datetime-local" value={at} aria-invalid={schedule&&'message' in schedule?true:undefined} onChange={event=>setAt(event.target.value)}/></div>}
       </div>
       <button type="button" className="linkish quiet small" onClick={onSettings}>Change in Settings</button>
-     </>}
+     </>
+     :<details className="pub-auto"><summary>How automatic publishing works</summary><p className="pub-line">Connect Postiz and choose your YouTube channel in Settings to publish or schedule from here. <button type="button" className="linkish" onClick={onSettings}>Open Settings</button></p></details>}
    </PubStep>
   </div>{summary}</div>
  </div>;
 }
 
-/** One numbered step of Publish: its number (a tick once done), what it is, one line on where it stands, then its controls. */
-function PubStep({n,title,line,done,children}:{n:number;title:string;line?:string;done:boolean;children:ReactNode}){
- return <section className={`pub-step${done?' done':''}`} aria-label={title}>
-  <header><span className="pub-step-n" aria-hidden>{done?<Icon name="check" size={13} stroke={1.75}/>:n}</span><div><h3>{title}</h3>{line&&<p>{line}</p>}</div></header>
-  <div className="pub-step-body">{children}</div>
- </section>;
+/** One section of Publish: a small heading over its controls. */
+function PubStep({title,children}:{title:string;children:ReactNode}){
+ return <section className="pub-section" aria-label={title}><h3>{title}</h3><div className="pub-section-body">{children}</div></section>;
 }
 
 /** Retain the useful filename and extension while hiding the export job's machine suffix. */

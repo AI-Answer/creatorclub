@@ -1,9 +1,10 @@
 import {useSyncExternalStore} from 'react';
 
-export type IdeaView='page'|'board';
+/** Sketch (the one-page plan), Script (the scenes) or the Board. A video opens on the sketch until it has scenes. */
+export type IdeaView='sketch'|'page'|'board';
 const KEY='cc.idea.view',CHANGE='cc:idea-view';
-let fallback:IdeaView='page';
-const read=():IdeaView=>{try{return localStorage.getItem(KEY)==='board'?'board':'page';}catch{return fallback;}};
+let fallback:IdeaView='sketch';
+const read=():IdeaView=>{try{const saved=localStorage.getItem(KEY);return saved==='board'||saved==='page'||saved==='sketch'?saved:'sketch';}catch{return fallback;}};
 const subscribe=(onChange:()=>void)=>{
  window.addEventListener(CHANGE,onChange);window.addEventListener('storage',onChange);
  return()=>{window.removeEventListener(CHANGE,onChange);window.removeEventListener('storage',onChange);};
@@ -14,7 +15,7 @@ function choose(view:IdeaView){
  window.dispatchEvent(new Event(CHANGE));
 }
 /** The Idea page and its companion read the same view without changing the workspace frame. */
-export function useIdeaView(){return [useSyncExternalStore(subscribe,read,()=> 'page' as const),choose] as const;}
+export function useIdeaView(){return [useSyncExternalStore(subscribe,read,()=> 'sketch' as const),choose] as const;}
 
 const SECTION_CHANGE='cc:idea-section';
 let section:string|null=null;

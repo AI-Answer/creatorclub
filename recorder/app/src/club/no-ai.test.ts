@@ -63,7 +63,7 @@ test('no AI: finish fresh setup without signing in or starting voice and discove
 function Handmade(){
  const plan=usePlan(video,{onVideo(){},onRecord(){}});
  const [focusId,setFocusId]=useState<string|null>(null);
- return createElement('div',null,createElement(IdeaPage,{video,plan,known:[],focusId,boardKey:0,navigate(){},onBoardChanged(){},onFocus:setFocusId,onTitle(){},onTarget(){},onRecordScene(){},onVideo(){}}),createElement('button',{disabled:!plan.continueAction||plan.continueAction.disabled,onClick:()=>plan.continueAction?.run()},'Start planned recording'));
+ return createElement('div',null,createElement(IdeaPage,{video,plan,known:[],focusId,boardKey:0,navigate(){},onFocus:setFocusId,onTitle(){},onTarget(){},onRecordScene(){},onVideo(){}}),createElement('button',{disabled:!plan.continueAction||plan.continueAction.disabled,onClick:()=>plan.continueAction?.run()},'Start planned recording'));
 }
 test('no AI: type the first scene, rename it, then start planned recording, and delete it from its menu',async()=>{
  rememberAiStatus(off);FakeEventSource.install();let outline:Outline|null=null;
@@ -80,6 +80,9 @@ test('no AI: type the first scene, rename it, then start planned recording, and 
  const edit=async(label:string,text:string)=>{const el=ui.container.querySelector<HTMLElement>(`[role="textbox"][aria-label="${label}"]`)!;assert.ok(el);await act(async()=>{el.innerText=text;el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('focusout',{bubbles:true}));});await flush();};
  try{
   await flush();const c=ui.container;
+  // With no AI the sketch still opens, to fill in by hand; Suggest waits for an AI.
+  assert.equal(button(c,'Suggest a sketch').disabled,true);
+  await act(async()=>button(c,'Script').click());await flush();
   // Borumi's empty Script step: start typing. Writing the scenes with an AI waits for one to be connected.
   assert.equal(button(c,'Write the scenes with Claude').disabled,true);
   assert.equal(button(c,'Write the scenes with Claude').title,'Connect an AI in Settings');
@@ -139,7 +142,9 @@ test('no AI: Companion preserves history and applied Undo, and its rail can reop
   assert.match(c.textContent??'',/Connect an AI in Settings/);
   assert.equal(c.querySelector<HTMLTextAreaElement>('textarea')!.disabled,true);
   assert.equal(c.querySelector<HTMLButtonElement>('[aria-label="Send (Enter)"]')!.disabled,true);
-  await click(c,'Applied 1');await click(c,'Undo');
+  assert.equal(c.querySelector('.cmp-applied-btn'),null,'no separate Applied history: the reply says what it changed');
+  assert.match(c.querySelector('.cmp-changed-line')?.textContent??'',/Title changed/);
+  await act(async()=>c.querySelector<HTMLButtonElement>('.cmp-changed-undo')!.click());await flush();
   assert.ok(fake.calls.some(call=>call.path.endsWith('/undo')&&call.method==='POST'));
   assert.ok(fake.calls.filter(call=>call.method==='POST').every(call=>call.path.endsWith('/undo')));
   await act(async()=>c.querySelector<HTMLButtonElement>('[aria-label="Hide Ask Claude"]')!.click());await flush();

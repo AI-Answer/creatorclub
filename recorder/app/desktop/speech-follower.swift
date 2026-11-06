@@ -131,11 +131,21 @@ final class Follower: NSObject, AVCaptureAudioDataOutputSampleBufferDelegate {
         }
     }
 
+    /// A recognition that ended starts again. Apple's recognizer ends a request on its own often: after about a minute, after a pause
+    /// ("No speech detected"), or on a passing error. None of these stop the take being followed: the next request starts at once, or after
+    /// a short wait (1 s, then up to 5 s) when they come quickly one after another. Only a lost permission ends following.
     private func again(after error: Error?) {
+        if SFSpeechRecognizer.authorizationStatus() != .authorized { return fail("Speech Recognition permission was turned off, so Voice follow stopped.") }
         let now = Date()
         restarts = restarts.filter { now.timeIntervalSince($0) < 10 } + [now]
-        if restarts.count > 8 { return fail("Speech recognition stopped: \(error?.localizedDescription ?? "it ended repeatedly").") }
-        begin()
+        let wait = restarts.count > 4 ? min(5.0, Double(restarts.count - 4)) : 0
+        let current = generation
+        if wait == 0 { return begin() }
+        lock.lock(); request?.endAudio(); request = nil; lock.unlock()
+        DispatchQueue.main.asyncAfter(deadline: .now() + wait) { [weak self] in
+            guard let self, self.capture != nil, current == self.generation else { return }
+            self.begin()
+        }
     }
 
     func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
@@ -143,7 +153,7 @@ final class Follower: NSObject, AVCaptureAudioDataOutputSampleBufferDelegate {
         let current = request, age = Date().timeIntervalSince(requestStarted)
         lock.unlock()
         current?.appendAudioSampleBuffer(sampleBuffer)
-        if age > 50 { DispatchQueue.main.async { if self.request === current { self.begin() } } }
+        if let current, age > 50 { DispatchQueue.main.async { if self.request === current { self.begin() } } }
     }
 
     func stop(report: Bool = true) {

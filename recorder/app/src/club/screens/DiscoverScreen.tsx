@@ -1,4 +1,3 @@
-import {BrandLogo} from '../../BrandLogo';
 import {useCallback,useEffect,useMemo,useRef,useState} from 'react';
 import type {SignalEntry,TrendingEntry} from '../../../shared/club';
 import {clubFetch,errorMessage} from '../api';
@@ -7,13 +6,12 @@ import {PostRow,VideoRow} from '../cards/FeedRow';
 import {DISCOVER_SOURCES,DISCOVER_VIEWS,discoverCounts,discoverFeed,feedKey,latestRead,sameFeed,sortFor,sortsFor,sourceList,viewOf,type DiscoverSort} from '../discover';
 import {ErrorLine} from '../ErrorLine';
 import {topicLabel} from '../format';
-import {openIdeas} from '../ideas';
 import {RefreshActions} from '../RefreshActions';
 import type {DiscoverShow,Route} from '../routes';
 import {withEntry} from '../settings';
 import {SubredditChips} from '../settings/SubredditChips';
 import {isNew} from '../trending-view';
-import {Empty,Icon,Select,Spinner,useToast} from '../ui';
+import {Empty,Icon,Menu,Spinner,useToast,type MenuItem} from '../ui';
 import {savedBreakdown,useBreakdowns} from '../useBreakdowns';
 import {useSignals,useTrending} from '../useFeed';
 import {ideaFromSource,trendingUrl,useIdeaFrom} from '../useIdeaFrom';
@@ -41,10 +39,11 @@ type Waiting={left:Set<'videos'|'posts'>;videos:number;posts:number;news:boolean
 
 /**
  * Discover: everything from outside in one ranked feed. Videos doing better than their creator's usual on YouTube and posts on X and Reddit,
- * matched to your topics. A view switch (For you, Followed), source chips under For you (YouTube, X, Reddit), one sort, one Refresh that reads both again.
+ * matched to your topics. A view switch (For you, Followed), one Filter menu (sources under For you, and the sort), one Refresh that reads both again.
  * While a refresh runs the rows stay where they are; when it is done and the order changed, "New results" puts the new order in.
  * A source that could not be read keeps its earlier posts and is named with Try again, which reads just those sources.
- * Every card has one action, Turn into idea (it flips to In ideas at once; Add to Research shows under the pointer); a video's row opens its breakdown. Your ideas are on Videos; here is only their count.
+ * Every card has one visible action, Turn into idea (it flips to In ideas at once); the card's "⋯" holds the rest. A video's row opens its breakdown.
+ * The sources and the sort sit in one Filter menu; ideas live on the Video board.
  */
 export function DiscoverScreen({show='fit',navigate}:{show?:DiscoverShow;navigate(route:Route,options?:{replace?:boolean}):void}){
  const trending=useTrending(),signals=useSignals();
@@ -121,15 +120,15 @@ export function DiscoverScreen({show='fit',navigate}:{show?:DiscoverShow;navigat
   finally{setAdding(false);}
  };
 
- const loading=(trending.data===null&&trending.loadError===null)||(signals.data===null&&signals.loadError===null);
- if(loading)return <div className="page"><ScreenHeader title="Research" description="What's working on YouTube, X and Reddit, ranked for your topics."/><div className="row small muted" role="status"><Spinner label="Loading what's working" size={20}/>Loading videos and posts for your topics…</div></div>;
- const failedWithoutContent=!live.videos.length&&!live.posts.length&&(trending.loadError||signals.loadError||trending.job.phase==='failed'||signals.job.phase==='failed'||failedChannels.length>0||(signals.data?.errors.length??0)>0);
- if(failedWithoutContent)return <div className="page"><ScreenHeader title="Research" description="What's working on YouTube, X and Reddit, ranked for your topics."/><div className="research-recovery" role="alert"><span className="research-error-icon"><Icon name="offline" size={20}/></span><p className="research-error-copy">Couldn't get your research. Try again in a moment.</p><button type="button" className="btn primary" onClick={()=>{void trending.reload();void signals.reload();if(!trending.loadError&&!signals.loadError)refresh();}}>Try again</button></div></div>;
-
- const followed=trending.data?.followed??0,sources=signals.data?.sources??0,sourcesBy=signals.data?.sourcesBy??{x:0,reddit:0};
- const ideas=openIdeas(videos).length;
  // The topics the channel picked; the audience is who it is for, not a topic.
  const topics=(profile?.topics??[]).map(topicLabel);
+ const description=topics.length?`What's working on YouTube, X and Reddit, ranked for ${sourceList(topics)}.`:"What's working on YouTube, X and Reddit, ranked for your topics.";
+ const loading=(trending.data===null&&trending.loadError===null)||(signals.data===null&&signals.loadError===null);
+ if(loading)return <div className="page"><ScreenHeader title="Research" description={description}/><div className="row small muted" role="status"><Spinner label="Loading what's working" size={20}/>Loading videos and posts for your topics…</div></div>;
+ const failedWithoutContent=!live.videos.length&&!live.posts.length&&(trending.loadError||signals.loadError||trending.job.phase==='failed'||signals.job.phase==='failed'||failedChannels.length>0||(signals.data?.errors.length??0)>0);
+ if(failedWithoutContent)return <div className="page"><ScreenHeader title="Research" description={description}/><div className="research-recovery" role="alert"><span className="research-error-icon"><Icon name="offline" size={20}/></span><p className="research-error-copy">Couldn't get your research. Try again in a moment.</p><button type="button" className="btn primary" onClick={()=>{void trending.reload();void signals.reload();if(!trending.loadError&&!signals.loadError)refresh();}}>Try again</button></div></div>;
+
+ const followed=trending.data?.followed??0,sources=signals.data?.sources??0,sourcesBy=signals.data?.sourcesBy??{x:0,reddit:0};
  const job=bothJobs(trending.job,signals.job),running=job.phase==='running';
  const updatedAt=latestRead(trending.data?.updatedAt,signals.data?.updatedAt);
  const summary=[trending.data&&plural(trending.data.items.length,'video'),signals.data&&plural(signals.data.items.length,'post')].filter(Boolean).join(' · ');
@@ -140,9 +139,22 @@ export function DiscoverScreen({show='fit',navigate}:{show?:DiscoverShow;navigat
  const refreshButton=(label='Refresh')=>running?undefined:<button type="button" className="btn primary" onClick={refresh}><Icon name="retry" size={15}/>{label}</button>;
  const postErrors=signals.data?.errors??[];
  const view=viewOf(show);
+ // Sources with nothing to show are left out of the menu, except the one that is chosen.
+ const sourceChoices=DISCOVER_SOURCES.filter(([key])=>key==='fit'||counts[key]>0||show===key);
+ const sortChoices=sortsFor(show);
+ const defaultSort=sortChoices[0][0];
+ const sourceName=DISCOVER_SOURCES.find(([key])=>key===show)?.[1];
+ const sortName=sort===defaultSort?null:sortChoices.find(([key])=>key===sort)?.[1];
+ const chosen=[view==='fit'&&show!=='fit'?sourceName:null,sortName].filter(Boolean).join(', ');
+ const filterLabel=chosen?`Filter · ${chosen}`:'Filter';
+ const filterItems:MenuItem[]=[
+  ...(view==='fit'?[{header:'Source'},...sourceChoices.map(([key,label]):MenuItem=>({label:`${label} ${counts[key]}`,check:show===key,fn:()=>choose(key)})),'-' as const]:[]),
+  {header:'Sort by'},
+  ...sortChoices.map(([value,label]):MenuItem=>({label,check:sort===value,fn:()=>{if(!running&&held)showNew();setSort(value as DiscoverSort);}})),
+ ];
 
  return <div className="page">
-  <ScreenHeader title="Research" description="What's working on YouTube, X and Reddit, ranked for your topics." actions={<RefreshActions updatedAt={updatedAt} summary={summary} job={job} onRefresh={refresh}/>}/>
+  <ScreenHeader title="Research" description={description} actions={<RefreshActions updatedAt={updatedAt} summary={summary} job={job} onRefresh={refresh}/>}/>
   {trending.loadError&&!trending.data&&<div style={{marginBottom:14}}><ErrorLine fallback="Couldn't load Research." message={trending.loadError} onRetry={()=>void trending.reload()}/></div>}
   {signals.loadError&&!signals.data&&<div style={{marginBottom:14}}><ErrorLine fallback="Couldn't load Research." message={signals.loadError} onRetry={()=>void signals.reload()}/></div>}
   {trending.job.phase==='failed'&&<div style={{marginBottom:14}}><ErrorLine fallback="Couldn't load Research." message={trending.job.message} onRetry={retryVideos}/></div>}
@@ -151,18 +163,11 @@ export function DiscoverScreen({show='fit',navigate}:{show?:DiscoverShow;navigat
   {!running&&postErrors.length>0&&signals.job.phase!=='failed'&&<div style={{marginBottom:14}}><ErrorLine fallback="Couldn't load Research." message={`Couldn't read ${sourceList(postErrors)}, so their earlier posts stay.`} onRetry={()=>retryPosts(postErrors)}/></div>}
   {note&&<div className="small muted" style={{marginBottom:14}}>{note}</div>}
 
-  <div className="disc-views">
-   <div className="seg" role="group" aria-label="View">{DISCOVER_VIEWS.map(([key,label])=><button key={key} type="button" className={view===key?'on':''} aria-pressed={view===key} onClick={()=>choose(key)}>{label} <span className="n">{counts[key]}</span></button>)}</div>
-   <span className="grow"/>
-   <button type="button" className="linkish ideas-shelf" onClick={()=>navigate({name:'videos',view:'board'})} title="Your ideas are the first lane of Video board"><Icon name="idea" size={14}/>Your ideas <b className="tnum">{ideas}</b></button>
-  </div>
   <div className="row disc-bar">
-   {view==='fit'&&<div className="disc-sources" role="group" aria-label="Source">{DISCOVER_SOURCES.map(([key,label])=><button key={key} type="button" className={`fchip${show===key?' on':''}`} aria-pressed={show===key} onClick={()=>choose(key)}>{(key==='youtube'||key==='x'||key==='reddit')&&<BrandLogo brand={key} size={15}/>}{label} <span className="n">{counts[key]}</span></button>)}</div>}
+   <div className="disc-views"><div className="seg" role="group" aria-label="View">{DISCOVER_VIEWS.map(([key,label])=><button key={key} type="button" className={view===key?'on':''} aria-pressed={view===key} onClick={()=>choose(key)}>{label} <span className="n">{counts[key]}</span></button>)}</div></div>
    <span className="grow"/>
-   <label className="small muted" htmlFor="discover-sort">Sort by</label>
-   <Select id="discover-sort" label="Sort by" value={sort} options={sortsFor(show).map(([value,label])=>({value,label}))} onChange={value=>{if(!running&&held)showNew();setSort(value as DiscoverSort);}}/>
+   <Menu label="Filter" align="right" restoreFocus items={filterItems} button={(toggle,open)=><button type="button" className="btn ghost sm" aria-haspopup="menu" aria-expanded={open} onClick={toggle}>{filterLabel}<Icon name="expand" size={14}/></button>}/>
   </div>
-  {topics.length>0&&(show==='fit'||show==='youtube')&&<div className="small muted disc-note">Matched to your topics: {topics.join(', ')}.</div>}
   {newResults&&<div className="disc-new"><button type="button" className="btn sm" onClick={showNew}><Icon name="retry" size={14}/>New results</button><span className="small muted">The list was read again. Show it in its new order.</span></div>}
 
   {shown.length

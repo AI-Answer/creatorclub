@@ -1,0 +1,134 @@
+/* The sketch's thumbnail: on the sketch only the picture and its idea; the studio (a dialog) holds everything that makes it. */
+
+/* On the sketch: the picture (or an empty frame with one action), then its words and idea. A click opens the studio. */
+.club-root .st-pic { position: relative; display: flex; align-items: center; justify-content: center; width: 100%; aspect-ratio: 16 / 9; padding: 0; border: 1px dashed var(--br-border); border-radius: var(--cc-r-xl); background: var(--br-neutral-100); overflow: hidden; cursor: pointer; transition: box-shadow .15s; }
+.club-root .st-pic.has-picture { border: 0; background: none; }
+.club-root .st-pic img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.club-root .st-pic:hover { box-shadow: 0 0 0 2px var(--br-border); }
+.club-root .st-pic.is-fresh { animation: st-landed 2.6s ease-out; }
+.club-root .st-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; color: var(--br-muted); font-size: var(--cc-text-sm); }
+.club-root .st-empty-a { padding: 5px 12px; border: 1px solid var(--br-border); border-radius: var(--cc-r-pill); background: var(--br-bg); color: var(--br-fg); font-size: var(--cc-text-sm); font-weight: var(--cc-weight-medium); }
+.club-root .st-pic:hover .st-empty-a { background: var(--br-neutral-100); }
+.club-root .st-idea { display: flex; flex-direction: column; gap: 2px; width: 100%; margin-top: 10px; padding: 0; border: 0; background: none; text-align: left; font: inherit; color: var(--br-fg); cursor: pointer; }
+.club-root .st-words { font-size: var(--cc-text-base); line-height: 22px; font-weight: var(--cc-weight-semibold); }
+.club-root .st-visual { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; font-size: var(--cc-text-sm); line-height: 20px; color: var(--br-muted); }
+@keyframes st-landed { 0%, 30% { box-shadow: 0 0 0 3px var(--cc-ok-soft); } 100% { box-shadow: 0 0 0 0 transparent; } }
+
+/* The studio. Left: the picture, its idea, Make it. Right: what it is made from. Under both: three ideas to compare. */
+/* One fixed size, whatever is picked or drawn: only the gallery and the body scroll inside it. */
+.club-root .dialog.st-dialog { display: flex; flex-direction: column; height: min(860px, calc(100vh - 48px)); }
+.club-root .dialog.st-dialog > .db { flex: 1; min-height: 0; overflow-y: auto; }
+.club-root .st-studio { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 24px; }
+@media (max-width: 900px) { .club-root .st-studio { grid-template-columns: minmax(0, 1fr); } }
+.club-root .st-main { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.club-root .st-big { position: relative; display: flex; align-items: center; justify-content: center; width: 100%; aspect-ratio: 16 / 9; border: 1px dashed var(--br-border); border-radius: var(--cc-r-xl); background: var(--br-neutral-100); overflow: hidden; }
+.club-root .st-big.has-picture { border: 0; }
+.club-root .st-big img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.club-root .st-big.is-making img { opacity: .35; }
+.club-root .st-big.is-making .st-empty { position: absolute; inset: 0; color: var(--br-fg); }
+.club-root .st-main .bs-text, .club-root .st-main .sk-clamp { margin: 0; padding: 0; width: 100%; border: 0; background: transparent; box-shadow: none; outline: none; color: var(--br-fg); font: inherit; }
+.club-root .st-main .sk-clamp { display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden; cursor: text; white-space: pre-wrap; }
+.club-root .st-main .bs-text::placeholder { color: color-mix(in srgb, currentColor 35%, transparent); }
+.club-root .st-main .bs-text.st-field-words { margin-top: 6px; font-size: var(--cc-text-lg); line-height: 24px; font-weight: var(--cc-weight-semibold); }
+.club-root .st-main :is(.bs-text, .sk-clamp).st-field-visual { font-size: var(--cc-text-sm); line-height: 20px; color: var(--br-muted); }
+.club-root .st-make { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+
+.club-root .st-side { position: relative; display: flex; flex-direction: column; gap: 12px; min-width: 0; height: 640px; }
+.club-root .st-count { margin-left: 6px; font-weight: var(--cc-weight-regular); }
+.club-root .st-overlay { position: absolute; inset: 0; z-index: 2; background: var(--br-bg); }
+.club-root .st-h { font-size: var(--cc-text-xs); line-height: 16px; font-weight: var(--cc-weight-semibold); letter-spacing: .02em; color: var(--br-muted); }
+.club-root .st-hint { margin: 0; font-size: var(--cc-text-xs); line-height: 17px; color: var(--br-muted); }
+
+/* Made from: your face first, then the references you picked, each with a way out. */
+.club-root .st-tray { display: flex; flex-direction: column; gap: 6px; }
+.club-root .st-chip { display: grid; grid-template-columns: 64px minmax(0, 1fr) auto; align-items: center; gap: 10px; height: 46px; box-sizing: border-box; padding: 4px; border: 1px solid var(--br-border); border-radius: var(--cc-r-md); background: var(--br-bg); }
+.club-root .st-chip.is-picked, .club-root .st-chip.is-slot { grid-template-columns: 18px 64px minmax(0, 1fr) auto; }
+.club-root .st-chip.is-picked { border-color: var(--cc-accent); }
+.club-root .st-chip.is-slot { border-style: dashed; background: none; }
+.club-root .st-chip.is-slot .st-chip-t { color: var(--br-muted); font-size: var(--cc-text-xs); }
+.club-root .st-slot-n { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: var(--cc-r-pill); background: var(--br-neutral-100); color: var(--br-muted); font-size: var(--cc-text-2xs); font-weight: var(--cc-weight-semibold); }
+.club-root .st-chip.is-picked .st-slot-n { background: var(--cc-accent); color: var(--cc-accent-ink); }
+.club-root .st-slot-pic { width: 64px; height: 36px; border-radius: var(--cc-r-sm); background: var(--br-neutral-100); }
+.club-root .st-chip img { width: 64px; height: 36px; object-fit: cover; border-radius: var(--cc-r-sm); display: block; }
+.club-root .st-chip.is-face { grid-template-columns: 36px minmax(0, 1fr); }
+.club-root .st-chip.is-face img { width: 36px; height: 36px; border-radius: var(--cc-r-pill); }
+.club-root .st-chip.is-add { border-style: dashed; color: var(--br-muted); font: inherit; cursor: pointer; text-align: left; }
+.club-root .st-chip.is-add > svg { justify-self: center; }
+.club-root .st-chip.is-add:hover { color: var(--br-fg); }
+.club-root .st-chip-t { display: flex; align-items: center; gap: 8px; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: var(--cc-text-sm); color: var(--br-fg); }
+.club-root .st-chip-link { display: inline-flex; align-items: center; gap: 4px; padding: 0; border: 0; background: none; color: var(--br-muted); font: inherit; font-size: var(--cc-text-xs); cursor: pointer; }
+.club-root .st-chip-link:hover { color: var(--br-fg); text-decoration: underline; }
+
+.club-root .st-link { display: flex; gap: 6px; }
+.club-root .st-link .input { flex: 1; min-width: 0; }
+.club-root .st-tabs { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+
+/* The gallery to pick from: thumbnails from your niche or your Board, at feed size, with their title and how they did. */
+.club-root .st-gallery { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: max-content; gap: 12px; overflow-y: auto; padding: 3px 4px 3px 3px; }
+.club-root .st-gallery > .st-hint { grid-column: 1 / -1; }
+.club-root .st-card { display: flex; flex-direction: column; gap: 4px; padding: 0; border: 0; background: none; text-align: left; font: inherit; color: var(--br-fg); cursor: pointer; }
+.club-root .st-card-pic { position: relative; display: block; width: 100%; aspect-ratio: 16 / 9; border-radius: var(--cc-r-md); overflow: hidden; background: var(--br-neutral-100); box-shadow: 0 0 0 1px var(--br-border); transition: box-shadow .12s; }
+.club-root .st-card-pic img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.club-root .st-card:hover .st-card-pic { box-shadow: 0 0 0 2px var(--br-muted); }
+/* A picked one is unmistakable: an accent ring, its place number, "In use", and it never moves or changes size. */
+.club-root .st-card.is-on .st-card-pic, .club-root .st-card.is-on:hover .st-card-pic { box-shadow: 0 0 0 3px var(--cc-accent); }
+.club-root .st-card.is-on .st-card-m b { color: var(--cc-accent-text); font-weight: var(--cc-weight-semibold); }
+.club-root .st-card-on { position: absolute; right: 6px; top: 6px; display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: var(--cc-r-pill); background: var(--cc-accent); color: var(--cc-accent-ink); font-size: var(--cc-text-xs); font-weight: var(--cc-weight-semibold); box-shadow: var(--br-shadow-md); }
+.club-root .st-card-t { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; font-size: var(--cc-text-xs); line-height: 16px; }
+.club-root .st-card-m { font-size: var(--cc-text-xs); line-height: 16px; color: var(--br-muted); }
+
+/* Your face for all thumbnails: the camera (mirrored, as a selfie is), then Take photo or Upload. */
+.club-root .st-face { display: flex; flex-direction: column; gap: 10px; padding: 12px; border: 1px solid var(--br-border); border-radius: var(--cc-r-lg); background: var(--br-neutral-100); }
+.club-root .st-face-cam { position: relative; width: 100%; aspect-ratio: 16 / 9; border-radius: var(--cc-r-md); background: var(--br-bg); overflow: hidden; }
+.club-root .st-face-cam video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); display: block; }
+.club-root .st-face-cam .st-empty, .club-root .st-face-cam.is-off { position: absolute; inset: 0; }
+.club-root .st-face-cam.is-off { position: relative; display: flex; gap: 6px; align-items: center; justify-content: center; color: var(--br-muted); font-size: var(--cc-text-xs); }
+
+/* Three ideas to compare by eye: each drawn, with its name, its words and what stops the scroll. */
+.club-root .st-ideas { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--br-border); }
+.club-root .st-ideas-h { display: flex; align-items: center; gap: 12px; }
+.club-root .st-ideas-h .st-hint { flex: 1; }
+.club-root .st-idea-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-top: 12px; }
+.club-root .st-idea-card { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.club-root .st-idea-pic { display: flex; align-items: center; justify-content: center; width: 100%; aspect-ratio: 16 / 9; border-radius: var(--cc-r-lg); overflow: hidden; background: var(--br-neutral-100); }
+.club-root .st-idea-pic img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.club-root .st-idea-card.is-coming .st-idea-pic, .club-root .st-idea-pic .st-empty { animation: st-breathe 1.4s ease-in-out infinite; }
+.club-root .st-idea-t { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
+.club-root .st-idea-name { font-size: var(--cc-text-sm); line-height: 18px; font-weight: var(--cc-weight-semibold); }
+.club-root .st-idea-words { font-size: var(--cc-text-xs); line-height: 16px; }
+.club-root .st-idea-stop { margin-bottom: 6px; font-size: var(--cc-text-xs); line-height: 16px; color: var(--br-muted); }
+.club-root .st-err { display: flex; gap: 6px; align-items: center; margin-top: 8px; font-size: var(--cc-text-xs); color: var(--cc-warn-text); }
+@keyframes st-breathe { 50% { opacity: .45; } }
+@media (prefers-reduced-motion: reduce) { .club-root :is(.st-idea-card.is-coming .st-idea-pic, .st-idea-pic .st-empty) { animation: none; } }
+
+/* On the sketch, a picture says it opens the studio when the pointer is on it. */
+.club-root .st-pic-hover { position: absolute; left: 10px; bottom: 10px; display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: var(--cc-r-pill); background: var(--br-bg); color: var(--br-fg); font-size: var(--cc-text-xs); font-weight: var(--cc-weight-medium); box-shadow: var(--br-shadow-md); opacity: 0; transform: translateY(2px); transition: opacity .12s, transform .12s; }
+.club-root .st-pic:hover .st-pic-hover, .club-root .st-pic:focus-visible .st-pic-hover { opacity: 1; transform: none; }
+
+/* The studio's idea: two labelled boxes, the whole text shown, plainly editable. */
+.club-root .st-field { display: flex; flex-direction: column; gap: 4px; padding: 8px 10px; border: 1px solid var(--br-border); border-radius: var(--cc-r-md); background: var(--br-bg); cursor: text; }
+.club-root .st-field:focus-within { border-color: var(--cc-accent); }
+.club-root .st-field-l { font-size: var(--cc-text-2xs); line-height: 14px; font-weight: var(--cc-weight-semibold); color: var(--br-muted); }
+.club-root .st-main .st-field .bs-text.st-field-words { margin-top: 0; font-size: var(--cc-text-base); line-height: 22px; }
+.club-root .st-main .st-field .bs-text.st-field-visual { color: var(--br-fg); }
+
+/* The ChatGPT mark on a dark button is the light one (and the other way in the dark theme). */
+.club-root .st-make .btn.primary .brand-logo > .brand-logo-light { display: none; }
+.club-root .st-make .btn.primary .brand-logo > .brand-logo-dark { display: block; }
+[data-theme=dark] .club-root .st-make .btn.primary .brand-logo > .brand-logo-light { display: block; }
+[data-theme=dark] .club-root .st-make .btn.primary .brand-logo > .brand-logo-dark { display: none; }
+
+/* Your own picture as a reference: the first card in the gallery. */
+.club-root .st-card.is-add .st-card-pic { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; box-shadow: none; border: 1px dashed var(--br-border); box-sizing: border-box; color: var(--br-muted); font-size: var(--cc-text-xs); }
+.club-root .st-card.is-add:hover .st-card-pic { color: var(--br-fg); border-color: var(--br-muted); box-shadow: none; }
+.club-root .st-card.is-add .st-card-t { color: var(--br-muted); }
+
+/* Changing your face: a panel over the top of the side, as tall as it needs, with your face now beside the words. */
+.club-root .st-overlay { bottom: auto; background: none; }
+.club-root .st-overlay .st-face { background: var(--br-bg); box-shadow: var(--br-shadow-md); }
+.club-root .st-face-h { display: flex; align-items: center; gap: 10px; }
+.club-root .st-face-h img { flex: none; width: 40px; height: 40px; border-radius: var(--cc-r-pill); object-fit: cover; }
+
+/* The idea in use: the same accent ring and "In use" as a picked reference. */
+.club-root .st-idea-card.is-on .st-idea-pic { box-shadow: 0 0 0 3px var(--cc-accent); }
+.club-root .st-idea-used { display: inline-flex; align-items: center; gap: 4px; height: 28px; color: var(--cc-accent-text); font-size: var(--cc-text-xs); font-weight: var(--cc-weight-semibold); }

@@ -24,3 +24,12 @@ test('graphics on screen together, and one too short to read, are flagged with t
   assert.match(pacingText(p), /0:03: an overlay and a graphic on screen together/);
   assert.match(pacingText(p), /under 1 s/);
 });
+
+test('a graphic that builds on its words changes the picture on each beat', () => {
+  const p = createProject('Pacing');
+  p.clips = [clip('cam', 'camera', 0, 14)];
+  p.motion = [{ id: 'm1', template: 'steps', style: 'pill', start: 0, duration: 14, props: { steps: 'A | B | C', beats: '' } }];
+  assert.deepEqual(pacingIssues(p).map((i) => [i.kind, i.start, i.end]), [['static', 0, 14]], 'evenly timed parts are not counted');
+  p.motion[0].props.beats = '0.5|4.5|9';
+  assert.deepEqual(pacingIssues(p), [], 'a part comes in every few seconds');
+});

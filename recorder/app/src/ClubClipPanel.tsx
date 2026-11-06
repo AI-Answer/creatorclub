@@ -128,7 +128,8 @@ export function ClubClipPanel({project:p,clip,change,onNotice}:{project:Project;
  const fade=audio.find(c=>audioRole(c)==='microphone');
  return <div className="br-panel is-card club-clip-panel"><div className="br-groups">
   {clip.recordingTakeId&&<div className="club-take-info"><BrGroup title={`Part of the ${scene?.name??'recorded'} take`}>
-   <ul className="club-take-list">{[clip,...siblings].map(c=>{const offset=takeSyncOffset(p,c.id);return <li key={c.id}>{takeSourceName(p,c)}{takeSourceState(p,c)==='not linked to the camera'?', ':' · '}{takeSourceState(p,c)}{offset!==undefined&&Math.abs(offset)>.001?` (${offset>0?'+':''}${offset.toFixed(1)} s)`:''}</li>;})}</ul>
+   {/* One line per source: a cut leaves a take in many pieces, and identical lines ("Camera · linked") are said once. */}
+   <ul className="club-take-list">{[...new Set([clip,...siblings].map(c=>{const offset=takeSyncOffset(p,c.id),state=takeSourceState(p,c);return `${takeSourceName(p,c)}${state==='not linked to the camera'?', ':' · '}${state}${offset!==undefined&&Math.abs(offset)>.001?` (${offset>0?'+':''}${offset.toFixed(1)} s)`:''}`;}))].map(line=><li key={line}>{line}</li>)}</ul>
    <div className="club-take-actions">{actions.map(a=><button type="button" className="br-btn is-outline is-sm" key={a.label} onClick={()=>{let ok=true,message='';change(d=>{({ok,message}=a.run(d));});if(!ok)onNotice?.(message);}}>{a.label}</button>)}</div>
   </BrGroup></div>}
   {audio.map(source=><AudioGroup key={source.id} source={source} update={update}/>)}

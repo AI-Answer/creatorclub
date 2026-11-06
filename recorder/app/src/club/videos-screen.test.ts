@@ -398,7 +398,7 @@ test('Board: each lane adds a titled video directly to that stage',async()=>{
   const c=ui.container;
   for(const stage of ['ideas','planning','recording','editing','publishing','published']){
    const lane=column(c,stage);
-   await press(lane.querySelector(stage==='published'?'.lane-plus':'.lane-add')!);
+   await press(lane.querySelector('.lane-plus')!);
    const input=lane.querySelector('input')!;
    await act(async()=>{Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value')!.set!.call(input,`New ${stage}`);input.dispatchEvent(new Event('input',{bubbles:true}));});
    await act(async()=>{lane.querySelector('form')!.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));});await settle();

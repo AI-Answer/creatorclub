@@ -25,7 +25,7 @@ function randomBlock(i:number):MotionBlock{
 }
 
 test('every template has two styles, sane lengths and props; text is escaped; no backdrop blur or blend modes',()=>{
- assert.deepEqual(MOTION_TEMPLATE_IDS,['title-card','lower-third','callout','chapter-label','bullets','stat','compare','steps','quote','keyword','flow','tree']);
+ assert.deepEqual(MOTION_TEMPLATE_IDS,['title-card','lower-third','callout','chapter-label','bullets','stat','compare','steps','quote','keyword','flow','tree','headline','versus','logos']);
  for(const id of MOTION_TEMPLATE_IDS){const t=MOTION_TEMPLATES[id];
   assert.equal(t.styles.length,2,id);assert.ok(t.minDuration<=t.defaultDuration&&t.defaultDuration<=t.maxDuration,id);
   for(const s of t.styles)assert.match(MOTION_CSS,new RegExp(`\\.mb-s-${s.id}\\b`),`${id} ${s.id} has rules`);
@@ -118,20 +118,20 @@ test('old projects have no motion and stay valid; stored blocks are checked',()=
  assert.throws(()=>validateProject({...structuredClone(withBlocks),motion:[{...withBlocks.motion[0],start:-1}]}),/Invalid motion block timing/);
 });
 
-const NEW_TEMPLATES:MotionTemplateId[]=['bullets','stat','compare','steps','quote','keyword','flow','tree'];
+const NEW_TEMPLATES:MotionTemplateId[]=['bullets','stat','compare','steps','quote','keyword','flow','tree','headline','versus','logos'];
 
 test('the new templates normalize their props: defaults, the companion\'s flat fields, limits and the main text',()=>{
  for(const id of NEW_TEMPLATES){
   const t=MOTION_TEMPLATES[id];
-  // Bumped when a template's look changes (icons came to lists, steps and compare).
-  assert.equal(t.version,['bullets','compare','steps'].includes(id)?2:1,id);
+  // Bumped when a template's look changes (icons came to lists, steps and compare; then beats to everything that builds, and the outline flow).
+  assert.equal(t.version,{bullets:3,steps:4,compare:2,flow:2,tree:2}[id as string]??1,id);
   assert.deepEqual(normalizeMotionProps(id,{}),Object.fromEntries(t.props.map(s=>[s.key,s.default])),`${id} fills from its defaults`);
   assert.deepEqual(normalizeMotionProps(id,{unknown:'x'}),normalizeMotionProps(id,{}),`${id} drops unknown keys`);
  }
- assert.deepEqual(motionPropsFrom('bullets',{text:'Cut | Caption | Post',detail:'Workflow'}),{items:'Cut | Caption | Post',heading:'Workflow'});
+ assert.deepEqual(motionPropsFrom('bullets',{text:'Cut | Caption | Post',detail:'Workflow'}),{items:'Cut | Caption | Post',heading:'Workflow',beats:''});
  assert.deepEqual(motionPropsFrom('stat',{text:'710K',detail:'Views in 30 days'}),{value:'710K',label:'Views in 30 days'});
  assert.deepEqual(motionPropsFrom('compare',{text:'Old way | New way',detail:'Hours of editing | One prompt'}),{titles:'Old way | New way',lines:'Hours of editing | One prompt'});
- assert.deepEqual(motionPropsFrom('steps',{text:'Record | Cut | Post'}),{steps:'Record | Cut | Post',heading:''});
+ assert.deepEqual(motionPropsFrom('steps',{text:'Record | Cut | Post'}),{steps:'Record | Cut | Post',heading:'',beats:''});
  assert.deepEqual(motionPropsFrom('quote',{text:'Ship it.',detail:'Samin'}),{quote:'Ship it.',who:'Samin'});
  assert.deepEqual(motionPropsFrom('keyword',{text:'Ten times faster',detail:'Same edit, same day'}),{word:'Ten times faster',line:'Same edit, same day'});
  assert.equal(motionText(newMotionBlock('compare',0,'c',{props:motionPropsFrom('compare',{text:'Old way | New way'})})),'Old way | New way');
@@ -200,4 +200,46 @@ test('a text graphic placed off the face draws in its side or band, and the expo
  assert.match(motionMarkup({...block,place:'left'}),/class="mb mb-title-card mb-s-clean mb-at-left"/);
  assert.doesNotMatch(motionMarkup({...block,place:'left',template:'lower-third',props:{name:'Dani'}}),/mb-at-left/,'a place a template cannot take is ignored');
  assert.deepEqual(motionBox({...block,place:'left'}),{x:0,y:0,width:1,height:1});
+});
+
+test('beats: each item comes in on the word that says it, inside the block and in order; without beats the template times them', async () => {
+ const {beatsFrom,beatsOf,motionReadable}=await import('../shared/motion/templates');
+ assert.equal(beatsFrom([10.4,11.9,13.25],10,5),'0.4|1.9|3.25');
+ assert.equal(beatsFrom([9,12,11,40],10,5),'0|2|2|4.4','before the block is its start, out of order holds, past the end stops before the way out');
+ assert.equal(beatsFrom(undefined,0,4),'');
+ assert.deepEqual(beatsOf('0.4| x |1.9|-2|3.25'),[.4,1.9,3.25]);
+ const steps=motionMarkup(newMotionBlock('steps',0,'s',{duration:6,props:motionPropsFrom('steps',{text:'Questions | Plan | Build',beats:'0.2|1.5|3'})}));
+ assert.match(steps,/mb-sp-step" style="--mb-i:0;--mb-n:3;--mb-at:0\.20s"/);
+ assert.match(steps,/mb-sp-link" style="--mb-i:0;--mb-n:3;--mb-at:1\.10s"/,'the connector draws just before the next step lights');
+ assert.doesNotMatch(motionMarkup(newMotionBlock('steps',0,'s',{props:motionPropsFrom('steps',{text:'a | b'})})),/--mb-at/);
+ assert.match(MOTION_CSS,/animation-delay:var\(--mb-at,calc\(\.45s \+ \.34s \* var\(--mb-i\)\)\)/,'a list point waits for its beat, else its own stagger');
+ // The card and the timeline read words, not icon names or stars.
+ assert.equal(motionReadable('[folder] A folder | [file-text] SKILL.md | [bot] Claude'),'A folder · SKILL.md · Claude');
+ assert.equal(motionReadable('The economy | *is spiky.*'),'The economy · is spiky.');
+ assert.equal(motionReadable('Attention | You get | A yes ; A maybe | It ends in | A payment'),'Attention · You get · A yes / A maybe · It ends in · A payment');
+});
+
+test('headline, versus and logos draw one line, row and tile per item, escape their text, and read the look', () => {
+ const draw=(id:MotionTemplateId,style:string,flat:{text:string;detail?:string})=>motionMarkup(newMotionBlock(id,0,'x',{style,props:motionPropsFrom(id,flat)}));
+ const count=(html:string,tag:string)=>html.split(tag).length-1;
+ const lines=draw('headline','lines',{text:'The economy | *is spiky.* | Small businesses',detail:'Why it works'});
+ assert.equal((lines.match(/class="mb-hl-line[" ]/g)??[]).length,3);assert.equal(count(lines,'mb-hl-em'),1,'the starred line lands in the sans');
+ assert.match(lines,/mb-hl-kick">Why it works</);assert.doesNotMatch(lines,/\*/);
+ assert.equal((draw('headline','reveal',{text:'Build. | Sell. | Stay.'}).match(/class="mb-hl-line[" ]/g)??[]).length,3);
+ const vs=draw('versus','table',{text:'Marketing | Sales',detail:'Attention | You get | A yes ; A maybe | It ends in | A payment ; Content | Calls'});
+ assert.equal(count(vs,'mb-vs-c mb-vs-l'),3);assert.equal(count(vs,'mb-vs-k'),3);assert.match(vs,/grid-row:1 \/ 5/,'the cards span the names and every row');
+ assert.match(vs,/mb-vs-k" style="[^"]*"><\/div>/,'a row of two parts has an empty label');
+ const logos=draw('logos','tiles',{text:'[claude] Claude Code | [n8n] n8n | GoHighLevel | <b>x</b>'});
+ assert.equal(count(logos,'class="mb-lg-i"'),4);assert.match(logos,/mb-lg-abbr">GHL</,'a tool without an icon shows its letters');
+ assert.doesNotMatch(logos,/<b>/);
+ // A monochrome look (the highlight is the text colour) draws marks in the text colour, and text on a light plate reads in the panel colour.
+ const look={name:'Editorial',display:'serif' as const,paper:'#f4f2ee',ink:'#1b1b1b',accent:'#f4f2ee',muted:'#8a8781',motion:'subtle' as const};
+ const mono=motionMarkup({...newMotionBlock('steps',0,'s',{style:'pill'}),look});
+ assert.match(mono,/class="mb mb-steps mb-s-pill mb-serif mb-mono mb-ring mb-motion-subtle"/);
+ assert.match(mono,/--mb-on-accent:#1b1b1b/);
+ assert.match(motionMarkup({...newMotionBlock('steps',0,'s'),look:{...look,accent:'#2563eb',paper:'#ffffff'}}),/--mb-on-accent:#ffffff/);
+ assert.match(MOTION_CSS,/\.mb-mono \.mb-brand path,[^{]*\{fill:currentColor\}/);
+ // A product whose mark the icon set lacks draws as a letter tile in its colour; an unknown name still drops to its words.
+ const office=draw('logos','chips',{text:'[word] Word | [excel] Excel | [pdf] PDF | [nope] Other'});
+ assert.equal(count(office,'mb-brand-letter'),3);assert.match(office,/>PDF<\/text>/);assert.match(office,/mb-lg-abbr">O</);
 });

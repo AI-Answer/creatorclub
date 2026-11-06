@@ -1,11 +1,13 @@
-import {PAUSE_SECONDS,type EditAction,type PauseLevel,type TextPosition} from '../shared/companion';
+import {PAUSE_SECONDS,SCREENPLAY_ROW,type EditAction,type PauseLevel,type TextPosition} from '../shared/companion';
 import {clipDuration,defaultEffects,defaultTransform,makeId,projectDuration,type Clip,type Project} from '../shared/types';
 import {addCutLoss,cutLossText,minimumPiece,noCutLoss,type CutLoss} from '../shared/timeline-edits';
 import {clipsFingerprint,fillerRanges,gapRanges,rangesSeconds} from './club/recorder/edit-auto';
 import {plainView} from './project-draft';
 import {addMotionBlock,closeRange,ensureLinks,linkedIds,mergeRanges,motionAt,newElement,nextMotionStart,rowItems,splitLinked,syncScenesToTakes,trimBounds,trimClips} from './timeline-edit';
-import {EDITORIAL_LOOK,lookFrom,onStage,stageTile,stagePanel} from '../shared/look';
-import {MOTION_TEMPLATES,motionPropsFrom,newMotionBlock,normalizeMotionProps} from '../shared/motion/templates';
+import {timelineRows} from '../shared/timeline-layers';
+import {MORPH_SECONDS,morphSource} from '../shared/stage-morph';
+import {EDITORIAL_LOOK,lookFrom,onStage,stageTile,stageTileRadius,stagePanel} from '../shared/look';
+import {MOTION_TEMPLATES,beatsFrom,motionPropsFrom,motionReadable,newMotionBlock,normalizeMotionProps} from '../shared/motion/templates';
 import type {MotionTemplateId} from '../shared/types';
 
 /**
@@ -30,7 +32,7 @@ export const DELETE_MAX_SHARE=.5,DELETE_WARN_SHARE=.25;
  * clips still match, pauses are cut where the audio is quiet.
  */
 export interface SilencePlan {fingerprint:string;ranges:Range[]}
-export interface EditOptions {silences?:SilencePlan|null}
+export interface EditOptions {silences?:SilencePlan|null;/** The captions of a new take are still being made: no word timings yet, for a moment. */captionsPending?:boolean}
 /** Rows that carry the recorded speech. */
 const SPEECH:ReadonlySet<Clip['track']>=new Set(['screen','camera','audio']);
 const EPS=1e-6;
@@ -149,6 +151,7 @@ export function editActionProblem(p:Project,action:EditAction,options:EditOption
    if(action.x+action.width>1.001||action.y+action.height>1.001)return 'That box runs off the frame.';
    return overlapping(p,'elements',action.start,action.start+.1).length?'Something is already on the Elements row at that time.':undefined;
   }
+  case 'add_timeline_note':return inRange(action.time)&&action.text.trim()?undefined:'That time is outside the video.';
   case 'add_text':{
    if(!inRange(action.start)||!(action.duration>0))return 'That time is outside the video.';
    // A text that would run into the next item stops there; one that starts on another is refused.
@@ -186,13 +189,16 @@ export function editActionProblem(p:Project,action:EditAction,options:EditOption
 }
 const NO_BLOCK='There is no motion graphic at that time.';
 /** Which prop of each template holds the card's main line and its second line. */
-const PROP_KEYS:Record<MotionTemplateId,{text:string;detail?:string}>={'title-card':{text:'title',detail:'subtitle'},'lower-third':{text:'name',detail:'role'},callout:{text:'label'},'chapter-label':{text:'title',detail:'number'},bullets:{text:'items',detail:'heading'},stat:{text:'value',detail:'label'},compare:{text:'titles',detail:'lines'},steps:{text:'steps',detail:'heading'},quote:{text:'quote',detail:'who'},keyword:{text:'word',detail:'line'},flow:{text:'nodes',detail:'labels'},tree:{text:'root',detail:'children'}};
+const PROP_KEYS:Record<MotionTemplateId,{text:string;detail?:string}>={'title-card':{text:'title',detail:'subtitle'},'lower-third':{text:'name',detail:'role'},callout:{text:'label'},'chapter-label':{text:'title',detail:'number'},bullets:{text:'items',detail:'heading'},stat:{text:'value',detail:'label'},compare:{text:'titles',detail:'lines'},steps:{text:'steps',detail:'heading'},quote:{text:'quote',detail:'who'},keyword:{text:'word',detail:'line'},flow:{text:'nodes',detail:'labels'},tree:{text:'root',detail:'children'},headline:{text:'lines',detail:'kicker'},versus:{text:'titles',detail:'rows'},logos:{text:'items',detail:'heading'}};
 /** The motion graphic that is on screen at `time`. */
 const blockAt=(p:Project,time:number)=>(p.motion??[]).find(m=>time>=m.start-1e-6&&time<=m.start+m.duration+1e-6);
 /** The block an `add_motion_block` card adds: its template's defaults, the card's text, and its length cut to the room on the Motion row and in the video. */
 export function motionBlockFor(p:Project,action:Extract<EditAction,{type:'add_motion_block'}>,id:string){
  const template=MOTION_TEMPLATES[action.template],room=Math.min(projectDuration(p),nextMotionStart(p,action.start))-action.start;
- return {...newMotionBlock(action.template,action.start,id,{style:action.style,duration:Math.min(action.duration??template.defaultDuration,room),props:motionPropsFrom(action.template,action)}),...(action.place?{place:action.place}:{})};
+ const duration=Math.min(action.duration??template.defaultDuration,room);
+ // Each item comes in on the word that says it: the card's timeline times become offsets into the block.
+ const block=newMotionBlock(action.template,action.start,id,{style:action.style,duration,props:motionPropsFrom(action.template,{...action,beats:beatsFrom(action.beats,action.start,duration)})});
+ return {...block,...(action.place?{place:action.place}:{})};
 }
 
 const POSITION_Y:Record<TextPosition,number>={top:.08,center:.42,bottom:.72};
@@ -249,7 +255,7 @@ export function applyEditAction(p:Project,action:EditAction,options:EditOptions=
    splitLinked(p,action.start,new Set(),undefined,newId);splitLinked(p,action.end,new Set(),undefined,newId);
    const stage=(p.look?.stage)??EDITORIAL_LOOK.stage!,tile=stageTile(stage,p.canvas);
    const inside=(c:Clip)=>c.start>=action.start-1e-3&&c.start+clipDuration(c)<=action.end+1e-3;
-   for(const c of p.clips.filter(c=>inside(c)&&c.track==='camera')){Object.assign(c.transform,{...tile,fit:'cover',borderRadius:Math.round(tile.width*p.canvas.width*.09)});c.effects.faceCenter=true;c.stage=true;}
+   for(const c of p.clips.filter(c=>inside(c)&&c.track==='camera')){Object.assign(c.transform,{...tile,fit:'cover',borderRadius:stageTileRadius(stage,p.canvas)});c.effects.faceCenter=true;c.stage=true;}
    for(const c of p.clips.filter(c=>inside(c)&&c.track==='screen'))c.transform.opacity=0;
    // The stage shows the look's background, with a slow field of dots: the canvas behind everything, which full-frame clips cover.
    p.canvas.background=stage.background;p.canvas.backgroundPattern='moving-dots';
@@ -262,6 +268,12 @@ export function applyEditAction(p:Project,action:EditAction,options:EditOptions=
    const duration=Math.min(action.duration,next-action.start,Math.max(.1,projectDuration(plainView(p))-action.start));
    p.elements.push(newElement('blur',action.start,newId(),{duration,x:action.x,y:action.y,width:action.width,height:action.height}));
    result=`Blurred a part of the screen at ${clock(action.start)}`;
+   break;
+  }
+  case 'add_timeline_note':{
+   // An idea the creator did not ask for: a note on the timeline's notes row, marked as an idea, for them to decide on.
+   (p.markers??=[]).push({id:newId(),time:Math.max(0,action.time),name:action.text.trim(),tag:'idea'});p.markers.sort((a,b)=>a.time-b.time);
+   result=`Note left at ${clock(action.time)}`;
    break;
   }
   case 'add_text':{
@@ -309,6 +321,42 @@ export function applyEditAction(p:Project,action:EditAction,options:EditOptions=
   }
   case 'add_clip':{
    if(!p.media.some(m=>m.id===action.media.id))p.media.push(action.media);
+   if(action.layers){
+    // A whole edit's graphics on the creator's own timeline: their look's stage, the speaker as its tile in the stretches it names, and
+    // one see-through block per scene on its own row. What an earlier run put there goes; the creator's cut, camera and captions stay.
+    const L=action.layers;
+    p.motion=[];p.elements=[];
+    p.clips=p.clips.filter(c=>c.layerId!==SCREENPLAY_ROW);
+    for(const c of p.clips.filter(c=>c.stage)){Object.assign(c.transform,{x:0,y:0,width:1,height:1,borderRadius:0,fit:defaultTransform().fit});delete c.stage;}
+    p.look={...(p.look??EDITORIAL_LOOK),stage:{...L.stage}};
+    // The blocks are drawn for the whole frame: no inset or rounding around the picture.
+    p.canvas={...p.canvas,padding:0,radius:0};
+    // A stretch the timeline no longer has room or a camera for stays on the face.
+    for(const st of L.stages){try{applyEditAction(p,{type:'set_stage',start:st.start,end:Math.min(st.end,projectDuration(p))},options,newId);}catch{}}
+    // Where the speaker goes between the tile and the full frame, the camera morphs there as screenplay draws it.
+    for(const c of p.clips)if(c.track==='camera')delete c.morphIn;
+    for(const c of p.clips.filter(c=>c.track==='camera')){const before=morphSource({...c,morphIn:MORPH_SECONDS},p);if(before&&!before.stage!==!c.stage)c.morphIn=MORPH_SECONDS;}
+    if(!p.timelineLayers?.some(r=>r.id===SCREENPLAY_ROW)){
+     const top=Math.max(0,...timelineRows(p).filter(r=>r.kind==='video').map(r=>r.order).filter(Number.isFinite));
+     (p.timelineLayers??=[]).push({id:SCREENPLAY_ROW,name:'Screenplay',kind:'video',order:top+1});
+    }
+    for(const b of L.blocks){
+     if(!p.media.some(m=>m.id===b.media.id))p.media.push(b.media);
+     p.clips.push({id:newId(),mediaId:b.media.id,name:b.title,track:'overlay',layerId:SCREENPLAY_ROW,start:b.start,sourceIn:0,sourceOut:Math.min(b.duration,b.media.duration||b.duration),speed:1,gain:1,muted:true,transform:defaultTransform(),effects:defaultEffects()});
+    }
+    result=`Added ${plural(L.blocks.length,'scene')} from “${action.title}”`;
+    break;
+   }
+   if(action.whole){
+    // A whole-recording edit's finished video takes the timeline's place: its own cut, graphics and sound. Undo brings the timeline back.
+    // Each scene keeps its share of the video, so none is left looking as if it waits for a take.
+    const before=projectDuration(p)||action.media.duration,share=action.media.duration/before;
+    p.scenes=p.scenes.map(s=>({...s,start:Math.min(action.media.duration,s.start*share),duration:Math.max(0,Math.min(action.media.duration-s.start*share,s.duration*share))}));
+    p.clips=[{id:newId(),mediaId:action.media.id,name:action.title,track:'screen',start:0,sourceIn:0,sourceOut:action.media.duration,speed:1,gain:1,muted:false,transform:{...defaultTransform(),x:0,y:0,width:1,height:1},effects:defaultEffects()}];
+    p.motion=[];p.elements=[];p.zooms=[];p.captions=[];p.markers=[];
+    result=`Your video is now “${action.title}” (${clock(action.media.duration)})`;
+    break;
+   }
    const length=action.media.kind==='image'?action.duration:Math.min(action.duration,action.media.duration||action.duration);
    // A picture shown on a stage stretch goes in the stage's panel, beside the speaker, not over them.
    const panel=onStage(p,action.start)?{...stagePanel(p.look?.stage??EDITORIAL_LOOK.stage!),fit:'contain' as const}:{};
@@ -343,6 +391,7 @@ export function describeEditAction(action:EditAction,p?:Project):string{
   }
   case 'add_caption':return `“${action.text}” from ${clock(action.start)} to ${clock(action.end)}.`;
   case 'add_text':return `“${action.text}” at ${clock(action.start)} for ${secs(action.duration)}${action.position?`, ${action.position}`:''}.`;
+  case 'add_timeline_note':return `“${action.text}” at ${clock(action.time)}.`;
   case 'set_look':{const look=lookFrom(p?.look,action);return `${look.name}: ${look.display==='serif'?'serif':'sans'} headlines in ${look.paper} on ${look.ink}, ${look.accent} as the highlight, ${look.motion==='still'?'no animation':look.motion==='subtle'?'graphics that fade':'graphics that rise and build'}${look.stage?`, and a ${look.stage.background} stage with you on the ${look.stage.side}`:''}.`;}
   case 'set_stage':return `From ${clock(action.start)} to ${clock(action.end)} you become a tile at the side and the content takes the frame.`;
   case 'add_blur':return `Blur ${Math.round(action.width*100)}% × ${Math.round(action.height*100)}% of the frame at ${Math.round(action.x*100)}% across, ${Math.round(action.y*100)}% down, from ${clock(action.start)} for ${secs(action.duration)}.`;
@@ -350,10 +399,10 @@ export function describeEditAction(action:EditAction,p?:Project):string{
    const gone=p?replacedZooms(p,action):[];
    return `Zoom ${action.scale}× on the ${action.target??'screen'} at ${clock(action.start)} for ${secs(action.duration)}${gone.length?`, replacing ${gone.map(z=>`the ${z.scale}× zoom at ${clock(z.start)}`).join(' and ')}`:''}.`;
   }
-  case 'add_clip':return `“${action.title}” on the Overlays row, ${clock(action.start)} to ${clock(action.start+action.duration)}.`;
+  case 'add_clip':return action.layers?`“${action.title}”: ${plural(action.layers.blocks.length,'scene')} on the Screenplay row, with you as the tile beside them.`:action.whole?`“${action.title}”, ${clock(action.media.duration)}, takes the place of your timeline.`:`“${action.title}” on the Overlays row, ${clock(action.start)} to ${clock(action.start+action.duration)}.`;
   case 'add_motion_block':{
    const template=MOTION_TEMPLATES[action.template],end=action.start+(action.duration??template?.defaultDuration??3);
-   return `${template?.label??'Graphic'} “${action.text}”${action.detail?` · ${action.detail}`:''} · ${clock(action.start)} to ${clock(end)}.`;
+   return `${template?.label??'Graphic'} “${motionReadable(action.text)}”${action.detail?` · ${motionReadable(action.detail)}`:''} · ${clock(action.start)} to ${clock(end)}.`;
   }
   case 'update_motion_block':{
    const block=p?blockAt(p,action.at):undefined,label=block?MOTION_TEMPLATES[block.template].label:'Graphic';

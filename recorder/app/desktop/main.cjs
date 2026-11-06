@@ -42,7 +42,11 @@ function getMediaPermissions(){
  return {platform:process.platform,camera:getNativeMediaStatus('camera'),microphone:getNativeMediaStatus('microphone'),screen:screenStatus,systemAudio:'unknown',screenRestartRequired};
 }
 async function requestMediaPermission(kind){
- return nativePermissionRequests.request(kind);
+ const result=await nativePermissionRequests.request(kind);
+ // macOS answers without a prompt when it won't ask (a refused permission, or the app was started by another app that can't ask for it).
+ // Allow must still do something: it opens the camera or microphone page of System Settings, where it can be switched on.
+ if(!result.granted&&process.platform==='darwin')void openPrivacySettings(kind).catch(()=>{});
+ return result;
 }
 async function openPrivacySettings(section){
  if(typeof section!=='string'||!Object.hasOwn(privacyPanes,section))throw new Error('Unknown privacy settings section.');

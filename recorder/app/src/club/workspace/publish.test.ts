@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import {act,createElement,useState} from 'react';
 import type {Package,Video,VideoScene} from '../../../shared/club';
 import type {ExportRecord} from '../../../shared/export-history';
-const {Publish,PUBLISH_LINE}=await import('./Publish');
+const {Publish}=await import('./Publish');
 const {Teleprompter}=await import('./Teleprompter');
 const {installFetch,FakeEventSource}=await import('../test-fakes');
 
@@ -62,8 +62,8 @@ test('Publish: the export line, Postiz connected, the form YouTube asks for, and
   const c=ui.container,text=c.textContent??'';
   assert.ok(text.includes('Send your video to YouTube now, or schedule it for later.'));
   assert.ok(text.includes('Exported')&&text.includes('Hidden features-e1.mp4'),'the newest export');
-  assert.ok(text.includes('Uploads to Samin Yasar on YouTube'));
-  assert.deepEqual([...c.querySelectorAll('.pub-step h3')].map(h=>h.textContent),['Export the video','Check the details','Upload to YouTube'],'three numbered steps');
+  assert.ok(c.querySelector('aside')?.textContent?.includes('Samin Yasar'),'the channel it goes to is named in the preview');
+  assert.deepEqual([...c.querySelectorAll('.pub-section h3')].map(h=>h.textContent),['Export the video','Check the details','Upload to YouTube'],'three sections, in order');
   assert.equal(field(c,'pub-title').value,video.title);
   assert.equal((c.querySelector('#pub-desc') as HTMLTextAreaElement).value,'You never opened this.\n\nMost people use one feature.','no chapters until the timeline is read');
   assert.equal(c.querySelector('#pub-vis')?.textContent,'Public');
@@ -158,11 +158,11 @@ test('without Postiz connected Publish says so and sends you to Settings: the ke
   await click(c.querySelector('input[name=kids][value=no]'));
   assert.equal(c.querySelector('button[aria-label="Publish now"]'),null);
   assert.equal(c.querySelector('#ws-publish-action a')?.textContent?.trim(),'Open YouTube');
-  assert.ok(c.textContent?.includes(PUBLISH_LINE));
+  assert.ok(c.textContent?.includes('These details are saved here for you to paste into YouTube.'));
   assert.equal(posts(server.calls).length,0);
   assert.ok(!c.textContent?.includes("Postiz is optional"));
   assert.equal(c.querySelector('#postiz-key'),null,'no key field on Publish: it lives in Settings');
-  await click(button(c,'Or publish automatically'));
+  await click(button(c,'Open Settings'));
   assert.deepEqual(settingsAsked,['publishing'],'the button opens Settings at Publishing');
  });
 });
@@ -298,7 +298,7 @@ test('no exported video yet says where to export it',async()=>{
  const goes:string[]=[];
  await withPublish({reply:({path})=>path.startsWith('/api/exports')?{body:{jobs:[],nextOffset:null}}:undefined,props:{onGoTo:(tab:string)=>goes.push(tab)}},async ui=>{
   const c=ui.container;
-  assert.ok(c.textContent?.includes('No exported video yet.'));
+  assert.ok(c.textContent?.includes('No exported video yet'));
   await click(button(c,'Export it in Edit'));
   assert.deepEqual(goes,['edit']);
   await click(c.querySelector('input[name=kids][value=no]'));await click(button(c,'Publish now'));
@@ -316,7 +316,7 @@ test('your own thumbnail is uploaded with the video and can be removed',async()=
   await act(async()=>{input.dispatchEvent(new Event('change',{bubbles:true}));});await flush();
   assert.equal(server.calls.filter(call=>call.method==='POST'&&call.path==='/videos/v1/thumbnail').length,1);
   assert.ok(c.textContent?.includes('Your own image.'));
-  await click(button(c,'Remove image'));await flush();
+  await click(button(c,'Remove'));await flush();
   assert.equal(server.calls.filter(call=>call.method==='DELETE'&&call.path==='/videos/v1/thumbnail').length,1);
   assert.ok(c.textContent?.includes('YouTube picks a frame'));
  });
@@ -340,7 +340,7 @@ test('with the timeline read, the chapters are where the scenes are cut, and unr
  await withPublish({reply:({path})=>path==='/api/projects/p1'?{body:project}:path.startsWith('/api/exports?projectId=p1')?{body:{jobs:[{...exported,projectRevision:revision}],nextOffset:null}}:undefined},async(ui,server)=>{
   const c=ui.container;await flush();
   assert.equal((c.querySelector('#pub-desc') as HTMLTextAreaElement).value,'You never opened this.\n\nMost people use one feature.\n\nChapters\n0:00 Opening');
-  assert.equal(c.querySelector('.pubx-warn[role=status]')?.textContent,"1 of 2 scenes isn't recorded yet, so it isn't in the video.");
+  assert.equal(c.querySelector('.pub-note[role=status]')?.textContent,"1 of 2 scenes isn't recorded yet, so it isn't in the video.");
   await click(c.querySelector('input[name=kids][value=no]'));
   assert.equal(button(c,'Publish now').disabled,false,'a warning, not a block');
   await click(button(c,'Publish now'));await flush();
@@ -385,7 +385,7 @@ test('manual publishing footer follows export, upload and adding the link, witho
  const tabs:string[]=[];
  await withPublish({state:notConnected,props:{onGoTo:(tab:string)=>tabs.push(tab)},reply:call=>call.path.startsWith('/api/exports?')?{body:{jobs:[],nextOffset:null}}:undefined},async(ui,server)=>{
   const c=ui.container;
-  assert.ok(c.textContent?.includes(PUBLISH_LINE));
+  assert.ok(c.textContent?.includes('These details are saved here for you to paste into YouTube.'));
   await click(button(c,'Export in Edit'));
   assert.deepEqual(tabs,['edit']);
   assert.equal(posts(server.calls).length,0);

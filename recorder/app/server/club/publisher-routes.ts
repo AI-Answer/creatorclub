@@ -85,6 +85,8 @@ export async function setThumbnail(slug:string,id:string,bytes:Buffer):Promise<v
  });
 }
 const thumbnailUpload = multer({ storage: multer.memoryStorage(), limits: { files: 1, fileSize: THUMBNAIL_MAX } });
+/** A reference picture for a thumbnail: a photo of the creator or a thumbnail they like. */
+const referenceUpload = multer({ storage: multer.memoryStorage(), limits: { files: 1, fileSize: 10 * 1024 * 1024 } });
 const NEEDS_EXPORT = 'Export the video again, then publish.';
 const WAITING = 'Postiz is uploading it to YouTube.';
 export const ALREADY_SENT = 'Postiz already has this video, so check again to see where it is.';
@@ -102,7 +104,7 @@ const sleep = (ms: number, signal: AbortSignal) =>
 
 const recordFile = (slug: string, id: string) => path.join(store.videoDir(slug, id), 'postiz.json');
 const thumbnailFiles = (slug: string, id: string) => THUMBNAIL_EXTENSIONS.map((ext) => path.join(store.videoDir(slug, id), `thumbnail.${ext}`));
-async function thumbnailOf(slug: string, id: string): Promise<LocalFile | undefined> {
+export async function thumbnailOf(slug: string, id: string): Promise<LocalFile | undefined> {
   for (const file of thumbnailFiles(slug, id)) {
     const stat = await fs.stat(file).catch(() => undefined);
     if (stat) {
@@ -191,6 +193,102 @@ export function publishingRoutes(router: Router, deps: { handler: (fn: (req: Req
     const ext = req.file ? imageKind(req.file.buffer) : undefined;
     if (!req.file || !ext) throw new ClubError(NOT_AN_IMAGE);
     await setThumbnail(slug, id, req.file.buffer);
+    res.status(204).end();
+  }));
+  // The sketch's thumbnail, drawn by the creator's own ChatGPT account: a job, followed like any other.
+  router.post('/videos/:id/thumbnail/chatgpt', handler(async (req, res) => {
+    const slug = await requireWorkspace();
+    const id = param(req, 'id');
+    await store.readVideo(slug, id);
+    const { makeThumbnailWithChatGPT } = await import('./chatgpt-thumbnail.js');
+    const chosen = z.object({ references: z.array(z.string().max(120)).max(12).optional() }).strip().parse(req.body ?? {}).references;
+    res.status(202).json(startJobOnce(`chatgpt-thumbnail:${slug}:${id}`, 'chatgpt-thumbnail', (context) => makeThumbnailWithChatGPT(slug, id, context, undefined, chosen)));
+  }));
+  // What a thumbnail is made from: the creator's face, thumbnails that work in the niche, pictures they add.
+  router.get('/videos/:id/thumbnail/references', handler(async (req, res) => {
+    const slug = await requireWorkspace();
+    const id = param(req, 'id');
+    await store.readVideo(slug, id);
+    const { listReferences } = await import('./thumbnail-references.js');
+    res.json(await listReferences(slug, id));
+  }));
+  router.get('/videos/:id/thumbnail/references/:ref/image', handler(async (req, res) => {
+    const slug = await requireWorkspace();
+    const id = param(req, 'id');
+    await store.readVideo(slug, id);
+    const { referenceFile } = await import('./thumbnail-references.js');
+    const file = await referenceFile(slug, id, param(req, 'ref'));
+    const types: Record<string, string> = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp' };
+    res.set({ 'X-Content-Type-Options': 'nosniff', 'Content-Security-Policy': "default-src 'none'" }).type(types[path.extname(file)] ?? 'image/jpeg').sendFile(file, { dotfiles: 'allow' });
+  }));
+  // Other titles, to pick from under the title.
+  router.post('/videos/:id/title-ideas', handler(async (req, res) => {
+    const slug = await requireWorkspace();
+    const id = param(req, 'id');
+    await store.readVideo(slug, id);
+    const { titleIdeas } = await import('./title-ideas.js');
+    const abort = new AbortController();
+    req.on('close', () => { if (!res.writableEnded) abort.abort(); });
+    res.json({ titles: await titleIdeas(slug, id, abort.signal) });
+  }));
+  // Thumbnail ideas you can see: three concepts, then a quick ChatGPT preview of each; picking one puts it on the sketch and as the thumbnail.
+  router.post('/videos/:id/thumbnail/ideas', handler(async (req, res) => {
+    const slug = await requireWorkspace();
+    const id = param(req, 'id');
+    await store.readVideo(slug, id);
+    const chosen = z.object({ references: z.array(z.string().max(120)).max(12).optional() }).strip().parse(req.body ?? {}).references;
+    const { thumbnailIdeas } = await import('./thumbnail-ideas.js');
+    res.status(202).json(startJobOnce(`thumbnail-ideas:${slug}:${id}`, 'thumbnail-ideas', (context) => thumbnailIdeas(slug, id, context, chosen)));
+  }));
+  router.get('/videos/:id/thumbnail/ideas/:run/:n/image', handler(async (req, res) => {
+    const slug = await requireWorkspace();
+    const id = param(req, 'id');
+    await store.readVideo(slug, id);
+    const { ideaPreview } = await import('./thumbnail-ideas.js');
+    res.set({ 'X-Content-Type-Options': 'nosniff', 'Content-Security-Policy': "default-src 'none'" }).type('image/png').sendFile(await ideaPreview(slug, id, param(req, 'run'), Number(param(req, 'n'))), { dotfiles: 'allow' });
+  }));
+  router.post('/videos/:id/thumbnail/ideas/:run/:n/use', handler(async (req, res) => {
+    const slug = await requireWorkspace();
+    const id = param(req, 'id');
+    await store.readVideo(slug, id);
+    const { useIdea } = await import('./thumbnail-ideas.js');
+    res.json(await useIdea(slug, id, param(req, 'run'), Number(param(req, 'n'))));
+  }));
+  // The creator's face for every thumbnail: a photo they take or pick once, often before anything is recorded.
+  router.post('/thumbnail-face', referenceUpload.single('file'), handler(async (req, res) => {
+    const slug = await requireWorkspace();
+    if (!req.file) throw new ClubError('Choose a photo.');
+    const { setFacePhoto } = await import('./thumbnail-references.js');
+    await setFacePhoto(slug, req.file.buffer);
+    res.status(204).end();
+  }));
+  router.put('/videos/:id/thumbnail/references/chosen', handler(async (req, res) => {
+    const slug = await requireWorkspace();
+    const id = param(req, 'id');
+    await store.readVideo(slug, id);
+    const { chooseReferences } = await import('./thumbnail-references.js');
+    res.json(await chooseReferences(slug, id, z.object({ ids: z.array(z.string().max(120)).max(12) }).strict().parse(req.body).ids));
+  }));
+  router.post('/videos/:id/thumbnail/references/link', handler(async (req, res) => {
+    const slug = await requireWorkspace();
+    const id = param(req, 'id');
+    await store.readVideo(slug, id);
+    const { addLinkReference } = await import('./thumbnail-references.js');
+    res.json(await addLinkReference(slug, id, z.object({ url: z.string().max(500) }).strict().parse(req.body).url));
+  }));
+  router.post('/videos/:id/thumbnail/references', referenceUpload.single('file'), handler(async (req, res) => {
+    const slug = await requireWorkspace();
+    const id = param(req, 'id');
+    await store.readVideo(slug, id);
+    if (!req.file) throw new ClubError('Choose a picture.');
+    const { addReference } = await import('./thumbnail-references.js');
+    res.json(await addReference(slug, id, req.file.buffer));
+  }));
+  router.delete('/videos/:id/thumbnail/references/:ref', handler(async (req, res) => {
+    const slug = await requireWorkspace();
+    const id = param(req, 'id');
+    const { removeReference } = await import('./thumbnail-references.js');
+    await removeReference(slug, id, param(req, 'ref'));
     res.status(204).end();
   }));
   router.get('/videos/:id/thumbnail', handler(async (req, res) => {

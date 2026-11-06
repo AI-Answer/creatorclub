@@ -288,7 +288,7 @@ export const onepagerShape = z.object({
   backupTitle: z.string().max(200),
   logline: z.string().max(1000),
   thumbnail: z.object({ headline: z.string().max(200), visual: z.string().max(2000), closer: z.string().max(200), template: z.string().max(500).optional() }).strict(),
-  skeleton: z.array(z.object({ label: z.string().max(100), line: z.string().max(500) }).strict()).min(6).max(10),
+  skeleton: z.array(z.object({ label: z.string().max(100), line: z.string().max(500) }).strict()).min(1).max(20),
   whys: z.tuple([z.string().max(1000), z.string().max(1000), z.string().max(1000)]),
   flags: z.array(z.string().max(500)).max(20).optional(),
 }).strict();

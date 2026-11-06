@@ -39,7 +39,7 @@ test('Continue to recording follows scene count across themes, scrolling, Board,
     await act(async()=>{const scroller=ui.container.querySelector<HTMLElement>('.idea-doc')!;scroller.scrollTop=500;scroller.dispatchEvent(new Event('scroll',{bubbles:true}));});check(solid);
     assert.ok(ui.container.querySelector('.idea-top-scrolled'));
     await act(async()=>button(ui.container,'Board').click());await flush();check(solid);
-    await act(async()=>ui.container.querySelector<HTMLButtonElement>('.idea-views button')!.click());check(solid);
+    await act(async()=>button(ui.container,'Script').click());check(solid);
    }
   };
   await checkViews(false);
@@ -72,7 +72,7 @@ test('Claude automatically yields below 1200px and can be reopened from its name
  }finally{await ui.close();fake.restore();Object.assign(window,{matchMedia});localStorage.clear();}
 });
 
-test('Items and the canvas select the same card, including a request made before board data loads',async()=>{
+test('the canvas selects a focused card and clears it on Escape',async()=>{
  localStorage.clear();
  const tile={id:'t_r3',kind:'text',title:'A connected idea',text:'The detail behind the idea.',meta:{},pos:{x:50,y:50,w:280},createdAt:''};
  const fake=installFetch(({path})=>{
@@ -88,18 +88,10 @@ test('Items and the canvas select the same card, including a request made before
  try{
   await flush();await flush();
   await act(async()=>button(ui.container,'Board').click());await flush();await flush();
-  await act(async()=>button(ui.container,'Items · 1').click());
-  await act(async()=>ui.container.querySelector<HTMLButtonElement>('.idea-list-card')!.click());await flush();await flush();
-  assert.ok(ui.container.querySelector('[data-tile=t_r3]')!.classList.contains('sel'),'choosing an item selects its card on the canvas');
-  await act(async()=>button(ui.container,'Items · 1').click());
-  const list=ui.container.querySelector<HTMLButtonElement>('.idea-list-card')!;
   const card=ui.container.querySelector<HTMLElement>('[data-tile=t_r3]')!;
-  assert.equal(list.getAttribute('aria-pressed'),'true');
-  await act(async()=>list.click());await flush();
-  assert.equal(list.getAttribute('aria-pressed'),'true');assert.ok(card.classList.contains('sel'));
-  await act(async()=>{card.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));});await flush();
-  assert.equal(list.getAttribute('aria-pressed'),'false');
   await act(async()=>card.dispatchEvent(new Event('focusin',{bubbles:true})));await flush();
-  assert.equal(list.getAttribute('aria-pressed'),'true');assert.ok(card.classList.contains('sel'));
+  assert.ok(card.classList.contains('sel'),'focusing a card on the canvas selects it');
+  await act(async()=>{card.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));});await flush();
+  assert.equal(card.classList.contains('sel'),false,'Escape clears the selection');
  }finally{await ui.close();fake.restore();localStorage.clear();}
 });

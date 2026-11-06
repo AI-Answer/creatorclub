@@ -9,23 +9,6 @@
 .club-root .ws .ws-foot .btn:disabled { background: var(--cc-bg-sunk); color: var(--cc-text-3); border-color: var(--cc-line); opacity: 1; cursor: not-allowed; }
 .club-root .ws-publish-action { display: flex; align-items: center; justify-content: flex-end; gap: 12px; }
 .club-root .ws .ws-foot .ws-why { max-width: 180px; font-size: var(--cc-text-xs); line-height: 1.35; white-space: normal; color: var(--cc-text-3); }
-.club-root .ws-publish { max-width: 1160px; padding: 28px 32px 32px; margin: 0 auto; }
-.club-root .ws-publish .doc-h h2 { font-size: var(--cc-text-2xl); font-weight: 600; }
-.club-root .ws-publish .doc-sub { color: var(--cc-text-3); margin-bottom: 24px; }
-.club-root .ws-publish .pubx-grid { gap: 28px; align-items: start; }
-.club-root .ws-publish .pub-steps { gap: 16px; }
-.club-root .ws-publish .pub-step { box-shadow: none; background: var(--cc-bg); border-radius: var(--cc-r-lg); }
-.club-root .ws-publish .pub-step > header { align-items: flex-start; padding: 20px 20px 0; gap: 12px; }
-.club-root .ws-publish .pub-step h3 { margin: 2px 0 4px; font-size: var(--cc-text-lg); font-weight: 600; line-height: 1.35; }
-.club-root .ws-publish .pub-step header p { color: var(--cc-text-3); }
-.club-root .ws-publish .pub-step-n { position: static; width: 26px; height: 26px; border-radius: var(--cc-r-pill); font-weight: 500; background: var(--cc-bg-sunk); border: 1px solid var(--cc-line); color: var(--cc-text-2); }
-.club-root .ws-publish .pub-step-body { padding: 16px 20px 20px 58px; }
-.club-root .ws-publish .pubx-yt { overflow: hidden; background: var(--cc-bg); box-shadow: none; }
-.club-root .ws-publish .sec-h h2 { font-size: var(--cc-text-base); font-weight: 600; }
-.club-root .ws-publish-thumb { width: 100%; aspect-ratio: 16/9; object-fit: cover; border-radius: var(--cc-r); }
-.club-root .ws-publish-placeholder { aspect-ratio: 16/9; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; gap: 10px; padding: 24px; border-radius: var(--cc-r); border: 1px solid var(--cc-line); background: var(--cc-bg-sunk); color: var(--cc-text-3); }
-.club-root .ws-publish-placeholder strong { font-size: var(--cc-text-base); font-weight: 500; color: var(--cc-text-2); line-height: 1.45; }
-.club-root .ws-publish-placeholder span { font-size: var(--cc-text-xs); }
 @media (max-width: 1250px) {
  .club-root .ws .ws-foot { height: auto; min-height: 100px; flex-wrap: wrap; justify-content: space-between; padding: 8px 16px; gap: 4px 16px; }
  .club-root .ws .ws-foot .l, .club-root .ws .ws-foot .r { position: static; }
@@ -33,7 +16,6 @@
  .club-root .ws .ws-foot .r { order: 2; margin-left: auto; }
  .club-root .ws .ws-foot .ws-steps { order: 0; flex-basis: 100%; justify-content: center; }
  .club-root .ws .ws-foot .ws-why { display: inline; }
- .club-root .ws-publish { padding: 24px; }
 }
 @media (prefers-reduced-motion: reduce) { .club-root .ws .ws-step { transition: none; } }
 
@@ -59,63 +41,63 @@
 .club-root .ws .ws-edit-export .text-warn { color: var(--cc-warn-text); }
 
 /* A compact form that can always scroll clear of the step bar. */
-.club-root .ws-publish { padding-top: 24px; padding-bottom: 40px; flex-shrink: 0; }
-.club-root .ws-publish .doc-sub { margin-bottom: 20px; }
-.club-root .ws-publish .pub-steps { gap: 12px; }
-.club-root .ws-publish .pub-step { background: var(--cc-card-bg); }
-.club-root .ws-publish .pub-step > header { padding: 16px 20px 0; }
-.club-root .ws-publish .pub-step-body { padding: 12px 20px 16px 58px; }
-.club-root .ws-publish .pubx-form { gap: 12px 16px; }
-.club-root .ws-publish .pubx-form textarea { min-height: 120px; }
-.club-root .ws-publish .pub-step-n { font-size: var(--cc-text-base); font-weight: 600; color: var(--cc-text-2); }
-.club-root .ws-publish .pub-step.done .pub-step-n { color: var(--cc-success-text); }
-.club-root .ws-publish .pubx-yt { border: 0; border-radius: 0; padding: 0; background: transparent; }
-.club-root .ws-publish-placeholder { border: 0; border-radius: var(--cc-r); background: var(--cc-hover); }
-.club-root .ws-publish-placeholder span { font-size: var(--cc-text-sm); color: var(--cc-text-2); }
 
 /* Round 3: a step keeps its identity, with completion beside it. */
 .club-root .ws .ws-step .well{position:relative}
 .club-root .ws .ws-step-check{position:absolute;right:-4px;bottom:-4px;width:18px;height:18px;display:grid;place-items:center;border:2px solid var(--cc-bg);border-radius:var(--cc-r-pill);background:var(--cc-success-text);color:var(--cc-on-accent)}
-.club-root .ws-publish .pub-pair{display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start}
-.club-root .ws-publish .pub-pair select{width:100%}
-.club-root .ws-publish .ws-self-upload{align-self:flex-start;justify-self:start;text-align:left}
-.club-root .ws-publish .ws-manual-upload{display:flex;flex-direction:column;align-items:flex-start;margin-bottom:16px}
-.club-root .ws-publish .ws-publish-setup{display:flex;flex-direction:column;align-items:flex-start;gap:12px}
-.club-root .ws-publish .ws-publish-setup summary{font-size:var(--cc-text-xs);color:var(--cc-text-2);cursor:pointer}
 
-/* The preview remains one card in view while the form scrolls. */
-.club-root .ws-publish .pubx-grid>aside{position:sticky;top:24px;align-self:start}
-.club-root .ws-publish .pubx-yt{padding:16px;border:1px solid var(--cc-line-strong);border-radius:var(--cc-r-lg);background:var(--cc-card-bg)}
-.club-root .ws-publish .pubx-yt .yt-d{font-size:var(--cc-text-sm);max-height:100px;overflow:hidden}
-@media(max-width:1000px){.club-root .ws-publish .pubx-grid>aside{position:static}}
-.club-root .ws-publish :is(.ws-manual-upload,.self-upload){width:100%}
-.club-root .ws-publish .self-upload form{gap:8px;flex-wrap:wrap}
-.club-root .ws-publish .self-upload form .input{flex:1;min-width:180px}
-.club-root .ws-publish .self-upload form .btn{flex-shrink:0}
-.club-root .ws-publish .self-upload .btn:disabled{opacity:1;background:var(--cc-hover);color:var(--cc-text-2)}
-
-/* Final review: one manual completion action and readable export metadata. */
-.club-root .ws-publish .ws-export-file{flex-wrap:nowrap;gap:10px;min-width:0}
-.club-root .ws-publish .ws-export-file>:not(.ws-export-name){flex-shrink:0;white-space:nowrap}
-.club-root .ws-publish .ws-export-name{display:flex;flex:1;min-width:0;color:var(--cc-text-2);font-size:var(--cc-text-sm);white-space:nowrap}
-.club-root .ws-publish .ws-export-name>span:first-child{overflow:hidden;text-overflow:ellipsis;min-width:0}
-.club-root .ws-publish .ws-export-name>span:last-child{flex-shrink:0}
-.club-root .ws-publish .pub-pair>span:has(.ws-visibility){width:100%}
-.club-root .ws-publish .ws-visibility{width:100%;min-height:34px;display:flex;align-items:center;justify-content:space-between;text-align:left}
-.club-root .ws-publish .ws-kids-segment{display:flex;gap:0;height:34px;padding:2px;margin:0;border:1px solid var(--cc-line-strong);border-radius:var(--cc-r);background:var(--cc-hover)}
-.club-root .ws-publish .ws-kids-segment .rad{position:relative;display:flex;justify-content:center;align-items:center;min-width:56px;margin:0;padding:0 12px;border-radius:var(--cc-r-sm);font-size:var(--cc-text-sm);color:var(--cc-text-2);cursor:pointer}
-.club-root .ws-publish .ws-kids-segment .rad:has(input:checked){background:var(--cc-surface);color:var(--cc-text);box-shadow:var(--cc-shadow-1)}
-.club-root .ws-publish .ws-kids-segment .rad:has(input:focus-visible){outline:2px solid var(--cc-accent);outline-offset:1px}
-.club-root .ws-publish .ws-kids-segment input{position:absolute;width:1px;height:1px;opacity:0}
-.club-root .ws-publish .ws-automatic-link{font-size:var(--cc-text-sm);color:var(--cc-text-2);text-decoration:none}
-.club-root .ws-publish .ws-automatic-link:hover{text-decoration:underline}
-.club-root .ws-publish .ws-kids-segment{box-sizing:border-box;height:36px}
-.club-root .ws-publish .ws-kids-segment .rad{min-height:0;height:30px;line-height:normal;border:0;background:transparent;flex:1}
-.club-root .ws-publish .pub-pair .field-hint{margin-top:6px;font-size:var(--cc-text-xs)}
-
-/* Cleanup: readable completion and selected answers; publishing menus clear every card. */
 .club-root .ws .ws-step-check{background:color-mix(in srgb,var(--cc-ok) 70%,var(--cc-dark-stage));color:var(--cc-on-media);border-color:var(--cc-bg)}
-.club-root .ws-publish .ws-kids-segment .rad.is-selected{gap:5px;background:var(--cc-accent-soft);color:var(--cc-text);box-shadow:inset 0 0 0 1px var(--cc-accent)}
 .club-root>.menu[aria-label="Who can watch"]{z-index:1000}
-.club-root .ws-publish .ws-paste-note{margin:0 0 12px}
 .club-root .ws #ws-publish-action .btn:disabled{opacity:1;background:var(--cc-hover);color:var(--cc-text-2);border:1px solid var(--cc-line-strong)}
+
+/* Publish: plain sections, each a small heading over its controls. Muted lines and text links carry the rest, on one spacing scale. */
+.club-root .ws-publish { max-width: 1160px; margin: 0 auto; padding: var(--cc-space-6) var(--cc-space-8) var(--cc-space-8); flex-shrink: 0; }
+@media (max-width: 1250px) { .club-root .ws-publish { padding: var(--cc-space-6); } }
+.club-root .ws-publish .doc-h h2 { font-size: var(--cc-text-2xl); font-weight: 600; }
+.club-root .ws-publish .doc-sub { color: var(--cc-text-3); margin-bottom: var(--cc-space-6); }
+.club-root .ws-publish .pubx-grid { gap: var(--cc-space-8); align-items: start; }
+.club-root .ws-publish .pub-sections { display: flex; flex-direction: column; gap: var(--cc-space-6); min-width: 0; }
+.club-root .ws-publish .pub-section h3 { margin: 0 0 var(--cc-space-3); font-size: var(--cc-text-base); font-weight: 600; color: var(--cc-text); }
+.club-root .ws-publish .pub-section-body { display: flex; flex-direction: column; gap: var(--cc-space-3); min-width: 0; }
+.club-root .ws-publish .pub-line { margin: 0; font-size: var(--cc-text-sm); line-height: 1.5; color: var(--cc-text-2); overflow-wrap: anywhere; }
+.club-root .ws-publish .pub-note { color: var(--cc-text-3); }
+.club-root .ws-publish .ws-export-name { color: var(--cc-text); }
+
+/* Labels are one style everywhere on the page. */
+.club-root .ws-publish .field { display: block; margin: 0 0 var(--cc-space-2); font-size: var(--cc-text-sm); font-weight: var(--cc-weight-medium); color: var(--cc-text); }
+.club-root .ws-publish .pubx-form { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--cc-space-4); padding: 0; }
+.club-root .ws-publish .pubx-form .full { grid-column: 1 / -1; min-width: 0; }
+.club-root .ws-publish .pubx-form .select { width: 100%; height: 36px; }
+.club-root .ws-publish .pubx-form textarea { min-height: 120px; }
+.club-root .ws-publish .pub-pair { display: flex; flex-direction: column; min-width: 0; }
+.club-root .ws-publish .pub-pair .field-hint { margin: var(--cc-space-1) 0 0; font-size: var(--cc-text-xs); color: var(--cc-text-3); }
+.club-root .ws-publish .ws-visibility { width: 100%; min-height: 36px; display: flex; align-items: center; justify-content: space-between; text-align: left; }
+.club-root .ws-publish .ws-kids-segment { box-sizing: border-box; display: flex; height: 36px; padding: 2px; margin: 0; border: 1px solid var(--cc-line-strong); border-radius: var(--cc-r); background: var(--cc-hover); }
+.club-root .ws-publish .ws-kids-segment .rad { position: relative; flex: 1; display: flex; justify-content: center; align-items: center; gap: 5px; min-width: 56px; height: 30px; margin: 0; padding: 0 var(--cc-space-3); border: 0; border-radius: var(--cc-r-sm); background: transparent; font-size: var(--cc-text-sm); line-height: normal; color: var(--cc-text-2); cursor: pointer; }
+.club-root .ws-publish .ws-kids-segment .rad:has(input:checked) { background: var(--cc-surface); color: var(--cc-text); box-shadow: var(--cc-shadow-1); }
+.club-root .ws-publish .ws-kids-segment .rad.is-selected { background: var(--cc-accent-soft); color: var(--cc-text); box-shadow: inset 0 0 0 1px var(--cc-accent); }
+.club-root .ws-publish .ws-kids-segment .rad:has(input:focus-visible) { outline: 2px solid var(--cc-accent); outline-offset: 1px; }
+.club-root .ws-publish .ws-kids-segment input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.club-root>.menu[aria-label="Who can watch"] { z-index: 1000; }
+@media (max-width: 760px) { .club-root .ws-publish .pubx-form { grid-template-columns: minmax(0, 1fr); } }
+@container (max-width: 480px) { .club-root .ws-publish .pubx-form, .club-root .ws-publish .pub-when { grid-template-columns: minmax(0, 1fr); } }
+
+/* The preview: its thumbnail is the only frame it needs. */
+.club-root .ws-publish-thumb { width: 100%; aspect-ratio: 16/9; object-fit: cover; border-radius: var(--cc-r); }
+.club-root .ws-publish-placeholder { aspect-ratio: 16/9; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; gap: var(--cc-space-2); padding: var(--cc-space-6); border-radius: var(--cc-r); background: var(--cc-hover); color: var(--cc-text-3); }
+.club-root .ws-publish-placeholder span { font-size: var(--cc-text-sm); color: var(--cc-text-2); }
+.club-root .ws-publish .pubx-grid > aside { position: sticky; top: var(--cc-space-6); align-self: start; }
+@media (max-width: 1000px) { .club-root .ws-publish .pubx-grid > aside { position: static; } }
+.club-root .ws-publish .pubx-yt { padding: var(--cc-space-4); border: 0; border-radius: var(--cc-r-lg); background: var(--cc-card-bg); overflow: hidden; }
+.club-root .ws-publish .pubx-yt .yt-d { font-size: var(--cc-text-sm); max-height: 100px; overflow: hidden; }
+
+/* Upload: one action, the rest quiet. */
+.club-root .ws-publish .ws-manual-upload { display: flex; flex-direction: column; align-items: flex-start; gap: var(--cc-space-2); }
+.club-root .ws-publish .self-upload { width: 100%; }
+.club-root .ws-publish .self-upload form { gap: var(--cc-space-2); flex-wrap: wrap; }
+.club-root .ws-publish .self-upload form .input { flex: 1; min-width: 180px; }
+.club-root .ws-publish .self-upload form .btn { flex-shrink: 0; }
+.club-root .ws-publish .self-upload .btn:disabled { opacity: 1; background: var(--cc-hover); color: var(--cc-text-2); }
+.club-root .ws-publish .pub-when { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--cc-space-3); }
+.club-root .ws-publish .pub-auto summary { font-size: var(--cc-text-sm); color: var(--cc-text-2); cursor: pointer; }
+.club-root .ws-publish .pub-auto p { margin: var(--cc-space-2) 0 0; }

@@ -163,3 +163,42 @@ export function renderMotionBlock(block: MotionBlock, width: number, height: num
   inflight.set(key, work);
   return work;
 }
+
+// ---------------------------------------------------------------- the camera's change between tile and full frame
+
+/** One frame of a camera change: the source picture and the box it is drawn in, in export pixels (shared/stage-morph.ts). */
+export interface MorphFrame { jpeg: Buffer; x: number; y: number; width: number; height: number; radius: number; blur: number; position: string }
+
+/** The page that draws a camera change: every source frame inline, and a seek that shows frame `ms` in its box, as the preview does. */
+export function morphDocument(frames: MorphFrame[], width: number, height: number, fps: number): string {
+  const boxes = frames.map(({ jpeg: _jpeg, ...box }) => box);
+  const images = frames.map((f, i) => `<img id="f${i}" src="data:image/jpeg;base64,${f.jpeg.toString("base64")}" alt="">`).join("");
+  return `<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;width:${width}px;height:${height}px;overflow:hidden;background:transparent}#box{position:absolute;overflow:hidden}#box img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:none}</style></head><body><div id="box">${images}</div><script>const B=${JSON.stringify(boxes)};let shown;window.__morph=ms=>{const i=Math.max(0,Math.min(B.length-1,Math.round(ms*${fps}/1000))),b=B[i],box=document.getElementById('box');Object.assign(box.style,{left:b.x+'px',top:b.y+'px',width:b.width+'px',height:b.height+'px',borderRadius:b.radius+'px',filter:b.blur>.05?'blur('+b.blur.toFixed(2)+'px)':'none'});if(shown)shown.style.display='none';shown=document.getElementById('f'+i);shown.style.display='block';shown.style.objectPosition=b.position;return i;};</script></body></html>`;
+}
+
+/** A camera change rendered for the export: a cached qtrle file the size of the frame, with alpha, to overlay where the change runs. */
+export function renderMorph(frames: MorphFrame[], width: number, height: number, fps: number): Promise<string> {
+  const key = hash({ morph: 1, frames: frames.map(({ jpeg, ...box }) => [hash(jpeg.toString("base64")), box]), width, height, fps });
+  const out = path.join(CACHE, `morph-${key}.mov`);
+  const running = inflight.get(key);
+  if (running) return running.then((r) => r.file);
+  const work = (async () => {
+    const result: MotionRender = { file: out, x: 0, y: 0, width, height, frames: frames.length };
+    if (existsSync(out)) return result;
+    await fs.mkdir(CACHE, { recursive: true });
+    const dir = path.join(CACHE, `.morph-${key}-${randomUUID()}`), temp = path.join(CACHE, `.morph-${key}-${randomUUID()}.mov`);
+    await fs.mkdir(dir);
+    try {
+      await fs.writeFile(path.join(dir, "page.html"), morphDocument(frames, width, height, fps));
+      await capture({ dir, width, height, fps, frames: frames.length, clip: { x: 0, y: 0, width, height }, seek: "window.__morph(__MS__)" });
+      await encode(dir, fps, temp);
+      await fs.rename(temp, out);
+      return result;
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+      await fs.rm(temp, { force: true });
+    }
+  })().finally(() => inflight.delete(key));
+  inflight.set(key, work);
+  return work.then((r) => r.file);
+}

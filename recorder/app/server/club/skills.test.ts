@@ -4,7 +4,7 @@ import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { findPreviews, listSkills, oneLine, previewFile, withPlayer, withSkills } from './skills.js';
-import { featuredSkills, matchSkills, slashQuery, slashSkill } from '../../shared/skills.js';
+import { editSkillAsked, featuredSkills, matchSkills, slashQuery, slashSkill } from '../../shared/skills.js';
 
 const home = await mkdtemp(path.join(os.tmpdir(), 'creatorclub-skills-'));
 after(() => rm(home, { recursive: true, force: true }));
@@ -100,4 +100,11 @@ test('a skill that comes with the app is listed with the creator\'s own, and the
     await rm(path.join(bundled, 'proof-edit'), { recursive: true, force: true });
     await rm(path.join(bundled, 'write-hook'), { recursive: true, force: true });
   }
+});
+
+test('on Edit, a plain ask for graphics or a polish runs proof-edit; changing what is there, or a slash, does not', () => {
+  for (const ask of ['Okay, can you add motion graphics please?', 'add motion graphs please', 'Put a diagram where I explain the flow', 'Polish the whole video', 'Can you edit my video?', 'make it look more professional'])
+    assert.equal(editSkillAsked(ask), 'proof-edit', ask);
+  for (const ask of ['Remove the graphic at 0:12', 'Move the steps graphic a second earlier', 'Make the flow shorter', 'cut the pauses', '/proof-edit add graphics', 'Change the words on that graphic'])
+    assert.equal(editSkillAsked(ask), undefined, ask);
 });

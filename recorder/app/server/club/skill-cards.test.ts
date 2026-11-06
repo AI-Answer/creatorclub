@@ -112,8 +112,8 @@ test('a skill run answers with edit cards: told the word times, the timeline and
   assert.match(told.brief, /0:00 to 0:20/, 'with nothing selected, the plan is for the whole video');
   assert.deepEqual(reply.cards.map((card) => card.action.type), ['add_motion_block', 'add_motion_block'], 'what does not fit is left out');
   assert.ok(reply.cards.every((card) => card.state === 'offered' && card.proposedOn), 'offered for the timeline it was planned on');
-  assert.match(reply.text, /2 changes did not fit the timeline and were left out/);
-  assert.match(reply.text, /Pacing after these cards: /, 'the reply says how the pacing will be once the cards are added');
+  assert.match(reply.text, /I skipped 2 changes that no longer fit your video\./, 'said in plain words');
+  assert.doesNotMatch(reply.text, /cards|did not fit the timeline|left out|Add all/, 'no app words in the reply');
   const applied = await call<CompanionApplied>('POST', `/videos/${video.id}/companion/${reply.id}/cards/apply-all`, { indices: [0, 1], revision: (await storage.projectState(project.id)).revision });
   assert.equal(applied.status, 200, JSON.stringify(applied.body));
   const saved = (await storage.readProject(project.id)) as Project;
@@ -130,7 +130,23 @@ test('the pacing after the cards stops, as Add all does, at a card the cuts befo
   };
   const reply = await run('/screenplay-edit tighten');
   assert.equal(reply.cards.length, 2, 'both fit the timeline as it is now');
-  assert.match(reply.text, /Pacing after the first card \(Add all stops at card 2, which no longer fits once it is added\): /);
+  assert.match(reply.text, /Still worth a look after the first 1 changes: |^Cut the end and title it\.$/m, 'pacing is said in plain words, and only when something is worth a look');
+  assert.doesNotMatch(reply.text, /Add all|card/);
+});
+
+test('a graphic whose stretch a cut before it takes out still stays up long enough to read', async () => {
+  plan = {
+    text: 'Cut the middle and label what is left.',
+    actions: [
+      { type: 'delete_range', start: 14, end: 18 },
+      { type: 'add_motion_block', template: 'title-card', start: 13.5, duration: 3, text: 'Next' },
+    ],
+  };
+  const reply = await run('/screenplay-edit tighten');
+  const applied = await call<CompanionApplied>('POST', `/videos/${video.id}/companion/${reply.id}/cards/apply-all`, { indices: [0, 1], revision: (await storage.projectState(project.id)).revision });
+  assert.equal(applied.status, 200, JSON.stringify(applied.body));
+  const block = ((await storage.readProject(project.id)) as Project).motion!.find((each) => each.template === 'title-card' && each.start > 13)!;
+  assert.deepEqual([block.start, block.duration], [13.5, 2], 'not the half second the cut left of its stretch');
 });
 
 test('a skill that has nothing to do says why, with no cards', async () => {
