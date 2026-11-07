@@ -52,7 +52,7 @@ export function Workspace({video,tab,back,navigate,onVideo}:{video:Video;tab:Vid
  const prepareRecorder=useCallback((quick:boolean)=>{
   let pending=quickPending.current.get(id);
   if(!pending){
-   pending=(async()=>{if(!quick)await flushPlan.current();return clubFetch<Video>(`/videos/${id}/recorder`,quick?{body:{quick:true}}:{method:'POST'});})();
+   pending=(async()=>{await flushPlan.current();return clubFetch<Video>(`/videos/${id}/recorder`,quick?{body:{quick:true}}:{method:'POST'});})();
    quickPending.current.set(id,pending);
    void pending.catch(()=>quickPending.current.delete(id));
   }
@@ -87,13 +87,14 @@ export function Workspace({video,tab,back,navigate,onVideo}:{video:Video;tab:Vid
  const onExported=useCallback((done:boolean)=>setExported(done),[]);
 
  const list=scenes.state.status==='ready'?scenes.state.scenes:undefined;
+ const mounted=useRef(true);
+ useEffect(()=>{mounted.current=true;return()=>{mounted.current=false;};},[]);
  const scenesLoaded=list!==undefined,hasPlannedScenes=!!list?.length;
  // Opening a step prepares its project; capture still waits for Start recording.
  useEffect(()=>{
   if((tab!=='record'&&tab!=='edit')||video.recorderProjectId||!scenesLoaded||recorderError||tab==='record'&&hasPlannedScenes&&plan.load.status!=='ready')return;
-  let active=true;
-  void prepareRecorder(tab==='edit'||!hasPlannedScenes).then(next=>{if(active){onVideo(next);reloadScenes();}},reason=>{if(active)setRecorderError(errorMessage(reason,tab==='edit'?"Couldn't open the editor.":"Couldn't open the recorder."));});
-  return()=>{active=false;};
+  // Keep the result after a tab change, so the video is not left without the project the server made; only leaving the video drops it.
+  void prepareRecorder(tab==='edit'||!hasPlannedScenes).then(next=>{if(mounted.current){onVideo(next);reloadScenes();}},reason=>{if(mounted.current)setRecorderError(errorMessage(reason,tab==='edit'?"Couldn't open the editor.":"Couldn't open the recorder."));});
  },[tab,video.recorderProjectId,scenesLoaded,hasPlannedScenes,plan.load.status,recorderError,prepareRecorder,onVideo,reloadScenes]);
  useEffect(()=>{setRecorderError('');},[id]);
  const openingError=recorderError||(scenes.state.status==='unknown'?"Couldn't load the scenes.":tab==='record'&&hasPlannedScenes&&plan.load.status==='error'?plan.load.message:'');
