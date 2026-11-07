@@ -1,7 +1,7 @@
 import {mountUI,button} from '../test-dom';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {act,createElement} from 'react';
+import {act,createElement,StrictMode,useState} from 'react';
 import type {Video} from '../../shared/club';
 import type {Route} from './routes';
 import {installFetch} from './test-fakes';
@@ -64,19 +64,58 @@ test('failed quick setup keeps the created video and opens Record for retry inst
  }finally{await ui.close();fake.restore();}
 });
 
-test('an existing idea can set up its one-scene recording from Record without creating a new video',async()=>{
- const changes:Video[]=[];const routes:Route[]=[];
+function SetupHarness({initial,tab}:{initial:Video;tab:'record'|'edit'}){
+ const [current,setCurrent]=useState(initial);
+ return createElement(ToastProvider,null,createElement(Workspace,{video:current,tab,back:{name:'home'},onVideo:setCurrent,navigate(){throw Error('Setup must stay on the current tab.');}}));
+}
+
+for(const tab of ['record','edit'] as const)test(`opening ${tab} automatically prepares one project after scenes load, even across StrictMode and fast tab changes`,async()=>{
+ const project=createProject('Existing');localStorage.clear();
+ const previousSource=globalThis.EventSource;class Source extends EventTarget{close(){}}Object.assign(globalThis,{EventSource:Source});
+ let scenesReady!:(reply:{body:unknown[]})=>void,recorderReady!:(reply:{body:Video})=>void;
+ const scenes=new Promise<{body:unknown[]}>(resolve=>{scenesReady=resolve;}),recorder=new Promise<{body:Video}>(resolve=>{recorderReady=resolve;});
+ const fake=installFetch(call=>{
+  if(call.path==='/videos/v1/plan')return {body:{package:null,outline:null}};
+  if(call.path==='/videos/v1/scenes')return scenes;
+  if(call.path==='/videos/v1/recorder')return recorder;
+  if(call.path===`/api/projects/${project.id}`)return {body:project};
+  if(call.path==='/api/projects')return {body:[project]};
+  if(call.path==='/api/health')return {body:{transcription:{local:true,providers:[]}}};
+  if(call.path==='/api/automation/settings')return {body:{automaticTranscription:false}};
+ });
+ const page=(current:'record'|'edit')=>createElement(StrictMode,null,createElement(SetupHarness,{initial:video('v1','Existing'),tab:current}));
+ const ui=await mountUI(page(tab));
+ try{
+  await flush();assert.equal(fake.calls.filter(call=>call.method==='POST').length,0,'wait for the scenes');
+  assert.ok(ui.container.textContent?.includes(tab==='edit'?'Opening the editor…':'Opening the recorder…'));
+  await act(async()=>scenesReady({body:[]}));await flush();
+  await ui.render(page(tab==='record'?'edit':'record'));await ui.render(page(tab));await flush();
+  assert.deepEqual(fake.calls.filter(call=>call.method==='POST').map(call=>[call.path,call.body]),[['/videos/v1/recorder',{quick:true}]]);
+  await act(async()=>recorderReady({body:{...video('v1','Existing'),stage:'recording',quickRecording:true,recorderProjectId:project.id}}));
+  for(let i=0;i<8;i++)await flush();
+  assert.ok(ui.container.querySelector(tab==='edit'?'.club-timeline':'aside[aria-label="Recording sources"]'),'the step itself opens');
+  if(tab==='edit'){
+   assert.ok(ui.container.querySelector('.club-rail'));assert.ok(ui.container.textContent?.includes('Drop media here, or record a scene'));
+   assert.equal(button(ui.container,'Continue to publishing').disabled,true,'empty editing never enables Continue');
+   assert.equal(ui.container.querySelector('[role=dialog]'),null,'opening Edit does not open Import');
+  }
+  assert.equal(fake.calls.filter(call=>call.path==='/videos/v1/recorder').length,1);
+ }finally{await ui.close();fake.restore();Object.assign(globalThis,{EventSource:previousSource});}
+});
+
+test('failed automatic setup shows Retry and retries only when asked',async()=>{
+ let attempts=0;
  const fake=installFetch(call=>{
   if(call.path==='/videos/v1/plan')return {body:{package:null,outline:null}};
   if(call.path==='/videos/v1/scenes')return {body:[]};
-  if(call.path==='/videos/v1/recorder')return {body:{...video('v1','Existing'),stage:'recording',quickRecording:true,recorderProjectId:'p1'}};
+  if(call.path==='/videos/v1/recorder'){attempts++;return {status:500,body:{error:'Could not prepare recorder.'}};}
  });
- const ui=await mountUI(createElement(ToastProvider,null,createElement(Workspace,{video:video('v1','Existing'),tab:'record',back:{name:'home'},onVideo:next=>changes.push(next),navigate:route=>routes.push(route)})));
+ const ui=await mountUI(createElement(SetupHarness,{initial:video('v1','Existing'),tab:'record'}));
  try{
-  await flush();assert.equal(button(ui.container,'Record without a plan').disabled,false);
-  await act(async()=>button(ui.container,'Record without a plan').click());await flush();
-  assert.deepEqual(fake.calls.filter(call=>call.method==='POST').map(call=>[call.path,call.body]),[['/videos/v1/recorder',{quick:true}]]);
-  assert.equal(changes[0].recorderProjectId,'p1');assert.deepEqual(routes,[{name:'video',id:'v1',tab:'record'}]);
+  for(let i=0;i<4;i++)await flush();
+  assert.equal(attempts,1);assert.ok(ui.container.querySelector('[role=alert]'));
+  await act(async()=>button(ui.container,'Try again').click());for(let i=0;i<4;i++)await flush();
+  assert.equal(attempts,2);
  }finally{await ui.close();fake.restore();}
 });
 
@@ -109,7 +148,8 @@ test('an unplanned one-scene project opens the live recorder source controls, wh
   await ui.render(page('idea'));await flush();
   assert.ok(ui.container.querySelector('.bs-root'),'Idea is the script, there whenever a plan is wanted: never a step to get through first');
   await ui.render(page('edit'));await flush();
-  assert.ok(ui.container.textContent?.includes('Nothing recorded yet'));
-  assert.equal(button(ui.container,'Record a scene').disabled,false);
+  assert.ok(ui.container.querySelector('.club-timeline'));
+  assert.ok(ui.container.textContent?.includes('Drop media here, or record a scene'));
+  assert.equal(button(ui.container.querySelector('.club-timeline-empty')!,'Record').disabled,false);
  }finally{await ui.close();fake.restore();Object.assign(globalThis,{EventSource:previousSource});}
 });

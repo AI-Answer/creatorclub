@@ -417,11 +417,9 @@
 .club-root .club-embed .app-shell[data-mode=Edit] .club-edit .club-edit-transcript .transcript-scene-label{font-size:var(--cc-text-xs);text-transform:none;letter-spacing:0}
 .club-root .club-embed .app-shell[data-mode=Edit] .club-edit .inspector :is(.field,.toggle-field,.hint){font-size:var(--cc-text-sm)}
 
-/* Cleanup: keep empty videos focused and scene prose equally readable with or without captions. */
-.club-root .club-embed .app-shell[data-mode=Edit] .edit-empty{display:flex;flex:1;min-height:0;flex-direction:column;align-items:center;justify-content:center;gap:12px;color:var(--cc-text-2)}
-.club-root .club-embed .app-shell[data-mode=Edit] .edit-empty h2{margin:0;font-size:var(--cc-text-xl);font-weight:600;color:var(--cc-text)}
-.club-root .club-embed .app-shell[data-mode=Edit] .edit-empty p{margin:0;font-size:var(--cc-text-base)}
-.club-root .club-embed .app-shell[data-mode=Edit] .edit-empty>div{display:flex;gap:8px;margin-top:4px}
+/* Empty footage keeps the track area open for imports and recording. */
+.club-timeline-empty{position:absolute;left:80px;display:flex;align-items:center;flex-wrap:wrap;gap:10px;padding:22px 0;color:var(--cc-text-2);font-size:var(--cc-text-sm);z-index:2}
+.club-timeline-empty .button{font-size:var(--cc-text-xs)}
 .club-root .club-embed .app-shell[data-mode=Edit] .edit-scene-script,
 .club-root .club-embed .app-shell[data-mode=Edit] .club-edit .club-edit-transcript .transcript-editor .transcript-paragraph{font-size:var(--cc-text-lg);color:var(--cc-text);font-weight:400;line-height:1.65}
 .club-root .club-embed .app-shell[data-mode=Edit] .club-edit :is(.club-scene-tag,.transcript-scene-label,.transcript-scene-label button){text-transform:none;letter-spacing:0}

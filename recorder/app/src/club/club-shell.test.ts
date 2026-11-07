@@ -88,7 +88,9 @@ test('ClubRecorder opens one project in the forced mode without SceneForge navig
   assert.equal(ui.container.querySelector('.workflow-tabs'),null,'no Script/Record/Edit step bar');
   assert.ok(![...ui.container.querySelectorAll('button')].some(b=>b.textContent?.trim()==='Projects'),'no Projects button');
   assert.equal(ui.container.querySelector('.onboarding, [aria-label="Close setup"]'),null,'no SceneForge welcome');
-  assert.ok(ui.container.querySelector('.edit-empty'),'empty Edit mode is shown');
+  assert.ok(ui.container.querySelector('.club-rail'),'empty Edit keeps its tools');
+  assert.ok(ui.container.querySelector('.club-timeline'),'empty Edit keeps its timeline');
+  assert.ok(ui.container.textContent?.includes('Drop media here, or record a scene'));
   await ui.render(createElement(ClubRecorder,{projectId:p.id,mode:'Record',onBack}));
   assert.ok(ui.container.querySelector('#recording-presets-slot'),'Record mode follows the prop');
   await act(async()=>(ui.container.querySelector('[aria-label="Close project"]') as HTMLButtonElement).click());
