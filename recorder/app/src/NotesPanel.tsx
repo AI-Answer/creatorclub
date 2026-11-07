@@ -2,7 +2,7 @@ import {useEffect,useRef,useState} from 'react';
 import {Copy,Trash2,WandSparkles,X} from './Icons';
 import {MARKER_TAG_LABEL,MARKER_TAGS,type MarkerTag,type Project} from '../shared/types';
 import {isEditableTarget} from './shortcuts';
-import {askClaude} from './club/workspace/ask-claude';
+import {askClaude,newAskId,onAskSettled} from './club/workspace/ask-claude';
 import './NotesPanel.css';
 
 type Note=NonNullable<Project['markers']>[number];
@@ -21,6 +21,8 @@ export function NotesPanel({notes,onSeek,onChange,onDelete,onClose}:{notes:reado
  const ordered=sortedNotes(notes),shown=ordered.filter(note=>!filter||note.tag===filter),fixable=actionableNotes(notes);
  useEffect(()=>{box.current?.focus();},[]);
  const choose=(note:Note)=>{setActive(note.id);onSeek(note.time);};
+ // A closed or missing chat refuses the request on the spot (ask-claude.ts); say so instead of a button that seems to do nothing.
+ const fix=()=>{const id=newAskId();let refused=false;const stop=onAskSettled(d=>{if(d.requestId===id&&!d.ok)refused=true;});askClaude(fixNotesRequest(notes),id);stop();setCopyStatus(refused?'Open Ask Claude, then try again':'Sent to Ask Claude');};
  const copy=async()=>{try{await navigator.clipboard.writeText(copyNotes(notes));setCopyStatus('Notes copied');}catch{setCopyStatus('Could not copy notes. Try again.');}};
  return <aside ref={box} className="club-sheet notes-panel" tabIndex={-1} aria-label="Notes" onKeyDown={event=>{
   // Leave another note while reviewing the list; typing N in its text boxes is still ordinary text.
@@ -37,6 +39,6 @@ export function NotesPanel({notes,onSeek,onChange,onDelete,onClose}:{notes:reado
    <div className="notes-row-h"><button type="button" className="notes-time tnum" aria-label={`Seek to ${noteTime(note.time)}`} onClick={()=>choose(note)}>{noteTime(note.time)}</button><NoteTag tag={note.tag} label={`Tag at ${noteTime(note.time)}`} onChange={tag=>onChange(note.id,{tag})}/><button type="button" className="notes-delete" aria-label={`Delete note at ${noteTime(note.time)}`} onClick={()=>onDelete(note.id)}><Trash2 size={14}/></button></div>
    <textarea rows={2} aria-label={`Note at ${noteTime(note.time)}`} placeholder="Write a note" value={note.name??''} onChange={event=>onChange(note.id,{name:event.target.value})}/>
   </section>):<p className="notes-empty">{notes.length?'No notes with this tag':'Press N while watching to leave a note at that moment'}</p>}</div>
-  <footer><button type="button" className="btn sm" disabled={!notes.length} onClick={()=>void copy()}><Copy size={13}/>Copy notes</button><button type="button" className="btn sm primary" disabled={!fixable.length} onClick={()=>askClaude(fixNotesRequest(notes))}><WandSparkles size={13}/>Fix with Claude</button>{copyStatus&&<span className="notes-copy-status" role="status">{copyStatus}</span>}</footer>
+  <footer><button type="button" className="btn sm" disabled={!notes.length} onClick={()=>void copy()}><Copy size={13}/>Copy notes</button><button type="button" className="btn sm primary" disabled={!fixable.length} onClick={fix}><WandSparkles size={13}/>Fix with Claude</button>{copyStatus&&<span className="notes-copy-status" role="status">{copyStatus}</span>}</footer>
  </aside>;
 }
