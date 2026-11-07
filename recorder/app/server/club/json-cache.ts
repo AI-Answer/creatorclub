@@ -16,6 +16,10 @@ export class JsonCache {
    const cached=this.entries.get(name);
    if(cached?.key===key){this.entries.delete(name);this.entries.set(name,cached);return structuredClone(cached.value) as T;}
    const text=await fs.readFile(name,'utf8'),value:unknown=JSON.parse(text);
+   const after=await fs.stat(name,{bigint:true});
+   const afterKey=`${after.dev}:${after.ino}:${after.size}:${after.mtimeNs}:${after.ctimeNs}`;
+   // A replacement during the read is never cached against the earlier metadata.
+   if(afterKey!==key){this.invalidate(name);return this.read<T>(file);}
    this.invalidate(name);
    // Bound retained memory; large documents still work without being retained.
    const bytes=Buffer.byteLength(text);

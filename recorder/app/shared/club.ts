@@ -363,6 +363,7 @@ export interface BreakdownVideoMeta {
 }
 
 export interface Breakdown {
+  contentHash?: string;
   id: string;
   url: string;
   platform: string;
@@ -715,7 +716,14 @@ export interface PublishRecord {
   /** ISO time it is set to go live, for a scheduled video. */
   scheduledFor?: string;
   /** Postiz has it queued, YouTube has it, or Postiz could not post it. */
-  state: 'queued' | 'published' | 'failed';
+  state: 'uploading' | 'posting' | 'queued' | 'published' | 'failed';
+  /** Saved before the irreversible POST and reused for reconciliation. */
+  idempotencyKey?: string;
+  content?: string;
+  mediaVersion?: string;
+  mediaId?: string;
+  /** False only while the committed publish record still needs its stage handoff. */
+  stageApplied?: boolean;
   /** The YouTube link, once Postiz reports it. */
   url?: string;
   /** One sentence, when `state` is failed. */

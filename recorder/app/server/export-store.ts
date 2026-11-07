@@ -1,3 +1,4 @@
+import {processStart,processMatches} from './owned-processes.js';
 import {createHash,randomUUID} from 'node:crypto';
 import {promises as fs,constants} from 'node:fs';
 import path from 'node:path';
@@ -41,7 +42,7 @@ export async function fingerprintFile(file:string,signal?:AbortSignal):Promise<I
 export async function fingerprintRendererFile(file:string,deadline=Date.now()+5000):Promise<Identity>{
  const failure=(error:unknown)=>new Error(`Could not verify renderer ${file}: ${error instanceof Error?error.message:String(error)}`,{cause:error});
  let firstDigest:string|undefined;
- for(let attempt=0;attempt<3;attempt++){
+ for(let attempt=0;attempt<6;attempt++){
   const remaining=deadline-Date.now();if(remaining<=0)throw failure(Error('Renderer verification timed out. Try opening SceneForge again.'));
   try{
    const identity=await fingerprintFile(file,AbortSignal.timeout(remaining));
@@ -115,30 +116,35 @@ export class ExportStore{
  private persist(saved:Saved){const snapshot=structuredClone(saved);const next=this.writes.catch(()=>{}).then(()=>atomicExportJSON(this.file(snapshot.record.id),snapshot));this.writes=next;return next;}
  async init(){
   await fs.mkdir(this.root,{recursive:true,mode:0o700});const lock=path.join(this.root,'.owner');
-  for(let attempt=0;attempt<3;attempt++){
-   try{await fs.mkdir(lock);await atomicExportJSON(path.join(lock,'owner.json'),{pid:process.pid,token:this.lockToken});this.owned=true;break;}
+  for(let attempt=0;attempt<6;attempt++){
+   try{await fs.mkdir(lock);await atomicExportJSON(path.join(lock,'owner.json'),{pid:process.pid,start:processStart(process.pid),token:this.lockToken});this.owned=true;break;}
    catch(e){if((e as NodeJS.ErrnoException).code!=='EEXIST')throw e;
     // Serialize reclamation separately: a stale read must never rename a new owner's lock.
-    const claim=lock+'.reclaim';try{await fs.mkdir(claim);}catch(err){if((err as NodeJS.ErrnoException).code==='EEXIST')throw Error('Export ownership recovery is in progress or incomplete. Retry after the other service exits.');throw err;}
+    const claim=lock+'.reclaim',claimToken=randomUUID();try{await fs.mkdir(claim);}catch(err){if((err as NodeJS.ErrnoException).code!=='EEXIST')throw err;const info=await fs.stat(claim);let reclaimer:{pid:number;start?:string}|undefined;try{reclaimer=JSON.parse(await fs.readFile(path.join(claim,'owner.json'),'utf8'));}catch{}if(reclaimer?processMatches(reclaimer.pid,reclaimer.start):Date.now()-info.mtimeMs<30000)throw Error('Export ownership recovery is in progress. Retry after the other service exits.');const stale=claim+'.stale-'+randomUUID();try{await fs.rename(claim,stale);}catch(error){if((error as NodeJS.ErrnoException).code==='ENOENT')continue;throw error;}const moved=await fs.stat(stale);await fs.rm(stale,{recursive:true,force:true});if(moved.ino!==info.ino||moved.dev!==info.dev)throw Error('Export recovery changed owners. Retry after the other service exits.');continue;}
+    await atomicExportJSON(path.join(claim,'owner.json'),{pid:process.pid,start:processStart(process.pid),token:claimToken});
     try{
-     let owner:{pid:number;token:string};try{owner=JSON.parse(await fs.readFile(path.join(lock,'owner.json'),'utf8'));}catch(err){if((err as NodeJS.ErrnoException).code==='ENOENT'){try{await fs.stat(lock);}catch(missing){if((missing as NodeJS.ErrnoException).code==='ENOENT')continue;} }throw Error('Export history ownership is incomplete. Another service may be starting; retry after it exits.');}
+     const lease=JSON.parse(await fs.readFile(path.join(claim,'owner.json'),'utf8'));if(lease.token!==claimToken)throw Error('Export recovery ownership changed. Retry.');
+     let owner:{pid:number;token:string;start?:string};try{owner=JSON.parse(await fs.readFile(path.join(lock,'owner.json'),'utf8'));}catch(err){if((err as NodeJS.ErrnoException).code==='ENOENT'){try{const info=await fs.stat(lock);if(Date.now()-info.mtimeMs>30000){await fs.rm(lock,{recursive:true,force:true});continue;}}catch(missing){if((missing as NodeJS.ErrnoException).code==='ENOENT')continue;} }throw Error('Export history ownership is incomplete. Another service may be starting; retry after it exits.');}
      if(!Number.isInteger(owner.pid)||owner.pid<=0||typeof owner.token!=='string')throw Error('Export owner record is invalid; refusing to replace it.');
-     let alive=true;try{process.kill(owner.pid,0);}catch(err){if((err as NodeJS.ErrnoException).code==='ESRCH')alive=false;}
+     const alive=processMatches(owner.pid,owner.start);
      if(alive)throw Error('This data folder already has a running export service. Close it or choose a separate data folder.');
      const stale=lock+'.stale-'+randomUUID();await fs.rename(lock,stale);await fs.rm(stale,{recursive:true,force:true});
-    }finally{await fs.rm(claim,{recursive:true});}
+    }finally{const lease=await fs.readFile(path.join(claim,'owner.json'),'utf8').then(JSON.parse).catch(()=>undefined);if(lease?.token===claimToken)await fs.rm(claim,{recursive:true,force:true});}
    }
   }
   if(!this.owned)throw Error('Could not acquire export history ownership');
   try{
+   for(const file of (await fs.readdir(this.root)).filter(f=>/^\.restart-.*\.json$/.test(f))){try{const journal=JSON.parse(await fs.readFile(path.join(this.root,file),'utf8'));if(![journal.next?.record?.id,journal.parent?.record?.id].every(id=>typeof id==='string'&&/^[a-zA-Z0-9_-]+$/.test(id))||!journal.snapshot)throw Error('Invalid restart journal');await atomicExportJSON(path.join(this.root,journal.next.record.id+'.snapshot.json'),journal.snapshot);await this.persist(journal.next);await this.persist(journal.parent);await fs.rm(path.join(this.root,file),{force:true});}catch(error){this.unreadableCount++;console.error('Could not recover export restart journal',file,error);}}
    this.currentRuntime=await this.getRuntime();
    for(const file of (await fs.readdir(this.root)).filter(f=>/^[a-zA-Z0-9_-]+\.json$/.test(f))){
-    let saved:Saved;try{saved=JSON.parse(await fs.readFile(path.join(this.root,file),'utf8'));if(saved.version!==1||saved.record?.id+'.json'!==file||typeof saved.record.projectId!=='string'||typeof saved.record.startedAt!=='string'||!saved.record.options||!saved.record.output||!saved.record.recovery||!Array.isArray(saved.sources)||typeof saved.runtime!=='string')throw Error('Unsupported receipt');}catch{this.unreadableCount++;continue;}
+    let saved:Saved;try{saved=JSON.parse(await fs.readFile(path.join(this.root,file),'utf8'));if(saved.version!==1||saved.record?.id+'.json'!==file||typeof saved.record.projectId!=='string'||typeof saved.record.startedAt!=='string'||!saved.record.options||!saved.record.output||!saved.record.recovery||!Array.isArray(saved.sources)||typeof saved.runtime!=='string')throw Error('Unsupported receipt');}catch(error){this.unreadableCount++;console.error('Could not read export receipt',file,error);continue;}
     this.records.set(saved.record.id,saved);this.summaries.set(saved.record.id,{projectId:saved.record.projectId,startedAt:saved.record.startedAt});this.trimCache();
     if(active(saved.record.status)){saved.record.status='interrupted';saved.record.message='Interrupted when the export service stopped. Restart uses the saved project and settings.';saved.record.completedAt=new Date().toISOString();this.touch(saved);await this.persist(saved);}
    }
+   await this.prune();
   }catch(e){await this.release();throw e;}
  }
+ private async prune(){const ordered=[...this.summaries].sort((a,b)=>b[1].startedAt.localeCompare(a[1].startedAt));for(const [index,[id,summary]] of ordered.entries()){if(index<200&&Date.parse(summary.startedAt)>Date.now()-30*86400000)continue;const saved=await this.require(id);if(active(saved.record.status)||saved.record.restartedAs&&active(this.records.get(saved.record.restartedAs)?.record.status??''))continue;await fs.rm(this.file(id),{force:true});await fs.rm(path.join(this.root,id+'.snapshot.json'),{force:true});this.records.delete(id);this.summaries.delete(id);}}
  diagnostics(){return {unavailableCount:this.unreadableCount,message:this.unreadableCount?`${this.unreadableCount} export history record(s) could not be read or use an unsupported format. Their files were left unchanged.`:undefined};}
  private touch(saved:Saved){saved.record.updatedAt=new Date().toISOString();saved.record.revision++;}
  private trimCache(){if(this.records.size<=500)return;for(const [id,saved] of this.records){if(!active(saved.record.status)){this.records.delete(id);if(this.records.size<=500)break;}}}
@@ -158,11 +164,14 @@ export class ExportStore{
   if(!['mp4','webm','wav','srt','txt','md','json'].includes(o.format))throw Error('Unsupported export format');
   const sources=await this.sources(snapshot),runtime=await this.getRuntime();this.assertOpen();if(expectedSources&&sources.some(source=>{const expected=expectedSources.find(s=>s.mediaId===source.mediaId);return !expected||expected.identity.sha256!==source.identity.sha256||expected.identity.realPath!==source.identity.realPath;}))throw conflict('Source files changed while preparing restart.');if(expectedRuntime&&runtime!==expectedRuntime)throw conflict('Renderer changed while preparing restart. Review again.');this.currentRuntime=runtime;
   const record:ExportRecord={id:randomUUID(),type:'export',status:'queued',progress:0,message:'Queued',startedAt:now,projectId:snapshot.id,projectName:snapshot.name,projectRevision:hash(snapshot),snapshotCreatedAt:now,options:o,updatedAt:now,revision:1,restartOf,output:{status:'pending'},recovery:{status:'blocked',reason:'This export is active.',runtimeChanged:false}};
-  const saved:Saved={version:1,record,sources,runtime};await atomicExportJSON(path.join(this.root,record.id+'.snapshot.json'),snapshot);this.records.set(record.id,saved);this.summaries.set(record.id,{projectId:record.projectId,startedAt:record.startedAt});this.trimCache();try{await this.persist(saved);}catch(e){this.records.delete(record.id);this.summaries.delete(record.id);throw e;}
+  const saved:Saved={version:1,record,sources,runtime},parent=restartOf?await this.require(restartOf):undefined,journal=parent?path.join(this.root,'.restart-'+record.id+'.json'):undefined;
+  if(parent){parent.record.restartedAs=record.id;this.touch(parent);await atomicExportJSON(journal!,{parent,next:saved,snapshot});}
+  await atomicExportJSON(path.join(this.root,record.id+'.snapshot.json'),snapshot);await this.persist(saved);if(parent)await this.persist(parent);if(journal)await fs.rm(journal,{force:true});
+  this.records.set(record.id,saved);this.summaries.set(record.id,{projectId:record.projectId,startedAt:record.startedAt});this.trimCache();await this.prune();
   if(this.closing){record.status='interrupted';record.message='Service stopped before export could start';this.touch(saved);await this.persist(saved);return this.public(saved);}
   try{this.renderer.start(snapshot,o,this.outputDir,{
    initialJob:structuredClone(record),
-   onUpdate:async(job)=>{Object.assign(record,jobFields(job));this.touch(saved);await this.persist(saved);},
+   onUpdate:async(job)=>{Object.assign(record,jobFields(saved.output&&job.status==='cancelled'?{...job,status:'complete',progress:1,message:'Complete'}:job));this.touch(saved);await this.persist(saved);},
    beforeComplete:async(job)=>{const changed=await this.changedSources(saved);if(changed.length){record.recovery={status:'blocked',runtimeChanged:false,changedSources:changed,reason:'Source files changed during export: '+changed.join(', ')};throw Error(record.recovery.reason);}
     if(await this.getRuntime()!==saved.runtime)throw Error('Renderer runtime changed during export; output cannot be verified.');
     if(!job.outputPath)throw Error('Export produced no output file');saved.output=await fingerprintFile(job.outputPath);record.output={status:'available'};
@@ -201,6 +210,7 @@ export class ExportStore{
   return {handle,name:path.basename(now.path),size:now.size};
  }
  async flush(){for(;;){const pending=this.writes;await pending;if(pending===this.writes)return;}}
+ ownsLock(){return this.owned;}
  async shutdown(interrupt:()=>Promise<void>){if(this.closing)return;this.closing=true;await interrupt();await this.flush();await this.release();}
  private async release(){if(!this.owned)return;const lock=path.join(this.root,'.owner');const owner=JSON.parse(await fs.readFile(path.join(lock,'owner.json'),'utf8'));if(owner.token===this.lockToken)await fs.rm(lock,{recursive:true});this.owned=false;}
 }

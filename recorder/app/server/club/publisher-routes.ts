@@ -1,6 +1,6 @@
 import type { NextFunction, Request, Response, Router } from 'express';
 import multer from 'multer';
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { z } from 'zod';
@@ -102,6 +102,7 @@ const sleep = (ms: number, signal: AbortSignal) =>
     signal.addEventListener('abort', () => (clearTimeout(timer), resolve()), { once: true });
   });
 
+const recordLock = <T>(slug: string, id: string, fn: () => Promise<T>) => store.withLock(`postiz-record:${store.videoDir(slug, id)}`, fn);
 const recordFile = (slug: string, id: string) => path.join(store.videoDir(slug, id), 'postiz.json');
 const thumbnailFiles = (slug: string, id: string) => THUMBNAIL_EXTENSIONS.map((ext) => path.join(store.videoDir(slug, id), `thumbnail.${ext}`));
 export async function thumbnailOf(slug: string, id: string): Promise<LocalFile | undefined> {
@@ -319,7 +320,9 @@ export function publishingRoutes(router: Router, deps: { handler: (fn: (req: Req
   }));
   router.delete('/videos/:id/thumbnail', handler(async (req, res) => {
     const slug = await requireWorkspace();
-    for (const file of thumbnailFiles(slug, param(req, 'id'))) await fs.rm(file, { force: true });
+    await store.withLock(`thumbnail:${store.videoDir(slug, param(req, 'id'))}`, async () => {
+      for (const file of thumbnailFiles(slug, param(req, 'id'))) await fs.rm(file, { force: true });
+    });
     res.status(204).end();
   }));
   router.use('/videos/:id/thumbnail', (error: Error, _req: Request, res: Response, next: NextFunction) =>
@@ -330,10 +333,13 @@ export function publishingRoutes(router: Router, deps: { handler: (fn: (req: Req
     const slug = await requireWorkspace();
     const id = param(req, 'id');
     await store.readVideo(slug, id);
-    const record = await store.readJSON<PublishRecord>(recordFile(slug, id));
+    const record = await recoverUpload(slug,id);
     if (!record) return res.json(null);
+    // A send still running in this server: say which job, so a reopened Publish screen follows it instead of offering Publish again.
+    const running = runningOnce(`postiz:${slug}:${id}`);
+    if (running) return res.json({ ...record, runningJobId: running.id });
     // A video Postiz was still sending, or has scheduled, may have gone out since: ask once, and keep what we have if Postiz cannot be reached.
-    if (record.state === 'queued') {
+    if ((record.state === 'queued' || record.state === 'posting' || record.state === 'published')) {
       try {
         const { publisher } = await connectedPublisher(options);
         return res.json(await refresh(slug, id, record, publisher, options.readViews));
@@ -351,11 +357,15 @@ export function publishingRoutes(router: Router, deps: { handler: (fn: (req: Req
     const id = param(req, 'id');
     await store.readVideo(slug, id);
     if (runningOnce(`postiz:${slug}:${id}`)) throw new ClubError(STILL_SENDING, 409);
-    const record = await store.readJSON<PublishRecord>(recordFile(slug, id));
-    if (!record) throw new ClubError(NOTHING_SENT, 409);
-    if (record.state === 'published') throw new ClubError(CANT_FORGET_PUBLISHED, 409);
-    const next: PublishRecord = { ...record, state: 'failed', message: FORGOTTEN };
-    await store.writeJSON(recordFile(slug, id), next);
+    const next = await recordLock(slug, id, async () => {
+      const record = await store.readJSON<PublishRecord>(recordFile(slug, id));
+      if (!record) throw new ClubError(NOTHING_SENT, 409);
+      if (record.state === 'published') throw new ClubError(CANT_FORGET_PUBLISHED, 409);
+      if (runningOnce(`postiz:${slug}:${id}`)) throw new ClubError(STILL_SENDING, 409);
+      const next: PublishRecord = { ...record, state: 'failed', message: FORGOTTEN };
+      await store.writeJSON(recordFile(slug, id), next);
+      return next;
+    });
     res.json(next);
   }));
 
@@ -367,8 +377,14 @@ export function publishingRoutes(router: Router, deps: { handler: (fn: (req: Req
     // Pressing Publish again while it runs follows the same job. Once Postiz has (or may have) the video, a second post is never made.
     const running = runningOnce(`postiz:${slug}:${id}`);
     if (running) return res.status(202).json(running);
-    const prior = await store.readJSON<PublishRecord>(recordFile(slug, id));
-    if (prior && prior.state !== 'failed') throw new ClubError(prior.unconfirmed ? ALREADY_UNCONFIRMED : ALREADY_SENT, 409);
+    const prior = await recoverUpload(slug,id);
+    if (prior && prior.state !== 'failed') {
+      if (prior.state === 'posting' || prior.unconfirmed) {
+        const { publisher } = await connectedPublisher(options);
+        await refresh(slug, id, prior, publisher, options.readViews);
+      }
+      throw new ClubError(prior.unconfirmed || prior.state === 'posting' ? ALREADY_UNCONFIRMED : ALREADY_SENT, 409);
+    }
     const scheduledFor = body.scheduledFor ? new Date(body.scheduledFor) : undefined;
     if (scheduledFor && scheduledFor.getTime() < Date.now() + 60_000) throw new ClubError('Pick a time in the future.');
     const settings = await store.publishingSettings();
@@ -379,19 +395,46 @@ export function publishingRoutes(router: Router, deps: { handler: (fn: (req: Req
     if (exported.size > MAX_VIDEO_BYTES) throw new PublisherError(`Postiz takes videos up to 1 GB, and this one is ${(exported.size / 1024 ** 3).toFixed(1)} GB.`, 400);
     const file: LocalFile = { path: exported.path, name: exported.name, size: exported.size, type: 'video/mp4', version: body.exportId };
     const channelId = settings.channel.id;
-    res.status(202).json(startJobOnce(`postiz:${slug}:${id}`, 'publish', async ({ emit, signal }) => {
+    res.status(202).json(startJobOnce(`postiz:${slug}:${id}`, 'publish', async ({ emit, signal }) => store.withLock(`postiz-send:${store.videoDir(slug, id)}`, async () => {
       emit({ step: 'check', message: 'Checking the exported video' });
       const base = { title: body.title, visibility: body.visibility, channelId, ...(scheduledFor ? { scheduledFor: scheduledFor.toISOString() } : {}), state: 'queued' as const, postizUrl: postizAppUrl(address) };
+      const intent: PublishRecord = { ...base, state: 'uploading', postId: '', sentAt: new Date().toISOString(), idempotencyKey: `cc_${randomBytes(16).toString('hex')}`, content: body.description, mediaVersion: body.exportId };
+      await recordLock(slug, id, async () => {
+        const latest = await store.readJSON<PublishRecord>(recordFile(slug, id));
+        if (latest && latest.state !== 'failed') throw new ClubError(ALREADY_SENT, 409);
+        await store.writeJSON(recordFile(slug, id), intent);
+      });
       let sent;
       try {
-        sent = await publisher.publish({ channelId, title: body.title, description: body.description, tags: body.tags, visibility: body.visibility, madeForKids: body.madeForKids, scheduledFor, video: file, thumbnail: await thumbnailOf(slug, id) }, emit, signal);
+        sent = await publisher.publish({ idempotencyKey: intent.idempotencyKey, beforePost: async post => {
+          signal.throwIfAborted();
+          intent.state='posting';
+          intent.sentAt = post.date.toISOString();
+          intent.mediaId = post.mediaId;
+          await recordLock(slug, id, async () => {
+            const current = await store.readJSON<PublishRecord>(recordFile(slug, id));
+            if (!current || current.idempotencyKey !== intent.idempotencyKey || current.state !== 'uploading') throw new ClubError(ALREADY_SENT, 409);
+            await store.writeJSON(recordFile(slug, id), intent);
+          });
+        }, channelId, title: body.title, description: body.description, tags: body.tags, visibility: body.visibility, madeForKids: body.madeForKids, scheduledFor, video: file, thumbnail: await thumbnailOf(slug, id) }, emit, signal);
       } catch (error) {
         // The post may exist. Keep what is needed to look for it, so nothing is sent twice.
-        if (error instanceof UnconfirmedPostError) await store.writeJSON(recordFile(slug, id), { ...base, postId: '', unconfirmed: true, sentAt: error.date.toISOString(), message: UNCONFIRMED } satisfies PublishRecord);
+        await recordLock(slug, id, async () => {
+          const current = await store.readJSON<PublishRecord>(recordFile(slug, id));
+          if (!current || current.idempotencyKey !== intent.idempotencyKey || !['uploading','posting'].includes(current.state)) return;
+          await store.writeJSON(recordFile(slug, id), error instanceof UnconfirmedPostError
+            ? { ...intent, unconfirmed: true, sentAt: error.date.toISOString(), message: UNCONFIRMED }
+            : { ...intent, state: 'failed', message: error instanceof ClubError ? error.message : 'Publishing stopped before the post was sent.' });
+        });
         throw error;
       }
-      let record: PublishRecord = { ...base, postId: sent.postId, sentAt: new Date().toISOString() };
-      await store.writeJSON(recordFile(slug, id), record);
+      let record: PublishRecord = { ...intent, state: 'queued', postId: sent.postId };
+      record = await recordLock(slug, id, async () => {
+        const current = await store.readJSON<PublishRecord>(recordFile(slug, id));
+        if (current && current.idempotencyKey === intent.idempotencyKey && current.state !== 'posting') return current;
+        await store.writeJSON(recordFile(slug, id), record);
+        return record;
+      });
       if (scheduledFor) await store.updateVideo(slug, id, { publishDate: scheduledFor.toISOString() });
       else {
         // Postiz sends it to YouTube in its own time. Wait a while for the link, then let the screen ask again.
@@ -406,43 +449,70 @@ export function publishingRoutes(router: Router, deps: { handler: (fn: (req: Req
       }
       if (record.state === 'failed') throw new PublisherError(record.message!);
       return record;
-    }));
+    })));
   }));
+  startPublishingSettle(options);
+}
+
+/** Uploading cannot have sent a post; a dead worker's upload can safely be retried. */
+export async function recoverUpload(slug:string,id:string):Promise<PublishRecord|null>{
+ return recordLock(slug,id,async()=>{const record=await store.readJSON<PublishRecord>(recordFile(slug,id));if(!record||record.state!=='uploading'||runningOnce(`postiz:${slug}:${id}`))return record??null;const next:PublishRecord={...record,state:'failed',message:'Uploading stopped before the post was sent. You can retry.'};await store.writeJSON(recordFile(slug,id),next);return next;});
 }
 
 export const POSTIZ_FAILED = "Postiz couldn't post it to YouTube. Open Postiz to see why.";
 
 /** Asks Postiz where a saved record stands and applies it. */
-async function refresh(slug: string, id: string, record: PublishRecord, publisher: Publisher, readViews: ViewsReader): Promise<PublishRecord> {
-  const status = await publisher.status({ postId: record.postId, date: new Date(record.scheduledFor ?? record.sentAt), channelId: record.channelId });
-  if (record.unconfirmed) {
-    if (status.postId) {
-      // Found by its channel and time: from here it is an ordinary post.
-      const { unconfirmed: _found, message: _none, ...known } = record;
-      record = { ...known, postId: status.postId };
-      await store.writeJSON(recordFile(slug, id), record);
-    } else return record;
-  }
+export async function refresh(slug: string, id: string, record: PublishRecord, publisher: Publisher, readViews: ViewsReader): Promise<PublishRecord> {
+  const status = await publisher.status({ postId: record.postId, date: new Date(record.scheduledFor ?? record.sentAt), channelId: record.channelId, idempotencyKey: record.idempotencyKey, title: record.title, content: record.content, mediaId: record.mediaId }, AbortSignal.timeout(30_000));
   return settle(slug, id, record, status, readViews);
 }
 
-/**
- * Applies what Postiz says to the saved record. It is `published` only once the video has really moved to Published, which needs a
- * YouTube link; Postiz saying published without a usable link leaves the record queued, and the screen offers pasting the link.
- */
-async function settle(slug: string, id: string, record: PublishRecord, status: { state: PublishRecord['state']; url?: string }, readViews: ViewsReader): Promise<PublishRecord> {
-  if (status.state === 'queued') return record;
-  let next: PublishRecord;
-  if (status.state === 'failed') next = { ...record, state: 'failed', message: POSTIZ_FAILED };
-  else {
-    if (!status.url) return record;
-    try {
-      const { video } = await publishVideo(slug, id, status.url, readViews);
-      next = { ...record, state: 'published', url: video.youtubeUrl ?? status.url };
-    } catch {
-      return record;
+/** Every writer re-reads the intent under the same lock; a forgotten/replaced intent wins over a slow refresh. */
+export async function settle(slug: string, id: string, record: PublishRecord, status: { state: 'queued' | 'published' | 'failed'; url?: string; postId?: string }, readViews: ViewsReader): Promise<PublishRecord> {
+  return recordLock(slug, id, async () => {
+    const current = await store.readJSON<PublishRecord>(recordFile(slug, id));
+    if (!current) return record;
+    if (current.idempotencyKey !== record.idempotencyKey || current.sentAt !== record.sentAt || current.state === 'failed') return current;
+    let next = current;
+    if (status.postId && current.state !== 'published') { const { unconfirmed: _found, message: _none, ...known } = current; next = { ...known, postId: status.postId, state: 'queued' }; }
+    if (status.state === 'failed' && current.state !== 'published') next = { ...next, state: 'failed', message: POSTIZ_FAILED };
+    else if (status.state === 'published' && status.url) {
+      const { youtubeId } = await import('./publish.js');
+      try { next = { ...next, state: 'published', stageApplied: current.state === 'published' ? current.stageApplied : false, url: `https://www.youtube.com/watch?v=${youtubeId(status.url)}` }; } catch { return current; }
+    }
+    // Commit the record first. A later read/background pass repairs a failed stage move.
+    await store.writeJSON(recordFile(slug, id), next);
+    if (next.state === 'published' && next.url && next.stageApplied === false) {
+      try {
+        await publishVideo(slug, id, next.url, readViews);
+        next = { ...next, stageApplied: true };
+        await store.writeJSON(recordFile(slug, id), next);
+      } catch { /* The next pass repairs the handoff. */ }
+    }
+    return next;
+  });
+}
+
+const settlingRoots = new Set<string>();
+export async function settleQueuedPublishing(options: PublishingOptions): Promise<void> {
+  let publisher:Publisher|undefined;
+  for (const workspace of await store.listWorkspaces()) {
+    for (const video of await store.listVideos(workspace.slug)) {
+      const record = await recoverUpload(workspace.slug,video.id).catch(error=>{console.error('Could not recover publish record',workspace.slug,video.id,error);return null;});
+      if (!record || runningOnce(`postiz:${workspace.slug}:${video.id}`)||record.state==='failed') continue;
+      if(!(await store.postizKey()))continue;
+      publisher??=(await connectedPublisher(options)).publisher;
+      if (record.state === 'queued' || record.state === 'posting') await refresh(workspace.slug, video.id, record, publisher, options.readViews).catch(() => undefined);
+      else if (record.state === 'published' && record.url && record.stageApplied === false) await settle(workspace.slug, video.id, record, { state: 'published', url: record.url }, options.readViews).catch(() => undefined);
     }
   }
-  await store.writeJSON(recordFile(slug, id), next);
-  return next;
+}
+function startPublishingSettle(options: PublishingOptions) {
+  // Router construction is the club server's startup path. Tests opt out to control network/time explicitly.
+  if (process.env.NODE_ENV === 'test' || process.env.CREATORCLUB_TEST === '1' || settlingRoots.has(store.rootDir())) return;
+  settlingRoots.add(store.rootDir());
+  let busy = false;
+  const run = async () => { if (busy) return; busy = true; try { await settleQueuedPublishing(options); } catch { /* Retry next pass. */ } finally { busy = false; } };
+  void run();
+  setInterval(() => void run(), 3 * 60_000).unref();
 }

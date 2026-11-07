@@ -1,5 +1,6 @@
+import type {JobSnapshot} from '../../shared/club';
 /** One event of a server job. `data` is whatever the job emitted; `failed` carries `{message}`. */
-export type JobMessage={type:'progress'|'done'|'failed'|'cancelled';data:unknown};
+export type JobMessage={type:'progress'|'done'|'failed'|'cancelled';data:unknown;reset?:JobSnapshot};
 
 const TYPES=['progress','done','failed','cancelled'] as const;
 const EVENT_SOURCE_CLOSED=2;
@@ -20,6 +21,15 @@ export function watchJob(id:string,onEvent:(event:JobMessage)=>void):()=>void{
   let data:unknown=null;
   try{data=JSON.parse((event as MessageEvent).data);}catch{data=(event as MessageEvent).data??null;}
   onEvent({type,data});
+ });
+ // A truncated replay starts with authoritative lifecycle state, followed by retained progress.
+ source.addEventListener('reset',event=>{
+  if(closed)return;
+  let snapshot:JobSnapshot;try{snapshot=JSON.parse((event as MessageEvent).data);}catch{return;}
+  if(snapshot.status==='running')onEvent({type:'progress',data:null,reset:snapshot});
+  else if(snapshot.status==='done'){close();onEvent({type:'done',data:snapshot.result,reset:snapshot});}
+  else if(snapshot.status==='failed'){close();onEvent({type:'failed',data:{message:snapshot.error},reset:snapshot});}
+  else if(snapshot.status==='cancelled'){close();onEvent({type:'cancelled',data:null,reset:snapshot});}
  });
  source.addEventListener('error',()=>{
   // While the browser is retrying a dropped connection, readyState stays 0 and the job's replay catches up.

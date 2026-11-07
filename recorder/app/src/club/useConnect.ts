@@ -4,9 +4,9 @@ import {clubFetch,errorMessage} from './api';
 import {failureMessage,watchJob} from './jobs';
 
 export type ConnectState=
- |{phase:'idle'}
+ |{phase:'idle'|'cancelled'}
  |{phase:'installing';lines:string[]}
- |{phase:'signing-in'}
+ |{phase:'signing-in'|'stopping'}
  |{phase:'connected';account?:string}
  |{phase:'failed';message:string};
 
@@ -24,22 +24,24 @@ export function useConnect(onConnected?:(result:ConnectResult)=>void){
  const alive=useRef(true);
  // Each start or cancel moves `attempt` on, so a reply that arrives after a cancel is recognised and its job cancelled too.
  const attempt=useRef(0);
- const jobId=useRef<string|null>(null);
+ const jobId=useRef<string|null>(null),cancelRequested=useRef(false);
  const done=useRef(onConnected);done.current=onConnected;
  useEffect(()=>{alive.current=true;return()=>{alive.current=false;stop.current();};},[]);
  const start=useCallback(async(next:ConnectProvider,reconnect=false)=>{
-  stop.current();jobId.current=null;
+  stop.current();jobId.current=null;cancelRequested.current=false;
   const mine=++attempt.current;
   const set=(value:ConnectState)=>{if(alive.current&&attempt.current===mine)setState(value);};
   setProvider(next);set({phase:'signing-in'});
   let job:JobSnapshot;
   try{job=await clubFetch<JobSnapshot>('/ai/connect',{body:{provider:next,...(reconnect?{reconnect:true}:{})}});}
   catch(error){set({phase:'failed',message:errorMessage(error)});return;}
-  if(attempt.current!==mine){void clubFetch(`/jobs/${encodeURIComponent(job.id)}`,{method:'DELETE'}).catch(()=>{});return;}
+  if(!alive.current||attempt.current!==mine){void clubFetch(`/jobs/${encodeURIComponent(job.id)}`,{method:'DELETE'}).catch(()=>{});return;}
   jobId.current=job.id;
   stop.current=watchJob(job.id,event=>{
-   if(attempt.current!==mine)return;
+   if(!alive.current||attempt.current!==mine)return;
    if(event.type==='progress'){
+    if(cancelRequested.current){set({phase:'stopping'});return;}
+    if(event.reset){set({phase:'signing-in'});return;}
     const progress=event.data as ConnectProgress;
     if(progress.phase==='installing')setState(current=>{
      if(!alive.current)return current;
@@ -51,15 +53,19 @@ export function useConnect(onConnected?:(result:ConnectResult)=>void){
     const result=event.data as ConnectResult;
     set({phase:'connected',account:result?.account});done.current?.(result);
    }else if(event.type==='failed')set({phase:'failed',message:failureMessage(event.data)});
-   else set({phase:'idle'});
+   else set({phase:'cancelled'});
   });
+  if(cancelRequested.current)void cancelStarted(job.id,mine);
  },[]);
+ const cancelStarted=async(id:string,mine:number)=>{
+  try{const result=await clubFetch<JobSnapshot>(`/jobs/${encodeURIComponent(id)}`,{method:'DELETE'});if(alive.current&&attempt.current===mine&&result?.status==='cancelled'){stop.current();setState({phase:'cancelled'});}}
+  catch(reason){if(alive.current&&attempt.current===mine)setState({phase:'failed',message:errorMessage(reason,"Couldn't stop signing in.")});}
+ };
  /** Stops a sign-in that is stuck: the server ends its login process, and the screen goes back to where it was. */
  const cancel=useCallback(()=>{
-  attempt.current++;stop.current();
-  const id=jobId.current;jobId.current=null;
-  if(id)void clubFetch(`/jobs/${encodeURIComponent(id)}`,{method:'DELETE'}).catch(()=>{});
-  if(alive.current)setState({phase:'idle'});
+  cancelRequested.current=true;
+  if(alive.current)setState({phase:'stopping'});
+  const id=jobId.current;if(id)void cancelStarted(id,attempt.current);
  },[]);
  return {state,provider,start,cancel};
 }

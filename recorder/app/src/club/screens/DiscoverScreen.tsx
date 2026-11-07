@@ -1,3 +1,4 @@
+import {discoverRefresh,EMPTY_REFRESH,type FeedKind} from '../discover-refresh';
 import {useCallback,useEffect,useMemo,useRef,useState} from 'react';
 import type {SignalEntry,TrendingEntry} from '../../../shared/club';
 import {clubFetch,errorMessage} from '../api';
@@ -30,12 +31,12 @@ export const FEED_PAGE=30;
 export const refreshSummary=(videos:number,posts:number)=>[videos&&plural(videos,'new video'),posts&&plural(posts,'new post')].filter(Boolean).join(' · ')||'Nothing new since last time';
 
 /** The two refresh jobs as one: running while either runs, with the line of the one that says something. */
-const bothJobs=(a:JobRun,b:JobRun):JobRun=>a.phase==='running'||b.phase==='running'
- ?{phase:'running',line:(a.phase==='running'?a.line:undefined)??(b.phase==='running'?b.line:undefined)}
+const bothJobs=(a:JobRun,b:JobRun):JobRun=>(a.phase==='starting'||a.phase==='running')||(b.phase==='starting'||b.phase==='running')
+ ?{phase:'running',line:((a.phase==='starting'||a.phase==='running')?a.line:undefined)??((b.phase==='starting'||b.phase==='running')?b.line:undefined)}
  :{phase:'idle'};
 
 type Lists={videos:readonly TrendingEntry[];posts:readonly SignalEntry[]};
-type Waiting={left:Set<'videos'|'posts'>;videos:number;posts:number;news:boolean};
+
 
 /**
  * Discover: everything from outside in one ranked feed. Videos doing better than their creator's usual on YouTube and posts on X and Reddit,
@@ -70,19 +71,18 @@ export function DiscoverScreen({show='fit',navigate}:{show?:DiscoverShow;navigat
  const showNew=useCallback(()=>{setHeld(null);setNewResults(false);},[]);
 
  // One toast for one Refresh, once each job that was started has answered (or failed).
- const waiting=useRef<Waiting|null>(null);
+ const waiting=useRef(EMPTY_REFRESH);
  const [settled,setSettled]=useState(0);
- const finished=useCallback((kind:'videos'|'posts',found?:number)=>{
-  const run=waiting.current;if(!run||!run.left.has(kind))return;
-  run.left.delete(kind);
-  if(found!==undefined){run[kind]+=found;run.news=true;}
-  if(run.left.size)return;
-  waiting.current=null;
-  if(run.news)toast(refreshSummary(run.videos,run.posts));
+ const finished=useCallback((kind:FeedKind,found?:number,generation=waiting.current.generation)=>{
+  const before=waiting.current;
+  const next=discoverRefresh(before,{type:'settle',generation,kind,found});
+  waiting.current=next;
+  if(next===before||next.phase!=='done')return;
+  if(next.news)toast(refreshSummary(next.videos,next.posts));
   setSettled(n=>n+1);
  },[toast]);
- useEffect(()=>{if(trending.job.phase==='failed')finished('videos');},[trending.job.phase,finished]);
- useEffect(()=>{if(signals.job.phase==='failed')finished('posts');},[signals.job.phase,finished]);
+ useEffect(()=>{if(trending.job.phase==='failed'||trending.job.phase==='cancelled')finished('videos');},[trending.job.phase,finished]);
+ useEffect(()=>{if(signals.job.phase==='failed'||signals.job.phase==='cancelled')finished('posts');},[signals.job.phase,finished]);
  // The refresh is over and the lists are read again: the same order needs nothing; a new one waits behind "New results".
  useEffect(()=>{
   if(!settled||!held)return;
@@ -90,16 +90,19 @@ export function DiscoverScreen({show='fit',navigate}:{show?:DiscoverShow;navigat
   else setNewResults(true);
  },[settled]);// eslint-disable-line react-hooks/exhaustive-deps
 
- const readVideos=()=>trending.refresh(result=>{setFailedChannels(result.failed);finished('videos',result.added);});
- const readPosts=(only?:string[])=>signals.refresh(result=>{
+ const readVideos=()=>{const generation=waiting.current.generation;trending.refresh(result=>{setFailedChannels(result.failed);finished('videos',result.added,generation);});};
+ const readPosts=(only?:string[])=>{const generation=waiting.current.generation;signals.refresh(result=>{
   setNote(result.note??'');
   // Nothing could be read: that is an error line to retry, not news.
-  finished('posts',result.tried>0&&result.failed.length>=result.tried?undefined:result.added);
- },only?{only}:undefined);
+  finished('posts',result.tried>0&&result.failed.length>=result.tried?undefined:result.added,generation);
+ },only?{only}:undefined);};
  const start=(kinds:Array<'videos'|'posts'>,run:()=>void)=>{
-  if(!waiting.current)setHeld(current=>current??live);
-  setNewResults(false);
-  waiting.current={left:new Set([...(waiting.current?.left??[]),...kinds]),videos:waiting.current?.videos??0,posts:waiting.current?.posts??0,news:waiting.current?.news??false};
+  if(waiting.current.phase==='running'){
+   if(kinds.every(kind=>waiting.current.left.has(kind)))return;
+   waiting.current=discoverRefresh(waiting.current,{type:'join',generation:waiting.current.generation,kinds});run();return;
+  }
+  setHeld(current=>current??live);setNewResults(false);
+  waiting.current=discoverRefresh(waiting.current,{type:'start',generation:waiting.current.generation+1,kinds});
   run();
  };
  const refresh=()=>{
@@ -129,7 +132,7 @@ export function DiscoverScreen({show='fit',navigate}:{show?:DiscoverShow;navigat
  if(failedWithoutContent)return <div className="page"><ScreenHeader title="Research" description={description}/><div className="research-recovery" role="alert"><span className="research-error-icon"><Icon name="offline" size={20}/></span><p className="research-error-copy">Couldn't get your research. Try again in a moment.</p><button type="button" className="btn primary" onClick={()=>{void trending.reload();void signals.reload();if(!trending.loadError&&!signals.loadError)refresh();}}>Try again</button></div></div>;
 
  const followed=trending.data?.followed??0,sources=signals.data?.sources??0,sourcesBy=signals.data?.sourcesBy??{x:0,reddit:0};
- const job=bothJobs(trending.job,signals.job),running=job.phase==='running';
+ const job=bothJobs(trending.job,signals.job),running=(job.phase==='starting'||job.phase==='running');
  const updatedAt=latestRead(trending.data?.updatedAt,signals.data?.updatedAt);
  const summary=[trending.data&&plural(trending.data.items.length,'video'),signals.data&&plural(signals.data.items.length,'post')].filter(Boolean).join(' · ');
  const choose=(next:DiscoverShow)=>{if(!running&&held)showNew();navigate(next==='fit'?{name:'discover'}:{name:'discover',show:next},{replace:true});};

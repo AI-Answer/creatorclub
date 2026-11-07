@@ -35,3 +35,5 @@ export function useIdeaActions(navigate:(route:Route)=>void){
   };
  },[toast,navigate]);
 }
+
+export type IdeaActionSet=ReturnType<typeof useIdeaActions>;

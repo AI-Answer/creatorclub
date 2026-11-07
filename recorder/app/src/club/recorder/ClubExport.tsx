@@ -3,9 +3,9 @@ import {useEffect,useRef,useState} from 'react';
 import type {ExportRecord} from '../../../shared/export-history';
 import type {ExportOptions,Project} from '../../../shared/types';
 import {cancelSavedExport,getSavedExport,listSavedExports,projectRevision,startSavedExport} from '../../api';
-import {activeExport,ExportSession,exportCurrentVersion} from '../../export-session';
-import {Button,Icon} from '../ui';
+import {activeExport,ExportSession,exportCurrentVersion,mergeExportRecords} from '../../export-session';
 import {latestVideoExport} from './edit-steps';
+import {Button,Icon} from '../ui';
 
 /** Borumi's export menu rows, limited to what this app exports. Video is the one-click MP4; audio and the transcript open the export
  * window on that format (it offers TXT, Markdown and SRT). */
@@ -36,14 +36,16 @@ export const videoExportOptions=(project:Project):ExportOptions=>({format:'mp4',
 export function ClubExport({project,flush,onExported,quiet,dirty=false,onOtherFormat}:{project:Project;flush():Promise<Project|undefined>;onExported?(exported:boolean):void;/** Not the primary button (another button on the page is). */quiet?:boolean;dirty?:boolean;/** Opens the export window on audio or the transcript. */onOtherFormat?(format:'wav'|'srt'):void}){
  const [menu,setMenu]=useState(false),menuRoot=useRef<HTMLDivElement>(null);
  useEffect(()=>{if(!menu)return;const close=(event:PointerEvent)=>{if(!menuRoot.current?.contains(event.target as Node))setMenu(false);};const key=(event:KeyboardEvent)=>{if(event.key==='Escape')setMenu(false);};window.addEventListener('pointerdown',close);window.addEventListener('keydown',key);return()=>{window.removeEventListener('pointerdown',close);window.removeEventListener('keydown',key);};},[menu]);
- const [record,setRecord]=useState<ExportRecord|null>(null),[failed,setFailed]=useState(false),[busy,setBusy]=useState(false),[revision,setRevision]=useState('');
- const session=useRef(new ExportSession());
+ const [record,setRecord]=useState<ExportRecord|null>(null),[startFailed,setStartFailed]=useState(false),[busy,setBusy]=useState(false),[revision,setRevision]=useState('');
+ const completed=useRef<ExportRecord|null>(null);
+ const acceptRecord=(next:ExportRecord|null)=>{if(next?.status==='complete'&&next.output.status==='available'&&(!completed.current||next.startedAt>=completed.current.startedAt))completed.current=next;setStartFailed(false);if(next?.status==='cancelled'){setRecord(completed.current);return;}setRecord(current=>!next?current:!current?next:current.id===next.id?mergeExportRecords([current],[next],project.id)[0]??current:next.startedAt>=current.startedAt?next:current);};
+ const session=useRef(new ExportSession()),starting=useRef<symbol|null>(null);
 
  useEffect(()=>{
-  session.current.reset(project.id);
+  session.current.reset(project.id);completed.current=null;starting.current=null;setBusy(false);setStartFailed(false);setRecord(null);
   const request=session.current.request();
   // A running export (from before this screen opened) is followed; otherwise the newest finished one says whether this edit is exported.
-  void listSavedExports(project.id,request.signal).then(({jobs})=>{if(request.active())setRecord(jobs.find(j=>j.options.format==='mp4'&&activeExport(j))??latestVideoExport(jobs)??null);}).catch(()=>{});
+  void listSavedExports(project.id,request.signal).then(({jobs})=>{if(request.active()){completed.current=latestVideoExport(jobs)??null;acceptRecord(jobs.find(j=>j.options.format==='mp4'&&activeExport(j))??completed.current);}}).catch(()=>{});
   return()=>session.current.close();
  },[project.id]);
  // The revision of the timeline on screen, to tell an export of an older edit from one of this edit.
@@ -52,7 +54,7 @@ export function ClubExport({project,flush,onExported,quiet,dirty=false,onOtherFo
  useEffect(()=>{
   if(!record||!running)return;
   let timer:ReturnType<typeof setTimeout>;const request=session.current.request();
-  const poll=()=>void getSavedExport(record.id,request.signal).then(next=>{if(!request.active())return;setRecord(next);if(next.status==='failed'||next.status==='interrupted')setFailed(true);if(activeExport(next))timer=setTimeout(poll,POLL_MS);},()=>{if(request.active())timer=setTimeout(poll,POLL_MS*3);});
+  const poll=()=>void getSavedExport(record.id,request.signal).then(next=>{if(!request.active())return;acceptRecord(next);if(activeExport(next))timer=setTimeout(poll,POLL_MS);},()=>{if(request.active())timer=setTimeout(poll,POLL_MS*3);});
   timer=setTimeout(poll,POLL_MS);
   return()=>clearTimeout(timer);
  },[record?.id,running]);
@@ -62,18 +64,19 @@ export function ClubExport({project,flush,onExported,quiet,dirty=false,onOtherFo
  useEffect(()=>{exportedRef.current?.(done);},[done]);
 
  const start=async()=>{
-  setBusy(true);setFailed(false);
+  if(starting.current||running)return;const owner=Symbol();starting.current=owner;setBusy(true);setStartFailed(false);
   const request=session.current.request();
   try{
    const snapshot=await flush();
    if(!snapshot||snapshot.id!==project.id||!request.active())return;
    const created=await exportCurrentVersion(request,async()=>snapshot,videoExportOptions(snapshot),{mode:'full',sceneId:'',start:0,end:0},projectRevision,(snapshot,options,rev,signal)=>startSavedExport(snapshot.id,options,rev,signal));
-   if(created&&request.active())setRecord(created);
-  }catch{if(request.active())setFailed(true);}
-  finally{if(request.active())setBusy(false);}
+   if(created&&request.active()){setStartFailed(false);setRecord(created);}
+  }catch{if(request.active())setStartFailed(true);}
+  finally{if(starting.current===owner){starting.current=null;if(request.active())setBusy(false);}}
  };
- const cancel=()=>{if(record)void cancelSavedExport(record.id).then(setRecord,()=>{});};
+ const cancel=()=>{if(record)void cancelSavedExport(record.id).then(acceptRecord,()=>{});};
 
+ const failed=startFailed||Boolean(record&&['failed','interrupted'].includes(record.status));
  if(failed)return <div className="club-export" role="alert"><span className="text-warn">{EXPORT_FAILED}</span><Button size="sm" onClick={()=>void start()}>Try again</Button></div>;
  if(running&&record)return <div className="club-export" role="status">
   <Icon name="loading" className="spin" size={15}/><span>Exporting video · {Math.round(record.progress*100)}%</span>
@@ -86,8 +89,8 @@ export function ClubExport({project,flush,onExported,quiet,dirty=false,onOtherFo
   {done&&<span className="club-export-done" role="status"><Icon name="check" size={15}/>Video exported</span>}
   {/* Borumi's split Export button (main bundle M:4843-4999): Export, and a chevron with the formats this app exports. */}
   <div className={`cex-split${quiet||done?' is-quiet':''}`} ref={menuRoot}>
-   <button type="button" className={`cex-main${quiet||done?'':' is-primary'}`} disabled={empty} onClick={()=>void start()}><Icon name="upload" size={16}/>Export</button>
-   <button type="button" className="cex-more" aria-label="Open export options" aria-haspopup="menu" aria-expanded={menu} disabled={empty} onClick={()=>setMenu(open=>!open)}><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>
+   <button type="button" className={`cex-main${quiet||done?'':' is-primary'}`} disabled={empty||busy||running} onClick={()=>void start()}><Icon name="upload" size={16}/>Export</button>
+   <button type="button" className="cex-more" aria-label="Open export options" aria-haspopup="menu" aria-expanded={menu} disabled={empty||busy||running} onClick={()=>setMenu(open=>!open)}><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>
    {menu&&<div className="cex-menu" role="menu">
     {EXPORT_ITEMS.map(item=><button key={item.title} type="button" role="menuitem" className="cex-item" onClick={()=>pick(()=>item.format==='mp4'?void start():onOtherFormat?.(item.format))}>
      <span className="cex-well"><Icon name={item.icon} size={18}/></span>

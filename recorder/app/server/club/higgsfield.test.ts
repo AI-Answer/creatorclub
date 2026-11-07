@@ -113,8 +113,8 @@ test('duplicate starts share one job and cancellation never starts the next paid
  const first=await call('POST',route+'/thumbnails/generate',{...input,count:4});
  const second=await call('POST',route+'/thumbnails/generate',{...input,count:4});assert.equal(first.body.id,second.body.id);
  while(!release)await new Promise(r=>setTimeout(r,2));
- assert.equal((await call('DELETE',`/jobs/${first.body.id}`)).body.status,'cancelled');release();gate=undefined;
- await new Promise(r=>setTimeout(r,30));assert.equal(calls.filter(c=>c[1]==='create').length-before,1);assert.equal((await call('GET',route+'/thumbnails')).body.length,0);
+ assert.equal((await call('DELETE',`/jobs/${first.body.id}`)).body.status,'running');release();gate=undefined;
+ await new Promise(r=>setTimeout(r,30));assert.equal(calls.filter(c=>c[1]==='create').length-before,1);assert.equal((await call('GET',route+'/thumbnails')).body.length,1, 'the completed paid result is retained');
 });
 test('a later CLI failure retains earlier candidates and provides actionable timeout and download errors',async()=>{
  const v=await video();let creates=0;

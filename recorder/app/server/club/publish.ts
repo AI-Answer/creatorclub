@@ -39,10 +39,13 @@ export function ytDlpViews(options: ToolOptions = {}): ViewsReader {
 export async function publishVideo(slug: string, id: string, url: string, readViews?: ViewsReader): Promise<{ video: Video; viewsDone: Promise<void> }> {
   const youtube = youtubeId(url);
   const youtubeUrl = `https://www.youtube.com/watch?v=${youtube}`;
-  const current = await store.readVideo(slug, id);
-  const publishedAt = current.stage === 'published' && current.publishedAt ? current.publishedAt : new Date().toISOString();
-  await store.updateVideo(slug, id, { youtubeUrl, publishedAt, ...(current.youtubeUrl !== youtubeUrl ? { views: null, viewsCheckedAt: null } : {}) });
-  const video = current.stage === 'published' ? await store.readVideo(slug, id) : await store.moveVideo(slug, id, 'published');
+  const video = await store.workspaceLock(slug, () => store.videoLock(slug, id, async () => {
+    const current = await store.readVideo(slug, id);
+    const publishedAt = current.stage === 'published' && current.publishedAt ? current.publishedAt : new Date().toISOString();
+    await store.updateVideo(slug, id, { youtubeUrl, ...(current.youtubeUrl !== youtubeUrl ? { views: null, viewsCheckedAt: null } : {}) });
+    await store.moveVideo(slug, id, 'published', { expectedStages: [current.stage] });
+    return store.updateVideo(slug, id, { publishedAt });
+  }));
   const viewsDone = readViews
     ? (async () => {
         try {

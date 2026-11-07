@@ -82,7 +82,7 @@ async function run(message: string): Promise<CompanionReplyMessage> {
   for (let tries = 0; tries < 300; tries++) {
     const messages = (await thread()).messages;
     const at = messages.findIndex((each) => each.id === res.body.message.id);
-    if (at >= 0 && messages[at + 1]?.role === 'assistant') return messages[at + 1] as CompanionReplyMessage;
+    if (at >= 0 && messages[at + 1]?.role === 'assistant' && (messages[at + 1] as CompanionReplyMessage).status !== 'running') return messages[at + 1] as CompanionReplyMessage;
     await new Promise((r) => setTimeout(r, 10));
   }
   throw new Error('no reply');

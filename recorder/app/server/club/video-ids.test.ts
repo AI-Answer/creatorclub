@@ -1,6 +1,6 @@
 import {test,after} from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtemp,rm,stat} from 'node:fs/promises';
+import {mkdir,mkdtemp,rm,stat,readFile} from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import * as store from './store.js';
@@ -11,10 +11,12 @@ process.env.CREATORCLUB_DIR=temp;
 after(()=>rm(temp,{recursive:true,force:true}));
 const legacy=(id:string,date:string):Video=>({id,title:id,stage:'ideas',order:0,createdAt:date,updatedAt:date,stageDates:{ideas:date},planning:{research:false,package:false,outline:false},idea:{note:'Keep my notes'}});
 
-test('backfill follows creation order, changes only number, and never rewrites a numbered video',async()=>{
+test('read-only legacy numbering follows creation order and never rewrites video files',async()=>{
  const old=legacy('z-old','2026-01-01'),newer=legacy('a-new','2026-02-01');
+ await mkdir(store.videoDir('backfill',newer.id),{recursive:true});await mkdir(store.videoDir('backfill',old.id),{recursive:true});
  await store.writeVideo('backfill',newer);await store.writeVideo('backfill',old);
- const list=await store.listVideos('backfill');
+ const original=await readFile(path.join(store.videoDir('backfill',old.id),'video.json'),'utf8');
+ const list=await store.listVideos('backfill');assert.equal(await readFile(path.join(store.videoDir('backfill',old.id),'video.json'),'utf8'),original);
  assert.equal(list.find(v=>v.id===old.id)!.number,1);assert.equal(list.find(v=>v.id===newer.id)!.number,2);
  for(const video of list){const {number,...rest}=video;assert.deepEqual(rest,video.id===old.id?old:newer);assert.match(videoHumanId(video),/^CC-[12]$/);}
  const file=path.join(store.videoDir('backfill',old.id),'video.json'),before=(await stat(file)).mtimeMs;

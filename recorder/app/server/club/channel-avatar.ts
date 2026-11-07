@@ -76,6 +76,7 @@ export async function ensureChannelAvatar(workspace: Workspace, fetcher: AvatarF
       if (!url) return { ...workspace, avatarUrl: undefined };
       const bytes = await readRemote(url, MAX_BYTES, fetcher, signal);
       if (!avatarMime(bytes)) return { ...workspace, avatarUrl: undefined };
+      return store.profileLock(workspace.slug, async () => {
       const latest = await store.readWorkspace(workspace.slug);
       if ((latest.channelUrl || latest.handle) !== (workspace.channelUrl || workspace.handle)) return latest;
       await fs.writeFile(imageFile(workspace.slug), bytes);
@@ -83,6 +84,7 @@ export async function ensureChannelAvatar(workspace: Workspace, fetcher: AvatarF
       const updated = { ...latest, avatarUrl: avatarUrl(workspace.slug) };
       await store.writeWorkspace(updated);
       return updated;
+      });
     } catch { return { ...workspace, avatarUrl: undefined }; }
   })();
   pending.set(key, task);

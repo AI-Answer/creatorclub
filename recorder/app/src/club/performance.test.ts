@@ -8,7 +8,7 @@ import {useBoardEvents} from './workspace/useBoardFiles';
 import {FakeEventSource} from './test-fakes';
 import {Kanban} from './production/Kanban';
 import type {Video} from '../../shared/club';
-import type {IdeaActionSet} from './production/IdeaLane';
+import type {IdeaActionSet} from './useIdeaActions';
 
 test('opted-in concurrent GETs share a request; completed responses, aborted reads and writes are not shared',async()=>{
  const before=globalThis.fetch;let calls=0;

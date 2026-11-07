@@ -1,6 +1,8 @@
+import {sharedWork} from './shared-work.js';
+import {inJob,outsideJob,jobSignal,jobStep,trackChild,waitForJobWork,type JobScope} from './job-scope.js';
+import {registerMedia} from './storage.js';
 import {portableGraphics} from './portable-graphics.js';
-import { execFile, spawn, type ChildProcess } from "node:child_process";
-import { promisify } from "node:util";
+import { spawn, type ChildProcess } from "node:child_process";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { tmpdir } from "node:os";
@@ -42,7 +44,7 @@ import {
 /** A motion block cut by a chunk or an export range: `_offset` seconds into the block, which is `_length` seconds long in all. */
 type SlicedMotion = MotionBlock & { _offset?: number; _length?: number };
 
-const execFileAsync = promisify(execFile);
+
 const FFMPEG = process.env.SCENEFORGE_FFMPEG || "ffmpeg",
   FFPROBE = process.env.SCENEFORGE_FFPROBE || "ffprobe";
 /** ffmpeg's own VP8/VP9 decoder drops a WebM's alpha: a see-through overlay would cover the frame in black. */
@@ -58,11 +60,12 @@ function alphaDecoder(file: string): Promise<string[]> {
         return s.codec_name === "vp9" ? ["-c:v", "libvpx-vp9"] : s.codec_name === "vp8" ? ["-c:v", "libvpx"] : [];
       })
       .catch(() => []);
-    alphaDecoders.set(file, found);
+    alphaDecoders.set(file, found);if(alphaDecoders.size>256)alphaDecoders.delete(alphaDecoders.keys().next().value!);
   }
   return found;
 }
 const pending = new Map<string, Promise<unknown>>();
+const sharedFrames=sharedWork<string>();
 let activeWork = 0;
 const workWaiters: Array<() => void> = [];
 async function limited<T>(work: () => Promise<T>): Promise<T> {
@@ -79,6 +82,9 @@ async function limited<T>(work: () => Promise<T>): Promise<T> {
 }
 export interface RenderLifecycle {
   initialJob?: Job;
+  inspection?: boolean;
+  signal?: AbortSignal;
+  timeoutMs?: number;
   onUpdate?: (job: Job) => Promise<void>;
   beforeComplete?: (job: Job) => Promise<void>;
 }
@@ -86,8 +92,16 @@ const lifecycles = new Map<string, RenderLifecycle>();
 const stopped = (job?: Job) => job?.status === "cancelled" || job?.status === "interrupted";
 const jobs = new Map<string, Job>();
 const peakRss = new Map<string, number>();
-const children = new Map<string, ChildProcess>();
+const children = new Map<string, Set<ChildProcess>>();
+const controllers=new Map<string,AbortController>();
+const detachSignals=new Map<string,()=>void>();
+const committing=new Set<string>();
+const workers=new Map<string,{settled:Promise<void>;finish:()=>void}>();
+export const runningMediaJobCount=()=>workers.size;
+const inspectionQueue: typeof queue = [];
+let inspecting=false,closing=false;
 const queue: Array<{ job: Job; run: () => Promise<void> }> = [];
+const globalQueue=queue;
 let busy = false;
 const clamp = (n: number, min: number, max: number) =>
   Math.min(max, Math.max(min, Number.isFinite(n) ? n : min));
@@ -121,7 +135,7 @@ function command(
   onLine?: (line: string) => void,
   limit = 4 * 1024 * 1024,
 ): Promise<string> {
-  return limited(
+  return jobStep(()=>limited(
     () =>
       new Promise((resolve, reject) => {
         if (
@@ -131,23 +145,26 @@ function command(
           reject(new Error("Cancelled"));
           return;
         }
-        const child = spawn(binary, args, {
-          stdio: ["ignore", "pipe", "pipe"],
-        });
+        jobSignal()?.throwIfAborted();
+        const separateProgress=binary===FFMPEG,invocation=[...args],progressIndex=invocation.indexOf('-progress');
+        if(separateProgress){if(progressIndex<0)invocation.unshift('-progress','pipe:3');else invocation[progressIndex+1]='pipe:3';}
+        const child = trackChild(spawn(binary, invocation, {
+          stdio: ["ignore", "pipe", "pipe", ...(separateProgress?["pipe" as const]:[])],
+        }));
         const began = Date.now();
         let lastOutput = began, timedOut = false;
         const watchdog = setInterval(() => {
-          if (Date.now() - began > (job ? 30 : 5) * 60000 || (job && Date.now() - lastOutput > 180000)) {
+          if (Date.now() - lastOutput > 5*60000) {
             timedOut = true;
             child.kill("SIGKILL");
           }
         }, 10000);
         watchdog.unref();
-        if (job) children.set(job.id, child);
+        if (job) {const set=children.get(job.id)??new Set<ChildProcess>();set.add(child);children.set(job.id,set);}
         // One read at start, then once a second: a peak without a ps process every quarter second.
         const sampleRss = () => {
           if (!child.pid || !job) return;
-          const ps = spawn("ps", ["-p", String(child.pid), "-o", "rss="]);
+          const ps = trackChild(spawn("ps", ["-p", String(child.pid), "-o", "rss="]));
           let value = "";
           ps.stdout.on("data", (b) => (value += b));
           ps.once("close", () => {
@@ -163,34 +180,35 @@ function command(
         let out = "",
           err = "",
           lines = "";
-        child.stdout.on("data", (d: Buffer) => {
+        child.stdout!.on("data", (d: Buffer) => {
           lastOutput = Date.now();
           out = (out + d.toString()).slice(-limit);
         });
-        child.stderr.on("data", (d: Buffer) => {
+        const readLines=(d:Buffer)=>{
           lastOutput = Date.now();
-          err = (err + d.toString()).slice(-16000);
           lines += d.toString();
           const split = lines.split("\n");
           lines = split.pop() || "";
-          for (const l of split) onLine?.(l);
-        });
+          for (const l of split) if(!job||!stopped(job))onLine?.(l);
+        };
+        child.stderr!.on("data", (d:Buffer)=>{err=(err+d.toString()).slice(-16000);if(!separateProgress)readLines(d);else lastOutput=Date.now();});
+        if(separateProgress)child.stdio[3]?.on('data',readLines);
         child.once("error", (e) => {
           clearInterval(watchdog);
           if (sample) clearInterval(sample);
-          if (job) children.delete(job.id);
+          if (job) children.get(job.id)?.delete(child);
           reject(e);
         });
         child.once("close", (code) => {
           clearInterval(watchdog);
           if (sample) clearInterval(sample);
-          if (job) children.delete(job.id);
+          if (job) children.get(job.id)?.delete(child);
           if (
             job &&
             (stopped(job) || stopped(getJob(job.id)))
           )
             reject(new Error("Cancelled"));
-          else if (timedOut) reject(new Error(`${path.basename(binary)} exceeded the process time limit or stopped producing progress for three minutes`));
+          else if (timedOut) reject(new Error(`${path.basename(binary)} stopped producing output for five minutes`));
           else if (code !== 0)
             reject(
               new Error(
@@ -200,7 +218,7 @@ function command(
           else resolve(out);
         });
       }),
-  );
+  ),jobSignal(),0);
 }
 export const getCapabilities = mediaCapabilityProbe(FFMPEG, FFPROBE);
 async function identity(input: string) {
@@ -348,10 +366,10 @@ export async function waveform(m: Media, cacheDir: string): Promise<number[]> {
     const bins = new Array<number>(count).fill(0), frameBytes = channels * 4;
     let sample = 0, pendingBytes: Buffer = Buffer.alloc(0);
     await limited(() => new Promise<void>((resolve, reject) => {
-      const child = spawn(FFMPEG, ["-v", "error", "-nostdin", "-threads", "2", "-i", source.real,
+      jobSignal()?.throwIfAborted();const child = trackChild(spawn(FFMPEG, ["-v", "error", "-nostdin", "-threads", "2", "-i", source.real,
         "-map", "0:a:0", "-vn", "-sn", "-dn", "-filter_threads", "1",
         "-af", "aresample=8000:async=1:first_pts=0", "-t", String(m.duration),
-        "-c:a", "pcm_f32le", "-f", "f32le", "pipe:1"], {stdio: ["ignore", "pipe", "pipe"]});
+        "-c:a", "pcm_f32le", "-f", "f32le", "pipe:1"], {stdio: ["ignore", "pipe", "pipe"]}));
       let error = "", settled = false, timedOut = false, lastData = Date.now();
       const began = lastData;
       const timer = setInterval(() => {
@@ -417,8 +435,9 @@ export async function inspectFrames(
   project: Project,
   times: number[],
   cacheDir: string,
-  options: { width?: number } = {},
+  options: { width?: number;signal?:AbortSignal;timeoutMs?:number } = {},
 ): Promise<InspectedFrame[]> {
+  return jobStep(async signal=>{
   if (!Array.isArray(times) || !times.length || times.length > 6 || times.some((time) => !Number.isFinite(time)))
     throw new Error("Frame inspection requires between one and six finite times");
   if (options.width !== undefined && (!Number.isFinite(options.width) || options.width <= 0))
@@ -444,7 +463,7 @@ export async function inspectFrames(
     const frame = Math.min(Math.max(0, Math.ceil(duration * fps) - 1), Math.max(0, Math.floor(requestedTime * fps)));
     const time = frame / fps;
     const target = path.join(cacheDir, `${projectKey}-${frame}.frame.png`);
-    await unique(`frame:${path.resolve(target)}`, async () => {
+    await sharedFrames(`frame:${path.resolve(target)}`, sharedSignal => outsideJob(()=>jobStep(async signal => {
       if (await exists(target)) return target;
       const workDir = path.join(cacheDir, `.frame-${randomUUID()}`);
       let job: Job | undefined;
@@ -452,10 +471,9 @@ export async function inspectFrames(
         job = startExport(snapshot, {
           format: "mp4", width, height, fps, quality: "high", burnCaptions: true,
           range: { start: time, end: Math.min(duration, time + 2 / fps) },
-        }, workDir);
+        }, workDir,{inspection:true,signal,timeoutMs:options.timeoutMs??15*60000});
         job.type = "analysis";
-        while (job.status === "queued" || job.status === "running")
-          await new Promise((resolve) => setTimeout(resolve, 30));
+        while (job.status === "queued" || job.status === "running") {signal.throwIfAborted();await new Promise((resolve) => setTimeout(resolve, 30));}
         if (job.status !== "complete" || !job.outputPath)
           throw new Error(job.error || `Frame inspection ${job.status}`);
         const temp = path.join(workDir, "frame.png");
@@ -465,48 +483,47 @@ export async function inspectFrames(
         await fs.rename(temp, target);
         return target;
       } finally {
-        if (job) { jobs.delete(job.id); peakRss.delete(job.id); }
+        if (job) {const settling=workers.get(job.id)?.settled;cancelJob(job.id);await settling;jobs.delete(job.id);peakRss.delete(job.id);}
         await fs.rm(workDir, { recursive: true, force: true });
       }
-    });
+    },sharedSignal,0)),signal);
     frames.push({ time, requestedTime, path: target, width, height });
   }
   return frames;
+  },options.signal,0);
 }
 
 export function cancelJob(id: string) {
   const j = jobs.get(id);
-  if (j && (j.status === "queued" || j.status === "running")) {
+  if (j && !committing.has(id) && (j.status === "queued" || j.status === "running")) {
     j.status = "cancelled";
     j.message = "Cancelled";
     j.completedAt = new Date().toISOString();
-    const c = children.get(id);
-    c?.kill("SIGTERM");
-    if (c) {
-      const t = setTimeout(() => {
-        if (c.exitCode === null) c.kill("SIGKILL");
-      }, 3000);
-      t.unref();
-    }
+    controllers.get(id)?.abort(Error("Cancelled"));
+    for(const c of children.get(id)??[])c.kill("SIGKILL");
   }
   return j;
 }
 export async function shutdownJobs(): Promise<void> {
+  closing=true;
   for (const job of jobs.values()) {
     if (job.status !== "queued" && job.status !== "running") continue;
+    if(committing.has(job.id))continue;
+    controllers.get(job.id)?.abort(Error("Service stopped"));
     job.status = "interrupted";
     job.message = "Interrupted when the export service stopped";
     job.completedAt = new Date().toISOString();
     await lifecycles.get(job.id)?.onUpdate?.(structuredClone(job));
   }
-  for (const child of children.values()) child.kill("SIGTERM");
+  for (const set of children.values()) for(const child of set)child.kill("SIGTERM");
   const deadline = Date.now() + 4000;
-  while (busy && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 25));
-  for (const child of children.values()) if (child.exitCode === null) child.kill("SIGKILL");
-  while (busy && Date.now() < deadline + 3000) await new Promise(resolve => setTimeout(resolve, 25));
-  if (busy) throw new Error("Export work has not stopped; retaining data-folder ownership until process exit.");
+  while ((busy||inspecting) && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 25));
+  for (const set of children.values()) for(const child of set)if (child.exitCode === null) child.kill("SIGKILL");
+  while ((busy||inspecting) && Date.now() < deadline + 3000) await new Promise(resolve => setTimeout(resolve, 25));
+  if (busy||inspecting) throw new Error("Export work has not stopped; retaining data-folder ownership until process exit.");
 }
 function enqueue(type: Job["type"], run: (job: Job) => Promise<void>, lifecycle: RenderLifecycle = {}): Job {
+  if(closing)throw Error("Media service is shutting down");
   const j: Job = lifecycle.initialJob ?? {
     id: randomUUID(),
     type,
@@ -516,31 +533,39 @@ function enqueue(type: Job["type"], run: (job: Job) => Promise<void>, lifecycle:
     startedAt: new Date().toISOString(),
   };
   jobs.set(j.id, j);
+  let finish!:()=>void;const settled=new Promise<void>(resolve=>finish=resolve);workers.set(j.id,{settled,finish});
   lifecycles.set(j.id, lifecycle);
-  queue.push({ job: j, run: () => run(j) });
-  void drain().catch(error => console.error("Export queue failure", error));
+  const controller=new AbortController();controllers.set(j.id,controller);
+  const abort=()=>cancelJob(j.id);lifecycle.signal?.addEventListener('abort',abort,{once:true});detachSignals.set(j.id,()=>lifecycle.signal?.removeEventListener('abort',abort));if(lifecycle.signal?.aborted)abort();
+  const guarded=new Proxy(j,{set(target,key,value){if((stopped(target)||target.status==='failed'||target.status==='complete')&&['message','progress'].includes(String(key)))return true;Reflect.set(target,key,value);return true;}});
+  (lifecycle.inspection?inspectionQueue:queue).push({ job: j, run: () => jobStep(()=>run(guarded),controller.signal,lifecycle.timeoutMs??0) });
+  outsideJob(()=>{void drain(lifecycle.inspection).catch(error => console.error("Export queue failure", error));});
   return j;
 }
-async function drain() {
-  if (busy) return;
-  busy = true;
+function releaseJob(job:Job){workers.get(job.id)?.finish();workers.delete(job.id);lifecycles.delete(job.id);committing.delete(job.id);controllers.delete(job.id);children.delete(job.id);detachSignals.get(job.id)?.();detachSignals.delete(job.id);const expiry=setTimeout(()=>{jobs.delete(job.id);peakRss.delete(job.id);},30*60000);expiry.unref();for(const [id,old] of jobs){if(jobs.size<=500)break;if(old.completedAt&&!workers.has(id)){jobs.delete(id);peakRss.delete(id);}}}
+async function drain(inspection=false) {
+  if (inspection?inspecting:busy) return;
+  if(inspection)inspecting=true;else busy = true;
+  const queue=inspection?inspectionQueue:globalQueue;
   try {
     while (queue.length) {
       const { job, run } = queue.shift()!;
-      if (stopped(job)) { lifecycles.delete(job.id); continue; }
+      const scope:JobScope={signal:controllers.get(job.id)!.signal,children:children.get(job.id)??children.set(job.id,new Set()).get(job.id)!};
+      await inJob(scope,async()=>{
+      if (stopped(job)) {try{await jobStep(async()=>{await lifecycles.get(job.id)?.onUpdate?.(structuredClone(job));},new AbortController().signal,30000);}catch(error){console.error('Could not persist cancelled job',error);}await waitForJobWork(scope);releaseJob(job);return;}
       job.status = "running";
       job.message = "Preparing";
       const lifecycle = lifecycles.get(job.id);
       let persistenceError: unknown;
       const timer = lifecycle?.onUpdate ? setInterval(() => {
-        void lifecycle.onUpdate!(structuredClone(job)).catch(error => { persistenceError = error; });
+        if(!scope.signal.aborted)void jobStep(async()=>{await lifecycle.onUpdate!(structuredClone(job));},scope.signal,30000).catch(error => { persistenceError = error; });
       }, 1000) : undefined;
       timer?.unref();
       try {
-        await lifecycle?.onUpdate?.(structuredClone(job));
+        await jobStep(async()=>{await lifecycle?.onUpdate?.(structuredClone(job));},controllers.get(job.id)?.signal,30000);
         await run();
         if (persistenceError) throw persistenceError;
-        if (!stopped(getJob(job.id))) await lifecycle?.beforeComplete?.(job);
+        if (!stopped(getJob(job.id))) {committing.add(job.id);await jobStep(async()=>{await lifecycle?.beforeComplete?.(job);},controllers.get(job.id)?.signal,0);}
         if (!stopped(getJob(job.id))) {
           job.status = "complete";
           job.progress = 1;
@@ -555,23 +580,25 @@ async function drain() {
       } finally {
         if (timer) clearInterval(timer);
         job.completedAt = new Date().toISOString();
-        try { await lifecycle?.onUpdate?.(structuredClone(job)); }
+        try { await jobStep(async()=>{await lifecycle?.onUpdate?.(structuredClone(job));},new AbortController().signal,30000); }
         catch (error) {
-          job.status = "failed";
-          job.message = "Export receipt could not be saved";
-          job.error = error instanceof Error ? error.message : String(error);
-          try { await lifecycle?.onUpdate?.(structuredClone(job)); }
+          if(!stopped(job)){job.status = "failed";job.message = "Export receipt could not be saved";job.error = error instanceof Error ? error.message : String(error);}
+          else console.error("Could not persist stopped export",error);
+          try { await jobStep(async()=>{await lifecycle?.onUpdate?.(structuredClone(job));},new AbortController().signal,30000); }
           catch (retryError) { console.error("Could not persist failed export receipt", retryError); }
         }
-        lifecycles.delete(job.id);
+        await waitForJobWork(scope);
+        releaseJob(job);
       }
+      });
     }
   } finally {
-    busy = false;
+    if(inspection)inspecting=false;else busy = false;
   }
 }
 function progress(j: Job, duration: number) {
   return (line: string) => {
+    if(stopped(j)||jobSignal()?.aborted)return;
     if (line.startsWith("out_time_us=")) {
       const s = Number(line.slice(12)) / 1e6;
       j.progress = clamp(s / duration, 0, 0.99);
@@ -580,13 +607,14 @@ function progress(j: Job, duration: number) {
   };
 }
 export function startProxy(m: Media, cacheDir: string): Job {
-  return enqueue("proxy", async (j) => {
+  const existing=[...jobs.values()].find(j=>j.type==='proxy'&&(j as Job & {mediaId?:string}).mediaId===m.id&&!j.completedAt);if(existing)return existing;
+  const job=enqueue("proxy", async (j) => {
     if (m.kind !== "video") throw new Error("Proxies require video");
     await fs.mkdir(cacheDir, { recursive: true });
     const key = (await identity(m.path)).key,
       out = path.join(cacheDir, `${key}.proxy.mp4`);
     if (await exists(out)) {
-      m.proxyPath = out;
+      m.proxyPath = out;await registerMedia(m);
       j.outputPath = out;
       return;
     }
@@ -623,12 +651,13 @@ export function startProxy(m: Media, cacheDir: string): Job {
         progress(j, m.duration),
       );
       await fs.rename(tmp, out);
-      m.proxyPath = out;
+      m.proxyPath = out;await registerMedia(m);
       j.outputPath = out;
     } finally {
       await fs.rm(tmp, { force: true });
     }
   });
+  Object.assign(job,{mediaId:m.id});return job;
 }
 const color = (s: string, fallback = "171b27") =>
   /^#[a-f\d]{6}([a-f\d]{2})?$/i.test(s)
@@ -888,8 +917,8 @@ async function cameraMorphs(p: Project, w: number, h: number, fps: number, dir: 
       if (!m || m.kind !== "video") continue;
       const speed = clamp(c.speed, 0.05, 16), first = indices[0], sourceAt = (i: number) => c.sourceIn + (owner.start + i / fps - c.start) * speed;
       const prefix = path.join(frameDir, `p${first}-`);
-      await execFileAsync(FFMPEG, ["-v", "error", "-nostdin", "-y", "-ss", seconds(sourceAt(first)), "-i", m.path, "-frames:v", String(indices.length), "-vf", `setpts=(PTS-STARTPTS)/${speed},fps=${fps}`, "-q:v", "2", `${prefix}%04d.jpg`]);
-      const track = c.effects.faceCenter ? await getFaceTrack(m, { start: sourceAt(first), end: sourceAt(indices[indices.length - 1]) + 0.5 }).catch(() => undefined) : undefined;
+      await command(FFMPEG, ["-v", "error", "-nostdin", "-y", "-ss", seconds(sourceAt(first)), "-i", m.path, "-frames:v", String(indices.length), "-vf", `setpts=(PTS-STARTPTS)/${speed},fps=${fps}`, "-q:v", "2", `${prefix}%04d.jpg`]);
+      const track = c.effects.faceCenter ? await getFaceTrack(m, { start: sourceAt(first), end: sourceAt(indices[indices.length - 1]) + 0.5,signal:jobSignal() }).catch(() => undefined) : undefined;
       for (const [k, i] of indices.entries()) {
         const jpeg = await fs.readFile(`${prefix}${String(k + 1).padStart(4, "0")}.jpg`).catch(() => undefined), at = morphNow(c, p, owner.start + i / fps);
         if (!jpeg || !at) continue;
@@ -1918,3 +1947,6 @@ export async function proxyFile(
   );
   return (await exists(file)) ? file : undefined;
 }
+
+/** Called only after export ownership is acquired; these directories cannot belong to live jobs. */
+export async function sweepRenderArtifacts(outputDir:string){for(const name of await fs.readdir(outputDir).catch(error=>{if(error.code!=='ENOENT')console.error('Could not read render artifacts',outputDir,error);return [];}))if(/^\.(?:render|chunks|frame)-/.test(name))try{await fs.rm(path.join(outputDir,name),{recursive:true,force:true});}catch(error){console.error('Could not sweep render artifact',name,error);}}

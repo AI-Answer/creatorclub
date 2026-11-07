@@ -39,26 +39,27 @@ export function waveformEnvelopePath(bars:readonly WaveformBar[],mid=11,amplitud
  const first=pathNumber(bars[0].x),last=pathNumber(bars[bars.length-1].x),center=pathNumber(mid);
  return `M${first} ${center}L${[...top,`${last} ${center}`,...bottom].join(' ')}Z`;
 }
-type Entry={media:Media;listeners:Set<(peaks:readonly number[])=>void>;state:'queued'|'active'|'done';peaks:readonly number[]};
+type Entry={media:Media;listeners:Set<(peaks:readonly number[])=>void>;state:'queued'|'active'|'done'|'failed';peaks:readonly number[];failures:number;retryAt:number;timer?:ReturnType<typeof setTimeout>};
 /** Two background requests, bounded completed cache, queued requests withdrawn when no longer visible. */
 export class TimelineWaveformCache {
  private entries=new Map<string,Entry>();private active=0;
- constructor(private fetcher:(media:Media)=>Promise<readonly number[]>,private maxEntries=128,private concurrency=2){}
+ constructor(private fetcher:(media:Media)=>Promise<readonly number[]>,private maxEntries=128,private concurrency=2,private retryMs=1000){}
  subscribe(media:Media,receive:(peaks:readonly number[])=>void){
   if(!hasWaveform(media))return ()=>{};
   if(media.waveform?.length){receive(media.waveform);return ()=>{};}
   const key=waveformMediaKey(media);let entry=this.entries.get(key);
-  if(!entry){entry={media,listeners:new Set(),state:'queued',peaks:[]};this.entries.set(key,entry);}
+  if(!entry){entry={media,listeners:new Set(),state:'queued',peaks:[],failures:0,retryAt:0};this.entries.set(key,entry);}
   else {this.entries.delete(key);this.entries.set(key,entry);}
-  entry.listeners.add(receive);if(entry.state==='done')receive(entry.peaks);this.drain();
-  return ()=>{entry!.listeners.delete(receive);if(!entry!.listeners.size&&entry!.state==='queued')this.entries.delete(key);this.evict();};
+  entry.listeners.add(receive);if(entry.state==='failed')this.retry(entry);if(entry.state==='done')receive(entry.peaks);this.drain();
+  return ()=>{entry!.listeners.delete(receive);if(!entry!.listeners.size){clearTimeout(entry!.timer);entry!.timer=undefined;if(entry!.state==='queued')this.entries.delete(key);}this.evict();};
  }
- private evict(){for(const [key,entry]of this.entries){if(this.entries.size<=this.maxEntries)return;if(entry.state==='done'&&!entry.listeners.size)this.entries.delete(key);}}
+ private evict(){for(const [key,entry]of this.entries){if(this.entries.size<=this.maxEntries)return;if((entry.state==='done'||entry.state==='failed')&&!entry.listeners.size)this.entries.delete(key);}}
+ private retry(entry:Entry){if(entry.timer||!entry.listeners.size)return;entry.timer=setTimeout(()=>{entry.timer=undefined;if(!entry.listeners.size)return;entry.state='queued';this.drain();},Math.max(0,entry.retryAt-Date.now()));entry.timer.unref?.();}
  private drain(){
   for(const entry of this.entries.values()){
    if(this.active>=this.concurrency)break;if(entry.state!=='queued'||!entry.listeners.size)continue;
    entry.state='active';this.active++;
-   Promise.resolve().then(()=>this.fetcher(entry.media)).then(peaks=>{entry.peaks=Array.isArray(peaks)&&peaks.length<=16384?peaks.map(n=>Number.isFinite(n)?Math.max(0,Math.min(1,n)):0):[];},()=>{entry.peaks=[];}).finally(()=>{entry.state='done';this.active--;for(const callback of entry.listeners)callback(entry.peaks);this.evict();this.drain();});
+   Promise.resolve().then(()=>this.fetcher(entry.media)).then(peaks=>{entry.state='done';entry.failures=0;entry.peaks=Array.isArray(peaks)&&peaks.length<=16384?peaks.map(n=>Number.isFinite(n)?Math.max(0,Math.min(1,n)):0):[];},()=>{entry.state='failed';entry.failures++;entry.retryAt=Date.now()+Math.min(30000,this.retryMs*2**Math.min(entry.failures-1,5));}).finally(()=>{this.active--;if(entry.state==='failed')this.retry(entry);for(const callback of entry.listeners)callback(entry.peaks);this.evict();this.drain();});
   }
  }
 }

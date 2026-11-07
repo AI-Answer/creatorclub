@@ -55,3 +55,8 @@ test('new intersection takes install one persistent link, move and trim together
  // Existing snapshots are never reinitialized or linked again on confirmation.
  confirmTake(p,t);assert.equal(linkedIds(p.clips,chosen).size,1);
 });
+test('one take state rule covers pending, retained, confirmed without clips, legacy clip IDs and partial roles',async()=>{
+ const {takeState,takeOnTimeline}=await import('./take-state');const p=createProject(),t=take(p.scenes[0].id,'lifecycle');
+ assert.equal(takeState(p,t),'saved');assert.equal(takeState(p,{...t,retained:true}),'archived');assert.equal(takeState(p,{...t,confirmedAt:'yesterday'}),'archived');confirmTake(p,t);const saved=p.recordedTakes![0];assert.equal(takeOnTimeline(p,saved),true);assert.equal(takeState(p,saved),'active');p.clips=p.clips.filter(clip=>clip.track!=='camera');assert.equal(takeState(p,saved),'partial');
+ for(const clip of p.clips)delete clip.recordingTakeId;assert.equal(takeState(p,saved),'partial');assert.equal(takeOnTimeline(p,saved),true);p.clips=[];assert.equal(takeState(p,saved),'archived');
+});

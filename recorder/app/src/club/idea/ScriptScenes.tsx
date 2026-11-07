@@ -55,18 +55,15 @@ export function ScriptScenes({aiName,aiBrand,hasRecording,outline,known,focusId,
  const items=useRef<Record<number,HTMLElement|null>>({});
 
  // A scene's text saves a moment after the last keystroke, and at once when it is left (the outline does not carry scripts).
- const wait=useRef<{id:string;text:string;timer:ReturnType<typeof setTimeout>}|null>(null);
- const send=()=>{const now=wait.current;if(!now)return;clearTimeout(now.timer);wait.current=null;onSceneScript(now.id,now.text);};
- const soon=(id:string,text:string)=>{if(wait.current&&wait.current.id!==id)send();if(wait.current)clearTimeout(wait.current.timer);wait.current={id,text,timer:setTimeout(send,SAVE_DELAY_MS)};};
- const sendRef=useRef(send);sendRef.current=send;
- useEffect(()=>()=>sendRef.current(),[]);
-
+ const soon=onSceneScript;
+ const send=()=>{void onSaveNow().catch(()=>{});};
+ const latestOutline=useRef(outline);latestOutline.current=outline;
  const base=outline??{scenes:[]};
  const setScenes=(next:OutlineScene[])=>onEdit({...base,scenes:next});
  const setScene=(index:number,patch:Partial<OutlineScene>)=>setScenes(scenes.map((scene,at)=>at===index?{...scene,...patch}:scene));
  const add=(at:number)=>{const scene=newScene();setScenes(insertScene(scenes,at,scene));onFocus(scene.id!);focusText(scene.id!,'start');};
- const remove=(index:number)=>{const before=scenes;setScenes(removeScene(scenes,index));toast(`Deleted ${before[index].title||`scene ${index+1}`}`,{undo:()=>setScenes([...before])});};
- const textOf=(scene:OutlineScene)=>scene.id&&wait.current?.id===scene.id?wait.current.text:sceneText(scene);
+ const remove=(index:number)=>{const before=scenes;setScenes(removeScene(scenes,index));toast(`Deleted ${before[index].title||`scene ${index+1}`}`,{undo:()=>{const now=latestOutline.current??{scenes:[]};const gone=before[index];if(now.scenes.some(scene=>scene.id===gone.id))return;onEdit({...now,scenes:insertScene(now.scenes,Math.min(index,now.scenes.length),gone)});}});};
+ const textOf=sceneText;
  /** The text typed into a scene becomes its script; talking points it was showing are now part of that text. */
  const write=(index:number,text:string)=>{
   const scene=scenes[index],id=scene.id??String(index);
@@ -87,7 +84,7 @@ export function ScriptScenes({aiName,aiBrand,hasRecording,outline,known,focusId,
  const menuItems=(scene:OutlineScene,index:number):Array<'-'|{label:string;enabled?:boolean;run():void}>=>{
   const id=scene.id??String(index);
   return [
-   {label:scene.script?.trim()?`Rewrite the script with ${aiName}`:`Write the script with ${aiName}`,enabled:aiAvailable,run:()=>onWriteScene(id)},
+   {label:scene.script?.trim()?`Rewrite the script with ${aiName}`:`Write the script with ${aiName}`,enabled:aiAvailable&&!scripting&&!drafting,run:()=>onWriteScene(id)},
    ...(hasRecording?[{label:'Record this scene',run:()=>onRecord(id)}]:[]),
    '-',
    {label:'Add scene before',run:()=>add(index)},
@@ -195,9 +192,9 @@ export function ScriptScenes({aiName,aiBrand,hasRecording,outline,known,focusId,
  </div>;
 
  return <div className={cn('bs-root',drag?.moved&&'is-dragging')}>
-  <div className="bs-col">
+  <div className="bs-col" inert={scripting||drafting}>
    {scenes.map((scene,index)=>{
-    const id=scene.id??String(index),recorded=!!knownById.get(id)?.takes.length,selected=focusId===id,writing=scripting&&scriptingScene===id;
+    const id=scene.id??String(index),recorded=!!knownById.get(id)?.takes.length,selected=focusId===id,writing=scripting&&(!scriptingScene||scriptingScene===id);
     const name=scene.title.trim()||`Scene ${index+1}`,lifted=drag?.moved&&drag.from===index;
     return <div key={id} className={cn('bs-item',lifted&&'is-lifted')} ref={element=>{items.current[index]=element;}} style={{transform:`translateY(${shiftOf(index)}px)`}}>
      <div id={sceneCardId(id)} data-scene-id={id} aria-label={`Scene ${index+1}`}

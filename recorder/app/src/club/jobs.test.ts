@@ -52,3 +52,12 @@ test('helpers read the shapes jobs send',()=>{
  assert.equal(isStartedJob({slug:'samin'}),false);
  assert.equal(isStartedJob(null),false);
 });
+
+test('a replay reset replaces lifecycle state and only closes for a terminal snapshot',()=>{
+ FakeEventSource.install();const seen:JobMessage[]=[];watchJob('reset-job',event=>seen.push(event));const source=FakeEventSource.last();
+ const running={id:'reset-job',kind:'test',status:'running' as const,createdAt:''};
+ source.emit('reset',running);assert.equal(source.closed,false);assert.deepEqual(seen,[{type:'progress',data:null,reset:running}]);
+ source.emit('progress',{line:'Latest retained step'});assert.equal(source.closed,false);
+ source.emit('reset',{...running,status:'done',result:{value:'complete'}});
+ assert.equal(source.closed,true);assert.equal(seen.at(-1)?.type,'done');assert.deepEqual(seen.at(-1)?.data,{value:'complete'});
+});

@@ -1,3 +1,5 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
+import { cancelVideoJobs } from './jobs.js';
 import { promises as fs } from 'node:fs';
 import { existsSync } from 'node:fs';
 import os from 'node:os';
@@ -80,6 +82,18 @@ export async function readJSON<T>(file: string): Promise<T | undefined> {
 
 /** Writes to a temp file next to the target, then renames, so readers never see a partial file. */
 export async function writeFileAtomic(file: string, data: string | Buffer, mode?: number) {
+  const parts = path.relative(rootDir(), file).split(path.sep);
+  if (parts[1] === 'videos' && parts[2] && !parts[0].startsWith('.')) {
+    const [slug, , id] = parts;
+    return videoLock(slug, id, async () => {
+      if (deletedVideos.has(videoDir(slug, id)) || !(await fs.stat(videoDir(slug, id)).catch(() => undefined))) throw notFound('video');
+      await writeAtomic(file, data, mode);
+    });
+  }
+  await writeAtomic(file, data, mode);
+}
+const deletedVideos = new Set<string>();
+async function writeAtomic(file: string, data: string | Buffer, mode?: number) {
   await fs.mkdir(path.dirname(file), { recursive: true });
   const temp = path.join(path.dirname(file), `.${path.basename(file)}.${randomBytes(4).toString('hex')}.tmp`);
   try {
@@ -321,10 +335,20 @@ export async function readWorkspace(slug: string): Promise<Workspace> {
   return { ...workspace, audience: Array.isArray(workspace.audience) ? workspace.audience : [] };
 }
 
+export const profileLock = <T>(slug: string, fn: () => Promise<T>) => withLock(`profile:${profileFile(slug)}`, fn);
+export function updateWorkspace(slug: string, change: (workspace: Workspace) => Workspace): Promise<Workspace> {
+  return profileLock(slug, async () => {
+    const next = change(await readWorkspace(slug));
+    await writeWorkspace(next);
+    return next;
+  });
+}
 export async function writeWorkspace(workspace: Workspace) {
+ return profileLock(workspace.slug, async () => {
   await writeJSON(profileFile(workspace.slug), workspace);
   await fs.mkdir(path.join(workspaceDir(workspace.slug), 'videos'), { recursive: true });
   await fs.mkdir(breakdownsDir(workspace.slug), { recursive: true });
+ });
 }
 
 export const slugify = (name: string) =>
@@ -338,32 +362,43 @@ export const slugify = (name: string) =>
 
 /** Creates a workspace; the slug comes from the name unless given, and gets a numeric suffix on collision. */
 export async function createWorkspace(input: Omit<Workspace, 'slug' | 'createdAt' | 'audience'> & { slug?: string; audience?: string[] }): Promise<Workspace> {
-  const base = input.slug ?? (slugify(input.name) || 'channel');
-  let slug = assertSlug(base);
-  for (let n = 2; await readJSON(profileFile(slug)); n++) {
-    if (input.slug) throw new ClubError('A channel with that name already exists.', 409);
-    slug = `${base}-${n}`;
-  }
-  const { slug: _ignored, ...fields } = input;
-  const workspace: Workspace = { ...fields, audience: fields.audience ?? [], slug, createdAt: now() };
-  await writeWorkspace(workspace);
-  return workspace;
+  return withLock(`workspace-create:${rootDir()}`, async () => {
+    const base = input.slug ?? (slugify(input.name) || 'channel');
+    let slug = assertSlug(base);
+    for (let n = 2; await readJSON(profileFile(slug)); n++) {
+      if (input.slug) throw new ClubError('A channel with that name already exists.', 409);
+      slug = `${base}-${n}`;
+    }
+    const { slug: _ignored, ...fields } = input;
+    const workspace: Workspace = { ...fields, audience: fields.audience ?? [], slug, createdAt: now() };
+    await writeWorkspace(workspace);
+    return workspace;
+  });
 }
 
 // ---------------------------------------------------------------- videos
 
 /** Runs `fn` after every earlier call with the same key, so read-modify-write cycles never overlap. */
 const lockTails = new Map<string, Promise<unknown>>();
+const heldLocks = new AsyncLocalStorage<Map<string, { active: boolean }>>();
 export function withLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
-  const run = (lockTails.get(key) ?? Promise.resolve()).then(fn);
+  if (heldLocks.getStore()?.get(key)?.active) return fn();
+  const inherited = heldLocks.getStore();
+  const run = (lockTails.get(key) ?? Promise.resolve()).then(async () => {
+    const token = { active: true };
+    const held = new Map(inherited);
+    held.set(key, token);
+    try { return await heldLocks.run(held, fn); }
+    finally { token.active = false; }
+  });
   const tail = run.catch(() => {});
   lockTails.set(key, tail);
   void tail.then(() => lockTails.get(key) === tail && lockTails.delete(key));
   return run;
 }
 // Lock order is always workspace first, then video, so the two never deadlock.
-const workspaceLock = <T>(slug: string, fn: () => Promise<T>) => withLock(`ws:${workspaceDir(slug)}`, fn);
-const videoLock = <T>(slug: string, id: string, fn: () => Promise<T>) => withLock(`video:${videoFile(slug, id)}`, fn);
+export const workspaceLock = <T>(slug: string, fn: () => Promise<T>) => withLock(`ws:${workspaceDir(slug)}`, fn);
+export const videoLock = <T>(slug: string, id: string, fn: () => Promise<T>) => withLock(`video:${videoFile(slug, id)}`, fn);
 
 const videoFile = (slug: string, id: string) => path.join(videoDir(slug, id), 'video.json');
 
@@ -393,7 +428,7 @@ async function listVideosRaw(slug: string): Promise<Video[]> {
 }
 
 /** Called only under the workspace lock. Reserve numbers before writing videos, so a deleted video's ID is never reused. */
-async function numberedVideos(slug: string): Promise<Video[]> {
+async function numberedVideos(slug: string,persist=true): Promise<Video[]> {
   const videos = await listVideosRaw(slug);
   const file = path.join(workspaceDir(slug), 'video-sequence.json');
   const saved = await readJSON<{ last: number }>(file);
@@ -404,6 +439,7 @@ async function numberedVideos(slug: string): Promise<Video[]> {
     if (Number.isSafeInteger(video.number) && video.number! > 0 && !seen.has(video.number!)) seen.add(video.number!);
     else pending.push(video);
   }
+  if(!persist){for(const video of pending)video.number=++last;return videos;}
   if (pending.length || last !== (saved?.last ?? 0)) {
     await writeJSON(file, { last: last + pending.length });
     for (const video of pending) {
@@ -420,7 +456,7 @@ async function numberedVideos(slug: string): Promise<Video[]> {
 }
 
 export function listVideos(slug: string): Promise<Video[]> {
-  return workspaceLock(slug, () => numberedVideos(slug));
+  return numberedVideos(slug,false);
 }
 
 async function reserveVideoNumber(slug: string, videos: Video[]): Promise<number> {
@@ -449,6 +485,7 @@ async function createLocked(slug: string, input: NewVideo, videos: Video[]): Pro
     stageDates: { [stage]: at },
     planning: input.planning ?? { research: false, package: false, outline: false },
   };
+  await fs.mkdir(videoDir(slug, video.id), { recursive: true });
   await writeVideo(slug, video);
   return video;
 }
@@ -471,6 +508,7 @@ export function importVideo(slug: string, video: Video): Promise<Video> {
   return workspaceLock(slug, () =>
     videoLock(slug, video.id, async () => {
       if (await readJSON(videoFile(slug, video.id))) throw new ClubError('That video is already in this channel.', 409);
+      await fs.mkdir(videoDir(slug, video.id), { recursive: true });
       await writeVideo(slug, video);
       return video;
     }),
@@ -497,6 +535,7 @@ export function updateVideo(slug: string, id: string, patch: { [K in keyof Video
       } else if (value === null) delete video[key];
       else if (value !== undefined) video[key] = value;
     }
+    if (video.stage !== 'published') delete video.publishedAt;
     const updated = { ...video, updatedAt: now() } as unknown as Video;
     await writeVideo(slug, updated);
     return updated;
@@ -508,6 +547,7 @@ export interface MoveOptions {
   beforeId?: string | null;
   /** Put these stage dates back instead of recording a new one (Undo). */
   stageDates?: Video['stageDates'];
+  expectedStages?: VideoStage[];
 }
 
 /** Moves a video to a stage and a place in it, records when it got there, and renumbers that stage. */
@@ -517,18 +557,21 @@ export async function moveVideo(slug: string, id: string, stage: VideoStage, opt
     const videos = await numberedVideos(slug);
     const video = videos.find((v) => v.id === id);
     if (!video) throw notFound('video');
+    if (options.expectedStages && !options.expectedStages.includes(video.stage)) return video;
     const column = arrangeColumn(videos, id, stage, options.beforeId);
     const at = now();
     let result = video;
     for (const [order, columnId] of column.entries()) {
       const moving = columnId === id;
       if (!moving && videos.find((v) => v.id === columnId)?.order === order) continue;
-      if (moving && video.stage === stage && video.order === order && !options.stageDates) continue;
+      if (moving && video.stage === stage && video.order === order && !options.stageDates && !(stage !== 'ideas' && video.hidden)) continue;
       const written = await videoLock(slug, columnId, async () => {
         const current = await readVideo(slug, columnId);
         const next: Video = { ...current, order };
         if (moving) {
           next.stage = stage;
+          if (stage !== 'ideas') delete next.hidden;
+          if (stage !== 'published') delete next.publishedAt;
           next.updatedAt = at;
           next.stageDates = options.stageDates ?? (current.stage === stage ? current.stageDates : { ...current.stageDates, [stage]: at });
         }
@@ -543,10 +586,12 @@ export async function moveVideo(slug: string, id: string, stage: VideoStage, opt
 
 /** Removes the video's folder inside the workspace (its package, outline and research). Recordings live in SceneForge. */
 export function deleteVideo(slug: string, id: string): Promise<void> {
-  return videoLock(slug, id, async () => {
+  // Wait outside the locks: a cancelling worker may need them to finish.
+  return cancelVideoJobs(slug, id).then(() => workspaceLock(slug, () => videoLock(slug, id, async () => {
     await readVideo(slug, id);
+    deletedVideos.add(videoDir(slug, id));
     await fs.rm(videoDir(slug, id), { recursive: true, force: true });
-  });
+  })));
 }
 
 // ---------------------------------------------------------------- research tiles
@@ -587,7 +632,7 @@ export async function readTile(slug: string, videoId: string, tileId: string): P
 /** Runs `fn` with the Board of a video held: no tile is added, placed or seeded by anything else meanwhile. */
 export const boardLock = <T>(slug: string, videoId: string, fn: () => Promise<T>) => withLock(`board:${researchDir(slug, videoId)}`, fn);
 /** Saves a whole tile, for code that already holds the Board (see `boardLock`). */
-export const writeTile = (slug: string, videoId: string, tile: ResearchTile) => writeJSON(tileFile(slug, videoId, tile.id), tile);
+export const writeTile = (slug: string, videoId: string, tile: ResearchTile) => boardLock(slug, videoId, () => writeJSON(tileFile(slug, videoId, tile.id), tile));
 export const newTileId = () => newId('t');
 export const nowIso = now;
 
@@ -646,7 +691,7 @@ export function seedIdeaTiles(slug: string, videoId: string): Promise<void> {
 
 /** Merges new details into a tile, one change at a time per tile. */
 export function updateTile(slug: string, videoId: string, tileId: string, patch: Partial<Pick<ResearchTile, 'title' | 'text' | 'file' | 'meta' | 'pos'>>): Promise<ResearchTile> {
-  return withLock(`tile:${tileFile(slug, videoId, tileId)}`, async () => {
+  return boardLock(slug, videoId, async () => {
     const tile = await readTile(slug, videoId, tileId);
     const updated: ResearchTile = { ...tile, ...patch, meta: { ...tile.meta, ...patch.meta } };
     await writeJSON(tileFile(slug, videoId, tileId), updated);
@@ -661,7 +706,7 @@ export function listPlacedTiles(slug: string, videoId: string): Promise<Research
     for (const [index, tile] of tiles.entries()) {
       if (tile.pos) continue;
       const pos: TilePosition = freeSpot(tiles, tile.kind);
-      tiles[index] = await withLock(`tile:${tileFile(slug, videoId, tile.id)}`, async () => {
+      tiles[index] = await boardLock(slug, videoId, async () => {
         const current = await readTile(slug, videoId, tile.id);
         if (current.pos) return current;
         const placed = { ...current, pos };
@@ -677,9 +722,11 @@ export const tileFilePath = (slug: string, videoId: string, tile: ResearchTile) 
   tile.file ? path.join(researchDir(slug, videoId), path.basename(tile.file)) : undefined;
 
 export async function deleteTile(slug: string, videoId: string, tileId: string) {
+ return boardLock(slug, videoId, async () => {
   const tile = await readTile(slug, videoId, tileId);
   const file = tileFilePath(slug, videoId, tile);
   if (file) await fs.rm(file, { force: true });
   await fs.rm(path.join(researchDir(slug, videoId), 'transcripts', `${tileId}.json`), { force: true });
   await fs.rm(tileFile(slug, videoId, tileId), { force: true });
+ });
 }

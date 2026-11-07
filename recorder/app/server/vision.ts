@@ -1,3 +1,4 @@
+import {trackChild} from './job-scope.js';
 import { spawn, type ChildProcess } from "node:child_process";
 import { promises as fs } from "node:fs";
 import path from "node:path";
@@ -25,14 +26,16 @@ let helper: Promise<string> | undefined;
 const hash = (s: string) =>
   createHash("sha256").update(s).digest("hex").slice(0, 24);
 function processResult(child: ChildProcess): Promise<string> {
+  trackChild(child);
   return new Promise((resolve, reject) => {
+    let timedOut=false;const timer=setTimeout(()=>{timedOut=true;child.kill("SIGKILL");},180000);timer.unref();child.once("close",()=>clearTimeout(timer));child.once("error",()=>clearTimeout(timer));
     let stdout = "",
       stderr = "";
     child.stdout?.on("data", (b) => (stdout += b));
     child.stderr?.on("data", (b) => (stderr = (stderr + b).slice(-8000)));
     child.once("error", reject);
     child.once("close", (code) =>
-      code
+      code||timedOut
         ? reject(Error(stderr || `Process exited ${code}`))
         : resolve(stdout),
     );
@@ -93,7 +96,7 @@ export async function detectFace(
     stat = await fs.stat(file),
     time = options.time || 0,
     key = hash(`${file}:${stat.size}:${stat.mtimeMs}:${time}`);
-  if (faces.has(key)) return faces.get(key)!;
+  options.signal?.throwIfAborted();if (faces.has(key)){const found=faces.get(key)!;faces.delete(key);faces.set(key,found);return found;}
   // Requesters share one detection; an aborted preview stops it only when nobody else is waiting.
   const face = await faceWork(key, async (signal) => {
     const binary = await compileHelper();
@@ -108,7 +111,7 @@ export async function detectFace(
     );
   }, options.signal);
   if (!faces.has(key)) faces.set(key, Promise.resolve(face));
-  return face;
+  while(faces.size>256)faces.delete(faces.keys().next().value!);return face;
 }
 const maskWork = sharedWork<string>();
 let active = false;
@@ -195,11 +198,13 @@ export async function personMask(
         ],
         { stdio: ["pipe", "pipe", "pipe"] },
       );
+      trackChild(native);trackChild(encoder);
       const stop = () => {
         native?.kill("SIGKILL");
         encoder?.kill("SIGKILL");
       };
-      signal.addEventListener("abort", stop, { once: true });
+      const deadline=setTimeout(stop,180000);deadline.unref();
+      signal.addEventListener("abort", stop, { once: true });if(signal.aborted)stop();
       let nativeError = "",
         encoderError = "";
       native.stderr!.on(
@@ -224,7 +229,7 @@ export async function personMask(
         if (codes.some((c) => c !== 0))
           throw Error(`Vision mask failed: ${nativeError} ${encoderError}`);
       } finally {
-        signal.removeEventListener("abort", stop);
+        clearTimeout(deadline);signal.removeEventListener("abort", stop);
       }
       if ((await fs.stat(temp)).size < 100) throw Error("Empty person mask");
       await fs.rename(temp, out);

@@ -218,7 +218,7 @@ test('every applied card is a version, and each Undo puts back only what that ca
   const undone = await undo(reply, 0);
   assert.equal(undone.status, 200, JSON.stringify(undone.body));
   assert.equal(undone.body.message.cards[0].state, 'undone');
-  assert.equal(undone.body.message.cards[0].version, undefined);
+  assert.match(undone.body.message.cards[0].version!, /^cv_/, 'the authoritative version remains linked after Undo');
   assert.equal(undone.body.message.cards[1].state, 'applied');
   const after = (await plan()).package;
   assert.equal(after.hook.spoken, 'You never opened this.');
@@ -519,7 +519,7 @@ test('Stop keeps what arrived as a stopped reply; one reply runs at a time; Try 
   assert.equal(retried.body.message.id, failed.body.message.id);
   await events(retried.body.jobId);
   const after = (await thread()).messages;
-  assert.equal(after.length, count + 1, 'only the reply is added');
+  assert.equal(after.length, count, 'the failed placeholder is replaced without duplicating the question');
 });
 
 test('a stopped reply that is still being saved goes after its own question, not after the next one', async () => {
@@ -530,9 +530,11 @@ test('a stopped reply that is still being saved goes after its own question, not
   await call('DELETE', `/jobs/${first.body.jobId}`);
   scripts.push({ text: 'Next answer.' });
   const next = await ask('Next question', { tab: 'idea' });
-  assert.equal(next.status, 202, 'a new question can be asked at once');
-  await events(next.body.jobId);
+  assert.equal(next.status, 409, 'the cancelling worker still owns the turn');
   release();
+  await events(first.body.jobId);
+  const retried = await ask('Next question', { tab: 'idea' });
+  await events(retried.body.jobId);
   await tick(120);
   const ids = (await thread()).messages.slice(-4).map((message) => (message.role === 'user' ? message.text : message.status ?? message.text));
   assert.deepEqual(ids, ['Slow to stop', 'stopped', 'Next question', 'Next answer.']);
@@ -543,7 +545,7 @@ test('quitting stops every running reply, so no CLI outlives the app', async () 
   const before = asked.length;
   const started = await ask('Never ends', { tab: 'idea' });
   for (let i = 0; i < 200 && asked.length === before; i++) await tick(5);
-  assert.ok(cancelAllJobs() >= 1);
+  assert.ok(await cancelAllJobs() >= 1);
   assert.equal(getJob(started.body.jobId)?.status, 'cancelled');
   assert.equal(asked.at(-1)!.signal?.aborted, true, 'the runner was told to stop');
   await tick(20);
@@ -737,4 +739,73 @@ test('Use as title moves each title with its own thumbnail words', async () => {
   assert.deepEqual(pkg.titles.slice(0, 2), ['Second title here', 'First title here']);
   assert.deepEqual(pkg.thumbs!.slice(0, 2), ['SECOND WORDS', 'FIRST WORDS'], 'the words stay with their title');
   await undo(reply, 0);
+});
+
+test('simultaneous asks append exactly one question and one running reply', async () => {
+  let release!: () => void;
+  scripts.push({ text: 'Only answer.', hold: new Promise(resolve => { release = resolve; }) });
+  const before = (await thread()).messages.length;
+  const asks = await Promise.all([ask('Race A', { tab: 'idea' }), ask('Race B', { tab: 'idea' })]);
+  assert.deepEqual(asks.map(result => result.status).sort(), [202, 409]);
+  const saved = await thread();
+  assert.equal(saved.messages.length, before + 2);
+  assert.equal((saved.messages.at(-1) as CompanionReplyMessage).status, 'running');
+  const started = asks.find(result => result.status === 202)!;
+  assert.equal(saved.running?.messageId, started.body.message.id);
+  release();
+  await events(started.body.jobId);
+});
+
+test('a read queued during append sees the registered job and keeps its placeholder running', async () => {
+  const fresh = await store.createVideo('maya-lopez', { title: 'Read during ask' });
+  const file = path.join(store.videoDir('maya-lopez', fresh.id), 'companion.json');
+  let unlock!: () => void;
+  const held = store.withLock(`companion:${file}`, () => new Promise<void>(resolve => { unlock = resolve; }));
+  await tick();
+  let finish!: () => void;
+  scripts.push({ text: 'Answer.', hold: new Promise(resolve => { finish = resolve; }) });
+  const { askCompanion, readThread } = await import('./companion.js');
+  const asking = askCompanion('maya-lopez', fresh.id, { message: 'Hello', context: { tab: 'idea' } }, { runAI: fakeAI });
+  await tick(20);
+  const reading = readThread('maya-lopez', fresh.id);
+  await tick(20);
+  unlock();
+  const [, started, saved] = await Promise.all([held, asking, reading]);
+  try {
+    assert.equal((saved.messages.at(-1) as CompanionReplyMessage).status, 'running');
+    assert.equal(saved.running?.jobId, started.jobId);
+  } finally {
+    finish();
+    await events(started.jobId);
+  }
+});
+
+test('reading cards recovers apply and Undo state from the version when a conversation write was interrupted', async () => {
+  scripts.push({ text: 'Use this.\n<actions>[{"type":"use_hook","text":"Recovered hook."}]</actions>' });
+  const started = await ask('Recovery', { tab: 'idea' });
+  await events(started.body.jobId);
+  const message = (await thread()).messages.at(-1) as CompanionReplyMessage;
+  const applied = await applyAction('maya-lopez', video.id, { type: 'use_hook', text: 'Recovered hook.' }, { card: { messageId: message.id, index: 0 } });
+  let recovered = (await thread()).messages.at(-1) as CompanionReplyMessage;
+  assert.equal(recovered.cards[0].state, 'applied');
+  assert.equal(recovered.cards[0].version, applied.version);
+  await undoVersion('maya-lopez', video.id, applied.version);
+  recovered = (await thread()).messages.at(-1) as CompanionReplyMessage;
+  assert.equal(recovered.cards[0].state, 'undone');
+});
+
+test('a saved running reply from an earlier server is marked failed once on read', async () => {
+  const fresh = await store.createVideo('maya-lopez', { title: 'Restarted turn' });
+  const file = path.join(store.videoDir('maya-lopez', fresh.id), 'companion.json');
+  await store.writeJSON(file, { messages: [
+    { id: 'question', role: 'user', text: 'Hello', context: { tab: 'idea' } },
+    { id: 'reply', role: 'assistant', text: '', tab: 'idea', cards: [], status: 'running' },
+  ] });
+  const { readThread } = await import('./companion.js');
+  const first = await readThread('maya-lopez', fresh.id);
+  assert.equal((first.messages[1] as CompanionReplyMessage).status, 'failed');
+  const { stat } = await import('node:fs/promises');
+  const at = (await stat(file)).mtimeMs;
+  assert.deepEqual(await readThread('maya-lopez', fresh.id), first);
+  assert.equal((await stat(file)).mtimeMs, at);
 });

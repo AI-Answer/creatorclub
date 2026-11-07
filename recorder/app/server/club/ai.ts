@@ -360,13 +360,16 @@ export async function runAI(options: RunAIOptions): Promise<RunAIResult> {
     // check and the listener registered inside the promise below, so no abort can slip through.
     if (options.signal?.aborted) throw new AiError('cancelled', 'That was stopped.');
     const { code, stderr, interrupted } = await new Promise<{ code: number | null; stderr: string; interrupted?: 'timeout' | 'abort' | 'spawn' }>((resolve) => {
-      const child = spawn(file, invocation.args, { cwd, env: { ...childEnv(options), ...options.env }, stdio: ['pipe', 'pipe', 'pipe'] });
+      const child = spawn(file, invocation.args, { cwd, env: { ...childEnv(options), ...options.env }, detached: process.platform !== 'win32', stdio: ['pipe', 'pipe', 'pipe'] });
       let stderr = '';
       let interrupted: 'timeout' | 'abort' | 'spawn' | undefined;
+      let killTimer: ReturnType<typeof setTimeout> | undefined;
+      const kill = (signal: NodeJS.Signals) => { try { if (process.platform !== 'win32' && child.pid) process.kill(-child.pid, signal); else child.kill(signal); } catch { /* Already exited. */ } };
       const stop = (reason: 'timeout' | 'abort') => {
         interrupted = reason;
-        child.kill('SIGTERM');
-        setTimeout(() => child.kill('SIGKILL'), 3000).unref();
+        kill('SIGTERM');
+        killTimer = setTimeout(() => kill('SIGKILL'), 3000);
+        killTimer.unref();
       };
       const timer = setTimeout(() => stop('timeout'), options.timeoutMs ?? 15 * 60_000);
       const onAbort = () => stop('abort');
@@ -382,6 +385,8 @@ export async function runAI(options: RunAIOptions): Promise<RunAIResult> {
         interrupted = 'spawn';
       });
       child.on('close', (code) => {
+        if (interrupted === 'abort' || interrupted === 'timeout') kill('SIGKILL');
+        clearTimeout(killTimer);
         clearTimeout(timer);
         options.signal?.removeEventListener('abort', onAbort);
         reader.end();

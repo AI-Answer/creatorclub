@@ -119,3 +119,8 @@ test('MCP settings default on, persist, create the named workspace folder and re
   assert.equal((await readMCPSettings(dir)).workspaceLocation,chosen);
  }finally{await removeDir(dir,{recursive:true,force:true});}
 });
+
+test('network commit failure retains the edit transaction for inspect and retry',async()=>{
+ const project=createProject('Retry transaction');let fail=true;const handle=createToolHandler('http://127.0.0.1:4184/api',async(_url,init)=>{if(init?.method==='PUT'&&fail){fail=false;throw Error('connection reset');}return Response.json(init?.method==='PUT'?JSON.parse(String(init.body)):project);});
+ const tx=await handle('begin_project_edit',{project_id:project.id});await handle('rename_project',{tx_id:tx.tx_id,name:'Retained'});await assert.rejects(handle('commit_project_edit',{tx_id:tx.tx_id,change_summary:'Rename'}),/connection reset/);assert.equal((await handle('get_project',{tx_id:tx.tx_id})).project.name,'Retained');await handle('commit_project_edit',{tx_id:tx.tx_id,change_summary:'Rename'});await assert.rejects(handle('get_project',{tx_id:tx.tx_id}),/closed/);
+});

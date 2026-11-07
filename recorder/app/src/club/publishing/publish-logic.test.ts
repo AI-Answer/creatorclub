@@ -63,6 +63,7 @@ test('the progress rows: export done, then sending with its percent, then Postiz
 });
 
 test('the result says where the video is: on YouTube, scheduled, or with Postiz',()=>{
+ assert.equal(resultWords({state:'uploading',visibility:'public'}).title,'Uploading the video');assert.equal(resultWords({state:'uploading',visibility:'public'}).done,false);
  assert.deepEqual(resultWords({state:'published',visibility:'unlisted'}),{title:"It's on YouTube",line:'It is live as unlisted. YouTube may take a few minutes to show it in HD.',done:true});
  const scheduled=resultWords({state:'queued',visibility:'public',scheduledFor:new Date(2026,9,31,15,0).toISOString()});
  assert.equal(scheduled.title,"It's scheduled");

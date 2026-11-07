@@ -31,3 +31,8 @@ test('normal success and failure finish once; cancelled rejection does not repor
 test('AI range labels preserve milliseconds including minute rollover',()=>{
  assert.equal(preciseAITime(1),'00:01.000');assert.equal(preciseAITime(1.3),'00:01.300');assert.equal(preciseAITime(59.9996),'01:00.000');assert.equal(preciseAITime(3600.125),'60:00.125');assert.equal(preciseAITime(NaN),'00:00.000');
 });
+
+test('retranscribing a source replaces its previous captions and preserves manual and other-source captions',async()=>{
+ const {replaceMediaTranscription}=await import('./ai-dialog-request');const manual={id:'manual',start:0,end:1,text:'manual'},a={id:'random',start:2,end:3,text:'old'};
+ const first=replaceMediaTranscription([manual],[a],'source-a'),other=replaceMediaTranscription(first,[{...a,text:'other'}],'source-b');const twice=replaceMediaTranscription(other,[{...a,text:'new'}],'source-a');assert.equal(twice.length,3);assert.deepEqual(twice.map(c=>c.text),['manual','other','new']);assert.equal(twice.filter(c=>c.id.startsWith('ai-transcription:source-a:')).length,1);
+});

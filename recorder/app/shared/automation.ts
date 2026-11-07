@@ -14,6 +14,7 @@ export interface AutomationJob {
  status:'queued'|'running'|'ready'|'complete'|'conflict'|'failed'|'cancelled';
  progress:number; message:string; createdAt:string; updatedAt:string;
  automatic:boolean; applied:boolean; undone:boolean; error?:string;
+ cancelReason?:'user'|'shutdown'|'settings';
  captionCount?:number; proposal?:AutomationProposal;
 }
 export interface QuickActionRequest { kind:'auto-cut'|'visualize'; semantic?:boolean; sceneId?:string; }

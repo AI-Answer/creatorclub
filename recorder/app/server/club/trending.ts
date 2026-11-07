@@ -38,7 +38,8 @@ export async function readFollowed(slug: string): Promise<FollowedChannel[]> {
   return Array.isArray(list) ? list.filter(isChannel) : [];
 }
 
-export const writeFollowed = (slug: string, channels: FollowedChannel[]) => store.writeJSON(followedFile(slug), channels);
+export const followedLock = <T>(slug: string, fn: () => Promise<T>) => store.withLock(`followed:${followedFile(slug)}`, fn);
+export const writeFollowed = (slug: string, channels: FollowedChannel[]) => followedLock(slug, () => store.writeJSON(followedFile(slug), channels));
 
 const isItem = (value: unknown): value is TrendingItem => {
   const t = value as TrendingItem | null;
@@ -145,78 +146,80 @@ function addReading(history: TrendingItem['history'], day: string, views: number
  * A channel that cannot be read keeps its earlier videos. Nothing is written when no channel could be read.
  */
 export async function refreshTrending(slug: string, context: JobContext, makeSource: UploadsSourceFactory, nowMs = Date.now()): Promise<TrendingRefreshResult> {
-  const followed = await readFollowed(slug);
-  if (!followed.length) throw new ClubError('Follow a channel first.', 409);
-  const say = (message: string) => context.emit({ message });
-  const source = await makeSource(say);
-  const existing = await readItems(slug);
-  const known = new Map(existing.map((item) => [item.videoId, item]));
-  const today = isoDay(nowMs);
+  return store.withLock(`trending:${trendingFile(slug)}`, async () => {
+    const followed = await readFollowed(slug);
+    if (!followed.length) throw new ClubError('Follow a channel first.', 409);
+    const say = (message: string) => context.emit({ message });
+    const source = await makeSource(say);
+    const existing = await readItems(slug);
+    const known = new Map(existing.map((item) => [item.videoId, item]));
+    const today = isoDay(nowMs);
 
-  const fresh = new Map<string, TrendingItem>();
-  const medians = new Map<FollowedChannel, number>();
-  const failed: string[] = [];
-  const started = Date.now();
-  for (const [index, channel] of followed.entries()) {
-    if (context.signal.aborted) throw new ClubError('That was stopped.');
-    const left = timeLeft(Date.now() - started, index, followed.length);
-    say(`Reading ${channel.name} (${index + 1} of ${followed.length})${left ? ` · ${left}` : ''}…`);
-    const url = followedUrl(channel);
-    try {
-      if (!url) throw new Error('no usable link');
-      const entries = (await source.list(url, context.signal)).slice(0, UPLOADS_READ);
-      if (!entries.length) throw new Error('no uploads');
-      const stats = await source.stats(entries.map((entry) => entry.id), context.signal);
+    const fresh = new Map<string, TrendingItem>();
+    const medians = new Map<FollowedChannel, number>();
+    const failed: string[] = [];
+    const started = Date.now();
+    for (const [index, channel] of followed.entries()) {
       if (context.signal.aborted) throw new ClubError('That was stopped.');
-      // yt-dlp failing (bot check, rate limit, timeout) shows up as missing numbers, not as an error: too few means the channel was not read.
-      if (stats.size < Math.ceil(entries.length / 4)) throw new Error(`numbers for ${stats.size} of ${entries.length} uploads`);
-      const usual = usualViews(entries.map((entry) => stats.get(entry.id)?.views)) ?? channel.median;
-      if (usual !== undefined && usual > 0) medians.set(channel, usual);
-      for (const entry of entries) {
-        const stat = stats.get(entry.id);
-        if (!stat || stat.uploadedAt === undefined) continue;
-        const ageDays = Math.max(0, (nowMs - stat.uploadedAt) / DAY);
-        if (ageDays > KEEP_DAYS) continue;
-        const old = known.get(entry.id);
-        fresh.set(entry.id, {
-          videoId: entry.id,
-          title: entry.title || old?.title || '',
-          channel: channel.name,
-          kind: 'followed',
-          views: stat.views,
-          likes: stat.likes,
-          comments: stat.comments,
-          published: isoDay(stat.uploadedAt),
-          ageDays: round1(ageDays),
-          vpd: Math.round(stat.views / Math.max(ageDays, 0.25)),
-          mult: outlierMultiplier(stat.views, usual) ?? null,
-          history: addReading(old?.history ?? [], today, stat.views),
-          firstSeen: old?.firstSeen ?? today,
-          fit: true,
-        });
+      const left = timeLeft(Date.now() - started, index, followed.length);
+      say(`Reading ${channel.name} (${index + 1} of ${followed.length})${left ? ` · ${left}` : ''}…`);
+      const url = followedUrl(channel);
+      try {
+        if (!url) throw new Error('no usable link');
+        const entries = (await source.list(url, context.signal)).slice(0, UPLOADS_READ);
+        if (!entries.length) throw new Error('no uploads');
+        const stats = await source.stats(entries.map((entry) => entry.id), context.signal);
+        if (context.signal.aborted) throw new ClubError('That was stopped.');
+        // yt-dlp failing (bot check, rate limit, timeout) shows up as missing numbers, not as an error: too few means the channel was not read.
+        if (stats.size < Math.ceil(entries.length / 4)) throw new Error(`numbers for ${stats.size} of ${entries.length} uploads`);
+        const usual = usualViews(entries.map((entry) => stats.get(entry.id)?.views)) ?? channel.median;
+        if (usual !== undefined && usual > 0) medians.set(channel, usual);
+        for (const entry of entries) {
+          const stat = stats.get(entry.id);
+          if (!stat || stat.uploadedAt === undefined) continue;
+          const ageDays = Math.max(0, (nowMs - stat.uploadedAt) / DAY);
+          if (ageDays > KEEP_DAYS) continue;
+          const old = known.get(entry.id);
+          fresh.set(entry.id, {
+            videoId: entry.id,
+            title: entry.title || old?.title || '',
+            channel: channel.name,
+            kind: 'followed',
+            views: stat.views,
+            likes: stat.likes,
+            comments: stat.comments,
+            published: isoDay(stat.uploadedAt),
+            ageDays: round1(ageDays),
+            vpd: Math.round(stat.views / Math.max(ageDays, 0.25)),
+            mult: outlierMultiplier(stat.views, usual) ?? null,
+            history: addReading(old?.history ?? [], today, stat.views),
+            firstSeen: old?.firstSeen ?? today,
+            fit: true,
+          });
+        }
+      } catch (error) {
+        if (context.signal.aborted) throw error;
+        console.error(`[club] trending: could not read ${channel.name}:`, error instanceof Error ? error.message : error);
+        failed.push(channel.name);
       }
-    } catch (error) {
-      if (context.signal.aborted) throw error;
-      console.error(`[club] trending: could not read ${channel.name}:`, error instanceof Error ? error.message : error);
-      failed.push(channel.name);
     }
-  }
-  if (failed.length === followed.length) throw new ClubError("Couldn't read the channels you follow. Check your connection and try again.", 502);
+    if (failed.length === followed.length) throw new ClubError("Couldn't read the channels you follow. Check your connection and try again.", 502);
 
-  // Videos not read this time (a channel that failed, or a video the listing no longer shows) stay until they are 30 days old.
-  const kept = existing.filter((item) => !fresh.has(item.videoId) && nowMs - Date.parse(item.published) <= KEEP_DAYS * DAY);
-  const items = [...fresh.values(), ...kept].sort((a, b) => b.vpd - a.vpd);
-  const added = [...fresh.keys()].filter((id) => !known.has(id)).length;
-  await store.writeJSON(trendingFile(slug), items);
-  // followed.json may have been edited while the job ran: only the medians are merged into what is there now.
-  if (medians.size) {
-    const latest = await readFollowed(slug);
-    const byKey = (c: FollowedChannel) => followedUrl(c) ?? c.name;
-    const usualByKey = new Map([...medians].map(([channel, usual]) => [byKey(channel), usual]));
-    await writeFollowed(slug, latest.map((channel) => (usualByKey.has(byKey(channel)) ? { ...channel, median: usualByKey.get(byKey(channel)) } : channel)));
-  }
-  await store.writeJSON(metaFile(slug), { lastRefresh: new Date(nowMs).toISOString(), newVideos: added });
-  return { videos: items.length, added, channels: followed.length - failed.length, failed };
+    // Videos not read this time (a channel that failed, or a video the listing no longer shows) stay until they are 30 days old.
+    const kept = existing.filter((item) => !fresh.has(item.videoId) && nowMs - Date.parse(item.published) <= KEEP_DAYS * DAY);
+    const items = [...fresh.values(), ...kept].sort((a, b) => b.vpd - a.vpd);
+    const added = [...fresh.keys()].filter((id) => !known.has(id)).length;
+    await store.writeJSON(trendingFile(slug), items);
+    // followed.json may have been edited while the job ran: only the medians are merged into what is there now.
+    if (medians.size) await followedLock(slug, async () => {
+      const latest = await readFollowed(slug);
+      const byKey = (c: FollowedChannel) => followedUrl(c) ?? c.name;
+      const usualByKey = new Map([...medians].map(([channel, usual]) => [byKey(channel), usual]));
+      await writeFollowed(slug, latest.map((channel) => (usualByKey.has(byKey(channel)) ? { ...channel, median: usualByKey.get(byKey(channel)) } : channel)));
+    });
+    await store.writeJSON(metaFile(slug), { lastRefresh: new Date(nowMs).toISOString(), newVideos: added });
+    return { videos: items.length, added, channels: followed.length - failed.length, failed };
+  });
 }
 
 /** Starts the refresh job. A second start while one runs gets the running one. */
@@ -255,60 +258,62 @@ export const ytDlpSearchSource = (options: ToolOptions): SearchSourceFactory => 
  * Videos already there stay. Nothing is written when every search failed.
  */
 export async function seedTrending(slug: string, context: JobContext, makeSearch: SearchSourceFactory, nowMs = Date.now()): Promise<TrendingRefreshResult> {
-  const workspace = await store.readWorkspace(slug);
-  const topics = workspace.topics.map((topic) => topic.trim()).filter(Boolean).slice(0, SEED_TOPICS);
-  if (!topics.length) throw new ClubError('Add a topic in Settings first.', 409);
-  const say = (message: string) => context.emit({ message });
-  const source = await makeSearch(say);
-  const [existing, followed] = await Promise.all([readItems(slug), readFollowed(slug)]);
-  const known = new Map(existing.map((item) => [item.videoId, item]));
-  const usualByChannel = new Map(followed.flatMap((channel) => (channel.median ? [[channel.name.toLowerCase(), channel.median] as const] : [])));
-  const today = isoDay(nowMs);
+  return store.withLock(`trending:${trendingFile(slug)}`, async () => {
+    const workspace = await store.readWorkspace(slug);
+    const topics = workspace.topics.map((topic) => topic.trim()).filter(Boolean).slice(0, SEED_TOPICS);
+    if (!topics.length) throw new ClubError('Add a topic in Settings first.', 409);
+    const say = (message: string) => context.emit({ message });
+    const source = await makeSearch(say);
+    const [existing, followed] = await Promise.all([readItems(slug), readFollowed(slug)]);
+    const known = new Map(existing.map((item) => [item.videoId, item]));
+    const usualByChannel = new Map(followed.flatMap((channel) => (channel.median ? [[channel.name.toLowerCase(), channel.median] as const] : [])));
+    const today = isoDay(nowMs);
 
-  const found = new Map<string, TrendingItem>();
-  let failed = 0;
-  for (const [index, topic] of topics.entries()) {
-    say(`Searching for ${topic} (${index + 1} of ${topics.length})…`);
-    try {
-      for (const hit of await source.search(topic, context.signal)) {
-        if (found.has(hit.id) || known.get(hit.id)?.kind === 'followed' || hit.uploadedAt === undefined) continue;
-        const ageDays = Math.max(0, (nowMs - hit.uploadedAt) / DAY);
-        if (ageDays > KEEP_DAYS) continue;
-        found.set(hit.id, {
-          videoId: hit.id,
-          title: hit.title,
-          channel: hit.channel,
-          kind: 'creator',
-          views: hit.views,
-          likes: hit.likes,
-          comments: hit.comments,
-          published: isoDay(hit.uploadedAt),
-          ageDays: round1(ageDays),
-          vpd: Math.round(hit.views / Math.max(ageDays, 0.25)),
-          mult: outlierMultiplier(hit.views, usualByChannel.get(hit.channel.toLowerCase())) ?? null,
-          history: addReading(known.get(hit.id)?.history ?? [], today, hit.views),
-          firstSeen: known.get(hit.id)?.firstSeen ?? today,
-          fit: true,
-          topic,
-          ...(hit.channelId ? { channelId: hit.channelId } : {}),
-        });
+    const found = new Map<string, TrendingItem>();
+    let failed = 0;
+    for (const [index, topic] of topics.entries()) {
+      say(`Searching for ${topic} (${index + 1} of ${topics.length})…`);
+      try {
+        for (const hit of await source.search(topic, context.signal)) {
+          if (found.has(hit.id) || known.get(hit.id)?.kind === 'followed' || hit.uploadedAt === undefined) continue;
+          const ageDays = Math.max(0, (nowMs - hit.uploadedAt) / DAY);
+          if (ageDays > KEEP_DAYS) continue;
+          found.set(hit.id, {
+            videoId: hit.id,
+            title: hit.title,
+            channel: hit.channel,
+            kind: 'creator',
+            views: hit.views,
+            likes: hit.likes,
+            comments: hit.comments,
+            published: isoDay(hit.uploadedAt),
+            ageDays: round1(ageDays),
+            vpd: Math.round(hit.views / Math.max(ageDays, 0.25)),
+            mult: outlierMultiplier(hit.views, usualByChannel.get(hit.channel.toLowerCase())) ?? null,
+            history: addReading(known.get(hit.id)?.history ?? [], today, hit.views),
+            firstSeen: known.get(hit.id)?.firstSeen ?? today,
+            fit: true,
+            topic,
+            ...(hit.channelId ? { channelId: hit.channelId } : {}),
+          });
+        }
+      } catch (error) {
+        if (context.signal.aborted) throw error;
+        console.error(`[club] trending: could not search ${topic}:`, error instanceof Error ? error.message : error);
+        failed++;
       }
-    } catch (error) {
-      if (context.signal.aborted) throw error;
-      console.error(`[club] trending: could not search ${topic}:`, error instanceof Error ? error.message : error);
-      failed++;
     }
-  }
-  if (context.signal.aborted) throw new ClubError('That was stopped.');
-  if (failed === topics.length) throw new ClubError("Couldn't search YouTube. Check your connection and try again.", 502);
+    if (context.signal.aborted) throw new ClubError('That was stopped.');
+    if (failed === topics.length) throw new ClubError("Couldn't search YouTube. Check your connection and try again.", 502);
 
-  const seeded = [...found.values()].sort((a, b) => b.vpd - a.vpd).slice(0, SEED_KEEP);
-  const seededIds = new Set(seeded.map((item) => item.videoId));
-  const kept = existing.filter((item) => !seededIds.has(item.videoId) && nowMs - Date.parse(item.published) <= KEEP_DAYS * DAY);
-  const items = [...seeded, ...kept].sort((a, b) => b.vpd - a.vpd);
-  await store.writeJSON(trendingFile(slug), items);
-  await store.writeJSON(metaFile(slug), { lastRefresh: new Date(nowMs).toISOString(), newVideos: seeded.filter((item) => !known.has(item.videoId)).length });
-  return { videos: items.length, added: seeded.filter((item) => !known.has(item.videoId)).length, channels: 0, failed: [] };
+    const seeded = [...found.values()].sort((a, b) => b.vpd - a.vpd).slice(0, SEED_KEEP);
+    const seededIds = new Set(seeded.map((item) => item.videoId));
+    const kept = existing.filter((item) => !seededIds.has(item.videoId) && nowMs - Date.parse(item.published) <= KEEP_DAYS * DAY);
+    const items = [...seeded, ...kept].sort((a, b) => b.vpd - a.vpd);
+    await store.writeJSON(trendingFile(slug), items);
+    await store.writeJSON(metaFile(slug), { lastRefresh: new Date(nowMs).toISOString(), newVideos: seeded.filter((item) => !known.has(item.videoId)).length });
+    return { videos: items.length, added: seeded.filter((item) => !known.has(item.videoId)).length, channels: 0, failed: [] };
+  });
 }
 
 /**

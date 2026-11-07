@@ -417,9 +417,11 @@ export function syncBoard(slug: string, videoId: string): Promise<void> {
 
 /** The Board's tiles as the screen and the prompts read them: synced with the folder, notes filled from their files. */
 export async function boardTiles(slug: string, videoId: string): Promise<ResearchTile[]> {
+ return store.boardLock(slug, videoId, async () => {
   await store.seedIdeaTiles(slug, videoId);
   await syncBoard(slug, videoId);
   return hydrate(slug, videoId, await store.listPlacedTiles(slug, videoId));
+ });
 }
 
 /** A new note on the Board, as a file. */

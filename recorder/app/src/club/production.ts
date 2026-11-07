@@ -43,9 +43,6 @@ export function boardColumns(videos:readonly Video[]):BoardColumn[]{
  });
 }
 
-/** All lanes support manual ordering; retained for consumers of the board helpers. */
-export const unordered=(_stage:VideoStage)=>false;
-
 /** Where a dragged card lands: the index of the first card whose middle is below the pointer, else the end. */
 export const dropIndex=(middles:readonly number[],pointerY:number)=>{const at=middles.findIndex(middle=>pointerY<middle);return at<0?middles.length:at;};
 
@@ -55,7 +52,6 @@ export const dropIndex=(middles:readonly number[],pointerY:number)=>{const at=mi
  * Null means last. Every stage supports insertion before another card.
  */
 export function beforeIdAt(column:BoardColumn,dragId:string,index:number):string|null{
- if(unordered(column.stage))return null;
  const drawn=column.shown.filter(video=>video.id!==dragId);
  if(index<drawn.length)return drawn[index].id;
  return column.all.filter(video=>video.id!==dragId)[drawn.length]?.id??null;
@@ -77,7 +73,8 @@ export function applyMove(videos:readonly Video[],id:string,stage:VideoStage,bef
   const order=column.indexOf(video.id);
   if(order<0)return video;
   if(video.id!==id)return video.order===order?video:{...video,order};
-  return {...video,stage,order,updatedAt:at,stageDates:stageDates??(video.stage===stage?video.stageDates:{...video.stageDates,[stage]:at})};
+  const {hidden,...visible}=video;
+  return {...(stage==='ideas'?video:visible),stage,order,updatedAt:at,stageDates:stageDates??(video.stage===stage?video.stageDates:{...video.stageDates,[stage]:at})};
  });
 }
 
@@ -99,7 +96,7 @@ export function planMove(videos:readonly Video[],id:string,stage:VideoStage,befo
  const video=videos.find(v=>v.id===id);
  if(!video)return null;
  const within=video.stage===stage;
- if(within&&(unordered(stage)||isSamePlace(videos,id,stage,beforeId)))return null;
+ if(within&&isSamePlace(videos,id,stage,beforeId))return null;
  return {message:within?`Moved in ${STAGE_LABEL[stage]}`:`Moved to ${STAGE_LABEL[stage]}`,previous:{stage:video.stage,beforeId:nextInStage(videos,id),stageDates:video.stageDates}};
 }
 
@@ -121,7 +118,7 @@ const tableDate=(video:Video)=>toDayKey(video.publishedAt)??toDayKey(video.publi
 
 /** The table's rows: every video that is not put off or skipped, in the order of the sort. `recorded` is how many scenes of a video have a kept take. */
 export function tableRows(videos:readonly Video[],sort:TableSort,recorded:(video:Video)=>number):Video[]{
- return videos.filter(video=>!video.hidden).sort((a,b)=>{
+ return videos.filter(video=>video.stage!=='ideas'||!video.hidden).sort((a,b)=>{
   let result=0;
   switch(sort.key){
    case 'stage':result=VIDEO_STAGES.indexOf(b.stage)-VIDEO_STAGES.indexOf(a.stage)||a.order-b.order;break;
@@ -149,7 +146,7 @@ export function tableDateText(video:Video):{text:string;planned:boolean}|null{
  * An idea has only the day set for it. Nothing for a video that has no day to go by.
  */
 export function calendarDay(video:Video):string|undefined{
- if(video.hidden)return undefined;
+ if(video.stage==='ideas'&&video.hidden)return undefined;
  if(video.stage==='ideas')return toDayKey(video.publishDate);
  return (video.stage==='published'?toDayKey(video.publishedAt):undefined)??toDayKey(video.publishDate)??toDayKey(video.stageDates[video.stage]);
 }
@@ -182,3 +179,6 @@ export function monthGrid({year,month}:Month):CalendarCell[][]{
  const cells=Array.from({length:total},(_,i)=>{const date=new Date(year,month,1-lead+i,12);return {key:dayKey(date),day:date.getDate(),inMonth:date.getMonth()===month};});
  return Array.from({length:total/7},(_,week)=>cells.slice(week*7,week*7+7));
 }
+
+/** Undo uses the first original follower still in the original stage. */
+export const undoBeforeId=(videos:readonly Video[],stage:VideoStage,following:readonly string[])=>following.find(id=>videos.some(video=>video.id===id&&video.stage===stage))??null;

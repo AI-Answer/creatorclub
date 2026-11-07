@@ -5,6 +5,7 @@ const fs=require('node:fs');
 const {createSpeechFollower}=require('./speech-follower.cjs');
 const {createScriptWindow}=require('./script-window.cjs');
 
+const {RECORDING_STATUSES}=require('./recording-state.cjs');
 const COMMANDS=new Set(['pause','resume','stop','retry','skip-countdown','cancel','show-editor','record','close','mirror','script-window']);
 // Borumi's island sizes (screens/borumi/62, 66): the bar, the camera's height for the window's width (taller without a script), and the script's room.
 // A first take's window: Borumi's compact toolbar, the camera at 60% of the width, and with a script the room Borumi gives it below.
@@ -18,7 +19,7 @@ function cleanState(value,initial=false){
  for(const [key,max] of [['projectName',240],['script',100000],['cameraLabel',240],['cameraRawLabel',240],['microphoneLabel',240],['systemAudioLabel',240]])if(key in value){if(typeof value[key]!=='string'||value[key].length>max)throw new Error('Invalid '+key);out[key]=value[key];}
  if('countdown'in value){if(value.countdown!==null&&(!Number.isInteger(value.countdown)||value.countdown<1||value.countdown>3))throw new Error('Invalid recording countdown.');out.countdown=value.countdown;}
  for(const key of ['error','warning'])if(key in value){const v=value[key];if(v!==null&&(!v||typeof v.title!=='string'||typeof v.message!=='string'||v.title.length>200||v.message.length>1000))throw new Error('Invalid recording '+key+'.');out[key]=v===null?null:{title:v.title,message:v.message};}
- if('status'in value){if(!['starting','ready','recording','paused','saving','idle'].includes(value.status))throw new Error('Invalid recording status.');out.status=value.status;}
+ if('status'in value){if(!RECORDING_STATUSES.includes(value.status))throw new Error('Invalid recording status.');out.status=value.status;}
  if('elapsed'in value){if(!Number.isFinite(value.elapsed)||value.elapsed<0||value.elapsed>604800)throw new Error('Invalid recording clock.');out.elapsed=value.elapsed;}
  for(const key of ['cameraEnabled','mirror','hideMain'])if(key in value){if(typeof value[key]!=='boolean')throw new Error('Invalid '+key);out[key]=value[key];}
  if('cameraFrame'in value){if(value.cameraFrame!==null&&(typeof value.cameraFrame!=='string'||value.cameraFrame.length>350000||!/^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(value.cameraFrame)))throw new Error('Invalid preview frame.');out.cameraFrame=value.cameraFrame;}
@@ -41,7 +42,7 @@ function createRecordingHud({BrowserWindow,ipcMain,screen,Menu,shell,getMainWind
   nearBounds:()=>alive(hud)?hud.getBounds():alive(getMainWindow())?getMainWindow().getBounds():null,
   onOpen:open=>{if(!state)return;state={...state,scriptWindow:open};publish({scriptWindow:open});},
   onRequest:request=>{if(alive(hud))hud.webContents.send('recording-hud-script-request',request);}});
- const syncTake=()=>scripts.setTake(state?{active:true,script:state.script,appearance:state.appearance}:{active:false});
+ const syncTake=()=>scripts.setTake(state?{active:!['saving','idle','ready'].includes(state.status),script:state.script,appearance:state.appearance}:{active:false});
  function verifyHud(e){if(!alive(hud)||e.sender!==hud.webContents||e.senderFrame!==hud.webContents.mainFrame||e.senderFrame.url!==documentURL)throw new Error('Untrusted recording preview.');}
  function restore(){const main=getMainWindow();if(hiddenMain&&alive(main)){main.show();main.focus();hiddenMain=false;onMainVisibility();}hiddenMain=false;}
  function remember(){if(!alive(hud))return;bounds=hud.getBounds?.()??bounds;preferences={version:2,bounds};if(preferencesPath)try{fs.mkdirSync(path.dirname(preferencesPath),{recursive:true});const temp=preferencesPath+'.tmp';fs.writeFileSync(temp,JSON.stringify(preferences));fs.renameSync(temp,preferencesPath);}catch{/* Preference storage never interrupts a take. */}}
@@ -51,7 +52,7 @@ function createRecordingHud({BrowserWindow,ipcMain,screen,Menu,shell,getMainWind
  function publish(patch){if(!state||!alive(hud))return;if(synced||!patch){hud.webContents.send('recording-hud-state',synced&&patch?patch:state);synced=true;}const main=getMainWindow();// As in Borumi, the editor steps away as soon as the island opens for a take (its countdown included), so the island is what you see.
   if(!hiddenMain&&state.hideMain&&['starting','recording','paused'].includes(state.status)&&alive(main)){main.hide();hiddenMain=true;onMainVisibility();}if(['saving','idle'].includes(state.status))restore();}
  async function begin(value){
-  const next=cleanState(value,true);if(alive(hud))end();sessionId=randomUUID();synced=false;const id=sessionId;
+  const next=cleanState(value,true);if(alive(hud))end();sessionId=typeof value.sessionToken==='string'&&/^[a-zA-Z0-9_-]{1,100}$/.test(value.sessionToken)?value.sessionToken:randomUUID();synced=false;const id=sessionId;
   // The picture area is the camera, or the microphone's live waveform when there is no camera (as Borumi does): the island never shrinks to a bare bar.
   state={...next,scriptWindow:scripts.isOpen()};syncTake();const main=getMainWindow(),saved=preferences.bounds,valid=saved&&['x','y','width','height'].every(key=>Number.isFinite(saved[key]));
   const display=screen.getDisplayMatching(valid?saved:alive(main)?main.getBounds():screen.getPrimaryDisplay().bounds);area=display.workArea;
@@ -75,7 +76,7 @@ function createRecordingHud({BrowserWindow,ipcMain,screen,Menu,shell,getMainWind
  }
  const handlers={
   'begin-recording-hud':async(e,value)=>{verifyMain(e);return begin(value);},
-  'update-recording-hud':(e,value,id)=>{verifyMain(e);const patch=cleanState(value);if(state&&(!id||id===sessionId)){state={...state,...patch};publish(patch);if('script'in patch||'appearance'in patch)syncTake();}return {visible:(!id||id===sessionId)&&alive(hud)};},
+  'update-recording-hud':(e,value,id)=>{verifyMain(e);const patch=cleanState(value);if(state&&(!id||id===sessionId)){state={...state,...patch};publish(patch);if('status'in patch&&['saving','idle','ready'].includes(state.status))follower.stop();if('script'in patch||'appearance'in patch||'status'in patch)syncTake();}return {visible:(!id||id===sessionId)&&alive(hud)};},
   'end-recording-hud':(e,id)=>{verifyMain(e);end({id});},
   'recording-hud-read':e=>{verifyHud(e);return state;},
   // Borumi's More (request.context_menu.show): a system menu. The island passes what it shows; the chosen item's id comes back.
@@ -91,6 +92,7 @@ function createRecordingHud({BrowserWindow,ipcMain,screen,Menu,shell,getMainWind
      {label:'Scrolling mode',submenu:[mode('Manual','Manual'),mode('Voice follow (Enhanced)','VoiceOptimistic',voice),mode('Voice follow','Voice',voice),mode('Constant speed (Voice activated)','ConstSpeedVad'),mode('Constant speed','ConstSpeed')]},
      {label:'Scrolling speed',enabled:Boolean(v.scriptAvailable)&&constant,submenu:speeds.map(n=>({label:String(n),type:'checkbox',checked:n===v.speed,enabled:Boolean(v.scriptAvailable)&&constant,click:pick('speed:'+n)}))},
      {type:'separator'},
+     {label:'Show editor',click:pick('show-editor')},
      {label:'Close',click:pick('close')}
     ]);
     menu.popup({window:hud,callback:()=>setImmediate(()=>resolve(chosen))});

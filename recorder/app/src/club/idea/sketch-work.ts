@@ -5,7 +5,7 @@
  */
 
 export type WorkPhase='working'|'settling'|'choose'|'changed'|'failed';
-export interface SketchWork{part:string;tool:ToolKind;phase:WorkPhase;before:string}
+export interface SketchWork{part:string;tool:ToolKind;phase:WorkPhase;before:string;requestId?:string}
 /** What a quick change does, which says what the part shows while it happens and once it is done. */
 export type ToolKind='rewrite'|'shorter'|'titles'|'words'|'thumbnail';
 
@@ -36,7 +36,8 @@ export function seeValue(work:SketchWork|null,value:string):SketchWork|null{
 }
 
 /** The chat's reply is over. */
-export function seeSettled(work:SketchWork|null,settled:{ok:boolean;choice:boolean}):SketchWork|null{
+export function seeSettled(work:SketchWork|null,settled:{ok:boolean;choice:boolean;requestId?:string}):SketchWork|null{
+ if(work?.requestId&&settled.requestId!==work.requestId)return work;
  if(!work||(work.phase!=='working'&&work.phase!=='settling'&&work.phase!=='choose'))return work;
  if(!settled.ok)return work.phase==='choose'?null:{...work,phase:'failed'};
  if(settled.choice)return {...work,phase:'choose'};
@@ -45,6 +46,6 @@ export function seeSettled(work:SketchWork|null,settled:{ok:boolean;choice:boole
 }
 
 /** The chat started a reply: after a pick in the chat, the part is being changed again. */
-export function seeStarted(work:SketchWork|null):SketchWork|null{
- return work?.phase==='choose'?{...work,phase:'working'}:work;
+export function seeStarted(work:SketchWork|null,requestId?:string,parentRequestId?:string):SketchWork|null{
+ return work?.phase==='choose'&&(!work.requestId||work.requestId===requestId||work.requestId===parentRequestId)?{...work,phase:'working',requestId}:work;
 }

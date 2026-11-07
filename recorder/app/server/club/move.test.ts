@@ -42,7 +42,8 @@ const stageOf = async (id: string) => ((await call('GET', `/videos/${id}`)).body
 
 test('every stage can move directly to every other stage without scenes, takes, export or YouTube link',async()=>{
  for(const from of VIDEO_STAGES)for(const to of VIDEO_STAGES){
-  const video=(await call('POST','/videos',{title:`${from} to ${to}`,stage:from})).body as Video;
+  const video=(await call('POST','/videos',{title:`${from} to ${to}`,stage:from==='published'?'publishing':from})).body as Video;
+  if(from==='published')await move(video.id,'published');
   const result=await move(video.id,to);
   assert.equal(result.status,200,`${from} → ${to}: ${JSON.stringify(result.body)}`);
   assert.equal(await stageOf(video.id),to);
@@ -64,7 +65,7 @@ test('manual moves preserve scene, recording and YouTube metadata', async () => 
 
   assert.equal((await move(video.id, 'publishing')).status, 200, 'no export is required');
 
-  await call('PUT', `/videos/${video.id}`, { youtubeUrl: 'https://youtu.be/dQw4w9WgXcQ' });
+  await call('POST', `/videos/${video.id}/publish`, { youtubeUrl: 'https://youtu.be/dQw4w9WgXcQ' });
   assert.equal((await move(video.id, 'published')).status, 200, 'it has a YouTube link');
 
   // Back down the line is always allowed, and so is coming forward again to where it was.

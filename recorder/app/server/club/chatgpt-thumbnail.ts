@@ -48,6 +48,8 @@ export async function makeThumbnailWithChatGPT(slug: string, id: string, context
     if (file) used.push({ ref, file });
   }
   context.emit({ label: 'ChatGPT is drawing your thumbnail' });
+  await store.writeJSON(path.join(dir, 'status.json'), { status: 'running' });
+  try {
   await deps.run({
     provider: 'codex',
     prompt: chatgptThumbnailPrompt(video.title, sketch.thumbnail.headline, { visual: sketch.thumbnail.visual, closer: sketch.thumbnail.closer }, used.map((u) => u.ref)),
@@ -61,5 +63,10 @@ export async function makeThumbnailWithChatGPT(slug: string, id: string, context
   const bytes = await fs.readFile(path.join(dir, FILE)).catch(() => undefined);
   if (!bytes || !imageKind(bytes)) throw new AiError('bad-answer', "ChatGPT didn't make a picture this time. Try again.");
   await setThumbnail(slug, id, bytes);
+  await store.writeJSON(path.join(dir, 'status.json'), { status: 'done' });
+  } catch (error) {
+    await store.writeJSON(path.join(dir, 'status.json'), { status: 'failed' });
+    throw error;
+  }
   return { made: path.relative(store.videoDir(slug, id), path.join(dir, FILE)) };
 }

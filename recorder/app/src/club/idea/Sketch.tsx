@@ -7,7 +7,7 @@ import type {ConnectedAi} from '../useAi';
 import type {Plan} from '../usePlan';
 import {Button,Icon,cn,useToast,type IconName} from '../ui';
 import {failureMessage,watchJob,type StartedJob} from '../jobs';
-import {askClaude,onAskSettled,onAskStarted} from '../workspace/ask-claude';
+import {askClaude,newAskId,onAskSettled,onAskStarted} from '../workspace/ask-claude';
 import {GIVE_UP_MS,SETTLE_MS,SHOWN_MS,WORK_TEXT,seeSettled,seeStarted,seeValue,startWork,type SketchWork,type ToolKind} from './sketch-work';
 import {addFromText} from '../workspace/Board';
 import {emptyOnePager} from './onepager';
@@ -47,7 +47,7 @@ function Coming({text,className,width}:{text?:string;className?:string;width?:st
 
 export function Sketch({video,plan,ai,hasScenes,onTitle,onBoardChanged,onNext}:{video:Video;plan:Plan;ai:ConnectedAi;hasScenes:boolean;
  onTitle(title:string):void;onBoardChanged():void;onNext():void}){
- const sketch=plan.onepager,job=plan.onepagerJob,running=job.phase==='running';
+ const sketch=plan.onepager,job=plan.onepagerJob,running=job.phase==='starting'||job.phase==='running';
  // A new title from Suggest or from Ask Claude becomes the video's title, so there is one title everywhere.
  const seen=useRef<string|undefined>(undefined);
  useEffect(()=>{
@@ -169,7 +169,7 @@ function useSketchWork(valueOf:(part:string)=>string){
  const now=work?valueOf(work.part):'';
  useEffect(()=>{setWork(current=>seeValue(current,now));},[now]);
  useEffect(()=>onAskSettled(settled=>setWork(current=>seeSettled(current,settled))),[]);
- useEffect(()=>onAskStarted(()=>setWork(current=>seeStarted(current))),[]);
+ useEffect(()=>onAskStarted(detail=>setWork(current=>seeStarted(current,detail.requestId,detail.parentRequestId))),[]);
  useEffect(()=>{
   if(!work)return;
   const ms=work.phase==='changed'||work.phase==='failed'?SHOWN_MS:work.phase==='settling'?SETTLE_MS:GIVE_UP_MS;
@@ -179,7 +179,7 @@ function useSketchWork(valueOf:(part:string)=>string){
  const ask=(part:string,item:ToolItem)=>{
   const next=startWork(work,part,item.tool,valueOf(part));
   if(next===work)return;
-  setWork(next);askClaude(item.ask);
+  const requestId=newAskId();setWork(next&&{...next,requestId});askClaude(item.ask,requestId);
  };
  /** The class a part gets while it changes, so its words show it. */
  const state=(part:string)=>work?.part===part?`is-${work.phase}`:undefined;

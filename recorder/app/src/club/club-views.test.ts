@@ -254,15 +254,15 @@ test('deleting an idea waits so Undo can take it back; nothing is sent when it i
   const failures:string[]=[];
   let undo=()=>{};
   await act(async()=>{undo=deleteLater('v1',message=>failures.push(message),400);});
-  assert.deepEqual(seen.at(-1),['v1'],'hidden at once');assert.equal(calls.length,0,'nothing sent yet');
+  assert.deepEqual(seen.at(-1),['v1'],'hidden at once');assert.equal(calls.filter(call=>call.method==='DELETE').length,0,'nothing deleted yet');
   await act(async()=>{undo();});
   assert.deepEqual(seen.at(-1),[],'Undo brings it back');
   await act(async()=>{await new Promise(resolve=>setTimeout(resolve,500));});
-  assert.equal(calls.length,0,'and it is never deleted');
+  assert.equal(calls.filter(call=>call.method==='DELETE').length,0,'and it is never deleted');
 
   await act(async()=>{deleteLater('v2',message=>failures.push(message),20);});
-  await eventually(()=>calls.length===1);
-  assert.deepEqual(calls.map(c=>`${c.method} ${c.path}`),['DELETE /videos/v2'],'sent once the time is up');
+  await eventually(()=>calls.some(call=>call.method==='DELETE'));
+  assert.deepEqual(calls.filter(call=>call.method==='DELETE').map(c=>`${c.method} ${c.path}`),['DELETE /videos/v2'],'sent once the time is up');
   assert.deepEqual(seen.at(-1),['v2'],'and it stays hidden');assert.deepEqual(failures,[]);
  }finally{await ui.close();fake.restore();}
 });

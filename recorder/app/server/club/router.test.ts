@@ -61,7 +61,9 @@ test('video lifecycle: create, update, move, list, delete', async () => {
 
   assert.equal((await call('POST', '/videos', { title: '' })).status, 400);
   const put = await call('PUT', `/videos/${id}`, { planning: { research: true, package: false, outline: false }, hidden: 'later' });
-  assert.equal(put.body.planning.research, true);
+  assert.equal(put.status, 400, 'planning flags are server-derived');
+  const hidden = await call('PUT', `/videos/${id}`, { hidden: 'later' });
+  assert.equal(hidden.body.planning.research, false);
   assert.equal((await call('PUT', `/videos/${id}`, { stage: 'editing' })).status, 400, 'stage only changes through move');
   assert.ok(!('hidden' in (await call('PUT', `/videos/${id}`, { hidden: null })).body));
 
@@ -93,7 +95,8 @@ test('board routes: place a video before another, recent videos and the first-vi
   assert.equal((await call('POST', `/videos/${made[0].id}/move`, { stage: 'ideas', extra: 1 })).status, 400);
   const restored = await call('POST', `/videos/${made[1].id}/move`, { stage: 'planning' });
   const undone = await call('POST', `/videos/${made[1].id}/move`, { stage: 'ideas', stageDates: { ideas: made[1].stageDates.ideas } });
-  assert.deepEqual(undone.body.stageDates, made[1].stageDates);
+  assert.ok(undone.body.stageDates.planning, 'client dates cannot erase the server history');
+  assert.notEqual(undone.body.stageDates.ideas, made[1].stageDates.ideas, 'the server stamps the move back');
   assert.ok(restored.body.stageDates.planning);
   assert.equal((await call('POST', `/videos/${made[1].id}/move`, { stage: 'ideas', stageDates: { bogus: 'x' } })).status, 400);
 
@@ -200,4 +203,21 @@ test('the Gemini API key is saved owner-only outside the workspace, only ever re
   assert.deepEqual((await call('DELETE', '/settings/gemini-key')).body, { geminiKey: null });
   assert.equal((await call('GET', '/settings')).body.geminiKey, null);
   assert.ok(!(await readFile(file, 'utf8')).includes('geminiKey'));
+});
+
+test('server-owned video fields cannot be supplied through create/update, and requests can pin their workspace', async () => {
+  const store = await import('./store.js');
+  const original = (await store.currentWorkspace())!;
+  for (const fields of [{ stage: 'published' }, { order: 123 }, { stageDates: { ideas: 'invented' } }]) assert.equal((await call('POST', '/videos', { title: 'Invalid', ...fields })).status, 400);
+  const video = await store.createVideo(original, { title: 'Pinned workspace' });
+  for (const fields of [{ order: 123 }, { planning: { research: true, package: true, outline: true } }, { publishedAt: new Date().toISOString() }, { youtubeUrl: 'https://youtu.be/dQw4w9WgXcQ' }]) assert.equal((await call('PUT', `/videos/${video.id}`, fields)).status, 400);
+  const other = await store.createWorkspace({ name: 'Other scope', handle: '', channelUrl: '', topics: [], about: '', cta: '' });
+  await store.setCurrentWorkspace(other.slug);
+  try {
+    assert.equal((await call('GET', `/videos/${video.id}`)).status, 404);
+    assert.equal((await call('GET', `/videos/${video.id}?workspace=${original}`)).body.id, video.id);
+    const response = await fetch(`${base}/videos/${video.id}`, { headers: { 'X-Club-Workspace': original } });
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).id, video.id);
+  } finally { await store.setCurrentWorkspace(original); }
 });

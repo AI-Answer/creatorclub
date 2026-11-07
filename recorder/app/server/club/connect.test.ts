@@ -2,7 +2,7 @@ import { test, after, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import express from 'express';
 import { mkdtemp, rm, writeFile, chmod, readFile, mkdir } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import type { AddressInfo } from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
@@ -226,10 +226,10 @@ test('cancelling the job stops the login', async () => {
   await install('claude');
   await setMode('hang');
   const job = startConnect('claude', options);
-  await until(() => existsSync(path.join(state, 'claude-login-pid')));
+  // Creation precedes echo's write: an existing but empty marker is not PID 0.
+  let pid=0;await until(()=>{try{pid=Number(readFileSync(path.join(state,'claude-login-pid'),'utf8'));return Number.isInteger(pid)&&pid>0;}catch{return false;}});assert.ok(pid>0,'the login wrote its PID');
   cancelJob(job.id);
-  assert.equal(getJob(job.id)?.status, 'cancelled');
-  const pid = Number(await readFile(path.join(state, 'claude-login-pid'), 'utf8'));
+  assert.equal(getJob(job.id)?.status, 'running');
   await until(() => isGone(pid));
   assert.ok(isGone(pid), 'the login process is stopped');
 });
@@ -315,7 +315,7 @@ test('cancel over HTTP stops the login process, and the next Connect starts a ne
   const firstPid = Number(await readFile(pidFile, 'utf8'));
 
   const cancelled = await call('DELETE', `/jobs/${first.body.id}`);
-  assert.equal(cancelled.body.status, 'cancelled');
+  assert.equal(cancelled.body.status, 'running');
   await until(() => isGone(firstPid));
   assert.ok(isGone(firstPid), 'the login process was killed');
 
@@ -325,7 +325,7 @@ test('cancel over HTTP stops the login process, and the next Connect starts a ne
   await until(() => existsSync(pidFile));
   const secondPid = Number(await readFile(pidFile, 'utf8'));
   assert.notEqual(secondPid, firstPid);
-  assert.equal((await call('DELETE', `/jobs/${second.body.id}`)).body.status, 'cancelled');
+  assert.equal((await call('DELETE', `/jobs/${second.body.id}`)).body.status, 'running');
   await until(() => isGone(secondPid));
   assert.ok(isGone(secondPid));
 });

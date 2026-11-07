@@ -1,3 +1,4 @@
+import {captureSetupOpened} from './recording-session';
 import {BrandMark} from './BrandMark';
 import {useCallback,useEffect,useRef,useState} from 'react';
 import {ArrowLeft,ArrowRight,AudioLines,Camera,Check,FolderOpen,LoaderCircle,Mic,Monitor,RotateCcw,Settings2,Video,X} from './Icons';
@@ -12,6 +13,7 @@ const captureRows=[{kind:'camera',name:'Camera',description:'Show yourself along
 
 /** `brand` names the product in the header and welcome step; the permission steps name the app macOS lists (`privacyAppName`). */
 export function Onboarding({onClose,onRecord,onImport,initialStep=0,brand='Creator Compiler'}:{onClose:()=>void;onRecord:()=>void|Promise<void>;onImport:()=>void|Promise<void>;initialStep?:number;brand?:string}){
+ useEffect(()=>captureSetupOpened(),[]);
  const [step,setStep]=useState(initialStep),[permissions,setPermissions]=useState<DesktopMediaPermissions|null>(null),[busy,setBusy]=useState<string|null>(null),[error,setError]=useState(''),[checks,setChecks]=useState<Partial<Record<CapturePermission,string>>>({}),[celebrations,setCelebrations]=useState<Partial<Record<CapturePermission,number>>>({});
  const dialog=useRef<HTMLDivElement>(null),heading=useRef<HTMLHeadingElement>(null),alive=useRef(true),refreshVersion=useRef(0);
  const previousPermissions=useRef<DesktopMediaPermissions|null>(null),grantSequence=useRef(0);

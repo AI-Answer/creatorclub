@@ -1,3 +1,4 @@
+import {clearWelcomeProgress} from './welcome-progress';
 import {mountUI,button} from '../test-dom';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -33,7 +34,7 @@ function slowStatus(status:AiStatus){
  return {release,reply:async(call:FakeCall):Promise<FakeReply>=>{if(call.path==='/ai/status'){await gate;return {body:status};}}};
 }
 const withServer=async(reply:(call:FakeCall)=>FakeReply|Promise<FakeReply>,run:(calls:FakeCall[])=>Promise<void>)=>{
- FakeEventSource.install();const server=installFetch(reply);
+ clearWelcomeProgress();FakeEventSource.install();const server=installFetch(call=>reply(call)??(call.method==='POST'&&/^\/workspaces\/[^/]+\/current$/.test(call.path)?{body:{current:decodeURIComponent(call.path.split('/')[2])}}:undefined));
  try{await run(server.calls);}finally{server.restore();}
 };
 const welcome=(navigate:(route:unknown,options?:unknown)=>void=()=>{},initialStep?:number)=>createElement(WelcomeScreen,{navigate:navigate as never,initialStep});
@@ -72,7 +73,7 @@ test('Welcome step 1 starts from the last known answer, so coming back is not an
    await flush();const c=ui.container;
    assert.match(text(c),/Connected with your ChatGPT account/,'known at once');
    assert.doesNotMatch(text(c),/Connected as ChatGPT/);
-   assert.match(text(c.querySelector('.progress-line')),/Checking again that your accounts are still signed in…/);
+   assert.equal(c.querySelector('.progress-line'),null,'a background probe keeps the previous answer without another checking state');
    assert.equal(button(c,'Continue').disabled,false);
    assert.doesNotMatch(text(c),/sign-in page in your browser/,'nothing about opening a sign-in page while an account is connected');
    slow.release();await flush();await flush();
@@ -220,7 +221,7 @@ test('one set of step names: Help, Home and the video tabs agree; Board help sta
  assert.deepEqual(VIDEO_STEPS.map(step=>step.name),Object.values(TAB_LABEL),'the steps are the tabs of a video, in order');
  assert.equal(VIDEO_STEPS.length,4);
  assert.equal(STEPS_SENTENCE,'Every video goes through four steps: Idea, Record, Edit, Publish.');
- FakeEventSource.install();
+ clearWelcomeProgress();FakeEventSource.install();
  const server=installFetch(()=>undefined);
  const ui=await mountUI(createElement(BoardTip,{onClose(){}}));
  try{

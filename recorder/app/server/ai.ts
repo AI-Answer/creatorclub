@@ -1,3 +1,4 @@
+import {ownChild} from './owned-processes.js';
 import { spawn } from 'node:child_process';
 import { access, mkdir, readdir, readFile, rm, stat } from 'node:fs/promises';
 import path from 'node:path';
@@ -16,7 +17,7 @@ const BACKGROUND_NICE=10;
 export interface WorkHold {remaining():number;idle(signal?:AbortSignal):Promise<void>;changed(signal?:AbortSignal):Promise<void>}
 async function run(command:string,args:string[],timeout=30*60*1000,signal?:AbortSignal,background=false,hold?:WorkHold):Promise<{stdout:string;stderr:string}>{
  signal?.throwIfAborted();
- return new Promise((resolve,reject)=>{let stdout='',stderr='',failure:Error|undefined,killTimer:NodeJS.Timeout|undefined,paused=false,left=timeout;const child=spawn(command,args,{stdio:['ignore','pipe','pipe']});
+ return new Promise((resolve,reject)=>{let stdout='',stderr='',failure:Error|undefined,killTimer:NodeJS.Timeout|undefined,paused=false,left=timeout;const child=ownChild(spawn(command,args,{stdio:['ignore','pipe','pipe']}));
  if(background&&child.pid)try{setPriority(child.pid,BACKGROUND_NICE);}catch{}
  const stop=(error:Error)=>{failure=error;if(paused){paused=false;child.kill('SIGCONT');}child.kill('SIGTERM');killTimer=setTimeout(()=>child.kill('SIGKILL'),1500);killTimer.unref();};
  const abort=()=>stop(new Error('Transcription cancelled.'));signal?.addEventListener('abort',abort,{once:true});
@@ -100,7 +101,7 @@ export function describeProviderFailure(provider:string,status:number,body:strin
 }
 /** Returns source-media times. The caller maps these through each timeline clip. */
 /** `background` runs automatic work at background QoS with fewer threads, suspended while `hold` is active; `prepared` marks a validated mono 16 kHz PCM16 WAV that needs no conversion. */
-export async function transcribe(media:Media,settings:AISettings,workDir:string,options:{signal?:AbortSignal;progress?:(fraction:number)=>void;background?:boolean;hold?:WorkHold;prepared?:boolean}={}):Promise<{captions:Caption[];provider:string}>{
+async function transcribeWork(media:Media,settings:AISettings,workDir:string,options:{signal?:AbortSignal;progress?:(fraction:number)=>void;background?:boolean;hold?:WorkHold;prepared?:boolean;timeoutMs?:number}={}):Promise<{captions:Caption[];provider:string}>{
  options.signal?.throwIfAborted();
  if(media.kind==='image'||media.hasAudio===false)throw new Error('This media has no audio track.');
  const ffmpeg=await executable('ffmpeg');if(!ffmpeg)throw new Error('FFmpeg is required to prepare audio for transcription.');
@@ -113,7 +114,7 @@ export async function transcribe(media:Media,settings:AISettings,workDir:string,
  }else if(!settings.apiKey&&settings.provider!=='openai-compatible')throw new Error('Add your own provider API key in AI settings before cloud transcription.');
  await mkdir(workDir,{recursive:true});const dir=path.join(workDir,`transcribe-${makeId()}`);await mkdir(dir);const audio=path.join(dir,'audio.wav');
  // Background QoS with two threads runs roughly 2.5x slower, so automatic work gets a proportionally longer deadline.
- const limit=(options.background?3:1)*30*60*1000;
+ const limit=options.timeoutMs??(options.background?3:1)*30*60*1000;
  try{
   const input=options.prepared&&settings.provider==='local'?media.path:audio;
   if(input===audio)await run(ffmpeg,['-hide_banner','-loglevel','error','-nostdin','-i',media.path,'-vn','-ac','1','-ar','16000','-c:a','pcm_s16le',audio],limit,options.signal,options.background,options.hold);options.progress?.(.2);
@@ -137,6 +138,12 @@ export async function transcribe(media:Media,settings:AISettings,workDir:string,
   return {captions:parseTranscription(await response.json()),provider:settings.provider};
  }finally{await rm(dir,{recursive:true,force:true})}
 }
+const activeRequests=new Set<AbortController>();
+async function request<T>(signal:AbortSignal|undefined,work:(signal:AbortSignal)=>Promise<T>){const controller=new AbortController();activeRequests.add(controller);try{return await work(signal?AbortSignal.any([signal,controller.signal]):controller.signal);}finally{activeRequests.delete(controller);}}
+export function shutdownAI(){for(const controller of activeRequests)controller.abort(Error('Service stopped'));}
+export function activeAIRequests(){return activeRequests.size;}
+/** timeoutMs bounds the whole transcription, including audio preparation and provider calls. */
+export function transcribe(media:Media,settings:AISettings,workDir:string,options:Parameters<typeof transcribeWork>[3]={}){return request(options.signal,signal=>transcribeWork(media,settings,workDir,{...options,signal:options.timeoutMs?AbortSignal.any([signal,AbortSignal.timeout(options.timeoutMs)]):signal}));}
 export function parseSilences(output:string,duration:number):Array<[number,number]>{
  const result:Array<[number,number]>=[];let start:number|undefined;
  for(const line of output.split('\n')){const a=line.match(/silence_start:\s*(-?[\d.]+)/);if(a)start=Math.max(0,Number(a[1]));const b=line.match(/silence_end:\s*([\d.]+)/);if(b&&start!==undefined){const end=Math.min(duration,Number(b[1]));if(end>start)result.push([start,end]);start=undefined}}
@@ -148,7 +155,7 @@ async function mediaSilences(ffmpeg:string,media:Media,signal?:AbortSignal):Prom
  const info=await stat(media.path),key=`${media.path}\0${info.size}\0${info.mtimeMs}`;
  const known=silenceCache.get(key);if(known)return known;
  const r=await run(ffmpeg,['-hide_banner','-nostdin','-i',media.path,'-vn','-af','silencedetect=noise=-35dB:d=0.35','-f','null','-'],30*60*1000,signal);
- const ranges=parseSilences(r.stderr,media.duration);silenceCache.set(key,ranges);return ranges;
+ const ranges=parseSilences(r.stderr,media.duration);silenceCache.set(key,ranges);if(silenceCache.size>256)silenceCache.delete(silenceCache.keys().next().value!);return ranges;
 }
 /** Where the timeline's speech is quiet, in timeline seconds: below -35 dB for at least 350 ms in the clips that carry the narration there. */
 export async function quietRanges(project:Project,signal?:AbortSignal):Promise<Array<[number,number]>>{
@@ -181,7 +188,7 @@ export async function quietRanges(project:Project,signal?:AbortSignal):Promise<A
   }
   return ranges;
 }
-export async function analyze(project:Project,kind:'silence'|'fillers'|'script',settings:AISettings,prompt?:string,signal?:AbortSignal):Promise<{suggestions:AISuggestion[]}>{
+async function analyzeWork(project:Project,kind:'silence'|'fillers'|'script',settings:AISettings,prompt?:string,signal?:AbortSignal):Promise<{suggestions:AISuggestion[]}>{
  signal?.throwIfAborted();
  if(kind==='fillers'){
   const suggestions:AISuggestion[]=[];const seen=new Set<string>();
@@ -201,3 +208,5 @@ export async function analyze(project:Project,kind:'silence'|'fillers'|'script',
  if(!response.ok)throw new Error(`Script provider returned HTTP ${response.status}. Check the chat model and provider settings.`);const result:any=await response.json();const text=result.choices?.[0]?.message?.content;if(typeof text!=='string'||!text.trim())throw new Error('The provider returned no script text.');
  return {suggestions:[{id:makeId(),type:'script',text,reason:'Provider proposal. Review and copy the desired text into your scenes; the project has not been changed.'}]};
 }
+
+export function analyze(project:Project,kind:'silence'|'fillers'|'script',settings:AISettings,prompt?:string,signal?:AbortSignal){return request(signal,signal=>analyzeWork(project,kind,settings,prompt,signal));}

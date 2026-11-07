@@ -51,3 +51,8 @@ test('fixed dBFS curve exposes quiet speech and preserves loudness, silence and 
  assert.ok(Math.abs((waveformHeight(.1)-waveformHeight(.01))-step)<1e-9);
  assert.ok(waveformHeight(.6,30)<30);
 });
+test('failed waveform retries with backoff while visible and can be subscribed again after leaving',async()=>{
+ let calls=0;const cache=new TimelineWaveformCache(async()=>{if(++calls<2)throw Error('offline');return [.2,.4];},128,2,15),values:number[][]=[];
+ const release=cache.subscribe(media,peaks=>values.push([...peaks]));await tick();assert.equal(calls,1);await new Promise(resolve=>setTimeout(resolve,30));assert.equal(calls,2);assert.deepEqual(values.at(-1),[.2,.4]);release();
+ const bad=new TimelineWaveformCache(async()=>{calls++;throw Error('offline');},128,2,15),off=bad.subscribe(media,()=>{});await tick();off();const before=calls;await new Promise(resolve=>setTimeout(resolve,30));assert.equal(calls,before);const retry=bad.subscribe(media,()=>{});await new Promise(resolve=>setTimeout(resolve,5));assert.equal(calls,before+1);retry();
+});

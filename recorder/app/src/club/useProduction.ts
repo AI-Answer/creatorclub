@@ -1,8 +1,8 @@
 import {useCallback,useEffect,useRef,useState} from 'react';
 import type {Video,VideoStage} from '../../shared/club';
-import {clubFetch,errorMessage} from './api';
+import {clubFetch,errorMessage,notifyVideoUpdated} from './api';
 import {formatDay} from './board';
-import {planMove} from './production';
+import {planMove,undoBeforeId} from './production';
 import {OptimisticMoves} from './production/optimistic-moves';
 import {useToast} from './ui';
 import {useVideos,type VideosState} from './useVideos';
@@ -30,10 +30,10 @@ export function useProduction():{state:VideosState;videos:Video[]|null;reload():
  // One queue survives all list refreshes, so save order and rollback remain intact.
  const queue=useRef<OptimisticMoves|null>(null);
  if(!queue.current)queue.current=new OptimisticMoves([],show,async placement=>{
-  const saved=await clubFetch<Video>(`/videos/${encodeURIComponent(placement.id)}/move`,{body:{stage:placement.stage,beforeId:placement.beforeId,...(placement.stageDates&&{stageDates:placement.stageDates})},notify:false});
-  window.dispatchEvent(new CustomEvent('club:video-moved',{detail:saved}));
+  const saved=await clubFetch<Video>(`/videos/${encodeURIComponent(placement.id)}/move`,{body:{stage:placement.stage,beforeId:placement.beforeId},notify:false});
+  notifyVideoUpdated(saved);
   return saved;
- },reload);
+ },reload,async(id,day)=>{const saved=await clubFetch<Video>(`/videos/${encodeURIComponent(id)}`,{method:'PUT',body:{publishDate:day},notify:false});notifyVideoUpdated(saved);return saved;});
  const videos=shadow&&shadow.base===loaded?shadow.videos:loaded?queue.current.project(loaded):null;
  latest.current=videos;
  useEffect(()=>{if(loaded)queue.current!.refresh(loaded);},[loaded]);
@@ -48,16 +48,16 @@ export function useProduction():{state:VideosState;videos:Video[]|null;reload():
   if(!plan)return;
   try{await place(id,stage,beforeId);}catch(reason){sayFailed(reason,"Couldn't save that change.");return;}
   const {previous}=plan;
-  toast(plan.message,{undo:()=>{place(id,previous.stage,previous.beforeId,previous.stageDates).catch(reason=>sayFailed(reason,"Couldn't undo that."));}});
+  const following=current!.filter(video=>video.stage===previous.stage).sort((a,b)=>a.order-b.order).map(video=>video.id);
+  const after=following.slice(following.indexOf(id)+1);
+  toast(plan.message,{undo:()=>{place(id,previous.stage,undoBeforeId(latest.current??[],previous.stage,after),previous.stageDates).catch(reason=>sayFailed(reason,"Couldn't undo that."));}});
  },[place,toast,sayFailed]);
 
  const savePublishDate=useCallback(async(id:string,day:string|null):Promise<void>=>{
-  const before=latest.current;
-  if(!before)return;
-  show(before.map(video=>{if(video.id!==id)return video;const {publishDate:_old,...rest}=video;return day?{...rest,publishDate:day}:rest;}));
-  try{await clubFetch<Video>(`/videos/${encodeURIComponent(id)}`,{method:'PUT',body:{publishDate:day}});}
-  catch(reason){show(before);throw reason;}
- },[show]);
+  if(!latest.current)return;
+  await queue.current!.date(id,day);
+ },[]);
+
 
  /** Gives a video a publish day. */
  const schedule=useCallback(async(id:string,day:string)=>{

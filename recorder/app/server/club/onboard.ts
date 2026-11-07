@@ -21,16 +21,15 @@ export async function addChannel(channelUrl: string, context: JobContext, option
   // Adding a channel again (after the voice step failed, say) picks up the workspace that is already there.
   const existing = (await store.listWorkspaces()).find((workspace) => sameChannelUrl(workspace.channelUrl, ref.url));
   if (existing && (await hasVoiceGuide(existing.slug))) {
-    await store.setCurrentWorkspace(existing.slug);
     return { workspace: await ensureChannelAvatar(existing, avatarFetch), voice: 'built' };
   }
   const read = await readChannel(ref, { ...options, ytdlp: await yt(context, options), signal: context.signal, say: say(context) });
-  const created =
-    existing ??
-    (await store.createWorkspace({ name: read.data.name, handle: read.data.handle, channelUrl: ref.url, topics: read.data.topics, about: '', cta: '' }));
+  const created = await store.withLock(`workspace-create:${store.rootDir()}`, async () => {
+    const latest = (await store.listWorkspaces()).find(workspace => sameChannelUrl(workspace.channelUrl, ref.url));
+    return latest ?? store.createWorkspace({ name: read.data.name, handle: read.data.handle, channelUrl: ref.url, topics: read.data.topics, about: '', cta: '' });
+  });
   const workspace = await ensureChannelAvatar(created, avatarFetch);
   await saveChannel(workspace.slug, read);
-  await store.setCurrentWorkspace(workspace.slug);
   if (read.transcripts.length < MIN_TRANSCRIPTS) return { workspace, voice: 'needs-answers' };
   await buildVoiceGuide(workspace.slug, workspace.name, read.transcripts, { ...options, signal: context.signal, say: say(context) });
   return { workspace, voice: 'built' };
@@ -45,7 +44,7 @@ export async function rebuildVoice(slug: string, answers: VoiceAnswers | undefin
   const workspace = await store.readWorkspace(slug);
   if (answers) {
     await writeVoiceFromAnswers(slug, workspace.name, answers);
-    if (!workspace.about.trim()) await store.writeWorkspace({ ...workspace, about: answers.audience.trim() });
+    await store.updateWorkspace(slug, latest => latest.about.trim() ? latest : { ...latest, about: answers.audience.trim() });
     return { voice: 'built' };
   }
   let transcripts;

@@ -4,7 +4,7 @@ import path from 'node:path';
 import type { JobSnapshot, ResearchTile, TileMeta, TranscriptChapter } from '../../shared/club.js';
 import { pickCaptionLanguage, ytdlpTwice } from './channel.js';
 import { ClubError } from './errors.js';
-import { getJob, snapshot, startJob, type JobContext } from './jobs.js';
+import { startJobOnce, type JobContext } from './jobs.js';
 import { detectSource, outlierMultiplier, parseInfo, subtitleArgs, type SourceRef } from './source.js';
 import * as store from './store.js';
 import { prepareYtDlp, type ToolOptions } from './tools.js';
@@ -163,15 +163,7 @@ export async function readVideoTile(slug: string, videoId: string, tileId: strin
   }
 }
 
-const reading = new Map<string, string>();
-
-/** Starts reading a video tile, or returns the read already running for it. */
+/** Starts reading a video tile, or follows its still-settling read. */
 export function startTileRead(slug: string, videoId: string, tileId: string, options: ToolOptions = {}): JobSnapshot {
-  const key = `${slug}/${videoId}/${tileId}`;
-  const running = reading.get(key);
-  const job = running ? getJob(running) : undefined;
-  if (job?.status === 'running') return snapshot(job);
-  const started = startJob('research-video', (context) => readVideoTile(slug, videoId, tileId, context, options).finally(() => reading.delete(key)));
-  reading.set(key, started.id);
-  return started;
+  return startJobOnce(`research:${slug}/${videoId}/${tileId}`, 'research-video', context => readVideoTile(slug, videoId, tileId, context, options));
 }

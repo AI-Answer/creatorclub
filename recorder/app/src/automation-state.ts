@@ -1,8 +1,8 @@
 import type {AutomationJob} from '../shared/automation';
 const finished=(job:AutomationJob)=>['complete','conflict','failed','cancelled'].includes(job.status);
 /** Polling and mutation responses may arrive in either order. Never resurrect finished work. */
-export function mergeAutomationJobs(current:readonly AutomationJob[],incoming:readonly AutomationJob[]):AutomationJob[]{
- const result=new Map(current.map(job=>[job.id,job]));
+export function mergeAutomationJobs(current:readonly AutomationJob[],incoming:readonly AutomationJob[],full=false):AutomationJob[]{
+ const result=new Map(current.filter(job=>!full||incoming.some(next=>next.id===job.id)).map(job=>[job.id,job]));
  for(const next of incoming){const previous=result.get(next.id);if(previous){
   if(previous.updatedAt>next.updatedAt)continue;
   if(previous.undone&&!next.undone)continue;

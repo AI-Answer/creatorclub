@@ -88,7 +88,7 @@ test('a held background worker is stopped while a capture is open, resumes after
   const abort=new AbortController(),promise=transcribe({id:'tone',name:'tone',path:file,kind:'audio',duration:1,width:0,height:0},{provider:'local',baseUrl:'',model,localCommand:worker,language:'en'},dir,{signal:abort.signal,background:true,hold});
   for(let i=0;i<200&&await count()<3;i++)await wait(20);assert.ok(await count()>=3,'the worker runs while no capture is open');
   hold.open('camera');await wait(80);const frozen=await count();await wait(150);assert.equal(await count(),frozen,'a capture stops the background worker');
-  hold.close('camera');await wait(150);assert.ok(await count()>frozen,'the worker resumes when the capture ends');
+  hold.close('camera');for(let i=0;i<100&&await count()<=frozen;i++)await wait(20);assert.ok(await count()>frozen,'the worker resumes when the capture ends');
   hold.open('camera');await wait(80);const pid=Number(await readFile(ticks+'.pid','utf8'));abort.abort();await assert.rejects(promise,/cancelled/);assert.throws(()=>process.kill(pid,0),'a stopped worker is still terminated');
  }finally{await rm(dir,{recursive:true,force:true});}
 });

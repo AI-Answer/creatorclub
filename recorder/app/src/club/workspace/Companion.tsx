@@ -1,3 +1,4 @@
+import {useAi} from '../useAi';
 import {AI_CONNECT_HINT,useAiAvailable} from '../ai-status';
 import {BrandLogo} from '../../BrandLogo';
 import {useCallback,useEffect,useLayoutEffect,useMemo,useRef,useState,type KeyboardEvent} from 'react';
@@ -9,7 +10,7 @@ import {MOTION_TEMPLATES} from '../../../shared/motion/templates';
 import {clubFetch,clubUpload,errorMessage} from '../api';
 import {EDIT_FIRST,editFirst,featuredSkills,matchSkills,slashQuery,type EditSkill,type InstalledSkill} from '../../../shared/skills';
 import {ErrorLine} from '../ErrorLine';
-import {ASK_CLAUDE} from './ask-claude';
+import {ASK_CLAUDE,askSettled,newAskId,type AskRequest} from './ask-claude';
 import {Button,Icon,Spinner,cn,type IconName} from '../ui';
 import {type IdeaPartKey,atBottom,sectionPart,greeting,lookingAt,previewOf,suggestions,tabOf,withDividers} from './companion-logic';
 import {Markdown} from './Markdown';
@@ -65,8 +66,7 @@ export function Companion({videoId,videoTitle,videoWhy,tab,part,scene,screen,sel
  const [openHere,setOpenHere]=useState(false);
  useEffect(()=>{if(narrow)setOpenHere(false);},[narrow]);
  const open=narrow?openHere:saved;
- const [name,setName]=useState('Claude');
- useEffect(()=>{clubFetch<{defaultAi?:string}>('/settings').then(settings=>setName(settings.defaultAi==='codex'?'ChatGPT':'Claude'),()=>{});},[]);
+ const {name}=useAi();
  const editorNow=useRef(editor);editorNow.current=editor;
  // Auto-edit's audio plan, which a cut of pauses is checked against: read again a moment after the timeline changes, so a card's
  // preview and its line ("3 cuts · 0.9 s shorter") use the same plan as Apply.
@@ -88,7 +88,7 @@ export function Companion({videoId,videoTitle,videoWhy,tab,part,scene,screen,sel
  },[tab,videoId,boardKey]);
  const companion=useCompanion(videoId,{onChanged,beforeApply,editor:()=>editorNow.current?.get()??null});
  const {messages,live}=companion;
- const working=live?.phase==='working';
+ const working=companion.busy;
  const context:CompanionContext=useMemo(()=>({tab,...(!boardView&&scene?{sceneId:scene.id,sceneTitle:scene.title}:{}),screen:tab==='idea'?(boardView?'Board':ideaSection??screen):screen,...(selection?.length?{selection:[...selection].slice(0,200)}:{})}),[tab,scene,screen,selection,boardView,ideaSection]);
  const [text,setText]=useState('');
  const input=useRef<HTMLTextAreaElement>(null);
@@ -132,11 +132,12 @@ export function Companion({videoId,videoTitle,videoWhy,tab,part,scene,screen,sel
    catch(reason){setPicError(errorMessage(reason,"Couldn't add that picture."));}
   }
  };
- const ask=async(question:string)=>{
-  if(!aiAvailable||!question.trim()||working)return;
+ const ask=async(question:string,requestId=newAskId(),parentRequestId?:string)=>{
+  if(!aiAvailable||!question.trim()){askSettled({requestId,ok:false,choice:false});return;}
   pinned.current=true;
-  const sent=await companion.send(question,await contextNow(),undefined,pics);
-  if(sent){setText('');setPics([]);}
+  const sentPics=pics;
+  const sent=await companion.send(question,contextNow,undefined,sentPics,requestId,parentRequestId);
+  if(sent){setText(current=>current===question?'':current);setPics(current=>current.filter(pic=>!sentPics.includes(pic)));}
  };
  // Typing "/" lists the person's own skills; choosing one puts its name in the message, and sending it runs the skill.
  const [skills,setSkills]=useState<InstalledSkill[]|null>(null);
@@ -162,7 +163,8 @@ export function Companion({videoId,videoTitle,videoWhy,tab,part,scene,screen,sel
  const choose=(skill:InstalledSkill)=>{setText(`/${skill.name} `);input.current?.focus();};
  // A button elsewhere on the page can ask the chat something for the creator: it opens, sends the question and the answer comes back as cards.
  const askRef=useRef(ask),toggleRef=useRef(toggle);askRef.current=ask;toggleRef.current=toggle;
- useEffect(()=>{const hear=(event:Event)=>{const text=(event as CustomEvent<{text:string}>).detail?.text;if(!text||!aiAvailable)return;toggleRef.current(true);void askRef.current(text);};window.addEventListener(ASK_CLAUDE,hear);return()=>window.removeEventListener(ASK_CLAUDE,hear);},[aiAvailable]);
+ useEffect(()=>{const hear=(event:Event)=>{const detail=(event as CustomEvent<AskRequest>).detail;if(!detail?.text)return;detail.accepted=true;toggleRef.current(true);void askRef.current(detail.text,detail.requestId);};window.addEventListener(ASK_CLAUDE,hear);return()=>window.removeEventListener(ASK_CLAUDE,hear);},[]);
+
  const onKeyDown=(event:KeyboardEvent<HTMLTextAreaElement>)=>{
   if(pickerOpen&&choices.length){
    if(event.key==='ArrowDown'||event.key==='ArrowUp'){event.preventDefault();setPick(i=>(i+(event.key==='ArrowDown'?1:choices.length-1))%choices.length);return;}
@@ -189,6 +191,11 @@ export function Companion({videoId,videoTitle,videoWhy,tab,part,scene,screen,sel
  const here=messages?(showEarlier?messages:messages.filter(message=>tabOf(message)===tab&&recent(message))):undefined;
  const hiddenCount=messages&&here?messages.length-here.length:0;
  const items=here?withDividers(here,tab):[];
+ const retryPlaceholder=(replyId:string)=>{
+  const at=messages?.findIndex(message=>message.id===replyId)??-1;
+  const question=messages?.slice(0,at).reverse().find(message=>message.role==='user');
+  if(aiAvailable&&question)void contextNow().then(context=>companion.retry(context,question.id));
+ };
  const sceneCount=outline?.scenes.length??0;
  const recorded=scenes?scenes.filter(one=>one.takes.length>0).length:undefined;
  const ideas=suggestions(tab,{part:boardView?undefined:sectionPart(ideaSection)??part?.key,titles:pkg?.titles.filter(one=>one.trim()).length,scenes:boardView?0:sceneCount,scene:boardView?undefined:scene,selected:tab==='research'?selection?.length:editor?.state?.selected,notes:editor?.state?.notes,stalls:editor?.state?.stalls,opening:editor?.state?.opening,named:editor?.state?.named,polished:(messages??[]).some(one=>one.role==='user'&&one.text.trimStart().startsWith('/proof-edit')),hook:!!pkg?.hook.spoken.trim(),longest:Math.max(0,...(outline?.scenes??[]).map(one=>one.seconds||0)),
@@ -221,7 +228,10 @@ export function Companion({videoId,videoTitle,videoWhy,tab,part,scene,screen,sel
     </div>}
    {items.map(item=>item.kind==='divider'?<div key={item.key} className="cmp-divider" role="separator">{item.label}</div>
     :item.message.role==='user'?<div key={item.key} className="cmp-me">{item.message.attachments?.length?<div className="cmp-pics">{item.message.attachments.map(name=><img key={name} src={`/api/club${chatBase}/${name}`} alt=""/>)}</div>:null}{item.message.text}</div>
-    :<Reply key={item.key} name={name} message={item.message} arrived={!!known&&!known.has(item.message.id)} answered={!aiAvailable||working||(messages?.at(-1)?.id!==item.message.id)} onChoose={answer=>void ask(answer)} video={{title:videoTitle??'',why:videoWhy}} pkg={pkg} outline={outline} scenes={scenes} busy={companion.busyCard} editor={editor} silences={silences}
+    :item.message.status==='running'?(live?null:<div key={item.key} className="cmp-reply live" role="status"><Spinner label="Writing the reply"/>Thinking…</div>)
+    :item.message.status==='failed'&&live?.phase==='streaming'&&messages?.slice(0,messages.findIndex(message=>message.id===item.message.id)).reverse().find(message=>message.role==='user')?.id===live.questionId?null
+    :item.message.status==='failed'?<div key={item.key} className="cmp-reply failed">{item.message.text&&<Markdown text={item.message.text}/>}<ErrorLine message="Couldn't finish that reply." onRetry={()=>retryPlaceholder(item.message.id)}/></div>
+    :<Reply key={item.key} name={name} message={item.message} arrived={!!known&&!known.has(item.message.id)} answered={!aiAvailable||working||(messages?.at(-1)?.id!==item.message.id)} onChoose={answer=>void ask(answer,newAskId(),companion.requestId)} video={{title:videoTitle??'',why:videoWhy}} pkg={pkg} outline={outline} scenes={scenes} busy={companion.busyCard} editor={editor} silences={silences}
       onApply={index=>companion.apply(item.message.id,index)} onApplyAll={indices=>companion.applyAll(item.message.id,indices)} onUndo={index=>companion.undo(item.message.id,index)}/>)}
    {live&&<LiveReply name={name} live={live} onRetry={()=>{if(aiAvailable)void contextNow().then(companion.retry);}}/>}
    {companion.sendError&&<ErrorLine message={companion.sendError} onRetry={()=>void ask(text)}/>}
@@ -249,7 +259,7 @@ export function Companion({videoId,videoTitle,videoWhy,tab,part,scene,screen,sel
     <span className="grow"/>
     <label className="cmp-attach" title="Add a picture (or paste or drop one)"><Icon name="Image" size={15}/><input type="file" className="sr-only" accept="image/png,image/jpeg" multiple onChange={event=>{void addPictures([...(event.target.files??[])]);event.target.value='';}}/></label>
     {working
-     ?<button type="button" className="cmp-send stop" onClick={stop} aria-label="Stop (Esc)" title="Stop (Esc)"><Icon name="Square" size={12} stroke={2.4}/></button>
+     ?<button type="button" className="cmp-send stop" disabled={live?.stopping} onClick={stop} aria-label="Stop (Esc)" title="Stop (Esc)"><Icon name="Square" size={12} stroke={2.4}/></button>
      :<button type="submit" className="cmp-send" disabled={!aiAvailable||!text.trim()} aria-label="Send (Enter)" title={!aiAvailable?AI_CONNECT_HINT:"Send (Enter) · Shift+Enter for a new line"}><Icon name="ArrowUp" size={15} stroke={2.2}/></button>}
     </div>
    </form>
@@ -280,7 +290,7 @@ function useNarrow(roomy:boolean|number){
 }
 
 /** A finished reply: who, the one-line summary of its steps (opens to the list), the text, and its cards. */
-function Reply({name,message,arrived,video,pkg,outline,scenes,busy,editor,silences,answered,onChoose,onApply,onApplyAll,onUndo}:{name:string;message:CompanionReplyMessage;/** It came in now, not with the conversation's history. */arrived?:boolean;answered:boolean;onChoose(answer:string):void;video:{title:string;why?:string};pkg:Package|null;outline:Outline|null;scenes?:readonly VideoScene[];busy:string|null;editor?:CompanionEditor;silences?:SilencePlan|null;onApply(index:number):Promise<string>;onApplyAll(indices:number[]):Promise<string>;onUndo(index:number):Promise<string>}){
+function Reply({name,message,arrived,video,pkg,outline,scenes,busy,editor,silences,answered,onChoose,onApply,onApplyAll,onUndo}:{name:string;message:CompanionReplyMessage;/** It came in now, not with the conversation's history. */arrived?:boolean;answered:boolean;onChoose(answer:string):void;video:{title:string;why?:string};pkg:Package|null;outline:Outline|null;scenes?:readonly VideoScene[];busy:ReadonlySet<string>;editor?:CompanionEditor;silences?:SilencePlan|null;onApply(index:number):Promise<string>;onApplyAll(indices:number[]):Promise<string>;onUndo(index:number):Promise<string>}){
  // A reply's changes apply by themselves as it arrives, in order (timeline edits as one batch so each lands where its times now are),
  // and the reply says what changed in one line with one Undo for all of it. The single changes stay behind "Show changes".
  // Left for you: a question, a redraft over scenes that have takes (it asks first), and a timeline change while Edit is not open.
@@ -315,7 +325,7 @@ function Reply({name,message,arrived,video,pkg,outline,scenes,busy,editor,silenc
  // eslint-disable-next-line react-hooks/exhaustive-deps
  },[arrived,pending.length]);
  const line=changedLine(applied.map(({card})=>card),outline);
- const card=(item:{card:CompanionCard;index:number})=><Card key={item.index} answered={answered} onChoose={onChoose} id={`${message.id}:${item.index}`} card={item.card} video={video} pkg={pkg} outline={outline} scenes={scenes} busy={busy===`${message.id}:${item.index}`} editor={editor} silences={silences} onApply={()=>onApply(item.index)} onUndo={()=>onUndo(item.index)}/>;
+ const card=(item:{card:CompanionCard;index:number})=><Card key={item.index} answered={answered} onChoose={onChoose} id={`${message.id}:${item.index}`} card={item.card} video={video} pkg={pkg} outline={outline} scenes={scenes} busy={busy.has(`${message.id}:${item.index}`)} editor={editor} silences={silences} onApply={()=>onApply(item.index)} onUndo={()=>onUndo(item.index)}/>;
  const changes=indexed.filter(automatic);
  return <div className="cmp-reply">
   {message.text&&<div className="cmp-md"><Markdown text={message.text}/></div>}
@@ -327,7 +337,7 @@ function Reply({name,message,arrived,video,pkg,outline,scenes,busy,editor,silenc
     :applied.length>0?<span className="cmp-changed-line" title={line}><Icon name="Check" size={13} stroke={2.4}/><span className="cmp-changed-text">{line}</span></span>
     :<span className="cmp-changed-line is-off">{error?'Not made':undone?'Undone':'Not applied'}</span>}
    {!running&&applied.some(({card})=>card.version)&&<button type="button" className="cmp-changed-undo is-icon" aria-label="Undo" title="Undo" onClick={()=>void undoAll()}><Icon name="undo" size={14}/></button>}
-   {!running&&!error&&!applied.length&&unmade.length>0&&<button type="button" className="cmp-changed-undo is-icon" disabled={!!busy} aria-label={undone?'Redo':'Apply'} title={undone?'Redo':'Apply'} onClick={()=>void applyAll(unmade)}><Icon name={undone?'redo':'check'} size={14}/></button>}
+   {!running&&!error&&!applied.length&&unmade.length>0&&<button type="button" className="cmp-changed-undo is-icon" disabled={message.cards.some((_,index)=>busy.has(`${message.id}:${index}`))} aria-label={undone?'Redo':'Apply'} title={undone?'Redo':'Apply'} onClick={()=>void applyAll(unmade)}><Icon name={undone?'redo':'check'} size={14}/></button>}
    <button type="button" className="cmp-changed-more is-icon" aria-expanded={open} aria-label={open?'Hide the changes':'Show the changes'} title={open?'Hide the changes':'Show the changes'} onClick={()=>setOpen(value=>!value)}><Icon name={open?'collapse':'expand'} size={14}/></button>
   </div>}
   {error&&<div className="cmp-card-err" role="alert"><Icon name="TriangleAlert" size={13}/><span>{error}</span></div>}
@@ -378,10 +388,10 @@ export function changedLine(cards:readonly CompanionCard[],outline:Outline|null)
  * the failure. The finished reply folds its steps into one line that opens on request.
  */
 function LiveReply({name,live,onRetry}:{name:string;live:Live;onRetry():void}){
- const working=live.phase==='working',current=live.steps[live.steps.length-1]?.label;
+ const working=live.phase==='streaming',current=live.steps[live.steps.length-1]?.label;
  return <div className={cn('cmp-reply','live',!working&&'failed')} aria-live="off">
   <div className="cmp-who"><BrandLogo brand={name==='ChatGPT'?'chatgpt':'claude'} size={15} working={working}/>{name}</div>
-  {working&&<ol className="cmp-steps live"><li className="on"><span className="cmp-pulse" aria-hidden/><span>{current??'Thinking'}</span></li></ol>}
+  {working&&<ol className="cmp-steps live"><li className="on"><span className="cmp-pulse" aria-hidden/><span>{live.stopping?'Stopping…':current??'Thinking'}</span></li></ol>}
   {live.text&&<div className="cmp-md streaming"><Markdown text={live.text}/></div>}
   {!working&&live.error&&<ErrorLine message={live.error} onRetry={onRetry}/>}
  </div>;

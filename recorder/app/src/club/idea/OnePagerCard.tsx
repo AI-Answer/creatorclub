@@ -15,7 +15,7 @@ export function OnePager({video,plan,onTitle,onBoardChanged}:{video:Video;plan:P
  const ai=useAi(),available=useAiAvailable(),toast=useToast();
  const [adding,setAdding]=useState(false),[using,setUsing]=useState(false);
  const value=plan.onepager??emptyOnePager(),edit=(next:OnePagerData)=>plan.editOnepager(next);
- const save=plan.flushOnepager,state=plan.onepagerJob,running=state.phase==='running',notice=plan.notices.onepager;
+ const save=plan.flushOnepager,state=plan.onepagerJob,running=(state.phase==='starting'||state.phase==='running'),notice=plan.notices.onepager;
  const hasContent=!![value.title,value.backupTitle,value.logline,...Object.values(value.thumbnail),...value.skeleton.map(beat=>beat.line),...value.whys].some(text=>text?.trim());
  const beatHints=['Show the promise and give viewers a reason to stay.','Explain what started the story.','Show the method in a few clear steps.','Reveal what changes the story.','Give viewers one thing they can try.','Pay off the promise and close the story.'];
  const [editingSketch,setEditingSketch]=useState(false);

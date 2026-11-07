@@ -43,7 +43,7 @@ async function call(args:string[],o:HiggsfieldOptions,signal?:AbortSignal):Promi
  const file=await find(o);if(!file)throw new ClubError(INSTALL,503);
  if(signal?.aborted)throw new ClubError('That was stopped.');
  const result=await (o.run??runTool)(file,[...args,'--json'],{env:childEnv(o),signal,timeoutMs:o.timeoutMs??(args[1]==='create'?15*60_000:20_000)});
- if(signal?.aborted)throw new ClubError('That was stopped.');
+ if(signal?.aborted&&!(args[1]==='create'&&result.code===0))throw new ClubError('That was stopped.');
  if(result.code!==0)cliError(result);
  const parsed=parseJSONLoose(result.stdout);
  if(parsed!==undefined)return parsed;
@@ -173,11 +173,13 @@ export async function generateThumbnails(slug:string,video:string,input:Thumbnai
    else if(source.bytes){const file=path.join(scratch,`${index}${imageExtension(source.bytes)}`);await fs.writeFile(file,source.bytes,{flag:'wx'});refs.push(file);}
   }
   for(let index=0;index<input.count;index++){
+   if(context.signal.aborted)throw new ClubError('That was stopped.');
    context.emit({message:`Making thumbnail ${index+1} of ${input.count}…`,done:index,total:input.count});
    const result=await call(args(input,'create',refs),o,context.signal),urls=resultUrls(result);
    if(!urls.length)throw new ClubError('Higgsfield finished without an image; check the job in Higgsfield.',502);
    // A create call is one paid candidate; never mistake an echoed reference or preview for another result.
-   const bytes=await download(urls[0],o,context.signal);if(context.signal.aborted)throw new ClubError('That was stopped.');
+   // The paid result must be archived even when cancellation arrives after create.
+   const bytes=await download(urls[0],o,AbortSignal.timeout(60_000));
    const id=`h_${randomBytes(12).toString('hex')}`,file=id+imageExtension(bytes);
    const candidate:ThumbnailCandidate={id,prompt:input.prompt,model:input.model,params:generationParams(input),file,createdAt:new Date().toISOString(),...(input.parentId?{parentId:input.parentId}:{})};
    await store.withLock(dir,async()=>{const items=await history(dir);await fs.writeFile(path.join(dir,file),bytes,{flag:'wx'});await store.writeJSON(historyFile(dir),[...items,candidate]);});

@@ -1,4 +1,5 @@
-import {useRef} from 'react';
+import {beginGesture} from './timeline-gesture';
+import {useLayoutEffect,useRef} from 'react';
 import type {Transform} from '../shared/types';
 
 export type Box=Pick<Transform,'x'|'y'|'width'|'height'>;
@@ -22,16 +23,15 @@ export function dragBox(start:Box,grip:Grip,dx:number,dy:number):Box{
  * A frame with handles on the picture: drag inside to move it, drag a corner to resize it, snapping to the edges and centre.
  * Used for the selected camera or screen (its place on the picture) and for a selected zoom (where it looks and how close).
  */
-export function StageHandles({box:t,onChange,className='',title='Drag to move · drag a corner to resize'}:{box:Box;onChange(box:Box,phase:'move'|'end'):void;className?:string;title?:string}){
- const frame=useRef<HTMLDivElement>(null);
+export function StageHandles({box:t,itemKey,onChange,className='',title='Drag to move · drag a corner to resize'}:{box:Box;itemKey?:string;onChange(box:Box,phase:'move'|'end'):void;className?:string;title?:string}){
+ const frame=useRef<HTMLDivElement>(null),gesture=useRef<ReturnType<typeof beginGesture>|null>(null),latest=useRef(itemKey);latest.current=itemKey;useLayoutEffect(()=>()=>gesture.current?.cancel(),[]);
  const begin=(event:React.PointerEvent,grip:Grip)=>{
-  event.preventDefault();event.stopPropagation();
+  if(event.button!==0)return;gesture.current?.cancel();event.preventDefault();event.stopPropagation();
   const stage=frame.current?.parentElement?.getBoundingClientRect();if(!stage)return;
   const start:Box={x:t.x,y:t.y,width:t.width,height:t.height},from={x:event.clientX,y:event.clientY};
-  let last=start;
-  const move=(ev:PointerEvent)=>{last=dragBox(start,grip,(ev.clientX-from.x)/stage.width,(ev.clientY-from.y)/stage.height);onChange(last,'move');};
-  const up=()=>{window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',up);onChange(last,'end');};
-  window.addEventListener('pointermove',move);window.addEventListener('pointerup',up);
+  let last=start;const valid=()=>Boolean(frame.current?.isConnected)&&latest.current===itemKey;
+  const move=(ev:PointerEvent)=>{if(!valid()){gesture.current?.cancel();return;}last=dragBox(start,grip,(ev.clientX-from.x)/stage.width,(ev.clientY-from.y)/stage.height);onChange(last,'move');};
+  gesture.current=beginGesture(event,{move,drop:()=>{gesture.current=null;onChange(last,'end');},cancel:()=>{gesture.current=null;},valid});
  };
  return <div ref={frame} className={`stage-handles ${className}`.trim()} style={{left:`${t.x*100}%`,top:`${t.y*100}%`,width:`${t.width*100}%`,height:`${t.height*100}%`}}
   onPointerDown={event=>begin(event,'move')} title={title}>

@@ -1,3 +1,4 @@
+import { youtubeId } from './publish.js';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -103,7 +104,15 @@ function ideaToVideo(idea: Idea, index: number, hasOutline: boolean): Video {
   if (!/^[A-Za-z0-9_-]{1,64}$/.test(id)) throw new ClubError(`An idea has an id this import cannot use: "${id}".`);
   const title = text(idea.title);
   if (!title) throw new ClubError(`The idea "${id}" has no title.`);
-  const { stage, hidden } = placeIdea(idea.status, id);
+  const placement = placeIdea(idea.status, id);
+  let stage = placement.stage;
+  const hidden = placement.hidden;
+  let youtubeUrl: string | undefined;
+  const oldUrl = text(idea.youtubeUrl) ?? text(idea.publishedUrl) ?? text(idea.url);
+  if (stage === 'published') {
+    try { youtubeUrl = `https://www.youtube.com/watch?v=${youtubeId(oldUrl ?? '')}`; }
+    catch { stage = 'publishing'; }
+  }
   const createdAt = isoFromMs(idea.createdAt, new Date().toISOString());
   const updatedAt = isoFromMs(idea.updatedAt, createdAt);
   const stageDates: Video['stageDates'] = {};
@@ -124,6 +133,7 @@ function ideaToVideo(idea: Idea, index: number, hasOutline: boolean): Video {
     updatedAt,
     stageDates,
     planning: { research: false, package: false, outline: hasOutline },
+    ...(youtubeUrl ? { youtubeUrl, publishedAt: stageDates.published ?? updatedAt } : {}),
   };
   if (hidden) video.hidden = hidden;
   const notes = ideaNotes(idea);
@@ -148,8 +158,7 @@ export const BOARD_DATA_FILES = ['trending.json', 'signals.json', 'followed.json
  * a file that is already there and newer than the source (or the same) is left alone, and running it again changes nothing.
  * Returns the files that were copied.
  */
-export async function copyBoardData(sourceDir: string, slug: string): Promise<string[]> {
-  const target = store.workspaceDir(slug);
+export async function copyBoardData(sourceDir: string, slug: string, target = store.workspaceDir(slug)): Promise<string[]> {
   const copied: string[] = [];
   for (const name of BOARD_DATA_FILES) {
     const from = path.join(sourceDir, name);
@@ -208,27 +217,36 @@ export async function migrateBoard(sourceDir: string, options: { slug?: string }
   }
 
   const requested = options.slug ?? text(profile.slug) ?? store.slugify(name);
-  const workspace = await store.createWorkspace({
-    slug: requested,
-    name,
-    handle: text(profile.handle) ?? '',
-    channelUrl: text(profile.channelUrl) ?? '',
+  const slug = requested;
+  const target = store.workspaceDir(slug); // Validate the requested slug before staging anything.
+  await fs.mkdir(store.rootDir(), { recursive: true });
+  const dir = await fs.mkdtemp(path.join(store.rootDir(), '.migration-'));
+  const workspace = {
+    slug, createdAt: new Date().toISOString(), audience: [], name,
+    handle: text(profile.handle) ?? '', channelUrl: text(profile.channelUrl) ?? '',
     topics: Array.isArray(profile.topics) ? profile.topics.filter((t): t is string => typeof t === 'string' && !!t.trim()) : [],
-    about: text(profile.about) ?? '',
-    cta: text(profile.cta) ?? '',
-    knowledge: [],
-  });
-  const dir = store.workspaceDir(workspace.slug);
-  if (voice) await store.writeFileAtomic(path.join(dir, 'voice.md'), voice.text);
-  if (criteria !== undefined) await store.writeFileAtomic(path.join(dir, 'criteria.md'), criteria);
-  if (structure !== undefined) await store.writeFileAtomic(path.join(dir, 'structure.md'), structure);
-  for (const video of videos) {
-    await store.importVideo(workspace.slug, video);
-    const outline = outlines.get(video.id);
-    if (outline) await store.writeFileAtomic(path.join(store.videoDir(workspace.slug, video.id), 'outline.md'), outline);
-  }
-  const boardData = await copyBoardData(sourceDir, workspace.slug);
-  if (!(await store.currentWorkspace())) await store.setCurrentWorkspace(workspace.slug);
+    about: text(profile.about) ?? '', cta: text(profile.cta) ?? '', knowledge: [],
+  };
+  let boardData: string[];
+  try {
+    await store.writeJSON(path.join(dir, 'profile.json'), workspace);
+    await fs.mkdir(path.join(dir, 'breakdowns'));
+    if (voice) await store.writeFileAtomic(path.join(dir, 'voice.md'), voice.text);
+    if (criteria !== undefined) await store.writeFileAtomic(path.join(dir, 'criteria.md'), criteria);
+    if (structure !== undefined) await store.writeFileAtomic(path.join(dir, 'structure.md'), structure);
+    for (const video of videos) {
+      const videoDir = path.join(dir, 'videos', video.id);
+      await store.writeJSON(path.join(videoDir, 'video.json'), video);
+      const outline = outlines.get(video.id);
+      if (outline) await store.writeFileAtomic(path.join(videoDir, 'outline.md'), outline);
+    }
+    boardData = await copyBoardData(sourceDir, slug, dir);
+    await store.withLock(`workspace-create:${store.rootDir()}`, async () => {
+      if (await fs.stat(target).then(() => true, () => false)) throw new ClubError('A channel with that name already exists.', 409);
+      await fs.rename(dir, target);
+    });
+  } finally { await fs.rm(dir, { recursive: true, force: true }); }
+  if (!(await store.currentWorkspace())) await store.setCurrentWorkspace(slug);
 
   const byStage = Object.fromEntries(VIDEO_STAGES.map((stage) => [stage, videos.filter((v) => v.stage === stage && !v.hidden).length])) as Record<VideoStage, number>;
   const ideaIds = new Set(ideas.map((idea) => String(idea.id)));

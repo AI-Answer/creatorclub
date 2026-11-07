@@ -15,11 +15,11 @@ export const plainView=<T>(value:T):T=>isDraft(value)?current(value as object) a
 const draftFailure=(error:unknown)=>error instanceof TypeError||(error as Error)?.name==='DataCloneError';
 /** Applies one edit with structural sharing: only the edited path is copied, so untouched subtrees keep their identity for memoized views and undo history. */
 export function applyProjectChange(base:Project,fn:(draft:Project)=>void,updatedAt=new Date().toISOString()):Project{
- const failed:{error?:unknown}={};let error:unknown;
- try{return create(base,draft=>{try{fn(draft as Project);}catch(error){failed.error=error;throw error;}draft.updatedAt=updatedAt;});}
+ const failed:{error?:unknown}={};let error:unknown,rejected=false;
+ try{const next=create(base,draft=>{try{rejected=(fn as (p:Project)=>unknown)(draft as Project)===false;}catch(error){failed.error=error;throw error;}});return rejected||next===base?base:{...next,updatedAt};}
  catch(caught){if('error' in failed&&!draftFailure(failed.error))throw failed.error;error=caught;}
  // Only a retry that succeeds proves the draft was at fault; an edit that fails again (its own TypeError) throws that error unreported.
- const next=structuredClone(base);fn(next);next.updatedAt=updatedAt;
+ const next=structuredClone(base);if((fn as (p:Project)=>unknown)(next)===false)return base;if(JSON.stringify(next)===JSON.stringify(base))return base;next.updatedAt=updatedAt;
  if(!draftStats.fallbacks++)console.warn('Creator Compiler: a structural project update failed; this edit used a full copy instead.',error);
  return next;
 }

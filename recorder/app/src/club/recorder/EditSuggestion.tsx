@@ -1,4 +1,5 @@
-import {useEffect,useRef,useState} from 'react';
+import {recorderTasks} from './recorder-task';
+import {useEffect,useState} from 'react';
 import type {AutomationJob,AutomationMutation,QuickActionRequest} from '../../../shared/automation';
 import type {Project} from '../../../shared/types';
 import {api} from '../../api';
@@ -24,7 +25,6 @@ type Removed={job:AutomationJob;seconds:number;before:string;after:string};
 export function EditSuggestion({project,jobs,merge,reload,flush,refresh,onReview,onChanged}:{project:Project;jobs:AutomationJob[];merge(job:AutomationJob):void;reload():Promise<void>;flush():Promise<Project|undefined>;refresh():Promise<void>;onReview():void;onChanged?():void}){
  const suggestion=cutSuggestion(jobs),base=usePlanBase(suggestion.state==='ready'?suggestion.job:undefined);
  const [busy,setBusy]=useState(false),[failed,setFailed]=useState<''|'remove'|'undo'>(''),[removed,setRemoved]=useState<Removed|null>(null);
- const started=useRef('');
  const hasClips=project.clips.length>0;
 
  const plan=async()=>{
@@ -33,16 +33,17 @@ export function EditSuggestion({project,jobs,merge,reload,flush,refresh,onReview
   merge(await api<AutomationJob>(`/projects/${project.id}/quick-action`,{kind:'auto-cut',semantic:false} satisfies QuickActionRequest));
  };
 
- // First open: ask the server for this project's earlier plans, and start one only when there has never been one.
- // The guard is cleared again when the effect is torn down before it finished (StrictMode runs effects twice in development).
+ // StrictMode and remounts subscribe to the same pending plan; only live consumers publish its result.
  useEffect(()=>{
-  if(!hasClips||started.current===project.id)return;
-  started.current=project.id;
-  const request=new AbortController();let done=false;
-  void api<{jobs:AutomationJob[]}>(`/projects/${project.id}/automation`,undefined,undefined,request.signal)
-   .then(({jobs:saved})=>{done=true;for(const job of saved)merge(job);if(!saved.some(j=>j.kind==='auto-cut'&&!j.sceneId))return plan();})
-   .catch(()=>{});
-  return()=>{request.abort();if(!done)started.current='';};
+  if(!hasClips)return;let alive=true;
+  const request=recorderTasks.acquire(project.id,async active=>{
+   const {jobs:saved}=await api<{jobs:AutomationJob[]}>(`/projects/${project.id}/automation`);
+   if(!active()||saved.some(j=>j.kind==='auto-cut'&&!j.sceneId))return saved;
+   const fresh=await flush();if(!active()||!fresh||fresh.id!==project.id)return saved;
+   return [...saved,await api<AutomationJob>(`/projects/${project.id}/quick-action`,{kind:'auto-cut',semantic:false} satisfies QuickActionRequest)];
+  });
+  void request.promise.then(saved=>{if(alive)for(const job of saved)merge(job);}).catch(()=>{});
+  return()=>{alive=false;request.release();};
  },[project.id,hasClips]);
 
  const removeAll=async()=>{

@@ -502,3 +502,29 @@ test('a watcher stopped while it is still starting opens nothing and leaves noth
   assert.equal(opened, closed, 'and everything is closed');
   await docs.setNotesFolder(slug, null);
 });
+
+test('a failed native watcher retries with backoff and delivers changes after reopening', async () => {
+  const { EventEmitter } = await import('node:events');
+  const id = await makeVideo('Watcher retry');
+  await docs.setNotesFolder(slug, null);
+  let opens = 0, changes = 0;
+  let changed: ((event: string, file: string) => void) | undefined;
+  const watchFn = ((_target: string, _options: unknown, listener: (event: string, file: string) => void) => {
+    opens++;
+    changed = listener;
+    const watcher = new EventEmitter() as import('node:fs').FSWatcher;
+    watcher.close = () => {};
+    if (opens === 1) setTimeout(() => watcher.emit('error', new Error('temporary failure')), 5);
+    return watcher;
+  }) as unknown as typeof import('node:fs').watch;
+  const stop = watchBoard(slug, id, () => changes++, { watchFn, debounceMs: 5, pollMs: 25, pollFastMs: 25 });
+  try {
+    await sleep(100);
+    assert.equal(opens, 1, 'a failed watch does not spin');
+    await sleep(1100);
+    assert.equal(opens, 2, 'native watching recovered');
+    changed?.('change', 'note.md');
+    await sleep(25);
+    assert.ok(changes > 0);
+  } finally { stop(); }
+});

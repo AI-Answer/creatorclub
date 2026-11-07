@@ -158,36 +158,32 @@ export async function outlineChangedScene(video: Video, outline: Outline | null)
   }
 }
 
-const running = new Map<string, Promise<Video>>();
 
 /**
  * Continue to recording: creates the video's recording project (or updates it), saves its id and the scene mapping,
  * marks the outline step done and moves the video to Recording when it was not further along. One at a time per video.
  */
 export function continueToRecording(slug: string, id: string, quick = false): Promise<Video> {
-  const key = `${slug}/${id}`;
-  const earlier = running.get(key);
-  if (earlier) return earlier;
-  const work = (async () => {
+  return store.withLock(`recorder:${store.videoDir(slug, id)}`, async () => {
     const video = await store.readVideo(slug, id);
     const outline = await readOutline(slug, id);
     if (!quick && !outline?.scenes.length) throw new ClubError('Create the outline first.');
     const { saveProject } = await sceneforge();
     const existing = await readProjectIfThere(video.recorderProjectId);
     // Quick setup is idempotent: reopening it must never replace scenes, takes or edits.
-    if (quick && existing?.scenes.length) return video;
+    if (quick && existing?.scenes.length && !outline?.scenes.length) return video;
     const unplanned = !outline?.scenes.length;
     const wanted: SceneContent[] = unplanned
       ? [{ outlineId: 'quick-recording', name: 'Quick recording', script: '', notes: '' }]
       : recorderScenes(outline!);
     const saved = existing ? migrateMapping(video.recorderScenes, wanted) : undefined;
     const { project, mapping } = syncProject(video.title, existing, saved, wanted);
+    // Reserve the link first: a crash after saveProject can reuse this exact project id.
+    if (video.recorderProjectId) project.id = video.recorderProjectId;
+    else await store.updateVideo(slug, id, { recorderProjectId: project.id });
     const written = await saveProject(project);
-    await store.updateVideo(slug, id, { recorderProjectId: written.id, recorderScenes: mapping, ...(unplanned ? { quickRecording: true } : { planning: { ...video.planning, outline: true } }) });
+    await store.updateVideo(slug, id, { recorderProjectId: written.id, recorderScenes: mapping, ...(unplanned ? { quickRecording: true } : { planning: { ...video.planning, outline: true }, quickRecording: null }) });
     const stages = ['ideas', 'planning'];
-    return stages.includes(video.stage) ? store.moveVideo(slug, id, 'recording') : store.readVideo(slug, id);
-  })();
-  running.set(key, work);
-  void work.finally(() => running.delete(key)).catch(() => {});
-  return work;
+    return store.moveVideo(slug, id, 'recording', { expectedStages: stages as Video['stage'][] });
+  });
 }

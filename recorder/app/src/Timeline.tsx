@@ -1,3 +1,5 @@
+import {beginGesture} from './timeline-gesture';
+import {applyProjectChange} from './project-draft';
 import {memo,useCallback,useEffect,useLayoutEffect,useMemo,useRef,useState} from 'react';
 import {flushSync} from 'react-dom';
 import {Camera,Clapperboard,Layers,Mic,Music,Type,ZoomIn,GripVertical,Plus,Trash2,ChevronDown} from './Icons';
@@ -11,7 +13,7 @@ import {hasWaveform,waveformMediaKey,waveformBars,waveformEnvelopePath,timelineW
 import {moveRecordingScene} from './recording-scenes';
 import type {Playhead} from './playhead';
 import {sameTimelineWindow,timelineWindow} from './timeline-viewport';
-import {anchoredScroll,linkedIds,ensureLinks,planClipMove,applyClipStarts,trimBounds,trimClips,syncScenesToTakes,DRAG_DEAD_ZONE_PX,rowItems,rowsOverlap} from './timeline-edit';
+import {anchoredScroll,linkedIds,ensureLinks,planClipMove,applyClipStarts,trimBounds,trimClips,syncScenesToTakes,DRAG_DEAD_ZONE_PX,rowItems,collides} from './timeline-edit';
 import {groupMove,hitLayerDrop,isVerticalLayerDrag,sceneDragFingerprint,snapDistancePixels,snapTargets,snapTimelineDelta,timelinePointerDelta,type LayerDrop} from './timeline-drag';
 
 const trackIcons={overlay:Layers,screen:Clapperboard,camera:Camera,audio:Mic,music:Music};
@@ -94,17 +96,17 @@ export const Timeline=memo(function Timeline({project:p,playhead,zoom,selected,o
   if(e.button!==0)return;if(tool==='blade'&&!rangeOnly){onSeek(pointerTime(e));return;}e.preventDefault();gestureCleanup.current?.();
   const content=ref.current?.firstElementChild as HTMLElement|null,scroll=ref.current;if(!content||!scroll)return;
   const position=(clientX:number,clientY:number)=>{const r=content.getBoundingClientRect();return {x:Math.max(0,Math.min(width,clientX-r.left)),y:Math.max(0,Math.min(content.scrollHeight,clientY-r.top))};};
-  const origin=position(e.clientX,e.clientY),base=e.shiftKey&&!rangeOnly?[...selectedIds]:[];let last={x:e.clientX,y:e.clientY},moved=false,box=rectangleBetween(origin,origin),frame=0;
+  const origin=position(e.clientX,e.clientY),base=e.shiftKey&&!rangeOnly?[...selectedIds]:[];let last={x:e.clientX,y:e.clientY},moved=false,box=rectangleBetween(origin,origin),frame=0,closed=false;let detach=()=>{};
   const rows=new Map(Array.from(content.querySelectorAll<HTMLElement>('.timeline-row')).map(row=>[row.dataset.track!,{y:row.offsetTop,height:row.offsetHeight}]));
   const items:SelectionItem[]=[];const add=(id:string,start:number,duration:number,track:string)=>{const row=rows.get(track);if(row)items.push({id,x:start*scale,y:row.y+2,width:Math.max(8,duration*scale),height:Math.max(1,row.height-4)});};
   p.clips.forEach(c=>add(c.id,c.start,clipDuration(c),clipLayerRowId(c,p)));p.elements.forEach(v=>add(v.id,v.start,v.duration,'elements'));p.captions.forEach(v=>add(v.id,v.start,v.end-v.start,'captions'));p.zooms.forEach(v=>add(v.id,v.start,v.duration,'zooms'));
   const update=()=>{const point=position(last.x,last.y);box=rectangleBetween(origin,point);moved ||= box.width>4||box.height>4;if(moved)setMarquee(rangeOnly?{x:box.x,y:0,width:box.width,height:content.scrollHeight}:box);};
   const move=(ev:PointerEvent)=>{last={x:ev.clientX,y:ev.clientY};update();};
-  const clean=()=>{cancelAnimationFrame(frame);window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',up);window.removeEventListener('pointercancel',cancel);window.removeEventListener('keydown',key);setMarquee(null);gestureCleanup.current=null;};
+  const clean=()=>{if(closed)return;closed=true;detach();cancelAnimationFrame(frame);setMarquee(null);gestureCleanup.current=null;};
   const up=()=>{if(moved){if(rangeOnly)onRange(orderedTimeRange(origin.x/scale,position(last.x,last.y).x/scale,projectDuration(p)));else onSelectMany(itemsInRectangle(box,items,base));}else if(!rangeOnly){onSeek(origin.x/scale);if(!e.shiftKey)onSelectMany([]);}clean();};
-  const cancel=()=>clean(),key=(ev:KeyboardEvent)=>{if(ev.key==='Escape'){ev.preventDefault();clean();}};
-  const scrollFrame=()=>{const bounds=scroll.getBoundingClientRect(),dx=last.x<bounds.left+24?-Math.min(20,(bounds.left+24-last.x)/2):last.x>bounds.right-24?Math.min(20,(last.x-bounds.right+24)/2):0;if(dx&&moved){scroll.scrollLeft+=dx;update();}frame=requestAnimationFrame(scrollFrame);};
-  window.addEventListener('pointermove',move);window.addEventListener('pointerup',up);window.addEventListener('pointercancel',cancel);window.addEventListener('keydown',key);frame=requestAnimationFrame(scrollFrame);gestureCleanup.current=clean;
+
+  const scrollFrame=()=>{if(closed)return;const bounds=scroll.getBoundingClientRect(),dx=last.x<bounds.left+24?-Math.min(20,(bounds.left+24-last.x)/2):last.x>bounds.right-24?Math.min(20,(last.x-bounds.right+24)/2):0;if(dx&&moved){scroll.scrollLeft+=dx;update();}frame=requestAnimationFrame(scrollFrame);};
+  detach=beginGesture(e,{move,drop:up,cancel:clean,valid:()=>latest.current.id===p.id&&JSON.stringify(rowItems(latest.current))===JSON.stringify(rowItems(p))}).dispose;frame=requestAnimationFrame(scrollFrame);gestureCleanup.current=clean;
  }
  function begin(e:React.PointerEvent,c:Clip,mode:'move'|'left'|'right'){
   if(e.button!==0)return;e.stopPropagation();e.preventDefault();
@@ -119,13 +121,13 @@ export const Timeline=memo(function Timeline({project:p,playhead,zoom,selected,o
   const measured=Array.from(content.querySelectorAll<HTMLElement>('.timeline-row[data-layer-kind]')).map(row=>({id:row.dataset.track!,kind:row.dataset.layerKind as 'video'|'audio',top:row.offsetTop,bottom:row.offsetTop+row.offsetHeight}));
   const sourceRow=measured.find(row=>row.id===clipLayerRowId(c,p))!,kind=clipLayerKind(c),initial={x:e.clientX,y:e.clientY,left:scroll.scrollLeft,top:scroll.scrollTop};
   let last={x:e.clientX,y:e.clientY},lastEvent=e.nativeEvent as PointerEvent,delta=0,ripple=!e.altKey,plan:ReturnType<typeof planClipMove>|null=null,drop:LayerDrop|null=null,moved=false,frame=0,closed=false,shown='';
-  let affected=new Set(ids);
+  let detach=()=>{};let affected=new Set(ids);
   const sameTiming=(project:Project)=>[...affected].every(id=>{const before=p.clips.find(item=>item.id===id),now=project.clips.find(item=>item.id===id);return !before||!!now&&before.start===now.start&&before.sourceIn===now.sourceIn&&before.sourceOut===now.sourceOut&&before.speed===now.speed&&before.linkId===now.linkId&&clipLayerRowId(before,p)===clipLayerRowId(now,project);});
   // Pointer moves that leave the preview unchanged, e.g. while snapped, skip the render.
   const show=(next:DragPreview)=>{const key=JSON.stringify([[...next.clips],next.guide,next.insert,next.drop,next.dropTop,next.dropHeight,next.label]);if(key===shown)return;shown=key;setDrag(next);};
   const update=()=>{
    const dx=last.x-initial.x+scroll.scrollLeft-initial.left,dy=last.y-initial.y+scroll.scrollTop-initial.top;
-   moved ||= Math.abs(dx)>=DRAG_DEAD_ZONE_PX||Math.abs(dy)>=DRAG_DEAD_ZONE_PX;if(!moved)return;
+   moved ||= Math.abs(dx)>=(mode==='move'?DRAG_DEAD_ZONE_PX:3)||Math.abs(dy)>=(mode==='move'?DRAG_DEAD_ZONE_PX:3);if(!moved)return;
    const raw=timelinePointerDelta(initial.x,last.x,initial.left,scroll.scrollLeft,scale),thresholdPx=snapDistancePixels(scroll.clientWidth);
    let guide:number|null=null,insert:number|null=null,shiftY=0,dropTop:number|null=null,dropHeight=0,label='';drop=null;
    if(mode==='move'){
@@ -157,22 +159,22 @@ export const Timeline=memo(function Timeline({project:p,playhead,zoom,selected,o
    }else{
     ripple=!lastEvent.altKey;const bounds=trimBounds(p,ids,mode,ripple,mediaById);
     const snap=snapTimelineDelta({delta:raw,anchors:[mode==='left'?c.start:c.start+clipDuration(c)],targets,scale,minDelta:bounds.min,maxDelta:bounds.max,enabled:p.settings.snap,thresholdPx});delta=snap.delta;guide=snap.guide?.time??null;
-    const trial=structuredClone(p);trimClips(trial,ids,mode,delta,ripple);
+    const trial=applyProjectChange(p,d=>trimClips(d,ids,mode,delta,ripple));
     const previews=new Map<string,ClipPreview>();affected=new Set(ids);
     for(const clip of trial.clips){const before=p.clips.find(item=>item.id===clip.id);if(!before||before.start===clip.start&&before.sourceIn===clip.sourceIn&&before.sourceOut===clip.sourceOut)continue;affected.add(clip.id);previews.set(clip.id,{start:clip.start,duration:clipDuration(clip),dy:0,sourceIn:clip.sourceIn,sourceOut:clip.sourceOut});}
     show({clips:previews,guide,insert:null,drop:null,dropTop:null,dropHeight:0,label:ripple?'Trim linked clips · close the gap':'Trim linked clips · gap kept'});
    }
   };
   const move=(event:PointerEvent)=>{if(event.pointerId!==e.pointerId)return;last={x:event.clientX,y:event.clientY};lastEvent=event;update();};
-  const clean=()=>{if(closed)return;closed=true;cancelAnimationFrame(frame);window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',up);window.removeEventListener('pointercancel',cancel);window.removeEventListener('keydown',key,true);window.removeEventListener('blur',cancel);setDrag(null);gestureCleanup.current=null;};
-  const cancel=()=>clean(),key=(event:KeyboardEvent)=>{if(event.key==='Escape'){event.preventDefault();event.stopPropagation();clean();}};
+  const clean=()=>{if(closed)return;closed=true;detach();cancelAnimationFrame(frame);setDrag(null);gestureCleanup.current=null;};
+
   const up=(event:PointerEvent)=>{
    if(event.pointerId!==e.pointerId)return;last={x:event.clientX,y:event.clientY};lastEvent=event;update();clean();
    if(!moved){if(mode==='move')onSeek(Math.max(0,(event.clientX-scroll.getBoundingClientRect().left+scroll.scrollLeft)/scale));return;}
    if(mode==='move'&&!drop&&(!plan||plan.kind==='none')||mode!=='move'&&!delta)return;
    if(!sameTiming(latest.current)){setLayerNotice('The timeline changed during the drag, so nothing moved. Try again.');return;}
    const chosen=plan,destination=drop,amount=delta,closeGap=ripple;
-   if(destination){const trial=structuredClone(latest.current);moveClipsToLayer(trial,ids,c.id,destination);const clips=new Set(trial.clips.map(clip=>clip.id));if(rowsOverlap(rowItems(trial).filter(item=>clips.has(item.id)))){setLayerNotice('That layer is occupied. Choose an empty layer for this take.');return;}}
+   if(destination){const trial=structuredClone(latest.current);moveClipsToLayer(trial,ids,c.id,destination);const items=rowItems(trial),moving=items.filter(item=>ids.has(item.id)&&trial.clips.some(clip=>clip.id===item.id&&clipLayerKind(clip)===clipLayerKind(c)));if(collides(moving,0,items)){setLayerNotice('That layer is occupied. Choose an empty layer for this take.');return;}}
    change(project=>{
     if(!sameTiming(project))return;
     ensureLinks(project);
@@ -182,7 +184,7 @@ export const Timeline=memo(function Timeline({project:p,playhead,zoom,selected,o
    });
   };
   const scrollFrame=()=>{if(closed)return;const bounds=scroll.getBoundingClientRect(),edge=24;let sx=0,sy=0;if(moved){sx=last.x<bounds.left+edge?-Math.min(16,(bounds.left+edge-last.x)/2):last.x>bounds.right-edge?Math.min(16,(last.x-bounds.right+edge)/2):0;sy=last.y<bounds.top+28+edge?-Math.min(12,(bounds.top+28+edge-last.y)/2):last.y>bounds.bottom-edge?Math.min(12,(last.y-bounds.bottom+edge)/2):0;const previousLeft=scroll.scrollLeft,previousTop=scroll.scrollTop;scroll.scrollLeft+=sx;scroll.scrollTop+=sy;if(previousLeft!==scroll.scrollLeft||previousTop!==scroll.scrollTop)update();}frame=requestAnimationFrame(scrollFrame);};
-  window.addEventListener('pointermove',move);window.addEventListener('pointerup',up);window.addEventListener('pointercancel',cancel);window.addEventListener('keydown',key,true);window.addEventListener('blur',cancel);gestureCleanup.current=clean;frame=requestAnimationFrame(scrollFrame);
+  detach=beginGesture(e,{move,drop:up,cancel:clean,valid:()=>latest.current.id===p.id}).dispose;gestureCleanup.current=clean;frame=requestAnimationFrame(scrollFrame);
  }
  const beginRef=useRef<BeginClip>(begin);
  const beginClip=useCallback<BeginClip>((e,c,mode)=>beginRef.current(e,c,mode),[]);
@@ -194,7 +196,7 @@ export const Timeline=memo(function Timeline({project:p,playhead,zoom,selected,o
  useEffect(()=>{const el=ref.current;if(!el)return;let overrides=loadShortcutOverrides(),pending=0,frame=0;const reload=()=>{overrides=loadShortcutOverrides();};const apply=()=>{frame=0;const next=Math.max(8,Math.min(200,zoomTarget.current*Math.exp(-pending*.005)));pending=0;if(next!==zoomTarget.current){zoomTarget.current=next;zoomHandler.current(next);}};const wheel=(event:WheelEvent)=>{const result=resolveShortcut(event,{scope:'edit',surface:'timeline',availableActions:['timelineScroll','timelineZoom']},overrides);if(!result)return;event.preventDefault();if(result.id==='timelineScroll')el.scrollLeft+=event.deltaY||event.deltaX;else{pending+=event.deltaY;frame||=requestAnimationFrame(apply);}};el.addEventListener('wheel',wheel,{passive:false});window.addEventListener('sceneforge-shortcuts-changed',reload);window.addEventListener('storage',reload);return()=>{cancelAnimationFrame(frame);el.removeEventListener('wheel',wheel);window.removeEventListener('sceneforge-shortcuts-changed',reload);window.removeEventListener('storage',reload);};},[]);
  return <div className={`timeline tool-${tool} ${drag?'timeline-dragging':''}`}><div className="timeline-layer-toolbar" onPointerDown={event=>event.stopPropagation()} onKeyDown={event=>{event.stopPropagation();if(event.key==='Escape'){event.preventDefault();setAddingLayer(false);addLayerButton.current?.focus();}}}><div className="timeline-add-layer" ref={layerMenu}><button type="button" className="timeline-add-layer-button" ref={addLayerButton} aria-haspopup="menu" aria-expanded={addingLayer} disabled={(p.timelineLayers?.length??0)>=2000} onClick={()=>setAddingLayer(value=>!value)}><Plus size={14}/>Add layer<ChevronDown size={12}/></button>{addingLayer&&<div role="menu" aria-label="Add timeline layer" className="timeline-add-layer-menu" onKeyDown={event=>{if(event.key==='ArrowDown'||event.key==='ArrowUp'){event.preventDefault();const buttons=[...event.currentTarget.querySelectorAll<HTMLButtonElement>('button')],index=buttons.indexOf(document.activeElement as HTMLButtonElement);buttons[(index+(event.key==='ArrowDown'?1:buttons.length-1))%buttons.length]?.focus();}}}><button type="button" role="menuitem" onClick={()=>addLayer('video')}><Layers size={14}/>Video layer</button><button type="button" role="menuitem" onClick={()=>addLayer('audio')}><Music size={14}/>Audio layer</button></div>}</div>{onToggleWaveforms&&<button type="button" className="timeline-waveform-toggle" aria-pressed={showWaveforms} onClick={onToggleWaveforms} title="Show or hide source audio waveforms (E)"><Music size={13}/>Waveforms</button>}<span role="status">{layerNotice||'Drag clips between rows to arrange layers'}</span></div><div className="track-labels"><div ref={trackLabels}><div className="ruler-label"><GripVertical size={14}/>TRACKS</div>{tracks.map(t=><div className="track-label" key={t.id}><t.icon size={14}/><span>{t.name}</span><span className="track-count">{t.id==='captions'?p.captions.length:t.id==='zooms'?p.zooms.length:t.id==='elements'?p.elements.length:(clipsByTrack.get(t.id)?.length||0)||'—'}</span></div>)}</div></div>
  <div className="timeline-scroll" ref={ref} onScroll={e=>{const el=e.currentTarget;scrollPos.current={left:el.scrollLeft,top:el.scrollTop};placeLabels();view(scrollPos.current.left,winRef.current.width);}}><div className="timeline-content" style={{width}} onPointerMove={e=>{if(e.buttons||tool!=='blade'&&!scrubbing)return;const at=pointerTime(e);if(tool==='blade'){bladeAt.current=at;placeBlade();}if(scrubbing&&performance.now()-lastScrub.current>45){lastScrub.current=performance.now();onSeek(at);}}} onPointerLeave={()=>{bladeAt.current=null;placeBlade();}}>
-  <div className="time-ruler" title="Click to seek. Shift-drag to select a time range." onPointerDown={e=>{if(e.shiftKey){beginSelection(e,true);return;}onSeek(pointerTime(e));const rect=e.currentTarget.getBoundingClientRect();const move=(ev:PointerEvent)=>onSeek(Math.max(0,Math.min(extent,(ev.clientX-rect.left)/scale)));const up=()=>{window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',up);};window.addEventListener('pointermove',move);window.addEventListener('pointerup',up);}}>{ruler}</div>
+  <div className="time-ruler" title="Click to seek. Shift-drag to select a time range." onPointerDown={e=>{if(e.shiftKey){beginSelection(e,true);return;}if(e.button!==0)return;gestureCleanup.current?.();onSeek(pointerTime(e));const rect=e.currentTarget.getBoundingClientRect();const handle=beginGesture(e,{move:ev=>onSeek(Math.max(0,Math.min(extent,(ev.clientX-rect.left)/scale))),cancel:()=>{gestureCleanup.current=null;},drop:()=>{gestureCleanup.current=null;},valid:()=>latest.current.id===p.id});gestureCleanup.current=handle.cancel;}}>{ruler}</div>
   <div className="scene-markers" onDragOver={event=>{if(sceneDrag.current){event.preventDefault();event.dataTransfer.dropEffect='move';setSceneDrop({id:'end',after:true});}}} onDrop={event=>finishSceneDrop(event)}>{p.scenes.map((s,i)=>{const stop=p.scenes[i+1]?.start??Math.max(s.start+s.duration,duration);if(s.start>end||stop<start)return null;return <div key={s.id} data-scene-id={s.id} className={`timeline-scene ${sceneDrop?.id===s.id?(sceneDrop.after?'scene-drop-after':'scene-drop-before'):''}`} style={{left:s.start*scale,width:Math.max(34,(stop-s.start)*scale)}} draggable onDragStart={event=>{if((event.target as HTMLElement).closest('[role="menu"],.timeline-scene-actions')){event.preventDefault();return;}sceneDrag.current={id:s.id,projectId:p.id,snapshot:sceneDragFingerprint(p)};setSceneMenu(null);event.dataTransfer.effectAllowed='move';event.dataTransfer.setData('application/sceneforge-scene',s.id);}} onDragEnd={()=>{sceneDrag.current=null;setSceneDrop(null);}} onDragOver={event=>{if(!sceneDrag.current)return;event.preventDefault();event.stopPropagation();event.dataTransfer.dropEffect='move';const rect=event.currentTarget.getBoundingClientRect();setSceneDrop({id:s.id,after:event.clientX>=rect.left+rect.width/2});}} onDrop={event=>finishSceneDrop(event,s.id)} onPointerDown={event=>event.stopPropagation()} onKeyDown={event=>{event.stopPropagation();if(event.key==='Escape'){sceneDrag.current=null;setSceneDrop(null);setSceneMenu(null);return;}if(event.altKey&&(event.key==='ArrowLeft'||event.key==='ArrowRight')){event.preventDefault();if(event.key==='ArrowLeft'&&i>0)moveScene(s.id,p.scenes[i-1].id);else if(event.key==='ArrowRight'&&i<p.scenes.length-1)moveScene(s.id,p.scenes[i+2]?.id);}}}>
     <button type="button" className="timeline-scene-title" title={`${s.name} · drag to reorder; Option+Left/Right moves one scene`} aria-label={`Scene ${i+1}: ${s.name}. Drag to reorder`} onClick={()=>onSeek(s.start)}><span>Scene {i+1}</span><b>{s.name}</b></button>
     {onSceneAction&&<button type="button" className="timeline-scene-actions" draggable={false} aria-label={`Actions for ${s.name}`} aria-haspopup="menu" aria-expanded={sceneMenu===s.id} onClick={()=>setSceneMenu(sceneMenu===s.id?null:s.id)}><ChevronDown size={12}/></button>}

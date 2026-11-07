@@ -72,3 +72,7 @@ test('screen timeout cannot queue a second OS prompt or reuse the old selected s
  const late=stream('video');waits[0].resolve(late.value);await tick();assert.equal(late.track.stops,1);
  const retry=preview.acquire({...options,sourceId:'screen:2'});await tick();assert.equal(calls,2);const current=stream('video');waits[1].resolve(current.value);assert.equal(await retry,current.value);preview.dispose();
 });
+test('an app-managed source switch waits for the cancelled display request instead of surfacing a pending-prompt error',async()=>{
+ const old=deferred<MediaStream>(),next=deferred<MediaStream>();let calls=0;const devices={getDisplayMedia:()=>++calls===1?old.promise:next.promise};
+ const first=requestDisplayMedia({},devices,true);const second=requestDisplayMedia({},devices,true);assert.equal(calls,1);old.reject(new DOMException('superseded','AbortError'));await assert.rejects(first,{name:'AbortError'});await tick();assert.equal(calls,2);const raw=stream('video');next.resolve(raw.value);assert.equal(await second,raw.value);raw.track.stop();
+});

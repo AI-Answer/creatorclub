@@ -9,9 +9,10 @@ const {createCaptureManager}=require('./capture.cjs');
 const {createRecordingHud}=require('./recording-hud.cjs');
 const {createNativeRecordingManager}=require('./native-recording.cjs');
 const {createCaptureBorder}=require('./capture-border.cjs');
+const {createRecordingCloseGuard}=require('./recording-close-guard.cjs');
 const {createMediaPermissionRequests}=require('./media-permissions.cjs');
 const {createPermissionHelper}=require('./permission-helper.cjs');
-let permissionHelper=null,screenRestartRequired=false,screenSettingsOpened=false,relaunchRequested=false;
+let permissionHelper=null,relaunchRequested=false;
 const {createMotionRenderer}=require('./motion-render.cjs');
 let motionRenderer=null;
 let mainWindow, service, captureManager, recordingHud, nativeRecording, captureBorder, ownService = false, quitting = false;
@@ -38,8 +39,7 @@ function getNativeMediaStatus(kind){
 function relaunchApp(){app.relaunch();relaunchRequested=true;app.quit();}
 function getMediaPermissions(){
  const screenStatus=getNativeMediaStatus('screen');
- if(screenSettingsOpened&&screenStatus==='granted')screenRestartRequired=true;
- return {platform:process.platform,camera:getNativeMediaStatus('camera'),microphone:getNativeMediaStatus('microphone'),screen:screenStatus,systemAudio:'unknown',screenRestartRequired};
+ return {platform:process.platform,camera:getNativeMediaStatus('camera'),microphone:getNativeMediaStatus('microphone'),screen:screenStatus,systemAudio:'unknown',screenRestartRequired:screenStatus==='granted'&&!screenGrantedAtLaunch};
 }
 async function requestMediaPermission(kind){
  const result=await nativePermissionRequests.request(kind);
@@ -55,16 +55,25 @@ async function openPrivacySettings(section){
   // Register this running app in TCC before navigating to the privacy pane. Do not
   // wait on a native consent dialog or retain any screen thumbnails during setup.
   void desktopCapturer.getSources({types:['screen'],thumbnailSize:{width:0,height:0},fetchWindowIcons:false}).catch(()=>{});
-  screenSettingsOpened=true;
  }
  await shell.openExternal('x-apple.systempreferences:com.apple.preference.security?'+privacyPanes[section]);
  if(section==='screen'||(['camera','microphone'].includes(section)&&['denied','restricted'].includes(getNativeMediaStatus(section))))await permissionHelper.open(section);
 }
+const screenGrantedAtLaunch=getNativeMediaStatus('screen')==='granted';
+let lastPermissionSnapshot='';
+function publishMediaPermissions(){
+ const permissions=getMediaPermissions(),snapshot=JSON.stringify(permissions);if(snapshot===lastPermissionSnapshot)return;lastPermissionSnapshot=snapshot;
+ if(mainWindow&&!mainWindow.isDestroyed())mainWindow.webContents.send('media-permissions-changed',permissions);
+}
+function showEditor(){if(mainWindow&&!mainWindow.isDestroyed()){if(mainWindow.isMinimized())mainWindow.restore();mainWindow.show();mainWindow.focus();publishMainVisibility();}}
 function verifyDesktopSender(event){
  if(!mainWindow||mainWindow.isDestroyed()||event.sender!==mainWindow.webContents||event.senderFrame!==mainWindow.webContents.mainFrame)throw new Error('Untrusted window');
  try{if(new URL(event.senderFrame.url).origin===base)return;}catch{}
  throw new Error('Untrusted window');
 }
+const recordingCloseGuard=createRecordingCloseGuard({ask:async({status,timedOut},signal)=>{showEditor();const saving=status==='saving'||timedOut;const result=await dialog.showMessageBox(mainWindow,{type:'question',message:saving?'Saving your take…':status==='starting'?'Recording is starting':'A recording is active',detail:saving?'You can keep waiting, or quit without saving. Unfinished chunks stay in local capture storage for recovery.':'Stop and save the take before closing?',buttons:saving?['Keep waiting','Quit without saving']:['Keep recording','Stop and save'],defaultId:0,cancelId:0,noLink:true,signal});return result.response===1?(saving?'discard':true):false;},stop:()=>{if(mainWindow&&!mainWindow.isDestroyed())mainWindow.webContents.send('recording-hud-command','stop');}});
+let pendingRecordingClose=null,recordingCloseTask=null;
+function guardRecordingClose(event,close){if(!recordingCloseGuard.active())return false;event.preventDefault();pendingRecordingClose=close;if(!recordingCloseTask)recordingCloseTask=recordingCloseGuard.attempt().then(saved=>{const finish=pendingRecordingClose;pendingRecordingClose=null;recordingCloseTask=null;if(saved)finish?.();}).catch(error=>{recordingCloseTask=null;pendingRecordingClose=null;console.error(error);});return true;}
 function bindingList(action){
  if(Object.hasOwn(shortcutContext.bindings,action))return shortcutContext.bindings[action];
  if(globalBindings[action])return [{kind:'keyboard',code:globalBindings[action],modifiers:['Meta','Control','Shift']}];
@@ -147,7 +156,8 @@ fs.mkdirSync(paths.userData,{recursive:true});
 app.setPath('userData',paths.userData);
 const gotLock=app.requestSingleInstanceLock();
 if(!gotLock)app.quit();
-app.on('second-instance',()=>{if(mainWindow){mainWindow.show();mainWindow.focus();}});
+app.on('second-instance',showEditor);
+app.on('activate',showEditor);
 // Checked before Electron is ready, so a free port (the usual case) is already known and the service forks first thing.
 // A plain TCP probe: a refused connection answers in about a millisecond, with no HTTP client to start.
 const portOpen=()=>new Promise(resolve=>{const socket=net.connect(PORT,'127.0.0.1');socket.once('connect',()=>{socket.destroy();resolve(true);});socket.once('error',()=>resolve(false));});
@@ -168,21 +178,19 @@ async function serviceHealth(){
  return isCreatorClubService(health)?health:null;
 }
 const orphaned=health=>Boolean(health.parentPid&&!processAlive(health.parentPid));
-async function serviceAnswers(){const health=await serviceHealth();return Boolean(health)&&!orphaned(health);}
-// The installed app's own service bundle, compared with a running service's `build` (see server/index.ts).
-const ownBuild=(()=>{try{const file=fs.statSync(path.join(projectRoot,'server-dist/index.mjs'));return `${file.size}-${Math.round(file.mtimeMs)}`;}catch{return null;}})();
-async function startService(){
+async function startServiceOnce(){
  // Only an occupied port is asked whether it is already a Creator Compiler service; otherwise fork without waiting.
- if(portBusy===null)await portCheck;
+ if(portBusy===null)await portCheck;else portBusy=await portOpen();
  if(portBusy){
   let leaving=null;
   try{
    const health=await serviceHealth();
-   // A service the assistant tools started on their own (no app of its own) from an older install is stopped and replaced,
-   // so an update always runs its own code. One whose app has quit is stopping itself. Anything else is used as it is.
-   const stale=Boolean(health&&app.isPackaged&&!health.parentPid&&health.pid&&health.build&&ownBuild&&health.build!==ownBuild);
-   if(health&&!stale&&!orphaned(health))return;
-   if(stale)process.kill(health.pid,'SIGTERM');
+   // Parentless MCP services use Chrome. Replace an idle one so this app supplies the motion bridge.
+   let idle=health?.runningJobs===0;
+   if(health&&!health.parentPid&&health.runningJobs===undefined){const response=await fetch(base+'/api/jobs',{signal:AbortSignal.timeout(2000)});if(response.ok){const jobs=await response.json();idle=Array.isArray(jobs)&&!jobs.some(j=>['queued','running'].includes(j.status));}}
+   const replace=Boolean(health&&!health.parentPid&&health.pid&&idle);
+   if(health&&!replace&&!orphaned(health))return;
+   if(replace){if(health.owner){const response=await fetch(base+'/api/service/release',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pid:health.pid}),signal:AbortSignal.timeout(2000)});if(!response.ok){await response.body?.cancel();return;}await response.body?.cancel();}else process.kill(health.pid,'SIGTERM');}
    leaving=health?.pid||null;
   }catch{}
   // Wait for that process to exit, not just its port: it holds the data folder's export lock until it does.
@@ -198,13 +206,24 @@ async function startService(){
  if(fs.existsSync(entry))service=utilityProcess.fork(entry,[],{env,stdio:'pipe',serviceName:'Creator Compiler media service'});
  else service=spawn(process.env.SCENEFORGE_NODE||process.env.npm_node_execpath||'node',['--import','tsx',path.join(projectRoot,'server/index.ts')],{cwd:projectRoot,env,stdio:['pipe','pipe','pipe','ipc']});
  ownService=true;
+ const child=service;let ended=false,stableTimer;
+ const lost=error=>{if(ended)return;ended=true;clearTimeout(stableTimer);if(error)console.error('Media service stopped',error);if(service!==child)return;service=null;ownService=false;if(!quitting)restartService();};
+ child.once('exit',code=>lost(code));child.once('error',lost);
  // Motion blocks are captured here, in offscreen windows, for the service (which cannot open windows): it asks over its message channel.
  motionRenderer??=createMotionRenderer({BrowserWindow,session});
- const post=message=>{try{if(typeof service.postMessage==='function')service.postMessage(message);else if(service.connected)service.send(message);}catch(error){console.error(error);}};
+ const post=message=>{try{if(typeof child.postMessage==='function')child.postMessage(message);else if(child.connected)child.send(message);}catch(error){console.error(error);}};
  service.on('message',message=>{motionRenderer.handle(message,post);});
  service.stdout?.on('data',d=>console.log(d.toString()));service.stderr?.on('data',d=>console.error(d.toString()));
- for(const deadline=Date.now()+30000;Date.now()<deadline;){try{if(await serviceAnswers())return;}catch{}await new Promise(r=>setTimeout(r,10));}
+ for(const deadline=Date.now()+30000;Date.now()<deadline;){if(ended)throw Error('The local media service exited during startup.');try{const health=await serviceHealth();if(health?.pid===child.pid){stableTimer=setTimeout(()=>{startService.failures=0;},30000);stableTimer.unref();return;}}catch{}await new Promise(r=>setTimeout(r,10));}
  throw new Error(`The local media service did not start. Reopen Creator Compiler and check that port ${PORT} is available.`);
+}
+function startService(){if(startService.pending)return startService.pending;startService.pending=startServiceOnce().finally(()=>{startService.pending=null;});return startService.pending;}
+function restartService(){
+ if(quitting||startService.restartTimer||startService.restartStopped)return;
+ const now=Date.now(),failures=(startService.failureTimes||[]).filter(time=>now-time<120000);failures.push(now);startService.failureTimes=failures;
+ if(failures.length>=5){startService.restartStopped=true;dialog.showErrorBox('Media service stopped','Creator Compiler could not keep its media service running after five failures in two minutes. Your editor is still open. Reopen the app to retry.');return;}
+ const delay=Math.min(30000,500*2**Math.min(startService.failures||0,6));startService.failures=(startService.failures||0)+1;
+ startService.restartTimer=setTimeout(async()=>{startService.restartTimer=null;if(quitting)return;try{await startService();if(!quitting&&mainWindow&&!mainWindow.isDestroyed())mainWindow.webContents.send('media-service-ready');}catch(error){console.error('Could not restart media service',error);restartService();}},delay);startService.restartTimer.unref();
 }
 // Hidden/minimized editor: the renderer pauses decorative work, the recorder stops previews.
 // Focus re-checks too, so a stale value cannot outlive the window coming forward.
@@ -220,7 +239,7 @@ app.whenReady().then(async()=>{
  mainWindow=new BrowserWindow({width:1480,height:960,minWidth:1000,minHeight:680,title:CREATORCLUB.name,show:true,backgroundColor:themeBackground[windowTheme??(nativeTheme.shouldUseDarkColors?'dark':'light')],titleBarStyle:process.platform==='darwin'?'hiddenInset':'default',...(process.platform==='darwin'?{trafficLightPosition:{x:13,y:13}}:{}),webPreferences:{preload:path.join(__dirname,'preload.cjs'),additionalArguments:[`--privacy-app-name=${appName}`],contextIsolation:true,nodeIntegration:false,sandbox:true,backgroundThrottling:false}});
  if(process.platform==='darwin')permissionHelper=createPermissionHelper({app,BrowserWindow,ipcMain,screen,shell,nativeImage:require('electron').nativeImage,getStatus:getNativeMediaStatus,appName,relaunch:relaunchApp,onGranted:()=>{
   if(!mainWindow||mainWindow.isDestroyed())return;
-  mainWindow.webContents.send('media-permissions-changed',getMediaPermissions());
+  publishMediaPermissions();
   if(mainWindow.isMinimized())mainWindow.restore();mainWindow.show();app.focus({steal:true});mainWindow.focus();
  }});
  const trusted=(url)=>{try{return new URL(url).origin===base;}catch{return false;}};
@@ -253,11 +272,14 @@ app.whenReady().then(async()=>{
   fs.promises.writeFile(windowStatePath,JSON.stringify({theme})).catch(console.error);
  });
  ipcMain.handle('choose-folder',async e=>{verifyDesktopSender(e);const result=await dialog.showOpenDialog(mainWindow,{title:'Choose a project or media folder',properties:['openDirectory','createDirectory']});return result.canceled?null:result.filePaths[0]??null;});
+ ipcMain.on('recording-state',(event,status)=>{try{verifyDesktopSender(event);recordingCloseGuard.update(status);}catch{}});
+ mainWindow.on('close',event=>guardRecordingClose(event,()=>mainWindow?.close()));
+ mainWindow.on('focus',publishMediaPermissions);
  mainWindow.webContents.on('before-input-event',routeNativeInput);
  mainWindow.webContents.on('did-start-loading',resetShortcutContext);
- mainWindow.webContents.on('did-start-loading',()=>{captureManager.reset();recordingHud.end();void nativeRecording.reset?.();});
+ mainWindow.webContents.on('did-start-loading',()=>{recordingCloseGuard.update('idle');captureManager.reset();recordingHud.end();void nativeRecording.reset?.();});
  mainWindow.webContents.on('render-process-gone',resetShortcutContext);
- mainWindow.webContents.on('render-process-gone',()=>{captureManager.reset();recordingHud.end();void nativeRecording.reset?.();});
+ mainWindow.webContents.on('render-process-gone',()=>{recordingCloseGuard.update('idle');captureManager.reset();recordingHud.end();void nativeRecording.reset?.();});
  mainWindow.webContents.on('did-start-loading',()=>{mainVisibility=null;});
  for(const name of ['show','hide','minimize','restore','focus'])mainWindow.on(name,publishMainVisibility);
  mainWindow.once('ready-to-show',()=>{if(mainWindow&&!mainWindow.isDestroyed())mainWindow.show();});
@@ -273,4 +295,4 @@ app.whenReady().then(async()=>{
  try{await mainWindow.loadURL(base);}finally{if(mainWindow&&!mainWindow.isDestroyed()&&!mainWindow.isVisible())mainWindow.show();}
 });
 app.on('window-all-closed',()=>app.quit());
-app.on('before-quit',e=>{if(quitting)return;e.preventDefault();quitting=true;permissionHelper?.dispose();captureBorder?.clear();recordingHud?.dispose();captureManager?.dispose();clearGlobalShortcuts();motionRenderer?.dispose();Promise.resolve(nativeRecording?.dispose()).catch(console.error).finally(()=>{if(ownService)service?.kill();if(relaunchRequested)app.exit(0);else app.quit();});});
+app.on('before-quit',e=>{if(quitting)return;if(guardRecordingClose(e,()=>app.quit()))return;e.preventDefault();quitting=true;permissionHelper?.dispose();captureBorder?.clear();recordingHud?.dispose();captureManager?.dispose();clearGlobalShortcuts();motionRenderer?.dispose();Promise.resolve(nativeRecording?.dispose()).catch(console.error).finally(()=>{if(ownService)service?.kill();if(relaunchRequested)app.exit(0);else app.quit();});});
