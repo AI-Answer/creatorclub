@@ -339,7 +339,7 @@ export async function filmstrip(m: Media, cacheDir: string): Promise<string> {
     }
   });
 }
-/** Absolute source-level peaks, uniformly covering [0, duration), never normalized. */
+/** Absolute source-level peaks at 50 Hz through 24 hours, uniformly covering [0, duration), never normalized. */
 export async function waveform(m: Media, cacheDir: string): Promise<number[]> {
   // Older video metadata has no hasAudio flag. Probe it instead of hiding its waveform.
   if (m.kind !== "audio" && (m.kind !== "video" || m.hasAudio === false)) return [];
@@ -347,9 +347,9 @@ export async function waveform(m: Media, cacheDir: string): Promise<number[]> {
     throw new Error("Waveform requires a source duration between zero and 24 hours");
   await fs.mkdir(cacheDir, { recursive: true });
   const source = await identity(m.path),
-    count = Math.min(16000, Math.max(64, Math.ceil(m.duration * 50))),
-    key = hash(`${source.key}:absolute-channel-peaks-v2:${m.duration}:${count}`),
-    file = path.join(cacheDir, `${key}.wave-v2.json`);
+    count = Math.min(4320000, Math.max(64, Math.ceil(m.duration * 50))),
+    key = hash(`${source.key}:absolute-channel-peaks-v3:${m.duration}:${count}`),
+    file = path.join(cacheDir, `${key}.wave-v3.json`);
   return unique(file, async () => {
     try {
       const cached: unknown = JSON.parse(await fs.readFile(file, "utf8"));
@@ -406,6 +406,8 @@ export async function waveform(m: Media, cacheDir: string): Promise<number[]> {
     }));
     if ((await identity(m.path)).key !== source.key)
       throw new Error("Media changed during waveform analysis; try again");
+    // Keep the numeric-array API used by recording review/MCP. Four decimals shrink JSON without erasing quiet speech near the -72 dB display floor.
+    for (let i = 0; i < bins.length; i++) bins[i] = Math.round(bins[i] * 10000) / 10000;
     const temporary = file + `.${randomUUID()}.tmp`;
     try {
       await fs.writeFile(temporary, JSON.stringify(bins));

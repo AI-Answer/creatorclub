@@ -20,7 +20,7 @@ test('platform command modifier is exact and portable mapping is explicit',()=>{
   assert.equal(shortcutLabel('split',{},'windows'),'Ctrl+B');
 });
 test('typing, IME, dialogs and already-handled events never edit the timeline',()=>{
-  for(const key of ['b','s','q','w','Backspace','Delete',' ','ArrowLeft']){
+  for(const key of ['b','s','n','q','w','Backspace','Delete',' ','ArrowLeft']){
     assert.equal(action({key},{...edit,editable:true}),undefined);
     assert.equal(action({key,isComposing:true}),undefined);
     assert.equal(action({key,keyCode:229}),undefined);
@@ -107,7 +107,7 @@ test('persistence validates corrupt and untrusted storage and reports failed wri
   stored=JSON.stringify({split:[{kind:'keyboard',key:'X',modifiers:['Mod','Surprise']}],bladeTool:[],hacked:[{key:'Q'}]});
   assert.deepEqual(loadShortcutOverrides(storage),{bladeTool:[]});
   assert.equal(saveShortcutOverrides({},{getItem:()=>null,setItem:()=>{throw new Error('disabled');}}),false);
-  assert.equal(shortcutDefinitions.filter(d=>!d.extension).length,49);
+  assert.equal(shortcutDefinitions.filter(d=>!d.extension).length,50);
 });
 
 
@@ -119,4 +119,13 @@ test('gesture customization preserves input kind and rejects unusable keyboard o
   assert.deepEqual(overrides,{timelineScroll:[{kind:'wheel',modifiers:['Shift']}]});
   assert.equal(action({type:'wheel',shiftKey:true},{...edit,surface:'timeline'},overrides),'timelineScroll');
   assert.equal(action({type:'wheel',altKey:true},{...edit,surface:'timeline'},overrides),undefined);
+});
+
+
+test('N adds a note in Edit, Shift N toggles snapping, and held N cannot add duplicates',()=>{
+  assert.equal(action({key:'n'}),'addNote');
+  assert.equal(action({key:'N',shiftKey:true}),'toggleSnapping');
+  assert.equal(action({key:'n',repeat:true}),undefined);
+  assert.equal(action({key:'n',metaKey:true}),undefined);
+  assert.equal(action({key:'n'},{scope:'record',platform:'mac'}),undefined);
 });
