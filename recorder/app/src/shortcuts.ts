@@ -18,7 +18,7 @@ export type ShortcutAction =
   | 'zoomOut' | 'zoomIn' | 'deleteRipple' | 'deleteLeaveGap' | 'split' | 'trimLeft' | 'trimRight' | 'toggleSnapping' | 'toggleScrubbing'
   | 'timelineScroll' | 'timelineZoom' | 'selectInsideGroup' | 'createSceneAtCursor' | 'deleteOrMergeBackward' | 'recordingPresets'
   | 'closeProject' | 'quit' | 'record' | 'tryAgain' | 'stopRecord' | 'pauseRecord' | 'previousSentence' | 'nextSentence' | 'previousWord' | 'nextWord'
-  | 'saveProject' | 'toggleWaveforms';
+  | 'saveProject' | 'toggleWaveforms' | 'addNote';
 export interface ShortcutDefinition {
   id: ShortcutAction;
   label: string;
@@ -66,7 +66,8 @@ export const shortcutDefinitions: readonly ShortcutDefinition[] = [
   def('split', 'Split at playhead', 'edit', [key('B', 'Mod')], {description: 'Split selected clips crossing the playhead, or all crossing clips if none selected cross it.'}),
   def('trimLeft', 'Trim left to playhead', 'edit', [key('Q')]),
   def('trimRight', 'Trim right to playhead', 'edit', [key('W')]),
-  def('toggleSnapping', 'Toggle snapping', 'edit', [key('N')]),
+  def('addNote', 'Add a note at the playhead', 'edit', [key('N')], {description: 'Leave a note at this moment while playback keeps running. Enter saves; Escape closes.'}),
+  def('toggleSnapping', 'Toggle snapping', 'edit', [key('N', 'Shift')]),
   def('toggleScrubbing', 'Toggle scrubbing', 'edit', [key('S')], {description: 'Toggle preview scrubbing as the pointer moves across the timeline.'}),
   def('timelineScroll', 'Horizontal scroll with wheel', 'edit', [{kind: 'wheel', modifiers: ['Alt']}], {surface: 'timeline'}),
   def('timelineZoom', 'Zoom with wheel', 'edit', [{kind: 'wheel', modifiers: ['Mod']}, {kind: 'wheel', modifiers: ['Control']}], {surface: 'timeline'}),
