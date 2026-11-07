@@ -102,7 +102,7 @@ test('Board: dragging a card to another column moves it at once, saves it and of
   assert.equal(text(column(c,'recording').querySelector('.col-h .n')),'2');
   assert.deepEqual(toasts(c),['Moved to RecordingUndo']);
   await press(button(c.querySelector('.cc-toast')!,'Undo'));
-  assert.deepEqual(calls.filter(call=>call.method==='POST').slice(-1).map(call=>call.body),[{stage:'ideas',beforeId:'b',stageDates:{ideas:'2026-10-01T00:00:00.000Z'}}],'back to the stage, place and dates it had');
+  assert.deepEqual(calls.filter(call=>call.method==='POST').slice(-1).map(call=>call.body),[{stage:'ideas',beforeId:'b'}],'back to the stage and place; the server owns stage dates');
   assert.deepEqual(cardIds(column(c,'ideas')),['a','b','c','d'],'Undo puts it back where it was');
   assert.equal(column(c,'recording').querySelector('[data-card-id="a"]'),null);
  });

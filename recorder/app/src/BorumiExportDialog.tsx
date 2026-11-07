@@ -16,7 +16,7 @@ export function BorumiExportDialog({project,flush,onClose,onBack,onImport}:{proj
  const stop=()=>{epoch.current++;controller.current?.abort();controller.current=null;};
  useEffect(()=>{mounted.current=true;return()=>{mounted.current=false;stop();};},[]);
  useEffect(()=>{stop();setReview(null);setResult(null);setBusy(null);setError('');setStale(false);setTemplateId('');setDestination('');},[project.id]);
- useEffect(()=>{if(review&&review.key!==key&&!result){stop();setReview(null);setBusy(null);setStale(true);}},[key,review,result]);
+ useEffect(()=>{if(review&&review.key!==key){setStale(true);if(busy!=='export'&&!result){stop();setReview(null);setBusy(null);}}},[key,review,result,busy]);
  useEffect(()=>{if(imported||reimport)return;const abort=new AbortController();setTemplatesLoading(true);setTemplateError('');api<{templates:Array<{id:string;name:string}>}>('/borumi/templates',undefined,'GET',abort.signal).then(r=>{if(!abort.signal.aborted)setTemplates(r.templates);}).catch(e=>{if(!abort.signal.aborted)setTemplateError(e.message);}).finally(()=>{if(!abort.signal.aborted)setTemplatesLoading(false);});return()=>abort.abort();},[project.id,imported,reimport]);
  const close=()=>{stop();onClose();};
  const begin=()=>{stop();const request=++epoch.current,abort=new AbortController();controller.current=abort;return {request,signal:abort.signal,relevant:()=>mounted.current&&epoch.current===request&&!abort.signal.aborted&&live.current.id===project.id};};

@@ -1,3 +1,4 @@
+import {isRecordingActive} from './recording-session';
 import {useEffect,useMemo,useRef,useState} from 'react';
 import type {Project,Media} from '../shared/types';
 import type {MediaRecoveryInspection,MediaRecoveryItem,MediaRelinkPlan,MediaRelinkResult} from '../shared/recovery';
@@ -14,7 +15,7 @@ export function MediaRecoveryBanner({project,refreshKey,onOpen}:{project:Project
  const [state,setState]=useState<{id:string;count:number;missing:number;failed:boolean}|null>(null),checked=useRef(0);
  const signature=useMemo(()=>project.media.map(m=>`${m.id}:${m.path}`).join('|'),[project.media]);
  // Window focus rechecks at most every 30 seconds, and never while a recording is running.
- useEffect(()=>{const controller=new AbortController();const check=()=>{checked.current=Date.now();void inspectMedia(project.id,controller.signal).then(result=>{if(!controller.signal.aborted)setState({id:project.id,count:result.attentionCount,missing:result.missingCount,failed:false});}).catch(()=>{if(!controller.signal.aborted)setState({id:project.id,count:0,missing:0,failed:true});});};const focus=()=>{if(Date.now()-checked.current>=30_000&&!document.querySelector('.recording-status.is-recording'))check();};const timer=setTimeout(check,250);window.addEventListener('focus',focus);return()=>{clearTimeout(timer);controller.abort();window.removeEventListener('focus',focus);};},[project.id,signature,refreshKey]);
+ useEffect(()=>{const controller=new AbortController();const check=()=>{if(isRecordingActive())return;checked.current=Date.now();void inspectMedia(project.id,controller.signal).then(result=>{if(!controller.signal.aborted)setState({id:project.id,count:result.attentionCount,missing:result.missingCount,failed:false});}).catch(()=>{if(!controller.signal.aborted)setState({id:project.id,count:0,missing:0,failed:true});});};const focus=()=>{if(Date.now()-checked.current>=30_000&&!isRecordingActive())check();};const timer=setTimeout(check,250);window.addEventListener('focus',focus);return()=>{clearTimeout(timer);controller.abort();window.removeEventListener('focus',focus);};},[project.id,signature,refreshKey]);
  if(!state||state.id!==project.id||!state.count&&!state.failed)return null;
  return <div className="import-warning media-recovery-banner" role="status"><span>{state.failed?'Source files could not be checked.':state.missing?`${state.count} source ${state.count===1?'file needs':'files need'} attention. ${state.missing} missing or unavailable. Your edits are preserved.`:'A playback reference needs repair. Your source files and edits are preserved.'}</span><button onClick={onOpen}>Locate media <ArrowRight size={13}/></button></div>;
 }

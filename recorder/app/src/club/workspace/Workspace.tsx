@@ -1,3 +1,5 @@
+import {prepareRecording} from '../recorder-setup';
+import {hasCurrentExport} from '../export-status';
 import {useCallback,useEffect,useMemo,useRef,useState} from 'react';
 import type {PublishingState,Video,VideoStage} from '../../../shared/club';
 import {ClubApiError,clubFetch,errorMessage,notifyVideosChanged} from '../api';
@@ -46,18 +48,9 @@ export function Workspace({video,tab,back,navigate,onVideo}:{video:Video;tab:Vid
  const recorderScene=useCallback((sceneId:string)=>{const outlineId=outlineSceneFor(video,sceneId);if(outlineId)setFocusId(outlineId);},[video.recorderScenes]);
  const [moving,setMoving]=useState(false),[moveError,setMoveError]=useState('');
  const [startingQuick,setStartingQuick]=useState(false),[recorderError,setRecorderError]=useState('');
- const quickPending=useRef(new Map<string,Promise<Video>>());
  const flushPlan=useRef(plan.flush);flushPlan.current=plan.flush;
  // Record and Edit share setup, including a request still running when the tab changes.
- const prepareRecorder=useCallback((quick:boolean)=>{
-  let pending=quickPending.current.get(id);
-  if(!pending){
-   pending=(async()=>{await flushPlan.current();return clubFetch<Video>(`/videos/${id}/recorder`,quick?{body:{quick:true}}:{method:'POST'});})();
-   quickPending.current.set(id,pending);
-   void pending.catch(()=>quickPending.current.delete(id));
-  }
-  return pending;
- },[id]);
+ const prepareRecorder=useCallback((quick:boolean)=>prepareRecording(video.id,quick,()=>flushPlan.current()),[video.id]);
  const recordWithoutPlan=async()=>{
   if(startingQuick)return;
   setStartingQuick(true);
@@ -73,8 +66,8 @@ export function Workspace({video,tab,back,navigate,onVideo}:{video:Video;tab:Vid
  useEffect(()=>{
   const projectId=video.recorderProjectId;if(!projectId||tab==='edit'||tab==='publish')return;
   const request=new AbortController();
-  void Promise.all([api<Project>(`/projects/${encodeURIComponent(projectId)}`,undefined,undefined,request.signal),listSavedExports(projectId,request.signal)])
-   .then(async([project,{jobs}])=>{const latest=latestVideoExport(jobs),revision=await projectRevision(project);if(!request.signal.aborted)setExported(!!latest&&latest.projectRevision.replaceAll('"','')===revision.replaceAll('"',''));}).catch(()=>{});
+  void Promise.all([api<Project>(`/projects/${encodeURIComponent(projectId)}`,undefined,undefined,request.signal).then(project=>projectRevision(project)).catch(()=>null),listSavedExports(projectId,request.signal)])
+   .then(([revision,{jobs}])=>{const latest=latestVideoExport(jobs);if(!request.signal.aborted)setExported(hasCurrentExport(latest,revision));}).catch(()=>{});
   return()=>request.abort();
  },[video.recorderProjectId,tab]);
  const reloadScenes=scenes.reload;
@@ -96,7 +89,7 @@ export function Workspace({video,tab,back,navigate,onVideo}:{video:Video;tab:Vid
   // Keep the result after a tab change, so the video is not left without the project the server made; only leaving the video drops it.
   void prepareRecorder(tab==='edit'||!hasPlannedScenes).then(next=>{if(mounted.current){onVideo(next);reloadScenes();}},reason=>{if(mounted.current)setRecorderError(errorMessage(reason,tab==='edit'?"Couldn't open the editor.":"Couldn't open the recorder."));});
  },[tab,video.recorderProjectId,scenesLoaded,hasPlannedScenes,plan.load.status,recorderError,prepareRecorder,onVideo,reloadScenes]);
- useEffect(()=>{setRecorderError('');},[id]);
+ useEffect(()=>{setRecorderError('');},[id,tab]);
  const openingError=recorderError||(scenes.state.status==='unknown'?"Couldn't load the scenes.":tab==='record'&&hasPlannedScenes&&plan.load.status==='error'?plan.load.message:'');
  const emptyEdit=tab==='edit'&&editState?.hasMedia===false;
  const facts:TabFacts&LockFacts={stage:video.stage,scenes:list,allRecorded:!emptyEdit&&allRecorded||undefined,exported:!emptyEdit&&exported,hasRecording:!!video.recorderProjectId};
@@ -222,7 +215,7 @@ export function Workspace({video,tab,back,navigate,onVideo}:{video:Video;tab:Vid
     :<div className="flex flex-1 items-center justify-center" style={{padding:'64px 0'}}>{openingError?<ErrorLine message={openingError} onRetry={()=>{setRecorderError('');reloadScenes();if(plan.load.status==='error')plan.reload();}}/>:<span className="row small muted" role="status"><Spinner label={tab==='edit'?'Opening the editor':'Opening the recorder'} size={20}/>{tab==='edit'?'Opening the editor…':'Opening the recorder…'}</span>}</div>)}
    {tab==='publish'&&scenes.state.status==='loading'&&video.stage!=='published'&&<div className="flex flex-1 items-center justify-center" style={{padding:'64px 0'}}><span className="row small muted" role="status"><Spinner label="Loading the scenes" size={20}/>Loading the scenes…</span></div>}
    {tab==='publish'&&(scenes.state.status!=='loading'||video.stage==='published')&&<Publish onExported={onExported} video={video} pkg={plan.pkg} scenes={list} onVideo={onVideo} onSettings={()=>navigate({name:'settings',section:'publishing'})} onGoTo={target=>navigate(tabRoute(target))}
-    saveError={plan.saveError} onRetry={plan.retrySave} onDescription={description=>plan.editPackage({...(pkgNow.current??EMPTY_PACKAGE),description})}
+    writingPackage={plan.packageJob.phase==='starting'||plan.packageJob.phase==='running'} saveError={plan.saveError} onRetry={plan.retrySave} onDescription={description=>plan.editPackage({...(pkgNow.current??EMPTY_PACKAGE),description})}
     onTags={tags=>{plan.editPackage({...(pkgNow.current??EMPTY_PACKAGE),tags});void plan.flush().catch(()=>{});}}/>}
   </div>
   </div>

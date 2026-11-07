@@ -1,5 +1,8 @@
 import { createReadStream } from 'node:fs';
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
+import path from 'node:path';
+import { rmSync } from 'node:fs';
+import * as store from './store.js';
 import { Readable } from 'node:stream';
 import type { PublishChannel, PublishProgress } from '../../shared/club.js';
 import { PublisherError, type LocalFile, type PostStatus, type Publisher, type PublishRequest, type SentPost } from './publisher.js';
@@ -82,7 +85,14 @@ export function normalizeAddress(address?: string | null): string | null {
 }
 
 // ---- the 90 posts an hour, counted here so a refused post is explained before a big upload is wasted
-const sent: number[] = [];
+interface PostizState { sent: number[]; uploaded: Record<string, Media> }
+const stateFile = () => path.join(store.secretsDir(), 'postiz-state.json');
+const changeState = <T>(change: (state: PostizState) => T | Promise<T>) => store.withLock(`postiz-state:${stateFile()}`, async () => {
+  const state = (await store.readJSON<PostizState>(stateFile())) ?? { sent: [], uploaded: {} };
+  const result = await change(state);
+  await store.writeFileAtomic(stateFile(), JSON.stringify(state), 0o600);
+  return result;
+});
 const HOUR = 60 * 60 * 1000;
 
 function minutesText(ms: number): string {
@@ -91,12 +101,15 @@ function minutesText(ms: number): string {
 }
 const limitMessage = (ms?: number) => `Postiz allows 90 posts an hour and that is used up. Try again in ${ms ? minutesText(ms) : 'a little while'}.`;
 
-function checkHourly(now = Date.now()) {
-  while (sent.length && now - sent[0] > HOUR) sent.shift();
-  if (sent.length >= POSTS_PER_HOUR) throw new PublisherError(limitMessage(sent[0] + HOUR - now), 429);
+function checkHourly(reserve = false, now = Date.now()) {
+  return changeState(state => {
+    state.sent = state.sent.filter(at => now - at < HOUR);
+    if (state.sent.length >= POSTS_PER_HOUR) throw new PublisherError(limitMessage(state.sent[0] + HOUR - now), 429);
+    if (reserve) state.sent.push(now);
+  });
 }
-/** For tests. */
-export const resetPostizState = () => (sent.length = 0, uploaded.clear());
+/** For tests; never changes publishing credentials. */
+export const resetPostizState = () => rmSync(stateFile(), { force: true });
 
 // ---- multipart, streamed so a 1 GB video is never held in memory, with the bytes sent counted for progress
 function multipart(file: LocalFile, onBytes: (sent: number) => void) {
@@ -121,8 +134,7 @@ interface Media {
   path: string;
 }
 // An upload that worked is kept, so Try again after a failed post sends nothing twice.
-const uploaded = new Map<string, Media>();
-const uploadKey = (key: string, base: string, file: LocalFile) => `${base}|${key.slice(-8)}|${file.path}|${file.size}|${file.version ?? ''}`;
+const uploadKey = (key: string, base: string, file: LocalFile) => createHash('sha256').update(`${base}|${key}|${file.path}|${file.size}|${file.version ?? ''}`).digest('hex');
 
 export interface PostizOptions {
   apiKey: string;
@@ -188,7 +200,7 @@ export class PostizPublisher implements Publisher {
 
   private async upload(file: LocalFile, report: (percent: number) => void, signal?: AbortSignal): Promise<Media> {
     const cacheKey = uploadKey(this.options.apiKey, this.base, file);
-    const known = uploaded.get(cacheKey);
+    const known = await changeState(state => state.uploaded[cacheKey]);
     if (known) {
       report(100);
       return known;
@@ -203,14 +215,17 @@ export class PostizPublisher implements Publisher {
     })) as Partial<Media> | null;
     if (typeof body?.id !== 'string' || typeof body.path !== 'string') throw new PublisherError(NOT_PROCESSED);
     const media = { id: body.id, path: body.path };
-    uploaded.set(cacheKey, media);
+    await changeState(state => {
+      state.uploaded[cacheKey] = media;
+      for (const key of Object.keys(state.uploaded).slice(0, -200)) delete state.uploaded[key];
+    });
     report(100);
     return media;
   }
 
   async publish(request: PublishRequest, progress: (event: PublishProgress) => void, signal?: AbortSignal): Promise<SentPost> {
     if (request.video.size > MAX_VIDEO_BYTES) throw new PublisherError(`${TOO_BIG}, and this one is ${(request.video.size / 1024 ** 3).toFixed(1)} GB.`);
-    checkHourly();
+    await checkHourly();
     let last = -1;
     const report = (percent: number) => {
       if (percent === last) return;
@@ -222,14 +237,15 @@ export class PostizPublisher implements Publisher {
     const thumbnail = request.thumbnail ? await this.upload(request.thumbnail, () => {}, signal) : undefined;
     progress({ step: 'post', message: request.scheduledFor ? 'Scheduling it in Postiz' : 'Asking Postiz to publish it' });
     const date = request.scheduledFor ?? new Date();
-    const unsure = () => {
-      sent.push(Date.now());
-      return new UnconfirmedPostError(date);
-    };
+    await request.beforePost?.({ postId: '', date, channelId: request.channelId, mediaId: video.id, idempotencyKey: request.idempotencyKey });
+    signal?.throwIfAborted();
+    // Reserve before POST: crashes and ambiguous responses count against the local limit too.
+    await checkHourly(true);
+    const unsure = () => new UnconfirmedPostError(date);
     const answer = await this.request('/posts', {
       method: 'POST',
       signal,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...(request.idempotencyKey ? { 'Idempotency-Key': request.idempotencyKey } : {}) },
       body: JSON.stringify({
         type: request.scheduledFor ? 'schedule' : 'now',
         date: date.toISOString(),
@@ -254,8 +270,7 @@ export class PostizPublisher implements Publisher {
     const first = Array.isArray(answer) ? answer[0] : answer;
     const postId = first?.postId ?? first?.id;
     if (typeof postId !== 'string' || !postId) throw unsure();
-    sent.push(Date.now());
-    return { postId, date, channelId: request.channelId };
+    return { postId, date, channelId: request.channelId, idempotencyKey: request.idempotencyKey, title: request.title, content: request.description, mediaId: video.id };
   }
 
   async status(post: SentPost, signal?: AbortSignal): Promise<PostStatus> {
@@ -263,12 +278,15 @@ export class PostizPublisher implements Publisher {
     const query = new URLSearchParams({ startDate: new Date(post.date.getTime() - day).toISOString(), endDate: new Date(post.date.getTime() + day).toISOString() });
     const answer = (await this.request(`/posts?${query}`, { signal })) as { posts?: unknown } | unknown[] | null;
     const list = Array.isArray(answer) ? answer : Array.isArray(answer?.posts) ? answer.posts : [];
-    type Item = { id: string; state?: string; releaseURL?: string; publishDate?: string; integration?: { id?: string } };
+    type Item = { id: string; state?: string; releaseURL?: string; publishDate?: string; integration?: { id?: string }; idempotencyKey?: string; settings?: { title?: string }; value?: { content?: string; image?: { id?: string }[] }[] };
     const items = list as Item[];
-    // A post whose id was never confirmed is looked for by its channel and the time it was sent for.
-    const found = post.postId
-      ? items.find((item) => item?.id === post.postId)
-      : items.find((item) => item?.integration?.id === post.channelId && Math.abs(new Date(item.publishDate ?? 0).getTime() - post.date.getTime()) < 120_000);
+    const candidates = items.filter(item => item?.integration?.id === post.channelId && Math.abs(new Date(item.publishDate ?? 0).getTime() - post.date.getTime()) < 120_000)
+      .filter(item => (!item.idempotencyKey || !post.idempotencyKey || item.idempotencyKey === post.idempotencyKey)
+        && (item.settings?.title === undefined || post.title === undefined || item.settings.title === post.title)
+        && (item.value?.[0]?.content === undefined || post.content === undefined || item.value[0].content === post.content)
+        && (!item.value?.[0]?.image?.length || !post.mediaId || item.value[0].image.some(image => image.id === post.mediaId)));
+    // With only channel/time available, ambiguity never authorizes a match or another POST.
+    const found = post.postId ? items.find(item => item?.id === post.postId) : candidates.length === 1 ? candidates[0] : undefined;
     const state = String(found?.state ?? '').toUpperCase();
     const id = found && !post.postId && typeof found.id === 'string' ? { postId: found.id } : {};
     if (state === 'PUBLISHED') return { state: 'published', ...id, ...(typeof found?.releaseURL === 'string' && found.releaseURL ? { url: found.releaseURL } : {}) };

@@ -132,7 +132,7 @@ async function unfinishedRun(runs: string, skill: string, self: string): Promise
   const names = (await fs.readdir(runs).catch(() => [] as string[])).filter((name) => name.endsWith(`-${skill}`) && path.join(runs, name) !== self).sort().reverse();
   for (const name of names) {
     const folder = path.join(runs, name);
-    if (await fs.stat(path.join(folder, 'result.json')).then(() => true, () => false)) return undefined;
+    if (await fs.stat(path.join(folder, 'result.json')).then(() => true, () => false)) continue;
     if (await fs.stat(path.join(folder, 'work')).then((stat) => stat.isDirectory(), () => false)) return folder;
   }
   return undefined;
@@ -206,9 +206,27 @@ export interface SkillRunOptions {
   layers?: boolean;
 }
 
+/** Keep recent runs and unfinished work; never prune a folder referenced by a recent run. */
+export async function pruneSkillRuns(slug: string, id: string) {
+  const dir = path.join(store.videoDir(slug, id), SKILL_RUNS);
+  const names = (await fs.readdir(dir).catch(() => [] as string[])).sort().reverse();
+  const recordings = names.filter(name => /^recording-\d+$/.test(name));
+  for (const name of recordings.slice(3)) await fs.rm(path.join(dir, name), { recursive: true, force: true });
+  const runs = names.filter(name => /^\d{4}-.*-[a-z][a-z0-9-]*$/.test(name));
+  for (const name of runs.slice(5)) {
+    // Unfinished work can still be resumed; retain the newest few unfinished runs separately.
+    const file = path.join(dir, name, 'result.json');
+    if (await fs.stat(file).then(() => true, () => false)) await fs.rm(path.join(dir, name), { recursive: true, force: true });
+  }
+  const unfinished = [];
+  for (const name of runs) if (!(await fs.stat(path.join(dir, name, 'result.json')).then(() => true, () => false))) unfinished.push(name);
+  for (const name of unfinished.slice(5)) await fs.rm(path.join(dir, name), { recursive: true, force: true });
+}
+
 /** Runs the skill and turns what it made into an `add_clip` action, or explains in one line why there is nothing to place. */
 type ClipAction = Extract<EditAction, { type: 'add_clip' }>;
 export async function runMakingSkill(o: SkillRunOptions): Promise<{ text: string; action?: ClipAction; clips?: ClipAction[]; actions?: unknown[]; finished?: ClipAction }> {
+  await pruneSkillRuns(o.slug, o.id);
   const skillDir = await skillFolder(o.skill, o.home);
   if (!skillDir) throw new AiError('bad-answer', `There is no skill called ${o.skill} in your Claude Code.`);
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');

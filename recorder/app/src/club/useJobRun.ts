@@ -1,49 +1,67 @@
-import {useCallback,useEffect,useRef,useState} from 'react';
+import {useCallback,useEffect,useReducer,useRef} from 'react';
 import {clubFetch,errorMessage} from './api';
 import {failureMessage,isStartedJob,progressLine,watchJob} from './jobs';
 
 export type JobRun=
- |{phase:'idle'}
- |{phase:'running';line?:string;/** What a structured answer holds so far, while it is written. */partial?:unknown}
+ |{phase:'idle'|'cancelled'}
+ |{phase:'starting'|'running';line?:string;partial?:unknown;stopping?:boolean}
  |{phase:'done';result?:unknown}
  |{phase:'failed';message:string};
+export const isJobBusy=(state:JobRun)=>state.phase==='starting'||state.phase==='running';
+export type JobRunState={generation:number;run:JobRun};
+export function jobRunReducer(state:JobRunState,event:JobRunState):JobRunState{
+ return event.generation<state.generation?state:event;
+}
+type Attempt={generation:number;id?:string;cancelled:boolean;state:JobRun;close():void;settle():void};
 
-/**
- * Runs something that starts a server job (`start` returns the POST response) and follows it to the end.
- * A response that is not a job counts as finished at once, so callers work before and after a route becomes a job.
- * The watcher is closed when the component unmounts; the job itself keeps running.
- */
+/** One generation owns the POST, watcher, cancellation and completion callback. */
 export function useJobRun(){
- const [state,setState]=useState<JobRun>({phase:'idle'});
- const stop=useRef<()=>void>(()=>{});
+ const [current,dispatch]=useReducer(jobRunReducer,{generation:0,run:{phase:'idle'}});
+ const attempt=useRef<Attempt>({generation:0,cancelled:false,state:{phase:'idle'},close:()=>{},settle:()=>{}});
  const alive=useRef(true);
- useEffect(()=>{alive.current=true;return()=>{alive.current=false;stop.current();};},[]);
- const jobId=useRef<string|undefined>(undefined);
- const run=useCallback(async(start:()=>Promise<unknown>,onDone?:(result:unknown)=>void)=>{
-  stop.current();jobId.current=undefined;
-  const set=(next:JobRun)=>{if(alive.current)setState(next);};
-  set({phase:'running'});
+ useEffect(()=>{alive.current=true;return()=>{alive.current=false;attempt.current.close();};},[]);
+ const run=useCallback(async(start:()=>Promise<unknown>,onDone?:(result:unknown)=>void,onSettled?:()=>void)=>{
+  attempt.current.close();
+  let settled=false;
+  const mine:Attempt={generation:attempt.current.generation+1,cancelled:false,state:{phase:'starting'},close:()=>{},settle:()=>{if(!settled){settled=true;onSettled?.();}}};
+  attempt.current=mine;
+  const active=()=>alive.current&&attempt.current===mine;
+  const set=(next:JobRun)=>{if(active()){mine.state=next;dispatch({generation:mine.generation,run:next});if(!isJobBusy(next))mine.settle();}};
+  const cancelJob=async(id:string)=>{
+   try{await clubFetch(`/jobs/${encodeURIComponent(id)}`,{method:'DELETE'});}
+   catch(error){set({phase:'failed',message:errorMessage(error,"Couldn't stop that.")});}
+  };
+  set({phase:'starting'});
   let started:unknown;
-  try{started=await start();}catch(error){set({phase:'failed',message:errorMessage(error)});return;}
-  if(!isStartedJob(started)){set({phase:'done',result:started});onDone?.(started);return;}
-  jobId.current=started.id;
-  stop.current=watchJob(started.id,event=>{
+  try{started=await start();}catch(error){set(mine.cancelled?{phase:'cancelled'}:{phase:'failed',message:errorMessage(error)});return;}
+  if(!isStartedJob(started)){
+   set(mine.cancelled?{phase:'cancelled'}:{phase:'done',result:started});
+   if(active()&&!mine.cancelled)onDone?.(started);
+   return;
+  }
+  mine.id=started.id;
+  if(mine.cancelled)void cancelJob(started.id);
+  if(!active())return;
+  set({phase:'running',...(mine.cancelled?{stopping:true,line:'Stopping…'}:{})});
+  mine.close=watchJob(started.id,event=>{
+   if(!active())return;
    if(event.type==='progress'){
+    if(event.reset){set({phase:'running',...(mine.cancelled?{stopping:true,line:'Stopping…'}:{})});return;}
     const line=progressLine(event.data),partial=(event.data as {partial?:unknown}|null)?.partial;
-    if(line||partial)set({phase:'running',line:line||undefined,...(partial?{partial}:{})});
-   }
-   else if(event.type==='done'){set({phase:'done',result:event.data});onDone?.(event.data);}
-   else if(event.type==='failed')set({phase:'failed',message:failureMessage(event.data)});
-   else set({phase:'idle'});
+    if(line||partial)set({phase:'running',line:mine.cancelled?'Stopping…':line||undefined,...(mine.cancelled?{stopping:true}:{}),...(partial?{partial}:{})});
+   }else if(event.type==='done'){
+    set({phase:'done',result:event.data});onDone?.(event.data);
+   }else if(event.type==='failed')set({phase:'failed',message:failureMessage(event.data)});
+   else set({phase:'cancelled'});
   });
  },[]);
- /** Follows a job that is already running on the server (a page opened mid-run). */
- const attach=useCallback((id:string,onDone?:(result:unknown)=>void)=>run(()=>Promise.resolve({id,status:'running'}),onDone),[run]);
- /** Stops the running job on the server; the screen goes back to idle when the server confirms. */
+ const attach=useCallback((id:string,onDone?:(result:unknown)=>void,onSettled?:()=>void)=>run(()=>Promise.resolve({id,status:'running'}),onDone,onSettled),[run]);
  const cancel=useCallback(async()=>{
-  const id=jobId.current;if(!id)return;
-  try{await clubFetch(`/jobs/${encodeURIComponent(id)}`,{method:'DELETE'});}
-  catch(error){if(alive.current)setState({phase:'failed',message:errorMessage(error,"Couldn't stop that.")});}
+  const mine=attempt.current;if(!isJobBusy(mine.state)||mine.cancelled)return;mine.cancelled=true;
+  if(alive.current)dispatch({generation:mine.generation,run:{phase:mine.id?'running':'starting',stopping:true,line:'Stopping…'}});
+  if(!mine.id)return;
+  try{await clubFetch(`/jobs/${encodeURIComponent(mine.id)}`,{method:'DELETE'});}
+  catch(error){if(alive.current&&attempt.current===mine&&isJobBusy(mine.state)){mine.state={phase:'failed',message:errorMessage(error,"Couldn't stop that.")};dispatch({generation:mine.generation,run:mine.state});mine.settle();}}
  },[]);
- return {state,run,attach,cancel};
+ return {state:current.run,run,attach,cancel};
 }

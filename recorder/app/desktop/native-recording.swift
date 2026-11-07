@@ -229,7 +229,7 @@ final class NativeRecording: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
             audioQueue.async { [self] in
                 guard audioFailure == nil else { return }
                 do { try appendAudio(sample, pts: pts, limit: limit); audioBuffers += 1 }
-                catch { audioFailure=error.localizedDescription; emit(["type":"error","message":error.localizedDescription]) }
+                catch { audioFailure=error.localizedDescription; emit(["type":"warning","message":error.localizedDescription]) }
             }
         }
     }
@@ -315,8 +315,9 @@ final class NativeRecording: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
         }
     }
     func setPreview(_ enabled: Bool) { queue.async { self.previewEnabled = enabled; if enabled { self.lastPreview = -Double.infinity } } }
-    func pause() { queue.async { guard self.started, self.pauseAt == nil, !self.stopping else { return }; self.tick(); self.pauseAt = hostTime(); emit(["type":"paused","duration":seconds(self.elapsed()),"transitionAtMs":Date().timeIntervalSince1970*1000]) } }
-    func resume() { queue.async { guard let paused = self.pauseAt, !self.stopping else { return }; let now = hostTime(); self.pauseOffset = CMTimeAdd(self.pauseOffset, CMTimeSubtract(now, paused)); self.resumedAt = now; self.pauseAt = nil; emit(["type":"resumed","duration":seconds(self.elapsed()),"transitionAtMs":Date().timeIntervalSince1970*1000]) } }
+    func reportState() { emit(["type":"state","status":stopping ? "stopping" : (pauseAt == nil ? "recording" : "paused"),"duration":seconds(elapsed()),"transitionAtMs":Date().timeIntervalSince1970*1000]) }
+    func pause() { queue.async { guard self.started, self.pauseAt == nil, !self.stopping else { self.reportState(); return }; self.tick(); self.pauseAt = hostTime(); emit(["type":"paused","duration":seconds(self.elapsed()),"transitionAtMs":Date().timeIntervalSince1970*1000]) } }
+    func resume() { queue.async { guard let paused = self.pauseAt, !self.stopping else { self.reportState(); return }; let now = hostTime(); self.pauseOffset = CMTimeAdd(self.pauseOffset, CMTimeSubtract(now, paused)); self.resumedAt = now; self.pauseAt = nil; emit(["type":"resumed","duration":seconds(self.elapsed()),"transitionAtMs":Date().timeIntervalSince1970*1000]) } }
     func stop() async {
         let duration: Double = await withCheckedContinuation { continuation in queue.async {
             if self.stopping { continuation.resume(returning: -1); return }

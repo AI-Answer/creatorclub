@@ -1,7 +1,7 @@
 import {useAiAvailable} from './ai-status';
 import {useCallback,useEffect,useRef,useState} from 'react';
 import type {Breakdown} from '../../shared/club';
-import {clubFetch,clubUpload} from './api';
+import {ClubApiError,clubFetch,clubUpload} from './api';
 import {breakdownStep,commentsRead,type BreakdownSource} from './breakdown';
 import {isStartedJob} from './jobs';
 import {notifyBreakdownsChanged} from './useBreakdowns';
@@ -29,10 +29,11 @@ export type BreakdownRun={
 export function useBreakdownRun(initial:BreakdownTarget):BreakdownRun{
  const aiAvailable=useAiAvailable();
  const {state,run}=useJobRun();
+ const available=useRef(aiAvailable);available.current=aiAvailable;
  const [source,setSource]=useState(initial),[attempt,setAttempt]=useState(0);
  const [progress,setProgress]=useState<{step:number;comments?:number}>({step:0});
  const jobId=useRef<string>(undefined),finished=useRef(false);
- finished.current=state.phase==='done'||state.phase==='failed';
+ finished.current=state.phase==='done'||state.phase==='failed'||state.phase==='cancelled';
 
  const line=state.phase==='running'?state.line:undefined;
  useEffect(()=>{
@@ -43,7 +44,7 @@ export function useBreakdownRun(initial:BreakdownTarget):BreakdownRun{
  useEffect(()=>{
   setProgress({step:0});
   if(source.kind==='saved'){void run(()=>clubFetch<Breakdown>(`/breakdowns/${encodeURIComponent(source.id)}`));return;}
-  if(!aiAvailable)return;
+  if(!available.current){void run(()=>Promise.reject(new ClubApiError('Connect an AI in Settings.')));return;}
   const controller=new AbortController(),mine={gone:false};
   const cancel=(id:string)=>{clubFetch(`/jobs/${encodeURIComponent(id)}`,{method:'DELETE'}).catch(()=>{});};
   void run(async()=>{
@@ -53,11 +54,11 @@ export function useBreakdownRun(initial:BreakdownTarget):BreakdownRun{
     else{const form=new FormData();form.append('file',source.file,source.file.name);job=await clubUpload('/breakdowns',form,controller.signal);}
    }catch(reason){
     // An aborted attempt has nothing to report.
-    if(controller.signal.aborted)return new Promise<never>(()=>{});
+    if(controller.signal.aborted)throw new ClubApiError('That was stopped.');
     throw reason;
    }
    if(isStartedJob(job)){
-    if(mine.gone){cancel(job.id);return new Promise<never>(()=>{});}
+    if(mine.gone){cancel(job.id);throw new ClubApiError('That was stopped.');}
     jobId.current=job.id;
    }
    return job;
@@ -67,7 +68,7 @@ export function useBreakdownRun(initial:BreakdownTarget):BreakdownRun{
    const id=jobId.current;jobId.current=undefined;
    if(id&&!finished.current)cancel(id);
   };
- },[attempt,source,run,aiAvailable]);
+ },[attempt,source,run]);
 
  const retry=useCallback(()=>setAttempt(n=>n+1),[]);
  const tryFile=useCallback((file:File)=>{setSource({kind:'file',file});setAttempt(n=>n+1);},[]);

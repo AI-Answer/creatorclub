@@ -257,6 +257,11 @@ type Undo =
   | { kind: 'outline'; outline: { before: string | null; after: string | null }; script: { before: string | null; after: string | null } };
 
 interface Version {
+  createdAt?: string;
+  card?: { messageId: string; index: number };
+  result?: string;
+  appliedOn?: string;
+  videoId?: string;
   action: CompanionActionType;
   at: string;
   changed: CompanionChanged[];
@@ -335,6 +340,7 @@ interface Handler<T extends CompanionAction> {
 }
 /** `revision`: the revision of the recording project the editor saved last (timeline cards). `appliedOn`: applying an undone timeline card again, only on this timeline. */
 export interface ApplyOptions {
+  card?: { messageId: string; index: number };
   revision?: string;
   appliedOn?: string;
   /** A timeline card: the timeline its reply was built on. */
@@ -564,8 +570,8 @@ async function prune(slug: string, id: string) {
   const dir = versionsDir(slug, id);
   const names = (await fs.readdir(dir).catch(() => [] as string[])).filter((name) => /^cv_[a-f0-9]{12}\.json$/.test(name));
   if (names.length <= VERSIONS_KEPT) return;
-  const dated = await Promise.all(names.map(async (name) => ({ name, at: (await fs.stat(path.join(dir, name))).mtimeMs })));
-  dated.sort((a, b) => b.at - a.at);
+  const dated = await Promise.all(names.map(async (name) => ({ name, at: await store.readJSON<Version>(path.join(dir, name)).then(version => version?.createdAt ?? version?.at ?? '') })));
+  dated.sort((a, b) => b.at.localeCompare(a.at));
   for (const old of dated.slice(VERSIONS_KEPT)) await fs.rm(path.join(dir, old.name), { force: true });
 }
 
@@ -580,7 +586,7 @@ export async function applyAction(slug: string, id: string, action: CompanionAct
   return store.withLock(lock(slug, id), async () => {
     const { result, undo, project, revision, appliedOn, videoId } = await handler.apply(slug, id, action, options);
     const version = `cv_${randomBytes(6).toString('hex')}`;
-    const saved: Version = { action: action.type, at: new Date().toISOString(), order: nextOrder(), changed: handler.changed, undo };
+    const saved: Version = { action: action.type, at: new Date().toISOString(), createdAt: new Date().toISOString(), order: nextOrder(), changed: handler.changed, undo, card: options.card, result, appliedOn, videoId };
     await store.writeJSON(path.join(versionsDir(slug, id), `${version}.json`), saved);
     await prune(slug, id);
     return { version, result, changed: handler.changed, ...(project ? { project, revision } : {}), ...(appliedOn ? { appliedOn } : {}), ...(videoId ? { videoId } : {}) };
@@ -708,6 +714,18 @@ async function newerOnSamePart(slug: string, id: string, version: string, saved:
     if (other?.undo && !other.undone && newer(other, saved) && partOf(other.undo) === partOf(saved.undo)) return true;
   }
   return false;
+}
+
+/** A version is authoritative if a crash interrupted the following conversation write. */
+export async function cardVersionReader(slug: string, id: string) {
+  const dir = versionsDir(slug, id);
+  const names = (await fs.readdir(dir).catch(() => [] as string[])).filter(name => VERSION_ID.test(name.replace(/\.json$/, '')));
+  const versions = await Promise.all(names.map(async name => ({ id: name.slice(0, -5), saved: await store.readJSON<Version>(path.join(dir, name)) })));
+  return (messageId: string, index: number, known?: string) => {
+  const found = versions.filter(v => v.saved && (v.id === known || (v.saved.card?.messageId === messageId && v.saved.card.index === index))).sort((a, b) => newer(a.saved!, b.saved!) ? -1 : 1)[0];
+  if (!found?.saved) return undefined;
+  return { version: found.id, state: found.saved.undone ? 'undone' as const : 'applied' as const, result: found.saved.result, appliedOn: found.saved.appliedOn, videoId: found.saved.videoId };
+  };
 }
 
 /** Whether a version can still be undone: its file was not pruned. */

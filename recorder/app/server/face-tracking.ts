@@ -1,3 +1,4 @@
+import {trackChild} from './job-scope.js';
 import {spawn} from 'node:child_process';
 import {promises as fs} from 'node:fs';
 import path from 'node:path';
@@ -22,7 +23,7 @@ export function validateFaceTrackSamples(value:unknown):FaceTrackPoint[]{
 async function run(binary:string,args:string[],signal:AbortSignal){
  signal.throwIfAborted();
  return new Promise<any>((resolve,reject)=>{
-  const child=spawn(binary,args,{stdio:['ignore','pipe','pipe']}),stop=()=>child.kill('SIGKILL');let output='',errors='',failure:Error|undefined;
+  const child=trackChild(spawn(binary,args,{stdio:['ignore','pipe','pipe']})),stop=()=>child.kill('SIGKILL');let output='',errors='',failure:Error|undefined;
   const timeout=setTimeout(()=>{failure=Error('Face tracking exceeded its 45-second tile deadline');stop();},45000);
   signal.addEventListener('abort',stop,{once:true});
   if(signal.aborted)stop();
@@ -47,6 +48,7 @@ async function tile(media:Media,index:number,cacheDir:string,identity:string,bin
  signal?.throwIfAborted();const cached=memory.get(key);if(cached){memory.delete(key);memory.set(key,cached);return cached;}
  let task=pending.get(key);
  if(!task||task.controller.signal.aborted){
+  signal?.throwIfAborted();
   if(pending.size>=128)throw Error('Too many pending face tracking windows. Wait for the current requests to finish.');
   const controller=new AbortController();
   const promise=queue.catch(()=>{}).then(async()=>{

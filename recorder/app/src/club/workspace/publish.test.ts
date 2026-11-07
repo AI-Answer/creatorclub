@@ -1,3 +1,4 @@
+import {projectRevision} from '../../api';
 import {mountUI,button} from '../../test-dom';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -17,7 +18,9 @@ const video:Video={id:'v1',title:'Seven hidden Claude Code tricks',stage:'publis
 const pkg:Package={angle:'Most people use one feature.',twist:'',titles:['A','B','C'],thumbnailText:'Hidden features',hook:{visual:'A menu',spoken:'You never opened this.',text:'HIDDEN'}};
 const scenes:VideoScene[]=[{id:'a',title:'Opening',seconds:60,takes:[{id:'t',seconds:60,kept:true,retained:false}],status:'Kept take 1'},{id:'b',title:'Level 1',seconds:90,takes:[],status:'Not recorded'}];
 const output='/Users/me/SceneForge/exports/Hidden features-e1.mp4';
-const exported:ExportRecord={id:'e1',type:'export',status:'complete',progress:1,message:'',outputPath:output,startedAt:'2026-10-28T10:00:00.000Z',completedAt:'2026-10-28T10:01:00.000Z',projectId:'p1',projectName:'Hidden features',projectRevision:'r',snapshotCreatedAt:'',options:{format:'mp4'},updatedAt:'',revision:1,output:{status:'available'},recovery:{status:'available',runtimeChanged:false}};
+const savedProject={id:'p1',clips:[]};
+const savedRevision=(await projectRevision(savedProject as never)).replaceAll('"','');
+const exported:ExportRecord={id:'e1',type:'export',status:'complete',progress:1,message:'',outputPath:output,startedAt:'2026-10-28T10:00:00.000Z',completedAt:'2026-10-28T10:01:00.000Z',projectId:'p1',projectName:'Hidden features',projectRevision:savedRevision,snapshotCreatedAt:'',options:{format:'mp4'},updatedAt:'',revision:1,output:{status:'available'},recovery:{status:'available',runtimeChanged:false}};
 const settingsAsked:string[]=[];
 const props={video,pkg,scenes,onVideo:()=>{},onDescription:()=>{},onTags:()=>{},onGoTo:()=>{},onSettings:()=>{settingsAsked.push('publishing');},onRetry:()=>{}};
 
@@ -34,10 +37,11 @@ const posts=(calls:{method:string;path:string;body:unknown}[])=>calls.filter(cal
 
 /** A Publish screen with Postiz answering as given; `reply` adds to or overrides the defaults. */
 async function withPublish(options:{state?:object;record?:object|null;reply?:Parameters<typeof installFetch>[0];props?:object},run:(ui:Awaited<ReturnType<typeof mountUI>>,server:ReturnType<typeof installFetch>,changes:Video[])=>Promise<void>){
- FakeEventSource.install();
+ FakeEventSource.install();window.sessionStorage.clear();
  const changes:Video[]=[];
  const server=installFetch(async call=>{
   const custom=await options.reply?.(call);if(custom)return custom;
+  if(call.path==='/api/projects/p1')return {body:savedProject};
   if(call.path.startsWith('/api/exports?projectId=p1'))return {body:{jobs:[exported],nextOffset:null}};
   if(call.path==='/publishing')return {body:options.state??connected};
   if(call.path==='/publishing/postiz/channels')return {body:{channels:[{id:'int_yt1',name:'Samin Yasar'}]}};
@@ -54,7 +58,7 @@ async function withPublish(options:{state?:object;record?:object|null;reply?:Par
   return createElement('div',null,createElement(Publish,{...props,...options.props,video:current,pkg:shown,onTags:(tags:string[])=>setShown(was=>({...(was??pkg),tags})),onVideo:(next:Video)=>{changes.push(next);setCurrent(next);}}),createElement('footer',{id:'ws-publish-action'}));
  };
  const ui=await mountUI(createElement(Harness));
- try{await flush();await run(ui,server,changes);}finally{await ui.close();server.restore();}
+ try{await flush();await flush();await run(ui,server,changes);}finally{await ui.close();server.restore();}
 }
 
 test('Publish: the export line, Postiz connected, the form YouTube asks for, and Publish now as the one primary',async()=>{
@@ -240,12 +244,11 @@ test('the first-publish reminder shows until it is dismissed or a Postiz publish
  localStorage.clear();
 });
 
-test('Postiz saying published is not "on YouTube" until the video really is Published; until then the paste-the-link form is there',async()=>{
+test('a published Postiz record waits for the video to move before showing YouTube success',async()=>{
  localStorage.clear();
  await withPublish({record:{...sent,state:'published'},reply:({method,path})=>path==='/videos/v1'&&method==='GET'?{body:video}:undefined},async ui=>{
   const c=ui.container;
-  assert.ok(!c.textContent?.includes("It's on YouTube"),'no green claim');
-  assert.ok(c.textContent?.includes('Postiz has it'));
+  assert.ok(!c.textContent?.includes("It's on YouTube"));assert.ok(c.textContent?.includes("Postiz has it"));
   assert.ok(button(c,'Mark as published'),'a way out, open at once');
   assert.ok(c.textContent?.includes("Postiz says it's published, but the YouTube link didn't come back. Add the link so Creator Compiler can mark it Published."),'labelled plainly');
   assert.ok(c.textContent?.includes('Open the video on YouTube once and check that the made-for-kids answer and the thumbnail are as you set them.'),'the first-publish reminder');
@@ -435,4 +438,30 @@ test('Copy details copies the current title and description beside Open YouTube'
   assert.equal(c.querySelector('.doc-sub')?.textContent,'Prepare your details and finish on YouTube.');
   await click(c.querySelector('input[name=kids][value=no]'));assert.ok(c.querySelector('.ws-kids-segment .is-selected svg'),'the selected answer retains its check');
  });}finally{if(previous)Object.defineProperty(navigator,'clipboard',previous);else Reflect.deleteProperty(navigator,'clipboard');}
+});
+
+test('Publish reattaches to the server running job after remount and cannot submit twice',async()=>{
+ await withPublish({record:{...sent,state:'posting',runningJobId:'server-running'}},async(ui,server)=>{
+  assert.equal(FakeEventSource.last().url,'/api/club/jobs/server-running/events');
+  assert.equal([...ui.container.querySelectorAll('button')].some(b=>b.textContent==='Publish now'),false);
+  assert.equal(posts(server.calls).length,0);
+ });
+});
+
+for(const state of ['queued','posting'] as const)test(`a Published video takes precedence over a stale ${state} Postiz record`,async()=>{
+ await withPublish({props:{video:{...video,stage:'published',youtubeUrl:sent.url}},record:{...sent,state,url:undefined}},async ui=>{
+  assert.ok(ui.container.textContent?.includes("It's on YouTube"));assert.ok(!ui.container.textContent?.includes('Postiz has it'));
+ });
+});
+
+for(const unknown of ['failed read','legacy export'] as const)test(`Publish keeps a completed export usable with ${unknown}`,async()=>{
+ const statuses:boolean[]=[];
+ await withPublish({props:{onExported:(done:boolean)=>statuses.push(done)},reply:({path})=>{
+  if(unknown==='failed read'&&path==='/api/projects/p1')return {status:500,body:{error:'Unavailable'}};
+  if(unknown==='legacy export'&&path.startsWith('/api/exports?')){const {projectRevision:_old,...legacy}=exported;return {body:{jobs:[legacy]}};}
+ }},async ui=>{
+  assert.ok(ui.container.textContent?.includes('Exported'));assert.ok(!ui.container.textContent?.includes('No exported video yet'));
+  await click(ui.container.querySelector('input[name=kids][value=no]'));assert.equal(button(ui.container,'Publish now').disabled,false);
+  assert.ok(statuses.length);assert.ok(statuses.every(Boolean),'no false completion while the export or revision is loading');
+ });
 });

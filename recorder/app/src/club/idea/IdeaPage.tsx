@@ -59,8 +59,9 @@ function SaveLine({status,onRetry}:{status?:SaveStatus;onRetry():void}){
 
 /** A running job's line with Stop, or its failure with Try again. */
 function JobLine({what,state,onRetry,onStop}:{what:string;state:JobRun;onRetry():void;onStop():void}){
- if(state.phase==='running')return <div className="idea-line" role="status"><Spinner size={14} label="Working"/><span className="grow">{state.line??`Writing the ${what}…`}</span><Button variant="ghost" size="sm" onClick={onStop}>Stop</Button></div>;
+ if((state.phase==='starting'||state.phase==='running'))return <div className="idea-line" role="status"><Spinner size={14} label="Working"/><span className="grow">{state.line??`Writing the ${what}…`}</span><Button variant="ghost" size="sm" disabled={state.stopping} onClick={onStop}>{state.stopping?'Stopping…':'Stop'}</Button></div>;
  if(state.phase==='failed')return <ErrorLine message={state.message} onRetry={onRetry}/>;
+ if(state.phase==='cancelled')return <p className="idea-line small muted" role="status">Stopped · <button type="button" className="linkish" onClick={onRetry}>Try again</button></p>;
  return null;
 }
 /** "Replaced the scenes · Undo", or "New scenes ready · Use it" when a run finished after you changed them. */
@@ -152,7 +153,7 @@ export function IdeaPage({video,plan,known,focusId,boardKey,navigate,onOpen,show
    </div>
    <SaveLine status={view==='sketch'?plan.onepagerSave:plan.packageSave} onRetry={plan.retrySave}/>
    <span className="grow"/>
-   {view==='sketch'&&ready&&sketchStarted(plan.onepager)&&<Button variant="ghost" size="sm" disabled={!aiAvailable||plan.onepagerJob.phase==='running'} title={!aiAvailable?AI_CONNECT_HINT:`Write a new sketch with ${ai.name}. You can undo it.`} onClick={plan.writeOnepager}><BrandLogo brand={ai.brand} size={14}/>Suggest again</Button>}
+   {view==='sketch'&&ready&&sketchStarted(plan.onepager)&&<Button variant="ghost" size="sm" disabled={!aiAvailable||(plan.onepagerJob.phase==='starting'||plan.onepagerJob.phase==='running')} title={!aiAvailable?AI_CONNECT_HINT:`Write a new sketch with ${ai.name}. You can undo it.`} onClick={plan.writeOnepager}><BrandLogo brand={ai.brand} size={14}/>Suggest again</Button>}
   </div>
   {lines.length>0&&<div className="idea-lines">{lines}</div>}
   <div className="idea-body">
@@ -168,7 +169,7 @@ function PlanPage({video,plan,known,focusId,ai,showPart,onOpen,onFocus,onTarget,
  video:Video;plan:Plan;known:readonly VideoScene[]|undefined;focusId:string|null;cards:readonly ResearchTile[]|undefined;ai:ConnectedAi;showPart?:{key:SectionKey;n:number};
  onOpen?(part:SectionKey|null):void;onFocus(sceneId:string):void;onTitle(title:string):void;onTarget(seconds:number):void;onRecordScene(sceneId:string):void;onVideo(video:Video):void;onStartRecording():void;
 }){
- const drafting=plan.outlineJob.phase==='running',scripting=plan.scriptJob.phase==='running';
+ const drafting=(plan.outlineJob.phase==='starting'||plan.outlineJob.phase==='running'),scripting=(plan.scriptJob.phase==='starting'||plan.scriptJob.phase==='running');
  // A card applied in the companion brings the script into view for a moment.
  const [flash,setFlash]=useState<SectionKey|null>(null);
  const root=useRef<HTMLDivElement>(null);
@@ -180,7 +181,7 @@ function PlanPage({video,plan,known,focusId,ai,showPart,onOpen,onFocus,onTarget,
  // Borumi's Script step, with no heading over it (the Script view says what it is).
  return <div className={cn('doc doc-script',flash==='scenes'&&'flash')} ref={root} data-part="scenes" onFocusCapture={()=>onOpen?.('scenes')}>
   <ScriptScenes aiName={ai.name} aiBrand={ai.brand} hasRecording={!!video.recorderProjectId} outline={plan.outline} known={known} focusId={focusId}
-   drafting={drafting} draftLine={plan.outlineJob.phase==='running'?plan.outlineJob.line:undefined} scripting={scripting} scriptingScene={plan.scriptScene}
+   drafting={drafting} draftLine={(plan.outlineJob.phase==='starting'||plan.outlineJob.phase==='running')?plan.outlineJob.line:undefined} scripting={scripting} scriptingScene={plan.scriptScene}
    onEdit={plan.editOutline} onFocus={onFocus} onDraft={plan.createOutline} onWriteScene={sceneId=>plan.writeScript(sceneId)} onSceneScript={plan.saveSceneScript}
    onRecord={onRecordScene} onSaveNow={()=>plan.flush()} onStartRecording={onStartRecording}/>
  </div>;

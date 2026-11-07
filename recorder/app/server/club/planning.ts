@@ -13,7 +13,7 @@ import { readBreakdown } from './breakdown.js';
 import type { ChannelData } from './channel.js';
 import { loadChannelContext } from './context.js';
 import { ClubError, notFound } from './errors.js';
-import { getJob, snapshot, startJob, type JobContext } from './jobs.js';
+import { runningOnce, startJobOnce, type JobContext } from './jobs.js';
 import {
   buildExpandPrompt,
   buildOutlinePrompt,
@@ -32,6 +32,7 @@ import {
   type PromptIdea,
 } from './prompts.js';
 import * as store from './store.js';
+import {clubJsonCache} from './json-cache.js';
 
 /*
  * The Plan step's saved work and the three AI steps behind it: Package it, Create outline and Write full script instead.
@@ -46,6 +47,8 @@ export const EXPAND_BUDGET_USD = 0.5;
 /** A scene under this share of its word budget gets lengthened once (the board's rule). */
 const EXPAND_BELOW = 0.8;
 const RECENT_TITLES = 10;
+
+export const planLock = <T>(slug: string, id: string, fn: () => Promise<T>) => store.withLock(`companion-apply:${store.boardDir(slug, id)}`, fn);
 
 export const packageFile = (slug: string, id: string) => path.join(store.videoDir(slug, id), 'package.json');
 export const onepagerFile = (slug: string, id: string) => path.join(store.videoDir(slug, id), 'onepager.json');
@@ -308,7 +311,7 @@ export function ensurePackage(slug: string, video: Video): Promise<Package | nul
       seeds.push({ ...emptyPackage(), angle: idea.angle ?? '', twist: idea.twist ?? '', hook: { visual: '', spoken: idea.hook ?? '', text: '' }, ...(idea.demand ? { demand: idea.demand } : {}), ...(idea.gap ? { gap: idea.gap } : {}), ...(idea.show ? { show: idea.show } : {}) });
     }
     if (!seeds.length) return null;
-    return savePackage(slug, id, seeds.reduce(fillEmpty, emptyPackage()));
+    return seeds.reduce(fillEmpty, emptyPackage());
   });
 }
 
@@ -352,29 +355,52 @@ export async function readOnePager(slug: string, id: string): Promise<OnePager |
 }
 
 export async function saveOnePager(slug: string, id: string, value: unknown): Promise<OnePager> {
-  await store.readVideo(slug, id);
-  const parsed = onepagerShape.parse(value);
-  await store.withLock(`onepager:${onepagerFile(slug, id)}`, () => store.writeJSON(onepagerFile(slug, id), parsed));
-  return parsed;
+  return planLock(slug, id, async () => {
+    await store.readVideo(slug, id);
+    const parsed = onepagerShape.parse(value);
+    await store.withLock(`onepager:${onepagerFile(slug, id)}`, () => store.writeJSON(onepagerFile(slug, id), parsed));
+    return parsed;
+  });
 }
 
 /**
  * Keeps the video's `planning` flags true to what exists: the package is done once it has a title and a spoken hook, the outline
  * once it has scenes. Read by the card's status line.
  */
+const planningWarnings=new Set<string>();
+export async function planningFlags(slug:string,id:string,stored?:Video['planning']):Promise<Video['planning']>{
+ const fallback=stored??(await store.readVideo(slug,id)).planning,key=store.videoDir(slug,id);
+ try{
+  // Listing already loaded the video. Flags need neither script text nor repeated readVideo calls.
+  const [saved,outline,names]=await Promise.all([clubJsonCache.read<unknown>(packageFile(slug,id)),readText(outlineFile(slug,id)),fs.readdir(store.researchDir(slug,id)).catch(error=>{if(error.code==='ENOENT')return [];throw error;})]);
+  const tiles=await Promise.all(names.filter(name=>name.endsWith('.json')&&!name.startsWith('.')).map(name=>clubJsonCache.read<unknown>(path.join(store.researchDir(slug,id),name))));
+  const parsed=packageShape.safeParse(saved),pkg=parsed.success?parsed.data:null;
+  const flags={research:tiles.some(Boolean),package:!!pkg&&pkg.titles.some(title=>title.trim())&&!!pkg.hook.spoken.trim(),outline:!!outline&&parseOutline(outline).scenes.length>0};
+  planningWarnings.delete(key);return flags;
+ }catch(error){
+  if(!planningWarnings.has(key)){planningWarnings.add(key);if(planningWarnings.size>2048)planningWarnings.delete(planningWarnings.values().next().value!);console.error('[club] Could not read planning flags; using saved flags',key,error);}
+  return {...fallback};
+ }
+}
+
 export async function syncPlanningFlags(slug: string, id: string): Promise<void> {
-  const [video, pkg, outline] = await Promise.all([store.readVideo(slug, id), readPackage(slug, id), readOutline(slug, id)]);
-  const packaged = !!pkg && pkg.titles.some((title) => title.trim()) && !!pkg.hook.spoken.trim();
-  const outlined = !!outline?.scenes.length;
-  if (video.planning.package !== packaged || video.planning.outline !== outlined) await store.updateVideo(slug, id, { planning: { ...video.planning, package: packaged, outline: outlined } });
+  return planLock(slug, id, async () => {
+    const [video, pkg, outline, tiles] = await Promise.all([store.readVideo(slug, id), readPackage(slug, id), readOutline(slug, id), store.listTiles(slug, id)]);
+    const packaged = !!pkg && pkg.titles.some((title) => title.trim()) && !!pkg.hook.spoken.trim();
+    const outlined = !!outline?.scenes.length;
+    const research = tiles.length > 0;
+    if (video.planning.research !== research || video.planning.package !== packaged || video.planning.outline !== outlined || (outlined && video.quickRecording)) await store.updateVideo(slug, id, { planning: { research, package: packaged, outline: outlined }, ...(outlined ? { quickRecording: null } : {}) });
+  });
 }
 
 export async function savePackage(slug: string, id: string, pkg: unknown): Promise<Package> {
-  await store.readVideo(slug, id);
-  const parsed = packageShape.parse(pkg);
-  await store.writeJSON(packageFile(slug, id), parsed);
-  await syncPlanningFlags(slug, id);
-  return parsed;
+  return planLock(slug, id, async () => {
+    await store.readVideo(slug, id);
+    const parsed = packageShape.parse(pkg);
+    await store.writeJSON(packageFile(slug, id), parsed);
+    await syncPlanningFlags(slug, id);
+    return parsed;
+  });
 }
 
 const packagePatch = z.object({ ...packageShape.shape, hook: packageShape.shape.hook.partial(), titles: z.array(text(200).nullable()).length(3) }).partial().strict();
@@ -384,14 +410,16 @@ const packagePatch = z.object({ ...packageShape.shape, hook: packageShape.shape.
  * A whole package (every field a package needs) replaces it, which is what Undo sends.
  */
 export function patchPackage(slug: string, id: string, body: unknown): Promise<Package> {
-  return store.withLock(`package:${packageFile(slug, id)}`, async () => {
-    if (packageShape.safeParse(body).success) return savePackage(slug, id, body);
-    const patch = packagePatch.parse(body);
-    const base = (await readPackage(slug, id)) ?? emptyPackage();
-    const { hook, titles, ...rest } = patch;
-    // A title slot sent as null is not being changed.
-    const merged = titles ? (base.titles.map((title, i) => titles[i] ?? title) as Package['titles']) : base.titles;
-    return savePackage(slug, id, { ...base, ...rest, titles: merged, ...(hook ? { hook: { ...base.hook, ...hook } } : {}) });
+  return planLock(slug, id, async () => {
+    return store.withLock(`package:${packageFile(slug, id)}`, async () => {
+      if (packageShape.safeParse(body).success) return savePackage(slug, id, body);
+      const patch = packagePatch.parse(body);
+      const base = (await readPackage(slug, id)) ?? (await ensurePackage(slug, await store.readVideo(slug, id))) ?? emptyPackage();
+      const { hook, titles, ...rest } = patch;
+      // A title slot sent as null is not being changed.
+      const merged = titles ? (base.titles.map((title, i) => titles[i] ?? title) as Package['titles']) : base.titles;
+      return savePackage(slug, id, { ...base, ...rest, titles: merged, ...(hook ? { hook: { ...base.hook, ...hook } } : {}) });
+    });
   });
 }
 
@@ -405,32 +433,36 @@ const emptyPackage = (): Package => ({ angle: '', twist: '', titles: ['', '', ''
  * Returns the package it replaced, for Undo: `PUT /package` with it, or `DELETE /package` when there was none.
  */
 export function usePackageText(slug: string, id: string, kind: 'hook' | 'title', line: string): Promise<PackageUseResult> {
-  return store.withLock(`package:${packageFile(slug, id)}`, async () => {
-    const video = await store.readVideo(slug, id);
-    const text = squash(line);
-    if (!text) throw new ClubError('Add some text first.');
-    if (kind === 'title' && [...text].length > 200) throw new ClubError('That title is too long.');
-    const previous = await readPackage(slug, id);
-    const base = previous ?? emptyPackage();
-    const key = (title: string) => title.trim().toLowerCase();
-    // A title moves with its own thumbnail words: the new one goes first (keeping the words it had, if it was already an option).
-    const thumbs = base.thumbs ? pairThumbs(base, video.title) : undefined;
-    const order = [text, ...base.titles.filter((title) => title.trim() && key(title) !== key(text))].slice(0, 3);
-    const titles = [...order, '', ''].slice(0, 3) as Package['titles'];
-    const thumbFor = (title: string) => { const at = base.titles.findIndex((one) => one.trim() && key(one) === key(title)); return at >= 0 && thumbs ? thumbs[at] : ''; };
-    const next: Package =
-      kind === 'hook'
-        ? { ...base, hook: { ...base.hook, spoken: text } }
-        : { ...base, titles, ...(thumbs ? { thumbs: titles.map((title) => (title ? thumbFor(title) : '')) as [string, string, string] } : {}) };
-    return { package: await savePackage(slug, id, next), previous };
+  return planLock(slug, id, async () => {
+    return store.withLock(`package:${packageFile(slug, id)}`, async () => {
+      const video = await store.readVideo(slug, id);
+      const text = squash(line);
+      if (!text) throw new ClubError('Add some text first.');
+      if (kind === 'title' && [...text].length > 200) throw new ClubError('That title is too long.');
+      const previous = await readPackage(slug, id);
+      const base = previous ?? (await ensurePackage(slug, video)) ?? emptyPackage();
+      const key = (title: string) => title.trim().toLowerCase();
+      // A title moves with its own thumbnail words: the new one goes first (keeping the words it had, if it was already an option).
+      const thumbs = base.thumbs ? pairThumbs(base, video.title) : undefined;
+      const order = [text, ...base.titles.filter((title) => title.trim() && key(title) !== key(text))].slice(0, 3);
+      const titles = [...order, '', ''].slice(0, 3) as Package['titles'];
+      const thumbFor = (title: string) => { const at = base.titles.findIndex((one) => one.trim() && key(one) === key(title)); return at >= 0 && thumbs ? thumbs[at] : ''; };
+      const next: Package =
+        kind === 'hook'
+          ? { ...base, hook: { ...base.hook, spoken: text } }
+          : { ...base, titles, ...(thumbs ? { thumbs: titles.map((title) => (title ? thumbFor(title) : '')) as [string, string, string] } : {}) };
+      return { package: await savePackage(slug, id, next), previous };
+    });
   });
 }
 
 /** Removes the package (it is set aside, not deleted), so Undo of a first Use as hook or Use as title goes back to no package. */
 export async function deletePackage(slug: string, id: string): Promise<void> {
-  await store.readVideo(slug, id);
-  await setAside(packageFile(slug, id), 'unused');
-  await syncPlanningFlags(slug, id);
+  return planLock(slug, id, async () => {
+    await store.readVideo(slug, id);
+    await setAside(packageFile(slug, id), 'unused');
+    await syncPlanningFlags(slug, id);
+  });
 }
 
 const readText = (file: string) => fs.readFile(file, 'utf8').catch((error: NodeJS.ErrnoException) => (error.code === 'ENOENT' ? undefined : Promise.reject(error)));
@@ -452,7 +484,8 @@ export async function readOutline(slug: string, id: string): Promise<Outline | n
 }
 
 /** "2026-10-28T22-50-18-485Z": names the versions set aside by one run, and is the token Undo and Use it take. */
-const stamp = () => new Date().toISOString().replace(/[:.]/g, '-');
+let lastStamp = 0;
+const stamp = () => new Date(lastStamp = Math.max(Date.now(), lastStamp + 1)).toISOString().replace(/[:.]/g, '-');
 export const VERSION_TOKEN = /^\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z$/;
 const versionFile = (file: string, label: string, token: string) => {
   const parsed = path.parse(file);
@@ -462,7 +495,9 @@ const versionFile = (file: string, label: string, token: string) => {
 /** Moves a file aside under a dated name, so nothing the person wrote is ever lost. True when there was a file. */
 async function setAside(file: string, label: string, token = stamp()): Promise<boolean> {
   return fs.rename(file, versionFile(file, label, token)).then(
-    () => true,
+    async () => {
+      return true;
+    },
     (error: NodeJS.ErrnoException) => {
       if (error.code !== 'ENOENT') throw error;
       return false;
@@ -472,23 +507,27 @@ async function setAside(file: string, label: string, token = stamp()): Promise<b
 
 /** Saves the scenes, giving each an id. An outline carried over from the old board is kept next to it the first time it is replaced. */
 export async function saveOutline(slug: string, id: string, outline: unknown): Promise<Outline> {
-  await store.readVideo(slug, id);
-  const parsed = outlineShape.parse(outline);
-  const file = outlineFile(slug, id);
-  const existing = await readText(file);
-  const previous = (await readOutline(slug, id))?.scenes ?? [];
-  if (existing !== undefined && !existing.startsWith(MARKER)) await setAside(file, 'board');
-  await store.writeFileAtomic(file, formatOutline({ scenes: adoptSceneIds(parsed.scenes, previous) }));
-  await syncPlanningFlags(slug, id);
-  return (await readOutline(slug, id)) ?? parsed;
+  return planLock(slug, id, async () => {
+    await store.readVideo(slug, id);
+    const parsed = outlineShape.parse(outline);
+    const file = outlineFile(slug, id);
+    const existing = await readText(file);
+    const previous = (await readOutline(slug, id))?.scenes ?? [];
+    if (existing !== undefined && !existing.startsWith(MARKER)) await setAside(file, 'board');
+    await store.writeFileAtomic(file, formatOutline({ scenes: adoptSceneIds(parsed.scenes, previous) }));
+    await syncPlanningFlags(slug, id);
+    return (await readOutline(slug, id)) ?? parsed;
+  });
 }
 
 /** Saves the full script, or with null goes back to talking points (the script is set aside, not removed). */
 export async function saveScript(slug: string, id: string, script: string | null): Promise<Outline | null> {
-  await store.readVideo(slug, id);
-  if (script === null || !script.trim()) await setAside(scriptFile(slug, id), 'unused');
-  else await store.writeFileAtomic(scriptFile(slug, id), script.trimEnd() + '\n');
-  return readOutline(slug, id);
+  return planLock(slug, id, async () => {
+    await store.readVideo(slug, id);
+    if (script === null || !script.trim()) await setAside(scriptFile(slug, id), 'unused');
+    else await store.writeFileAtomic(scriptFile(slug, id), script.trimEnd() + '\n');
+    return readOutline(slug, id);
+  });
 }
 
 /**
@@ -497,20 +536,22 @@ export async function saveScript(slug: string, id: string, script: string | null
  * no `##` scenes cannot be split, so it is edited as the full script instead.
  */
 export async function saveSceneScript(slug: string, id: string, sceneId: string, text: string): Promise<Outline> {
-  await store.readVideo(slug, id);
-  const file = scriptFile(slug, id);
-  return store.withLock(`script:${file}`, async () => {
-    const outline = await readOutline(slug, id);
-    const index = outline?.scenes.findIndex((scene) => scene.id === sceneId) ?? -1;
-    if (!outline || index < 0) throw notFound('scene');
-    const current = await readText(file);
-    if (current?.trim() && !scriptSections(current).length) throw new ClubError('This script has no scenes to edit one by one. Edit the full script instead.', 409);
-    const body = text.trim();
-    if (current === undefined && !body) return outline;
-    const pkg = await readPackage(slug, id);
-    const video = await store.readVideo(slug, id);
-    await store.writeFileAtomic(file, mergeScene(outline.scenes, index, current, body, pkg?.titles[0]?.trim() || video.title));
-    return (await readOutline(slug, id)) ?? outline;
+  return planLock(slug, id, async () => {
+    await store.readVideo(slug, id);
+    const file = scriptFile(slug, id);
+    return store.withLock(`script:${file}`, async () => {
+      const outline = await readOutline(slug, id);
+      const index = outline?.scenes.findIndex((scene) => scene.id === sceneId) ?? -1;
+      if (!outline || index < 0) throw notFound('scene');
+      const current = await readText(file);
+      if (current?.trim() && !scriptSections(current).length) throw new ClubError('This script has no scenes to edit one by one. Edit the full script instead.', 409);
+      const body = text.trim();
+      if (current === undefined && !body) return outline;
+      const pkg = await readPackage(slug, id);
+      const video = await store.readVideo(slug, id);
+      await store.writeFileAtomic(file, mergeScene(outline.scenes, index, current, body, pkg?.titles[0]?.trim() || video.title));
+      return (await readOutline(slug, id)) ?? outline;
+    });
   });
 }
 
@@ -532,21 +573,25 @@ async function snapshotOf(slug: string, id: string, kind: PlanJobKind): Promise<
  * `<file>-earlier-<token>` (`replaced`, which Undo takes); Create outline sets the full script aside with it.
  */
 async function commitResult(slug: string, id: string, kind: PlanJobKind, before: string, content: string): Promise<{ replaced?: string; held?: string }> {
-  const write = async () => {
-    const token = stamp();
-    const file = FILES[kind](slug, id);
-    if ((await snapshotOf(slug, id, kind)) !== before) {
-      await store.writeFileAtomic(versionFile(file, 'new', token), content);
-      return { held: token };
-    }
-    let replaced = await setAside(file, 'earlier', token);
-    if (kind === 'outline') replaced = (await setAside(scriptFile(slug, id), 'earlier', token)) || replaced;
-    await store.writeFileAtomic(file, content);
-    await syncPlanningFlags(slug, id);
-    return replaced ? { replaced: token } : {};
-  };
-  // A hand-save and a finished one-pager cannot slip between the snapshot check and its write.
-  return kind === 'onepager' ? store.withLock(`onepager:${FILES[kind](slug, id)}`, write) : write();
+  return planLock(slug, id, async () => {
+    const write = async () => {
+      const token = stamp();
+      const file = FILES[kind](slug, id);
+      if ((await snapshotOf(slug, id, kind)) !== before) {
+        await store.writeFileAtomic(versionFile(file, 'new', token), content);
+        await recordPlanVersion(slug, id, kind, token, 'held');
+        return { held: token };
+      }
+      let replaced = await setAside(file, 'earlier', token);
+      if (kind === 'outline') replaced = (await setAside(scriptFile(slug, id), 'earlier', token)) || replaced;
+      await store.writeFileAtomic(file, content);
+      await syncPlanningFlags(slug, id);
+      await recordPlanVersion(slug, id, kind, token, 'replaced');
+      return replaced ? { replaced: token } : {};
+    };
+    // A hand-save and a finished one-pager cannot slip between the snapshot check and its write.
+    return kind === 'onepager' ? store.withLock(`onepager:${FILES[kind](slug, id)}`, write) : write();
+  });
 }
 
 const checkToken = (token: string) => {
@@ -557,110 +602,98 @@ const exists = (file: string) => fs.access(file).then(() => true, () => false);
 
 /** Undo after a replace: the versions set aside by that run come back; what replaced them is set aside in turn. */
 export async function undoReplace(slug: string, id: string, kind: PlanJobKind, token: string): Promise<void> {
-  await store.readVideo(slug, id);
-  checkToken(token);
-  const kinds: PlanJobKind[] = kind === 'outline' ? ['outline', 'script'] : [kind];
-  const back = kinds.map((each) => ({ file: FILES[each](slug, id), earlier: versionFile(FILES[each](slug, id), 'earlier', checkToken(token)) }));
-  const found = await Promise.all(back.map((item) => exists(item.earlier)));
-  if (!found[0]) throw new ClubError('That version was not found.', 404);
-  const now = stamp();
-  for (const [index, item] of back.entries()) {
-    await setAside(item.file, 'undone', now);
-    if (found[index]) await fs.rename(item.earlier, item.file);
-  }
-  await syncPlanningFlags(slug, id);
+  return planLock(slug, id, async () => {
+    await store.readVideo(slug, id);
+    checkToken(token);
+    const kinds: PlanJobKind[] = kind === 'outline' ? ['outline', 'script'] : [kind];
+    const back = kinds.map((each) => ({ file: FILES[each](slug, id), earlier: versionFile(FILES[each](slug, id), 'earlier', checkToken(token)) }));
+    const found = await Promise.all(back.map((item) => exists(item.earlier)));
+    if (!found.some(Boolean)) throw new ClubError('That version was not found.', 404);
+    const now = stamp();
+    for (const [index, item] of back.entries()) {
+      await setAside(item.file, 'undone', now);
+      if (found[index]) await fs.rename(item.earlier, item.file);
+    }
+    await recordPlanVersion(slug, id, kind, token, 'undone');
+    await syncPlanningFlags(slug, id);
+  });
 }
 
 /** Use it: a held result becomes the current version; the current one is set aside. */
 export async function useHeld(slug: string, id: string, kind: PlanJobKind, token: string): Promise<void> {
-  await store.readVideo(slug, id);
-  const file = FILES[kind](slug, id);
-  const held = versionFile(file, 'new', checkToken(token));
-  if (!(await exists(held))) throw new ClubError('That version was not found.', 404);
-  const content = await fs.readFile(held, 'utf8');
-  const now = stamp();
-  const heldScene = kind === 'script' ? HELD_SCENE.exec(content)?.[1] : undefined;
-  if (heldScene) {
-    // A scene's result takes only that scene's place in the script as it is now; edits made elsewhere stay.
-    const scenes = (await readOutline(slug, id))?.scenes ?? [];
-    const index = scenes.findIndex((scene) => scene.id === heldScene);
-    if (index < 0) throw new ClubError('That scene was not found.', 404);
-    const current = await readText(file);
-    const body = scriptSections(content.replace(HELD_SCENE, ''))[0]?.body ?? '';
-    const video = await store.readVideo(slug, id);
-    await setAside(file, 'earlier', now);
-    await store.writeFileAtomic(file, mergeScene(scenes, index, current, body, video.title));
-  } else if (kind === 'outline') {
-    const previous = (await readOutline(slug, id))?.scenes ?? [];
-    await setAside(file, 'earlier', now);
-    await setAside(scriptFile(slug, id), 'earlier', now);
-    await store.writeFileAtomic(file, formatOutline({ scenes: adoptSceneIds(parseOutline(content).scenes, previous) }));
-  } else {
-    await setAside(file, 'earlier', now);
-    await store.writeFileAtomic(file, content);
-  }
-  await setAside(held, 'used', now);
-  await syncPlanningFlags(slug, id);
+  return planLock(slug, id, async () => {
+    await store.readVideo(slug, id);
+    const file = FILES[kind](slug, id);
+    const held = versionFile(file, 'new', checkToken(token));
+    if (!(await exists(held))) throw new ClubError('That version was not found.', 404);
+    const content = await fs.readFile(held, 'utf8');
+    const now = stamp();
+    const heldScene = kind === 'script' ? HELD_SCENE.exec(content)?.[1] : undefined;
+    if (heldScene) {
+      // A scene's result takes only that scene's place in the script as it is now; edits made elsewhere stay.
+      const scenes = (await readOutline(slug, id))?.scenes ?? [];
+      const index = scenes.findIndex((scene) => scene.id === heldScene);
+      if (index < 0) throw new ClubError('That scene was not found.', 404);
+      const current = await readText(file);
+      const body = scriptSections(content.replace(HELD_SCENE, ''))[0]?.body ?? '';
+      const video = await store.readVideo(slug, id);
+      await setAside(file, 'earlier', now);
+      await store.writeFileAtomic(file, mergeScene(scenes, index, current, body, video.title));
+    } else if (kind === 'outline') {
+      const previous = (await readOutline(slug, id))?.scenes ?? [];
+      await setAside(file, 'earlier', now);
+      await setAside(scriptFile(slug, id), 'earlier', now);
+      await store.writeFileAtomic(file, formatOutline({ scenes: adoptSceneIds(parseOutline(content).scenes, previous) }));
+    } else {
+      await setAside(file, 'earlier', now);
+      await store.writeFileAtomic(file, content);
+    }
+    await fs.rm(held, { force: true });
+    await recordPlanVersion(slug, id, kind, token, 'used');
+    await syncPlanningFlags(slug, id);
+  });
 }
 
-/** Held results newer than the step's current file, by step: the newest token of each. */
+type PlanVersion = { kind: PlanJobKind; token: string; state: 'held' | 'replaced' | 'used' | 'undone' };
+const versionsIndex = (slug: string, id: string) => path.join(store.videoDir(slug, id), 'plan-versions.json');
+async function recordPlanVersion(slug: string, id: string, kind: PlanJobKind, token: string, state: PlanVersion['state']) {
+  const versions = (await store.readJSON<PlanVersion[]>(versionsIndex(slug, id))) ?? [];
+  const next = [...versions.filter(v => v.kind !== kind || v.token !== token), { kind, token, state }];
+  await store.writeJSON(versionsIndex(slug, id), next);
+}
+
+/** Read the saved index and discover held results written before the index existed. */
 export async function heldResults(slug: string, id: string): Promise<PlanData['ready']> {
-  const dir = store.videoDir(slug, id);
-  const names = await fs.readdir(dir).catch(() => [] as string[]);
+  const versions = (await store.readJSON<PlanVersion[]>(versionsIndex(slug, id))) ?? [];
+  const names=await fs.readdir(store.videoDir(slug,id));
+  for(const kind of PLAN_JOB_KINDS){const {name,ext}=path.parse(FILES[kind](slug,id));for(const file of names){if(!file.startsWith(name+'-new-')||!file.endsWith(ext))continue;const token=file.slice((name+'-new-').length,-ext.length);if(VERSION_TOKEN.test(token)&&!versions.some(v=>v.kind===kind&&v.token===token))versions.push({kind,token,state:'held'});}}
   const ready: PlanData['ready'] = {};
-  for (const kind of PLAN_JOB_KINDS) {
-    const file = FILES[kind](slug, id);
-    const { name, ext } = path.parse(file);
-    const tokens = names
-      .map((entry) => new RegExp(`^${name}-new-(.+)\\${ext}$`).exec(entry)?.[1])
-      .filter((token): token is string => !!token && VERSION_TOKEN.test(token))
-      .sort();
-    const newest = tokens.at(-1);
-    if (!newest) continue;
-    const [heldAt, currentAt] = await Promise.all([fs.stat(versionFile(file, 'new', newest)).then((s) => s.mtimeMs), fs.stat(file).then((s) => s.mtimeMs, () => 0)]);
-    if (heldAt > currentAt) ready[kind] = newest;
+  for (const version of versions.filter(v => v.state === 'held').sort((a, b) => a.token.localeCompare(b.token))) {
+    if (await exists(versionFile(FILES[version.kind](slug, id), 'new', version.token))) ready[version.kind] = version.token;
   }
   return ready;
 }
 
 // ---------------------------------------------------------------- one run per video and step
-
-const runningJobs = new Map<string, string>();
-/** The scene a running script job writes; empty for the whole script. */
 const runningScenes = new Map<string, string>();
-const jobKey = (slug: string, id: string, kind: PlanJobKind) => `${slug}/${id}/${kind}`;
-
-/**
- * Starts a Plan step for a video, or returns the run of that step already going, so a second click never pays twice.
- * Write full script instead takes a `sceneId` to write one scene. The script is one file, so only one script run goes at a time per video.
- */
+const jobKey = (slug: string, id: string, kind: PlanJobKind) => `plan:${slug}/${id}/${kind}`;
 export function startPlanJob(slug: string, id: string, kind: PlanJobKind, options: PlanOptions = {}, sceneId?: string, replace?: PackageGroup): JobSnapshot {
   const key = jobKey(slug, id, kind);
-  const running = runningJobs.get(key);
-  const job = running ? getJob(running) : undefined;
-  if (job?.status === 'running') {
+  const job = runningOnce(key);
+  if (job) {
     if ((runningScenes.get(key) ?? '') !== (sceneId ?? '')) throw new ClubError('Wait for the script that is running.', 409);
-    return snapshot(job);
+    return job;
   }
   const run: (slug: string, id: string, context: JobContext, options?: PlanOptions) => Promise<unknown> = sceneId && kind === 'script' ? (s, i, context, opts) => runSceneScript(s, i, sceneId, context, opts) : { package: runPackage, outline: runOutline, script: runScript, onepager: runOnePager }[kind];
-  const started = startJob(kind, (context) =>
-    run(slug, id, context, replace ? { ...options, replace } : options).finally(() => {
-      if (runningJobs.get(key) !== started.id) return;
-      runningJobs.delete(key);
-      runningScenes.delete(key);
-    }),
-  );
-  runningJobs.set(key, started.id);
+  const started = startJobOnce(key, kind, context => run(slug, id, context, replace ? { ...options, replace } : options).finally(() => runningScenes.delete(key)));
   runningScenes.set(key, sceneId ?? '');
   return started;
 }
-
-/** The runs still going for a video, by step. */
 export function runningPlanJobs(slug: string, id: string): PlanData['running'] {
   const found: PlanData['running'] = {};
   for (const kind of PLAN_JOB_KINDS) {
-    const jobId = runningJobs.get(jobKey(slug, id, kind));
-    if (jobId && getJob(jobId)?.status === 'running') found[kind] = jobId;
+    const job = runningOnce(jobKey(slug, id, kind));
+    if (job) found[kind] = job.id;
   }
   return found;
 }
@@ -969,21 +1002,25 @@ export async function runScript(slug: string, id: string, context: JobContext, o
  * held result keeps just that scene, so Use it also takes only that scene. The script that was there is set aside as `earlier`.
  */
 async function commitSceneResult(slug: string, id: string, sceneId: string, started: { outline: string | undefined; body: string; title: string }, body: string): Promise<{ replaced?: string; held?: string }> {
-  const file = scriptFile(slug, id);
-  return store.withLock(`script:${file}`, async () => {
-    const token = stamp();
-    const outline = await readOutline(slug, id);
-    const index = outline?.scenes.findIndex((scene) => scene.id === sceneId) ?? -1;
-    const current = await readText(file);
-    const now = outline && index >= 0 ? sceneSections(outline.scenes, current).sections[index].body : undefined;
-    if (!outline || index < 0 || (await readText(outlineFile(slug, id))) !== started.outline || now !== started.body) {
-      const heading = outline?.scenes[index]?.title.trim() || 'Scene';
-      await store.writeFileAtomic(versionFile(file, 'new', token), `<!-- scene:${sceneId} -->\n## ${heading}\n\n${body}\n`);
-      return { held: token };
-    }
-    const replaced = await setAside(file, 'earlier', token);
-    await store.writeFileAtomic(file, mergeScene(outline.scenes, index, current, body, started.title));
-    return replaced ? { replaced: token } : {};
+  return planLock(slug, id, async () => {
+    const file = scriptFile(slug, id);
+    return store.withLock(`script:${file}`, async () => {
+      const token = stamp();
+      const outline = await readOutline(slug, id);
+      const index = outline?.scenes.findIndex((scene) => scene.id === sceneId) ?? -1;
+      const current = await readText(file);
+      const now = outline && index >= 0 ? sceneSections(outline.scenes, current).sections[index].body : undefined;
+      if (!outline || index < 0 || (await readText(outlineFile(slug, id))) !== started.outline || now !== started.body) {
+        const heading = outline?.scenes[index]?.title.trim() || 'Scene';
+        await store.writeFileAtomic(versionFile(file, 'new', token), `<!-- scene:${sceneId} -->\n## ${heading}\n\n${body}\n`);
+        await recordPlanVersion(slug, id, 'script', token, 'held');
+        return { held: token };
+      }
+      const replaced = await setAside(file, 'earlier', token);
+      await store.writeFileAtomic(file, mergeScene(outline.scenes, index, current, body, started.title));
+      await recordPlanVersion(slug, id, 'script', token, 'replaced');
+      return replaced ? { replaced: token } : {};
+    });
   });
 }
 

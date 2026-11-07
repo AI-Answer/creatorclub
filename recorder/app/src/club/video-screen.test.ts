@@ -1,3 +1,4 @@
+import {refreshChosenAi} from './ai-status';
 import {mountUI,button} from '../test-dom';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -87,6 +88,7 @@ test('every "with …" names the AI the person connected: ChatGPT here, not Clau
   if(call.path==='/videos/v1/research')return {body:[]};
   if(call.path==='/videos/v1/scenes')return {body:[]};
  });
+ await refreshChosenAi(true);
  const ui=await mountUI(createElement(Harness,{initial:planned,tabs:[]}));
  try{
   await flush();await flush();

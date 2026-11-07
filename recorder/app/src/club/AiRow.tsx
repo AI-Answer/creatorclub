@@ -16,20 +16,20 @@ export const accountLine=(provider:ConnectProvider,account?:string)=>!account?'C
 export function AiRow({provider,status,description,primary=false,settings=false,onChanged}:{provider:ConnectProvider;status:AiProviderStatus;description:string;primary?:boolean;settings?:boolean;onChanged(result?:ConnectResult):void}){
  const {state,start,cancel}=useConnect(onChanged);
  const name=connectLabel[provider],logo=LOGO[provider];
- const busy=state.phase==='installing'||state.phase==='signing-in';
- const connected=status.signedIn;
+ const busy=state.phase==='installing'||state.phase==='signing-in'||state.phase==='stopping';
+ const connected=status.signedIn||state.phase==='connected';
  const reconnect=connected&&settings;
  return <div className="srow" style={{flexWrap:'wrap'}}>
   <span className={`logo ${logo}`}><BrandLogo brand={provider} size={26}/></span>
   <div className="grow" style={{minWidth:0}}>
    <div style={{fontWeight:600}}>{name}</div>
    <div className="small muted">{connected
-    ?<span className="row"><span className="dotok"/>{accountLine(provider,status.account)}</span>
+    ?<span className="row"><span className="dotok"/>{accountLine(provider,state.phase==='connected'?state.account:status.account)}</span>
     :description}</div>
   </div>
   {!busy&&(connected&&!settings
    ?<span className="chip b-green"><Icon name="check" size={12}/>Connected</span>
    :<Button size={settings?'sm':'md'} variant={primary&&!connected?'primary':'secondary'} aria-label={`${reconnect?'Reconnect':'Connect'} ${name}`} onClick={()=>start(provider,reconnect)}>{settings?(reconnect?'Reconnect':'Connect'):`Connect ${name}`}</Button>)}
-  {state.phase!=='idle'&&state.phase!=='connected'&&<div style={{flexBasis:'100%'}}><ConnectStatus state={state} provider={provider} onRetry={()=>start(provider,reconnect)} onCancel={cancel}/></div>}
+  {state.phase!=='idle'&&<div style={{flexBasis:'100%'}}><ConnectStatus state={state} provider={provider} onRetry={()=>start(provider,reconnect)} onCancel={cancel}/></div>}
  </div>;
 }

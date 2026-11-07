@@ -97,3 +97,7 @@ test('Task 14: history summaries give each version its numbers, so titles can sa
  const versions=await s.history(p.id),found=await s.historySummaries(p.id);
  assert.ok(versions.length>=2);assert.deepEqual(versions.map(v=>found[v.id]?.name),versions.map(v=>v.name));assert.equal(typeof found[versions[0].id].duration,'number');
 });
+
+test('checkpoint reads the project inside its write queue and cannot revert a pending save',async()=>{
+ const p=await s.newProject('Before checkpoint');const pending=s.saveProject({...p,name:'Newer queued edit'},{expectedRevision:s.revision(p)}),checkpoint=s.checkpointProject(p.id);await pending;const saved=await checkpoint;assert.equal(saved.name,'Newer queued edit');assert.equal((await s.readProject(p.id)).name,'Newer queued edit');
+});

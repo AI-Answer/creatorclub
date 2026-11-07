@@ -218,3 +218,7 @@ test('choosing "Open script as separate window" sends the island\'s script-windo
  const cjs=await readFile(new URL('../desktop/recording-hud.cjs',import.meta.url),'utf8');
  assert.ok(cjs.indexOf("label:'Show sources'")<cjs.indexOf("label:'Open script as separate window'")&&cjs.indexOf("label:'Open script as separate window'")<cjs.indexOf("label:'Scrolling mode'"),'between Show sources and Scrolling mode, as Borumi');
 });
+test('Show editor escapes from More, and a stopped speech helper cannot leave follow running',async()=>{
+ const t=await island({status:'recording',elapsed:1,...camera,script:'One two three.'},{choice:'show-editor',voice:{available:true,authorization:'authorized'}});
+ try{assert.equal(t.follows.filter(value=>value==='start').length,1);await t.click('more');assert.equal(t.commands.at(-1),'show-editor');t.speak({type:'stopped'});t.update({elapsed:2});assert.equal(t.follows.filter(value=>value==='start').length,1,'an unexpected stop waits for the next take');t.update({status:'starting',countdown:3});assert.equal(t.follows.filter(value=>value==='start').length,2,'the next take may restart following');}finally{await t.close();}
+});

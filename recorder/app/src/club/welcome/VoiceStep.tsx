@@ -27,7 +27,7 @@ export function VoiceStep({path,channel,fromVideos,draft,onDraft,save,onRetry,in
    </div>;
   })}
   <div className="small faint">{saved&&!incomplete?'Saved. Change an answer and Continue saves it.':incomplete?'To save a change, answer the first two questions.':"All three are optional. Continue leaves out any you don't fill in."}</div>
-  {save.phase==='running'&&<ProgressLine label="Writing your voice guide" line={save.line??'Writing your voice guide…'} estimate="a few seconds"/>}
+  {(save.phase==='starting'||save.phase==='running')&&<ProgressLine label="Writing your voice guide" line={save.line??'Writing your voice guide…'} estimate="a few seconds"/>}
   {save.phase==='failed'&&<ErrorLine message={save.message} onRetry={onRetry}/>}
  </div>;
 }

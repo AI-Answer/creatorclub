@@ -6,7 +6,7 @@ import {randomUUID} from 'node:crypto';
 import {isDeepStrictEqual} from 'node:util';
 import {clipDuration,type Project,type Clip} from '../shared/types.js';
 import {encodeBorumiScript} from './borumi-script.js';
-import {readBorumiPreservation,safeBorumiOutputRoot,type BorumiProvenance} from './borumi-provenance.js';
+import {readBorumiPreservation,safeBorumiOutputRoot,trackBorumiStaging,type BorumiProvenance} from './borumi-provenance.js';
 import {planStructuralTimeline,type StructuralTimelinePlan} from './borumi-compat-timeline.js';
 
 type Row=Record<string,any>;
@@ -170,6 +170,7 @@ export async function exportBorumiRoundtrip(project:Project,options:{preservatio
  const counter={files:0,bytes:0};
  for(const media of source.baseline.media){try{if(!(await lstat(media.path)).isFile())throw Error('Not a regular file')}catch{throw Error('A source media file is missing or is a symbolic link. Relink or restore the original asset before exporting.');}}
  for(const [relative,expected] of Object.entries(source.assets??{})){const actual=await lstat(path.join(source.sourceRoot,relative));if(actual.size!==expected.size||actual.mtimeMs!==expected.mtimeMs)throw Error('A source media file changed after import. Reimport it before exporting a compatible copy.');}
+ const untrack=await trackBorumiStaging(staging);
  try{
   if(source.sourceIsBundle)await copyTree(source.sourceRoot,staging,counter,new Set([path.basename(source.sourceDatabase),'project.bmproj-wal','project.bmproj-shm','project.bmproj-journal','.sceneforge']));
   else{await mkdir(staging,{mode:0o700});try{await copyTree(path.join(source.sourceRoot,'medias'),path.join(staging,'medias'),counter)}catch(error){if((error as NodeJS.ErrnoException).code!=='ENOENT')throw error;}}
@@ -185,5 +186,5 @@ export async function exportBorumiRoundtrip(project:Project,options:{preservatio
   const result:BorumiExportResult={path:output,projectId:id,plan,filesCopied:counter.files,bytesCopied:counter.bytes,nativeValidation:'pending'};
   await writeFile(path.join(staging,'.sceneforge','export.json'),JSON.stringify({version:1,createdAt:new Date().toISOString(),sourceSnapshot:source.snapshotId,sourceDatabaseSha256:source.databaseSha256,...result},null,2),{mode:0o600});
   await rename(staging,output);return result;
- }catch(error){await rm(staging,{recursive:true,force:true});throw error}
+ }catch(error){await rm(staging,{recursive:true,force:true});throw error}finally{await untrack();}
 }

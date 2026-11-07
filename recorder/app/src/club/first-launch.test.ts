@@ -1,3 +1,5 @@
+import {forgetAiStatus} from './ai-status';
+import {clearWelcomeProgress} from './welcome-progress';
 import {mountUI,button} from '../test-dom';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -22,7 +24,7 @@ const emit=(type:string,data?:unknown)=>act(async()=>{FakeEventSource.last().emi
 const text=(container:Element)=>container.textContent??'';
 const labels=(container:Element)=>[...container.querySelectorAll('button')].map(b=>b.textContent?.trim());
 const withServer=async(reply:(call:FakeCall)=>FakeReply|Promise<FakeReply>,run:(calls:FakeCall[])=>Promise<void>)=>{
- FakeEventSource.install();const server=installFetch(call=>reply(call)??(call.path==='/workspaces'&&call.method==='GET'?{body:one}:undefined)??(call.path==='/publishing'&&call.method==='GET'?{body:{postiz:{connected:false,address:null,channel:null},defaultVisibility:'public'}}:undefined));
+ clearWelcomeProgress();FakeEventSource.install();const server=installFetch(call=>reply(call)??(call.method==='POST'&&/^\/workspaces\/[^/]+\/current$/.test(call.path)?{body:{current:decodeURIComponent(call.path.split('/')[2])}}:undefined)??(call.path==='/workspaces'&&call.method==='GET'?{body:one}:undefined)??(call.path==='/publishing'&&call.method==='GET'?{body:{postiz:{connected:false,address:null,channel:null},defaultVisibility:'public'}}:undefined));
  try{await run(server.calls);}finally{server.restore();}
 };
 const baseRoutes=(status:AiStatus,workspaces:unknown):((call:FakeCall)=>FakeReply)=>call=>{
@@ -55,7 +57,7 @@ test('opening Home before setup was finished goes to first launch; a finished se
   });
  }
  assert.deepEqual(posts,['POST','POST'],'an install with a channel is set up regardless of AI');
- FakeEventSource.install();const original=globalThis.fetch;globalThis.fetch=(async()=>{throw new TypeError('offline');}) as typeof fetch;
+ clearWelcomeProgress();FakeEventSource.install();const original=globalThis.fetch;globalThis.fetch=(async()=>{throw new TypeError('offline');}) as typeof fetch;
  window.location.hash='';const ui=await mountUI(createElement(ClubApp));
  try{await flush();assert.equal(window.location.hash,'#/home');}finally{globalThis.fetch=original;await ui.close();window.location.hash='';}
 });
@@ -163,7 +165,7 @@ test('Welcome: Cancel while signing in ends the job and goes back to the buttons
    await click(c,'Connect Claude');await click(c,'Cancel');
    release();await flush();
    assert.deepEqual(calls.filter(call=>call.method==='DELETE').map(call=>call.path),['/jobs/j_1','/jobs/j_late']);
-   assert.equal(FakeEventSource.all.length,0,'never follows a cancelled job');
+   assert.equal(FakeEventSource.last().closed,true,'follows until the server confirms cancellation, then closes');
   }finally{await ui.close();}
  });
 });
@@ -398,6 +400,7 @@ test('Settings: Claude and ChatGPT with their status and Connect or Reconnect, a
 });
 
 test('Settings: a skeleton while the saved settings are read; the page shows without waiting for the slow AI check, whose rows follow',async()=>{
+ forgetAiStatus();
  let answerStatus:(()=>void)|undefined,answerSettings:(()=>void)|undefined;
  await withServer(call=>{
   if(call.path==='/ai/status')return new Promise<FakeReply>(resolve=>{answerStatus=()=>resolve({body:claudeIn});});

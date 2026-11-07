@@ -11,8 +11,10 @@ const address=new URL(base);
 if(!['127.0.0.1','localhost'].includes(address.hostname))throw Error('The packaged MCP connects to a local Creator Compiler service only.');
 const data=runtime.creatorClubPaths({appData:process.platform==='win32'?(process.env.APPDATA||path.join(os.homedir(),'AppData/Roaming')):path.join(os.homedir(),'Library/Application Support')}).studio;
 const env=runtime.runtimeEnvironment({root:fileURLToPath(new URL('../',import.meta.url)),data,port:address.port||'4194'});
+// An MCP-launched service must never inherit an app's owner or an unavailable motion bridge.
+delete env.CREATORCLUB_PARENT_PID;delete env.CREATORCLUB_MOTION_BRIDGE;
 let starting;
-async function healthy(){try{const response=await fetch(base+'/health',{signal:AbortSignal.timeout(1500)});return response.ok&&runtime.isCreatorClubService(await response.json());}catch{return false;}}
+async function healthy(){try{const response=await fetch(base+'/ready',{signal:AbortSignal.timeout(1500)});if(!response.ok)return false;const health=await response.json();if(!runtime.isCreatorClubService(health))return false;if(health.parentPid){try{process.kill(health.parentPid,0);}catch(error){if(error.code!=='EPERM')return false;}}return true;}catch{return false;}}
 async function ensureService(){
  if(await healthy())return;
  if(starting)return starting;

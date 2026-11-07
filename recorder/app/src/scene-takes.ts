@@ -3,6 +3,7 @@ import {takeSourceRange,takeTimelineDuration} from '../shared/take-timing';
 import {clipDuration,defaultTransform,effectsForTrack,makeId,takeEffects,narrationPriority,type Clip,type Project,type RecordedTake} from '../shared/types';
 import {creatorCameraTransform,creatorScreenTransform} from '../shared/camera-style';
 import {plainClone} from './project-draft';
+import {takeClips,takeState,takeOnTimeline} from './take-state';
 export type TakeConfirmMode='replace-matching'|'keep-both'|'record-over';
 const EPS=1e-7;
 const role=(c:Clip,p:Project)=>c.track==='audio'?`audio:${c.audioRole??p.media.find(m=>m.id===c.mediaId)?.audioRole??'unknown'}`:c.track;
@@ -25,8 +26,8 @@ export function saveProjectTake(p:Project,t:RecordedTake):RecordedTake {
  p.recordedTakes=[...(p.recordedTakes??[]),saved];if(saved.confirmedAt)for(const c of existingClips)c!.recordingTakeId=t.id;for(const m of t.media)if(!p.media.some(x=>x.id===m.id))p.media.push(plainClone(m));return saved;
 }
 export function sceneTakes(p:Project,sceneId:string){return(p.recordedTakes??[]).filter(t=>t.sceneId===sceneId).map(t=>{
- const clips=p.clips.filter(c=>c.recordingTakeId===t.id),active=new Set(clips.map(c=>role(c,p))),all=new Set(t.timeline?.clips.map(c=>role(c,p))??[]);
- return {...t,activeClipCount:clips.length,state:!clips.length?(t.confirmedAt||t.retained?'archived':'saved'):active.size<all.size?'partial':'active'} as RecordedTake&{activeClipCount:number;state:'saved'|'active'|'partial'|'archived'};
+ const clips=takeClips(p,t);
+ return {...t,activeClipCount:clips.length,state:takeState(p,t)} as RecordedTake&{activeClipCount:number;state:'saved'|'active'|'partial'|'archived'};
 });}
 function initialize(p:Project,t:RecordedTake){if(t.timeline)return;const linkId=t.synchronization?.version===3?makeId():undefined,composed=t.tracks.includes('screen')&&t.tracks.some((track,i)=>track==='camera'&&takeSourceRange(t,i).sourceOut>takeSourceRange(t,i).sourceIn);t.clipIds??=t.media.map(()=>makeId());t.timeline={duration:takeTimelineDuration(t),captions:[],clips:t.media.map((m,i)=>({id:t.clipIds![i],mediaId:m.id,name:m.name,track:t.tracks[i],...(m.audioRole?{audioRole:m.audioRole}:{}),recordingTakeId:t.id,...(linkId?{linkId}:{}),...takeSourceRange(t,i),speed:1,gain:1,muted:false,effects:takeEffects(t,i),transform:composed&&t.tracks[i]==='camera'?creatorCameraTransform(p.canvas):composed&&t.tracks[i]==='screen'?creatorScreenTransform(p.canvas):defaultTransform()})).filter(c=>c.sourceOut>c.sourceIn)};}
 function snapshot(p:Project,sceneId:string,start:number){for(const t of p.recordedTakes??[]){if(t.sceneId!==sceneId||!t.timeline)continue;const live=p.clips.filter(c=>c.recordingTakeId===t.id),roles=new Set(t.installedRoles??live.map(c=>role(c,p)));t.timeline.clips=[...t.timeline.clips.filter(c=>!roles.has(role(c,p))),...live.map(c=>relative(c,start))];t.timeline.duration=Math.max(0,Math.max(0,...t.timeline.clips.map(c=>c.start+clipDuration(c)))-(t.timeline.start??0));}}
@@ -74,7 +75,7 @@ function applyTake(p:Project,sceneId:string,id:string,mode:TakeConfirmMode){
 /** Apply inside one studio.change; failures leave even source/archive metadata untouched. */
 export function activateSceneTake(p:Project,sceneId:string,id:string,mode:TakeConfirmMode='replace-matching'){const draft=plainClone(p),result=applyTake(draft,sceneId,id,mode);Object.assign(p,draft);return result;}
 export function confirmDurableTake(p:Project,input:Pick<RecordedTake,'media'|'tracks'|'offsets'|'sceneId'|'clipIds'|'synchronization'>&{id:string;createdAt?:string;mode?:TakeConfirmMode}){
- const current=p.recordedTakes?.find(t=>t.id===input.id);if(current?.confirmedAt&&p.clips.some(c=>c.recordingTakeId===input.id)){const scene=p.scenes.find(s=>s.id===input.sceneId);if(!scene)throw Error('The recording scene no longer exists.');return {start:scene.start+(current.timeline?.start??0),nextSceneId:scene.id};}
+ const current=p.recordedTakes?.find(t=>t.id===input.id);if(current&&takeOnTimeline(p,current)){const scene=p.scenes.find(s=>s.id===input.sceneId);if(!scene)throw Error('The recording scene no longer exists.');return {start:scene.start+(current.timeline?.start??0),nextSceneId:scene.id};}
  const draft=plainClone(p);if(!current)saveProjectTake(draft,{...input,createdAt:input.createdAt??new Date().toISOString()});const result=applyTake(draft,input.sceneId,input.id,input.mode??'replace-matching');Object.assign(p,draft);return result;
 }
 

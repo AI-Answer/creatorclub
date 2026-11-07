@@ -1,8 +1,9 @@
+import {clearWelcomeProgress,restoreWelcomeProgress,saveWelcomeProgress} from '../welcome-progress';
 import {BrandMark} from '../../BrandMark';
 import {useCallback,useEffect,useMemo,useRef,useState} from 'react';
 import type {AddChannelResult,Workspace} from '../../../shared/club';
 import {aiState,useAiCheck} from '../ai-status';
-import {clubFetch,errorMessage} from '../api';
+import {clubFetch,errorMessage,selectClubWorkspace} from '../api';
 import {ErrorLine} from '../ErrorLine';
 import type {Route} from '../routes';
 import {useBreakdowns} from '../useBreakdowns';
@@ -32,7 +33,7 @@ type Scan={line?:string}|null;
 function WorkingData({visible,onAdded,onSettings,onScan}:{visible:boolean;onAdded(id:string):void;onSettings():void;onScan(scan:Scan):void}){
  const feed=useTrending(),saved=useBreakdowns(),{state}=useVideos();
  const items=useMemo(()=>feed.data&&startingVideos(feed.data.items),[feed.data]);
- const line=feed.job.phase==='running'?feed.job.line:undefined;
+ const line=(feed.job.phase==='starting'||feed.job.phase==='running')?feed.job.line:undefined;
  const {seeding}=feed;
  useEffect(()=>{onScan(seeding?{line}:null);},[seeding,line,onScan]);
  return <div hidden={!visible}><WorkingStep items={items} searching={seeding} scanLine={line} loadError={feed.loadError} onReload={feed.reload} saved={saved} videos={state.status==='ready'?state.videos:[]} onAdded={onAdded} onSettings={onSettings}/></div>;
@@ -45,18 +46,31 @@ function WorkingData({visible,onAdded,onSettings,onScan}:{visible:boolean;onAdde
  * The slow parts run in the background and say so: the AI account check starts at once, and the search for videos that work starts when the channel exists.
  */
 export function WelcomeScreen({navigate,initialStep}:{navigate(route:Route,options?:{replace?:boolean}):void;initialStep?:number}){
- const [step,setStep]=useState((initialStep??1)-1);
- const {check,reload:recheck,connected}=useAiCheck();
+ const restored=useRef(restoreWelcomeProgress(initialStep)).current;
+ const [step,setStep]=useState((initialStep??(restored.created?(restored.savedVoice||restored.channel?.voice==='built'?4:3):1))-1);
+ const {check,reload:recheck,connected}=useAiCheck(true);
  const ai=aiState(check);
- const [path,setPath]=useState<WelcomePath|null>(null),[url,setUrl]=useState('');
- const [fresh,setFresh]=useState<FreshDraft>(NO_FRESH),[voice,setVoice]=useState<VoiceDraft>({});
- const [channel,setChannel]=useState<WelcomeChannel|null>(null);
+ const [path,setPath]=useState<WelcomePath|null>(restored.path??null),[url,setUrl]=useState('');
+ const [fresh,setFresh]=useState<FreshDraft>(restored.fresh??NO_FRESH),[voice,setVoice]=useState<VoiceDraft>(restored.voice??{});
+ const [channel,setChannel]=useState<WelcomeChannel|null>(restored.channel??(restored.created?asChannel(restored.created,'none'):null));
  // What was last saved from the answers, so going Back and changing one is noticed, and sending nothing is the same as nothing changed.
- const [savedFresh,setSavedFresh]=useState<FreshDraft|null>(null),[savedVoice,setSavedVoice]=useState<VoiceDraft|null>(null);
+ const [savedFresh,setSavedFresh]=useState<FreshDraft|null>(restored.savedFresh??null),[savedVoice,setSavedVoice]=useState<VoiceDraft|null>(restored.savedVoice??null);
  const [scan,setScan]=useState<Scan>(null),[passedConnect,setPassedConnect]=useState(false);
  const add=useJobRun(),save=useJobRun(),edit=useJobRun();
- const busy=add.state.phase==='running'||save.state.phase==='running'||edit.state.phase==='running';
- const welcomed=useRef(false),created=useRef<Workspace|null>(null),body=useRef<HTMLDivElement>(null);
+ const busy=(add.state.phase==='starting'||add.state.phase==='running')||(save.state.phase==='starting'||save.state.phase==='running')||(edit.state.phase==='starting'||edit.state.phase==='running');
+ const welcomed=useRef(false),created=useRef<Workspace|null>(restored.created??null),body=useRef<HTMLDivElement>(null);
+ const welcomePending=useRef<Promise<void>|null>(null),creating=useRef<Promise<Workspace>|null>(null);
+ useEffect(()=>{if(!welcomed.current)saveWelcomeProgress({path,fresh,voice,channel,savedFresh,savedVoice});},[path,fresh,voice,channel,savedFresh,savedVoice]);
+ const rememberCreated=(workspace:Workspace)=>{created.current=workspace;saveWelcomeProgress({created:workspace});return workspace;};
+ const [selecting,setSelecting]=useState(false),[selectionError,setSelectionError]=useState(''),[selectionReady,setSelectionReady]=useState(restored.path!=='channel'||!restored.created);
+ const selectingNow=useRef<Promise<void>|null>(null);
+ const activateImported=useCallback((result:AddChannelResult)=>{
+  if(selectingNow.current)return selectingNow.current;
+  rememberCreated(result.workspace);setSelecting(true);setSelectionReady(false);setSelectionError('');
+  const request=selectClubWorkspace(result.workspace.slug).then(()=>{setChannel(asChannel(result.workspace,result.voice));setSelectionReady(true);},reason=>{setSelectionError(errorMessage(reason,"Couldn't open that channel."));}).finally(()=>{selectingNow.current=null;setSelecting(false);});
+  selectingNow.current=request;return request;
+ },[]);
+ useEffect(()=>{if(restored.path==='channel'&&restored.created)void activateImported({workspace:restored.created,voice:restored.channel?.voice??'none'} as AddChannelResult);},[activateImported,restored]);
  const [leaveError,setLeaveError]=useState<{message:string;route:Route}|null>(null);
 
  const state={ai,path,channelAdded:channel!==null,fresh:freshReady(fresh.name,fresh.topics,fresh.audience),channelMade:channel!==null,passedConnect};
@@ -72,15 +86,21 @@ export function WelcomeScreen({navigate,initialStep}:{navigate(route:Route,optio
  useEffect(()=>{body.current?.scrollTo?.(0,0);},[shown]);
 
  /** Saves that setup is done. Resolves when it is saved; throws the one sentence to show when it is not. */
- const saveWelcomed=useCallback(async()=>{
-  if(welcomed.current)return;
-  if(!channel&&!created.current){
-   const {workspaces}=await clubFetch<{workspaces:Workspace[]}>('/workspaces');
-   if(!workspaces.length)created.current=await clubFetch<Workspace>('/workspaces/fresh',{body:{name:'My channel',topics:[],audience:[]}});
-  }
-  await clubFetch('/settings/welcomed',{method:'POST'});
-  welcomed.current=true;
- },[channel]);
+ const saveWelcomed=useCallback(():Promise<void>=>{
+  if(welcomed.current)return Promise.resolve();
+  if(welcomePending.current)return welcomePending.current;
+  const request=(async()=>{
+   if(creating.current)await creating.current;
+   if(selectingNow.current)await selectingNow.current;
+   if(path==='channel'&&created.current&&!selectionReady){await selectClubWorkspace(created.current.slug);setSelectionReady(true);}
+   if(!channel&&!created.current){
+    const {workspaces}=await clubFetch<{workspaces:Workspace[]}>('/workspaces');
+    if(!workspaces.length)rememberCreated(await clubFetch<Workspace>('/workspaces/fresh',{body:{name:'My channel',topics:[],audience:[]}}));
+   }
+   await clubFetch('/settings/welcomed',{method:'POST'});welcomed.current=true;clearWelcomeProgress();
+  })().finally(()=>{if(welcomePending.current===request)welcomePending.current=null;});
+  welcomePending.current=request;return request;
+ },[channel,path,selectionReady]);
  /** Leaves setup for `route`, but only once setup is saved, so a failed save does not send you back here at every launch. */
  const leave=useCallback(async(route:Route)=>{
   setLeaveError(null);
@@ -94,14 +114,13 @@ export function WelcomeScreen({navigate,initialStep}:{navigate(route:Route,optio
  const addChannel=()=>{
   const channelUrl=url.trim();if(!channelUrl)return;
   void add.run(()=>clubFetch('/workspaces',{body:{channelUrl}}),result=>{
-   const {workspace,voice:built}=result as AddChannelResult;
-   setChannel(asChannel(workspace,built));
+   void activateImported(result as AddChannelResult);
   });
  };
 
  /** Leaves step 2. A fresh channel that already exists (you came Back) is updated when its answers changed, never made twice. */
  const finishChannel=()=>{
-  if(path==='fresh'&&channel&&savedFresh&&!sameFresh(fresh,savedFresh)){
+  if(path==='fresh'&&channel&&(!savedFresh||!sameFresh(fresh,savedFresh))){
    const named=fresh.channelName.trim()||fresh.name.trim();
    void edit.run(()=>clubFetch<Workspace>(`/workspaces/${encodeURIComponent(channel.slug)}`,{method:'PUT',body:{person:fresh.name.trim(),name:named,topics:fresh.topics,audience:fresh.audience}}),result=>{
     setChannel(asChannel(result as Workspace,channel.voice));setSavedFresh(fresh);goTo(2);
@@ -114,7 +133,7 @@ export function WelcomeScreen({navigate,initialStep}:{navigate(route:Route,optio
  /** Leaves the voice step. A channel short on captions writes its guide from the answers; a fresh one is created here with them, or has its guide written again when you came Back and changed them. */
  const finishVoice=()=>{
   const answers=voiceFromDraft(voice);
-  const wrote=sameVoice(answers,voiceFromDraft(savedVoice??{}));
+  const voiceUnchanged=sameVoice(answers,voiceFromDraft(savedVoice??{}));
   if(ai==='connected'&&path==='channel'&&channel?.voice==='needs-answers'&&canWriteVoice(answers)){
    const body={voice:answers.voice!,audience:answers.audience!,...(answers.moves&&{moves:answers.moves})};
    void save.run(()=>clubFetch(`/workspaces/${encodeURIComponent(channel.slug)}/voice`,{body:{answers:body}}),()=>{setChannel({...channel,voice:'built'});setSavedVoice(voice);goTo(3);});
@@ -124,14 +143,14 @@ export function WelcomeScreen({navigate,initialStep}:{navigate(route:Route,optio
    const hasAnswers=ai==='connected'&&Object.keys(answers).length>0;
    void save.run(async()=>{
     // The channel is made once. A retry after a failed rename only repeats the rename.
-    created.current??=await clubFetch<Workspace>('/workspaces/fresh',{body:{name:fresh.name.trim(),topics:fresh.topics,audience:fresh.audience,...(hasAnswers&&{voice:answers})}});
+    if(!created.current){creating.current??=clubFetch<Workspace>('/workspaces/fresh',{body:{name:fresh.name.trim(),topics:fresh.topics,audience:fresh.audience,...(hasAnswers&&{voice:answers})}}).then(rememberCreated).finally(()=>{creating.current=null;});await creating.current;}
     const named=fresh.channelName.trim();
-    return named?clubFetch<Workspace>(`/workspaces/${encodeURIComponent(created.current.slug)}`,{method:'PUT',body:{name:named}}):created.current;
+    return named?clubFetch<Workspace>(`/workspaces/${encodeURIComponent(created.current!.slug)}`,{method:'PUT',body:{name:named}}):created.current;
    },result=>{setChannel(asChannel(result as Workspace,hasAnswers?'built':'none'));setSavedFresh(fresh);setSavedVoice(voice);if(ai==='connected')goTo(3);else void leave({name:'home'});});
    return;
   }
   // Back with a changed answer: the guide is written again from the new answers (it needs the first two).
-  if(ai==='connected'&&channel&&!wrote&&canWriteVoice(answers)){
+  if(ai==='connected'&&channel&&!voiceUnchanged&&canWriteVoice(answers)){
    const body={voice:answers.voice!,audience:answers.audience!,...(answers.moves&&{moves:answers.moves})};
    void save.run(()=>clubFetch(`/workspaces/${encodeURIComponent(channel.slug)}/voice`,{body:{answers:body}}),()=>{setChannel({...channel,voice:'built'});setSavedVoice(voice);goTo(3);});
    return;
@@ -141,7 +160,7 @@ export function WelcomeScreen({navigate,initialStep}:{navigate(route:Route,optio
 
  const next=()=>{if(shown===1)finishChannel();else if(shown===2)finishVoice();else goTo(shown+1);};
  const block=path==='channel'?addChannelBlock(ai):null;
- const allowed=canContinue(shown,state)&&!busy;
+ const allowed=canContinue(shown,state)&&!busy&&!selecting&&selectionReady;
  const info=WELCOME_STEPS[shown];
  // A guide that came from the channel's own videos has nothing to answer; every other voice step shows the questions, filled with what was said.
  const fromVideos=path==='channel'&&channel?.voice==='built'&&savedVoice===null;
@@ -167,7 +186,8 @@ export function WelcomeScreen({navigate,initialStep}:{navigate(route:Route,optio
     {shown===0&&<ConnectStep check={check} onReload={recheck} onConnected={result=>connected(result?.provider??'claude',result?.account)}/>}
     {shown===1&&<ChannelStep path={path} onPath={setPath} url={url} onUrl={setUrl} job={add.state} onAdd={addChannel} block={block} onConnect={()=>goTo(0)} channel={channel} fresh={fresh} onFresh={setFresh}/>}
     {shown===2&&<VoiceStep path={path} channel={channel} fromVideos={fromVideos} draft={voice} onDraft={setVoice} save={save.state} onRetry={finishVoice} incomplete={incomplete} saved={savedVoice!==null}/>}
-    {channel&&ai==='connected'&&<WorkingData visible={shown===3} onAdded={id=>void leave({name:'videos',view:'board',new:id})} onSettings={()=>void leave({name:'settings',section:'followed'})} onScan={onScan}/>}
+    {channel&&selectionReady&&<WorkingData visible={shown===3} onAdded={id=>void leave({name:'videos',view:'board',new:id})} onSettings={()=>void leave({name:'settings',section:'followed'})} onScan={onScan}/>}
+    {selectionError&&<ErrorLine message={selectionError} onRetry={()=>{if(created.current)void activateImported({workspace:created.current,voice:channel?.voice??'none'} as AddChannelResult);}}/>}
     {shown===1&&editFailed&&<div style={{marginTop:14}}><ErrorLine message={editFailed} onRetry={finishChannel}/></div>}
     {leaveError&&<div style={{marginTop:14}}><ErrorLine message={leaveError.message} onRetry={()=>void leave(leaveError.route)}/></div>}
    </div>

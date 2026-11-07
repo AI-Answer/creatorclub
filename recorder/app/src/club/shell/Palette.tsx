@@ -1,3 +1,4 @@
+import {clearWelcomeProgress} from '../welcome-progress';
 import {useId,useMemo,useState} from 'react';
 import type {Video} from '../../../shared/club';
 import type {SearchOption} from '../search';
@@ -25,7 +26,7 @@ export function Palette({videos,openId,onClose,onOpen,onNewVideo,onHelp}:{videos
  const pick=(option:SearchOption)=>{
   onClose();
   const {target}=option;
-  if('route' in target)onOpen(target.route);
+  if('route' in target){if(option.id==='action:add-channel')clearWelcomeProgress();onOpen(target.route);}
   else if(target.action==='new-video')onNewVideo();
   else onHelp(target.topic);
  };

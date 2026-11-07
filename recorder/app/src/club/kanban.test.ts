@@ -8,7 +8,7 @@ import {applyMove} from './production';
 import {OptimisticMoves} from './production/optimistic-moves';
 import {Kanban} from './production/Kanban';
 import {KanbanCard,coverSources} from './production/KanbanCard';
-import type {IdeaActionSet} from './production/IdeaLane';
+import type {IdeaActionSet} from './useIdeaActions';
 const mk=(id:string,over:Partial<Video>={}):Video=>({id,number:12,title:'A thoughtful video',stage:'ideas',order:0,createdAt:'2026-10-01',updatedAt:'2026-10-01',stageDates:{},planning:{research:false,package:false,outline:false},...over});
 const flush=()=>act(async()=>{await new Promise(resolve=>setTimeout(resolve,0));});
 

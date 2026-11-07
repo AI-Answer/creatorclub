@@ -1,3 +1,6 @@
+import {collides} from './timeline-edit';
+import {beginGesture} from './timeline-gesture';
+import {applyProjectChange,plainView} from './project-draft';
 import {type ReactNode,memo,useCallback,useEffect,useLayoutEffect,useMemo,useRef,useState} from 'react';
 import {flushSync} from 'react-dom';
 import {AudioLines,Camera,Clapperboard,Layers,LayoutTemplate,Link2,Mic,Monitor,Music,Plus,Type,ZoomIn} from 'lucide-react';
@@ -17,7 +20,6 @@ import {TAKE_ROW,takeClipViews,type TakeClipView} from './timeline-take-view';
 import {isSoundTag} from '../shared/sound-tags';
 import {baseLayout,insertLayout,layoutRoom} from '../shared/layouts';
 import {makeId} from '../shared/types';
-import {plainClone} from './project-draft';
 
 /**
  * The embedded (Creator Compiler) timeline. Rows exist only when used; a take's screen, camera and audio are linked;
@@ -148,7 +150,7 @@ export const TimelineClub=memo(function TimelineClub({project:p,playhead,scale,o
  useEffect(()=>()=>gesture.current?.(),[]);
  useEffect(()=>{gesture.current?.();},[p.id]);
  // A zoom during a drag would change what the pointer means; the person zoomed, so the drag ends.
- useEffect(()=>{gesture.current?.();},[scale]);
+ useEffect(()=>{if(!automaticFit.current)gesture.current?.();automaticFit.current=false;},[scale]);
  // Drag previews render at most once a frame, and only when what they show changed.
  const pendingDrag=useRef<Drag|null>(null),dragFrame=useRef(0),shownDrag=useRef('');
  const showDrag=(next:Drag)=>{const key=JSON.stringify([[...next.items],next.ghosts.length,next.guide,next.insert,next.label,next.markers?[...next.markers]:null]);if(key===shownDrag.current)return;shownDrag.current=key;pendingDrag.current=next;
@@ -159,12 +161,12 @@ export const TimelineClub=memo(function TimelineClub({project:p,playhead,scale,o
  useLayoutEffect(()=>{const el=ref.current;if(!el)return;const pointer=atPointer.current;atPointer.current=null;if(toStart.current){toStart.current=false;el.scrollLeft=0;}else if(shownScale.current!==scale)el.scrollLeft=pointer?pointerScroll({...pointer,to:scale}):anchoredScroll({anchor:playhead.get(),from:shownScale.current,to:scale,scrollLeft:el.scrollLeft,viewport:el.clientWidth});shownScale.current=scale;view(el.scrollLeft,el.clientWidth);},[scale]);
  // The scale the last fit set: while the zoom is still that, the view keeps fitting when the timeline's width changes (the chat column or a panel
  // arriving after Edit opens), so the whole video stays in view as in Borumi. Zooming by hand ends it.
- const fitScaleNow=useRef<number|null>(null);
+ const fitScaleNow=useRef<number|null>(null),automaticFit=useRef(false);
  const fit=useCallback(()=>{const el=ref.current;if(!el)return;toStart.current=true;const next=fitScale(projectDuration(latest.current),el.clientWidth);fitScaleNow.current=next;onScale(next);},[onScale]);
  useLayoutEffect(()=>{if(controls)controls.current={fit,width:()=>ref.current?.clientWidth??0};});
  // Fit once per project, but only once its clips are there: a fit on the still-empty project would keep the default zoom (Borumi opens on the whole video).
  const fitted=useRef('');useEffect(()=>{const el=ref.current;if(fitted.current===p.id||!el?.clientWidth||!(projectDuration(p)>0))return;fitted.current=p.id;if(autoFit||projectDuration(p)*scaleRef.current<el.clientWidth*.8){fit();return;}el.scrollLeft=Math.max(0,playhead.get()*scaleRef.current-el.clientWidth*.25);view(el.scrollLeft,el.clientWidth);});
- useEffect(()=>{const el=ref.current;if(!el)return;let width=el.clientWidth;const ro=new ResizeObserver(()=>{view(el.scrollLeft,el.clientWidth);const fitted=fitScaleNow.current;if(el.clientWidth!==width&&fitted!==null&&Math.abs(scaleRef.current-fitted)<=fitted*1e-6)fit();width=el.clientWidth;});ro.observe(el);return()=>ro.disconnect();},[view,fit]);
+ useEffect(()=>{const el=ref.current;if(!el)return;let width=el.clientWidth;const ro=new ResizeObserver(()=>{view(el.scrollLeft,el.clientWidth);const fitted=fitScaleNow.current;if(el.clientWidth!==width&&fitted!==null&&Math.abs(scaleRef.current-fitted)<=fitted*1e-6)(()=>{if(gesture.current)return;automaticFit.current=true;fit();})();width=el.clientWidth;});ro.observe(el);return()=>ro.disconnect();},[view,fit]);
  const scaleRef=useRef(scale);scaleRef.current=scale;
  useEffect(()=>{const el=ref.current;if(!el)return;let pending=0,frame=0;const apply=()=>{frame=0;const next=clampScale(scaleRef.current*Math.exp(-pending*.005));pending=0;if(next!==scaleRef.current)onScale(next);};
   const wheel=(event:WheelEvent)=>{if(!event.ctrlKey&&!event.metaKey)return;event.preventDefault();const screen=event.clientX-el.getBoundingClientRect().left;atPointer.current={time:(el.scrollLeft+screen)/scaleRef.current,screen};pending+=event.deltaY;frame||=requestAnimationFrame(apply);};el.addEventListener('wheel',wheel,{passive:false});return()=>{cancelAnimationFrame(frame);el.removeEventListener('wheel',wheel);};},[onScale]);
@@ -196,17 +198,19 @@ export const TimelineClub=memo(function TimelineClub({project:p,playhead,scale,o
 
  /** Runs one pointer gesture: `move` on each pointer move (with scroll at the edges), `drop` on release. Escape, pointer cancel and window blur cancel it. */
  function run(e:React.PointerEvent,move:(x:number,y:number,ev:PointerEvent)=>void,drop:(moved:boolean,ev:PointerEvent)=>void,dead=3){
-  gesture.current?.();const el=ref.current!;let last={x:e.clientX,y:e.clientY},moved=false,frame=0,closed=false,lastEvent:PointerEvent=e.nativeEvent as PointerEvent;const id=e.pointerId;
+  gesture.current?.();const el=ref.current!;let last={x:e.clientX,y:e.clientY},moved=false,frame=0,closed=false,lastEvent:PointerEvent=e.nativeEvent as PointerEvent;const id=e.pointerId;let detach=()=>{};
   const update=(ev:PointerEvent)=>{moved||=Math.abs(last.x-e.clientX)>=dead||Math.abs(last.y-e.clientY)>=dead;if(moved)move(last.x,last.y,ev);};
   const onMove=(ev:PointerEvent)=>{if(ev.pointerId!==id)return;last={x:ev.clientX,y:ev.clientY};lastEvent=ev;update(ev);};
-  const close=()=>{if(closed)return;closed=true;cancelAnimationFrame(frame);window.removeEventListener('pointermove',onMove);window.removeEventListener('pointerup',onUp);window.removeEventListener('pointercancel',cancel);window.removeEventListener('keydown',key,true);window.removeEventListener('blur',cancel);cancelAnimationFrame(dragFrame.current);dragFrame.current=0;pendingDrag.current=null;shownDrag.current='';setDrag(null);setMarquee(null);gesture.current=null;};
+  const close=()=>{if(closed)return;closed=true;detach();cancelAnimationFrame(frame);cancelAnimationFrame(dragFrame.current);dragFrame.current=0;pendingDrag.current=null;shownDrag.current='';setDrag(null);setMarquee(null);setLayoutGhost(null);gesture.current=null;};
   // Escape ends only the drag: it is caught before the editor's own keys (which would also close a sheet).
-  const cancel=()=>close(),key=(ev:KeyboardEvent)=>{if(ev.key==='Escape'){ev.preventDefault();ev.stopPropagation();close();}};
+
   const onUp=(ev:PointerEvent)=>{if(ev.pointerId!==id)return;last={x:ev.clientX,y:ev.clientY};if(moved)move(last.x,last.y,ev);close();drop(moved,ev);};
   const edge=()=>{if(closed)return;const b=el.getBoundingClientRect();const dx=last.x<b.left+24?-Math.min(16,(b.left+24-last.x)/2):last.x>b.right-24?Math.min(16,(last.x-b.right+24)/2):0;if(dx&&moved&&b.width>48){const before=el.scrollLeft;el.scrollLeft+=dx;if(el.scrollLeft!==before)move(last.x,last.y,lastEvent);}frame=requestAnimationFrame(edge);};
-  window.addEventListener('pointermove',onMove);window.addEventListener('pointerup',onUp);window.addEventListener('pointercancel',cancel);window.addEventListener('keydown',key,true);window.addEventListener('blur',cancel);gesture.current=close;frame=requestAnimationFrame(edge);
+  detach=beginGesture(e,{move:onMove,drop:onUp,cancel:close,valid:()=>latest.current.id===p.id}).dispose;gesture.current=close;frame=requestAnimationFrame(edge);
  }
- const sameClips=(ids:Iterable<string>,before:Project)=>{const now=new Map(latest.current.clips.map(c=>[c.id,c]));for(const id of ids){const a=before.clips.find(c=>c.id===id),b=now.get(id);if(a&&(!b||b.start!==a.start||b.sourceIn!==a.sourceIn||b.sourceOut!==a.sourceOut||b.speed!==a.speed))return false;}return true;};
+ const sameClips=(ids:Iterable<string>,before:Project)=>{const now=new Map(latest.current.clips.map(c=>[c.id,c]));for(const id of ids){const a=before.clips.find(c=>c.id===id),b=now.get(id);if(a&&(!b||b.start!==a.start||b.sourceIn!==a.sourceIn||b.sourceOut!==a.sourceOut||b.speed!==a.speed||b.linkId!==a.linkId||clipLayerRowId(b,latest.current)!==clipLayerRowId(a,before)))return false;}return true;};
+
+ const sameEffects=(ids:Iterable<string>,before:Project,now:Project)=>{const a=rowItems(before),b=rowItems(now);return [...ids].every(id=>{const was=a.find(i=>i.id===id),next=b.find(i=>i.id===id);return Boolean(was&&next&&was.start===next.start&&was.duration===next.duration&&was.row===next.row);});};
 
  function begin(e:React.PointerEvent,id:string,mode:'move'|'left'|'right'){
   if(e.button!==0)return;e.stopPropagation();e.preventDefault();
@@ -234,11 +238,11 @@ export const TimelineClub=memo(function TimelineClub({project:p,playhead,scale,o
     if(!moved){onSeek(contentX(ev.clientX)/scale);return;}
     if(clip){
      let changed=false;
-     if(drop){const target=drop;change(d=>{if(!sameClips(ids,base)){changed=true;return;}moveClipsToLayer(d,ids,id,target);});if(changed)onNotice?.(STALE_DROP);return;}
+     if(drop){const target=drop;change(d=>{if(!sameClips(ids,base)){changed=true;return;}const trial=applyProjectChange(plainView(d),x=>moveClipsToLayer(x,ids,id,target));const items=rowItems(trial),moving=items.filter(i=>ids.has(i.id)&&trial.clips.some(c=>c.id===i.id&&clipLayerKind(c)===clipLayerKind(clip!)));if(collides(moving,0,items)){onNotice?.('That layer is occupied. Choose an empty layer for this take.');return;}moveClipsToLayer(d,ids,id,target);});if(changed)onNotice?.(STALE_DROP);return;}
      const chosen=plan;if(!chosen||chosen.kind==='none'){if(Math.abs(lastDelta)>1e-6)onNotice?.(NOT_MOVED);return;}
      // Every clip the plan moves (an insert shifts the rest of the row) must still be where it was when the drag began.
      change(d=>{if(!sameClips(chosen.starts.keys(),base)){changed=true;return;}ensureLinks(d);applyClipStarts(d,chosen.starts);syncScenesToTakes(d);});if(changed)onNotice?.(STALE_DROP);
-    }else if(Math.abs(effectDelta)>1e-9){const d=effectDelta;change(draft=>moveEffects(draft,ids,d));}
+    }else if(Math.abs(effectDelta)>1e-9){const d=effectDelta;change(draft=>{if(!sameEffects(ids,base,draft)){onNotice?.(STALE_DROP);return;}moveEffects(draft,ids,d);});}
    },moveDeadZone(el.clientWidth));
    return;
   }
@@ -250,7 +254,7 @@ export const TimelineClub=memo(function TimelineClub({project:p,playhead,scale,o
     ripple=!ev.altKey;const bounds=trimBounds(base,ids,mode,ripple),raw=timelinePointerDelta(x0,x,left0,el.scrollLeft,scale);
     // The edge snaps where the cut lands (in place; a ripple trim then closes or opens that time).
     const snap=snapTimelineDelta({delta:raw,anchors:[edge],targets:snaps,scale,minDelta:bounds.min,maxDelta:bounds.max,enabled:base.settings.snap,thresholdPx});
-    delta=snap.delta;const trial=plainClone(base);trimClips(trial,ids,mode,delta,ripple);
+    delta=snap.delta;const trial=applyProjectChange(base,d=>trimClips(d,ids,mode,delta,ripple));
     const previews=new Map<string,Preview>();for(const c of trial.clips){const was=base.clips.find(o=>o.id===c.id)!;if(c.start!==was.start||c.sourceIn!==was.sourceIn||c.sourceOut!==was.sourceOut)previews.set(c.id,{start:c.start,duration:clipDuration(c),sourceIn:c.sourceIn});}
     const length=clipDuration(trial.clips.find(c=>c.id===id)!);
     showDrag({items:previews,ghosts:[],guide:snap.guide?.time??null,insert:null,label:`${mode==='left'?'Start':'End'} ${delta>=0?'+':'−'}${fmtLen(Math.abs(delta))} · length ${fmtLen(length)}${ripple?'':' · gap kept'}`,markers:new Map((trial.markers??[]).map(m=>[m.id,m.time]))});
@@ -259,9 +263,9 @@ export const TimelineClub=memo(function TimelineClub({project:p,playhead,scale,o
   }
   const edge=mode==='left'?item.start:item.start+item.duration,snaps=targets(new Set([id]));let delta=0;
   run(e,x=>{const raw=timelinePointerDelta(x0,x,left0,el.scrollLeft,scale),snap=snapTimelineDelta({delta:raw,anchors:[edge],targets:snaps,scale,enabled:base.settings.snap,thresholdPx});
-   const trial=plainClone(base);resizeEffect(trial,id,mode,snap.delta);const after=rowItems(trial).find(i=>i.id===id)!;delta=mode==='left'?after.start-item.start:after.duration-item.duration;
+   const trial=applyProjectChange(base,d=>resizeEffect(d,id,mode,snap.delta));const after=rowItems(trial).find(i=>i.id===id)!;delta=mode==='left'?after.start-item.start:after.duration-item.duration;
    showDrag({items:new Map([[id,{start:after.start,duration:after.duration}]]),ghosts:[],guide:snap.guide?.time??null,insert:null,label:`Length ${fmtLen(after.duration)}`});
-  },moved=>{if(!moved||!delta)return;const d=delta;change(draft=>resizeEffect(draft,id,mode,d));});
+  },moved=>{if(!moved||!delta)return;const d=delta;change(draft=>{if(!sameEffects([id],base,draft)){onNotice?.(STALE_DROP);return;}resizeEffect(draft,id,mode,d);});});
  }
  const beginRef=useRef(begin);useLayoutEffect(()=>{beginRef.current=begin;});
  const beginItem=useCallback((e:React.PointerEvent,id:string,mode:'move'|'left'|'right')=>beginRef.current(e,id,mode),[]);
@@ -270,8 +274,8 @@ export const TimelineClub=memo(function TimelineClub({project:p,playhead,scale,o
   if(e.button!==0)return;const el=ref.current!,content=el.firstElementChild as HTMLElement;
   if(tool==='blade'){onSeek(snapTime(contentX(e.clientX)/scale).time);return;}
   e.preventDefault();const r=content.getBoundingClientRect(),origin={x:e.clientX-r.left,y:e.clientY-r.top},base=e.shiftKey?[...selectedIds]:[];let box=rectangleBetween(origin,origin);
-  const items:SelectionItem[]=rowItems(latest.current).flatMap(i=>{const row=rowById.get(viewByClip.get(i.id)?.row??i.row);return row?[{id:i.id,x:i.start*scale,y:row.top+2,width:Math.max(6,i.duration*scale),height:row.height-4}]:[];});
-  run(e,(x,y)=>{const rr=content.getBoundingClientRect();box=rectangleBetween(origin,{x:Math.max(0,x-rr.left),y:Math.max(0,y-rr.top)});setMarquee(box);},moved=>{if(!moved){onSeek(origin.x/scale);if(!e.shiftKey)onSelectMany([]);return;}onSelectMany([...linkedIds(latest.current.clips,itemsInRectangle(box,items,base))]);});
+  const snapshot=latest.current;const items:SelectionItem[]=rowItems(snapshot).flatMap(i=>{const row=rowById.get(viewByClip.get(i.id)?.row??i.row);return row?[{id:i.id,x:i.start*scale,y:row.top+2,width:Math.max(6,i.duration*scale),height:row.height-4}]:[];});
+  run(e,(x,y)=>{const rr=content.getBoundingClientRect();box=rectangleBetween(origin,{x:Math.max(0,x-rr.left),y:Math.max(0,y-rr.top)});setMarquee(box);},moved=>{if(!moved){onSeek(origin.x/scale);if(!e.shiftKey)onSelectMany([]);return;}if(JSON.stringify(rowItems(snapshot))!==JSON.stringify(rowItems(latest.current))){onNotice?.(STALE_DROP);return;}onSelectMany([...linkedIds(latest.current.clips,itemsInRectangle(box,items,base))]);});
  }
  /* Borumi's Layout row: over an empty part a "+ Layout" stretch follows the pointer; a click there makes it, a drag makes it as long as the drag.
     The new stretch takes the layout the clips have outside stretches and opens in the Layout panel, where its arrangement is chosen. */
@@ -280,7 +284,7 @@ export const TimelineClub=memo(function TimelineClub({project:p,playhead,scale,o
  function beginLayout(e:React.PointerEvent){
   if(e.button!==0)return;if(tool==='blade'){onSeek(snapTime(contentX(e.clientX)/scale).time);return;}
   e.preventDefault();const origin=snapTime(contentX(e.clientX)/scale).time;let span=layoutSpan(origin,origin);setLayoutGhost(span);
-  run(e,x=>{span=layoutSpan(origin,snapTime(contentX(x)/scale).time);setLayoutGhost(span);},()=>{setLayoutGhost(null);if(!span)return;const chosen=span,id=makeId(),preset=baseLayout(latest.current)??'Creator';let made=false;
+  run(e,x=>{span=layoutSpan(origin,snapTime(contentX(x)/scale).time);setLayoutGhost(span);},()=>{setLayoutGhost(null);if(!span)return;const chosen=span,current=layoutRoom(latest.current,chosen.start,chosen.stop,chosen.stop-chosen.start,projectDuration(latest.current));if(!current||current.start!==chosen.start||current.stop!==chosen.stop){onNotice?.(STALE_DROP);return;}const id=makeId(),preset=baseLayout(latest.current)??'Creator';let made=false;
    change(d=>{made=insertLayout(d,{...chosen,preset,id}).length>0;});if(made)onSelectMany([id]);});
  }
  function beginRuler(e:React.PointerEvent){
@@ -289,7 +293,7 @@ export const TimelineClub=memo(function TimelineClub({project:p,playhead,scale,o
  function beginMarker(e:React.PointerEvent,id:string){
   if(e.button!==0)return;e.stopPropagation();e.preventDefault();const box=(e.currentTarget as HTMLElement).getBoundingClientRect();const base=latest.current,m=base.markers?.find(x=>x.id===id);if(!m)return;let time=m.time;
   run(e,x=>{const raw=Math.max(0,m.time+timelinePointerDelta(e.clientX,x,0,0,scale)),s=snapTime(raw,new Set([id]));time=Math.round(s.time);showDrag({items:new Map(),ghosts:[],guide:s.guide,insert:null,label:`Note at ${secondsLabel(time)}`,markers:new Map([[id,time]])});},
-   moved=>{if(!moved){onSeek(m.time);onOpenMarker?.(id,box);return;}const t=time;change(d=>moveMarker(d,id,t));});
+   moved=>{if(!moved){onSeek(m.time);onOpenMarker?.(id,box);return;}const t=time;change(d=>{if(d.markers?.find(x=>x.id===id)?.time!==m.time){onNotice?.(STALE_DROP);return;}moveMarker(d,id,t);});});
  }
  const visible=(s:number,d:number)=>s+d>=start&&s<=end;
  const ticks=useMemo(()=>rulerTicks(start,end,scale),[start,end,scale]);

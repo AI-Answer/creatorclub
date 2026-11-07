@@ -1,3 +1,4 @@
+import {rememberChosenAi} from '../ai-status';
 import {useCallback,useState,type FormEvent} from 'react';
 import type {AiProvider,AiStatus,ClubSettings} from '../../../shared/club';
 import {clubFetch,errorMessage} from '../api';
@@ -31,7 +32,7 @@ function DefaultAi({status,saved,onSaved}:{status:AiStatus;saved:AiProvider|null
  const value:AiProvider=saved??(status.claude.signedIn?'claude':status.codex.signedIn?'codex':'claude');
  const choose=useCallback((provider:AiProvider)=>{
   setError(null);
-  clubFetch('/settings',{method:'PUT',body:{defaultAi:provider}}).then(()=>onSaved(provider),()=>setError(provider));
+  clubFetch('/settings',{method:'PUT',body:{defaultAi:provider}}).then(()=>{rememberChosenAi(provider);onSaved(provider);},()=>setError(provider));
  },[onSaved]);
  return <div style={{marginTop:18}}>
   <h3 className="settings-subtitle" id="default-ai-label">Use for writing and thinking</h3>

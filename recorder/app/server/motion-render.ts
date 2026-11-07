@@ -1,3 +1,6 @@
+import {noProgress} from './no-progress.js';
+import {jobSignal,jobStep,trackChild} from './job-scope.js';
+import {sharedWork} from './shared-work.js';
 import { createHash, randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
 import fs from "node:fs/promises";
@@ -87,7 +90,7 @@ export const motionFrameCount = (duration: number, fps: number) => Math.max(1, M
 // ---------------------------------------------------------------- the desktop app's bridge
 
 type Port = { postMessage(message: unknown): void; on(event: "message", listener: (event: any) => void): void };
-const pending = new Map<string, { resolve(): void; reject(error: Error): void }>();
+const pending = new Map<string, { resolve(): void; reject(error: Error): void;activity():void }>();
 let port: Port | null | undefined;
 function bridge(): Port | null {
   if (port !== undefined) return port;
@@ -97,31 +100,40 @@ function bridge(): Port | null {
   if (parent) port = { postMessage: (m) => parent.postMessage(m), on: (_e, l) => parent.on("message", (e) => l(e.data)) };
   else if (typeof process.send === "function") port = { postMessage: (m) => process.send!(m), on: (_e, l) => process.on("message", l) };
   port?.on("message", (message: { type?: string; id?: string; ok?: boolean; error?: string }) => {
-    if (message?.type !== "creatorclub:motion-rendered" || !message.id) return;
+    if(!message.id)return;
     const entry = pending.get(message.id);
+    if(message.type==='creatorclub:motion-started'||message.type==='creatorclub:motion-progress'){entry?.activity();return;}
+    if (message?.type !== "creatorclub:motion-rendered") return;
     pending.delete(message.id);
     if (message.ok) entry?.resolve();
     else entry?.reject(new Error(message.error || "The motion block could not be rendered."));
   });
+  const fail=()=>{for(const entry of pending.values())entry.reject(Error("The motion bridge closed."));pending.clear();port=null;};
+  process.once('disconnect',fail);(parent as any)?.on('close',fail);
   return port;
 }
 /** Which capture this process uses: "app" (the desktop app's offscreen windows) or "chrome" (development and tests). */
 export const motionRenderer = () => (bridge() ? "app" : "chrome");
 
-async function capture(job: CaptureJob): Promise<void> {
+async function capture(job: CaptureJob,signal:AbortSignal): Promise<void> {
+  signal.throwIfAborted();
   const app = bridge();
   if (app) {
     const id = randomUUID();
     await new Promise<void>((resolve, reject) => {
-      pending.set(id, { resolve, reject });
-      app.postMessage({ type: "creatorclub:motion-render", id, job });
+      let watchdog:ReturnType<typeof noProgress>|undefined;
+      const finish=(error?:Error)=>{watchdog?.stop();signal.removeEventListener('abort',abort);pending.delete(id);error?reject(error):resolve();};
+      const abort=()=>{try{app.postMessage({type:'creatorclub:motion-cancel',id});}catch{}finish(signal.reason||Error('Motion rendering cancelled'));};
+      const activity=()=>{watchdog??=noProgress(()=>{try{app.postMessage({type:'creatorclub:motion-cancel',id});}catch{}finish(Error('Motion bridge timed out without progress.'));});watchdog.pulse();};
+      pending.set(id, { resolve:()=>finish(), reject:finish,activity });signal.addEventListener('abort',abort,{once:true});
+      try{app.postMessage({ type: "creatorclub:motion-render", id, job });}catch(error){finish(error as Error);}
     });
     return;
   }
   const pages = Math.max(1, Math.min(4, Math.ceil(job.frames / 8)));
-  const browser = await chromePages(path.join(job.dir, "page.html"), pages);
+  const browser = await chromePages(path.join(job.dir, "page.html"), pages,signal);
   try {
-    await captureFrames(browser.sessions, job, (index: number, png: Buffer) => fs.writeFile(path.join(job.dir, `f${String(index).padStart(6, "0")}.png`), png));
+    await captureFrames(browser.sessions.map(send=>(method:string,params?:Record<string,unknown>)=>{signal.throwIfAborted();return send(method,params);}), job, (index: number, png: Buffer) => fs.writeFile(path.join(job.dir, `f${String(index).padStart(6, "0")}.png`), png));
   } finally {
     await browser.close();
   }
@@ -129,29 +141,27 @@ async function capture(job: CaptureJob): Promise<void> {
 
 function encode(dir: string, fps: number, out: string): Promise<void> {
   return new Promise((resolve, reject) => {
-    const child = spawn(FFMPEG, ["-v", "error", "-nostdin", "-y", "-framerate", String(fps), "-i", path.join(dir, "f%06d.png"), "-c:v", "qtrle", "-pix_fmt", "argb", "-f", "mov", out], { stdio: ["ignore", "ignore", "pipe"] });
-    let err = "";
-    child.stderr.on("data", (d: Buffer) => (err = (err + d.toString()).slice(-4000)));
-    child.once("error", reject);
-    child.once("close", (code) => (code === 0 ? resolve() : reject(new Error(`ffmpeg could not encode the motion block: ${err.trim()}`))));
+    const child = trackChild(spawn(FFMPEG, ["-v", "error", "-progress", "pipe:2", "-nostdin", "-y", "-framerate", String(fps), "-i", path.join(dir, "f%06d.png"), "-c:v", "qtrle", "-pix_fmt", "argb", "-f", "mov", out], { stdio: ["ignore", "ignore", "pipe"] }));
+    let err = "",timedOut=false;const watchdog=noProgress(()=>{timedOut=true;child.kill("SIGKILL");});
+    child.stderr.on("data", (d: Buffer) => {watchdog.pulse();err = (err + d.toString()).slice(-4000);});
+    child.once("error", error=>{watchdog.stop();reject(error);});
+    child.once("close", code=>{watchdog.stop();code===0?resolve():reject(Error(timedOut?"Motion encoder stopped producing progress.":`ffmpeg could not encode the motion block: ${err.trim()}`));});
   });
 }
 
-const inflight = new Map<string, Promise<MotionRender>>();
+const inflight = sharedWork<MotionRender>();
 /** The block rendered for an export of `width`×`height` at `fps`: a cached qtrle file and where it goes on the frame. */
-export function renderMotionBlock(block: MotionBlock, width: number, height: number, fps: number): Promise<MotionRender> {
+export function renderMotionBlock(block: MotionBlock, width: number, height: number, fps: number,signal=jobSignal()): Promise<MotionRender> {
   const key = motionCacheKey(block, width, height, fps), clip = motionClip(block, width, height), frames = motionFrameCount(block.duration, fps);
   const out = path.join(CACHE, `${key}.mov`), result: MotionRender = { file: out, ...clip, frames };
-  const running = inflight.get(key);
-  if (running) return running;
-  const work = (async () => {
+  return inflight(key, sharedSignal=>jobStep(async stepSignal => {
     if (existsSync(out)) return result;
     await fs.mkdir(CACHE, { recursive: true });
     const dir = path.join(CACHE, `.${key}-${randomUUID()}`), temp = path.join(CACHE, `.${key}-${randomUUID()}.mov`);
     await fs.mkdir(dir);
     try {
       await fs.writeFile(path.join(dir, "page.html"), motionDocument(block, width, height, motionFont() || undefined, motionSerifFont() || undefined));
-      await capture({ dir, width, height, fps, frames, clip, seek: MOTION_SEEK });
+      await capture({ dir, width, height, fps, frames, clip, seek: MOTION_SEEK },stepSignal);
       await encode(dir, fps, temp);
       await fs.rename(temp, out);
       return result;
@@ -159,9 +169,7 @@ export function renderMotionBlock(block: MotionBlock, width: number, height: num
       await fs.rm(dir, { recursive: true, force: true });
       await fs.rm(temp, { force: true });
     }
-  })().finally(() => inflight.delete(key));
-  inflight.set(key, work);
-  return work;
+  },sharedSignal,0),signal);
 }
 
 // ---------------------------------------------------------------- the camera's change between tile and full frame
@@ -177,12 +185,10 @@ export function morphDocument(frames: MorphFrame[], width: number, height: numbe
 }
 
 /** A camera change rendered for the export: a cached qtrle file the size of the frame, with alpha, to overlay where the change runs. */
-export function renderMorph(frames: MorphFrame[], width: number, height: number, fps: number): Promise<string> {
+export function renderMorph(frames: MorphFrame[], width: number, height: number, fps: number,signal=jobSignal()): Promise<string> {
   const key = hash({ morph: 1, frames: frames.map(({ jpeg, ...box }) => [hash(jpeg.toString("base64")), box]), width, height, fps });
   const out = path.join(CACHE, `morph-${key}.mov`);
-  const running = inflight.get(key);
-  if (running) return running.then((r) => r.file);
-  const work = (async () => {
+  return inflight(key, sharedSignal=>jobStep(async stepSignal => {
     const result: MotionRender = { file: out, x: 0, y: 0, width, height, frames: frames.length };
     if (existsSync(out)) return result;
     await fs.mkdir(CACHE, { recursive: true });
@@ -190,7 +196,7 @@ export function renderMorph(frames: MorphFrame[], width: number, height: number,
     await fs.mkdir(dir);
     try {
       await fs.writeFile(path.join(dir, "page.html"), morphDocument(frames, width, height, fps));
-      await capture({ dir, width, height, fps, frames: frames.length, clip: { x: 0, y: 0, width, height }, seek: "window.__morph(__MS__)" });
+      await capture({ dir, width, height, fps, frames: frames.length, clip: { x: 0, y: 0, width, height }, seek: "window.__morph(__MS__)" },stepSignal);
       await encode(dir, fps, temp);
       await fs.rename(temp, out);
       return result;
@@ -198,7 +204,5 @@ export function renderMorph(frames: MorphFrame[], width: number, height: number,
       await fs.rm(dir, { recursive: true, force: true });
       await fs.rm(temp, { force: true });
     }
-  })().finally(() => inflight.delete(key));
-  inflight.set(key, work);
-  return work.then((r) => r.file);
+  },sharedSignal,0),signal).then((r) => r.file);
 }

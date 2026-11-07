@@ -47,12 +47,43 @@ export function nativeRecordingNote(output:{stoppedEarly?:boolean;videoFrames?:n
 export class RecordingTransitionGate {
  private pending:Promise<void>|null=null;
  private stopping=false;
+ private listeners=new Set<()=>void>();
+ getSnapshot=()=>this.pending!==null;
+ subscribe=(listener:()=>void)=>{this.listeners.add(listener);return()=>{this.listeners.delete(listener);};};
+ private notify(){for(const listener of this.listeners)listener();}
  reset(){this.stopping=false;}
  run(work:()=>Promise<void>):Promise<void>|null {
   if(this.pending||this.stopping)return null;
-  const promise=Promise.resolve().then(work);this.pending=promise;
-  void promise.finally(()=>{if(this.pending===promise)this.pending=null;}).catch(()=>{});
+  const promise=Promise.resolve().then(work);this.pending=promise;this.notify();
+  void promise.finally(()=>{if(this.pending===promise){this.pending=null;this.notify();}}).catch(()=>{});
   return promise;
  }
  async stop(){this.stopping=true;await this.pending?.catch(()=>{});}
+}
+
+export type {RecordingStatus} from '../desktop/recording-state.cjs';
+import type {RecordingStatus} from '../desktop/recording-state.cjs';
+const recordingTransitions:Record<RecordingStatus,readonly RecordingStatus[]>={idle:['starting'],ready:['starting','idle'],starting:['recording','ready','idle'],recording:['paused','saving'],paused:['recording','saving'],saving:['idle','ready']};
+export class RecordingLifecycle {
+ private state={status:'idle' as RecordingStatus,reviewId:null as string|null,confirming:false};
+ private listeners=new Set<()=>void>();
+ get status(){return this.state.status;} get reviewId(){return this.state.reviewId;} get confirming(){return this.state.confirming;}
+ getSnapshot=()=>this.state;
+ subscribe=(listener:()=>void)=>{this.listeners.add(listener);return()=>{this.listeners.delete(listener);};};
+ private patch(next:Partial<typeof this.state>){this.state={...this.state,...next};for(const listener of this.listeners)listener();}
+ transition(status:RecordingStatus){if(status===this.status)return true;if(!recordingTransitions[this.status].includes(status))return false;this.patch({status});return true;}
+ review(reviewId:string|null){this.patch({reviewId});}
+ confirm(value:boolean){if(value&&this.confirming)return false;this.patch({confirming:value});return true;}
+}
+const recordingStates=new Map<RecordingLifecycle,RecordingStatus>();
+let setupCount=0;
+export const isRecordingActive=()=>[...recordingStates.values()].some(status=>!['idle','ready'].includes(status));
+export const isCaptureSetupActive=()=>setupCount>0;
+export function captureSetupOpened(){setupCount++;let open=true;return()=>{if(open){open=false;setupCount=Math.max(0,setupCount-1);}};}
+/** Every instance reports the same combined state, including a detached take still saving. */
+export function recordingStatus():RecordingStatus{return ['recording','paused','starting','saving'].find(status=>[...recordingStates.values()].includes(status as RecordingStatus)) as RecordingStatus||'idle';}
+function publishRecordingState(){if(typeof window!=='undefined')window.dispatchEvent(new CustomEvent('sceneforge-recording-state',{detail:isRecordingActive()?recordingStatus():'idle'}));}
+export function trackRecordingLifecycle(lifecycle:RecordingLifecycle){const sync=()=>{recordingStates.set(lifecycle,lifecycle.status);publishRecordingState();};sync();const stop=lifecycle.subscribe(sync);return()=>{stop();if(['idle','ready'].includes(lifecycle.status)){recordingStates.delete(lifecycle);publishRecordingState();return;}const finish=lifecycle.subscribe(()=>{sync();if(['idle','ready'].includes(lifecycle.status)){recordingStates.delete(lifecycle);finish();publishRecordingState();}});};}
+export async function retryRecordingWrite<T>(write:()=>Promise<T>,wait=(ms:number)=>new Promise<void>(resolve=>setTimeout(resolve,ms))):Promise<T>{
+ for(let attempt=0;;attempt++){try{return await write();}catch(error){if(attempt===3)throw error;await wait(150*2**attempt);}}
 }

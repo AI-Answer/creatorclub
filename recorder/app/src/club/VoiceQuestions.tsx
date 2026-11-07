@@ -17,7 +17,7 @@ export function VoiceQuestions({slug,onDone}:{slug:string;onDone():void}){
  const {state,run}=useJobRun();
  const ready=VOICE_QUESTIONS.every(question=>!question.required||answers[question.key].trim());
  const save=()=>void run(()=>clubFetch(`/workspaces/${encodeURIComponent(slug)}/voice`,{body:{answers}}),onDone);
- const working=state.phase==='running';
+ const working=(state.phase==='starting'||state.phase==='running');
  return <form onSubmit={event=>{event.preventDefault();if(ready&&!working)save();}} className="flex flex-col gap-4">
   {VOICE_QUESTIONS.map(question=><label key={question.key} className="flex flex-col gap-1.5">
    <span className="text-sm font-medium">{question.label}</span>

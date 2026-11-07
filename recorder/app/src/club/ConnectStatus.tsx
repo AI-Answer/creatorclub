@@ -15,7 +15,9 @@ export function ConnectStatus({state,provider,onRetry,onCancel,primaryRetry=fals
   <Spinner label={`Signing in to ${name}`}/>Finish signing in to {name} in your browser.
   {onCancel&&<Button size="sm" variant="ghost" onClick={onCancel}>Cancel</Button>}
  </div>;
+ if(state.phase==='stopping')return <p role="status" className="row small muted"><Spinner label="Stopping"/>Stopping…</p>;
  if(state.phase==='connected')return <p className="text-base font-medium text-success" aria-live="polite">{state.account?`Connected as ${state.account}`:'Connected'}</p>;
+ if(state.phase==='cancelled')return <p role="status" className="small muted">Sign-in cancelled.</p>;
  if(state.phase==='failed')return <ErrorLine message={state.message} onRetry={onRetry} primary={primaryRetry}/>;
  return null;
 }

@@ -13,7 +13,7 @@ const DAY_LIMIT=1;
 export function publishCalendarPlan(videos:readonly Video[]){
  const days=new Map<string,Video[]>(),unscheduled:Video[]=[];
  for(const video of videos){
-  if(video.hidden)continue;
+  if(video.stage==='ideas'&&video.hidden)continue;
   const date=(video.stage==='published'?toDayKey(video.publishedAt):undefined)??toDayKey(video.publishDate);
   if(date)days.set(date,[...(days.get(date)??[]),video]);else unscheduled.push(video);
  }

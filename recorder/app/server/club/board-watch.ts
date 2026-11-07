@@ -41,6 +41,7 @@ export function watchBoard(slug: string, videoId: string, onChange: () => void, 
   let stopped = false;
   let signature: string | undefined;
   let working = native;
+  const retries = new Map<string, { at: number; delay: number }>();
   let quiet: NodeJS.Timeout | undefined;
   let first = 0;
   let poll: NodeJS.Timeout | undefined;
@@ -59,7 +60,12 @@ export function watchBoard(slug: string, videoId: string, onChange: () => void, 
   };
 
   const open = (dir: string, recursive: boolean) => {
-    if (!native || watchers.has(dir)) return;
+    if (stopped || !native || watchers.has(dir) || (retries.get(dir)?.at ?? 0) > Date.now()) return;
+    const failed = () => {
+      const delay = Math.min(60_000, (retries.get(dir)?.delay ?? 500) * 2);
+      retries.set(dir, { at: Date.now() + delay, delay });
+      working = false;
+    };
     try {
       const watcher = watchFn(dir, { recursive, persistent: false }, (_event, filename) => {
         // Some systems report a change to the watched folder itself, with its own name; that is not news about a file.
@@ -71,11 +77,13 @@ export function watchBoard(slug: string, videoId: string, onChange: () => void, 
       watcher.on('error', () => {
         watcher.close();
         watchers.delete(dir);
-        working = false;
+        failed();
       });
       watchers.set(dir, watcher);
+      retries.delete(dir);
+      working = retries.size === 0;
     } catch {
-      working = false;
+      failed();
     }
   };
 
@@ -99,8 +107,11 @@ export function watchBoard(slug: string, videoId: string, onChange: () => void, 
       if (dir !== videoDir && dir !== notes && dir !== folder) {
         watcher.close();
         watchers.delete(dir);
+        retries.delete(dir);
       }
     }
+    for (const dir of retries.keys()) if (dir !== videoDir && (dir !== notes || !notesReal) && (dir !== folder || !folderThere)) retries.delete(dir);
+    working = native && watchers.has(videoDir) && retries.size === 0;
   };
 
   const scan = async () => {

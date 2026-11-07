@@ -48,12 +48,13 @@ export function requestUserMedia(constraints:MediaStreamConstraints,signal?:Abor
  return pool.request(constraints,signal);
 }
 
-const displayPending=new WeakSet<Pick<MediaDevices,'getDisplayMedia'>>();
+const displayPending=new WeakMap<Pick<MediaDevices,'getDisplayMedia'>,Promise<MediaStream>>();
 /** A display result belongs to one explicit source selection. Never coalesce it
  * with a later selection or enqueue a new OS request behind an unresolved one. */
-export async function requestDisplayMedia(constraints:DisplayMediaStreamOptions,devices:Pick<MediaDevices,'getDisplayMedia'>=navigator.mediaDevices):Promise<MediaStream>{
+export async function requestDisplayMedia(constraints:DisplayMediaStreamOptions,devices:Pick<MediaDevices,'getDisplayMedia'>=navigator.mediaDevices,supersede=false):Promise<MediaStream>{
  if(!devices?.getDisplayMedia)throw new Error('Screen sharing is unavailable in this browser.');
- if(displayPending.has(devices))throw new Error('A screen-sharing request is still open. Respond to the existing access prompt or chooser, then try again.');
- displayPending.add(devices);
- try{return await devices.getDisplayMedia(constraints);}finally{displayPending.delete(devices);}
+ const previous=displayPending.get(devices);if(previous&&supersede){await previous.catch(()=>{});return requestDisplayMedia(constraints,devices,supersede);}
+ if(previous)throw new Error('A screen-sharing request is still open. Respond to the existing access prompt or chooser, then try again.');
+ const pending=devices.getDisplayMedia(constraints);displayPending.set(devices,pending);
+ try{return await pending;}finally{if(displayPending.get(devices)===pending)displayPending.delete(devices);}
 }

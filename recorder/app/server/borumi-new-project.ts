@@ -6,7 +6,7 @@ import {randomUUID} from 'node:crypto';
 import {isDeepStrictEqual} from 'node:util';
 import {clipDuration,defaultEffects,type Clip,type Project,type Scene} from '../shared/types.js';
 import {encodeBorumiScript} from './borumi-script.js';
-import {readBorumiPreservation,safeBorumiOutputRoot} from './borumi-provenance.js';
+import {readBorumiPreservation,safeBorumiOutputRoot,trackBorumiStaging} from './borumi-provenance.js';
 
 export interface NewBorumiPlan {supported:boolean;blockers:string[];warnings:string[];sourceFormat:'new-from-native-schema';history:'new-root';}
 const epsilon=1e-6;
@@ -67,8 +67,9 @@ export async function exportNewBorumiProject(p:Project,options:{templateProject:
  const outputRoot=await safeBorumiOutputRoot(options.outputRoot,template.value.sourceRoot);
  const projectId=randomUUID(),slug=p.name.normalize('NFKC').replace(/[^a-zA-Z0-9 _-]/g,'').trim().slice(0,70)||'SceneForge project',output=path.resolve(outputRoot,`${slug}-${projectId.slice(0,8)}.bmprojbundle`),staging=`${output}.partial`;
  const sourceRoot=path.resolve(template.value.sourceRoot);if(output===sourceRoot||output.startsWith(sourceRoot+path.sep))throw Error('Export destination must be outside the template source bundle.');
- await mkdir(path.join(staging,'medias'),{recursive:true,mode:0o700});
+ const untrack=await trackBorumiStaging(staging);
  let db:DatabaseSync|undefined;try{
+  await mkdir(path.join(staging,'medias'),{recursive:true,mode:0o700});
   const mediaIds=new Map<string,string>();let bytesCopied=0;
   for(const m of p.media){const id=randomUUID(),ext=path.extname(m.path);if(!/^\.[a-zA-Z0-9]{1,12}$/.test(ext))throw Error('Media requires a recognizable file extension.');const before=await lstat(m.path);if(!before.isFile())throw Error('Media must be a regular file, not a symbolic link.');await copyFile(m.path,path.join(staging,'medias',id+ext),constants.COPYFILE_FICLONE|constants.COPYFILE_EXCL);const after=await lstat(m.path);if(before.size!==after.size||before.mtimeMs!==after.mtimeMs)throw Error('Source media changed while copying.');bytesCopied+=before.size;mediaIds.set(m.id,id);}
   db=new DatabaseSync(path.join(staging,'project.bmproj'));db.exec(nativeSchema);db.exec('BEGIN IMMEDIATE');
@@ -101,5 +102,5 @@ export async function exportNewBorumiProject(p:Project,options:{templateProject:
   }
   const integrity=Object.values(db.prepare('PRAGMA integrity_check').get()??{})[0];if(integrity!=='ok')throw Error('New Borumi database integrity check failed.');db.exec('COMMIT');db.close();db=undefined;
   await mkdir(path.join(staging,'.sceneforge'),{mode:0o700});const result={path:output,projectId,plan,mediaCount:p.media.length,bytesCopied,nativeValidation:'pending' as const};await writeFile(path.join(staging,'.sceneforge','export.json'),json({version:1,...result}),{mode:0o600});await rename(staging,output);return result;
- }catch(error){try{db?.close()}catch{}await rm(staging,{recursive:true,force:true});throw error;}
+ }catch(error){try{db?.close()}catch{}await rm(staging,{recursive:true,force:true});throw error;}finally{await untrack();}
 }

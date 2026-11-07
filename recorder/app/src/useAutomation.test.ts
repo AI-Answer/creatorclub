@@ -28,3 +28,8 @@ test('with the event stream open, a job queued behind a running one still shows 
   assert.ok(state.jobs.every(j=>j.status==='complete'));await wait(1300);assert.equal(requests.length,after);
  }finally{await act(async()=>{root.unmount();});}
 });
+
+test('media service restart immediately reloads automation jobs',async()=>{
+ const events=new EventTarget(),add=window.addEventListener,remove=window.removeEventListener,fetch=globalThis.fetch;window.addEventListener=events.addEventListener.bind(events);window.removeEventListener=events.removeEventListener.bind(events);let jobs=[job('before','complete','2026-11-07')],reads=0;globalThis.fetch=async()=>{reads++;return Response.json({jobs});};const [{createRoot},{useProjectAutomation}]=await Promise.all([import('react-dom/client'),import('./useAutomation')]);let state!:ReturnType<typeof useProjectAutomation>;function Probe(){state=useProjectAutomation('project');return null;}const root=createRoot(container as unknown as Element);
+ try{await act(async()=>root.render(createElement(Probe)));const before=reads;jobs=[job('after','running','2026-11-08')];await act(async()=>events.dispatchEvent(new Event('sceneforge-media-service-ready')));assert.equal(reads,before+1);assert.equal(state.jobs[0].id,'after');}finally{await act(async()=>root.unmount());globalThis.fetch=fetch;window.addEventListener=add;window.removeEventListener=remove;}
+});

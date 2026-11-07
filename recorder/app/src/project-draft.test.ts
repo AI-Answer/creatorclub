@@ -46,6 +46,7 @@ function compare(name:string,fn:(p:Project)=>void,untouched:Array<keyof Project>
  const shared=stable(()=>{try{return {next:applyProjectChange(base,fn,STAMP)};}catch(error){return {error:(error as Error).message};}});
  assert.equal(draftStats.fallbacks,fallbacks,`${name} needed the full-copy fallback`);
  assert.equal(JSON.stringify(base),before,`${name} changed its base`);
+ if(shared.next===base&&full.next)full.next.updatedAt=base.updatedAt;
  assert.deepEqual(shared,full,`${name} differs from the full-copy result`);
  if(!shared.next)return shared;
  for(const key of untouched)assert.equal(shared.next[key],base[key],`${name} copied the untouched ${key}`);
@@ -210,4 +211,9 @@ test('plain copies of drafts and draft-holding values are independent and exact'
   const holder=plainClone({clip:draft.clips[0],captions:[draft.captions[1]]});assert.equal(holder.clip.transform.x,.5);assert.equal(isDraft(holder.captions[0]),false);assert.deepEqual(holder.captions[0],fixture.captions[1]);
   copy.transform.y=9;assert.notEqual(draft.clips[0].transform.y,9);
  });
+});
+
+test('unchanged and explicitly rejected edits preserve identity and timestamp',()=>{
+ const p=createProject('No-op');assert.equal(applyProjectChange(p,()=>{}),p);assert.equal(applyProjectChange(p,d=>{d.name=p.name;}),p);
+ assert.equal(applyProjectChange(p,d=>{d.name='Rejected';return false;}),p);assert.equal(p.name,'No-op');
 });
