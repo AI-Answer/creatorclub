@@ -74,7 +74,7 @@ test('embedded Edit: Borumi\'s layout (rail of nine tools, the transcript in its
   assert.equal(ui.container.querySelector('.inspector'),null,'no tool panel is open yet');
   assert.ok(ui.container.querySelector('.club-edit-transcript .transcript-panel'),'the transcript has its own column beside the picture, as in Borumi');
   const rail=[...ui.container.querySelectorAll('.club-rail button')].map(b=>b.textContent?.trim());
-  assert.deepEqual(rail,['Canvas','Layout','Clip','Zoom','Elements','Music','Captions','Cursor','Automate','More'],'Borumi\'s nine tools in Borumi\'s order; Graphics, media and Cutroom sit under More');
+  assert.deepEqual(rail,['Canvas','Layout','Clip','Zoom','Elements','Music','Captions','Cursor','Automate','Notes','More'],'Borumi\'s nine tools in Borumi\'s order, then Notes (N); Graphics, media and Cutroom sit under More');
   await act(async()=>[...ui.container.querySelectorAll<HTMLButtonElement>('.club-rail button')].find(b=>b.textContent?.trim()==='Captions')!.click());
   assert.equal(ui.container.querySelector('.club-edit-side .inspector h2')?.textContent,'Captions','a tool opens its panel on the side');
   assert.ok(ui.container.querySelector('.club-edit-transcript .transcript-panel'),'and the transcript stays open beside the picture');

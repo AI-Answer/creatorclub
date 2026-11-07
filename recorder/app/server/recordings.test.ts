@@ -57,7 +57,7 @@ test('chunks stream through cat in order in several batches, a missing chunk fai
  await run('/bin/sh',['-c','ulimit -n 128 && exec "$0" "$@"',process.execPath,'--import','tsx','--input-type=module','-e',code],{cwd:path.resolve(import.meta.dirname,'..'),env:{...process.env,SCENEFORGE_DATA_DIR:folder}});
  assert.equal(await md5(path.join(many,'joined.webm')),await md5(source),'hundreds of chunks finalize under a low descriptor limit');
  const input=path.join(folder,'cleanup.webm');await promisify(execFile)('ffmpeg',['-v','error','-f','lavfi','-i','sine=frequency=440:duration=0.3','-c:a','libopus','-y',input]);const bytes=await readFile(input);
- const waves=async()=>(await readdir(s.CACHE_DIR)).filter(f=>f.endsWith('.wave-v2.json')).length;await r.waveformWarmup();const before=await waves();
+ const waves=async()=>(await readdir(s.CACHE_DIR)).filter(f=>f.endsWith('.wave-v3.json')).length;await r.waveformWarmup();const before=await waves();
  const done=await r.createRecording('Done','audio/webm'),open=await r.createRecording('Open','audio/webm');await r.appendRecording(done.id,0,bytes);await r.appendRecording(open.id,0,bytes);const media=await finish(done.id);
  await new Promise(resolve=>setTimeout(resolve,300));assert.equal(await waves(),before,'the review waveform waits while another capture is open');
  const stray=path.join(path.dirname(media.path),'000000000.chunk');await writeFile(stray,'left behind');await r.cleanupRecordings();
