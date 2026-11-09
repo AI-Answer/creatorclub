@@ -1,5 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-import {TimelineWaveformCache,hasWaveform,waveformBars,waveformHeight,waveformMediaKey,waveformEnvelopePath,waveformSpikesPath} from './timeline-waveform';
+import {TimelineWaveformCache,WAVEFORM_MAX_PEAKS,hasWaveform,waveformBars,waveformHeight,waveformMediaKey,waveformEnvelopePath,waveformSpikesPath} from './timeline-waveform';
 import {defaultEffects,defaultTransform,type Clip,type Media} from '../shared/types';
 const media:Media={id:'source',path:'/fixture/source.wav',name:'Audio',kind:'audio',duration:10,width:0,height:0};
 const clip:Clip={id:'c',mediaId:'source',name:'Trimmed',track:'audio',start:20,sourceIn:4,sourceOut:8,speed:2,gain:1,muted:false,transform:defaultTransform(),effects:defaultEffects()};
@@ -28,6 +28,25 @@ test('one filled envelope per clip mirrors each bar about the centerline and col
  const peaks=Array.from({length:10},(_,i)=>i/10);assert.equal(waveformBars(clip,media,peaks,3,20,22,4096,2).length,3);
 });
 test('muted and gain-adjusted clips retain raw source waveform without normalization',()=>{const peaks=Array(10).fill(.04);for(const change of [{muted:true},{gain:20},{gain:0}])assert.ok(waveformBars({...clip,...change},media,peaks,3,20,22).every(b=>b.peak===.04));assert.ok(hasWaveform({...media,kind:'video'}));assert.ok(!hasWaveform({...media,kind:'video',hasAudio:false}));assert.ok(!hasWaveform({...media,kind:'image'}));});
+test('zoom past source resolution interpolates bin centers instead of stretching peaks into blocks',()=>{
+ const m={...media,duration:1},c={...clip,start:0,sourceIn:0,sourceOut:1,speed:1},bars=waveformBars(c,m,[0,1],100,0,1,200,1);
+ assert.equal(bars.length,100);assert.equal(bars[10].peak,0);assert.equal(bars[90].peak,1);
+ for(let i=26;i<74;i++)assert.ok(Math.abs(bars[i].peak-bars[i-1].peak-.02)<1e-10,'each pixel moves smoothly between the source bin centers');
+ const scrolled=waveformBars(c,m,[0,1],100,.333,.719,200,1);for(const bar of scrolled)assert.equal(bar.peak,bars.find(b=>b.x===bar.x)!.peak);
+ const trimmed=waveformBars({...c,start:20,sourceIn:.25,sourceOut:.75,speed:2},m,[0,1],100,20,20.25,200,1);assert.ok(Math.abs(trimmed[0].peak-.02)<1e-10);assert.ok(Math.abs(trimmed.at(-1)!.peak-.98)<1e-10);
+});
+test('three-hour sources retain 50 Hz detail and max-pooling keeps only visible pixel columns',()=>{
+ const m={...media,duration:10800},c={...clip,start:0,sourceIn:0,sourceOut:m.duration,speed:1},peaks=Array.from({length:540000},(_,i)=>(i*37%101)/100);
+ const detail=waveformBars(c,m,peaks,1000,100,101,1200,1);assert.equal(detail.length,1000);assert.ok(new Set(detail.map(b=>b.peak)).size>200);
+ for(const [from,to] of [[0,10800],[314,8014],[10780,10800]]){const bars=waveformBars(c,m,peaks,.1,from,to,1200,1);assert.ok(bars.length<=Math.ceil((to-from)*.1)+2);for(const bar of bars){const lo=Math.max(0,Math.floor((bar.x-.5)/.1*50)),hi=Math.min(peaks.length,Math.ceil((bar.x+.5)/.1*50));assert.equal(bar.peak,Math.max(...peaks.slice(lo,hi)));}}
+ const invalid=Array(130).fill(NaN);invalid[120]=.3;assert.equal(waveformBars({...c,sourceOut:1},{...m,duration:1},invalid,1,0,1,1200,1)[0].peak,.3);
+});
+test('cache accepts compact numeric arrays through 24 hours and rejects oversized payloads',async()=>{
+ assert.equal(WAVEFORM_MAX_PEAKS,24*60*60*50);assert.equal(JSON.parse(waveformMediaKey(media))[0],'wave-v3');
+ const peaks=Array(99000).fill(.0123),cache=new TimelineWaveformCache(async()=>peaks);let received:readonly number[]=[];const off=cache.subscribe(media,p=>received=p);await tick();assert.equal(received.length,99000);assert.equal(received[98999],.0123);off();
+ const maximum=Array(WAVEFORM_MAX_PEAKS).fill(0),full=new TimelineWaveformCache(async()=>maximum),release=full.subscribe({...media,duration:86400},p=>received=p);await tick();assert.equal(received.length,WAVEFORM_MAX_PEAKS);release();
+ const tooLong=new TimelineWaveformCache(async()=>Array(WAVEFORM_MAX_PEAKS+1).fill(0)),done=tooLong.subscribe(media,p=>received=p);await tick();assert.deepEqual(received,[]);done();
+});
 test('cache deduplicates active sources, bounds concurrency and withdraws hidden queued requests',async()=>{
  let active=0,max=0;const calls:string[]=[],finish=new Map<string,(p:number[])=>void>();const cache=new TimelineWaveformCache(m=>{calls.push(m.id);active++;max=Math.max(max,active);return new Promise<number[]>(resolve=>finish.set(m.id,p=>{active--;resolve(p)}));},2,2);
  const values:number[][]=[];const a=cache.subscribe(media,p=>values.push([...p])),b=cache.subscribe(media,p=>values.push([...p]));const c=cache.subscribe({...media,id:'two'},()=>{}),d=cache.subscribe({...media,id:'hidden'},()=>{});await tick();assert.deepEqual(calls,['source','two']);d();a();finish.get('source')!([.1,.2]);finish.get('two')!([.3]);await tick();assert.equal(max,2);assert.deepEqual(values,[[.1,.2]]);assert.equal(calls.length,2);b();c();const cached:number[][]=[];cache.subscribe(media,p=>cached.push([...p]))();assert.deepEqual(cached,[[.1,.2]]);assert.equal(calls.length,2);
@@ -50,4 +69,9 @@ test('fixed dBFS curve exposes quiet speech and preserves loudness, silence and 
  const step=waveformHeight(.01)-waveformHeight(.001);
  assert.ok(Math.abs((waveformHeight(.1)-waveformHeight(.01))-step)<1e-9);
  assert.ok(waveformHeight(.6,30)<30);
+});
+test('failed waveform retries with backoff while visible and can be subscribed again after leaving',async()=>{
+ let calls=0;const cache=new TimelineWaveformCache(async()=>{if(++calls<2)throw Error('offline');return [.2,.4];},128,2,15),values:number[][]=[];
+ const release=cache.subscribe(media,peaks=>values.push([...peaks]));await tick();assert.equal(calls,1);await new Promise(resolve=>setTimeout(resolve,30));assert.equal(calls,2);assert.deepEqual(values.at(-1),[.2,.4]);release();
+ const bad=new TimelineWaveformCache(async()=>{calls++;throw Error('offline');},128,2,15),off=bad.subscribe(media,()=>{});await tick();off();const before=calls;await new Promise(resolve=>setTimeout(resolve,30));assert.equal(calls,before);const retry=bad.subscribe(media,()=>{});await new Promise(resolve=>setTimeout(resolve,5));assert.equal(calls,before+1);retry();
 });

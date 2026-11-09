@@ -13,3 +13,21 @@ test('take notes stay silent for normal timing and use plain language for notice
  assert.match(nativeRecordingNote({videoFrames:300,stoppedEarly:true}),/^macOS ended the screen recording early/);
  assert.equal(nativeRecordingNote({}),'');
 });
+
+test('recording lifecycle rejects late transitions and keeps review/confirmation in one synchronous snapshot',async()=>{
+ const {RecordingLifecycle}=await import('./recording-session');const state=new RecordingLifecycle();
+ assert.equal(state.transition('paused'),false);assert.equal(state.transition('starting'),true);assert.equal(state.transition('starting'),true);
+ assert.equal(state.transition('saving'),false);assert.equal(state.transition('recording'),true);assert.equal(state.transition('paused'),true);assert.equal(state.transition('saving'),true);
+ assert.equal(state.transition('recording'),false);assert.equal(state.transition('ready'),true);assert.equal(state.transition('starting'),true);assert.equal(state.transition('idle'),true);
+ state.review('take');assert.equal(state.getSnapshot().reviewId,'take');assert.equal(state.confirm(true),true);assert.equal(state.confirm(true),false);state.confirm(false);assert.equal(state.confirming,false);
+});
+test('detached recording state remains active until its save ends, while setup state is independent of the DOM',async()=>{
+ const {RecordingLifecycle,trackRecordingLifecycle,isRecordingActive,captureSetupOpened,isCaptureSetupActive}=await import('./recording-session');
+ const state=new RecordingLifecycle(),detach=trackRecordingLifecycle(state);state.transition('starting');assert.equal(isRecordingActive(),true);state.transition('recording');state.transition('paused');assert.equal(isRecordingActive(),true);state.transition('saving');detach();assert.equal(isRecordingActive(),true);state.transition('idle');assert.equal(isRecordingActive(),false);
+ const close=captureSetupOpened();assert.equal(isCaptureSetupActive(),true);close();assert.equal(isCaptureSetupActive(),false);
+});
+test('chunk retry preserves the same write until success, backs off, and stops after four attempts',async()=>{
+ const {retryRecordingWrite}=await import('./recording-session');let attempts=0;const delays:number[]=[];
+ assert.equal(await retryRecordingWrite(async()=>{if(++attempts<3)throw Error('transient');return 7;},async ms=>{delays.push(ms);}),7);assert.equal(attempts,3);assert.deepEqual(delays,[150,300]);
+ attempts=0;await assert.rejects(retryRecordingWrite(async()=>{attempts++;throw Error('disk');},async()=>{}),/disk/);assert.equal(attempts,4);
+});

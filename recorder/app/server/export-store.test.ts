@@ -53,6 +53,7 @@ test('replacing a pathname during hashing is rejected even when realpath text is
 
 test('two actual processes cannot both take over a dead owner or delete the winner lock',async()=>{
  const {spawn}=await import('node:child_process');const dir=await fs.mkdtemp(path.join(tmpdir(),'sceneforge-export-lock-'));const root=path.join(dir,'receipts');await fs.mkdir(path.join(root,'.owner'),{recursive:true});
+ const claim=path.join(root,'.owner.reclaim');await fs.mkdir(claim);await fs.utimes(claim,new Date(0),new Date(0));
  const dead=spawn(process.execPath,['-e','process.exit(0)']);await new Promise<void>(resolve=>dead.once('exit',()=>resolve()));await fs.writeFile(path.join(root,'.owner','owner.json'),JSON.stringify({pid:dead.pid,token:'dead-owner'}));
  const code=`import {ExportStore} from './server/export-store.ts';const s=new ExportStore(process.env.TEST_ROOT,process.env.TEST_ROOT,{start(){throw Error('unused')},cancel(){}},async()=>'runtime');try{await s.init();console.log('READY '+process.pid);setInterval(()=>{},1000);process.on('SIGTERM',()=>s.shutdown(async()=>{}).then(()=>process.exit()));}catch(e){console.log('ERROR '+e.message);process.exit(2);}`;
  const children=[0,1].map(()=>spawn(process.execPath,['--import','tsx','--input-type=module','-e',code],{cwd:process.cwd(),env:{...process.env,TEST_ROOT:root},stdio:['ignore','pipe','pipe']}));
@@ -71,11 +72,11 @@ test('terminal checkpoint failure does not advertise completion or strand the ne
  }finally{await fs.rm(dir,{recursive:true,force:true});}
 });
 
-test('history is paginated and old receipts stay loadable without loading project snapshots',async()=>{
+test('history retains at most 200 recent receipts and prunes their obsolete snapshots',async()=>{
  const f=await fixture();let restored:ExportStore|undefined;try{
   const initial=await f.store.create(f.project,{format:'mp4'});await complete(f);await f.store.shutdown(async()=>{});const saved=JSON.parse(await fs.readFile(path.join(f.root,initial.id+'.json'),'utf8'));
-  for(let i=0;i<505;i++){const copy=structuredClone(saved);copy.record.id='archive-'+String(i).padStart(4,'0');copy.record.startedAt=new Date(1700000000000+i*1000).toISOString();await fs.writeFile(path.join(f.root,copy.record.id+'.json'),JSON.stringify(copy));}
-  restored=new ExportStore(f.root,f.output,f.renderer,f.runtime);await restored.init();assert.equal((await restored.list()).length,200);assert.equal((await restored.list(undefined,200)).length,200);assert.equal((await restored.list(undefined,400)).length,106);assert.equal((await restored.get('archive-0000')).status,'complete');assert.equal((await restored.get(initial.id)).projectName,'Frozen export');
+  for(let i=0;i<505;i++){const copy=structuredClone(saved);copy.record.id='archive-'+String(i).padStart(4,'0');copy.record.startedAt=new Date(Date.now()-1000000+i*1000).toISOString();await fs.writeFile(path.join(f.root,copy.record.id+'.json'),JSON.stringify(copy));}
+  restored=new ExportStore(f.root,f.output,f.renderer,f.runtime);await restored.init();assert.equal((await restored.list()).length,200);assert.equal((await restored.list(undefined,200)).length,0);await assert.rejects(restored.get('archive-0000'),/not found/);assert.equal((await restored.get(initial.id)).projectName,'Frozen export');
  }finally{await restored?.shutdown(async()=>{});await fs.rm(f.dir,{recursive:true,force:true});}
 });
 
@@ -148,4 +149,17 @@ test('a JSON project export keeps layout stretches and unsplit clips; only rende
   assert.deepEqual(exported.clips.map(c=>c.id),['cam'],'the clip is not split at the stretch edges');
   assert.deepEqual(p.layouts?.length,1,'the source project is never mutated');
  }finally{await fs.rm(dir,{recursive:true,force:true});}
+});
+
+test('a live PID with a different start is reclaimed after either stale recovery marker',async()=>{
+ for(const marker of ['empty-old','dead-owner']){const dir=await fs.mkdtemp(path.join(tmpdir(),'export-reclaim-')),root=path.join(dir,'receipts'),lock=path.join(root,'.owner'),claim=lock+'.reclaim';await fs.mkdir(lock,{recursive:true});await fs.mkdir(claim);await fs.writeFile(path.join(lock,'owner.json'),JSON.stringify({pid:process.pid,start:'not this process start',token:'reused-pid'}));if(marker==='empty-old')await fs.utimes(claim,new Date(0),new Date(0));else await fs.writeFile(path.join(claim,'owner.json'),JSON.stringify({pid:process.pid,start:'not this process start'}));const store=new ExportStore(root,dir,{start(){throw Error('unused');},cancel(){return undefined;}},async()=>'runtime');try{await store.init();assert.equal(store.ownsLock(),true);assert.notEqual(JSON.parse(await fs.readFile(path.join(lock,'owner.json'),'utf8')).token,'reused-pid');}finally{await store.shutdown(async()=>{});await fs.rm(dir,{recursive:true,force:true});}}
+});
+test('shutdown retains export ownership when job interruption throws',async()=>{const f=await fixture();try{await assert.rejects(f.store.shutdown(async()=>{throw Error('fake shutdown failure');}),/fake shutdown/);assert.equal(await fs.access(path.join(f.root,'.owner')).then(()=>true,()=>false),true);const other=new ExportStore(f.root,f.output,f.renderer,f.runtime);await assert.rejects(other.init(),/running export service/);}finally{await fs.rm(f.dir,{recursive:true,force:true});}});
+test('late cancel receipt updates cannot relabel a verified completed export',async()=>{const f=await fixture();try{const job=await f.store.create(f.project,{format:'mp4'}),call=await complete(f);call.job.status='cancelled';await call.life.onUpdate!(call.job);assert.equal((await f.store.get(job.id)).status,'complete');}finally{await f.cleanup();}});
+
+test('a malformed restart journal is preserved and cannot block valid receipts',async()=>{const f=await fixture();let next:ExportStore|undefined;try{const j=await f.store.create(f.project,{format:'mp4'});await complete(f);await f.store.shutdown(async()=>{});await fs.writeFile(path.join(f.root,'.restart-corrupt.json'),'{broken');next=new ExportStore(f.root,f.output,f.renderer,f.runtime);await next.init();assert.equal((await next.get(j.id)).status,'complete');assert.equal(next.diagnostics().unavailableCount,1);assert.equal(await fs.readFile(path.join(f.root,'.restart-corrupt.json'),'utf8'),'{broken');}finally{await next?.shutdown(async()=>{});await fs.rm(f.dir,{recursive:true,force:true});}});
+
+test('export ownership and recovery reclaim a reused live PID with a different recorded start',async()=>{
+ const dir=await fs.mkdtemp(path.join(tmpdir(),'sceneforge-reused-owner-')),root=path.join(dir,'receipts');const store=new ExportStore(root,dir,{start(){throw Error('unused');},cancel(){return undefined;}},async()=>'fixture');
+ try{for(const name of ['.owner','.owner.reclaim']){await fs.mkdir(path.join(root,name),{recursive:true});await fs.writeFile(path.join(root,name,'owner.json'),JSON.stringify({pid:process.pid,start:'1970-01-01T00:00:00Z',token:'previous-boot'}));}await store.init();assert.equal(store.ownsLock(),true);const owner=JSON.parse(await fs.readFile(path.join(root,'.owner','owner.json'),'utf8'));assert.equal(owner.pid,process.pid);assert.notEqual(owner.token,'previous-boot');const contender=new ExportStore(root,dir,{start(){throw Error('unused');},cancel(){return undefined;}},async()=>'fixture');await assert.rejects(contender.init(),/already has a running export service/);}finally{if(store.ownsLock())await store.shutdown(async()=>{});await fs.rm(dir,{recursive:true,force:true});}
 });

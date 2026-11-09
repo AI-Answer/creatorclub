@@ -286,7 +286,7 @@ export interface CompanionReplyMessage {
   cards: CompanionCard[];
   steps?: CompanionStep[];
   /** Absent when the reply finished; `stopped` when the person stopped it (the text is what had arrived). */
-  status?: 'stopped';
+  status?: 'running' | 'stopped' | 'failed';
 }
 
 export type CompanionMessage = CompanionUserMessage | CompanionReplyMessage;

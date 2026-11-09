@@ -53,6 +53,7 @@ export function ThumbnailDialog({video,sketch,picture,onPicture,onClose,onThumb,
  const chatgpt=!!useAiCheck().check.status?.codex?.signedIn;
  const [refs,setRefs]=useState<Reference[]|null>(null),[tab,setTab]=useState<'niche'|'board'>('niche'),[link,setLink]=useState(''),[adding,setAdding]=useState(false);
  const [making,setMaking]=useState(false),[facing,setFacing]=useState(false),[faceV,setFaceV]=useState(0),[ideas,setIdeas]=useState<IdeasState|null>(null),[used,setUsed]=useState<number|null>(null);
+ const inFlight=useRef(new Set<string>());
  const upload=useRef<HTMLInputElement>(null),refUpload=useRef<HTMLInputElement>(null),stops=useRef<(()=>void)[]>([]),ideasBox=useRef<HTMLElement>(null);
  useEffect(()=>()=>stops.current.forEach(stop=>stop()),[]);
  const load=()=>clubFetch<Reference[]>(`${base}/references`).then(setRefs,()=>setRefs([]));
@@ -91,15 +92,17 @@ export function ThumbnailDialog({video,sketch,picture,onPicture,onClose,onThumb,
  const follow=(id:string,on:(event:Parameters<Parameters<typeof watchJob>[1]>[0])=>void)=>{stops.current.push(watchJob(id,on));};
  // ChatGPT draws the picture from its idea and what it is made from; it takes about a minute, and the picture says so.
  const make=async()=>{
-  if(making)return;
-  setMaking(true);
+  if(inFlight.current.has('make'))return;
+  inFlight.current.add('make');setMaking(true);
   try{
    await onSave();
    const job=await clubFetch<StartedJob>(`${base}/chatgpt`,{method:'POST',body:{}});
-   follow(job.id,event=>{if(event.type==='progress')return;setMaking(false);if(event.type==='done')onPicture();else if(event.type==='failed')toast(failureMessage(event.data));});
-  }catch(reason){setMaking(false);toast(errorMessage(reason,"Couldn't start ChatGPT."));}
+   follow(job.id,event=>{if(event.type==='progress')return;inFlight.current.delete('make');setMaking(false);if(event.type==='done')onPicture();else if(event.type==='failed')toast(failureMessage(event.data));});
+  }catch(reason){inFlight.current.delete('make');setMaking(false);toast(errorMessage(reason,"Couldn't start ChatGPT."));}
  };
  const getIdeas=async()=>{
+  if(inFlight.current.has('ideas'))return;
+  inFlight.current.add('ideas');
   setIdeas({phase:'ideas',drawn:new Set()});setUsed(null);
   requestAnimationFrame(()=>ideasBox.current?.scrollIntoView({behavior:'smooth',block:'nearest'}));
   try{
@@ -107,16 +110,18 @@ export function ThumbnailDialog({video,sketch,picture,onPicture,onClose,onThumb,
    follow(job.id,event=>{
     const data=event.data as {run?:string;ideas?:Idea[];preview?:number}|null;
     if(event.type==='progress'){setIdeas(now=>now&&{...now,run:data?.run??now.run,ideas:data?.ideas??now.ideas,phase:data?.ideas||data?.preview!==undefined?'previews':now.phase,drawn:data?.preview!==undefined?new Set([...now.drawn,data.preview]):now.drawn});return;}
+    inFlight.current.delete('ideas');
     if(event.type==='done'){const r=event.data as {run:string;ideas:Idea[];previews:(string|null)[]};setIdeas({phase:'done',run:r.run,ideas:r.ideas,drawn:new Set(r.previews.flatMap((p,n)=>p?[n]:[]))});}
     else if(event.type==='failed')setIdeas(now=>({...(now??{drawn:new Set()}),phase:'failed',error:failureMessage(event.data)}));
     else setIdeas(null);
    });
-  }catch(reason){setIdeas({phase:'failed',drawn:new Set(),error:errorMessage(reason,"Couldn't start the ideas.")});}
+  }catch(reason){inFlight.current.delete('ideas');setIdeas({phase:'failed',drawn:new Set(),error:errorMessage(reason,"Couldn't start the ideas.")});}
  };
  const useIdea=async(n:number)=>{
-  if(!ideas?.run)return;
+  if(!ideas?.run||inFlight.current.has('use'))return;
+  inFlight.current.add('use');
   try{await onSave();const done=await clubFetch<{picture:boolean}>(`${base}/ideas/${ideas.run}/${n}/use`,{method:'POST'});onRefresh();if(done.picture)onPicture();setUsed(n);}
-  catch(reason){toast(errorMessage(reason,"Couldn't use that idea."));}
+  catch(reason){toast(errorMessage(reason,"Couldn't use that idea."));}finally{inFlight.current.delete('use');}
  };
  const idea=!!(sketch.thumbnail.visual.trim()||sketch.thumbnail.headline.trim());
  const imageOf=(r:Reference)=>`/api/club${base}/references/${encodeURIComponent(r.id)}/image${r.kind==='face'?`?v=${faceV}`:''}`;

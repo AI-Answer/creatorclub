@@ -1,3 +1,4 @@
+import {refreshChosenAi} from './ai-status';
 import {mountUI,button} from '../test-dom';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -87,6 +88,7 @@ test('every "with …" names the AI the person connected: ChatGPT here, not Clau
   if(call.path==='/videos/v1/research')return {body:[]};
   if(call.path==='/videos/v1/scenes')return {body:[]};
  });
+ await refreshChosenAi(true);
  const ui=await mountUI(createElement(Harness,{initial:planned,tabs:[]}));
  try{
   await flush();await flush();
@@ -212,9 +214,9 @@ test('no step is locked: each one opens, and a step with nothing to work on yet 
   // Opened directly, each step stays and says what to do there.
   seen.length=0;
   await ui.render(page('record'));await flush();await flush();
-  assert.ok(hasText(c,'Start with one scene'));assert.equal(button(c,'Record without a plan').disabled,false);assert.ok(button(c,'Plan the scenes'));
+  assert.ok(c.querySelector('[role=alert]'),'failed setup offers a retry');assert.ok(button(c,'Try again'));
   await ui.render(page('edit'));await flush();await flush();
-  assert.ok(hasText(c,'Nothing recorded yet'));assert.ok(button(c,'Record a scene'));
+  assert.ok(c.querySelector('[role=alert]'),'Edit offers the same setup retry');assert.ok(button(c,'Try again'));
   await ui.render(page('publish'));await flush();await flush();
   assert.ok(c.querySelector('.pubx'),'the publishing form opens');
   assert.deepEqual(seen,[],'nothing sends you to another step on its own');
@@ -254,26 +256,31 @@ test('the video\'s one menu moves it to a stage or deletes it, asking first; the
  }finally{await ui.close();server.restore();}
 });
 
-test('Record with scenes but no recording project says it is ready, and its one button does what Continue to recording does',async()=>{
+test('Record with planned scenes automatically creates the planned project without navigating or capturing',async()=>{
  const planning:Video={...planned,planning:{research:true,package:true,outline:true}};
  const twoScenes={scenes:[{id:'a',title:'Opening',talkingPoints:['x'],show:'',seconds:60},{id:'b',title:'End',talkingPoints:['y'],show:'',seconds:60}]};
+ const project=createProject('Planned');project.id='p1';project.scenes=twoScenes.scenes.map(scene=>({...project.scenes[0],id:scene.id,name:scene.title,script:scene.talkingPoints.join('\n'),duration:0}));class Source extends EventTarget{close(){}}Object.assign(globalThis,{EventSource:Source});
  const server=installFetch(call=>{
   if(call.path==='/videos/v1/plan')return {body:{package:null,outline:twoScenes}};
   if(call.path==='/videos/v1/scenes')return {body:twoScenes.scenes.map(s=>({id:s.id,title:s.title,seconds:60,takes:[],status:'Not recorded'}))};
+  if(call.path==='/api/projects/p1')return {body:project};
+  if(call.path==='/api/projects')return {body:[project]};
+  if(call.path==='/api/health')return {body:{transcription:{local:true,providers:[]}}};
+  if(call.path==='/api/automation/settings')return {body:{automaticTranscription:false}};
   if(call.path==='/settings')return {body:{helpSeen:[]}};
   if(call.path==='/videos/v1/recorder')return {body:{...planning,stage:'recording',recorderProjectId:'p1'}};
  });
  const seen:VideoTab[]=[];
- const ui=await mountUI(createElement(Workspace,{video:planning,tab:'record',back,navigate:route=>{if(route.name==='video')seen.push(route.tab!);},onVideo:()=>{}}));
+ const ui=await mountUI(createElement(Harness,{initial:planning,start:'record',tabs:seen}));
  try{
-  await flush();await flush();
+  for(let i=0;i<8;i++)await flush();
   const c=ui.container;
-  assert.ok(hasText(c,'Ready to record'));
-  assert.ok(!hasText(c,'Plan the scenes first')&&!hasText(c,'Create the outline first'));
-  assert.deepEqual(primaries(c),['Start recording']);
-  await act(async()=>button(c,'Start recording').click());await flush();
-  assert.ok(server.calls.some(call=>call.method==='POST'&&call.path==='/videos/v1/recorder'),'the recording project is made');
-  assert.deepEqual(seen,['record']);
+  assert.ok(c.querySelector('aside[aria-label="Recording sources"]'),'the recorder opens after planned setup');
+  assert.ok(hasText(c,'Opening')&&hasText(c,'End'),'both planned scenes are available');
+  assert.ok(!server.calls.some(call=>/capture|start-recording/.test(call.path)),'setup does not start capturing');
+  const calls=server.calls.filter(call=>call.method==='POST'&&call.path==='/videos/v1/recorder');
+  assert.equal(calls.length,1);assert.equal(calls[0].body,undefined,'the planned setup path preserves the outline scenes');
+  assert.deepEqual(seen,[],'setup stays on Record');
  }finally{await ui.close();server.restore();}
 });
 
@@ -320,7 +327,7 @@ test('a recording that cannot be opened shows one sentence and Try again',async(
   fail=false;
   await act(async()=>button(ui.container,'Try again').click());await flush();await flush();
   assert.equal(opened,3,'the first open, the check of why it failed, and the open again');
-  assert.ok(ui.container.querySelector('.edit-empty'),'the empty editor opens on the second try');
+  assert.ok(ui.container.querySelector('.club-timeline'),'the empty editor opens on the second try');
  }finally{globalThis.fetch=originalFetch;await ui.close();}
 });
 

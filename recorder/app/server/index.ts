@@ -1,3 +1,7 @@
+import {trackRequest,waitForRequests,fatalException} from './service-lifecycle.js';
+import {captureActivity} from './capture-activity.js';
+import {recoverOwnedProcesses} from './owned-processes.js';
+import {sweepBorumiArtifacts} from './borumi-provenance.js';
 import express,{type Request,type Response,type NextFunction} from 'express';
 import multer from 'multer';
 import path from 'node:path';
@@ -25,24 +29,27 @@ import {automation} from './automation.js';
 import {planBorumiRoundtrip,exportBorumiRoundtrip} from './borumi-roundtrip.js';
 import {planNewBorumiProject,exportNewBorumiProject} from './borumi-new-project.js';
 import {clubRouter} from './club/index.js';
-import {cancelAllJobs} from './club/jobs.js';
+import {cancelAllJobs,runningJobCount} from './club/jobs.js';
 import {isAudioRole,type Project,type ExportOptions} from '../shared/types.js';
 
+process.on('unhandledRejection',error=>console.error('Unhandled server rejection',error));
+let fatalShutdown=async()=>{};
+process.once('uncaughtException',error=>fatalException(error,()=>fatalShutdown()));
 const PORT=Number(process.env.SCENEFORGE_PORT||4184);
 // The memoized media probe (including a VideoToolbox test encode) overlaps boot instead of delaying the first health check.
-void media.getCapabilities();
+void media.getCapabilities().catch(error=>console.error("Capability probe failed",error));
 await storage.initStorage();
 const exportsStore=new ExportStore(path.join(storage.DATA_DIR,'export-history'),storage.OUTPUT_DIR,{start:media.startExport,cancel:media.cancelJob});
 await exportsStore.init();
-// Observers receive the committed in-memory project after the response instead of re-reading the file. Reading a revision
-// they already saw tells them nothing new, so reads skip observing until a job event or settings change could alter the outcome.
-const observed=new Map<string,string>();
-const sawRevision=(id:string,revision?:string)=>{observed.delete(id);if(revision){observed.set(id,revision);if(observed.size>32)observed.delete(observed.keys().next().value!);}};
-storage.projectEvents.on('project',(event:storage.ProjectEvent)=>sawRevision(event.id,event.action==='saved'?event.revision:undefined));
-storage.projectEvents.on('committed',(p:Project)=>setImmediate(()=>{try{automation.observe(p);}catch{}}));
-automation.events.on('job',(job:{projectId:string})=>observed.delete(job.projectId));
-void recordings.cleanupRecordings();
+if(!exportsStore.ownsLock())throw Error('Startup recovery requires data-folder ownership.');
+recoverOwnedProcesses();await Promise.all([automation.init(),agentChat.initAgentChats(),cutroom.initCutroom(),sweepBorumiArtifacts()]);
+await Promise.all([media.sweepRenderArtifacts(storage.OUTPUT_DIR),media.sweepRenderArtifacts(storage.CACHE_DIR)]);
+// Automatic processing observes committed writes only; opening a project is read-only.
+storage.projectEvents.on('committed',(p:Project)=>setImmediate(()=>{try{automation.observe(p);}catch(error){console.error('Could not observe committed project',error);}}));
+void recordings.cleanupRecordings().catch(error=>console.error("Recording cleanup failed",error));
 const app=express();
+let lastClient=Date.now(),clients=0,retiring=false;
+app.use((req,res,next)=>{if(retiring){res.status(503).json({error:'Service is transferring ownership to the desktop app.'});return;}if(req.path!=='/api/ready'){lastClient=Date.now();clients++;res.once('close',()=>{clients--;lastClient=Date.now();});}next();});
 app.disable('x-powered-by');
 app.use((req,res,next)=>{
  const host=(req.headers.host||'').split(':')[0];if(!['127.0.0.1','localhost','[::1]'].includes(host)){res.status(403).json({error:'Loopback access only'});return;}
@@ -56,7 +63,8 @@ app.use('/api/club',clubRouter({publishing:{exportFile:async id=>{
  return stat?{path:record.outputPath,name:path.basename(record.outputPath),size:stat.size,projectId:record.projectId}:undefined;
 }}}));
 app.use(express.json({limit:'30mb'}));
-const route=(fn:(req:Request,res:Response)=>Promise<unknown>|unknown)=>(req:Request,res:Response,next:NextFunction)=>Promise.resolve(fn(req,res)).catch(next);
+const requestSignals=new WeakMap<Request,AbortSignal>();
+const route=(fn:(req:Request,res:Response)=>Promise<unknown>|unknown)=>(req:Request,res:Response,next:NextFunction)=>{requestSignal(req,res);return trackRequest(()=>fn(req,res)).catch(next);};
 const param=(req:Request,name='id')=>String(req.params[name]);
 const reviewedRevision=(req:Request)=>{const value=req.headers['if-match'];if(typeof value!=='string'||!/^(?:"[0-9a-f]{64}"|[0-9a-f]{64})$/.test(value))throw Object.assign(Error('A reviewed project revision is required. Refresh and review this action again.'),{status:409});return value.replaceAll('"','');};
 // An empty SCENEFORGE_MCP_COMMAND (the Creator Compiler app without its own launcher) advertises no MCP launcher at all.
@@ -77,7 +85,9 @@ app.get('/api/health',route(async(_,res)=>res.json({...await capabilities(),data
 // `build` (this bundle's size and time when it started) lets an updated app replace a service still running older code.
 const parentPid=Number(process.env.CREATORCLUB_PARENT_PID)||null;
 const build=(()=>{try{const file=statSync(fileURLToPath(import.meta.url));return `${file.size}-${Math.round(file.mtimeMs)}`;}catch{return null;}})();
-app.get('/api/ready',(_req,res)=>{res.json({application:'Creator Compiler',product:'Creator Compiler',version:'0.1.0',parentPid,pid:process.pid,build});});
+const runningJobs=()=>media.runningMediaJobCount()+ai.activeAIRequests()+agentChat.activeAgentChats()+cutroom.activeCutroomJobs()+automation.activeJobs()+captureActivity.remaining()+runningJobCount();
+app.get('/api/ready',(_req,res)=>{res.json({application:'Creator Compiler',product:'Creator Compiler',version:'0.1.0',parentPid,pid:process.pid,build,owner:parentPid?'app':'mcp',motionRenderer:process.env.CREATORCLUB_MOTION_BRIDGE==='1'?'app':'chrome',runningJobs:runningJobs()});});
+app.post('/api/service/release',route((req,res)=>{if(parentPid||req.body.pid!==process.pid||runningJobs()||clients>1)return res.status(409).json({error:'Service is owned or busy.'});retiring=true;res.once('finish',stop);return res.json({ok:true});}));
 app.get('/api/capabilities',route(async(_,res)=>res.json(await capabilities())));
 app.get('/api/events',(_req,res)=>{
  res.setHeader('Content-Type','text/event-stream');res.setHeader('Cache-Control','no-cache, no-transform');res.setHeader('Connection','keep-alive');res.flushHeaders();
@@ -99,17 +109,18 @@ app.get('/api/projects',route(async(_,res)=>res.json(await storage.listProjects(
 app.get('/api/trash',route(async(_,res)=>res.json({items:await storage.listTrash()})));
 app.post('/api/trash/:id/restore',route(async(req,res)=>res.json(await storage.restoreTrash(param(req),reviewedRevision(req),{asCopy:req.body.asCopy===true}))));
 app.post('/api/projects',route(async(req,res)=>res.json(await storage.newProject(req.body.name))));
-app.get('/api/projects/:id',route(async(req,res)=>{const id=param(req),state=await storage.projectState(id);res.setHeader('ETag','"'+state.revision+'"');res.type('json').send(state.json);if(observed.get(id)!==state.revision){sawRevision(id,state.revision);setImmediate(()=>{try{automation.observe(state.project??JSON.parse(state.json));}catch{}});}}));
+app.get('/api/projects/:id',route(async(req,res)=>{const id=param(req),state=await storage.projectState(id);res.setHeader('ETag','"'+state.revision+'"');res.type('json').send(state.json);}));
 const inspectedImages=new Map<string,string>();
 app.post('/api/projects/:id/inspect',route(async(req,res)=>{
- const frames=await media.inspectFrames(await storage.readProject(param(req)),req.body.times,storage.CACHE_DIR,{width:req.body.width});
- return res.json({frames:frames.map(frame=>{const token=createHash('sha256').update(frame.path).digest('hex');inspectedImages.set(token,frame.path);return {time:frame.time,requestedTime:frame.requestedTime,width:frame.width,height:frame.height,url:`/api/inspection-images/${token}`};})});
+ const frames=await media.inspectFrames(await storage.readProject(param(req)),req.body.times,storage.CACHE_DIR,{width:req.body.width,signal:requestSignal(req,res)});
+ return res.json({frames:frames.map(frame=>{const token=createHash('sha256').update(frame.path).digest('hex');inspectedImages.set(token,frame.path);if(inspectedImages.size>512)inspectedImages.delete(inspectedImages.keys().next().value!);return {time:frame.time,requestedTime:frame.requestedTime,width:frame.width,height:frame.height,url:`/api/inspection-images/${token}`};})});
 }));
 app.get('/api/inspection-images/:id',route((req,res)=>{const file=inspectedImages.get(param(req));if(!file)return res.status(404).json({error:'Inspect the timeline again to refresh this frame.'});return res.sendFile(file,{dotfiles:'allow'});}));
 const prefersMinimal=(req:Request)=>/(?:^|,)\s*return\s*=\s*"?minimal"?\s*(?:[;,]|$)/i.test(String(req.headers.prefer??''));
 app.put('/api/projects/:id',route(async(req,res)=>{
  if(req.body.id!==param(req))throw new Error('Project ID mismatch');
- const saved=await storage.commitProject(req.body,{expectedRevision:req.headers['if-match']?.replaceAll('"',''),checkpoint:req.headers['x-sceneforge-checkpoint']==='1',clone:false});res.setHeader('ETag','"'+saved.revision+'"');
+ if(!req.headers['if-match'])throw Object.assign(Error('If-Match is required. Reload the project revision before saving.'),{status:428});
+ const saved=await storage.commitProject(req.body,{expectedRevision:reviewedRevision(req),checkpoint:req.headers['x-sceneforge-checkpoint']==='1',clone:false});res.setHeader('ETag','"'+saved.revision+'"');
  // The stored object is the request body itself with only updatedAt assigned, so the client can adopt that one field exactly.
  if(prefersMinimal(req)&&saved.project===req.body){res.setHeader('Preference-Applied','return=minimal');return res.json({minimal:true,id:saved.project.id,updatedAt:saved.project.updatedAt});}
  return res.type('json').send(saved.json);
@@ -123,7 +134,7 @@ app.get(['/api/projects/:id/media-recovery','/api/projects/:id/media-status'],ro
 app.post('/api/projects/:id/media-recovery/plan',route(async(req,res)=>res.json(await mediaRecovery.planRelink(param(req),req.body.mediaId,req.body.replacementPath,reviewedRevision(req)))));
 app.post('/api/projects/:id/media-recovery/apply',route(async(req,res)=>res.json(await mediaRecovery.applyRelink(param(req),req.body.planId,reviewedRevision(req),req.body.acknowledgements))));
 app.post('/api/projects/:id/media-recovery/undo',route(async(req,res)=>res.json(await mediaRecovery.undoRelink(param(req),req.body.planId,reviewedRevision(req)))));
-app.post('/api/projects/:id/checkpoint',route(async(req,res)=>res.json(await storage.saveProject(await storage.readProject(param(req)),{checkpoint:true}))));
+app.post('/api/projects/:id/checkpoint',route(async(req,res)=>res.json(await storage.checkpointProject(param(req)))));
 app.post('/api/media/import',route(async(req,res)=>{if(!Array.isArray(req.body.paths)||req.body.paths.length>100)throw new Error('Provide up to 100 paths');if(req.body.audioRole!==undefined&&!isAudioRole(req.body.audioRole))throw new Error('Invalid media audio role');const result=[];for(const file of req.body.paths){if(typeof file!=='string'||!path.isAbsolute(file))throw new Error('Expected absolute local media path');const m=await media.probeMedia(file,storage.CACHE_DIR);if(req.body.audioRole!==undefined)m.audioRole=req.body.audioRole;result.push(await storage.registerMedia(m));}if(req.body.audioRole!==undefined)result.forEach(recordings.warmTakeWaveform);return res.json(result);}));
 const upload=multer({storage:multer.diskStorage({destination:storage.UPLOAD_DIR,filename:(_,file,cb)=>cb(null,randomUUID()+path.extname(file.originalname).replace(/[^a-zA-Z0-9.]/g,'').slice(0,12))}),limits:{files:100,fileSize:20*1024*1024*1024}});
 app.post('/api/media/upload',upload.array('files',100),route(async(req,res)=>{const result=[];for(const file of req.files as Express.Multer.File[]){try{const m=await media.probeMedia(file.path,storage.CACHE_DIR);m.name=file.originalname;result.push(await storage.registerMedia(m));}catch(e){await fs.rm(file.path,{force:true});throw e;}}return res.json(result);}));
@@ -137,14 +148,14 @@ app.get('/api/media/:id/face-track',route(async(req,res)=>{
  const controller=new AbortController();req.once('aborted',()=>controller.abort());res.once('close',()=>{if(!res.writableEnded)controller.abort();});
  return res.json(await getFaceTrack(await storage.readMedia(param(req)),{start,end,signal:controller.signal}));
 }));
-const requestSignal=(req:Request,res:Response)=>{const controller=new AbortController();req.once('aborted',()=>controller.abort());res.once('close',()=>{if(!res.writableEnded)controller.abort();});return controller.signal;};
+function requestSignal(req:Request,res:Response){const known=requestSignals.get(req);if(known)return known;const controller=new AbortController();req.once('aborted',()=>controller.abort());res.once('close',()=>{if(!res.writableEnded)controller.abort();});if(req.aborted||res.destroyed)controller.abort();requestSignals.set(req,controller.signal);return controller.signal;}
 // Scrubbing abandons previews constantly; once the client has gone there is no one to answer and the cancellation is not an error.
-const cancellable=(fn:(req:Request,res:Response,signal:AbortSignal)=>Promise<unknown>)=>(req:Request,res:Response,next:NextFunction)=>{const signal=requestSignal(req,res);fn(req,res,signal).catch(error=>{if(!signal.aborted)next(error);});};
+const cancellable=(fn:(req:Request,res:Response,signal:AbortSignal)=>Promise<unknown>)=>(req:Request,res:Response,next:NextFunction)=>{const signal=requestSignal(req,res);trackRequest(()=>fn(req,res,signal)).catch(error=>{if(!signal.aborted)next(error);});};
 app.get('/api/media/:id/vision',cancellable(async(req,res,signal)=>{const result=await visionPreview(await storage.readMedia(param(req)),Number(req.query.time)||0,storage.CACHE_DIR,signal);return res.json({time:result.time,width:result.width,height:result.height,face:result.face,maskUrl:`/api/media/${encodeURIComponent(param(req))}/vision-mask.png?time=${result.time}`});}));
 app.get('/api/media/:id/vision-mask.png',cancellable(async(req,res,signal)=>{const result=await visionPreview(await storage.readMedia(param(req)),Number(req.query.time)||0,storage.CACHE_DIR,signal);return res.sendFile(result.maskPath,{dotfiles:'allow'});}));
 app.post('/api/media/:id/proxy',route(async(req,res)=>res.json(media.startProxy(await storage.readMedia(param(req)),storage.CACHE_DIR))));
 app.get('/api/media/:id/proxy',route(async(req,res)=>{const m=await storage.readMedia(param(req));return res.sendFile(await media.proxyFile(m,storage.CACHE_DIR)||m.path,{dotfiles:'allow'});}));
-app.post('/api/import/borumi',route(async(req,res)=>{const p=await importBorumi(req.body.path,{roundtripDirectory:path.join(storage.DATA_DIR,'borumi-snapshots')});for(const m of p.media)await storage.registerMedia(m);return res.json(await storage.saveProject(p));}));
+app.post('/api/import/borumi',route(async(req,res)=>{const p=await importBorumi(req.body.path,{roundtripDirectory:path.join(storage.DATA_DIR,'borumi-snapshots')});try{for(const m of p.media)await storage.registerMedia(m);return res.json(await storage.saveProject(p));}catch(error){if(p.importMetadata?.roundtrip)await fs.rm(path.join(storage.DATA_DIR,'borumi-snapshots',p.importMetadata.roundtrip.snapshotId),{recursive:true,force:true});throw error;}}));
 app.get('/api/borumi/templates',route(async(_,res)=>{
  const candidates=await storage.listProjects(),templates=[];
  for(const item of candidates){if(!item)continue;const p=await storage.readProject(item.id);if(p.importMetadata?.roundtrip)templates.push({id:p.id,name:p.name});}
@@ -164,7 +175,7 @@ app.post('/api/projects/:id/borumi/export',route(async(req,res)=>{
  const result=p.importMetadata?.roundtrip?await exportBorumiRoundtrip(p,options):await exportNewBorumiProject(p,{...options,templateProject:await storage.readProject(String(req.body.templateProjectId||''))});
  return res.json({...result,sourceRevision:revision});
 }));
-app.post('/api/import/project',route(async(req,res)=>{const p:Project=storage.validateProject(req.body);p.id=randomUUID();p.createdAt=new Date().toISOString();for(const m of p.media)await storage.registerMedia(m);return res.json(await storage.saveProject(p));}));
+app.post('/api/import/project',route(async(req,res)=>{const p:Project=storage.validateProject(req.body);p.id=randomUUID();p.createdAt=new Date().toISOString();try{for(const m of p.media)await storage.registerMedia(m);return res.json(await storage.saveProject(p));}catch(error){if(p.importMetadata?.roundtrip)await fs.rm(path.join(storage.DATA_DIR,'borumi-snapshots',p.importMetadata.roundtrip.snapshotId),{recursive:true,force:true});throw error;}}));
 app.post('/api/export',route(async(req,res)=>{
  const p=await storage.readProject(req.body.projectId);if(reviewedRevision(req)!==storage.revision(p))throw Object.assign(Error('Project changed. Refresh before exporting.'),{status:409});
  const options:ExportOptions=req.body.options||{format:'mp4'};return res.json(await exportsStore.create(p,options));
@@ -195,7 +206,7 @@ app.post('/api/ai/voice-follow',express.raw({type:'audio/wav',limit:'350kb'}),ro
  return res.json(await followSpeech(req.body,cached.script,Number(req.query.cursor)||0,await storage.readAISettings(),storage.CACHE_DIR));
 }));
 app.put('/api/ai/settings',route(async(req,res)=>res.json(await storage.saveAISettings(req.body))));
-app.post('/api/ai/transcribe',route(async(req,res)=>{const p=await storage.readProject(req.body.projectId);const m=p.media.find(m=>m.id===req.body.mediaId);if(!m)throw new Error('Media is not in this project');return res.json(await ai.transcribe(m,await storage.readAISettings(),storage.CACHE_DIR));}));
+app.post('/api/ai/transcribe',route(async(req,res)=>{const p=await storage.readProject(req.body.projectId);const m=p.media.find(m=>m.id===req.body.mediaId);if(!m)throw new Error('Media is not in this project');return res.json(await ai.transcribe(m,await storage.readAISettings(),storage.CACHE_DIR,{signal:requestSignal(req,res)}));}));
 app.post('/api/ai/analyze',route(async(req,res)=>{
  if(!['silence','fillers','script'].includes(req.body.kind))throw Object.assign(Error('Unknown analysis kind'),{status:400});
  const project=await storage.readProject(req.body.projectId),{sceneId}=req.body;
@@ -205,11 +216,11 @@ app.post('/api/ai/analyze',route(async(req,res)=>{
   if(!scene)throw Object.assign(Error('This scene no longer exists. Reopen script assistance.'),{status:404});
   project.scenes=[scene];
  }
- return res.json(await ai.analyze(project,req.body.kind,await storage.readAISettings(),req.body.prompt));
+ return res.json(await ai.analyze(project,req.body.kind,await storage.readAISettings(),req.body.prompt,requestSignal(req,res)));
 }));
 const dist=path.resolve(import.meta.dirname,'../dist');
 app.get('/api/automation/settings',route(async(_,res)=>res.json(await automation.getSettings())));
-app.put('/api/automation/settings',route(async(req,res)=>{const settings=await automation.updateSettings(req.body);observed.clear();return res.json(settings);}));
+app.put('/api/automation/settings',route(async(req,res)=>{const settings=await automation.updateSettings(req.body);return res.json(settings);}));
 app.get('/api/projects/:id/automation',route(async(req,res)=>{await storage.projectExists(param(req));return res.json({jobs:await automation.list(param(req))});}));
 app.post('/api/projects/:id/transcribe',route(async(req,res)=>res.json(await automation.queueTranscription(param(req),{force:req.body.force===true}))));
 app.post('/api/projects/:id/quick-action',route(async(req,res)=>res.json(await automation.quickAction(param(req),req.body))));
@@ -217,7 +228,7 @@ app.get('/api/automation/:id',route(async(req,res)=>res.json(await automation.ge
 app.delete('/api/automation/:id',route(async(req,res)=>res.json(await automation.cancel(param(req)))));
 app.post('/api/automation/:id/apply',route(async(req,res)=>res.json(await automation.apply(param(req),req.body.changeIds))));
 app.post('/api/automation/:id/undo',route(async(req,res)=>res.json(await automation.undo(param(req)))));
-app.get('/api/automation/:id/preview',route(async(req,res)=>{const ids=typeof req.query.changes==='string'?req.query.changes.split(',').filter(Boolean):undefined;const frame=await automation.preview(param(req),String(req.query.phase||'after'),Number(req.query.time)||0,ids);return res.sendFile(frame.path,{dotfiles:'allow'});}));
+app.get('/api/automation/:id/preview',route(async(req,res)=>{const ids=typeof req.query.changes==='string'?req.query.changes.split(',').filter(Boolean):undefined;const frame=await automation.preview(param(req),String(req.query.phase||'after'),Number(req.query.time)||0,ids,requestSignal(req,res));return res.sendFile(frame.path,{dotfiles:'allow'});}));
 app.post('/api/automation/:id/review',route(async(req,res)=>res.json(await automation.review(param(req),req.body.changeIds))));
 app.get('/api/agent/status',route(async(req,res)=>res.json(await agentChat.agentStatus(req.query.refresh==='1'))));
 app.get('/api/projects/:id/agent-chat',route(async(req,res)=>{await storage.readProject(param(req));return res.json({jobs:await agentChat.listAgentJobs(param(req))});}));
@@ -236,10 +247,29 @@ app.get('/api/agent-chat/:id/events',route((req,res)=>{
 app.use(express.static(dist));
 app.get('/{*rest}',(req,res)=>{if(req.path.startsWith('/api/'))res.status(404).json({error:'Not found'});else res.sendFile(path.join(dist,'index.html'));});
 app.use((error:Error & {status?:number;code?:string},_req:Request,res:Response,_next:NextFunction)=>{console.error(error.message);res.status(error.status||(error.code==='ENOENT'?404:400)).json({error:error.message});});
-const server=app.listen(PORT,'127.0.0.1',(error?:Error)=>{if(error){console.error('Could not start Creator Compiler: '+error.message);void exportsStore.shutdown(media.shutdownJobs).finally(()=>{process.exitCode=1;});return;}console.log(`Creator Compiler is ready at http://127.0.0.1:${PORT}`);});
-let shuttingDown=false;
-const shutdown=()=>{if(shuttingDown)return;shuttingDown=true;server.close();server.closeAllConnections();cancelAllJobs();void Promise.allSettled([exportsStore.shutdown(media.shutdownJobs),agentChat.shutdownAgentChats(),automation.shutdown()]).then(results=>{for(const result of results)if(result.status==='rejected')console.error(result.reason);});};
-process.on('SIGTERM',shutdown);process.on('SIGINT',shutdown);
+const server=app.listen(PORT,'127.0.0.1',(error?:Error)=>{if(error){console.error('Could not start Creator Compiler: '+error.message);void exportsStore.shutdown(media.shutdownJobs).catch(error=>console.error(error)).finally(()=>{process.exit(1);});return;}console.log(`Creator Compiler is ready at http://127.0.0.1:${PORT}`);});
+let shutdownPromise:Promise<void>|undefined;
+function shutdown(){
+ if(shutdownPromise)return shutdownPromise;
+ retiring=true;server.close();ai.shutdownAI();
+ shutdownPromise=(async()=>{const deadline=setTimeout(()=>process.exit(0),45000);
+  try{
+   const stopping=Promise.allSettled([cancelAllJobs(30000),agentChat.shutdownAgentChats(),automation.shutdown(),cutroom.shutdownCutroom()]);
+   // Cancel inspections before waiting for their HTTP handlers to drain. Keep the export
+   // lock until both media workers and all request handlers have actually stopped.
+   const rendering=Promise.allSettled([media.shutdownJobs()]);
+   const drained=await waitForRequests(30000);
+   const rendered=await rendering;
+   if(drained&&rendered.every(result=>result.status==='fulfilled'))await exportsStore.shutdown(async()=>{});
+   for(const result of [...await stopping,...rendered])if(result.status==='rejected')console.error(result.reason);
+  }finally{clearTimeout(deadline);server.closeAllConnections();}
+ })();return shutdownPromise;
+}
+fatalShutdown=shutdown;
+const stop=()=>{void shutdown().finally(()=>process.exit(0));};
+process.on('SIGTERM',stop);process.on('SIGINT',stop);
 // When the desktop app is gone (force-quit, crash), this service stops too instead of holding the port for the next launch.
-// Jobs get ten seconds to wind down; then the process exits whatever is still open.
-if(parentPid){const watch=setInterval(()=>{try{process.kill(parentPid,0);}catch{clearInterval(watch);shutdown();setTimeout(()=>process.exit(0),10000).unref();}},2000);watch.unref();}
+// Handlers and jobs get a bounded grace period to finish before the process exits.
+if(parentPid){const watch=setInterval(()=>{try{process.kill(parentPid,0);}catch(error){if((error as NodeJS.ErrnoException).code==='ESRCH'){clearInterval(watch);stop();}}},2000);watch.unref();}
+
+if(!parentPid){const idle=setInterval(()=>{if(!clients&&!runningJobs()&&Date.now()-lastClient>30*60000)stop();},60000);idle.unref();}

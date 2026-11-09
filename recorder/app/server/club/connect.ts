@@ -1,7 +1,7 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import type { ConnectProgress, ConnectProvider, ConnectResult, JobSnapshot } from '../../shared/club.js';
 import { AiError, childEnv, findBinary, findExecutable, providerStatus, type Lookup } from './ai.js';
-import { getJob, snapshot, startJob, type JobContext } from './jobs.js';
+import { startJobOnce, type JobContext } from './jobs.js';
 import * as store from './store.js';
 
 /*
@@ -167,13 +167,7 @@ async function finished(provider: ConnectProvider, account: string | undefined, 
   return { provider, ...(account ? { account } : {}) };
 }
 
-const running = new Map<ConnectProvider, string>();
-
-/** Starts a connect job. A second request for the same tool while one is running joins that job instead of starting another sign-in. */
+/** Reconnect must never join a check-only job. */
 export function startConnect(provider: ConnectProvider, options: ConnectOptions = {}): JobSnapshot {
-  const existing = getJob(running.get(provider) ?? '');
-  if (existing?.status === 'running') return snapshot(existing);
-  const job = startJob(`connect-${provider}`, (context) => connectProvider(provider, context, options));
-  running.set(provider, job.id);
-  return job;
+  return startJobOnce(`connect:${provider}:${options.reconnect ? 'reconnect' : 'check'}`, `connect-${provider}`, context => connectProvider(provider, context, options));
 }

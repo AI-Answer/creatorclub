@@ -1,3 +1,4 @@
+import {clearWelcomeProgress,readWelcomeProgress} from './welcome-progress';
 import {lazy,Suspense,useCallback,useEffect,useMemo,useRef,useState} from 'react';
 import type {ClubSettings,Video,Workspace} from '../../shared/club';
 import {setAppearance} from '../appearance';
@@ -35,7 +36,7 @@ export async function needsOnboarding():Promise<boolean>{
   if((await clubFetch<ClubSettings>('/settings')).welcomed)return false;
   const {workspaces}=await clubFetch<{workspaces:Workspace[]}>('/workspaces');
   // No channel means setup is needed whatever the AI says, so the slow check of the AI accounts (about 15 seconds) is not waited for here: Welcome runs it itself.
-  if(!workspaces.length)return true;
+  if(!workspaces.length||readWelcomeProgress().created)return true;
   await clubFetch('/settings/welcomed',{method:'POST'}).catch(()=>{});
   return false;
  }catch{return false;}
@@ -48,18 +49,20 @@ const needsChannel=(route:Route)=>route.name!=='welcome'&&route.name!=='settings
 /** One video's workspace. Loads the video and notes that it was opened, which feeds Recent videos. Without a tab in the link it opens on the tab for the video's stage. */
 function VideoRoute({id,tab,navigate}:{id:string;tab?:VideoTab;navigate(route:Route,options?:{replace?:boolean}):void}){
  const [video,setVideo]=useState<Video|null|undefined>(undefined);
+ const videoVersion=useRef(0);
  useEffect(()=>{
-  let live=true;setVideo(undefined);
+  let live=true;const version=++videoVersion.current;setVideo(undefined);
   // Fetch the screen chunk alongside the video, instead of waiting for the API response.
   void loadVideoWorkspace().catch(()=>{});
   const path=`/videos/${encodeURIComponent(id)}`;
   clubFetch<Video>(path).then(found=>{
-   if(!live)return;
+   if(!live||version!==videoVersion.current)return;
    setVideo(found);
    clubFetch(`${path}/opened`,{method:'POST'}).catch(()=>{});
-  },()=>{if(live)setVideo(null);});
+  },()=>{if(live&&version===videoVersion.current)setVideo(null);});
   return()=>{live=false;};
  },[id]);
+ useEffect(()=>{const moved=(event:Event)=>{const saved=(event as CustomEvent<Video>).detail;if(saved.id===id){videoVersion.current++;setVideo(saved);}};window.addEventListener('club:video-moved',moved);return()=>window.removeEventListener('club:video-moved',moved);},[id]);
  const stage=video?.stage;
  useEffect(()=>{if(stage&&!tab)navigate({name:'video',id,tab:defaultTab(stage)},{replace:true});},[stage,tab,id,navigate]);
  if(video===undefined)return <div className="flex flex-1 items-center justify-center"><span className="row small muted" role="status"><Spinner label="Loading the video" size={20}/>Loading the video…</span></div>;
@@ -145,12 +148,12 @@ function Shell(){
 
  const switched=useCallback(()=>{setChannelEpoch(n=>n+1);navigate({name:'home'});},[navigate]);
  // Adding a channel has one entry: Welcome from its first step, from the channel menu, Settings and the empty screens alike. Step 1 is quick when the AI is already known to be connected.
- const addChannel=useCallback(()=>navigate({name:'welcome'}),[navigate]);
+ const addChannel=useCallback(()=>{clearWelcomeProgress();navigate({name:'welcome'});},[navigate]);
  const openNewVideo=useCallback(()=>setNewOpen(true),[]);
 
  let screen;
  switch(route.name){
-  case 'welcome':screen=<WelcomeScreen navigate={navigate} initialStep={route.step??1}/>;break;
+  case 'welcome':screen=<WelcomeScreen navigate={navigate} initialStep={route.step}/>;break;
   case 'home':screen=<HomeScreen navigate={navigate} onNewVideo={openNewVideo}/>;break;
   case 'discover':screen=<DiscoverScreen show={route.show} navigate={navigate}/>;break;
   case 'videos':screen=<VideosScreen route={route} navigate={navigate} onNewVideo={openNewVideo}/>;break;

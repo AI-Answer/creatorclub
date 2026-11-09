@@ -255,8 +255,24 @@ test('the 90 posts an hour are counted here, so the 91st is explained before the
 // ------------------------------------------------------------------ the routes
 
 const exports = new Map<string, { path: string; name: string; size: number; projectId: string }>([['e1', { path: videoFile, name: 'Hidden features-e1.mp4', size: 300_000, projectId: 'p1' }], ['other', { path: videoFile, name: 'x.mp4', size: 300_000, projectId: 'p2' }]]);
+let inspectIntent: string | undefined;
+let observedIntentKey: string | undefined;
+let holdPost: Promise<void> | undefined;
+let holdUpload:Promise<void>|undefined;
+const observingFetch: typeof fetch = async (input, init) => {
+  if(holdUpload&&init?.method==='POST'&&String(input).endsWith('/upload'))await holdUpload;
+  if (holdPost && init?.method === 'POST' && String(input).endsWith('/posts')) await holdPost;
+  if (inspectIntent && init?.method === 'POST' && String(input).endsWith('/posts')) {
+    const saved = JSON.parse(await readFile(inspectIntent, 'utf8'));
+    assert.equal(saved.state, 'posting', 'intent is durable before the irreversible call');
+    assert.ok(saved.idempotencyKey);
+    observedIntentKey = new Headers(init.headers).get('Idempotency-Key') ?? undefined;
+    assert.equal(observedIntentKey, saved.idempotencyKey);
+  }
+  return fetch(input, init);
+};
 const app = express();
-app.use('/api/club', clubRouter({ readViews: async () => 1234, publishing: { exportFile: async (id) => exports.get(id), waitMs: 300, pollMs: 15 } }));
+app.use('/api/club', clubRouter({ readViews: async () => 1234, publishing: { fetch: observingFetch, exportFile: async (id) => exports.get(id), waitMs: 300, pollMs: 15 } }));
 const server = app.listen(0, '127.0.0.1');
 await new Promise((r) => server.once('listening', r));
 const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}/api/club`;
@@ -437,7 +453,7 @@ test('a lost answer to the post leaves an unconfirmed record, and nothing is sen
     assert.equal(job.error, UNCONFIRMED, mode);
     const record = JSON.parse(await readFile(recordPath(id), 'utf8'));
     assert.equal(record.unconfirmed, true, mode);
-    assert.equal(record.state, 'queued');
+    assert.equal(record.state, 'posting');
     assert.equal(fake.posts.length, 1);
     assert.equal((await call('POST', `/videos/${id}/postiz`, start())).body.error, ALREADY_UNCONFIRMED, mode);
     assert.equal(fake.posts.length, 1, 'no second post');
@@ -449,7 +465,7 @@ test('a lost answer to the post leaves an unconfirmed record, and nothing is sen
     const job = await publishNow(id);
     assert.equal(job.status, 'failed');
     assert.notEqual(job.error, UNCONFIRMED);
-    assert.equal((await call('GET', `/videos/${id}/postiz`)).body, null, 'no record: Postiz said no');
+    assert.equal((await call('GET', `/videos/${id}/postiz`)).body.state, 'failed', 'the durable intent records a definite rejection');
     assert.equal((await publishNow(id)).status, 'done', 'Try again works');
   }
 });
@@ -465,7 +481,7 @@ test('a post Postiz did not confirm is kept as unconfirmed, nothing more is sent
   assert.equal(job.error, UNCONFIRMED);
   const record = JSON.parse(await readFile(recordPath(id), 'utf8'));
   assert.equal(record.unconfirmed, true);
-  assert.equal(record.state, 'queued');
+  assert.equal(record.state, 'posting');
   assert.equal(record.postId, '');
   assert.equal(fake.posts.length, 1, 'Postiz did make the post');
   // Publishing again is refused with a plain sentence, and nothing reaches Postiz.
@@ -473,7 +489,7 @@ test('a post Postiz did not confirm is kept as unconfirmed, nothing more is sent
   const refused = await call('POST', `/videos/${id}/postiz`, start());
   assert.equal(refused.status, 409);
   assert.equal(refused.body.error, ALREADY_UNCONFIRMED);
-  assert.equal(fake.log.length, 0);
+  assert.ok(fake.log.every(line => line.startsWith('GET ')), 'retry only reconciles with Postiz');
   assert.equal(fake.posts.length, 1);
   // Check again finds the post by its channel and time, and it becomes an ordinary one.
   const found = (await call('GET', `/videos/${id}/postiz`)).body;
@@ -498,7 +514,7 @@ test('Check again never creates a post and never fails a record by itself, howev
   fake.log.length = 0;
   for (let i = 0; i < 3; i++) {
     const again = (await call('GET', `/videos/${id}/postiz`)).body;
-    assert.equal(again.state, 'queued', 'not failed by waiting');
+    assert.equal(again.state, 'posting', 'not failed by waiting');
     assert.equal(again.unconfirmed, true);
   }
   assert.deepEqual(fake.log.filter((line) => line.startsWith('POST')), [], 'nothing was posted');
@@ -681,3 +697,78 @@ test('the thumbnail is saved with the video, only as a PNG or JPG up to 2 MB, an
   assert.equal((await call('DELETE', `/videos/${id}/thumbnail`)).status, 204);
   assert.equal((await call('GET', `/videos/${id}/thumbnail`)).status, 204, 'none is not an error');
 });
+
+test('the send intent and client key are durable before POST, and a restart reconciles posting without another POST', async () => {
+  await connect();
+  fake.posts.length = 0;
+  const id = await newVideo();
+  inspectIntent = recordPath(id);
+  try { assert.equal((await publishNow(id)).status, 'done'); } finally { inspectIntent = undefined; }
+  const record = JSON.parse(await readFile(recordPath(id), 'utf8'));
+  assert.equal(observedIntentKey, record.idempotencyKey);
+  // A process may have died after Postiz accepted it but before the response was committed.
+  await store.writeJSON(recordPath(id), { ...record, state: 'posting', postId: '' });
+  fake.log.length = 0;
+  assert.equal((await call('POST', `/videos/${id}/postiz`, start())).status, 409);
+  const reconciled = JSON.parse(await readFile(recordPath(id), 'utf8'));
+  assert.equal(reconciled.postId, fake.posts[0].id);
+  assert.equal(reconciled.state, 'queued');
+  assert.equal(fake.posts.length, 1);
+  assert.ok(fake.log.every(line => line.startsWith('GET ')));
+});
+
+test('unconfirmed matching refuses ambiguous channel/time results and uses content or client keys when returned', async () => {
+  const date = new Date();
+  let posts: unknown[] = [
+    { id: 'one', state: 'PUBLISHED', integration: { id: 'channel' }, publishDate: date.toISOString() },
+    { id: 'two', state: 'PUBLISHED', integration: { id: 'channel' }, publishDate: date.toISOString() },
+  ];
+  const publisher = new PostizPublisher({ apiKey: 'test', fetch: async () => Response.json({ posts }) });
+  const sent = { postId: '', date, channelId: 'channel', idempotencyKey: 'mine', content: 'My content' };
+  assert.deepEqual(await publisher.status(sent), { state: 'queued' });
+  posts = [
+    { ...(posts[0] as object), idempotencyKey: 'mine', value: [{ content: 'My content' }] },
+    { ...(posts[1] as object), idempotencyKey: 'other', value: [{ content: 'Other content' }] },
+  ];
+  assert.deepEqual(await publisher.status(sent), { state: 'published', postId: 'one' });
+});
+
+test('upload cache and hourly reservations survive a fresh adapter instance', async () => {
+  fake.uploads.length = 0;
+  const requestBody = request({ video: file({ version: 'persistent-cache' }) });
+  await new PostizPublisher({ apiKey: fake.key, address: fake.url }).publish(requestBody, noProgress);
+  await new PostizPublisher({ apiKey: fake.key, address: fake.url }).publish(requestBody, noProgress);
+  assert.equal(fake.uploads.length, 1);
+  const state = JSON.parse(await readFile(path.join(store.secretsDir(), 'postiz-state.json'), 'utf8'));
+  assert.equal(state.sent.length, 2);
+  assert.equal(Object.keys(state.uploaded).length, 1);
+  assert.equal(JSON.stringify(state).includes(fake.key), false);
+});
+
+test('while a send is still running, the record names its job so a reopened Publish screen follows it', async () => {
+  await connect();
+  fake.posts.length = 0;
+  let release!: () => void;
+  holdPost = new Promise<void>((r) => { release = r; });
+  try {
+    const id = await newVideo();
+    const started = await call('POST', `/videos/${id}/postiz`, start());
+    assert.equal(started.status, 202);
+    let read;
+    for (let i = 0; i < 200; i++) {
+      read = (await call('GET', `/videos/${id}/postiz`)).body;
+      if (read?.state === 'posting') break;
+      await new Promise((r) => setTimeout(r, 10));
+    }
+    assert.equal(read?.state, 'posting');
+    assert.equal(read?.runningJobId, started.body.id);
+    release();
+    await finished(started.body.id);
+    assert.equal((await call('GET', `/videos/${id}/postiz`)).body.runningJobId, undefined, 'a finished send names no job');
+  } finally {
+    release?.();
+    holdPost = undefined;
+  }
+});
+
+test('uploading names its live job and abandoned uploads fail safely on read and startup',async()=>{await connect();let release!:()=>void;holdUpload=new Promise<void>(resolve=>release=resolve);try{const id=await newVideo();const started=await call('POST',`/videos/${id}/postiz`,start());assert.equal(started.status,202);let read;for(let i=0;i<100;i++){read=(await call('GET',`/videos/${id}/postiz`)).body;if(read?.state==='uploading')break;await new Promise(resolve=>setTimeout(resolve,5));}assert.equal(read?.state,'uploading');assert.equal(read.runningJobId,started.body.id);release();await finished(started.body.id);const saved=JSON.parse(await readFile(recordPath(id),'utf8'));await store.writeJSON(recordPath(id),{...saved,state:'uploading',postId:''});const repaired=(await call('GET',`/videos/${id}/postiz`)).body;assert.equal(repaired.state,'failed');assert.match(repaired.message,/before the post was sent/);const again=await call('POST',`/videos/${id}/postiz`,start());assert.equal(again.status,202);await finished(again.body.id);await store.writeJSON(recordPath(id),{...saved,state:'uploading',postId:''});const {settleQueuedPublishing}=await import('./publisher-routes.js');await settleQueuedPublishing({readViews:async()=>0,fetch:observingFetch});assert.equal(JSON.parse(await readFile(recordPath(id),'utf8')).state,'failed');}finally{release?.();holdUpload=undefined;}});

@@ -26,7 +26,7 @@ function Choice({label,on,onToggle}:{label:string;on:boolean;onToggle():void}){
 export function ChannelStep({path,onPath,url,onUrl,job,onAdd,block,onConnect,channel,fresh,onFresh}:{path:WelcomePath|null;onPath(path:WelcomePath):void;url:string;onUrl(url:string):void;job:JobRun;onAdd():void;block:'checking'|'missing'|null;onConnect():void;channel:WelcomeChannel|null;fresh:FreshDraft;onFresh(next:FreshDraft):void}){
  const [other,setOther]=useState('');
  const done=channel!==null;
- const running=job.phase==='running';
+ const running=(job.phase==='starting'||job.phase==='running');
  const topics=TOPIC_LABELS.map<string>(label=>label).concat(fresh.topics.filter(topic=>!(TOPIC_LABELS as readonly string[]).includes(topic)));
  const submit=(event:FormEvent)=>{event.preventDefault();if(url.trim()&&!running&&!block)onAdd();};
  const add=()=>{onFresh({...fresh,topics:addTopic(fresh.topics,other)});setOther('');};

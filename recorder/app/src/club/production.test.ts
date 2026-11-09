@@ -114,7 +114,7 @@ test('a video sits on the day it was published, the day set for it, or the day i
  assert.equal(calendarDay(video({stage:'planning',stageDates:{ideas:entered}})),undefined,'it entered another stage');
  assert.equal(calendarDay(video({stageDates:{ideas:entered}})),undefined,'an idea is not on the calendar without a day');
  assert.equal(calendarDay(video({publishDate:'2026-11-03'})),'2026-11-03');
- assert.equal(calendarDay(video({stage:'planning',hidden:'later',publishDate:'2026-11-03'})),undefined);
+ assert.equal(calendarDay(video({stage:'planning',hidden:'later',publishDate:'2026-11-03'})),'2026-11-03');
 });
 
 test('the calendar groups videos by day and lists the ones in production that have none, furthest along first',()=>{

@@ -40,18 +40,30 @@ test('waveform cache validates contents and duration, replaces damaged cache, an
   try {
     const source = path.join(dir, 'voice.wav'), cache = path.join(dir, 'cache'); await writeWave(source, 5, () => .1);
     const media = await probeMedia(source, cache), first = await waveform(media, cache);
-    const file = (await fs.readdir(cache)).find(f => f.endsWith('.wave-v2.json'))!;
+    const file = (await fs.readdir(cache)).find(f => f.endsWith('.wave-v3.json'))!;
     await fs.writeFile(path.join(cache, file), JSON.stringify(first.map(() => 12)));
     assert.deepEqual(await waveform(media, cache), first, 'invalid amplitude cache regenerated');
     const longer = await waveform({...media, duration: 10}, cache);
     assert.equal(longer.length, 500); assert.ok(largest(longer.slice(0, 250)) > .09); assert.equal(largest(longer.slice(252)), 0);
     await writeWave(source, 5, () => .2); const future = new Date(Date.now() + 2000); await fs.utimes(source, future, future);
     const updated = await waveform(media, cache); assert.ok(largest(updated) > .19 && largest(updated) < .21);
-    assert.equal((await fs.readdir(cache)).filter(f => f.endsWith('.wave-v2.json')).length, 3);
+    assert.equal((await fs.readdir(cache)).filter(f => f.endsWith('.wave-v3.json')).length, 3);
     assert.equal((await fs.readdir(cache)).filter(f => f.endsWith('.tmp')).length, 0);
     await assert.rejects(waveform({...media, duration: NaN}, cache), /duration/);
     await assert.rejects(waveform({...media, duration: 90000}, cache), /duration/);
   } finally { await fs.rm(dir, {recursive: true, force: true}); }
+});
+test('long sources keep 50 peaks per second, compact numeric payloads and regenerate the old capped cache',async()=>{
+ const dir=await fs.mkdtemp(path.join(os.tmpdir(),'sceneforge-wave-resolution-'));
+ try{
+  const source=path.join(dir,'long.wav'),cache=path.join(dir,'cache');await writeWave(source,400,t=>t>=399.98?.654321:t>=399.96?.321234:.00036,1);
+  const media=await probeMedia(source,cache);await fs.writeFile(path.join(cache,'legacy.wave-v2.json'),JSON.stringify(Array(16000).fill(1)));
+  const peaks=await waveform(media,cache);assert.equal(peaks.length,20000);assert.equal(peaks[0],.0004,'four decimals retain quiet speech');assert.equal(peaks.at(-2),.3212);assert.equal(peaks.at(-1),.6543,'20 ms detail survives past the old cap');
+  assert.ok(peaks.every(peak=>Math.abs(peak*10000-Math.round(peak*10000))<1e-8));
+  const payload=JSON.stringify({peaks});assert.ok(Buffer.byteLength(payload)<=peaks.length*7+11);assert.deepEqual(JSON.parse(payload).peaks,peaks,'API stays a plain numeric array for existing consumers');
+  const files=await fs.readdir(cache);assert.equal(files.filter(f=>f.endsWith('.wave-v3.json')).length,1);assert.deepEqual(await waveform(media,cache),peaks);
+  const maximum=await waveform({...media,duration:86400},cache);assert.equal(maximum.length,4320000);assert.equal(maximum.at(-1),0);
+ }finally{await fs.rm(dir,{recursive:true,force:true});}
 });
 test('video audio waveform preserves delayed audio start on the full video source clock', async () => {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'sceneforge-wave-video-'));

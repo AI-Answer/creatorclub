@@ -12,17 +12,18 @@ test('ready answers without probing, autosave can opt into a minimal echo whose 
  const dir=await fs.mkdtemp(path.join(os.tmpdir(),'sceneforge-project-api-')),port=await freePort(),base=`http://127.0.0.1:${port}/api`;
  const child=spawn(process.execPath,['--import','tsx','server/index.ts'],{cwd:path.resolve(import.meta.dirname,'..'),env:{...process.env,SCENEFORGE_PORT:String(port),SCENEFORGE_DATA_DIR:path.join(dir,'data'),SCENEFORGE_MCP_COMMAND:''},stdio:'pipe'});let stderr='';child.stderr?.on('data',b=>stderr+=b);child.stdout?.resume();
  try{
-  let ready:any;for(let i=0;i<200&&!ready;i++){try{ready=await (await fetch(base+'/ready')).json();}catch{await delay(25);}}const {pid,build,...identity}=ready;assert.deepEqual(identity,{application:'Creator Compiler',product:'Creator Compiler',version:'0.1.0',parentPid:null},stderr);assert.equal(typeof pid,'number');assert.match(build,/^\d+-\d+$/);
+  let ready:any;for(let i=0;i<200&&!ready;i++){try{ready=await (await fetch(base+'/ready')).json();}catch{await delay(25);}}const {pid,build,owner,runningJobs,motionRenderer,...identity}=ready;assert.equal(owner,'mcp');assert.equal(runningJobs,0);assert.equal(motionRenderer,'chrome');assert.deepEqual(identity,{application:'Creator Compiler',product:'Creator Compiler',version:'0.1.0',parentPid:null},stderr);assert.equal(typeof pid,'number');assert.match(build,/^\d+-\d+$/);
   const health=await (await fetch(base+'/health')).json();assert.equal(health.application,'Creator Compiler');assert.equal(health.product,'Creator Compiler');assert.equal(health.mcp,undefined,'an empty launcher setting (Creator Compiler without its own launcher) advertises no MCP');assert.equal(typeof health.hardwareEncode,'boolean');assert.ok(health.dataDir);
   const created=await (await fetch(base+'/projects',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:'Minimal echo'})})).json();
   await t.test('project summaries distinguish planned duration from a populated timeline',async()=>{
    const draft=await (await fetch(base+'/projects',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:'Planned script'})})).json();
-   draft.scenes[0].duration=60;
-   assert.equal((await fetch(base+'/projects/'+draft.id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(draft)})).status,200);
+   const revision=(await fetch(base+'/projects/'+draft.id)).headers.get('etag')!;draft.scenes[0].duration=60;
+   assert.equal((await fetch(base+'/projects/'+draft.id,{method:'PUT',headers:{'Content-Type':'application/json','If-Match':revision},body:JSON.stringify(draft)})).status,200);
    const summary=(await (await fetch(base+'/projects')).json()).find((item:any)=>item.id===draft.id);
    assert.equal(summary.duration,60);assert.equal(summary.clipCount,0);
   });
   const opened=await fetch(base+'/projects/'+created.id),etag=opened.headers.get('etag')!,project=await opened.json();assert.deepEqual(project,created);
+  assert.equal((await fetch(base+'/projects/'+project.id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(project)})).status,428);
   const edited={...project,name:'Renamed',notes:'kept'},put=await fetch(base+'/projects/'+project.id,{method:'PUT',headers:{'Content-Type':'application/json','If-Match':etag,'Prefer':'return=minimal'},body:JSON.stringify(edited)});
   const minimal=await put.json(),revision=put.headers.get('etag')!.replaceAll('"','');assert.equal(put.status,200);assert.deepEqual(Object.keys(minimal),['minimal','id','updatedAt']);assert.equal(minimal.minimal,true);assert.equal(minimal.id,project.id);
   const adopted={...edited,updatedAt:minimal.updatedAt};assert.equal(createHash('sha256').update(JSON.stringify(adopted)).digest('hex'),revision);

@@ -1,5 +1,5 @@
 import { DatabaseSync } from 'node:sqlite';
-import { readdir, readFile, stat } from 'node:fs/promises';
+import { readdir, readFile, stat, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { createProject, defaultEffects, defaultTransform, makeId, setNoiseStrength, setVoiceLevel, type Project, type Clip, type Media, type Caption, type Transform } from '../shared/types.js';
 import {cursorForTimeline,decodeCursorSidecar,type RecordedCursorPoint} from './cursor-sidecar.js';
@@ -25,6 +25,7 @@ export async function importBorumi(input:string,options:{roundtripDirectory?:str
  const rows=(name:string):Row[]=>{try{return db.prepare(`SELECT * FROM "${name}"`).all() as Row[]}catch{return []}};
  let data:Record<string,Row[]>;
  let preserved:Awaited<ReturnType<typeof preserveBorumiDatabase>>|undefined;
+ try{
  try{if(!db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='projects'").get())throw new Error('This SQLite file is not a supported Borumi project.');
   if(options.roundtripDirectory){
    preserved=await preserveBorumiDatabase(db,dbPath,options.roundtripDirectory);
@@ -182,4 +183,5 @@ export async function importBorumi(input:string,options:{roundtripDirectory?:str
   p.importMetadata!.roundtrip=await finishBorumiPreservation(preserved,original.id,p,mapping);
  }
  return p;
+ }catch(error){if(preserved)await rm(preserved.folder,{recursive:true,force:true});throw error;}
 }

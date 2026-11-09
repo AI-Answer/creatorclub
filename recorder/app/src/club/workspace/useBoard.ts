@@ -33,20 +33,32 @@ export function useBoard(videoId:string){
  // The place the server has for each tile, to go back to when a save fails; and the places still waiting to be saved.
  const saved=useRef(new Map<string,TilePosition|undefined>());
  const waiting=useRef(new Map<string,Place>());
+ const previews=useRef(new Set<string>());
  const timers=useRef(new Map<string,ReturnType<typeof setTimeout>>());
  const stops=useRef(new Map<string,()=>void>());
+ const alive=useRef(true),loadVersion=useRef(0);
+ const readVersions=useRef(new Map<string,number>());
+ const versions=useRef(new Map<string,number>()),inflight=useRef(new Map<string,Promise<void>>());
+ const loadedRef=useRef(loaded);loadedRef.current=loaded;
+ useEffect(()=>{alive.current=true;return()=>{alive.current=false;loadVersion.current++;readVersions.current.clear();};},[]);
 
- const change=useCallback((id:string,patch:Partial<ResearchTile>)=>setLoaded(current=>current&&current.map(tile=>tile.id===id?{...tile,...patch}:tile)),[]);
- const replace=useCallback((incoming:ResearchTile)=>setLoaded(current=>current&&current.map(tile=>tile.id===incoming.id?{...incoming,pos:tile.pos??incoming.pos}:tile)),[]);
+ const change=useCallback((id:string,patch:Partial<ResearchTile>)=>{const next=loadedRef.current?.map(tile=>tile.id===id?{...tile,...patch}:tile)??null;loadedRef.current=next;setLoaded(next);},[]);
+ const replace=useCallback((incoming:ResearchTile)=>{const next=loadedRef.current?.map(tile=>tile.id===incoming.id?{...incoming,pos:tile.pos??incoming.pos}:tile)??null;loadedRef.current=next;setLoaded(next);},[]);
 
  /** Reads a video tile's details. The read keeps going on the server if the page is left, and a read already running is joined. */
  const read=useCallback((tile:ResearchTile)=>{
+  if(!alive.current)return;
   stops.current.get(tile.id)?.();
+  const version=(readVersions.current.get(tile.id)??0)+1;readVersions.current.set(tile.id,version);
+  const active=()=>alive.current&&readVersions.current.get(tile.id)===version;
   setReading(current=>({...current,[tile.id]:{phase:'running'}}));
-  const fail=(message:string)=>setReading(current=>({...current,[tile.id]:{phase:'failed',message}}));
+  const fail=(message:string)=>{if(!active())return;stops.current.delete(tile.id);setReading(current=>({...current,[tile.id]:{phase:'failed',message}}));};
   clubFetch(`${base}/${encodeURIComponent(tile.id)}/read`,{method:'POST'}).then(started=>{
+   if(!active())return;
    if(!isStartedJob(started)){fail(READ_FAILED);return;}
    stops.current.set(tile.id,watchJob(started.id,event=>{
+    if(!active())return;
+    if(event.type!=='progress')stops.current.delete(tile.id);
     if(event.type==='done'){replace(event.data as ResearchTile);setReading(({[tile.id]:_done,...rest})=>rest);}
     else if(event.type==='failed')fail(failureMessage(event.data,READ_FAILED));
     else if(event.type==='cancelled')setReading(({[tile.id]:_stopped,...rest})=>rest);
@@ -56,48 +68,49 @@ export function useBoard(videoId:string){
  const readRef=useRef(read);readRef.current=read;
 
  const load=useCallback(()=>{
+  const mine=++loadVersion.current,at=new Map(versions.current);
   setLoadError('');
   clubFetch<ResearchTile[]>(base).then(found=>{
-   saved.current=new Map(found.map(tile=>[tile.id,tile.pos]));
-   setLoaded(found);
-   for(const tile of found)if(tile.kind==='video'&&!tile.title)readRef.current(tile);
-  },reason=>setLoadError(errorMessage(reason,"Couldn't load the board.")));
+   if(!alive.current||mine!==loadVersion.current)return;
+   const positions=new Map(waiting.current);
+   for(const tile of loadedRef.current??[])if((previews.current.has(tile.id)||versions.current.get(tile.id)!==at.get(tile.id))&&tile.pos)positions.set(tile.id,tile.pos);
+   for(const tile of found)if(!positions.has(tile.id))saved.current.set(tile.id,tile.pos);
+   const merged=mergeTiles(found,positions);loadedRef.current=merged;setLoaded(merged);
+   for(const tile of merged)if(tile.kind==='video'&&!tile.title&&!stops.current.has(tile.id))readRef.current(tile);
+  },reason=>{if(alive.current&&mine===loadVersion.current&&loadedRef.current===null)setLoadError(errorMessage(reason,"Couldn't load the board."));});
  },[base]);
  useEffect(()=>{load();},[load]);
-
- /** Reads the Board again after the files behind it changed. Tiles being moved keep the places waiting to be saved; a failed read changes nothing. */
- const refresh=useCallback(()=>{
-  clubFetch<ResearchTile[]>(base).then(found=>{
-   const merged=mergeTiles(found,waiting.current);
-   for(const tile of merged)if(!saved.current.has(tile.id))saved.current.set(tile.id,tile.pos);
-   setLoaded(merged);
-   for(const tile of merged)if(tile.kind==='video'&&!tile.title&&!stops.current.has(tile.id))readRef.current(tile);
-  },()=>{});
- },[base]);
+ const refresh=load;
  const [changes,setChanges]=useState(0);
  useBoardEvents(videoId,()=>{refresh();setChanges(count=>count+1);});
 
  /** Saves the place waiting for a tile. A failure puts the tile back where the server has it. */
- const commit=useCallback(async(id:string)=>{
+ const commit=useCallback((id:string):Promise<void>=>{
   clearTimeout(timers.current.get(id));timers.current.delete(id);
-  const pos=waiting.current.get(id);
-  if(!pos)return;
-  waiting.current.delete(id);
-  try{
-   await clubFetch(`${base}/${encodeURIComponent(id)}`,{method:'PATCH',body:{pos}});
-   saved.current.set(id,{...saved.current.get(id),...pos});
-  }catch(reason){
-   change(id,{pos:saved.current.get(id)});
-   toast(errorMessage(reason,"Couldn't save that change."));
-  }
+  const active=inflight.current.get(id);if(active)return active;
+  const drain=async()=>{
+   while(waiting.current.has(id)){
+    const pos=waiting.current.get(id)!,version=versions.current.get(id);
+    try{
+     await clubFetch(`${base}/${encodeURIComponent(id)}`,{method:'PATCH',body:{pos}});
+     saved.current.set(id,{...saved.current.get(id),...pos});
+     if(versions.current.get(id)===version)waiting.current.delete(id);
+    }catch(reason){
+     if(versions.current.get(id)===version){waiting.current.delete(id);if(alive.current)change(id,{pos:saved.current.get(id)});}
+     if(alive.current)toast(errorMessage(reason,"Couldn't save that change."));
+    }
+   }
+  };
+  const pending=drain().finally(()=>inflight.current.delete(id));inflight.current.set(id,pending);return pending;
  },[base,change,toast]);
 
  /** Moves a tile on screen without saving it (a drag in progress). */
- const preview=useCallback((id:string,pos:Place)=>change(id,{pos:{...loaded?.find(tile=>tile.id===id)?.pos,...pos}}),[change,loaded]);
+ const preview=useCallback((id:string,pos:Place)=>{const version=(versions.current.get(id)??0)+1;versions.current.set(id,version);previews.current.add(id);change(id,{pos:{...loadedRef.current?.find(tile=>tile.id===id)?.pos,...pos}});return version;},[change]);
  /** Moves a tile and saves its place: at once after a drop, a moment after the last key press. */
  const place=useCallback((id:string,pos:Place,when:'now'|'soon')=>{
-  waiting.current.set(id,pos);
-  preview(id,pos);
+  versions.current.set(id,(versions.current.get(id)??0)+1);
+  waiting.current.set(id,{...loadedRef.current?.find(tile=>tile.id===id)?.pos,...pos});
+  preview(id,pos);previews.current.delete(id);
   clearTimeout(timers.current.get(id));
   if(when==='now'){void commit(id);return;}
   timers.current.set(id,setTimeout(()=>void commit(id),KEY_SAVE_MS));
@@ -116,7 +129,7 @@ export function useBoard(videoId:string){
   try{
    const tile=body instanceof FormData?await clubUpload<ResearchTile>(base,body):await clubFetch<ResearchTile>(base,{body});
    saved.current.set(tile.id,tile.pos);
-   setLoaded(current=>[...(current??[]),tile]);
+   const next=[...(loadedRef.current??[]),tile];loadedRef.current=next;setLoaded(next);
    if(tile.kind==='video')read(tile);
    return tile;
   }catch(reason){
@@ -139,7 +152,7 @@ export function useBoard(videoId:string){
  /** Puts a tile the server made (a pinned file, a dropped note) on the Board. */
  const adopt=useCallback((incoming:readonly ResearchTile[])=>{
   for(const tile of incoming)saved.current.set(tile.id,tile.pos);
-  setLoaded(current=>{const known=new Set((current??[]).map(tile=>tile.id));return [...(current??[]),...incoming.filter(tile=>!known.has(tile.id))];});
+  const current=loadedRef.current,known=new Set((current??[]).map(tile=>tile.id)),next=[...(current??[]),...incoming.filter(tile=>!known.has(tile.id))];loadedRef.current=next;setLoaded(next);
  },[]);
 
  /** Takes a tile off the Board, for good once its toast has gone unless Undo is pressed. */
@@ -161,5 +174,11 @@ export function useBoard(videoId:string){
   place(id,{x:tile?.pos?.x??0,y:tile?.pos?.y??0,...size},'now');
  },[loaded,place]);
 
- return {tiles,changes,loadError,reload:load,refresh,reading,read,add,adopt,preview,place,resize,saveNote,remove,removeMany};
+ const settlePreview=(id:string,expected:Place,target:Place,save:boolean,version:number)=>{
+  const current=loadedRef.current?.find(tile=>tile.id===id)?.pos;
+  if(versions.current.get(id)!==version||current?.x!==expected.x||current.y!==expected.y)return;
+  previews.current.delete(id);
+  if(save)place(id,target,'now');else change(id,{pos:{...current,...target}});
+ };
+ return {settlePreview,tiles,changes,loadError,reload:load,refresh,reading,read,add,adopt,preview,place,resize,saveNote,remove,removeMany};
 }

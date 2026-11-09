@@ -112,7 +112,7 @@ test('the window shows the island\'s take and follower, and its changes go to th
   assert.throws(()=>cleanRequest({speed:31}),/Invalid/);assert.throws(()=>cleanRequest({mode:'Fast'}),/Invalid/);assert.throws(()=>cleanRequest({exec:1}),/Unknown/);
   // The menu is built from what the window shows, and its choice comes back.
   h.choose(t=>t[0].click());const choice=await h.call('script-window-menu');assert.equal(choice,'pause');assert.equal(h.menu()[0].label,'Pause');
-  m.setTake({active:false});assert.deepEqual(h.call('script-window-read').take,{active:false,script:'',appearance:'light'});
+  m.setTake({active:false});assert.deepEqual(h.call('script-window-read').take,{active:false,script:'',appearance:'light'});m.setFollower({index:8,playing:true,asking:true});assert.equal(h.call('script-window-read').follower.index,0);assert.equal(h.call('script-window-read').follower.playing,false);assert.equal(h.call('script-window-read').follower.asking,false);
  }finally{m.dispose();}
 });
 

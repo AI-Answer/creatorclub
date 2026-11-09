@@ -1,4 +1,5 @@
-import {askSettled,askStarted} from './ask-claude';
+import {companionTurn,turnBusy,type Turn} from './companion-turn';
+import {askSettled,askStarted,newAskId} from './ask-claude';
 import {useCallback,useEffect,useRef,useState} from 'react';
 import type {JobSnapshot} from '../../../shared/club';
 import {isEditAction,type CompanionActionType,type CompanionApplied,type CompanionAsked,type CompanionChanged,type CompanionContext,type CompanionEvent,type CompanionMessage,type CompanionReplyMessage,type CompanionTab,type CompanionThread} from '../../../shared/companion';
@@ -20,7 +21,9 @@ export type Live={
  steps:LiveStep[];
  text:string;
  started:number;
- phase:'working'|'failed';
+ phase:'streaming'|'failed';
+ stopping?:boolean;
+ requestId:string;
  error?:string;
 };
 
@@ -46,7 +49,9 @@ export function withPendingStops(server:readonly CompanionMessage[],pending:Read
  const messages=[...server],settled:string[]=[];
  for(const [jobId,stop] of pending){
   const at=messages.findIndex(message=>message.id===stop.questionId);
-  if(at>=0&&messages[at+1]?.role==='assistant'){settled.push(jobId);continue;}
+  const reply=messages[at+1];
+  if(at>=0&&reply?.role==='assistant'&&reply.status!=='running'){settled.push(jobId);continue;}
+  if(at>=0&&reply?.role==='assistant'&&reply.status==='running')messages.splice(at+1,1);
   if(at>=0)messages.splice(at+1,0,stop.message);else messages.push(stop.message);
  }
  return {messages,settled};
@@ -71,7 +76,13 @@ export function useCompanion(videoId:string,{onChanged,beforeApply,editor}:{onCh
  const [loadError,setLoadError]=useState('');
  const [live,setLive]=useState<Live|null>(null);
  const [sendError,setSendError]=useState('');
- const [busyCard,setBusyCard]=useState<string|null>(null);
+ const [busyCard,setBusyCard]=useState<ReadonlySet<string>>(new Set());
+ const busyCards=useRef(new Set<string>());
+ const alive=useRef(true);
+ const turn=useRef<Turn>({phase:'idle'});
+ const [phase,setPhase]=useState<Turn['phase']>('idle');
+ const transition=(next:Turn)=>{turn.current=companionTurn(turn.current,next);if(alive.current)setPhase(turn.current.phase);};
+ const settle=(ok:boolean,choice=false)=>{const current=turn.current;if(current.requestId)askSettled({requestId:current.requestId,jobId:current.jobId,ok,choice});};
  const [announce,setAnnounce]=useState('');
  const stopFollowing=useRef<(()=>void)|null>(null);
  const liveRef=useRef(live);liveRef.current=live;
@@ -87,15 +98,20 @@ export function useCompanion(videoId:string,{onChanged,beforeApply,editor}:{onCh
   * dropped connection); the replayed events then fill in only what is new.
   */
  const follow=useCallback((jobId:string,questionId:string,tab:CompanionTab,from?:{text:string;steps:string[]|LiveStep[]})=>{
+  if(!alive.current)return;
   stopFollowing.current?.();
+  const requestId=turnBusy(turn.current)?turn.current.requestId??jobId:jobId;
+  if(!turnBusy(turn.current))askStarted({requestId,jobId});
+  transition({phase:'streaming',requestId,jobId});
   const now=Date.now();
   const steps=(from?.steps??[]).map(step=>typeof step==='string'?{label:step,started:now}:step);
-  if(liveRef.current?.jobId!==jobId)askStarted();
-  setLive({jobId,questionId,tab,steps,text:from?.text??'',started:liveRef.current?.jobId===jobId?liveRef.current.started:now,phase:'working'});
+  setLive({jobId,questionId,tab,steps,text:from?.text??'',started:liveRef.current?.jobId===jobId?liveRef.current.started:now,phase:'streaming',requestId});
   // Only a step not seen before is announced; a replayed one is not.
   let seen=steps.length;
   stopFollowing.current=watchJob(jobId,event=>{
+   if(!alive.current||turn.current.jobId!==jobId)return;
    if(event.type==='progress'){
+    if(event.reset){seen=0;setLive(current=>current&&current.jobId===jobId?{...current,text:'',steps:[]}:current);loadRef.current();return;}
     const data=event.data as CompanionEvent;
     if(data?.type==='step'){
      setLive(current=>current&&current.jobId===jobId?{...current,steps:withStep(current.steps,data.index,data.label,Date.now())}:current);
@@ -108,31 +124,35 @@ export function useCompanion(videoId:string,{onChanged,beforeApply,editor}:{onCh
     const reply=event.data as CompanionReplyMessage;
     setMessages(current=>[...(current??[]).filter(message=>message.id!==reply.id),reply]);
     setLive(null);setAnnounce('Reply ready');
-    askSettled({ok:true,choice:reply.cards?.some(card=>card.action.type==='ask_choice')??false});
+    settle(true,reply.cards?.some(card=>card.action.type==='ask_choice')??false);transition({...turn.current,phase:'done'});
    }else if(event.type==='failed'){
     const message=failureMessage(event.data,NO_ANSWER);
     // The connection dropped, not the reply: ask how the job is doing before saying anything failed.
     if(message===LOST_JOB){void recover(jobId,questionId,tab);return;}
     setLive(current=>current&&current.jobId===jobId?{...current,phase:'failed',error:message}:current);
-    setAnnounce(message);askSettled({ok:false,choice:false});
-   }else{setLive(current=>current?.jobId===jobId?null:current);askSettled({ok:false,choice:false});}
+    setAnnounce(message);settle(false);transition({...turn.current,phase:'failed'});
+   }else{const current=liveRef.current;if(current?.jobId===jobId)stashStopped(current);setLive(current=>current?.jobId===jobId?null:current);setAnnounce('Stopped');settle(false);transition({...turn.current,phase:'stopped'});setTimeout(()=>loadRef.current(),SETTLE_MS);}
   });
  },[]);
 
  /** After a dropped stream: a reply still running is followed again from where the screen is; a finished one is read from the server. */
  const recover=useCallback(async(jobId:string,questionId:string,tab:CompanionTab)=>{
   const job=await clubFetch<JobSnapshot>(`/jobs/${encodeURIComponent(jobId)}`).catch(()=>undefined);
+  if(!alive.current||turn.current.jobId!==jobId)return;
   const current=liveRef.current;
   if(job?.status==='running'){follow(jobId,questionId,tab,current?.jobId===jobId?{text:current.text,steps:current.steps}:undefined);return;}
-  if(job?.status==='done'){setLive(null);loadRef.current();setAnnounce('Reply ready');askSettled({ok:true,choice:false});return;}
+  if(job?.status==='done'){setLive(null);loadRef.current();setAnnounce('Reply ready');settle(true);transition({...turn.current,phase:'done'});return;}
+  if(job?.status==='cancelled'){setLive(null);settle(false);transition({...turn.current,phase:'stopped'});loadRef.current();return;}
   const message=job?.status==='failed'&&job.error?job.error:NO_ANSWER;
   setLive(live=>live&&live.jobId===jobId?{...live,phase:'failed',error:message}:live);
-  setAnnounce(message);askSettled({ok:false,choice:false});
+  setAnnounce(message);settle(false);transition({...turn.current,phase:'failed'});
  },[follow]);
 
  const load=useCallback(()=>{
+  if(!alive.current)return;
   setLoadError('');
   clubFetch<CompanionThread>(base).then(raw=>{
+   if(!alive.current)return;
    const thread=normalizeThread(raw);
    const {messages:merged,settled}=withPendingStops(thread.messages,pendingStops.current);
    for(const jobId of settled)pendingStops.current.delete(jobId);
@@ -143,29 +163,37 @@ export function useCompanion(videoId:string,{onChanged,beforeApply,editor}:{onCh
     setTimeout(()=>loadRef.current(),SETTLE_MS*stop.tries);
    }
    const running=thread.running,question=running&&thread.messages.find(message=>message.id===running.messageId);
-   if(running&&question?.role==='user'&&liveRef.current?.jobId!==running.jobId)follow(running.jobId,running.messageId,question.context.tab,{text:running.text,steps:running.steps});
-  },reason=>setLoadError(errorMessage(reason,"Couldn't load the conversation.")));
+   if(running&&question?.role==='user'){
+    if(liveRef.current?.jobId!==running.jobId)follow(running.jobId,running.messageId,question.context.tab,{text:running.text,steps:running.steps});
+    else setLive(current=>current&&current.jobId===running.jobId?{...current,text:running.text,steps:running.steps.map(label=>({label,started:Date.now()}))}:current);
+   }
+  },reason=>{if(alive.current)setLoadError(errorMessage(reason,"Couldn't load the conversation."));});
  },[base,follow]);
  loadRef.current=load;
- useEffect(()=>{load();return()=>{stopFollowing.current?.();stopFollowing.current=null;};},[load]);
+ useEffect(()=>{alive.current=true;load();return()=>{alive.current=false;settle(false);stopFollowing.current?.();stopFollowing.current=null;};},[load]);
 
  /** Asks a question, or with `retryOf` the one that failed again. */
- const send=useCallback(async(text:string,context:CompanionContext,retryOf?:string,attachments?:readonly string[])=>{
+ const send=useCallback(async(text:string,context:CompanionContext|(()=>Promise<CompanionContext>),retryOf?:string,attachments?:readonly string[],requestId=newAskId(),parentRequestId?:string)=>{
   const message=text.trim();
-  if(!message||liveRef.current?.phase==='working')return false;
-  setSendError('');
+  if(!alive.current||!message||turnBusy(turn.current)){askSettled({requestId,ok:false,choice:false});return false;}
+  transition({phase:'sending',requestId});askStarted({requestId,parentRequestId});setSendError('');
   try{
-   const asked=await clubFetch<CompanionAsked>(base,{body:{message,context,...(retryOf?{retryOf}:{}),...(attachments?.length?{attachments}:{})}});
+   const now=typeof context==='function'?await context():context;
+   if(!alive.current){askSettled({requestId,ok:false,choice:false});return false;}
+   const asked=await clubFetch<CompanionAsked>(base,{body:{message,context:now,...(retryOf?{retryOf}:{}),...(attachments?.length?{attachments}:{})}});
+   if(!alive.current){askSettled({requestId,jobId:asked.jobId,ok:false,choice:false});return false;}
    setMessages(current=>current?.some(each=>each.id===asked.message.id)?current:[...(current??[]),asked.message]);
-   follow(asked.jobId,asked.message.id,context.tab);
+   follow(asked.jobId,asked.message.id,now.tab);
    return true;
-  }catch(reason){setSendError(errorMessage(reason,NO_ANSWER));return false;}
+  }catch(reason){if(alive.current)setSendError(errorMessage(reason,NO_ANSWER));settle(false);transition({phase:'failed',requestId});return false;}
  },[base,follow]);
 
  /** Try again after a failed reply: the same question, not saved twice; a reply that is in fact still running is followed instead. */
- const retry=useCallback(async(context:CompanionContext)=>{
-  const failed=liveRef.current;if(!failed)return;
+ const retry=useCallback(async(context:CompanionContext,questionId?:string)=>{
+  const failed=questionId?{questionId}:liveRef.current;if(!failed||turnBusy(turn.current))return;
+  const requestId=newAskId();transition({phase:'sending',requestId});askStarted({requestId});
   const raw=await clubFetch<CompanionThread>(base).catch(()=>undefined);
+  if(!alive.current)return;
   const thread=raw?normalizeThread(raw):undefined;
   if(thread){
    setMessages(thread.messages);
@@ -174,19 +202,17 @@ export function useCompanion(videoId:string,{onChanged,beforeApply,editor}:{onCh
     if(question?.role==='user'){follow(thread.running.jobId,thread.running.messageId,question.context.tab,{text:thread.running.text,steps:thread.running.steps});return;}
    }
    const at=thread.messages.findIndex(message=>message.id===failed.questionId);
-   if(at>=0&&thread.messages[at+1]?.role==='assistant'){setLive(null);return;}
+   const reply=thread.messages[at+1];
+   if(at>=0&&reply?.role==='assistant'&&!['failed','running'].includes(reply.status??'')){setLive(null);settle(true);transition({phase:'done',requestId});return;}
   }
   const question=(thread?.messages??messages??[]).find(message=>message.id===failed.questionId);
-  if(!question)return;
-  setLive(null);
+  if(!question){settle(false);transition({phase:'failed',requestId});return;}
+  settle(false);transition({phase:'idle',requestId});setLive(null);
   void send(question.text,context,question.id);
  },[base,follow,messages,send]);
 
  /** Stop: the reply ends where it is; what had arrived stays, marked as stopped, until the server's own copy replaces it. */
- const stop=useCallback(()=>{
-  const current=liveRef.current;
-  if(!current||current.phase!=='working')return;
-  stopFollowing.current?.();stopFollowing.current=null;
+ const stashStopped=(current:Live)=>{
   const now=Date.now();
   const steps=current.steps.map((step,index)=>({label:step.label,ms:(current.steps[index+1]?.started??now)-step.started}));
   if(current.text.trim()){
@@ -194,14 +220,21 @@ export function useCompanion(videoId:string,{onChanged,beforeApply,editor}:{onCh
    pendingStops.current.set(current.jobId,{questionId:current.questionId,message,tries:0});
    setMessages(list=>withPendingStops(list??[],new Map([[current.jobId,{questionId:current.questionId,message}]])).messages);
   }
-  setLive(null);setAnnounce('Stopped');askSettled({ok:false,choice:false});
-  // A reply that finished just before the stop, or the stopped part the server keeps, comes back from the server in a moment.
-  void clubFetch(`/jobs/${encodeURIComponent(current.jobId)}`,{method:'DELETE'}).catch(()=>{}).then(()=>setTimeout(()=>loadRef.current(),SETTLE_MS));
+ };
+ const stop=useCallback(()=>{
+  const current=liveRef.current;
+  if(!current||current.phase!=='streaming'||current.stopping)return;
+  setLive(live=>live&&live.jobId===current.jobId?{...live,stopping:true}:live);setAnnounce('Stopping…');
+  void clubFetch<JobSnapshot>(`/jobs/${encodeURIComponent(current.jobId)}`,{method:'DELETE'}).then(job=>{
+   if(!alive.current||turn.current.jobId!==current.jobId)return;
+   if(job?.status==='cancelled'){stashStopped(liveRef.current??current);stopFollowing.current?.();stopFollowing.current=null;setLive(null);settle(false);transition({...turn.current,phase:'stopped'});setAnnounce('Stopped');setTimeout(()=>loadRef.current(),SETTLE_MS);}
+  },reason=>{if(alive.current){setSendError(errorMessage(reason,"Couldn't stop that reply."));setLive(live=>live?{...live,stopping:false}:live);}});
  },[]);
 
  const card=useCallback(async(messageId:string,index:number,action:'apply'|'undo')=>{
   const key=`${messageId}:${index}`;
-  setBusyCard(key);
+  if(busyCards.current.has(key))return '';
+  busyCards.current.add(key);setBusyCard(new Set(busyCards.current));
   try{
    if(action==='apply')await beforeApply?.();
    const url=`${base}/${encodeURIComponent(messageId)}/cards/${index}/${action}`;
@@ -214,13 +247,14 @@ export function useCompanion(videoId:string,{onChanged,beforeApply,editor}:{onCh
    changedRef.current(result.changed,action==='apply'?card?.action.type:undefined);
    return '';
   }catch(reason){return errorMessage(reason,action==='apply'?"Couldn't apply that.":"Couldn't undo that.");}
-  finally{setBusyCard(current=>current===key?null:current);}
+  finally{busyCards.current.delete(key);if(alive.current)setBusyCard(new Set(busyCards.current));}
  },[base,beforeApply]);
 
  // Add all: the timeline cards of one reply go to the server as one batch, so each lands where its times now are. The editor saves first, as for one card.
  const addCards=useCallback(async(messageId:string,indices:number[])=>{
-  const key=`${messageId}:${indices[0]}`;
-  setBusyCard(key);
+  const keys=indices.map(index=>`${messageId}:${index}`),key=keys[0];
+  if(!key||keys.some(each=>busyCards.current.has(each)))return '';
+  for(const each of keys)busyCards.current.add(each);setBusyCard(new Set(busyCards.current));
   try{
    await beforeApply?.();
    const url=`${base}/${encodeURIComponent(messageId)}/cards/apply-all`;
@@ -231,8 +265,8 @@ export function useCompanion(videoId:string,{onChanged,beforeApply,editor}:{onCh
    changedRef.current(result.changed);
    return result.stopped?`Added the changes before this one: ${result.stopped}`:'';
   }catch(reason){return errorMessage(reason,"Couldn't add those changes.");}
-  finally{setBusyCard(current=>current===key?null:current);}
+  finally{for(const each of keys)busyCards.current.delete(each);if(alive.current)setBusyCard(new Set(busyCards.current));}
  },[base,beforeApply]);
 
- return {messages,loadError,reload:load,live,announce,sendError,send,retry,stop,apply:(messageId:string,index:number)=>card(messageId,index,'apply'),undo:(messageId:string,index:number)=>card(messageId,index,'undo'),applyAll:addCards,busyCard};
+ return {requestId:turn.current.requestId,phase,busy:phase==='sending'||phase==='streaming',messages,loadError,reload:load,live,announce,sendError,send,retry,stop,apply:(messageId:string,index:number)=>card(messageId,index,'apply'),undo:(messageId:string,index:number)=>card(messageId,index,'undo'),applyAll:addCards,busyCard};
 }

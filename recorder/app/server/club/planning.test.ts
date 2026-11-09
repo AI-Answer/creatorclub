@@ -550,7 +550,7 @@ test('a step runs once at a time per video, can be stopped, and a page opened mi
   const before = await readFile(path.join(process.env.CREATORCLUB_DIR!, 'samin', 'videos', video.id, 'outline.md'), 'utf8');
 
   const stopped = await call('DELETE', `/jobs/${first.body.id}`);
-  assert.equal(stopped.body.status, 'cancelled');
+  assert.equal(stopped.body.status, 'running');
   await waitFor(() => aborted.includes('Outline'));
   assert.deepEqual((await call('GET', `/videos/${video.id}/plan`)).body.running, {});
   assert.equal(await readFile(path.join(process.env.CREATORCLUB_DIR!, 'samin', 'videos', video.id, 'outline.md'), 'utf8'), before, 'a stopped run writes nothing');
@@ -619,7 +619,7 @@ test('Continue to recording creates the recording project and moves the video to
   const saved = moved.body as Video;
   assert.equal(saved.stage, 'recording');
   assert.ok(saved.stageDates.recording);
-  assert.deepEqual(saved.planning, { research: false, package: true, outline: true }, 'the package was written earlier in this file');
+  assert.deepEqual(saved.planning, { research: true, package: true, outline: true }, 'the package and research were written earlier in this file');
   const projectFile = path.join(process.env.SCENEFORGE_DATA_DIR!, 'projects', `${saved.recorderProjectId}.json`);
   const project = JSON.parse(await readFile(projectFile, 'utf8')) as Project;
   assert.equal(project.name, 'Build it fast');
@@ -695,4 +695,20 @@ test('deleting a video sends its recording to the Trash, where it can still be r
   await assert.rejects(readFile(projectFile), 'the project is no longer among the projects');
   const { listTrash } = await import('../storage.js');
   assert.ok((await listTrash()).some((item: { id?: string; projectId?: string }) => item.id === recorded.recorderProjectId || item.projectId === recorded.recorderProjectId), 'it is in the Trash');
+});
+
+test('video listing isolates corrupt packages and tiles, logs once, and caches unchanged JSON',async t=>{
+ const store=await import('./store.js'),io=(await import('node:fs')).promises;
+ const broken=(await call('POST','/videos',{title:'Corrupt planning'})).body as Video,healthy=(await call('POST','/videos',{title:'Healthy planning'})).body as Video;
+ const stored={research:true,package:true,outline:true};await store.updateVideo('samin',broken.id,{planning:stored});
+ const pkg=path.join(store.videoDir('samin',broken.id),'package.json'),tile=path.join(store.researchDir('samin',broken.id),'t_aaaaaaaaaaaa.json');await mkdir(path.dirname(tile),{recursive:true});await writeFile(pkg,'{bad');
+ const logs:unknown[][]=[],log=t.mock.method(console,'error',(...args:unknown[])=>{if(String(args[0]).includes('Could not read planning flags'))logs.push(args);});
+ const check=async()=>{const response=await call('GET','/videos');assert.equal(response.status,200);assert.deepEqual(response.body.find((v:Video)=>v.id===broken.id).planning,stored);assert.ok(response.body.find((v:Video)=>v.id===healthy.id));};
+ try{
+  await check();await check();assert.equal(logs.length,1);
+  await writeFile(pkg,JSON.stringify(goodPackage));await writeFile(tile,'{bad');await check();assert.equal(logs.length,1);
+  await writeFile(tile,JSON.stringify({createdAt:'2026-01-01',kind:'note'}));let reads=0;const original=io.readFile,spy=t.mock.method(io,'readFile',((...args:Parameters<typeof io.readFile>)=>{if(args[0]===pkg)reads++;return original(...args);}) as typeof io.readFile);
+  try{const first=await call('GET','/videos');assert.deepEqual(first.body.find((v:Video)=>v.id===broken.id).planning,{research:true,package:true,outline:false});await call('GET','/videos');assert.ok(reads<=1,'stable package JSON uses the metadata cache');}finally{spy.mock.restore();}
+  await writeFile(pkg,JSON.stringify({...goodPackage,titles:['','','']}));const changed=await call('GET','/videos');assert.equal(changed.body.find((v:Video)=>v.id===broken.id).planning.package,false);
+ }finally{log.mock.restore();}
 });

@@ -32,8 +32,9 @@ export function BreakdownPanel({target,videoId,title,multiplier,videos,onAdded,o
   setDropError('');tryFile(file);
  };
 
- if(!aiAvailable&&target.kind!=='saved')return <div className="bd"><button type="button" className="btn" disabled title={AI_CONNECT_HINT}>Break down</button></div>;
+ if(!aiAvailable&&target.kind!=='saved'&&state.phase==='idle')return <div className="bd"><button type="button" className="btn" disabled title={AI_CONNECT_HINT}>Break down</button></div>;
  if(state.phase==='done')return <BreakdownResult breakdown={state.result as Breakdown} multiplier={multiplier} videos={videos} onAdded={onAdded}/>;
+ if(state.phase==='cancelled')return <div className="bd"><ErrorLine message="That was stopped." onRetry={retry}/></div>;
  if(failed)return <div className="bd" onDragOver={event=>{if(hasFiles(event)){event.preventDefault();setOver(true);}}} onDragLeave={()=>setOver(false)} onDrop={drop}>
   <ErrorLine message={dropError||state.message} onRetry={()=>{setDropError('');retry();}}/>
   <p className={cn('mt-4 rounded-lg border border-dashed px-4 py-6 text-center text-base',over?'border-accent bg-accent-soft text-accent':'border-line text-muted')}>Drop a video file here</p>

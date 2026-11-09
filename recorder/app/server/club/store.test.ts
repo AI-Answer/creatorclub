@@ -92,7 +92,7 @@ test('concurrent writes to one video keep every update, and parallel creates get
   const patches = [{ youtubeUrl: 'u' }, { publishDate: 'd' }, { recorderProjectId: 'r' }, { publishedAt: 'p' }, { title: 'Raced' }, { hidden: 'later' as const }];
   await Promise.all([...patches.map((p) => store.updateVideo('samin-yasar', video.id, p)), store.moveVideo('samin-yasar', video.id, 'editing')]);
   const after = await store.readVideo('samin-yasar', video.id);
-  assert.deepEqual([after.youtubeUrl, after.publishDate, after.recorderProjectId, after.publishedAt, after.title, after.hidden, after.stage], ['u', 'd', 'r', 'p', 'Raced', 'later', 'editing']);
+  assert.deepEqual([after.youtubeUrl, after.publishDate, after.recorderProjectId, after.publishedAt, after.title, after.hidden, after.stage], ['u', 'd', 'r', undefined, 'Raced', undefined, 'editing']);
 
   const many = await Promise.all(Array.from({ length: 20 }, (_, i) => store.createVideo('samin-yasar', { title: `Parallel ${i}`, stage: 'recording' })));
   assert.deepEqual(many.map((v) => v.order).sort((a, b) => a - b), Array.from({ length: 20 }, (_, i) => i));

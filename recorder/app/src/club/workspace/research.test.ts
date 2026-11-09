@@ -122,7 +122,7 @@ test('arrow keys move every selected card, and the place is saved a moment later
   await key(tile('b'),'ArrowRight',{shiftKey:true});
   assert.deepEqual([tile('a').style.left,tile('b').style.left],['100px','440px']);
   await act(async()=>{await new Promise(resolve=>setTimeout(resolve,450));});
-  assert.deepEqual(server.calls.filter(call=>call.method==='PATCH').map(call=>[call.path,call.body]),[['/channel/research/a',{pos:{x:100,y:60}}],['/channel/research/b',{pos:{x:440,y:60}}]]);
+  assert.deepEqual(server.calls.filter(call=>call.method==='PATCH').map(call=>[call.path,call.body]),[['/channel/research/a',{pos:{x:100,y:60,w:280}}],['/channel/research/b',{pos:{x:440,y:60,w:280}}]]);
  }finally{await ui.close();server.restore();}
 });
 
@@ -137,12 +137,13 @@ test('a connection by keyboard: C on one card, Enter on another; a line is focus
   assert.equal(ui.container.querySelector('.blink-label')!.textContent,'because');
   await act(async()=>(line as unknown as HTMLElement).focus());
   await key(line,'Delete');
-  assert.ok(server.calls.some(call=>call.method==='DELETE'&&call.path==='/channel/board/links/l_1'));
+  assert.equal(server.calls.some(call=>call.method==='DELETE'&&call.path==='/channel/board/links/l_1'),false,'delete waits for Undo');
   await flush();
   assert.equal(ui.container.querySelector('.blink'),null);
   assert.ok(toasts(ui.container).some(text=>text?.startsWith('Removed the connection')));
   await act(async()=>button(document.body,'Undo').click());await flush();
-  assert.deepEqual(server.calls.filter(call=>call.method==='POST').at(-1)?.body,{from:'a',to:'b',label:'because'},'Undo connects them again');
+  assert.equal(server.calls.some(call=>call.method==='DELETE'&&call.path==='/channel/board/links/l_1'),false,'Undo cancels the delete');
+  assert.ok(ui.container.querySelector('.blink'),'Undo restores the original connection');
 
   const tile=(id:string)=>ui.container.querySelector<HTMLElement>(`[data-tile="${id}"]`)!;
   await key(tile('b'),'c');

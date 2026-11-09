@@ -135,7 +135,7 @@ test('Add channel reads the channel, saves 30-upload data and transcripts, then 
   assert.equal(one.trim().split(' ').length, 400, 'caption fragments are joined into plain text');
 
   assert.match(await readFile(path.join(dir('fake-first'), 'voice.md'), 'utf8'), /^# Fake Voice Guide/);
-  assert.equal((await call('GET', '/workspaces')).body.current, 'fake-first');
+  assert.equal((await call('GET', '/workspaces')).body.current, null, 'background import does not switch channels');
 
   const calls = await ytCalls();
   const listing = calls.find((a) => a.includes('--flat-playlist'))!;
@@ -190,7 +190,7 @@ test('a channel without usable captions asks the Voice DNA questions, and the an
   assert.equal(job.result.voice, 'needs-answers');
   const slug = job.result.workspace.slug;
   assert.equal(await exists(path.join(dir(slug), 'voice.md')), false, 'no guide is invented');
-  assert.equal((await call('GET', '/workspaces')).body.current, slug, 'the channel is still added and selected');
+  assert.equal((await call('GET', '/workspaces')).body.current, null, 'background import does not select its result');
 
   assert.equal((await call('POST', `/workspaces/${slug}/voice`, { answers: { voice: '', audience: 'x' } })).status, 400);
   const answered = await call('POST', `/workspaces/${slug}/voice`, { answers: { voice: 'Warm and direct.', audience: 'Beginners learning Claude.', moves: '' } });
@@ -241,12 +241,12 @@ test('a failed AI step leaves the channel added; adding it again reuses it inste
   assert.equal((await listWorkspaces()).filter((w) => w.handle === '@retry').length, 1);
 });
 
-test('adding a channel that already has a voice guide switches to it without calling YouTube', async () => {
+test('adding a channel that already has a voice guide returns it without calling YouTube', async () => {
   const before = (await ytCalls()).length;
   const job = await finish((await call('POST', '/workspaces', { channelUrl: 'https://www.youtube.com/@FIRST/videos' })).body.id);
   assert.equal(job.result.workspace.slug, 'fake-first');
   assert.equal((await ytCalls()).length, before);
-  assert.equal((await call('GET', '/workspaces')).body.current, 'fake-first');
+  assert.equal((await call('GET', '/workspaces')).body.current, null, 'background import does not switch channels');
 });
 
 test('a channel with no videos, or one YouTube will not list, fails with one sentence', async () => {

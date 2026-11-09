@@ -21,7 +21,9 @@ export async function initStorage(){await Promise.all([DATA_DIR,CACHE_DIR,OUTPUT
 export const safeId=(s:string)=>{if(!/^[a-zA-Z0-9_-]{1,100}$/.test(s))throw new Error('Invalid identifier');return s;};
 const digest=(json:string)=>createHash('sha256').update(json).digest('hex');
 export const revision=(p:Project)=>digest(JSON.stringify(p));
-export async function atomicJSON(file:string,value:unknown){const temp=file+'.'+randomUUID()+'.tmp';try{await fs.writeFile(temp,JSON.stringify(value,null,2),{mode:0o600});await fs.rename(temp,file);}catch(e){await fs.rm(temp,{force:true});throw e;}}
+async function syncFile(file:string){const handle=await fs.open(file,'r+');try{await handle.sync();}finally{await handle.close();}}
+async function syncDirectory(dir:string){if(process.platform==='win32')return;const handle=await fs.open(dir,'r');try{await handle.sync();}finally{await handle.close();}}
+export async function atomicJSON(file:string,value:unknown){const temp=file+'.'+randomUUID()+'.tmp';try{await fs.writeFile(temp,JSON.stringify(value,null,2),{mode:0o600});await syncFile(temp);await fs.rename(temp,file);await syncDirectory(path.dirname(file));}catch(e){await fs.rm(temp,{force:true});throw e;}}
 export async function readProject(id:string):Promise<Project>{return JSON.parse(await fs.readFile(path.join(PROJECT_DIR,safeId(id)+'.json'),'utf8'));}
 /** Screen, else camera, media of the most recent take: a quick recording has takes before it has timeline clips. */
 function latestTakeVisual(p:Project){const take=p.recordedTakes?.at(-1);if(!take)return undefined;return (take.media[take.tracks.indexOf('screen')]??take.media[take.tracks.indexOf('camera')])?.id;}
@@ -65,13 +67,14 @@ async function writeProject(project:Project,{checkpoint=false,expectedRevision,s
  if(previous && (checkpoint || Date.now()-(lastHistory.get(id)||0)>30000)){
   // The committed bytes are the snapshot: a copy-on-write clone where supported, never a re-serialization.
   const dir=path.join(HISTORY_DIR,id);await fs.mkdir(dir,{recursive:true});const target=path.join(dir,Date.now()+'-'+randomUUID()+'.json'),temp=target+'.'+randomUUID()+'.tmp';
-  try{await fs.copyFile(file,temp,fsConstants.COPYFILE_FICLONE);await fs.rename(temp,target);}catch(e){await fs.rm(temp,{force:true});throw e;}lastHistory.set(id,Date.now());
+  try{await fs.copyFile(file,temp,fsConstants.COPYFILE_FICLONE);await syncFile(temp);await fs.rename(temp,target);await syncDirectory(dir);}catch(e){await fs.rm(temp,{force:true});throw e;}lastHistory.set(id,Date.now());
  }
  p.updatedAt=new Date().toISOString();const json=JSON.stringify(p),hash=digest(json),temp=file+'.'+randomUUID()+'.tmp';
- try{await fs.writeFile(temp,json,{mode:0o600});const key=fileKey(await fs.stat(temp));await fs.rename(temp,file);remember(id,{key,json,revision:hash,updatedAt:p.updatedAt});}catch(e){await fs.rm(temp,{force:true});throw e;}
+ try{await fs.writeFile(temp,json,{mode:0o600});await syncFile(temp);const key=fileKey(await fs.stat(temp));await fs.rename(temp,file);await syncDirectory(PROJECT_DIR);remember(id,{key,json,revision:hash,updatedAt:p.updatedAt});}catch(e){await fs.rm(temp,{force:true});throw e;}
  projectEvents.emit('project',{id,revision:hash,updatedAt:p.updatedAt,action:'saved',...(source?{source}:{})} satisfies ProjectEvent);projectEvents.emit('committed',p);
  return {project:p,revision:hash,json};
 }
+export function checkpointProject(id:string){safeId(id);return serialize(writeQueues,id,async()=>writeProject(await readProject(id),{checkpoint:true})).then(state=>state.project);}
 export async function newProject(name?:string){return saveProject(createProject(name?.trim()||'Untitled project'));}
 export async function trashProject(id:string){
  safeId(id);return serialize(writeQueues,id,async()=>{const p=await projectState(id);await fs.rename(path.join(PROJECT_DIR,id+'.json'),path.join(TRASH_DIR,id+'-'+Date.now()+'-'+randomUUID()+'.json'));committed.delete(id);projectEvents.emit('project',{id,revision:p.revision,updatedAt:p.updatedAt,action:'trashed'} satisfies ProjectEvent);});

@@ -1,3 +1,4 @@
+import {clearWelcomeProgress} from './welcome-progress';
 import {mountUI,button} from '../test-dom';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -20,7 +21,7 @@ const click=async(c:Element,label:string)=>{await act(async()=>button(c,label).c
 
 // Explicitly signed out, including when a previous screen cached a signed-in account.
 test('no AI: skip creates a usable local workspace, saves setup, and lands on Home',async()=>{
- rememberAiStatus(off);const routes:unknown[]=[];
+ clearWelcomeProgress();rememberAiStatus(off);const routes:unknown[]=[];
  const fake=installFetch(call=>{
   if(call.path==='/ai/status')return {body:off};
   if(call.path==='/workspaces')return {body:{current:null,workspaces:[]}};
@@ -39,7 +40,7 @@ test('no AI: skip creates a usable local workspace, saves setup, and lands on Ho
 });
 
 test('no AI: finish fresh setup without signing in or starting voice and discovery jobs',async()=>{
- rememberAiStatus(off);FakeEventSource.install();const routes:unknown[]=[];
+ clearWelcomeProgress();rememberAiStatus(off);FakeEventSource.install();const routes:unknown[]=[];
  const fake=installFetch(call=>{
   if(call.path==='/ai/status')return {body:off};
   if(call.path==='/workspaces/fresh')return {body:workspace};
@@ -66,7 +67,7 @@ function Handmade(){
  return createElement('div',null,createElement(IdeaPage,{video,plan,known:[],focusId,boardKey:0,navigate(){},onFocus:setFocusId,onTitle(){},onTarget(){},onRecordScene(){},onVideo(){}}),createElement('button',{disabled:!plan.continueAction||plan.continueAction.disabled,onClick:()=>plan.continueAction?.run()},'Start planned recording'));
 }
 test('no AI: type the first scene, rename it, then start planned recording, and delete it from its menu',async()=>{
- rememberAiStatus(off);FakeEventSource.install();let outline:Outline|null=null;
+ clearWelcomeProgress();rememberAiStatus(off);FakeEventSource.install();let outline:Outline|null=null;
  const fake=installFetch(call=>{
   if(call.path==='/ai/status')return {body:off};
   if(call.path==='/videos/v1/plan')return {body:{package:null,outline,running:{},ready:{}}};
@@ -113,7 +114,7 @@ test('no AI: type the first scene, rename it, then start planned recording, and 
 });
 
 test('no AI: Quick recording creates a video and opens Record with only local writes',async()=>{
- rememberAiStatus(off);const routes:unknown[]=[];
+ clearWelcomeProgress();rememberAiStatus(off);const routes:unknown[]=[];
  const fake=installFetch(call=>{
   if(call.path==='/ai/status')return {body:off};
   if(call.path==='/recent')return {body:[]};
@@ -131,7 +132,7 @@ test('no AI: Quick recording creates a video and opens Record with only local wr
 });
 
 test('no AI: Companion preserves history and applied Undo, and its rail can reopen it',async()=>{
- rememberAiStatus(off);localStorage.setItem('cc.companion.open','1');
+ clearWelcomeProgress();rememberAiStatus(off);localStorage.setItem('cc.companion.open','1');
  const message={id:'m1',role:'assistant',text:'Saved answer',tab:'idea',cards:[{action:{type:'use_title',text:'Saved title'},state:'applied',version:'v1',result:'Title changed'}]};
  const fake=installFetch(call=>call.path==='/ai/status'?{body:off}:call.path.endsWith('/companion')?{body:{messages:[message]}}:call.path.endsWith('/undo')?{body:{message:{...message,cards:[]},changed:[]}}:undefined);
  const ui=await mountUI(createElement(Companion,{videoId:'v1',tab:'idea',screen:'Idea',pkg:null,outline:null,onChanged(){}}));

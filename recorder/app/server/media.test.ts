@@ -423,7 +423,8 @@ test(
       smallTitle.captionStyle.enabled = false;
       smallTitle.elements = [{ ...smallTitle.elements[0], type: "text", text: "Small title", x: 0.1, y: 0.1, width: 0.8, height: 0.14, color: "#ffffff", fontSize: 18 }];
       const frameDir = path.join(dir, "frames");
-      const inspected = await inspectFrames(smallTitle, [0.25, 1.999], frameDir, { width: 320 });
+      const [inspected,overlapping] = await Promise.all([inspectFrames(smallTitle, [0.25, 1.999], frameDir, { width: 320 }),inspectFrames(smallTitle,[0.75],path.join(dir,'overlapping-frames'),{width:320})]);
+      assert.ok((await fs.stat(overlapping[0].path)).size>50,'an overlapping preview survives the first inspection finishing');
       assert.equal(inspected[0].width, 320);
       assert.equal(inspected[0].height, 180);
       assert.equal(inspected[0].time, 0.2);

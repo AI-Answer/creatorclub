@@ -109,3 +109,21 @@ test('v3 captions crossing contiguous splits appear once with outer take edges c
   assert.equal(segments.length,1);assert.equal(segments[0].text,'Untimed phrase');assert.equal(segments[0].start,0);assert.ok(Math.abs(segments[0].end-1.6/speed)<1e-9);
  }
 });
+
+test('shutdown and settings cancellation never suppress the unchanged speech signature',async()=>{
+ for(const reason of ['shutdown','settings'] as const){const s=await setup(async(_m:any,_s:any,_w:any,o:any)=>new Promise((_resolve,reject)=>o.signal.addEventListener('abort',()=>reject(Error('cancelled')),{once:true})));try{
+  const job=await s.engine.queueTranscription(s.project.id,{automatic:true});while(!s.calls)await delay(5);
+  if(reason==='shutdown')await s.engine.shutdown();else await s.engine.updateSettings({automaticTranscription:false});
+  assert.equal((await s.engine.get(job!.id)).cancelReason,reason);
+  const files=await fs.readdir(path.join(s.dir,'automation','captions')).catch(()=>[]);for(const file of files)assert.equal(JSON.parse(await fs.readFile(path.join(s.dir,'automation','captions',file),'utf8')).suppressed,undefined);
+  const restarted=createAutomationEngine({root:path.join(s.dir,'automation'),cache:path.join(s.dir,'cache'),read:async()=>structuredClone(s.project)});try{assert.ok(await restarted.queueTranscription(s.project.id,{automatic:true}));}finally{await restarted.shutdown();}
+ }finally{await s.close();}}
+});
+test('load persists interrupted automation repair and startup prunes old terminal jobs',async()=>{
+ const s=await setup();try{const job=await s.engine.queueTranscription(s.project.id);await finished(s.engine,job!.id);await s.engine.shutdown();const file=path.join(s.dir,'automation','jobs',job!.id+'.json'),saved=JSON.parse(await fs.readFile(file,'utf8'));saved.job.status='running';await fs.writeFile(file,JSON.stringify(saved));const restarted=createAutomationEngine({root:path.join(s.dir,'automation')});try{await restarted.init();assert.equal((await restarted.get(job!.id)).status,'failed');assert.equal(JSON.parse(await fs.readFile(file,'utf8')).job.status,'failed');}finally{await restarted.shutdown();}}finally{await s.close();}
+});
+test('cancellation while a caption save settles reports the applied captions accurately',async()=>{
+ let release!:()=>void,entered=false;const s=await setup(undefined,{save:async p=>{entered=true;await new Promise<void>(resolve=>release=resolve);return p;}});try{const job=await s.engine.queueTranscription(s.project.id);while(!entered)await delay(5);await s.engine.cancel(job!.id);release();await s.engine.shutdown();const result=await s.engine.get(job!.id);assert.equal(result.status,'complete');assert.equal(result.applied,true);assert.doesNotMatch(result.message,/no proposal was applied/);}finally{await s.close();}
+});
+
+test('startup skips an unreadable automation job and preserves valid history',async()=>{const s=await setup();try{const job=await s.engine.queueTranscription(s.project.id);await finished(s.engine,job!.id);const broken=path.join(s.dir,'automation','jobs','broken.json');await fs.writeFile(broken,'{broken');await s.engine.init();assert.equal((await s.engine.get(job!.id)).status,'complete');assert.equal(await fs.readFile(broken,'utf8'),'{broken');}finally{await s.close();}});

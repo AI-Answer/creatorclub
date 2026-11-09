@@ -1,6 +1,7 @@
 import {useEffect,useRef} from 'react';
 import type {MarkerTag} from '../shared/types';
 import {askClaude} from './club/workspace/ask-claude';
+import {NoteTag} from './NotesPanel';
 
 /** The request Claude gets from "Ask Claude": the moment and the note in the creator's words. */
 export const fixRequest=(time:string,note:string)=>`Fix the part I marked at ${time}: "${note.trim()}"`;
@@ -9,12 +10,12 @@ export const fixRequest=(time:string,note:string)=>`Fix the part I marked at ${t
  * A note on a moment of the timeline. It saves as you type; Ask Claude (⌘ Enter) hands it to Claude now, and Claude also reads every
  * note by its time when asked to "fix the parts I marked". It sits over the picture, above the play bar, never over the transcript.
  */
-export function MarkerNote({time,name,anchor,onChange,onNudge,onDelete,onClose}:{time:string;onNudge(seconds:number):void;name:string;tag?:MarkerTag;anchor:{left:number;top:number};onChange(patch:{name?:string;tag?:MarkerTag|null}):void;onDelete():void;onClose():void}){
+export function MarkerNote({time,name,tag,anchor,onChange,onNudge,onDelete,onClose}:{time:string;onNudge(seconds:number):void;name:string;tag?:MarkerTag;anchor:{left:number;top:number};onChange(patch:{name?:string;tag?:MarkerTag|null}):void;onDelete():void;onClose():void}){
  const box=useRef<HTMLDivElement>(null),area=useRef<HTMLTextAreaElement>(null);
  useEffect(()=>{area.current?.focus();},[]);
  useEffect(()=>{
   const away=(event:PointerEvent)=>{if(!box.current?.contains(event.target as Node)&&!(event.target as HTMLElement).closest?.('.club-marker'))onClose();};
-  const escape=(event:KeyboardEvent)=>{if(event.key==='Escape'){event.stopPropagation();onClose();}};
+  const escape=(event:KeyboardEvent)=>{if(event.key==='Escape'&&!event.isComposing){event.preventDefault();event.stopPropagation();onClose();}};
   document.addEventListener('pointerdown',away);document.addEventListener('keydown',escape,true);
   return()=>{document.removeEventListener('pointerdown',away);document.removeEventListener('keydown',escape,true);};
  },[onClose]);
@@ -26,7 +27,7 @@ export function MarkerNote({time,name,anchor,onChange,onNudge,onDelete,onClose}:
  const written=name.trim().length>0;
  const ask=()=>{askClaude(fixRequest(time,name));onClose();};
  return <div ref={box} className="marker-note" role="dialog" aria-label={`Note at ${time}`} style={{left,bottom,width}}
-  onKeyDown={event=>{if(event.key==='Enter'&&(event.metaKey||event.ctrlKey)&&written){event.preventDefault();ask();}}}>
+  onKeyDown={event=>{event.stopPropagation();if(event.nativeEvent.isComposing||event.nativeEvent.keyCode===229)return;if(event.key==='Enter'&&(event.metaKey||event.ctrlKey)&&written){event.preventDefault();ask();}else if(event.key==='Enter'&&!event.shiftKey&&!event.metaKey&&!event.ctrlKey&&event.target===area.current){event.preventDefault();onClose();}}}>
   <div className="marker-note-h">
    <span className="marker-note-time" role="group" aria-label="When">
     <button type="button" className="marker-nudge" aria-label="One second earlier" onClick={()=>onNudge(-1)}>‹</button>
@@ -39,8 +40,9 @@ export function MarkerNote({time,name,anchor,onChange,onNudge,onDelete,onClose}:
    </button>
   </div>
   <textarea ref={area} rows={2} value={name} placeholder="Write a note" aria-label="Your note" onChange={event=>onChange({name:event.target.value})}/>
+  <NoteTag tag={tag} onChange={tag=>onChange({tag})}/>
   <div className="marker-note-a">
-   <button type="button" className="btn sm" onClick={onClose}>Close</button>
+   <button type="button" className="btn sm" onClick={onClose}>Save note</button>
    <button type="button" className="btn sm primary" disabled={!written} onClick={ask}>Ask Claude</button>
   </div>
  </div>;

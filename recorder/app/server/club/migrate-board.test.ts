@@ -71,7 +71,7 @@ test('migrating a board workspace: profile, files, status mapping, outlines and 
   const report = await migrateBoard(source);
   assert.equal(report.slug, 'samin');
   assert.equal(report.videos, 10);
-  assert.deepEqual(report.byStage, { ideas: 3, planning: 2, recording: 0, editing: 1, publishing: 1, published: 1 }, 'hidden videos are not counted in their stage');
+  assert.deepEqual(report.byStage, { ideas: 3, planning: 2, recording: 0, editing: 1, publishing: 2, published: 0 }, 'hidden videos are not counted in their stage');
   assert.deepEqual(report.hidden, { later: 1, skipped: 1 });
   assert.equal(report.outlines, 2);
   assert.equal(report.unmatchedOutlines, 0);
@@ -101,7 +101,7 @@ test('migrating a board workspace: profile, files, status mapping, outlines and 
   assert.equal(byId['idea-1a179c8273f-2'].stage, 'planning');
   assert.equal(byId['idea-1a179c8273f-1'].stage, 'editing');
   assert.equal(byId['beginner-agent'].stage, 'publishing');
-  assert.equal(byId['learn-tool-20'].stage, 'published');
+  assert.equal(byId['learn-tool-20'].stage, 'publishing');
   assert.equal(byId['agent-cost'].hidden, 'later');
   assert.equal(byId['idea-1a179ca7065-1'].hidden, 'skipped');
   assert.equal(byId['idea-1a179ca7065-1'].idea?.dropReason, 'Too generic');

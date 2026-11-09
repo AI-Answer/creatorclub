@@ -6,7 +6,7 @@ import { MADE_THUMBNAILS, chatgptThumbnailPrompt, type MakeDeps } from './chatgp
 import { providerStatus, runAI } from './ai.js';
 import { ClubError } from './errors.js';
 import type { JobContext } from './jobs.js';
-import { asker, readOnePager, saveOnePager, type PlanOptions } from './planning.js';
+import { asker, planLock, readOnePager, saveOnePager, type PlanOptions } from './planning.js';
 import { imageKind, setThumbnail } from './publisher-routes.js';
 import * as store from './store.js';
 import { listReferences, referenceFile, type ThumbnailReference } from './thumbnail-references.js';
@@ -92,7 +92,12 @@ export async function thumbnailIdeas(slug: string, id: string, context: JobConte
     const prompt = `${chatgptThumbnailPrompt(video.title, idea.headline, { visual: ideaVisual(idea) }, files.map((f) => f.ref))}\nThis is a quick preview to choose between ideas: favour speed (a low-quality draft is fine).`;
     await (deps.draw ?? runAI)({ provider: 'codex', prompt, images: files.map((f) => f.file), budgetUsd: 1, agent: { cwd, dirs: [cwd], tools: [] }, writable: true, timeoutMs: 6 * 60_000, signal: context.signal }).catch(() => undefined);
     const bytes = await fs.readFile(path.join(cwd, 'thumbnail.png')).catch(() => undefined);
-    if (!bytes || !imageKind(bytes)) return;
+    if (!bytes || !imageKind(bytes)) {
+      await store.writeJSON(path.join(cwd, 'status.json'), { status: 'failed' });
+      context.emit({ run, phase: 'previews', preview: n, status: 'failed' });
+      return;
+    }
+    await store.writeJSON(path.join(cwd, 'status.json'), { status: 'done' });
     previews[n] = `${n}`;
     context.emit({ run, phase: 'previews', preview: n });
   }));
@@ -102,7 +107,10 @@ export async function thumbnailIdeas(slug: string, id: string, context: JobConte
 export async function ideaPreview(slug: string, id: string, run: string, n: number): Promise<string> {
   if (!RUN.test(run) || !(n >= 0 && n < 3)) throw new ClubError('There is no such preview.', 404);
   const file = path.join(runDir(slug, id, run), String(n), 'thumbnail.png');
-  if (!(await fs.stat(file).then(() => true, () => false))) throw new ClubError('That preview is not drawn yet.', 404);
+  if (!(await fs.stat(file).then(() => true, () => false))) {
+    const state = await store.readJSON<{ status: string }>(path.join(path.dirname(file), 'status.json'));
+    throw new ClubError(state?.status === 'failed' ? 'That preview failed. Try making the ideas again.' : 'That preview is not drawn yet.', state?.status === 'failed' ? 409 : 404);
+  }
   return file;
 }
 
@@ -112,8 +120,10 @@ export async function useIdea(slug: string, id: string, run: string, n: number):
   const ideas = z.array(ideaShape).safeParse(await store.readJSON<unknown>(path.join(runDir(slug, id, run), 'ideas.json')));
   const idea = ideas.success ? ideas.data[n] : undefined;
   if (!idea) throw new ClubError('There is no such idea.', 404);
-  const sketch = (await readOnePager(slug, id)) ?? emptyOnePager();
-  await saveOnePager(slug, id, { ...sketch, thumbnail: { ...sketch.thumbnail, headline: idea.headline, visual: ideaVisual(idea) } });
+  await planLock(slug, id, async () => {
+    const sketch = (await readOnePager(slug, id)) ?? emptyOnePager();
+    await saveOnePager(slug, id, { ...sketch, thumbnail: { ...sketch.thumbnail, headline: idea.headline, visual: ideaVisual(idea) } });
+  });
   const preview = await ideaPreview(slug, id, run, n).catch(() => undefined);
   if (preview) {
     // The chosen picture is kept with the others ChatGPT made for this video, and becomes the thumbnail.

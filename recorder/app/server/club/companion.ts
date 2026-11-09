@@ -30,7 +30,7 @@ import { AiError, aiLabel, runAI, type AIEvent } from './ai.js';
 import { boardTiles } from './board-docs.js';
 import { boardText, readBoardChat } from './board-chat.js';
 import { inFrame, readCanvas } from './board-canvas.js';
-import { actionShape, applyAction, undoVersion, validateActions, versionExists } from './companion-actions.js';
+import { actionShape, cardVersionReader, applyAction, undoVersion, validateActions, versionExists } from './companion-actions.js';
 import { chunkText, parseReply, ReplySplitter } from './companion-reply.js';
 import { editOptions, editProject, MOVED_SINCE_PROPOSAL, placeGraphics, placementHash, stillPlaced, timelineText } from './companion-edit.js';
 import { mergeRanges } from '../../src/timeline-edit.js';
@@ -64,7 +64,7 @@ const FALLBACK_MS = 1200;
 
 const threadFile = (slug: string, id: string) => path.join(store.boardDir(slug, id), 'companion.json');
 const newId = () => `m_${randomBytes(6).toString('hex')}`;
-const jobKey = (slug: string, id: string) => `companion:${slug}/${id}`;
+const jobKey = (slug: string, id: string) => `companion:${slug}/${id}/reply`;
 
 // ---------------------------------------------------------------- the saved conversation
 
@@ -129,7 +129,7 @@ const messageShape = z.union([
       tab: tabShape,
       cards: z.unknown().transform(readCards),
       steps: z.array(z.object({ label: z.string().max(80), ms: z.number().min(0) }).strip()).max(20).optional().catch(undefined),
-      status: z.literal('stopped').optional().catch(undefined),
+      status: z.enum(['running', 'stopped', 'failed']).optional().catch(undefined),
     })
     .strip(),
 ]);
@@ -190,6 +190,10 @@ async function readThreadFile(slug: string, id: string): Promise<CompanionMessag
     await keepAside(slug, id, 'copy');
     await store.writeJSON(threadFile(slug, id), { messages });
   }
+  if (!runningOnce(jobKey(slug, id)) && messages.some(message => message.role === 'assistant' && message.status === 'running')) {
+    for (const message of messages) if (message.role === 'assistant' && message.status === 'running') message.status = 'failed';
+    await store.writeJSON(threadFile(slug, id), { messages });
+  }
   return messages;
 }
 
@@ -202,11 +206,14 @@ const changeThread = <T>(slug: string, id: string, change: (messages: CompanionM
 
 /** Applied cards whose version was pruned can no longer be undone: they say so instead of offering Undo. */
 async function markTooOld(slug: string, id: string, messages: CompanionMessage[]): Promise<CompanionMessage[]> {
+  const versionFor = await cardVersionReader(slug, id);
   return Promise.all(
     messages.map(async (message) => {
-      if (message.role !== 'assistant' || !message.cards.some((card) => card.state === 'applied' && card.version)) return message;
+      if (message.role !== 'assistant') return message;
       const cards = await Promise.all(
-        message.cards.map(async (card) => {
+        message.cards.map(async (card, index) => {
+          const version = versionFor(message.id, index, card.version);
+          if (version) return { ...card, ...version };
           if (card.state !== 'applied' || !card.version || (await versionExists(slug, id, card.version))) return card;
           const { version: _gone, ...rest } = card;
           return { ...rest, tooOld: true as const };
@@ -221,10 +228,12 @@ async function markTooOld(slug: string, id: string, messages: CompanionMessage[]
 const running = new Map<string, NonNullable<CompanionThread['running']>>();
 
 export async function readThread(slug: string, id: string): Promise<CompanionThread> {
-  await store.requireBoard(slug, id);
-  const messages = await markTooOld(slug, id, await store.withLock(`companion:${threadFile(slug, id)}`, () => readThreadFile(slug, id)));
-  const now = running.get(jobKey(slug, id));
-  return { messages, ...(now && runningOnce(jobKey(slug, id))?.id === now.jobId ? { running: { ...now, steps: [...now.steps] } } : {}) };
+  return store.withLock(`companion-apply:${store.boardDir(slug, id)}`, async () => {
+    await store.requireBoard(slug, id);
+    const messages = await markTooOld(slug, id, await store.withLock(`companion:${threadFile(slug, id)}`, () => readThreadFile(slug, id)));
+    const now = running.get(jobKey(slug, id));
+    return { messages, ...(now && runningOnce(jobKey(slug, id))?.id === now.jobId ? { running: { ...now, steps: [...now.steps] } } : {}) };
+  });
 }
 
 // ---------------------------------------------------------------- what the companion is told
@@ -297,6 +306,7 @@ const wait = (ms: number, signal: AbortSignal) =>
   });
 
 interface AskInput {
+  replyId: string;
   message: CompanionUserMessage;
   history: CompanionMessage[];
   /** What the screen would need to show this reply from the start: kept while it is written. */
@@ -454,7 +464,7 @@ async function writeReply(slug: string, id: string, input: AskInput, context: Jo
     if (rejected.length) console.error('[club] companion actions left out:', rejected.slice(0, 5).join('; '));
     steps.close();
     const reply: CompanionReplyMessage = {
-      id: newId(),
+      id: input.replyId,
       role: 'assistant',
       text: parsed.reply.slice(0, TEXT_MAX.assistant),
       at: new Date().toISOString(),
@@ -462,7 +472,7 @@ async function writeReply(slug: string, id: string, input: AskInput, context: Jo
       cards: actions.map((action) => offered(action, promptTimeline)),
       steps: steps.done,
     };
-    await changeThread(slug, id, (messages) => ({ messages: [...messages, reply], result: undefined }));
+    await changeThread(slug, id, (messages) => ({ messages: messages.map(message => message.id === input.replyId ? reply : message), result: undefined }));
     return reply;
   } catch (error) {
     clearTimeout(timer);
@@ -471,12 +481,8 @@ async function writeReply(slug: string, id: string, input: AskInput, context: Jo
       steps.close();
       const text = (shown + splitter.end()).trim();
       // It goes right after its question, even when the next question was asked while this was being saved.
-      const stopped: CompanionReplyMessage = { id: newId(), role: 'assistant', text: text.slice(0, TEXT_MAX.assistant), at: new Date().toISOString(), tab, cards: [], steps: steps.done, status: 'stopped' };
-      if (text)
-        await changeThread(slug, id, (messages) => {
-          const at = messages.findIndex((message) => message.id === input.message.id);
-          return { messages: at < 0 ? [...messages, stopped] : [...messages.slice(0, at + 1), stopped, ...messages.slice(at + 1)], result: undefined };
-        });
+      const stopped: CompanionReplyMessage = { id: input.replyId, role: 'assistant', text: text.slice(0, TEXT_MAX.assistant), at: new Date().toISOString(), tab, cards: [], steps: steps.done, status: 'stopped' };
+      await changeThread(slug, id, messages => ({ messages: messages.map(message => message.id === input.replyId ? stopped : message), result: undefined }));
     }
     throw error;
   }
@@ -572,7 +578,7 @@ async function makeWithSkill(slug: string, id: string, input: AskInput, context:
   if (context.signal.aborted) throw new AiError('cancelled', 'That was stopped.');
   steps.close();
   const reply: CompanionReplyMessage = {
-    id: newId(),
+    id: input.replyId,
     role: 'assistant',
     text: `${done.text}${after ? `\n\n${after}` : ''}${left > 0 ? `\n\nI skipped ${left === 1 ? 'one change' : `${left} changes`} that no longer fit your video.` : ''}`.slice(0, TEXT_MAX.assistant),
     at: new Date().toISOString(),
@@ -580,7 +586,7 @@ async function makeWithSkill(slug: string, id: string, input: AskInput, context:
     cards: [...checked.actions.map((action) => offered(action, proposedOn)), ...(done.clips ?? (done.action ? [done.action] : [])).map((clip) => offered(clip, proposedOn)), ...(done.finished ? [offered(done.finished, proposedOn)] : [])],
     steps: steps.done,
   };
-  await changeThread(slug, id, (messages) => ({ messages: [...messages, reply], result: undefined }));
+  await changeThread(slug, id, (messages) => ({ messages: messages.map(message => message.id === input.replyId ? reply : message), result: undefined }));
   return reply;
 }
 
@@ -597,30 +603,43 @@ export const askBody = z
 
 /** Saves the question and starts the reply. One reply runs at a time per video. */
 export async function askCompanion(slug: string, id: string, body: z.infer<typeof askBody>, options: PlanOptions): Promise<CompanionAsked> {
-  await store.requireBoard(slug, id);
-  const key = jobKey(slug, id);
-  // Research has its own conversation and its own step; a video's steps are never asked on Research, nor Research on a video.
-  if ((body.context.tab === 'research') !== store.isChannelBoard(id)) throw new ClubError('That step is not on this board.');
-  if (runningOnce(key)) throw new ClubError('Wait for the reply, or stop it first.', 409);
-  // Codex reads the MCP servers the person added to it, and no setting turns them all off for one run (an override of
-  // mcp_servers is merged, and plugin servers cannot be overridden). A transcript fed to it could then reach editing tools
-  // such as SceneForge's without Apply, so Edit's companion runs on Claude only, which is run with no MCP servers at all.
-  if (body.context.tab === 'edit' && (await store.defaultAi()) === 'codex') throw new ClubError(CODEX_ON_EDIT, 409);
-  const { message, history } = await changeThread(slug, id, (messages) => {
-    const last = messages[messages.length - 1];
-    if (body.retryOf && last?.role === 'user' && last.id === body.retryOf) return { messages, result: { message: last, history: messages.slice(0, -1) } };
-    const asked: CompanionUserMessage = { id: newId(), role: 'user', text: body.message.trim(), at: new Date().toISOString(), context: body.context, ...(body.attachments?.length ? { attachments: body.attachments } : {}) };
-    return { messages: [...messages, asked], result: { message: asked, history: messages } };
+  return store.withLock(`companion:${threadFile(slug, id)}`, async () => {
+    await store.requireBoard(slug, id);
+    const key = jobKey(slug, id);
+    // Research has its own conversation and its own step; a video's steps are never asked on Research, nor Research on a video.
+    if ((body.context.tab === 'research') !== store.isChannelBoard(id)) throw new ClubError('That step is not on this board.');
+    if (runningOnce(key)) throw new ClubError('Wait for the reply, or stop it first.', 409);
+    // Codex reads the MCP servers the person added to it, and no setting turns them all off for one run (an override of
+    // mcp_servers is merged, and plugin servers cannot be overridden). A transcript fed to it could then reach editing tools
+    // such as SceneForge's without Apply, so Edit's companion runs on Claude only, which is run with no MCP servers at all.
+    if (body.context.tab === 'edit' && (await store.defaultAi()) === 'codex') throw new ClubError(CODEX_ON_EDIT, 409);
+    const replyId = newId();
+    const { message, history } = await changeThread(slug, id, (messages) => {
+      const placeholder: CompanionReplyMessage = { id: replyId, role: 'assistant', text: '', tab: body.context.tab, cards: [], status: 'running', at: new Date().toISOString() };
+      if (body.retryOf) {
+        const at = messages.findIndex(message => message.id === body.retryOf && message.role === 'user');
+        const question = messages[at];
+        const reply = messages[at + 1];
+        if (question?.role === 'user' && (at === messages.length - 1 || (reply?.role === 'assistant' && reply.status === 'failed'))) {
+          return { messages: [...messages.slice(0, at + 1), placeholder, ...messages.slice(at + (reply?.role === 'assistant' ? 2 : 1))], result: { message: question, history: messages.slice(0, at) } };
+        }
+      }
+      const asked: CompanionUserMessage = { id: newId(), role: 'user', text: body.message.trim(), at: new Date().toISOString(), context: body.context, ...(body.attachments?.length ? { attachments: body.attachments } : {}) };
+      return { messages: [...messages, asked, placeholder], result: { message: asked, history: messages } };
+    });
+    const live = { jobId: '', messageId: message.id, steps: [] as string[], text: '' };
+    const job = startJobOnce(key, 'companion', (context) =>
+      writeReply(slug, id, { message, history, live, replyId }, context, options).catch(async error => {
+        await changeThread(slug, id, messages => ({ messages: messages.map(each => each.id === replyId && each.role === 'assistant' && each.status === 'running' ? { ...each, status: context.signal.aborted ? 'stopped' as const : 'failed' as const } : each), result: undefined }));
+        throw error;
+      }).finally(() => {
+        if (running.get(key) === live) running.delete(key);
+      }),
+    );
+    live.jobId = job.id;
+    running.set(key, live);
+    return { jobId: job.id, message };
   });
-  const live = { jobId: '', messageId: message.id, steps: [] as string[], text: '' };
-  const job = startJobOnce(key, 'companion', (context) =>
-    writeReply(slug, id, { message, history, live }, context, options).finally(() => {
-      if (running.get(key) === live) running.delete(key);
-    }),
-  );
-  live.jobId = job.id;
-  running.set(key, live);
-  return { jobId: job.id, message };
 }
 
 // ---------------------------------------------------------------- applying and undoing a card
@@ -632,7 +651,7 @@ type CardChange = Omit<CompanionApplied, 'message'> & { card: CompanionCard };
 
 /** Reading the card, changing it and saving its state happen under one lock per video, so a double click or two windows apply once. */
 function changeCard(slug: string, id: string, messageId: string, index: number, change: (card: CompanionCard) => Promise<CardChange>): Promise<CompanionApplied> {
-  return store.withLock(`companion-card:${store.boardDir(slug, id)}`, () => changeCardNow(slug, id, messageId, index, change));
+  return store.withLock(`companion-apply:${store.boardDir(slug, id)}`, () => changeCardNow(slug, id, messageId, index, change));
 }
 
 async function changeCardNow(slug: string, id: string, messageId: string, index: number, change: (card: CompanionCard) => Promise<CardChange>): Promise<CompanionApplied> {
@@ -664,7 +683,7 @@ export function applyCard(slug: string, id: string, messageId: string, index: nu
     if (!checked.success) throw new ClubError("That change can't be applied.", 409);
     // A timeline card applied again after its Undo goes only onto the timeline it was first applied on.
     const again = card.state === 'undone' && isEditAction(card.action) && card.appliedOn ? { appliedOn: card.appliedOn } : {};
-    const { version, result, appliedOn, videoId, ...rest } = await applyAction(slug, id, checked.data as CompanionAction, { ...options, ...again, ...(card.proposedOn ? { proposedOn: card.proposedOn } : {}) });
+    const { version, result, appliedOn, videoId, ...rest } = await applyAction(slug, id, checked.data as CompanionAction, { ...options, ...again, card: { messageId, index }, ...(card.proposedOn ? { proposedOn: card.proposedOn } : {}) });
     return { card: { ...card, state: 'applied', version, result, ...(appliedOn ? { appliedOn } : {}), ...(videoId ? { videoId } : {}) }, ...rest };
   });
 }
@@ -675,7 +694,7 @@ export function undoCard(slug: string, id: string, messageId: string, index: num
     if (!(await versionExists(slug, id, card.version))) throw new ClubError('This was applied too long ago to undo.', 409);
     const undone = await undoVersion(slug, id, card.version, options);
     const { version: _version, result: _result, videoId: _video, ...rest } = card;
-    return { card: { ...rest, state: 'undone' }, ...undone };
+    return { card: { ...rest, version: card.version, state: 'undone' }, ...undone };
   });
 }
 
@@ -764,35 +783,35 @@ function movedAction(action: EditAction, at: (time: number) => number): EditActi
  * made, and a card that cannot apply stops the rest, which stay offered. A trim moves everything after it, so the batch ends there.
  */
 export function applyCards(slug: string, id: string, messageId: string, body: z.infer<typeof cardsBody>): Promise<CompanionApplied> {
-  return store.withLock(`companion-card:${store.boardDir(slug, id)}`, async () => {
-    const message = (await readThread(slug, id)).messages.find((each): each is CompanionReplyMessage => each.id === messageId && each.role === 'assistant');
-    const cards = body.indices.map((index) => message?.cards[index]);
-    const base = cards[0]?.proposedOn;
-    if (!message || !base || new Set(body.indices).size !== body.indices.length || cards.some((card) => !card || card.state === 'applied' || !isEditAction(card.action) || card.proposedOn !== base)) throw new ClubError("These changes can't be added together.", 409);
-    if (!stillPlaced((await editProject(slug, id)).project, base)) throw new ClubError(MOVED_SINCE_PROPOSAL, 409);
-    const cuts: Array<Array<[number, number]>> = [];
-    let revision = body.revision;
-    let last: CompanionApplied | undefined;
-    let stopped: string | undefined;
-    for (const [at, index] of body.indices.entries()) {
-      const original = cards[at]!.action as EditAction;
-      try {
-        last = await changeCardNow(slug, id, messageId, index, async (card) => {
-          const action = movedAction(original, movedThrough(cuts));
-          const project = (await editProject(slug, id)).project;
-          const made = cutsOf(project, action, await editOptions(project));
-          const { version, result, appliedOn, videoId, ...rest } = await applyAction(slug, id, action, { revision });
-          if (made.length) cuts.push(made);
-          revision = rest.revision;
-          return { card: { ...card, state: 'applied', version, result, ...(appliedOn ? { appliedOn } : {}), ...(videoId ? { videoId } : {}) }, ...rest };
-        });
-      } catch (error) {
-        if (!last) throw error;
-        stopped = error instanceof Error ? error.message : String(error);
-        break;
+  return store.withLock(`companion-apply:${store.boardDir(slug, id)}`, async () => {
+      const message = (await readThread(slug, id)).messages.find((each): each is CompanionReplyMessage => each.id === messageId && each.role === 'assistant');
+      const cards = body.indices.map((index) => message?.cards[index]);
+      const base = cards[0]?.proposedOn;
+      if (!message || !base || new Set(body.indices).size !== body.indices.length || cards.some((card) => !card || card.state === 'applied' || !isEditAction(card.action) || card.proposedOn !== base)) throw new ClubError("These changes can't be added together.", 409);
+      if (!stillPlaced((await editProject(slug, id)).project, base)) throw new ClubError(MOVED_SINCE_PROPOSAL, 409);
+      const cuts: Array<Array<[number, number]>> = [];
+      let revision = body.revision;
+      let last: CompanionApplied | undefined;
+      let stopped: string | undefined;
+      for (const [at, index] of body.indices.entries()) {
+        const original = cards[at]!.action as EditAction;
+        try {
+          last = await changeCardNow(slug, id, messageId, index, async (card) => {
+            const action = movedAction(original, movedThrough(cuts));
+            const project = (await editProject(slug, id)).project;
+            const made = cutsOf(project, action, await editOptions(project));
+            const { version, result, appliedOn, videoId, ...rest } = await applyAction(slug, id, action, { revision, card: { messageId, index } });
+            if (made.length) cuts.push(made);
+            revision = rest.revision;
+            return { card: { ...card, state: 'applied', version, result, ...(appliedOn ? { appliedOn } : {}), ...(videoId ? { videoId } : {}) }, ...rest };
+          });
+        } catch (error) {
+          if (!last) throw error;
+          stopped = error instanceof Error ? error.message : String(error);
+          break;
+        }
+        if (original.type === 'trim_clip') break;
       }
-      if (original.type === 'trim_clip') break;
-    }
-    return { ...last!, ...(stopped ? { stopped } : {}) };
+      return { ...last!, ...(stopped ? { stopped } : {}) };
   });
 }

@@ -1,5 +1,5 @@
-import { randomBytes } from 'node:crypto';
-import { promises as fs } from 'node:fs';
+import { createHash, randomBytes } from 'node:crypto';
+import { createReadStream, promises as fs } from 'node:fs';
 import path from 'node:path';
 import { z } from 'zod';
 import type { AiProvider, Breakdown, BreakdownResult, BreakdownSummary, Video } from '../../shared/club.js';
@@ -47,7 +47,7 @@ export interface BreakdownOptions extends ToolOptions {
   transcribe?: Transcriber;
 }
 
-export type BreakdownInput = { slug: string; id: string } & ({ url: string } | { file: { path: string; name: string } });
+export type BreakdownInput = { slug: string; id: string } & ({ url: string } | { file: { path: string; name: string }; contentHash?: string });
 
 export const newBreakdownId = () => `bd_${randomBytes(6).toString('hex')}`;
 
@@ -344,6 +344,7 @@ export async function runBreakdown(input: BreakdownInput, context: JobContext, o
 
     const breakdown: Breakdown = {
       id,
+      ...('contentHash' in input ? { contentHash: input.contentHash } : {}),
       url: ref?.url ?? '',
       platform,
       video: {
@@ -371,6 +372,7 @@ export async function runBreakdown(input: BreakdownInput, context: JobContext, o
       if ('file' in input) await fs.rm(input.file.path, { force: true });
     } else {
       await fs.rm(dir, { recursive: true, force: true });
+      if ('file' in input) await fs.rm(input.file.path, { force: true });
     }
   }
 }
@@ -379,6 +381,7 @@ export async function runBreakdown(input: BreakdownInput, context: JobContext, o
 
 /** Puts one concept of a breakdown on the board as a new video in Ideas. Only the person pressing `Add to board` triggers this. */
 export async function addConceptToBoard(slug: string, id: string, index: number): Promise<Video> {
+ return store.withLock(`breakdown-concept:${slug}:${id}:${index}`, async () => {
   const breakdown = await readBreakdown(slug, id);
   const concept = breakdown.concepts[index];
   if (!concept) throw notFound('concept');
@@ -402,4 +405,21 @@ export async function addConceptToBoard(slug: string, id: string, index: number)
   // The video's Board starts with the breakdown it came from.
   await store.addTile(slug, video.id, { kind: 'breakdown', title: breakdown.video.title, ...(breakdown.url ? { url: breakdown.url } : {}), meta: { breakdownId: id } });
   return video;
+ });
+}
+
+/** Startup-only sweep: no live job can own an unfinished folder yet. */
+export async function sweepBreakdownWork(): Promise<void> {
+  for (const workspace of await store.listWorkspaces()) {
+    for (const id of (await fs.readdir(store.breakdownsDir(workspace.slug)).catch(() => [] as string[])).filter(id => BAD_ID.test(id))) {
+      try{const dir = breakdownDir(workspace.slug, id);
+      if (!(await store.readJSON(breakdownFile(workspace.slug, id)))) await fs.rm(dir, { recursive: true, force: true });
+      else await fs.rm(path.join(dir, '.work'), { recursive: true, force: true });}catch(error){console.error('Could not sweep breakdown work',workspace.slug,id,error);}
+    }
+  }
+}
+export async function uploadHash(file: string): Promise<string> {
+  const hash = createHash('sha256');
+  for await (const chunk of createReadStream(file)) hash.update(chunk);
+  return hash.digest('hex');
 }

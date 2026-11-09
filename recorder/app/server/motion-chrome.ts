@@ -33,10 +33,12 @@ interface Browser {
 
 let running: Promise<Browser> | undefined;
 let idle: NodeJS.Timeout | undefined;
+let users=0;
+function releaseBrowser(){users--;if(users)return;clearTimeout(idle);idle=setTimeout(stop,30000);idle.unref();}
 
 async function launch(): Promise<Browser> {
   const binary = chromePath();
-  if (!binary) throw new Error("Motion graphics render in the Creator Compiler app. Outside it, install Google Chrome or set CREATORCLUB_CHROME.");
+  if (!binary) throw new Error("Chrome is missing. Open Creator Compiler for app motion rendering, or install Google Chrome or set CREATORCLUB_CHROME.");
   const profile = await fs.mkdtemp(path.join(tmpdir(), "creatorclub-motion-chrome-"));
   const child = spawn(binary, ["--headless=new", "--remote-debugging-pipe", `--user-data-dir=${profile}`, "--no-first-run", "--no-default-browser-check", "--disable-extensions", "--disable-background-networking", "--disable-component-update", "--disable-sync", "--force-color-profile=srgb", "--hide-scrollbars", "--mute-audio", "about:blank"], { stdio: ["ignore", "ignore", "ignore", "pipe", "pipe"] });
   const input = child.stdio[3] as NodeJS.WritableStream, output = child.stdio[4] as NodeJS.ReadableStream;
@@ -69,21 +71,26 @@ async function launch(): Promise<Browser> {
     // Chrome may still be flushing its profile as it exits: retry, and never let a leftover folder reach the service as an error.
     void fs.rm(profile, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }).catch(() => {});
   });
-  child.once("error", (error) => failAll(error));
+  const broken=(error:Error)=>{failAll(error);child.kill("SIGKILL");};
+  input.on("error",broken);output.on("error",broken);output.once("end",()=>broken(Error("Chrome CDP connection closed.")));
+  child.once("error", (error) => {failAll(error);running=undefined;void fs.rm(profile,{recursive:true,force:true,maxRetries:5,retryDelay:200}).catch(()=>{});});
   return {
     child,
     profile,
     send(method, params = {}, sessionId) {
       const message = { id: ++id, method, params, ...(sessionId ? { sessionId } : {}) };
       return new Promise((resolve, reject) => {
-        waiting.set(message.id, { resolve, reject });
-        input.write(JSON.stringify(message) + "\0");
+        const timer=setTimeout(()=>{waiting.delete(message.id);reject(Error(`Chrome ${method} timed out.`));},30000);timer.unref();
+        waiting.set(message.id, { resolve:value=>{clearTimeout(timer);resolve(value);}, reject:error=>{clearTimeout(timer);reject(error);} });
+        input.write(JSON.stringify(message) + "\0",error=>{if(error){const entry=waiting.get(message.id);waiting.delete(message.id);entry?.reject(error);}});
       });
     },
     once(event, sessionId) {
-      return new Promise((resolve) => {
+      return new Promise((resolve,reject) => {
         const key = `${sessionId}:${event}`;
-        listeners.set(key, [...(listeners.get(key) ?? []), resolve]);
+        const done=(value:any)=>{clearTimeout(timer);resolve(value);};
+        const timer=setTimeout(()=>{listeners.set(key,(listeners.get(key)??[]).filter(l=>l!==done));reject(Error(`Chrome ${event} timed out.`));},30000);timer.unref();
+        listeners.set(key, [...(listeners.get(key) ?? []), done]);
       });
     },
   };
@@ -96,35 +103,34 @@ function stop() {
 }
 
 /** Opens `pages` tabs on the page file and returns a sender for each; `close` closes the tabs. Chrome stays open for 30 s after. */
-export async function chromePages(page: string, pages: number): Promise<{ sessions: Send[]; close(): Promise<void> }> {
+export async function chromePages(page: string, pages: number,signal?:AbortSignal): Promise<{ sessions: Send[]; close(): Promise<void> }> {
   clearTimeout(idle);
   running ??= launch().catch((error) => {
     running = undefined;
     throw error;
   });
-  const browser = await running;
-  const opened: string[] = [];
+  users++;let browser:Browser;try{browser=await running;}catch(error){releaseBrowser();throw error;}
+  const opened: string[] = [];let closed=false;
+  const close=async()=>{if(closed)return;closed=true;signal?.removeEventListener('abort',abort);await Promise.all(opened.map(targetId=>browser.send('Target.closeTarget',{targetId}).catch(()=>{})));releaseBrowser();};
+  const abort=()=>{void close();};signal?.addEventListener('abort',abort,{once:true});
+  try{
+  signal?.throwIfAborted();
   const sessions = await Promise.all(
     Array.from({ length: pages }, async () => {
       const { targetId } = await browser.send("Target.createTarget", { url: "about:blank" });
       opened.push(targetId);
+      if(closed||signal?.aborted){await browser.send('Target.closeTarget',{targetId}).catch(()=>{});throw signal?.reason??Error('Motion page closed.');}
       const { sessionId } = await browser.send("Target.attachToTarget", { targetId, flatten: true });
       await browser.send("Page.enable", {}, sessionId);
-      const loaded = browser.once("Page.loadEventFired", sessionId);
+      const loaded = browser.once("Page.loadEventFired", sessionId);void loaded.catch(()=>{});
+      void loaded.catch(()=>{});
       await browser.send("Page.navigate", { url: pathToFileURL(page).href }, sessionId);
-      await loaded;
-      return ((method, params) => browser.send(method, params, sessionId)) as Send;
+      await loaded;signal?.throwIfAborted();if(closed)throw Error('Motion page closed.');
+      return ((method, params) => {signal?.throwIfAborted();return browser.send(method, params, sessionId);}) as Send;
     }),
   );
-  return {
-    sessions,
-    async close() {
-      await Promise.all(opened.map((targetId) => browser.send("Target.closeTarget", { targetId }).catch(() => {})));
-      clearTimeout(idle);
-      idle = setTimeout(stop, 30000);
-      idle.unref();
-    },
-  };
+  return {sessions,close};
+  }catch(error){await close();throw error;}
 }
 
 /** Closes Chrome now (tests). */
@@ -140,20 +146,15 @@ export async function chromeWebTab(url: string, viewport: { width: number; heigh
     running = undefined;
     throw error;
   });
-  const browser = await running;
-  const { targetId } = await browser.send("Target.createTarget", { url: "about:blank" });
+  users++;let browser:Browser;try{browser=await running;}catch(error){releaseBrowser();throw error;}
+  let targetId:string;try{({targetId}=await browser.send("Target.createTarget", { url: "about:blank" }));}catch(error){releaseBrowser();throw error;}
+  const close=async()=>{await browser.send("Target.closeTarget",{targetId}).catch(()=>{});releaseBrowser();};
+  try{
   const { sessionId } = await browser.send("Target.attachToTarget", { targetId, flatten: true });
   const send: Send = (method, params) => browser.send(method, params, sessionId);
-  const close = async () => {
-    await browser.send("Target.closeTarget", { targetId }).catch(() => {});
-    clearTimeout(idle);
-    idle = setTimeout(stop, 30000);
-    idle.unref();
-  };
-  try {
     await send("Page.enable", {});
     await send("Emulation.setDeviceMetricsOverride", { width: viewport.width, height: viewport.height, deviceScaleFactor: viewport.scale, mobile: false });
-    const loaded = browser.once("Page.loadEventFired", sessionId);
+    const loaded = browser.once("Page.loadEventFired", sessionId);void loaded.catch(()=>{});
     const navigated = await send("Page.navigate", { url });
     if (navigated?.errorText) throw new Error(`The page did not open (${navigated.errorText}).`);
     await Promise.race([loaded, new Promise((resolve) => setTimeout(resolve, timeoutMs))]);

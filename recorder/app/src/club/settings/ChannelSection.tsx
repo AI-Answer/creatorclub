@@ -124,13 +124,13 @@ function VoiceGuide({workspace,onSaved}:{workspace:Workspace;onSaved(workspace:W
    :<p className="small muted" style={{margin:0}}>{hasVideos?'No voice guide yet. Write one from your latest videos.':'No voice guide yet. Answer three questions and Creator Compiler writes one.'}</p>}
   <div className="row">
    {hasVideos
-    ?<Button title={!aiAvailable?AI_CONNECT_HINT:undefined} disabled={!aiAvailable||state.phase==='running'} onClick={rebuild}>Rebuild voice guide</Button>
+    ?<Button title={!aiAvailable?AI_CONNECT_HINT:undefined} disabled={!aiAvailable||(state.phase==='starting'||state.phase==='running')} onClick={rebuild}>Rebuild voice guide</Button>
     :<Button title={!aiAvailable?AI_CONNECT_HINT:undefined} disabled={!aiAvailable||asking} onClick={()=>{setAsking(true);setAnswered(false);}}>Answer the three voice questions again</Button>}
    {state.phase==='done'&&(!voiceNeedsAnswers(state.result)||answered)&&<span role="status" className="small muted">{answered?'Saved your voice guide':'Rebuilt your voice guide'}</span>}
-   {answered&&!hasVideos&&<span role="status" className="small muted">Saved your voice guide</span>}</div>
+   {answered&&!hasVideos&&state.phase!=='done'&&<span role="status" className="small muted">Saved your voice guide</span>}</div>
   {hasVideos&&<p className="small muted" style={{margin:0}}>Learns how you talk again from your latest videos.</p>}
   {asking&&<Card className="p-4"><VoiceQuestions slug={workspace.slug} onDone={answers}/></Card>}
-  {state.phase==='running'&&<div aria-live="polite" style={{display:'flex',flexDirection:'column',gap:8}}><p className="muted" style={{margin:0}}>{state.line??'Writing your voice guide…'}</p><Progress label="Rebuilding your voice guide"/></div>}
+  {(state.phase==='starting'||state.phase==='running')&&<div aria-live="polite" style={{display:'flex',flexDirection:'column',gap:8}}><p className="muted" style={{margin:0}}>{state.line??'Writing your voice guide…'}</p><Progress label="Rebuilding your voice guide"/></div>}
   {state.phase==='failed'&&<ErrorLine message={state.message} onRetry={rebuild}/>}
   {state.phase==='done'&&voiceNeedsAnswers(state.result)&&!answered&&<Card className="p-4"><p className="muted" style={{margin:'0 0 12px'}}>We couldn't read enough of your videos. Answer three questions instead.</p><VoiceQuestions slug={workspace.slug} onDone={answers}/></Card>}
  </div>;

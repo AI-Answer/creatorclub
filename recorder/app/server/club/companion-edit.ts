@@ -223,8 +223,8 @@ export function timelineText(p: Project, context: CompanionContext, options: Edi
   // The creator's own notes on the timeline: their words are quoted as material, never as instructions.
   const notes = [...(p.markers ?? [])].filter((m) => m.name?.trim() || m.tag).sort((a, b) => a.time - b.time);
   if (notes.length) {
-    lines.push('Notes the creator left on the timeline, each on a whole second (second, how they feel, their words). A note that says they do not like something means: propose a fix for what is there at that time, as cards. Refer to a note by its time:');
-    for (const note of notes.slice(0, NOTES_LISTED)) lines.push(`- ${Math.round(note.time)} s${note.tag ? `, ${NOTE_MOOD[note.tag]}` : ''}${note.name?.trim() ? `, "${note.name.replace(/<\/?[a-z][a-z0-9_-]*[^<>]*>/gi, '').replace(/\s+/g, ' ').trim().slice(0, 300)}"` : ''}`);
+    lines.push('Notes the creator left on the timeline, timed to a tenth of a second (seconds, how they feel, their words). A note that says they do not like something means: propose a fix for what is there at that time, as cards. Refer to a note by its time:');
+    for (const note of notes.slice(0, NOTES_LISTED)) lines.push(`- ${Math.round(note.time * 10) / 10} s${note.tag ? `, ${NOTE_MOOD[note.tag]}` : ''}${note.name?.trim() ? `, "${note.name.replace(/<\/?[a-z][a-z0-9_-]*[^<>]*>/gi, '').replace(/\s+/g, ' ').trim().slice(0, 300)}"` : ''}`);
   }
   const blocks = [...(p.motion ?? [])].sort((a, b) => a.start - b.start);
   if (blocks.length) lines.push('Motion blocks on the Motion row (template, style, start to end in seconds); a new block may not start inside one:', ...blocks.slice(0, CLIPS_LISTED).map((m) => `- ${m.id} ${m.template} ${m.style} ${m.start.toFixed(2)} to ${(m.start + m.duration).toFixed(2)} "${motionText(m).replace(/<\/?[a-z][a-z0-9_-]*[^<>]*>/gi, '').replace(/\s+/g, ' ').trim()}"`));

@@ -8,7 +8,7 @@ import path from 'node:path';
 import os from 'node:os';
 const {createNativeRecordingManager,nativeOptions}=createRequire(import.meta.url)('../desktop/native-recording.cjs');
 const selection={kind:'region',sourceId:'screen:1:0',displayId:'7',crop:{normalized:{x:.2,y:.3,width:.4,height:.5}}};
-async function fixture(reply=true,{started:startedExtra={},...options}:any={}){
+async function fixture(reply=true,{started:startedExtra={},stopped:stoppedExtra={},controls=true,...options}:any={}){
  const dir=await fs.mkdtemp(path.join(os.tmpdir(),'sceneforge-native-adapter-')),helper=path.join(dir,'helper');await fs.writeFile(helper,'fixture');
  const handlers=new Map<string,Function>(),events:any[]=[],states:any[]=[],commands:any[]=[],children:any[]=[];
  const frame={url:'http://127.0.0.1:5000/'},webContents={mainFrame:frame,send:(_channel:string,value:any)=>events.push(value)},window:any={isDestroyed:()=>false,webContents};
@@ -17,9 +17,9 @@ async function fixture(reply=true,{started:startedExtra={},...options}:any={}){
   const send=(value:any)=>child.stdout.write(JSON.stringify(value)+'\n');child.send=send;let directory='';
   child.stdin.on('data',(data:Buffer)=>{for(const line of data.toString().trim().split('\n')){const command=JSON.parse(line);commands.push(command);if(command.command==='start')directory=command.directory;if(!reply)continue;
    if(command.command==='start')queueMicrotask(()=>send({type:'started',startedAtMs:1000,width:320,height:180,...startedExtra}));
-   if(command.command==='pause')queueMicrotask(()=>send({type:'paused',duration:1,transitionAtMs:2000}));
-   if(command.command==='resume')queueMicrotask(()=>send({type:'resumed',duration:1,transitionAtMs:2500}));
-   if(command.command==='stop')queueMicrotask(()=>{send({type:'stopped',duration:2,videoPath:path.join(directory,'screen.mp4'),audioPath:path.join(directory,'system.wav'),droppedVideo:0,droppedAudio:0});child.emit('close',0,null);});
+   if(command.command==='pause'&&controls)queueMicrotask(()=>send({type:'paused',duration:1,transitionAtMs:2000}));
+   if(command.command==='resume'&&controls)queueMicrotask(()=>send({type:'resumed',duration:1,transitionAtMs:2500}));
+   if(command.command==='stop')queueMicrotask(()=>{send({type:'stopped',duration:2,videoPath:path.join(directory,'screen.mp4'),audioPath:path.join(directory,'system.wav'),droppedVideo:0,droppedAudio:0,...stoppedExtra});child.emit('close',0,null);});
   }});return child;
  }});
  return {manager,handlers,events,states,commands,children,window,event:{sender:webContents,senderFrame:frame},close:async()=>{await manager.dispose();await fs.rm(dir,{recursive:true,force:true});}};
@@ -106,4 +106,19 @@ test('discarding a take that never began stops the helper and removes its take f
   await assert.rejects(f.handlers.get('native-recording-discard')!({...f.event,senderFrame:{url:'http://127.0.0.1:5000/'}},started.id),/Untrusted/);
   const next=await f.manager.start({selection,systemAudio:false});const stopped=await f.manager.stop(next.id);await fs.access(path.dirname(stopped.videoPath));
  }finally{await f.close();}
+});
+test('append warnings and stopped errors preserve valid native media without killing the helper',async()=>{
+ const f=await fixture(true,{stopped:{error:'Audio append failed'}});try{const started=await f.manager.start({selection,systemAudio:true});f.children[0].send({type:'warning',message:'Video append delayed'});assert.equal((await f.manager.pause(started.id)).status,'paused');const stopped=await f.manager.stop(started.id);assert.equal(stopped.status,'complete');assert.match(stopped.warning,/Audio append failed/);assert.deepEqual(f.children[0].killed,[]);assert.ok(f.events.some(event=>event.type==='warning'));const metadata=JSON.parse(await fs.readFile(path.join(f.commands[0].directory,'recovery.json'),'utf8'));assert.equal(metadata.videoPath,stopped.videoPath);}finally{await f.close();}
+});
+test('a pause timeout stops and finalizes the recording instead of terminating it',async()=>{
+ const f=await fixture(true,{controls:false,controlTimeoutMs:5});try{const started=await f.manager.start({selection,systemAudio:false});await assert.rejects(f.manager.pause(started.id),/timed out/);const output=await f.manager.stop(started.id);assert.equal(output.status,'complete');assert.deepEqual(f.children[0].killed,[]);assert.deepEqual(f.commands.map(command=>command.command),['start','pause','stop']);}finally{await f.close();}
+});
+test('current-state replies settle duplicate native controls without waiting for a timeout',async()=>{
+ const f=await fixture(true,{controls:false});try{const started=await f.manager.start({selection,systemAudio:false}),paused=f.manager.pause(started.id);f.children[0].send({type:'state',status:'paused',duration:1,transitionAtMs:2100});assert.equal((await paused).status,'paused');const resumed=f.manager.resume(started.id);f.children[0].send({type:'state',status:'recording',duration:1,transitionAtMs:2400});assert.equal((await resumed).transitionAtMs,2400);await f.manager.stop(started.id);}finally{await f.close();}
+});
+test('late native state replies cannot revive failed or completed sessions',async()=>{
+ const f=await fixture();try{const started=await f.manager.start({selection,systemAudio:false});f.children[0].send({type:'error',message:'Capture failed'});f.children[0].send({type:'state',status:'recording',duration:1});await assert.rejects(f.manager.pause(started.id),/not active/);const next=await f.manager.start({selection,systemAudio:false}),stopped=await f.manager.stop(next.id);f.children[1].send({type:'state',status:'recording',duration:3});assert.deepEqual(await f.manager.stop(next.id),stopped);assert.deepEqual(f.commands.map(command=>command.command),['start','start','stop']);}finally{await f.close();}
+});
+test('reset during startup closes stdin and gives a late-starting helper time to finalize',async()=>{
+ const f=await fixture(false);try{const pending=f.manager.start({selection,systemAudio:false}),rejected=assert.rejects(pending,/closed/);while(!f.children.length)await new Promise(resolve=>setTimeout(resolve,1));const child=f.children[0],directory=f.commands[0].directory;child.stdin.on('finish',()=>queueMicrotask(()=>{child.send({type:'stopped',videoPath:path.join(directory,'screen.mp4'),duration:1});child.emit('close',0,null);}));await f.manager.reset();await rejected;assert.deepEqual(child.killed,[]);const metadata=JSON.parse(await fs.readFile(path.join(directory,'recovery.json'),'utf8'));assert.equal(metadata.videoPath,path.join(directory,'screen.mp4'));}finally{await f.close();}
 });

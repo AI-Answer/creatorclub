@@ -165,6 +165,7 @@
  }
  function heard(event){
   if(event.type==='status'){speech={...speech,authorization:event.authorization,available:event.available===false?false:speech.available};render();return;}
+  if(event.type==='stopped'){following=false;followFailed=true;report();return;}
   if(event.type==='reset'){matcher.restart();return;}
   if(event.type==='error'){following=false;followFailed=true;notice={title:'Voice follow stopped',message:event.message};render();return;}
   if(event.type!=='words'||state.status!=='recording'||!VOICE.has(mode))return;
@@ -218,6 +219,7 @@
  el('more').addEventListener('click',async()=>{
   const choice=await window.recordingPreview.menu({index:Math.max(0,index),mirror:Boolean(state.mirror),showSources,scriptAvailable:Boolean(state.script?.trim()),voiceAvailable:speech.available!==false,mode,speed,speeds:SPEEDS}).catch(()=>null);
   if(choice==='mirror')void command('mirror');
+  else if(choice==='show-editor')void command('show-editor');
   else if(choice==='script-window')void command('script-window');
   else if(choice==='sources'){showSources=!showSources;keep('island.showSources',showSources?'1':'0');render();}
   else if(typeof choice==='string'&&choice.startsWith('mode:'))setMode(choice.slice(5));

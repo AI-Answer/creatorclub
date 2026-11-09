@@ -176,7 +176,7 @@ const breakdown = async (url: string) => {
   assert.equal(started.status, 202, JSON.stringify(started.body));
   return { id: started.body.id as string, job: await finish(started.body.id) };
 };
-const drop = async (name: string, bytes = 'not really a video') => {
+const drop = async (name: string, bytes = `not really a video: ${name}:${Date.now()}`) => {
   const form = new FormData();
   form.append('file', new Blob([bytes]), name);
   const started = await call('POST', '/breakdowns', form);
@@ -529,7 +529,9 @@ test('a video is broken down once: a finished breakdown of it is returned as it 
   await setYt({ slow: 400 });
   await setClaude('ok');
   const url = 'https://www.youtube.com/watch?v=mmmmmmmmmmm';
+  const beforeFolders = await folders();
   const first = await call('POST', '/breakdowns', { url });
+  for (let attempt = 0; attempt < 50 && (await folders()).length === beforeFolders.length; attempt++) await new Promise(resolve => setTimeout(resolve, 5));
   assert.equal(first.status, 202);
   // The same video again, in another form of the link, while it runs: the same job, no second folder.
   const foldersWhileRunning = await folders();
@@ -561,7 +563,7 @@ test('stopping a breakdown stops it quietly and removes its folder', async () =>
   await new Promise((r) => setTimeout(r, 200));
   assert.equal((await folders()).length, before.length + 1, 'the run has a folder while it works');
   const cancelled = await call('DELETE', `/jobs/${started.body.id}`);
-  assert.equal(cancelled.body.status, 'cancelled');
+  assert.equal(cancelled.body.status, 'running');
   await new Promise((r) => setTimeout(r, 400));
   assert.equal((await call('GET', `/jobs/${started.body.id}`)).body.status, 'cancelled');
   assert.deepEqual(await folders(), before);

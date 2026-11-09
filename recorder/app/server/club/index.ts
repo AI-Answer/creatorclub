@@ -1,3 +1,5 @@
+import {trackRequest} from '../service-lifecycle.js';
+import { AsyncLocalStorage } from 'node:async_hooks';
 import express, { Router, type NextFunction, type Request, type Response } from 'express';
 import multer from 'multer';
 import { z } from 'zod';
@@ -10,13 +12,13 @@ import { startConnect, type ConnectOptions } from './connect.js';
 import { ClubError, GENERIC_FAILURE, notFound } from './errors.js';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
-import { addConceptToBoard, breakdownDir, listBreakdowns, newBreakdownId, readBreakdown, runBreakdown, thumbnailFile, type Transcriber } from './breakdown.js';
+import { uploadHash, sweepBreakdownWork, addConceptToBoard, breakdownDir, listBreakdowns, newBreakdownId, readBreakdown, runBreakdown, thumbnailFile, type Transcriber } from './breakdown.js';
 import { cancelJob, getJob, runningOnce, snapshot, startJob, startJobOnce, watchJob } from './jobs.js';
 import { cachedChannelAvatar, ensureChannelAvatar, type AvatarFetch } from './channel-avatar.js';
 import { parseChannelInput } from './channel.js';
 import { FILE_TOO_BIG, MAX_FILE_BYTES, detectSource } from './source.js';
 import { addChannel, rebuildVoice, startFresh } from './onboard.js';
-import { SCENE_ID, deletePackage, ensurePackage, heldResults, patchPackage, readOutline, readPackage, readOnePager, saveOnePager, runningPlanJobs, saveOutline, savePackage, saveScript, saveSceneScript, startPlanJob, undoReplace, usePackageText, useHeld, type PlanOptions } from './planning.js';
+import { planningFlags, syncPlanningFlags, SCENE_ID, deletePackage, ensurePackage, heldResults, patchPackage, readOutline, readPackage, readOnePager, saveOnePager, runningPlanJobs, saveOutline, savePackage, saveScript, saveSceneScript, startPlanJob, undoReplace, usePackageText, useHeld, type PlanOptions } from './planning.js';
 import { continueToRecording, outlineChangedScene, videoFromProject } from './recorder.js';
 import { publishVideo, ytDlpViews, type ViewsReader } from './publish.js';
 import { publishingRoutes, type PublishingOptions } from './publisher-routes.js';
@@ -41,7 +43,7 @@ import { AGENT_HEADER, agentActionsBody, agentBoard, agentConnectBody, connectAg
 import { editSilences } from './companion-edit.js';
 import { videoScenes, videosScenes } from './scenes.js';
 import { HEIGHT_MAX, HEIGHT_MIN, POSITION_MAX, WIDTH_MAX, WIDTH_MIN } from './tile-layout.js';
-import { findTregCall, hasSources, NO_SOURCES, rankedSignals, readSignalsConfig, startSignalsRefresh, writeSignalsConfig, type SignalsSources } from './signals.js';
+import { findTregCall, hasSources, NO_SOURCES, rankedSignals, signalsConfigLock, readSignalsConfig, startSignalsRefresh, writeSignalsConfig, type SignalsSources } from './signals.js';
 import { ideaFromSignal, ideaFromTrending } from './trend-ideas.js';
 import { voiceSummary } from './voice.js';
 import { rankedTrending, readFollowed, startTrendingRefresh, startTrendingSeed, writeFollowed, ytDlpSearchSource, ytDlpSource, type SearchSourceFactory, type UploadsSourceFactory } from './trending.js';
@@ -54,17 +56,15 @@ import type { HiggsfieldOptions } from './higgsfield.js';
 const chatUpload = multer({ storage: multer.memoryStorage(), limits: { files: 1, fileSize: 10 * 1024 * 1024 } });
 
 const source = z.object({ kind: z.enum(['breakdown', 'manual']), breakdownId: z.string().optional() }).strict();
-const planning = z.object({ research: z.boolean(), package: z.boolean(), outline: z.boolean() }).strict();
 const stage = z.enum(VIDEO_STAGES);
 const hidden = z.enum(['later', 'skipped']);
 
 const newVideoBody = z.object({
   title: z.string().trim().min(1).max(300),
-  stage: stage.optional(),
+  stage: stage.refine(value => value !== 'published', 'Publish the video with its YouTube link.').optional(),
   source: source.optional(),
   hidden: hidden.optional(),
   publishDate: z.string().optional(),
-  planning: planning.optional(),
 }).strict();
 
 const ideaText = z.string().max(5000).nullable();
@@ -75,13 +75,9 @@ const ideaPatchBody = z.object({ why: ideaText, angle: ideaText, twist: ideaText
 // null clears an optional field. Stage changes go through /move so the stage date is recorded.
 const videoPatchBody = z.object({
   title: z.string().trim().min(1).max(300),
-  order: z.number().int(),
   source: source.nullable(),
-  planning,
   recorderProjectId: z.string().nullable(),
   publishDate: z.string().nullable(),
-  youtubeUrl: z.string().nullable(),
-  publishedAt: z.string().nullable(),
   views: z.number().int().nonnegative().nullable(),
   viewsCheckedAt: z.string().nullable(),
   hidden: hidden.nullable(),
@@ -214,11 +210,14 @@ const videoUpload = multer({
 });
 
 const handler = (fn: (req: Request, res: Response) => Promise<unknown> | unknown) => (req: Request, res: Response, next: NextFunction) =>
-  Promise.resolve(fn(req, res)).catch(next);
+  trackRequest(()=>fn(req, res)).catch(next);
 const param = (req: Request, name: string) => String(req.params[name]);
 
 /** Every route except the workspace list works on the current workspace. */
+const requestWorkspace = new AsyncLocalStorage<string | undefined>();
 async function requireWorkspace(): Promise<string> {
+  const explicit = requestWorkspace.getStore();
+  if (explicit) { await store.readWorkspace(explicit); return explicit; }
   const slug = await store.currentWorkspace();
   if (!slug) throw new ClubError('Set up a channel first.', 409);
   return slug;
@@ -254,10 +253,17 @@ export interface ClubRouterOptions {
   signals?: Partial<SignalsSources>;
 }
 
+const breakdownSweeps = new Map<string, Promise<void>>();
+
 export function clubRouter({ higgsfield = {}, avatarFetch, ai = {}, transcribe, runAI, readViews = ytDlpViews(ai), publishing = {}, uploads = ytDlpSource(ai), search = ytDlpSearchSource(ai), signals = {} }: ClubRouterOptions = {}): Router {
   const signalSources: SignalsSources = { treg: findTregCall(ai), ...signals };
   const plan: PlanOptions = { extraDirs: ai.extraDirs, runAI };
   const router = Router();
+  const root = store.rootDir();
+  const sweep=()=>{let pending=breakdownSweeps.get(root);if(!pending){pending=sweepBreakdownWork().catch(error=>{console.error('Could not sweep breakdown work',error);});breakdownSweeps.set(root,pending);}return pending;};
+  void sweep();
+  router.use((_req, _res, next) => { void sweep().then(() => next(), next); });
+  router.use((req, _res, next) => requestWorkspace.run(req.get('X-Club-Workspace') || (typeof req.query.workspace === 'string' ? req.query.workspace : undefined), next));
   // A change an outside agent (the MCP server, which sends this header) makes to a Board shows on any open Board at once.
   router.use((req, res, next) => {
     if (req.method !== 'GET' && req.get(AGENT_HEADER)) {
@@ -373,7 +379,7 @@ export function clubRouter({ higgsfield = {}, avatarFetch, ai = {}, transcribe, 
     };
     stop = watchJob(job, lastId, (event) => {
       res.write(`id: ${event.id}\nevent: ${event.type}\ndata: ${JSON.stringify(event.data)}\n\n`);
-      if (event.type !== 'progress') setImmediate(close);
+      if (event.type !== 'progress' && event.type !== 'reset') setImmediate(close);
     });
     if (job.status === 'running') {
       heartbeat = setInterval(() => res.write(': keepalive\n\n'), 15_000);
@@ -392,8 +398,8 @@ export function clubRouter({ higgsfield = {}, avatarFetch, ai = {}, transcribe, 
     // A channel link starts a job that reads the channel; a bare name creates an empty channel at once.
     if (req.body && typeof req.body === 'object' && 'channelUrl' in req.body) {
       const { channelUrl } = addChannelBody.parse(req.body);
-      parseChannelInput(channelUrl);
-      res.status(202).json(startJob('add-channel', (context) => addChannel(channelUrl, context, ai, avatarFetch)));
+      const ref = parseChannelInput(channelUrl);
+      res.status(202).json(startJobOnce(`add-channel:${ref.url.toLowerCase()}`, 'add-channel', (context) => addChannel(channelUrl, context, ai, avatarFetch)));
       return;
     }
     const workspace = await store.createWorkspace(newWorkspaceBody.parse(req.body));
@@ -411,9 +417,7 @@ export function clubRouter({ higgsfield = {}, avatarFetch, ai = {}, transcribe, 
   }));
   router.get('/workspaces/:slug', handler(async (req, res) => res.json(await ensureChannelAvatar(await store.readWorkspace(param(req, 'slug')), avatarFetch))));
   router.put('/workspaces/:slug', handler(async (req, res) => {
-    const existing = await store.readWorkspace(param(req, 'slug'));
-    const updated: Workspace = { ...existing, ...workspacePatchBody.parse(req.body), slug: existing.slug, createdAt: existing.createdAt };
-    await store.writeWorkspace(updated);
+    const updated = await store.updateWorkspace(param(req, 'slug'), existing => ({ ...existing, ...workspacePatchBody.parse(req.body) }));
     res.json(updated);
   }));
   router.get('/workspaces/:slug/voice', handler(async (req, res) => {
@@ -479,12 +483,16 @@ export function clubRouter({ higgsfield = {}, avatarFetch, ai = {}, transcribe, 
   router.put('/signals-config', handler(async (req, res) => {
     const slug = await requireWorkspace();
     // Fields that are sent replace the stored ones; fields left out stay. An empty list clears a source.
-    await writeSignalsConfig(slug, { ...(await readSignalsConfig(slug)), ...signalsConfigBody.parse(req.body) });
+    await signalsConfigLock(slug, async () => writeSignalsConfig(slug, { ...(await readSignalsConfig(slug)), ...signalsConfigBody.parse(req.body) }));
     res.json(await readSignalsConfig(slug));
   }));
 
   // ---- videos
-  router.get('/videos', handler(async (_req, res) => res.json(await store.listVideos(await requireWorkspace()))));
+  router.get('/videos', handler(async (_req, res) => {
+    const slug = await requireWorkspace();
+    const videos = await store.listVideos(slug);
+    res.json(await Promise.all(videos.map(async video=>({...video,planning:await planningFlags(slug,video.id,video.planning)}))));
+  }));
   router.post('/videos', handler(async (req, res) => {
     res.status(201).json(await store.createVideo(await requireWorkspace(), newVideoBody.parse(req.body)));
   }));
@@ -499,8 +507,8 @@ export function clubRouter({ higgsfield = {}, avatarFetch, ai = {}, transcribe, 
   router.get('/videos/scenes', handler(async (_req, res) => res.json(await videosScenes(await requireWorkspace()))));
   router.get('/videos/:id', handler(async (req, res) => {
     const slug = await requireWorkspace();
-    await store.listVideos(slug); // Backfill IDs before a video is opened directly.
-    res.json(await store.readVideo(slug, param(req, 'id')));
+    const video=await store.readVideo(slug,param(req,'id'));
+    res.json({...video,planning:await planningFlags(slug,video.id,video.planning)});
   }));
   // A proof shot: the real page behind a claim, scrolled to the words and highlighted, saved in the video's folder and registered as
   // media. With `at`, it is also placed on the Overlays row as one undoable change; with `runDir` (a skill run of this video), it is
@@ -556,7 +564,7 @@ export function clubRouter({ higgsfield = {}, avatarFetch, ai = {}, transcribe, 
     res.status(204).end();
   }));
   router.post('/videos/:id/move', handler(async (req, res) => {
-    const { stage: target, ...options } = moveBody.parse(req.body);
+    const { stage: target, stageDates: _ignoredDates, ...options } = moveBody.parse(req.body);
     const slug = await requireWorkspace();
     const video = await store.readVideo(slug, param(req, 'id'));
     res.json(await store.moveVideo(slug, video.id, target, options));
@@ -848,10 +856,12 @@ export function clubRouter({ higgsfield = {}, avatarFetch, ai = {}, transcribe, 
   // A request that is refused, fails or is dropped halfway leaves no folder behind, and an upload that is dropped starts no job.
   const forget = (req: BreakdownRequest) => (req.breakdown ? fs.rm(req.breakdown.dir, { recursive: true, force: true }).catch(() => {}) : Promise.resolve());
   router.post('/breakdowns', (req: BreakdownRequest, _res, next) => {
+    req.once('aborted', () => { void forget(req); });
     requireWorkspace().then(async (slug) => {
       const id = newBreakdownId();
       req.breakdown = { slug, id, dir: breakdownDir(slug, id) };
       if (req.is('multipart/form-data')) await fs.mkdir(req.breakdown.dir, { recursive: true });
+      if (req.aborted) { await forget(req); return; }
       next();
     }, next);
   }, (req: BreakdownRequest, res, next) => {
@@ -868,7 +878,10 @@ export function clubRouter({ higgsfield = {}, avatarFetch, ai = {}, transcribe, 
         void forget(req);
         return;
       }
-      const job = startJob('breakdown', (context) => runBreakdown(input, context, work));
+      const key = 'contentHash' in input && input.contentHash ? `breakdown-upload:${slug}:${input.contentHash}` : `breakdown:${slug}:${id}`;
+      const existing = runningOnce(key);
+      if (existing) { void forget(req); res.status(202).json(existing); return; }
+      const job = startJobOnce(key, 'breakdown', (context) => runBreakdown(input, context, work));
       // If the answer never reaches them, the job is stopped: it removes its own files.
       res.once('close', () => {
         if (!res.writableFinished) cancelJob(job.id);
@@ -880,7 +893,11 @@ export function clubRouter({ higgsfield = {}, avatarFetch, ai = {}, transcribe, 
         await forget(req);
         throw new ClubError(NOT_A_FILE);
       }
-      start({ slug, id, file: { path: req.file.path, name: req.file.originalname } });
+      const contentHash = await uploadHash(req.file.path);
+      const saved = await Promise.all((await listBreakdowns(slug)).map(summary => readBreakdown(slug, summary.id)));
+      const existing = saved.find(breakdown => breakdown.contentHash === contentHash);
+      if (existing) { await forget(req); res.json(existing); return; }
+      start({ slug, id, file: { path: req.file.path, name: req.file.originalname }, contentHash });
       return;
     }
     const { url } = breakdownBody.parse(req.body);

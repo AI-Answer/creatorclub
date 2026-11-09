@@ -13,8 +13,12 @@ export function ThumbnailStudio({video,thumbnailText,cards,brief,children,onChos
  const [prompt,setPrompt]=useState(initial),[model,setModel]=useState<HiggsfieldModel>('nano_banana_pro'),[count,setCount]=useState(1);
  const [status,setStatus]=useState<HiggsfieldStatus>(),[souls,setSouls]=useState<SoulId[]>([]),[soul,setSoul]=useState('');
  const [items,setItems]=useState<ThumbnailCandidate[]>([]),[refs,setRefs]=useState<ThumbnailReference[]>([]),[upload,setUpload]=useState<{path:string;name:string}>();
- const [parent,setParent]=useState<ThumbnailCandidate>(),[change,setChange]=useState(''),[error,setError]=useState(''),[busy,setBusy]=useState(false),[uploading,setUploading]=useState(false),[line,setLine]=useState('');
+ const [parent,setParent]=useState<ThumbnailCandidate>(),[change,setChange]=useState(''),[error,setError]=useState(''),[uploading,setUploading]=useState(false),[line,setLine]=useState('');
  const [cost,setCost]=useState<{key:string;credits:number}>(),[costError,setCostError]=useState(''),[costRetry,setCostRetry]=useState(0),[chosen,setChosen]=useState(0),[pending,setPending]=useState(count);
+ const [job,setJob]=useState<{phase:'idle'|'starting'|'running';id?:string}>({phase:'idle'});
+ const jobNow=useRef(job);
+ const updateJob=(next:typeof job)=>{jobNow.current=next;setJob(next);};
+ const busy=job.phase!=='idle';
  const stopWatch=useRef<()=>void>(()=>{}),jobId=useRef<string|undefined>(undefined),alive=useRef(true),previousPrompt=useRef(initial);
  const base=`/videos/${encodeURIComponent(video.id)}`,storageKey=`cc.higgsfield.${video.id}`;
  const effectivePrompt=parent?`${prompt}\nMake a variation of the reference image. Change: ${change.trim()}`:prompt;
@@ -24,17 +28,18 @@ export function ThumbnailStudio({video,thumbnailText,cards,brief,children,onChos
  const check=()=>clubFetch<HiggsfieldStatus>('/higgsfield/status').then(next=>{if(!alive.current)return;setStatus(next);if(next.signedIn)void clubFetch<SoulId[]>('/higgsfield/soul-ids').then(next=>{if(alive.current)setSouls(next);},()=>{});},reason=>{if(alive.current)setError(errorMessage(reason));});
  const remember=(id?:string)=>{try{if(id)localStorage.setItem(storageKey,id);else localStorage.removeItem(storageKey);}catch{/* the job still runs */}};
  const follow=(id:string)=>{
-  jobId.current=id;setBusy(true);remember(id);stopWatch.current();
+  jobId.current=id;remember(id);if(!alive.current)return;updateJob({phase:'running',id});stopWatch.current();
   stopWatch.current=watchJob(id,event=>{
    if(!alive.current)return;
    if(event.type==='progress'){
+    if(event.reset){setLine('Making thumbnails…');void refresh().catch(()=>{});return;}
     setLine(progressLine(event.data)??'Making thumbnails…');
     const data=event.data as {candidate?:ThumbnailCandidate;done?:number;total?:number}|null;
     if(data?.total!==undefined)setPending(Math.max(0,data.total-(data.done??0)));
     if(data?.candidate)setItems(now=>now.some(c=>c.id===data.candidate!.id)?now:[...now,data.candidate!]);
     return;
    }
-   setBusy(false);setPending(0);jobId.current=undefined;remember();
+   updateJob({phase:'idle'});setPending(0);jobId.current=undefined;remember();
    if(event.type==='failed')setError(failureMessage(event.data));
    else if(event.type==='cancelled')setLine('Stopped waiting; a submitted image may still finish in Higgsfield.');
    else setLine('Thumbnails saved.');
@@ -58,10 +63,10 @@ export function ThumbnailStudio({video,thumbnailText,cards,brief,children,onChos
  },[key,status?.signedIn,costRetry]);
  const act=async(work:()=>Promise<unknown>)=>{setError('');try{await work();}catch(reason){if(alive.current)setError(errorMessage(reason));}};
  const generate=async()=>{
-  if(busy||cost?.key!==key)return;
-  setBusy(true);setPending(count);setError('');setLine('Starting Higgsfield…');
+  if(jobNow.current.phase!=='idle'||cost?.key!==key)return;
+  updateJob({phase:'starting'});setPending(count);setError('');setLine('Starting Higgsfield…');
   try{const job=await clubFetch<StartedJob>(`${base}/thumbnails/generate`,{body:request});follow(job.id);}
-  catch(reason){setBusy(false);setPending(0);setError(errorMessage(reason));}
+  catch(reason){updateJob({phase:'idle'});setPending(0);setError(errorMessage(reason));}
  };
  const chooseModel=(next:HiggsfieldModel)=>{setModel(next);setRefs(now=>now.slice(0,HIGGSFIELD_MODELS.find(m=>m.id===next)!.references));if(next!=='text2image_soul_v2')setSoul('');};
  const toggle=(ref:ThumbnailReference,selected:boolean)=>setRefs(now=>selected?now.filter(r=>JSON.stringify(r)!==JSON.stringify(ref)):[...now,ref]);

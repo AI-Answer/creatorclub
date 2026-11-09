@@ -7,7 +7,7 @@ export function sharedWork<T>(){
   if(signal?.aborted)return Promise.reject(signal.reason);
   let entry=entries.get(key);
   if(!entry||entry.controller.signal.aborted){
-   const controller=new AbortController(),created:Entry<T>={promise:Promise.resolve().then(()=>work(controller.signal)),controller,users:0};entry=created;entries.set(key,created);
+   const controller=new AbortController(),created:Entry<T>={promise:Promise.resolve().then(()=>{controller.signal.throwIfAborted();return work(controller.signal);}),controller,users:0};entry=created;entries.set(key,created);
    void created.promise.finally(()=>{if(entries.get(key)===created)entries.delete(key);}).catch(()=>{});
   }
   const record=entry;record.users++;

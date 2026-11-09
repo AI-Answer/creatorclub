@@ -1,4 +1,4 @@
-import {beginAiStatusRequest,rememberAiStatus} from '../ai-status';
+import {rememberChosenAi,useAiCheck} from '../ai-status';
 import {useCallback,useEffect,useState} from 'react';
 import type {AiStatus,ClubSettings,Workspace} from '../../../shared/club';
 import {clubFetch,errorMessage} from '../api';
@@ -54,26 +54,22 @@ const tabFor=(section?:SettingsSection):Tab=>section==='followed'||section==='so
  */
 export function SettingsScreen({section:linked,onSetup}:{section?:SettingsSection;onSetup():void}){
  const [data,setData]=useState<Loaded|null>(null),[error,setError]=useState('');
- const [status,setStatus]=useState<AiStatus|null>(null),[statusError,setStatusError]=useState('');
+ const {check,reload:readStatus}=useAiCheck(true);
+ const status=check.status,statusError=check.phase==='failed'?check.message:'';
  const publishing=usePublishing();
  const ready=data!==null;
  useEffect(()=>{
   if(!linked||!ready)return;
   document.getElementById(TARGET[linked])?.scrollIntoView?.({block:'start'});
  },[linked,ready]);
- const readStatus=useCallback(()=>{
-  setStatusError('');
-  const token=beginAiStatusRequest();
-  clubFetch<AiStatus>('/ai/status').then(status=>{rememberAiStatus(status,token);setStatus(status);},reason=>setStatusError(errorMessage(reason,"Couldn't check the connected AI.")));
- },[]);
  const refresh=useCallback(()=>{
   setError('');
-  load().then(setData,reason=>setError(errorMessage(reason)));
+  load().then(found=>{rememberChosenAi(found.settings.defaultAi);setData(found);},reason=>setError(errorMessage(reason)));
  },[]);
- useEffect(()=>{refresh();readStatus();},[refresh,readStatus]);
+ useEffect(()=>{refresh();},[refresh]);
  const refreshStatus=useCallback(()=>{
   readStatus();
-  clubFetch<ClubSettings>('/settings').then(settings=>setData(current=>current&&{...current,settings}),()=>{});
+  clubFetch<ClubSettings>('/settings').then(settings=>{rememberChosenAi(settings.defaultAi);setData(current=>current&&{...current,settings});},()=>{});
  },[readStatus]);
  const tab=tabFor(linked);
  return <div className="settings-layout-b">

@@ -116,9 +116,12 @@ export function trimProject(p:Project,input:number[][],ripple=true):Project{
 }
 
 type Transaction={project:Project;revision:string;created:number};
+function sweepTransactions(reference:WeakRef<Map<string,Transaction>>){const timer=setInterval(()=>{const entries=reference.deref();if(!entries){clearInterval(timer);return;}for(const [id,t] of entries)if(Date.now()-t.created>60*60*1000)entries.delete(id);},60000);timer.unref();}
 export function createToolHandler(baseUrl='http://127.0.0.1:4184/api',fetcher:typeof fetch=fetch){
  const url=new URL(baseUrl);if(!['127.0.0.1','localhost','[::1]'].includes(url.hostname)||url.protocol!=='http:')throw new Error('Creator Compiler MCP must connect to the loopback HTTP service.');
  const transactions=new Map<string,Transaction>();
+ const sweep=()=>{for(const [id,t] of transactions)if(Date.now()-t.created>60*60*1000)transactions.delete(id);};
+ sweepTransactions(new WeakRef(transactions));
  async function http(route:string,method='GET',body?:unknown,headers:Record<string,string>={}){const res=await fetcher(baseUrl.replace(/\/$/,'')+route,{method,headers:{'Content-Type':'application/json',...headers},body:body===undefined?undefined:JSON.stringify(body),signal:AbortSignal.timeout(30*60*1000)});const data:any=await res.json();if(!res.ok)throw Object.assign(new Error(data.error||`Creator Compiler HTTP ${res.status}`),{status:res.status});return {data,etag:res.headers.get('etag')?.replaceAll('"','')}}
  function transaction(id:string){const t=transactions.get(id);if(!t)throw new Error('Unknown or closed edit transaction.');if(Date.now()-t.created>60*60*1000){transactions.delete(id);throw new Error('Transaction expired. Begin again from current project state.')}return t}
  async function read(a:any):Promise<Project>{if(a.tx_id&&a.project_id)throw new Error('Provide tx_id or project_id, not both.');if(a.tx_id)return transaction(a.tx_id).project;if(!a.project_id)throw new Error('project_id or tx_id is required.');return (await http(`/projects/${encodeURIComponent(a.project_id)}`)).data}
@@ -178,8 +181,8 @@ export function createToolHandler(baseUrl='http://127.0.0.1:4184/api',fetcher:ty
    }
    return {content:[{type:'text' as const,text:JSON.stringify({project_id:a.project_id,units:'seconds',state:'committed',frames})},...images]};
   }
-  if(name==='begin_project_edit'){if(transactions.size>=100)throw new Error('Too many open transactions; commit or abort existing edits.');const {data,etag}=await http(`/projects/${encodeURIComponent(a.project_id)}`);const id=makeId();transactions.set(id,{project:structuredClone(data),revision:etag||hash(data),created:Date.now()});return {tx_id:id,project_id:data.id,timeline_hash:hash(data)}}
-  if(name==='commit_project_edit'){if(typeof a.change_summary!=='string'||!a.change_summary.trim()||a.change_summary.length>500)throw new Error('Provide a concrete change_summary of 1–500 characters.');const t=transaction(a.tx_id);try{const {data}=await http(`/projects/${encodeURIComponent(t.project.id)}`,'PUT',t.project,{'If-Match':`"${t.revision}"`});return {project_id:data.id,timeline_hash:hash(data),change_summary:a.change_summary}}finally{transactions.delete(a.tx_id)}}
+  if(name==='begin_project_edit'){sweep();if(transactions.size>=100)throw new Error('Too many open transactions; commit or abort existing edits.');const {data,etag}=await http(`/projects/${encodeURIComponent(a.project_id)}`);const id=makeId();transactions.set(id,{project:structuredClone(data),revision:etag||hash(data),created:Date.now()});return {tx_id:id,project_id:data.id,timeline_hash:hash(data)}}
+  if(name==='commit_project_edit'){if(typeof a.change_summary!=='string'||!a.change_summary.trim()||a.change_summary.length>500)throw new Error('Provide a concrete change_summary of 1–500 characters.');const t=transaction(a.tx_id);try{const {data}=await http(`/projects/${encodeURIComponent(t.project.id)}`,'PUT',t.project,{'If-Match':`"${t.revision}"`});transactions.delete(a.tx_id);return {project_id:data.id,timeline_hash:hash(data),change_summary:a.change_summary}}catch(error){if((error as {status?:number}).status)transactions.delete(a.tx_id);throw error;}}
   if(name==='abort_project_edit'){transaction(a.tx_id);transactions.delete(a.tx_id);return {aborted:true}}
   if(name==='export_video'){const {data,etag}=await http(`/projects/${encodeURIComponent(a.project_id)}`);return (await http('/export','POST',{projectId:a.project_id,options:a.options??{format:'mp4',hardware:true}},{'If-Match':`"${etag||hash(data)}"`})).data;}
   if(name==='get_export_status')return (await http(`/jobs/${encodeURIComponent(a.job_id)}`)).data;

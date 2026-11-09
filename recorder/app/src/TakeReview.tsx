@@ -1,3 +1,4 @@
+import {takeOnTimeline,takeState} from './take-state';
 import {takeSourceRange,takeTimelineDuration} from '../shared/take-timing';
 import {useEffect,useInsertionEffect,useMemo,useRef,useState} from 'react';
 import type {Media,Project} from '../shared/types';
@@ -37,7 +38,7 @@ export function TakeReview({project,take,note,onConfirm,onRetake,onClose,onDelet
  const duration=takeTimelineDuration(take),scene=project.scenes.find(s=>s.id===take.sceneId),locked=busy||saving;
  // Playback re-renders every frame; these only change with the project or take.
  const {confirmed,ordinal,matches}=useMemo(()=>{
-  const confirmed=project.clips.some(clip=>clip.recordingTakeId===take.id||take.clipIds?.includes(clip.id));
+  const confirmed=takeOnTimeline(project,take);
   const ordered=[...(project.recordedTakes||[]).filter(value=>value.sceneId===take.sceneId)].sort((a,b)=>Date.parse(a.createdAt)-Date.parse(b.createdAt));
   const ordinal=ordered.some(value=>value.id===take.id)?ordered.findIndex(value=>value.id===take.id)+1:ordered.length+1;
   const matches=project.clips.some(clip=>clip.recordingTakeId!==take.id&&clip.start<(scene?.start||0)+(scene?.duration||0)&&clip.start>= (scene?.start||0)&&take.tracks.some((track,i)=>track===clip.track&&(track!=='audio'||!(clip.audioRole??project.media.find(media=>media.id===clip.mediaId)?.audioRole)||take.media[i].audioRole===(clip.audioRole??project.media.find(media=>media.id===clip.mediaId)?.audioRole))));
@@ -82,7 +83,7 @@ export function TakeReview({project,take,note,onConfirm,onRetake,onClose,onDelet
   </div>;
  }
  return <div className="take-review" ref={dialog} tabIndex={-1} role="dialog" aria-label="Review recorded take" aria-modal="true">
-  {club?<header className="club-take-header"><div><span>{scene?.name||'Saved recording'}</span><div className="take-title-row"><h1>{title}</h1><TakeStatusBadge status={confirmed?'confirmed':take.retained?'archived':'new'}/><TakeGearMenu items={clubMenu} open={menu} disabled={locked} onOpenChange={value=>{if(value)setPlaying(false);setMenu(value);}} menuRef={menuRef}/></div></div><button className="icon-button" aria-label="Close take review and keep saved take" disabled={locked} onClick={onClose}><X size={23}/></button></header>:
+  {club?<header className="club-take-header"><div><span>{scene?.name||'Saved recording'}</span><div className="take-title-row"><h1>{title}</h1><TakeStatusBadge status={confirmed?'confirmed':takeState(project,take)==='archived'?'archived':'new'}/><TakeGearMenu items={clubMenu} open={menu} disabled={locked} onOpenChange={value=>{if(value)setPlaying(false);setMenu(value);}} menuRef={menuRef}/></div></div><button className="icon-button" aria-label="Close take review and keep saved take" disabled={locked} onClick={onClose}><X size={23}/></button></header>:
   <header><div><span>PREVIEW · {scene?.name||'Saved recording'}</span><div className="take-title-row"><h1>{title}</h1>{onUpdate&&<button className="icon-button" aria-label="Open take settings" disabled={locked} onClick={openSettings}><Settings2 size={18}/></button>}{confirmed&&<span className="take-confirmed"><Check size={13}/>Confirmed</span>}</div></div><button className="icon-button" aria-label="Close take review and keep saved take" disabled={locked} onClick={onClose}><X size={23}/></button></header>}
   <div className={`take-review-sources ${take.media.length===1?'single-source':''}`}><div className="take-main-source">{source(primary)}</div>{take.media.length>1&&<aside>{sideIndices.map(source)}</aside>}</div>
   <div className="take-review-transport"><input aria-label="Take playback position" type="range" min={0} max={duration} step={.01} value={time} onChange={event=>seek(Number(event.target.value))}/><div><span>{stamp(time)}</span><div className="take-playback-buttons"><button className="icon-button" aria-label="Seek backward 5 seconds" onClick={()=>seek(time-5)}><SkipBack size={20}/></button><button className="icon-button" aria-label={playing?'Pause take':'Play take'} onClick={toggle}>{playing?<Pause size={23}/>:<Play size={23}/>}</button><button className="icon-button" aria-label="Seek forward 5 seconds" onClick={()=>seek(time+5)}><SkipForward size={20}/></button><select aria-label="Take playback speed" value={rate} onChange={event=>setRate(Number(event.target.value))}>{[.5,1,1.25,1.5,2,3,4].map(value=><option key={value} value={value}>{value}×</option>)}</select></div><span>{stamp(duration)}</span></div></div>

@@ -6,7 +6,8 @@ Default macOS bindings are scoped to the current workspace. Text inputs retain o
 | --- | --- |
 | Select tool / Blade tool | `A` / `B` |
 | Split at playhead | `⌘B` |
-| Toggle scrubbing / snapping | `S` / `N` |
+| Toggle scrubbing / snapping | `S` / `⇧N` |
+| Add a note at the playhead | `N` (`M` also adds a marker in Creator Compiler Edit) |
 | Show / hide source waveforms | `E` |
 | Trim selection left / right to playhead | `Q` / `W` |
 | Delete and collapse | `Delete` or `Backspace` |
@@ -33,3 +34,5 @@ In take review, `Space` plays or pauses, `←` / `→` seek five seconds, `J` sl
 In Record, `⌘⇧P` opens local recording presets. Save, apply, rename, update, and delete named capture settings. Applying a preset reopens only already-authorized camera/microphone sources; screen and system sound require explicit source selection.
 
 `E` is a SceneForge addition. It toggles waveform visibility without changing the audio. Focus the timeline divider and use arrow keys to resize it; double-click resets the height. Scene cards support `Alt+↑/↓` reordering.
+
+In Creator Compiler Edit, `N` opens a focused note without pausing playback. Enter saves and closes, Shift+Enter adds a line, and Escape closes (notes also save as you type). The Notes tool lists notes by time; click a timestamp to seek, or use `↑` / `↓` in the list. Copy notes exports `MM:SS — [tag] text` lines; Fix with Claude asks for reviewable edit cards for Needs fixing and Idea to add notes.

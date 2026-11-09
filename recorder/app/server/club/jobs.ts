@@ -4,7 +4,7 @@ import { userMessage } from './errors.js';
 
 export interface JobEvent {
   id: number;
-  type: 'progress' | 'done' | 'failed' | 'cancelled';
+  type: 'reset' | 'progress' | 'done' | 'failed' | 'cancelled';
   data: unknown;
 }
 
@@ -26,13 +26,19 @@ interface Job {
   nextEventId: number;
   listeners: Set<(event: JobEvent) => void>;
   abort: AbortController;
+  cancelling: boolean;
+  settled: Promise<void>;
+  onceKey?: string;
+  cancelTimer?: ReturnType<typeof setTimeout>;
 }
 
 const MAX_EVENTS = 500;
 const KEEP_FINISHED_MS = 60 * 60 * 1000;
 const jobs = new Map<string, Job>();
+// Terminal client state can precede settlement of a worker that ignored cancellation.
+const workers=new Set<Job>();
 
-const isTerminal = (event: JobEvent) => event.type !== 'progress';
+const isTerminal = (event: JobEvent) => event.type !== 'progress' && event.type !== 'reset';
 
 function publish(job: Job, type: JobEvent['type'], data: unknown) {
   const event: JobEvent = { id: job.nextEventId++, type, data };
@@ -43,7 +49,9 @@ function publish(job: Job, type: JobEvent['type'], data: unknown) {
 
 function finish(job: Job, status: Exclude<JobStatus, 'running'>, type: JobEvent['type'], data: unknown) {
   if (job.status !== 'running') return;
+  if(job.cancelTimer)clearTimeout(job.cancelTimer);
   job.status = status;
+  if (job.onceKey && onceKeys.get(job.onceKey) === job.id) onceKeys.delete(job.onceKey);
   publish(job, type, data);
   job.listeners.clear();
   setTimeout(() => jobs.delete(job.id), KEEP_FINISHED_MS).unref();
@@ -72,26 +80,36 @@ export function startJob<T>(kind: string, work: (context: JobContext) => Promise
     nextEventId: 1,
     listeners: new Set(),
     abort: new AbortController(),
+    cancelling: false,
+    settled: Promise.resolve(),
   };
-  jobs.set(job.id, job);
+  jobs.set(job.id, job);workers.add(job);
   const context: JobContext = {
     emit: (data) => job.status === 'running' && publish(job, 'progress', data),
     signal: job.abort.signal,
   };
-  work(context).then(
+  // Defer invocation so the registry and dedupe key exist even for synchronous throws.
+  job.settled = Promise.resolve().then(() => { context.signal.throwIfAborted(); return work(context); }).then(
     (result) => {
+      if(job.status!=='running'){console.error(`[club] ignored late result for ${job.id}`);return;}
       job.result = result;
       finish(job, 'done', 'done', result ?? null);
     },
     (error) => {
-      if (job.abort.signal.aborted) return;
+      if(job.status!=='running'){console.error(`[club] ignored late failure for ${job.id}`);return;}
+      if (job.cancelling) {
+        finish(job, 'cancelled', 'cancelled', {});
+        return;
+      }
       console.error(`[club] job ${job.kind} failed:`, error instanceof Error ? error.message : error);
       job.error = userMessage(error);
       finish(job, 'failed', 'failed', { message: job.error });
     },
-  );
+  ).finally(()=>workers.delete(job));
   return snapshot(job);
 }
+
+export const runningJobCount=()=>workers.size;
 
 export const getJob = (id: string) => jobs.get(id);
 
@@ -109,15 +127,17 @@ export function startJobOnce<T>(key: string, kind: string, work: (context: JobCo
   if (running) return running;
   const started = startJob(kind, work);
   onceKeys.set(key, started.id);
+  jobs.get(started.id)!.onceKey = key;
   return started;
 }
 
 export function cancelJob(id: string): JobSnapshot | undefined {
   const job = jobs.get(id);
   if (!job) return undefined;
-  if (job.status === 'running') {
+  if (job.status === 'running'&&!job.cancelling) {
+    job.cancelTimer=setTimeout(()=>finish(job,'cancelled','cancelled',{}),30000);job.cancelTimer.unref();
+    job.cancelling = true;
     job.abort.abort();
-    finish(job, 'cancelled', 'cancelled', {});
   }
   return snapshot(job);
 }
@@ -127,6 +147,9 @@ export function cancelJob(id: string): JobSnapshot | undefined {
  * `onEvent` also receives the terminal event, after which no more arrive.
  */
 export function watchJob(job: Job, afterId: number, onEvent: (event: JobEvent) => void): () => void {
+  if (job.events.length && afterId < job.events[0].id - 1) {
+    onEvent({ id: job.events[0].id - 1, type: 'reset', data: snapshot(job) });
+  }
   for (const event of job.events) if (event.id > afterId) onEvent(event);
   if (job.status !== 'running') return () => {};
   job.listeners.add(onEvent);
@@ -137,14 +160,26 @@ export { isTerminal };
 export type { Job };
 
 /** Stops every running job (the server is quitting), so no AI command line tool started by one outlives the app. */
-export function cancelAllJobs(): number {
-  let stopped = 0;
-  for (const job of jobs.values()) {
-    if (job.status !== 'running') continue;
-    cancelJob(job.id);
-    stopped++;
-  }
-  return stopped;
+async function awaitStopped(pending: Job[], timeoutMs: number): Promise<number> {
+  for (const job of pending) cancelJob(job.id);
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await Promise.race([
+      Promise.all(pending.map(job => job.settled)),
+      new Promise<void>(resolve => { timer = setTimeout(resolve, timeoutMs); }),
+    ]);
+  } finally { if (timer) clearTimeout(timer); }
+  return pending.filter(job => !workers.has(job)).length;
+}
+
+export function cancelAllJobs(timeoutMs = 5000): Promise<number> {
+  return awaitStopped([...workers], timeoutMs);
+}
+
+/** Abort before deleting a video and wait briefly for its worker to settle. */
+export function cancelVideoJobs(slug: string, id: string, timeoutMs = 5000): Promise<number> {
+  const matches = (key: string) => key.split(':').some((part, index, parts) => part === slug && parts[index + 1] === id) || key.includes(`${slug}/${id}/`) || key.endsWith(`${slug}/${id}`);
+  return awaitStopped([...workers].filter(job => job.onceKey && matches(job.onceKey)), timeoutMs);
 }
 
 /** "about 2 min left", from the time the parts read so far took (a refresh reads sources one by one). Nothing before the first is read. */

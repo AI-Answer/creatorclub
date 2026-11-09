@@ -1,4 +1,5 @@
-export type RecordingHudState={status?:'starting'|'ready'|'recording'|'paused'|'saving'|'idle';elapsed?:number;countdown?:number|null;microphoneLevel?:number|null;mirror?:boolean;error?:{title:string;message:string}|null;warning?:{title:string;message:string}|null};
+import type {RecordingStatus} from './recording-session';
+export type RecordingHudState={status?:RecordingStatus;elapsed?:number;countdown?:number|null;microphoneLevel?:number|null;mirror?:boolean;error?:{title:string;message:string}|null;warning?:{title:string;message:string}|null};
 /** Serializes a single HUD's open/update/close lifecycle, coalescing pending updates. */
 export class RecordingHudSession {
  private closed=false;
@@ -6,24 +7,26 @@ export class RecordingHudSession {
  private ready:Promise<void>|null=null;
  private sending:Promise<void>|null=null;
  private latest:RecordingHudState|null=null;
+ private snapshot:RecordingHudState={};
  private ending:Promise<void>|null=null;
- constructor(private bridge:{begin:()=>Promise<void>;update:(state:RecordingHudState)=>Promise<unknown>;end:()=>Promise<unknown>},private onError:(error:unknown)=>void=()=>{}){}
+ constructor(private bridge:{begin:()=>Promise<void>;update:(state:RecordingHudState)=>Promise<unknown>;end:()=>Promise<unknown>;cancel?:()=>Promise<unknown>},private onError:(error:unknown)=>void=()=>{}){}
+ get available(){return this.begun&&!this.closed;}
  start(){
   if(this.ready)return this.ready;
   this.ready=this.bridge.begin().then(()=>{this.begun=true;}).catch(error=>{this.onError(error);});
   return this.ready.then(()=>this.flush());
  }
- update(state:RecordingHudState){if(this.closed)return Promise.resolve();this.latest={...this.latest,...state};return this.flush();}
+ update(state:RecordingHudState){if(this.closed)return Promise.resolve();this.snapshot={...this.snapshot,...state};this.latest={...this.latest,...state};return this.flush();}
  private flush():Promise<void>{
   if(this.sending)return this.sending;
   if(!this.begun||this.closed||!this.latest)return Promise.resolve();
-  this.sending=(async()=>{while(this.latest&&!this.closed){const next=this.latest;this.latest=null;try{await this.bridge.update(next);}catch(error){this.onError(error);}}})().finally(()=>{this.sending=null;});
+  this.sending=(async()=>{while(this.latest&&!this.closed){const next=this.latest;this.latest=null;try{const result=await this.bridge.update(next);if(result&&typeof result==='object'&&'visible'in result&&result.visible===false&&!this.closed){await this.bridge.begin();if(!this.closed)await this.bridge.update(this.snapshot);}}catch(error){this.onError(error);}}})().finally(()=>{this.sending=null;});
   return this.sending;
  }
  stop(){
   if(this.ending)return this.ending;
-  this.closed=true;this.latest=null;
-  this.ending=(async()=>{await this.ready;await this.sending;if(this.begun){try{await this.bridge.end();}catch(error){this.onError(error);}}})();
+  this.closed=true;this.latest=null;const cancelled=this.bridge.cancel?.().catch(error=>this.onError(error));
+  this.ending=(async()=>{await cancelled;await this.ready;await this.sending;if(this.begun){try{await this.bridge.end();}catch(error){this.onError(error);}}})();
   return this.ending;
  }
 }

@@ -23,6 +23,9 @@ export interface LocalFile {
 }
 
 export interface PublishRequest {
+  idempotencyKey?: string;
+  /** Commit the exact date and uploaded media identity before the irreversible POST. */
+  beforePost?: (post: SentPost) => Promise<void>;
   channelId: string;
   title: string;
   description: string;
@@ -46,6 +49,10 @@ export interface PostStatus {
 }
 
 export interface SentPost {
+  idempotencyKey?: string;
+  title?: string;
+  content?: string;
+  mediaId?: string;
   /** The publisher's own id for the post, to ask about it later. */
   postId: string;
   /** The date the post was sent for. */

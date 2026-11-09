@@ -1,5 +1,6 @@
 import {clipDuration,type Clip,type Media} from '../shared/types';
-export function waveformMediaKey(media:Media){return JSON.stringify([media.id,media.path,media.size??null,media.duration,media.hasAudio??null]);}
+export const WAVEFORM_MAX_PEAKS=4320000; // 50 Hz for the server's 24-hour source limit.
+export function waveformMediaKey(media:Media){return JSON.stringify(['wave-v3',media.id,media.path,media.size??null,media.duration,media.hasAudio??null]);}
 export function hasWaveform(media:Media){return media.kind==='audio'||media.kind==='video'&&media.hasAudio!==false;}
 /** A fixed dBFS range keeps quiet speech readable while preserving loudness differences between sources. */
 export const WAVEFORM_FLOOR_DB=-72;
@@ -10,7 +11,17 @@ export function waveformHeight(peak:number,max=13){
  return max*Math.max(0,Math.min(1,(db-WAVEFORM_FLOOR_DB)/-WAVEFORM_FLOOR_DB));
 }
 export interface WaveformBar {x:number;peak:number;}
-/** Whole-source bins are sampled in source time, including trim and speed. Bins sit on a fixed timeline pixel grid, so a moving visible window only adds or drops edge bars; the pitch doubles past maxBars. */
+type PeakArray=readonly number[]|Float64Array;
+const peakAt=(peaks:PeakArray,index:number)=>Math.max(0,Math.min(1,Number.isFinite(peaks[index])?peaks[index]:0));
+const peakLevels=new WeakMap<readonly number[],PeakArray[]>();
+/** Max-pooling levels are built once per source, on demand when zoomed out. Each visible pixel then reads O(log n) bins instead of rescanning hours of audio on every scroll. */
+function peakRange(peaks:readonly number[],lo:number,hi:number){
+ let levels=peakLevels.get(peaks);if(!levels){levels=[peaks];peakLevels.set(peaks,levels);}
+ const needed=Math.max(0,Math.floor(Math.log2(hi-lo)));
+ while(levels.length<=needed){const previous=levels[levels.length-1],pooled=new Float64Array(Math.ceil(previous.length/2));for(let i=0;i<pooled.length;i++)pooled[i]=Math.max(peakAt(previous,i*2),peakAt(previous,i*2+1));levels.push(pooled);}
+ let peak=0;while(lo<hi){const level=Math.min(lo?Math.floor(Math.log2(lo&-lo)):needed,Math.floor(Math.log2(hi-lo)));peak=Math.max(peak,peakAt(levels[level],Math.floor(lo/2**level)));lo+=2**level;}return peak;
+}
+/** Whole-source bins use trim/speed and a fixed timeline pixel grid. Pool when zoomed out, interpolate bin centers when zoomed past source resolution; the pitch doubles past the visible pixel budget. */
 export function waveformBars(clip:Clip,media:Media,peaks:readonly number[],scale:number,visibleStart:number,visibleEnd:number,maxBars=1200,basePitch=3):WaveformBar[]{
  if(!peaks.length||!(media.duration>0)||!(scale>0)||!Number.isFinite(scale))return [];
  const clipEnd=clip.start+clipDuration(clip),start=Math.max(clip.start,visibleStart),end=Math.min(clipEnd,visibleEnd);if(!(end>start))return [];
@@ -20,7 +31,9 @@ export function waveformBars(clip:Clip,media:Media,peaks:readonly number[],scale
   const from=Math.max(clip.start,bin*pitch/scale),to=Math.min(clipEnd,(bin+1)*pitch/scale);
   const a=clip.sourceIn+(from-clip.start)*clip.speed,b=Math.min(clip.sourceOut,clip.sourceIn+(to-clip.start)*clip.speed);
   let peak=0;const lo=Math.max(0,Math.floor(a/media.duration*peaks.length)),hi=Math.min(peaks.length,Math.ceil(b/media.duration*peaks.length));
-  for(let j=lo;j<hi;j++)peak=Math.max(peak,Number.isFinite(peaks[j])?peaks[j]:0);
+  if((b-a)/media.duration*peaks.length<1){const position=Math.max(0,Math.min(peaks.length-1,(a+b)/2/media.duration*peaks.length-.5)),left=Math.floor(position),mix=position-left;peak=peakAt(peaks,left)*(1-mix)+peakAt(peaks,Math.min(left+1,peaks.length-1))*mix;}
+  else if(hi-lo>64)peak=peakRange(peaks,lo,hi);
+  else for(let j=lo;j<hi;j++)peak=Math.max(peak,peakAt(peaks,j));
   bars.push({x:(bin+.5)*pitch-origin,peak:Math.max(0,Math.min(1,peak))});
  }return bars;
 }
@@ -35,30 +48,31 @@ export function waveformSpikesPath(bars:readonly WaveformBar[],mid:number,amplit
 export function waveformEnvelopePath(bars:readonly WaveformBar[],mid=11,amplitude=10):string{
  const heights=bars.map(bar=>waveformHeight(bar.peak,amplitude));if(!heights.some(height=>height>0))return '';
  const keep=bars.map((_,i)=>i===0||i===bars.length-1||heights[i]!==heights[i-1]||heights[i]!==heights[i+1]),top:string[]=[],bottom:string[]=[];
- bars.forEach((bar,i)=>{if(!keep[i])return;const x=pathNumber(bar.x);top.push(`${x} ${pathNumber(mid-heights[i])}`);bottom.unshift(`${x} ${pathNumber(mid+heights[i])}`);});
+ bars.forEach((bar,i)=>{if(!keep[i])return;const x=pathNumber(bar.x);top.push(`${x} ${pathNumber(mid-heights[i])}`);bottom.push(`${x} ${pathNumber(mid+heights[i])}`);});
  const first=pathNumber(bars[0].x),last=pathNumber(bars[bars.length-1].x),center=pathNumber(mid);
- return `M${first} ${center}L${[...top,`${last} ${center}`,...bottom].join(' ')}Z`;
+ return `M${first} ${center}L${[...top,`${last} ${center}`,...bottom.reverse()].join(' ')}Z`;
 }
-type Entry={media:Media;listeners:Set<(peaks:readonly number[])=>void>;state:'queued'|'active'|'done';peaks:readonly number[]};
+type Entry={media:Media;listeners:Set<(peaks:readonly number[])=>void>;state:'queued'|'active'|'done'|'failed';peaks:readonly number[];failures:number;retryAt:number;timer?:ReturnType<typeof setTimeout>};
 /** Two background requests, bounded completed cache, queued requests withdrawn when no longer visible. */
 export class TimelineWaveformCache {
  private entries=new Map<string,Entry>();private active=0;
- constructor(private fetcher:(media:Media)=>Promise<readonly number[]>,private maxEntries=128,private concurrency=2){}
+ constructor(private fetcher:(media:Media)=>Promise<readonly number[]>,private maxEntries=128,private concurrency=2,private retryMs=1000){}
  subscribe(media:Media,receive:(peaks:readonly number[])=>void){
   if(!hasWaveform(media))return ()=>{};
-  if(media.waveform?.length){receive(media.waveform);return ()=>{};}
+  if(media.waveform?.length&&media.waveform.length<=WAVEFORM_MAX_PEAKS){receive(media.waveform);return ()=>{};}
   const key=waveformMediaKey(media);let entry=this.entries.get(key);
-  if(!entry){entry={media,listeners:new Set(),state:'queued',peaks:[]};this.entries.set(key,entry);}
+  if(!entry){entry={media,listeners:new Set(),state:'queued',peaks:[],failures:0,retryAt:0};this.entries.set(key,entry);}
   else {this.entries.delete(key);this.entries.set(key,entry);}
-  entry.listeners.add(receive);if(entry.state==='done')receive(entry.peaks);this.drain();
-  return ()=>{entry!.listeners.delete(receive);if(!entry!.listeners.size&&entry!.state==='queued')this.entries.delete(key);this.evict();};
+  entry.listeners.add(receive);if(entry.state==='failed')this.retry(entry);if(entry.state==='done')receive(entry.peaks);this.drain();
+  return ()=>{entry!.listeners.delete(receive);if(!entry!.listeners.size){clearTimeout(entry!.timer);entry!.timer=undefined;if(entry!.state==='queued')this.entries.delete(key);}this.evict();};
  }
- private evict(){for(const [key,entry]of this.entries){if(this.entries.size<=this.maxEntries)return;if(entry.state==='done'&&!entry.listeners.size)this.entries.delete(key);}}
+ private evict(){let count=0;for(const entry of this.entries.values())count+=entry.peaks.length;for(const [key,entry]of this.entries){if(this.entries.size<=this.maxEntries&&count<=WAVEFORM_MAX_PEAKS*2)return;if((entry.state==='done'||entry.state==='failed')&&!entry.listeners.size){count-=entry.peaks.length;this.entries.delete(key);}}}
+ private retry(entry:Entry){if(entry.timer||!entry.listeners.size)return;entry.timer=setTimeout(()=>{entry.timer=undefined;if(!entry.listeners.size)return;entry.state='queued';this.drain();},Math.max(0,entry.retryAt-Date.now()));entry.timer.unref?.();}
  private drain(){
   for(const entry of this.entries.values()){
    if(this.active>=this.concurrency)break;if(entry.state!=='queued'||!entry.listeners.size)continue;
    entry.state='active';this.active++;
-   Promise.resolve().then(()=>this.fetcher(entry.media)).then(peaks=>{entry.peaks=Array.isArray(peaks)&&peaks.length<=16384?peaks.map(n=>Number.isFinite(n)?Math.max(0,Math.min(1,n)):0):[];},()=>{entry.peaks=[];}).finally(()=>{entry.state='done';this.active--;for(const callback of entry.listeners)callback(entry.peaks);this.evict();this.drain();});
+   Promise.resolve().then(()=>this.fetcher(entry.media)).then(peaks=>{entry.state='done';entry.failures=0;entry.peaks=Array.isArray(peaks)&&peaks.length<=WAVEFORM_MAX_PEAKS?peaks.map(n=>Number.isFinite(n)?Math.max(0,Math.min(1,n)):0):[];},()=>{entry.state='failed';entry.failures++;entry.retryAt=Date.now()+Math.min(30000,this.retryMs*2**Math.min(entry.failures-1,5));}).finally(()=>{this.active--;if(entry.state==='failed')this.retry(entry);for(const callback of entry.listeners)callback(entry.peaks);this.evict();this.drain();});
   }
  }
 }

@@ -43,7 +43,8 @@ export async function readSignalsConfig(slug: string): Promise<SignalsConfig> {
   return config;
 }
 
-export const writeSignalsConfig = (slug: string, config: SignalsConfig) => store.writeJSON(configFile(slug), config);
+export const signalsConfigLock = <T>(slug: string, fn: () => Promise<T>) => store.withLock(`signals-config:${configFile(slug)}`, fn);
+export const writeSignalsConfig = (slug: string, config: SignalsConfig) => signalsConfigLock(slug, () => store.writeJSON(configFile(slug), config));
 
 const isItem = (value: unknown): value is SignalItem => {
   const s = value as SignalItem | null;

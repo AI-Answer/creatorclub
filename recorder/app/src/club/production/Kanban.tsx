@@ -4,7 +4,7 @@ import {STAGE_LABEL} from '../board';
 import {beforeIdAt,boardColumns,dropIndex,isSamePlace,type BoardColumn} from '../production';
 import type {IdeaHeld} from '../routes';
 import type {SceneProgress} from '../scene-status';
-import type {IdeaActionSet} from './IdeaLane';
+import type {IdeaActionSet} from '../useIdeaActions';
 import {Icon,StageBadge} from '../ui';
 import {errorMessage} from '../api';
 import {KanbanCard} from './KanbanCard';
@@ -56,6 +56,11 @@ export function Kanban({videos,scenes,ideas,onOpen,onMove,onResearch,onAdd}:{
   const card=[...board.current?.querySelectorAll<HTMLElement>('[data-card]')??[]].find(card=>card.dataset.cardId===id);
   card?.focus();card?.scrollIntoView?.({block:'nearest',inline:'nearest'});
  };
+ useEffect(()=>{
+  if(!ideas.openGroup)return;
+  const first=videos.find(video=>video.stage==='ideas'&&video.hidden===ideas.openGroup);
+  if(first)focus(first.id);
+ },[ideas.openGroup]);
  const keyboard=(video:Video)=>(event:KeyboardEvent<HTMLDivElement>)=>{
   const direction=event.key==='ArrowLeft'?-1:event.key==='ArrowRight'?1:0;
   if(direction&&(event.metaKey||event.ctrlKey)){

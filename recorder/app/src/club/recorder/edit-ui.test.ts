@@ -34,6 +34,7 @@ function serve(jobs:(p:Project)=>AutomationJob[]){
   await new Promise(resolve=>setTimeout(resolve,0));
   if(init?.signal?.aborted)throw new DOMException('The operation was aborted.','AbortError');
   calls.push({method,url,body,ifMatch:new Headers(init?.headers).get('If-Match')??undefined});
+  if(url==='/api/media/upload')return Response.json([camera]);
   if(url==='/api/projects')return Response.json([p]);
   if(url===`/api/projects/${p.id}`&&method==='PUT')return Response.json({minimal:true,id:p.id,updatedAt:p.updatedAt},{headers:{ETag:'"t"'}});
   if(url===`/api/projects/${p.id}`)return Response.json(current,{headers:{ETag:'"t"'}});
@@ -73,7 +74,7 @@ test('embedded Edit: Borumi\'s layout (rail of nine tools, the transcript in its
   assert.equal(ui.container.querySelector('.inspector'),null,'no tool panel is open yet');
   assert.ok(ui.container.querySelector('.club-edit-transcript .transcript-panel'),'the transcript has its own column beside the picture, as in Borumi');
   const rail=[...ui.container.querySelectorAll('.club-rail button')].map(b=>b.textContent?.trim());
-  assert.deepEqual(rail,['Canvas','Layout','Clip','Zoom','Elements','Music','Captions','Cursor','Automate','More'],'Borumi\'s nine tools in Borumi\'s order; Graphics, media and Cutroom sit under More');
+  assert.deepEqual(rail,['Canvas','Layout','Clip','Zoom','Elements','Music','Captions','Cursor','Automate','Notes','More'],'Borumi\'s nine tools in Borumi\'s order, then Notes (N); Graphics, media and Cutroom sit under More');
   await act(async()=>[...ui.container.querySelectorAll<HTMLButtonElement>('.club-rail button')].find(b=>b.textContent?.trim()==='Captions')!.click());
   assert.equal(ui.container.querySelector('.club-edit-side .inspector h2')?.textContent,'Captions','a tool opens its panel on the side');
   assert.ok(ui.container.querySelector('.club-edit-transcript .transcript-panel'),'and the transcript stays open beside the picture');
@@ -224,21 +225,43 @@ test('the Auto-edit caption error retries making captions',async()=>{
 });
 
 
-test('embedded Edit with no media has only record and import actions and reports no selection',async()=>{
- localStorage.clear();const server=serve(()=>[]);server.p.media=[];server.p.clips=[];
+test('embedded Edit with no media keeps the editor, safe transport and inline import and record actions',async()=>{
+ localStorage.clear();const server=serve(()=>[]);server.p.media=[];server.p.clips=[];for(const scene of server.p.scenes)scene.duration=0;
  const modes:string[]=[],states:{selected:number}[]=[];
  const ui=await mountUI(createElement(ClubRecorder,{projectId:server.p.id,mode:'Edit',onBack(){},onMode:mode=>modes.push(mode),onEditState:state=>states.push(state)}));
  try{
   await flush();await flush();
-  assert.ok(ui.container.textContent?.includes('Nothing recorded yet'));
-  for(const selector of ['.club-timeline','.club-timeline-bar','.transcription-status','.trim-handle','.stage-transform'])assert.equal(ui.container.querySelector(selector),null,selector);
-  assert.equal([...ui.container.querySelectorAll('button')].some(b=>/Export|Make captions/.test(b.textContent??'')),false);
+  assert.ok(ui.container.textContent?.includes('Drop media here, or record a scene'));
+  for(const selector of ['.club-rail','.club-edit-stage .stage-empty','.club-timeline','.club-timeline-bar','.club-edit-transcript .transcript-panel'])assert.ok(ui.container.querySelector(selector),selector);
+  for(const selector of ['.trim-handle','.stage-transform'])assert.equal(ui.container.querySelector(selector),null,selector);
+  assert.equal(button(ui.container,'Play').disabled,true);
+  const zoom=ui.container.querySelector<HTMLInputElement>('input[aria-label="Timeline zoom"]')!;
+  for(const value of [zoom.min,zoom.max,zoom.step,zoom.value])assert.ok(Number.isFinite(Number(value)),value);
+  assert.ok(!ui.container.innerHTML.includes('NaN')&&!ui.container.innerHTML.includes('Infinity'));
+  for(const key of [' ','l','s','Delete','ArrowRight','ArrowLeft','+','-'])await act(async()=>window.dispatchEvent(new KeyboardEvent('keydown',{key,bubbles:true})));
+  assert.equal(button(ui.container,'Play').disabled,true,'empty playback shortcuts stay stopped');
+  await act(async()=>button(ui.container,'Canvas').click());assert.ok(ui.container.querySelector('.club-edit-side .inspector'));
+  await act(async()=>button(ui.container,'Close Canvas').click());
+  assert.equal([...ui.container.querySelectorAll('button')].some(b=>/Export/.test(b.textContent??'')),false);
   assert.equal(states.at(-1)?.selected,0);
-  await act(async()=>button(ui.container,'Record a scene').click());assert.deepEqual(modes,['Record']);
-  await act(async()=>button(ui.container,'Import media').click());assert.ok(ui.container.querySelector('[role=dialog]'),'Import opens without needing footage');
+  await act(async()=>button(ui.container.querySelector('.club-timeline-empty')!,'Record').click());assert.deepEqual(modes,['Record']);
+  await act(async()=>button(ui.container.querySelector('.club-timeline-empty')!,'Import media').click());assert.ok(ui.container.querySelector('[role=dialog]'),'Import opens without needing footage');
  }finally{await ui.close();server.restore();}
 });
 
+
+for(const target of ['.stage-empty','.club-row'] as const)test(`dropping a file on the empty ${target} imports it in place`,async()=>{
+ localStorage.clear();const server=serve(()=>[]);server.p.media=[];server.p.clips=[];for(const scene of server.p.scenes)scene.duration=0;
+ const ui=await mountUI(createElement(ClubRecorder,{projectId:server.p.id,mode:'Edit',onBack(){}}));
+ try{
+  await flush();await flush();
+  const drop=Object.assign(new Event('drop',{bubbles:true,cancelable:true}),{dataTransfer:{files:[new File(['video'],'camera.mov',{type:'video/quicktime'})],getData:()=>''}});
+  await act(async()=>{ui.container.querySelector(target)!.dispatchEvent(drop);});for(let i=0;i<4;i++)await flush();
+  assert.equal(server.calls.filter(call=>call.url==='/api/media/upload').length,1,'one upload through the existing importer');
+  assert.equal(ui.container.querySelector('.club-timeline-empty'),null,'the imported footage replaces the hint');
+  assert.ok(ui.container.querySelector('[data-clip-id]'),'the imported clip is on the timeline');
+ }finally{await ui.close();server.restore();}
+});
 
 test('a new-project import request is acknowledged once and does not reopen on later renders',async()=>{
  localStorage.clear();const server=serve(()=>[]);server.p.media=[];server.p.clips=[];let opened=0;

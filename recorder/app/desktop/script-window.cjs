@@ -94,8 +94,8 @@ function createScriptWindow({BrowserWindow,ipcMain,screen,Menu,preferencesPath,a
  function applyOpacity(){if(alive(win))win.setOpacity?.(1-(settings.transparency??0));}
  function setSettings(patch){Object.assign(settings,cleanSettings(patch));applyOpacity();push({settings:{...settings}});save();}
  // The take the island is showing, or none.
- function setTake(next){const active=Boolean(next?.active);take={active,script:active&&typeof next.script==='string'?next.script:'',appearance:next?.appearance==='light'?'light':next?.appearance==='dark'?'dark':take.appearance};push({take:{...take}});}
- function setFollower(patch){const clean=cleanFollower(patch);Object.assign(follower,clean);push({follower:clean});}
+ function setTake(next){const active=Boolean(next?.active);if(!active)follower={...follower,index:0,playing:false,asking:false,error:null};take={active,script:active&&typeof next.script==='string'?next.script:'',appearance:next?.appearance==='light'?'light':next?.appearance==='dark'?'dark':take.appearance};push({take:{...take},...(!active?{follower:{...follower}}:{})});}
+ function setFollower(patch){const clean=cleanFollower(patch);if(!take.active)Object.assign(clean,{index:0,playing:false,asking:false,error:null});Object.assign(follower,clean);push({follower:clean});}
  function open(){
   if(alive(win)){win.show();win.focus?.();return;}
   const near=nearBounds(),display=screen.getDisplayMatching(bounds||near||screen.getPrimaryDisplay().bounds),area=display.workArea;

@@ -13,3 +13,6 @@ test('a refresh without changes keeps the same list so React can skip rendering'
  const progressed=reuseAutomationJobs(current,mergeAutomationJobs(current,[job('a','running',3,{progress:.6})]));assert.notEqual(progressed,current);assert.equal(progressed[0].progress,.6);assert.equal(progressed[1],current[1],'unchanged jobs keep their object');
  assert.deepEqual(reuseAutomationJobs(current,current.slice(1)).map(j=>j.id),['b']);assert.deepEqual(reuseAutomationJobs([],[job('c','queued',4)]).map(j=>j.id),['c']);
 });
+test('authoritative lists remove deleted jobs while preserving newer state for retained jobs',()=>{
+ const retained=job('keep','complete',5,{applied:true}),deleted=job('deleted','complete',4);const next=mergeAutomationJobs([retained,deleted],[job('keep','running',3)],true);assert.deepEqual(next,[retained]);assert.deepEqual(mergeAutomationJobs(next,[],true),[]);
+});

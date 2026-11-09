@@ -53,12 +53,8 @@ export function ScenesColumn({bare=false,acceptDrops=false,aiName='Claude',aiBra
   },
  };
  // Every field saves as it is typed. A scene's script has its own save, sent a moment after the last keystroke and at once when it is left.
- const scriptWait=useRef<{id:string;text:string;timer:ReturnType<typeof setTimeout>}|null>(null);
- const sendScript=()=>{const wait=scriptWait.current;if(!wait)return;clearTimeout(wait.timer);scriptWait.current=null;onSceneScript(wait.id,wait.text);};
- const scriptSoon=(id:string,text:string)=>{if(scriptWait.current&&scriptWait.current.id!==id)sendScript();if(scriptWait.current)clearTimeout(scriptWait.current.timer);scriptWait.current={id,text,timer:setTimeout(sendScript,SAVE_DELAY_MS)};};
- const sendRef=useRef(sendScript);sendRef.current=sendScript;
- useEffect(()=>()=>sendRef.current(),[]);
- const leave=()=>{sendScript();onSaveNow?.();};
+ const scriptSoon=onSceneScript;
+ const leave=()=>{onSaveNow?.();};
  // One scene open at a time: the focused one (picked in the strip, the companion, or here), until it is closed.
  const [openId,setOpenId]=useState<string|null>(focusId);
  // What's on screen and the script are extras, like Borumi's one line per scene: shown once written, or when asked for.
@@ -107,7 +103,7 @@ export function ScenesColumn({bare=false,acceptDrops=false,aiName='Claude',aiBra
  };
 
  const menuFor=(scene:OutlineScene,i:number,id:string):MenuItem[]=>[
-  {label:scene.script?'Write the script again':'Write script for this scene',icon:'script',disabled:!aiAvailable,title:!aiAvailable?AI_CONNECT_HINT:undefined,fn:()=>onWriteScene(id)},
+  {label:scene.script?'Write the script again':'Write script for this scene',icon:'script',disabled:!aiAvailable||scripting||drafting,title:!aiAvailable?AI_CONNECT_HINT:undefined,fn:()=>onWriteScene(id)},
   ...(hasRecording?[{label:'Record this scene',icon:'microphone' as const,fn:()=>onRecord(id)}]:[]),
   '-',
   ...(i>0?[{label:'Move up',icon:'move-up' as const,fn:()=>move(i,i-1)}]:[]),
@@ -156,7 +152,7 @@ export function ScenesColumn({bare=false,acceptDrops=false,aiName='Claude',aiBra
     const id=scene.id??String(i);
     const progress=knownById.get(id);
     const status=progress?<SceneStatus scene={toProgress([progress])[0]}/>:null;
-    const writing=scripting&&scriptingScene===id;
+    const writing=scripting&&(!scriptingScene||scriptingScene===id);
     const decide=scene.decide??[];
     const isOpen=openId===id;
     const place=cn('card scene',isOpen?'open':'closed',focusId===id&&'focus',dragIndex===i&&'dragging',overIndex===i&&dragIndex!==null&&dragIndex!==i&&'drop-before');
@@ -182,7 +178,7 @@ export function ScenesColumn({bare=false,acceptDrops=false,aiName='Claude',aiBra
       {status}<span className="tnum small muted">{clockTime(scene.seconds)}</span>
      </button>}
     </div>;
-    return <div key={id} id={sceneCardId(id)} ref={element=>{cards.current[i]=element;}} aria-label={`Scene ${i+1}`} className={cn(place,dropOn===id&&'drop-on')} {...dropProps(id,i)} onClick={()=>onFocus(id)}>
+    return <div key={id} id={sceneCardId(id)} ref={element=>{cards.current[i]=element;}} aria-label={`Scene ${i+1}`} inert={scripting||drafting} className={cn(place,dropOn===id&&'drop-on')} {...dropProps(id,i)} onClick={()=>onFocus(id)}>
      <div className="scene-h">
       <button type="button" className="grip" aria-label="Drag to reorder, or use the arrow keys" onPointerDown={event=>onGrip(event,i)} onClick={event=>event.stopPropagation()} onKeyDown={event=>moveKeys(event,i,false)}><Icon name="drag" size={14}/></button>
       <span className="n">{i+1}</span>

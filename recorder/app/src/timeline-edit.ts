@@ -54,11 +54,11 @@ export function linkedIds(clips:readonly Clip[],ids:Iterable<string>):Set<string
 export function selectionCount(clips:readonly Clip[],ids:Iterable<string>){const groups=linkGroups(clips),seen=new Set<string>();for(const id of ids)seen.add(groups.get(id)??'item:'+id);return seen.size;}
 export function isLinked(clips:readonly Clip[],id:string){const groups=linkGroups(clips),key=groups.get(id);let n=0;for(const value of groups.values())if(value===key&&++n>1)return true;return false;}
 /** Writes the implicit take links as explicit ones, so later splits and moves cannot merge or separate groups by accident. */
-export function ensureLinks(p:Project,newId:()=>string=makeId){
- const groups=linkGroups(p.clips),sizes=new Map<string,number>(),ids=new Map<string,string>();
- for(const key of groups.values())sizes.set(key,(sizes.get(key)??0)+1);
- for(const c of p.clips){const key=groups.get(c.id)!;if(c.linkId!==undefined||!key.startsWith('take:')||sizes.get(key)!<2)continue;if(!ids.has(key))ids.set(key,newId());c.linkId=ids.get(key);}
- relinkSlices(p,newId);
+export function ensureLinks(p:Project,newId?:()=>string){
+ const groups=linkGroups(p.clips),ids=new Map<string,string>();
+ for(const c of p.clips){const key=groups.get(c.id)!;if(c.linkId!==undefined||!key.startsWith('take:'))continue;if(!ids.has(key))ids.set(key,newId?.()??`legacy:${key}`);c.linkId=ids.get(key);}
+ let slice=0;const used=new Set(p.clips.map(c=>c.linkId));
+ relinkSlices(p,newId??(()=>{let id:string;do{id=`legacy-slice:${p.id}:${++slice}`;}while(used.has(id));used.add(id);return id;}));
 }
 /** After a cut at `time` split some link groups (`fresh` maps each split group's id to the id of its later slice), the members of those groups that start at or after `time` join the later slice. */
 function laterSlice(p:Project,time:number,fresh:ReadonlyMap<string,string>){for(const c of p.clips)if(c.linkId!==undefined&&fresh.has(c.linkId)&&c.start>=time-EPS)c.linkId=fresh.get(c.linkId);}

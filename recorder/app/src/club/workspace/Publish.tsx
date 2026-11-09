@@ -1,8 +1,9 @@
+import {exportStatus,hasCurrentExport} from '../export-status';
 import {visibleInterval} from '../visible-interval';
 import {BrandLogo} from '../../BrandLogo';
 import {createPortal} from 'react-dom';
 import {useCallback,useEffect,useLayoutEffect,useMemo,useRef,useState,type ReactNode} from 'react';
-import type {Package,PublishProgress,PublishRecord,PublishVisibility,Video,VideoScene} from '../../../shared/club';
+import type {JobSnapshot,Package,PublishProgress,PublishRecord,PublishVisibility,Video,VideoScene} from '../../../shared/club';
 import type {ExportRecord} from '../../../shared/export-history';
 import type {Project} from '../../../shared/types';
 import {api,listSavedExports,projectRevision} from '../../api';
@@ -34,7 +35,7 @@ export type PublishStudio=Pick<ThumbnailDialogProps,'sketch'|'onThumb'|'onSave'|
  * The Publish step: the form YouTube asks for (title, description, tags, thumbnail, who can watch, made for kids, now or later) beside the
  * exported video as it will look. One button sends it; progress and the result follow.
  */
-export function Publish({video,pkg,scenes,onVideo,onDescription,onTags,onGoTo,onSettings,saveError,onRetry,onExported,studio}:{video:Video;pkg:Package|null;scenes:readonly VideoScene[]|undefined;onVideo(video:Video):void;onDescription(text:string):void;/** Saves the tags on the package at once, like the description. */onTags(tags:string[]):void;onGoTo(tab:'idea'|'record'|'edit'):void;/** Opens Settings at Publishing, where the Postiz key is entered once. */onSettings():void;saveError?:string;onRetry():void;onExported?(done:boolean):void;studio?:PublishStudio}){
+export function Publish({video,pkg,scenes,onVideo,onDescription,onTags,onGoTo,onSettings,saveError,onRetry,onExported,writingPackage=false,studio}:{video:Video;pkg:Package|null;scenes:readonly VideoScene[]|undefined;onVideo(video:Video):void;onDescription(text:string):void;/** Saves the tags on the package at once, like the description. */onTags(tags:string[]):void;onGoTo(tab:'idea'|'record'|'edit'):void;/** Opens Settings at Publishing, where the Postiz key is entered once. */onSettings():void;saveError?:string;/** Ask Claude is writing the package: the form waits. */writingPackage?:boolean;onRetry():void;onExported?(done:boolean):void;studio?:PublishStudio}){
  const publishing=usePublishing();
  const [footer,setFooter]=useState<HTMLElement|null>(null);
  useLayoutEffect(()=>{setFooter(document.getElementById('ws-publish-action'));},[]);
@@ -57,20 +58,39 @@ export function Publish({video,pkg,scenes,onVideo,onDescription,onTags,onGoTo,on
   return()=>request.abort();
  },[video.recorderProjectId]);
  useEffect(()=>{if(!project)return;let alive=true;void projectRevision(project).then(value=>{if(alive)setRevision(value.replaceAll('"',''));},()=>{});return()=>{alive=false;};},[project]);
- const stale=Boolean(file&&revision&&file.projectRevision.replaceAll('"','')!==revision);
- const exported=Boolean(file)&&!stale;
- useEffect(()=>{onExported?.(exported);},[exported,onExported]);
+ const stale=exportStatus(file,revision)==='stale';
+ const exported=hasCurrentExport(file,revision);
+ useEffect(()=>{if(file!==undefined)onExported?.(exported);},[file,exported,onExported]);
 
  // ---- what is already sent
  const [record,setRecord]=useState<PublishRecord|null|undefined>(undefined);
+ const alive=useRef(true),submitting=useRef(false),following=useRef<string|null>(null);
+ const followRef=useRef<(id:string)=>void>(()=>{});
+ const jobKey=`cc.publish.${video.id}`;
+ const rememberJob=(id?:string)=>{try{if(id)window.sessionStorage.setItem(jobKey,id);else window.sessionStorage.removeItem(jobKey);}catch{/* the server record still prevents a duplicate post */}};
+ const savedJob=()=>{try{return window.sessionStorage.getItem(jobKey);}catch{return null;}};
  const loadRecord=useCallback(async()=>{
-  const next=await clubFetch<PublishRecord|null>(`/videos/${encodeURIComponent(video.id)}/postiz`);
-  setRecord(next);
+  const next=await clubFetch<(PublishRecord&{runningJobId?:string})|null>(`/videos/${encodeURIComponent(video.id)}/postiz`);
+  if(!alive.current)return;
+  setRecord(current=>next??current??null);if(next?.runningJobId)followRef.current(next.runningJobId);
   if(next?.state==='published'&&!published)void clubFetch<Video>(`/videos/${encodeURIComponent(video.id)}`).then(onVideo,()=>{});
  },[video.id,published,onVideo]);
- useEffect(()=>{void loadRecord().catch(()=>setRecord(null));},[video.id]);// eslint-disable-line react-hooks/exhaustive-deps
+ useEffect(()=>{
+  alive.current=true;
+  void (async()=>{
+   try{
+    await loadRecord();
+    const id=savedJob();if(!id||!alive.current||following.current)return;
+    const job=await clubFetch<JobSnapshot>(`/jobs/${encodeURIComponent(id)}`).catch(()=>undefined);
+    if(!alive.current)return;
+    if(!job){rememberJob();return;}
+    if(job.status==='running')followRef.current(id);else{rememberJob();if(job.status==='done')await loadRecord();}
+   }catch{if(alive.current){setRecord(null);setRun({phase:'failed',message:"Couldn't check whether this video is already being sent. Try again to check.",progress:null});}}
+  })();
+  return()=>{alive.current=false;};
+ },[video.id]);// eslint-disable-line react-hooks/exhaustive-deps
  // A video scheduled for later is not asked about until its time has come.
- const waiting=record?.state==='queued'&&(Boolean(record.unconfirmed)||!(record.scheduledFor&&new Date(record.scheduledFor).getTime()>Date.now()));
+ const waiting=(record?.state==='uploading'||record?.state==='posting'||record?.state==='queued')&&(Boolean(record.unconfirmed)||!(record.scheduledFor&&new Date(record.scheduledFor).getTime()>Date.now()));
  useEffect(()=>{if(!waiting)return;return visibleInterval(()=>void loadRecord().catch(()=>{}),RECHECK_MS);},[waiting,loadRecord]);
 
  // ---- the form
@@ -113,32 +133,42 @@ export function Publish({video,pkg,scenes,onVideo,onDescription,onTags,onGoTo,on
  const linkFormId=`ws-publish-link-${video.id}`;
  useEffect(()=>{if(selfUpload)uploadSection.current?.scrollIntoView?.({block:'nearest',behavior:'smooth'});},[selfUpload]);
  const stop=useRef<()=>void>(()=>{});
- useEffect(()=>()=>stop.current(),[]);
+ useEffect(()=>()=>{alive.current=false;stop.current();},[]);
  const schedule=when==='schedule'?scheduleTime(at,new Date()):null;
  const problem=publishProblem({connected:Boolean(publishing.state?.postiz.connected),channel:Boolean(publishing.state?.postiz.channel),exported,stale,kids,title})??(schedule&&'message' in schedule?schedule.message:null);
+ const follow=(id:string)=>{
+  if(!alive.current||following.current===id)return;
+  following.current=id;rememberJob(id);submitting.current=true;setRun({phase:'running',progress:null});stop.current();
+  stop.current=watchJob(id,event=>{
+   if(!alive.current||following.current!==id)return;
+   if(event.type==='progress'){if(event.reset){setRun({phase:'running',progress:null});return;}const progress=progressOf(event.data);if(progress)setRun({phase:'running',progress});return;}
+   following.current=null;submitting.current=false;rememberJob();
+   if(event.type==='done'){
+    setRun({phase:'idle'});setRecord(event.data as PublishRecord);
+    void loadRecord().catch(()=>{});
+    void clubFetch<Video>(`/videos/${encodeURIComponent(video.id)}`).then(next=>{if(alive.current){onVideo(next);notifyVideosChanged();}},()=>{});
+   }else{
+    const message=event.type==='failed'?failureMessage(event.data):'That was stopped.';
+    void clubFetch<PublishRecord|null>(`/videos/${encodeURIComponent(video.id)}/postiz`).then(now=>{
+     if(!alive.current)return;
+     if(now&&now.state!=='failed'){setRecord(now);setRun({phase:'idle'});}
+     else setRun(was=>({phase:'failed',message,progress:was.phase==='idle'?null:was.progress}));
+    },()=>{if(alive.current)setRun({phase:'failed',message,progress:null});});
+   }
+  });
+ };
+ followRef.current=follow;
  const submit=async()=>{
-  if(run.phase==='running')return;
+  if(submitting.current||run.phase==='running'||record===undefined)return;
+  // Retry an uncertain read before offering another irreversible request.
+  if(run.phase==='failed'&&run.message.startsWith("Couldn't check")){setRecord(undefined);try{await loadRecord();if(!following.current)setRun({phase:'idle'});}catch{setRecord(null);}return;}
   setTried(true);
   if(problem||!file||!kids){if(!kids){kidsField.current?.scrollIntoView?.({block:'center'});kidsField.current?.querySelector('input')?.focus();}return;}
-  setRun({phase:'running',progress:null});
+  submitting.current=true;setRun({phase:'running',progress:null});
   try{
    const started=await clubFetch<{id:string}>(`/videos/${encodeURIComponent(video.id)}/postiz`,{body:{exportId:file.id,title:title.trim(),description,tags,visibility,madeForKids:kids==='yes',...(schedule&&'iso' in schedule?{scheduledFor:schedule.iso}:{})}});
-   stop.current();
-   stop.current=watchJob(started.id,event=>{
-    if(event.type==='progress'){const progress=progressOf(event.data);if(progress)setRun({phase:'running',progress});}
-    else if(event.type==='done'){
-     const done=event.data as PublishRecord;
-     setRun({phase:'idle'});setRecord(done);
-     void clubFetch<Video>(`/videos/${encodeURIComponent(video.id)}`).then(next=>{onVideo(next);notifyVideosChanged();},()=>{});
-    }
-    else{
-     const message=event.type==='failed'?failureMessage(event.data):'That was stopped.';
-     // Postiz may have the post after all. Then the screen says so and offers Check again, never a second send.
-     const failed=()=>setRun(was=>({phase:'failed',message,progress:was.phase==='idle'?null:was.progress}));
-     void clubFetch<PublishRecord|null>(`/videos/${encodeURIComponent(video.id)}/postiz`).then(now=>{if(now&&now.state!=='failed'){setRecord(now);setRun({phase:'idle'});}else failed();},failed);
-    }
-   });
-  }catch(reason){setRun({phase:'failed',message:errorMessage(reason),progress:null});}
+   rememberJob(started.id);if(alive.current)follow(started.id);
+  }catch(reason){submitting.current=false;if(alive.current)setRun({phase:'failed',message:errorMessage(reason),progress:null});}
  };
 
  const scheduledDate=schedule&&'date' in schedule?schedule.date:null;
@@ -153,7 +183,7 @@ export function Publish({video,pkg,scenes,onVideo,onDescription,onTags,onGoTo,on
  const result:{info:ResultInfo}|null=published?{info:{state:'published',visibility:record?.visibility??'public',url:video.youtubeUrl,postizUrl:record?.postizUrl}}
   :record&&record.state!=='failed'?{info:{...record,state:record.state==='published'?'queued':record.state}}:null;
  const footerReason=!exported?(stale?'Export the latest edit first':'Export the video first'):problem;
- const publishAction=run.phase==='idle'&&!result?(postizReady?<>
+ const publishAction=record!==undefined&&run.phase==='idle'&&!result?(postizReady?<>
   {footerReason&&<span id="ws-publish-why" className="ws-why" role="status">{footerReason}</span>}
   <Button variant={footerReason?'secondary':'primary'} disabled={Boolean(footerReason)} aria-describedby={footerReason?'ws-publish-why':undefined} onClick={()=>void submit()}><Icon name={when==='now'?'upload':'calendar'} size={15}/>{when==='now'?'Publish now':'Schedule'}</Button>
  </>:selfUpload?<Button variant="primary" type="submit" form={linkFormId} disabled={!linkReady}>Done</Button>:!exported?<Button variant="primary" onClick={()=>onGoTo('edit')}>Export in Edit</Button>:<><Button onClick={()=>void copyDetails()}>Copy details</Button><a className="btn primary" href="https://www.youtube.com/upload" target="_blank" rel="noreferrer" onClick={()=>setSelfUpload(true)}><Icon name="open-external" size={15}/>Open YouTube</a></>):null;
@@ -187,7 +217,7 @@ export function Publish({video,pkg,scenes,onVideo,onDescription,onTags,onGoTo,on
 
  return <div className="pubx ws-publish">{head}{footerAction}
   <div className="pubx-grid"><div className="pub-sections">
-   <div className="pubx-form">
+   <div className="pubx-form" inert={writingPackage}>
     <div className="full"><label className="field" htmlFor="pub-title">Title</label><Input id="pub-title" maxLength={TITLE_MAX} value={title} onChange={event=>setTitle(event.target.value)}/></div>
     <div className="full"><label className="field" htmlFor="pub-desc">Description</label><Textarea id="pub-desc" rows={5} maxLength={DESCRIPTION_MAX} placeholder="What the viewer gets, then chapters." value={description}
      onChange={event=>setEdited(event.target.value)} onBlur={()=>{if(edited!==undefined&&edited!==pkg?.description)onDescription(edited);}}/>

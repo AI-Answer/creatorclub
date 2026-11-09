@@ -54,7 +54,7 @@ test('More opens a system menu with Borumi\'s items and returns the chosen one',
  const h=harness();let template:any[]=[];const Menu={buildFromTemplate:(t:any[])=>{template=t;return {popup:({callback}:any)=>{template[0].click();callback();}};}};const m=createRecordingHud({...h.opts,Menu});try{
   await opened(h,{status:'recording',cameraEnabled:true,script:'Read this'});
   const choice=await h.handlers.get('recording-hud-menu')!(h.hudEvent(),{mirror:true,showSources:true,scriptAvailable:true,mode:'ConstSpeed',speed:14,speeds:[8,10,12,14]});
-  assert.equal(choice,'mirror');assert.deepEqual(template.map(i=>i.label??i.type),['Mirror camera','Show sources','separator','Open script as separate window','Scrolling mode','Scrolling speed','separator','Close']);
+  assert.equal(choice,'mirror');assert.deepEqual(template.map(i=>i.label??i.type),['Mirror camera','Show sources','separator','Open script as separate window','Scrolling mode','Scrolling speed','separator','Show editor','Close']);
   assert.equal(template[0].checked,true);assert.deepEqual(template[4].submenu.map((i:any)=>i.label),['Manual','Voice follow (Enhanced)','Voice follow','Constant speed (Voice activated)','Constant speed']);assert.deepEqual(template[5].submenu.map((i:any)=>i.label),['8','10','12','14']);assert.equal(template[5].submenu[3].checked,true);
   assert.deepEqual(template[4].submenu.map((i:any)=>i.checked),[false,false,false,false,true]);assert.equal(template[5].enabled,true,'speeds are for the constant modes');
   await h.handlers.get('recording-hud-menu')!(h.hudEvent(),{scriptAvailable:true,voiceAvailable:false,mode:'VoiceOptimistic',speed:14,speeds:[14]});
@@ -215,4 +215,8 @@ test('"Open script as separate window" opens Borumi\'s script window; the island
   assert.equal(h.handlers.get('recording-hud-read')!(h.hudEvent(next.w)).scriptWindow,true);
   h.handlers.get('script-window-close')!(scriptEvent);assert.equal(script.dead,true);assert.deepEqual(next.w.webContents.messages.at(-1),['recording-hud-state',{scriptWindow:false}]);
  }finally{m.dispose();}
+});
+
+test('closing a ready HUD notifies the renderer to leave its waiting state',async()=>{
+ const h=harness(),m=createRecordingHud(h.opts);try{const one=await opened(h,{status:'ready'});let prevented=false;one.w.emit('close',{preventDefault:()=>{prevented=true;}});assert.equal(prevented,false);assert.deepEqual(h.main.webContents.messages.at(-1),['recording-hud-command','close']);}finally{m.dispose();}
 });

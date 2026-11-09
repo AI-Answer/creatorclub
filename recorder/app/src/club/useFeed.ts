@@ -1,7 +1,7 @@
 import {useAiAvailability,useAiAvailable} from './ai-status';
 import {useCallback,useEffect,useRef,useState} from 'react';
 import type {SignalsRefreshResult,SignalsResponse,TrendingRefreshResult,TrendingResponse} from '../../shared/club';
-import {clubFetch,errorMessage} from './api';
+import {ClubApiError,clubFetch,errorMessage} from './api';
 import {needsSeed} from './trending-view';
 import {useJobRun,type JobRun} from './useJobRun';
 
@@ -30,7 +30,7 @@ function useFeed<Data,Result>(path:string,fallback:string):Feed<Data,Result>{
  },[path,fallback]);
  useEffect(()=>{void reload();return()=>{latest.current++;};},[reload]);
  const refresh=useCallback((onDone?:(result:Result)=>void,body?:object)=>{
-  if(!aiAvailable)return;
+  if(!aiAvailable){void run(()=>Promise.reject(new ClubApiError('Connect an AI in Settings.')));return;}
   // The finished callback runs once the new list is on screen, so whoever waits for it sees the new results.
   void run(()=>clubFetch(`${path}/refresh`,{method:'POST',...(body?{body}:{})}),result=>{void reload().then(()=>onDone?.(result as Result));});
  },[path,reload,run,aiAvailable]);
@@ -45,11 +45,14 @@ export function useTrending(){
  const {known,available:aiAvailable}=useAiAvailability();
  const feed=useFeed<TrendingResponse,TrendingRefreshResult>('/trending',"Couldn't load what's working now.");
  const {data,refresh,job}=feed;
- const started=useRef(false);
+ const started=useRef(false),wasAvailable=useRef(aiAvailable);
+ const reconnected=useRef(false);
+ if(!wasAvailable.current&&aiAvailable)reconnected.current=true;
+ wasAvailable.current=aiAvailable;
  const due=data!==null&&needsSeed(data);
  // Allow a later availability change to retry, without looping on a failed job.
- useEffect(()=>{if(job.phase==='failed')started.current=false;},[job.phase]);
- useEffect(()=>{if(known&&aiAvailable&&due&&!started.current){started.current=true;refresh();}},[known,aiAvailable,due,refresh]);
- return {...feed,seeding:job.phase==='running'||(known&&aiAvailable&&due&&job.phase==='idle')};
+ useEffect(()=>{if(job.phase==='failed'||job.phase==='cancelled')started.current=false;},[job.phase]);
+ useEffect(()=>{if(known&&aiAvailable&&due&&(job.phase==='idle'||reconnected.current)&&!started.current){started.current=true;reconnected.current=false;refresh();}},[known,aiAvailable,due,refresh,job.phase]);
+ return {...feed,seeding:(job.phase==='starting'||job.phase==='running')||(known&&aiAvailable&&due&&job.phase==='idle')};
 }
 export const useSignals=()=>useFeed<SignalsResponse,SignalsRefreshResult>('/signals',"Couldn't load the posts.");

@@ -1,6 +1,6 @@
 import {useCallback,useEffect,useRef,useState} from 'react';
 import type {Video} from '../../shared/club';
-import {clubFetch,errorMessage,notifyVideosChanged} from './api';
+import {captureWorkspace,clubFetch,errorMessage,notifyVideosChanged} from './api';
 import type {Route} from './routes';
 import {useToast} from './ui';
 
@@ -30,14 +30,14 @@ export function useIdeaFrom(videos:readonly Video[],navigate:(route:Route)=>void
   const existing=ideaFromSource(videos,url);
   if(existing){toast('Already in your ideas',{action:open(existing.id)});return;}
   if(busy.current.has(url))return;
-  mark(url,true);
+  mark(url,true);const workspace=captureWorkspace();
   try{
-   const idea=await clubFetch<Video>(source.kind==='trending'?'/trending/idea':'/signals/idea',{body:source.kind==='trending'?{videoId:source.videoId}:{id:source.id}});
+   const idea=await clubFetch<Video>(source.kind==='trending'?'/trending/idea':'/signals/idea',{body:source.kind==='trending'?{videoId:source.videoId}:{id:source.id},workspace:await workspace});
    // The lists (this screen's "In ideas", the ideas count, the sidebar) read the videos again now, not after the next refresh.
    notifyVideosChanged();
    toast('Added to your ideas',{action:open(idea.id),undo:()=>{
     mark(url,false);
-    clubFetch(`/videos/${encodeURIComponent(idea.id)}`,{method:'DELETE'}).catch(reason=>{toast(errorMessage(reason,"Couldn't take that idea out."));});
+    workspace.then(scope=>clubFetch(`/videos/${encodeURIComponent(idea.id)}`,{method:'DELETE',workspace:scope})).catch(reason=>{toast(errorMessage(reason,"Couldn't take that idea out."));});
    }});
   }catch(reason){mark(url,false);toast(errorMessage(reason,"Couldn't add that idea."));}
  },[videos,navigate,toast,mark]);

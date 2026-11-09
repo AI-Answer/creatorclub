@@ -1,39 +1,31 @@
-import {useSyncExternalStore} from 'react';
-import {clubFetch,errorMessage} from './api';
+import {useMemo,useSyncExternalStore} from 'react';
+import {captureWorkspace,clubFetch,currentClubWorkspace} from './api';
+import {deferDelete} from './deferred-delete';
 import {TOAST_MS} from './ui';
-
-/*
- * Deleting an idea can be undone for as long as its toast shows. The server has no way to bring a video back, so the request is held
- * back instead: the video is hidden at once and deleted when the toast has gone. Undo cancels the request.
- * Closing the app before then keeps the idea, which is the safe side of the two.
- */
-
-const pending=new Map<string,ReturnType<typeof setTimeout>>();
-// Ideas the server has deleted. They stay hidden for the rest of the session: lists load again just after a delete, and one that was read
-// before the delete finished would bring the idea back for a moment. Ids are random, so none is ever reused.
-const deleted=new Set<string>();
-let snapshot:ReadonlySet<string>=new Set();
-const listeners=new Set<()=>void>();
-const publish=()=>{snapshot=new Set([...pending.keys(),...deleted]);listeners.forEach(listener=>listener());};
-const subscribe=(listener:()=>void)=>{listeners.add(listener);return()=>{listeners.delete(listener);};};
-
-/** How long the delete waits: the time a toast with a button stays up. */
 export const DELETE_DELAY_MS=TOAST_MS.withButton;
-
-/** Ids of videos that are deleted soon unless undone, or already deleted. Lists leave these out. */
-export const usePendingDeletes=()=>useSyncExternalStore(subscribe,()=>snapshot);
-
-/** Hides a video and deletes it after `delay`. Returns Undo. `onFailed` gets one sentence when the server refuses; the video comes back then. */
-export function deleteLater(id:string,onFailed:(message:string)=>void,delay=DELETE_DELAY_MS):()=>void{
- if(pending.has(id))return()=>{};
- let sent=false;
- const timer=setTimeout(()=>{
-  sent=true;
-  clubFetch(`/videos/${encodeURIComponent(id)}`,{method:'DELETE'}).then(()=>{deleted.add(id);},reason=>onFailed(errorMessage(reason,"Couldn't delete that idea."))).finally(()=>{pending.delete(id);publish();});
- },delay);
- pending.set(id,timer);publish();
- return()=>{
-  if(sent||pending.get(id)!==timer)return;
-  clearTimeout(timer);pending.delete(id);publish();
+/** A separate instance per kind, with channel-scoped identities and one deletion lifecycle. */
+export function pendingDeleteStore(){
+ const pending=new Map<string,()=>void>(),deleted=new Set<string>();
+ let snapshot:ReadonlySet<string>=new Set();
+ const listeners=new Set<()=>void>();
+ const publish=()=>{snapshot=new Set([...pending.keys(),...deleted]);listeners.forEach(listener=>listener());};
+ const subscribe=(listener:()=>void)=>{listeners.add(listener);return()=>{listeners.delete(listener);};};
+ return {
+  useIds(){return useSyncExternalStore(subscribe,()=>snapshot);},
+  remove(key:string,send:()=>Promise<unknown>,onFailed:(message:string)=>void,delay:number,fallback?:string){
+   const existing=pending.get(key);if(existing)return existing;
+   const undo=deferDelete({send,onFailed,delay,fallback,onUndo:()=>{pending.delete(key);publish();},onSettled:gone=>{if(gone)deleted.add(key);pending.delete(key);publish();}});
+   pending.set(key,undo);publish();return undo;
+  },
  };
+}
+const videos=pendingDeleteStore();
+export const deleteScope=()=>currentClubWorkspace()??'';
+export const usePendingDeletes=()=>{
+ const all=videos.useIds(),prefix=`${deleteScope()}/`;
+ return useMemo(()=>new Set([...all].filter(key=>key.startsWith(prefix)).map(key=>key.slice(prefix.length))),[all,prefix]);
+};
+export function deleteLater(id:string,onFailed:(message:string)=>void,delay=DELETE_DELAY_MS):()=>void{
+ const scope=deleteScope(),workspace=captureWorkspace();
+ return videos.remove(`${scope}/${id}`,async()=>clubFetch(`/videos/${encodeURIComponent(id)}`,{method:'DELETE',workspace:await workspace}),onFailed,delay,"Couldn't delete that idea.");
 }

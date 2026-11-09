@@ -95,13 +95,13 @@ export const Stage=memo(function Stage({project:p,playhead,playing,playbackRate=
    const at=(c:Project['clips'][number])=>time>=c.start&&time<c.start+(c.sourceOut-c.sourceIn)/c.speed;
    const c=onTransform?p.clips.find(x=>x.id===selected&&(x.track==='camera'||x.track==='screen'||x.track==='overlay')):undefined;
    // Inside a layout stretch the stretch places the clip: it changes in the Layout panel, not by hand.
-   if(c&&at(c))return followsLayout(c)&&layoutAt(p,time)?null:<StageHandles box={c.transform} onChange={(box,phase)=>onTransform!(c.id,box,phase)}/>;
+   if(c&&at(c))return followsLayout(c)&&layoutAt(p,time)?null:<StageHandles key={c.id} itemKey={`${p.id}:${c.id}`} box={c.transform} onChange={(box,phase)=>onTransform!(c.id,box,phase)}/>;
    // A selected zoom: a box over the clip it zooms shows where it looks; drag it to aim, a corner to zoom closer or wider.
    const z=onZoom?p.zooms.find(x=>x.id===selected):undefined,under=z&&p.clips.find(x=>x.track===z.target&&at(x));
    if(!z||!under)return null;
    const t=layoutTransform(p,under,time),size=1/Math.max(1,z.scale);
    return <div className="stage-zoom-area" style={{left:`${t.x*100}%`,top:`${t.y*100}%`,width:`${t.width*100}%`,height:`${t.height*100}%`}}>
-    <StageHandles className="is-zoom" title="Drag to aim the zoom · drag a corner to zoom closer or wider" box={{x:z.x-size/2,y:z.y-size/2,width:size,height:size}}
+    <StageHandles key={z.id} itemKey={`${p.id}:${z.id}`} className="is-zoom" title="Drag to aim the zoom · drag a corner to zoom closer or wider" box={{x:z.x-size/2,y:z.y-size/2,width:size,height:size}}
      onChange={box=>onZoom!(z.id,{x:Math.min(1,Math.max(0,box.x+box.width/2)),y:Math.min(1,Math.max(0,box.y+box.height/2)),scale:Math.min(4,Math.max(1.05,1/box.width))})}/>
    </div>;
   })()}

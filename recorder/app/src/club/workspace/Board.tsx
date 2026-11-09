@@ -1,3 +1,4 @@
+import type {BoardSelection} from './selection';
 import {useEffect,useLayoutEffect,useMemo,useRef,useState,type ClipboardEvent,type DragEvent,type FormEvent,type PointerEvent as ReactPointerEvent,type KeyboardEvent} from 'react';
 import {CHANNEL_BOARD,type BoardFrame,type ClubSettings,type ResearchTile,type StartedVideo,type Video} from '../../../shared/club';
 import {clubFetch,errorMessage,notifyVideosChanged} from '../api';
@@ -32,6 +33,7 @@ import type {Route} from '../routes';
 
 const isImage=(file:File)=>/^image\//.test(file.type)||/\.(png|jpe?g|gif|webp|heic)$/i.test(file.name);
 const NOT_SUPPORTED='Drop an image, a Markdown file, or paste a link.';
+const EMPTY_SELECTION_IDS:string[]=[];
 const INTERACTIVE='button,a,textarea,input,select,[role="button"],[contenteditable="true"]';
 const TYPING='input,textarea,select,[contenteditable="true"]';
 const KIND_NAME:Record<ResearchTile['kind'],string>={note:'Note',video:'Video',breakdown:'Breakdown',signal:'Post',link:'Link',image:'Image',text:'Text',idea:'The idea',mine:'Your video'};
@@ -93,10 +95,14 @@ export function Board({video,board:boardProp,refreshKey=0,navigate=NO_NAVIGATE,o
  const toast=useToast();
  const {view,viewNow,setView,canvasEl,scroller,onMotion}=useBoardMotion(boardId);
  const zoom=view.z;
- const [sel,setSel]=useState<string[]>([]),[dragId,setDragId]=useState<string|null>(null);
- const [selLink,setSelLink]=useState<string|null>(null),[selFrame,setSelFrame]=useState<string|null>(null);
+ const [selection,setSelection]=useState<BoardSelection>({kind:'none'});
+ const sel=selection.kind==='cards'?selection.ids:EMPTY_SELECTION_IDS,selLink=selection.kind==='link'?selection.id:null,selFrame=selection.kind==='frame'?selection.id:null,connectFrom=selection.kind==='connect'?selection.id:null;
+ const setSel=(next:string[]|((current:string[])=>string[]))=>setSelection(current=>{const ids=typeof next==='function'?next(current.kind==='cards'?current.ids:[]):next;return ids.length?{kind:'cards',ids}:current.kind==='cards'?{kind:'none'}:current;});
+ const selectOne=(kind:'link'|'frame'|'connect',id:string|null)=>setSelection(current=>id?{kind,id}:current.kind===kind?{kind:'none'}:current);
+ const setSelLink=(id:string|null)=>selectOne('link',id),setSelFrame=(id:string|null)=>selectOne('frame',id),setConnectFrom=(id:string|null)=>selectOne('connect',id);
+ const [dragId,setDragId]=useState<string|null>(null);
  const [editLink,setEditLink]=useState<string|null>(null),[editFrame,setEditFrame]=useState<string|null>(null);
- const [marquee,setMarquee]=useState<Box|null>(null),[drawing,setDrawing]=useState<{from:string;to:{x:number;y:number}}|null>(null),[connectFrom,setConnectFrom]=useState<string|null>(null);
+ const [marquee,setMarquee]=useState<Box|null>(null),[drawing,setDrawing]=useState<{from:string;to:{x:number;y:number}}|null>(null);
  const [heights,setHeights]=useState<Record<string,number>>({});
  const [linkOpen,setLinkOpen]=useState(false),[link,setLink]=useState('');
  const [tip,setTip]=useState<null|'first'|'again'>(null),[fresh,setFresh]=useState<string|null>(null);
@@ -138,7 +144,7 @@ export function Board({video,board:boardProp,refreshKey=0,navigate=NO_NAVIGATE,o
  const count=tiles?.length??0;
  const reportTiles=useRef(onTiles);reportTiles.current=onTiles;
  useEffect(()=>{if(tiles)reportTiles.current?.(tiles);},[tiles]);
- const canvas=useCanvas(boardId,refreshKey+board.changes);
+ const canvas=useCanvas(boardId,refreshKey+board.changes,(kind,before,after)=>setSelection(current=>current.kind==='none'||current.kind===kind&&current.id===before?{kind,id:after}:current));
  const {links,frames}=canvas.canvas;
  const files=useBoardFiles(boardId,filesTick+board.changes);
  const videos=useVideos();
@@ -228,8 +234,8 @@ export function Board({video,board:boardProp,refreshKey=0,navigate=NO_NAVIGATE,o
     now.el.style.transform='';for(const el of now.els.values())el.style.transform='';
     const at=dragTo(now.start,dx,dy,gestureZoom);
     if(at.x!==now.start.x||at.y!==now.start.y){
-     canvas.changeFrame(now.id,at);
-     for(const [id,from] of now.members)board.place(id,moveBy(from,{dx:at.x-now.start.x,dy:at.y-now.start.y}),'now');
+     const moved=new Map([...now.members].map(([id,from])=>[id,moveBy(from,{dx:at.x-now.start.x,dy:at.y-now.start.y})]));
+     saveFrameMove(now.id,at,now.members,moved);
     }
    }else if(now.kind==='resize'){
     if(now.size.w!==now.start.w||now.size.h!==now.start.h)canvas.changeFrame(now.id,now.size);
@@ -335,15 +341,34 @@ export function Board({video,board:boardProp,refreshKey=0,navigate=NO_NAVIGATE,o
   event.preventDefault();
   moveSelection(move,sel.includes(tileId)?sel:[tileId]);
  };
+ type FramePlace={x:number;y:number};
+ const frameMoves=useRef(new Map<string,{confirmed:Map<string,FramePlace>;last:Map<string,{pos:FramePlace;version:number}>;left:number;saved:boolean}>());
+ const saveFrameMove=(id:string,patch:Partial<BoardFrame>,before:Map<string,FramePlace>,moved:Map<string,FramePlace>)=>{
+  let group=frameMoves.current.get(id);
+  if(!group){group={confirmed:new Map(before),last:new Map(),left:0,saved:false};frameMoves.current.set(id,group);}
+  for(const [card,pos] of before)if(!group.confirmed.has(card))group.confirmed.set(card,pos);
+  group.left++;
+  for(const [card,pos] of moved)group.last.set(card,{pos,version:board.preview(card,pos)});
+  const attempt=group;
+  void canvas.changeFrame(id,patch).then(ok=>{
+   if(ok){attempt.saved=true;for(const [card,pos] of moved)attempt.confirmed.set(card,pos);}
+   if(--attempt.left)return;
+   frameMoves.current.delete(id);
+   for(const [card,last] of attempt.last)board.settlePreview(card,last.pos,attempt.confirmed.get(card)!,attempt.saved,last.version);
+  });
+ };
+ const moveFrame=(frame:BoardFrame,move:{dx:number;dy:number})=>{
+  const delta=groupDelta([frame],move.dx,move.dy),members=(tiles??[]).filter(tile=>inFrame(frame,tiles??[]).includes(tile.id));
+  const before=new Map(members.map(tile=>[tile.id,tileBox(tile)]));
+  saveFrameMove(frame.id,moveBy(frame,delta),before,new Map([...before].map(([id,pos])=>[id,moveBy(pos,delta)])));
+ };
  const onFrameKey=(event:KeyboardEvent<HTMLElement>,frame:BoardFrame)=>{
   if(event.target!==event.currentTarget)return;
   if(event.key==='Enter'){event.preventDefault();setEditFrame(frame.id);return;}
   if(event.metaKey||event.ctrlKey)return;
   const move=keyMove(event.key,event.shiftKey);if(!move)return;
   event.preventDefault();
-  const delta=groupDelta([frame],move.dx,move.dy),at=moveBy(frame,delta);
-  canvas.changeFrame(frame.id,at);
-  moveSelection(delta,inFrame(frame,tiles??[]));
+  moveFrame(frame,move);
  };
 
  /** Delete: whatever is selected goes, with Undo. Esc: the selection is cleared (and a connection being made is let go). */
@@ -365,7 +390,7 @@ export function Board({video,board:boardProp,refreshKey=0,navigate=NO_NAVIGATE,o
   if(!mod&&key==='t'){event.preventDefault();void addHere({kind:'text',text:'Text'});return;}
   if(mod&&key==='f'){event.preventDefault();setSearch('');return;}
   const move=keyMove(event.key,event.shiftKey);
-  if(move&&target===event.currentTarget){event.preventDefault();if(selFrame){const frame=frames.find(each=>each.id===selFrame);if(frame){const delta=groupDelta([frame],move.dx,move.dy);canvas.changeFrame(frame.id,moveBy(frame,delta));moveSelection(delta,inFrame(frame,tiles??[]));}}else moveSelection(move,sel);return;}
+  if(move&&target===event.currentTarget){event.preventDefault();if(selFrame){const frame=frames.find(each=>each.id===selFrame);if(frame)moveFrame(frame,move);}else moveSelection(move,sel);return;}
   if(event.key!=='Delete'&&event.key!=='Backspace')return;
   if(selLink){event.preventDefault();canvas.unlink(selLink);setSelLink(null);return;}
   if(selFrame){event.preventDefault();canvas.removeFrame(selFrame);setSelFrame(null);return;}
