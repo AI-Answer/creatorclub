@@ -26,11 +26,11 @@ export function TagsField({tags,onChange}:{tags:readonly string[];onChange(next:
  </div>;
 }
 
-/** The package as YouTube will show it: the thumbnail, the title, who can watch and when, the description and the tags. */
-export function PackageSummary({video,thumbnailText,thumbnailUrl,channel,visibility,when,title,description,tags}:{video:Video;thumbnailText?:string;thumbnailUrl:string|null;channel?:string;visibility:PublishVisibility;when:Date|null;title:string;description:string;tags:readonly string[]}){
- return <aside aria-label="How it will look"><div className="sec-h"><h2>How it will look</h2></div>
+/** The package as YouTube will show it: the video (or its thumbnail), the title, who can watch and when, the description and the tags. */
+export function PackageSummary({video,thumbnailText,thumbnailUrl,player,menu,channel,visibility,when,title,description,tags}:{video:Video;thumbnailText?:string;thumbnailUrl:string|null;/** The video itself, in place of the thumbnail. */player?:ReactNode;menu?:ReactNode;channel?:string;visibility:PublishVisibility;when:Date|null;title:string;description:string;tags:readonly string[]}){
+ return <aside aria-label="How it will look"><div className="sec-h"><h2>How it will look</h2>{menu}</div>
   <div className="pubx-yt">
-   {thumbnailUrl?<img className="ws-publish-thumb" src={thumbnailUrl} alt={thumbnailText||`Thumbnail for ${title||video.title}`}/>:<div className="ws-publish-placeholder"><Icon name="image" size={20}/><span>No thumbnail yet</span></div>}
+   {player??(thumbnailUrl?<img className="ws-publish-thumb" src={thumbnailUrl} alt={thumbnailText||`Thumbnail for ${title||video.title}`}/>:<div className="ws-publish-placeholder"><Icon name="image" size={20}/><span>No thumbnail yet</span></div>)}
    <div className="yt-t">{title||'Untitled'}</div>
    <div className="yt-m">{[channel,visibilityWord(visibility),when?whenText(when):'Goes live when you upload it'].filter(Boolean).join(' · ')}</div>
    {description?<div className="yt-d">{description}</div>:<div className="yt-m">No description yet.</div>}
@@ -86,7 +86,7 @@ export const SELF_UPLOAD_LINE='Add the link so Creator Compiler can mark it Publ
  * For a video uploaded outside Creator Compiler: a quiet "I uploaded it myself" that opens the link field. Never a main option; Publish shows it
  * only when Postiz is not set up, or when a post is stuck. `open` shows the field at once, for the stuck case, with `line` saying why.
  */
-export function SelfUpload({video,onVideo,label='Upload it yourself',line=SELF_UPLOAD_LINE,open=false,onOpen,formId,onSubmitReady,note}:{video:Video;onVideo(video:Video):void;label?:string;line?:string;open?:boolean;onOpen?():void;formId?:string;onSubmitReady?(ready:boolean):void;/** A quiet line under the button while the form is closed. */note?:ReactNode}){
+export function SelfUpload({video,onVideo,label='Add the YouTube link',line=SELF_UPLOAD_LINE,open=false,onOpen,formId,onSubmitReady,note}:{video:Video;onVideo(video:Video):void;label?:string;line?:string;open?:boolean;onOpen?():void;formId?:string;onSubmitReady?(ready:boolean):void;/** A quiet line under the button while the form is closed. */note?:ReactNode}){
  const [shown,setShown]=useState(open);
  useEffect(()=>{if(open)setShown(true);},[open]);
  if(!shown)return <>

@@ -10,6 +10,7 @@ import {latestVideoExport} from '../recorder/edit-steps';
 import {ErrorLine} from '../ErrorLine';
 import {IdeaPage} from '../idea/IdeaPage';
 import {SECTION_NAME,type SectionKey} from '../idea/idea-logic';
+import {emptyOnePager} from '../idea/onepager';
 import {type Route,type VideoTab} from '../routes';
 import {useVideoScenes} from '../scenes';
 import {Button,EmptyState,Icon,Spinner,useToast} from '../ui';
@@ -39,6 +40,7 @@ export function Workspace({video,tab,back,navigate,onVideo}:{video:Video;tab:Vid
  const id=encodeURIComponent(video.id);
  const tabRoute=useCallback((next:VideoTab):Route=>({name:'video',id:video.id,tab:next}),[video.id]);
  const plan=usePlan(video,{onVideo,onRecord:()=>navigate(tabRoute('record'))});
+ const sketchNow=plan.onepager??emptyOnePager();
  const scenes=useVideoScenes(video.id);
  const [focusId,setFocusId]=useState<string|null>(null),[pickN,setPickN]=useState(0);
  const pkgNow=useRef(plan.pkg);pkgNow.current=plan.pkg;
@@ -208,7 +210,8 @@ export function Workspace({video,tab,back,navigate,onVideo}:{video:Video;tab:Vid
    {tab==='publish'&&scenes.state.status==='loading'&&video.stage!=='published'&&<div className="flex flex-1 items-center justify-center" style={{padding:'64px 0'}}><span className="row small muted" role="status"><Spinner label="Loading the scenes" size={20}/>Loading the scenes…</span></div>}
    {tab==='publish'&&(scenes.state.status!=='loading'||video.stage==='published')&&<Publish onExported={onExported} video={video} pkg={plan.pkg} scenes={list} onVideo={onVideo} onSettings={()=>navigate({name:'settings',section:'publishing'})} onGoTo={target=>navigate(tabRoute(target))}
     saveError={plan.saveError} onRetry={plan.retrySave} onDescription={description=>plan.editPackage({...(pkgNow.current??EMPTY_PACKAGE),description})}
-    onTags={tags=>{plan.editPackage({...(pkgNow.current??EMPTY_PACKAGE),tags});void plan.flush().catch(()=>{});}}/>}
+    onTags={tags=>{plan.editPackage({...(pkgNow.current??EMPTY_PACKAGE),tags});void plan.flush().catch(()=>{});}}
+    studio={{sketch:sketchNow,onThumb:(key,text)=>plan.editOnepager({...sketchNow,thumbnail:{...sketchNow.thumbnail,[key]:text}}),onSave:plan.flushOnepager,onRefresh:()=>void plan.refresh()}}/>}
   </div>
   </div>
   <Companion videoId={video.id} selection={tab==='idea'?boardSelection:undefined} videoTitle={video.title} videoWhy={video.idea?.why} part={tab==='idea'&&ideaPart?{key:ideaPart==='sketch'?'onepager':ideaPart,name:SECTION_NAME[ideaPart]}:undefined} boardKey={boardKey} tab={tab} scene={companionScene} screen={screen} pkg={plan.pkg} outline={plan.outline} scenes={list} onChanged={companionChanged} beforeApply={plan.flush} editor={companionEditor} roomy={tab==='record'}/>

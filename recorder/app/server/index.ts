@@ -178,6 +178,8 @@ const downloadExport=route(async(req,res)=>{
  const stream=file.handle.createReadStream({autoClose:true});stream.on('error',()=>res.destroy());res.on('close',()=>stream.destroy());return stream.pipe(res);
 });
 app.get('/api/exports/:id/download',downloadExport);
+// Publish plays the exported video. sendFile answers range requests, so the player can seek; the path comes from the export record, never the request.
+app.get('/api/exports/:id/video',route(async(req,res)=>{const record=await exportsStore.get(param(req));if(record.status!=='complete'||record.output.status!=='available'||!record.outputPath)return res.status(404).json({error:'This export is not available.'});return res.sendFile(record.outputPath,{dotfiles:'allow'});}));
 app.get('/api/jobs',route(async(_,res)=>{const durable=await exportsStore.list(),ids=new Set(durable.map(j=>j.id));return res.json([...durable,...media.listJobs().filter(j=>!ids.has(j.id))]);}));
 app.get('/api/jobs/:id',route(async(req,res)=>{try{return res.json(await exportsStore.get(param(req)));}catch(e){if((e as {status?:number}).status!==404)throw e;}const j=media.getJob(param(req));return res.status(j?200:404).json(j||{error:'Job not found'});}));
 app.delete('/api/jobs/:id',route(async(req,res)=>{try{return res.json(await exportsStore.cancel(param(req)));}catch(e){if((e as {status?:number}).status!==404)throw e;}const j=media.cancelJob(param(req));return res.status(j?200:404).json(j||{error:'Job not found'});}));

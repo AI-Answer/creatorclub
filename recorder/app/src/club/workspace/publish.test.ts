@@ -57,13 +57,14 @@ async function withPublish(options:{state?:object;record?:object|null;reply?:Par
  try{await flush();await run(ui,server,changes);}finally{await ui.close();server.restore();}
 }
 
-test('Publish: the export line, Postiz connected, the form YouTube asks for, and Publish now as the one primary',async()=>{
+test('Publish: the exported video in the preview, Postiz connected, the form YouTube asks for, and Publish now as the one primary',async()=>{
  await withPublish({},async ui=>{
   const c=ui.container,text=c.textContent??'';
   assert.ok(text.includes('Send your video to YouTube now, or schedule it for later.'));
-  assert.ok(text.includes('Exported')&&text.includes('Hidden features-e1.mp4'),'the newest export');
+  assert.equal(c.querySelector('aside video')?.getAttribute('src'),'/api/exports/e1/video','the newest export plays in the preview');
+  assert.ok(!text.includes('Hidden features-e1.mp4'),'no file name');
   assert.ok(c.querySelector('aside')?.textContent?.includes('Samin Yasar'),'the channel it goes to is named in the preview');
-  assert.deepEqual([...c.querySelectorAll('.pub-section h3')].map(h=>h.textContent),['Export the video','Check the details','Upload to YouTube'],'three sections, in order');
+  assert.ok(text.includes('Goes to Samin Yasar with Postiz.'),'one quiet line says how it gets there');
   assert.equal(field(c,'pub-title').value,video.title);
   assert.equal((c.querySelector('#pub-desc') as HTMLTextAreaElement).value,'You never opened this.\n\nMost people use one feature.','no chapters until the timeline is read');
   assert.equal(c.querySelector('#pub-vis')?.textContent,'Public');
@@ -71,7 +72,7 @@ test('Publish: the export line, Postiz connected, the form YouTube asks for, and
   assert.deepEqual(primaries(c),[],'a disabled action has neutral styling');
   await click(c.querySelector('input[name=kids][value=no]'));
   assert.deepEqual(primaries(c),['Publish now']);
-  assert.ok(c.querySelector('aside[aria-label="How it will look"]')?.textContent?.includes('No thumbnail yet'),'the neutral preview says when no thumbnail exists');
+  assert.ok(text.includes('Without one, YouTube picks a frame.'),'the thumbnail field says what happens without one');
   assert.ok(!c.textContent?.includes('Mark as published'),'pasting a link is behind a link');
   assert.ok(!/Borumi|successfully|please|!/i.test(text));
  });
@@ -158,11 +159,11 @@ test('without Postiz connected Publish says so and sends you to Settings: the ke
   await click(c.querySelector('input[name=kids][value=no]'));
   assert.equal(c.querySelector('button[aria-label="Publish now"]'),null);
   assert.equal(c.querySelector('#ws-publish-action a')?.textContent?.trim(),'Open YouTube');
-  assert.ok(c.textContent?.includes('These details are saved here for you to paste into YouTube.'));
+  assert.ok(c.textContent?.includes('Copy the details, upload on YouTube, then add the link here.'));
   assert.equal(posts(server.calls).length,0);
   assert.ok(!c.textContent?.includes("Postiz is optional"));
   assert.equal(c.querySelector('#postiz-key'),null,'no key field on Publish: it lives in Settings');
-  await click(button(c,'Open Settings'));
+  await click(button(c,'Publish from here instead'));
   assert.deepEqual(settingsAsked,['publishing'],'the button opens Settings at Publishing');
  });
 });
@@ -195,7 +196,7 @@ test('a post Postiz did not confirm shows Check again and Open in Postiz, and ne
   assert.ok(c.querySelector('a[href^="https://platform.postiz.com"]'),'Open in Postiz');
   assert.equal([...c.querySelectorAll('button')].some(b=>b.textContent==='Try again'),false,'no Try again');
   assert.equal(c.querySelector('#pub-title'),null,'no form to send it again');
-  await click(button(c,'Upload it yourself'));
+  await click(button(c,'Add the YouTube link'));
   assert.ok(c.textContent?.includes('Add the link so Creator Compiler can mark it Published.'),'a quiet way out for an unconfirmed post');
   assert.equal(posts(server.calls).length,1);
   record={...sent,state:'queued',url:undefined};
@@ -254,7 +255,7 @@ test('Postiz saying published is not "on YouTube" until the video really is Publ
 
 test('with Postiz connected and working, the form also offers adding a link by hand',async()=>{
  await withPublish({},async ui=>{
-  assert.equal([...ui.container.querySelectorAll('button')].some(b=>/Upload it yourself|Paste the link/i.test(b.textContent??'')),true);
+  assert.equal([...ui.container.querySelectorAll('button')].some(b=>/Add the YouTube link/i.test(b.textContent??'')),true);
  });
 });
 
@@ -266,7 +267,7 @@ test('without Postiz, a video uploaded outside Creator Compiler can still be mar
   }
  }},async(ui,server,changes)=>{
   const c=ui.container;
-  await click(button(c,'Upload it yourself'));
+  await click(button(c,'Add the YouTube link'));
   assert.ok(c.textContent?.includes('Add the link so Creator Compiler can mark it Published.'));
   assert.equal(button(c,'Mark as published').disabled,true,'needs a link first');
   const link=field(c,'club-youtube-link');
@@ -298,7 +299,8 @@ test('no exported video yet says where to export it',async()=>{
  const goes:string[]=[];
  await withPublish({reply:({path})=>path.startsWith('/api/exports')?{body:{jobs:[],nextOffset:null}}:undefined,props:{onGoTo:(tab:string)=>goes.push(tab)}},async ui=>{
   const c=ui.container;
-  assert.ok(c.textContent?.includes('No exported video yet'));
+  assert.ok(c.textContent?.includes("Your video shows here once it's exported."));
+  assert.equal(c.querySelector('aside video'),null);
   await click(button(c,'Export it in Edit'));
   assert.deepEqual(goes,['edit']);
   await click(c.querySelector('input[name=kids][value=no]'));await click(button(c,'Publish now'));
@@ -309,13 +311,13 @@ test('no exported video yet says where to export it',async()=>{
 test('your own thumbnail is uploaded with the video and can be removed',async()=>{
  await withPublish({},async(ui,server)=>{
   const c=ui.container;
-  assert.ok(c.textContent?.includes('YouTube picks a frame unless you add one.'));
+  assert.ok(c.textContent?.includes('Without one, YouTube picks a frame.'));
   const input=c.querySelector('input[type=file]') as HTMLInputElement;
   assert.equal(input.accept,'image/png,image/jpeg');
   Object.defineProperty(input,'files',{configurable:true,value:[new File([new Uint8Array([1,2,3])],'mine.png',{type:'image/png'})]});
   await act(async()=>{input.dispatchEvent(new Event('change',{bubbles:true}));});await flush();
   assert.equal(server.calls.filter(call=>call.method==='POST'&&call.path==='/videos/v1/thumbnail').length,1);
-  assert.ok(c.textContent?.includes('Your own image.'));
+  assert.ok(c.textContent?.includes('Shown before the video plays.'));
   await click(button(c,'Remove'));await flush();
   assert.equal(server.calls.filter(call=>call.method==='DELETE'&&call.path==='/videos/v1/thumbnail').length,1);
   assert.ok(c.textContent?.includes('YouTube picks a frame'));
@@ -385,7 +387,7 @@ test('manual publishing footer follows export, upload and adding the link, witho
  const tabs:string[]=[];
  await withPublish({state:notConnected,props:{onGoTo:(tab:string)=>tabs.push(tab)},reply:call=>call.path.startsWith('/api/exports?')?{body:{jobs:[],nextOffset:null}}:undefined},async(ui,server)=>{
   const c=ui.container;
-  assert.ok(c.textContent?.includes('These details are saved here for you to paste into YouTube.'));
+  assert.ok(c.textContent?.includes('Copy the details, upload on YouTube, then add the link here.'));
   await click(button(c,'Export in Edit'));
   assert.deepEqual(tabs,['edit']);
   assert.equal(posts(server.calls).length,0);
@@ -394,7 +396,7 @@ test('manual publishing footer follows export, upload and adding the link, witho
  await withPublish({state:notConnected},async(ui,server)=>{
   const c=ui.container,open=c.querySelector('#ws-publish-action a')!;
   assert.equal(open.getAttribute('href'),'https://www.youtube.com/upload');
-  await click(button(c,'Upload it yourself'));await flush();
+  await click(button(c,'Add the YouTube link'));await flush();
   assert.equal(button(c.querySelector('#ws-publish-action')!,'Done').disabled,true);
   assert.ok(field(c,'club-youtube-link'));
   assert.equal([...c.querySelectorAll('button')].filter(b=>b.textContent==='Mark as published').length,1,'only the action beside the input has this label');
@@ -406,7 +408,7 @@ test('manual publishing footer follows export, upload and adding the link, witho
 test('manual footer submits the shared link form even without a local export',async()=>{
  await withPublish({state:notConnected,reply:call=>call.path.startsWith('/api/exports?')?{body:{jobs:[],nextOffset:null}}:call.path==='/videos/v1/publish'&&call.method==='POST'?{body:{...video,stage:'published',youtubeUrl:sent.url}}:undefined},async(ui,server,changes)=>{
   const c=ui.container;assert.ok(button(c,'Export it in Edit'));
-  await click(button(c,'Upload it yourself'));await flush();
+  await click(button(c,'Add the YouTube link'));await flush();
   const footer=button(c.querySelector('#ws-publish-action')!,'Done');
   assert.equal(footer.type,'submit');assert.equal(footer.form,c.querySelector('.self-upload form'));
   assert.equal(footer.disabled,true);
@@ -416,13 +418,6 @@ test('manual footer submits the shared link form even without a local export',as
   assert.equal(changes.at(-1)?.stage,'published');
  });
 });
-
-test('readable export names retain the title and extension without a machine suffix',async()=>{
- const {readableExportName}=await import('./Publish');
- assert.equal(readableExportName('The agent experiment-47df4d22-4f98-4707-9baa-d4e806d1af32.mp4','Video'),'The agent experiment.mp4');
- assert.equal(readableExportName('47df4d22-4f98-4707-9baa-d4e806d1af32.mp4','My video'),'My video.mp4');
-});
-
 
 test('Copy details copies the current title and description beside Open YouTube',async()=>{
  const previous=Object.getOwnPropertyDescriptor(navigator,'clipboard'),copied:string[]=[];

@@ -40,12 +40,15 @@ export function SketchThumbnail({video,sketch,open,onOpen,onClose,onThumb,onSave
    {picture?<><img src={picture} alt={words||'Thumbnail'}/><span className="st-pic-hover"><Icon name="edit" size={14}/>Edit thumbnail</span></>:<span className="st-empty"><Icon name="image" size={20}/><span className="st-empty-a">Make the thumbnail</span></span>}
   </button>
   {(words||visual)&&<button type="button" className="st-idea" onClick={onOpen}>{words&&<span className="st-words">{words}</span>}{visual&&<span className="st-visual">{visual}</span>}</button>}
-  {open&&<ThumbnailStudio video={video} sketch={sketch} picture={picture} onPicture={show} onClose={onClose} onThumb={onThumb} onSave={onSave} onRefresh={onRefresh}/>}
+  {open&&<ThumbnailDialog video={video} sketch={sketch} picture={picture} onPicture={show} onClose={onClose} onThumb={onThumb} onSave={onSave} onRefresh={onRefresh}/>}
  </>;
 }
 
-function ThumbnailStudio({video,sketch,picture,onPicture,onClose,onThumb,onSave,onRefresh}:{video:Video;sketch:OnePager;picture:string|null;onPicture():void;onClose():void;
- onThumb(key:'headline'|'visual'|'closer',text:string):void;onSave():unknown;onRefresh():void}){
+export type ThumbnailDialogProps={video:Video;sketch:OnePager;picture:string|null;onPicture():void;onClose():void;
+ onThumb(key:'headline'|'visual'|'closer',text:string):void;onSave():unknown;onRefresh():void};
+
+/** The thumbnail studio. The sketch and Publish open the same one. */
+export function ThumbnailDialog({video,sketch,picture,onPicture,onClose,onThumb,onSave,onRefresh}:ThumbnailDialogProps){
  const base=`/videos/${encodeURIComponent(video.id)}/thumbnail`,toast=useToast();
  const chatgpt=!!useAiCheck().check.status?.codex?.signedIn;
  const [refs,setRefs]=useState<Reference[]|null>(null),[tab,setTab]=useState<'niche'|'board'>('niche'),[link,setLink]=useState(''),[adding,setAdding]=useState(false);
