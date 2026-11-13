@@ -21,7 +21,22 @@ Outputs go to `release/`. The platform workflow runs on macOS and Windows and up
 
 `recorder/app/electron-builder.cjs` defines both targets. `scripts/package-desktop.mjs` builds the native engine, stages the media runtime, and invokes the installer builder. `recorder/app/scripts/after-desktop-pack.cjs` adds a native stdio MCP launcher: C on macOS and Windows, using Electron's own Node runtime. Both installers include FFmpeg/FFprobe, Cutroom, and fonts. Speech transcription and OCR tools are optional and need separate installation.
 
-Local macOS packaging discovers an existing signing identity when available. CI builds use no publisher identity; they are development artifacts, not notarized Mac or trusted Windows release builds. No certificate or account is created by these scripts.
+Local macOS packaging discovers an existing signing identity when available. Pull request builds are unsigned development artifacts.
+
+## Releases and updates
+
+Every push to `main` builds both systems, and once both pass their tests and the Windows smoke test, `.github/workflows/desktop-build.yml` publishes them as one [GitHub Release](https://github.com/AI-Answer/creatorclub/releases) named `v0.1.<commit count>`. A manual run of the workflow builds the signed Mac app and publishes only when **publish** is ticked.
+
+Installed apps update themselves (`recorder/app/desktop/updater.cjs`): they check when they start and every 30 minutes, download a newer release in the background, and install it the next time CreatorClub quits. **CreatorClub → Restart to Update** installs it at once, unless a recording or an export is still running. **CreatorClub → Check for Updates…** asks right away. The log is `updates.log` in the app's data folder. Set `CREATORCLUB_NO_UPDATE=1` to turn updates off.
+
+The Mac app is signed with the team's own **CreatorClub Dev** certificate (SHA-1 `91F6F733CA70788FCF998212EBE1BBE9F4D231C6`, valid until 2036), not an Apple Developer ID. It lives in the repository secrets `CREATORCLUB_DEV_CERT_BASE64` and `CREATORCLUB_DEV_CERT_PASSWORD`. A Mac installs an update only when it is signed with the same certificate as the copy it runs, so never replace it: a new certificate means every Mac has to reinstall by hand. The workflow refuses to publish a Mac build signed with any other certificate.
+
+Installing for the first time:
+
+- **Mac:** download `CreatorClub-<version>-mac-arm64.dmg` from the newest release and drag CreatorClub to Applications. The first time you open it, macOS says it can't verify the app: click **Done**, then **System Settings → Privacy & Security → Open Anyway**. You do this once; updates install on their own.
+- **Windows:** run `CreatorClub-<version>-win-x64.exe`. The installer is not signed yet, so Windows shows "Windows protected your PC": **More info → Run anyway**.
+
+The app was called Creator Compiler before. It still keeps its data in the `Creator Compiler` folder (`~/Library/Application Support/Creator Compiler` on a Mac), so recordings made with an earlier build stay where they are. Because the app id changed, a Mac asks once more for camera, microphone and screen recording access.
 
 ## Development
 

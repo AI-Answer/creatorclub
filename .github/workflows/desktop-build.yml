@@ -1,11 +1,28 @@
 name: Desktop apps
+# Builds and tests CreatorClub for Mac and Windows. Every push to main, once both builds pass, is published as one
+# GitHub Release; installed apps check for it every half hour and install it when they quit
+# (recorder/app/desktop/updater.cjs). Pull requests build and test only. A manual run builds the signed Mac app and
+# publishes only when asked.
 on:
   push:
     branches: [main]
   pull_request:
   workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish the result as a release installed apps update to
+        type: boolean
+        default: false
 permissions:
   contents: read
+# One release at a time, so two merges cannot race to publish.
+concurrency:
+  group: desktop-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+env:
+  # The team's "CreatorClub Dev" certificate (secrets CREATORCLUB_DEV_CERT_BASE64 / _PASSWORD). Installed Macs accept
+  # an update only when it is signed with the certificate they were installed with, so this never changes.
+  CREATORCLUB_SIGN_SHA1: 91F6F733CA70788FCF998212EBE1BBE9F4D231C6
 jobs:
   desktop:
     name: ${{ matrix.name }}
@@ -19,6 +36,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 24
@@ -42,17 +61,38 @@ jobs:
         run: cargo test --release --locked --manifest-path engine/cutroom/Cargo.toml -p cutroom-core -p cutroom-gfx -p cutroom-cut
       - name: Exercise the native cutting and graphics engine
         run: npm --prefix recorder/app run test:cutroom
+      # Every build on main gets a higher version than the last: that is how installed apps know there is a newer one.
+      # The commit count only grows on main, and the Mac and Windows builds of one commit get the same number.
+      - name: Version this build
+        shell: bash
+        working-directory: recorder/app
+        run: npm version "0.1.$(git rev-list --count HEAD)" --no-git-tag-version --allow-same-version
+      - name: Import the CreatorClub Dev certificate
+        if: matrix.platform == 'mac' && github.event_name != 'pull_request'
+        env:
+          CREATORCLUB_DEV_CERT_BASE64: ${{ secrets.CREATORCLUB_DEV_CERT_BASE64 }}
+          CREATORCLUB_DEV_CERT_PASSWORD: ${{ secrets.CREATORCLUB_DEV_CERT_PASSWORD }}
+        run: bash scripts/import-signing-cert.sh
       - name: Build desktop installers
         run: npm run package:${{ matrix.platform }}
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+          # Set only where the certificate was imported: pull request builds stay unsigned.
+          CREATORCLUB_SIGN_SHA1: ${{ (matrix.platform == 'mac' && github.event_name != 'pull_request') && env.CREATORCLUB_SIGN_SHA1 || '' }}
+      - name: Signed with the CreatorClub Dev certificate
+        if: matrix.platform == 'mac' && github.event_name != 'pull_request'
+        run: |
+          app="$(ls -d release/mac*/CreatorClub.app | head -1)"
+          codesign --verify --deep --strict "$app"
+          codesign -d -r- "$app" 2>&1 | tee /dev/stderr | grep -qi "certificate root = H\"$CREATORCLUB_SIGN_SHA1\""
+          test -f release/latest-mac.yml
       - name: Smoke test Windows desktop and bundled Cutroom
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
           $env:SCENEFORGE_PORT = '4194'
           $env:SCENEFORGE_DATA_DIR = Join-Path $env:RUNNER_TEMP 'creator-compiler-smoke'
-          $app = Start-Process -FilePath './release/win-unpacked/Creator Compiler.exe' -PassThru
+          $app = Start-Process -FilePath './release/win-unpacked/CreatorClub.exe' -PassThru
           try {
             $ready = $false
             for ($i=0; $i -lt 90; $i++) {
@@ -71,12 +111,40 @@ jobs:
             if ($app.HasExited) { throw 'Desktop app exited during startup' }
             Write-Output "Windows desktop running; Cutroom $($engine.version)"
           } finally { if (!$app.HasExited) { Stop-Process $app.Id -Force } }
+      # The installers, plus latest*.yml and the blockmaps installed apps read to learn there is a newer version.
       - uses: actions/upload-artifact@v4
         with:
-          name: Creator-Compiler-${{ matrix.artifact }}
+          name: CreatorClub-${{ matrix.artifact }}
           path: |
             release/*.dmg
             release/*.exe
             release/*.zip
+            release/*.blockmap
+            release/latest*.yml
           if-no-files-found: error
           retention-days: 14
+
+  # Only when both systems built, passed their tests and started: one release holding both systems' files.
+  publish:
+    needs: desktop
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || inputs.publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: CreatorClub-*
+          path: release
+          merge-multiple: true
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          version="$(sed -n 's/^version: //p' release/latest.yml)"
+          test -n "$version"
+          test "$(sed -n 's/^version: //p' release/latest-mac.yml)" = "$version"
+          ls -l release
+          gh release create "v$version" --title "CreatorClub $version" --target "$GITHUB_SHA" \
+            --notes "Built from $GITHUB_SHA. Installed apps update to it on their own." release/*

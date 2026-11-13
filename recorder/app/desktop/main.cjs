@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, shell, desktopCapturer, screen, session, utilityProcess, Menu, globalShortcut, systemPreferences, nativeTheme, powerSaveBlocker } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, desktopCapturer, screen, session, utilityProcess, Menu, Notification, globalShortcut, systemPreferences, nativeTheme, powerSaveBlocker } = require('electron');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
 const fs = require('node:fs');
@@ -10,6 +10,7 @@ const {createRecordingHud}=require('./recording-hud.cjs');
 const {createNativeRecordingManager}=require('./native-recording.cjs');
 const {createCaptureBorder}=require('./capture-border.cjs');
 const {createRecordingCloseGuard}=require('./recording-close-guard.cjs');
+const {startUpdater,updateMenuItem}=require('./updater.cjs');
 const {createMediaPermissionRequests}=require('./media-permissions.cjs');
 const {createPermissionHelper}=require('./permission-helper.cjs');
 let permissionHelper=null,relaunchRequested=false;
@@ -116,11 +117,50 @@ function updateGlobalShortcuts(){
  }
  return reportShortcutStatus(conflicts);
 }
+// Updates (desktop/updater.cjs): only an installed copy updates itself; a run from source or a developer's app never does.
+let updates=null,manualCheck=false,readyNotified=false;
+function updateMenu(){
+ if(!updates)return [];
+ const item=updateMenuItem(updates.state());
+ return [{label:item.label,enabled:item.enabled,click:()=>{if(item.action==='install')void restartForUpdate();else if(item.action==='check'){manualCheck=true;updates.check();}}}];
+}
+const messageBox=options=>mainWindow&&!mainWindow.isDestroyed()?dialog.showMessageBox(mainWindow,options):dialog.showMessageBox(options);
+async function busyForUpdate(){
+ if(recordingCloseGuard.active())return 'A recording is still running.';
+ try{const health=await (await fetch(base+'/api/ready',{signal:AbortSignal.timeout(2000)})).json();if(health.runningJobs>0)return 'An export is still running.';}catch{}
+ return null;
+}
+async function restartForUpdate(){
+ const busy=await busyForUpdate();
+ if(busy){await messageBox({type:'info',message:busy,detail:`Restart when it has finished, or quit ${CREATORCLUB.name} later: the update installs when the app quits.`});return;}
+ updates?.install();
+}
+function updateStateChanged(state){
+ installMenu();
+ if(state.state==='ready'&&!readyNotified&&Notification.isSupported()){
+  readyNotified=true;
+  const note=new Notification({title:`${CREATORCLUB.name} ${state.next} is ready`,body:`It installs when you quit. To install it now, choose Restart to Update in the ${CREATORCLUB.name} menu.`});
+  note.on('click',()=>void restartForUpdate());note.show();
+ }
+ if(!manualCheck||!['current','failed','downloading','ready'].includes(state.state))return;
+ manualCheck=false;
+ if(state.state==='current')void messageBox({type:'info',message:`${CREATORCLUB.name} is up to date`,detail:`You have version ${app.getVersion()}.`});
+ if(state.state==='failed')void messageBox({type:'warning',message:'Could not check for updates',detail:state.reason});
+}
+function startUpdates(){
+ if(!app.isPackaged||process.env.CREATORCLUB_NO_UPDATE==='1'||!['darwin','win32'].includes(process.platform))return;
+ let source;
+ try{source=require(path.join(__dirname,'..','server-dist','electron-updater.cjs')).autoUpdater;}catch(error){console.error('updates unavailable',error);return;}
+ const logFile=path.join(paths.userData,'updates.log');
+ const log=message=>{try{fs.appendFileSync(logFile,`${new Date().toISOString()} ${message}\n`);}catch{}};
+ source.logger={info:m=>log(String(m)),warn:m=>log('warn: '+String(m)),error:m=>log('error: '+String(m)),debug:()=>{}};
+ updates=startUpdater({source,log,onState:updateStateChanged,every:(ms,fn)=>{const timer=setInterval(fn,ms);return()=>clearInterval(timer);}});
+}
 function installMenu(){
- const signature=JSON.stringify({editor:editorMenuActive(),editable:shortcutContext.editable,available:shortcutContext.availableActions,bindings:shortcutContext.bindings});if(signature===lastMenuSignature)return;lastMenuSignature=signature;
+ const signature=JSON.stringify({update:updates?.state()??null,editor:editorMenuActive(),editable:shortcutContext.editable,available:shortcutContext.availableActions,bindings:shortcutContext.bindings});if(signature===lastMenuSignature)return;lastMenuSignature=signature;
  const editItem=(action,label)=>editorMenuActive()||appUndoActive(action)?{id:action,label,accelerator:bindingList(action).map(acceleratorFor).find(Boolean)||undefined,enabled:available(action),click:()=>emitShortcut(action)}:{role:action};
  const viewZoom=editorMenuActive()?[{id:'zoomIn',label:'Zoom Timeline In',accelerator:bindingList('zoomIn').map(acceleratorFor).find(Boolean)||undefined,enabled:available('zoomIn'),click:()=>emitShortcut('zoomIn')},{id:'zoomOut',label:'Zoom Timeline Out',accelerator:bindingList('zoomOut').map(acceleratorFor).find(Boolean)||undefined,enabled:available('zoomOut'),click:()=>emitShortcut('zoomOut')}]:[{role:'zoomIn'},{role:'zoomOut'}];
- Menu.setApplicationMenu(Menu.buildFromTemplate([{label:CREATORCLUB.name,submenu:[{role:'about'},{type:'separator'},{role:'hide'},{role:'hideOthers'},{type:'separator'},{role:'quit'}]},{label:'File',submenu:[{id:'closeProject',label:'Close Project',accelerator:bindingList('closeProject').map(acceleratorFor).find(Boolean)||undefined,enabled:available('closeProject'),click:()=>emitShortcut('closeProject')}]},{label:'Edit',submenu:[editItem('undo','Undo'),editItem('redo','Redo'),{type:'separator'},editItem('cut','Cut'),editItem('copy','Copy'),editItem('paste','Paste'),editItem('selectAll','Select All')]},{label:'View',submenu:[{role:'reload'},{role:'toggleDevTools'},{type:'separator'},{role:'resetZoom'},...viewZoom,{role:'togglefullscreen'}]},{label:'Window',submenu:[{role:'minimize'},{role:'zoom'},{role:'front'}]}]));
+ Menu.setApplicationMenu(Menu.buildFromTemplate([{label:CREATORCLUB.name,submenu:[{role:'about'},...updateMenu(),{type:'separator'},{role:'hide'},{role:'hideOthers'},{type:'separator'},{role:'quit'}]},{label:'File',submenu:[{id:'closeProject',label:'Close Project',accelerator:bindingList('closeProject').map(acceleratorFor).find(Boolean)||undefined,enabled:available('closeProject'),click:()=>emitShortcut('closeProject')}]},{label:'Edit',submenu:[editItem('undo','Undo'),editItem('redo','Redo'),{type:'separator'},editItem('cut','Cut'),editItem('copy','Copy'),editItem('paste','Paste'),editItem('selectAll','Select All')]},{label:'View',submenu:[{role:'reload'},{role:'toggleDevTools'},{type:'separator'},{role:'resetZoom'},...viewZoom,{role:'togglefullscreen'}]},{label:'Window',submenu:[{role:'minimize'},{role:'zoom'},{role:'front'}]}]));
 }
 function inputMatches(input,binding){
  if(binding?.kind!=='keyboard')return false;
@@ -203,7 +243,7 @@ async function startServiceOnce(){
  if(!app.isPackaged)env.CREATORCLUB_DIR??=path.join(projectRoot,'.local','channels');
  // The service asks this process to capture motion blocks (see below); without the variable it uses Chrome, as in development.
  env.CREATORCLUB_MOTION_BRIDGE='1';
- if(fs.existsSync(entry))service=utilityProcess.fork(entry,[],{env,stdio:'pipe',serviceName:'Creator Compiler media service'});
+ if(fs.existsSync(entry))service=utilityProcess.fork(entry,[],{env,stdio:'pipe',serviceName:`${CREATORCLUB.name} media service`});
  else service=spawn(process.env.SCENEFORGE_NODE||process.env.npm_node_execpath||'node',['--import','tsx',path.join(projectRoot,'server/index.ts')],{cwd:projectRoot,env,stdio:['pipe','pipe','pipe','ipc']});
  ownService=true;
  const child=service;let ended=false,stableTimer;
@@ -215,13 +255,13 @@ async function startServiceOnce(){
  service.on('message',message=>{motionRenderer.handle(message,post);});
  service.stdout?.on('data',d=>console.log(d.toString()));service.stderr?.on('data',d=>console.error(d.toString()));
  for(const deadline=Date.now()+30000;Date.now()<deadline;){if(ended)throw Error('The local media service exited during startup.');try{const health=await serviceHealth();if(health?.pid===child.pid){stableTimer=setTimeout(()=>{startService.failures=0;},30000);stableTimer.unref();return;}}catch{}await new Promise(r=>setTimeout(r,10));}
- throw new Error(`The local media service did not start. Reopen Creator Compiler and check that port ${PORT} is available.`);
+ throw new Error(`The local media service did not start. Reopen ${CREATORCLUB.name} and check that port ${PORT} is available.`);
 }
 function startService(){if(startService.pending)return startService.pending;startService.pending=startServiceOnce().finally(()=>{startService.pending=null;});return startService.pending;}
 function restartService(){
  if(quitting||startService.restartTimer||startService.restartStopped)return;
  const now=Date.now(),failures=(startService.failureTimes||[]).filter(time=>now-time<120000);failures.push(now);startService.failureTimes=failures;
- if(failures.length>=5){startService.restartStopped=true;dialog.showErrorBox('Media service stopped','Creator Compiler could not keep its media service running after five failures in two minutes. Your editor is still open. Reopen the app to retry.');return;}
+ if(failures.length>=5){startService.restartStopped=true;dialog.showErrorBox('Media service stopped',`${CREATORCLUB.name} could not keep its media service running after five failures in two minutes. Your editor is still open. Reopen the app to retry.`);return;}
  const delay=Math.min(30000,500*2**Math.min(startService.failures||0,6));startService.failures=(startService.failures||0)+1;
  startService.restartTimer=setTimeout(async()=>{startService.restartTimer=null;if(quitting)return;try{await startService();if(!quitting&&mainWindow&&!mainWindow.isDestroyed())mainWindow.webContents.send('media-service-ready');}catch(error){console.error('Could not restart media service',error);restartService();}},delay);startService.restartTimer.unref();
 }
@@ -290,9 +330,10 @@ app.whenReady().then(async()=>{
  mainWindow.webContents.setWindowOpenHandler(({url})=>{if(/^https?:/.test(url))shell.openExternal(url);return {action:'deny'};});
  mainWindow.webContents.on('will-navigate',(e,url)=>{if(!trusted(url)){e.preventDefault();if(/^https?:/.test(url))shell.openExternal(url);}});
  installMenu();
- try{await serviceReady;}catch(e){if(quitting)return;dialog.showErrorBox('Creator Compiler could not start',e.message);if(mainWindow&&!mainWindow.isDestroyed())mainWindow.destroy();app.quit();return;}
+ try{await serviceReady;}catch(e){if(quitting)return;dialog.showErrorBox(`${CREATORCLUB.name} could not start`,e.message);if(mainWindow&&!mainWindow.isDestroyed())mainWindow.destroy();app.quit();return;}
  if(!mainWindow||mainWindow.isDestroyed())return;
  try{await mainWindow.loadURL(base);}finally{if(mainWindow&&!mainWindow.isDestroyed()&&!mainWindow.isVisible())mainWindow.show();}
+ startUpdates();
 });
 app.on('window-all-closed',()=>app.quit());
 app.on('before-quit',e=>{if(quitting)return;if(guardRecordingClose(e,()=>app.quit()))return;e.preventDefault();quitting=true;permissionHelper?.dispose();captureBorder?.clear();recordingHud?.dispose();captureManager?.dispose();clearGlobalShortcuts();motionRenderer?.dispose();Promise.resolve(nativeRecording?.dispose()).catch(console.error).finally(()=>{if(ownService)service?.kill();if(relaunchRequested)app.exit(0);else app.quit();});});

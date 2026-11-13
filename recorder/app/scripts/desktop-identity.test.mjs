@@ -13,8 +13,10 @@ const mcp = await readFile(path.join(root, 'desktop/mcp-entry.mjs'), 'utf8');
 const pack = await readFile(path.join(root, 'scripts/package.mjs'), 'utf8');
 const launcher = await readFile(path.join(root, 'scripts/mcp-launcher.c'), 'utf8');
 
-test('Creator Compiler has its own name, port, user-data folder and studio folder, and SCENEFORGE_DATA_DIR still overrides the studio', () => {
- assert.equal(CREATORCLUB.name, 'Creator Compiler');
+test('CreatorClub has its own name, port, user-data folder and studio folder, and SCENEFORGE_DATA_DIR still overrides the studio', () => {
+ assert.equal(CREATORCLUB.name, 'CreatorClub');
+ assert.equal(CREATORCLUB.dataFolder, 'Creator Compiler', 'installed copies keep their data folder');
+ assert.equal(CREATORCLUB.service, 'Creator Compiler', 'the local service handshake is unchanged');
  assert.notEqual(CREATORCLUB.port, 4174, 'never the SceneForge port');
  const appData = '/Users/x/Library/Application Support';
  assert.deepEqual(creatorClubPaths({appData, env: {}}), {userData: `${appData}/Creator Compiler`, studio: `${appData}/Creator Compiler/studio`, models: `${appData}/Creator Compiler/models`});
@@ -55,13 +57,13 @@ test('the desktop shell sets its name and user-data folder before the single-ins
  assert.doesNotMatch(main, /4174/);
 });
 
-test('the MCP launcher reaches the Creator Compiler service and studio, and the package is Creator Compiler.app', () => {
+test('the MCP launcher reaches the Creator Compiler service and studio, and the package is CreatorClub.app', () => {
  assert.match(mcp, /runtime\.CREATORCLUB\.port/);
  assert.match(mcp, /runtime\.creatorClubPaths\(/);
  assert.match(mcp, /runtime\.isCreatorClubService\(/);
  assert.doesNotMatch(mcp, /4174|SceneForge service|SceneForge editing/);
- assert.match(launcher, /"%s\/Creator Compiler"/);
- assert.match(pack, /APP_NAME='Creator Compiler',APP_ID='com\.aianswer\.creatorcompiler'/);
+ assert.match(launcher, /"%s\/CreatorClub"/, 'runs the app executable, named after the product');
+ assert.match(pack, /APP_NAME='CreatorClub',APP_ID='com\.aianswer\.creatorclub'/);
  assert.match(pack, /'server-dist\/methodology\/package\.md'/, 'packaging refuses a server bundle without methodology/');
  assert.doesNotMatch(pack, /'SceneForge|com\.samin/);
 });

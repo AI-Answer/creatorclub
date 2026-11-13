@@ -7,8 +7,8 @@ import {promisify} from 'node:util';
 import {createDmg,sha256File} from './create-dmg.mjs';
 import {resolveSigningIdentity,signPackage} from './signing.mjs';
 import {buildMcpLauncher} from './build-mcp-launcher.mjs';
-// The packaged app is Creator Compiler, with its own bundle id, so it never replaces or shares permissions with SceneForge.app.
-const APP_NAME='Creator Compiler',APP_ID='com.aianswer.creatorcompiler';
+// The packaged app is CreatorClub, with its own bundle id, so it never replaces or shares permissions with SceneForge.app.
+const APP_NAME='CreatorClub',APP_ID='com.aianswer.creatorclub';
 const staging=path.resolve('.local/package');
 const requestedOutput=process.env.SCENEFORGE_PACKAGE_OUT;
 if(requestedOutput&&!path.isAbsolute(requestedOutput))throw Error('SCENEFORGE_PACKAGE_OUT must be an absolute directory path.');

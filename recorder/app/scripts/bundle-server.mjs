@@ -9,6 +9,8 @@ await copyMethodology({from:'../../methodology',to:'server-dist/methodology'});
 await (await import('node:fs/promises')).cp('skills','server-dist/skills',{recursive:true});
 await build({entryPoints:['server/index.ts','server/mcp.ts'],outdir:'server-dist',outExtension:{'.js':'.mjs'},bundle:true,platform:'node',target:'node24',format:'esm',packages:'bundle',external:['electron','@resvg/resvg-js'],banner:{js:'import { createRequire as __createRequire } from "node:module"; const require = __createRequire(import.meta.url);'},sourcemap:true});
 await mkdir('server-dist',{recursive:true});
+// The desktop app's self-update library (desktop/updater.cjs loads it): the packaged app ships no node_modules.
+await build({entryPoints:['node_modules/electron-updater/out/main.js'],outfile:'server-dist/electron-updater.cjs',bundle:true,platform:'node',target:'node24',format:'cjs',external:['electron'],logLevel:'warning'});
 for(const file of ['media-text.swift','vision-helper.swift'])await copyFile('server/'+file,'server-dist/'+file);
 await copyFile('desktop/mcp-entry.mjs','server-dist/mcp-entry.mjs');
 // Motion blocks render with Inter (server/motion-render.ts reads it next to the bundle).
