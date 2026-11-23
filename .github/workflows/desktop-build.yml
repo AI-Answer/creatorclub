@@ -50,6 +50,11 @@ jobs:
           cache-on-failure: true
       - uses: ilammy/msvc-dev-cmd@v1
         if: runner.os == 'Windows'
+      # whisper.cpp built from its pinned source and the Whisper model (scripts/whisper-runtime.mjs), kept between runs.
+      - uses: actions/cache@v4
+        with:
+          path: recorder/app/.runtime-build
+          key: whisper-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('recorder/app/scripts/whisper-runtime.mjs') }}
       - name: Install and build
         run: npm run setup
       - name: Stage native engine and media binaries
@@ -61,6 +66,8 @@ jobs:
         run: cargo test --release --locked --manifest-path engine/cutroom/Cargo.toml -p cutroom-core -p cutroom-gfx -p cutroom-cut
       - name: Exercise the native cutting and graphics engine
         run: npm --prefix recorder/app run test:cutroom
+      - name: Transcribe a sample with the bundled whisper-cli and model
+        run: npm --prefix recorder/app run test:whisper
       # Every build on main gets a higher version than the last: that is how installed apps know there is a newer one.
       # The commit count only grows on main, and the Mac and Windows builds of one commit get the same number.
       - name: Version this build
