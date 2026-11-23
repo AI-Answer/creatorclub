@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
-import { childEnv, commonBinDirs, findExecutable, type Lookup } from './ai.js';
+import { childEnv, commonBinDirs, executableName, findExecutable, type Lookup } from './ai.js';
 import { ClubError } from './errors.js';
 import { rootDir, writeFileAtomic } from './store.js';
 
@@ -11,7 +11,11 @@ import { rootDir, writeFileAtomic } from './store.js';
  * then `<root>/.bin/`, where the app puts a yt-dlp it downloaded itself.
  */
 
-export const YT_DLP_URL = 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_macos';
+/** The official standalone yt-dlp build for each computer the app ships on. */
+export const YT_DLP_URLS: Partial<Record<NodeJS.Platform, string>> = {
+  darwin: 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_macos',
+  win32: 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe',
+};
 
 export const localBinDir = () => path.join(rootDir(), '.bin');
 
@@ -42,10 +46,12 @@ const runVersion = (file: string, lookup: Lookup) =>
 export async function ensureYtDlp(options: ToolOptions = {}): Promise<string> {
   const found = await findYtDlp(options);
   if (found) return found;
-  if (!options.fetch && process.platform !== 'darwin') throw new ClubError("Couldn't set up the YouTube reader on this computer.", 502);
-  const target = path.join(localBinDir(), 'yt-dlp');
+  const platform = options.platform ?? process.platform;
+  const url = YT_DLP_URLS[platform];
+  if (!url) throw new ClubError("Couldn't set up the YouTube reader on this computer.", 502);
+  const target = path.join(localBinDir(), executableName('yt-dlp', platform));
   try {
-    const response = await (options.fetch ?? fetch)(YT_DLP_URL, { redirect: 'follow' });
+    const response = await (options.fetch ?? fetch)(url, { redirect: 'follow' });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     await writeFileAtomic(target, Buffer.from(await response.arrayBuffer()));
     await fs.chmod(target, 0o755);

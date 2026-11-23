@@ -97,6 +97,23 @@ test('a missing yt-dlp is downloaded from the official release into <root>/.bin 
   await rm(empty, { recursive: true, force: true });
 });
 
+test('on Windows the yt-dlp.exe build is downloaded, and found again by its .exe name', async () => {
+  const empty = await mkdtemp(path.join(os.tmpdir(), 'creatorclub-nopath-'));
+  process.env.PATH = empty;
+  await rm(localBinDir(), { recursive: true, force: true });
+  const requested: string[] = [];
+  const fake = (async (url: string) => {
+    requested.push(url);
+    return new Response('#!/bin/sh\necho 2026.03.17\n', { status: 200 });
+  }) as unknown as typeof fetch;
+  const file = await ensureYtDlp({ extraDirs: [], fetch: fake, platform: 'win32' });
+  assert.equal(file, path.join(localBinDir(), 'yt-dlp.exe'));
+  assert.deepEqual(requested, ['https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe']);
+  assert.equal(await ensureYtDlp({ extraDirs: [], fetch: fake, platform: 'win32' }), file, 'found, not downloaded again');
+  assert.equal(requested.length, 1);
+  await rm(empty, { recursive: true, force: true });
+});
+
 test('a failed or broken yt-dlp download leaves nothing behind and says one sentence', async () => {
   process.env.PATH = temp;
   await rm(localBinDir(), { recursive: true, force: true });
