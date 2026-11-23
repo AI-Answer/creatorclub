@@ -35,13 +35,18 @@ export class AiError extends ClubError {
 export interface Lookup {
   /** Extra directories to search after PATH. Defaults to the common install locations. */
   extraDirs?: string[];
+  /** The operating system to look for programs on. Tests set it; the app uses the one it runs on. */
+  platform?: NodeJS.Platform;
 }
 
+/** The file name a program has on disk: Windows programs end in `.exe`. */
+export const executableName = (name: string, platform: NodeJS.Platform = process.platform) => (platform === 'win32' ? `${name}.exe` : name);
+
 /** Finds a command on PATH, then in the common install places. */
-export async function findExecutable(name: string, { extraDirs = commonBinDirs() }: Lookup = {}): Promise<string | undefined> {
+export async function findExecutable(name: string, { extraDirs = commonBinDirs(), platform }: Lookup = {}): Promise<string | undefined> {
   const dirs = [...(process.env.PATH ?? '').split(path.delimiter), ...extraDirs].filter(Boolean);
   for (const dir of dirs) {
-    const candidate = path.join(dir, name);
+    const candidate = path.join(dir, executableName(name, platform));
     try {
       if ((await fs.stat(candidate)).isFile()) {
         await fs.access(candidate, fsConstants.X_OK);
