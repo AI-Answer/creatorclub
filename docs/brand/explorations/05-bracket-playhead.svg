@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 64 64" fill="none">
+  <rect x="2" y="2" width="60" height="60" rx="15" fill="#DE5738"/>
+  <!-- Geometric C / film frame bracket -->
+  <path d="M21 15H36V23H23C21.8954 23 21 23.8954 21 25V39C21 40.1046 21.8954 41 23 41H36V49H21C16.5817 49 13 45.4183 13 41V23C13 18.5817 16.5817 15 21 15Z" fill="#FFF9EE"/>
+  <!-- NLE timeline playhead / splice blade cutting the opening -->
+  <path d="M39 12H51V18L47.5 21.5V52H42.5V21.5L39 18V12Z" fill="#FFF9EE"/>
+</svg>

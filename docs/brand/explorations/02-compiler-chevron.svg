@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 64 64" fill="none">
+  <rect x="2" y="2" width="60" height="60" rx="15" fill="#DE5738"/>
+  <!-- Compiler left angle bracket '<' (angular C) -->
+  <path d="M35 13H45L26 32L45 51H35L16 32L35 13Z" fill="#FFF9EE"/>
+  <!-- Interlocking playhead wedge aligned on the same 45-deg grid -->
+  <path d="M38 22L50 32L38 42V22Z" fill="#FFF9EE"/>
+</svg>
