@@ -59,9 +59,9 @@ export interface MotionBlock { id:string; template:MotionTemplateId; style:strin
  /** Not stored: the project's look, handed to the block by whatever draws it (the stage, the export). */ look?:import('./look').Look; }
 export interface Zoom { id:string; start:number; duration:number; scale:number; x:number;y:number; target:'screen'|'camera'; easing:'linear'|'smooth'; effectTiming?:{offset:number;duration:number}; }
 /** The camera-and-screen arrangements a Layout stretch can name (shared/layouts.ts places each). */
-export type LayoutPreset='Creator'|'Full frame'|'Picture in picture'|'Side by side'|'Camera spotlight';
+export type LayoutPreset='Creator'|'Full frame'|'Picture in picture'|'Side by side'|'Camera spotlight'|'Screen only';
 /** A stretch on Borumi's Layout row: from `start` for `duration` seconds the camera and screen take `preset`. Outside every stretch a clip keeps its own transform. */
-export interface LayoutSegment { id:string; start:number; duration:number; preset:LayoutPreset; /** Camera corner radius as a share of its shorter side; undefined uses the preset. */ cameraCorner?:number; }
+export interface LayoutSegment { id:string; start:number; duration:number; preset:LayoutPreset; /** Camera corner radius as a share of its shorter side; undefined uses the preset. */ cameraCorner?:number; /** Made by Auto layout and not changed by hand since: the next Auto layout may replace it. */ auto?:true; }
 export interface CursorPoint { time:number;x:number;y:number;pressed?:boolean;visible?:boolean; }
 export interface CursorSettings { enabled:boolean; size:number; color:string; highlight:boolean; smoothing:number; points:CursorPoint[]; }
 /** Original capture timestamps and bounds on the recording clock. Version 1 used normalized files; version 2 used mic-length trims; version 3 uses a shared intersection. */

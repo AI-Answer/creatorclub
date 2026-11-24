@@ -6,7 +6,7 @@ import {clipDuration,clipEffectTiming,makeId,projectDuration,type Canvas,type Cl
  * `layoutTransform`, the export cuts clips at the stretches' edges with `bakeLayouts`, and the Layout panel applies a choice with
  * `chooseLayout` (the selected stretch, else the one at the playhead, else a new one from the playhead).
  */
-export const LAYOUT_PRESETS:readonly LayoutPreset[]=['Creator','Full frame','Picture in picture','Side by side','Camera spotlight'];
+export const LAYOUT_PRESETS:readonly LayoutPreset[]=['Creator','Full frame','Picture in picture','Side by side','Camera spotlight','Screen only'];
 export const isLayoutPreset=(value:unknown):value is LayoutPreset=>LAYOUT_PRESETS.includes(value as LayoutPreset);
 /** The shortest stretch the panel or the timeline makes. */
 export const MIN_LAYOUT=.1;
@@ -17,7 +17,11 @@ const EPS=1e-6;
 type Box=Pick<Transform,'x'|'y'|'width'|'height'>;
 export type LayoutGeometry={camera:Box&Partial<Transform>;screen:Box&Partial<Transform>};
 const FULL:Box={x:0,y:0,width:1,height:1};
-/** Where a preset puts the camera and the screen. Creator is the shared preset; the others place the camera over a full or narrowed screen. Rotation and opacity stay the clip's own. */
+/**
+ * Where a preset puts the camera and the screen. Creator is the shared preset; the others place the camera over a full or narrowed screen.
+ * Rotation and opacity stay the clip's own, except in Screen only, where the screen fills the frame and the camera is hidden (opacity 0:
+ * the preview draws nothing and the export skips its picture, while its sound plays on).
+ */
 export function layoutGeometry(preset:LayoutPreset,canvas:Pick<Canvas,'width'|'height'>):LayoutGeometry{
  switch(preset){
   case 'Creator':{const {rotation:_,opacity:__,...camera}=creatorCameraTransform(canvas),{rotation:___,opacity:____,...screen}=creatorScreenTransform(canvas);return {camera,screen};}
@@ -25,6 +29,7 @@ export function layoutGeometry(preset:LayoutPreset,canvas:Pick<Canvas,'width'|'h
   case 'Picture in picture':return {camera:{x:.72,y:.63,width:.25,height:.32,borderRadius:28},screen:FULL};
   case 'Side by side':return {camera:{x:.68,y:.05,width:.3,height:.9,borderRadius:24},screen:{...FULL,width:.66}};
   case 'Camera spotlight':return {camera:{x:.18,y:.06,width:.64,height:.88,borderRadius:36},screen:FULL};
+  case 'Screen only':return {camera:{x:.72,y:.63,width:.25,height:.32,borderRadius:28,opacity:0},screen:FULL};
  }
 }
 
@@ -45,7 +50,7 @@ export function layoutTransform(p:Pick<Project,'layouts'|'canvas'>,clip:Clip,tim
 /** The preset the clips are in outside every stretch, judged by the first camera clip; null once the camera was placed by hand. */
 export function baseLayout(p:Pick<Project,'clips'|'canvas'>):LayoutPreset|null{
  const camera=p.clips.filter(c=>c.track==='camera').sort((a,b)=>a.start-b.start)[0];if(!camera)return null;
- const t=camera.transform;return LAYOUT_PRESETS.find(preset=>{const g=layoutGeometry(preset,p.canvas).camera;return Math.abs(t.x-g.x)<.01&&Math.abs(t.y-g.y)<.01&&Math.abs(t.width-g.width)<.01&&Math.abs(t.height-g.height)<.01;})??null;
+ const t=camera.transform;return LAYOUT_PRESETS.find(preset=>{const g=layoutGeometry(preset,p.canvas).camera;return Math.abs(t.x-g.x)<.01&&Math.abs(t.y-g.y)<.01&&Math.abs(t.width-g.width)<.01&&Math.abs(t.height-g.height)<.01&&(t.opacity===0)===(g.opacity===0);})??null;
 }
 /**
  * The stretch Borumi offers when the pointer is over an empty part of the Layout row (or drags there): from `origin` to `current`, at least
@@ -72,7 +77,8 @@ export function chosenLayouts(p:Project,selected:ReadonlySet<string>,time:number
  */
 export function chooseLayout(p:Project,preset:LayoutPreset,selected:ReadonlySet<string>,time:number,id:string=makeId()):string[]{
  const chosen=chosenLayouts(p,selected,time);
- if(chosen.length){for(const l of chosen)l.preset=preset;return chosen.map(l=>l.id);}
+ // A stretch chosen by hand is the creator's own from now on: Auto layout leaves it alone.
+ if(chosen.length){for(const l of chosen){l.preset=preset;delete l.auto;}return chosen.map(l=>l.id);}
  const end=projectDuration(p),list=sortedLayouts(p);let start=Math.max(0,Math.min(time,end));
  const next=(from:number)=>list.find(l=>l.start>=from-EPS)?.start??end;
  if(next(start)-start<MIN_LAYOUT){const before=[...list].reverse().find(l=>l.start+l.duration<=start+EPS);start=before?before.start+before.duration:0;}
@@ -95,6 +101,7 @@ export function layoutsProblem(layouts:unknown):string|null{
   if(!l||typeof l!=='object'||typeof l.id!=='string'||!l.id||ids.has(l.id))return 'Invalid layout stretch';ids.add(l.id);
   if(![l.start,l.duration].every(Number.isFinite)||l.start<0||l.duration<=0||!isLayoutPreset(l.preset))return 'Invalid layout stretch';
   if(l.cameraCorner!==undefined&&(!Number.isFinite(l.cameraCorner)||l.cameraCorner<0||l.cameraCorner>.5))return 'Invalid layout camera corners';
+  if(l.auto!==undefined&&l.auto!==true)return 'Invalid layout stretch';
   if(l.start<last-LAYOUT_EPS)return 'Layout stretches overlap';last=l.start+l.duration;
  }
  return null;

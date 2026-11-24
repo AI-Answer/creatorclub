@@ -381,7 +381,8 @@ export function moveEffects(p:Project,ids:ReadonlySet<string>,delta:number){
  for(const e of p.elements)if(ids.has(e.id))e.start=Math.max(0,e.start+delta);
  for(const m of p.motion??[])if(ids.has(m.id))m.start=Math.max(0,m.start+delta);
  for(const z of p.zooms)if(ids.has(z.id))z.start=Math.max(0,z.start+delta);
- for(const l of p.layouts??[])if(ids.has(l.id))l.start=Math.max(0,l.start+delta);
+ // A stretch moved by hand is the creator's own from now on: Auto layout leaves it alone.
+ for(const l of p.layouts??[])if(ids.has(l.id)){l.start=Math.max(0,l.start+delta);delete l.auto;}
  for(const c of p.captions)if(ids.has(c.id)){const d=Math.max(-c.start,delta);c.start+=d;c.end+=d;if(c.words)c.words=c.words.map(w=>({...w,start:w.start+d,end:w.end+d}));}
 }
 
@@ -435,7 +436,7 @@ export function resizeEffect(p:Project,id:string,side:'left'|'right',delta:numbe
  if(lo>hi)return;
  const d=Math.max(lo,Math.min(hi,delta)),start=side==='left'?item.start+d:item.start,length=side==='left'?item.duration-d:item.duration+d;
  const e=p.elements.find(x=>x.id===id),z=p.zooms.find(x=>x.id===id),c=p.captions.find(x=>x.id===id),l=p.layouts?.find(x=>x.id===id);
- if(e){e.start=start;e.duration=length;}if(z){z.start=start;z.duration=length;}if(l){l.start=start;l.duration=length;}if(c){c.start=start;c.end=start+length;}if(block){const m=p.motion!.find(x=>x.id===id)!;m.start=start;m.duration=length;}
+ if(e){e.start=start;e.duration=length;}if(z){z.start=start;z.duration=length;}if(l){l.start=start;l.duration=length;delete l.auto;}if(c){c.start=start;c.end=start+length;}if(block){const m=p.motion!.find(x=>x.id===id)!;m.start=start;m.duration=length;}
 }
 
 /* ---------- Markers ---------- */
