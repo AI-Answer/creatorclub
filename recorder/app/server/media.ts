@@ -9,6 +9,7 @@ import { tmpdir } from "node:os";
 import { createHash, randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { personMask } from "./vision.ts";
+import { activeBackdrop, backdropLoopTime, screenBehind, type Backdrop } from "../shared/backdrop.ts";
 import { getFaceTrack } from "./face-tracking.ts";
 import { faceCropCommands } from "./face-crop.ts";
 import type { FaceTrack } from "../shared/face-tracking.ts";
@@ -692,6 +693,8 @@ export function subtitleText(p: Project) {
     )
     .join("\n");
 }
+/** Where the export gets person masks. Tests replace it with a drawn mask so a backdrop export can be checked on any machine. */
+export const visionMasks = { personMask };
 let rasterizer: Promise<string> | undefined;
 async function rasterize(
   config: unknown,
@@ -950,6 +953,57 @@ async function cameraMorphs(p: Project, w: number, h: number, fps: number, dir: 
   return out;
 }
 
+/**
+ * The picture behind a cut-out camera clip, as a `tw`x`th` stream from the clip's first frame for its whole length: a colour, a picture
+ * scaled to cover, a muted video looping from where the clip's original start left it, or the screen clips under it at that time.
+ */
+async function backdropLayer(
+  backdrop: Backdrop,
+  o: { clip: Clip; clips: Array<{ clip: Clip }>; media: Media[]; ci: number; tw: number; th: number; fps: number; d: number; elapsed: number; frameCadence: string; args: string[]; filters: string[]; input: number },
+): Promise<{ label: string; input: number }> {
+  const { ci, tw, th, fps, d, args, filters } = o, length = seconds(d + 1 / fps), label = `backdrop${ci}`;
+  let input = o.input;
+  const cover = `scale=${tw}:${th}:force_original_aspect_ratio=increase,crop=${tw}:${th},setsar=1,format=rgba`;
+  if (backdrop.kind === "color") {
+    args.push("-f", "lavfi", "-i", `color=c=${color(backdrop.color)}:s=${tw}x${th}:r=${fps}:d=${length}`);
+    filters.push(`[${input++}:v]format=rgba[${label}]`);
+  } else if (backdrop.kind === "image" || backdrop.kind === "video") {
+    const m = o.media.find((x) => x.id === backdrop.mediaId)!;
+    await identity(m.path);
+    if (m.kind === "image") {
+      args.push("-threads", "2", "-loop", "1", "-framerate", String(fps), "-t", length, "-i", m.path);
+      filters.push(`[${input++}:v]fps=${fps},${cover}[${label}]`);
+    } else {
+      // Read the looped file just past the frame the loop opens on, then drop what came before it.
+      const at = backdropLoopTime(o.clip, o.clip.start, m.duration, o.elapsed);
+      args.push("-threads", "2", "-stream_loop", "-1", "-t", seconds(at + d + 2 / fps), "-i", m.path);
+      filters.push(`[${input++}:v]trim=start=${seconds(at)}:duration=${length},setpts=PTS-STARTPTS,fps=${fps},${cover}[${label}]`);
+    }
+  } else {
+    // Screen clips that end inside the camera clip leave it see-through there, as 'None' would.
+    args.push("-f", "lavfi", "-i", `color=c=black@0:s=${tw}x${th}:r=${fps}:d=${length}`);
+    let base = `screenBase${ci}`;
+    filters.push(`[${input++}:v]format=rgba[${base}]`);
+    const pieces = screenBehind({ clips: o.clips.map((x) => x.clip) }, o.clip.start, o.clip.start + d);
+    for (const [k, piece] of pieces.entries()) {
+      const m = o.media.find((x) => x.id === piece.clip.mediaId);
+      if (!m || m.kind === "audio") continue;
+      await identity(m.path);
+      const speed = clamp(piece.clip.speed, 0.05, 16), span = piece.to - piece.from, from = piece.from - o.clip.start;
+      if (m.kind === "image") args.push("-threads", "2", "-loop", "1", "-framerate", String(fps), "-t", seconds(span + 1 / fps), "-i", m.path);
+      else args.push("-threads", "2", "-ss", seconds(piece.sourceStart), "-t", seconds(span * speed), "-i", m.path);
+      const next = `screenBase${ci}_${k}`;
+      filters.push(
+        `[${input++}:v]trim=duration=${seconds(m.kind === "image" ? span : span * speed)},setpts=(PTS-STARTPTS)/${m.kind === "image" ? 1 : speed},${o.frameCadence},${cover},setpts=PTS+${seconds(from)}/TB[screenBehind${ci}_${k}]`,
+        `[${base}][screenBehind${ci}_${k}]overlay=x=0:y=0:enable='gte(t,${seconds(from)})*lt(t,${seconds(from + span)})':eof_action=pass:repeatlast=0[${next}]`,
+      );
+      base = next;
+    }
+    filters.push(`[${base}]null[${label}]`);
+  }
+  return { label, input };
+}
+
 async function executeExport(
   project: Project,
   options: ExportOptions & { losslessAudio?: boolean; frameCount?: number; audioSamples?: number },
@@ -1161,6 +1215,8 @@ async function executeExport(
         cancelWatch.unref();
         let faceTrack: FaceTrack | undefined,
           maskFile: string | undefined;
+        // A backdrop shows every step of the mask's edge, so its masks are sampled twice as often and blended between samples.
+        const backdrop = activeBackdrop(c, media);
         try {
           if (fx.faceCenter) {
             j.message = "Tracking subject face";
@@ -1179,13 +1235,13 @@ async function executeExport(
                   Math.max(32, (320 * (m.height || 180)) / (m.width || 320)),
                 ),
               );
-            maskFile = await personMask(
+            maskFile = await visionMasks.personMask(
               m.path,
               path.join(tmpdir(), "sceneforge-vision-masks-v1"),
               {
                 start: m.kind === "image" ? 0 : c.sourceIn,
                 end: (m.kind === "image" ? 0 : c.sourceIn) + sourceDur,
-                fps: 8,
+                fps: backdrop ? 15 : 8,
                 width: maskWidth,
                 height: maskHeight,
                 signal: abort.signal,
@@ -1216,7 +1272,7 @@ async function executeExport(
           const mi = input++;
           args.push("-threads", "2", "-i", maskFile);
           filters.push(
-            `[${mi}:v]trim=duration=${seconds(sourceDur)},setpts=(PTS-STARTPTS)/${speed},${frameCadence},${await sizingFor(`faceMask${ci}`)},format=gray[personMask${ci}]`,
+            `[${mi}:v]trim=duration=${seconds(sourceDur)},setpts=(PTS-STARTPTS)/${speed},${backdrop ? `framerate=fps=${fps},` : ""}${frameCadence},${await sizingFor(`faceMask${ci}`)},format=gray${backdrop ? `,gblur=sigma=${clamp(tw / 960, 0.6, 3).toFixed(2)}` : ""}[personMask${ci}]`,
           );
           if (fx.background === "remove") {
             filters.push(`${chain}[subject${ci}]`);
@@ -1232,6 +1288,14 @@ async function executeExport(
           }
         }
         if (fx.flipX) chain += ",hflip";
+        // The backdrop fills the clip's box under the cut-out person, after the mirror (a picture is never flipped) and before the
+        // colour, blur, zoom, corners and fades, which then treat the two as one picture, as the preview draws them.
+        if (maskFile && backdrop) {
+          const under = await backdropLayer(backdrop, { clip: c, clips, media, ci, tw, th, fps, d, elapsed: (c as Clip & { _elapsed?: number })._elapsed ?? clipEffectTiming(c).offset, frameCadence, args, filters, input });
+          input = under.input;
+          filters.push(`${chain}[cutout${ci}]`);
+          chain = `[${under.label}][cutout${ci}]overlay=x=0:y=0:format=auto:shortest=1,format=rgba`;
+        }
         if (
           fx.brightness ||
           fx.contrast !== 1 ||

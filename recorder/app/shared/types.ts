@@ -32,6 +32,8 @@ export interface Clip {
  /** Original source interval for continuous fades and audio processing after a split. */
  effectTiming?:{sourceIn:number;sourceOut:number};
  effects:{brightness:number; contrast:number; saturation:number; blur:number; grayscale:boolean; flipX:boolean; fadeIn:number; fadeOut:number; denoise:boolean; normalize:boolean; background?:'none'|'remove'|'blur'; faceCenter?:boolean;
+  /** What is drawn behind the cut-out person while `background` is 'remove' (shared/backdrop.ts). Absent leaves it see-through. */
+  backdrop?:import('./backdrop').Backdrop;
   /** Remove Noise strength, 0..1. Read only while `denoise` is on; absent means NOISE_ON. Use noiseStrength and setNoiseStrength. */
   denoiseStrength?:number;
   /** Enhance Voice level when `normalize` is on: absent means minimal. Use voiceLevel and setVoiceLevel. */

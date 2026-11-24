@@ -4,7 +4,9 @@ import {baseLayout,chooseLayout,chosenLayouts,followsLayout,LAYOUT_PRESETS,layou
 import {creatorShadow} from '../shared/camera-style';
 import {usePlayheadSelector,type Playhead} from './playhead';
 import type {Change} from './Inspector';
-import {BrColorField,BrDrawer,BrEmpty,BrGroup,BrSection,BrSlider,BrSub,BrTabs,BrToggleRow,BrWarning} from './club/edit-panels/br';
+import {BrColorField,BrDrawer,BrEmpty,BrGroup,BrSection,BrSelect,BrSlider,BrSub,BrTabs,BrToggleRow,BrWarning} from './club/edit-panels/br';
+import {BACKDROP_CHOICES,backdropChoice,backdropMediaIds,setBackdropChoice,DEFAULT_BACKDROP_COLOR,type BackdropChoice} from '../shared/backdrop';
+import {chooseBackdropFile,personSegmentationAvailable,SEGMENTATION_UNAVAILABLE} from './backdrop-picker';
 
 type Box=Pick<Transform,'x'|'y'|'width'|'height'>;
 const first=(p:Project,track:Clip['track'])=>p.clips.filter(c=>c.track===track).sort((a,b)=>a.start-b.start)[0];
@@ -27,7 +29,7 @@ function Picture({preset,canvas,cameraSrc,screenSrc}:{preset:LayoutPreset;canvas
  * else the one at the playhead, else starts a stretch at the playhead that runs to the next change. The Properties drawer edits the
  * selected camera and screen clips: their place outside a stretch, the camera's corners, shadow, background removal and face centering.
  */
-export function LayoutPanel({project:p,change,playhead,selected,selectedIds,select}:{project:Project;change:Change;playhead:Playhead;selected:string|null;selectedIds?:ReadonlySet<string>;select:(id:string)=>void}){
+export function LayoutPanel({project:p,change,playhead,selected,selectedIds,select,notify}:{project:Project;change:Change;playhead:Playhead;selected:string|null;selectedIds?:ReadonlySet<string>;select:(id:string)=>void;notify?:(message:string)=>void}){
  const [category,setCategory]=useState<'all'|'project'>('all'),[open,setOpen]=useState(false);
  const camera=first(p,'camera'),screen=first(p,'screen');
  const thumb=(c?:Clip)=>c?`/api/media/${encodeURIComponent(c.mediaId)}/thumbnail`:undefined;
@@ -50,21 +52,21 @@ export function LayoutPanel({project:p,change,playhead,selected,selectedIds,sele
    </BrSection>
   </div>
   <BrDrawer open={open} onToggle={()=>setOpen(v=>!v)} openLabel="Layout properties">
-   <Properties p={p} change={change} playhead={playhead} picked={picked} stretches={stretches} camera={camera}/>
+   <Properties p={p} change={change} playhead={playhead} picked={picked} stretches={stretches} camera={camera} notify={notify}/>
   </BrDrawer>
  </div>;
 }
 
 /** The drawer's body: one card per selected camera or screen clip, or for the camera alone when a stretch is chosen with no clip. */
-function Properties({p,change,playhead,picked,stretches,camera}:{p:Project;change:Change;playhead:Playhead;picked:ReadonlySet<string>;stretches:ReturnType<typeof chosenLayouts>;camera?:Clip}){
+function Properties({p,change,playhead,picked,stretches,camera,notify}:{p:Project;change:Change;playhead:Playhead;picked:ReadonlySet<string>;stretches:ReturnType<typeof chosenLayouts>;camera?:Clip;notify?:(message:string)=>void}){
  const layers=p.clips.filter(c=>(c.track==='camera'||c.track==='screen')&&picked.has(c.id));
  const targets=layers.length?layers:stretches.length&&camera?[camera]:[];
  if(!targets.length)return <BrEmpty className="layout-empty" text="Select a clip to edit its properties."/>;
  const time=stretches[0]?stretches[0].start:playhead.get();
- return <div className="layout-cards">{targets.map(clip=><LayerCard key={clip.id} p={p} clip={clip} change={change} time={time} picked={picked} inStretch={stretches.length>0&&followsLayout(clip)}/>)}</div>;
+ return <div className="layout-cards">{targets.map(clip=><LayerCard key={clip.id} p={p} clip={clip} change={change} time={time} picked={picked} inStretch={stretches.length>0&&followsLayout(clip)} notify={notify}/>)}</div>;
 }
 
-function LayerCard({p,clip,change,time,picked,inStretch}:{p:Project;clip:Clip;change:Change;time:number;picked:ReadonlySet<string>;inStretch:boolean}){
+function LayerCard({p,clip,change,time,picked,inStretch,notify}:{p:Project;clip:Clip;change:Change;time:number;picked:ReadonlySet<string>;inStretch:boolean;notify?:(message:string)=>void}){
  const W=p.canvas.width,H=p.canvas.height,t=layoutTransform(p,clip,time),isCamera=clip.track==='camera';
  const edit=(fn:(c:Clip)=>void,key?:string)=>change(d=>{const c=d.clips.find(x=>x.id===clip.id);if(c)fn(c);},key?{coalesce:`layout:${clip.id}:${key}`}:undefined);
  const axes=[['X','x',W],['Y','y',H],['Width','width',W],['Height','height',H]] as const;
@@ -93,12 +95,52 @@ function LayerCard({p,clip,change,time,picked,inStretch}:{p:Project;clip:Clip;ch
      ...(['x','y'] as const).map(key=><BrSub key={key} title={`${key.toUpperCase()} offset`} secondary={`${shadow[key]} px`}><BrSlider label={`Shadow ${key.toUpperCase()}`} value={shadow[key]} min={-limit} max={limit} step={1} onChange={v=>edit(c=>{if(c.transform.shadow)c.transform.shadow[key]=v;},`shadow.${key}`)}/></BrSub>),
     ]}
    </BrGroup>
-   {isCamera&&<BrGroup title="Remove background">
-    <BrToggleRow label="Remove background" checked={clip.effects.background==='remove'} onChange={v=>edit(c=>{c.effects.background=v?'remove':'none';})}/>
-   </BrGroup>}
+   {isCamera&&<BackgroundGroup p={p} clip={clip} edit={edit} change={change} notify={notify}/>}
    {isCamera&&<BrGroup title="Face centering">
     <BrToggleRow label="Face centering" checked={Boolean(clip.effects.faceCenter)} onChange={v=>edit(c=>{c.effects.faceCenter=v;})}/>
    </BrGroup>}
   </div>
  </BrSection>;
+}
+
+/**
+ * Remove background and what goes behind the cut-out person (shared/backdrop.ts): nothing, a colour, a picture, a looping muted video,
+ * the screen recording at that moment, or the older blurred room. Each camera clip keeps its own, so split the clip where it should change.
+ */
+function BackgroundGroup({p,clip,edit,change,notify}:{p:Project;clip:Clip;edit:(fn:(c:Clip)=>void,key?:string)=>void;change:Change;notify?:(message:string)=>void}){
+ const [busy,setBusy]=useState(false),fx=clip.effects,on=fx.background==='remove'||fx.background==='blur',choice=backdropChoice(fx);
+ const available=personSegmentationAvailable();
+ const pick=async(next:BackdropChoice)=>{
+  if(next!=='image'&&next!=='video')return edit(c=>{setBackdropChoice(c.effects,next);});
+  if(fx.backdrop?.kind===next)return edit(c=>{setBackdropChoice(c.effects,next);});
+  // A picture or video already in this video is reused; otherwise one is imported now.
+  const used=new Set(backdropMediaIds(p)),known=p.media.find(m=>m.kind===next&&used.has(m.id));
+  if(known)return edit(c=>{setBackdropChoice(c.effects,next,{mediaId:known.id});});
+  await importFor(next);
+ };
+ const importFor=async(kind:'image'|'video')=>{
+  setBusy(true);
+  try{const m=await chooseBackdropFile(kind);if(!m)return;change(d=>{if(!d.media.some(x=>x.id===m.id))d.media.push(m);const c=d.clips.find(x=>x.id===clip.id);if(c)setBackdropChoice(c.effects,kind,{mediaId:m.id});});}
+  catch(error){notify?.((error as Error).message||'That file could not be imported.');}
+  finally{setBusy(false);}
+ };
+ const kind=choice==='image'||choice==='video'?choice:undefined,b=fx.backdrop,current=kind&&(b?.kind==='image'||b?.kind==='video')?p.media.find(m=>m.id===b.mediaId):undefined;
+ // Earlier pictures and videos to pick from: everything of that kind except the camera recordings themselves.
+ const others=kind?p.media.filter(m=>m.kind===kind&&!p.clips.some(c=>c.track==='camera'&&c.mediaId===m.id)):[];
+ const hasScreen=p.clips.some(c=>c.track==='screen');
+ return <BrGroup title="Remove background">
+  {!available&&<BrWarning>{SEGMENTATION_UNAVAILABLE}</BrWarning>}
+  <BrToggleRow label="Remove background" checked={on} disabled={!available&&!on} onChange={v=>edit(c=>{c.effects.background=v?'remove':'none';})}/>
+  {on&&available&&<>
+   <BrSub title="Background" description="What shows behind you. The preview draws it while paused; Export draws it throughout.">
+    <BrSelect label="Background" value={choice} options={BACKDROP_CHOICES} disabled={busy} onChange={v=>void pick(v)}/>
+   </BrSub>
+   {choice==='color'&&<BrSub title="Color"><BrColorField label="Background color" value={fx.backdrop?.kind==='color'?fx.backdrop.color:DEFAULT_BACKDROP_COLOR} onChange={v=>edit(c=>{setBackdropChoice(c.effects,'color',{color:v});},'backdrop.color')}/></BrSub>}
+   {kind&&<BrSub title={kind==='image'?'Picture':'Video'} secondary={current?.name} description={kind==='image'?'Scaled to fill the camera frame.':'Muted, and loops for as long as the clip runs.'}>
+    {others.length>1&&<BrSelect label={kind==='image'?'Picture':'Video'} value={current?.id??''} options={others.map(m=>({value:m.id,label:m.name}))} disabled={busy} onChange={id=>edit(c=>{setBackdropChoice(c.effects,kind,{mediaId:id});})}/>}
+    <button type="button" className="button compact" disabled={busy} onClick={()=>void importFor(kind)}>{busy?'Importing…':kind==='image'?'Choose a picture…':'Choose a video…'}</button>
+   </BrSub>}
+   {choice==='screen'&&<BrEmpty compact text={hasScreen?'The screen recording playing at that moment fills the camera frame behind you. Make the camera full frame for the classic "in front of my screen" look.':'There is no screen recording in this video yet, so the camera stays see-through.'}/>}
+  </>}
+ </BrGroup>;
 }

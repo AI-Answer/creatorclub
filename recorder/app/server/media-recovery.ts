@@ -6,6 +6,7 @@ import path from 'node:path';
 import type {Media,Project} from '../shared/types.js';
 import type {MediaFingerprint,MediaRecoveryInspection,MediaRecoveryItem,MediaRelinkPlan,MediaRelinkResult} from '../shared/recovery.js';
 import * as storage from './storage.js';
+import {backdropMediaIds,relinkBackdrops} from '../shared/backdrop.js';
 import {probeMedia} from './media.js';
 
 const conflict=(message:string)=>Object.assign(Error(message),{status:409});
@@ -60,7 +61,7 @@ async function fingerprint(file:string):Promise<Fingerprint>{
 function publicFingerprint(value:Fingerprint):MediaFingerprint{const {statKey:_,...result}=value;return result;}
 function references(p:Project,m:Media){
  const clips=p.clips.filter(c=>c.mediaId===m.id);
- return {clipIds:clips.map(c=>c.id),requiredSourceEnd:Math.max(0,...clips.map(c=>Math.max(c.sourceOut,c.effectTiming?.sourceOut??0))),usedAsBackground:p.canvas.backgroundMediaId===m.id};
+ return {clipIds:clips.map(c=>c.id),requiredSourceEnd:Math.max(0,...clips.map(c=>Math.max(c.sourceOut,c.effectTiming?.sourceOut??0))),usedAsBackground:p.canvas.backgroundMediaId===m.id||backdropMediaIds(p).includes(m.id)};
 }
 export async function inspectMedia(projectId:string):Promise<MediaRecoveryInspection>{
  const p=await storage.readProject(projectId),items:MediaRecoveryItem[]=[];
@@ -138,6 +139,7 @@ export async function applyRelink(projectId:string,planId:string,expectedRevisio
   const next=structuredClone(record.before);next.media=next.media.map(m=>m.id===plan.mediaId?replacement:m);
   next.clips=next.clips.map(c=>c.mediaId===plan.mediaId?{...c,mediaId:replacement.id}:c);
   if(next.canvas.backgroundMediaId===plan.mediaId)next.canvas.backgroundMediaId=replacement.id;
+  relinkBackdrops(next,plan.mediaId,replacement.id);
   // Catalog records are immutable by fresh identity: duplicates/history retain the old record.
   // If a later CAS conflicts, an unused fresh catalog entry is harmless and never replaces existing media.
   await storage.registerMedia(replacement);

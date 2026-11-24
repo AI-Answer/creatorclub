@@ -6,6 +6,7 @@ import {fileURLToPath} from 'node:url';
 import type {FileHandle} from 'node:fs/promises';
 import {projectDuration,type Project,type ExportOptions,type Job} from '../shared/types.js';
 import type {ExportRecord} from '../shared/export-history.js';
+import {backdropMediaIds} from '../shared/backdrop.js';
 import type {RenderLifecycle} from './media.js';
 
 type Identity={path:string;realPath:string;size:number;mtimeMs:number;ctimeMs:number;dev:number;ino:number;sha256:string};
@@ -154,7 +155,7 @@ export class ExportStore{
  }
  private assertOpen(){if(!this.owned||this.closing)throw conflict('Export service is shutting down');}
  private async sources(project:Project):Promise<Source[]>{
-  const used=new Set(project.clips.map(c=>c.mediaId));if(project.canvas.backgroundMediaId)used.add(project.canvas.backgroundMediaId);
+  const used=new Set([...project.clips.map(c=>c.mediaId),...backdropMediaIds(project)]);if(project.canvas.backgroundMediaId)used.add(project.canvas.backgroundMediaId);
   const result:Source[]=[];for(const id of used){const media=project.media.find(m=>m.id===id);if(!media)throw Error('Project refers to missing media '+id);result.push({mediaId:id,name:media.name,identity:await fingerprintFile(media.path)});}return result;
  }
  /** Unchanged metadata (size, mtime, ctime, inode, path) skips the full read. Any write moves ctime, even when mtime is restored; a metadata-only change is judged by its bytes. */
