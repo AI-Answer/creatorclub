@@ -8,6 +8,7 @@ import { createProject, projectDuration, isAudioRole, type Project, type Media, 
 import type {TrashProjectSummary,TrashRestoreResult} from '../shared/recovery.js';
 import {motionBlockProblem} from '../shared/motion/templates.js';
 import {layoutsProblem} from '../shared/layouts.js';
+import {isBackdrop} from '../shared/backdrop.js';
 
 export const DATA_DIR=path.resolve(process.env.SCENEFORGE_DATA_DIR||path.join(process.platform==='win32'?(process.env.APPDATA||path.join(os.homedir(),'AppData/Roaming')):path.join(os.homedir(),'Library/Application Support'),'Creator Compiler/studio'));
 export const CACHE_DIR=path.join(DATA_DIR,'cache');
@@ -174,6 +175,8 @@ export function validateProject(value:unknown):Project{
   if(![c.transform.x,c.transform.y,c.transform.width,c.transform.height,c.transform.rotation,c.transform.opacity,c.transform.borderRadius].every(Number.isFinite)||c.transform.width<=0||c.transform.height<=0||c.transform.opacity<0||c.transform.opacity>1)throw new Error('Invalid clip transform');
   if(c.transform.shadow!==undefined){const s=c.transform.shadow;if(!s||typeof s!=='object'||Array.isArray(s)||![s.x,s.y,s.blur].every(Number.isFinite)||Math.abs(s.x)>8192||Math.abs(s.y)>8192||s.blur<0||s.blur>1000||typeof s.color!=='string'||!/^#[0-9a-f]{8}$/i.test(s.color))throw Error('Invalid clip shadow');}
   if(![c.effects.brightness,c.effects.contrast,c.effects.saturation,c.effects.blur,c.effects.fadeIn,c.effects.fadeOut].every(Number.isFinite))throw new Error('Invalid clip effects');
+  // A picture or video behind the cut-out person is project media of that kind, like a clip's own media.
+  if(c.effects.backdrop!==undefined){const b=c.effects.backdrop;if(!isBackdrop(b))throw Error('Invalid clip background');if((b.kind==='image'||b.kind==='video')&&p.media.find(m=>m.id===b.mediaId)?.kind!==b.kind)throw Error('Clip background references missing media');}
  }
  for(const s of p.scenes){if(!Number.isFinite(s.start)||!Number.isFinite(s.duration)||s.start<0||s.duration<0||typeof s.script!=='string')throw new Error('Invalid scene');}
  for(const e of p.elements){if(![e.start,e.duration,e.x,e.y,e.width,e.height,e.fontSize,e.opacity,e.rotation].every(Number.isFinite)||e.start<0||e.duration<0)throw new Error('Invalid element');}

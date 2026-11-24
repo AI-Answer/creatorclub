@@ -1,5 +1,6 @@
 import {clipDuration,clipEffectTiming,projectDuration,makeId,type Project,type Clip} from '../shared/types.js';
 import {cutTimelineRange} from '../shared/timeline-edits.js';
+import {backdropMediaIds} from '../shared/backdrop.js';
 export interface SceneScope {id:string;name:string;start:number;end:number;
  /** Chapter position in the whole project, so a scene-only plan numbers itself like a full pass. */
  position?:{index:number;total:number}}
@@ -17,7 +18,7 @@ export function scenePlanningProject(p:Project,scope:SceneScope,wholeWordsOnly=f
  const q=structuredClone(p),a=scope.start,b=scope.end;
  q.scenes=q.scenes.filter(s=>s.id===scope.id);
  q.clips=q.clips.flatMap(c=>{const start=Math.max(a,c.start),end=Math.min(b,c.start+clipDuration(c));if(end<=start+1e-7)return[];return[{...c,start,sourceIn:c.sourceIn+(start-c.start)*c.speed,sourceOut:c.sourceIn+(end-c.start)*c.speed}];});
- const mediaIds=new Set(q.clips.map(c=>c.mediaId));q.media=q.media.filter(m=>mediaIds.has(m.id));
+ const mediaIds=new Set([...q.clips.map(c=>c.mediaId),...backdropMediaIds(q)]);q.media=q.media.filter(m=>mediaIds.has(m.id));
  q.captions=q.captions.flatMap(c=>{const start=Math.max(a,c.start),end=Math.min(b,c.end);if(end<=start+1e-7)return[];if(!c.words?.length)return[{...c,start,end}];const words=c.words.filter(w=>wholeWordsOnly?w.start>=a-1e-7&&w.end<=b+1e-7:w.start<b-1e-7&&w.end>a+1e-7).map(w=>({...w,start:Math.max(a,w.start),end:Math.min(b,w.end)}));return words.length?[{...c,start:words[0].start,end:words.at(-1)!.end,text:words.map(w=>w.text).join(' '),words}]:[];});
  q.elements=q.elements.filter(e=>e.start<b&&e.start+e.duration>a);if(q.motion)q.motion=q.motion.filter(m=>m.start<b&&m.start+m.duration>a);q.zooms=q.zooms.filter(e=>e.start<b&&e.start+e.duration>a);q.cursor.points=q.cursor.points.filter(pt=>pt.time>=a&&pt.time<=b);delete q.recordedTakes;
  return q;

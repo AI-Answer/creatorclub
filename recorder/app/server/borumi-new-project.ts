@@ -17,7 +17,8 @@ export function planNewBorumiProject(p:Project):NewBorumiPlan{
  if(p.timelineLayers?.length||p.clips.some(c=>c.layerId!==undefined))blockers.add('Custom timeline layers cannot be preserved by this Borumi export yet.');
  if(p.recordedTakes?.length)blockers.add('SceneForge recorded-take history cannot be preserved by this Borumi export. Keep the SceneForge project or export a video instead.');
  if(p.canvas.backgroundPattern!==undefined)blockers.add('Moving-dot canvas backgrounds cannot be preserved by this Borumi export. Choose Solid color in Canvas, or export a video instead.');
- if(!/^#[0-9a-f]{6}$/i.test(p.canvas.background)||p.canvas.padding!==0||p.canvas.radius!==0||p.canvas.backgroundMediaId)blockers.add('New Borumi export currently requires a solid six-digit canvas color, zero canvas padding and zero canvas radius.');
+ if(!/^#[0-9a-f]{6}$/i.test(p.canvas.background)||p.canvas.padding!==0||p.canvas.radius!==0)blockers.add('New Borumi export currently requires a solid six-digit canvas color, zero canvas padding and zero canvas radius.');
+ if(p.canvas.backgroundMediaId)blockers.add('A picture or video canvas background cannot be exported to a new Borumi project yet. Choose a solid canvas color, or export a video instead.');
  if(![p.canvas.width,p.canvas.height].every(n=>Number.isInteger(n)&&n>0&&n<=16384))blockers.add('Canvas dimensions must be integers between 1 and 16384.');
  if(p.captions.length||p.elements.length||p.zooms.length||p.cursor.enabled||p.cursor.points.length)blockers.add('Captions, text/shapes, zooms and cursor paths cannot be exported from a new project yet.');
  for(const list of [p.scenes,p.media,p.clips])if(new Set(list.map(v=>v.id)).size!==list.length)blockers.add('Project entity IDs must be unique.');
@@ -32,6 +33,7 @@ export function planNewBorumiProject(p:Project):NewBorumiPlan{
   if(['audio','music'].includes(c.track)&&c.muted)blockers.add('Muted standalone audio clips cannot be represented without dropping their editable clip.');
   // Camera face centering maps to Borumi's Auto face tracking; any other face centering has no native equivalent.
   const {faceCenter,...effects}=c.effects;if(!isDeepStrictEqual(effects,{...defaultEffects(),flipX:c.effects.flipX}))blockers.add('Only horizontal video flip and camera face centering are supported for new-project clip effects.');
+  if(c.effects.background&&c.effects.background!=='none')blockers.add(c.effects.background==='remove'&&c.effects.backdrop?'A background behind the cut-out camera (color, picture, video or screen recording) cannot be exported to a new Borumi project yet. Export a video instead.':'Camera background removal and blur cannot be exported to a new Borumi project yet. Export a video instead.');
   if(faceCenter&&c.track!=='camera')blockers.add('Face centering can only be exported on camera clips.');
   if(c.effects.flipX&&!['screen','camera'].includes(c.track))blockers.add('Horizontal flip requires a video track.');
   const t=c.transform;if(![t.x,t.y,t.width,t.height,t.rotation,t.opacity,t.borderRadius].every(Number.isFinite)||t.width<=0||t.height<=0||t.rotation!==0||t.opacity!==1||t.borderRadius<0)blockers.add('Video transforms require a positive rectangle, zero rotation and full opacity.');
