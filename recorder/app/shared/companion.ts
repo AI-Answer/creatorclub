@@ -50,6 +50,8 @@ export type EditAction =
   | { type: 'add_blur'; start: number; duration: number; x: number; y: number; width: number; height: number }
   /** The stage for a stretch: the speaker becomes a tile at the side of the look's stage, and the content takes the frame. */
   | { type: 'set_stage'; start: number; end: number }
+  /** Lays out the whole video: the screen alone while you demo, you full screen while you just talk, both otherwise. Stretches set by hand stay. */
+  | { type: 'auto_layout' }
   /** The video's look: a preset to start from, and any values that differ from it. `stage: null` drops the stage. */
   | { type: 'set_look'; preset?: 'clean' | 'editorial'; name?: string; display?: 'sans' | 'serif'; paper?: string; ink?: string; accent?: string; muted?: string; motion?: 'still' | 'subtle' | 'lively'; stage?: { background?: string; side?: 'right' | 'left'; size?: number } | null }
   | { type: 'set_zoom'; start: number; duration: number; scale: number; x?: number; y?: number; target?: 'screen' | 'camera' }
@@ -63,7 +65,7 @@ export type EditAction =
   /** A file one of the creator's own skills made in this video's folder, placed on the Overlays row from `start`. Only a skill run creates it, never a reply. */
   | { type: 'add_clip'; media: Media; start: number; duration: number; title: string; /** A whole-recording edit's finished video: it takes the timeline's place. */ whole?: boolean; /** Screenplay's graphics, one block per scene on their own row, with the speaker as its tile in the stretches given. `media` is the first block's. */ layers?: ClipLayers };
 export type EditActionType = EditAction['type'];
-export const EDIT_ACTION_TYPES = ['cut_pauses', 'remove_fillers', 'close_gaps', 'split_at', 'trim_clip', 'delete_range', 'set_caption_style', 'add_caption', 'add_text', 'add_timeline_note', 'add_blur', 'set_stage', 'set_look', 'set_zoom', 'add_motion_block', 'update_motion_block', 'remove_motion_block', 'add_clip', 'normalize_audio'] as const satisfies readonly EditActionType[];
+export const EDIT_ACTION_TYPES = ['cut_pauses', 'remove_fillers', 'close_gaps', 'split_at', 'trim_clip', 'delete_range', 'set_caption_style', 'add_caption', 'add_text', 'add_timeline_note', 'add_blur', 'set_stage', 'auto_layout', 'set_look', 'set_zoom', 'add_motion_block', 'update_motion_block', 'remove_motion_block', 'add_clip', 'normalize_audio'] as const satisfies readonly EditActionType[];
 export const isEditAction = (action: { type: string }): action is EditAction => (EDIT_ACTION_TYPES as readonly string[]).includes(action.type);
 
 export type CompanionAction =
@@ -134,6 +136,7 @@ export const ACTION_TITLE: Record<CompanionActionType, string> = {
   add_timeline_note: 'Note on the timeline',
   add_blur: 'Blur',
   set_stage: 'Stage',
+  auto_layout: 'Auto layout',
   set_look: 'Look',
   set_zoom: 'Zoom',
   add_motion_block: 'Motion graphic',
@@ -172,6 +175,7 @@ export const ACTION_STEP: Record<CompanionActionType, string> = {
   add_timeline_note: 'Leaving a note',
   add_blur: 'Finding what to hide',
   set_stage: 'Setting the stage',
+  auto_layout: 'Choosing layouts',
   set_look: 'Choosing the look',
   set_zoom: 'Planning a zoom',
   add_motion_block: 'Placing a graphic',
@@ -210,6 +214,7 @@ export const ACTION_VERB: Record<CompanionActionType, string> = {
   add_timeline_note: 'Leave the note',
   add_blur: 'Blur it',
   set_stage: 'Use the stage',
+  auto_layout: 'Lay it out',
   set_look: 'Use this look',
   set_zoom: 'Add zoom',
   add_motion_block: 'Add it',

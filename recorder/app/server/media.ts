@@ -418,6 +418,72 @@ export async function waveform(m: Media, cacheDir: string): Promise<number[]> {
   });
 }
 
+/** Samples per source second that Auto layout reads a screen recording at, and the grey picture each sample is shrunk to. */
+const ACTIVITY_RATE = 1, ACTIVITY_WIDTH = 64, ACTIVITY_HEIGHT = 36, ACTIVITY_LEVELS = 12;
+/**
+ * How much a screen recording changes over its own time, for Auto layout: once a second, the share of a small grey copy of the picture
+ * whose pixels moved by more than a few levels since the previous sample (0 for the first). Cached per source file.
+ */
+export async function screenActivity(m: Media, cacheDir: string): Promise<{ rate: number; values: number[] }> {
+  if (m.kind !== "video") throw new Error("Screen activity needs a video");
+  if (!Number.isFinite(m.duration) || m.duration <= 0 || m.duration > 86400)
+    throw new Error("Screen activity requires a source duration between zero and 24 hours");
+  await fs.mkdir(cacheDir, { recursive: true });
+  const source = await identity(m.path),
+    key = hash(`${source.key}:screen-activity-v1:${ACTIVITY_RATE}:${ACTIVITY_WIDTH}x${ACTIVITY_HEIGHT}:${ACTIVITY_LEVELS}`),
+    file = path.join(cacheDir, `${key}.activity-v1.json`);
+  return unique(file, async () => {
+    try {
+      const cached: unknown = JSON.parse(await fs.readFile(file, "utf8"));
+      if (Array.isArray(cached) && cached.every(n => typeof n === "number" && Number.isFinite(n) && n >= 0 && n <= 1))
+        return { rate: ACTIVITY_RATE, values: cached as number[] };
+    } catch { /* Absent or damaged disposable cache: measure again. */ }
+    const size = ACTIVITY_WIDTH * ACTIVITY_HEIGHT, values: number[] = [];
+    let previous: Buffer | undefined, pending: Buffer = Buffer.alloc(0);
+    await limited(() => new Promise<void>((resolve, reject) => {
+      jobSignal()?.throwIfAborted();
+      // The decoder uses every core: Auto layout waits on this the first time (about 4 s per 5 minutes of 1080p), then reads the cache.
+      const child = trackChild(spawn(FFMPEG, ["-v", "error", "-nostdin", "-i", source.real,
+        "-map", "0:v:0", "-an", "-sn", "-dn", "-filter_threads", "1", "-vf", `fps=${ACTIVITY_RATE},scale=${ACTIVITY_WIDTH}:${ACTIVITY_HEIGHT}:flags=area,format=gray`,
+        "-f", "rawvideo", "pipe:1"], { stdio: ["ignore", "pipe", "pipe"] }));
+      let error = "", settled = false, timedOut = false, lastData = Date.now();
+      const began = lastData;
+      const timer = setInterval(() => {
+        if (Date.now() - began > 600000 || Date.now() - lastData > 60000) { timedOut = true; child.kill("SIGKILL"); }
+      }, 1000);
+      timer.unref();
+      const finish = (failure?: Error) => {
+        if (settled) return; settled = true; clearInterval(timer);
+        if (failure) reject(failure); else resolve();
+      };
+      child.stdout.on("data", (buf: Buffer) => {
+        lastData = Date.now();
+        let bytes = pending.length ? Buffer.concat([pending, buf]) : buf;
+        while (bytes.length >= size) {
+          const frame = bytes.subarray(0, size);
+          let moved = 0;
+          if (previous) for (let i = 0; i < size; i++) if (Math.abs(frame[i] - previous[i]) > ACTIVITY_LEVELS) moved++;
+          values.push(Math.round(moved / size * 10000) / 10000);
+          previous = Buffer.from(frame);
+          bytes = bytes.subarray(size);
+        }
+        pending = Buffer.from(bytes);
+      });
+      child.stderr.on("data", (bytes: Buffer) => { error = (error + bytes).slice(-2000); });
+      child.once("error", finish);
+      child.once("close", code => finish(timedOut ? new Error("Screen activity exceeded its time limit") :
+        code !== 0 ? new Error(`Screen activity decode failed: ${error}`) : undefined));
+    }));
+    if ((await identity(m.path)).key !== source.key) throw new Error("Media changed while reading screen activity; try again");
+    const temporary = file + `.${randomUUID()}.tmp`;
+    try {
+      await fs.writeFile(temporary, JSON.stringify(values));
+      await fs.rename(temporary, file);
+    } finally { await fs.rm(temporary, { force: true }); }
+    return { rate: ACTIVITY_RATE, values };
+  });
+}
+
 export function getJob(id: string) {
   return jobs.get(id);
 }
@@ -1177,11 +1243,13 @@ async function executeExport(
         idx = input++;
         sourceInputs.set(sourceKey, idx);
       }
+      // A clip with no opacity (a camera hidden by a Screen only layout) draws nothing: skip its picture, keep its sound.
       if (
         video &&
         m.kind !== "audio" &&
         c.track !== "audio" &&
-        c.track !== "music"
+        c.track !== "music" &&
+        c.transform.opacity > 0
       ) {
         const t = { ...c.transform },
           fx = c.effects;

@@ -80,10 +80,10 @@ test('Canvas: Padding and Corner radius stay as sliders beneath the colours',asy
  }finally{await ui.close();}
 });
 
-test('Layout: tiles are Borumi\'s five presets, the Project tab keeps only those in use, and a tile sets the stretch at the playhead',async()=>{
+test('Layout: tiles are Borumi\'s five presets and Screen only, the Project tab keeps only those in use, and a tile sets the stretch at the playhead',async()=>{
  const {state,element}=harness(layoutFixture(),'Layout',new Set(),4),ui=await mountUI(element());
  try{
-  const presets=['Creator','Full frame','Picture in picture','Side by side','Camera spotlight'];
+  const presets=['Creator','Full frame','Picture in picture','Side by side','Camera spotlight','Screen only'];
   for(const preset of presets)assert.ok(named(ui.container,preset).classList.contains('layout-tile'));
   assert.equal(named(ui.container,'Picture in picture').getAttribute('aria-pressed'),'true');
   await clickIn(buttonText(ui.container,'Project'));await ui.render(element());

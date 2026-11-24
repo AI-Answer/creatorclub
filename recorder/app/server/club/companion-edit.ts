@@ -3,6 +3,7 @@ import { CHANGED_SINCE, TIMELINE_MOVED, type CompanionContext, type EditAction }
 import { clipDuration, projectDuration, type Project } from '../../shared/types.js';
 import { clipsFingerprint } from '../../src/club/recorder/edit-auto.js';
 import { applyEditAction, editActionProblem, editRanges, hasTranscript, wordPauseRanges, type EditOptions, type SilencePlan } from '../../src/editing-actions.js';
+import type { ScreenActivity } from '../../shared/auto-layout.js';
 import { applyProjectChange } from '../../src/project-draft.js';
 import { PLACEABLE, motionText, placeAwayFrom } from '../../shared/motion/templates.js';
 import { ClubError } from './errors.js';
@@ -19,11 +20,11 @@ import * as store from './store.js';
 /** The parts of a project an Edit action can change. Undo puts these back and compares them; the rest (media, takes, name) is never touched. */
 const NOTES_LISTED = 40;
 const NOTE_MOOD = { dislike: 'does not like this', keep: 'wants to keep this', idea: 'an idea' } as const;
-const TIMELINE_KEYS = ['clips', 'captions', 'captionStyle', 'elements', 'motion', 'zooms', 'scenes', 'markers', 'cursor'] as const;
+const TIMELINE_KEYS = ['clips', 'captions', 'captionStyle', 'elements', 'motion', 'zooms', 'scenes', 'markers', 'cursor', 'layouts'] as const;
 export type Timeline = Partial<Pick<Project, (typeof TIMELINE_KEYS)[number]>>;
 
-// Motion blocks are left out while a project has none, so the timelines of projects made before them hash as they did.
-export const timelineOf = (p: Project): Timeline => Object.fromEntries(TIMELINE_KEYS.filter((key) => key !== 'motion' || p.motion !== undefined).map((key) => [key, p[key] ?? null])) as Timeline;
+// Motion blocks and Layout stretches are left out while a project has none, so the timelines of projects made before them hash as they did.
+export const timelineOf = (p: Project): Timeline => Object.fromEntries(TIMELINE_KEYS.filter((key) => (key !== 'motion' || p.motion !== undefined) && (key !== 'layouts' || p.layouts !== undefined)).map((key) => [key, p[key] ?? null])) as Timeline;
 export const timelineHash = (p: Project) => createHash('sha256').update(JSON.stringify(timelineOf(p))).digest('hex');
 const hashOf = (value: unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const uncaptionedHash = (p: Project) => hashOf({ ...timelineOf(p), captions: null });
@@ -117,9 +118,36 @@ let captionsPendingOf = async (project: Project): Promise<boolean> => {
 export const readCaptionsPendingWith = (reader: typeof captionsPendingOf) => {
   captionsPendingOf = reader;
 };
-export const editOptions = async (project: Project): Promise<EditOptions> => {
-  const [silences, captionsPending] = await Promise.all([silencesOf(project).catch(() => null), captionsPendingOf(project).catch(() => false)]);
-  return { silences, captionsPending };
+/**
+ * How each screen recording on the timeline changes over time (each file measured once, then from the cache), for Auto layout. A file
+ * that cannot be read is left out: Auto layout then goes by the words there.
+ */
+let screenActivityOf = async (project: Project): Promise<ScreenActivity> => {
+  const [{ screenActivity }, { CACHE_DIR }] = await Promise.all([import('../media.js'), import('../storage.js')]);
+  const out: ScreenActivity = {};
+  for (const id of new Set(project.clips.filter((c) => c.track === 'screen').map((c) => c.mediaId))) {
+    const media = project.media.find((m) => m.id === id);
+    if (media?.kind !== 'video') continue;
+    try {
+      out[id] = await screenActivity(media, CACHE_DIR);
+    } catch {
+      /* Unreadable here: the words decide. */
+    }
+  }
+  return out;
+};
+/** Tests replace where the screen activity is read from. */
+export const readScreenActivityWith = (reader: typeof screenActivityOf) => {
+  screenActivityOf = reader;
+};
+/** The measurements an Edit action goes by. The screen is only read for Auto layout, the one action that looks at it. */
+export const editOptions = async (project: Project, action?: EditAction): Promise<EditOptions> => {
+  const [silences, captionsPending, screenActivity] = await Promise.all([
+    silencesOf(project).catch(() => null),
+    captionsPendingOf(project).catch(() => false),
+    action?.type === 'auto_layout' ? screenActivityOf(project).catch(() => null) : undefined,
+  ]);
+  return { silences, captionsPending, ...(screenActivity !== undefined ? { screenActivity } : {}) };
 };
 /** `GET /videos/:id/companion/silences`: the plan the editor previews cuts of pauses with, so its preview matches what Apply does. */
 export async function editSilences(slug: string, id: string): Promise<SilencePlan | null> {
@@ -135,7 +163,7 @@ export async function applyEdit(slug: string, id: string, action: EditAction, ex
   // Made again after its Undo: on the timeline it was first made on, or anywhere its clips are still where it was planned (captions remade
   // or other notes and graphics since do not move it).
   if (appliedOn !== undefined && beforeHash !== appliedOn && !(proposedOn !== undefined && stillPlaced(project, proposedOn))) throw new ClubError(MOVED_SINCE_UNDO, 409);
-  const options = await editOptions(project);
+  const options = await editOptions(project, action);
   const problem = editActionProblem(project, action, options);
   if (problem) throw new ClubError(problem, 409);
   if (proposedOn !== undefined && !stillPlaced(project, proposedOn)) throw new ClubError(MOVED_SINCE_PROPOSAL, 409);

@@ -143,6 +143,7 @@ app.get('/api/media/:id/file',route(async(req,res)=>res.sendFile((await storage.
 app.get('/api/media/:id/thumbnail',route(async(req,res)=>res.sendFile(await media.thumbnail(await storage.readMedia(param(req)),storage.CACHE_DIR),{dotfiles:'allow'})));
 app.get('/api/media/:id/filmstrip',route(async(req,res)=>res.sendFile(await media.filmstrip(await storage.readMedia(param(req)),storage.CACHE_DIR),{dotfiles:'allow'})));
 app.get('/api/media/:id/waveform',route(async(req,res)=>res.json({peaks:await media.waveform(await storage.readMedia(param(req)),storage.CACHE_DIR)})));
+app.get('/api/media/:id/screen-activity',route(async(req,res)=>res.json(await media.screenActivity(await storage.readMedia(param(req)),storage.CACHE_DIR))));
 app.get('/api/media/:id/face-track',route(async(req,res)=>{
  const start=Number(req.query.start),end=Number(req.query.end);if(!Number.isFinite(start)||!Number.isFinite(end)||start<0||end<=start||end-start>30)throw Error('Face tracking requires a finite source range of up to 30 seconds.');
  const controller=new AbortController();req.once('aborted',()=>controller.abort());res.once('close',()=>{if(!res.writableEnded)controller.abort();});

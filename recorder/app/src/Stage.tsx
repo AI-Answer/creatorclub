@@ -55,7 +55,7 @@ function ClipView({clip,media,time,visible,playing,quality,onSelect,project:p,pi
  const fadeIn=Math.min(1,e.fadeIn?Math.max(0,effectElapsed)/e.fadeIn:1),fadeOut=Math.min(1,e.fadeOut?Math.max(0,timing.duration-effectElapsed)/e.fadeOut:1);
  const opacity=t.opacity*(clip.effectTiming?fadeIn*fadeOut:Math.min(fadeIn,fadeOut));
  // Pre-roll is transparent rather than display:none, so its first frame is already decoded and composited at the cut.
- const style={left:`${t.x*100}%`,top:`${t.y*100}%`,width:`${t.width*100}%`,height:`${t.height*100}%`,opacity:visible?opacity:0,pointerEvents:visible?undefined:'none',transform:`rotate(${t.rotation}deg) scaleX(${e.flipX?-1:1})`,borderRadius:radius*pixelScale,filter:(clipFilterCss(e,t,pixelScale).replace(/^none$/,'')+morphBlur).trim()||'none'} as const;
+ const style={left:`${t.x*100}%`,top:`${t.y*100}%`,width:`${t.width*100}%`,height:`${t.height*100}%`,opacity:visible?opacity:0,pointerEvents:visible&&t.opacity>0?undefined:'none',transform:`rotate(${t.rotation}deg) scaleX(${e.flipX?-1:1})`,borderRadius:radius*pixelScale,filter:(clipFilterCss(e,t,pixelScale).replace(/^none$/,'')+morphBlur).trim()||'none'} as const;
  const blurBackground=Boolean(vision.frame&&e.background==='blur');
  // The clip's mirror flips its box; the backdrop is turned back so a picture or the screen never reads backwards.
  const fill={position:'absolute' as const,inset:0,width:'100%',height:'100%',objectFit:'cover' as const,transform:e.flipX?'scaleX(-1)':undefined};
