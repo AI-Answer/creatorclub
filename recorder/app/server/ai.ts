@@ -7,8 +7,11 @@ import { constants } from 'node:fs';
 import { makeId, clipDuration, narrationPriority, type AISettings, type AISuggestion, type Caption, type Media, type Project } from '../shared/types.js';
 import {isSoundTag} from '../shared/sound-tags.js';
 
-async function executable(name:string):Promise<string|undefined>{
- for(const entry of name.includes('/')?[name]:(process.env.PATH??'').split(path.delimiter).map(p=>path.join(p,name)))try{await access(entry,constants.X_OK);return entry}catch{}
+/** A path is used as given; a bare name is looked up on PATH. Windows programs end in .exe. */
+export async function executable(name:string,platform:NodeJS.Platform=process.platform):Promise<string|undefined>{
+ const file=platform==='win32'&&!path.extname(name)?name+'.exe':name;
+ const direct=path.isAbsolute(file)||/[\\/]/.test(file);
+ for(const entry of direct?[file]:(process.env.PATH??'').split(path.delimiter).filter(Boolean).map(p=>path.join(p,file)))try{await access(entry,constants.X_OK);return entry}catch{}
 }
 // Automatic work runs at a lower CPU priority only. Background QoS (taskpolicy -b) also throttles disk I/O,
 // which can starve even the worker's own start-up for minutes while other I/O is busy.
@@ -17,7 +20,7 @@ const BACKGROUND_NICE=10;
 export interface WorkHold {remaining():number;idle(signal?:AbortSignal):Promise<void>;changed(signal?:AbortSignal):Promise<void>}
 async function run(command:string,args:string[],timeout=30*60*1000,signal?:AbortSignal,background=false,hold?:WorkHold):Promise<{stdout:string;stderr:string}>{
  signal?.throwIfAborted();
- return new Promise((resolve,reject)=>{let stdout='',stderr='',failure:Error|undefined,killTimer:NodeJS.Timeout|undefined,paused=false,left=timeout;const child=ownChild(spawn(command,args,{stdio:['ignore','pipe','pipe']}));
+ return new Promise((resolve,reject)=>{let stdout='',stderr='',failure:Error|undefined,killTimer:NodeJS.Timeout|undefined,paused=false,left=timeout;const child=ownChild(spawn(command,args,{stdio:['ignore','pipe','pipe'],windowsHide:true}));
  if(background&&child.pid)try{setPriority(child.pid,BACKGROUND_NICE);}catch{}
  const stop=(error:Error)=>{failure=error;if(paused){paused=false;child.kill('SIGCONT');}child.kill('SIGTERM');killTimer=setTimeout(()=>child.kill('SIGKILL'),1500);killTimer.unref();};
  const abort=()=>stop(new Error('Transcription cancelled.'));signal?.addEventListener('abort',abort,{once:true});
@@ -25,7 +28,8 @@ async function run(command:string,args:string[],timeout=30*60*1000,signal?:Abort
  const pause=()=>{if(paused||failure)return;paused=true;clearTimeout(timer);left=deadline-Date.now();child.kill('SIGSTOP');};
  const resume=()=>{if(!paused)return;paused=false;child.kill('SIGCONT');deadline=Date.now()+left;timer=setTimeout(expire,left);};
  const holding=new AbortController();
- if(hold)void (async()=>{while(!holding.signal.aborted){if(hold.remaining()>0){pause();await hold.idle(holding.signal);resume();}else await hold.changed(holding.signal);}})().catch(()=>{});
+ // Windows cannot suspend a process with SIGSTOP, so there a held worker keeps running.
+ if(hold&&process.platform!=='win32')void (async()=>{while(!holding.signal.aborted){if(hold.remaining()>0){pause();await hold.idle(holding.signal);resume();}else await hold.changed(holding.signal);}})().catch(()=>{});
  const cleanup=()=>{clearTimeout(timer);if(killTimer)clearTimeout(killTimer);signal?.removeEventListener('abort',abort);holding.abort();};
  child.stdout.on('data',d=>{stdout=(stdout+d).slice(-8_000_000)});child.stderr.on('data',d=>{stderr=(stderr+d).slice(-8_000_000)});child.on('error',e=>{cleanup();reject(e)});child.on('close',(code,signal)=>{cleanup();failure?reject(failure):code===0?resolve({stdout,stderr}):reject(Object.assign(new Error(`${path.basename(command)} failed (${code??signal}): ${stderr.slice(-1200)}`),{exitCode:code,signal,stderr}))})})
 }

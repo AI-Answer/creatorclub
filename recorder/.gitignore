@@ -11,6 +11,7 @@ node_modules
 /app/server-dist/
 /app/data/
 /app/runtime/
+/app/.runtime-build/
 /release/
 /coverage/
 /build/

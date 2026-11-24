@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {parseTranscription,parseSilences,analyze,quietRanges} from './ai.js';
+import {parseTranscription,parseSilences,analyze,quietRanges,executable} from './ai.js';
 import {createProject,defaultEffects,defaultTransform,type Clip} from '../shared/types.js';
-import {mkdtemp,rm} from 'node:fs/promises';
+import {mkdtemp,rm,writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {execFile} from 'node:child_process';
@@ -137,4 +137,17 @@ test('with no model path set, the best speech model already installed is used; a
   await remove(cache,{recursive:true});await remove(models,{recursive:true});
   await assert.rejects(transcribe(media,settings,dir,{prepared:true}),/Set the local Whisper GGML model path/,'an error only when no model exists');
  }finally{for(const [key,value] of Object.entries(saved)){if(value===undefined)delete process.env[key];else process.env[key]=value;}await remove(dir,{recursive:true,force:true});}
+});
+
+test('Windows programs are found by their .exe name on PATH, and a given path is used as is',async()=>{
+ const dir=await mkdtemp(path.join(tmpdir(),'creatorclub-exe-')),saved=process.env.PATH;
+ try{
+  await writeFile(path.join(dir,'whisper-cli.exe'),'',{mode:0o755});await writeFile(path.join(dir,'ffmpeg'),'',{mode:0o755});
+  process.env.PATH=dir;
+  assert.equal(await executable('whisper-cli','win32'),path.join(dir,'whisper-cli.exe'));
+  assert.equal(await executable('whisper-cli','darwin'),undefined,'a Mac does not look for .exe');
+  assert.equal(await executable('ffmpeg','darwin'),path.join(dir,'ffmpeg'));
+  assert.equal(await executable(path.join(dir,'whisper-cli'),'win32'),path.join(dir,'whisper-cli.exe'),'a path without .exe gets it on Windows');
+  assert.equal(await executable(path.join(dir,'ffmpeg'),'darwin'),path.join(dir,'ffmpeg'));
+ }finally{process.env.PATH=saved;await rm(dir,{recursive:true,force:true});}
 });
