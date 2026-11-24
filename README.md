@@ -23,7 +23,7 @@ Both targets live in this repository. [Desktop apps](.github/workflows/desktop-b
 - **Plan a video:** a channel workspace, discovery and research boards, ideas, outlines, scripts, and a production pipeline.
 - **Write:** scene scripts, scene ordering, teleprompter, and saved history.
 - **Record:** screen/window, camera, microphone, takes, and recording review.
-- **Edit:** a multi-track timeline, transcript cuts, captions, canvas layouts, and export.
+- **Edit:** a multi-track timeline, transcript cuts, captions, canvas layouts, and export. On a Mac, Remove background cuts you out of the camera and can put a colour, a picture, a looping video or your screen recording behind you (Layout → camera properties).
 - **Cut with Cutroom:** snapshot a video, detect cuts, review the proposal, and apply it with a revision check and a history checkpoint.
 - **Make motion graphics:** choose a template, enter text, set a word or time anchor, preview a rendered frame, and export through Cutroom. Import the result as a new video.
 - **Work with an assistant:** 47 MCP tools, including 8 Cutroom tools. Claude chat uses your separately installed Claude Code and existing sign-in.
@@ -90,7 +90,7 @@ Try: “Prepare a Cutroom snapshot of this project, detect cuts, show the propos
 
 ## Boundaries
 
-Cutroom uses its own camera/screen composition. Editor transforms, effects, overlays, per-clip audio gain, cursor styling, and music are not carried into a Cutroom render; use the editor's standard Export for that composition. The bridge currently requires 1× source clips. Automatic cut detection requires word-timed captions. The form exposes common graphics; advanced JSON and MCP support the engine's full beat vocabulary.
+Cutroom uses its own camera/screen composition. Editor transforms, effects (including camera backgrounds), overlays, per-clip audio gain, cursor styling, and music are not carried into a Cutroom render; use the editor's standard Export for that composition. The bridge currently requires 1× source clips. Automatic cut detection requires word-timed captions. The form exposes common graphics; advanced JSON and MCP support the engine's full beat vocabulary.
 
 macOS-only Apple Vision segmentation and face tracking remain unavailable on Windows. Regular recording, editing, standard text/shape export, and Cutroom graphics use portable paths. Windows hardware recording and installer acceptance are separate from successful compilation and CI startup.
 
