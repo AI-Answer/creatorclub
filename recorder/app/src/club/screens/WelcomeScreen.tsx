@@ -101,8 +101,11 @@ export function WelcomeScreen({navigate,initialStep}:{navigate(route:Route,optio
  },[activateImported,restored]);
  // Reading the videos failed after the channel was made: the voice questions write the guide instead, and Try again reads them again.
  const addFailed=add.state.phase==='failed'?add.state.message:'';
- useEffect(()=>{if(addFailed)setChannel(current=>current?.voice==='pending'?{...current,voice:'needs-answers'}:current);},[addFailed]);
- const retryAdd=()=>{const link=created.current?.channelUrl||url.trim();if(link)runAdd(link);};
+ // It also runs when the channel turns up after the failure (the read failed while the channel was still being opened), so it never stays `pending`.
+ const channelVoice=channel?.voice;
+ useEffect(()=>{if(addFailed&&channelVoice==='pending')setChannel(current=>current?.voice==='pending'?{...current,voice:'needs-answers'}:current);},[addFailed,channelVoice]);
+ // Trying again shows the reading as in progress again, which also hides the questions and holds step 4 until the topics are read.
+ const retryAdd=()=>{const link=created.current?.channelUrl||url.trim();if(!link)return;setChannel(current=>current?.voice==='needs-answers'?{...current,voice:'pending'}:current);runAdd(link);};
  const reading=channel?.voice==='pending'&&addStage!=='read';
  const [leaveError,setLeaveError]=useState<{message:string;route:Route}|null>(null);
 
