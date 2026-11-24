@@ -449,7 +449,6 @@
 :where(.club-root) .col-h .n:where(:not(.club-embed *)) { color: var(--cc-text-3); font-weight: var(--cc-weight-medium); }
 :where(.club-root) .kcard:where(:not(.club-embed *)) { padding: 8px; margin-bottom: 8px; display: flex; flex-direction: column; gap: 8px; cursor: grab; }
 :where(.club-root) .kcard:active:where(:not(.club-embed *)) { cursor: grabbing; }
-:where(.club-root) .kcard.dragging:where(:not(.club-embed *)) { opacity: .4; }
 :where(.club-root) .kcard .tt:where(:not(.club-embed *)) { font-size:var(--cc-text-sm); font-weight: var(--cc-weight-semibold); line-height: 1.3; padding: 0 2px; }
 :where(.club-root) .kcard .na:where(:not(.club-embed *)) { display: flex; align-items: center; gap: 6px; font-size:var(--cc-text-xs); color: var(--cc-text-2); padding: 0 2px 2px; }
 :where(.club-root) .drop-line:where(:not(.club-embed *)) { height: 2px; border-radius: var(--cc-r-sm); background: var(--cc-accent); margin: -5px 0 5px; }
@@ -1106,7 +1105,6 @@
 .club-root .col-dot.st-published { background: var(--cc-stage-published); }
 .club-root .kanban .kcard { padding: 8px; margin-bottom: 8px; gap: 8px; background: var(--cc-surface); border: 1px solid var(--cc-line); border-radius: var(--cc-r-lg); box-shadow: none; transition: border-color var(--cc-dur) var(--cc-ease),box-shadow var(--cc-dur) var(--cc-ease),transform var(--cc-dur) var(--cc-ease); }
 .club-root .kanban .kcard:hover { border-color: var(--cc-line-strong); box-shadow: var(--cc-shadow-2); transform: translateY(-1px); }
-.club-root .kanban .kcard.dragging { opacity: .4; transform: none; }
 .club-root .kanban .kcard .thumb { border-radius: var(--cc-r-lg); }
 .club-root .kanban .kcard .tt { font-size: var(--cc-text-sm); line-height: 1.35; }
 .club-root .kanban .icard { padding: 10px 10px 6px; }
@@ -1164,15 +1162,10 @@
 .club-root .video-board-page .kanban .kmove { top: 8px; right: 8px; }
 .club-root .video-board-page .kanban .kmove .btn { padding: 0; height: 24px; min-height: 24px; width: 24px; background: var(--cc-kanban-card); color: var(--cc-card-menu); border: 1px solid var(--cc-kanban-border); box-shadow: none; }
 .club-root .video-board-page .drop-gap { margin-bottom: 10px; border: 1px dashed var(--cc-accent); border-radius: var(--cc-r-lg); background: var(--cc-accent-soft); }
-.club-root .video-board-page .drag-source { opacity: .35; }
-.club-root .video-board-page .kanban .drag-source .kcard.dragging { opacity: 1; }
 .club-root .video-board-page .kanban .col-collapsed .col-h { flex-direction: column; height: 100%; padding: 12px 8px; gap: 12px; border: 0; }
 .club-root .video-board-page .col-collapsed .col-name { writing-mode: vertical-rl; }
 .club-root .video-board-page .kanban .col-collapsed .n { margin: 0; }
 .club-root .video-board-page .col-collapsed .lane-toggle { margin-top: auto; }
-.kanban-drag-preview { position: fixed; top: -2000px; left: -2000px; overflow: hidden; padding: 10px; background: var(--cc-surface); color: var(--cc-text); border: 1px solid var(--cc-line-strong); border-radius: var(--cc-r-lg); box-shadow: var(--cc-shadow-3); transform: rotate(2deg); font-size: var(--cc-text-sm); }
-.kanban-drag-preview .kcard-cover { aspect-ratio: 16/9; overflow: hidden; }
-.kanban-drag-preview .kcard-cover img { width: 100%; height: 100%; object-fit: cover; }
 .kanban-drag-preview .kcard-id,.kanban-drag-preview .na { font-size: var(--cc-text-2xs); color: var(--cc-text-3); }
 @media (prefers-reduced-motion: reduce) { .club-root .video-board-page .kanban .kcard { transition: none; } }
 @media (max-width: 760px) {

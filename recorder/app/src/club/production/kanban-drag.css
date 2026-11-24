@@ -1,0 +1,39 @@
+/* Pointer dragging on the Kanban board (see kanban-drag.ts). Only transforms and opacity animate. */
+.club-root .kanban .lane-cards { position: relative; }
+.club-root .kanban.is-dragging [data-slot] { will-change: transform; transition: transform 180ms cubic-bezier(.2, .8, .2, 1); }
+.club-root .kanban.is-dragging.no-shift-motion [data-slot],
+.club-root .kanban.is-dragging.reduced-motion [data-slot] { transition: none; }
+
+/* The card's own place stays in the layout but is drawn as the gap. */
+.club-root .video-board-page .kanban [data-slot].drag-source,
+.club-root .kanban [data-slot].drag-source { opacity: 0; }
+
+/* Where the card will land. */
+.club-root .kanban .lane-cards > .drop-gap { position: absolute; box-sizing: border-box; margin: 0; pointer-events: none; border: 1px dashed var(--cc-accent); border-radius: var(--cc-r-lg); background: var(--cc-accent-soft); transition: top 180ms cubic-bezier(.2, .8, .2, 1); animation: kanban-gap-in 120ms ease-out; }
+.club-root .kanban.no-shift-motion .lane-cards > .drop-gap,
+.club-root .kanban.reduced-motion .lane-cards > .drop-gap { transition: none; animation: none; }
+.club-root .kanban .lane-cards.drop-target > .lane-empty-state { visibility: hidden; }
+@keyframes kanban-gap-in { from { opacity: 0; } }
+
+/* No hover lift on other cards while one is in the hand. */
+.club-root .video-board-page .kanban.is-dragging .kcard:hover,
+.club-root .kanban.is-dragging .kcard:hover { transform: none; }
+
+/* The copy under the pointer. The wrapper follows the pointer; the card inside lifts and settles. */
+.club-root .kanban .kanban-drag-overlay { position: fixed; z-index: 60; margin: 0; pointer-events: none; will-change: transform; contain: layout style; }
+.club-root .video-board-page .kanban .kanban-drag-overlay .kcard.kanban-drag-copy,
+.club-root .kanban .kanban-drag-overlay .kcard.kanban-drag-copy { height: 100%; margin: 0; box-sizing: border-box; cursor: grabbing; transform: none; transition: transform 180ms cubic-bezier(.2, .8, .2, 1), box-shadow 180ms cubic-bezier(.2, .8, .2, 1); }
+.club-root .video-board-page .kanban .kanban-drag-overlay .kcard.kanban-drag-copy.lifted,
+.club-root .kanban .kanban-drag-overlay .kcard.kanban-drag-copy.lifted { transform: rotate(1.5deg) scale(1.02); box-shadow: var(--cc-shadow-3); }
+.club-root .kanban.reduced-motion .kanban-drag-overlay .kcard.kanban-drag-copy { transition: none; }
+
+.club-root .kanban .kcard { -webkit-user-select: none; user-select: none; }
+.club-root .kanban .kcard img { -webkit-user-drag: none; }
+html.cc-kanban-dragging, html.cc-kanban-dragging * { cursor: grabbing !important; -webkit-user-select: none !important; user-select: none !important; }
+
+@media (prefers-reduced-motion: reduce) {
+  .club-root .kanban.is-dragging [data-slot],
+  .club-root .kanban .lane-cards > .drop-gap,
+  .club-root .kanban .kanban-drag-overlay .kcard.kanban-drag-copy { transition: none; animation: none; }
+  .club-root .kanban .kanban-drag-overlay .kcard.kanban-drag-copy.lifted { transform: none; }
+}

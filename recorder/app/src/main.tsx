@@ -15,6 +15,7 @@ import './cutroom.css';
 import './BrandLogo.css';
 import './club/borumi.css';
 import './club/polish.css';
+import './club/production/kanban-drag.css';
 import './club/borumi-record.css';
 import './club/borumi-edit.css';
 import './club/edit-panels/br.css';
