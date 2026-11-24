@@ -138,7 +138,7 @@
 .club-embed .app-shell[data-mode=Edit] .club-timeline .timeline-scroll{flex:1;min-width:0;height:100%;overflow:auto;position:relative;outline:none}
 .club-embed .app-shell[data-mode=Edit] .club-timeline .timeline-content{position:relative;min-width:100%;background:none;overflow-x:clip}
 /* Near the end the hover time and frame open to the left, so they never widen the timeline (that made it scroll on forever). */
-.club-embed .app-shell[data-mode=Edit] .club-hover.flip :is(b,.club-hover-frame){left:auto;right:4px}
+.club-embed .app-shell[data-mode=Edit] .club-hover.flip b{left:auto;right:4px}
 .club-embed .app-shell[data-mode=Edit] .club-ruler{position:sticky;top:0;z-index:7;background:var(--cc-surface);border-bottom:1px solid var(--cc-line);cursor:pointer;user-select:none}
 .club-embed .app-shell[data-mode=Edit] .club-ruler .tick{position:absolute;bottom:0;width:1px;height:5px;background:var(--cc-line)}
 .club-embed .app-shell[data-mode=Edit] .club-ruler .tick.major{height:12px;background:var(--cc-line-strong)}
@@ -194,7 +194,6 @@
 .club-embed .app-shell[data-mode=Edit] .club-hover{position:absolute;top:0;bottom:0;width:1px;background:var(--cc-text-3);pointer-events:none;z-index:4}
 .club-embed .app-shell[data-mode=Edit] .club-hover b{position:absolute;top:15px;left:4px;padding:1px 6px;border-radius:var(--cc-r-sm);background:var(--cc-toast-bg);color:var(--cc-toast-text);font-size:var(--cc-text-2xs);font-weight:600;white-space:nowrap}
 .club-embed .app-shell[data-mode=Edit] .club-word{position:absolute;top:2px;z-index:3;padding:0 3px;border-radius:var(--cc-r-sm);background:color-mix(in srgb,var(--cc-surface) 70%,transparent);color:var(--cc-text);font-size:var(--cc-text-2xs);line-height:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none}
-.club-embed .app-shell[data-mode=Edit] .club-hover-frame{position:absolute;top:38px;left:4px;display:block;border-radius:var(--cc-r-sm);border:2px solid var(--cc-toast-bg);background-color:var(--cc-dark-stage);background-repeat:no-repeat;box-shadow:var(--cc-shadow-1)}
 /* A previewed change drawn on the timeline before it is applied: dashed, in the accent colour; a removal is hatched. */
 .club-embed .app-shell[data-mode=Edit] .club-fx-ghost{position:absolute;top:3px;bottom:3px;z-index:4;pointer-events:none;display:flex;align-items:center;padding:0 8px;border-radius:var(--cc-r-sm);font-size:var(--cc-text-2xs);font-weight:600;overflow:hidden;white-space:nowrap;border:1.5px dashed var(--cc-accent);background:color-mix(in srgb,var(--cc-accent) 14%,var(--cc-surface));color:var(--cc-accent-text);animation:fxGhost 1.6s ease-in-out infinite}
 .club-embed .app-shell[data-mode=Edit] .club-fx-ghost.removed{border-color:var(--cc-danger);color:var(--cc-danger);text-decoration:line-through;background:repeating-linear-gradient(135deg,color-mix(in srgb,var(--cc-danger) 22%,transparent) 0 4px,transparent 4px 8px)}
@@ -451,9 +450,8 @@
 .club-hidden-rows>button:hover{background:var(--cc-hover)}
 .club-root .club-embed .app-shell[data-mode=Edit] .club-edit .club-ruler .club-scene-tag{text-transform:uppercase;letter-spacing:.08em}
 .club-embed .app-shell[data-mode=Edit] .club-hover-playhead{left:0;top:0;bottom:auto;z-index:7;will-change:transform;opacity:.85}
-.club-embed .app-shell[data-mode=Edit] .club-hover-playhead[hidden],.club-embed .app-shell[data-mode=Edit] .club-hover-frame[hidden]{display:none}
+.club-embed .app-shell[data-mode=Edit] .club-hover-playhead[hidden]{display:none}
 .club-embed .app-shell[data-mode=Edit] .club-hover-playhead b{top:1px;padding:0 6px 0 4px;border-radius:4px;background:var(--cc-surface);color:var(--cc-text-2);box-shadow:0 0 0 1px var(--cc-border,transparent)}
-.club-hover-pin{position:absolute;left:-3px;top:0;width:7px;height:12px;border-radius:3px;background:var(--cc-text-3)}
 .club-root .club-embed .app-shell[data-mode=Edit] .club-edit .club-timeline .club-clip.club-hover-related:not(.selected){outline:1px solid var(--cc-text-3);outline-offset:-1px}
 .club-embed .app-shell[data-mode=Edit] .club-scene-tag:empty{display:none}
 .club-row-eye:focus-visible,.club-hidden-toggle:focus-visible,.club-hidden-rows>button:focus-visible{outline:2px solid var(--cc-accent);outline-offset:-2px}

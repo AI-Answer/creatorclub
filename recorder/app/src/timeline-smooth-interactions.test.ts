@@ -19,11 +19,11 @@ test('pinch paints immediately, commits once after idle, and keeps the pointer t
   await act(async()=>{wheel();});await act(async()=>{ui.container.querySelector('.club-ruler')!.dispatchEvent(new window.PointerEvent('pointerdown',{bubbles:true,button:0,buttons:1,clientX:200,pointerId:1}));});assert.equal(scales,2,'clicking during a pinch commits first');assert.ok(Math.abs(seeks[0]-75)<1e-6,'the click seeks the visible time');
  }finally{await ui.close();}
 });
-test('hover pin spans rows and previews the pointer frame without seeking; hiding captions survives remount',async()=>{
+test('hover line spans rows and shows the pointer time without seeking; hiding captions survives remount',async()=>{
  const p=fixture(),before=JSON.stringify(p),playhead=createPlayhead(3),props={project:p,playhead,scale:20,onScale:noop,selectedIds:new Set<string>(),onSelectMany:noop,onSeek:noop,change:noop,onDropMedia:noop,tool:'select' as const,onSplit:noop,follow:false,showWaveforms:false,onOpen:noop,autoFit:false};
  let ui=await mountUI(createElement(TimelineClub,props));try{
   const row=ui.container.querySelector('.club-row')!;await act(async()=>{row.dispatchEvent(new window.PointerEvent('pointermove',{bubbles:true,clientX:120,buttons:0}));});await pause(25);
-  const ghost=ui.container.querySelector<HTMLElement>('.club-hover-playhead')!;assert.equal(ghost.hidden,false);assert.equal(ghost.style.transform,'translateX(120px)');assert.equal(ghost.querySelector('b')?.textContent,'00:06');assert.equal((ghost.querySelector('.club-hover-frame') as HTMLElement).hidden,false);assert.equal(playhead.get(),3);
+  const ghost=ui.container.querySelector<HTMLElement>('.club-hover-playhead')!;assert.equal(ghost.hidden,false);assert.equal(ghost.style.transform,'translateX(120px)');assert.equal(ghost.querySelector('b')?.textContent,'00:06');assert.equal(ghost.querySelector('.club-hover-pin,.club-hover-frame'),null,'no pin or frame box, so it never looks like a second playhead');assert.equal(playhead.get(),3);
   await act(async()=>{button(ui.container,'Hide Captions row').click();});assert.equal(ui.container.querySelector('.row-captions'),null);assert.equal(button(ui.container,'Hidden rows (1)').textContent,'Hidden rows (1)');assert.equal(JSON.stringify(p),before);
   await ui.close();ui=await mountUI(createElement(TimelineClub,props));assert.equal(ui.container.querySelector('.row-captions'),null);
   await act(async()=>{button(ui.container,'Hidden rows (1)').click();});await act(async()=>{button(ui.container,'Captions').click();});assert.ok(ui.container.querySelector('.row-captions'));
