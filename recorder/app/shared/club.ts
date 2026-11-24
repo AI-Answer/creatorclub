@@ -480,6 +480,8 @@ export interface AddChannelResult {
 export interface VoiceGuideSummary {
   summary: string;
   transcripts: number;
+  /** Only when there is no guide: why adding the channel couldn't write one (its videos couldn't be read, or the AI step failed). Rebuild tries again. */
+  failed?: string;
 }
 /** Result of the job behind `POST /workspaces/:slug/voice`. */
 export interface VoiceResult {

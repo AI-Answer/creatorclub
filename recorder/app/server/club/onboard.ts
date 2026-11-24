@@ -4,7 +4,8 @@ import { ensureChannelAvatar, type AvatarFetch } from './channel-avatar.js';
 import type { JobContext } from './jobs.js';
 import * as store from './store.js';
 import { prepareYtDlp, type ToolOptions } from './tools.js';
-import { buildVoiceGuide, hasVoiceGuide, MIN_TRANSCRIPTS, saveTranscripts, writeVoiceFromAnswers } from './voice.js';
+import { userMessage } from './errors.js';
+import { buildVoiceGuide, hasVoiceGuide, MIN_TRANSCRIPTS, saveTranscripts, saveVoiceFailure, writeVoiceFromAnswers } from './voice.js';
 
 const say = (context: JobContext) => (message: string) => context.emit({ message });
 
@@ -28,24 +29,33 @@ export async function addChannel(channelUrl: string, context: JobContext, option
     return { workspace: await ensureChannelAvatar(existing, avatarFetch), voice: 'built' };
   }
   let made: Workspace | undefined;
-  const read = await readChannel(ref, {
-    ...options, ytdlp: await yt(context, options), signal: context.signal, say: say(context),
-    onListed: async (listing) => {
-      const created = await store.withLock(`workspace-create:${store.rootDir()}`, async () => {
-        const latest = (await store.listWorkspaces()).find(workspace => sameChannelUrl(workspace.channelUrl, ref.url));
-        return latest ?? store.createWorkspace({ name: listing.name, handle: listing.handle, channelUrl: ref.url, topics: [], about: '', cta: '' });
-      });
-      made = await ensureChannelAvatar(created, avatarFetch);
-      context.emit({ message: `Reading your last ${Math.min(MAX_TRANSCRIPTS, listing.entries.length)} videos…`, partial: { workspace: made, stage: 'listed' } satisfies AddChannelProgress });
-    },
-  });
-  // A channel whose topics were never set takes the ones read from its videos.
-  const workspace = await store.updateWorkspace(made!.slug, latest => latest.topics.length ? latest : { ...latest, topics: read.data.topics });
-  await saveChannel(workspace.slug, read);
-  if (read.transcripts.length < MIN_TRANSCRIPTS) return { workspace, voice: 'needs-answers' };
-  context.emit({ message: 'Writing your voice guide…', partial: { workspace, stage: 'read' } satisfies AddChannelProgress });
-  await buildVoiceGuide(workspace.slug, workspace.name, read.transcripts, { ...options, signal: context.signal, say: say(context) });
-  return { workspace, voice: 'built' };
+  try {
+    return await readAndWrite();
+  } catch (error) {
+    // Setup may be long gone by now: the channel remembers why it has no guide, for Settings → Channel. A stop is not a failure.
+    if (made && !context.signal.aborted) await saveVoiceFailure(made.slug, userMessage(error)).catch(() => {});
+    throw error;
+  }
+  async function readAndWrite(): Promise<AddChannelResult> {
+    const read = await readChannel(ref, {
+      ...options, ytdlp: await yt(context, options), signal: context.signal, say: say(context),
+      onListed: async (listing) => {
+        const created = await store.withLock(`workspace-create:${store.rootDir()}`, async () => {
+          const latest = (await store.listWorkspaces()).find(workspace => sameChannelUrl(workspace.channelUrl, ref.url));
+          return latest ?? store.createWorkspace({ name: listing.name, handle: listing.handle, channelUrl: ref.url, topics: [], about: '', cta: '' });
+        });
+        made = await ensureChannelAvatar(created, avatarFetch);
+        context.emit({ message: `Reading your last ${Math.min(MAX_TRANSCRIPTS, listing.entries.length)} videos…`, partial: { workspace: made, stage: 'listed' } satisfies AddChannelProgress });
+      },
+    });
+    // A channel whose topics were never set takes the ones read from its videos.
+    const workspace = await store.updateWorkspace(made!.slug, latest => latest.topics.length ? latest : { ...latest, topics: read.data.topics });
+    await saveChannel(workspace.slug, read);
+    if (read.transcripts.length < MIN_TRANSCRIPTS) return { workspace, voice: 'needs-answers' };
+    context.emit({ message: 'Writing your voice guide…', partial: { workspace, stage: 'read' } satisfies AddChannelProgress });
+    await buildVoiceGuide(workspace.slug, workspace.name, read.transcripts, { ...options, signal: context.signal, say: say(context) });
+    return { workspace, voice: 'built' };
+  }
 }
 
 /**

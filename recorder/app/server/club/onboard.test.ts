@@ -235,6 +235,8 @@ test('a failed AI step leaves the channel added; adding it again reuses it inste
   const slugs = (await listWorkspaces()).filter((w) => w.handle === '@retry');
   assert.equal(slugs.length, 1);
   assert.equal(await exists(path.join(dir(slugs[0].slug), 'voice.md')), false);
+  // Setup may have been left by then, so Settings → Channel is told why there is no guide.
+  assert.deepEqual((await call('GET', `/workspaces/${slugs[0].slug}/voice`)).body, { summary: '', transcripts: 0, failed: 'Claude is not signed in.' });
 
   await setClaude('short');
   const tooShort = await finish((await call('POST', '/workspaces', { channelUrl: '@retry' })).body.id);
@@ -247,6 +249,8 @@ test('a failed AI step leaves the channel added; adding it again reuses it inste
   assert.equal(done.result.voice, 'built');
   assert.equal(done.result.workspace.slug, slugs[0].slug);
   assert.equal((await listWorkspaces()).filter((w) => w.handle === '@retry').length, 1);
+  const guide = (await call('GET', `/workspaces/${slugs[0].slug}/voice`)).body;
+  assert.ok(guide.summary && guide.failed === undefined, 'writing the guide clears the failure');
 });
 
 test('adding a channel that already has a voice guide returns it without calling YouTube', async () => {
