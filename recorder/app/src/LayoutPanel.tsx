@@ -7,6 +7,7 @@ import type {Change} from './Inspector';
 import {BrColorField,BrDrawer,BrEmpty,BrGroup,BrSection,BrSelect,BrSlider,BrSub,BrTabs,BrToggleRow,BrWarning} from './club/edit-panels/br';
 import {BACKDROP_CHOICES,backdropChoice,backdropMediaIds,setBackdropChoice,DEFAULT_BACKDROP_COLOR,type BackdropChoice} from '../shared/backdrop';
 import {chooseBackdropFile,personSegmentationAvailable,SEGMENTATION_UNAVAILABLE} from './backdrop-picker';
+import {AutoLayoutSection} from './club/edit-panels/AutoLayout';
 
 type Box=Pick<Transform,'x'|'y'|'width'|'height'>;
 const first=(p:Project,track:Clip['track'])=>p.clips.filter(c=>c.track===track).sort((a,b)=>a.start-b.start)[0];
@@ -16,7 +17,7 @@ function Picture({preset,canvas,cameraSrc,screenSrc}:{preset:LayoutPreset;canvas
  const g:LayoutGeometry=layoutGeometry(preset,canvas);
  const box=(b:Box&Partial<Transform>,src?:string):CSSProperties=>{
   const r=b.borderRadius??0;
-  return {left:`${b.x*100}%`,top:`${b.y*100}%`,width:`${b.width*100}%`,height:`${b.height*100}%`,borderRadius:r?`${r/(b.width*canvas.width)*100}% / ${r/(b.height*canvas.height)*100}%`:undefined,backgroundImage:src?`url(${src})`:undefined};
+  return {left:`${b.x*100}%`,top:`${b.y*100}%`,width:`${b.width*100}%`,height:`${b.height*100}%`,borderRadius:r?`${r/(b.width*canvas.width)*100}% / ${r/(b.height*canvas.height)*100}%`:undefined,backgroundImage:src?`url(${src})`:undefined,opacity:b.opacity};
  };
  return <span className="layout-picture" style={{background:canvas.background}}>
   <i className="layout-screen" style={box(g.screen,screenSrc)}/>
@@ -50,6 +51,7 @@ export function LayoutPanel({project:p,change,playhead,selected,selectedIds,sele
     {!presets.length&&<BrEmpty text="No layout is used in this video yet."/>}
     <BrEmpty className="layout-hint" text={stretch?'Changes the Layout stretch marked on the timeline. Drag its edges there to choose when it starts and ends.':'Starts a Layout stretch at the playhead that runs to the next change. Outside a stretch, drag the camera on the picture to move it, or a corner to resize it.'}/>
    </BrSection>
+   <AutoLayoutSection project={p} change={change}/>
   </div>
   <BrDrawer open={open} onToggle={()=>setOpen(v=>!v)} openLabel="Layout properties">
    <Properties p={p} change={change} playhead={playhead} picked={picked} stretches={stretches} camera={camera} notify={notify}/>

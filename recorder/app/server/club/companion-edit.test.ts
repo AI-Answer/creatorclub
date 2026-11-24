@@ -32,7 +32,7 @@ async function fakeAI(options: RunAIOptions): Promise<RunAIResult> {
 
 const { clubRouter } = await import('./index.js');
 const { validateActions } = await import('./companion-actions.js');
-const { readSilencesWith, MOVED_SINCE_UNDO } = await import('./companion-edit.js');
+const { readSilencesWith, readScreenActivityWith, MOVED_SINCE_UNDO } = await import('./companion-edit.js');
 const { CODEX_ON_EDIT } = await import('./companion.js');
 const { clipsFingerprint } = await import('../../src/club/recorder/edit-auto.js');
 const storage = await import('../storage.js');
@@ -431,4 +431,37 @@ test('a change that moves nothing (captions remade after a cut, a volume) leaves
   await storage.commitProject(next, { expectedRevision: now.revision });
   const applied = await card(fresh, 0, 'apply', { revision: (await state()).revision });
   assert.equal(applied.status, 200, JSON.stringify(applied.body));
+});
+
+test('auto_layout (the MCP tool goes through apply_actions): reads the screen, lays out the video in one change, and undo_action puts the Layout row back', async () => {
+  // The screen recording keeps changing from 6 s to 10 s, in the silence between the two sentences.
+  const read: string[] = [];
+  readScreenActivityWith(async (p) => {
+    read.push(...p.clips.filter((c) => c.track === 'screen').map((c) => c.mediaId));
+    return { m: { rate: 1, values: Array.from({ length: 21 }, (_, t) => (t >= 6 && t <= 10 ? 0.3 : 0)) } };
+  });
+  // Earlier tests leave their changes on the shared recording: start again from its take, screen and camera.
+  const current = await state(), fresh = structuredClone(JSON.parse(current.json) as Project), take = recording();
+  Object.assign(fresh, { clips: take.clips, captions: take.captions, scenes: take.scenes, elements: [], motion: undefined, markers: [] });
+  await storage.commitProject(fresh, { expectedRevision: current.revision });
+  const before = await state();
+  assert.equal((JSON.parse(before.json) as Project).layouts, undefined, 'no Layout row yet');
+  const applied = await call<{ applied: Array<{ type: string; version: string; result: string }> }>('POST', `/videos/${video.id}/agent/actions`, { actions: [{ type: 'auto_layout' }], revision: before.revision });
+  assert.equal(applied.status, 200, JSON.stringify(applied.body));
+  assert.deepEqual(read, ['m'], 'the screen recording was read for Auto layout: '+ JSON.stringify(applied.body));
+  assert.match(applied.body.applied[0].result, /^Auto layout: 1 screen-only stretch, /);
+  const laid = JSON.parse((await state()).json) as Project;
+  assert.deepEqual(laid.layouts!.map((l) => [l.preset, l.auto]), [['Full frame', true], ['Screen only', true], ['Full frame', true]]);
+  const placed = (p: Project) => p.clips.map((c) => [c.id, c.start, c.sourceIn, c.sourceOut, c.transform]);
+  assert.deepEqual(placed(laid), placed(JSON.parse(before.json)), 'the clips stay where they were: the stretches place them');
+
+  const undone = await call('POST', `/videos/${video.id}/agent/actions/undo`, { version: applied.body.applied[0].version });
+  assert.equal(undone.status, 200, JSON.stringify(undone.body));
+  assert.equal((JSON.parse((await state()).json) as Project).layouts, undefined, 'Undo puts back the timeline without stretches');
+
+  // Other actions never pay for reading the screen.
+  read.length = 0;
+  const text = await call('POST', `/videos/${video.id}/agent/actions`, { actions: [{ type: 'add_timeline_note', time: 2, text: 'idea' }] });
+  assert.equal(text.status, 200, JSON.stringify(text.body));
+  assert.deepEqual(read, []);
 });

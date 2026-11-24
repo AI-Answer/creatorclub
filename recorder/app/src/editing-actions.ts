@@ -9,6 +9,7 @@ import {MORPH_SECONDS,morphSource} from '../shared/stage-morph';
 import {EDITORIAL_LOOK,lookFrom,onStage,stageTile,stageTileRadius,stagePanel} from '../shared/look';
 import {MOTION_TEMPLATES,beatsFrom,motionPropsFrom,motionReadable,newMotionBlock,normalizeMotionProps} from '../shared/motion/templates';
 import type {MotionTemplateId} from '../shared/types';
+import {applyAutoLayout,autoLayoutProblem,autoLayoutSummary,type ScreenActivity} from '../shared/auto-layout';
 
 /**
  * The companion's Edit actions as pure functions over a project (or a draft of one). Every change goes through the editor's own timeline
@@ -32,7 +33,7 @@ export const DELETE_MAX_SHARE=.5,DELETE_WARN_SHARE=.25;
  * clips still match, pauses are cut where the audio is quiet.
  */
 export interface SilencePlan {fingerprint:string;ranges:Range[]}
-export interface EditOptions {silences?:SilencePlan|null;/** The captions of a new take are still being made: no word timings yet, for a moment. */captionsPending?:boolean}
+export interface EditOptions {silences?:SilencePlan|null;/** The captions of a new take are still being made: no word timings yet, for a moment. */captionsPending?:boolean;/** How much each screen recording changes over time, for Auto layout (measured by the server; absent goes by the words). */screenActivity?:ScreenActivity|null}
 /** Rows that carry the recorded speech. */
 const SPEECH:ReadonlySet<Clip['track']>=new Set(['screen','camera','audio']);
 const EPS=1e-6;
@@ -141,6 +142,7 @@ export function editActionProblem(p:Project,action:EditAction,options:EditOption
    return overlapping(p,'captions',action.start,action.end).length?'A caption is already there at that time.':undefined;
   }
   case 'set_look':return undefined;
+  case 'auto_layout':return autoLayoutProblem(p);
   case 'set_stage':{
    if(!inRange(action.start)||!(action.end>action.start+.5)||action.end>length+.05)return 'That stretch is outside the video.';
    const cams=p.clips.filter(c=>c.track==='camera'&&c.start<action.end-1e-3&&c.start+clipDuration(c)>action.start+1e-3);
@@ -260,6 +262,10 @@ export function applyEditAction(p:Project,action:EditAction,options:EditOptions=
    // The stage shows the look's background, with a slow field of dots: the canvas behind everything, which full-frame clips cover.
    p.canvas.background=stage.background;p.canvas.backgroundPattern='moving-dots';
    result=`The stage from ${clock(action.start)} to ${clock(action.end)}`;
+   break;
+  }
+  case 'auto_layout':{
+   result=autoLayoutSummary(applyAutoLayout(p,{screenActivity:options.screenActivity},newId));
    break;
   }
   case 'add_blur':{
@@ -394,6 +400,7 @@ export function describeEditAction(action:EditAction,p?:Project):string{
   case 'add_timeline_note':return `“${action.text}” at ${clock(action.time)}.`;
   case 'set_look':{const look=lookFrom(p?.look,action);return `${look.name}: ${look.display==='serif'?'serif':'sans'} headlines in ${look.paper} on ${look.ink}, ${look.accent} as the highlight, ${look.motion==='still'?'no animation':look.motion==='subtle'?'graphics that fade':'graphics that rise and build'}${look.stage?`, and a ${look.stage.background} stage with you on the ${look.stage.side}`:''}.`;}
   case 'set_stage':return `From ${clock(action.start)} to ${clock(action.end)} you become a tile at the side and the content takes the frame.`;
+  case 'auto_layout':return 'Show the screen alone while you demo, you full screen while you just talk, and both otherwise. Layouts you set by hand stay.';
   case 'add_blur':return `Blur ${Math.round(action.width*100)}% × ${Math.round(action.height*100)}% of the frame at ${Math.round(action.x*100)}% across, ${Math.round(action.y*100)}% down, from ${clock(action.start)} for ${secs(action.duration)}.`;
   case 'set_zoom':{
    const gone=p?replacedZooms(p,action):[];

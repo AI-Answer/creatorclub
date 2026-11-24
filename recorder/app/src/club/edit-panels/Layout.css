@@ -24,5 +24,6 @@
 .club-root .club-edit-side .layout-picture .layout-camera { background-color: color-mix(in srgb, var(--br-primary) 35%, transparent); box-shadow: var(--br-shadow); }
 
 .club-root .club-edit-side .layout-hint { margin-top: 12px; }
+.club-root .club-edit-side .layout-auto { width: 100%; margin-top: 12px; }
 .club-root .club-edit-side .layout-empty { padding: 16px; }
 .club-root .club-edit-side .layout-cards { display: flex; flex-direction: column; gap: 12px; }
