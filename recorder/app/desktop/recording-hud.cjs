@@ -29,7 +29,7 @@ function cleanState(value,initial=false){
 
 // Electron does not emit 'hide' for BrowserWindow.hide() on macOS, so the HUD reports
 // each editor hide/show it makes through onMainVisibility instead of relying on that event.
-function createRecordingHud({BrowserWindow,ipcMain,screen,Menu,shell,getMainWindow,verifyMain,onMainVisibility=()=>{},preferencesPath,scriptPreferencesPath,appName='SceneForge',createFollower=createSpeechFollower}){
+function createRecordingHud({BrowserWindow,ipcMain,screen,Menu,shell,getMainWindow,verifyMain,onMainVisibility=()=>{},preferencesPath,scriptPreferencesPath,appName='Creator Compiler',createFollower=createSpeechFollower}){
  let hud=null,authorization='notDetermined',state=null,hiddenMain=false,ready=null,ending=false,sessionId=null,synced=false,area=null,bounds=null;
  let preferences={};try{if(preferencesPath)preferences=JSON.parse(fs.readFileSync(preferencesPath,'utf8'));}catch{/* Missing or damaged preferences use the compact default. */}
  const documentURL=pathToFileURL(path.join(__dirname,'recording-hud.html')).href;

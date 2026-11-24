@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-// CreatorClub types shared by the server (server/club) and the UI (src/club).
+// Creator Compiler types shared by the server (server/club) and the UI (src/club).
 
 export interface Workspace {
   slug: string;
@@ -422,7 +422,7 @@ export type AiStatus = Record<ConnectProvider, AiProviderStatus>;
 export interface ClubSettings {
   /** The AI that runs prompts. Null until one is chosen or the first one connects. */
   defaultAi: AiProvider | null;
-  /** True once the first-visit "How CreatorClub works" dialog has been closed. */
+  /** True once the first-visit "How Creator Compiler works" dialog has been closed. */
   welcomed: boolean;
   /** The theme chosen in Settings, or null while none is chosen (light). */
   appearance: 'system' | 'light' | 'dark' | null;

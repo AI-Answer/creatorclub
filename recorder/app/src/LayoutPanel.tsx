@@ -25,7 +25,7 @@ function Picture({preset,canvas,cameraSrc,screenSrc}:{preset:LayoutPreset;canvas
 }
 
 /**
- * Layout in CreatorClub's Edit, in Borumi's form (spec-edit-step.md, e2): choosing an arrangement changes the selected Layout stretch,
+ * Layout in Creator Compiler's Edit, in Borumi's form (spec-edit-step.md, e2): choosing an arrangement changes the selected Layout stretch,
  * else the one at the playhead, else starts a stretch at the playhead that runs to the next change. The Properties drawer edits the
  * selected camera and screen clips: their place outside a stretch, the camera's corners, shadow, background removal and face centering.
  */

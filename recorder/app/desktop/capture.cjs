@@ -4,7 +4,7 @@ const { pathToFileURL } = require('node:url');
 const { randomUUID } = require('node:crypto');
 const { captureDisplay, sourceMetadata, normalizedRect, buildSelection, sameDisplay, CaptureSelectionStore } = require('./capture-geometry.cjs');
 
-function createCaptureManager({ BrowserWindow, desktopCapturer, screen, ipcMain, session, systemPreferences, getMainWindow, origin, appName = 'SceneForge', inventoryTimeoutMs = 15000, listReuseMs = 10000, now = Date.now }) {
+function createCaptureManager({ BrowserWindow, desktopCapturer, screen, ipcMain, session, systemPreferences, getMainWindow, origin, appName = 'Creator Compiler', inventoryTimeoutMs = 15000, listReuseMs = 10000, now = Date.now }) {
  const store = new CaptureSelectionStore();
  let epoch = 0, popup = null, disposed = false, listed = null;
  let lifetime = new AbortController();

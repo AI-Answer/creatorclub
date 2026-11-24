@@ -1,5 +1,5 @@
 /* Borumi's shared Edit-panel primitives (br.tsx), resolved from its stylesheet (index-DXJH5HZm.css). Scoped to the club's Edit side
-   panel. Light is :root and dark is .dark in Borumi; here the --br-* tokens follow CreatorClub's data-theme. */
+   panel. Light is :root and dark is .dark in Borumi; here the --br-* tokens follow Creator Compiler's data-theme. */
 .club-root .club-edit-side { --br-panel: var(--br-bg); }
 .club-root .club-edit-side .br-panel { display: flex; flex-direction: column; min-height: 100%; background: var(--br-bg); color: var(--br-primary); font-size: var(--cc-text-base); }
 .club-root .club-edit-side .br-panel.is-card { background: var(--br-card); }

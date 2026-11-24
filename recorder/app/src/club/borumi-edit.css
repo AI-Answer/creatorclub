@@ -1,9 +1,9 @@
 /* Borumi's Edit step, resolved from its stylesheet (index-DXJH5HZm.css) for each class in its markup (main bundle). Light is :root,
-   dark is .dark; here they follow CreatorClub's data-theme through the --br-* tokens. Loaded last so it wins over the older club CSS. */
+   dark is .dark; here they follow Creator Compiler's data-theme through the --br-* tokens. Loaded last so it wins over the older club CSS. */
 
 /* Tool rail AQ / item OQ (M:66709-66781): 72px; items px-3 py-2 gap-1 rounded-sm hover:bg-secondary, pt-3 on the first; a 36px
    circle well bg-primary/5 (active bg-primary text-primary-foreground) around a 16px icon; label text-xs font-medium, 11px past 7
-   letters. "More" is CreatorClub's own (Graphics, media in this video, Cutroom). */
+   letters. "More" is Creator Compiler's own (Graphics, media in this video, Cutroom). */
 .club-root .club-embed .app-shell[data-mode=Edit] .club-edit .club-rail { width: 72px; gap: 0; padding: 0; background: var(--br-bg); border-right: 1px solid var(--br-border); }
 .club-root .club-embed .app-shell[data-mode=Edit] .club-edit .club-rail button { display: flex; flex-direction: column; align-items: center; gap: 4px; width: 100%; padding: 8px 12px; border: 0; border-radius: var(--cc-r-sm); background: transparent; color: var(--br-primary); font-size: var(--cc-text-xs); line-height: 16px; font-weight: 500; cursor: default; }
 .club-root .club-embed .app-shell[data-mode=Edit] .club-edit .club-rail button:first-child { padding-top: 12px; }
@@ -15,7 +15,7 @@
 
 /* Play bar nX (M:52176-52258): border-t border-b, flex justify-center gap-2. Left group flex-1 pl-2 with the time; the transport in
    the middle; right group flex-1 justify-end pr-2 with the tools, a 1x16 rule and the zoom. Icon buttons are ghost 36x36 rounded-md;
-   toggles are 32x32 rounded-sm with bg-accent when on. The ⋯ menu is CreatorClub's own (follow, fit, split, notes). */
+   toggles are 32x32 rounded-sm with bg-accent when on. The ⋯ menu is Creator Compiler's own (follow, fit, split, notes). */
 .club-root .club-embed .app-shell[data-mode=Edit] .club-edit .club-timeline-bar { display: flex; flex-wrap: nowrap; align-items: center; justify-content: center; gap: 8px; height: auto; min-height: 0; padding: 0; border-top: 1px solid var(--br-border); border-bottom: 1px solid var(--br-border); background: var(--br-bg); user-select: none; }
 .club-root .club-embed .app-shell[data-mode=Edit] .club-edit .ctb-left { display: flex; flex: 1 1 0%; align-items: center; min-width: 0; padding-left: 8px; }
 .club-root .club-embed .app-shell[data-mode=Edit] .club-edit .ctb-center { display: flex; flex: none; align-items: center; justify-content: center; gap: 0; }

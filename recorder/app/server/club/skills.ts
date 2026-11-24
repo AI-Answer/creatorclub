@@ -117,7 +117,7 @@ async function skillsIn(root: string): Promise<InstalledSkill[]> {
       if (!(await stat(file)).isFile()) continue;
       const raw = await readFile(file, 'utf8');
       const front = /^---\n([\s\S]*?)\n---/.exec(raw)?.[1] ?? '';
-      // A skill made for CreatorClub's Edit says so in its front matter: `creatorclub: edit`.
+      // A skill made for Creator Compiler's Edit says so in its front matter: `creatorclub: edit`.
       const forEdit = /^creatorclub:\s*\[?[^\n]*\bedit\b/m.test(front);
       found.push({ name, description: oneLine(raw), previews: await findPreviews(path.join(root, name)), ...(forEdit ? { forEdit } : {}) });
     } catch {

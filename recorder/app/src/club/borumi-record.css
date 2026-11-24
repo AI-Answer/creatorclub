@@ -1,7 +1,7 @@
 /*
  * The Record step, value for value from Borumi's own code: the layout (P8, A8), the sources panel (CL, kL, DD, the preview tile), the
  * scene cards (k8, p8, x8, QS, b8, v0) and the empty state (I8). Every value is resolved from Borumi's stylesheet for light (:root) and
- * dark (.dark). This file loads last, so it settles anything the older Record styles set differently. CreatorClub's own parts (Ask Claude,
+ * dark (.dark). This file loads last, so it settles anything the older Record styles set differently. Creator Compiler's own parts (Ask Claude,
  * the Idea step, Publish) are not touched here.
  */
 

@@ -23,13 +23,13 @@ function buildPlan(project:Project,source:BorumiProvenance,structural:Structural
  const base=source.baseline,blockers=new Set<string>(),warnings=new Set<string>([
   'Exports a separate copy. The original Borumi project is never modified.',
   'The copy starts a new Borumi history. A consistent source database snapshot and its original history are preserved inside .sceneforge/original-project.sqlite.',
-  'Unedited native fields and bundle files are retained. SceneForge preview differences do not replace those native settings.'
+  'Unedited native fields and bundle files are retained. Creator Compiler preview differences do not replace those native settings.'
  ]),changes:BorumiCompatibilityPlan['changes']=[];
  const change=(kind:string,id:string,fs:string[])=>{if(fs.length)changes.push({kind,id,fields:fs})};
  if(structural){for(const reason of structural.blockers)blockers.add(reason);for(const warning of structural.warnings)warnings.add(warning);changes.push(...structural.changes);}
- if(project.version!==1)blockers.add('Unsupported SceneForge project version.');
+ if(project.version!==1)blockers.add('Unsupported Creator Compiler project version.');
  if(!same(project.timelineLayers??[],base.timelineLayers??[])||project.clips.some(c=>c.layerId!==base.clips.find(b=>b.id===c.id)?.layerId))blockers.add('Custom timeline layers cannot be preserved by this Borumi export yet.');
- if(project.recordedTakes?.length||!same(project.recordedTakes??[],base.recordedTakes??[]))blockers.add('SceneForge recorded-take history cannot be preserved by this Borumi export. Keep the SceneForge project or export a video instead.');
+ if(project.recordedTakes?.length||!same(project.recordedTakes??[],base.recordedTakes??[]))blockers.add('Creator Compiler recorded-take history cannot be preserved by this Borumi export. Keep the Creator Compiler project or export a video instead.');
  if(project.canvas.backgroundPattern!==undefined)blockers.add('Moving-dot canvas backgrounds cannot be preserved by this Borumi export. Choose Solid color in Canvas, or export a video instead.');
  if(project.name!==base.name)change('project',project.id,['name']);
  if(changed(project.canvas,base.canvas,['width','height']))blockers.add('Canvas changes other than width and height cannot be exported yet.');
@@ -89,7 +89,7 @@ function buildPlan(project:Project,source:BorumiProvenance,structural:Structural
   if(!bounds||e.start<bounds.start||e.start+e.duration>bounds.start+bounds.duration+1e-7)blockers.add('A text overlay exceeds its scene bounds.');
   change('text',e.id,fields(nativeElement,b,['text','start','duration','x','y','width','height']));
  }
- if(!same(project.settings,base.settings)||project.notes!==base.notes)warnings.add('SceneForge editor preferences and project notes are not included in Borumi.');
+ if(!same(project.settings,base.settings)||project.notes!==base.notes)warnings.add('Creator Compiler editor preferences and project notes are not included in Borumi.');
  return {supported:blockers.size===0,blockers:[...blockers],warnings:[...warnings],changes,sourceFormat:'preserved-borumi',history:'new-root'};
 }
 function structuralPlan(project:Project,source:BorumiProvenance,database:string){const db=new DatabaseSync(database,{readOnly:true});try{return planStructuralTimeline(project,source,db.prepare('SELECT * FROM scene_timeline_segments').all() as Row[]);}finally{db.close()}}
@@ -162,7 +162,7 @@ export interface BorumiExportResult {path:string;projectId:string;plan:BorumiCom
 export async function exportBorumiRoundtrip(project:Project,options:{preservationRoot:string;outputRoot:string}):Promise<BorumiExportResult>{
  const {value:source,database}=await readBorumiPreservation(project,options.preservationRoot),structural=structuralPlan(project,source,database),plan=buildPlan(project,source,structural);
  if(!plan.supported)throw Error(`Borumi export blocked: ${plan.blockers.join(' ')}`);
- const id=randomUUID(),slug=project.name.normalize('NFKC').replace(/[^a-zA-Z0-9 _-]/g,'').trim().slice(0,70)||'SceneForge project';
+ const id=randomUUID(),slug=project.name.normalize('NFKC').replace(/[^a-zA-Z0-9 _-]/g,'').trim().slice(0,70)||'Creator Compiler project';
  const outputRoot=await safeBorumiOutputRoot(options.outputRoot,source.sourceRoot);
  const output=path.resolve(outputRoot,`${slug}-${id.slice(0,8)}.bmprojbundle`),staging=`${output}.partial`;
  const sourcePath=path.resolve(source.sourceRoot);

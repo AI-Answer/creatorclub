@@ -1,5 +1,5 @@
 name: Desktop apps
-# Builds and tests CreatorClub for Mac and Windows. Every push to main, once both builds pass, is published as one
+# Builds and tests Creator Compiler for Mac and Windows. Every push to main, once both builds pass, is published as one
 # GitHub Release; installed apps check for it every half hour and install it when they quit
 # (recorder/app/desktop/updater.cjs). Pull requests build and test only. A manual run builds the signed Mac app and
 # publishes only when asked.
@@ -89,7 +89,7 @@ jobs:
       - name: Signed with the CreatorClub Dev certificate
         if: matrix.platform == 'mac' && github.event_name != 'pull_request'
         run: |
-          app="$(ls -d release/mac*/CreatorClub.app | head -1)"
+          app="$(ls -d release/mac*/"Creator Compiler.app" | head -1)"
           codesign --verify --deep --strict "$app"
           codesign -d -r- "$app" 2>&1 | tee /dev/stderr | grep -qi "certificate root = H\"$CREATORCLUB_SIGN_SHA1\""
           test -f release/latest-mac.yml
@@ -99,7 +99,7 @@ jobs:
         run: |
           $env:SCENEFORGE_PORT = '4194'
           $env:SCENEFORGE_DATA_DIR = Join-Path $env:RUNNER_TEMP 'creator-compiler-smoke'
-          $app = Start-Process -FilePath './release/win-unpacked/CreatorClub.exe' -PassThru
+          $app = Start-Process -FilePath './release/win-unpacked/Creator Compiler.exe' -PassThru
           try {
             $ready = $false
             for ($i=0; $i -lt 90; $i++) {
@@ -121,7 +121,7 @@ jobs:
       # The installers, plus latest*.yml and the blockmaps installed apps read to learn there is a newer version.
       - uses: actions/upload-artifact@v4
         with:
-          name: CreatorClub-${{ matrix.artifact }}
+          name: Creator-Compiler-${{ matrix.artifact }}
           path: |
             release/*.dmg
             release/*.exe
@@ -141,7 +141,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          pattern: CreatorClub-*
+          pattern: Creator-Compiler-*
           path: release
           merge-multiple: true
       - name: Create the release
@@ -153,5 +153,5 @@ jobs:
           test -n "$version"
           test "$(sed -n 's/^version: //p' release/latest-mac.yml)" = "$version"
           ls -l release
-          gh release create "v$version" --title "CreatorClub $version" --target "$GITHUB_SHA" \
+          gh release create "v$version" --title "Creator Compiler $version" --target "$GITHUB_SHA" \
             --notes "Built from $GITHUB_SHA. Installed apps update to it on their own." release/*

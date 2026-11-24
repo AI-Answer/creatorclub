@@ -328,7 +328,7 @@
 }
 
 /*
-  The editor inside Record and Edit (SceneForge) has its own variable names. Inside CreatorClub they are these tokens, so its panels,
+  The editor inside Record and Edit (SceneForge) has its own variable names. Inside Creator Compiler they are these tokens, so its panels,
   inputs, lists and timeline use the same colours, lines and text as every other screen, in light and dark. Its own stylesheets keep
   their old values only as fallbacks for when it runs on its own.
 */
@@ -359,7 +359,7 @@
 }
 
 /*
-  Borumi's own values, for the screens CreatorClub copies from Borumi (the Record step, the take preview). Each is resolved from Borumi's
+  Borumi's own values, for the screens Creator Compiler copies from Borumi (the Record step, the take preview). Each is resolved from Borumi's
   stylesheet (index-DXJH5HZm.css): light is its :root, dark its .dark. Named after Borumi's Tailwind classes so a rule can be checked
   against its code. Text sizes and weights Borumi uses that the --cc scale lacks are here too.
 */

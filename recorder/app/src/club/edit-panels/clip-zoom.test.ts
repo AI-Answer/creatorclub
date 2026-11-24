@@ -60,7 +60,7 @@ test('Clip panel: Borumi groups, Enhance Voice, Remove Noise, Volume, Speed and 
   await setValue(field('Volume'),'6','input');await rerender();
   assert.equal(mic().gain,dbToGain(6));assert.match(subOf('Volume').textContent!,/\(6 dB\)/);
 
-  // Mute is still here, as CreatorClub's own control.
+  // Mute is still here, as Creator Compiler's own control.
   await act(async()=>field('Mute').click());await rerender();
   assert.equal(mic().muted,true);
 

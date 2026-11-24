@@ -9,7 +9,7 @@ import {BrSection,BrSlider,BrSub,BrTabs,BrToggleRow} from './br';
 
 /*
   The club's Music panel, built to Borumi's Music panel (spec-edit-step.md, section e6). Borumi lists a built-in library and favourites;
-  CreatorClub has neither, so the tracks are the audio files in this project and the Favorites tab is left out. Volume is shown in
+  Creator Compiler has neither, so the tracks are the audio files in this project and the Favorites tab is left out. Volume is shown in
   decibels as Borumi shows it, -30 to +30 dB (the export's clip gain ceiling, CLIP_GAIN_MAX_DB).
   Loop is left out: a clip has no loop setting in our model.
 */

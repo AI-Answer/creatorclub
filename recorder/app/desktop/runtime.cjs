@@ -1,14 +1,14 @@
 const path=require('node:path');
 const fs=require('node:fs');
 /**
- * The CreatorClub desktop app's own identity, so it runs next to a SceneForge app on the same Mac: its own name,
+ * The Creator Compiler desktop app's own identity, so it runs next to a SceneForge app on the same Mac: its own name,
  * user-data folder (and with it its own single-instance lock), its own SceneForge data folder and its own service port.
  * SceneForge's standalone defaults (port 4174, ~/Library/Application Support/SceneForge) stay with the standalone server.
- * `name` is what people see. `dataFolder` and `service` keep the app's earlier name: the folder holds every installed
+ * `name` is what people see. `dataFolder` and `service` keep their established values: the folder holds every installed
  * copy's recordings (the MCP launcher finds it by that name too), and `service` is the handshake its local service answers.
  */
-const CREATORCLUB=Object.freeze({name:'CreatorClub',dataFolder:'Creator Compiler',service:'Creator Compiler',port:4194});
-/** The name macOS lists in Privacy & Security: the app bundle that runs this process ("CreatorClub Dev", "CreatorClub"), else CreatorClub. */
+const CREATORCLUB=Object.freeze({name:'Creator Compiler',dataFolder:'Creator Compiler',service:'Creator Compiler',port:4194});
+/** The name macOS lists in Privacy & Security: the app bundle that runs this process ("Creator Compiler Dev", "Creator Compiler", or an older install's "CreatorClub"), else Creator Compiler. */
 const privacyAppName=(execPath=process.execPath)=>/([^/]+)\.app\/Contents\/MacOS\/[^/]+$/.exec(execPath)?.[1]||CREATORCLUB.name;
 function creatorClubPaths({appData,env=process.env,developmentRoot}){
  const userData=developmentRoot?path.join(developmentRoot,'.local','desktop-user-data'):path.join(appData,CREATORCLUB.dataFolder);

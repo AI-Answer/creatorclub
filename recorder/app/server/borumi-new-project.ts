@@ -15,7 +15,7 @@ const role=(c:Clip)=>c.track==='camera'?'Camera':'Screen';
 export function planNewBorumiProject(p:Project):NewBorumiPlan{
  const blockers=new Set<string>(),warnings=['Requires a previously imported Borumi 0.32.0 schema template. Only schema and migration records are used; no source project content or history is copied.','A separate new Borumi project is created. Native opening still requires verification.','SceneForge editor preferences, notes and preview frame rate are not part of this Borumi interchange.'];
  if(p.timelineLayers?.length||p.clips.some(c=>c.layerId!==undefined))blockers.add('Custom timeline layers cannot be preserved by this Borumi export yet.');
- if(p.recordedTakes?.length)blockers.add('SceneForge recorded-take history cannot be preserved by this Borumi export. Keep the SceneForge project or export a video instead.');
+ if(p.recordedTakes?.length)blockers.add('Creator Compiler recorded-take history cannot be preserved by this Borumi export. Keep the Creator Compiler project or export a video instead.');
  if(p.canvas.backgroundPattern!==undefined)blockers.add('Moving-dot canvas backgrounds cannot be preserved by this Borumi export. Choose Solid color in Canvas, or export a video instead.');
  if(!/^#[0-9a-f]{6}$/i.test(p.canvas.background)||p.canvas.padding!==0||p.canvas.radius!==0)blockers.add('New Borumi export currently requires a solid six-digit canvas color, zero canvas padding and zero canvas radius.');
  if(p.canvas.backgroundMediaId)blockers.add('A picture or video canvas background cannot be exported to a new Borumi project yet. Choose a solid canvas color, or export a video instead.');
@@ -67,7 +67,7 @@ export async function exportNewBorumiProject(p:Project,options:{templateProject:
  let migrations:Array<{id:number;sql:string}>;try{migrations=input.prepare('SELECT id,sql FROM _borumi_migrations ORDER BY id').all() as typeof migrations;}finally{input.close()}
  if(migrations.length!==39||migrations.some((m,i)=>m.id!==i))throw Error('The schema template is not the observed Borumi 0.32.0 migration set.');
  const outputRoot=await safeBorumiOutputRoot(options.outputRoot,template.value.sourceRoot);
- const projectId=randomUUID(),slug=p.name.normalize('NFKC').replace(/[^a-zA-Z0-9 _-]/g,'').trim().slice(0,70)||'SceneForge project',output=path.resolve(outputRoot,`${slug}-${projectId.slice(0,8)}.bmprojbundle`),staging=`${output}.partial`;
+ const projectId=randomUUID(),slug=p.name.normalize('NFKC').replace(/[^a-zA-Z0-9 _-]/g,'').trim().slice(0,70)||'Creator Compiler project',output=path.resolve(outputRoot,`${slug}-${projectId.slice(0,8)}.bmprojbundle`),staging=`${output}.partial`;
  const sourceRoot=path.resolve(template.value.sourceRoot);if(output===sourceRoot||output.startsWith(sourceRoot+path.sep))throw Error('Export destination must be outside the template source bundle.');
  const untrack=await trackBorumiStaging(staging);
  let db:DatabaseSync|undefined;try{

@@ -5,7 +5,7 @@ import './take-preview.css';
 // Borumi's take preview (main bundle index-2TDxNpOf.js, M:73052-73790), value for value: the PREVIEW header with the take's name, the
 // Confirmed badge, the gear (Adjust Sync...) and close; the source tiles (a main one and a 20% side column, any tile clicked becomes
 // main); the slim scrubber with MM:SS.d times, 5 s steps and Borumi's speeds; and the footer with Delete take, Record another take and
-// Confirm take with its menu. CreatorClub keeps its own Continue: it also moves on to the next scene to record.
+// Confirm take with its menu. Creator Compiler keeps its own Continue: it also moves on to the next scene to record.
 
 /** Borumi's Qo: MM:SS.d, tenths truncated. */
 export const previewTime=(n:number)=>{const total=Math.floor(Math.max(0,n)*10+1e-6),minutes=Math.floor(total/600),seconds=Math.floor(total/10)%60,tenths=total%10;return `${String(minutes).padStart(2,'0')}:${String(seconds).padStart(2,'0')}.${tenths}`;};

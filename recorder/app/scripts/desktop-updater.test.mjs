@@ -86,9 +86,13 @@ test('only an installed copy updates, it loads the bundled library, and a restar
  assert.match(bundle,/outfile:'server-dist\/electron-updater\.cjs'/);
 });
 
-test('installers are CreatorClub, publish to this repository, and a team-signed Mac build swaps in its certificate', () => {
+test('installers are Creator Compiler, keep the app id, publish to this repository, and a team-signed Mac build swaps in its certificate', () => {
  const config=require('../electron-builder.cjs');
- assert.equal(config.productName,'CreatorClub');
+ assert.equal(config.productName,'Creator Compiler');
+ assert.equal(config.nsis.shortcutName,'Creator Compiler');
+ // GitHub renames uploaded assets that contain spaces, so latest-mac.yml / latest.yml would name files the release does not have.
+ assert.doesNotMatch(config.artifactName,/\s/);
+ assert.match(config.artifactName,/^Creator-Compiler-\$\{version\}/);
  assert.equal(config.appId,'com.aianswer.creatorclub');
  assert.deepEqual(config.publish,{provider:'github',owner:'AI-Answer',repo:'creatorclub',releaseType:'release'});
  assert.ok(config.mac.target.includes('zip'),'a Mac updates from the zip');

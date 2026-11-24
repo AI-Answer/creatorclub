@@ -1,5 +1,5 @@
 /* Borumi's take preview, resolved from its stylesheet (index-DXJH5HZm.css) for each class in its markup (main bundle M:73052-73790).
-   Light is :root, dark is .dark; here they follow CreatorClub's data-theme. */
+   Light is :root, dark is .dark; here they follow Creator Compiler's data-theme. */
 .btp-root {
   position: absolute; inset: 0; z-index: 1; display: flex; flex-direction: column; gap: 24px; height: 100%; padding-top: 3%;
   background: var(--br-bg); color: var(--br-fg);

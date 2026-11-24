@@ -128,7 +128,7 @@ async function page(view:any,{width=800,height=500,choice=null as string|null}={
  const settle=()=>new Promise(resolve=>setTimeout(resolve,5));
  return {browser,doc,el,calls:recorded,settle,push:(p:any)=>push(p),close:()=>browser.happyDOM.close()};
 }
-const take=(script:string)=>({take:{active:true,script,appearance:'dark'},settings:{...DEFAULTS},follower:{mode:'ConstSpeed',speed:14,index:0,playing:false,voiceAvailable:true,asking:false,error:null,appName:'CreatorClub'}});
+const take=(script:string)=>({take:{active:true,script,appearance:'dark'},settings:{...DEFAULTS},follower:{mode:'ConstSpeed',speed:14,index:0,playing:false,voiceAvailable:true,asking:false,error:null,appName:'Creator Compiler'}});
 
 test('before a take it says "Almost there!"; a scene without a script says "Nothing to see here"',async()=>{
  const idle=await page({take:{active:false,script:'',appearance:'dark'},settings:{...DEFAULTS},follower:{}});
@@ -190,7 +190,7 @@ test('More and right-click open the menu, and each choice does what Borumi\'s do
 
 test('voice follow\'s permission card asks above the toolbar, and Allow goes to the island',async()=>{
  const t=await page({...take('Read this.'),follower:{...take('').follower,mode:'VoiceOptimistic',asking:true}});
- try{assert.equal(t.el('speech').hidden,false);assert.equal(t.el('speech-text').textContent,'CreatorClub needs Speech Recognition permission to follow your voice.');t.el('speech-allow').click();assert.deepEqual(t.calls,[['follow',{authorize:true}]]);
+ try{assert.equal(t.el('speech').hidden,false);assert.equal(t.el('speech-text').textContent,'Creator Compiler needs Speech Recognition permission to follow your voice.');t.el('speech-allow').click();assert.deepEqual(t.calls,[['follow',{authorize:true}]]);
   t.push({follower:{asking:false}});assert.equal(t.el('speech').hidden,true);}finally{await t.close();}
 });
 
