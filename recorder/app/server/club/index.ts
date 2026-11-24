@@ -45,7 +45,7 @@ import { videoScenes, videosScenes } from './scenes.js';
 import { HEIGHT_MAX, HEIGHT_MIN, POSITION_MAX, WIDTH_MAX, WIDTH_MIN } from './tile-layout.js';
 import { findTregCall, hasSources, NO_SOURCES, rankedSignals, signalsConfigLock, readSignalsConfig, startSignalsRefresh, writeSignalsConfig, type SignalsSources } from './signals.js';
 import { ideaFromSignal, ideaFromTrending } from './trend-ideas.js';
-import { voiceSummary } from './voice.js';
+import { voiceFailure, voiceSummary } from './voice.js';
 import { rankedTrending, readFollowed, startTrendingRefresh, startTrendingSeed, writeFollowed, ytDlpSearchSource, ytDlpSource, type SearchSourceFactory, type UploadsSourceFactory } from './trending.js';
 import * as store from './store.js';
 import type { ToolOptions } from './tools.js';
@@ -423,7 +423,8 @@ export function clubRouter({ higgsfield = {}, avatarFetch, ai = {}, transcribe, 
   router.get('/workspaces/:slug/voice', handler(async (req, res) => {
     const slug = param(req, 'slug');
     await store.readWorkspace(slug);
-    res.json(await voiceSummary(slug));
+    const failed = await voiceFailure(slug);
+    res.json((await voiceSummary(slug)) ?? (failed ? { summary: '', transcripts: 0, failed } : null));
   }));
   router.post('/workspaces/:slug/voice', handler(async (req, res) => {
     const slug = param(req, 'slug');

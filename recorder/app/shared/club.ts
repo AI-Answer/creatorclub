@@ -463,6 +463,14 @@ export const VOICE_QUESTIONS = [
 ] as const;
 export type VoiceAnswers = Record<(typeof VOICE_QUESTIONS)[number]['key'], string>;
 
+/**
+ * What the job behind `POST /workspaces {channelUrl}` sends as `partial` while it runs: the workspace as soon as it exists (`listed`, its videos are being read),
+ * then again once they are (`read`, the voice guide is being written). Setup goes on from the first one.
+ */
+export interface AddChannelProgress {
+  workspace: Workspace;
+  stage: 'listed' | 'read';
+}
 /** Result of the job behind `POST /workspaces {channelUrl}`. */
 export interface AddChannelResult {
   workspace: Workspace;
@@ -472,6 +480,8 @@ export interface AddChannelResult {
 export interface VoiceGuideSummary {
   summary: string;
   transcripts: number;
+  /** Only when there is no guide: why adding the channel couldn't write one (its videos couldn't be read, or the AI step failed). Rebuild tries again. */
+  failed?: string;
 }
 /** Result of the job behind `POST /workspaces/:slug/voice`. */
 export interface VoiceResult {

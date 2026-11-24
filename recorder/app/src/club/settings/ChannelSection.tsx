@@ -118,7 +118,9 @@ function VoiceGuide({workspace,onSaved}:{workspace:Workspace;onSaved(workspace:W
   <div className="field">Voice guide</div>
   {readError&&state.phase!=='running'&&state.phase!=='failed'?<ErrorLine message={readError} onRetry={()=>setReads(count=>count+1)}/>:reading&&!guide
    ?<Card className="p-4" aria-busy="true"><p className="small muted" role="status">Loading your voice guide…</p><div className="shimmer" aria-hidden style={{height:44,marginTop:8}}/></Card>
-   :guide
+   :guide?.failed&&state.phase==='idle'
+   ?<p className="small" style={{margin:0,color:'var(--cc-warn-text)'}}>Adding your channel couldn't learn how you talk: {guide.failed} Rebuild voice guide tries again.</p>
+   :guide&&!guide.failed
    ?<Card className="p-4" style={{background:'var(--cc-bg-sunk)',fontSize:13.5,lineHeight:1.6,color:'var(--cc-text-2)'}}>{guide.summary}
      <div className="small faint" style={{marginTop:8}}>{guide.transcripts>0?`Built from ${guide.transcripts} of your transcripts.`:'Built from your answers.'}</div></Card>
    :<p className="small muted" style={{margin:0}}>{hasVideos?'No voice guide yet. Write one from your latest videos.':'No voice guide yet. Answer three questions and Creator Compiler writes one.'}</p>}

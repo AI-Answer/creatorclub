@@ -149,7 +149,7 @@ const aborted = (context: ChannelContext) => {
 
 const YOUTUBE_PROBLEM = "Couldn't read that channel from YouTube. Check the link and try again.";
 
-interface Listing {
+export interface Listing {
   name: string;
   handle: string;
   channelId: string;
@@ -275,11 +275,13 @@ export interface ChannelRead {
 }
 
 /** Reads the channel: its name, the last 30 uploads with views and dates, topics, and the captions of the last 10 videos. */
-export async function readChannel(ref: ChannelRef, context: ChannelContext): Promise<ChannelRead> {
+export async function readChannel(ref: ChannelRef, context: ChannelContext & { onListed?: (listing: Listing) => Promise<void> }): Promise<ChannelRead> {
   context.say?.('Reading your channel…');
   const listing = await listChannel(ref, context);
   const captionCount = Math.min(MAX_TRANSCRIPTS, listing.entries.length);
   context.say?.(`Reading your last ${captionCount} videos…`);
+  // The name and handle are known now, so the channel can be made before its videos are read (setup lets you continue from here).
+  await context.onListed?.(listing);
   const details = await pool(listing.entries, 4, (entry, index) => readVideo(entry, index < MAX_TRANSCRIPTS, context));
   const data: ChannelData = {
     name: listing.name,

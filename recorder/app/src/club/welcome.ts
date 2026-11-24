@@ -39,8 +39,11 @@ export function voiceFromDraft(draft:VoiceDraft):Partial<VoiceAnswers>{
 /** A channel that was added from its link but is short on captions can only write a voice guide from the first two answers. */
 export const canWriteVoice=(answers:Partial<VoiceAnswers>)=>Boolean(answers.voice&&answers.audience);
 
-/** The channel the person is setting up: what Add channel or Start fresh produced. */
-export interface WelcomeChannel{slug:string;name:string;handle:string;about:string;voice:'built'|'needs-answers'|'none'}
+/**
+ * The channel the person is setting up: what Add channel or Start fresh produced. `pending` is a channel added from its link whose videos are still
+ * being read in the background (it exists, so setup goes on); it becomes `built` or `needs-answers` when that finishes.
+ */
+export interface WelcomeChannel{slug:string;name:string;handle:string;about:string;voice:'built'|'needs-answers'|'none'|'pending'}
 
 /** Adds or removes a choice, keeping the order they were picked in. */
 export const toggle=(list:readonly string[],value:string):string[]=>list.includes(value)?list.filter(item=>item!==value):[...list,value];

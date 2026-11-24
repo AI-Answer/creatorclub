@@ -13,6 +13,19 @@ const MIN_GUIDE_LENGTH = 800;
 const VOICE_BUDGET_USD = 1.5;
 
 export const voiceFile = (slug: string) => path.join(workspaceDir(slug), 'voice.md');
+/** Why adding the channel couldn't write its guide, kept so Settings → Channel can say so after setup. Writing a guide removes it. */
+const voiceFailureFile = (slug: string) => path.join(workspaceDir(slug), 'voice-failed.json');
+export const saveVoiceFailure = (slug: string, message: string) => writeFileAtomic(voiceFailureFile(slug), JSON.stringify({ message, at: new Date().toISOString() }) + '\n');
+const clearVoiceFailure = (slug: string) => fs.rm(voiceFailureFile(slug), { force: true });
+/** The saved reason the channel's guide was never written, or null. */
+export async function voiceFailure(slug: string): Promise<string | null> {
+  try {
+    const { message } = JSON.parse(await fs.readFile(voiceFailureFile(slug), 'utf8')) as { message?: unknown };
+    return typeof message === 'string' && message ? message : null;
+  } catch {
+    return null;
+  }
+}
 
 export interface VoiceContext extends Lookup {
   signal?: AbortSignal;
@@ -28,6 +41,7 @@ export async function buildVoiceGuide(slug: string, name: string, transcripts: T
   const guide = text.trim();
   if (guide.length < MIN_GUIDE_LENGTH) throw new ClubError('The voice guide came back too short. Try again.', 502);
   await writeFileAtomic(voiceFile(slug), guide + '\n');
+  await clearVoiceFailure(slug);
 }
 
 /** The guide for a channel without enough captions: the creator's own answers, set down as they gave them. Unanswered questions are left out. */
@@ -38,6 +52,7 @@ export async function writeVoiceFromAnswers(slug: string, name: string, answers:
   add('Audience', answers.audience);
   add('Signature moves', answers.moves);
   await writeFileAtomic(voiceFile(slug), lines.join('\n') + '\n');
+  await clearVoiceFailure(slug);
 }
 
 export async function hasVoiceGuide(slug: string): Promise<boolean> {

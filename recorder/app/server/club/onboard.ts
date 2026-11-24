@@ -1,10 +1,11 @@
-import type { AddChannelResult, VoiceAnswers, VoiceResult, Workspace } from '../../shared/club.js';
-import { channelFile, parseChannelInput, readChannel, sameChannelUrl, savedTranscripts, type ChannelRead } from './channel.js';
+import type { AddChannelProgress, AddChannelResult, VoiceAnswers, VoiceResult, Workspace } from '../../shared/club.js';
+import { channelFile, MAX_TRANSCRIPTS, parseChannelInput, readChannel, sameChannelUrl, savedTranscripts, type ChannelRead } from './channel.js';
 import { ensureChannelAvatar, type AvatarFetch } from './channel-avatar.js';
 import type { JobContext } from './jobs.js';
 import * as store from './store.js';
 import { prepareYtDlp, type ToolOptions } from './tools.js';
-import { buildVoiceGuide, hasVoiceGuide, MIN_TRANSCRIPTS, saveTranscripts, writeVoiceFromAnswers } from './voice.js';
+import { userMessage } from './errors.js';
+import { buildVoiceGuide, hasVoiceGuide, MIN_TRANSCRIPTS, saveTranscripts, saveVoiceFailure, writeVoiceFromAnswers } from './voice.js';
 
 const say = (context: JobContext) => (message: string) => context.emit({ message });
 
@@ -15,7 +16,11 @@ async function saveChannel(slug: string, read: ChannelRead) {
   await saveTranscripts(slug, read.transcripts);
 }
 
-/** The job behind `POST /workspaces {channelUrl}`: reads the channel, saves it as a workspace and writes its voice guide. */
+/**
+ * The job behind `POST /workspaces {channelUrl}`: reads the channel, saves it as a workspace and writes its voice guide.
+ * The workspace is made as soon as the channel's name is known and sent as progress (`partial: {workspace, stage: 'listed'}`), so setup can go on
+ * while the videos are read. Once they are, the topics are saved and sent again (`stage: 'read'`), and the voice guide is written last.
+ */
 export async function addChannel(channelUrl: string, context: JobContext, options: ToolOptions = {}, avatarFetch?: AvatarFetch): Promise<AddChannelResult> {
   const ref = parseChannelInput(channelUrl);
   // Adding a channel again (after the voice step failed, say) picks up the workspace that is already there.
@@ -23,16 +28,34 @@ export async function addChannel(channelUrl: string, context: JobContext, option
   if (existing && (await hasVoiceGuide(existing.slug))) {
     return { workspace: await ensureChannelAvatar(existing, avatarFetch), voice: 'built' };
   }
-  const read = await readChannel(ref, { ...options, ytdlp: await yt(context, options), signal: context.signal, say: say(context) });
-  const created = await store.withLock(`workspace-create:${store.rootDir()}`, async () => {
-    const latest = (await store.listWorkspaces()).find(workspace => sameChannelUrl(workspace.channelUrl, ref.url));
-    return latest ?? store.createWorkspace({ name: read.data.name, handle: read.data.handle, channelUrl: ref.url, topics: read.data.topics, about: '', cta: '' });
-  });
-  const workspace = await ensureChannelAvatar(created, avatarFetch);
-  await saveChannel(workspace.slug, read);
-  if (read.transcripts.length < MIN_TRANSCRIPTS) return { workspace, voice: 'needs-answers' };
-  await buildVoiceGuide(workspace.slug, workspace.name, read.transcripts, { ...options, signal: context.signal, say: say(context) });
-  return { workspace, voice: 'built' };
+  let made: Workspace | undefined;
+  try {
+    return await readAndWrite();
+  } catch (error) {
+    // Setup may be long gone by now: the channel remembers why it has no guide, for Settings → Channel. A stop is not a failure.
+    if (made && !context.signal.aborted) await saveVoiceFailure(made.slug, userMessage(error)).catch(() => {});
+    throw error;
+  }
+  async function readAndWrite(): Promise<AddChannelResult> {
+    const read = await readChannel(ref, {
+      ...options, ytdlp: await yt(context, options), signal: context.signal, say: say(context),
+      onListed: async (listing) => {
+        const created = await store.withLock(`workspace-create:${store.rootDir()}`, async () => {
+          const latest = (await store.listWorkspaces()).find(workspace => sameChannelUrl(workspace.channelUrl, ref.url));
+          return latest ?? store.createWorkspace({ name: listing.name, handle: listing.handle, channelUrl: ref.url, topics: [], about: '', cta: '' });
+        });
+        made = await ensureChannelAvatar(created, avatarFetch);
+        context.emit({ message: `Reading your last ${Math.min(MAX_TRANSCRIPTS, listing.entries.length)} videos…`, partial: { workspace: made, stage: 'listed' } satisfies AddChannelProgress });
+      },
+    });
+    // A channel whose topics were never set takes the ones read from its videos.
+    const workspace = await store.updateWorkspace(made!.slug, latest => latest.topics.length ? latest : { ...latest, topics: read.data.topics });
+    await saveChannel(workspace.slug, read);
+    if (read.transcripts.length < MIN_TRANSCRIPTS) return { workspace, voice: 'needs-answers' };
+    context.emit({ message: 'Writing your voice guide…', partial: { workspace, stage: 'read' } satisfies AddChannelProgress });
+    await buildVoiceGuide(workspace.slug, workspace.name, read.transcripts, { ...options, signal: context.signal, say: say(context) });
+    return { workspace, voice: 'built' };
+  }
 }
 
 /**
