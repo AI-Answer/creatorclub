@@ -105,7 +105,13 @@ const finish = async (id: string) => {
   }
   throw new Error('job did not finish');
 };
-const progress = (id: string) => getJob(id)!.events.filter((e) => e.type === 'progress').map((e) => (e.data as { message: string }).message);
+/** The progress lines in order, each once (the job repeats a line when it also sends the channel with it). */
+const progress = (id: string) => getJob(id)!.events.filter((e) => e.type === 'progress').map((e) => (e.data as { message: string }).message).filter((line, i, all) => line !== all[i - 1]);
+/** What the job sent as `partial` along the way: the channel's slug, at which stage, and whether its topics were known yet. */
+const partials = (id: string) => getJob(id)!.events.flatMap((e) => {
+  const partial = e.type === 'progress' ? (e.data as { partial?: { workspace: { slug: string; topics: string[] }; stage: string } }).partial : undefined;
+  return partial ? [{ slug: partial.workspace.slug, stage: partial.stage, topics: partial.workspace.topics.length > 0 }] : [];
+});
 const exists = (file: string) => stat(file).then(() => true, () => false);
 const dir = (slug: string) => path.join(rootDir(), slug);
 
@@ -153,6 +159,8 @@ test('Add channel reads the channel, saves 30-upload data and transcripts, then 
   assert.ok(!prompt.stdin.includes('{transcripts}') && !prompt.stdin.includes('{name}'));
 
   assert.deepEqual(progress(started.body.id), ['Reading your channel…', 'Reading your last 10 videos…', 'Writing your voice guide…']);
+  // Setup goes on as soon as the channel exists: it is sent before its videos are read, and again with its topics before the voice guide.
+  assert.deepEqual(partials(started.body.id), [{ slug: 'fake-first', stage: 'listed', topics: false }, { slug: 'fake-first', stage: 'read', topics: true }]);
 });
 
 test('Rebuild voice guide re-reads the latest videos, and retries with the mweb client when the default one gets no captions', async () => {

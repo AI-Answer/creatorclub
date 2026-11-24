@@ -1,16 +1,17 @@
 import {clearWelcomeProgress,restoreWelcomeProgress,saveWelcomeProgress} from '../welcome-progress';
 import {BrandMark} from '../../BrandMark';
 import {useCallback,useEffect,useMemo,useRef,useState} from 'react';
-import type {AddChannelResult,Workspace} from '../../../shared/club';
+import type {AddChannelProgress,AddChannelResult,Workspace} from '../../../shared/club';
 import {aiState,useAiCheck} from '../ai-status';
 import {clubFetch,errorMessage,selectClubWorkspace} from '../api';
 import {ErrorLine} from '../ErrorLine';
+import {ProgressLine} from '../ProgressLine';
 import type {Route} from '../routes';
 import {useBreakdowns} from '../useBreakdowns';
-import {useJobRun} from '../useJobRun';
+import {isJobBusy,useJobRun} from '../useJobRun';
 import {useTrending} from '../useFeed';
 import {useVideos} from '../useVideos';
-import {addChannelBlock,canContinue,canWriteVoice,freshReady,reachableStep,startingVideos,voiceFromDraft,WELCOME_STEPS,type VoiceDraft,type WelcomeChannel,type WelcomePath} from '../welcome';
+import {ADD_CHANNEL_ESTIMATE,addChannelBlock,canContinue,canWriteVoice,freshReady,reachableStep,startingVideos,voiceFromDraft,WELCOME_STEPS,type VoiceDraft,type WelcomeChannel,type WelcomePath} from '../welcome';
 import {ChannelStep,type FreshDraft} from '../welcome/ChannelStep';
 import {ConnectStep} from '../welcome/ConnectStep';
 import {VoiceStep} from '../welcome/VoiceStep';
@@ -18,6 +19,7 @@ import {WorkingStep} from '../welcome/WorkingStep';
 import {Button,Icon} from '../ui';
 
 const NO_FRESH:FreshDraft={name:'',channelName:'',topics:[],audience:[]};
+type Imported={workspace:Workspace;voice:WelcomeChannel['voice']};
 const asChannel=(workspace:Workspace,voice:WelcomeChannel['voice']):WelcomeChannel=>({slug:workspace.slug,name:workspace.name,handle:workspace.handle,about:workspace.about,voice});
 const sameList=(a:readonly string[],b:readonly string[])=>a.length===b.length&&a.every((item,index)=>item===b[index]);
 const sameFresh=(a:FreshDraft,b:FreshDraft)=>a.name.trim()===b.name.trim()&&a.channelName.trim()===b.channelName.trim()&&sameList(a.topics,b.topics)&&sameList(a.audience,b.audience);
@@ -57,20 +59,51 @@ export function WelcomeScreen({navigate,initialStep}:{navigate(route:Route,optio
  const [savedFresh,setSavedFresh]=useState<FreshDraft|null>(restored.savedFresh??null),[savedVoice,setSavedVoice]=useState<VoiceDraft|null>(restored.savedVoice??null);
  const [scan,setScan]=useState<Scan>(null),[passedConnect,setPassedConnect]=useState(false);
  const add=useJobRun(),save=useJobRun(),edit=useJobRun();
- const busy=(add.state.phase==='starting'||add.state.phase==='running')||(save.state.phase==='starting'||save.state.phase==='running')||(edit.state.phase==='starting'||edit.state.phase==='running');
+ // Adding a channel holds setup only until the channel exists. Its videos are read and its voice guide written in the background after that.
+ const adding=isJobBusy(add.state);
+ const busy=(adding&&!channel)||isJobBusy(save.state)||isJobBusy(edit.state);
  const welcomed=useRef(false),created=useRef<Workspace|null>(restored.created??null),body=useRef<HTMLDivElement>(null);
  const welcomePending=useRef<Promise<void>|null>(null),creating=useRef<Promise<Workspace>|null>(null);
  useEffect(()=>{if(!welcomed.current)saveWelcomeProgress({path,fresh,voice,channel,savedFresh,savedVoice});},[path,fresh,voice,channel,savedFresh,savedVoice]);
  const rememberCreated=(workspace:Workspace)=>{created.current=workspace;saveWelcomeProgress({created:workspace});return workspace;};
  const [selecting,setSelecting]=useState(false),[selectionError,setSelectionError]=useState(''),[selectionReady,setSelectionReady]=useState(restored.path!=='channel'||!restored.created);
  const selectingNow=useRef<Promise<void>|null>(null);
- const activateImported=useCallback((result:AddChannelResult)=>{
+ const activateImported=useCallback((result:Imported)=>{
   if(selectingNow.current)return selectingNow.current;
   rememberCreated(result.workspace);setSelecting(true);setSelectionReady(false);setSelectionError('');
-  const request=selectClubWorkspace(result.workspace.slug).then(()=>{setChannel(asChannel(result.workspace,result.voice));setSelectionReady(true);},reason=>{setSelectionError(errorMessage(reason,"Couldn't open that channel."));}).finally(()=>{selectingNow.current=null;setSelecting(false);});
+  // The job can finish while the channel is being opened; what it said then wins over the `pending` this started with.
+  const request=selectClubWorkspace(result.workspace.slug).then(()=>{setChannel(current=>current?.slug===result.workspace.slug&&current.voice!=='pending'?current:asChannel(result.workspace,result.voice));setSelectionReady(true);},reason=>{setSelectionError(errorMessage(reason,"Couldn't open that channel."));}).finally(()=>{selectingNow.current=null;setSelecting(false);});
   selectingNow.current=request;return request;
  },[]);
- useEffect(()=>{if(restored.path==='channel'&&restored.created)void activateImported({workspace:restored.created,voice:restored.channel?.voice??'none'} as AddChannelResult);},[activateImported,restored]);
+ /** What the background part of adding a channel is doing: reading its videos (`listed`), then writing the voice guide (`read`). */
+ const [addStage,setAddStage]=useState<AddChannelProgress['stage']|null>(null);
+ /** The job's result: the voice guide was written, or the channel is short on captions and needs the answers. */
+ const settleAdded=useCallback((result:AddChannelResult)=>{
+  setAddStage(null);
+  if(created.current?.slug===result.workspace.slug){rememberCreated(result.workspace);setChannel(asChannel(result.workspace,result.voice));}
+  else void activateImported(result);
+ },[activateImported]);
+ const runAdd=useCallback((channelUrl:string)=>{setAddStage(null);void add.run(()=>clubFetch('/workspaces',{body:{channelUrl}}),result=>settleAdded(result as AddChannelResult));},[add.run,settleAdded]);
+ // The channel exists as soon as its name is read: open it then, so Continue works while its videos are read.
+ const progress=add.state.phase==='running'?add.state.partial as AddChannelProgress|undefined:undefined;
+ useEffect(()=>{
+  if(!progress?.workspace)return;
+  setAddStage(progress.stage);
+  if(created.current?.slug!==progress.workspace.slug)void activateImported({workspace:progress.workspace,voice:'pending'});
+  else setChannel(current=>current&&current.slug===progress.workspace.slug?{...asChannel(progress.workspace,current.voice)}:current);
+ },[progress,activateImported]);
+ // A channel that was still being read when setup reloaded asks again: the same link joins the job if it still runs, and returns at once if it finished.
+ useEffect(()=>{
+  if(restored.path!=='channel'||!restored.created)return;
+  void activateImported({workspace:restored.created,voice:restored.channel?.voice??'none'});
+  if(restored.channel?.voice==='pending'&&restored.created.channelUrl)runAdd(restored.created.channelUrl);
+ // eslint-disable-next-line react-hooks/exhaustive-deps
+ },[activateImported,restored]);
+ // Reading the videos failed after the channel was made: the voice questions write the guide instead, and Try again reads them again.
+ const addFailed=add.state.phase==='failed'?add.state.message:'';
+ useEffect(()=>{if(addFailed)setChannel(current=>current?.voice==='pending'?{...current,voice:'needs-answers'}:current);},[addFailed]);
+ const retryAdd=()=>{const link=created.current?.channelUrl||url.trim();if(link)runAdd(link);};
+ const reading=channel?.voice==='pending'&&addStage!=='read';
  const [leaveError,setLeaveError]=useState<{message:string;route:Route}|null>(null);
 
  const state={ai,path,channelAdded:channel!==null,fresh:freshReady(fresh.name,fresh.topics,fresh.audience),channelMade:channel!==null,passedConnect};
@@ -111,12 +144,7 @@ export function WelcomeScreen({navigate,initialStep}:{navigate(route:Route,optio
  const home=()=>void leave({name:'home'});
  const goTo=(next:number)=>{if(next===3)markWelcomed();if(next>0)setPassedConnect(true);setStep(next);navigate({name:'welcome',step:next+1});};
 
- const addChannel=()=>{
-  const channelUrl=url.trim();if(!channelUrl)return;
-  void add.run(()=>clubFetch('/workspaces',{body:{channelUrl}}),result=>{
-   void activateImported(result as AddChannelResult);
-  });
- };
+ const addChannel=()=>{const channelUrl=url.trim();if(channelUrl)runAdd(channelUrl);};
 
  /** Leaves step 2. A fresh channel that already exists (you came Back) is updated when its answers changed, never made twice. */
  const finishChannel=()=>{
@@ -164,6 +192,7 @@ export function WelcomeScreen({navigate,initialStep}:{navigate(route:Route,optio
  const info=WELCOME_STEPS[shown];
  // A guide that came from the channel's own videos has nothing to answer; every other voice step shows the questions, filled with what was said.
  const fromVideos=path==='channel'&&channel?.voice==='built'&&savedVoice===null;
+ const addLine=adding&&add.state.phase==='running'?add.state.line:undefined;
  const title=shown===2&&fromVideos?'This is how you talk':info.title;
  const typed=voiceFromDraft(voice);
  const incomplete=channel!==null&&!fromVideos&&!sameVoice(typed,voiceFromDraft(savedVoice??{}))&&!canWriteVoice(typed);
@@ -184,9 +213,11 @@ export function WelcomeScreen({navigate,initialStep}:{navigate(route:Route,optio
     <h1 className="welcome-title">{title}</h1>
     <p className="muted welcome-why">{info.why}</p>
     {shown===0&&<ConnectStep check={check} onReload={recheck} onConnected={result=>connected(result?.provider??'claude',result?.account)}/>}
-    {shown===1&&<ChannelStep path={path} onPath={setPath} url={url} onUrl={setUrl} job={add.state} onAdd={addChannel} block={block} onConnect={()=>goTo(0)} channel={channel} fresh={fresh} onFresh={setFresh}/>}
-    {shown===2&&<VoiceStep path={path} channel={channel} fromVideos={fromVideos} draft={voice} onDraft={setVoice} save={save.state} onRetry={finishVoice} incomplete={incomplete} saved={savedVoice!==null}/>}
-    {channel&&selectionReady&&<WorkingData visible={shown===3} onAdded={id=>void leave({name:'videos',view:'board',new:id})} onSettings={()=>void leave({name:'settings',section:'followed'})} onScan={onScan}/>}
+    {shown===1&&<ChannelStep path={path} onPath={setPath} url={url} onUrl={setUrl} job={add.state} background={channel?.voice==='pending'} onAdd={addChannel} block={block} onConnect={()=>goTo(0)} channel={channel} fresh={fresh} onFresh={setFresh}/>}
+    {shown===2&&<VoiceStep path={path} channel={channel} fromVideos={fromVideos} draft={voice} onDraft={setVoice} save={save.state} onRetry={finishVoice} incomplete={incomplete} saved={savedVoice!==null} pendingLine={addLine} readFailed={addFailed&&channel?.voice==='needs-answers'?addFailed:''} onRetryRead={retryAdd}/>}
+    {shown===3&&reading&&<div className="card" style={{padding:16}}><ProgressLine label="Reading your channel" line={addLine??'Reading your videos…'} estimate={ADD_CHANNEL_ESTIMATE} note="What's working in your space shows here as soon as it's done."/></div>}
+    {shown===3&&channel?.voice==='needs-answers'&&path==='channel'&&savedVoice===null&&<div className="row small" style={{gap:10,marginBottom:14}}><span className="muted">We couldn't read enough of your videos to learn how you talk.</span><Button size="sm" onClick={()=>goTo(2)}>Answer 3 questions</Button></div>}
+    {channel&&selectionReady&&!reading&&<WorkingData visible={shown===3} onAdded={id=>void leave({name:'videos',view:'board',new:id})} onSettings={()=>void leave({name:'settings',section:'followed'})} onScan={onScan}/>}
     {selectionError&&<ErrorLine message={selectionError} onRetry={()=>{if(created.current)void activateImported({workspace:created.current,voice:channel?.voice??'none'} as AddChannelResult);}}/>}
     {shown===1&&editFailed&&<div style={{marginTop:14}}><ErrorLine message={editFailed} onRetry={finishChannel}/></div>}
     {leaveError&&<div style={{marginTop:14}}><ErrorLine message={leaveError.message} onRetry={()=>void leave(leaveError.route)}/></div>}

@@ -20,10 +20,10 @@ function Choice({label,on,onToggle}:{label:string;on:boolean;onToggle():void}){
 }
 
 /**
- * Step 2: add your YouTube channel (a real Add channel job) or describe a new one. A channel read from its link is shown as added (what was read stays; Settings changes it).
+ * Step 2: add your YouTube channel (a real Add channel job) or describe a new one. The channel counts as added as soon as its name is read; `background` says its videos are still being read. A channel read from its link is shown as added (what was read stays; Settings changes it).
  * A fresh start keeps its form after the channel is saved, so coming Back lets you change the answers. `block` says why Add channel waits for the AI, with a way back to step 1.
  */
-export function ChannelStep({path,onPath,url,onUrl,job,onAdd,block,onConnect,channel,fresh,onFresh}:{path:WelcomePath|null;onPath(path:WelcomePath):void;url:string;onUrl(url:string):void;job:JobRun;onAdd():void;block:'checking'|'missing'|null;onConnect():void;channel:WelcomeChannel|null;fresh:FreshDraft;onFresh(next:FreshDraft):void}){
+export function ChannelStep({path,onPath,url,onUrl,job,background,onAdd,block,onConnect,channel,fresh,onFresh}:{path:WelcomePath|null;onPath(path:WelcomePath):void;url:string;onUrl(url:string):void;job:JobRun;background:boolean;onAdd():void;block:'checking'|'missing'|null;onConnect():void;channel:WelcomeChannel|null;fresh:FreshDraft;onFresh(next:FreshDraft):void}){
  const [other,setOther]=useState('');
  const done=channel!==null;
  const running=(job.phase==='starting'||job.phase==='running');
@@ -36,8 +36,9 @@ export function ChannelStep({path,onPath,url,onUrl,job,onAdd,block,onConnect,cha
    <span className="row" style={{width:'100%'}}><Icon name={option.icon} size={20}/><span className="grow"/><span className="radio"/></span><b style={{fontSize:15}}>{option.title}</b><span className="small muted">{option.text}</span></button>)}</div>}
 
   {path==='channel'&&<div className="card" style={{padding:16}}>
-   {done?<div className="row" style={{gap:12}}><Avatar name={channel.name} size="lg"/><div className="grow"><b>{channel.name}</b><div className="small muted">{channel.handle||'Your channel'}</div></div><span className="chip b-green"><Icon name="check" size={12}/>Added</span></div>
-   :<form onSubmit={submit}>
+   {done&&<div className="row" style={{gap:12}}><Avatar name={channel.name} size="lg"/><div className="grow"><b>{channel.name}</b><div className="small muted">{channel.handle||'Your channel'}</div></div><span className="chip b-green"><Icon name="check" size={12}/>Added</span></div>}
+   {done&&background&&<div className="small muted" role="status" style={{marginTop:12}}>{running&&job.line?`${job.line} `:''}Your videos are read in the background, so you can continue now.</div>}
+   {!done&&<form onSubmit={submit}>
     <label className="field" htmlFor="ch-url">Your channel</label>
     <div className="row"><Input id="ch-url" autoFocus autoComplete="off" spellCheck={false} disabled={running} value={url} placeholder="youtube.com/@yourchannel" onChange={event=>onUrl(event.target.value)}/><Button type="submit" variant="primary" disabled={!url.trim()||running||block!==null}>Add channel</Button></div>
     {block==='checking'&&!running&&<div className="small muted" style={{marginTop:10}}>Still checking your AI account (10 to 20 seconds). Adding a channel waits for it, because the AI writes how you talk.</div>}

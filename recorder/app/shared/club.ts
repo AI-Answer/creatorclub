@@ -463,6 +463,14 @@ export const VOICE_QUESTIONS = [
 ] as const;
 export type VoiceAnswers = Record<(typeof VOICE_QUESTIONS)[number]['key'], string>;
 
+/**
+ * What the job behind `POST /workspaces {channelUrl}` sends as `partial` while it runs: the workspace as soon as it exists (`listed`, its videos are being read),
+ * then again once they are (`read`, the voice guide is being written). Setup goes on from the first one.
+ */
+export interface AddChannelProgress {
+  workspace: Workspace;
+  stage: 'listed' | 'read';
+}
 /** Result of the job behind `POST /workspaces {channelUrl}`. */
 export interface AddChannelResult {
   workspace: Workspace;

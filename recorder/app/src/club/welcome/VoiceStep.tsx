@@ -1,20 +1,25 @@
 import {ErrorLine} from '../ErrorLine';
 import {ProgressLine} from '../ProgressLine';
 import type {JobRun} from '../useJobRun';
-import {WELCOME_QUESTIONS,type VoiceDraft,type WelcomeChannel,type WelcomePath} from '../welcome';
+import {ADD_CHANNEL_ESTIMATE,WELCOME_QUESTIONS,type VoiceDraft,type WelcomeChannel,type WelcomePath} from '../welcome';
 import {Icon,Textarea} from '../ui';
 
 /**
  * Step 3: three optional voice questions, or what was learned from the channel's videos. Questions are sent by Continue, not here, and stay editable:
  * coming Back shows what was answered, and Continue saves a change. `saved` says answers were written, and `incomplete` that a change cannot be saved yet (the guide needs the first two answers).
  */
-export function VoiceStep({path,channel,fromVideos,draft,onDraft,save,onRetry,incomplete,saved}:{path:WelcomePath|null;channel:WelcomeChannel|null;fromVideos:boolean;draft:VoiceDraft;onDraft(next:VoiceDraft):void;save:JobRun;onRetry():void;incomplete:boolean;saved:boolean}){
+export function VoiceStep({path,channel,fromVideos,draft,onDraft,save,onRetry,incomplete,saved,pendingLine,readFailed,onRetryRead}:{path:WelcomePath|null;channel:WelcomeChannel|null;fromVideos:boolean;draft:VoiceDraft;onDraft(next:VoiceDraft):void;save:JobRun;onRetry():void;incomplete:boolean;saved:boolean;pendingLine?:string;readFailed:string;onRetryRead():void}){
+ // Still reading the channel's videos: nothing to answer yet, and nothing to wait for either.
+ if(channel?.voice==='pending')return <div className="card" style={{padding:18}}>
+  <ProgressLine label="Learning how you talk" line={pendingLine??'Learning how you talk from your videos…'} estimate={ADD_CHANNEL_ESTIMATE} note="It finishes in the background, so continue whenever you like."/>
+ </div>;
  if(fromVideos)return <div className="card" style={{padding:18}}>
   <div className="row" style={{marginBottom:10}}><Icon name="done" size={16} style={{color:'var(--cc-ok)'}}/><b>Learned from your videos</b></div>
   {channel?.about&&<div className="muted" style={{lineHeight:1.6,fontSize:14}}>{channel.about}</div>}
   <div className="small faint" style={{marginTop:12}}>You can change this any time in Settings.</div>
  </div>;
  return <div style={{display:'flex',flexDirection:'column',gap:14}}>
+  {path==='channel'&&readFailed&&<ErrorLine message={readFailed} onRetry={onRetryRead}/>}
   {path==='channel'&&<p className="muted" style={{margin:0}}>We couldn't read enough of your videos. Answer the first two questions instead.</p>}
   {WELCOME_QUESTIONS.map((question,index)=>{
    const value=draft[question.key]??'';
