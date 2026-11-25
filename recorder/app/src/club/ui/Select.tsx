@@ -8,8 +8,8 @@ type Props<T extends string>={id?:string;label:string;value:T;options:readonly O
  /** The trigger's classes, so each place keeps its own look. */triggerClass?:string;/** An element the trigger renders as, like the app's `Button`. */render?:ReactElement;/** Drawn after the value, like a chevron. */chevron?:ReactNode;align?:'start'|'end'};
 
 /**
- * A single choice from a popup list, on ui-sdk's Select: arrow keys, Home/End and typing a name move through the options without opening it,
- * Enter or Space opens it, and Escape or a press outside closes it with focus back on the trigger. The list renders in the club's root.
+ * A single choice from a popup list, on ui-sdk's Select: ArrowDown, Enter or Space opens it, arrows, Home/End and typing a name move through the options,
+ * Enter chooses one, and Escape or a press outside closes it with focus back on the trigger. The list renders in the club's root.
  */
 export function Select<T extends string>({id,label,value,options,onChange,disabled=false,triggerClass='btn select-button',chevron=<Icon name="expand" size={14}/>,align='end',render}:Props<T>){
  const [anchor,root]=useClubRoot<HTMLSpanElement>();

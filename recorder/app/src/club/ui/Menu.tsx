@@ -43,10 +43,10 @@ function Rows({rows}:{rows:Row[]}){
 
 /**
  * A button that opens a menu under it, on ui-sdk's Menu: arrow keys, Home/End and typeahead move through the items, Enter or a click runs one,
- * and Escape, a press outside or Tab closes it with focus back on the trigger. `trigger(open)` draws the trigger; the menu presses and labels it.
+ * and Escape or a press outside closes it with focus back on the trigger. `trigger(open)` draws the trigger; the menu presses and labels it.
  * The menu is drawn in the browser's top layer from the club's root, so a parent that clips (the sidebar) or lifts on hover (a card) cannot cut it off or move it.
  */
-export function Menu({trigger,items,align='left',width,label,below=false}:{trigger(open:boolean):ReactElement;items:readonly MenuItem[];align?:'left'|'right';width?:number;label?:string;/** Never flips above the button: it scrolls inside instead. */below?:boolean}){
+export function Menu({trigger,items,align='left',width,label,below=false}:{trigger(open:boolean):ReactElement;items:readonly MenuItem[];align?:'left'|'right';width?:number;label?:string;/** Scrolls inside the room under the button rather than growing past it. */below?:boolean}){
  const [open,setOpen]=useState(false);
  const [anchor,root]=useClubRoot<HTMLSpanElement>();
  return <span ref={anchor} className="menu-host" style={{position:'relative',display:'inline-flex'}}>
