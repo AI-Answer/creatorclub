@@ -4,6 +4,8 @@ import {FIND_IDEA as idea,GLOSSARY as glossary,PLACES as places,SHORTCUTS as BAS
 
 export {STEPS_SENTENCE,VIDEO_STEPS};
 export const SEARCH_PLACEHOLDER='Search videos, steps, settings and help';
+/** The ⌘K field's name, which an agent uses to find it. */
+export const SEARCH_INPUT_LABEL='Search videos, pages and actions';
 export const SHORTCUTS=[
  {keys:'N',what:'New video'},
  {keys:'⌘⇧] / ⌘⇧[',what:'Next / previous open video tab'},

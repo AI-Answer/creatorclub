@@ -92,7 +92,7 @@ test('Scenes column: a typed scene length is saved, a bad one goes back, the tar
   assert.equal(edits.length,count);assert.equal(dur.value,'1:00');
   const select=named(c,'Target length') as HTMLButtonElement;
   assert.equal(c.querySelector('.len .bar'),null,'no target, no bar');
-  await press(select);await press([...c.ownerDocument.querySelectorAll<HTMLButtonElement>('[role=menuitemradio]')].find(item=>item.textContent==='10 min')!);
+  await press(select);await press([...c.ownerDocument.querySelectorAll<HTMLElement>('[role=listbox]:not([hidden]) [role=option]')].find(item=>item.textContent==='10 min')!);
   assert.deepEqual(targets,[600],'the choice goes to the video, not the browser');
   await ui.render(withToasts({...props,target:120}));
   assert.equal(c.querySelector('.len .bar i.over')!==null,true,'3:00 is over a 2 minute target');

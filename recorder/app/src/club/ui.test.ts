@@ -8,6 +8,7 @@ const {Avatar,DraftThumb,Dialog,Drawer,Ed,Empty,Icon,iconNames,Level,Menu,MultCh
 const press=(element:Element)=>act(async()=>(element as HTMLElement).click());
 const key=(target:EventTarget,name:string)=>act(async()=>{target.dispatchEvent(new KeyboardEvent('keydown',{key:name,bubbles:true,cancelable:true}));});
 const mouseDown=(target:EventTarget)=>act(async()=>{target.dispatchEvent(new MouseEvent('mousedown',{bubbles:true}));});
+const pointerPress=(target:EventTarget)=>act(async()=>{for(const type of ['pointerdown','mousedown','pointerup','mouseup','click'])target.dispatchEvent(new (type.startsWith('pointer')?PointerEvent:MouseEvent)(type,{bubbles:true,cancelable:true,button:0,pointerType:'mouse'} as PointerEventInit));});
 const tick=()=>act(async()=>{await new Promise(resolve=>setTimeout(resolve,0));});
 
 test('every icon name renders an svg',async()=>{
@@ -79,31 +80,56 @@ test('scene dots follow the takes, and the scene status says the same words',asy
  }finally{await ui.close();}
 });
 
-test('Menu opens under its button, runs an item and closes; Escape and a press outside close it too',async()=>{
+test('Menu opens from its button, names its items by role, runs one and closes; Escape and a press outside close it too',async()=>{
  const ran:string[]=[];
  const ui=await mountUI(createElement('div',null,
   createElement('p',{id:'outside'},'Outside'),
-  createElement(Menu,{items:[{header:'Channels'},{label:'Samin',check:true,fn:()=>ran.push('samin')},{label:'Ana',check:false,fn:()=>ran.push('ana')},'-',{label:'Delete',icon:'Trash2',danger:true,fn:()=>ran.push('delete')}],button:(toggle,open)=>createElement('button',{onClick:toggle,'aria-expanded':open},'Open')}),
+  createElement(Menu,{label:'Channel',items:[{header:'Channels'},{label:'Samin',selected:true,fn:()=>ran.push('samin')},{label:'Ana',selected:false,fn:()=>ran.push('ana')},'-',{label:'Snap',check:true,fn:()=>ran.push('snap')},{label:'Delete',icon:'delete',danger:true,fn:()=>ran.push('delete')}],trigger:open=>createElement('button',{className:open?'on':undefined},'Open')}),
  ));
  try{
-  const c=ui.container;
+  const c=ui.container,open=button(c,'Open');
+  assert.equal(open.getAttribute('aria-haspopup'),'menu');assert.equal(open.getAttribute('aria-expanded'),'false');
   assert.equal(c.querySelector('[role="menu"]'),null);
-  await press(button(c,'Open'));await tick();
+  await press(open);await tick();
   const menu=c.querySelector('[role="menu"]')!;
-  assert.equal(menu.querySelector('.hd')!.textContent,'Channels');assert.ok(menu.querySelector('.sep'));
+  assert.equal(open.getAttribute('aria-expanded'),'true');assert.equal(open.className,'on','the trigger is drawn with the open state');
+  assert.equal(menu.getAttribute('aria-label'),'Channel');
+  assert.equal(menu.querySelector('.hd')!.textContent,'Channels');assert.ok(menu.querySelector('.sep[role="separator"]'));
   const items=[...menu.querySelectorAll('[role^="menuitem"]')];
-  assert.deepEqual(items.map(i=>i.getAttribute('role')),['menuitemradio','menuitemradio','menuitem']);assert.deepEqual(items.slice(0,2).map(i=>i.getAttribute('aria-checked')),['true','false']);
-  assert.ok(items[0].querySelector('svg'),'the checked item has a tick');
+  assert.deepEqual(items.map(i=>i.getAttribute('role')),['menuitemradio','menuitemradio','menuitemcheckbox','menuitem']);
+  assert.deepEqual(items.slice(0,3).map(i=>i.getAttribute('aria-checked')),['true','false','true']);
+  assert.ok(items[0].querySelector('.menu-check svg'),'the chosen item has a tick');assert.equal(items[1].querySelector('.menu-check'),null);
   await press(items[1]);assert.deepEqual(ran,['ana']);assert.equal(c.querySelector('[role="menu"]'),null,'choosing closes it');
-  await press(button(c,'Open'));await tick();assert.ok(c.querySelector('[role="menu"]'));
-  await key(document,'Escape');assert.equal(c.querySelector('[role="menu"]'),null,'Escape closes it');
-  await press(button(c,'Open'));await tick();
-  await mouseDown(c.querySelector('#outside')!);assert.equal(c.querySelector('[role="menu"]'),null,'a press outside closes it');
-  await press(button(c,'Open'));await tick();
-  await mouseDown(c.querySelector('[role="menu"]')!);assert.ok(c.querySelector('[role="menu"]'),'a press inside does not');
+  await press(open);await tick();assert.ok(c.querySelector('[role="menu"]'));
+  await key(document.activeElement!,'Escape');assert.equal(c.querySelector('[role="menu"]'),null,'Escape closes it');
+  assert.equal(document.activeElement,open,'and gives focus back to the trigger');
+  await press(open);await tick();
+  await pointerPress(c.querySelector('#outside')!);assert.equal(c.querySelector('[role="menu"]'),null,'a press outside closes it');
+  await press(open);await tick();
+  await pointerPress(c.querySelector('[role="menu"] .hd')!);assert.ok(c.querySelector('[role="menu"]'),'a press inside does not');
  }finally{await ui.close();}
 });
 
+test('Menu keyboard: arrows and Home/End move through the items, typing finds one by name, Enter runs it, and focus goes back to the trigger',async()=>{
+ const ran:string[]=[];
+ const ui=await mountUI(createElement(Menu,{label:'Actions',items:[{label:'Rename',fn:()=>ran.push('rename')},{label:'Duplicate',fn:()=>ran.push('duplicate')},{label:'Archive',disabled:true,fn:()=>ran.push('archive')},{label:'Delete',fn:()=>ran.push('delete')}],trigger:()=>createElement('button',null,'Actions')}));
+ try{
+  const c=ui.container,trigger=button(c,'Actions');
+  trigger.focus();await key(trigger,'ArrowDown');await tick();
+  const focused=()=>document.activeElement?.textContent;
+  assert.equal(focused(),'Rename','ArrowDown opens on the first item');
+  await key(document.activeElement!,'ArrowDown');assert.equal(focused(),'Duplicate');
+  await key(document.activeElement!,'End');assert.equal(focused(),'Delete');
+  await key(document.activeElement!,'ArrowDown');assert.equal(focused(),'Rename','arrows wrap');
+  await key(document.activeElement!,'ArrowUp');await key(document.activeElement!,'ArrowUp');assert.equal(focused(),'Archive','a disabled item stays reachable');
+  assert.equal(document.activeElement!.getAttribute('aria-disabled'),'true');
+  await key(document.activeElement!,'Enter');assert.deepEqual(ran,[],'but does not run');
+  await key(document.activeElement!,'d');assert.equal(focused(),'Delete','typing jumps to the next item starting with it');
+  await key(document.activeElement!,'Home');assert.equal(focused(),'Rename');
+  await key(document.activeElement!,'Enter');await tick();
+  assert.deepEqual(ran,['rename']);assert.equal(c.querySelector('[role="menu"]'),null);assert.equal(document.activeElement,trigger);
+ }finally{await ui.close();}
+});
 test('Dialog closes on Escape, the scrim and Close; Drawer the same; neither draws when closed',async()=>{
  let closed=0;
  const ui=await mountUI(createElement(Dialog,{title:'New video',onClose:()=>closed++,footer:createElement('button',null,'Go')},createElement('input',{'aria-label':'Name'})));
@@ -114,7 +140,7 @@ test('Dialog closes on Escape, the scrim and Close; Drawer the same; neither dra
   assert.equal(c.querySelector('.df button')!.textContent,'Go');
   assert.equal(document.activeElement,dialog,'focus moves to the dialog without a control ring');
   await key(document,'Escape');assert.equal(closed,1);
-  await press(c.querySelector('.scrim')!);assert.equal(closed,2);
+  await pointerPress(c.querySelector('.scrim')!);assert.equal(closed,2);
   await press(dialog.querySelector('[aria-label="Close"]')!);assert.equal(closed,3);
   await ui.render(createElement(Dialog,{open:false,title:'Hidden',onClose:()=>closed++}));
   assert.equal(c.querySelector('[role="dialog"]'),null);
@@ -122,7 +148,7 @@ test('Dialog closes on Escape, the scrim and Close; Drawer the same; neither dra
   assert.equal(c.querySelector('.drawer .dh b')!.textContent,'Idea');assert.equal(c.querySelector('.drawer .db')!.textContent,'Body');
   await key(document,'Escape');assert.equal(closed,4);
   await press(c.querySelector('.drawer [aria-label="Close"]')!);assert.equal(closed,5);
-  await press(c.querySelector('.scrim')!);assert.equal(closed,6);
+  await pointerPress(c.querySelector('.scrim')!);assert.equal(closed,6);
  }finally{await ui.close();}
 });
 
@@ -179,58 +205,22 @@ test('toasts show a message, offer Undo or an action, and go away by themselves'
  }finally{await ui.close();}
 });
 
-test('the menu opens from the button\'s edge with fixed placement, so a parent that clips cannot cut it off',async()=>{
- const ui=await mountUI(createElement('div',{style:{overflow:'hidden',width:60}},createElement(Menu,{width:240,items:[{label:'Ana',fn(){}}],button:toggle=>createElement('button',{onClick:toggle},'Open')})));
- const box={left:10,right:50,top:20,bottom:50,width:40,height:30,x:10,y:20,toJSON(){return {};}};
- const original=Element.prototype.getBoundingClientRect;Element.prototype.getBoundingClientRect=()=>box as DOMRect;
- try{
-  await press(button(ui.container,'Open'));
-  const menu=ui.container.querySelector<HTMLElement>('[role="menu"]')!;
-  assert.equal(menu.style.position,'fixed');assert.equal(menu.style.top,'56px');assert.equal(menu.style.left,'10px');assert.equal(menu.style.minWidth,'240px');
-  await act(async()=>{window.dispatchEvent(new Event('resize'));});assert.equal(ui.container.querySelector('[role="menu"]'),null,'a resize closes it');
- }finally{Element.prototype.getBoundingClientRect=original;await ui.close();}
-});
-
-test('a menu that would run off the bottom of the window opens upward from its button',async()=>{
- const ui=await mountUI(createElement(Menu,{items:[{label:'Ana',fn(){}}],button:toggle=>createElement('button',{onClick:toggle},'Open')}));
- const rect=(top:number,bottom:number,height:number)=>({left:10,right:50,top,bottom,width:40,height,x:10,y:top,toJSON(){return {};}}) as DOMRect;
- const original=Element.prototype.getBoundingClientRect;
- Element.prototype.getBoundingClientRect=function(this:Element){return this.getAttribute('role')==='menu'?rect(0,0,200):rect(window.innerHeight-40,window.innerHeight-10,30);};
- try{
-  await press(button(ui.container,'Open'));
-  const menu=ui.container.querySelector<HTMLElement>('[role="menu"]')!;
-  assert.equal(menu.style.top,'');assert.equal(menu.style.bottom,'46px');
- }finally{Element.prototype.getBoundingClientRect=original;await ui.close();}
-});
-
 test('a menu inside a card that lifts on hover is drawn in the club root, outside the card, and still runs its items',async()=>{
  const ran:string[]=[];
  const ui=await mountUI(createElement('div',{className:'club-root',id:'root'},
-  createElement('div',{className:'card',id:'card',style:{transform:'translateY(-2px)'}},
-   createElement(Menu,{items:[{label:'Skip',fn:()=>ran.push('skip')}],button:(toggle)=>createElement('button',{onClick:toggle},'Skip with a reason')}))));
+  createElement('div',{className:'card',id:'card',style:{transform:'translateY(-2px)',overflow:'hidden'}},
+   createElement(Menu,{width:240,items:[{label:'Skip',fn:()=>ran.push('skip')}],trigger:()=>createElement('button',null,'Skip with a reason')}))));
  try{
   const c=ui.container;
   await press(button(c,'Skip with a reason'));await tick();
-  const menu=c.querySelector('[role="menu"]')!;
+  const menu=c.querySelector<HTMLElement>('[role="menu"]')!;
   assert.ok(menu,'the menu opens');
   assert.equal(menu.closest('#card'),null,'it is not inside the card, whose transform would move a fixed menu');
   assert.equal(menu.parentElement!.id,'root');
+  assert.equal(menu.getAttribute('popover'),'manual','it is drawn in the top layer, so no parent clips it');
+  assert.equal(menu.style.position,'fixed');assert.equal(menu.style.minWidth,'240px');
   await press(button(menu,'Skip'));
   assert.deepEqual(ran,['skip'],'a press inside the menu is not a press outside it');
-  assert.equal(c.querySelector('[role="menu"]'),null);
- }finally{await ui.close();}
-});
-
-test('an open menu closes when the page scrolls, and Tab from its button moves focus to its first item',async()=>{
- const ui=await mountUI(createElement('div',{className:'club-root'},
-  createElement(Menu,{items:[{label:'First',fn(){}},{label:'Second',fn(){}}],button:(toggle)=>createElement('button',{onClick:toggle},'Open')})));
- try{
-  const c=ui.container;
-  await press(button(c,'Open'));await tick();
-  assert.ok(c.querySelector('[role="menu"]'));
-  await act(async()=>{button(c,'Open').dispatchEvent(new KeyboardEvent('keydown',{key:'Tab',bubbles:true,cancelable:true}));});
-  assert.equal(document.activeElement?.textContent,'First');
-  await act(async()=>{window.dispatchEvent(new Event('scroll'));});
   assert.equal(c.querySelector('[role="menu"]'),null);
  }finally{await ui.close();}
 });
@@ -243,11 +233,10 @@ test('a take chip names its kinds in the timeline order, with the timeline\'s co
  assert.equal(KIND_COLOR[trackKind('camera')].color,'var(--kind-camera)','the same token the timeline paints with');
 });
 
-test('Task 14: a Menu with below opens under its button even near the bottom of the window, scrolling inside',async()=>{
- const ui=await mountUI(createElement(Menu,{below:true,items:Array.from({length:30},(_,i)=>({label:`Item ${i}`,fn(){}})),button:toggle=>createElement('button',{onClick:toggle},'Open')}));
+test('Task 14: a Menu with below scrolls inside the room under its button',async()=>{
+ const ui=await mountUI(createElement(Menu,{below:true,items:Array.from({length:30},(_,i)=>({label:`Item ${i}`,fn(){}})),trigger:()=>createElement('button',null,'Open')}));
  try{
-  const trigger=ui.container.querySelector('button')!;(trigger.parentElement as HTMLElement).getBoundingClientRect=()=>({top:600,bottom:630,left:10,right:60,width:50,height:30,x:10,y:600,toJSON(){}}) as DOMRect;
-  await act(async()=>{trigger.click();});
-  const menu=document.querySelector<HTMLElement>('[role=menu]')!;assert.equal(menu.style.top,'636px');assert.equal(menu.style.bottom,'');assert.equal(menu.style.overflowY,'auto');
+  await press(button(ui.container,'Open'));await tick();
+  const menu=document.querySelector<HTMLElement>('[role=menu]')!;assert.equal(menu.style.maxHeight,'var(--available-height)');assert.equal(menu.style.overflowY,'auto');
  }finally{await ui.close();}
 });

@@ -19,7 +19,7 @@ export function Header({video,tab,onTitle,onStage,onDelete,onHome}:{video:Video;
  const toast=useToast();
  // Hands this video to the person's own agent (Settings › Your AI agent connects it).
  const copyPrompt=()=>{navigator.clipboard?.writeText(agentPrompt(video,tab)).then(()=>toast('Copied. Paste it into Claude Code or Codex.'),()=>toast("Couldn't copy the prompt.",{refused:true}));};
- const items:MenuItem[]=[{header:'Move to'},...VIDEO_STAGES.map((stage):MenuItem=>({label:STAGE_LABEL[stage],check:video.stage===stage,fn:()=>onStage(stage)})),'-',{label:'Copy prompt for your AI agent',icon:'copy',fn:copyPrompt},'-',{label:'Delete video',icon:'delete',danger:true,fn:()=>setAsking(true)}];
+ const items:MenuItem[]=[{header:'Move to'},...VIDEO_STAGES.map((stage):MenuItem=>({label:STAGE_LABEL[stage],selected:video.stage===stage,fn:()=>onStage(stage)})),'-',{label:'Copy prompt for your AI agent',icon:'copy',fn:copyPrompt},'-',{label:'Delete video',icon:'delete',danger:true,fn:()=>setAsking(true)}];
  return <div className="ws-top">
   <div className="ws-top-l">
    {/* Every step of a video leads back to the Video board (the Kanban) from here. */}
@@ -34,7 +34,7 @@ export function Header({video,tab,onTitle,onStage,onDelete,onHome}:{video:Video;
    {/* On Edit the editor puts undo, redo and history here. */}
    {/* Always mounted so the editor's portal never points at a replaced element; shown on Record and Edit, as Borumi's header. */}
    <div id="ws-edit-tools" className="ws-edit-tools" role="group" aria-label="Undo and history" hidden={tab!=='edit'&&tab!=='record'}/>{tab==='edit'&&<div id="ws-edit-export" className="ws-edit-export"/>}
-   <Menu align="right" button={toggle=><IconButton icon="more" label="More for this video" onClick={toggle}/>} items={items}/>
+   <Menu align="right" trigger={()=><IconButton icon="more" label="More for this video"/>} items={items}/>
   </div>
   <Dialog open={asking} onClose={()=>setAsking(false)} title="Delete this video?" description={`“${video.title}” and its plan and board are removed. ${video.recorderProjectId?'Its recording stays in the recorder. ':''}You can undo it for a few seconds.`}
    footer={<><Button onClick={()=>setAsking(false)}>Cancel</Button><Button variant="danger" onClick={()=>{setAsking(false);onDelete();}}>Delete video</Button></>}/>

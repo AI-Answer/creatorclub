@@ -1,74 +1,64 @@
-import {useCallback,useEffect,useRef,useState,type CSSProperties,type ReactNode} from 'react';
-import {createPortal} from 'react-dom';
+import {Fragment,useState,type CSSProperties,type ReactElement} from 'react';
+import {Menu as Root,MenuCheckboxItem,MenuContent,MenuGroup,MenuGroupLabel,MenuItem as Item,MenuItemIndicator,MenuRadioGroup,MenuRadioItem,MenuSeparator,MenuTrigger} from '@ui-sdk/react/menu';
 import {Icon,type IconName} from './icons';
-import {useClickAway} from './useClickAway';
+import {useClubRoot} from './useClubRoot';
 
-export type MenuItem=
- |'-'
- |{header:string}
- |{label:string;fn():void;icon?:IconName;check?:boolean;danger?:boolean;disabled?:boolean;title?:string};
+type Action={label:string;fn():void;icon?:IconName;danger?:boolean;disabled?:boolean;title?:string};
+/** `check` is an on/off setting (a checkbox item); `selected` is one choice of several (radio items next to each other form one group). */
+export type MenuItem='-'|{header:string}|(Action&{check?:boolean;selected?:never})|(Action&{selected:boolean;check?:never});
 
-/** The menu is drawn in the club's root when it has one, so no parent's overflow or transform affects it; without one (a test, another host) it stays in place. */
-const inRoot=(host:Element|null,menu:ReactNode)=>host?createPortal(menu,host):menu;
+type Row=Exclude<MenuItem,'-'|{header:string}>;
+type Section={header?:string;rows:Row[]};
+
+function sections(items:readonly MenuItem[]):Section[]{
+ const out:Section[]=[{rows:[]}];
+ for(const item of items){
+  if(item==='-'){out.push({rows:[]});continue;}
+  const last=out[out.length-1];
+  if('header' in item){if(last.header!==undefined||last.rows.length)out.push({header:item.header,rows:[]});else last.header=item.header;continue;}
+  last.rows.push(item);
+ }
+ return out.filter(section=>section.header!==undefined||section.rows.length);
+}
+
+const body=(row:Row,check?:boolean)=><>{row.icon&&<Icon name={row.icon} size={15}/>}<span className="grow">{row.label}</span>{check!==undefined&&<MenuItemIndicator render={<span className="menu-check"/>}><Icon name="check" size={15}/></MenuItemIndicator>}</>;
+const look=(row:Row):CSSProperties=>({borderRadius:'var(--cc-r)',color:row.danger?'var(--cc-danger)':'var(--cc-text)'});
+const itemClass='hover:bg-[var(--cc-hover)] focus-visible:outline-accent';
+
+function Rows({rows}:{rows:Row[]}){
+ const runs:Row[][]=[];
+ for(const row of rows){const last=runs[runs.length-1];if(last&&(row.selected!==undefined)===(last[0].selected!==undefined)&&row.selected!==undefined)last.push(row);else runs.push([row]);}
+ return runs.map((run,r)=>{
+  if(run[0].selected!==undefined){
+   const chosen=run.findIndex(row=>row.selected);
+   return <MenuRadioGroup key={r} value={chosen<0?null:String(chosen)} onValueChange={value=>run[Number(value)]?.fn()}>
+    {run.map((row,i)=><MenuRadioItem key={`${i}:${row.label}`} value={String(i)} label={row.label} disabled={row.disabled} closeOnSelect title={row.title} className={itemClass} style={look(row)} render={<button type="button"/>}>{body(row,!!row.selected)}</MenuRadioItem>)}
+   </MenuRadioGroup>;
+  }
+  const row=run[0];
+  if(row.check!==undefined)return <MenuCheckboxItem key={`${r}:${row.label}`} value={row.label} label={row.label} checked={row.check} onCheckedChange={()=>row.fn()} disabled={row.disabled} closeOnSelect title={row.title} className={itemClass} style={look(row)} render={<button type="button"/>}>{body(row,row.check)}</MenuCheckboxItem>;
+  return <Item key={`${r}:${row.label}`} label={row.label} onSelect={()=>row.fn()} disabled={row.disabled} destructive={row.danger} title={row.title} className={itemClass} style={look(row)} render={<button type="button"/>}>{body(row)}</Item>;
+ });
+}
 
 /**
- * A button that opens a menu under it. `button(toggle,open)` draws the trigger; items run `fn` and close the menu;
- * a press outside or Escape closes it too. `align` is the side the menu lines up with.
- * `restoreFocus` returns focus to the trigger when the menu closes by Escape or by choosing an item.
- * It is placed with `position:fixed` from the button's edges and drawn in the club's root when there is one (outside the trigger's parents), so neither a parent with `overflow:hidden` (the sidebar) nor a transform (a card lifting on hover, which would make `fixed` relative to the card) can clip or move it; it closes if the window is resized.
+ * A button that opens a menu under it, on ui-sdk's Menu: arrow keys, Home/End and typeahead move through the items, Enter or a click runs one,
+ * and Escape or a press outside closes it with focus back on the trigger. `trigger(open)` draws the trigger; the menu presses and labels it.
+ * The menu is drawn in the browser's top layer from the club's root, so a parent that clips (the sidebar) or lifts on hover (a card) cannot cut it off or move it.
  */
-export function Menu({button,items,align='left',width,label,restoreFocus,below=false}:{button(toggle:()=>void,open:boolean):ReactNode;items:readonly MenuItem[];align?:'left'|'right';width?:number;label?:string;restoreFocus?:boolean;/** Always opens below the button (scrolling inside when the window is short), never upward over what sits above it. */below?:boolean}){
+export function Menu({trigger,items,align='left',width,label,below=false}:{trigger(open:boolean):ReactElement;items:readonly MenuItem[];align?:'left'|'right';width?:number;label?:string;/** Scrolls inside the room under the button rather than growing past it. */below?:boolean}){
  const [open,setOpen]=useState(false);
- const [place,setPlace]=useState<CSSProperties>({}),[host,setHost]=useState<Element|null>(null);
- const ref=useRef<HTMLSpanElement>(null),menu=useRef<HTMLDivElement>(null);
- useClickAway([ref,menu],()=>setOpen(false),open);
- useEffect(()=>{
-  if(!open)return;
-  const close=()=>setOpen(false);
-  // Scrolling anywhere but inside the menu closes it, since it is placed from the button's edges when it opens.
-  const scrolled=(event:Event)=>{if(!menu.current?.contains(event.target as Node))setOpen(false);};
-  window.addEventListener('resize',close);window.addEventListener('scroll',scrolled,true);
-  return()=>{window.removeEventListener('resize',close);window.removeEventListener('scroll',scrolled,true);};
- },[open]);
- const anchor=useRef<{top:number;bottom:number}|null>(null);
- // With `restoreFocus`, closing by Escape or by choosing an item puts focus back on the trigger (the menu had it, and it is gone with the menu).
- const giveBack=useRef(false);
- useEffect(()=>{
-  if(!restoreFocus)return;
-  if(open){const key=(event:KeyboardEvent)=>{if(event.key==='Escape')giveBack.current=true;};document.addEventListener('keydown',key);return()=>document.removeEventListener('keydown',key);}
-  if(giveBack.current){giveBack.current=false;ref.current?.querySelector<HTMLElement>('button,a')?.focus();}
- },[open,restoreFocus]);
- // Once it is drawn, a menu that would run off the bottom of the window opens upward from the button instead, when there is more room above.
- // Measured when the menu element itself mounts (wherever it is drawn), so it never depends on effect timing.
- const placeMenu=useCallback((node:HTMLDivElement|null)=>{
-  menu.current=node;
-  if(!node||!anchor.current||below)return;
-  const height=node.getBoundingClientRect().height,{top,bottom}=anchor.current;
-  if(height>0&&bottom+6+height>window.innerHeight-8&&top>window.innerHeight-bottom)setPlace(current=>{const {top:_below,...rest}=current;return {...rest,bottom:window.innerHeight-top+6};});
- },[below]);
- const toggle=()=>{
-  if(!open&&ref.current){
-   const box=ref.current.getBoundingClientRect();
-   anchor.current={top:box.top,bottom:box.bottom};
-   setHost(ref.current.closest('.club-root'));
-   setPlace({top:box.bottom+6,...(align==='left'?{left:box.left}:{right:window.innerWidth-box.right}),...(below?{maxHeight:Math.max(120,window.innerHeight-box.bottom-14),overflowY:'auto' as const}:{})});
-  }
-  setOpen(current=>!current);
- };
- // The menu is drawn elsewhere in the page, so Tab from the button would skip it: it moves focus to the first item instead.
- const enter=(event:{key:string;shiftKey:boolean;preventDefault():void})=>{
-  if(!open||event.key!=='Tab'||event.shiftKey)return;
-  const first=menu.current?.querySelector<HTMLElement>('button:not(:disabled)');
-  if(first){event.preventDefault();first.focus();}
- };
- return <span ref={ref} onKeyDown={enter} style={{position:'relative',display:'inline-flex'}}>
-  {button(toggle,open)}
-  {open&&inRoot(host,<div ref={placeMenu} className="menu border-line bg-card text-ink shadow-[var(--cc-shadow-3)]" role="menu" aria-label={label} style={{position:'fixed',borderRadius:'var(--cc-r-lg)',...place,minWidth:width}}>
-   {items.map((item,index)=>item==='-'?<div key={index} className="sep"/>
-    :'header' in item?<div key={index} className="hd">{item.header}</div>
-    :<button key={index} type="button" role={item.check===undefined?'menuitem':'menuitemradio'} aria-checked={item.check} disabled={item.disabled} title={item.title} className="hover:bg-[var(--cc-hover)] focus-visible:outline-accent" onClick={()=>{giveBack.current=true;setOpen(false);item.fn();}} style={{borderRadius:'var(--cc-r)',color:item.danger?'var(--cc-danger)':'var(--cc-text)'}}>
-      {item.icon&&<Icon name={item.icon} size={15}/>}<span className="grow">{item.label}</span>{item.check&&<Icon name="check" size={15}/>}
-     </button>)}
-  </div>)}
+ const [anchor,root]=useClubRoot<HTMLSpanElement>();
+ return <span ref={anchor} className="menu-host" style={{position:'relative',display:'inline-flex'}}>
+  <Root open={open} onOpenChange={next=>setOpen(next)}>
+   <MenuTrigger render={trigger(open)}/>
+   <MenuContent container={root} side="bottom" align={align==='left'?'start':'end'} sideOffset={6} collisionPadding={8} aria-label={label}
+    className="menu border-line bg-card text-ink shadow-[var(--cc-shadow-3)]" style={{borderRadius:'var(--cc-r-lg)',minWidth:width,maxHeight:below?'var(--available-height)':undefined,overflowY:'auto'}}>
+    {sections(items).map((section,s)=><Fragment key={s}>
+     {s>0&&<MenuSeparator className="sep"/>}
+     {section.header!==undefined?<MenuGroup><MenuGroupLabel className="hd">{section.header}</MenuGroupLabel><Rows rows={section.rows}/></MenuGroup>:<Rows rows={section.rows}/>}
+    </Fragment>)}
+   </MenuContent>
+  </Root>
  </span>;
 }

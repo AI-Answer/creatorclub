@@ -516,7 +516,7 @@ export function Board({video,board:boardProp,refreshKey=0,navigate=NO_NAVIGATE,o
   {label:'Notes folder',icon:'folder',fn:()=>setFolderOpen(true)},
   ...(files?.folder.hidden?[{label:`Show hidden files (${files.folder.hidden})`,icon:'preview' as const,fn:()=>void showHidden()}]:[]),
  ];
- const addMenu=(primary=false)=><Menu label="Add to the board" items={addItems} button={(toggle,open)=><button type="button" className={cn('btn sm',primary&&'primary')} aria-haspopup="menu" aria-expanded={open} onClick={toggle}><Icon name="add" size={15}/>Add to board</button>}/>;
+ const addMenu=(primary=false)=><Menu label="Add to the board" items={addItems} trigger={()=><button type="button" className={cn('btn sm',primary&&'primary')}><Icon name="add" size={15}/>Add to board</button>}/>;
  const emptyBoard=tiles?.length===0&&!frames.length;
 
  return <div className="board-wrap hepta-board" ref={wrap} tabIndex={-1} onPaste={paste} onDragOver={event=>event.preventDefault()} onDrop={drop} onKeyDown={onBoardKey} onClick={event=>{if(event.target===event.currentTarget)clear();}}>
@@ -567,7 +567,7 @@ export function Board({video,board:boardProp,refreshKey=0,navigate=NO_NAVIGATE,o
        <IconButton icon="fullscreen" iconSize={13} label="Expand card" onClick={()=>focusCard(tile.id)}/>
        <IconButton icon="panel-open" iconSize={13} label="Open card in sidebar" onClick={()=>setOpenNote(tile.id)}/>
        <span className="board-card-kind ellipsis">{tile.title||KIND_NAME[tile.kind]}</span>
-       <Menu align="right" button={toggle=><IconButton icon="more" iconSize={13} label="More for this card" onClick={toggle}/>} items={[{label:'Remove from the board',icon:'delete',fn:()=>board.remove(tile)}]}/>
+       <Menu align="right" trigger={()=><IconButton icon="more" iconSize={13} label="More for this card"/>} items={[{label:'Remove from the board',icon:'delete',fn:()=>board.remove(tile)}]}/>
        <IconButton icon="comment" iconSize={13} label="Ask Claude about this card" onClick={()=>{setSel([tile.id]);const host=wrap.current?.parentElement?.closest('.ws,.research')??wrap.current?.parentElement?.parentElement;host?.querySelector<HTMLButtonElement>('.cmp-rail')?.click();host?.querySelector<HTMLTextAreaElement>('.cmp textarea')?.focus();}}/>
        <IconButton icon="link" iconSize={13} label="Connect this card" onClick={()=>setConnectFrom(tile.id)}/>
       </div>
@@ -607,7 +607,7 @@ export function Board({video,board:boardProp,refreshKey=0,navigate=NO_NAVIGATE,o
    <IconButton icon="connect" label="Connector: pick two cards" className={tool==='connect'?'on':undefined} onClick={()=>{setTool('connect');setConnectFrom(sel.length===1?sel[0]:null);wrap.current?.focus();}}/>
    <IconButton icon="text" label="Text (T)" onClick={()=>void addHere({kind:'text',text:'Text'})}/>
    <IconButton icon="search" label="Search board (⌘F)" onClick={()=>setSearch('')}/>
-   <Menu label="More board tools" items={addItems} button={toggle=><IconButton icon="more" label="More board tools" onClick={toggle}/>}/>
+   <Menu label="More board tools" items={addItems} trigger={()=><IconButton icon="more" label="More board tools"/>}/>
   </div>
   {search!==null&&<div className="board-search"><input className="input" autoFocus aria-label="Search cards on board" placeholder="Search this board…" value={search} onChange={event=>setSearch(event.target.value)} onKeyDown={event=>{if(event.key==='Escape'){event.stopPropagation();setSearch(null);wrap.current?.focus();}}}/><IconButton icon="close" label="Close board search" onClick={()=>setSearch(null)}/></div>}
   {/* Nothing to map on an empty board, and it would sit over the empty board's Add to board. */}

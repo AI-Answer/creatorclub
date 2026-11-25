@@ -19,7 +19,7 @@ function IdeaButton({title,inIdeas,onIdea}:{title:string;inIdeas:boolean;onIdea(
 /** The card's "⋯": the rarer things (follow the channel, add to the Channel board, open the post) in one menu, so the card keeps one visible action. */
 function MoreMenu({title,items}:{title:string;items:MenuItem[]}){
  if(!items.length)return null;
- return <Menu label={`More about ${title}`} align="right" restoreFocus items={items} button={(toggle,open)=><button type="button" className="btn ghost sm icon-only" aria-label={`More about ${title}`} aria-haspopup="menu" aria-expanded={open} title="More" onClick={toggle}><Icon name="more" size={15}/></button>}/>;
+ return <Menu label={`More about ${title}`} align="right" items={items} trigger={()=><button type="button" className="btn ghost sm icon-only" aria-label={`More about ${title}`} title="More"><Icon name="more" size={15}/></button>}/>;
 }
 
 /**

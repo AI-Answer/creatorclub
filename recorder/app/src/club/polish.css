@@ -83,7 +83,9 @@
 .club-root .palette .po .key-chip { margin-left: auto; flex: none; }
 .club-root .palette .po .po-label { display: block; flex: 0 1 auto; min-width: 0; max-width: 100%; }
 .club-root .palette .po .po-hint { display: block; flex: 1; text-align: left; margin-top: 0; color: var(--cc-palette-hint); }
-.club-root .palette .po.on { box-shadow: inset 0 0 0 1px var(--cc-line); }
+.club-root .palette .po[data-highlighted] { background: var(--cc-hover); box-shadow: inset 0 0 0 1px var(--cc-line); }
+.club-root .palette .pi input { flex: 1; min-width: 0; border: 0; outline: none; background: none; font-size: var(--cc-text-lg); }
+.club-root .palette [data-slot=command] { display: flex; flex-direction: column; min-height: 0; flex: 1; }
 @media (hover: none) { .club-root .video-board-page .lane-plus { opacity: 1; } }
 @media (max-width: 760px) {
  .club-root .screen-header { align-items: flex-start; flex-wrap: wrap; gap: 16px; }
@@ -143,6 +145,13 @@
 .club-root .select-control { display: inline-flex; }
 .club-root .btn.select-button { height: 32px; min-height: 32px; padding: 0 10px; gap: 12px; font-size: var(--cc-text-sm); font-weight: var(--cc-weight-medium); border: 1px solid var(--cc-line-strong); background: var(--cc-surface); color: var(--cc-text); }
 .club-root .btn.select-button > svg { margin-left: auto; }
+/* ui-sdk menus and selects: the item under the keyboard or pointer looks hovered; a disabled item stays reachable but reads as unavailable. */
+.club-root .menu [role=option] { display: flex; align-items: center; gap: 9px; height: 32px; padding: 0 8px; border-radius: var(--cc-r); font-size: var(--cc-text-sm); color: var(--cc-text); cursor: pointer; }
+.club-root .menu :is([role^=menuitem], [role=option])[data-highlighted] { background: var(--cc-hover); outline: none; }
+.club-root .menu :is([role^=menuitem], [role=option])[data-disabled] { opacity: .5; cursor: default; }
+.club-root .menu .menu-check { display: inline-flex; margin-left: auto; color: var(--cc-text-2); }
+.club-root .menu[data-ending-style] { opacity: 0; transition: opacity var(--cc-dur) var(--cc-ease); }
+.club-root .br-select .select-control { width: 100%; }
 .club-root .settings-body-b .card > .srow, .club-root .settings-body-b .card > .srow2 { border-bottom: 0; }
 
 .club-root .research-recovery { display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 48px 24px; border: 1px solid var(--cc-line); border-radius: var(--cc-r-lg); background: var(--cc-surface); }

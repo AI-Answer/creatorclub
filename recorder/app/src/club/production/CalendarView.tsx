@@ -1,6 +1,6 @@
-import {useLayoutEffect,useMemo,useRef,useState,type DragEvent} from 'react';
-import {createPortal} from 'react-dom';
-import {useClickAway} from '../ui/useClickAway';
+import {useMemo,useState,type DragEvent} from 'react';
+import {Popover,PopoverContent,PopoverTrigger} from '@ui-sdk/react/popover';
+import {useClubRoot} from '../ui/useClubRoot';
 import type {Video} from '../../../shared/club';
 import {STAGE_LABEL,dayKey,toDayKey} from '../board';
 import {monthGrid,monthOf,monthTitle,shiftMonth} from '../production';
@@ -71,14 +71,12 @@ export function CalendarView({videos,onOpen,onSchedule,today=new Date()}:{
 
 /** A date field appears only when requested; the tray stays compact and readable. */
 function UnscheduledChip({video,onSchedule,onDragStart,onDragEnd}:{video:Video;onSchedule(id:string,day:string):void;onDragStart(event:DragEvent<HTMLButtonElement>):void;onDragEnd():void}){
- const [open,setOpen]=useState(false),[position,setPosition]=useState({left:0,top:0});
- const anchor=useRef<HTMLButtonElement>(null),popover=useRef<HTMLDivElement>(null);
- useClickAway([anchor,popover],()=>setOpen(false),open);
- useLayoutEffect(()=>{if(open)popover.current?.focus({preventScroll:true});},[open]);
- const close=()=>{setOpen(false);anchor.current?.focus({preventScroll:true});};
- const host=anchor.current?.closest('.club-root');
- const content=open?<div ref={popover} tabIndex={-1} className="calendar-date-popover" role="dialog" aria-label={`Publish date for ${video.title}`} style={{left:position.left,top:position.top}} onKeyDown={event=>{if(event.key==='Escape')close();}}>
-  <label className="small muted">Publish date<input type="date" className="input" aria-label={`Set publish date for ${video.title}`} onChange={event=>{if(event.target.value){onSchedule(video.id,event.target.value);close();}}}/></label>
- </div>:null;
- return <><button ref={anchor} type="button" className="ev calendar-unscheduled-chip" draggable={video.stage!=='published'} onDragStart={onDragStart} onDragEnd={onDragEnd} title={video.title} aria-label={`Set publish date for ${video.title}`} aria-haspopup="dialog" aria-expanded={open} onClick={()=>{const box=anchor.current!.getBoundingClientRect();const height=popover.current?.offsetHeight||96;setPosition({left:Math.min(box.left,window.innerWidth-228),top:box.bottom+6+height>window.innerHeight?Math.max(8,box.top-6-height):box.bottom+6});setOpen(current=>!current);}}><StageBadge stage={video.stage} dotOnly decorative/><span className="calendar-title">{video.title}</span><Icon name="calendar" size={13} className="calendar-chip-icon"/></button>{host?createPortal(content,host):content}</>;
+ const [open,setOpen]=useState(false);
+ const [anchor,root]=useClubRoot<HTMLSpanElement>();
+ return <span ref={anchor} style={{display:'contents'}}><Popover open={open} onOpenChange={next=>setOpen(next)}>
+  <PopoverTrigger className="ev calendar-unscheduled-chip" draggable={video.stage!=='published'} onDragStart={onDragStart} onDragEnd={onDragEnd} title={video.title} aria-label={`Set publish date for ${video.title}`}><StageBadge stage={video.stage} dotOnly decorative/><span className="calendar-title">{video.title}</span><Icon name="calendar" size={13} className="calendar-chip-icon"/></PopoverTrigger>
+  <PopoverContent container={root} className="calendar-date-popover" aria-label={`Publish date for ${video.title}`} side="bottom" align="start" sideOffset={6} collisionPadding={8} initialFocus="content">
+   <label className="small muted">Publish date<input type="date" className="input" aria-label={`Set publish date for ${video.title}`} onChange={event=>{if(event.target.value){onSchedule(video.id,event.target.value);setOpen(false);}}}/></label>
+  </PopoverContent>
+ </Popover></span>;
 }

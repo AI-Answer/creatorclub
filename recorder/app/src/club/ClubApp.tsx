@@ -22,6 +22,7 @@ import type {Video as ShellVideo} from '../../shared/club';
 import {Button,EmptyState,Spinner,ToastProvider,cn} from './ui';
 import {useChannelState} from './useChannelState';
 import {useShellVideos} from './useShellVideos';
+import {connectAgent} from './agent';
 const loadVideoWorkspace=()=>import('./workspace/Workspace');
 const VideoWorkspace=lazy(()=>loadVideoWorkspace().then(module=>({default:module.Workspace})));
 // Fill the existing main area without adding a second surface or moving the shell.
@@ -94,6 +95,7 @@ function useOpenTabs(route:Route,videos:readonly ShellVideo[],navigate:(route:Ro
 
 /** Creator Compiler's root: the tab strip over the current screen, with search (⌘K), New video, the How it works dialog and toasts above them. */
 export default function ClubApp(){
+ useEffect(()=>{connectAgent();},[]);
  return <div className={cn('club-root',window.sceneForge&&'club-desktop')} data-platform={window.sceneForge?.platform}>
   <ToastProvider><Shell/></ToastProvider>
  </div>;

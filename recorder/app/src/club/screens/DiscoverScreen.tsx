@@ -151,9 +151,9 @@ export function DiscoverScreen({show='fit',navigate}:{show?:DiscoverShow;navigat
  const chosen=[view==='fit'&&show!=='fit'?sourceName:null,sortName].filter(Boolean).join(', ');
  const filterLabel=chosen?`Filter · ${chosen}`:'Filter';
  const filterItems:MenuItem[]=[
-  ...(view==='fit'?[{header:'Source'},...sourceChoices.map(([key,label]):MenuItem=>({label:`${label} ${counts[key]}`,check:show===key,fn:()=>choose(key)})),'-' as const]:[]),
+  ...(view==='fit'?[{header:'Source'},...sourceChoices.map(([key,label]):MenuItem=>({label:`${label} ${counts[key]}`,selected:show===key,fn:()=>choose(key)})),'-' as const]:[]),
   {header:'Sort by'},
-  ...sortChoices.map(([value,label]):MenuItem=>({label,check:sort===value,fn:()=>{if(!running&&held)showNew();setSort(value as DiscoverSort);}})),
+  ...sortChoices.map(([value,label]):MenuItem=>({label,selected:sort===value,fn:()=>{if(!running&&held)showNew();setSort(value as DiscoverSort);}})),
  ];
 
  return <div className="page">
@@ -169,7 +169,7 @@ export function DiscoverScreen({show='fit',navigate}:{show?:DiscoverShow;navigat
   <div className="row disc-bar">
    <div className="disc-views"><div className="seg" role="group" aria-label="View">{DISCOVER_VIEWS.map(([key,label])=><button key={key} type="button" className={view===key?'on':''} aria-pressed={view===key} onClick={()=>choose(key)}>{label} <span className="n">{counts[key]}</span></button>)}</div></div>
    <span className="grow"/>
-   <Menu label="Filter" align="right" restoreFocus items={filterItems} button={(toggle,open)=><button type="button" className="btn ghost sm" aria-haspopup="menu" aria-expanded={open} onClick={toggle}>{filterLabel}<Icon name="expand" size={14}/></button>}/>
+   <Menu label="Filter" align="right" items={filterItems} trigger={()=><button type="button" className="btn ghost sm">{filterLabel}<Icon name="expand" size={14}/></button>}/>
   </div>
   {newResults&&<div className="disc-new"><button type="button" className="btn sm" onClick={showNew}><Icon name="retry" size={14}/>New results</button><span className="small muted">The list was read again. Show it in its new order.</span></div>}
 

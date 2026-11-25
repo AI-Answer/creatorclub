@@ -106,9 +106,11 @@ test('Kanban drag: no React render while the card follows the pointer, one commi
   assert.equal(renders,0,'or any card');
   assert.ok(!!c.querySelector('.kanban-drag-overlay'),'a copy of the card follows the pointer');
   assert.equal(c.querySelector('[data-column="planning"] [data-drop-line]')?.getAttribute('data-before-id'),'planning2');
-  const shifted=[...c.querySelectorAll<HTMLElement>('[data-column="planning"] [data-slot]')].map(slot=>slot.style.transform);
+  // A lane's slots only: ui-sdk parts inside a card (its Move to menu) carry a data-slot of their own.
+  const slots=(stage:string)=>[...c.querySelectorAll<HTMLElement>(`[data-column="${stage}"] [data-slot]`)].filter(slot=>!slot.parentElement?.closest('[data-slot]'));
+  const shifted=slots('planning').map(slot=>slot.style.transform);
   assert.deepEqual(shifted.slice(0,3),['','','translate3d(0,100px,0)'],'cards from the gap down slide aside with a transform');
-  const ideas=[...c.querySelectorAll<HTMLElement>('[data-column="ideas"] [data-slot]')].slice(1,3).map(slot=>slot.style.transform);
+  const ideas=slots('ideas').slice(1,3).map(slot=>slot.style.transform);
   assert.deepEqual(ideas,['translate3d(0,-100px,0)','translate3d(0,-100px,0)'],'the lane it left closes up');
   await letGo(laneX(c,'planning'),slotY(2));
   assert.deepEqual(moves,[['ideas0','planning','planning2']]);

@@ -1,3 +1,5 @@
+@layer ui-sdk;
+
 /* System fonts keep the local editor independent of remote font services. */
 
 :root,.club-root{font-family:ui-sans-serif,system-ui,sans-serif;color:var(--cc-text);background:var(--cc-surface-2);font-synthesis:none;font-size:var(--cc-text-sm);--accent:var(--cc-accent);--accent-dark:var(--cc-accent-hover);--accent-soft:var(--cc-accent-soft);--line:var(--cc-line);--muted:var(--cc-text-3);--surface:var(--cc-surface);--shadow:var(--cc-shadow-1)}

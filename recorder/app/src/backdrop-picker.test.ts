@@ -1,8 +1,9 @@
-import {mountUI} from './test-dom';
+import {chooseOption,mountUI} from './test-dom';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {act,createElement} from 'react';
 import {createProject,defaultTransform,defaultEffects,type Media,type Project} from '../shared/types';
+import {BACKDROP_CHOICES} from '../shared/backdrop';
 import {applyProjectChange} from './project-draft';
 import {createPlayhead} from './playhead';
 import {backdropFileProblem,personSegmentationAvailable} from './backdrop-picker';
@@ -21,7 +22,7 @@ function harness(p:Project){
  const element=()=>createElement(Inspector,{project:state.project,panel:'Layout',selected:'camera',selectedIds:new Set(['camera']),playhead,change:(fn:(p:Project)=>void)=>{state.project=applyProjectChange(state.project,fn);},select:()=>{},onImport:()=>{},onAI:()=>{},club:true,onNotice:(m:string)=>state.notices.push(m)});
  return {state,element};
 }
-const select=async(container:Element,label:string,value:string)=>act(async()=>{const el=container.querySelector<HTMLSelectElement>(`select[aria-label="${label}"]`);if(!el)throw Error(`No select ${label}`);el.value=value;el.dispatchEvent(new Event('change',{bubbles:true}));});
+const select=(container:Element,label:string,value:string)=>chooseOption(container,label,BACKDROP_CHOICES.find(choice=>choice.value===value)!.label);
 const toggle=(container:Element,label:string)=>{const el=container.querySelector<HTMLButtonElement>(`button[role="switch"][aria-label="${label}"]`);if(!el)throw Error(`No switch ${label}`);return el;};
 const desktop=(bridge:Record<string,unknown>|undefined)=>Object.defineProperty(window,'sceneForge',{value:bridge,configurable:true,writable:true});
 
@@ -32,7 +33,7 @@ test('Remove background offers a Background picker, and each choice lands on the
  const {state,element}=harness(fixture()),ui=await mountUI(element());
  const fx=()=>state.project.clips[0].effects;
  try{
-  assert.equal(ui.container.querySelector('select[aria-label="Background"]'),null,'no picker until the background is removed');
+  assert.equal(ui.container.querySelector('[data-slot="select-trigger"][aria-label="Background"]'),null,'no picker until the background is removed');
   await act(async()=>toggle(ui.container,'Remove background').click());await ui.render(element());
   assert.equal(fx().background,'remove');
   await select(ui.container,'Background','color');await ui.render(element());
@@ -68,7 +69,7 @@ test('on Windows the background controls explain that macOS Vision is needed',as
  try{
   assert.match(ui.container.textContent??'',/uses macOS Vision/);
   assert.equal(toggle(ui.container,'Remove background').disabled,true);
-  assert.equal(ui.container.querySelector('select[aria-label="Background"]'),null);
+  assert.equal(ui.container.querySelector('[data-slot="select-trigger"][aria-label="Background"]'),null);
  }finally{desktop(undefined);await ui.close();}
  // A project made on a Mac can still switch it off there.
  desktop({platform:'win32'});

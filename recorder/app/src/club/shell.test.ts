@@ -499,3 +499,37 @@ test('unknown server diagnostics are console-only; the API keeps useful recovery
   }
  }finally{fake.restore();}
 });
+
+test('an agent can read the app by name and take only the UI actions it is given: switch the view, open search, open a video',async()=>{
+ const {AGENT_RULES,allowed,connectAgent}=await import('./agent');
+ const {SEARCH_INPUT_LABEL}=await import('./shell/labels');
+ await withApp('#/videos',async ui=>{
+  const c=ui.container;
+  const agent=await connectAgent()!;
+  assert.equal((window as unknown as {creatorCompilerAgent:unknown}).creatorCompilerAgent,agent,'the app starts the bridge once and names it on the window');
+  const shown=agent.snapshot().filter(entry=>!entry.offPage&&entry.component!=='more');
+  for(const entry of shown)assert.ok(entry.label,`${entry.component} ${entry.ref} has no name`);
+  const labels=shown.map(entry=>entry.label);
+  for(const label of ['View','Creator Compiler menu','Switch channel'])assert.ok(labels.includes(label),`${label} is missing from the snapshot: ${labels.join(', ')}`);
+  assert.deepEqual(shown.find(entry=>entry.label==='View')!.items!.map(item=>item.label),['Board','Table','Calendar']);
+
+  let result=await agent.act({steps:[{ref:'View',action:'setValue',args:['Table']}]});await flush();
+  assert.equal(result.ok,true,result.error?.message);assert.equal(window.location.hash,'#/videos/table');
+  assert.equal(c.querySelector('[role=tab][aria-selected=true]')?.textContent,'Table');
+
+  result=await agent.act({steps:[{ref:'Creator Compiler menu',action:'press',args:['Search']}]});await flush();
+  assert.equal(result.ok,true,result.error?.message);assert.ok(c.querySelector('.palette'),'Search in the app menu opens the palette');
+  result=await agent.act({steps:[{ref:SEARCH_INPUT_LABEL,action:'setQuery',args:['small shops']},{ref:SEARCH_INPUT_LABEL,action:'run',args:['video:r1']}]});await flush();
+  assert.equal(result.ok,true,result.error?.message);
+  assert.equal(c.querySelector('.palette'),null);assert.match(window.location.hash,/^#\/video\/r1/);
+
+  result=await agent.act({steps:[{ref:'Switch channel',action:'setOpen',args:[true]}]});await flush();
+  assert.equal(result.ok,false,'anything outside the rules is refused');assert.equal(c.querySelector('[role=menu][aria-label="Channels"]'),null);
+  result=await agent.act({steps:[{ref:'Creator Compiler menu',action:'press',args:['Settings']}]});await flush();
+  assert.equal(result.ok,false,'a menu item the rules do not name is refused');
+ });
+ assert.ok(AGENT_RULES.length<=6,'a small set');
+ assert.equal(allowed({component:'tabs',label:'View',action:'setValue',args:['table'],confirm:'Deletes it'}),false,'a step that needs a person is never answered by the bridge');
+ assert.equal(allowed({component:'radio',label:'Layouts',action:'setValue',args:['Side by side']}),true);
+ assert.equal(allowed({component:'select',label:'Who can watch new videos',action:'setValue',args:['private']}),false);
+});
