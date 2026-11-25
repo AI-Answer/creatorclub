@@ -177,8 +177,8 @@ export function Publish({video,pkg,scenes,onVideo,onDescription,onTags,onGoTo,on
  const reveal=file?.outputPath&&window.sceneForge?.reveal?()=>void window.sceneForge!.reveal(file.outputPath!).catch(()=>{}):undefined;
  const player=<ExportedVideo file={file} stale={stale} poster={thumbnail} note={unrecorded} onEdit={()=>onGoTo('edit')}/>;
  const summary=<PackageSummary video={video} thumbnailText={pkg?.thumbnailText} thumbnailUrl={thumbnail} player={player} channel={publishing.state?.postiz.channel?.name} visibility={visibility} when={scheduledDate} title={title} description={description} tags={tags}
-  menu={reveal&&<Menu label="More" restoreFocus align="right" items={[{label:'Show the video file in Finder',fn:reveal}]}
-   button={(toggle,open)=><IconButton icon="more" label="More" aria-haspopup="menu" aria-expanded={open} onClick={toggle}/>}/>}/>;
+  menu={reveal&&<Menu label="More" align="right" items={[{label:'Show the video file in Finder',fn:reveal}]}
+   trigger={()=><IconButton icon="more" label="More"/>}/>}/>;
  // Green "on YouTube" only when the video really is Published. Postiz saying so is not enough until it has moved.
  const result:{info:ResultInfo}|null=published?{info:{state:'published',visibility:record?.visibility??'public',url:video.youtubeUrl,postizUrl:record?.postizUrl}}
   :record&&record.state!=='failed'?{info:{...record,state:record.state==='published'?'queued':record.state}}:null;
@@ -224,7 +224,7 @@ export function Publish({video,pkg,scenes,onVideo,onDescription,onTags,onGoTo,on
      {saveError&&<ErrorLine message="Couldn't save the description." onRetry={onRetry}/>}</div>
     <div className="full"><label className="field" htmlFor="pub-tags">Tags</label><TagsField tags={tags} onChange={onTags}/></div>
     {thumbField}
-    <div className="pub-pair"><label className="field" htmlFor="pub-vis">Who can watch</label><Menu label="Who can watch" restoreFocus below items={VISIBILITY_OPTIONS.map(option=>({label:option.label,check:visibility===option.value,fn:()=>setChosen(option.value)}))} button={(toggle,open)=><button id="pub-vis" type="button" className="select ws-visibility" aria-haspopup="menu" aria-expanded={open} onClick={toggle}>{VISIBILITY_OPTIONS.find(option=>option.value===visibility)?.label}<Icon name="expand" size={14}/></button>}/></div>
+    <div className="pub-pair"><label className="field" htmlFor="pub-vis">Who can watch</label><Menu label="Who can watch" below items={VISIBILITY_OPTIONS.map(option=>({label:option.label,selected:visibility===option.value,fn:()=>setChosen(option.value)}))} trigger={()=><button id="pub-vis" type="button" className="select ws-visibility">{VISIBILITY_OPTIONS.find(option=>option.value===visibility)?.label}<Icon name="expand" size={14}/></button>}/></div>
     <div className={`pub-pair ${tried&&!kids?'has-err':''}`}><div className="field" id="pub-kids-l">Made for kids?</div>
      <div className="radios ws-kids-segment" role="radiogroup" aria-labelledby="pub-kids-l" aria-describedby="pub-kids-h" ref={kidsField}>{(['no','yes'] as const).map(value=><label key={value} className={`rad ${kids===value?'is-selected':''}`}><input type="radio" name="kids" value={value} checked={kids===value} onChange={()=>setKids(value)}/>{kids===value&&<Icon name="check" size={13}/>}{value==='no'?'No':'Yes'}</label>)}</div>
      <div className="field-hint" id="pub-kids-h">Required by YouTube</div>

@@ -32,3 +32,18 @@ test('P2 the Border radius slider sets the corners of the active layout in previ
   assert.equal(layoutsProblem(p.layouts),null);assert.equal(layoutTransform(p,p.clips[0],4).borderRadius,28,'unselected stretch keeps its corners');
  }}finally{await ui.close();}
 });
+test('the layout tiles are one radio group: named Layouts, one tab stop, and arrow keys pick the next arrangement',async()=>{
+ const {state,element}=harness(fixture(),'l2',new Set(['l2'])),ui=await mountUI(element());
+ try{
+  const group=ui.container.querySelector('[role=radiogroup]')!;
+  assert.equal(group.getAttribute('aria-label'),'Layouts');assert.ok(group.classList.contains('layout-grid'));
+  const radios=[...group.querySelectorAll<HTMLElement>('[role=radio]')];
+  const checked=radios.find(radio=>radio.getAttribute('aria-checked')==='true')!;
+  assert.equal(checked.getAttribute('aria-label'),'Picture in picture');assert.ok(checked.classList.contains('is-selected'));
+  assert.deepEqual(radios.map(radio=>radio.getAttribute('tabindex')==='0'),radios.map(radio=>radio===checked),'only the chosen tile is in the tab order');
+  const next=radios[radios.indexOf(checked)+1];
+  checked.focus();await act(async()=>{checked.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowRight',bubbles:true,cancelable:true}));});
+  assert.equal(state.project.layouts!.find(l=>l.id==='l2')!.preset,next.getAttribute('aria-label'),'ArrowRight applies the next layout');
+  assert.ok(document.activeElement===next);
+ }finally{await ui.close();}
+});

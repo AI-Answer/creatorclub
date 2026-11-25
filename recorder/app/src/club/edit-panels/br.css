@@ -66,12 +66,12 @@
 /* Select trigger: h-9 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm; _d compact h-7 px-2 11px
    bg-background border-primary/10. */
 .club-root .club-edit-side .br-select { position: relative; display: inline-flex; width: 100%; }
-.club-root .club-edit-side .br-select select { -webkit-appearance: none; appearance: none; width: 100%; height: 36px; padding: 8px 32px 8px 12px; border: 1px solid var(--br-input); border-radius: var(--br-r-md); background: transparent; color: var(--br-primary); font: inherit; font-size: var(--cc-text-base); line-height: 20px; box-shadow: var(--br-shadow-sm); cursor: pointer; }
-.club-root .club-edit-side .br-select select:focus-visible { outline: none; box-shadow: 0 0 0 1px var(--br-ring); }
-.club-root .club-edit-side .br-select select:disabled { opacity: .5; cursor: not-allowed; }
+.club-root .club-edit-side .br-select .br-select-trigger { display: flex; align-items: center; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; -webkit-appearance: none; appearance: none; width: 100%; height: 36px; padding: 8px 32px 8px 12px; border: 1px solid var(--br-input); border-radius: var(--br-r-md); background: transparent; color: var(--br-primary); font: inherit; font-size: var(--cc-text-base); line-height: 20px; box-shadow: var(--br-shadow-sm); cursor: pointer; }
+.club-root .club-edit-side .br-select .br-select-trigger:focus-visible { outline: none; box-shadow: 0 0 0 1px var(--br-ring); }
+.club-root .club-edit-side .br-select .br-select-trigger:disabled { opacity: .5; cursor: not-allowed; }
 .club-root .club-edit-side .br-select svg { position: absolute; right: 10px; top: 50%; width: 16px; height: 16px; margin-top: -8px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; opacity: .5; pointer-events: none; }
 .club-root .club-edit-side .br-select.is-compact { width: 128px; }
-.club-root .club-edit-side .br-select.is-compact select { height: 28px; padding: 0 24px 0 8px; border-color: color-mix(in srgb, var(--br-primary) 10%, transparent); background: var(--br-bg); font-size: var(--cc-text-2xs); line-height: 16px; }
+.club-root .club-edit-side .br-select.is-compact .br-select-trigger { height: 28px; padding: 0 24px 0 8px; border-color: color-mix(in srgb, var(--br-primary) 10%, transparent); background: var(--br-bg); font-size: var(--cc-text-2xs); line-height: 16px; }
 .club-root .club-edit-side .br-select.is-compact svg { right: 6px; width: 14px; height: 14px; margin-top: -7px; }
 
 /* Tabs el: inline-flex items-center bg-neutral-100 rounded-md p-1; tab px-2 py-1 text-xs font-medium rounded-md; selected

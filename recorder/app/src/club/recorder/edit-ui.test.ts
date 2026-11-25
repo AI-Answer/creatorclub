@@ -175,7 +175,14 @@ test('Edit exports from the visible workspace header, saves first, and reports t
   assert.equal(ui.container.querySelector('.project-header')?.contains(button(host,'Export')),false,'the action is outside the hidden editor header');
   await act(async()=>host.querySelector<HTMLButtonElement>('[aria-label="Open export options"]')!.click());
   assert.deepEqual([...host.querySelectorAll('.cex-item .cex-title')].map(node=>node.textContent),['Export Video','Export Audio','Export Transcript'],'Borumi\'s export menu, limited to what this app exports');
-  await act(async()=>host.querySelector<HTMLButtonElement>('[aria-label="Open export options"]')!.click());
+  const more=host.querySelector<HTMLButtonElement>('[aria-label="Open export options"]')!,keyOn=(name:string)=>act(async()=>{document.activeElement!.dispatchEvent(new KeyboardEvent('keydown',{key:name,bubbles:true,cancelable:true}));});
+  assert.equal(more.getAttribute('aria-haspopup'),'menu');assert.equal(more.getAttribute('aria-expanded'),'true');
+  assert.equal(host.querySelector('[role=menu]')?.getAttribute('aria-label'),'Export');assert.equal(host.querySelectorAll('[role=menu] [role=menuitem]').length,3);
+  await keyOn('Escape');assert.equal(host.querySelector('[role=menu]'),null,'Escape closes the export menu');
+  more.focus();await keyOn('ArrowDown');await flush();
+  assert.equal(document.activeElement?.querySelector('.cex-title')?.textContent,'Export Video','ArrowDown opens it on the first format');
+  await keyOn('ArrowDown');assert.equal(document.activeElement?.querySelector('.cex-title')?.textContent,'Export Audio');
+  await keyOn('Escape');assert.equal(host.querySelector('[role=menu]'),null);assert.equal(document.activeElement,more,'focus goes back to the chevron');
   await act(async()=>button(host,'Export').click());
   for(let i=0;i<8;i++)await flush();
   const request=server.calls.find(call=>call.url==='/api/export');

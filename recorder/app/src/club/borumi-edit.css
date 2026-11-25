@@ -61,9 +61,9 @@
 .club-root .ws .ws-edit-export .cex-more { width: 36px; padding: 0 8px; border-radius: 0 var(--br-r-md) var(--br-r-md) 0; }
 .club-root .ws .ws-edit-export .cex-menu { position: absolute; top: calc(100% + 4px); right: 0; z-index: 50; width: 240px; padding: 6px; border: 1px solid color-mix(in srgb, var(--br-primary) 10%, transparent); border-radius: var(--br-r-2xl); background: var(--br-on-primary); color: var(--br-primary); box-shadow: var(--br-shadow-2xl); }
 .club-root .ws .ws-edit-export .cex-item { width: 100%; display: flex; align-items: center; gap: 12px; padding: 6px 8px; border: 0; border-radius: var(--br-r-xl); background: transparent; color: var(--br-primary); font: inherit; text-align: left; cursor: default; }
-.club-root .ws .ws-edit-export .cex-item:is(:hover, :focus-visible) { outline: none; background: color-mix(in srgb, var(--br-primary) 5%, transparent); }
+.club-root .ws .ws-edit-export .cex-item:is(:hover, :focus-visible, [data-highlighted]) { outline: none; background: color-mix(in srgb, var(--br-primary) 5%, transparent); }
 .club-root .ws .ws-edit-export .cex-well { width: 36px; height: 36px; flex: none; display: flex; align-items: center; justify-content: center; border-radius: var(--cc-r-pill); background: color-mix(in srgb, var(--br-primary) 5%, transparent); }
-.club-root .ws .ws-edit-export .cex-item:is(:hover, :focus-visible) .cex-well { background: color-mix(in srgb, var(--br-primary) 10%, transparent); }
+.club-root .ws .ws-edit-export .cex-item:is(:hover, :focus-visible, [data-highlighted]) .cex-well { background: color-mix(in srgb, var(--br-primary) 10%, transparent); }
 .club-root .ws .ws-edit-export .cex-well svg { width: 18px; height: 18px; opacity: .8; }
 .club-root .ws .ws-edit-export .cex-text { display: flex; flex-direction: column; min-width: 0; }
 .club-root .ws .ws-edit-export .cex-title { font-size: var(--cc-text-sm); line-height: 1.25; font-weight: 500; }

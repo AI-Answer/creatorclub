@@ -124,12 +124,12 @@ export function ScenesColumn({bare=false,acceptDrops=false,aiName='Claude',aiBra
    <div className="len"><span className="tnum"><b style={{color:over?'var(--cc-warn)':'var(--cc-text)'}}>Length {clockTime(total)}</b></span>
     <PlanSelect label="Target length" value={String(target)} onChange={next=>onTarget(Number(next))} options={[{value:"0",label:"No target"},...TARGET_SECONDS.map(seconds=>({value:String(seconds),label:`${seconds/60} min`}))]}/></div>
    <span className="grow"/>
-   <Menu align="right" label={`Write with ${aiName}`} items={writes} button={(toggle,open)=><Button size="sm" aria-expanded={open} aria-haspopup="menu" title={!aiAvailable?AI_CONNECT_HINT:undefined} disabled={!aiAvailable||!writes.length} onClick={toggle}>
+   <Menu align="right" label={`Write with ${aiName}`} items={writes} trigger={()=><Button size="sm" title={!aiAvailable?AI_CONNECT_HINT:undefined} disabled={!aiAvailable||!writes.length}>
     {busy?<span className="spin" role="status" aria-label="Writing"/>:<BrandLogo brand={aiBrand} size={18}/>}Write with {aiName}<Icon name="expand" size={13}/></Button>}/>
   </div>}
   {!bare&&<div className="doc-h"><h2>Scenes</h2>{scenes.length>0&&<span className="chip">{scenes.length}</span>}
    <span className="grow"/>
-   {scenes.length>0&&<Menu align="right" label={`Write with ${aiName}`} items={writes} button={(toggle,open)=><Button size="sm" aria-expanded={open} aria-haspopup="menu" title={!aiAvailable?AI_CONNECT_HINT:undefined} disabled={!aiAvailable||!writes.length} onClick={toggle}>
+   {scenes.length>0&&<Menu align="right" label={`Write with ${aiName}`} items={writes} trigger={()=><Button size="sm" title={!aiAvailable?AI_CONNECT_HINT:undefined} disabled={!aiAvailable||!writes.length}>
     {busy?<span className="spin" role="status" aria-label="Writing"/>:<BrandLogo brand={aiBrand} size={18}/>}Write with {aiName}<Icon name="expand" size={13}/></Button>}/>}
   </div>}
   {!bare&&scenes.length>0&&<div className="row" style={{marginBottom:14,gap:'8px 14px',flexWrap:'wrap'}}>
@@ -186,7 +186,7 @@ export function ScenesColumn({bare=false,acceptDrops=false,aiName='Claude',aiBra
       {status}
       <span className="idea-scene-estimate">Est. <input className="dur" key={`${id}-${scene.seconds}`} defaultValue={clockTime(scene.seconds)} aria-label="Scene length" onClick={event=>event.stopPropagation()}
        onBlur={event=>{const seconds=parseClock(event.target.value);if(seconds)setScene(i,{seconds});else event.target.value=clockTime(scene.seconds);}} onKeyDown={event=>event.key==='Enter'&&event.currentTarget.blur()}/></span>
-      <span onClick={event=>event.stopPropagation()}><Menu align="right" label="Scene options" button={toggle=><IconButton icon="more" label="Scene options" onClick={toggle}/>} items={menuFor(scene,i,id)}/></span>
+      <span onClick={event=>event.stopPropagation()}><Menu align="right" label="Scene options" trigger={()=><IconButton icon="more" label="Scene options"/>} items={menuFor(scene,i,id)}/></span>
       <span onClick={event=>event.stopPropagation()}><IconButton icon="collapse" label="Close scene" onClick={()=>setOpenId(null)}/></span>
      </div>
      <ul className="pts">{scene.talkingPoints.map((point,k)=><li key={k}><Ed live onLeave={leave} value={point} ph="Talking point" autoFocus={point===''&&added===id}

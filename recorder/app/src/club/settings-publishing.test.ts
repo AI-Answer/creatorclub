@@ -11,7 +11,7 @@ const status:AiStatus={claude:{installed:true,version:'2',signedIn:true,account:
 const flush=()=>act(async()=>{await new Promise(resolve=>setTimeout(resolve,0));});
 const click=async(element:Element|null)=>{await act(async()=>{(element as HTMLElement).click();});await flush();};
 const type=(input:Element,value:string)=>act(async()=>{Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value')!.set!.call(input,value);input.dispatchEvent(new Event('input',{bubbles:true}));});
-const choose=async(select:Element,value:string)=>{if(select.tagName==='BUTTON'){await click(select);const label=value==='private'?'Private':'Unlisted';await click([...select.ownerDocument.querySelectorAll('[role=menuitemradio]')].find(item=>item.textContent?.startsWith(label))!);return;}await act(async()=>{(select as HTMLSelectElement).value=value;select.dispatchEvent(new Event('change',{bubbles:true}));});await flush();};
+const choose=async(select:Element,value:string)=>{if(select.tagName==='BUTTON'){await click(select);const label=value==='private'?'Private':'Unlisted';await click([...select.ownerDocument.querySelectorAll('[role=listbox]:not([hidden]) [role=option]')].find(item=>item.textContent?.startsWith(label))!);return;}await act(async()=>{(select as HTMLSelectElement).value=value;select.dispatchEvent(new Event('change',{bubbles:true}));});await flush();};
 const off:PublishingState={postiz:{connected:false,address:null,channel:null},defaultVisibility:'public'};
 const on:PublishingState={postiz:{connected:true,address:null,channel:{id:'int_yt1',name:'Samin Yasar'}},defaultVisibility:'public'};
 

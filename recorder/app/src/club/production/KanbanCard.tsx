@@ -36,7 +36,7 @@ export function KanbanCard({video,highlight,onOpen,onMove,onResearch,onKeyDown}:
  highlight?:boolean;video:Video;scenes:readonly SceneProgress[]|undefined;onOpen():void;onMove(stage:VideoStage):void;onResearch?():void;
  onKeyDown?(event:KeyboardEvent<HTMLDivElement>):void;
 }){
- const stages:MenuItem[]=[{header:'Move to'},...VIDEO_STAGES.map(stage=>({label:STAGE_LABEL[stage],check:video.stage===stage,fn:()=>{if(stage!==video.stage)onMove(stage);}})),
+ const stages:MenuItem[]=[{header:'Move to'},...VIDEO_STAGES.map(stage=>({label:STAGE_LABEL[stage],selected:video.stage===stage,fn:()=>{if(stage!==video.stage)onMove(stage);}})),
   ...(onResearch?['-' as const,{label:'Add to Channel board',icon:'research' as const,fn:onResearch}]:[])];
  return <div className="kwrap">
   <div id={video.stage==='ideas'?`idea-${video.id}`:undefined} className={`card kcard hov${highlight?' new':''}`} data-card data-card-id={video.id}
@@ -50,7 +50,7 @@ export function KanbanCard({video,highlight,onOpen,onMove,onResearch,onKeyDown}:
 
    </div>
   </div>
-  <div className="kmove"><Menu align="right" label="Move to" items={stages} button={(toggle,open)=>
-   <button type="button" className="btn sm icon-only" aria-label={`Move ${video.title} to…`} title="Move to another stage, or add to Channel board" aria-haspopup="menu" aria-expanded={open} onClick={toggle}><Icon name="more" size={18}/></button>}/></div>
+  <div className="kmove"><Menu align="right" label="Move to" items={stages} trigger={()=>
+   <button type="button" className="btn sm icon-only" aria-label={`Move ${video.title} to…`} title="Move to another stage, or add to Channel board"><Icon name="more" size={18}/></button>}/></div>
  </div>;
 }

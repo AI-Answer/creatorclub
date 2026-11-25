@@ -381,7 +381,7 @@ export default function App({embedded}:{embedded?:EmbeddedRecorder}={}){
   <nav className="club-rail" aria-label="Edit tools">
    {railTools.map(({id,label,tip,icon:Icon,open})=><button key={id} data-tool={id} data-long={label.length>7||undefined} type="button" aria-pressed={railActive===id} title={tip} onClick={open}><Icon size={16}/>{label}</button>)}
    <span className="club-rail-grow"/>
-   <Menu label="More edit tools" align="left" width={210} items={moreItems} button={(toggle,open)=><button type="button" data-tool="more" aria-haspopup="menu" aria-expanded={open} aria-pressed={['Motion','media'].includes(railActive)} title="Graphics, media in this video and Cutroom" onClick={toggle}><MoreHorizontal size={20}/>More</button>}/>
+   <Menu label="More edit tools" align="left" width={210} items={moreItems} trigger={()=><button type="button" data-tool="more" aria-pressed={['Motion','media'].includes(railActive)} title="Graphics, media in this video and Cutroom"><MoreHorizontal size={20}/>More</button>}/>
   </nav>
   <main className="club-edit-stage">
    {/* The player always stays; a preview is a badge over it, and a cut's before/after plays in a small inset in the corner. */}
@@ -429,7 +429,7 @@ export default function App({embedded}:{embedded?:EmbeddedRecorder}={}){
     <button type="button" className="club-zoom-step" aria-label="Zoom in" title="Zoom in (⌘ +)" onClick={()=>setZoom(v=>clampScale(v*1.5))}><ZoomIn size={16}/></button>
     
    </div>
-   <Menu label="View" align="right" width={260} items={viewItems} button={(toggle,open)=><button type="button" className="club-tool ctb-icon" aria-label="View" aria-haspopup="menu" aria-expanded={open} title="Snapping, following the playhead, fit, split, delete, notes and more timeline actions" onClick={toggle}><MoreHorizontal size={16}/></button>}/>
+   <Menu label="View" align="right" width={260} items={viewItems} trigger={()=><button type="button" className="club-tool ctb-icon" aria-label="View" title="Snapping, following the playhead, fit, split, delete, notes and more timeline actions"><MoreHorizontal size={16}/></button>}/>
    {shortcutsOpen&&<ShortcutsPopover onClose={closeShortcuts}/>}
    </div>
   </div>

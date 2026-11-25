@@ -1,4 +1,5 @@
 import {useEffect,useRef,useState} from 'react';
+import {Popover,PopoverContent,PopoverTrigger} from '@ui-sdk/react/popover';
 import {BrandMark} from '../../BrandMark';
 import {type VideoStage} from '../../../shared/club';
 import {STAGE_LABEL} from '../board';
@@ -11,27 +12,20 @@ export type OpenTab={id:string;title:string;number?:number;stage?:VideoStage};
 export const isHomeTab=(route:Route)=>route.name==='home'||route.name==='discover'||route.name==='videos'||route.name==='research';
 
 /**
- * Borumi's help popover: the window dims, and a 320px panel under the Help button offers two cards. Escape or a press outside closes it.
+ * Borumi's help popover on ui-sdk's Popover: the window dims, and a 320px panel under the Help button offers two cards. Escape or a press outside closes it, with focus back on Help.
  */
 function HelpPopover({onHelp}:{onHelp(topic?:string):void}){
- const [open,setOpen]=useState(false),panel=useRef<HTMLDivElement>(null),button=useRef<HTMLButtonElement>(null);
- useEffect(()=>{
-  if(!open)return;
-  const key=(event:KeyboardEvent)=>{if(event.key==='Escape'){setOpen(false);button.current?.focus();}};
-  const away=(event:MouseEvent)=>{if(!panel.current?.contains(event.target as Node)&&!button.current?.contains(event.target as Node))setOpen(false);};
-  document.addEventListener('keydown',key);document.addEventListener('mousedown',away);
-  return()=>{document.removeEventListener('keydown',key);document.removeEventListener('mousedown',away);};
- },[open]);
+ const [open,setOpen]=useState(false);
  const choose=(topic?:string)=>{setOpen(false);onHelp(topic);};
- return <>
-  <Tooltip text="Help · ?"><button ref={button} type="button" className={cn('ts-icon',open&&'on')} onClick={()=>setOpen(value=>!value)} aria-label="Help" aria-haspopup="dialog" aria-expanded={open}><Icon name="help" size={16}/></button></Tooltip>
-  {open&&<><div className="help-scrim" aria-hidden/>
-   <div ref={panel} className="help-pop" role="dialog" aria-label="Need help?">
-    <h2>Need help?</h2>
-    <button type="button" className="help-card" onClick={()=>choose()}><b><Icon name="help" size={16}/>How Creator Compiler works</b><span>The four steps, the words we use and where everything lives.</span></button>
-    <button type="button" className="help-card" onClick={()=>choose('shortcuts')}><b><Icon name="keyboard" size={16}/>Keyboard shortcuts</b><span>Every shortcut in one list.</span></button>
-   </div></>}
- </>;
+ return <Popover open={open} onOpenChange={next=>setOpen(next)}>
+  <Tooltip text="Help · ?"><PopoverTrigger className={cn('ts-icon',open&&'on')} aria-label="Help"><Icon name="help" size={16}/></PopoverTrigger></Tooltip>
+  {open&&<div className="help-scrim" aria-hidden/>}
+  <PopoverContent className="help-pop" aria-label="Need help?" side="bottom" align="end" sideOffset={8} collisionPadding={8}>
+   <h2>Need help?</h2>
+   <button type="button" className="help-card" onClick={()=>choose()}><b><Icon name="help" size={16}/>How Creator Compiler works</b><span>The four steps, the words we use and where everything lives.</span></button>
+   <button type="button" className="help-card" onClick={()=>choose('shortcuts')}><b><Icon name="keyboard" size={16}/>Keyboard shortcuts</b><span>Every shortcut in one list.</span></button>
+  </PopoverContent>
+ </Popover>;
 }
 
 /**
@@ -59,8 +53,8 @@ export function TabStrip({route,tabs,onClose,onNewVideo,onSearch,onHelp}:{route:
  ];
  return <header className="tabstrip club-drag" aria-label="Window">
   <div className="ts-traffic" aria-hidden/>
-  <Menu label="Creator Compiler" width={230} items={menu} restoreFocus button={(toggle,open)=>
-   <button type="button" className={cn('ts-logo',open&&'on')} onClick={toggle} aria-label="Creator Compiler menu" aria-haspopup="menu" aria-expanded={open}>
+  <Menu label="Creator Compiler" width={230} items={menu} trigger={open=>
+   <button type="button" className={cn('ts-logo',open&&'on')} aria-label="Creator Compiler menu">
     <BrandMark size={16}/><Icon name="expand" size={12}/>
    </button>}/>
   <nav className="ts-tabs" aria-label="Open videos">

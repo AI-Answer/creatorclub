@@ -56,7 +56,7 @@ function ChannelSwitcher({collapsed,epoch,onSwitched,onAdd}:{collapsed:boolean;e
   <span className="meta"><div className="name ellipsis">No channel yet</div></span>
  </div>;
  const name=current?.name??'';
- return <ChannelMenu channels={channels} current={current} onChoose={choose} onAdd={onAdd} button={(toggle,open)=><button type="button" className="channel-btn" onClick={toggle} disabled={!channels} title={collapsed?name:undefined} aria-label="Switch channel" aria-haspopup="menu" aria-expanded={open}>
+ return <ChannelMenu channels={channels} current={current} onChoose={choose} onAdd={onAdd} trigger={<button type="button" className="channel-btn" disabled={!channels} title={collapsed?name:undefined} aria-label="Switch channel">
   {channels?<Avatar name={name} src={current?.avatarUrl} size="lg" sq/>:<span aria-hidden style={{width:38,height:38,flex:'none',borderRadius:'var(--cc-r-lg)',background:'var(--cc-bg-sunk)'}}/>}
   <span className="meta"><div className="name ellipsis">{name}</div><div className="sub">{channels?(current?.handle||'Starting fresh'):''}</div></span>
   <Icon name="choose" size={16} className="chev faint"/>

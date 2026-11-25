@@ -1,4 +1,5 @@
 import {useState,type CSSProperties} from 'react';
+import {Radio,RadioGroup} from '@ui-sdk/react/radio';
 import {makeId,type Clip,type LayoutPreset,type Project,type Transform} from '../shared/types';
 import {baseLayout,chooseLayout,chosenLayouts,followsLayout,LAYOUT_PRESETS,layoutAt,layoutGeometry,layoutTransform,type LayoutGeometry} from '../shared/layouts';
 import {creatorShadow} from '../shared/camera-style';
@@ -45,9 +46,9 @@ export function LayoutPanel({project:p,change,playhead,selected,selectedIds,sele
   <div className="layout-scroll">
    <BrSection title="Layout">
     <div className="layout-tabs"><BrTabs label="Layout category" full value={category} items={[{value:'all',label:'All',tip:'Show all layouts'},{value:'project',label:'Project',tip:'Only show layouts used in the current project'}]} onChange={v=>setCategory(v)}/></div>
-    <div className={`layout-grid${p.canvas.width<p.canvas.height?' is-portrait':''}`} role="group" aria-label="Layouts">{presets.map(preset=><button key={preset} type="button" className={`layout-tile${now===preset?' is-selected':''}`} aria-label={preset} aria-pressed={now===preset} title={preset} style={{aspectRatio:`${p.canvas.width} / ${p.canvas.height}`}} onClick={()=>apply(preset)}>
+    <RadioGroup className={`layout-grid${p.canvas.width<p.canvas.height?' is-portrait':''}`} aria-label="Layouts" value={now} onValueChange={next=>{if(next)apply(next as LayoutPreset);}}>{presets.map(preset=><Radio key={preset} value={preset} className={`layout-tile${now===preset?' is-selected':''}`} aria-label={preset} title={preset} style={{aspectRatio:`${p.canvas.width} / ${p.canvas.height}`}} onClick={()=>{if(now===preset)apply(preset);}}>
      <Picture preset={preset} canvas={p.canvas} cameraSrc={thumb(camera)} screenSrc={thumb(screen)}/>
-    </button>)}</div>
+    </Radio>)}</RadioGroup>
     {!presets.length&&<BrEmpty text="No layout is used in this video yet."/>}
     <BrEmpty className="layout-hint" text={stretch?'Changes the Layout stretch marked on the timeline. Drag its edges there to choose when it starts and ends.':'Starts a Layout stretch at the playhead that runs to the next change. Outside a stretch, drag the camera on the picture to move it, or a corner to resize it.'}/>
    </BrSection>

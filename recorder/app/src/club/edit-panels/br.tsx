@@ -1,4 +1,6 @@
 import {Children,useEffect,useState,type CSSProperties,type ReactNode} from 'react';
+import {Tabs,TabsList,TabsTab} from '@ui-sdk/react/tabs';
+import {Select} from '../ui/Select';
 
 /*
   Borumi's shared Edit-panel primitives, copied from its shared and main bundles (paths and lines in spec-edit-step.md, "Shared
@@ -67,13 +69,13 @@ export function BrSlider({value,min,max,step,label,onChange,onCommit,disabled,cl
 /** Select trigger (shared S:29367): h-9 w-full rounded-md border border-input px-3 text-sm shadow-sm; `compact` is the h-7 11px
  * variant `_d` used in Layout and transition rows. A native select keeps keyboard and screen reader behaviour. */
 export function BrSelect<T extends string>({value,options,onChange,label,compact,disabled,className}:{value:T;options:ReadonlyArray<{value:T;label:string}>;onChange(value:T):void;label:string;compact?:boolean;disabled?:boolean;className?:string}){
- return <span className={`br-select${compact?' is-compact':''}${className?` ${className}`:''}`}><select aria-label={label} value={value} disabled={disabled} onChange={event=>onChange(event.target.value as T)}>{options.map(option=><option key={option.value} value={option.value}>{option.label}</option>)}</select><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></span>;
+ return <span className={`br-select${compact?' is-compact':''}${className?` ${className}`:''}`}><Select label={label} value={value} options={options} onChange={onChange} disabled={disabled} align="start" triggerClass="br-select-trigger" chevron={<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>}/></span>;
 }
 
 /** Tabs `el` (M:36986): inline-flex bg-neutral-100 rounded-md p-1; tab px-2 py-1 text-xs font-medium rounded-md; selected
  * bg-primary-foreground text-primary shadow-sm, others text-primary/60. */
 export function BrTabs<T extends string>({value,items,onChange,label,full}:{value:T;items:ReadonlyArray<{value:T;label:string;tip?:string}>;onChange(value:T):void;label:string;full?:boolean}){
- return <div className={`br-tabs${full?' is-full':''}`} role="tablist" aria-label={label}>{items.map(item=><button key={item.value} type="button" role="tab" aria-selected={item.value===value} title={item.tip} className="br-tab" onClick={()=>onChange(item.value)}>{item.label}</button>)}</div>;
+ return <Tabs style={{display:"contents"}} value={value} onValueChange={next=>{if(next!==null)onChange(next as T);}}><TabsList className={`br-tabs${full?' is-full':''}`} aria-label={label}>{items.map(item=><TabsTab key={item.value} value={item.value} title={item.tip} className="br-tab">{item.label}</TabsTab>)}</TabsList></Tabs>;
 }
 
 /** Colour field `Rt` (M:52776-52870): a 30px swatch (rounded-l-md, border-input) opening the system picker, and a 74px uppercase hex
