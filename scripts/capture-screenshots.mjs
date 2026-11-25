@@ -198,7 +198,8 @@ function makeScreen(timed,total){
  const used=states.reduce((n,s)=>n+s.seconds,0);
  push(editorSvg(CODE.length,{terminal:OUTPUT.length,scroll:250}),Math.max(0.5,total-used));
  const list=[];
- states.forEach((s,i)=>{const file=path.join(dirs.raw,`screen-${String(i).padStart(3,'0')}.png`);svgToPng(s.svg,file);list.push(`file '${file}'`,`duration ${s.seconds.toFixed(3)}`);});
+ // Names relative to the manifest, so a temporary folder with a quote in its path cannot break ffmpeg's quoting.
+ states.forEach((s,i)=>{const name=`screen-${String(i).padStart(3,'0')}.png`;svgToPng(s.svg,path.join(dirs.raw,name));list.push(`file '${name}'`,`duration ${s.seconds.toFixed(3)}`);});
  list.push(list.at(-2));
  fs.writeFileSync(path.join(dirs.raw,'screen.txt'),list.join('\n'));
  const out=path.join(dirs.media,'screen-recording.mp4');
@@ -232,15 +233,22 @@ for(const key of ['ANTHROPIC_API_KEY','OPENAI_API_KEY','HIGGSFIELD_API_KEY','GEM
  * The service serves the interface itself (recorder/app/dist), so the page and the API share one isolated origin: the service only
  * takes requests from its own port and the usual dev ports, and the usual dev ports may be in use.
  */
-function startApp(){
+let serviceExit=null;
+async function startApp(){
+ // Another service already answering on this port would be screenshotted instead of the demo one.
+ if(await fetch(API+'/ready').then(r=>r.ok,()=>false))throw Error(`Port ${SERVICE_PORT} is already in use. Stop what runs there or set SHOTS_PORT.`);
  const bin=name=>path.join(app,'node_modules/.bin',name);
  if(!flags.has('--no-build')){log('building the interface');run(bin('vite'),['build','--logLevel','error'],{cwd:app,env});}
  const logFile=fs.openSync(path.join(work,'app.log'),'a');
- children.push(spawn(bin('tsx'),['server/index.ts'],{cwd:app,env,stdio:['ignore',logFile,logFile]}));
+ const child=spawn(bin('tsx'),['server/index.ts'],{cwd:app,env,stdio:['ignore',logFile,logFile]});
+ child.on('exit',code=>{serviceExit=code??'signal';});
+ children.push(child);
 }
 async function waitFor(url,label){
- for(let i=0;i<240;i++){try{const r=await fetch(url);if(r.ok)return;}catch{}await sleep(500);}
- throw Error(`${label} did not start. See ${path.join(work,'app.log')}`);
+ for(let i=0;i<240&&serviceExit===null;i++){try{const r=await fetch(url);if(r.ok)return;}catch{}await sleep(500);}
+ // The work folder is removed on exit, so show the log now rather than point at a file that will be gone.
+ let tail='';try{tail=fs.readFileSync(path.join(work,'app.log'),'utf8').split('\n').slice(-40).join('\n');}catch{}
+ throw Error(`${label} ${serviceExit===null?'did not start in 2 minutes':`exited (${serviceExit}) before it was ready`}.${tail?`\nLast lines of its log:\n${tail}`:''}`);
 }
 async function api(method,route,body,headers={}){
  const r=await fetch(API+route,{method,headers:{'content-type':'application/json',...headers},body:body===undefined?undefined:JSON.stringify(body)}).catch(error=>{throw Error(`${method} ${route}: ${error.cause?.message??error.message}`);});
@@ -353,7 +361,10 @@ async function seed({captions,takes,stills}){
   {type:'add_motion_block',template:'steps',start:+(demoStart+4.5).toFixed(2),duration:6,text:'Script | Record | Cut'},
   {type:'auto_layout'},
  ];
- for(const action of actions)await club('POST',`/videos/${video.id}/agent/actions`,{actions:[action]});
+ for(const action of actions){
+  const done=await club('POST',`/videos/${video.id}/agent/actions`,{actions:[action]});
+  if(done?.stopped||done?.applied?.length!==1)throw Error(`The demo edit ${action.type} was not applied: ${done?.stopped?.reason??'no result'}`);
+ }
 
  // The presenter cut out of the room and put in front of the studio wall picture, on every camera piece.
  const {data:laid,etag:laidTag}=await api('GET',`/projects/${project.id}`);
@@ -445,7 +456,12 @@ async function assistant(page,demo,file){
 
 function optimisePng(file){
  if(has('oxipng'))return run('oxipng',['-o','4','--strip','safe','-q',file]);
- if(has('pngquant'))return run('pngquant',['--force','--skip-if-larger','--quality','80-95','--output',file,file]);
+ if(has('pngquant')){
+  // 98: the result would be larger, 99: below the quality floor. Either way the original stays, which is fine.
+  const r=spawnSync('pngquant',['--force','--skip-if-larger','--quality','80-95','--output',file,file],{stdio:'inherit'});
+  if(r.status!==0&&r.status!==98&&r.status!==99)throw Error(`pngquant failed on ${file} (${r.status})`);
+  return;
+ }
  // Neither is installed: ffmpeg's own 256-colour palette with error diffusion, much as pngquant does it.
  const tmp=file+'.tmp.png';ffmpeg('-i',file,'-vf','split[a][b];[a]palettegen=max_colors=256:stats_mode=full[p];[b][p]paletteuse=dither=sierra2_4a','-compression_level','100',tmp);
  if(fs.statSync(tmp).size<fs.statSync(file).size)fs.renameSync(tmp,file);else fs.rmSync(tmp);
@@ -490,7 +506,7 @@ async function shoot(demo){
 
 if(import.meta.url===pathToFileURL(process.argv[1]).href){
  const made=makeMedia();
- startApp();
+ await startApp();
  await waitFor(API+'/ready','The local service');
  log('app running',UI,'data in',work);
  const demo=await seed(made);

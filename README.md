@@ -109,7 +109,7 @@ node scripts/capture-screenshots.mjs
 
 This retakes the README screenshots in `docs/screenshots/` and the landing page's WebP images in `recorder/site/img/`. It builds the interface and starts the local service on port `4384` with its own data, channel, secrets and home folders in a temporary folder, so your projects and sign-ins are never read. Stand-in `claude`, `codex` and `higgsfield` commands report `creator@example.com`. The demo media is drawn with ffmpeg and resvg, the voice comes from macOS `say`, and the channel, script, takes, captions, graphics, Auto layout and background are set through the app's own API. Playwright, fetched through `npx`, takes the shots at 1600 × 1000 at 2× in the light theme.
 
-It needs `npm run setup`, ffmpeg and `cwebp` (`brew install ffmpeg webp`). Apple Vision finds no person in a drawing, so for the greenscreen shot the script answers the preview's mask request with the drawing's own outline. `ONLY=editor,cutroom` retakes some shots, `--keep` keeps the demo data, and `--serve` leaves the seeded app running to look around.
+It needs `npm run setup`, ffmpeg and `cwebp` (`brew install ffmpeg webp`), and a browser for Playwright: its own Chromium (`npx playwright@1.59.0 install chromium`) or Google Chrome. Apple Vision finds no person in a drawing, so for the greenscreen shot the script answers the preview's mask request with the drawing's own outline. `ONLY=editor,cutroom` retakes some shots, `--keep` keeps the demo data, and `--serve` leaves the seeded app running to look around.
 
 ## Make it yours
 
