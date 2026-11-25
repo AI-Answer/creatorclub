@@ -1,11 +1,15 @@
-<p align="center"><img src="docs/brand/logo.png" width="88" alt="Creator Compiler logo"></p>
-<h1 align="center">Creator Compiler</h1>
+<h1 align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/brand/logo-wordmark-dark.svg">
+    <img src="docs/brand/logo-wordmark.svg" width="368" height="64" alt="Creator Compiler">
+  </picture>
+</h1>
 <p align="center"><strong>From first thought to final cut.</strong><br>A local desktop studio for writing, recording, and editing your next video.</p>
-<p align="center">macOS desktop · Windows desktop · Rust editing engine · MCP</p>
+<p align="center">For macOS and Windows, with a Rust editing engine and an MCP server.</p>
 
-![Creator Compiler desktop studio](docs/screenshots/studio.png)
+![The Creator Compiler editor with a code-editor screen recording, a three-step graphic, the transcript and a timeline with Graphics and Layout rows](docs/screenshots/editor.png)
 
-Write your scenes, record your screen and camera, shape the timeline, and export. Cutroom runs alongside the editor to remove retakes and quiet gaps and render word-anchored motion graphics. Everything runs on your computer.
+Write your scenes, record your screen and camera, shape the timeline, and export. Cutroom runs alongside the editor to remove retakes and silent gaps and render word-anchored motion graphics. Everything runs on your computer.
 
 ## Desktop apps
 
@@ -20,31 +24,43 @@ Both targets live in this repository. [Desktop apps](.github/workflows/desktop-b
 
 ## What works today
 
-- **Plan a video:** a channel workspace, discovery and research boards, ideas, outlines, scripts, and a production pipeline.
+- **Plan a video:** a channel workspace, Research, ideas, a one-page sketch, outlines, scripts, and the video board.
 - **Write:** scene scripts, scene ordering, teleprompter, and saved history.
 - **Record:** screen/window, camera, microphone, takes, and recording review.
-- **Edit:** a multi-track timeline, transcript cuts, captions, canvas layouts, and export. On a Mac, Remove background cuts you out of the camera and can put a colour, a picture, a looping video or your screen recording behind you (Layout → camera properties).
+- **Edit:** a multi-track timeline, transcript cuts, captions, animated graphics, canvas layouts, and export.
+- **Greenscreen backgrounds (Mac only):** Remove background cuts you out of the camera with Apple Vision, no green screen needed. Behind you it can put a colour, a picture, a muted looping video, the screen recording playing at that moment, or a blur. Find it in Edit under Layout, then Properties. Each camera clip keeps its own background, so a split clip or a Layout stretch can have a different one. The preview shows the background while paused; while playing you see the plain camera. The export draws it throughout. On Windows the switch is turned off.
+- **Auto layout:** one button in the Layout panel lays out the whole video from the transcript and how much the screen recording changes. The screen fills the frame where you demo (Screen only), you fill it where you just talk, such as the opening, a story and the call to action (Full frame), and both share it everywhere else (Creator). Edges fall between sentences, no stretch is shorter than about 3.5 seconds, and stretches you set by hand stay. It runs locally without AI and is one Undo. Assistants can run it through the `auto_layout` MCP tool.
 - **Cut with Cutroom:** snapshot a video, detect cuts, review the proposal, and apply it with a revision check and a history checkpoint.
 - **Make motion graphics:** choose a template, enter text, set a word or time anchor, preview a rendered frame, and export through Cutroom. Import the result as a new video.
-- **Work with an assistant:** 47 MCP tools, including 8 Cutroom tools. Claude chat uses your separately installed Claude Code and existing sign-in.
+- **Work with an assistant:** 68 MCP tools: 47 for projects and the timeline (8 of them for Cutroom) and 21 for the channel and its videos, including Boards, Research, edit actions such as Auto layout, and a pacing check. Ask Claude, beside the editor, uses your separately installed Claude Code and its existing sign-in.
 
-Dani's redesigned workspace is the main interface: Home, Discover, Videos, and Research, with Plan, Record, Edit, and Publish inside each video. Publishing uses your separately configured Postiz connection. See [the workspace plan](docs/v2/PLAN.md).
+The sidebar has the **Video board**, where every video moves from idea to published, and **Research**. Each video has four steps: **Idea** (a one-page sketch, the scene-by-scene script and a Board), **Record**, **Edit** and **Publish**. Publishing uses your separately configured Postiz connection. See [the workspace plan](docs/v2/PLAN.md).
 
 In Edit, open **More → Cutroom cuts and graphics** for the native engine. Opening a Cutroom render creates a separate video in Editing and keeps the original video intact.
 
-### The editor
+### The video board
 
-![Creator Compiler timeline and transcript](docs/screenshots/editor.png)
+![The video board with ideas and videos in planning, recording, editing and publishing](docs/screenshots/studio.png)
 
 ### Write before you record
 
-![Creator Compiler scene script editor](docs/screenshots/script.png)
+![The script of a three-scene video, each scene's words next to its title](docs/screenshots/script.png)
+
+### Greenscreen backgrounds
+
+![The presenter cut out of their room and placed in front of a picture, with the Remove background settings open](docs/screenshots/greenscreen.png)
+
+### Auto layout
+
+![The Layout panel with the Auto layout button, and the timeline's Layout row split into Full frame, Screen only and Full frame stretches](docs/screenshots/auto-layout.png)
 
 ### Cutroom, in the app
 
-![Cutroom cutting and motion graphics inside Creator Compiler](docs/screenshots/cutroom.png)
+![Cutroom previewing a rendered headline graphic inside Creator Compiler](docs/screenshots/cutroom.png)
 
-Screenshots show the running application with synthetic sample footage, rather than private recordings.
+The screenshots show the running app on made-up demo data: a cartoon presenter, a drawn code editor and a text-to-speech voice. [`scripts/capture-screenshots.mjs`](scripts/capture-screenshots.mjs) builds that demo and retakes every shot (see [Refresh the screenshots](#refresh-the-screenshots)).
+
+The landing page is a static HTML and CSS site in [`recorder/site/`](recorder/site/index.html); its images are WebP copies of these screenshots.
 
 The workspace uses locally bundled official service logos with light and dark variants. [Brand asset sources](docs/BRAND-ASSETS.md) documents their provenance.
 
@@ -73,6 +89,16 @@ Installers bundle **Cutroom, FFmpeg, FFprobe, and fonts**. No Rust, Node, npm, o
 
 Source development stores recording projects in `recorder/app/.local/studio` and channel workspaces in `.local/channels`, with its own desktop profile. Installed apps use their platform application-data folder. Installed channel workspaces live in `~/Documents/Creator Compiler`; an existing `~/Documents/CreatorClub` workspace continues to be used when the new folder does not exist. `CREATORCLUB_DIR`, `SCENEFORGE_DATA_DIR`, and `SCENEFORGE_PORT` remain supported compatibility settings. Use separate workspace, data, and port settings for smoke tests.
 
+### Refresh the screenshots
+
+```sh
+node scripts/capture-screenshots.mjs
+```
+
+This retakes the README screenshots in `docs/screenshots/` and the landing page's WebP images in `recorder/site/img/`. It builds the interface and starts the local service on port `4384` with its own data, channel, secrets and home folders in a temporary folder, so your projects and sign-ins are never read. Stand-in `claude`, `codex` and `higgsfield` commands report `creator@example.com`. The demo media is drawn with ffmpeg and resvg, the voice comes from macOS `say`, and the channel, script, takes, captions, graphics, Auto layout and background are set through the app's own API. Playwright, fetched through `npx`, takes the shots at 1600 × 1000 at 2× in the light theme.
+
+It needs `npm run setup`, ffmpeg and `cwebp` (`brew install ffmpeg webp`). Apple Vision finds no person in a drawing, so for the greenscreen shot the script answers the preview's mask request with the drawing's own outline. `ONLY=editor,cutroom` retakes some shots, `--keep` keeps the demo data, and `--serve` leaves the seeded app running to look around.
+
 ## Connect through MCP
 
 The source launcher starts or reuses the local service, then exposes the editor and Cutroom tools over stdio:
@@ -90,7 +116,7 @@ Try: “Prepare a Cutroom snapshot of this project, detect cuts, show the propos
 
 ## Boundaries
 
-Cutroom uses its own camera/screen composition. Editor transforms, effects (including camera backgrounds), overlays, per-clip audio gain, cursor styling, and music are not carried into a Cutroom render; use the editor's standard Export for that composition. The bridge currently requires 1× source clips. Automatic cut detection requires word-timed captions. The form exposes common graphics; advanced JSON and MCP support the engine's full beat vocabulary.
+Cutroom uses its own camera/screen composition. Editor transforms, effects (including camera backgrounds), Layout stretches, overlays, per-clip audio gain, cursor styling, and music are not carried into a Cutroom render; use the editor's standard Export for that composition. The bridge currently requires 1× source clips. Automatic cut detection requires word-timed captions. The form exposes common graphics; advanced JSON and MCP support the engine's full beat vocabulary.
 
 macOS-only Apple Vision segmentation and face tracking remain unavailable on Windows. Regular recording, editing, standard text/shape export, and Cutroom graphics use portable paths. Windows hardware recording and installer acceptance are separate from successful compilation and CI startup.
 
