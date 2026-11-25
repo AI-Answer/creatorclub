@@ -12,7 +12,7 @@
 .club-root .onepager-title-row { display: flex; align-items: baseline; gap: 10px; }
 .club-root .onepager-title-row .grow { min-width: 0; }
 .club-root .onepager-title-row .btn { flex: none; font-size: var(--cc-text-xs); font-weight: 500; }
-.club-root .onepager-title-row.lead .ed:not(:empty) { font-size: var(--cc-text-xl); font-weight: 600; line-height: 1.35; letter-spacing: -.015em; }
+.club-root .onepager-title-row.lead .ed:not(:empty) { font-size: var(--cc-text-xl); font-weight: 600; line-height: 1.35; letter-spacing: -0.01em; }
 .club-root .onepager-title-row.backup { margin-top: 8px; color: var(--cc-text-2); }
 .club-root .onepager-backup-label { flex: none; color: var(--cc-text-2); font-size: var(--cc-text-sm); }
 .club-root .onepager-in-use { display: inline-flex; align-items: center; gap: 4px; flex: none; color: var(--cc-text-2); font-size: var(--cc-text-xs); font-weight: 400; }

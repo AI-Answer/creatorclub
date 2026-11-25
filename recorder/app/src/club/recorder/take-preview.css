@@ -14,7 +14,7 @@
 /* Header: flex gap-2 justify-between pl-14 pr-14 */
 .btp-header { display: flex; gap: 8px; justify-content: space-between; padding: 0 56px; }
 .btp-heading { display: flex; flex-direction: column; }
-.btp-kicker { font-size: var(--br-text-10); opacity: .5; text-transform: uppercase; font-weight: 500; margin-bottom: 4px !important; }
+.btp-kicker { font-size: var(--br-text-10); opacity: .5; text-transform:none; font-weight: 500; margin-bottom: 4px !important; }
 .btp-title-row { display: flex; align-items: center; gap: 8px; }
 .btp-title { font-size: var(--br-text-18); line-height: 28px; font-weight: var(--cc-weight-bold); }
 .btp-confirmed { background: var(--br-success-200); cursor: default; color: var(--br-primary); font-size: var(--br-text-10); font-weight: 500; text-transform: uppercase; padding: 4px 8px; border-radius: var(--cc-r-pill); }
