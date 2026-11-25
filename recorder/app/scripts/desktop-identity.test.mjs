@@ -7,7 +7,7 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const {CREATORCLUB, creatorClubPaths, isCreatorClubService, methodologyDir, privacyAppName, runtimeEnvironment, whisperModel} = createRequire(import.meta.url)('../desktop/runtime.cjs');
+const {CREATORCLUB, identityFor, creatorClubPaths, isCreatorClubService, methodologyDir, privacyAppName, runtimeEnvironment, whisperModel} = createRequire(import.meta.url)('../desktop/runtime.cjs');
 const main = await readFile(path.join(root, 'desktop/main.cjs'), 'utf8');
 const mcp = await readFile(path.join(root, 'desktop/mcp-entry.mjs'), 'utf8');
 const pack = await readFile(path.join(root, 'scripts/package.mjs'), 'utf8');
@@ -109,4 +109,27 @@ test('the speech model is the bundled one, else a speech model in the models fol
   const env = runtimeEnvironment({root: dir, data: '/data', port: 1, modelsDir: models, env: {PATH: '/bin'}});
   assert.equal(env.SCENEFORGE_WHISPER_MODEL, path.join(models, 'ggml-base.bin'));
  } finally { await rm(dir, {recursive: true, force: true}); }
+});
+
+test('a local build (npm run setup:local) has its own name, data folder, projects folder and port, and never updates itself', () => {
+ const local=identityFor('local'),installed=identityFor(undefined);
+ assert.equal(installed, CREATORCLUB, 'a source checkout is the installed identity');
+ assert.equal(local.name, 'Creator Compiler (Local)');
+ assert.notEqual(local.dataFolder, installed.dataFolder);
+ assert.notEqual(local.port, installed.port);
+ assert.equal(local.service, installed.service, 'the same service handshake');
+ assert.equal(local.local, true);
+ assert.match(main, /process\.env\.CREATORCLUB_NO_UPDATE==='1'\|\|CREATORCLUB\.local\|\|/);
+ const config=createRequire(import.meta.url)('../electron-builder.local.cjs');
+ assert.equal(config.extraMetadata.creatorCompilerEdition, 'local');
+ assert.equal(config.productName, 'Creator Compiler (Local)');
+ assert.equal(config.executableName, 'Creator Compiler', 'the bundled MCP launcher runs this executable');
+ assert.notEqual(config.appId, createRequire(import.meta.url)('../electron-builder.cjs').appId);
+ assert.equal(config.publish, null);
+});
+
+test('the shell shows its own icon: the Dock under a stock Electron.app, and the Windows taskbar', () => {
+ assert.match(main, /app\.dock\?\.setIcon\(appIcon\)/);
+ assert.match(main, /app\.setAppUserModelId\(/);
+ assert.match(main, /\{icon:appIcon\}/);
 });

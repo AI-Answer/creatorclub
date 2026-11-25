@@ -1,4 +1,4 @@
-import {useState,type DragEvent,type KeyboardEvent} from 'react';
+import {useState,type KeyboardEvent} from 'react';
 import {VIDEO_STAGES,type Video,type VideoStage} from '../../../shared/club';
 import {STAGE_LABEL} from '../board';
 import {videoThumbId} from '../ideas';
@@ -18,7 +18,7 @@ function Cover({video}:{video:Video}){
  const sources=coverSources(video),[failed,setFailed]=useState<string[]>([]),[loaded,setLoaded]=useState<string|null>(null);
  const picture=sources.find(source=>!failed.includes(source));
  return <><span ref={ref} hidden/>{near&&picture&&<div className="kcard-cover" hidden={loaded!==picture}>
-  <img key={picture} src={picture} alt="" decoding="async" onLoad={()=>setLoaded(picture)} onError={()=>setFailed(current=>[...current,picture])}/>
+  <img key={picture} src={picture} alt="" decoding="async" draggable={false} onLoad={()=>setLoaded(picture)} onError={()=>setFailed(current=>[...current,picture])}/>
  </div>}</>;
 }
 
@@ -31,15 +31,15 @@ export const relativeUpdated=(iso:string,now=Date.now())=>{
  return `${Math.floor(minutes/1440)}d ago`;
 };
 
-/** A cover-led video card with the same complete Move menu for mouse and keyboard users. */
-export function KanbanCard({video,dragging,highlight,onOpen,onMove,onResearch,onDragStart,onDragEnd,onKeyDown}:{
- highlight?:boolean;video:Video;scenes:readonly SceneProgress[]|undefined;dragging:boolean;onOpen():void;onMove(stage:VideoStage):void;onResearch?():void;
- onDragStart(event:DragEvent):void;onDragEnd():void;onKeyDown?(event:KeyboardEvent<HTMLDivElement>):void;
+/** A cover-led video card with the same complete Move menu for mouse and keyboard users. The board drags it with pointer events. */
+export function KanbanCard({video,highlight,onOpen,onMove,onResearch,onKeyDown}:{
+ highlight?:boolean;video:Video;scenes:readonly SceneProgress[]|undefined;onOpen():void;onMove(stage:VideoStage):void;onResearch?():void;
+ onKeyDown?(event:KeyboardEvent<HTMLDivElement>):void;
 }){
  const stages:MenuItem[]=[{header:'Move to'},...VIDEO_STAGES.map(stage=>({label:STAGE_LABEL[stage],check:video.stage===stage,fn:()=>{if(stage!==video.stage)onMove(stage);}})),
   ...(onResearch?['-' as const,{label:'Add to Channel board',icon:'research' as const,fn:onResearch}]:[])];
  return <div className="kwrap">
-  <div id={video.stage==='ideas'?`idea-${video.id}`:undefined} className={`card kcard hov${highlight?' new':''}${dragging?' dragging':''}`} draggable data-card data-card-id={video.id} onDragStart={onDragStart} onDragEnd={onDragEnd}
+  <div id={video.stage==='ideas'?`idea-${video.id}`:undefined} className={`card kcard hov${highlight?' new':''}`} data-card data-card-id={video.id}
    title={video.title.trim()||'Untitled video'} role="button" aria-label={video.title.trim()||'Untitled video'} aria-keyshortcuts="Enter Space ArrowUp ArrowDown ArrowLeft ArrowRight Meta+ArrowLeft Meta+ArrowRight Control+ArrowLeft Control+ArrowRight"
    onClick={onOpen} tabIndex={0} onKeyDown={event=>{if(event.target!==event.currentTarget)return;if(event.key==='Enter'||event.key===' '){event.preventDefault();onOpen();}else onKeyDown?.(event);}}>
    <Cover video={video}/>

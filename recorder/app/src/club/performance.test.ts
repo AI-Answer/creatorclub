@@ -1,12 +1,13 @@
 import {mountUI} from '../test-dom';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {act,createElement} from 'react';
+import {act,createElement,Profiler} from 'react';
 import {clubFetch} from './api';
 import {visibleInterval} from './visible-interval';
 import {useBoardEvents} from './workspace/useBoardFiles';
 import {FakeEventSource} from './test-fakes';
 import {Kanban} from './production/Kanban';
+import {laneX,letGo,pickUp,slotY,END_Y} from './kanban-test-drag';
 import type {Video} from '../../shared/club';
 import type {IdeaActionSet} from './useIdeaActions';
 
@@ -83,18 +84,39 @@ test('hidden board streams close and return with one refresh, including changes 
  }finally{await ui.close();delete (document as unknown as {hidden?:boolean}).hidden;delete (globalThis as {EventSource?:unknown}).EventSource;}
 });
 
-test('Kanban drag state skips unchanged cards and memoized cards call the latest handlers',async()=>{
- const videos:Video[]=Array.from({length:20},(_,i)=>({id:`v${i}`,title:`Video ${i}`,stage:'ideas',order:i,createdAt:'2026-01-01',updatedAt:'2026-01-01',stageDates:{},planning:{research:false,package:false,outline:false}}));
- const original=Date.prototype.toLocaleString;let renders=0,opened='';
+test('Kanban drag: no React render while the card follows the pointer, one commit on drop, and memoized cards call the latest handlers',async()=>{
+ // Five lanes of twenty cards. A card's render calls toLocaleString once, so counting calls counts card renders.
+ const stages=['ideas','planning','recording','editing','publishing'] as const;
+ const videos:Video[]=stages.flatMap(stage=>Array.from({length:20},(_,i)=>({id:`${stage}${i}`,title:`Video ${i}`,stage,order:i,createdAt:'2026-01-01',updatedAt:'2026-01-01',stageDates:{},planning:{research:false,package:false,outline:false}})));
+ const original=Date.prototype.toLocaleString;let renders=0,commits=0,opened='';const moves:unknown[][]=[];
  Date.prototype.toLocaleString=function(){renders++;return original.call(this);};
- const props={videos,scenes:{},ideas:{actions:{} as IdeaActionSet},onAdd:async()=>{},onMove(){},onOpen(){opened='old';}};
- const ui=await mountUI(createElement(Kanban,props));
+ const props={videos,scenes:{},ideas:{actions:{} as IdeaActionSet},onAdd:async()=>{},onMove(...args:unknown[]){moves.push(args);},onOpen(){opened='old';}};
+ const tree=(extra:Partial<typeof props>={})=>createElement(Profiler,{id:'kanban',onRender:()=>{commits++;}},createElement(Kanban,{...props,...extra}));
+ const ui=await mountUI(tree());
  try{
-  renders=0;
-  await act(async()=>{const event=new Event('dragstart',{bubbles:true});Object.defineProperty(event,'dataTransfer',{value:{setData(){}}});ui.container.querySelector('[data-card-id="v0"]')!.dispatchEvent(event);});
-  assert.equal(renders,1,'only the dragged card needs new contents');
-  await ui.render(createElement(Kanban,{...props,onOpen(){opened='new';}}));
-  await act(async()=>ui.container.querySelector<HTMLElement>('[data-card-id="v1"]')!.click());
+  const c=ui.container,source=()=>c.querySelector<HTMLElement>('[data-card-id="ideas0"]')!;
+  renders=0;commits=0;
+  // Pick up the first idea and sweep it across every lane and down each one: 60 pointer moves.
+  await pickUp(c,source(),laneX(c,'ideas'),slotY(3),20);
+  for(const stage of ['planning','recording','editing']){
+   for(const y of [slotY(0),slotY(5),END_Y])await act(async()=>{document.dispatchEvent(new window.PointerEvent('pointermove',{bubbles:true,clientX:laneX(c,stage),clientY:y,pointerId:1,buttons:1}));});
+  }
+  await act(async()=>{document.dispatchEvent(new window.PointerEvent('pointermove',{bubbles:true,clientX:laneX(c,'planning'),clientY:slotY(2),pointerId:1,buttons:1}));});
+  assert.equal(commits,0,'moving a card never renders the board');
+  assert.equal(renders,0,'or any card');
+  assert.ok(!!c.querySelector('.kanban-drag-overlay'),'a copy of the card follows the pointer');
+  assert.equal(c.querySelector('[data-column="planning"] [data-drop-line]')?.getAttribute('data-before-id'),'planning2');
+  const shifted=[...c.querySelectorAll<HTMLElement>('[data-column="planning"] [data-slot]')].map(slot=>slot.style.transform);
+  assert.deepEqual(shifted.slice(0,3),['','','translate3d(0,100px,0)'],'cards from the gap down slide aside with a transform');
+  const ideas=[...c.querySelectorAll<HTMLElement>('[data-column="ideas"] [data-slot]')].slice(1,3).map(slot=>slot.style.transform);
+  assert.deepEqual(ideas,['translate3d(0,-100px,0)','translate3d(0,-100px,0)'],'the lane it left closes up');
+  await letGo(laneX(c,'planning'),slotY(2));
+  assert.deepEqual(moves,[['ideas0','planning','planning2']]);
+  assert.ok(commits<=1,`one commit for the drop, got ${commits}`);assert.equal(renders,0,'the drop renders no card either (the parent owns the new order)');
+  assert.equal(!!c.querySelector('.kanban-drag-overlay'),false);assert.equal(!!c.querySelector('[data-drop-line]'),false);
+  assert.equal(c.querySelectorAll('[data-slot][style*="translate"]').length,0,'every card is back at rest');
+  await ui.render(tree({onOpen(){opened='new';}}));
+  await act(async()=>c.querySelector<HTMLElement>('[data-card-id="ideas1"]')!.click());
   assert.equal(opened,'new');
  }finally{await ui.close();Date.prototype.toLocaleString=original;}
 });
@@ -106,7 +128,7 @@ test('covers defer image requests until their card is near the viewport',async()
  globalThis.IntersectionObserver=Observer as unknown as typeof IntersectionObserver;
  const {KanbanCard}=await import('./production/KanbanCard');
  const video:Video={id:'deferred',title:'Offscreen',stage:'ideas',order:0,createdAt:'2026-01-01',updatedAt:'2026-01-01',stageDates:{},planning:{research:false,package:false,outline:false}};
- const ui=await mountUI(createElement(KanbanCard,{video,scenes:undefined,dragging:false,onOpen(){},onMove(){},onDragStart(){},onDragEnd(){}}));
+ const ui=await mountUI(createElement(KanbanCard,{video,scenes:undefined,onOpen(){},onMove(){}}));
  try{
   assert.equal(ui.container.querySelector('img'),null);assert.equal(observed.size,1);
   await act(async()=>notify([{target:[...observed][0],isIntersecting:true} as IntersectionObserverEntry],{} as IntersectionObserver));

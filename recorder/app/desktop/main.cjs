@@ -117,7 +117,7 @@ function updateGlobalShortcuts(){
  }
  return reportShortcutStatus(conflicts);
 }
-// Updates (desktop/updater.cjs): only an installed copy updates itself; a run from source or a developer's app never does.
+// Updates (desktop/updater.cjs): only an installed copy updates itself; a run from source, a developer's app or a local build never does.
 let updates=null,manualCheck=false,readyNotified=false;
 function updateMenu(){
  if(!updates)return [];
@@ -148,7 +148,7 @@ function updateStateChanged(state){
  if(state.state==='failed')void messageBox({type:'warning',message:'Could not check for updates',detail:state.reason});
 }
 function startUpdates(){
- if(!app.isPackaged||process.env.CREATORCLUB_NO_UPDATE==='1'||!['darwin','win32'].includes(process.platform))return;
+ if(!app.isPackaged||process.env.CREATORCLUB_NO_UPDATE==='1'||CREATORCLUB.local||!['darwin','win32'].includes(process.platform))return;
  let source;
  try{source=require(path.join(__dirname,'..','server-dist','electron-updater.cjs')).autoUpdater;}catch(error){console.error('updates unavailable',error);return;}
  const logFile=path.join(paths.userData,'updates.log');
@@ -191,6 +191,10 @@ function resetShortcutContext(){shortcutContext=emptyShortcutContext();clearGlob
 // Its own name and user-data folder (~/Library/Application Support/Creator Compiler) before the lock: the single-instance lock
 // lives in the user-data folder, so this app and a running SceneForge app never block each other or share settings.
 app.setName(CREATORCLUB.name);
+// The app's own icon wherever the OS would otherwise show Electron's. Windows groups taskbar buttons by this id and draws the window icon;
+// on a Mac the bundle supplies the Dock icon, except when this runs inside the stock Electron.app (electron desktop/main.cjs).
+const appIcon=path.join(projectRoot,'assets',process.platform==='win32'&&fs.existsSync(path.join(projectRoot,'assets','icon.ico'))?'icon.ico':'creator-compiler-512.png');
+if(process.platform==='win32')app.setAppUserModelId(CREATORCLUB.local?'com.aianswer.creatorcompiler.local':app.isPackaged?'com.aianswer.creatorclub':'com.aianswer.creatorcompiler.dev');
 const paths=creatorClubPaths({appData:app.getPath('appData'),...(!app.isPackaged?{developmentRoot:projectRoot}:{})});
 fs.mkdirSync(paths.userData,{recursive:true});
 app.setPath('userData',paths.userData);
@@ -273,10 +277,11 @@ function publishMainVisibility(){
  mainWindow.webContents.send('main-window-visibility',visible);nativeRecording?.setPreviewEnabled?.(visible);
 }
 app.whenReady().then(async()=>{
+ if(process.platform==='darwin'&&/\/Electron\.app\/Contents\/MacOS\//.test(process.execPath)&&fs.existsSync(appIcon))app.dock?.setIcon(appIcon);
  // The window and its renderer process start while the service boots; the page
  // itself is served by the service, so it loads once the service answers.
  const serviceReady=startService();serviceReady.catch(()=>{});
- mainWindow=new BrowserWindow({width:1480,height:960,minWidth:1000,minHeight:680,title:CREATORCLUB.name,show:true,backgroundColor:themeBackground[windowTheme??(nativeTheme.shouldUseDarkColors?'dark':'light')],titleBarStyle:process.platform==='darwin'?'hiddenInset':'default',...(process.platform==='darwin'?{trafficLightPosition:{x:13,y:13}}:{}),webPreferences:{preload:path.join(__dirname,'preload.cjs'),additionalArguments:[`--privacy-app-name=${appName}`],contextIsolation:true,nodeIntegration:false,sandbox:true,backgroundThrottling:false}});
+ mainWindow=new BrowserWindow({width:1480,height:960,minWidth:1000,minHeight:680,title:CREATORCLUB.name,show:true,backgroundColor:themeBackground[windowTheme??(nativeTheme.shouldUseDarkColors?'dark':'light')],titleBarStyle:process.platform==='darwin'?'hiddenInset':'default',...(process.platform!=='darwin'&&fs.existsSync(appIcon)?{icon:appIcon}:{}),...(process.platform==='darwin'?{trafficLightPosition:{x:13,y:13}}:{}),webPreferences:{preload:path.join(__dirname,'preload.cjs'),additionalArguments:[`--privacy-app-name=${appName}`],contextIsolation:true,nodeIntegration:false,sandbox:true,backgroundThrottling:false}});
  if(process.platform==='darwin')permissionHelper=createPermissionHelper({app,BrowserWindow,ipcMain,screen,shell,nativeImage:require('electron').nativeImage,getStatus:getNativeMediaStatus,appName,relaunch:relaunchApp,onGranted:()=>{
   if(!mainWindow||mainWindow.isDestroyed())return;
   publishMediaPermissions();

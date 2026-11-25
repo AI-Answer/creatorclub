@@ -11,6 +11,18 @@
 
 Write your scenes, record your screen and camera, shape the timeline, and export. Cutroom runs alongside the editor to remove retakes and silent gaps and render word-anchored motion graphics. Everything runs on your computer.
 
+## Download
+
+| | |
+| --- | --- |
+| **Mac** (Apple Silicon, macOS 14+) | [Download Creator-Compiler-mac-arm64.dmg](https://github.com/AI-Answer/creatorclub/releases/latest/download/Creator-Compiler-mac-arm64.dmg) |
+| **Windows** (x64) | [Download Creator-Compiler-win-x64.exe](https://github.com/AI-Answer/creatorclub/releases/latest/download/Creator-Compiler-win-x64.exe) |
+
+These links always get the newest build. Older versions and release notes are on the [releases page](https://github.com/AI-Answer/creatorclub/releases). Installed apps update themselves when you quit them.
+
+The Mac app isn't notarized yet, so macOS stops it the first time you open it.
+Right-click the app and choose **Open** (macOS 14), or go to **System Settings → Privacy & Security** and click **Open Anyway** (macOS 15 and later). On Windows, click **More info → Run anyway**.
+
 ## Desktop apps
 
 The app uses **Electron for the desktop window and device access**, **React for the interface**, and **Rust for Cutroom**. It runs as an installed desktop application. A local loopback service handles media; no hosted service or separate browser is required.
@@ -98,6 +110,40 @@ node scripts/capture-screenshots.mjs
 This retakes the README screenshots in `docs/screenshots/` and the landing page's WebP images in `recorder/site/img/`. It builds the interface and starts the local service on port `4384` with its own data, channel, secrets and home folders in a temporary folder, so your projects and sign-ins are never read. Stand-in `claude`, `codex` and `higgsfield` commands report `creator@example.com`. The demo media is drawn with ffmpeg and resvg, the voice comes from macOS `say`, and the channel, script, takes, captions, graphics, Auto layout and background are set through the app's own API. Playwright, fetched through `npx`, takes the shots at 1600 × 1000 at 2× in the light theme.
 
 It needs `npm run setup`, ffmpeg and `cwebp` (`brew install ffmpeg webp`). Apple Vision finds no person in a drawing, so for the greenscreen shot the script answers the preview's mask request with the drawing's own outline. `ONLY=editor,cutroom` retakes some shots, `--keep` keeps the demo data, and `--serve` leaves the seeded app running to look around.
+
+## Make it yours
+
+Build your own copy from source and change whatever you like. One command checks your tools, builds everything, and installs **Creator Compiler (Local)** next to the downloaded app. It keeps its own recordings, projects and settings, and never updates itself from our releases.
+
+```sh
+git clone https://github.com/AI-Answer/creatorclub.git
+cd creatorclub
+npm run setup:local
+```
+
+If a tool is missing (Node.js 24, Rust, CMake, Xcode Command Line Tools on a Mac, Visual Studio Build Tools on Windows), it stops and prints the install command. It never installs system tools for you. Then open **Creator Compiler (Local)** from `~/Applications` on a Mac or the Start menu on Windows.
+
+Or paste this into Claude Code, Codex or T3 Code:
+
+```text
+Clone https://github.com/AI-Answer/creatorclub and open the folder. Read AGENTS.md first.
+Run npm run setup:local. If it says a tool is missing, show me the install command and wait for me.
+When it finishes, open Creator Compiler (Local).
+Then help me change: <what you want to change>
+After each change, run npm test, then npm run setup:local again so the app I open has the change.
+```
+
+Where things live:
+
+- `recorder/app/src`: the interface (React). `npm run dev` serves it at `http://127.0.0.1:4183` and reloads as you edit.
+- `recorder/app/server`: the local service (projects, media, exports, MCP tools).
+- `recorder/app/desktop`: the Electron shell (windows, recording, permissions, updates).
+- `engine/cutroom`: the Rust editing engine.
+- `methodology/`: the prompt files the planning tools use.
+
+An agent can drive the app while it works. `.mcp.json` registers the `creator-compiler-dev` MCP server, which Claude Code picks up when started in this folder. It starts or reuses the source service on port `4184` (with test data in `recorder/app/.local`) so the agent can open projects, edit the timeline and run Cutroom, and you watch the result in `npm run dev` or `npm run desktop`.
+
+To keep up with this repository, run `git pull` (or `git pull upstream main` in a fork), then `npm run setup:local` again. It only reinstalls dependencies when they changed.
 
 ## Connect through MCP
 

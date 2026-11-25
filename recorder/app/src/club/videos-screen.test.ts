@@ -6,6 +6,7 @@ import type {Video} from '../../shared/club';
 import {arrangeColumn} from '../../shared/club-board';
 import {fakeScenes,installFetch,type FakeCall,type FakeReply} from './test-fakes';
 import type {Route,VideosView} from './routes';
+import {dragCard,laneX,letGo,pickUp,slotY} from './kanban-test-drag';
 const {ToastProvider}=await import('./ui');
 const {VideosScreen}=await import('./screens/VideosScreen');
 const {default:ClubApp}=await import('./ClubApp');
@@ -30,6 +31,8 @@ const cardIds=(el:Element)=>[...el.querySelectorAll('[data-card]')].map(card=>ca
 const dnd=(type:string,y=0)=>Object.assign(new Event(type,{bubbles:true,cancelable:true}),{dataTransfer:{effectAllowed:'',dropEffect:'',setData(){}},clientY:y});
 const drag=async(el:Element,type:string,y?:number)=>act(async()=>{el.dispatchEvent(dnd(type,y));});
 const dragTo=async(source:Element,target:Element,y=10_000)=>{await drag(source,'dragstart');await drag(target,'dragover',y);await drag(target,'drop',y);await drag(source,'dragend');await settle();};
+/** Drags a board card into a lane with the pointer, the way a person does, and waits for the drop to settle. */
+const moveCard=async(c:Element,source:HTMLElement,stage:string,y?:number)=>{await dragCard(c,source,stage,y);await settle();};
 const toasts=(c:Element)=>[...c.querySelectorAll('.cc-toast')].map(text);
 
 type Server={videos:Video[];welcomed:boolean;failMove:boolean;failLoad:boolean;outlines:Record<string,number>;unreadable?:string[];holdScenes?:Promise<void>};
@@ -95,7 +98,7 @@ test('Board: all ideas are visible without subgroup headings or Show all',async(
 test('Board: dragging a card to another column moves it at once, saves it and offers Undo',async()=>{
  await withBoard({},'board',async(ui,calls)=>{
   const c=ui.container;
-  await dragTo(card(c,'Alpha'),column(c,'recording'));
+  await moveCard(c,card(c,'Alpha'),'recording');
   assert.deepEqual(calls.filter(call=>call.method==='POST').map(call=>[call.path,call.body]),[['/videos/a/move',{stage:'recording',beforeId:null}]]);
   assert.ok(column(c,'recording').querySelector('[data-card-id="a"]'),'the card is in Recording');
   assert.equal(column(c,'ideas').querySelector('[data-card-id="a"]'),null);
@@ -111,7 +114,7 @@ test('Board: dragging a card to another column moves it at once, saves it and of
 test('Board: a card can go to Recording without a recording project; the video page guards it',async()=>{
  await withBoard({},'board',async(ui,calls)=>{
   const c=ui.container;
-  await dragTo(card(c,'Planned'),column(c,'recording'));
+  await moveCard(c,card(c,'Planned'),'recording');
   assert.deepEqual(calls.filter(call=>call.method==='POST').map(call=>call.path),['/videos/p/move']);
   assert.ok(column(c,'recording').querySelector('[data-card-id="p"]'));
  });
@@ -121,35 +124,36 @@ test('Board: dropping above another card places it before that card; dropping wh
  const videos=[mk('a',{title:'Alpha',order:0}),mk('p1',{title:'Plan one',stage:'planning',order:0}),mk('p2',{title:'Plan two',stage:'planning',order:1})];
  await withBoard({videos},'board',async(ui,calls)=>{
   const c=ui.container;
-  for(const el of c.querySelectorAll<HTMLElement>('[data-column="planning"] [data-card]'))el.getBoundingClientRect=()=>({top:el.dataset.cardId==='p1'?0:100,height:40} as DOMRect);
-  await drag(card(c,'Plan two'),'dragstart');await drag(column(c,'planning'),'dragover',5);
-  assert.equal(c.querySelectorAll('[data-drop-line]').length,1,'a line shows where it will land');
-  assert.equal(column(c,'planning').querySelector('[data-drop-line]')!.nextElementSibling!.querySelector('[data-card]')!.getAttribute('data-card-id'),'p1');
-  await drag(column(c,'planning'),'drop',5);await drag(card(c,'Plan two'),'dragend');await settle();
+  await pickUp(c,card(c,'Plan two'),laneX(c,'planning'),slotY(0));
+  assert.equal(c.querySelectorAll('[data-drop-line]').length,1,'a gap shows where it will land');
+  assert.equal(column(c,'planning').querySelector<HTMLElement>('[data-drop-line]')!.dataset.beforeId,'p1');
+  assert.ok(column(c,'planning').classList.contains('over'));
+  await letGo(laneX(c,'planning'),slotY(0));await settle();
   assert.deepEqual(calls.filter(call=>call.method==='POST').map(call=>call.body),[{stage:'planning',beforeId:'p1'}]);
   assert.deepEqual(toasts(c),['Moved in PlanningUndo']);
   assert.deepEqual(cardIds(column(c,'planning')),['p2','p1']);
-  assert.equal(c.querySelectorAll('[data-drop-line]').length,0,'the line goes when the drop is done');
+  assert.equal(c.querySelectorAll('[data-drop-line]').length,0,'the gap goes when the drop is done');
+  assert.equal(!!c.querySelector('.kanban-drag-overlay'),false,'and so does the card under the pointer');
   const writes=()=>calls.filter(call=>call.method!=='GET').length,before=writes();
-  await dragTo(card(c,'Plan one'),column(c,'planning'),10_000);
+  await moveCard(c,card(c,'Plan one'),'planning');
   assert.equal(writes(),before,'dropping a card in its own place saves nothing');
-  await drag(card(c,'Plan one'),'dragstart');await drag(column(c,'ideas'),'dragover',5);
+  await pickUp(c,card(c,'Plan one'),laneX(c,'ideas'),slotY(0));
   assert.equal(c.querySelectorAll('[data-drop-line]').length,1,'Ideas show an insertion gap too');assert.ok(column(c,'ideas').classList.contains('over'));
-  await drag(column(c,'ideas'),'drop',5);await drag(card(c,'Plan one'),'dragend');await settle();
-  assert.deepEqual(calls.filter(call=>call.method==='POST').slice(-1).map(call=>call.body),[{stage:'ideas',beforeId:null}]);
-  assert.ok(column(c,'ideas').querySelector('[data-card-id="p1"]'),'back among the ideas');
+  assert.equal(column(c,'planning').classList.contains('over'),false,'only the lane under the pointer is lit');
+  await letGo(laneX(c,'ideas'),slotY(0));await settle();
+  assert.deepEqual(calls.filter(call=>call.method==='POST').slice(-1).map(call=>call.body),[{stage:'ideas',beforeId:'a'}]);
+  assert.deepEqual(cardIds(column(c,'ideas')),['p1','a'],'back among the ideas, above Alpha where it was dropped');
   const now=writes();
-  for(const el of column(c,'ideas').querySelectorAll<HTMLElement>('[data-card]'))el.getBoundingClientRect=()=>({top:20,height:40} as DOMRect);
-  await dragTo(card(c,'Plan one'),column(c,'ideas'),0);
+  await moveCard(c,card(c,'Alpha'),'ideas',slotY(0));
   assert.equal(writes(),now+1,'ideas can be reordered within the column');
-  assert.deepEqual(cardIds(column(c,'ideas')),['p1','a']);
+  assert.deepEqual(cardIds(column(c,'ideas')),['a','p1']);
  });
 });
 
 test('Board: a move that cannot be saved puts the card back and says so in one sentence',async()=>{
  await withBoard({failMove:true},'board',async ui=>{
   const c=ui.container;
-  await dragTo(card(c,'Alpha'),column(c,'editing'));
+  await moveCard(c,card(c,'Alpha'),'editing');
   assert.ok(column(c,'ideas').querySelector('[data-card-id="a"]'));assert.equal(column(c,'editing').querySelector('[data-card]'),null);
   assert.deepEqual(toasts(c),["Couldn't save that."]);
  });
@@ -158,9 +162,9 @@ test('Board: a move that cannot be saved puts the card back and says so in one s
 test('Board: a saved move reconciles once and the next drag uses its saved order',async()=>{
  await withBoard({},'board',async(ui,calls)=>{
   const c=ui.container;
-  await dragTo(card(c,'Alpha'),column(c,'planning'));
+  await moveCard(c,card(c,'Alpha'),'planning');
   assert.equal(calls.filter(call=>call.path==='/videos'&&call.method==='GET').length,2,'moving reconciles once after the save');
-  await dragTo(card(c,'Bravo'),column(c,'planning'));
+  await moveCard(c,card(c,'Bravo'),'planning');
   assert.deepEqual(cardIds(column(c,'planning')),['p','a','b']);
  });
 });
@@ -376,7 +380,7 @@ test('Board: menu and drag allow jumps to any stage without prerequisites',async
   await press(c.querySelector('button[aria-label="Move Recorded to…"]')!);
   await press([...c.querySelectorAll('.menu button')].find(b=>text(b)==='Published')!);
   assert.ok(column(c,'published').querySelector('[data-card-id="r"]'));
-  await dragTo(card(c,'Alpha'),column(c,'publishing'));
+  await moveCard(c,card(c,'Alpha'),'publishing');
   assert.ok(column(c,'publishing').querySelector('[data-card-id="a"]'));
   assert.deepEqual(calls.filter(call=>call.method==='POST').map(call=>[call.path,(call.body as {stage:string}).stage]),[['/videos/r/move','published'],['/videos/a/move','publishing']]);
  });
@@ -386,7 +390,7 @@ test('Board: when the server refuses a move it did not know about, the card goes
  await withBoard({},'board',async(ui,_calls,_routes,state)=>{
   state.failMove=true;
   const c=ui.container;
-  await dragTo(card(c,'Alpha'),column(c,'published'));
+  await moveCard(c,card(c,'Alpha'),'published');
   assert.deepEqual(toasts(c),["Couldn't save that."]);
   assert.ok(column(c,'ideas').querySelector('[data-card-id="a"]'));
  });
