@@ -1,4 +1,7 @@
-# SceneForge
+# SceneForge (now part of Creator Compiler)
+
+> This is the recorder and editor inside **Creator Compiler**. The rest of this page describes its earlier standalone preview, released as SceneForge, and is kept as a record of that release. For the current app, see the [main README](../README.md).
+
 
 <img src="app/assets/sceneforge-512.png" width="96" height="96" alt="SceneForge icon">
 

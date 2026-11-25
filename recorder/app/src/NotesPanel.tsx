@@ -1,5 +1,5 @@
 import {useEffect,useRef,useState} from 'react';
-import {Copy,Trash2,WandSparkles,X} from './Icons';
+import {Copy,PenLine,Trash2,X} from './Icons';
 import {MARKER_TAG_LABEL,MARKER_TAGS,type MarkerTag,type Project} from '../shared/types';
 import {isEditableTarget} from './shortcuts';
 import {askClaude,newAskId,onAskSettled} from './club/workspace/ask-claude';
@@ -39,6 +39,6 @@ export function NotesPanel({notes,onSeek,onChange,onDelete,onClose}:{notes:reado
    <div className="notes-row-h"><button type="button" className="notes-time tnum" aria-label={`Seek to ${noteTime(note.time)}`} onClick={()=>choose(note)}>{noteTime(note.time)}</button><NoteTag tag={note.tag} label={`Tag at ${noteTime(note.time)}`} onChange={tag=>onChange(note.id,{tag})}/><button type="button" className="notes-delete" aria-label={`Delete note at ${noteTime(note.time)}`} onClick={()=>onDelete(note.id)}><Trash2 size={14}/></button></div>
    <textarea rows={2} aria-label={`Note at ${noteTime(note.time)}`} placeholder="Write a note" value={note.name??''} onChange={event=>onChange(note.id,{name:event.target.value})}/>
   </section>):<p className="notes-empty">{notes.length?'No notes with this tag':'Press N while watching to leave a note at that moment'}</p>}</div>
-  <footer><button type="button" className="btn sm" disabled={!notes.length} onClick={()=>void copy()}><Copy size={13}/>Copy notes</button><button type="button" className="btn sm primary" disabled={!fixable.length} onClick={fix}><WandSparkles size={13}/>Fix with Claude</button>{copyStatus&&<span className="notes-copy-status" role="status">{copyStatus}</span>}</footer>
+  <footer><button type="button" className="btn sm" disabled={!notes.length} onClick={()=>void copy()}><Copy size={13}/>Copy notes</button><button type="button" className="btn sm primary" disabled={!fixable.length} onClick={fix}><PenLine size={13}/>Fix with Claude</button>{copyStatus&&<span className="notes-copy-status" role="status">{copyStatus}</span>}</footer>
  </aside>;
 }

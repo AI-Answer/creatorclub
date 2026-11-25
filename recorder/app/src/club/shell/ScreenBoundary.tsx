@@ -12,7 +12,7 @@ export class ScreenBoundary extends Component<{children:ReactNode},{failed:boole
  componentDidCatch(error:Error){console.error(error);if(isStaleBuild(error))reloadForNewBuild();}
  render(){
   return this.state.failed
-   ?<div className="page"><div className="card"><Empty icon="warning" title="This screen couldn't load." action={<Button variant="primary" onClick={()=>this.state.stale?globalThis.location.reload():this.setState({failed:false})}>Try again</Button>}/></div></div>
+   ?<div className="page"><div className="card"><Empty icon="warning" title="This screen couldn’t load" action={<Button variant="primary" onClick={()=>this.state.stale?globalThis.location.reload():this.setState({failed:false})}>Try again</Button>}/></div></div>
    :this.props.children;
  }
 }

@@ -11,7 +11,7 @@ import {BrColorField,BrEmpty,BrSection,BrSeparator,BrSlider,BrSub,BrToggleRow} f
   The club's Cursor panel, built to Borumi's Cursor panel (spec-edit-step.md, section e8). Our cursor is one arrow drawn in the cursor
   colour, so the style grid offers None and Pointer. Borumi's Mac, Windows and image sets are not in our model. The size is in canvas
   pixels and is shown as Borumi's factor against the 24 px a new project starts with (shared/types.ts createProject); the export clamps
-  the rendered size to 8 to 256 px, so the factor starts at 8 / 24. The pointer path is a CreatorClub feature and stays.
+  the rendered size to 8 to 256 px, so the factor starts at 8 / 24. The pointer path is a Creator Compiler feature and stays.
   Borumi's cursor tracking, hide camera on overlap, hide when still, click sound and click effect have no counterpart in our model.
 */
 

@@ -57,8 +57,8 @@
   background: none;
   font-size:var(--cc-text-2xs);
   font-weight: 600;
-  letter-spacing: .1em;
-  text-transform: uppercase;
+  letter-spacing: 0;
+  text-transform: none;
   color: var(--transcript-muted);
   cursor: pointer;
 }

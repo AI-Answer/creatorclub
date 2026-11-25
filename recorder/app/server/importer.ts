@@ -84,14 +84,14 @@ export async function importBorumi(input:string,options:{roundtripDirectory?:str
    if(k.kind==='AudioClip'&&['Microphone','SystemSound'].includes(k.content_kind?.kind))clip.audioRole=k.content_kind.kind==='Microphone'?'microphone':'system';
    if(k.kind==='VideoClip')retainTransitions(segment,k,['transition']);
    clip.effects.flipX=!!k.mirrored;
-   // Borumi's Remove Noise strength (0..1) and Enhance Voice level carry over as they are; its Quality mode has no SceneForge equivalent.
+   // Borumi's Remove Noise strength (0..1) and Enhance Voice level carry over as they are; its Quality mode has no Creator Compiler equivalent.
    setNoiseStrength(clip.effects,numeric(k.noise_cancelling_filter));
    const borumiVoice=k.voice_enhancement_filter?.kind;setVoiceLevel(clip.effects,borumiVoice==='Extended'?'extended':borumiVoice==='Minimal'?'minimal':'disabled');
    if(clip.track==='camera'&&k.face_tracking_mode?.kind==='Auto'){
     clip.effects.faceCenter=true;
-    warnings.add('Explicit Auto camera face tracking uses SceneForge local sampled static face anchoring; it approximates Borumi dynamic tracking and may frame moving subjects differently. Original mode/settings are retained.');
+    warnings.add('Explicit Auto camera face tracking uses Creator Compiler local sampled static face anchoring; it approximates Borumi dynamic tracking and may frame moving subjects differently. Original mode/settings are retained.');
    }
-   if(clip.effects.denoise||clip.effects.normalize)warnings.add('Imported voice/noise options use SceneForge audio filters; Borumi model output is not reproduced.');
+   if(clip.effects.denoise||clip.effects.normalize)warnings.add('Imported voice/noise options use Creator Compiler audio filters; Borumi model output is not reproduced.');
    if(k.crop||k.background||k.freeze_frame||k.color_adjustments||k.face_tracking_mode?.kind==='Auto'){
     warnings.add('Crop, face tracking, freeze frames, color adjustments and virtual backgrounds require review; original parameters are retained.');unmapped.push({segmentId:segment.id,kind:k.kind,parameters:k});
    }

@@ -55,7 +55,7 @@ export function FirstSteps({ideas,hasTopics,start,searching,error,hasBreakdown,o
     </li>;
    })}</ol>
    {idea
-    ?<Button variant="primary" style={{marginTop:16}} onClick={()=>onStartIdea(idea)}><Icon name="next" size={15}/>Start planning</Button>
+    ?<Button variant="primary" style={{marginTop:16}} onClick={()=>onStartIdea(idea)}>Start planning</Button>
     :<div className="small muted" style={{marginTop:12}}>Pick an idea and the four steps open for it.</div>}
   </div>
   <div>

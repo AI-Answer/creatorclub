@@ -32,7 +32,7 @@ type Drag={from:number;to:number;dy:number;startY:number;tops:number[];heights:n
  * scenes. A pasted script splits into scenes at headings and --- lines.
  *
  * A scene is dragged by its name: it lifts and follows the pointer while the others slide out of its way, and lands where it is dropped
- * (Escape puts it back). A click on the name, without moving, renames it. What CreatorClub adds: the connected AI writes a scene's script
+ * (Escape puts it back). A click on the name, without moving, renames it. What Creator Compiler adds: the connected AI writes a scene's script
  * from its menu, and a board card dropped on a scene is added to its text.
  */
 export function ScriptScenes({aiName,aiBrand,hasRecording,outline,known,focusId,drafting,draftLine,scriptingScene,scripting,

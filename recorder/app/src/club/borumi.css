@@ -116,7 +116,7 @@
 
 /* Take preview: Borumi's label chips on each source, red Delete take, plain Record another take, white Confirm take */
 .club-embed .app-shell[data-mode=Record] .take-review .take-source-label { left: 8px; bottom: 8px; padding: 4px 8px; border-radius: var(--cc-r); background: var(--cc-media-scrim); color: var(--cc-on-media); font-size: var(--cc-text-xs); font-weight: 500; }
-.club-embed .app-shell[data-mode=Record] .take-review header > div > span:first-child { text-transform: uppercase; font-size: var(--cc-text-2xs); letter-spacing: 0.04em; color: var(--cc-text-3); }
+.club-embed .app-shell[data-mode=Record] .take-review header > div > span:first-child { text-transform:none; font-size: var(--cc-text-2xs); letter-spacing:0; color: var(--cc-text-3); }
 .club-root .club-take-footer { background: var(--cc-bg); }
 .club-root .club-take-footer .btn.danger { background: var(--cc-danger); color: var(--cc-on-media); border-color: transparent; }
 .club-root .club-take-footer .btn.danger:hover:not(:disabled) { background: color-mix(in srgb, var(--cc-danger) 90%, transparent); }
@@ -149,14 +149,14 @@
 .club-embed .app-shell[data-mode=Edit] .club-edit .club-timeline-bar .club-tool[aria-pressed=true] { background: var(--cc-hover); color: var(--cc-text); }
 .club-embed .app-shell[data-mode=Edit] .club-edit .club-timeline-bar .club-play { background: transparent; color: var(--cc-text); box-shadow: none; }
 .club-embed .app-shell[data-mode=Edit] .club-edit .club-edit-transcript .transcript-panel > header { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 8px; align-items: start; padding: 16px 16px 8px; }
-.club-embed .app-shell[data-mode=Edit] .club-edit .club-edit-transcript .transcript-panel > header > b { grid-column: 1; font-size: var(--cc-text-2xs); letter-spacing: 0.04em; text-transform: uppercase; color: var(--cc-text-3); }
+.club-embed .app-shell[data-mode=Edit] .club-edit .club-edit-transcript .transcript-panel > header > b { grid-column: 1; font-size: var(--cc-text-2xs); letter-spacing:0; text-transform:none; color: var(--cc-text-3); }
 .club-embed .app-shell[data-mode=Edit] .club-edit .club-edit-transcript .transcript-panel > header > .club-sheet-sub { grid-column: 1; font-size: var(--cc-text-xs); color: var(--cc-text-3); }
 .club-embed .app-shell[data-mode=Edit] .club-edit .club-edit-transcript .transcript-panel > header > .club-sheet-close { display: inline-flex; grid-column: 2; grid-row: 1; }
 /* Borumi's transcript column has no title row: the toolbar's transcript button opens and closes it. Each scene is a small grey label
    with its words under it, or a dashed box while it has none. The transcription status is one quiet line at the foot. */
 .club-embed .app-shell[data-mode=Edit] .club-edit .club-edit-transcript .transcript-panel > header { display: none; }
 .club-embed .app-shell[data-mode=Edit] .club-edit .club-ts-empty-list { order: 1; flex: 1; min-height: 0; overflow: auto; padding: 18px 16px; }
-.club-embed .app-shell[data-mode=Edit] .club-edit .club-edit-transcript .transcript-scene-label { margin: 0 0 10px; font-size: var(--cc-text-2xs); font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--cc-text-3); }
+.club-embed .app-shell[data-mode=Edit] .club-edit .club-edit-transcript .transcript-scene-label { margin: 0 0 10px; font-size: var(--cc-text-2xs); font-weight: 600; letter-spacing:0; text-transform:none; color: var(--cc-text-3); }
 .club-embed .app-shell[data-mode=Edit] .club-edit .club-ts-empty-list .transcript-scene + .transcript-scene { margin-top: 18px; }
 .club-embed .app-shell[data-mode=Edit] .club-edit .club-ts-empty { display: grid; place-items: center; min-height: 58px; border: 1px dashed var(--cc-line-strong); border-radius: var(--cc-r-lg); font-size: var(--cc-text-sm); color: var(--cc-text-3); }
 .club-embed .app-shell[data-mode=Edit] .club-edit .club-edit-transcript .transcription-status { order: 2; flex: none; max-height: none; padding: 10px 16px 12px; border-top: 1px solid var(--cc-line); font-size: var(--cc-text-xs); color: var(--cc-text-3); }
@@ -298,7 +298,7 @@
 .club-root .club-embed .app-shell[data-mode=Edit] .club-edit .club-scene-tag:hover { background: color-mix(in srgb, var(--br-primary) 5%, transparent); }
 /* Track rows: grey (secondary), no border or radius, 4px apart; each carries its name inside, at the left (Borumi's layer label). */
 .club-root .club-embed .app-shell[data-mode=Edit] .club-edit .club-row { border: 0; border-radius: 0; background: var(--br-secondary); }
-.club-root .club-embed .app-shell[data-mode=Edit] .club-edit .club-row-name { position: absolute; top: 0; bottom: 0; left: 0; display: flex; align-items: center; margin-left: 4px; padding: 0 8px; color: var(--br-primary); font-size: var(--br-text-8); font-weight: var(--cc-weight-semibold); line-height: 1; text-transform: uppercase; white-space: nowrap; opacity: 0.7; pointer-events: none; }
+.club-root .club-embed .app-shell[data-mode=Edit] .club-edit .club-row-name { position: absolute; top: 0; bottom: 0; left: 0; display: flex; align-items: center; margin-left: 4px; padding: 0 8px; color: var(--br-primary); font-size: var(--cc-text-2xs); font-weight: var(--cc-weight-medium); line-height: 1; text-transform: none; white-space: nowrap; opacity: 0.7; pointer-events: none; }
 /* Clips: fill their row, rounded-xl, shadow-lg, Borumi's bottom shade, no border. Colours from Borumi's segment classes: video blue, audio green, overlays purple. */
 .club-root .club-embed .app-shell[data-mode=Edit] .club-edit .club-timeline .timeline-clip.club-clip { border: 0; outline: 0; border-radius: var(--br-r-xl); overflow: hidden; box-shadow: var(--br-shadow-lg); background: var(--kind-screen); color: var(--kind-ink); }
 .club-root .club-embed .app-shell[data-mode=Edit] .club-edit .club-timeline .timeline-clip.club-clip::before { content: ''; position: absolute; inset: 0; box-shadow: var(--br-segment-shade); pointer-events: none; }

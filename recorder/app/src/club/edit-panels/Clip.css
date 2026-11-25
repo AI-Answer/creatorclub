@@ -1,4 +1,4 @@
-/* Clip panel (ClubClipPanel): Borumi's groups for the selected take, plus CreatorClub's take actions and timing. Scoped to the club's Edit side. */
+/* Clip panel (ClubClipPanel): Borumi's groups for the selected take, plus Creator Compiler's take actions and timing. Scoped to the club's Edit side. */
 .club-root .club-edit-side .club-take-list { display: flex; flex-direction: column; gap: 4px; margin: 0; padding: 0; list-style: none; font-size: var(--cc-text-xs); line-height: 16px; }
 .club-root .club-edit-side .club-take-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 .club-root .club-edit-side .club-take-actions .br-btn { height: 32px; }

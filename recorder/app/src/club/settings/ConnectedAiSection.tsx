@@ -64,8 +64,8 @@ function GeminiRow({saved,onChanged}:{saved:string|null;onChanged(masked:string|
  return <div className="srow" style={{alignItems:'flex-start'}}>
   <span className="logo logo-gemini"><BrandLogo brand="gemini" size={27}/></span>
   <div className="grow">
-   <div style={{fontWeight:600}}>Gemini <span className="chip optional-badge" style={{marginLeft:6}}>Optional</span></div>
-   <div className="small muted" style={{marginBottom:10}}>Lets Creator Compiler watch videos with sound and motion when it breaks them down.</div>
+   <div style={{fontWeight:600}}>Gemini</div>
+   <div className="small muted" style={{marginBottom:10}}>Optional. Lets Creator Compiler watch videos with sound and motion when it breaks them down.</div>
    {saved?<div className="row small"><span className="dotok"/>Key saved {saved} <button type="button" className="linkish" disabled={busy} onClick={()=>void remove()}>Remove key</button></div>
     :<form className="row" onSubmit={(event:FormEvent)=>{event.preventDefault();void save();}}>
       <Input type="password" aria-label="Gemini API key" autoComplete="off" spellCheck={false} value={key} placeholder="Paste your Gemini API key" style={{maxWidth:340}} onChange={event=>{setKey(event.target.value);setError('');}}/>

@@ -34,9 +34,9 @@ export function IdeaDrawer({video,actions,onClose,onRemove}:{video:Video;actions
   footer={video.hidden
    ?<><button type="button" className="btn sm" onClick={()=>void actions.restore(video)}><Icon name="retry" size={14}/>Restore</button><span className="grow"/>{remove}</>
    :<><button type="button" className="btn ghost sm" onClick={()=>{void actions.later(video);onClose();}}><Icon name="save" size={14}/>Later</button>{remove}<span className="grow"/>
-    <button type="button" className="btn primary" onClick={()=>void actions.startPlanning(video)}><Icon name="next" size={15}/>Start planning</button></>}>
+    <button type="button" className="btn primary" onClick={()=>void actions.startPlanning(video)}>Start planning</button></>}>
   <Thumb videoId={ideaSourceVideoId(video)} text={video.title} seed={video.id}/>
-  <Ed tag="h2" value={video.title} ph="Title" style={{fontSize:21,letterSpacing:'-0.02em',margin:'18px 0 8px',lineHeight:1.25,fontWeight:600}} onChange={title=>actions.rename(video,title)}/>
+  <Ed tag="h2" value={video.title} ph="Title" style={{fontSize:21,letterSpacing:'-0.01em',margin:'18px 0 8px',lineHeight:1.25,fontWeight:600}} onChange={title=>actions.rename(video,title)}/>
   <Ed tag="p" multiline className="muted" value={notes.why} ph="Why it could work" style={{margin:'0 0 18px',lineHeight:1.55}} onChange={text=>void actions.edit(video,{why:none(text)})}/>
   <div style={{marginBottom:18}}><div className="small faint" style={{marginBottom:6}}>Hook</div>
    <Ed multiline className="hookq" value={notes.hook} ph="The first line you would say" onChange={text=>void actions.edit(video,{hook:none(text)})}/></div>

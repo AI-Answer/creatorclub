@@ -115,7 +115,7 @@ test('automatic restore rejects untrusted frames and malformed saved region geom
 test('source enumeration failure reports actual permission status without granting access or falling back', async () => {
  const h = setup(); try {
   h.state.beforeSources = async () => { throw new Error('Failed to get sources.'); };
-  for (const [status, message] of [['denied', /Screen recording is off for SceneForge\. .*turn on SceneForge/], ['restricted', /restricted on this Mac/], ['not-determined', /not been granted yet/], ['granted', /reports screen access is allowed/], ['unknown', /could not load/]] as const) {
+  for (const [status, message] of [['denied', /Screen recording is off for Creator Compiler\. .*turn on Creator Compiler/], ['restricted', /restricted on this Mac/], ['not-determined', /not been granted yet/], ['granted', /reports screen access is allowed/], ['unknown', /could not load/]] as const) {
    h.state.screenStatus = status;
    await assert.rejects(h.manager.list(h.event), (error: Error) => message.test(error.message) && !error.message.includes('Failed to get sources'));
    assert.equal(h.windows.length, 0);

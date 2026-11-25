@@ -7,8 +7,8 @@ import {promisify} from 'node:util';
 import {createDmg,sha256File} from './create-dmg.mjs';
 import {resolveSigningIdentity,signPackage} from './signing.mjs';
 import {buildMcpLauncher} from './build-mcp-launcher.mjs';
-// The packaged app is CreatorClub, with its own bundle id, so it never replaces or shares permissions with SceneForge.app.
-const APP_NAME='CreatorClub',APP_ID='com.aianswer.creatorclub';
+// The packaged app is Creator Compiler, with its own bundle id, so it never replaces or shares permissions with SceneForge.app.
+const APP_NAME='Creator Compiler',APP_ID='com.aianswer.creatorclub';
 const staging=path.resolve('.local/package');
 const requestedOutput=process.env.SCENEFORGE_PACKAGE_OUT;
 if(requestedOutput&&!path.isAbsolute(requestedOutput))throw Error('SCENEFORGE_PACKAGE_OUT must be an absolute directory path.');
@@ -50,12 +50,12 @@ for(const dir of result){
 }
 for(const dir of result)await signPackage(path.join(dir,`${APP_NAME}.app`),signingIdentity);
 for(const dir of result){
- const app=path.join(dir,`${APP_NAME}.app`),zip=path.join(packageOutput,`${APP_NAME}-macOS-arm64.zip`);
+ const app=path.join(dir,`${APP_NAME}.app`),zip=path.join(packageOutput,`Creator-Compiler-macOS-arm64.zip`);
  await rm(zip,{force:true});
  await promisify(execFile)('ditto',['--norsrc','--noextattr','-c','-k','--keepParent',app,zip]);
  const sha=await sha256File(zip);
  await writeFile(zip+'.sha256',sha+'  '+path.basename(zip)+'\n');
  console.log(JSON.stringify({zip,sha256:sha,signing:signingIdentity.mode,notarized:false}));
- console.log(JSON.stringify(await createDmg(app,path.join(packageOutput,`${APP_NAME}-macOS-arm64.dmg`))));
+ console.log(JSON.stringify(await createDmg(app,path.join(packageOutput,`Creator-Compiler-macOS-arm64.dmg`))));
 }
 console.log(result.join('\n'));

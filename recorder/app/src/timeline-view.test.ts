@@ -22,7 +22,8 @@ test('only clips and items inside the quantized window render, without per-bar l
  const html=render(project(),0),ids=[...html.matchAll(/data-clip-id="([^"]+)"/g)].map(match=>match[1]);
  // The initial 1000 px viewport renders 1500 px: 27.3 s at 55 px/s.
  assert.deepEqual(ids,['long','a0']);assert.match(html,/Near caption/);assert.doesNotMatch(html,/Far caption/);
- assert.doesNotMatch(html,/<line/);assert.doesNotMatch(html,/margin-left/);assert.match(html,/<span>Clip long<\/span>/);
+ // Icons are drawn with their own lines; only the timeline's markup outside them counts.
+ assert.doesNotMatch(html.replace(/<svg[\s\S]*?<\/svg>/g,''),/<line/);assert.doesNotMatch(html,/margin-left/);assert.match(html,/<span>Clip long<\/span>/);
 });
 test('blade guide is mounted hidden for the blade tool and positioned without a render per pointer move',()=>{
  assert.doesNotMatch(render(project(),0),/blade-guide/);assert.match(render(project(),0,{tool:'blade'}),/<div class="blade-guide" hidden=""><\/div>/);

@@ -3,7 +3,7 @@ import {deviceLabel,deviceName} from './club/recorder/device-label';
 import {useEffect,useInsertionEffect,useMemo,useRef,useState,useSyncExternalStore,type RefObject} from 'react';
 import {createPortal} from 'react-dom';
 import './recording.css';
-import {Camera,Mic,Monitor,Square,Pause,Play,Check,Settings2,ChevronDown,AudioLines,LoaderCircle,ArrowRight} from './Icons';
+import {Camera,Mic,Monitor,Square,Pause,Play,Check,Settings2,ChevronDown,AudioLines,LoaderCircle} from './Icons';
 import type {Media,Project,TrackKind,TakeSynchronization} from '../shared/types';
 import {api} from './api';
 import {TakeReview} from './TakeReview';
@@ -451,7 +451,7 @@ export function Recording({project,change,commit,onRecorded,onError,onImport,onS
   {club?<div className="club-record-left">{problems&&<RecorderWarnings problems={problems} onAction={problemAction}/>}{sourcesPanel}</div>:sourcesPanel}
   <main className={`recording-main ${active?'capture-active':'scene-cards-mode'}`}>
    {!active?<><RecordingSceneCards project={project} takes={allTakes} selectedSceneId={recordSceneId} disabled={confirming||active} club={club} {...cardHandlers}/>
-    {hasRecording&&onEdit&&<div className="recording-next"><div><strong>Recording saved</strong><span>Trim it, add captions and export your video.</span></div><button className="button primary" onClick={onEdit}>Edit &amp; export<ArrowRight size={16}/></button></div>}
+    {hasRecording&&onEdit&&<div className="recording-next"><div><strong>Recording saved</strong><span>Trim it, add captions and export your video.</span></div><button className="button primary" onClick={onEdit}>Edit &amp; export</button></div>}
     {(!club||captureNotice)&&<div className="recording-card-options">{!club&&countdownOption}{!club&&<div className="recording-ready-hint">{readyCount===enabledCount&&enabledCount?`${readyCount} ${readyCount===1?'source is':'sources are'} ready · previews are live`:enabledCount?'Check your sources before recording.':'Choose a camera, microphone, screen, or system sound to begin.'}</div>}{captureNotice&&<p className="recording-capture-notice" role="status">{captureNotice}</p>}</div>}
    </>:<div className="recording-readiness"><div className={`recording-status ${status==='recording'?'is-recording':''}`}><i/>{status==='starting'?(countdown!==null?'Recording starts in…':'Preparing your sources'):status==='saving'?'Saving your take':status==='paused'?'Recording paused':'Recording in progress'}</div>{countdown!==null?<div className="recording-countdown-number" role="status" aria-live="assertive">{countdown}</div>:<div className="recording-big-clock">{clock}</div>}<p className="recording-active-note">{status==='saving'?'Finishing the files saved on your Mac.':'Use the floating camera and script controls, or this window, to pause and stop.'}</p>
     <div className="recording-controls"><button className="button" onClick={pause} disabled={transitionBusy||!['recording','paused'].includes(status)}>{status==='paused'?<Play size={17}/>:<Pause size={17}/>} {status==='paused'?'Resume':'Pause'}</button><button className="button primary" onClick={()=>void stop()} disabled={status==='starting'||status==='saving'}>{status==='saving'?<LoaderCircle size={17} className="spin"/>:<Square size={16}/>} {status==='saving'?'Saving take…':'Stop & save'}</button></div>

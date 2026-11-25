@@ -3,7 +3,7 @@ import {
  AArrowDown,AArrowUp,ArrowDown,ArrowLeft,ArrowRight,ArrowUp,ArrowUpRight,AudioLines,BetweenHorizontalStart,Bookmark,Bot,Calendar,Camera,Captions,Check,ChevronDown,ChevronLeft,ChevronRight,ChevronUp,ChevronsUpDown,
  Circle,CircleCheck,CircleDot,CircleHelp,Clapperboard,Clock,Code,Copy,CornerDownRight,Download,Expand,Eye,EyeOff,FileText,Film,Flag,Folder,FolderOpen,GripVertical,Heading1,Heading2,Heading3,Heart,History,House,Image,Compass,Keyboard,Layers,LayoutTemplate,Lightbulb,
  Link,List,ListChecks,ListOrdered,LoaderCircle,Lock,Magnet,Maximize2,MessageCircle,MessagesSquare,Mic,Minus,Monitor,MoreHorizontal,MoveHorizontal,Music,Package,PanelLeftClose,PanelLeftOpen,PanelRightClose,PanelRightOpen,Pause,Pencil,Pilcrow,Play,Plus,Presentation,Quote,Redo2,RotateCcw,
- Frame,Scissors,Search,Send,Settings,Settings2,SlidersHorizontal,Sparkles,Spline,Sprout,Square,SquareKanban,SquareSplitHorizontal,StickyNote,Sun,Table,Trash2,TrendingUp,TriangleAlert,Type,Undo2,Upload,Video,Wand2,WifiOff,X,Youtube,Waypoints,ZoomIn,ZoomOut,
+ Frame,Scissors,Search,Send,Settings,Settings2,SlidersHorizontal,Spline,Sprout,Square,SquareKanban,SquareSplitHorizontal,StickyNote,Sun,Table,Trash2,TrendingUp,TriangleAlert,Type,Undo2,Upload,Video,PenLine,WifiOff,X,Youtube,Waypoints,ZoomIn,ZoomOut,
  type LucideIcon,
 } from 'lucide-react';
 import {QuickRecord} from '../../Icons';
@@ -17,7 +17,7 @@ const glyphs={
  // Actions
  add:Plus,close:X,check:Check,more:MoreHorizontal,delete:Trash2,copy:Copy,link:Link,edit:Pencil,search:Search,send:Send,
  upload:Upload,download:Download,retry:RotateCcw,undo:Undo2,redo:Redo2,history:History,save:Bookmark,'open-external':ArrowUpRight,
- ai:Bot,draft:FileText,'auto-edit':Wand2,drag:GripVertical,fit:Maximize2,fullscreen:Expand,'zoom-in':ZoomIn,'zoom-out':ZoomOut,
+ ai:Bot,draft:FileText,'auto-edit':PenLine,drag:GripVertical,fit:Maximize2,fullscreen:Expand,'zoom-in':ZoomIn,'zoom-out':ZoomOut,
  'text-smaller':AArrowDown,'text-bigger':AArrowUp,'move-up':ArrowUp,'move-down':ArrowDown,next:ArrowRight,previous:ArrowLeft,
  back:ChevronLeft,forward:ChevronRight,expand:ChevronDown,collapse:ChevronUp,choose:ChevronsUpDown,reply:CornerDownRight,
  // Recording and editing
@@ -68,6 +68,6 @@ export function Icon({name,size=16,stroke=1.75,className='',style,spin}:{name:Ic
  const key=resolve(name);
  if(key==='quick-record')return <QuickRecord size={size} className={className} style={style}/>;
  const Glyph=key==='companion'?MessagesSquare:glyphs[key];
- // SceneForge's global CSS sets `svg.lucide{stroke-width:1.5}`; an inline style wins over it.
+ // The editor's global CSS sets `svg.lucide{stroke-width:1.75}`; an inline style lets a caller choose another.
  return <Glyph aria-hidden size={size} className={`icon${spin?' animate-spin':''} ${className}`.trim()} style={{strokeWidth:stroke,...style}}/>;
 }

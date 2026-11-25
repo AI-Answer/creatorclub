@@ -365,7 +365,7 @@ test('a screen that fails to draw shows one sentence and Try again, never the er
  const ui=await mountUI(createElement(ScreenBoundary,null,createElement(Screen)));
  try{
   const c=ui.container;
-  assert.match(c.textContent!,/This screen couldn't load\./);assert.doesNotMatch(c.textContent!,/secret internals/);
+  assert.match(c.textContent!,/This screen couldn’t load/);assert.doesNotMatch(c.textContent!,/secret internals/);
   assert.ok(logged.length>0,'the error goes to the console');
   broken=false;await press(button(c,'Try again'));
   assert.equal(c.textContent,'Fine now');

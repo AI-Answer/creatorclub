@@ -78,7 +78,7 @@
  .club-root .board-help-keys { grid-template-columns: 1fr; }
 }
 /* Notes keep the board's reading scale; the full note editor keeps its larger headings. */
-.club-root .hepta-board .tile .outliner-title, .club-root .hepta-board .tile h1.outliner-text { font-size: var(--cc-text-lg); line-height: 1.4; font-weight: 600; letter-spacing: -.01em; }
+.club-root .hepta-board .tile .outliner-title, .club-root .hepta-board .tile h1.outliner-text { font-size: var(--cc-text-lg); line-height: 1.4; font-weight: 600; letter-spacing: 0; }
 .club-root .hepta-board .tile .outliner-text { font-size: var(--cc-text-base); line-height: 1.55; }
 .club-root .hepta-board .tile h2.outliner-text, .club-root .hepta-board .tile h3.outliner-text { font-size: var(--cc-text-base); font-weight: 600; }
 /* Round 2: cards remain readable at their native scale. */

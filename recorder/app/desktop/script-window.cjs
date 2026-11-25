@@ -79,7 +79,7 @@ function teleprompterMenu(v){
 }
 
 // onOpen(open) tells the island when the window opens or closes; onRequest(request) passes the window's follower changes to it.
-function createScriptWindow({BrowserWindow,ipcMain,screen,Menu,preferencesPath,appName='CreatorClub',onOpen=()=>{},onRequest=()=>{},nearBounds=()=>null}){
+function createScriptWindow({BrowserWindow,ipcMain,screen,Menu,preferencesPath,appName='Creator Compiler',onOpen=()=>{},onRequest=()=>{},nearBounds=()=>null}){
  let win=null,drag=null,disposing=false;
  let take={active:false,script:'',appearance:'dark'},follower={mode:'VoiceOptimistic',speed:14,index:0,playing:false,voiceAvailable:false,asking:false,error:null,appName};
  let saved={};try{if(preferencesPath)saved=JSON.parse(fs.readFileSync(preferencesPath,'utf8'))||{};}catch{/* Missing or damaged preferences use Borumi's defaults. */}

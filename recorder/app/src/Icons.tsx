@@ -1,72 +1,71 @@
-import type {ComponentType,SVGProps} from 'react';
-import {List as IList} from 'iconoir-react';
-import {ArrowLeft as IArrowLeft,ArrowRight as IArrowRight,SoundHigh as IAudioLines,Camera as ICamera,Check as ICheck,NavArrowDown as IChevronDown,NavArrowLeft as IChevronLeft,NavArrowRight as IChevronRight,Clock as IClock3,MediaVideoList as IClapperboard,Copy as ICopy,Download as IDownload,Page as IFileText,MediaVideo as IFilm,Folder as IFolderOpen,ViewGrid as IGrid2X2,ClockRotateRight as IHistory,HomeSimple as IHome,MediaImage as IImage,MultiplePages as ILayers,LayoutRight as ILayoutTemplate,Refresh as ILoaderCircle,Magnet as IMagnet,Expand as IMaximize2,Microphone as IMic,Minus as IMinus,MoreHoriz as IMoreHorizontal,CursorPointer as IMousePointer2,MusicDoubleNote as IMusic,Pause as IPause,Play as IPlay,Plus as IPlus,RedoAction as IRedo2,Cut as IScissors,Search as ISearch,Settings as ISettings2,SkipPrev as ISkipBack,SkipNext as ISkipForward,Sparks as ISparkles,ClosedCaptionsTag as ISubtitles,Bin as ITrash2,Text as IType,UndoAction as IUndo2,Upload as IUpload,VideoCamera as IVideo,MagicWand as IWandSparkles,Xmark as IX,ZoomIn as IZoomIn,ZoomOut as IZoomOut,Drag as IGripVertical,AlignCenter as IAlignCenter} from 'iconoir-react';
+import type {SVGProps} from 'react';
+import {AlignCenter as LAlignCenter,ArrowLeft as LArrowLeft,ArrowRight as LArrowRight,AudioLines as LAudioLines,Camera as LCamera,Captions as LCaptions,Check as LCheck,ChevronDown as LChevronDown,ChevronLeft as LChevronLeft,ChevronRight as LChevronRight,CircleCheck as LCircleCheck,Clapperboard as LClapperboard,Clock3 as LClock3,Copy as LCopy,Download as LDownload,Ellipsis as LEllipsis,FileText as LFileText,Film as LFilm,FlipHorizontal as LFlipHorizontal,FolderOpen as LFolderOpen,Grid2x2 as LGrid2x2,GripVertical as LGripVertical,History as LHistory,House as LHouse,Image as LImage,Info as LInfo,Layers as LLayers,LayoutTemplate as LLayoutTemplate,List as LList,LoaderCircle as LLoaderCircle,Magnet as LMagnet,Maximize2 as LMaximize2,Mic as LMic,Minus as LMinus,Monitor as LMonitor,MousePointer2 as LMousePointer2,Music as LMusic,Pause as LPause,Play as LPlay,Plus as LPlus,Redo2 as LRedo2,RotateCcw as LRotateCcw,Scissors as LScissors,Search as LSearch,Settings as LSettings,SkipBack as LSkipBack,SkipForward as LSkipForward,Square as LSquare,Trash2 as LTrash2,Type as LType,Undo2 as LUndo2,Upload as LUpload,Video as LVideo,Workflow as LWorkflow,PenLine as LPenLine,X as LX,ZoomIn as LZoomIn,ZoomOut as LZoomOut,type LucideIcon} from 'lucide-react';
 
-import {InfoCircle as IInfo,Computer as IMonitor,Square as ISquare,CheckCircle as ICheckCircle2,Restart as IRotateCcw,Flip as IFlipHorizontal} from 'iconoir-react';
-
-// Iconoir MIT icons. A thin size adapter preserves the shared control interface.
+/**
+ * The editor's and recorder's icons. They come from lucide, the same set as the club screens (`club/ui/icons.tsx`), at the same
+ * 1.75 stroke, so the embedded editor and the rest of the app draw one family. A thin adapter keeps the `size` interface.
+ */
 type Props=SVGProps<SVGSVGElement>&{size?:number|string};
-function icon(Component:ComponentType<SVGProps<SVGSVGElement>>){return function Icon({size=24,strokeWidth=1.5,...props}:Props){return <Component width={size} height={size} strokeWidth={strokeWidth} aria-hidden={props['aria-label']?undefined:true} {...props}/>;};}
-export const ArrowLeft=icon(IArrowLeft);
-export const ArrowRight=icon(IArrowRight);
-export const AudioLines=icon(IAudioLines);
-export const Camera=icon(ICamera);
-export const Check=icon(ICheck);
-export const ChevronDown=icon(IChevronDown);
-export const ChevronLeft=icon(IChevronLeft);
-export const ChevronRight=icon(IChevronRight);
-export const Clock3=icon(IClock3);
-export const Clapperboard=icon(IClapperboard);
-export const Copy=icon(ICopy);
-export const Download=icon(IDownload);
-export const FileText=icon(IFileText);
-export const Film=icon(IFilm);
-export const FolderOpen=icon(IFolderOpen);
-export const Grid2X2=icon(IGrid2X2);
-export const History=icon(IHistory);
-export const Home=icon(IHome);
-export const Image=icon(IImage);
-export const Layers=icon(ILayers);
-export const LayoutTemplate=icon(ILayoutTemplate);
-export const LoaderCircle=icon(ILoaderCircle);
-export const Magnet=icon(IMagnet);
-export const Maximize2=icon(IMaximize2);
-export const Mic=icon(IMic);
-export const Minus=icon(IMinus);
-export const MoreHorizontal=icon(IMoreHorizontal);
-export const MousePointer2=icon(IMousePointer2);
-export const Music=icon(IMusic);
-export const Pause=icon(IPause);
-export const Play=icon(IPlay);
-export const Plus=icon(IPlus);
-export const Redo2=icon(IRedo2);
-export const Scissors=icon(IScissors);
-export const Search=icon(ISearch);
-export const Settings2=icon(ISettings2);
-export const SkipBack=icon(ISkipBack);
-export const SkipForward=icon(ISkipForward);
-export const Sparkles=icon(ISparkles);
-export const Subtitles=icon(ISubtitles);
-export const Trash2=icon(ITrash2);
-export const Type=icon(IType);
-export const Undo2=icon(IUndo2);
-export const Upload=icon(IUpload);
-export const Video=icon(IVideo);
-export const WandSparkles=icon(IWandSparkles);
-export const X=icon(IX);
-export const ZoomIn=icon(IZoomIn);
-export const ZoomOut=icon(IZoomOut);
-export const GripVertical=icon(IGripVertical);
-export const AlignCenter=icon(IAlignCenter);
-
-export const Monitor=icon(IMonitor);
-export const Square=icon(ISquare);
-export const CheckCircle2=icon(ICheckCircle2);
-export const Info=icon(IInfo);
-export const RotateCcw=icon(IRotateCcw);
-export const FlipHorizontal=icon(IFlipHorizontal);
-
-export const Structured=icon(IList);
+export const ICON_STROKE=1.75;
+function icon(Glyph:LucideIcon){return function Icon({size=24,strokeWidth=ICON_STROKE,style,...props}:Props){return <Glyph size={size} aria-hidden={props['aria-label']?undefined:true} {...props as object} style={{strokeWidth,...style}}/>;};}
+export const ArrowLeft=icon(LArrowLeft);
+export const ArrowRight=icon(LArrowRight);
+export const AudioLines=icon(LAudioLines);
+export const Camera=icon(LCamera);
+export const Check=icon(LCheck);
+export const ChevronDown=icon(LChevronDown);
+export const ChevronLeft=icon(LChevronLeft);
+export const ChevronRight=icon(LChevronRight);
+export const Clock3=icon(LClock3);
+export const Clapperboard=icon(LClapperboard);
+export const Copy=icon(LCopy);
+export const Download=icon(LDownload);
+export const FileText=icon(LFileText);
+export const Film=icon(LFilm);
+export const FolderOpen=icon(LFolderOpen);
+export const Grid2X2=icon(LGrid2x2);
+export const History=icon(LHistory);
+export const Home=icon(LHouse);
+export const Image=icon(LImage);
+export const Layers=icon(LLayers);
+export const LayoutTemplate=icon(LLayoutTemplate);
+export const LoaderCircle=icon(LLoaderCircle);
+export const Magnet=icon(LMagnet);
+export const Maximize2=icon(LMaximize2);
+export const Mic=icon(LMic);
+export const Minus=icon(LMinus);
+export const MoreHorizontal=icon(LEllipsis);
+export const MousePointer2=icon(LMousePointer2);
+export const Music=icon(LMusic);
+export const Pause=icon(LPause);
+export const Play=icon(LPlay);
+export const Plus=icon(LPlus);
+export const Redo2=icon(LRedo2);
+export const Scissors=icon(LScissors);
+export const Search=icon(LSearch);
+export const Settings2=icon(LSettings);
+export const SkipBack=icon(LSkipBack);
+export const SkipForward=icon(LSkipForward);
+export const Subtitles=icon(LCaptions);
+export const Trash2=icon(LTrash2);
+export const Type=icon(LType);
+export const Undo2=icon(LUndo2);
+export const Upload=icon(LUpload);
+export const Video=icon(LVideo);
+export const Wand=icon(LWorkflow);
+export const PenLine=icon(LPenLine);
+export const X=icon(LX);
+export const ZoomIn=icon(LZoomIn);
+export const ZoomOut=icon(LZoomOut);
+export const GripVertical=icon(LGripVertical);
+export const AlignCenter=icon(LAlignCenter);
+export const Monitor=icon(LMonitor);
+export const Square=icon(LSquare);
+export const CheckCircle2=icon(LCircleCheck);
+export const Info=icon(LInfo);
+export const RotateCcw=icon(LRotateCcw);
+export const FlipHorizontal=icon(LFlipHorizontal);
+export const Structured=icon(LList);
 // Independently drawn geometric symbols matching the observed control vocabulary.
-export function Elements({size=18,...props}:Props){return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...props}><path d="M4 10.5 7.2 4l3.3 6.5M5.1 8.3h4.2M4 16.5h6M7 13.5v6"/><circle cx="17.4" cy="6.7" r="2.6"/><rect x="13.3" y="13.3" width="6.7" height="6.7" rx=".25"/></svg>;}
-export function QuickRecord({size=18,...props}:Props){return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...props}><rect x="3" y="7" width="12" height="10" rx=".6"/><path d="m15 12 6-4.7v9.4L15 12M6 10l2 2-2 2m4-4 2 2-2 2"/></svg>;}
+export function Elements({size=18,...props}:Props){return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={ICON_STROKE} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...props}><path d="M4 10.5 7.2 4l3.3 6.5M5.1 8.3h4.2M4 16.5h6M7 13.5v6"/><circle cx="17.4" cy="6.7" r="2.6"/><rect x="13.3" y="13.3" width="6.7" height="6.7" rx=".25"/></svg>;}
+export function QuickRecord({size=18,...props}:Props){return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={ICON_STROKE} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...props}><rect x="3" y="7" width="12" height="10" rx=".6"/><path d="m15 12 6-4.7v9.4L15 12M6 10l2 2-2 2m4-4 2 2-2 2"/></svg>;}

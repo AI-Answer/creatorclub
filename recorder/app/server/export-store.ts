@@ -44,7 +44,7 @@ export async function fingerprintRendererFile(file:string,deadline=Date.now()+50
  const failure=(error:unknown)=>new Error(`Could not verify renderer ${file}: ${error instanceof Error?error.message:String(error)}`,{cause:error});
  let firstDigest:string|undefined;
  for(let attempt=0;attempt<6;attempt++){
-  const remaining=deadline-Date.now();if(remaining<=0)throw failure(Error('Renderer verification timed out. Try opening SceneForge again.'));
+  const remaining=deadline-Date.now();if(remaining<=0)throw failure(Error('Renderer verification timed out. Try opening Creator Compiler again.'));
   try{
    const identity=await fingerprintFile(file,AbortSignal.timeout(remaining));
    if(firstDigest!==undefined&&identity.sha256!==firstDigest)throw Error('Renderer content changed while its fingerprint was being read');
@@ -53,11 +53,11 @@ export async function fingerprintRendererFile(file:string,deadline=Date.now()+50
    if(!(error instanceof FingerprintChanged)||!error.metadataOnly||attempt===2)throw failure(error);
    if(firstDigest!==undefined&&error.readSha256!==firstDigest)throw failure(Error('Renderer content changed while its fingerprint was being read'));
    firstDigest=error.readSha256;
-   const delay=25*(attempt+1);if(Date.now()+delay>=deadline)throw failure(Error('Renderer verification timed out. Try opening SceneForge again.'));
+   const delay=25*(attempt+1);if(Date.now()+delay>=deadline)throw failure(Error('Renderer verification timed out. Try opening Creator Compiler again.'));
    await new Promise(resolve=>setTimeout(resolve,delay));
   }
  }
- throw failure(Error('Renderer verification did not settle. Try opening SceneForge again.'));
+ throw failure(Error('Renderer verification did not settle. Try opening Creator Compiler again.'));
 }
 export async function atomicExportJSON(file:string,value:unknown,platform:NodeJS.Platform=process.platform){
  const tmp=file+'.'+randomUUID()+'.tmp';let handle:FileHandle|undefined;

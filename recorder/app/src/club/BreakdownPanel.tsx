@@ -64,7 +64,7 @@ function BreakdownResult({breakdown,multiplier,videos,onAdded}:{breakdown:Breakd
   <div className="bd-head">
    {breakdown.url?<a href={breakdown.url} target="_blank" rel="noopener noreferrer" style={{width:220,flex:'none'}}>{picture}</a>:<div style={{width:220,flex:'none'}}>{picture}</div>}
    <div className="grow">
-    <div style={{fontWeight:650,fontSize:17,letterSpacing:'-0.015em',lineHeight:1.3}}>{video.title}</div>
+    <div style={{fontWeight:650,fontSize:17,letterSpacing:'0',lineHeight:1.3}}>{video.title}</div>
     <div className="row" style={{marginTop:8,gap:8}}>{video.channel&&<><Avatar name={video.channel} size="sm"/><span className="muted">{video.channel}</span></>}<span className="faint small">{PLATFORM_LABEL[breakdown.platform]??breakdown.platform}</span></div>
     <div className="row" style={{marginTop:14,gap:8,flexWrap:'wrap'}}>
      <MultChip m={mult} who={who} label dash/>

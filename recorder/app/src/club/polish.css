@@ -1,5 +1,5 @@
 /* Final visual layer shared by the channel workspace. Editor geometry stays in editing-club.css. */
-.club-root .compiler-nav-brand { display:flex; align-items:center; gap:9px; min-height:34px; padding:2px 6px 10px; margin-bottom:7px; color:var(--cc-text); font-size:var(--cc-text-sm,13px); font-weight: var(--cc-weight-semibold); letter-spacing:-.025em; white-space:nowrap; }
+.club-root .compiler-nav-brand { display:flex; align-items:center; gap:9px; min-height:34px; padding:2px 6px 10px; margin-bottom:7px; color:var(--cc-text); font-size:var(--cc-text-sm,13px); font-weight: var(--cc-weight-semibold); letter-spacing:0; white-space:nowrap; }
 .club-root .compiler-nav-brand .compiler-mark { flex:none; }
 .club-root .collapsed .compiler-nav-brand { justify-content:center; padding-inline:0; }
 .club-root .collapsed .compiler-nav-brand > span { display:none; }
@@ -11,17 +11,17 @@
 .club-desktop[data-platform=darwin] .sidebar.collapsed + .main-col .ws-top { padding-left:40px; }
 .club-root .page { padding:24px 32px 48px; }
 .club-root .page-head { margin-bottom:24px; align-items:center; }
-.club-root .page-head h1 { font-size:var(--cc-text-2xl,30px); line-height:1.2; letter-spacing:-.035em; }
+.club-root .page-head h1 { font-size:var(--cc-text-2xl,30px); line-height:1.2; letter-spacing:-0.01em; }
 .club-root .page-head .lede { line-height:1.65; color:var(--cc-text-3); }
 .club-root .card { box-shadow:var(--cc-shadow-card); }
 .club-root .tthumb .draft-mark { position:absolute; right:10%; top:18%; width:27%; aspect-ratio:1; opacity:.42; transform:rotate(-10deg); }
 .club-root .tthumb .draft-mark .compiler-mark { width:100%; height:100%; }
-.club-root .btn:where(:not(.club-embed *)) { height:36px; border-radius:var(--cc-r); letter-spacing:-.01em; }
+.club-root .btn:where(:not(.club-embed *)) { height:36px; border-radius:var(--cc-r); letter-spacing:0; }
 .club-root .btn.sm:where(:not(.club-embed *)) { height:30px; }
 .club-root .btn.primary:where(:not(.club-embed *)) { box-shadow:var(--cc-shadow-primary); }
 .club-root .settings-page { max-width:880px; }
 .club-root .set-group { margin-bottom:34px; scroll-margin-top:30px; }
-.club-root .set-group > h2 { font-size:var(--cc-text-lg,17px); font-weight: var(--cc-weight-semibold); letter-spacing:-.02em; margin-bottom:6px; }
+.club-root .set-group > h2 { font-size:var(--cc-text-lg,17px); font-weight: var(--cc-weight-semibold); letter-spacing:0; margin-bottom:6px; }
 .club-root .set-group > p { line-height:1.6; margin-bottom:16px; }
 .club-root .srow { padding:20px; gap:16px; }
 .club-root .srow2 { padding:18px 20px; gap:16px; }
@@ -42,7 +42,7 @@
 .club-root .welcome-header .linkish:hover { background:var(--cc-hover); text-decoration:none; }
 .club-root .welcome-body { padding-top:clamp(24px,5vh,56px); }
 .club-root .welcome-col { width:760px; }
-.club-root .welcome-title { font-size:var(--cc-text-2xl,34px); line-height:1.16; font-weight: var(--cc-weight-semibold); letter-spacing:-.04em; margin:0 0 12px; }
+.club-root .welcome-title { font-size:var(--cc-text-2xl,34px); line-height:1.16; font-weight: var(--cc-weight-semibold); letter-spacing:-0.01em; margin:0 0 12px; }
 .club-root .welcome-why { margin:0 0 28px; font-size:var(--cc-text-lg,15px); line-height:1.65; max-width:620px; }
 .club-root .welcome .card { overflow:hidden; }
 .club-root .welcome .srow { padding:23px 24px; }
@@ -174,7 +174,6 @@
 .club-root .settings-body-b .sk-desc { display: block; margin-top: 4px; font-size: var(--cc-text-xs); }
 .club-root .skill-details:not([hidden]) { margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--cc-line); }
 .club-root .skill-details p { margin-top: 8px; font-size: var(--cc-text-xs); line-height: 1.5; color: var(--cc-text-3); }
-.club-root .optional-badge { background: transparent; border: 1px solid var(--cc-line-strong); color: var(--cc-text-2); height: 20px; font-size: var(--cc-text-2xs); }
 .club-root .new-recents .linkish { color: var(--cc-primary); }
 .club-root button:focus:not(:focus-visible), .club-root a:focus:not(:focus-visible) { outline: none; }
 .club-root .dialog .dh h3 { font-size: var(--cc-text-lg); font-weight: var(--cc-weight-semibold); }

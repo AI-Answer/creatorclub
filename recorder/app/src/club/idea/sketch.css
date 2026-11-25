@@ -30,7 +30,7 @@
 .club-root .sk-root .sk-proof li:focus-within :is(.bs-text, .sk-clamp) { color: var(--br-fg); }
 
 /* The logline as a statement. */
-.club-root .sk-root .sk-logline { font-family: 'Instrument Serif', Georgia, serif; font-size: var(--cc-text-2xl); line-height: 32px; letter-spacing: -.005em; }
+.club-root .sk-root .sk-logline { font-family: Charter, 'Iowan Old Style', Georgia, serif; font-size: var(--cc-text-2xl); line-height: 32px; letter-spacing: 0; text-wrap: balance; }
 
 /* Talking points: a quiet name, one line. */
 .club-root .sk-root .sk-points { display: flex; flex-direction: column; gap: 2px; margin: 0; padding: 0; list-style: none; }

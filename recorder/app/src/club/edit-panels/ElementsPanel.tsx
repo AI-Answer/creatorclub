@@ -14,7 +14,7 @@ import {BrColorField,BrDrawer,BrGroup,BrSection,BrSlider,BrSub,BrToggleRow} from
 */
 
 const TYPE_LABEL:Record<Element['type'],string>={text:'Text',rectangle:'Rectangle',ellipse:'Ellipse',arrow:'Arrow',highlight:'Highlight',blur:'Blur'};
-/** The annotation tiles, in Borumi's order; Highlight and Blur are CreatorClub's own element types. */
+/** The annotation tiles, in Borumi's order; Highlight and Blur are Creator Compiler's own element types. */
 const ANNOTATIONS:ReadonlyArray<{type:Element['type'];label:string}>=[{type:'arrow',label:'Arrow'},{type:'rectangle',label:'Rectangle'},{type:'ellipse',label:'Ellipse'},{type:'highlight',label:'Highlight'},{type:'blur',label:'Blur'}];
 /** The four frame fields. Borumi's sliders are in pixels; an element is stored as a share of the frame, so these show percent. */
 const GEOMETRY:ReadonlyArray<readonly [keyof Pick<Element,'x'|'y'|'width'|'height'>,string]>=[['x','X position'],['y','Y position'],['width','Width'],['height','Height']];

@@ -8,8 +8,8 @@ export function capturePermissionProgress(permissions:Partial<Pick<DesktopMediaP
  const current=capturePermissionOrder.find(kind=>!['granted','unsupported'].includes(permissions?.[kind]??''))??null;
  return {current,allSet:current===null};
 }
-/** The name to turn on in macOS Privacy & Security: the running app's own, else SceneForge (the standalone app). */
-export const privacyAppName=()=>(typeof window==='undefined'?undefined:window.sceneForge?.appName)||'SceneForge';
+/** The name to turn on in macOS Privacy & Security: the running app's own, else Creator Compiler. */
+export const privacyAppName=()=>(typeof window==='undefined'?undefined:window.sceneForge?.appName)||'Creator Compiler';
 export const permissionLabels:Record<DesktopMediaAccessStatus,string>={
  'not-determined':'Not set up',granted:'Allowed',denied:'Not allowed',restricted:'Restricted',unknown:'Not verified',unsupported:'Not available',
 };

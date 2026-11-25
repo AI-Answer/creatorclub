@@ -3,7 +3,7 @@ import type {AiState} from './ai-status';
 
 /** The four steps of first launch: what each one is called and why it is asked. */
 export const WELCOME_STEPS=[
- {title:'Your studio, your way',why:'Write, record, edit and export by hand. Connecting an AI is optional; you can add one later in Settings.'},
+ {title:'Connect an AI to help you write',why:'Write, record, edit and export by hand. Connecting an AI is optional; you can add one later in Settings.'},
  {title:'Do you have a YouTube channel?',why:'Either is fine. With a channel we learn your topics and how you talk from your videos. Without one, you tell us in a minute.'},
  {title:'How you talk',why:'Talking points get written in your words, so recording feels like you, not like reading.'},
  {title:"Here's what's working in your space",why:"You don't need to know what to make yet. Pick a video that's doing well, see why, and keep the concept you'd make."},
@@ -18,9 +18,9 @@ export type WelcomePath='channel'|'fresh';
 
 /** The three optional voice questions. `key` is the voice answer each one fills. */
 export const WELCOME_QUESTIONS:readonly {key:keyof VoiceAnswers;q:string;why:string;ph?:string;options?:readonly string[]}[]=[
- {key:'audience',q:'How would you explain what your channel is about to a friend?',ph:"I show people who aren't technical how to get real work done with AI…",why:'This becomes the one line Claude uses to pick ideas for you.'},
+ {key:'audience',q:'How would you explain what your channel is about to a friend?',ph:"I show people who aren't technical how to get their work done with AI…",why:'This becomes the one line Claude uses to pick ideas for you.'},
  {key:'voice',q:'How do you sound on camera?',options:['Calm and clear, like a teacher','Upbeat and fast','Dry and honest, a bit funny',"I don't know yet"],why:'Talking points get written the way you speak.'},
- {key:'moves',q:'Which creators do you like watching, and why?',ph:'e.g. A creator who builds live, because it feels real…',why:'It tells Claude what kind of delivery you like.'},
+ {key:'moves',q:'Which creators do you like watching, and why?',ph:'e.g. A creator who builds live, because it feels unscripted…',why:'It tells Claude what kind of delivery you like.'},
 ];
 const NOT_SURE="I don't know yet";
 

@@ -239,7 +239,7 @@ export function Publish({video,pkg,scenes,onVideo,onDescription,onTags,onGoTo,on
     {publishing.error?<ErrorLine message={publishing.error} onRetry={publishing.reload}/>:!publishing.state?<p className="pub-line" role="status"><Spinner label="Loading publishing settings"/>Loading publishing settings…</p>
      :<p className="pub-line pub-note">{postizReady?<>Goes to {publishing.state.postiz.channel?.name} with Postiz. <button type="button" className="linkish" onClick={onSettings}>Change</button></>
       :<>{copyStatus||'Copy the details, upload on YouTube, then add the link here.'} <button type="button" className="linkish" onClick={onSettings}>Publish from here instead</button></>}
-      {!selfUpload&&<> · <button type="button" className="linkish" onClick={()=>setSelfUpload(true)}>Add the YouTube link</button></>}</p>}
+      {!selfUpload&&<> Already uploaded? <button type="button" className="linkish" onClick={()=>setSelfUpload(true)}>Add the YouTube link</button></>}</p>}
     {selfUpload&&<SelfUpload video={video} onVideo={onVideo} open formId={linkFormId} onSubmitReady={setLinkReady}/>}
    </div>
   </div>{summary}</div>

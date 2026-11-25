@@ -89,7 +89,7 @@ export const RecordingSceneCards=memo(function RecordingSceneCards(props:Recordi
   {props.club&&project.scenes.length===1&&!takes.length&&!cards.get(project.scenes[0].id)?.all.length&&!project.scenes[0].script.trim()?<div className="rsc-ready">
    <div className="rsc-ready-inner">
     <div className="rsc-ready-copy">
-     <h1>Hey <span className="rsc-ready-wave">👋</span> Ready to record?</h1>
+     <h1>Ready to record?</h1>
      <div className="rsc-ready-steps">
       <div><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="currentColor"/><path d="m7.5 12.5 3 3 6-6.5" fill="none" stroke="var(--rsc-ready-check-ink)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/></svg>First, check your camera, microphone, and screen on the left.</div>
       <div><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="currentColor"/><path d="m7.5 12.5 3 3 6-6.5" fill="none" stroke="var(--rsc-ready-check-ink)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/></svg>When you're ready, click "Start recording".</div>
@@ -97,7 +97,7 @@ export const RecordingSceneCards=memo(function RecordingSceneCards(props:Recordi
     </div>
     <div className="rsc-ready-actions">
      <button type="button" className="rsc-ready-start" disabled={locked} onClick={()=>invoke(()=>props.onRecord(project.scenes[0].id,'replace-matching'))}><span className="rec-record-dot" aria-hidden/>Start recording</button>
-     <button type="button" className="rsc-ready-import" disabled={locked} onClick={()=>invoke(()=>props.onImport(project.scenes[0].id))}>Import from file...</button>
+     <button type="button" className="rsc-ready-import" disabled={locked} onClick={()=>invoke(()=>props.onImport(project.scenes[0].id))}>Import from file…</button>
     </div>
    </div>
   </div>:<>

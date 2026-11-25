@@ -144,7 +144,7 @@ test('an unplanned one-scene project opens the live recorder source controls, wh
   // Borumi's empty Record step: nothing planned and nothing recorded yet.
   assert.ok(ui.container.textContent?.includes('Ready to record?'));
   assert.equal(button(ui.container,'Start recording').disabled,false,'a plan is never required to start recording');
-  assert.ok(button(ui.container,'Import from file...'));
+  assert.ok(button(ui.container,'Import from file…'));
   await ui.render(page('idea'));await flush();
   assert.ok(ui.container.querySelector('.bs-root'),'Idea is the script, there whenever a plan is wanted: never a step to get through first');
   await ui.render(page('edit'));await flush();

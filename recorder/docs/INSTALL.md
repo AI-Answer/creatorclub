@@ -1,5 +1,8 @@
 # Install and build SceneForge
 
+> This page covers the earlier standalone SceneForge preview. To install or build Creator Compiler, see [desktop builds](../../docs/DESKTOP.md) and the [main README](../../README.md).
+
+
 ## Desktop preview
 
 The target is macOS 14 or later on Apple Silicon (M1 or newer). Intel macOS, Windows and Linux desktop releases are not provided.

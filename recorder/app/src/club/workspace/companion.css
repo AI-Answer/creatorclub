@@ -16,7 +16,7 @@
 .club-root .cmp-head { display: flex; align-items: center; gap: 8px; height: 52px; padding: 0 10px 0 16px; border-bottom: 1px solid var(--cc-line); }
 .club-root .cmp-head-mark { color: var(--cc-text); }
 .club-root .cmp-head-text { flex: 1; min-width: 0; }
-.club-root .cmp-title { font-size:var(--cc-text-base); font-weight: 600; letter-spacing: -0.01em; }
+.club-root .cmp-title { font-size:var(--cc-text-base); font-weight: 600; letter-spacing: 0; }
 .club-root .cmp-look { font-size:var(--cc-text-xs); color: var(--cc-text-3); display: flex; align-items: center; gap: 5px; white-space: nowrap; min-width: 0; margin-top: 1px; }
 .club-root .cmp-look > span:first-child { color: var(--cc-text-2); font-weight: 600; flex: none; }
 .club-root .cmp-look-scene { overflow: hidden; text-overflow: ellipsis; min-width: 0; }

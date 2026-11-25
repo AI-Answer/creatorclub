@@ -70,7 +70,7 @@ export function VideosScreen({route,navigate,onNewVideo}:{route:VideosRoute;navi
   {newIdea&&<div className="card next-idea">
    <Icon name="ai" size={18} style={{color:'var(--cc-text-2)'}}/>
    <div className="grow"><b>"{newIdea.title}" is in your ideas.</b><div className="small muted">Next: start planning it. You'll gather references on its board, then turn them into scenes.</div></div>
-   <button type="button" className="btn primary" onClick={()=>void actions.startPlanning(newIdea)}><Icon name="next" size={15}/>Start planning</button>
+   <button type="button" className="btn primary" onClick={()=>void actions.startPlanning(newIdea)}>Start planning</button>
   </div>}
 
   {view==='board'&&<Kanban onAdd={async(title:string,stage:VideoStage)=>{await clubFetch('/videos',{method:'POST',body:{title,stage}});reload();}} videos={videos} scenes={scenes} ideas={{newId,openGroup:group,actions}} onOpen={open} onMove={(id,stage,beforeId)=>void move(id,stage,beforeId)} onResearch={video=>void addToResearch({source:'video',id:video.id})}/>}

@@ -16,7 +16,7 @@
 
 /* The studio. Left: the picture, its idea, Make it. Right: what it is made from. Under both: three ideas to compare. */
 /* One fixed size, whatever is picked or drawn: only the gallery and the body scroll inside it. */
-.club-root .dialog.st-dialog { display: flex; flex-direction: column; height: min(860px, calc(100vh - 48px)); }
+.club-root .dialog.st-dialog { display: flex; flex-direction: column; height: min(860px, calc(100dvh - 48px)); }
 .club-root .dialog.st-dialog > .db { flex: 1; min-height: 0; overflow-y: auto; }
 .club-root .st-studio { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 24px; }
 @media (max-width: 900px) { .club-root .st-studio { grid-template-columns: minmax(0, 1fr); } }

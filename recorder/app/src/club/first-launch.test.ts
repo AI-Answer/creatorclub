@@ -80,7 +80,7 @@ test('Welcome step 1: Connect Claude installs with progress, waits for the brows
   try{
    await flush();const c=ui.container;
    assert.match(text(c),/Step 1 of 4/);
-   assert.equal(c.querySelector('h1')!.textContent,'Your studio, your way');
+   assert.equal(c.querySelector('h1')!.textContent,'Connect an AI to help you write');
    assert.match(text(c),/Connecting an AI is optional/);
    assert.equal(button(c,'Continue').disabled,false);
    assert.ok(button(c,'Connect Claude').classList.contains('primary'));

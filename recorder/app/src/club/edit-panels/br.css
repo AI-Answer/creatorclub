@@ -1,5 +1,5 @@
 /* Borumi's shared Edit-panel primitives (br.tsx), resolved from its stylesheet (index-DXJH5HZm.css). Scoped to the club's Edit side
-   panel. Light is :root and dark is .dark in Borumi; here the --br-* tokens follow CreatorClub's data-theme. */
+   panel. Light is :root and dark is .dark in Borumi; here the --br-* tokens follow Creator Compiler's data-theme. */
 .club-root .club-edit-side { --br-panel: var(--br-bg); }
 .club-root .club-edit-side .br-panel { display: flex; flex-direction: column; min-height: 100%; background: var(--br-bg); color: var(--br-primary); font-size: var(--cc-text-base); }
 .club-root .club-edit-side .br-panel.is-card { background: var(--br-card); }
@@ -11,7 +11,7 @@
 .club-root .club-edit-side .br-section-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .club-root .club-edit-side .br-section-head.has-body { margin-bottom: 12px; }
 .club-root .club-edit-side .br-section-title { display: flex; align-items: center; gap: 4px; font-size: var(--br-text-10); line-height: 14px; }
-.club-root .club-edit-side .br-section-title > span { opacity: .6; text-transform: uppercase; font-weight: 600; }
+.club-root .club-edit-side .br-section-title > span { color: var(--br-muted); text-transform:none; font-weight: 600; }
 
 /* Ae: title font-medium text-sm (text-xs compact) flex gap-1; secondary text-xs opacity-70; description Xt mt-1; body mt-2. */
 .club-root .club-edit-side .br-sub { display: flex; flex-direction: column; }
