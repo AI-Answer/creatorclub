@@ -147,3 +147,23 @@ test('pointer drag: a small sideways move of the first card does not swap it wit
   assert.deepEqual(moves,[],'the card stays where it was');
  }finally{await ui.close();}
 });
+
+test('pointer drag: holding a card at the bottom of a long lane scrolls far enough to drop it after the last card',async()=>{
+ const moves:unknown[][]=[];
+ localStorage.removeItem('cc-kanban-published-collapsed');
+ const videos=[mk('a'),...Array.from({length:12},(_,i)=>mk(`p${i}`,{stage:'planning',order:i}))];
+ const ui=await mountUI(createElement(Kanban,{videos,scenes:{},ideas:{actions:{} as IdeaActionSet},onAdd:async()=>{},onOpen:()=>{},onMove:(...args:unknown[])=>moves.push(args)}));
+ try{
+  const c=ui.container,lane=c.querySelector<HTMLElement>('[data-column="planning"] .lane-cards')!;
+  // 12 cards 100 px apart in a 960 px tall lane: 240 px of scroll before a slot opens in it.
+  Object.defineProperty(lane,'clientHeight',{configurable:true,get:()=>960});
+  Object.defineProperty(lane,'scrollHeight',{configurable:true,get:()=>1200});
+  const x=laneX(c,'planning'),y=995;
+  await pickUp(c,c.querySelector<HTMLElement>('[data-card-id="a"]')!,x,y);
+  await pause(1500);
+  assert.ok(lane.scrollTop>240,`the open slot adds a card's worth of scroll (scrolled ${lane.scrollTop})`);
+  await act(async()=>{document.dispatchEvent(new window.PointerEvent('pointerup',{bubbles:true,pointerId:1,clientX:x,clientY:y}));});
+  await pause(320);
+  assert.deepEqual(moves,[['a','planning',null]],'dropped after the last card');
+ }finally{await ui.close();}
+});
