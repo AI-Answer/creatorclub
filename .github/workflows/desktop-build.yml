@@ -152,6 +152,11 @@ jobs:
           version="$(sed -n 's/^version: //p' release/latest.yml)"
           test -n "$version"
           test "$(sed -n 's/^version: //p' release/latest-mac.yml)" = "$version"
+          # Version-less copies of the installers, so the README's .../releases/latest/download/<name> links always work.
+          # Installed apps keep updating from latest*.yml, which names the versioned files.
+          for name in mac-arm64.dmg win-x64.exe; do
+            cp "release/Creator-Compiler-$version-$name" "release/Creator-Compiler-$name"
+          done
           ls -l release
           gh release create "v$version" --title "Creator Compiler $version" --target "$GITHUB_SHA" \
             --notes "Built from $GITHUB_SHA. Installed apps update to it on their own." release/*

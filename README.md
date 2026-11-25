@@ -7,6 +7,18 @@
 
 Write your scenes, record your screen and camera, shape the timeline, and export. Cutroom runs alongside the editor to remove retakes and quiet gaps and render word-anchored motion graphics. Everything runs on your computer.
 
+## Download
+
+| | |
+| --- | --- |
+| **Mac** (Apple Silicon, macOS 14+) | [Download Creator-Compiler-mac-arm64.dmg](https://github.com/AI-Answer/creatorclub/releases/latest/download/Creator-Compiler-mac-arm64.dmg) |
+| **Windows** (x64) | [Download Creator-Compiler-win-x64.exe](https://github.com/AI-Answer/creatorclub/releases/latest/download/Creator-Compiler-win-x64.exe) |
+
+These links always get the newest build. Older versions and release notes are on the [releases page](https://github.com/AI-Answer/creatorclub/releases). Installed apps update themselves when you quit them.
+
+The Mac app isn't notarized yet, so macOS stops it the first time you open it.
+Right-click the app and choose **Open** (macOS 14), or go to **System Settings → Privacy & Security** and click **Open Anyway** (macOS 15 and later). On Windows, click **More info → Run anyway**.
+
 ## Desktop apps
 
 The app uses **Electron for the desktop window and device access**, **React for the interface**, and **Rust for Cutroom**. It runs as an installed desktop application. A local loopback service handles media; no hosted service or separate browser is required.
@@ -72,6 +84,40 @@ npm run package:win      # run on Windows: installer, ZIP
 Installers bundle **Cutroom, FFmpeg, FFprobe, and fonts**. No Rust, Node, npm, or FFmpeg installation is needed on the end user's computer. Local speech transcription additionally needs Whisper and a compatible model. Privacy OCR needs Tesseract. These optional tools are not included in the new cross-platform installer recipe.
 
 Source development stores recording projects in `recorder/app/.local/studio` and channel workspaces in `.local/channels`, with its own desktop profile. Installed apps use their platform application-data folder. Installed channel workspaces live in `~/Documents/Creator Compiler`; an existing `~/Documents/CreatorClub` workspace continues to be used when the new folder does not exist. `CREATORCLUB_DIR`, `SCENEFORGE_DATA_DIR`, and `SCENEFORGE_PORT` remain supported compatibility settings. Use separate workspace, data, and port settings for smoke tests.
+
+## Make it yours
+
+Build your own copy from source and change whatever you like. One command checks your tools, builds everything, and installs **Creator Compiler (Local)** next to the downloaded app. It keeps its own recordings, projects and settings, and never updates itself from our releases.
+
+```sh
+git clone https://github.com/AI-Answer/creatorclub.git
+cd creatorclub
+npm run setup:local
+```
+
+If a tool is missing (Node.js 24, Rust, CMake, Xcode Command Line Tools on a Mac, Visual Studio Build Tools on Windows), it stops and prints the install command. It never installs system tools for you. Then open **Creator Compiler (Local)** from `~/Applications` on a Mac or the Start menu on Windows.
+
+Or paste this into Claude Code, Codex or T3 Code:
+
+```text
+Clone https://github.com/AI-Answer/creatorclub and open the folder. Read AGENTS.md first.
+Run npm run setup:local. If it says a tool is missing, show me the install command and wait for me.
+When it finishes, open Creator Compiler (Local).
+Then help me change: <what you want to change>
+After each change, run npm test, then npm run setup:local again so the app I open has the change.
+```
+
+Where things live:
+
+- `recorder/app/src`: the interface (React). `npm run dev` serves it at `http://127.0.0.1:4183` and reloads as you edit.
+- `recorder/app/server`: the local service (projects, media, exports, MCP tools).
+- `recorder/app/desktop`: the Electron shell (windows, recording, permissions, updates).
+- `engine/cutroom`: the Rust editing engine.
+- `methodology/`: the prompt files the planning tools use.
+
+An agent can drive the app while it works. `.mcp.json` registers the `creator-compiler-dev` MCP server, which Claude Code picks up when started in this folder. It starts or reuses the source service on port `4184` (with test data in `recorder/app/.local`) so the agent can open projects, edit the timeline and run Cutroom, and you watch the result in `npm run dev` or `npm run desktop`.
+
+To keep up with this repository, run `git pull` (or `git pull upstream main` in a fork), then `npm run setup:local` again. It only reinstalls dependencies when they changed.
 
 ## Connect through MCP
 

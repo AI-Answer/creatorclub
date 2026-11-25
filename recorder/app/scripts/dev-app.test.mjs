@@ -29,3 +29,21 @@ test('an existing bundle is replaced only when it is a Creator Compiler dev buil
   await rm(dir, { recursive: true, force: true });
  }
 });
+
+test('dev bundles sign with the named identity, else the pinned one still in the keychain, else the only one, else ad-hoc', async () => {
+ const {devSigningIdentity}=await import('./dev-app.mjs');
+ const a='A'.repeat(40),b='B'.repeat(40);
+ const list=(...shas)=>shas.map((sha,i)=>`  ${i+1}) ${sha} "Apple Development: Someone (TEAM${i})"`).join('\n')+`\n     ${shas.length} valid identities found\n`;
+ const dir = await mkdtemp(path.join(os.tmpdir(), 'creatorclub-devsign-'));
+ try {
+  assert.equal(await devSigningIdentity({root:dir,env:{CREATORCLUB_DEV_SIGN_IDENTITY:'Mine'},list:list(a)}), 'Mine');
+  assert.equal(await devSigningIdentity({root:dir,env:{},list:list(a)}), a);
+  assert.equal(await devSigningIdentity({root:dir,env:{},list:list(a,b)}), '-', 'several and no pin: ad-hoc, never a guess');
+  assert.equal(await devSigningIdentity({root:dir,env:{},list:list()}), '-');
+  await mkdir(path.join(dir,'.local'));await writeFile(path.join(dir,'.local/signing-identity.json'),JSON.stringify({version:1,sha1:b}));
+  assert.equal(await devSigningIdentity({root:dir,env:{},list:list(a,b)}), b);
+  assert.equal(await devSigningIdentity({root:dir,env:{},list:list(a)}), a, 'a pin no longer in the keychain is skipped');
+ } finally {
+  await rm(dir, { recursive: true, force: true });
+ }
+});

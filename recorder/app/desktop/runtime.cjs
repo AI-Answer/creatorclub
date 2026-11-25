@@ -1,5 +1,6 @@
 const path=require('node:path');
 const fs=require('node:fs');
+const os=require('node:os');
 /**
  * The Creator Compiler desktop app's own identity, so it runs next to a SceneForge app on the same Mac: its own name,
  * user-data folder (and with it its own single-instance lock), its own SceneForge data folder and its own service port.
@@ -7,7 +8,16 @@ const fs=require('node:fs');
  * `name` is what people see. `dataFolder` and `service` keep their established values: the folder holds every installed
  * copy's recordings (the MCP launcher finds it by that name too), and `service` is the handshake its local service answers.
  */
-const CREATORCLUB=Object.freeze({name:'Creator Compiler',dataFolder:'Creator Compiler',service:'Creator Compiler',port:4194});
+const INSTALLED=Object.freeze({name:'Creator Compiler',dataFolder:'Creator Compiler',service:'Creator Compiler',port:4194,local:false});
+/**
+ * A copy someone builds from source with `npm run setup:local` ("Creator Compiler (Local)", electron-builder.local.cjs) says so in
+ * its package.json (`creatorCompilerEdition: "local"`). It runs next to the downloaded app: its own name, data folder, projects
+ * folder and port, and it never updates itself from the published releases.
+ */
+const LOCAL=Object.freeze({name:'Creator Compiler (Local)',dataFolder:'Creator Compiler (Local)',service:'Creator Compiler',port:4195,local:true});
+const identityFor=edition=>edition==='local'?LOCAL:INSTALLED;
+const edition=(()=>{try{return JSON.parse(fs.readFileSync(path.join(__dirname,'..','package.json'),'utf8')).creatorCompilerEdition;}catch{return undefined;}})();
+const CREATORCLUB=identityFor(edition);
 /** The name macOS lists in Privacy & Security: the app bundle that runs this process ("Creator Compiler Dev", "Creator Compiler", or an older install's "CreatorClub"), else Creator Compiler. */
 const privacyAppName=(execPath=process.execPath)=>/([^/]+)\.app\/Contents\/MacOS\/[^/]+$/.exec(execPath)?.[1]||CREATORCLUB.name;
 function creatorClubPaths({appData,env=process.env,developmentRoot}){
@@ -46,6 +56,8 @@ function runtimeEnvironment({root,data,port,modelsDir,env=process.env}){
   ...(fs.existsSync(path.join(bin,'ffmpeg'+suffix))&&!env.SCENEFORGE_FFMPEG?{SCENEFORGE_FFMPEG:path.join(bin,'ffmpeg'+suffix)}:{}),
   ...(fs.existsSync(path.join(bin,'ffprobe'+suffix))&&!env.SCENEFORGE_FFPROBE?{SCENEFORGE_FFPROBE:path.join(bin,'ffprobe'+suffix)}:{}),
   ...(methodology?{CREATORCLUB_METHODOLOGY_DIR:methodology}:{}),
+  // A local build keeps its projects and keys apart from the downloaded app's (~/Documents/Creator Compiler, Application Support/Creator Compiler).
+  ...(CREATORCLUB.local?{CREATORCLUB_DIR:env.CREATORCLUB_DIR||path.join(os.homedir(),'Documents',CREATORCLUB.dataFolder),CREATORCLUB_SECRETS_DIR:env.CREATORCLUB_SECRETS_DIR||path.dirname(path.resolve(data))}:{}),
  };
 }
-module.exports={CREATORCLUB,creatorClubPaths,privacyAppName,isCreatorClubService,methodologyDir,whisperModel,runtimeEnvironment};
+module.exports={CREATORCLUB,identityFor,creatorClubPaths,privacyAppName,isCreatorClubService,methodologyDir,whisperModel,runtimeEnvironment};
