@@ -67,7 +67,8 @@ export class CardDrag {
   this.overlay.append(this.copy);layer.append(this.overlay);
   this.gap=document.createElement('div');this.gap.className='drop-gap';this.gap.setAttribute('aria-hidden','true');this.gap.dataset.dropLine='';
   board.classList.add('is-dragging');if(reduced)board.classList.add('reduced-motion');
-  this.measure();
+  // The card's own slot starts open, so a small sideways move never reads as crossing the next card.
+  if(this.measure())this.show(this.home,this.homeIndex,true);
   window.addEventListener('scroll',this.onScroll,{capture:true,passive:true});window.addEventListener('resize',this.onResize);
   this.update();
   // Lift on the next frame, so the copy's own transition plays from the card's resting look.
@@ -186,8 +187,11 @@ export class CardDrag {
    const {left,right}=this.laneX(lane);
    if(x>=left&&x<=right&&y>=lane.top-EDGE&&y<=lane.bottom+EDGE){
     const v=-edgeSpeed(y-lane.top,EDGE)+edgeSpeed(lane.bottom-y,EDGE);
-    const next=Math.min(lane.maxScroll,Math.max(0,lane.scroll+v));
-    if(v&&next!==lane.scroll){lane.scroll=next;lane.lane.scrollTop=next;moved=true;}
+    // A slot opened in another lane pushes its cards down by one card, so that lane can scroll that much further while it is open.
+    const room=lane.maxScroll+(lane===this.home?0:this.slot);
+    const next=Math.min(room,Math.max(0,lane.scroll+v));
+    // Keep what the browser actually allows (it clamps), so the hit test and the screen agree. One read, only while scrolling.
+    if(v&&next!==lane.scroll){lane.lane.scrollTop=next;lane.scroll=lane.lane.scrollTop;moved=true;}
    }
   }
   const b=this.boardRect,h=-edgeSpeed(x-b.left,BOARD_EDGE)+edgeSpeed(b.right-x,BOARD_EDGE);

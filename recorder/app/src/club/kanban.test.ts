@@ -133,3 +133,17 @@ test('pointer drag with reduced motion drops at once, with no settle animation',
   assert.equal(!!c.querySelector('.kanban-drag-overlay'),false);
  }finally{await ui.close();window.matchMedia=before;}
 });
+
+test('pointer drag: a small sideways move of the first card does not swap it with the card below',async()=>{
+ const moves:unknown[][]=[];
+ const ui=await board((...args)=>moves.push(args));
+ try{
+  const c=ui.container,card=c.querySelector<HTMLElement>('[data-card-id="a"]')!;
+  layoutBoard(c);const box=card.getBoundingClientRect(),x=box.left+box.width/2,y=box.top+box.height/2;
+  await pickUp(c,card,x+6,y,3);
+  assert.ok(!!c.querySelector('.kanban-drag-overlay'),'6 px is a drag');
+  await act(async()=>{document.dispatchEvent(new window.PointerEvent('pointerup',{bubbles:true,pointerId:1,clientX:x+6,clientY:y}));});
+  await pause(320);
+  assert.deepEqual(moves,[],'the card stays where it was');
+ }finally{await ui.close();}
+});
