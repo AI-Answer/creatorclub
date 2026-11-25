@@ -340,6 +340,30 @@ export async function filmstrip(m: Media, cacheDir: string): Promise<string> {
     }
   });
 }
+/** Where a waveform decode has got to: samples seen so far and the bytes of a frame split across two pipe reads. */
+export interface PeakState { sample: number; pending: Buffer }
+/**
+ * Folds one piece of 8 kHz interleaved float PCM into `bins`: each sample frame raises the peak of the bin its time falls in to the largest
+ * absolute channel value (capped at 1, non-finite values skipped). Bytes of an incomplete frame wait in `state.pending` for the next piece.
+ */
+export function accumulatePeaks(bins: number[], state: PeakState, buf: Buffer, channels: number, duration: number) {
+  const count = bins.length, frameBytes = channels * 4;
+  const bytes = state.pending.length ? Buffer.concat([state.pending, buf]) : buf;
+  const end = bytes.length - bytes.length % frameBytes;
+  let sample = state.sample;
+  for (let i = 0; i < end; i += frameBytes) {
+    const index = Math.floor(sample++ * count / (duration * 8000));
+    if (index >= count) continue;
+    let peak = bins[index];
+    for (let channel = 0; channel < channels; channel++) {
+      const value = Math.abs(bytes.readFloatLE(i + channel * 4));
+      if (Number.isFinite(value)) peak = Math.max(peak, Math.min(1, value));
+    }
+    bins[index] = peak;
+  }
+  state.sample = sample;
+  state.pending = Buffer.from(bytes.subarray(end));
+}
 /** Absolute source-level peaks at 50 Hz through 24 hours, uniformly covering [0, duration), never normalized. */
 export async function waveform(m: Media, cacheDir: string): Promise<number[]> {
   // Older video metadata has no hasAudio flag. Probe it instead of hiding its waveform.
@@ -364,8 +388,7 @@ export async function waveform(m: Media, cacheDir: string): Promise<number[]> {
     if (!info.streams?.length && m.kind === "video") return [];
     if (!Number.isInteger(channels) || channels < 1 || channels > 32)
       throw new Error("Waveform requires a supported audio stream with at most 32 channels");
-    const bins = new Array<number>(count).fill(0), frameBytes = channels * 4;
-    let sample = 0, pendingBytes: Buffer = Buffer.alloc(0);
+    const bins = new Array<number>(count).fill(0), peaks: PeakState = { sample: 0, pending: Buffer.alloc(0) };
     await limited(() => new Promise<void>((resolve, reject) => {
       jobSignal()?.throwIfAborted();const child = trackChild(spawn(FFMPEG, ["-v", "error", "-nostdin", "-threads", "2", "-i", source.real,
         "-map", "0:a:0", "-vn", "-sn", "-dn", "-filter_threads", "1",
@@ -385,25 +408,13 @@ export async function waveform(m: Media, cacheDir: string): Promise<number[]> {
       };
       child.stdout.on("data", (buf: Buffer) => {
         lastData = Date.now();
-        const bytes = pendingBytes.length ? Buffer.concat([pendingBytes, buf]) : buf;
-        const end = bytes.length - bytes.length % frameBytes;
-        for (let i = 0; i < end; i += frameBytes) {
-          const index = Math.floor(sample++ * count / (m.duration * 8000));
-          if (index >= count) continue;
-          let peak = bins[index];
-          for (let channel = 0; channel < channels; channel++) {
-            const value = Math.abs(bytes.readFloatLE(i + channel * 4));
-            if (Number.isFinite(value)) peak = Math.max(peak, Math.min(1, value));
-          }
-          bins[index] = peak;
-        }
-        pendingBytes = Buffer.from(bytes.subarray(end));
+        accumulatePeaks(bins, peaks, buf, channels, m.duration);
       });
       child.stderr.on("data", (bytes: Buffer) => { error = (error + bytes).slice(-2000); });
       child.once("error", finish);
       child.once("close", code => finish(timedOut ? new Error("Waveform analysis exceeded its time limit") :
         code !== 0 ? new Error(`Waveform audio decode failed: ${error}`) :
-        !sample || pendingBytes.length ? new Error("Waveform audio decode returned incomplete samples") : undefined));
+        !peaks.sample || peaks.pending.length ? new Error("Waveform audio decode returned incomplete samples") : undefined));
     }));
     if ((await identity(m.path)).key !== source.key)
       throw new Error("Media changed during waveform analysis; try again");
@@ -416,6 +427,23 @@ export async function waveform(m: Media, cacheDir: string): Promise<number[]> {
     } finally { await fs.rm(temporary, {force: true}); }
     return bins;
   });
+}
+
+/** Where a screen activity decode has got to: the last whole frame and the bytes of a frame split across two pipe reads. */
+export interface ActivityState { previous?: Buffer; pending: Buffer }
+/** Appends, for each whole grey frame in this piece, the share of its pixels that moved by more than `levels` since the frame before (0 for the first). */
+export function frameActivity(values: number[], state: ActivityState, buf: Buffer, size: number, levels: number) {
+  let bytes = state.pending.length ? Buffer.concat([state.pending, buf]) : buf, previous = state.previous;
+  while (bytes.length >= size) {
+    const frame = bytes.subarray(0, size);
+    let moved = 0;
+    if (previous) for (let i = 0; i < size; i++) if (Math.abs(frame[i] - previous[i]) > levels) moved++;
+    values.push(Math.round(moved / size * 10000) / 10000);
+    previous = Buffer.from(frame);
+    bytes = bytes.subarray(size);
+  }
+  state.previous = previous;
+  state.pending = Buffer.from(bytes);
 }
 
 /** Samples per source second that Auto layout reads a screen recording at, and the grey picture each sample is shrunk to. */
@@ -439,7 +467,7 @@ export async function screenActivity(m: Media, cacheDir: string): Promise<{ rate
         return { rate: ACTIVITY_RATE, values: cached as number[] };
     } catch { /* Absent or damaged disposable cache: measure again. */ }
     const size = ACTIVITY_WIDTH * ACTIVITY_HEIGHT, values: number[] = [];
-    let previous: Buffer | undefined, pending: Buffer = Buffer.alloc(0);
+    const frames: ActivityState = { pending: Buffer.alloc(0) };
     await limited(() => new Promise<void>((resolve, reject) => {
       jobSignal()?.throwIfAborted();
       // The decoder uses every core: Auto layout waits on this the first time (about 4 s per 5 minutes of 1080p), then reads the cache.
@@ -458,16 +486,7 @@ export async function screenActivity(m: Media, cacheDir: string): Promise<{ rate
       };
       child.stdout.on("data", (buf: Buffer) => {
         lastData = Date.now();
-        let bytes = pending.length ? Buffer.concat([pending, buf]) : buf;
-        while (bytes.length >= size) {
-          const frame = bytes.subarray(0, size);
-          let moved = 0;
-          if (previous) for (let i = 0; i < size; i++) if (Math.abs(frame[i] - previous[i]) > ACTIVITY_LEVELS) moved++;
-          values.push(Math.round(moved / size * 10000) / 10000);
-          previous = Buffer.from(frame);
-          bytes = bytes.subarray(size);
-        }
-        pending = Buffer.from(bytes);
+        frameActivity(values, frames, buf, size, ACTIVITY_LEVELS);
       });
       child.stderr.on("data", (bytes: Buffer) => { error = (error + bytes).slice(-2000); });
       child.once("error", finish);
@@ -1789,8 +1808,14 @@ async function executeExport(
 }
 
 /** Bound simultaneous decoders and raster inputs by rendering time windows, then stream-copying them. */
-function sliceProject(p: Project, start: number, end: number): Project {
-  const q = structuredClone(p);
+export function sliceProject(p: Project, start: number, end: number): Project {
+  // Copy only what the window keeps as is: the timed arrays below are rebuilt from `p`, so cloning them (every caption, clip and
+  // cursor point of a long video, once per ten-second window) would be thrown away. Spreading keeps the project's key order.
+  const q: Project = structuredClone({
+    ...p, scenes: [], clips: [], captions: [], elements: [], zooms: [],
+    ...(p.motion ? { motion: [] } : {}),
+    cursor: { ...p.cursor, points: [] },
+  });
   q.scenes = [
     {
       id: "render-window",
