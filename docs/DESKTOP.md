@@ -33,8 +33,8 @@ The Mac app is signed with the team's own **CreatorClub Dev** certificate (the c
 
 Installing for the first time:
 
-- **Mac:** download `Creator-Compiler-<version>-mac-arm64.dmg` from the newest release and drag Creator Compiler to Applications. The first time you open it, macOS says it can't verify the app: click **Done**, then **System Settings → Privacy & Security → Open Anyway**. You do this once; updates install on their own.
-- **Windows:** run `Creator-Compiler-<version>-win-x64.exe`. The installer is not signed yet, so Windows shows "Windows protected your PC": **More info → Run anyway**.
+- **Mac:** download `Creator-Compiler-<version>-mac-arm64.dmg` from the newest release (or `Creator-Compiler-mac-arm64.dmg`, the same file without the version, which [always links to the newest](https://github.com/AI-Answer/creatorclub/releases/latest/download/Creator-Compiler-mac-arm64.dmg)) and drag Creator Compiler to Applications. The first time you open it, macOS says it can't verify the app: click **Done**, then **System Settings → Privacy & Security → Open Anyway**. You do this once; updates install on their own.
+- **Windows:** run `Creator-Compiler-<version>-win-x64.exe` (or the version-less `Creator-Compiler-win-x64.exe`). The installer is not signed yet, so Windows shows "Windows protected your PC": **More info → Run anyway**.
 
 The app has had other names during development (SceneForge, CreatorClub). Everything people see now says Creator Compiler, while what existing installs depend on is unchanged: the app id `com.aianswer.creatorclub`, the data folder `Creator Compiler` (`~/Library/Application Support/Creator Compiler` on a Mac), the `CREATORCLUB_*` and `SCENEFORGE_*` environment variables, the signing certificate and the update feed. A Mac that installed an earlier build keeps its app where it is (for example `/Applications/CreatorClub.app`) and updates it in place, so MCP configurations that point inside it keep working. New installs are `Creator Compiler.app`.
 
@@ -49,3 +49,9 @@ Installed data lives under the platform application-data folder for Creator Comp
 Channel workspaces are stored separately in `~/Documents/Creator Compiler` (`CREATORCLUB_DIR` overrides this). Existing `~/Documents/CreatorClub` data is reused when the renamed folder is absent; it is not moved or overwritten. The desktop bundle includes Dani's methodology files and Inter font for the redesigned planning, recording, and editing workflows.
 
 A successful build or startup check does not establish real camera, microphone, system-audio, or long-recording acceptance on physical Windows hardware. Test those on the target computer before a release.
+
+## Running from source and local builds
+
+`npm run desktop` runs the shell on the source tree. On a Mac it runs inside `recorder/app/.local/Creator Compiler Dev.app`, a renamed and re-signed copy of the local Electron.app, so the Dock and menu bar show Creator Compiler and its icon rather than Electron. The copy is made once per Electron version (or icon or signing identity) and still starts from your terminal, so logs and privacy prompts behave as before. `CREATORCLUB_PLAIN_ELECTRON=1` runs the stock Electron.app.
+
+`npm run setup:local` (`scripts/setup-local.mjs`) builds and installs **Creator Compiler (Local)** from the checkout with `recorder/app/electron-builder.local.cjs`: `~/Applications/Creator Compiler (Local).app` on a Mac, `%LOCALAPPDATA%\Programs\Creator Compiler (Local)` on Windows. Its package.json carries `creatorCompilerEdition: "local"`, so `desktop/runtime.cjs` gives it its own data folder (`Creator Compiler (Local)`), projects folder (`~/Documents/Creator Compiler (Local)`) and port (`4195`), and it never self-updates. On a Mac it is signed with the identity `scripts/dev-app.mjs` picks (`CREATORCLUB_DEV_SIGN_IDENTITY`, the pin in `.local/signing-identity.json`, or the only Apple signing identity in the keychain), which keeps camera, microphone and screen permissions across rebuilds; with none it is ad-hoc signed.
