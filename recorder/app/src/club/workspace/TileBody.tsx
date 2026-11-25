@@ -8,6 +8,7 @@ import {creatorName,fmtDays,fmtNum} from '../format';
 import {Avatar,Icon,IconButton,MultChip,SourceIcon,Spinner,StagePill,Thumb,type IconName} from '../ui';
 import {ideaWhy} from '../ideas';
 import {InlineText} from './InlineText';
+import {BrandLogo} from '../../BrandLogo';
 import {boardBase} from './board-base';
 import type {NoteSaved,Reading} from './useBoard';
 import {StickyNote} from './StickyNote';
@@ -20,7 +21,7 @@ export function tileImage(videoId:string,tile:ResearchTile):string|undefined{
 
 /** The head of a tile: its label, and a quiet remove button. */
 function TileHead({icon,label,onRemove,children}:{icon:IconName;label:string;onRemove():void;/** Buttons before the remove button. */children?:ReactNode}){
- return <div className="th"><Icon name={icon} size={13}/>{label}<span className="th-actions">{children}<IconButton icon="close" iconSize={13} label="Remove from the board" className="x" onClick={onRemove} style={{width:22,height:22}}/></span></div>;
+ return <div className="th">{icon==='youtube'?<BrandLogo brand="youtube" size={13}/>:<Icon name={icon} size={13}/>}{label}<span className="th-actions">{children}<IconButton icon="close" iconSize={13} label="Remove from the board" className="x" onClick={onRemove} style={{width:22,height:22}}/></span></div>;
 }
 
 export interface TileBodyProps{

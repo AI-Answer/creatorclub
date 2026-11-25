@@ -5,6 +5,7 @@ import {ProgressLine} from '../ProgressLine';
 import {ADD_CHANNEL_ESTIMATE,addTopic,freshReady,toggle,type WelcomeChannel,type WelcomePath} from '../welcome';
 import type {JobRun} from '../useJobRun';
 import {Avatar,Button,Icon,Input,type IconName} from '../ui';
+import {BrandLogo} from '../../BrandLogo';
 
 export interface FreshDraft{name:string;channelName:string;topics:string[];audience:string[]}
 
@@ -33,7 +34,7 @@ export function ChannelStep({path,onPath,url,onUrl,job,background,onAdd,block,on
  const patch=(change:Partial<FreshDraft>)=>onFresh({...fresh,...change});
  return <div>
   {!done&&<div className="grid g2" style={{gap:12,marginBottom:18}}>{PATHS.map(option=><button key={option.key} type="button" className={`topt${path===option.key?' on':''}`} style={{flexDirection:'column',gap:8,padding:16,textAlign:'left',background:path===option.key?'var(--cc-surface-2)':'var(--cc-surface)'}} disabled={running} aria-pressed={path===option.key} aria-label={`${option.title}. ${option.text}`} onClick={()=>onPath(option.key)}>
-   <span className="row" style={{width:'100%'}}><Icon name={option.icon} size={20}/><span className="grow"/><span className="radio"/></span><b style={{fontSize:15}}>{option.title}</b><span className="small muted">{option.text}</span></button>)}</div>}
+   <span className="row" style={{width:'100%'}}>{option.icon==='youtube'?<BrandLogo brand="youtube" size={20}/>:<Icon name={option.icon} size={20}/>}<span className="grow"/><span className="radio"/></span><b style={{fontSize:15}}>{option.title}</b><span className="small muted">{option.text}</span></button>)}</div>}
 
   {path==='channel'&&<div className="card" style={{padding:16}}>
    {done&&<div className="row" style={{gap:12}}><Avatar name={channel.name} size="lg"/><div className="grow"><b>{channel.name}</b><div className="small muted">{channel.handle||'Your channel'}</div></div><span className="chip b-green"><Icon name="check" size={12}/>Added</span></div>}
