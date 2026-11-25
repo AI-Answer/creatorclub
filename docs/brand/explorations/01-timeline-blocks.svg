@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 64 64" fill="none">
+  <rect x="2" y="2" width="60" height="60" rx="15" fill="#DE5738"/>
+  <!-- Top timeline track: two compiled clips -->
+  <rect x="14" y="14" width="22" height="10" rx="3" fill="#FFF9EE"/>
+  <rect x="40" y="14" width="10" height="10" rx="3" fill="#FFF9EE"/>
+  <!-- Middle timeline track: left spine clip -->
+  <rect x="14" y="27" width="16" height="10" rx="3" fill="#FFF9EE"/>
+  <!-- Bottom timeline track: two staggered clips -->
+  <rect x="14" y="40" width="16" height="10" rx="3" fill="#FFF9EE"/>
+  <rect x="34" y="40" width="16" height="10" rx="3" fill="#FFF9EE"/>
+</svg>
