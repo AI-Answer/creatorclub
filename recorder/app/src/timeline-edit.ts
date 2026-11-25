@@ -17,7 +17,15 @@ export const MOTION_ROW='motion';
  */
 const EPS=1e-3;
 const end=(c:Clip)=>c.start+clipDuration(c);
-const updateCaptions=(p:Project,captions:Project['captions'])=>{if(JSON.stringify(p.captions)!==JSON.stringify(captions))p.captions=captions;};
+/**
+ * Replaces the captions only when their JSON would change, so an edit that leaves them as they were keeps the same array.
+ * Caption by caption, on the draft's plain current value (not through its proxies), stopping at the first difference:
+ * the same answer as comparing the two whole arrays' JSON, at a fraction of the cost on a long video.
+ */
+const updateCaptions=(p:Project,captions:Project['captions'])=>{
+ const current=plainView(p.captions);
+ if(current.length!==captions.length||current.some((c,i)=>c!==captions[i]&&JSON.stringify(c)!==JSON.stringify(captions[i])))p.captions=captions;
+};
 /** Rows whose emptiness makes a gap. Music runs under everything, so it never keeps a gap open. */
 const gapTracks:ReadonlySet<TrackKind>=new Set(['screen','camera','audio','overlay']);
 
