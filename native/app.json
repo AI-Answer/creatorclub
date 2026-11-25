@@ -1,0 +1,38 @@
+{
+  "host": {
+    "web": {},
+    "macos": {
+      "minimumOS": "14.0",
+      "window": {
+        "width": 1280,
+        "height": 800
+      }
+    }
+  },
+  "deploy": {
+    "store": {
+      "web": "0",
+      "macos": "0"
+    }
+  },
+  "env": [
+    "CLUB_URL"
+  ],
+  "$schema": ".exact/checkout/scripts/app.schema.json",
+  "name": "Creator Compiler",
+  "short_name": "Creator Compiler",
+  "id": "com.aianswer.creatorclub.native",
+  "start_url": "/",
+  "display": "standalone",
+  "icons": [
+    {
+      "src": "assets/icon.png",
+      "sizes": "1024x1024",
+      "type": "image/png"
+    }
+  ],
+  "app": {
+    "id": "com.aianswer.creatorclub.native",
+    "name": "Creator Compiler"
+  }
+}

@@ -1,0 +1,9 @@
+// Creator Compiler's brand (docs/brand): the vermilion tile and its cream ink.
+// Everything else is left to AppKit: window, sidebar, type and dark mode.
+forma brand
+
+theme
+  AccentColor = #DE5738
+  brand.fill = #DE5738  scheme=fixed
+  brand.ink = #FFF9EE  scheme=fixed
+  lane.ground = light-dark(#FFF9EE, #2A2724)

@@ -1,0 +1,59 @@
+size 1280x800
+// The studio's service is answered here, so these run without Creator Compiler (CLUB_URL left unset): the
+// installed app's port answers as something else, so the shell settles on the dev service's.
+answer fetch "http://127.0.0.1:4194/api/ready" with 200 { "application": "Something else" }
+answer fetch "http://127.0.0.1:4184/api/ready" with 200 { "application": "Creator Compiler" }
+answer fetch "http://127.0.0.1:4184/api/club/workspaces" with 200 { "current": "north", "workspaces": [{ "slug": "north", "name": "Northlight Studio", "handle": "@northlight" }] }
+answer fetch "http://127.0.0.1:4184/api/club/videos" with 200 [{ "id": "v1", "number": 1, "title": "Every AI editor for 30 days", "stage": "ideas", "order": 0, "planning": { "research": true, "package": false, "outline": false } }, { "id": "v2", "number": 2, "title": "Put off for later", "stage": "ideas", "order": 1, "hidden": "later" }, { "id": "v3", "number": 3, "title": "My editing timeline", "stage": "editing", "order": 0 }]
+answer fetch "http://127.0.0.1:4184/api/club/channel/research" with 200 [{ "id": "t1", "kind": "link", "url": "https://github.com/expo/exact", "title": "Exact", "meta": { }, "createdAt": "2026-11-24T10:00:00.000Z" }, { "id": "t2", "kind": "note", "text": "# Audience notes\n\nLighting questions.", "meta": { }, "createdAt": "2026-11-24T11:00:00.000Z" }]
+
+test "the board shows each lane with the live cards, hidden ideas left out"
+  clock data
+  expect text "title-videos" == "Videos"
+  expect text "channel-videos" == "Northlight Studio"
+  expect text "count-ideas" == "1"
+  expect text "count-editing" == "1"
+  expect text "count-published" == "0"
+  expect tree has "card-v1"
+  expect tree missing "card-v2"
+  expect tree has "card-v3"
+
+test "Research lists the channel's cards, newest first"
+  tap "tab-research"
+  clock data
+  clock settle
+  expect text "title-research" == "Research"
+  expect state research.0.title == "Audience notes"
+  expect state research.0.detail == "Note · Lighting questions."
+  expect state research.1.detail == "Link · github.com"
+
+test "a card dragged to another lane is saved through the move API"
+  answer fetch "http://127.0.0.1:4184/api/club/videos/v1/move" with 200 { "id": "v1" }
+  clock data
+  tap "grip-v1" drag to "list-planning"
+  clock data
+  clock settle
+  expect state moved.ok == true
+  expect tree missing "move-error"
+
+test "a refused move says why"
+  answer fetch "http://127.0.0.1:4184/api/club/videos/v1/move" with 404 { "error": "That video is gone." }
+  clock data
+  tap "grip-v1" drag to "list-planning"
+  clock data
+  clock settle
+  expect text "move-error" == "That video is gone."
+
+test "a card opens the editor in a web view"
+  clock data
+  tap "card-v3"
+  clock data
+  clock settle
+  expect text "title-video" == "My editing timeline"
+  expect tree has "editor"
+
+test "with the studio not running, the window says so"
+  answer fetch "http://127.0.0.1:4184/api/ready" with 503 { "error": "starting" }
+  clock data
+  expect tree has "down-videos"
+  expect tree missing "board"
