@@ -261,7 +261,7 @@ function SketchSlide({video,sketch,plan,hasScenes,onTitle,onNext}:{video:Video;s
    {points.length<MAX_POINTS&&<button type="button" className="sk-add" onClick={()=>addPoint(points.length)}><Icon name="add" size={14}/>Add a point</button>}
    </Section>
    <div className="sk-next">
-    <Button variant="primary" onClick={onNext}>{hasScenes?'Open the script':'Write the script'}<Icon name="next" size={16}/></Button>
+    <Button variant="primary" onClick={onNext}>{hasScenes?'Open the script':'Write the script'}</Button>
     {!hasScenes&&<span className="sk-next-p">{points.length} {points.length===1?'point becomes a scene':'points become scenes'}</span>}
    </div>
   </div>

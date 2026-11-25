@@ -81,7 +81,7 @@ export function Foot({video,tab,facts,onTab,next}:{video:Video;tab:VideoTab;fact
    {/* Why it cannot go yet (or what is still missing) is said beside Continue, so nobody has to hover to find out. */}
    {next?.reason&&<span id="ws-foot-why" className="ws-why small muted">{next.reason}</span>}
    {next&&(()=>{
-    const button=<button type="button" className={cn('btn',next.primary&&!next.disabled&&'primary')} title={`${next.label} · ⌘↵`} disabled={next.disabled} aria-describedby={next.reason?'ws-foot-why':undefined} onClick={next.run}>{next.label}<Icon name="forward" size={15}/></button>;
+    const button=<button type="button" className={cn('btn',next.primary&&!next.disabled&&'primary')} title={`${next.label} · ⌘↵`} disabled={next.disabled} aria-describedby={next.reason?'ws-foot-why':undefined} onClick={next.run}>{next.label}</button>;
     // On a narrow window the line beside it would run into the steps, so there the reason is on hover too.
     return next.reason?<Tooltip text={next.reason} side="top"><span className="ws-next">{button}</span></Tooltip>:button;
    })()}

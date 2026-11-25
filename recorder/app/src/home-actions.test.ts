@@ -16,7 +16,7 @@ test('returning users can continue the most recently edited project and search o
  const ui=await mountUI(createElement(Home,{projects,loading:false,onNew:()=>{},onQuick:()=>{},onImportMedia:()=>{},onImport:()=>{},onOpen:id=>opened.push(id),onDuplicate:()=>{},onDelete:()=>{},onRecovered:async()=>{},onError:()=>{},onTrash:()=>{}}));
  try{
   const resume=ui.container.querySelector<HTMLButtonElement>('button[aria-label="Continue editing Product walkthrough"]');assert.ok(resume);await act(async()=>resume.click());assert.deepEqual(opened,['latest']);
-  assert.match(ui.container.querySelector('h1')?.textContent??'',/Your projects/);
+  assert.match(ui.container.querySelector('h1')?.textContent??'',/Pick up where you left off/);
   const search=ui.container.querySelector<HTMLInputElement>('[aria-label="Search projects"]')!;
   await act(async()=>{Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value')!.set!.call(search,'First');search.dispatchEvent(new Event('input',{bubbles:true}));});
   const first=ui.container.querySelector<HTMLButtonElement>('button[aria-label="Open First draft"]');assert.ok(first);await act(async()=>first.click());assert.deepEqual(opened,['latest','older']);

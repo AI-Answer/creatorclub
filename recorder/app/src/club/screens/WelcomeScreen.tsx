@@ -231,8 +231,8 @@ export function WelcomeScreen({navigate,initialStep}:{navigate(route:Route,optio
    {scan&&shown<3&&<span className="welcome-aside" role="status">Searching YouTube for your topics in the background. It never holds you up.</span>}
    <span className="grow"/>
    {shown<3
-    ?<Button variant={allowed?'primary':'secondary'} disabled={!allowed} onClick={next}>Continue<Icon name="forward" size={15}/></Button>
-    :<Button onClick={home}>Go to Video board<Icon name="forward" size={15}/></Button>}
+    ?<Button variant={allowed?'primary':'secondary'} disabled={!allowed} onClick={next}>Continue</Button>
+    :<Button onClick={home}>Go to Video board</Button>}
   </div></div>
  </div>;
 }
